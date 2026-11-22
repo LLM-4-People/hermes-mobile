@@ -38,6 +38,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     private MobilePush.Target delivery;
     private AlertDialog notice;
     private String displayedSurface;
+    private String handledDelivery;
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
@@ -55,7 +56,9 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         files = new PublishedFiles(this);
         gate = new ProfileGate(this);
         gate.setOnForget(id -> MobilePush.forget(this, id));
+        handledDelivery = state == null ? null : state.getString("handled_delivery");
         delivery = MobilePush.target(this, getIntent());
+        if (delivery != null && key(delivery).equals(handledDelivery)) delivery = null;
         unlock();
     }
 
@@ -63,6 +66,17 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         super.onSaveInstanceState(outState);
         // The activity has no public view state. Discard framework dialog and view text too.
         outState.clear();
+        if (handledDelivery != null) outState.putString("handled_delivery", handledDelivery);
+    }
+
+    private static String key(MobilePush.Target target) {
+        return target.profileId + "/" + target.eventId;
+    }
+
+    private void handled(MobilePush.Target target) {
+        handledDelivery = key(target);
+        setIntent(new Intent(this, MainActivity.class));
+        delivery = null;
     }
 
     private void unlock() {
@@ -86,8 +100,10 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             threads.inbox();
         }
         MobilePush.Target target = delivery;
-        delivery = null;
-        if (target != null && unlocked.id.equals(target.profileId)) resolve(unlocked, target);
+        if (target != null) {
+            handled(target);
+            if (unlocked.id.equals(target.profileId)) resolve(unlocked, target);
+        }
     }
 
     private void resolve(Account owner, MobilePush.Target target) {
@@ -121,6 +137,10 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     }
 
     private void dismissOverlays() {
+        if (notice != null) notice.dismiss();
+        notice = null;
+        if (files != null) files.dismiss();
+        if (threads != null) threads.dismissDialogs();
         ArtifactDesk.dismiss(this);
         if (panels != null) panels.close();
         if (push != null) push.lock();
@@ -133,7 +153,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         if (incoming == null) return;
         delivery = incoming;
         if (account != null && account.id.equals(incoming.profileId)) {
-            delivery = null;
+            handled(incoming);
             resolve(account, incoming);
         } else {
             lock();
@@ -252,7 +272,6 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     }
 
     private void clearWorkspace() {
-        if (notice != null) notice.dismiss();
         dismissOverlays();
         if (files != null) files.lock();
         if (threads != null) {

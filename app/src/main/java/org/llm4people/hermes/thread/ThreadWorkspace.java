@@ -73,6 +73,7 @@ public final class ThreadWorkspace implements AutoCloseable {
     }
 
     public View view() { return container; }
+    public void dismissDialogs() { if (screen != null) screen.dismiss(); }
     public String sessionId() { return session; }
     public String remoteSessionId() { return remoteSession; }
     public JSONArray messages() { return messages; }
