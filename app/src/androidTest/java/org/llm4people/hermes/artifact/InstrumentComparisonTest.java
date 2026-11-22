@@ -135,6 +135,20 @@ public final class InstrumentComparisonTest extends TestCase {
         assertFalse(changes.get(0).before().equals(changes.get(0).after()));
     }
 
+    public void testOneSidedSectionTextNamesDirectionAndReplacementKeepsBothValues() throws Exception {
+        String note = "À confirmer avant la livraison";
+        WorkspaceLayout blank = page(SECTION);
+        WorkspaceLayout added = page(SECTION.replace("\"actions\"", "\"note\":\"" + note + "\",\"actions\""));
+        WorkspaceLayout edited = page(SECTION.replace("\"actions\"", "\"note\":\"Confirmé\",\"actions\""));
+        assertEquals(List.of(new InstrumentChanges.Change("Outils", "Texte ajouté", null, note)),
+                InstrumentChanges.between(blank, added));
+        assertEquals(List.of(new InstrumentChanges.Change("Outils", "Texte retiré", note, null)),
+                InstrumentChanges.between(added, blank));
+        assertEquals(List.of(new InstrumentChanges.Change("Outils", "Texte", note, "Confirmé")),
+                InstrumentChanges.between(added, edited));
+        assertTrue(InstrumentChanges.between(blank, blank).isEmpty());
+    }
+
     public void testFieldComparisonKeepsOptionBoundariesAndSideIdentityForRendering() throws Exception {
         WorkspaceLayout original = page(form(FIELD));
         WorkspaceLayout added = page(form(FIELD + "," + CHOICE));

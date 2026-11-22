@@ -88,7 +88,10 @@ final class InstrumentChanges {
             case "value" -> changed(changes, group, "Valeur affichée", WorkspaceBlocks.sourceLabel(old.source),
                     WorkspaceBlocks.sourceLabel(next.source));
             case "section" -> {
-                changed(changes, group, "Texte", old.note, next.note);
+                String label = "Texte";
+                if (old.note.isEmpty()) label = "Texte ajouté";
+                else if (next.note.isEmpty()) label = "Texte retiré";
+                changed(changes, group, label, old.note, next.note);
                 for (String id : next.actions) if (!old.actions.contains(id))
                     changes.add(new Change(group, "Action ajoutée", null, WorkspaceLayout.ACTIONS.get(id)));
                 for (String id : old.actions) if (!next.actions.contains(id))
