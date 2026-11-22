@@ -107,35 +107,37 @@ public class PromptCardTest extends InstrumentationTestCase {
         JSONObject prompt = new JSONObject().put("kind", "clarify").put("prompt_id", "layout")
                 .put("execution_generation", 3).put("question", "Comment préparer la réunion ?")
                 .put("choices", new JSONArray().put(choice));
-        ThreadViews[] ui = new ThreadViews[1];
-        PromptCard[] card = new PromptCard[1];
         runTestOnUiThread(() -> {
-            ui[0] = new ThreadViews(activity);
-            ui[0].chat("Brouillon", ignored -> {}, () -> {}, () -> {}, () -> {});
+            ThreadViews ui = new ThreadViews(activity);
+            ui.chat("Brouillon", ignored -> {}, () -> {}, () -> {}, () -> {});
             FrameLayout window = new FrameLayout(activity);
-            window.addView(ui[0].root, new FrameLayout.LayoutParams(Ui.dp(activity, 320), Ui.dp(activity, 200)));
+            int width = Ui.dp(activity, 320);
+            int height = Ui.dp(activity, 200);
+            window.addView(ui.root, new FrameLayout.LayoutParams(width, height));
             activity.setContentView(window);
-            card[0] = new PromptCard(ui[0], prompt, answers::add, () -> {});
-            ui[0].list.addFooterView(card[0], null, true);
-            ui[0].list.setSelectionFromTop(ui[0].list.getCount() - 1, 0);
-        });
-        getInstrumentation().waitForIdleSync();
-        runTestOnUiThread(() -> {
-            TextView option = (TextView) find(card[0], choice);
-            assertTrue(option.getLineCount() > 1);
+            PromptCard card = new PromptCard(ui, prompt, answers::add, () -> {});
+            ui.list.addFooterView(card, null, true);
+            ui.list.setSelectionFromTop(ui.list.getCount() - 1, 0);
+            window.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY));
+            window.layout(0, 0, width, height);
+            TextView option = (TextView) find(card, choice);
+            assertTrue("Choice lines=" + option.getLineCount() + " width=" + option.getWidth()
+                    + " card=" + card.getWidth() + " list=" + ui.list.getWidth() + "x" + ui.list.getHeight()
+                    + " rows=" + ui.list.getChildCount(), option.getLineCount() > 1);
             assertEquals(choice.length(), option.getLayout().getLineEnd(option.getLineCount() - 1));
             assertEquals(0, option.getLayout().getEllipsisCount(option.getLineCount() - 1));
             assertTrue(option.getHeight() >= Ui.dp(activity, 48));
             assertTrue(option.isClickable());
-            View title = find(card[0], "Comment préparer la réunion ?");
+            View title = find(card, "Comment préparer la réunion ?");
             assertTrue(title.isAccessibilityHeading());
-            View skip = find(card[0], "Passer la question");
+            View skip = find(card, "Passer la question");
             assertTrue(skip.isClickable());
-            for (int i = 0; i < 24; i++) ui[0].list.scrollListBy(Ui.dp(activity, 36));
+            for (int i = 0; i < 24; i++) ui.list.scrollListBy(Ui.dp(activity, 36));
             Rect visible = new Rect();
             assertTrue("Last action must be reachable by scrolling", skip.getGlobalVisibleRect(visible));
-            assertTrue(visible.height() >= Ui.dp(activity, 48));
-            assertEquals("Brouillon", ui[0].draft());
+            assertTrue("Visible action height=" + visible.height(), visible.height() >= Ui.dp(activity, 48));
+            assertEquals("Brouillon", ui.draft());
             assertTrue(answers.isEmpty());
         });
     }
