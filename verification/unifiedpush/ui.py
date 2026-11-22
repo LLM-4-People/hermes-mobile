@@ -92,17 +92,17 @@ class Screen:
             self.scroll(root)
             return None
 
-        self.tap_node(eventually("editor for " + label, find)[0])
-        self.type(value)
+        eventually("editor for " + label, find)
+        self.type(label, value)
         if "mInputShown=true" in self.device.shell("dumpsys", "input_method"):
             self.device.shell("input", "keyevent", "BACK")
 
-    def type(self, value):
+    def type(self, label, value):
         if not re.fullmatch(r"[A-Za-z0-9_:/.-]+", value):
             raise ValueError("Unexpected characters in synthetic test input")
         path = self.editor_jar.removesuffix(".jar") + ".txt"
         try:
-            self.device.run("shell", "sh", "-c", f"'umask 077 && cat > {path}'", data=value.encode())
+            self.device.run("shell", "sh", "-c", f"'umask 077 && cat > {path}'", data=(label + "\n" + value).encode())
             result = self.device.shell(
                 "uiautomator",
                 "runtest",
@@ -150,8 +150,9 @@ def distributor(ui, apk, endpoint):
         ui.tap("More options")
         ui.tap("Settings")
         ui.tap("Default server")
-        ui.tap("Service URL")
-        ui.type(endpoint)
+        url_field = NTFY + ":id/default_server_dialog_url"
+        ui.wait(url_field)
+        ui.type(url_field, endpoint)
         if "mInputShown=true" in d.shell("dumpsys", "input_method"):
             d.shell("input", "keyevent", "BACK")
         ui.tap("Save")
