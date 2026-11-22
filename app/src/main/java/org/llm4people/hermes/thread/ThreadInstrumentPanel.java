@@ -179,6 +179,7 @@ final class ThreadInstrumentPanel {
         displayed = pin;
         comparing = compare;
         if (!reuse) buildSheet(pin);
+        else refreshValues();
         updateControls();
         viewport.open(sheet);
         screen.refreshInstrumentRows();
@@ -252,15 +253,22 @@ final class ThreadInstrumentPanel {
         for (Form cached : forms) if (pin.sameSource(cached.pin)) form = cached;
         if (form == null) {
             form = new Form(pin);
+            visibleForm = form;
             form.view = InstrumentPreview.render(activity, pin.pageJson, rendererHost(form));
+        } else {
+            visibleForm = form;
+            refreshValues();
         }
         forms.remove(form);
         forms.add(form);
         if (forms.size() > 2) forms.remove(0);
         if (form.view.getParent() instanceof ViewGroup oldParent) oldParent.removeView(form.view);
-        visibleForm = form;
         heading.setText(pin.title);
         content.addView(form.view);
+    }
+
+    private void refreshValues() {
+        if (visibleForm != null) ArtifactDesk.refreshBindings(visibleForm.view, rendererHost(visibleForm));
     }
 
     private ImageButton icon(int drawable, int description) {
@@ -396,7 +404,8 @@ final class ThreadInstrumentPanel {
                 if (active()) { close(); actions.stageDraft(text); }
             }
             @Override public String workspaceValue(String source) {
-                return current() && (form.pin.sameSource(pinned()) || present(form.pin)) ? actions.workspaceValue(source) : "";
+                return current() && visibleForm == form && (form.pin.sameSource(pinned()) || present(form.pin))
+                        ? actions.workspaceValue(source) : "";
             }
             @Override public void onLayoutChanged() { if (active()) actions.onLayoutChanged(); }
             @Override public void threadSlots(List<String> order) {}
