@@ -1,3 +1,7 @@
 <network-security-config>
     <base-config cleartextTrafficPermitted="false" />
+    <!-- API 37+ otherwise inserts its own cleartext-enabled localhost policy. -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="false">localhost</domain>
+    </domain-config>
 </network-security-config>
