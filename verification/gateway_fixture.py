@@ -34,7 +34,7 @@ def unused_loopback_port():
 
 
 class Gateway:
-    def __init__(self, root, source, provider_url):
+    def __init__(self, root, source, provider_url, *, extra_providers=None):
         from hermes_cli.config_defaults import DEFAULT_CONFIG
         from tests.fakes.fake_llm_provider import write_hermes_home
 
@@ -50,6 +50,10 @@ class Gateway:
         home = root / "home"
         runtime = home / ".hermes"
         home.mkdir(parents=True, mode=0o700)
+        providers = {
+            "custom": {"request_timeout_seconds": 10, "stale_timeout_seconds": 5},
+            **(extra_providers or {}),
+        }
         write_hermes_home(
             runtime,
             provider_url,
@@ -60,7 +64,7 @@ class Gateway:
                 "memory:\n  memory_enabled: false\n  user_profile_enabled: false\n"
                 f"terminal:\n  backend: local\n  cwd: {json.dumps(str(self.workspace))}\n"
                 "platform_toolsets:\n  api_server: [file]\n"
-                "providers:\n  custom:\n    request_timeout_seconds: 10\n    stale_timeout_seconds: 5\n"
+                f"providers: {json.dumps(providers)}\n"
             ),
         )
         with (runtime / ".env").open("a", encoding="utf-8") as config:

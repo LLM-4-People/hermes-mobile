@@ -11,6 +11,12 @@ import tempfile
 import time
 
 from gateway_fixture import Gateway, PINNED_REVISION, check_source
+from route_checks import (
+    ALTERNATE_MODEL,
+    ALTERNATE_REPLY,
+    configured_provider,
+    verify_routes,
+)
 
 
 CHAT_REPLY = "La conversation est prête."
@@ -53,7 +59,9 @@ def await_completion(gateway, run_id):
     raise TimeoutError("Run did not reach a terminal state")
 
 
-def send(gateway, prompt, title, answer, *, options, expected_output=20):
+def send(
+    gateway, prompt, title, answer, *, options, expected_output=20, expected_input=90
+):
     session = gateway.request(
         "/api/sessions", method="POST", body={"title": title}, expected=201
     )["session"]
@@ -98,7 +106,10 @@ def send(gateway, prompt, title, answer, *, options, expected_output=20):
         )
     info = gateway.request(f"/api/sessions/{session_id}")["session"]
     check(
-        info["output_tokens"] == expected_output and info["cache_read_tokens"] == 10,
+        info["output_tokens"] == expected_output
+        and info["input_tokens"] == expected_input
+        and info["cache_read_tokens"] == 10
+        and info["cache_write_tokens"] == 0,
         f"Session accounting: {info}",
     )
     return session_id, run_id, body, headers
@@ -135,7 +146,7 @@ def check_reminder(gateway):
     gateway.request(path, expected=404)
 
 
-def verify(gateway, provider):
+def verify(gateway, provider, alternate, require_controls):
     gateway.request("/api/sessions", bearer=False, expected=401)
     caps = gateway.request("/v1/capabilities")
     check(
@@ -161,6 +172,7 @@ def verify(gateway, provider):
         CODE_REPLY,
         options=options,
         expected_output=30,
+        expected_input=190,
     )
     check(
         (gateway.workspace / "carre.py").read_text() == CODE_CONTENT,
@@ -201,13 +213,23 @@ def verify(gateway, provider):
         len(provider.main_requests()) == original_count, "Replay invoked provider again"
     )
     return {
+        **verify_routes(
+            gateway,
+            chat[0],
+            provider,
+            alternate,
+            CHAT_REPLY,
+            await_completion,
+            require_controls,
+        ),
         "authenticated": True,
         "unauthenticated_status": 401,
         "model": options["model"],
         "provider": options["provider"],
         "reminder_crud": True,
         "threads": 2,
-        "provider_calls": original_count,
+        "provider_calls": len(provider.main_requests())
+        + len(alternate.main_requests()),
         "restart_replays": 2,
         "idempotency_conflict_status": 409,
         "cache_read_tokens_per_turn": 10,
@@ -226,6 +248,11 @@ def main():
     )
     parser.add_argument(
         "--revision", default=PINNED_REVISION, help="Full Git commit of the checkout"
+    )
+    parser.add_argument(
+        "--require-tool-controls",
+        action="store_true",
+        help="Fail when the gateway cannot enforce per-run tool restrictions",
     )
     parser.add_argument(
         "--device-command",
@@ -264,12 +291,19 @@ def main():
             reply = CODE_REPLY if "Python" in str(prompt) else CHAT_REPLY
         return Text(reply, cached_tokens=10)
 
+    alternate_key = secrets.token_urlsafe(32)
     with (
         tempfile.TemporaryDirectory(prefix="hm-api-") as root,
         FakeLLMServer(response) as provider,
+        FakeLLMServer(default_text=ALTERNATE_REPLY, api_key=alternate_key) as alternate,
     ):
-        with Gateway(Path(root) / "primary", source, provider.base_url) as primary:
-            report = verify(primary, provider)
+        with Gateway(
+            Path(root) / "primary",
+            source,
+            provider.base_url,
+            extra_providers=configured_provider(alternate, alternate_key),
+        ) as primary:
+            report = verify(primary, provider, alternate, args.require_tool_controls)
             with Gateway(
                 Path(root) / "secondary", source, provider.base_url
             ) as secondary:
@@ -295,6 +329,8 @@ def main():
                             **os.environ,
                             "HERMES_TEST_ENDPOINT": primary.endpoint,
                             "HERMES_TEST_BEARER": primary.key,
+                            "HERMES_TEST_ALT_PROVIDER": report["alternate_provider"],
+                            "HERMES_TEST_ALT_MODEL": ALTERNATE_MODEL,
                             "HERMES_TEST_SECOND_ENDPOINT": secondary.endpoint,
                             "HERMES_TEST_SECOND_BEARER": secondary.key,
                         },
