@@ -35,7 +35,10 @@ public final class NearbyGuide extends LinearLayout {
             .withZone(ZoneOffset.UTC);
     private final Actions actions;
     private State state;
-    private boolean wide;
+    private boolean wide, renderedWide;
+    private PlaceCompass chart;
+    private Button more;
+    private final java.util.ArrayList<Venue> venues = new java.util.ArrayList<>();
 
     public NearbyGuide(Context context, Actions actions) {
         super(context);
@@ -55,9 +58,20 @@ public final class NearbyGuide extends LinearLayout {
     }
 
     public void bind(State next) {
+        boolean sameResult = state != null && state.phase == Phase.READY && next.phase == Phase.READY
+                && next.result == state.result && chart != null && wide == renderedWide;
+        state = next;
+        if (sameResult) {
+            if (chart != null) chart.setSelectedIndex(next.selected);
+            updateVenues();
+            return;
+        }
+        renderedWide = wide;
+        chart = null;
+        more = null;
+        venues.clear();
         View focused = findFocus();
         Object focusKey = focused == null ? null : focused.getTag();
-        state = next;
         removeAllViews();
         addView(Ui.divider(getContext()));
         TextView heading = text("Restaurants dans la zone", 24, R.color.ink);
@@ -114,62 +128,69 @@ public final class NearbyGuide extends LinearLayout {
             layout.addView(overview);
             layout.addView(rows);
         }
-        PlaceCompass compass = new PlaceCompass(getContext(), result, s.latitude, s.longitude,
+        chart = new PlaceCompass(getContext(), result, s.latitude, s.longitude,
                 s.selected, index -> actions.select(index, false));
-        compass.setTag("places-compass");
-        overview.addView(compass, new LayoutParams(-1, dp(wide ? 185 : 136)));
-        TextView caption = text("À vol d’oiseau depuis le centre · nord en haut", 13, R.color.muted);
+        chart.setTag("places-compass");
+        overview.addView(chart, new LayoutParams(-1, dp(wide ? 185 : 136)));
+        TextView caption = text("Distances approximatives à vol d’oiseau depuis le centre", 13, R.color.muted);
         Ui.pad(caption, 0, 3);
         overview.addView(caption);
         List<NearbyResult.Place> places = result.places;
-        for (int i = 0; i < places.size(); i++) {
-            if (s.all || i < 2 || i == s.selected) venue(rows, places.get(i), i, s);
+        for (int i = 0; i < places.size(); i++) venues.add(new Venue(rows, places.get(i), i));
+        if (places.size() > 2) {
+            more = action("", "places-list", clicked -> actions.list(!state.all));
+            rows.addView(more);
         }
-        if (places.size() > 2) rows.addView(action(s.all ? "Réduire la liste" : "Afficher les " + count + " adresses",
-                "places-list", clicked -> actions.list(!s.all)));
+        updateVenues();
         provenance(s);
     }
 
-    private void venue(LinearLayout rows, NearbyResult.Place place, int index, State s) {
-        boolean selected = index == s.selected, expanded = selected && s.details;
-        LinearLayout group = Ui.column(getContext());
-        if (selected) {
-            GradientDrawable tint = new GradientDrawable();
+    private void updateVenues() {
+        for (Venue row : venues) row.update();
+        if (more != null) more.setText(state.all ? "Réduire la liste" : "Afficher les " + venues.size() + " adresses");
+    }
+
+    private final class Venue {
+        final int index;
+        final NearbyResult.Place place;
+        final LinearLayout group, top, detail;
+        final TextView name;
+        final View divider;
+        final GradientDrawable tint = new GradientDrawable();
+
+        Venue(LinearLayout rows, NearbyResult.Place place, int index) {
+            this.index = index;
+            this.place = place;
+            group = Ui.column(getContext());
             tint.setColor(getContext().getColor(R.color.accent_surface));
             tint.setCornerRadius(dp(7));
-            group.setBackground(tint);
-        }
-        Ui.pad(group, 8, 2);
-        LinearLayout top = Ui.row(getContext());
-        top.setBaselineAligned(false);
-        top.setMinimumHeight(dp(48));
-        top.setTag("places-row-" + place.id);
-        top.setFocusable(true);
-        top.setSelected(selected);
-        android.util.TypedValue appearance = new android.util.TypedValue();
-        getContext().getTheme().resolveAttribute(android.R.attr.selectableItemBackground, appearance, true);
-        top.setForeground(getContext().getDrawable(appearance.resourceId));
-        TextView name = text(place.name, selected ? 18 : 16, R.color.ink);
-        name.setTypeface(Typeface.create(Typeface.DEFAULT, selected ? 650 : 500, false));
-        TextView dist = text(distance(place.distanceMeters), 15, R.color.accent);
-        dist.setPaddingRelative(dp(8), 0, 0, 0);
-        dist.setTypeface(Typeface.create(Typeface.DEFAULT, 600, false));
-        top.addView(name, new LayoutParams(0,-2,1));
-        top.addView(dist);
-        String description = place.name + ", " + distance(place.distanceMeters) + " du centre. "
-                + (expanded ? "Replier les détails" : "Afficher les détails");
-        top.setContentDescription(description);
-        top.setAccessibilityDelegate(new AccessibilityDelegate() {
-            @Override public void onInitializeAccessibilityNodeInfo(View view, android.view.accessibility.AccessibilityNodeInfo info) {
-                super.onInitializeAccessibilityNodeInfo(view, info);
-                info.setClassName(Button.class.getName());
-            }
-        });
-        top.setOnClickListener(v -> actions.select(index, true));
-        group.addView(top);
-        if (expanded) {
-            if (!place.cuisine.isEmpty()) group.addView(text(place.cuisine, 15, R.color.ink));
-            if (!place.address.isEmpty()) group.addView(text(place.address, 15, R.color.ink));
+            Ui.pad(group, 8, 2);
+            top = Ui.row(getContext());
+            top.setBaselineAligned(false);
+            top.setMinimumHeight(dp(48));
+            top.setTag("places-row-" + place.id);
+            top.setFocusable(true);
+            android.util.TypedValue appearance = new android.util.TypedValue();
+            getContext().getTheme().resolveAttribute(android.R.attr.selectableItemBackground, appearance, true);
+            top.setForeground(getContext().getDrawable(appearance.resourceId));
+            name = text(place.name, 16, R.color.ink);
+            TextView dist = text(distance(place.distanceMeters), 15, R.color.accent);
+            dist.setPaddingRelative(dp(8), 0, 0, 0);
+            dist.setTypeface(Typeface.create(Typeface.DEFAULT, 600, false));
+            top.addView(name, new LayoutParams(0,-2,1));
+            top.addView(dist);
+            top.setAccessibilityDelegate(new AccessibilityDelegate() {
+                @Override public void onInitializeAccessibilityNodeInfo(View view, android.view.accessibility.AccessibilityNodeInfo info) {
+                    super.onInitializeAccessibilityNodeInfo(view, info);
+                    info.setClassName(Button.class.getName());
+                }
+            });
+            top.setOnClickListener(v -> actions.select(index, true));
+            group.addView(top);
+            detail = Ui.column(getContext());
+            group.addView(detail);
+            if (!place.cuisine.isEmpty()) detail.addView(text(place.cuisine, 15, R.color.ink));
+            if (!place.address.isEmpty()) detail.addView(text(place.address, 15, R.color.ink));
             LinearLayout links = new LinearLayout(getContext());
             // Text buttons stack when font scaling leaves insufficient width.
             boolean row = getResources().getConfiguration().fontScale <= 1.2f;
@@ -179,15 +200,30 @@ public final class NearbyGuide extends LinearLayout {
             source.setContentDescription("Fiche OpenStreetMap de " + place.name);
             links.addView(map, row ? new LayoutParams(0, -2, 1.1f) : new LayoutParams(-1, -2));
             links.addView(source, row ? new LayoutParams(0, -2, 1) : new LayoutParams(-1, -2));
-            group.addView(links);
+            detail.addView(links);
+            rows.addView(group);
+            divider = Ui.divider(getContext());
+            rows.addView(divider);
         }
-        rows.addView(group);
-        if (!selected) rows.addView(Ui.divider(getContext()));
+
+        void update() {
+            boolean selected = index == state.selected, expanded = selected && state.details;
+            boolean visible = state.all || index < 2 || selected;
+            group.setVisibility(visible ? VISIBLE : GONE);
+            group.setBackground(selected ? tint : null);
+            divider.setVisibility(visible && !selected ? VISIBLE : GONE);
+            top.setSelected(selected);
+            top.setContentDescription(place.name + ", environ " + distance(place.distanceMeters) + " du centre. "
+                    + (expanded ? "Replier les détails" : "Afficher les détails"));
+            name.setTextSize(selected ? 18 : 16);
+            name.setTypeface(Typeface.create(Typeface.DEFAULT, selected ? 650 : 500, false));
+            detail.setVisibility(expanded ? VISIBLE : GONE);
+        }
     }
 
     private void provenance(State s) {
-        String precision = "Zone arrondie à 0,01°";
-        if (Double.isFinite(s.accuracy) && s.accuracy > 0) precision += " · précision annoncée ± " + distance((int)Math.ceil(s.accuracy));
+        String precision = "Centre de la zone approximative";
+        if (Double.isFinite(s.accuracy) && s.accuracy > 0) precision += " · incertitude annoncée ± " + distance((int)Math.ceil(s.accuracy));
         TextView note = text(precision + "\n" + s.result.attribution + " · données du "
                 + DATE.format(Instant.parse(s.result.sourceDate)), 13, R.color.muted);
         note.setPaddingRelative(0, dp(6), 0, dp(4));

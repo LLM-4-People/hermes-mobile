@@ -387,6 +387,11 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         owner.pendingResponse(open);
     }
 
+    @Override public void nearbyGuide(ThreadWorkspace origin, String threadId, String runId, JSONObject assistantRow, JSONObject approvedArea) {
+        if (origin != null && threads == origin && threadId != null && threadId.equals(origin.sessionId()))
+            origin.acceptNearbyGuide(threadId, runId, assistantRow, approvedArea);
+    }
+
     @Override public void selected(String sessionId, String title) {
         if (shell == null) return;
         String threadTitle = sessionId == null ? null : title == null || title.trim().isEmpty() ? "Discussion" : title;

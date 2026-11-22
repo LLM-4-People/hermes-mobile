@@ -101,6 +101,11 @@ public final class ThreadWorkspace implements AutoCloseable {
     public void setInstrumentHost(ArtifactDesk.Host actions) { instrumentHost = actions; }
     public boolean closeInstrument() { return instruments != null && instruments.close(); }
 
+    public void acceptNearbyGuide(String threadId, String runId, JSONObject assistantRow, JSONObject approvedArea) {
+        if (!closed && instruments != null && threadId != null && threadId.equals(session))
+            instruments.admittedGuide(runId, assistantRow, approvedArea);
+    }
+
     void refreshInstruments() {
         if (instruments != null) {
             instruments.proposals(messages);
