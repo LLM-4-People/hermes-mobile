@@ -3,11 +3,16 @@ package org.llm4people.hermes.artifact;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
+import android.content.res.ColorStateList;
+import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.RippleDrawable;
 import android.text.InputFilter;
 import android.text.InputType;
 import android.view.View;
 import android.view.inputmethod.EditorInfo;
 import android.widget.ArrayAdapter;
+import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.Spinner;
@@ -26,12 +31,16 @@ final class WorkspaceForms {
         Context c = group.getContext();
         Map<String,Supplier<String>> answers = new LinkedHashMap<>();
         Map<String,View> controls = new LinkedHashMap<>();
-        group.addView(Ui.text(c, form.prompt, 16));
+        TextView prompt = Ui.text(c, form.prompt, 16);
+        prompt.setTextColor(c.getColor(R.color.muted));
+        prompt.setPadding(0, Ui.dp(c, 3), 0, 0);
+        group.addView(prompt);
         group.setSaveFromParentEnabled(false);
         group.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS);
         for (DraftForm.Field field : form.fields) {
             TextView label = Ui.text(c,field.label + (field.required ? "" : " (facultatif)"),15);
-            Ui.pad(label,0,6);
+            label.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+            label.setPadding(0, Ui.dp(c, 10), 0, Ui.dp(c, 4));
             group.addView(label);
             if (host == null) {
                 String hint = "choice".equals(field.kind) ? String.join(" · ",field.options) : "Votre réponse";
@@ -69,7 +78,7 @@ final class WorkspaceForms {
         error.setTextColor(c.getColor(R.color.danger));
         error.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         group.addView(error);
-        group.addView(Ui.button(c,"Préparer un brouillon…",v -> {
+        Button prepare = Ui.button(c,"Préparer un brouillon…",v -> {
             Map<String,String> values = new LinkedHashMap<>();
             for (Map.Entry<String,Supplier<String>> a : answers.entrySet()) values.put(a.getKey(),a.getValue().get());
             try {
@@ -81,7 +90,16 @@ final class WorkspaceForms {
                 error.setVisibility(View.VISIBLE);
                 controls.get(e.field.id).requestFocus();
             }
-        }));
+        });
+        prepare.setSingleLine(false);
+        GradientDrawable fill = new GradientDrawable();
+        fill.setColor(c.getColor(R.color.accent_surface));
+        fill.setCornerRadius(Ui.dp(c, 8));
+        prepare.setBackground(new RippleDrawable(ColorStateList.valueOf(c.getColor(R.color.line)), fill, null));
+        Ui.pad(prepare, 16, 8);
+        LinearLayout.LayoutParams place = new LinearLayout.LayoutParams(-2, -2);
+        place.topMargin = Ui.dp(c, 8);
+        group.addView(prepare, place);
     }
 
     static EditText editor(Context c, boolean multiline, int limit) {

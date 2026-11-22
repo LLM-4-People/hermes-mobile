@@ -133,6 +133,94 @@ public class ThreadSlotsTest extends InstrumentationTestCase {
         } finally { runTestOnUiThread(activity::finish); }
     }
 
+    public void testEmptyStartersFollowAvailableHeightAndDraftChangesSendState() throws Throwable {
+        Context context = getInstrumentation().getTargetContext();
+        Intent launch = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
+        Activity activity = getInstrumentation().startActivitySync(launch);
+        try {
+            runTestOnUiThread(() -> {
+                ThreadViews thread = new ThreadViews(activity);
+                thread.chat("", ignored -> {}, () -> fail("Unexpected send"), () -> {}, () -> {});
+                ThreadStarters starters = new ThreadStarters(thread.list, ignored -> {});
+                activity.setContentView(thread.root);
+                starters.show(true);
+                layout(thread.root, 320, 540);
+                assertTrue(thread.list.isStackFromBottom());
+                layout(thread.root, 320, 140);
+                assertFalse(thread.list.isStackFromBottom());
+                layout(thread.root, 320, 540);
+                assertTrue(thread.list.isStackFromBottom());
+                starters.show(false);
+                assertFalse(thread.list.isStackFromBottom());
+
+                TextView send = (TextView) find(thread.root, "Envoyer");
+                assertFalse(send.isEnabled());
+                int disabledInk = send.getCurrentTextColor();
+                thread.displayDraft("Une question");
+                assertTrue(send.isEnabled());
+                assertTrue(disabledInk != send.getCurrentTextColor());
+                thread.busy(true, true);
+                assertEquals(View.GONE, send.getVisibility());
+                assertTrue(find(thread.root, "Arrêter").isShown());
+                thread.busy(false, false);
+                assertTrue(send.isShown());
+                assertEquals("Une question", thread.draft());
+            });
+        } finally { runTestOnUiThread(activity::finish); }
+    }
+
+    public void testSendControlAndAdmissionTreatInvisibleDraftsIdentically() throws Throwable {
+        Context context = getInstrumentation().getTargetContext();
+        Intent launch = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
+        Activity activity = getInstrumentation().startActivitySync(launch);
+        try {
+            runTestOnUiThread(() -> {
+                ThreadViews view = new ThreadViews(activity);
+                AtomicInteger admissions = new AtomicInteger();
+                ThreadWorkspace.Host host = new ThreadWorkspace.Host() {
+                    public void selected(String id, String title) {}
+                    public void pendingChanged() {}
+                    public JSONObject options(String id) {
+                        admissions.incrementAndGet();
+                        return null; // Stop before network work.
+                    }
+                    public void timing(String id, long first, long elapsed, long tokens) {}
+                };
+                ThreadWorkspace page = new ThreadWorkspace(activity, null, null, host, view.voice);
+                page.screen = view;
+                page.journal = new ThreadJournal("discussion", "owner", null, ignored -> {});
+                try {
+                    ThreadRun run = new ThreadRun(page);
+                    view.chat("", ignored -> {}, run::send, () -> {}, () -> {});
+                    activity.setContentView(view.root);
+                    View send = find(view.root, "Envoyer");
+                    for (String blank : new String[]{"", " ", "\u00a0", "\u202f", "\u200b\ufe0f"}) {
+                        view.displayDraft(blank);
+                        assertFalse(send.isEnabled());
+                        view.busy(false, false);
+                        assertFalse(send.isEnabled());
+                        run.send();
+                    }
+                    assertEquals(0, admissions.get());
+                    String question = "\u00a0Déjà prêt\u202f? ✈️  ";
+                    view.displayDraft(question);
+                    assertEquals(question, view.draft());
+                    assertTrue(send.isEnabled());
+                    send.performClick();
+                    assertEquals(1, admissions.get());
+                    assertEquals(question, view.draft());
+                } finally { page.close(); }
+            });
+        } finally { runTestOnUiThread(activity::finish); }
+    }
+
+    private static void layout(View view, int width, int height) {
+        int w = Ui.dp(view.getContext(), width), h = Ui.dp(view.getContext(), height);
+        view.measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(h, View.MeasureSpec.EXACTLY));
+        view.layout(0, 0, w, h);
+    }
+
     private static View find(View view, String label) {
         ArrayList<View> matches = new ArrayList<>();
         view.findViewsWithText(matches, label, View.FIND_VIEWS_WITH_CONTENT_DESCRIPTION | View.FIND_VIEWS_WITH_TEXT);

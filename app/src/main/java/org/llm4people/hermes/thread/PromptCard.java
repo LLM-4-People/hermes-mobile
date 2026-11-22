@@ -1,10 +1,8 @@
 package org.llm4people.hermes.thread;
 
 import android.app.AlertDialog;
-import android.content.res.ColorStateList;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
-import android.graphics.drawable.RippleDrawable;
 import android.view.View;
 import android.widget.Button;
 import android.widget.LinearLayout;
@@ -35,7 +33,11 @@ final class PromptCard extends LinearLayout {
         Ui.pad(this, 18, 8);
         LinearLayout panel = Ui.column(ui.activity);
         Ui.pad(panel, 14, 12);
-        panel.setBackground(shape(R.color.surface, true));
+        GradientDrawable outline = new GradientDrawable();
+        outline.setCornerRadius(Ui.dp(ui.activity, 12));
+        outline.setColor(ui.activity.getColor(R.color.surface));
+        outline.setStroke(Ui.dp(ui.activity, 1), ui.activity.getColor(R.color.line));
+        panel.setBackground(outline);
         addView(panel);
         boolean question = RunPrompts.question(prompt);
         String heading = question ? ThreadData.string(prompt, "question") : "Autoriser cette action ?";
@@ -43,9 +45,10 @@ final class PromptCard extends LinearLayout {
         title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         title.setAccessibilityHeading(true);
         panel.addView(title);
-        actions = Ui.column(ui.activity);
+        actions = question ? Ui.column(ui.activity) : new ApprovalChoices(ui.activity);
         if (question) {
-            Button listen = button(panel, "", null, false);
+            Button listen = PromptButtons.add(panel, "", null, PromptButtons.Role.UTILITY);
+            PromptButtons.icon(listen, R.drawable.ic_prompt_listen);
             panel.addView(actions);
             this.question = new PromptQuestion(this, actions, prompt, listen, answer);
         } else {
@@ -56,7 +59,7 @@ final class PromptCard extends LinearLayout {
         status.setTextColor(ui.activity.getColor(R.color.muted));
         status.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         spaced(panel, status);
-        verify = button(panel, "Vérifier la demande", check, false);
+        verify = PromptButtons.add(panel, "Vérifier la demande", check, PromptButtons.Role.UTILITY);
         state(State.READY);
     }
 
@@ -90,7 +93,8 @@ final class PromptCard extends LinearLayout {
         if (described) {
             String details = approvalDetails(prompt);
             LinearLayout expanded = Ui.column(getContext());
-            Button more = button(panel, "Voir les détails", () -> {}, false);
+            Button more = PromptButtons.add(panel, "Voir les détails", null, PromptButtons.Role.UTILITY);
+            PromptButtons.icon(more, R.drawable.ic_prompt_disclosure);
             more.setOnClickListener(v -> {
                 boolean opening = expanded.getVisibility() == GONE;
                 if (opening && expanded.getChildCount() == 0) {
@@ -99,21 +103,27 @@ final class PromptCard extends LinearLayout {
                             ? details.substring(0, TranscriptPage.PAGE_CHARS) + "…" : details, 15);
                     exact.setTextIsSelectable(true);
                     expanded.addView(exact);
-                    if (over) button(expanded, "Lire tous les détails", () ->
+                    if (over) PromptButtons.add(expanded, "Lire tous les détails", () ->
                             ui.show(new AlertDialog.Builder(getContext()).setTitle("Détails de la demande")
                                     .setView(MessageText.reader(getContext(), details, false, true))
-                                    .setPositiveButton("Fermer", null)), false);
+                                    .setPositiveButton("Fermer", null)), PromptButtons.Role.UTILITY);
                 }
                 expanded.setVisibility(opening ? VISIBLE : GONE);
+                more.setActivated(opening);
                 more.setText(opening ? "Masquer les détails" : "Voir les détails");
             });
             expanded.setVisibility(GONE);
             panel.addView(expanded);
         }
         panel.addView(actions);
-        if (described && RunPrompts.permits(prompt, "once"))
-            button(actions, "Autoriser une fois", () -> answer.accept("once"), true);
-        if (RunPrompts.permits(prompt, "deny")) button(actions, "Refuser", () -> answer.accept("deny"), true);
+        if (described && RunPrompts.permits(prompt, "once")) {
+            Button allow = PromptButtons.add(actions, "Autoriser une fois", () -> answer.accept("once"), PromptButtons.Role.DECISION);
+            PromptButtons.icon(allow, R.drawable.ic_prompt_allow);
+        }
+        if (RunPrompts.permits(prompt, "deny")) {
+            Button deny = PromptButtons.add(actions, "Refuser", () -> answer.accept("deny"), PromptButtons.Role.DECISION);
+            PromptButtons.icon(deny, R.drawable.ic_prompt_deny);
+        }
     }
 
     private static String approvalDetails(JSONObject prompt) {
@@ -157,32 +167,7 @@ final class PromptCard extends LinearLayout {
         }
     }
 
-    private GradientDrawable shape(int fill, boolean border) {
-        GradientDrawable shape = new GradientDrawable();
-        shape.setCornerRadius(Ui.dp(getContext(), 12));
-        shape.setColor(getContext().getColor(fill));
-        if (border) shape.setStroke(Ui.dp(getContext(), 1), getContext().getColor(R.color.line));
-        return shape;
-    }
-
     boolean ready() { return state == State.READY; }
-
-    Button button(LinearLayout parent, String label, Runnable click, boolean tonal) {
-        Button button = Ui.button(getContext(), label, click == null ? null : v -> click.run());
-        button.setSingleLine(false);
-        button.setEllipsize(null);
-        button.setMinWidth(0);
-        Ui.pad(button, 12, 8);
-        button.setTextColor(new ColorStateList(new int[][]{
-                {-android.R.attr.state_enabled}, {}}, new int[]{
-                getContext().getColor(R.color.muted), getContext().getColor(R.color.accent)}));
-        if (tonal) {
-            button.setBackground(new RippleDrawable(ColorStateList.valueOf(getContext().getColor(R.color.line)),
-                    shape(R.color.accent_surface, false), null));
-        }
-        spaced(parent, button);
-        return button;
-    }
 
     void spaced(LinearLayout parent, View child) {
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, -2);

@@ -11,6 +11,9 @@ import android.view.View;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.inspector.WindowInspector;
 import android.widget.CheckBox;
+import android.widget.CheckedTextView;
+import android.widget.EditText;
+import android.widget.ListView;
 import android.widget.TextView;
 import java.io.File;
 import java.util.ArrayList;
@@ -18,6 +21,9 @@ import java.util.UUID;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.net.Exchange;
 import org.llm4people.hermes.net.HermesApi;
+import org.json.JSONArray;
+import org.json.JSONObject;
+import org.llm4people.hermes.panel.PickerWindow;
 import org.llm4people.hermes.panel.SessionPanel;
 
 @SuppressWarnings("deprecation")
@@ -90,6 +96,111 @@ public final class SessionSettingsStorageTest extends InstrumentationTestCase {
             original.delete();
             context.deleteSharedPreferences(name);
         }
+    }
+
+    public void testRejectedModelChoiceRestoresTheRadioAndCanBeRetriedThroughSearch() throws Throwable {
+        if (Build.VERSION.SDK_INT >= 29) exerciseModelPicker(null);
+    }
+
+    public void testSearchAndFilteredModelRemainReachableInBothCompactKeyboardViewports() throws Throwable {
+        if (Build.VERSION.SDK_INT < 29) return;
+        exerciseModelPicker(false);
+        exerciseModelPicker(true);
+    }
+
+    private void exerciseModelPicker(Boolean landscape) throws Throwable {
+        Context context = getInstrumentation().getTargetContext();
+        AccountIndexCommitTest.IndexContext storage = new AccountIndexCommitTest.IndexContext(context);
+        String features = "{\"features\":{}}";
+        String catalog = "{\"data\":[]}";
+        String name = landscape == null ? "vendor"
+                : String.join("\n", java.util.Collections.nCopies(20, "Atelier de recherche et de documentation"));
+        String providerLabel = name.equals("vendor") ? name : name + " · vendor";
+        JSONObject provider = new JSONObject().put("name", name).put("slug", "vendor")
+                .put("models", new JSONArray().put("Alpha").put("Beta"));
+        String routes = new JSONObject().put("providers", new JSONArray().put(provider)).toString();
+        try (Exchange server = new Exchange("200 OK", "", features, catalog, routes, features, catalog);
+             Account owner = new Account("model-test", "Profil", server.endpoint(), "test", storage.index,
+                     new byte[Account.KEY_BYTES])) {
+            owner.write("panel/options/thread", "{\"provider\":\"vendor\",\"model\":\"Alpha\"}");
+            Intent launch = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
+            Activity activity = getInstrumentation().startActivitySync(launch);
+            SessionPanel panel = new SessionPanel(activity, new HermesApi(server.endpoint(), "test"), owner);
+            try {
+                runTestOnUiThread(() -> {
+                    if (landscape == null) panel.show("thread", "thread");
+                    else PickerWindow.open(panel, landscape);
+                    View choice = matching(activity.getString(R.string.panel_route)).get(0);
+                    while (!choice.isClickable()) choice = (View) choice.getParent();
+                    assertTrue(choice.performClick());
+                });
+                CheckedTextView vendor = awaitChoice(providerLabel, 1);
+                runTestOnUiThread(() -> tapChoice(vendor));
+                CheckedTextView beta = awaitChoice("Beta", 2);
+                runTestOnUiThread(() -> {
+                    ListView list = (ListView) beta.getParent();
+                    if (landscape != null) PickerWindow.check(list, searchField(list), landscape, null);
+                    storage.failNext = true;
+                    tapChoice((CheckedTextView) list.getChildAt(1));
+                    assertEquals(0, list.getCheckedItemPosition());
+                    assertRadio((CheckedTextView) list.getChildAt(0), true);
+                    assertRadio((CheckedTextView) list.getChildAt(1), false);
+                    assertEquals(1, matching(activity.getString(R.string.panel_storage_error)).size());
+                    searchField(list).setText("Bet");
+                });
+                CheckedTextView filtered = awaitChoice("Beta", 1);
+                runTestOnUiThread(() -> {
+                    ListView list = (ListView) filtered.getParent();
+                    storage.failNext = true;
+                    tapChoice(filtered);
+                    assertEquals(ListView.INVALID_POSITION, list.getCheckedItemPosition());
+                    assertRadio(filtered, false);
+                    assertEquals("Alpha", SessionPanel.runOptions(context, owner, "thread").optString("model"));
+                    if (landscape == null) tapChoice((CheckedTextView) list.getChildAt(0));
+                    else PickerWindow.check(list, searchField(list), landscape, SessionSettingsStorageTest::tapChoice);
+                    assertEquals("Beta", SessionPanel.runOptions(context, owner, "thread").optString("model"));
+                });
+                assertTrue(server.observed().contains("/api/model/options?include_unconfigured=false"));
+            } finally {
+                runTestOnUiThread(() -> { panel.close(); activity.finish(); });
+            }
+        }
+    }
+
+    private static EditText searchField(ListView list) {
+        for (View view : list.getRootView().getFocusables(View.FOCUS_FORWARD))
+            if (view instanceof EditText field) return field;
+        throw new AssertionError("Missing model search field");
+    }
+
+    private CheckedTextView awaitChoice(String label, int count) throws Throwable {
+        long deadline = SystemClock.uptimeMillis() + 5000;
+        CheckedTextView[] found = {null};
+        do {
+            getInstrumentation().waitForIdleSync();
+            runTestOnUiThread(() -> {
+                for (View view : matching(label)) {
+                    if (view instanceof CheckedTextView option && option.getParent() instanceof ListView list
+                            && list.getCount() == count && list.getChildCount() == count) found[0] = option;
+                }
+            });
+            if (found[0] != null) return found[0];
+            SystemClock.sleep(20);
+        } while (SystemClock.uptimeMillis() < deadline);
+        throw new AssertionError("Missing laid-out model choice " + label);
+    }
+
+    private static void tapChoice(CheckedTextView row) {
+        ListView list = (ListView) row.getParent();
+        int position = list.getPositionForView(row);
+        assertTrue(list.performItemClick(row, position, list.getItemIdAtPosition(position)));
+    }
+
+    private static void assertRadio(CheckedTextView row, boolean checked) {
+        assertEquals(checked, row.isChecked());
+        AccessibilityNodeInfo node = row.createAccessibilityNodeInfo();
+        try { assertEquals(checked, node.isChecked()); }
+        finally { node.recycle(); }
     }
 
     private void rejected(String label, boolean committed, String error) {

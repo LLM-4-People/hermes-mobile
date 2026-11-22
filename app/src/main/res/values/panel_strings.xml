@@ -15,6 +15,7 @@
     <string name="panel_no_model">Aucun modèle disponible pour ce fournisseur.</string>
     <string name="panel_tools">Ensembles d’outils</string>
     <string name="panel_tools_defaults">Utiliser les outils du profil</string>
+    <string name="panel_tools_inherited_hint">Décochez pour choisir les ensembles.</string>
     <string name="panel_tools_readonly">Cette version de Hermes affiche les outils du profil. La sélection par discussion nécessite une mise à jour du serveur.</string>
     <string name="panel_tools_empty">Aucun ensemble d’outils actif sur ce profil.</string>
     <string name="panel_no_session">Ouvrez une discussion pour accéder à ses réglages et à ses statistiques.</string>

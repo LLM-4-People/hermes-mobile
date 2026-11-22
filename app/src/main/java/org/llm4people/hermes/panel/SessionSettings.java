@@ -1,13 +1,21 @@
 package org.llm4people.hermes.panel;
 
+import android.content.res.Configuration;
+import android.graphics.Typeface;
 import android.text.Editable;
 import android.text.TextWatcher;
+import android.view.Gravity;
 import android.view.View;
+import android.view.accessibility.AccessibilityNodeInfo;
+import android.view.inputmethod.EditorInfo;
 import android.widget.ArrayAdapter;
+import android.widget.Button;
 import android.widget.CheckBox;
+import android.widget.CheckedTextView;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ListView;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -18,12 +26,15 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 final class SessionSettings {
     private final SessionPanel panel;
     private final String id;
     private final String remoteId;
+    private final Supplier<Configuration> currentWindow;
     private JSONObject saved;
     private TextView saveError;
     private boolean individualTools;
@@ -42,8 +53,9 @@ final class SessionSettings {
         @Override public String toString() { return name.isEmpty() || name.equals(slug) ? slug : name + " · " + slug; }
     }
 
-    SessionSettings(SessionPanel panel, String id, String remoteId) {
+    SessionSettings(SessionPanel panel, String id, String remoteId, Supplier<Configuration> currentWindow) {
         this.panel = panel; this.id = id; this.remoteId = remoteId;
+        this.currentWindow = currentWindow;
     }
 
     void show() {
@@ -68,17 +80,38 @@ final class SessionSettings {
         }
         panel.note(box, panel.t(R.string.panel_session_scope));
         panel.section(box, R.string.panel_model);
-        String model = PanelData.text(saved, "model");
-        TextView selectedModel = panel.note(box, model.isEmpty() ? panel.t(R.string.panel_profile_default) :
-                PanelData.text(saved, "provider") + " · " + model);
-        panel.action(box, R.string.panel_route, this::pickProvider);
-        if (!model.isEmpty()) panel.action(box, R.string.panel_profile_default, () -> selectModel(selectedModel, "", ""));
+        modelSetting(box);
         panel.section(box, R.string.panel_tools);
         LinearLayout controls = Ui.column(panel.activity);
         box.addView(controls);
         loadTools(controls);
+        box.addView(Ui.divider(panel.activity));
         panel.action(box, R.string.panel_stats, () -> new UsagePanel(panel, id, remoteId, this::show).show());
         panel.action(box, R.string.panel_reminders, panel::showReminders);
+    }
+
+    private void modelSetting(LinearLayout box) {
+        String model = PanelData.text(saved, "model");
+        String current = model.isEmpty() ? panel.t(R.string.panel_profile_default)
+                : PanelData.text(saved, "provider") + " · " + model;
+        LinearLayout modelControls = Ui.column(panel.activity);
+        box.addView(modelControls);
+        View choice = panel.activity.getLayoutInflater().inflate(R.layout.discussion_model_setting, modelControls, false);
+        TextView value = choice.findViewById(R.id.discussion_model_value);
+        value.setText(current);
+        choice.setContentDescription(current + ". " + panel.t(R.string.panel_route));
+        choice.setAccessibilityDelegate(new View.AccessibilityDelegate() {
+            @Override public void onInitializeAccessibilityNodeInfo(View host, AccessibilityNodeInfo info) {
+                super.onInitializeAccessibilityNodeInfo(host, info);
+                info.setClassName(Button.class.getName());
+                info.setText(panel.t(R.string.panel_route));
+            }
+        });
+        choice.setOnClickListener(v -> pickProvider());
+        modelControls.addView(choice);
+        if (!model.isEmpty()) {
+            panel.action(modelControls, R.string.panel_profile_default, () -> selectModel(modelControls, "", ""));
+        }
     }
 
     private void pickProvider() {
@@ -93,15 +126,19 @@ final class SessionSettings {
                         if (!provider.slug.isEmpty() && row.optBoolean("authenticated", true))
                             providers.put(provider.slug, provider);
                     }
-                    picker(box, new ArrayList<>(providers.values()), this::pickModel);
+                    Provider current = providers.get(PanelData.text(saved, "provider"));
+                    picker(box, new ArrayList<>(providers.values()), current, this::pickModel);
                 }, this::pickProvider);
     }
 
     private void pickModel(Provider provider) {
-        LinearLayout box = panel.page("settings", R.string.panel_choose_model, this::pickProvider, false);
+        LinearLayout box = panel.page("settings", R.string.panel_choose_model, this::pickProvider, provider.models.isEmpty());
         panel.note(box, provider.toString());
         if (provider.models.isEmpty()) { panel.note(box, panel.t(R.string.panel_no_model)); return; }
-        picker(box, new ArrayList<>(provider.models), model -> selectModel(box, provider.slug, model));
+        LinearLayout feedback = Ui.column(panel.activity);
+        box.addView(feedback, 0);
+        String current = provider.slug.equals(PanelData.text(saved, "provider")) ? PanelData.text(saved, "model") : null;
+        picker(box, new ArrayList<>(provider.models), current, model -> selectModel(feedback, provider.slug, model));
     }
 
     private void selectModel(View anchor, String provider, String model) {
@@ -109,18 +146,42 @@ final class SessionSettings {
         if (save(anchor, options)) show();
     }
 
-    private <T> void picker(LinearLayout box, ArrayList<T> choices, Consumer<T> select) {
+    private <T> void picker(LinearLayout box, ArrayList<T> choices, T current, Consumer<T> select) {
         EditText search = new EditText(panel.activity);
         search.setSingleLine();
         search.setHint(R.string.panel_search);
-        box.addView(search);
+        search.setImeOptions(EditorInfo.IME_ACTION_SEARCH | EditorInfo.IME_FLAG_NO_EXTRACT_UI);
+        search.setMinHeight(Ui.dp(panel.activity, 48));
+        search.setTextColor(panel.activity.getColor(R.color.ink));
+        search.setHintTextColor(panel.activity.getColor(R.color.muted));
+        search.setBackgroundResource(R.drawable.profile_input);
+        Ui.pad(search, 12, 8);
+        LinearLayout.LayoutParams field = new LinearLayout.LayoutParams(-1, -2);
+        field.setMargins(0, Ui.dp(panel.activity, 8), 0, Ui.dp(panel.activity, 8));
+        ScrollView header = attachPickerControls(box, search, field);
         TextView empty = panel.note(box, panel.t(R.string.panel_empty_search));
         ListView list = new ListView(panel.activity);
-        ArrayAdapter<T> adapter = new ArrayAdapter<>(panel.activity, android.R.layout.simple_list_item_1,
+        list.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
+        ArrayAdapter<T> adapter = new ArrayAdapter<>(panel.activity, R.layout.discussion_setting_choice,
                 new ArrayList<>(choices));
         list.setAdapter(adapter);
+        restoreChoice(list, adapter.getPosition(current));
         list.setEmptyView(empty);
-        list.setOnItemClickListener((p, v, i, rowId) -> select.accept(adapter.getItem(i)));
+        BooleanSupplier currentPage = panel.currentPage();
+        list.setOnItemClickListener((p, v, i, rowId) -> {
+            select.accept(adapter.getItem(i));
+            // Both successful choices navigate away. A failed save leaves the picker open.
+            if (currentPage.getAsBoolean()) {
+                header.scrollTo(0, 0);
+                int committed = adapter.getPosition(current);
+                restoreChoice(list, committed);
+                // Native clicks update visible radio buttons immediately; setItemChecked defers layout.
+                int first = list.getFirstVisiblePosition();
+                for (int child = 0; child < list.getChildCount(); child++) {
+                    ((CheckedTextView) list.getChildAt(child)).setChecked(first + child == committed);
+                }
+            }
+        });
         box.addView(list, new LinearLayout.LayoutParams(-1, 0, 1));
         search.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
@@ -131,9 +192,49 @@ final class SessionSettings {
                 for (T choice : choices)
                     if (choice.toString().toLowerCase(java.util.Locale.ROOT).contains(needle)) adapter.add(choice);
                 adapter.notifyDataSetChanged();
+                restoreChoice(list, adapter.getPosition(current));
             }
             @Override public void afterTextChanged(Editable s) {}
         });
+    }
+
+    /** Keep long provider names scrollable while reserving space for search and a selectable result. */
+    private ScrollView attachPickerControls(LinearLayout page, EditText search, LinearLayout.LayoutParams field) {
+        LinearLayout context = Ui.column(panel.activity);
+        while (page.getChildCount() > 0) {
+            View detail = page.getChildAt(0);
+            page.removeViewAt(0);
+            context.addView(detail);
+        }
+        Configuration window = currentWindow.get();
+        if (window.orientation == Configuration.ORIENTATION_LANDSCAPE
+                && window.screenHeightDp <= 480 && window.screenWidthDp >= 480) {
+            ScrollView header = new ScrollView(panel.activity);
+            header.addView(context);
+            panel.splitPicker(page, header, search);
+            return header;
+        }
+        ScrollView header = new ScrollView(panel.activity) {
+            @Override protected void onMeasure(int widthSpec, int heightSpec) {
+                if (MeasureSpec.getMode(heightSpec) != MeasureSpec.UNSPECIFIED) {
+                    int available = MeasureSpec.getSize(heightSpec);
+                    search.measure(widthSpec, MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));
+                    int reserve = search.getMeasuredHeight() + field.topMargin + field.bottomMargin + Ui.dp(getContext(), 48);
+                    int limit = Math.max(0, Math.min(available / 2, available - reserve));
+                    heightSpec = MeasureSpec.makeMeasureSpec(limit, MeasureSpec.AT_MOST);
+                }
+                super.onMeasure(widthSpec, heightSpec);
+            }
+        };
+        header.addView(context);
+        page.addView(header, new LinearLayout.LayoutParams(-1, -2));
+        page.addView(search, field);
+        return header;
+    }
+
+    private void restoreChoice(ListView list, int committed) {
+        list.clearChoices();
+        if (committed >= 0) list.setItemChecked(committed, true);
     }
 
     private static Set<String> names(JSONArray array) {
@@ -172,6 +273,8 @@ final class SessionSettings {
         Set<String> checked = custom == null ? new LinkedHashSet<>(toolsets.keySet()) : names(custom);
         if (editable) {
             CheckBox defaults = toggle(box, panel.t(R.string.panel_tools_defaults), custom == null, true);
+            defaults.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+            if (custom == null) toolDetail(box, panel.t(R.string.panel_tools_inherited_hint));
             defaults.setOnClickListener(v -> {
                 boolean on = defaults.isChecked();
                 JSONObject next = withTools(on ? null : new JSONArray(toolsets.keySet()));
@@ -196,12 +299,21 @@ final class SessionSettings {
         if (toolsets.isEmpty()) panel.note(box, panel.t(R.string.panel_tools_empty));
         for (Map.Entry<String, Set<String>> item : toolsets.entrySet()) {
             String name = item.getKey();
+            box.addView(Ui.divider(panel.activity));
             CheckBox control = toggle(box, name, checked.contains(name), editable && custom != null);
             String members = String.join(", ", item.getValue());
             if (!members.isEmpty()) {
-                if (individualTools) box.addView(Ui.button(panel.activity, panel.t(R.string.panel_choose_tools, name),
-                        v -> editMembers(name)));
-                else panel.note(box, members);
+                if (individualTools) {
+                    Button choose = Ui.button(panel.activity, panel.t(R.string.panel_choose_tools, name), v -> editMembers(name));
+                    choose.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+                    choose.setSingleLine(false);
+                    choose.setCompoundDrawablesRelativeWithIntrinsicBounds(0, 0, R.drawable.ic_navigate_forward, 0);
+                    choose.setCompoundDrawableTintList(panel.activity.getColorStateList(R.color.accent));
+                    choose.setCompoundDrawablePadding(Ui.dp(panel.activity, 8));
+                    choose.setPaddingRelative(Ui.dp(panel.activity, 32), Ui.dp(panel.activity, 6),
+                            Ui.dp(panel.activity, 4), Ui.dp(panel.activity, 6));
+                    box.addView(choose);
+                } else toolDetail(box, members);
             }
             control.setOnClickListener(v -> {
                 Set<String> next = new LinkedHashSet<>(checked);
@@ -210,6 +322,12 @@ final class SessionSettings {
                 else control.setChecked(checked.contains(name));
             });
         }
+    }
+
+    private void toolDetail(LinearLayout box, String text) {
+        TextView detail = panel.note(box, text);
+        detail.setTextSize(14);
+        detail.setPaddingRelative(Ui.dp(panel.activity, 32), 0, 0, Ui.dp(panel.activity, 8));
     }
 
     private JSONObject withTools(JSONArray value) {
@@ -240,6 +358,10 @@ final class SessionSettings {
         CheckBox view = new CheckBox(panel.activity);
         view.setMinHeight(Ui.dp(panel.activity, 48));
         view.setText(label);
+        view.setTextSize(16);
+        view.setSingleLine(false);
+        view.setTextColor(panel.activity.getColor(enabled ? R.color.ink : R.color.muted));
+        view.setButtonTintList(panel.activity.getColorStateList(R.color.discussion_tool_check));
         view.setChecked(checked);
         view.setEnabled(enabled);
         box.addView(view);

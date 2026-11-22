@@ -238,13 +238,13 @@ final class ThreadInstrumentPanel {
                 updateControls();
             });
             LinearLayout.LayoutParams place = new LinearLayout.LayoutParams(-1, -2);
-            place.setMargins(Ui.dp(activity, 12), Ui.dp(activity, 4), Ui.dp(activity, 12), Ui.dp(activity, 4));
+            place.setMargins(Ui.dp(activity, 16), Ui.dp(activity, 6), Ui.dp(activity, 16), Ui.dp(activity, 6));
             body.addView(versions, place);
         }
         body.addView(content);
         display(comparing ? null : pin);
         controls = Ui.column(activity);
-        Ui.pad(controls, 16, 6);
+        Ui.pad(controls, 16, 8);
         body.addView(controls);
         scroll.addView(body);
         surface.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
@@ -347,9 +347,11 @@ final class ThreadInstrumentPanel {
     private Button control(int label, Runnable task) {
         long serial = document;
         Pin pin = displayed;
-        return action(controls, label, () -> {
+        Button button = action(controls, label, () -> {
             if (valid(pin, serial)) task.run();
         });
+        if (comparing) button.setGravity(Gravity.CENTER);
+        return button;
     }
 
     private void primary(int label, Runnable task) {

@@ -36,8 +36,10 @@ final class InstrumentVersions extends RadioGroup {
         super(c);
         setOrientation(LinearLayout.HORIZONTAL);
         setBaselineAligned(false);
-        Ui.pad(this, 2, 2);
-        setBackground(shape(c, c.getColor(R.color.paper)));
+        Ui.pad(this, 3, 3);
+        GradientDrawable track = shape(c, c.getColor(R.color.surface));
+        track.setStroke(Ui.dp(c, 1), c.getColor(R.color.line));
+        setBackground(track);
         for (Side side : Side.values()) {
             RadioButton tab = new RadioButton(c);
             tab.setId(View.generateViewId());
@@ -58,7 +60,7 @@ final class InstrumentVersions extends RadioGroup {
             surface.addState(new int[0], shape(c, Color.TRANSPARENT));
             tab.setBackground(new RippleDrawable(ColorStateList.valueOf(c.getColor(R.color.line)), surface, null));
             tab.setTextColor(new ColorStateList(new int[][]{selected, new int[0]},
-                    new int[]{c.getColor(side.ink), c.getColor(R.color.ink)}));
+                    new int[]{c.getColor(side.ink), c.getColor(R.color.muted)}));
             addView(tab, new RadioGroup.LayoutParams(0, -2, 1));
             if (side == Side.CHANGES) check(tab.getId());
         }

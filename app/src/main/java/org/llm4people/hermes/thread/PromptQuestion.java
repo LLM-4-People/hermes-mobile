@@ -1,6 +1,11 @@
 package org.llm4people.hermes.thread;
 
+import android.graphics.Typeface;
 import android.text.Editable;
+import android.text.SpannableString;
+import android.text.Spanned;
+import android.text.style.RelativeSizeSpan;
+import android.text.style.TypefaceSpan;
 import android.text.InputType;
 import android.text.TextWatcher;
 import android.view.Gravity;
@@ -13,6 +18,7 @@ import android.widget.LinearLayout;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.VisibleText;
 import org.llm4people.hermes.voice.VoiceDrafts;
@@ -44,9 +50,10 @@ final class PromptQuestion {
             if (VisibleText.isBlank(value)) continue;
             String label = recommended ? value + " (choix recommandé)" : choice;
             displayed.add(label);
+            CharSequence caption = recommended ? recommendedCaption(label, value.length() + 1) : label;
             if (multiple) {
                 CheckBox option = new CheckBox(card.getContext());
-                option.setText(label);
+                option.setText(caption);
                 option.setTag(value);
                 option.setTextSize(16);
                 option.setMinHeight(Ui.dp(card.getContext(), 48));
@@ -54,15 +61,14 @@ final class PromptQuestion {
                 checks.add(option);
                 card.spaced(actions, option);
             } else {
-                Button option = card.button(actions, label, () -> answer.accept(value), true);
-                option.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+                PromptButtons.add(actions, caption, () -> answer.accept(value), PromptButtons.Role.CHOICE);
             }
         }
         card.ui.reader.bindQuestion(listen, ThreadData.string(prompt, "question"), displayed);
         LinearLayout custom = Ui.column(card.getContext());
         if (!displayed.isEmpty()) {
             custom.setVisibility(View.GONE);
-            Button write = card.button(actions, "Écrire une réponse", () -> {}, false);
+            Button write = PromptButtons.add(actions, "Écrire une réponse", null, PromptButtons.Role.UTILITY);
             write.setOnClickListener(v -> {
                 write.setVisibility(View.GONE);
                 custom.setVisibility(View.VISIBLE);
@@ -80,9 +86,16 @@ final class PromptQuestion {
         input.setImeOptions(EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING | EditorInfo.IME_FLAG_NO_EXTRACT_UI);
         input.setMaxLines(4);
         input.setMinimumHeight(Ui.dp(card.getContext(), 48));
+        input.setTextSize(17);
+        input.setTextColor(card.getContext().getColor(R.color.ink));
+        input.setHintTextColor(card.getContext().getColor(R.color.muted));
+        input.setBackground(null);
+        Ui.pad(input, 12, 9);
         voice = card.ui.voice.bind(input);
         LinearLayout entry = Ui.row(card.getContext());
         entry.setGravity(Gravity.BOTTOM);
+        entry.setAddStatesFromChildren(true);
+        entry.setBackgroundResource(R.drawable.profile_input);
         entry.addView(input, new LinearLayout.LayoutParams(0, -2, 1));
         entry.addView(voice.button);
         card.spaced(custom, entry);
@@ -92,12 +105,19 @@ final class PromptQuestion {
             public void afterTextChanged(Editable s) { updateSubmit(); }
             public void onTextChanged(CharSequence s, int start, int before, int count) {}
         });
-        submit = card.button(multiple ? actions : custom, "Envoyer la réponse", () -> {
+        submit = PromptButtons.add(multiple ? actions : custom, "Envoyer la réponse", () -> {
             String value = selectedAnswer();
             if (!value.isEmpty()) answer.accept(value);
-        }, true);
+        }, PromptButtons.Role.SUBMIT);
         // Only canonical clarify prompts reach this view. Their API defines an empty answer as skip.
-        card.button(actions, "Passer la question", () -> answer.accept(""), false);
+        PromptButtons.add(actions, "Passer la question", () -> answer.accept(""), PromptButtons.Role.SKIP);
+    }
+
+    private static CharSequence recommendedCaption(String label, int noteStart) {
+        SpannableString caption = new SpannableString(label);
+        caption.setSpan(new RelativeSizeSpan(0.875f), noteStart, label.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        caption.setSpan(new TypefaceSpan(Typeface.DEFAULT), noteStart, label.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        return caption;
     }
 
     private String selectedAnswer() {

@@ -10,8 +10,30 @@ import java.util.Map;
 final class InstrumentChanges {
     record Change(String section, String label, String before, String after) {}
 
+    record FieldDescription(String name, String requirement, List<String> options) {
+        String text() { return name + "\n" + requirement + (options.isEmpty() ? "" : "\n" + lines(options)); }
+    }
+    record Detail(Change change, FieldDescription beforeField, FieldDescription afterField) {}
+
+    private static final class Report {
+        final List<Detail> details = new ArrayList<>();
+        void add(Change change) { details.add(new Detail(change, null, null)); }
+        void field(String group, FieldDescription before, FieldDescription after) {
+            String label = before == null ? "Champ ajouté" : after == null ? "Champ retiré" : "Champ modifié";
+            Change change = new Change(group, label, before == null ? null : before.text(),
+                    after == null ? null : after.text());
+            details.add(new Detail(change, before, after));
+        }
+    }
+
     static List<Change> between(WorkspaceLayout old, WorkspaceLayout next) {
         List<Change> changes = new ArrayList<>();
+        for (Detail detail : details(old, next)) changes.add(detail.change());
+        return changes;
+    }
+
+    static List<Detail> details(WorkspaceLayout old, WorkspaceLayout next) {
+        Report changes = new Report();
         changed(changes, "", "Écran", old.surface, next.surface);
         changed(changes, "", "Titre", old.title, next.title);
         changed(changes, "", "Apparence", appearance(old.theme), appearance(next.theme));
@@ -55,10 +77,10 @@ final class InstrumentChanges {
                 changes.add(new Change(oldLabels.get(i), "Rubrique retirée", describe(block), null));
             }
         }
-        return changes;
+        return changes.details;
     }
 
-    private static void blockChanges(List<Change> changes, String group, WorkspaceLayout.Block old,
+    private static void blockChanges(Report changes, String group, WorkspaceLayout.Block old,
                                      WorkspaceLayout.Block next) {
         changed(changes, group, "Titre de la rubrique", old.title, next.title);
         switch (next.type) {
@@ -66,7 +88,10 @@ final class InstrumentChanges {
             case "value" -> changed(changes, group, "Valeur affichée", WorkspaceBlocks.sourceLabel(old.source),
                     WorkspaceBlocks.sourceLabel(next.source));
             case "section" -> {
-                changed(changes, group, "Texte", old.note, next.note);
+                String label = "Texte";
+                if (old.note.isEmpty()) label = "Texte ajouté";
+                else if (next.note.isEmpty()) label = "Texte retiré";
+                changed(changes, group, label, old.note, next.note);
                 for (String id : next.actions) if (!old.actions.contains(id))
                     changes.add(new Change(group, "Action ajoutée", null, WorkspaceLayout.ACTIONS.get(id)));
                 for (String id : old.actions) if (!next.actions.contains(id))
@@ -81,13 +106,12 @@ final class InstrumentChanges {
                 Map<String,String> nextNames = InstrumentIdentity.fieldLabels(next.fields);
                 for (DraftForm.Field field : next.fields) {
                     DraftForm.Field oldField = prior.get(field.id);
-                    if (oldField == null) changes.add(new Change(group, "Champ ajouté",
-                            null, describe(field, nextNames.get(field.id))));
-                    else if (!InstrumentIdentity.sameField(oldField, field)) changes.add(new Change(group, "Champ modifié",
-                            describe(oldField, oldNames.get(field.id)), describe(field, nextNames.get(field.id))));
+                    if (oldField == null) changes.field(group, null, describe(field, nextNames.get(field.id)));
+                    else if (!InstrumentIdentity.sameField(oldField, field)) changes.field(group,
+                            describe(oldField, oldNames.get(field.id)), describe(field, nextNames.get(field.id)));
                 }
                 for (DraftForm.Field field : old.fields) if (!nextNames.containsKey(field.id))
-                    changes.add(new Change(group, "Champ retiré", describe(field, oldNames.get(field.id)), null));
+                    changes.field(group, describe(field, oldNames.get(field.id)), null);
                 order(changes, group, "Ordre des champs", new ArrayList<>(oldNames.keySet()),
                         new ArrayList<>(nextNames.keySet()), nextNames);
             }
@@ -95,7 +119,7 @@ final class InstrumentChanges {
     }
 
     // Compare only surviving IDs; inserting a new item ahead of others is not a reorder.
-    private static void order(List<Change> changes, String group, String what, List<String> old,
+    private static void order(Report changes, String group, String what, List<String> old,
                               List<String> next, Map<String,String> labels) {
         List<String> before = new ArrayList<>(old), after = new ArrayList<>(next);
         before.retainAll(next);
@@ -106,10 +130,9 @@ final class InstrumentChanges {
         changes.add(new Change(group, what, lines(before), lines(after)));
     }
 
-    private static String describe(DraftForm.Field field, String name) {
+    private static FieldDescription describe(DraftForm.Field field, String name) {
         String details = InstrumentIdentity.kind(field.kind) + (field.required ? " obligatoire" : " facultatif");
-        if (!field.options.isEmpty()) details += "\n" + lines(field.options);
-        return name + "\n" + details;
+        return new FieldDescription(name, details, field.options);
     }
 
     static String describe(WorkspaceLayout.Block block) {
@@ -118,7 +141,7 @@ final class InstrumentChanges {
             case "form" -> {
                 items.add(block.prompt);
                 Map<String,String> names = InstrumentIdentity.fieldLabels(block.fields);
-                for (DraftForm.Field field : block.fields) items.add(describe(field, names.get(field.id)));
+                for (DraftForm.Field field : block.fields) items.add(describe(field, names.get(field.id)).text());
             }
             case "section" -> {
                 if (!block.note.isEmpty()) items.add(block.note);
@@ -130,7 +153,7 @@ final class InstrumentChanges {
         return String.join("\n\n", items);
     }
 
-    private static void changed(List<Change> changes, String group, String what, String old, String next) {
+    private static void changed(Report changes, String group, String what, String old, String next) {
         if (!old.equals(next)) changes.add(new Change(group, what, old.isEmpty() ? null : old,
                 next.isEmpty() ? null : next));
     }
