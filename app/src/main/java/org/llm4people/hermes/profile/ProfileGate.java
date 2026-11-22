@@ -113,7 +113,8 @@ public final class ProfileGate {
         EditText key = screen.field("Clé d’accès Hermes", "", SECRET, 8192, true);
         screen.section(activity.getString(R.string.profile_lock_section), activity.getString(R.string.profile_lock_detail));
         EditText phrase = screen.field("Phrase secrète du profil",
-                activity.getString(R.string.profile_passphrase_hint, MIN_PASSPHRASE), SECRET, 512, true);
+                activity.getResources().getQuantityString(R.plurals.profile_passphrase_hint, MIN_PASSPHRASE, MIN_PASSPHRASE),
+                SECRET, 512, true);
         EditText repeat = screen.field("Confirmer la phrase secrète", "", SECRET, 512, true);
         screen.action("Enregistrer le profil", true, view -> {
             if (busy) return;
@@ -140,7 +141,8 @@ public final class ProfileGate {
                 boolean shortPhrase = pass.length < MIN_PASSPHRASE;
                 Arrays.fill(pass, '\0');
                 invalid(shortPhrase ? phrase : repeat, shortPhrase
-                        ? activity.getString(R.string.profile_passphrase_too_short, MIN_PASSPHRASE)
+                        ? activity.getResources().getQuantityString(R.plurals.profile_passphrase_too_short,
+                                MIN_PASSPHRASE, MIN_PASSPHRASE)
                         : "Les phrases secrètes doivent correspondre.");
                 return;
             }
