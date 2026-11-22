@@ -7,6 +7,7 @@
     <string name="instrument_pin">Épingler à cette discussion</string>
     <string name="instrument_compare">Comparer les versions</string>
     <string name="instrument_adopt">Adopter cette version</string>
+    <string name="instrument_adopt_proposed">Adopter la version proposée</string>
     <string name="instrument_keep">Garder la version épinglée</string>
     <string name="instrument_undo">Annuler la modification</string>
     <string name="instrument_return">Revenir à la discussion</string>

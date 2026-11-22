@@ -226,6 +226,7 @@ final class ThreadInstrumentPanel {
                 ArtifactDesk.dismiss(activity);
                 display(side == InstrumentVersions.Side.CHANGES ? null
                         : side == InstrumentVersions.Side.PINNED ? pinned() : pin);
+                updateControls();
             });
             LinearLayout.LayoutParams place = new LinearLayout.LayoutParams(-1, -2);
             place.setMargins(Ui.dp(activity, 12), Ui.dp(activity, 4), Ui.dp(activity, 12), Ui.dp(activity, 4));
@@ -287,8 +288,15 @@ final class ThreadInstrumentPanel {
         boolean installed = pin.sameSource(saved);
         if (comparing && saved != null) {
             scope.setVisibility(View.GONE);
-            primary(R.string.instrument_adopt, () -> mutate(() -> store.pin(expected, pin, workspace.messages())));
-            control(R.string.instrument_keep, () -> show(saved, false));
+            Runnable adopt = () -> mutate(() -> store.pin(expected, pin, workspace.messages()));
+            Runnable keep = () -> show(saved, false);
+            if (visibleForm != null && saved.sameSource(visibleForm.pin)) {
+                primary(R.string.instrument_keep, keep);
+                control(R.string.instrument_adopt_proposed, adopt);
+            } else {
+                primary(R.string.instrument_adopt, adopt);
+                control(R.string.instrument_keep, keep);
+            }
             return;
         }
         scope.setVisibility(View.VISIBLE);
