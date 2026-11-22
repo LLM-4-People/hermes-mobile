@@ -302,15 +302,22 @@ final class ThreadViews {
         remedy.setOnClickListener(action == null ? null : v -> action.run());
     }
 
-    void show(AlertDialog.Builder builder) {
+    AlertDialog show(AlertDialog.Builder builder) {
         dismiss();
         dialog = Ui.secureDialog(builder);
+        return dialog;
+    }
+
+    void dismiss(AlertDialog expected) {
+        if (expected != null && dialog == expected) {
+            dialog.dismiss();
+            dialog = null;
+        }
     }
 
     void dismiss() {
         voice.cancel();
-        if (dialog != null) dialog.dismiss();
-        dialog = null;
+        dismiss(dialog);
     }
 
     private final class Cell extends LinearLayout {

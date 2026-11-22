@@ -63,6 +63,7 @@ final class ThreadInstrumentPanel {
 
     private LinearLayout controls;
     private PopupMenu menu;
+    private AlertDialog sourceReader;
 
     ThreadInstrumentPanel(ThreadWorkspace workspace, ThreadInstruments store, ArtifactDesk.Host actions) {
         this.workspace = workspace;
@@ -195,7 +196,7 @@ final class ThreadInstrumentPanel {
 
     private void buildSheet(Pin pin) {
         long activeDocument = ++document;
-        dismissReview();
+        dismissDocumentDialogs();
         visibleForm = null;
         changes = null;
         LinearLayout surface = Ui.column(activity);
@@ -231,7 +232,7 @@ final class ThreadInstrumentPanel {
             changes = InstrumentPreview.compare(activity, pinned().pageJson, pin.pageJson);
             InstrumentVersions versions = new InstrumentVersions(activity, side -> {
                 if (!valid(pin, activeDocument)) return;
-                dismissReview();
+                dismissDocumentDialogs();
                 display(side == InstrumentVersions.Side.CHANGES ? null
                         : side == InstrumentVersions.Side.PINNED ? pinned() : pin);
                 updateControls();
@@ -277,7 +278,9 @@ final class ThreadInstrumentPanel {
         content.addView(form.view);
     }
 
-    private void dismissReview() {
+    private void dismissDocumentDialogs() {
+        screen.dismiss(sourceReader);
+        sourceReader = null;
         if (visibleForm != null) ArtifactDesk.dismissReviews(activity, visibleForm.host);
     }
 
@@ -405,7 +408,7 @@ final class ThreadInstrumentPanel {
         menu = popup;
         Pin source = visibleForm == null ? pin : visibleForm.pin;
         popup.getMenu().add(t(R.string.instrument_source)).setOnMenuItemClickListener(item -> {
-            if (valid(pin, activeDocument)) screen.show(new AlertDialog.Builder(activity)
+            if (valid(pin, activeDocument)) sourceReader = screen.show(new AlertDialog.Builder(activity)
                     .setTitle(t(R.string.instrument_source_title, source.title, source.messageId))
                     .setView(MessageText.reader(activity, source.pageJson, false, true))
                     .setPositiveButton(t(R.string.instrument_close), null));
@@ -457,7 +460,7 @@ final class ThreadInstrumentPanel {
     boolean close() {
         if (!viewport.open()) return false;
         if (menu != null) { menu.dismiss(); menu = null; }
-        dismissReview();
+        dismissDocumentDialogs();
         viewport.close();
         dock();
         screen.refreshInstrumentRows();
@@ -477,7 +480,7 @@ final class ThreadInstrumentPanel {
     }
 
     void retire() {
-        dismissReview();
+        dismissDocumentDialogs();
         if (menu != null) { menu.dismiss(); menu = null; }
         byMessage.clear();
         discard();
