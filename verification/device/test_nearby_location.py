@@ -1,7 +1,7 @@
 import unittest
 import xml.etree.ElementTree as ET
 
-from verification.nearby_journey import CONSENT, USE_LOCATION, choose_consent
+from verification.nearby_journey import CONSENT, USE_LOCATION, choose_consent, open_consent
 from verification.nearby_location import (COARSE, answer_android_location, app_activity_stopped,
                                           location_access, public_city_fix)
 from verification.nearby_restaurants import enter_discussion
@@ -247,6 +247,39 @@ class NearbyLocationTest(unittest.TestCase):
 
         choose_consent(StubScreen(), USE_LOCATION)
         self.assertEqual(taps, [USE_LOCATION, USE_LOCATION])
+
+    def test_open_consent_retries_send_tap_until_disclosure_dialog_appears(self):
+        composer = ET.fromstring(
+            '<node text="" content-desc="" resource-id="" class="android.widget.FrameLayout" '
+            'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[0,0][320,640]">'
+            '<node text="Envoyer" content-desc="" resource-id="" class="android.widget.Button" '
+            'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[220,560][310,620]"/>'
+            '</node>'
+        )
+        consent_dialog = ET.fromstring(
+            '<node text="" content-desc="" resource-id="" class="android.widget.FrameLayout" '
+            'package="org.llm4people.hermes" window-id="3" scrollable="false" bounds="[0,80][320,600]">'
+            f'<node text="{CONSENT}" content-desc="" resource-id="" class="android.widget.TextView" '
+            'package="org.llm4people.hermes" window-id="3" scrollable="false" bounds="[16,100][304,160]"/>'
+            '<node text="Hermes reçoit la zone et peut la transmettre à OpenStreetMap." content-desc="" resource-id="" '
+            'class="android.widget.TextView" package="org.llm4people.hermes" window-id="3" scrollable="false" bounds="[16,170][304,260]"/>'
+            '</node>'
+        )
+        trees = iter([composer, composer, consent_dialog])
+        taps = []
+
+        class StubScreen(Screen):
+            def __init__(self):
+                pass
+
+            def hierarchy(self):
+                return next(trees)
+
+            def tap_node(self, node):
+                taps.append(node.get("text"))
+
+        open_consent(StubScreen())
+        self.assertEqual(taps, ["Envoyer", "Envoyer"])
 
     def test_app_activity_stopped_waits_for_stopped_state_and_ignores_test_package(self):
         paused_dump = (
