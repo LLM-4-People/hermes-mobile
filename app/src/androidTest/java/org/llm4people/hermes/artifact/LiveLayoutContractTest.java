@@ -1,6 +1,7 @@
 package org.llm4people.hermes.artifact;
 
 import android.test.InstrumentationTestCase;
+import org.llm4people.hermes.VisibleText;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -65,12 +66,12 @@ public class LiveLayoutContractTest extends InstrumentationTestCase {
             answers.put("file","src/Parser.java");
             answers.put("notes",blank);
             assertFalse(DraftForm.compose(form,answers).contains("Notes"));
-            assertTrue(DraftForm.blank(blank));
+            assertTrue(VisibleText.isBlank(blank));
         }
         String visible = "\u00a0résumé\u2003\u2708\ufe0f字" + supplemental;
         answers.put("file",visible);
         assertTrue(DraftForm.compose(form,answers).contains(visible));
-        assertFalse(DraftForm.blank(visible));
+        assertFalse(VisibleText.isBlank(visible));
     }
 
     private void assertMissing(WorkspaceLayout.Block form, Map<String,String> answers, String id) {
