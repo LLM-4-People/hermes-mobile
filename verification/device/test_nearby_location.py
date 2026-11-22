@@ -1,7 +1,7 @@
 import unittest
 import xml.etree.ElementTree as ET
 
-from verification.nearby_journey import CONSENT, USE_LOCATION, choose_consent, open_consent
+from verification.nearby_journey import CONSENT, USE_LOCATION, choose_consent, lock, open_consent
 from verification.nearby_location import (COARSE, answer_android_location, app_activity_stopped,
                                           location_access, public_city_fix)
 from verification.nearby_restaurants import enter_discussion
@@ -294,6 +294,58 @@ class NearbyLocationTest(unittest.TestCase):
             ("shell", ("input", "keyevent", "BACK")),
             ("tap", "Envoyer"),
             ("tap", "Envoyer"),
+        ])
+
+    def test_lock_scrolls_compact_overflow_menu_to_verrouiller_le_profil(self):
+        thread_screen = ET.fromstring(
+            '<node text="" content-desc="" resource-id="" class="android.widget.FrameLayout" '
+            'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[0,0][320,640]">'
+            '<node text="" content-desc="Autres actions" resource-id="" class="android.widget.ImageButton" '
+            'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[260,24][316,72]"/>'
+            '</node>'
+        )
+        menu_top = ET.fromstring(
+            '<node text="" content-desc="" resource-id="" class="android.widget.ListView" '
+            'package="org.llm4people.hermes" window-id="4" scrollable="true" bounds="[80,48][316,580]">'
+            '<node text="Joindre une image…" content-desc="" resource-id="" class="android.widget.TextView" '
+            'package="org.llm4people.hermes" window-id="4" scrollable="false" bounds="[88,60][308,108]"/>'
+            '</node>'
+        )
+        menu_bottom = ET.fromstring(
+            '<node text="" content-desc="" resource-id="" class="android.widget.ListView" '
+            'package="org.llm4people.hermes" window-id="4" scrollable="true" bounds="[80,48][316,580]">'
+            '<node text="Verrouiller le profil" content-desc="" resource-id="" class="android.widget.TextView" '
+            'package="org.llm4people.hermes" window-id="4" scrollable="false" bounds="[88,500][308,548]"/>'
+            '</node>'
+        )
+        profile_chooser = ET.fromstring(
+            '<node text="" content-desc="" resource-id="" class="android.widget.FrameLayout" '
+            'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[0,0][320,640]">'
+            '<node text="Choisir un profil" content-desc="" resource-id="" class="android.widget.TextView" '
+            'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[16,40][304,96]"/>'
+            '</node>'
+        )
+        trees = iter([thread_screen, menu_top, menu_top, menu_bottom, profile_chooser])
+        actions = []
+
+        class StubScreen(Screen):
+            def __init__(self):
+                pass
+
+            def hierarchy(self):
+                return next(trees)
+
+            def scroll(self, root):
+                actions.append("scroll")
+
+            def tap_node(self, node):
+                actions.append(("tap", node.get("text") or node.get("content-desc")))
+
+        lock(StubScreen())
+        self.assertEqual(actions, [
+            ("tap", "Autres actions"),
+            "scroll",
+            ("tap", "Verrouiller le profil"),
         ])
 
     def test_app_activity_stopped_waits_for_stopped_state_and_ignores_test_package(self):

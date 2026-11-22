@@ -120,12 +120,13 @@ def unlock(ui, label, phrase):
 def lock(ui):
     ui.tap_until(
         "Autres actions",
-        lambda root: ui.node("Verrouiller le profil", root) is not None,
-        description="overflow menu containing Verrouiller le profil",
+        lambda root: ui.node("Autres actions", root) is None or ui.node("Verrouiller le profil", root) is not None,
+        description="overflow menu opened from Autres actions",
     )
     ui.tap_until(
         "Verrouiller le profil",
         lambda root: ui.node("Choisir un profil", root) is not None,
+        scroll=True,
         description="visible control Choisir un profil",
     )
 
