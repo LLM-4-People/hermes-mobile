@@ -17,7 +17,7 @@ from verification.device.run import Emulator
 from verification.gateway_fixture import Gateway, PINNED_REVISION, check_source
 from verification.nearby_capture import captures
 from verification.nearby_fixture import overpass, PLACES
-from verification.nearby_journey import (FAILED, PROMPT, STAGED, USE_LOCATION, enter_message,
+from verification.nearby_journey import (CONSENT, FAILED, PROMPT, STAGED, USE_LOCATION, choose_consent, enter_message,
                                           lock, open_consent, stage_public_location, unlock, verify_guide, visible_app_node)
 from verification.nearby_location import COARSE, answer_android_location, location_access, public_city_fix
 from verification.phone_actions import MAPS, admissions, assert_offline, focused, visible
@@ -111,29 +111,53 @@ def enter_discussion(ui):
     eventually("the unlocked profile's editable conversation", opened)
 
 
+def wait_status(ui, label):
+    try:
+        return ui.wait(label)
+    except AssertionError:
+        root = ui.hierarchy()
+        packages = sorted({node.get("package", "") for node in root.iter("node") if node.get("package")})
+        markers = {
+            "consent": ui.node(CONSENT, root) is not None,
+            "searching": ui.node("Recherche de la position…", root) is not None,
+            "failed": ui.node(FAILED, root) is not None,
+            "staged": ui.node(STAGED, root) is not None,
+            "lock_screen": ui.node("Choisir un profil", root) is not None,
+            "composer": ui.node("Message à Hermes", root) is not None,
+            "send": ui.node("Envoyer", root) is not None,
+            "location_grant": location_access(ui.device),
+        }
+        print("Android nearby status " + json.dumps({
+            "focused": focused(ui.device),
+            "packages": packages,
+            "markers": markers,
+        }, sort_keys=True), file=sys.stderr, flush=True)
+        raise
+
+
 def consent_failures(ui, fix, second, names, phrases, check_idle):
     """Start without cached fixes and cross a real app background/profile switch before delivering one."""
     enter_discussion(ui)
     enter_message(ui)
     open_consent(ui)
-    ui.tap(USE_LOCATION, scroll=True)
+    choose_consent(ui, USE_LOCATION)
     controller = answer_android_location(ui, allow=False)
-    ui.wait(FAILED)
+    wait_status(ui, FAILED)
     check_idle()
 
     # Grant while the system-wide service is off. Permission alone cannot stage or send a coordinate.
     fix.enabled(False)
     open_consent(ui)
-    ui.tap(USE_LOCATION, scroll=True)
+    choose_consent(ui, USE_LOCATION)
     if answer_android_location(ui, allow=True) != controller:
         raise AssertionError("Different Android components handled the paired permission decisions")
-    ui.wait(FAILED)
+    wait_status(ui, FAILED)
     check_idle()
 
     fix.enabled(True)
     open_consent(ui)
-    ui.tap(USE_LOCATION, scroll=True)
-    ui.wait("Recherche de la position…")
+    choose_consent(ui, USE_LOCATION)
+    wait_status(ui, "Recherche de la position…")
     ui.device.shell("input", "keyevent", "HOME")
     background = eventually("Android launcher foreground before late fix",
                             lambda: (active if (active := focused(ui.device)) and
@@ -292,7 +316,7 @@ def execute(args):
         open_consent(ui)
         if len(admissions(first)) != 2 or len(queries) != 1:
             raise AssertionError("Revocation reused a cached coordinate or submitted the waiting draft")
-        ui.tap("Envoyer sans position", scroll=True)
+        choose_consent(ui, "Envoyer sans position")
         verified_turn(first, a_model, REVOKED, 2, location=False)
         if len(queries) != 1 or errors or location_access(device):
             raise AssertionError("Explicit send without location leaked or re-acquired location")
