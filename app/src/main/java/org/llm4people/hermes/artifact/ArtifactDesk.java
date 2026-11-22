@@ -68,6 +68,9 @@ public final class ArtifactDesk {
     public static void refreshBindings(View root, Host host) { WorkspaceBlocks.refresh(root,host); }
 
     public static void dismiss(Activity activity) { DeskDialogs.dismiss(activity); }
+    public static void dismissReviews(Activity activity, Host owner) {
+        if (owner != null) DeskDialogs.dismiss(activity, owner);
+    }
 
     /** Recovery is always reachable from native navigation, even after a layout has been restored. */
     public static void manage(Activity activity, Account account, Host host) {

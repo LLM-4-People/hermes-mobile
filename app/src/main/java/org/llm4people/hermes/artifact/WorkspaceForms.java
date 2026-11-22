@@ -109,10 +109,11 @@ final class WorkspaceForms {
         edit.setText(draft);
         edit.setSelection(edit.length());
         wrap.addView(edit);
-        AlertDialog dialog = DeskDialogs.open(a,new AlertDialog.Builder(a)
+        AlertDialog dialog = DeskDialogs.open(a,host,new AlertDialog.Builder(a)
                 .setTitle("Relire le brouillon").setMessage("Vous pourrez le modifier et l’envoyer depuis la conversation.")
                 .setView(wrap).setNegativeButton("Annuler",null).setPositiveButton("Vers le brouillon",null));
         if (dialog != null) dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            if (!dialog.isShowing()) return;
             String text = edit.getText().toString();
             if (DraftForm.blank(text)) { edit.setError("Saisissez un message."); return; }
             DeskDialogs.navigate(a, () -> host.stageDraft(text));

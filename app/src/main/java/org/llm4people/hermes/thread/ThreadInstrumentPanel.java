@@ -56,6 +56,7 @@ final class ThreadInstrumentPanel {
     private static final class Form {
         final Pin pin;
         View view;
+        ArtifactDesk.Host host;
         Form(Pin pin) { this.pin = pin; }
     }
 
@@ -187,7 +188,7 @@ final class ThreadInstrumentPanel {
 
     private void buildSheet(Pin pin) {
         long activeDocument = ++document;
-        if (visibleForm != null) ArtifactDesk.dismiss(activity);
+        dismissReview();
         visibleForm = null;
         changes = null;
         LinearLayout surface = Ui.column(activity);
@@ -223,7 +224,7 @@ final class ThreadInstrumentPanel {
             changes = InstrumentPreview.compare(activity, pinned().pageJson, pin.pageJson);
             InstrumentVersions versions = new InstrumentVersions(activity, side -> {
                 if (!valid(pin, activeDocument)) return;
-                ArtifactDesk.dismiss(activity);
+                dismissReview();
                 display(side == InstrumentVersions.Side.CHANGES ? null
                         : side == InstrumentVersions.Side.PINNED ? pinned() : pin);
                 updateControls();
@@ -255,7 +256,8 @@ final class ThreadInstrumentPanel {
         if (form == null) {
             form = new Form(pin);
             visibleForm = form;
-            form.view = InstrumentPreview.render(activity, pin.pageJson, rendererHost(form));
+            form.host = rendererHost(form);
+            form.view = InstrumentPreview.render(activity, pin.pageJson, form.host);
         } else {
             visibleForm = form;
             refreshValues();
@@ -268,8 +270,12 @@ final class ThreadInstrumentPanel {
         content.addView(form.view);
     }
 
+    private void dismissReview() {
+        if (visibleForm != null) ArtifactDesk.dismissReviews(activity, visibleForm.host);
+    }
+
     private void refreshValues() {
-        if (visibleForm != null) ArtifactDesk.refreshBindings(visibleForm.view, rendererHost(visibleForm));
+        if (visibleForm != null) ArtifactDesk.refreshBindings(visibleForm.view, visibleForm.host);
     }
 
     private ImageButton icon(int drawable, int description) {
@@ -423,7 +429,7 @@ final class ThreadInstrumentPanel {
     boolean close() {
         if (!viewport.open()) return false;
         if (menu != null) { menu.dismiss(); menu = null; }
-        ArtifactDesk.dismiss(activity);
+        dismissReview();
         viewport.close();
         dock();
         screen.refreshInstrumentRows();
@@ -443,7 +449,7 @@ final class ThreadInstrumentPanel {
     }
 
     void retire() {
-        if (viewport.open()) ArtifactDesk.dismiss(activity);
+        dismissReview();
         if (menu != null) { menu.dismiss(); menu = null; }
         byMessage.clear();
         discard();
