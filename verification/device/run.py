@@ -10,6 +10,7 @@ import re
 import secrets
 import shutil
 import subprocess
+import sys
 import urllib.parse
 import urllib.request
 
@@ -18,15 +19,36 @@ DRIVER = f"{APP}.test/{APP}.journey.DeviceJourney"
 DEVICE_DIR = "cache/device-journey"
 
 
+def cleanup_all(*actions):
+    """Attempt each restoration and preserve the check that initiated cleanup."""
+    primary = sys.exc_info()[1]
+    failures = []
+    for action in actions:
+        try:
+            action()
+        except Exception as error:
+            failures.append(error)
+    if failures:
+        if primary is None:
+            raise ExceptionGroup("Device cleanup failed", failures)
+        for error in failures:
+            primary.add_note("Device cleanup also failed: " + str(error))
+
+
 class Emulator:
     def __init__(self, serial, adb, port):
         self.command = [adb, "-P", str(port), "-s", serial]
 
     def run(self, *args, data=None, timeout=120):
-        completed = subprocess.run(self.command + list(args), input=data, stdout=subprocess.PIPE,
-                                   stderr=subprocess.PIPE, timeout=timeout, check=False)
+        name = " ".join(args[:2]) if args[0] == "shell" else args[0]
+        try:
+            completed = subprocess.run(self.command + list(args), input=data, stdout=subprocess.PIPE,
+                                       stderr=subprocess.PIPE, timeout=timeout, check=False)
+        except subprocess.TimeoutExpired:
+            raise RuntimeError(f"adb {name} exceeded {timeout}s") from None
         if completed.returncode:
-            raise RuntimeError(completed.stderr.decode(errors="replace") or completed.stdout.decode(errors="replace"))
+            message = (completed.stderr or completed.stdout).decode(errors="replace").strip()
+            raise RuntimeError(f"adb {name} exited with status {completed.returncode}: {message or 'no output'}")
         return completed.stdout
 
     def shell(self, *args):
@@ -51,25 +73,25 @@ class Emulator:
             self.shell("settings", "put", "secure", "show_ime_with_hard_keyboard", "1")
             yield
         finally:
-            self.shell("cmd", "uimode", "night", old_night)
-            self.setting("font_scale", old_font)
-            if old_keyboard == "null":
-                self.shell("settings", "delete", "secure", "show_ime_with_hard_keyboard")
-            else:
-                self.shell("settings", "put", "secure", "show_ime_with_hard_keyboard", old_keyboard)
+            keyboard_args = (("delete", "secure", "show_ime_with_hard_keyboard") if old_keyboard == "null"
+                             else ("put", "secure", "show_ime_with_hard_keyboard", old_keyboard))
+            cleanup_all(lambda: self.shell("cmd", "uimode", "night", old_night),
+                        lambda: self.setting("font_scale", old_font),
+                        lambda: self.shell("settings", *keyboard_args))
 
     @contextlib.contextmanager
     def reverse(self, endpoint):
         target = urllib.parse.urlsplit(endpoint)
         if target.hostname != "127.0.0.1" or target.scheme != "http" or not target.port or target.path:
             raise ValueError("Expected a fresh loopback fixture endpoint")
-        local = self.run("reverse", "tcp:0", f"tcp:{target.port}").decode().strip()
-        if not local.isdigit():
-            raise RuntimeError("ADB did not allocate an isolated reverse port")
+        # Keep an explicit device registration per fixture. ADB's host allowlist keys
+        # registrations by their requested device-side socket.
+        socket = f"tcp:{target.port}"
+        self.run("reverse", "--no-rebind", socket, socket)
         try:
-            yield f"http://127.0.0.1:{local}"
+            yield endpoint
         finally:
-            self.run("reverse", "--remove", f"tcp:{local}")
+            cleanup_all(lambda: self.run("reverse", "--remove", socket))
 
     def phase(self, name):
         report = self.run("shell", "am", "instrument", "-w", "-r", "-e", "phase", name, DRIVER,
@@ -130,19 +152,24 @@ def run(device, output):
             device.setting("font_scale", "1.5")
             device.phase("restart")
         finally:
-            device.shell("run-as", APP, "rm", "-f", DEVICE_DIR + "/fixture.json")
-            captures = {}
-            for filename in device.shell("run-as", APP, "ls", "-1", capture_dir).splitlines():
-                if not re.fullmatch(r"[0-9]{2}-[a-z-]+\.png", filename):
-                    continue
-                image = device.run("exec-out", "run-as", APP, "cat", capture_dir + "/" + filename)
-                if image[:8] != b"\x89PNG\r\n\x1a\n":
-                    raise ValueError("Unexpected app capture format")
-                (output / filename).write_bytes(image)
-                captures[filename] = hashlib.sha256(image).hexdigest()
-                device.shell("run-as", APP, "rm", "-f", capture_dir + "/" + filename)
-            device.shell("run-as", APP, "rmdir", capture_dir)
-            print(json.dumps({"output": str(output), "captures": captures}, indent=2))
+            cleanup_all(lambda: device.shell("run-as", APP, "rm", "-f", DEVICE_DIR + "/fixture.json"),
+                        lambda: collect_captures(device, capture_dir, output))
+
+
+
+def collect_captures(device, capture_dir, output):
+    captures = {}
+    for filename in device.shell("run-as", APP, "ls", "-1", capture_dir).splitlines():
+        if not re.fullmatch(r"[0-9]{2}-[a-z-]+\.png", filename):
+            continue
+        image = device.run("exec-out", "run-as", APP, "cat", capture_dir + "/" + filename)
+        if image[:8] != b"\x89PNG\r\n\x1a\n":
+            raise ValueError("Unexpected app capture format")
+        (output / filename).write_bytes(image)
+        captures[filename] = hashlib.sha256(image).hexdigest()
+        device.shell("run-as", APP, "rm", "-f", capture_dir + "/" + filename)
+    device.shell("run-as", APP, "rmdir", capture_dir)
+    print(json.dumps({"output": str(output), "captures": captures}, indent=2))
 
 
 def main():
