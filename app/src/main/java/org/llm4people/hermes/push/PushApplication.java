@@ -5,7 +5,10 @@ import android.app.Application;
 public final class PushApplication extends Application {
     @Override public void onCreate() {
         super.onCreate();
-        if (MobilePush.reconcileRemovals(this)) PushSyncService.ensureScheduled(this);
+        boolean pending = MobilePush.reconcileRemovals(this);
+        for (PushStore.Device device : PushStore.get(this).devices())
+            pending |= device.unified() && PushStore.PENDING.equals(device.state);
+        if (pending) PushSyncService.ensureScheduled(this);
         PushConnection.restore(this);
     }
 }

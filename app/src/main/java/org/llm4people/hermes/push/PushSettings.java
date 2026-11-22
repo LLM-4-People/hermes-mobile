@@ -15,6 +15,11 @@ import org.llm4people.hermes.profile.Account;
 
 import java.util.ArrayDeque;
 import java.util.Locale;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.function.Consumer;
+import org.json.JSONObject;
 
 final class PushSettings {
     static final int PERMISSION = 6801;
@@ -66,7 +71,7 @@ final class PushSettings {
                     .setPositiveButton("Réessayer", (d,w) -> begin())
                     .setNegativeButton("Désactiver", (d,w) -> remove(device));
         } else {
-            builder.setMessage("Recevez les rappels, les demandes d’autorisation et la fin des sessions. Les alertes passent par Google, sans le contenu de vos échanges.")
+            builder.setMessage("Recevez les rappels, les demandes d’autorisation et la fin des sessions. Le contenu de vos échanges reste privé.")
                     .setPositiveButton("Activer", (d,w) -> begin());
         }
         display(builder);
@@ -129,9 +134,51 @@ final class PushSettings {
                     .setNegativeButton("Fermer", null));
             return;
         }
-        long before = PushConnection.version();
-        run("Inscription en cours…", () ->
-                PushConnection.enroll(activity.getApplicationContext(), account, before, this::current));
+        load("Recherche des services de notification…",
+                () -> new HermesApi(account.endpoint, account.bearer).get(PushConnection.BASE), this::chooseTransport);
+    }
+
+    private void chooseTransport(JSONObject discovery) {
+        PushStore.Device existing = PushStore.get(activity).forProfile(account.id);
+        List<String> labels = new ArrayList<>();
+        List<Runnable> choices = new ArrayList<>();
+        long epoch = PushConnection.version();
+        if (PushConfig.offers(discovery, DistributorEnrollment.PROVIDER) && (existing == null || existing.unified())) {
+            labels.add("Activer avec UnifiedPush");
+            choices.add(() -> chooseDistributor(discovery, epoch));
+        }
+        if (PushConfig.offers(discovery, "fcm") && (existing == null || !existing.unified())) {
+            labels.add("Activer avec Google Play");
+            choices.add(() -> run("Inscription en cours…", () -> PushConnection.enroll(
+                    activity.getApplicationContext(), account, PushConfig.parse(discovery), epoch, this::current)));
+        }
+        AlertDialog.Builder picker = new AlertDialog.Builder(activity).setTitle("Service de notification")
+                .setNegativeButton("Retour", (d,w) -> show());
+        if (choices.isEmpty()) picker.setMessage("Aucun service de notification disponible pour ce profil.");
+        else picker.setItems(labels.toArray(new String[0]), (d,w) -> choices.get(w).run());
+        display(picker);
+    }
+
+    private void chooseDistributor(JSONObject discovery, long epoch) {
+        List<String> packages = DistributorEnrollment.choices(activity);
+        AlertDialog.Builder picker = new AlertDialog.Builder(activity).setTitle("Choisir un distributeur")
+                .setNegativeButton("Retour", (d,w) -> show());
+        if (packages.isEmpty()) {
+            picker.setMessage("Installez ou configurez un distributeur UnifiedPush, par exemple ntfy, puis réessayez.");
+        } else {
+            String[] labels = new String[packages.size()];
+            for (int i = 0; i < labels.length; i++) {
+                String name = packages.get(i);
+                try {
+                    var manager = activity.getPackageManager();
+                    labels[i] = manager.getApplicationLabel(manager.getApplicationInfo(name, 0)) + "\n" + name;
+                } catch (PackageManager.NameNotFoundException gone) { labels[i] = name; }
+            }
+            picker.setItems(labels, (d,w) -> run("Inscription au distributeur…", () ->
+                    DistributorEnrollment.enroll(activity.getApplicationContext(), account, packages.get(w),
+                            DistributorEnrollment.vapid(discovery), epoch, this::current)));
+        }
+        display(picker);
     }
 
     private void remove(PushStore.Device device) {
@@ -143,11 +190,16 @@ final class PushSettings {
     private interface Call { void execute() throws Exception; }
 
     private void run(String progress, Call action) {
+        load(progress, () -> { action.execute(); return null; }, result -> show());
+    }
+
+    private <T> void load(String progress, Callable<T> action, Consumer<T> after) {
         display(new AlertDialog.Builder(activity).setTitle("Notifications du profil").setMessage(progress));
         PushConnection.WORK.execute(() -> {
             try {
-                action.execute();
-                activity.runOnUiThread(this::show);
+                if (!current()) return;
+                T result = action.call();
+                activity.runOnUiThread(() -> { if (current()) after.accept(result); });
             } catch (Exception error) {
                 Diagnostics.event("push", "enrollment_action_failed");
                 String message = errorMessage(error);
