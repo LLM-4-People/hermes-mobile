@@ -17,6 +17,8 @@ import android.widget.PopupMenu;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
+import org.llm4people.hermes.panel.BrainStudioRoutes;
+
 import java.util.Objects;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
@@ -124,10 +126,13 @@ final class WorkspaceShell {
             section(list, threadTitle);
             link(list, "Reprendre la discussion", "return");
             link(list, "Artefacts", "artifacts");
+            link(list, "Fichiers du projet", BrainStudioRoutes.ROUTE_WORKSPACE_FILES);
             link(list, "Modèle et outils", "models");
             link(list, "Utilisation", "stats");
         }
         section(list, "Espace de travail");
+        link(list, "Cerveau de Hermes", "brain");
+        link(list, "Rechercher dans vos discussions", BrainStudioRoutes.ROUTE_SEARCH);
         link(list, "Mes écrans", "pages");
         link(list, "Nouvelle discussion", "new_thread");
         link(list, "Toutes les discussions", "threads");
@@ -179,10 +184,16 @@ final class WorkspaceShell {
                 item(menu, "Position pour ce message…", "nearby_area");
             }
             item(menu, "Renommer la discussion", "rename");
+            item(menu, "Épingler la discussion", BrainStudioRoutes.ACTION_PIN_THREAD);
+            item(menu, "Nouvelle piste à partir d’ici", BrainStudioRoutes.ACTION_FORK_THREAD);
+            item(menu, "Exporter la discussion", BrainStudioRoutes.ACTION_EXPORT_THREAD);
+            item(menu, "Partager sur ce serveur", BrainStudioRoutes.ACTION_SHARE_THREAD);
+            item(menu, "Fichiers du projet", BrainStudioRoutes.ROUTE_WORKSPACE_FILES);
             item(menu, "Artefacts", "artifacts");
             item(menu, "Modèle et outils", "models");
             item(menu, "Utilisation", "stats");
         }
+        item(menu, "Cerveau de Hermes", "brain");
         item(menu, "Mes écrans", "pages");
         item(menu, "Rappels", "reminders");
         item(menu, "Rétablir l’atelier", "restore");

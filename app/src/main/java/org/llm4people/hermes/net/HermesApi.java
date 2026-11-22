@@ -64,6 +64,14 @@ public final class HermesApi {
         return Endpoint.segment(raw);
     }
 
+    public static String relativePath(String raw) {
+        return Endpoint.relativePath(raw);
+    }
+
+    public static String queryValue(String raw) {
+        return Endpoint.queryValue(raw);
+    }
+
     public JSONObject get(String path) throws IOException {
         return request("GET", path, null, null);
     }
@@ -88,7 +96,45 @@ public final class HermesApi {
     }
 
     public void delete(String path) throws IOException {
-        request("DELETE", path, null, null);
+        deleteJson(path);
+    }
+
+    public JSONObject deleteJson(String path) throws IOException {
+        return request("DELETE", path, null, null);
+    }
+
+    public JSONObject capabilities() throws IOException {
+        return get("/v1/capabilities");
+    }
+
+    public JSONObject setSessionPinned(String sessionId, boolean pinned) throws IOException {
+        JSONObject body = new JSONObject();
+        try { body.put("pinned", pinned); }
+        catch (org.json.JSONException invalid) { throw new IllegalArgumentException(invalid); }
+        return patch("/api/sessions/" + segment(sessionId), body);
+    }
+
+    public JSONObject forkSession(String sessionId, Long upToMessageId, boolean keepSourceOpen) throws IOException {
+        if (upToMessageId != null && upToMessageId <= 0) {
+            throw new IllegalArgumentException("Invalid fork message id");
+        }
+        JSONObject body = new JSONObject();
+        try {
+            body.put("keep_source_open", keepSourceOpen);
+            if (upToMessageId != null) body.put("up_to_message_id", upToMessageId.longValue());
+        } catch (org.json.JSONException invalid) {
+            throw new IllegalArgumentException(invalid);
+        }
+        return post("/api/sessions/" + segment(sessionId) + "/fork", body);
+    }
+
+    public long exportSession(String sessionId, String format, OutputStream sink, long maxBytes) throws IOException {
+        if (!"markdown".equals(format) && !"json".equals(format)) {
+            throw new IllegalArgumentException("Unsupported export format");
+        }
+        String accept = "json".equals(format) ? "application/json" : "text/markdown, text/plain;q=0.9";
+        return download("/api/sessions/" + segment(sessionId) + "/export?format=" + queryValue(format),
+                accept, sink, maxBytes);
     }
 
     private static boolean visibleAscii(String text) {
@@ -162,8 +208,14 @@ public final class HermesApi {
 
     /** Stream an authenticated file into a caller-owned sink with a strict byte ceiling. */
     public long download(String path, OutputStream sink, long maxBytes) throws IOException {
+        return download(path, "application/octet-stream", sink, maxBytes);
+    }
+
+    /** Stream an authenticated response with a custom Accept header and strict byte ceiling. */
+    public long download(String path, String accept, OutputStream sink, long maxBytes) throws IOException {
         if (sink == null || maxBytes < 0) throw new IllegalArgumentException("Invalid download bounds");
-        HttpURLConnection http = connection(path, "GET", "application/octet-stream");
+        String header = accept == null || accept.trim().isEmpty() ? "application/octet-stream" : accept.trim();
+        HttpURLConnection http = connection(path, "GET", header);
         try {
             checkResponse(http);
             if (http.getContentLengthLong() > maxBytes) throw new IOException("File exceeded the byte limit");

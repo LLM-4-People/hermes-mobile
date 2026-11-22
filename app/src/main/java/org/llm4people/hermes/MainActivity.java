@@ -16,7 +16,11 @@ import org.json.JSONObject;
 import org.llm4people.hermes.artifact.ArtifactDesk;
 import org.llm4people.hermes.files.PublishedFiles;
 import org.llm4people.hermes.net.HermesApi;
+import org.llm4people.hermes.panel.BrainStudioRoutes;
 import org.llm4people.hermes.panel.SessionPanel;
+import org.llm4people.hermes.panel.ShareWithUserSheet;
+import org.llm4people.hermes.panel.ThreadActions;
+import org.llm4people.hermes.panel.UniversalShareModel;
 import org.llm4people.hermes.profile.Account;
 import org.llm4people.hermes.profile.ProfileGate;
 import org.llm4people.hermes.push.MobilePush;
@@ -40,9 +44,11 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     private ProfileGate gate;
     private VoiceDrafts voice;
     private PublishedFiles files;
+    private ThreadActions threadActions;
     private ThreadPhotoPicker photoPicker;
     private Account account;
     private SessionPanel panels;
+    private RouteRegistry routes;
     private ThreadWorkspace threads;
     private WorkspaceShell shell;
     private WorkspaceNavigation navigation;
@@ -70,6 +76,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         voice = new VoiceDrafts(this);
         push = new MobilePush(this);
         files = new PublishedFiles(this);
+        threadActions = new ThreadActions(this);
         photoPicker = new ThreadPhotoPicker(this, state);
         sharedText = new SharedTextFlow(this, () -> { displayDiscussion(); threads.inbox(); },
                 () -> navigate(WorkspaceNavigation.COMPOSER));
@@ -116,6 +123,8 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         panels.setLayoutHost(activeHost);
         threads = new ThreadWorkspace(this, api, account, this, voice);
         threads.setInstrumentHost(activeHost);
+        threadActions.unlock(account, api);
+        routes = BrainStudioRoutes.register(new RouteRegistry(), brainHandlers());
         setContentView(shell.root);
         displayDiscussion();
         files.unlock(account, api);
@@ -179,6 +188,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         if (notice != null) notice.dismiss();
         notice = null;
         if (files != null) files.dismiss();
+        if (threadActions != null) threadActions.dismiss();
         if (!keepThreadEditor) {
             if (threads != null) threads.dismissDialogs();
             ArtifactDesk.dismiss(this);
@@ -237,6 +247,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                 if (threads.remoteSessionId() != null) files.show(threads.remoteSessionId());
                 break;
             case "workspace": navigate(WorkspaceNavigation.HOME); break;
+            case "brain": if (routes != null) panels.showBrainHub(routes); break;
             case "reminders": panels.showReminders(); break;
             case "notifications": push.settings(account); break;
             case "restore": ArtifactDesk.manage(this, account, activeHost); break;
@@ -255,8 +266,81 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                             () -> threads == origin && session.equals(origin.sessionId()), this::stageDraft);
                 }
                 break;
-            default: Diagnostics.warning("workspace", "unknown_action");
+            default:
+                if (routes == null || !routes.dispatch(id)) Diagnostics.warning("workspace", "unknown_action");
         }
+    }
+
+    private BrainStudioRoutes.Handlers brainHandlers() {
+        return new BrainStudioRoutes.Handlers() {
+            private Runnable returnToHub() {
+                RouteRegistry current = routes;
+                return current == null ? null : () -> panels.showBrainHub(current);
+            }
+
+            private BooleanSupplier activeThreadCheck() {
+                ThreadWorkspace origin = threads;
+                String currentSession = origin == null ? null : origin.sessionId();
+                return () -> origin != null && threads == origin && currentSession != null
+                        && currentSession.equals(origin.sessionId());
+            }
+
+            @Override public void openMemory() { panels.showMemory(returnToHub()); }
+
+            @Override public void openNotes() {
+                panels.showNotes(activeThreadCheck(), MainActivity.this::stageDraft, returnToHub());
+            }
+
+            @Override public void openSharedWithMe() {
+                panels.showSharedWithMe(id -> { displayDiscussion(); threads.open(id); },
+                        MainActivity.this::stageDraft, returnToHub());
+            }
+
+            @Override public void openGlobalSearch() {
+                panels.showGlobalSearch(id -> { displayDiscussion(); threads.open(id); }, returnToHub());
+            }
+
+            @Override public void openSkillStudio() {
+                panels.showSkillStudio(activeThreadCheck(), MainActivity.this::stageDraft, returnToHub());
+            }
+
+            @Override public void openWorkspaceFiles() {
+                String session = threads == null ? null : threads.sessionId();
+                if (session == null) {
+                    message("Choisir une discussion", "Ouvrez une discussion pour parcourir les fichiers du projet.");
+                    return;
+                }
+                panels.showWorkspaceFiles(session, activeThreadCheck(), MainActivity.this::stageDraft, returnToHub());
+            }
+
+            @Override public void openProfileDefaults() { panels.showProfileDefaults(returnToHub()); }
+
+            @Override public void togglePinThread() {
+                String remote = threads == null ? null : threads.remoteSessionId();
+                if (remote != null) threadActions.togglePin(remote, null);
+            }
+
+            @Override public void forkThread() {
+                String session = threads == null ? null : threads.sessionId();
+                if (session != null) {
+                    threadActions.showForkDialog(session, threads.messages(),
+                            forkedId -> { displayDiscussion(); threads.open(forkedId); });
+                }
+            }
+
+            @Override public void exportThread() {
+                String session = threads == null ? null : threads.sessionId();
+                if (session != null) threadActions.showExportDialog(session, threads.title());
+            }
+
+            @Override public void shareThread() {
+                String session = threads == null ? null : threads.sessionId();
+                if (session != null) {
+                    ShareWithUserSheet.openShareSheet(panels, UniversalShareModel.KIND_SESSION,
+                            session, threads.title(), null);
+                }
+            }
+        };
     }
 
     private void message(String title, String body) {
@@ -449,6 +533,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             return;
         }
         if (files != null && files.result(code, result, data)) return;
+        if (threadActions != null && threadActions.result(code, result, data)) return;
         super.onActivityResult(code, result, data);
     }
 
@@ -469,6 +554,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         if (voice != null) voice.reader().stop();
         dismissOverlays();
         if (files != null) files.lock();
+        if (threadActions != null) threadActions.lock();
         if (threads != null) {
             try {
                 threads.close();
@@ -478,6 +564,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         }
         notice = null;
         panels = null;
+        routes = null;
         threads = null;
         shell = null;
         navigation = null;
@@ -526,6 +613,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     @Override protected void onDestroy() {
         clearWorkspace();
         if (files != null) files.close();
+        if (threadActions != null) threadActions.close();
         notifications.shutdownNow();
         super.onDestroy();
     }

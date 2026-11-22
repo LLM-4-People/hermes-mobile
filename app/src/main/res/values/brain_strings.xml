@@ -1,0 +1,172 @@
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="fr">
+    <!-- Cerveau Studio hub & capability notices -->
+    <string name="brain_hub_title">Cerveau de Hermes</string>
+    <string name="brain_hub_subtitle">Retrouvez la mémoire, les recherches, les savoir-faire et les fichiers de votre espace Hermes.</string>
+    <string name="brain_upgrade_required">Cette fonction nécessite une mise à jour de votre serveur Hermes.</string>
+    <string name="brain_available">Disponible</string>
+    <string name="brain_needs_update">Mise à jour du serveur requise</string>
+
+    <!-- Memory Panel (MEMORY.md & USER.md) -->
+    <string name="brain_memory_title">Mémoire de Hermes</string>
+    <string name="brain_memory_tab_hermes">Ce que Hermes retient</string>
+    <string name="brain_memory_tab_user">À propos de vous</string>
+    <string name="brain_memory_hint_hermes">Faits, projets et habitudes enregistrés au fil de vos échanges.</string>
+    <string name="brain_memory_hint_user">Votre profil personnel et vos préférences pour des réponses adaptées.</string>
+    <string name="brain_memory_filter">Filtrer dans la mémoire</string>
+    <string name="brain_memory_add_hermes">Ajouter un souvenir</string>
+    <string name="brain_memory_add_user">Ajouter une information</string>
+    <string name="brain_memory_empty">Aucun élément enregistré ici pour le moment.</string>
+    <string name="brain_memory_empty_filter">Aucun élément ne correspond à votre filtre.</string>
+    <string name="brain_memory_disabled">La mémoire est désactivée sur ce serveur.</string>
+    <string name="brain_memory_pinned">Épinglé</string>
+    <string name="brain_memory_pin_toggle">Épingler en priorité</string>
+    <string name="brain_memory_unpin">Retirer l’épingle</string>
+    <string name="brain_memory_edit_title">Modifier l’élément</string>
+    <string name="brain_memory_add_title">Nouvel élément de mémoire</string>
+    <string name="brain_memory_input_hint">Écrivez en français simple ce que Hermes doit retenir…</string>
+    <string name="brain_memory_confirm_save_title">Aperçu avant enregistrement</string>
+    <string name="brain_memory_confirm_save_action">Confirmer l’enregistrement</string>
+    <string name="brain_memory_before">Avant</string>
+    <string name="brain_memory_after">Après</string>
+    <string name="brain_memory_delete_title">Supprimer cet élément ?</string>
+    <string name="brain_memory_deleted_banner">Élément supprimé.</string>
+    <string name="brain_memory_undo_delete">Annuler la suppression</string>
+    <string name="brain_memory_restored">Élément restauré.</string>
+
+    <!-- Cross-thread FTS5 Global Search -->
+    <string name="brain_search_title">Rechercher dans vos discussions</string>
+    <string name="brain_search_hint">Mot-clé ou phrase…</string>
+    <string name="brain_search_action">Rechercher</string>
+    <string name="brain_search_prompt">Saisissez un mot ou une phrase pour explorer toutes vos discussions.</string>
+    <string name="brain_search_empty">Aucun passage trouvé pour cette recherche.</string>
+    <string name="brain_search_filter_all">Tout</string>
+    <string name="brain_search_filter_user">Vos messages</string>
+    <string name="brain_search_filter_hermes">Réponses de Hermes</string>
+    <string name="brain_search_more">Afficher plus de résultats</string>
+    <string name="brain_search_count">%1$d résultat(s)</string>
+    <string name="brain_search_open_thread">Ouvrir cette discussion</string>
+    <string name="brain_search_unavailable">La recherche globale dans vos discussions nécessite une mise à jour de votre serveur Hermes.</string>
+
+    <!-- Full Skill Studio -->
+    <string name="brain_skills_title">Savoir-faire</string>
+    <string name="brain_skills_subtitle">Guides et méthodes réutilisables que Hermes sait appliquer.</string>
+    <string name="brain_skills_search">Rechercher un savoir-faire</string>
+    <string name="brain_skills_new">Nouveau savoir-faire</string>
+    <string name="brain_skills_ask_hermes">Demander à Hermes d’en créer un</string>
+    <string name="brain_skills_use_in_thread">Utiliser dans la discussion</string>
+    <string name="brain_skills_all_categories">Tous</string>
+    <string name="brain_skills_readonly_notice">Mode lecture seule. La création et la modification des savoir-faire nécessitent une mise à jour de votre serveur Hermes.</string>
+    <string name="brain_skills_enabled">Actif</string>
+    <string name="brain_skills_disabled">Désactivé</string>
+    <string name="brain_skills_toggle_failed">Impossible de modifier l’état de ce savoir-faire. L’état précédent a été rétabli.</string>
+    <string name="brain_skills_view_full">Lire le guide complet</string>
+    <string name="brain_skills_delete_confirm">Supprimer définitivement le savoir-faire « %1$s » ?</string>
+    <string name="brain_skills_builtin_readonly">Savoir-faire intégré (lecture seule)</string>
+    <string name="brain_skills_name_hint">Nom court (ex. travail/relecture)</string>
+    <string name="brain_skills_desc_hint">À quoi sert ce savoir-faire ? (facultatif)</string>
+    <string name="brain_skills_category_hint">Catégorie (facultatif)</string>
+    <string name="brain_skills_instructions_hint">Instructions claires pour Hermes…</string>
+    <string name="brain_skills_advanced_raw">Mode avancé (texte brut)</string>
+    <string name="brain_skills_lint_header">Remarques de vérification</string>
+    <string name="brain_skills_supporting_files">Fichiers associés : %1$s</string>
+    <string name="brain_skills_saved">Savoir-faire enregistré.</string>
+    <string name="brain_skills_deleted">Savoir-faire supprimé.</string>
+
+    <!-- Workspace File & Diff Explorer -->
+    <string name="brain_files_title">Fichiers du projet</string>
+    <string name="brain_files_tab_tree">Fichiers</string>
+    <string name="brain_files_tab_diff">Modifications</string>
+    <string name="brain_files_root">Racine du projet</string>
+    <string name="brain_files_parent">Dossier précédent</string>
+    <string name="brain_files_empty">Aucun fichier affiché dans ce dossier.</string>
+    <string name="brain_files_no_changes">Aucune modification en cours dans ce projet.</string>
+    <string name="brain_files_branch">Branche · %1$s</string>
+    <string name="brain_files_view_all_diff">Voir toutes les modifications</string>
+    <string name="brain_files_discuss">Discuter de ce fichier</string>
+    <string name="brain_files_discuss_prompt">Peux-tu m’expliquer ou relire le fichier « %1$s » ?</string>
+    <string name="brain_files_binary">Ce fichier binaire ne peut pas s’afficher en texte.</string>
+    <string name="brain_files_restricted">L’accès à ce fichier est restreint pour protéger vos données sensibles.</string>
+    <string name="brain_files_truncated">Aperçu limité aux premières lignes pour préserver la fluidité.</string>
+    <string name="brain_files_unavailable">L’explorateur de fichiers du projet nécessite une mise à jour de votre serveur Hermes.</string>
+
+    <!-- Thread Power Actions -->
+    <string name="brain_thread_pin">Épingler la discussion</string>
+    <string name="brain_thread_unpin">Retirer l’épingle</string>
+    <string name="brain_thread_pinned_ok">Discussion épinglée.</string>
+    <string name="brain_thread_unpinned_ok">Épingle retirée.</string>
+    <string name="brain_thread_fork">Nouvelle piste à partir d’ici</string>
+    <string name="brain_thread_fork_hint">Crée une copie de la discussion jusqu’au message choisi pour explorer une autre idée.</string>
+    <string name="brain_thread_fork_keep_open">Garder la discussion d’origine ouverte</string>
+    <string name="brain_thread_fork_create">Créer la nouvelle piste</string>
+    <string name="brain_thread_fork_unavailable">La création d’une nouvelle piste depuis un message nécessite une mise à jour de votre serveur Hermes.</string>
+    <string name="brain_thread_fork_empty">Envoyez au moins un message avant de créer une nouvelle piste.</string>
+    <string name="brain_thread_export">Exporter la discussion</string>
+    <string name="brain_thread_export_md">Document texte (Markdown)</string>
+    <string name="brain_thread_export_json">Données complètes (JSON)</string>
+    <string name="brain_thread_export_saved">Discussion exportée.</string>
+    <string name="brain_thread_export_failed">Impossible d’exporter cette discussion. Réessayez.</string>
+    <string name="brain_thread_export_unavailable">L’exportation nécessite une mise à jour de votre serveur Hermes.</string>
+    <string name="brain_thread_export_no_picker">Aucun sélecteur de fichiers disponible sur cet appareil.</string>
+
+    <!-- Profile Defaults Panel -->
+    <string name="brain_profile_defaults_title">Réglages du profil</string>
+    <string name="brain_profile_defaults_subtitle">Choix appliqués par défaut à toutes vos nouvelles discussions sur ce profil.</string>
+    <string name="brain_profile_default_model">Modèle par défaut du profil</string>
+    <string name="brain_profile_default_tools">Capacités actives par défaut</string>
+    <string name="brain_profile_reasoning">Niveau de réflexion</string>
+    <string name="brain_profile_reasoning_auto">Automatique</string>
+    <string name="brain_profile_reasoning_low">Rapide</string>
+    <string name="brain_profile_reasoning_medium">Équilibré</string>
+    <string name="brain_profile_reasoning_high">Approfondi</string>
+    <string name="brain_profile_soul">Personnalité de Hermes</string>
+    <string name="brain_profile_soul_edit">Modifier la personnalité</string>
+    <string name="brain_profile_soul_hint">Décrivez le ton, le rôle ou les règles générales de Hermes pour ce profil…</string>
+    <string name="brain_profile_saved">Réglages du profil enregistrés.</string>
+    <string name="brain_profile_unavailable">La modification des réglages du profil nécessite une mise à jour de votre serveur Hermes.</string>
+
+    <!-- Plain-French Usage Telemetry + Technical Details -->
+    <string name="brain_usage_response_time">Temps de réponse</string>
+    <string name="brain_usage_speed">Vitesse</string>
+    <string name="brain_usage_cost_known">Coût connu</string>
+    <string name="brain_usage_cache_plain">Réutilisation du cache</string>
+    <string name="brain_usage_technical_toggle">Détails techniques</string>
+    <string name="brain_usage_technical_hide">Masquer les détails techniques</string>
+    <string name="brain_usage_gen_tps">Vitesse de génération pure</string>
+    <string name="brain_usage_reasoning_tokens">Jetons de réflexion</string>
+    <string name="brain_usage_api_calls">Appels au modèle</string>
+    <string name="brain_usage_profile_analytics">Activité du profil (30 derniers jours)</string>
+    <string name="brain_usage_profile_runs">Échanges mesurés</string>
+    <string name="brain_usage_profile_avg_ttft">Temps de réponse moyen</string>
+    <string name="brain_usage_profile_avg_tps">Vitesse moyenne</string>
+
+    <!-- Smart Notes & Habit Suggestions -->
+    <string name="brain_notes_title">Notes intelligentes</string>
+    <string name="brain_notes_subtitle">Créez, organisez et partagez vos notes avec Hermes.</string>
+    <string name="brain_notes_tab_mine">Mes notes</string>
+    <string name="brain_notes_tab_shared">Partagées avec moi</string>
+    <string name="brain_notes_filter">Rechercher dans vos notes</string>
+    <string name="brain_notes_new">Nouvelle note</string>
+    <string name="brain_notes_empty">Aucune note enregistrée pour le moment.</string>
+    <string name="brain_notes_shared_empty">Aucune note n’a été partagée avec ce profil.</string>
+    <string name="brain_notes_title_hint">Titre de la note</string>
+    <string name="brain_notes_body_hint">Contenu de la note…</string>
+    <string name="brain_notes_tags_hint">Étiquettes séparées par des virgules (facultatif)</string>
+    <string name="brain_notes_unavailable">Les notes intelligentes nécessitent une mise à jour de votre serveur Hermes.</string>
+    <string name="brain_habits_header">Selon vos habitudes</string>
+
+    <!-- Universal Same-Server Sharing -->
+    <string name="brain_share_title">Partager sur ce serveur</string>
+    <string name="brain_share_action">Partager sur ce serveur</string>
+    <string name="brain_share_grant_section">Accorder l’accès à un autre profil</string>
+    <string name="brain_share_target_hint">Nom du profil destinataire (ex. julie)</string>
+    <string name="brain_share_send">Partager</string>
+    <string name="brain_share_active_section">Accès actifs</string>
+    <string name="brain_share_none_outgoing">Cet élément n’est partagé avec aucun autre profil.</string>
+    <string name="brain_share_revoke">Retirer l’accès</string>
+    <string name="brain_share_unavailable">Le partage entre utilisateurs sur ce serveur nécessite une mise à jour de Hermes.</string>
+    <string name="brain_shared_with_me_title">Partagé avec moi</string>
+    <string name="brain_shared_with_me_subtitle">Éléments que d’autres profils sur ce serveur ont partagés avec vous.</string>
+    <string name="brain_shared_with_me_empty">Aucun élément partagé avec vous pour le moment.</string>
+    <string name="brain_share_open_item">Ouvrir</string>
+    <string name="brain_share_dismiss">Retirer de ma liste</string>
+</resources>

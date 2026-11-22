@@ -41,17 +41,25 @@ final class SessionSettings {
     private JSONObject saved;
     private TextView saveError;
     private boolean individualTools;
+    private boolean skillStudioSupported;
     private final Map<String, Provider> providers = new LinkedHashMap<>();
     private final Map<String, Set<String>> toolsets = new LinkedHashMap<>();
 
     private static final class Provider {
         final String slug;
         final String name;
-        final Set<String> models;
+        final java.util.List<ModelCapabilityBadges.ModelInfo> models;
         Provider(JSONObject row) {
             slug = PanelData.text(row, "slug");
             name = PanelData.text(row, "name");
-            models = names(row.optJSONArray("models"));
+            models = BrainJson.parseProviderModels(row);
+        }
+        ModelCapabilityBadges.ModelInfo findModel(String id) {
+            if (id == null || id.isEmpty()) return null;
+            for (ModelCapabilityBadges.ModelInfo info : models) {
+                if (info.id().equals(id)) return info;
+            }
+            return null;
         }
         @Override public String toString() { return name.isEmpty() || name.equals(slug) ? slug : name + " · " + slug; }
     }
@@ -91,7 +99,9 @@ final class SessionSettings {
         panel.section(settings.first, R.string.panel_model);
         modelSetting(settings.first);
         if (stageDraft != null) panel.action(settings.first, R.string.skills_title, () -> {
-            if (activeThread.getAsBoolean()) new SkillBrowser(panel, activeThread, stageDraft, this).show();
+            if (!activeThread.getAsBoolean()) return;
+            if (skillStudioSupported) new SkillStudio(panel, activeThread, stageDraft, this::show).show();
+            else new SkillBrowser(panel, activeThread, stageDraft, this).show();
         });
         panel.section(settings.second, R.string.panel_tools);
         LinearLayout controls = Ui.column(panel.activity);
@@ -149,8 +159,10 @@ final class SessionSettings {
         if (provider.models.isEmpty()) { panel.note(box, panel.t(R.string.panel_no_model)); return; }
         LinearLayout feedback = Ui.column(panel.activity);
         box.addView(feedback, 0);
-        String current = provider.slug.equals(PanelData.text(saved, "provider")) ? PanelData.text(saved, "model") : null;
-        picker(box, new ArrayList<>(provider.models), current, model -> selectModel(feedback, provider.slug, model));
+        ModelCapabilityBadges.ModelInfo current = provider.slug.equals(PanelData.text(saved, "provider"))
+                ? provider.findModel(PanelData.text(saved, "model")) : null;
+        picker(box, new ArrayList<>(provider.models), current,
+                model -> selectModel(feedback, provider.slug, model.id()));
     }
 
     private void selectModel(View anchor, String provider, String model) {
@@ -269,7 +281,13 @@ final class SessionSettings {
             }
             JSONObject features = (JSONObject) payload[0];
             individualTools = features.optBoolean("run_tool_exclusions");
+            skillStudioSupported = features.optBoolean(BrainCapabilities.SKILL_STUDIO);
             renderTools(box, features.optBoolean("run_toolset_selection"));
+            if (features.optBoolean(BrainCapabilities.PROFILE_DEFAULTS)) {
+                box.addView(Ui.divider(panel.activity));
+                panel.action(box, R.string.brain_profile_defaults_title,
+                        () -> new ProfileDefaultsPanel(panel, this::show).show());
+            }
         }, () -> loadTools(box));
     }
 
