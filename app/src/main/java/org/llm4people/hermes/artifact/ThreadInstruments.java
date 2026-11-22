@@ -53,6 +53,13 @@ public final class ThreadInstruments {
                     && pageJson.equals(other.pageJson);
         }
 
+        /** Match the transcript row even if two segments happen to reuse a row identifier. */
+        public boolean fromMessage(JSONObject row) {
+            return row != null && "assistant".equals(row.optString("role"))
+                    && !"hidden".equals(row.optString("display_kind"))
+                    && messageId.equals(rowId(row)) && sourceSession.equals(segmentOf(row));
+        }
+
         private JSONObject json() throws JSONException {
             return new JSONObject().put("message", messageId).put("session", sourceSession)
                     .put("fence", fenceOrdinal).put("version", version).put("page", pageJson);
@@ -95,13 +102,9 @@ public final class ThreadInstruments {
         for (ArtifactCatalog.Block block : ArtifactCatalog.scan(messages).blocks) {
             if (!WorkspaceLayout.FENCE.equals(block.language)) continue;
             JSONObject row = messages.optJSONObject(block.messageIndex);
-            if (row == null || "hidden".equals(row.optString("display_kind"))) continue;
-            Object id = row.opt("id");
-            if (!(id instanceof String || id instanceof Integer || id instanceof Long)) continue;
-            String messageId = String.valueOf(id);
-            if (!validId(messageId)) continue;
-            String session = row.isNull("session_id") ? "" : row.optString("session_id");
-            if (!session.isEmpty() && !validId(session)) continue;
+            String messageId = rowId(row);
+            String session = segmentOf(row);
+            if (messageId == null || session == null) continue;
             try {
                 WorkspaceLayout layout = WorkspaceLayout.parse(block.content);
                 if (!WorkspaceLayout.custom(layout.surface)) continue;
@@ -115,6 +118,20 @@ public final class ThreadInstruments {
             }
         }
         return Collections.unmodifiableList(result);
+    }
+
+    private static String rowId(JSONObject row) {
+        Object value = row.opt("id");
+        if (!(value instanceof String || value instanceof Integer || value instanceof Long)) return null;
+        if (value instanceof Number number && number.longValue() <= 0) return null;
+        String id = String.valueOf(value);
+        return validId(id) ? id : null;
+    }
+
+    private static String segmentOf(JSONObject row) {
+        if (row.isNull("session_id")) return "";
+        Object value = row.opt("session_id");
+        return value instanceof String id && validId(id) ? id : null;
     }
 
     private static boolean validId(String value) {

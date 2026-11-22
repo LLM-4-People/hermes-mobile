@@ -70,7 +70,8 @@ final class ArtifactCatalog {
         scan.limited = oldest > 0;
         for (int i = messages.length() - 1; i >= oldest; i--) {
             JSONObject msg = messages.optJSONObject(i);
-            if (msg == null || !"assistant".equals(msg.optString("role"))) continue;
+            if (msg == null || !"assistant".equals(msg.optString("role"))
+                    || "hidden".equals(msg.optString("display_kind"))) continue;
             String text = messageText(msg.opt("content"));
             if (text == null) { scan.limited = true; continue; }
             remaining -= text.length();
