@@ -1,0 +1,3 @@
+name: mobile_artifacts
+version: 1.0.0
+description: Publish selected workspace outputs to a private mobile discussion.

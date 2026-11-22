@@ -1,0 +1,62 @@
+# Deploy separate Hermes accounts
+
+Each person gets a HTTPS hostname, a gateway bearer key, a container network and a persistent Hermes home. Their coding workspace, threads, configuration and provider credentials belong to that runtime. The HTTPS proxy routes by hostname. It exposes the mobile API and keeps gateway ports private. The fork treats people who share an OS account as mutually trusted, including across named profiles. This deployment uses separate containers. [Hermes security model](https://github.com/LLM-4-People/hermes-agent/blob/c7a3fe245d6bf610f73ff555d57e4ed632f8ded8/SECURITY.md#L210-L225)
+
+## Prepare a runtime image
+
+Install Docker, Docker Compose with support for raw environment files (2.30 or newer), and Python 3. Give every account its own DNS hostname pointing to the Docker host. Public TLS certificate issuance uses ports 80 and 443. The local verification command below uses a private CA and an ephemeral loopback port.
+
+Use an immutable registry digest for an image you published from the matching fork revision. To build it locally, run the following from the mobile repository. It fetches the exact commit used by this checkout’s gateway integration tests and builds the fork’s Dockerfile. Keep the resulting image ID when rendering the deployment or running the isolation test.
+
+```sh
+revision=$(python3 -c 'import runpy; print(runpy.run_path("verification/gateway_fixture.py")["PINNED_REVISION"])')
+checkout=$(mktemp -d)
+git -C "$checkout" init -q
+git -C "$checkout" fetch --depth=1 --no-tags https://github.com/LLM-4-People/hermes-agent.git "$revision"
+git -C "$checkout" archive "$revision" |
+  docker build -t "hermes-mobile-gateway:$revision" --label "org.opencontainers.image.revision=$revision" -
+image=$(docker image inspect --format '{{.Id}}' "hermes-mobile-gateway:$revision")
+```
+
+## Create two accounts
+
+Run these commands in the mobile repository. Choose a private deployment directory outside source control. Replace the sample hostnames with yours.
+
+```sh
+deployment="$HOME/.local/share/hermes-mobile-deployment"
+python3 deploy/accounts.py "$deployment" --image "$image" \
+  --account north=north.example.org --account south=south.example.org
+```
+
+The renderer creates a distinct 256-bit key in each account's `gateway.env` with owner-only permissions. Repeating the command preserves existing keys and settings. Use an established private channel to give each person their own hostname and key. On Android, enter the HTTPS endpoint root and the matching key, then choose a device-local passphrase.
+
+Put provider credentials in the corresponding `accounts/north/provider.env` or `accounts/south/provider.env`. These raw Compose files accept literal `NAME=value` lines. Supply only the values intended for that runtime. Provider files are visible only to their own gateway. The container's supervised gateway runs as the image's Hermes user. The home volume holds its workspace at `/opt/data/workspace`. The launcher preserves the fork's s6 entrypoint and disables profile multiplexing.
+
+Enable the bundled file-artifact plugin in each new Hermes home, then start the stack. The renderer saves a unique Compose identity in the private deployment directory’s `project-id` file. Keep it with the keys when moving the deployment. Each new deployment gets new volumes, even if two directories share a name. Let Compose use the generated project name when starting the stack.
+
+```sh
+docker compose -f "$deployment/compose.json" config --quiet
+docker compose -f "$deployment/compose.json" run --rm gateway-north plugins enable mobile_artifacts
+docker compose -f "$deployment/compose.json" run --rm gateway-south plugins enable mobile_artifacts
+docker compose -f "$deployment/compose.json" up -d
+docker compose -f "$deployment/compose.json" ps
+```
+
+The gateway loads the shared read-only plugin code from `server/artifacts`. Back up each persistent home independently. For an existing deployment, record the previous image reference, take backups, regenerate with the reviewed image and use `docker compose up -d`. Recreate the HTTPS service after changing host routes so it reads the new Caddyfile. Use `docker compose config --quiet` for checks because the full rendered Compose configuration includes resolved environment secrets.
+
+## Enable closed-app notifications
+
+Add the push configuration for each participating account. Place the four client configuration values described in the [push guide](push.md) into `accounts/ID/push.env` and the Firebase service credential into `accounts/ID/firebase.json`. The private deployment directory protects the host files. The service credential needs to be readable by container UID 10000. On a Linux host with regular Docker file mounts, set the credential's group to 10000 and mode to 0640. Rootless Docker may map that ID differently.
+
+Repeat the render with the same account declarations and `--push north` for each account with configured push credentials. Then run `docker compose up -d --build` and recreate the HTTPS service. Each push bridge has its own outbox and mounts only its account's Hermes home read-only to observe persisted events. The bridge is trusted with that account's run and reminder metadata. The provider environment file is supplied to the gateway alone. The bridge serves `/api/mobile/push` and its subordinate routes on the same hostname as chat. Firebase delivery verification requires a configured project and a registered Android device.
+
+## Check isolation
+
+```sh
+python3 -m unittest discover -s deploy -v
+python3 deploy/smoke.py --image "$image" --push
+```
+
+The smoke test provisions two disposable homes on a loopback-only HTTPS port, verifies the generated CA, exercises both bearer keys at both hostnames, and checks independent session and workspace storage. It removes only the temporary Compose project and its volumes on exit. The push check verifies separate Firebase client discovery and reads a real Hermes reminder ledger entry through its owning bridge. It uses disposable credentials and registers zero devices. Neither check requires a model provider.
+
+<!-- Generated from docs/sources/docs/accounts.md.in by scripts/docs.py. -->

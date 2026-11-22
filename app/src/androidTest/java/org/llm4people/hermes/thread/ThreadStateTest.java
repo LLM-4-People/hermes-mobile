@@ -1,0 +1,272 @@
+package org.llm4people.hermes.thread;
+
+import junit.framework.TestCase;
+import org.json.JSONArray;
+import org.json.JSONObject;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+public class ThreadStateTest extends TestCase {
+    public void testUnacknowledgedSendRestoresSameKeyAndExactBodyAcrossRestart() throws Exception {
+        AtomicReference<String> stored = new AtomicReference<>();
+        ThreadJournal first = new ThreadJournal("abc", "original", null, stored::set);
+        first.draft("corrige le test");
+        first.flush();
+        JSONObject options = new JSONObject().put("model", "m").put("provider", "p")
+                .put("allowed_toolsets", new JSONArray()).put("excluded_tools", new JSONArray().put("shell"))
+                .put("session_id", "untrusted").put("input", "overwritten");
+        JSONObject body = ThreadData.body("abc", first.draft(), options);
+        JSONObject sent = first.stage(body, 10_000, 3, 60, true);
+        ThreadJournal resumed = new ThreadJournal("abc", "original", stored.get(), stored::set);
+        assertEquals("", resumed.draft());
+        assertEquals(sent.getString("key"), resumed.pending().getString("key"));
+        assertEquals(body.toString(), resumed.pending().getJSONObject("body").toString());
+        assertEquals("abc", body.getString("session_id"));
+        assertEquals("corrige le test", body.getString("input"));
+        assertEquals(0, body.getJSONArray("allowed_toolsets").length());
+        assertEquals("shell", body.getJSONArray("excluded_tools").getString(0));
+        resumed.setRunId("r7");
+        resumed.draft("autre message");
+        resumed.checkpoint(4, "bonjour");
+        resumed.flush();
+        ThreadJournal followed = new ThreadJournal("abc", "original", stored.get(), stored::set);
+        assertEquals("r7", followed.pending().getString("run_id"));
+        assertEquals(4, followed.pending().getInt("seq"));
+        assertEquals("bonjour", followed.pending().getString("preview"));
+        followed.finish();
+        ThreadJournal done = new ThreadJournal("abc", "original", stored.get(), stored::set);
+        assertNull(done.pending());
+        assertEquals("autre message", done.draft());
+    }
+
+    public void testConsecutiveRunsReceiveIndependentReconnectBudgets() {
+        AtomicReference<String> saved = new AtomicReference<>();
+        ThreadJournal journal = new ThreadJournal("thread", "owner", null, saved::set);
+        for (int turn = 1; turn <= 6; turn++) {
+            journal.stage(ThreadData.body("thread", "turn " + turn, null), turn, 1, 60, true);
+            journal.setRunId("run-" + turn);
+            assertFalse(journal.reconnectsExhausted());
+            assertEquals(1000L, journal.nextReconnectDelayMillis());
+            journal.finish();
+        }
+    }
+
+    public void testReopenAndReceiptReplayPreserveRetriesUntilExplicitResumeOrFinish() {
+        AtomicReference<String> saved = new AtomicReference<>();
+        ThreadJournal journal = new ThreadJournal("thread", "owner", null, saved::set);
+        journal.stage(ThreadData.body("thread", "first", null), 1, 1, 60, true);
+        journal.setRunId("first-run");
+        long[] expected = {1000, 2000, 4000, 8000, 16000};
+        for (long delay : expected) {
+            assertFalse(journal.reconnectsExhausted());
+            assertEquals(delay, journal.nextReconnectDelayMillis());
+            journal.retire();
+            journal = new ThreadJournal("thread", "owner", saved.get(), saved::set);
+            journal.setRunId("first-run");
+        }
+        assertEquals(-1L, journal.nextReconnectDelayMillis());
+        journal.retire();
+        journal = new ThreadJournal("thread", "owner", saved.get(), saved::set);
+        assertTrue(journal.reconnectsExhausted());
+        assertEquals(-1L, journal.nextReconnectDelayMillis());
+        journal.resetReconnects();
+        journal.retire();
+        journal = new ThreadJournal("thread", "owner", saved.get(), saved::set);
+        assertFalse(journal.reconnectsExhausted());
+        assertEquals(1000L, journal.nextReconnectDelayMillis());
+        journal.finish();
+        journal.stage(ThreadData.body("thread", "next", null), 2, 1, 60, true);
+        journal.setRunId("second-run");
+        assertEquals(1000L, journal.nextReconnectDelayMillis());
+    }
+
+    public void testFailedReconnectCommitPreservesPreviousBudgetAndReceipt() {
+        AtomicReference<String> saved = new AtomicReference<>();
+        AtomicBoolean writable = new AtomicBoolean(true);
+        ThreadJournal journal = new ThreadJournal("thread", "owner", null, value -> {
+            if (!writable.get()) throw new IllegalStateException("Storage unavailable");
+            saved.set(value);
+        });
+        journal.stage(ThreadData.body("thread", "first", null), 1, 1, 60, true);
+        journal.setRunId("run");
+        writable.set(false);
+        try { journal.nextReconnectDelayMillis(); fail("Scheduled a reconnect before recording it"); }
+        catch (IllegalStateException expected) { /* Retry after recovering storage. */ }
+        writable.set(true);
+        assertEquals(1000L, journal.nextReconnectDelayMillis());
+        writable.set(false);
+        try { journal.resetReconnects(); fail("Failed reset appeared to succeed"); }
+        catch (IllegalStateException expected) { /* The admitted run retains its budget. */ }
+        writable.set(true);
+        assertEquals(2000L, journal.nextReconnectDelayMillis());
+        assertEquals("run", journal.pending().optString("run_id"));
+    }
+
+    public void testFailedOutboxCommitCannotAdmitAndRetainsDraft() {
+        ThreadJournal journal = new ThreadJournal("thread", "original", null, ignored -> { throw new IllegalStateException("full"); });
+        journal.draft("bonjour");
+        try {
+            journal.stage(ThreadData.body("thread", journal.draft(), null), 100, 2, 3, true);
+            fail("Send without durable record");
+        } catch (IllegalStateException expected) {
+            assertNull(journal.pending());
+            assertEquals("bonjour", journal.draft());
+        }
+    }
+
+    public void testReplayRequiresContinuingDurableRetentionAndSameBootElapsedTime() {
+        assertFalse(ThreadData.canReplay(20_000, 15_000, 4, 3, 10, true));
+        assertFalse(ThreadData.canReplay(20_000, 15_000, -1, -1, 10, true));
+        assertTrue(ThreadData.canReplay(19_999, 10_000, 3, 3, 10, true));
+        assertFalse(ThreadData.canReplay(20_000, 10_000, 3, 3, 10, true));
+        assertFalse(ThreadData.canReplay(10_001, 10_000, 3, 3, 10, false));
+        assertFalse(ThreadData.canReplay(9_999, 10_000, 3, 3, 10, true));
+        assertFalse(ThreadData.canReplay(10_000, 10_000, 3, 3, 0, true));
+    }
+
+    public void testBearerRotationAndEndpointSwitchFenceAmbiguousReceipt() {
+        String initial = ThreadJournal.scope("account", "https://one/p/a", "bearer1", "s");
+        AtomicReference<String> saved = new AtomicReference<>();
+        ThreadJournal original = new ThreadJournal("s", initial, null, saved::set);
+        original.stage(ThreadData.body("tip-id", "bonjour", null), 10, 1, 60, true);
+        for (String other : new String[]{
+                ThreadJournal.scope("account", "https://one/p/a", "bearer2", "s"),
+                ThreadJournal.scope("account", "https://one/p/b", "bearer1", "s"),
+                ThreadJournal.scope("account", "https://two/p/a", "bearer1", "s"),
+                ThreadJournal.scope("different", "https://one/p/a", "bearer1", "s")}) {
+            assertFalse(new ThreadJournal("s", other, saved.get(), saved::set).sameOwner());
+        }
+        assertTrue(new ThreadJournal("s", initial, saved.get(), saved::set).sameOwner());
+        assertFalse(saved.get().contains("bearer1"));
+    }
+
+    public void testAtomicRejectionRetainsConcurrentDraftAndDiscardsStaleAsyncWrites() {
+        AtomicReference<String> saved = new AtomicReference<>();
+        ThreadJournal journal = new ThreadJournal("root", "owner", null, saved::set);
+        journal.draft("first");
+        Runnable late = journal.snapshot();
+        journal.stage(ThreadData.body("tip", journal.draft(), null), 10, 1, 60, true);
+        journal.draft("next");
+        journal.reject();
+        late.run();
+        ThreadJournal restored = new ThreadJournal("root", "owner", saved.get(), saved::set);
+        assertNull(restored.pending());
+        assertEquals("first\nnext", restored.draft());
+        journal.draft("old opened view");
+        Runnable lateAfterClose = journal.snapshot();
+        journal.retire();
+        restored.draft("new opened view");
+        restored.flush();
+        lateAfterClose.run();
+        assertEquals("new opened view", new ThreadJournal("root", "owner", saved.get(), saved::set).draft());
+    }
+
+    public void testMalformedStateIsRefusedBeforeAdmission() {
+        for (String bad : new String[]{"{", "{\"pending\":null}", "{\"draft\":{}}",
+                "{\"pending\":{\"body\":{\"session_id\":\"other\",\"input\":\"x\"},\"key\":\"id\"}}"}) {
+            try {
+                new ThreadJournal("s", "owner", bad, ignored -> fail("corrupt state overwritten"));
+                fail("malformed state accepted");
+            } catch (IllegalStateException expected) {}
+        }
+    }
+
+    public void testCompactionPreservesLocalIdentityAndIndependentFork() throws Exception {
+        JSONObject compacted = new JSONObject().put("id", "tip").put("_lineage_root_id", "root");
+        JSONObject fork = new JSONObject().put("id", "fork").put("parent_session_id", "root");
+        JSONArray listing = new JSONArray().put(compacted).put(fork);
+        assertEquals("root", ThreadIdentity.find(listing, "tip").root);
+        assertEquals("tip", ThreadIdentity.find(listing, "root").tip);
+        assertEquals("fork", ThreadIdentity.find(listing, "fork").root);
+        assertNull(ThreadIdentity.find(listing, "other"));
+    }
+
+    public void testUnknownAcknowledgementUsesExactGenerationAndReportedErrorsAreRedacted() throws Exception {
+        JSONObject status = new JSONObject().put("status", "unknown").put("admission_id", "adm");
+        assertNull(ThreadData.unknownReceipt(status));
+        assertNull(ThreadData.unknownReceipt(status.put("execution_generation", "42")));
+        JSONObject receipt = ThreadData.unknownReceipt(status.put("execution_generation", 42));
+        assertEquals(2, receipt.length());
+        assertEquals(42, receipt.getInt("execution_generation"));
+        assertEquals("adm", receipt.getString("admission_id"));
+        assertNull(ThreadData.unknownReceipt(status.put("status", "running")));
+        status.put("error", "authorization: Bearer aaaa; api_key=bbbb; http error my-credential");
+        String reason = ThreadData.failureDetail(status, "my-credential");
+        for (String secret : new String[]{"aaaa", "bbbb", "my-credential"}) assertFalse(reason.contains(secret));
+        assertTrue(reason.contains("http error"));
+    }
+
+    public void testCanonicalControlsRehydrateAndSettleExactlyOneRequest() throws Exception {
+        RunPrompts prompts = new RunPrompts();
+        JSONObject request = new JSONObject().put("kind", "approval").put("prompt_id", "a")
+                .put("execution_generation", 8);
+        JSONObject question = new JSONObject().put("kind", "clarify").put("prompt_id", "b")
+                .put("execution_generation", 8);
+        prompts.restore(new JSONObject().put("pending_controls", new JSONArray().put(request).put(question)));
+        JSONObject consent = RunPrompts.response(prompts.next(), "once");
+        assertEquals("a", consent.getString("request_id"));
+        assertEquals("once", consent.getString("choice"));
+        assertEquals(8, consent.getInt("execution_generation"));
+        assertEquals(3, consent.length());
+        prompts.settle(new JSONObject().put("prompt_id", "a"));
+        assertEquals("b", RunPrompts.id(prompts.next()));
+        JSONObject response = RunPrompts.response(prompts.next(), "oui");
+        assertEquals("oui", response.getString("answer"));
+        assertEquals(3, response.length());
+        JSONObject classic = new JSONObject().put("request_id", "c");
+        prompts.restore(new JSONObject().put("approval", classic));
+        assertEquals(2, RunPrompts.response(prompts.next(), "deny").length());
+    }
+
+    public void testPagedLineageOverlapsAndMalformedRows() throws Exception {
+        JSONArray older = new JSONArray("[{\"id\":1},{\"id\":2},null]");
+        JSONArray newer = new JSONArray("[{\"id\":2},{\"id\":3}]");
+        JSONArray merged = ThreadData.join(older, newer);
+        assertEquals(3, merged.length());
+        for (int i = 0; i < 3; i++) assertEquals(i + 1, merged.getJSONObject(i).getInt("id"));
+        assertFalse(ThreadData.validId("a/b"));
+        assertTrue(ThreadData.validId("héllo-1"));
+        assertEquals("", ThreadData.content(null));
+        JSONObject row = new JSONObject("{\"content\":[null,{\"type\":\"text\",\"text\":\"one\"},{\"type\":\"text\",\"text\":\"two\"}]}");
+        assertEquals("one\ntwo", ThreadData.content(row));
+        assertEquals("Nouvelle conversation", ThreadData.title(new JSONObject().put("title", JSONObject.NULL)));
+    }
+
+    public void testTranscriptKeepsConversationAndToolCallsBetweenBookkeepingRows() throws Exception {
+        JSONArray page = new JSONArray("""
+                [{"id":1,"role":"user","content":"Que signifie session_meta ?"},
+                 {"id":2,"role":"assistant","content":"Un enregistrement de session."},
+                 {"id":3,"role":"session_meta","content":null},
+                 {"id":4,"role":"system","content":"La conversation a repris."},
+                 {"id":5,"role":"assistant","content":null,"tool_calls":[{"function":{"name":"lecture"}}]},
+                 {"id":6,"role":"tool","tool_name":"lecture","content":"Résultat"},
+                 {"id":7,"role":"user","display_kind":"hidden","content":""}]
+                """);
+        JSONArray visible = ThreadData.visibleMessages(page);
+        int[] positions = {0, 1, 3, 4, 5};
+        assertEquals(positions.length, visible.length());
+        for (int i = 0; i < positions.length; i++) assertSame(page.get(positions[i]), visible.get(i));
+        assertEquals(7, page.length());
+    }
+
+    public void testFullBookkeepingPageAndOverlappingOlderPageCountOnlyVisibleInsertions() throws Exception {
+        JSONArray page = new JSONArray();
+        for (int id = 1; id <= ThreadData.PAGE; id++) {
+            page.put(new JSONObject().put("id", id).put("role", "session_meta"));
+        }
+        JSONArray visible = ThreadData.visibleMessages(page);
+        assertEquals(ThreadData.PAGE, page.length());
+        assertEquals(0, visible.length());
+
+        JSONArray recent = ThreadData.visibleMessages(new JSONArray("""
+                [{"id":41,"role":"assistant","content":"Reçu"},{"id":42,"role":"session_meta"}]
+                """));
+        page.put(0, new JSONObject().put("id", 1).put("role", "user").put("content", "Bonjour"));
+        page.put(ThreadData.PAGE - 1, recent.get(0));
+        JSONArray joined = ThreadData.visibleMessages(ThreadData.join(page, recent));
+        assertEquals(1, joined.length() - recent.length());
+        assertEquals("Bonjour", ThreadData.content(joined.getJSONObject(0)));
+        assertSame(recent.get(0), joined.get(1));
+        assertEquals(ThreadData.PAGE, page.length());
+    }
+}

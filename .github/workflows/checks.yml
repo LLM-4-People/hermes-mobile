@@ -1,0 +1,143 @@
+name: Workspace checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate sources
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: python3 scripts/docs.py --check
+      - run: python3 -m unittest discover -s ci -p 'test_*.py'
+      - name: Check workflows and shell
+        run: |
+          go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+          shellcheck ci/*.sh
+
+  workspace:
+    name: Workspace tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: python3 -m venv "$RUNNER_TEMP/server-env"
+      - run: '"$RUNNER_TEMP/server-env/bin/python" -m pip install -r server/requirements.txt'
+      - run: '"$RUNNER_TEMP/server-env/bin/python" -m unittest discover -s server/tests'
+      - run: '"$RUNNER_TEMP/server-env/bin/python" -m unittest server.artifacts.test_files'
+      - run: python3 -m unittest discover -s deploy -v
+      - run: python3 -B -m unittest discover -s verification/device -v
+
+  package:
+    name: Android package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: android
+        uses: ./.github/actions/android
+      - name: Build, lint and run host tests
+        run: ./gradlew :app:assembleDebug :app:assembleRelease :app:assembleDebugAndroidTest :app:lintDebug :app:testDebugUnitTest
+      - name: Exercise signing with a disposable key
+        env:
+          ANDROID_BUILD_TOOLS: ${{ steps.android.outputs.tools }}
+        run: python3 ci/test_signing.py "$ANDROID_BUILD_TOOLS" app/build/outputs/apk/release/app-release-unsigned.apk
+      - name: Upload installable debug APK
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: android-debug
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          compression-level: 0
+      - name: Rebuild the unsigned APK from clean outputs
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          apk=app/build/outputs/apk/release/app-release-unsigned.apk
+          cp "$apk" "$RUNNER_TEMP/release-reference.apk"
+          ./gradlew --no-build-cache :app:clean :app:assembleRelease
+          cmp "$RUNNER_TEMP/release-reference.apk" "$apk"
+      - name: Retain the verified release input
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: android-release-input
+          path: app/build/outputs/apk/release/app-release-unsigned.apk
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
+
+  device:
+    name: Android device
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: android
+        uses: ./.github/actions/android
+      - id: fixture
+        name: Read the reviewed Hermes revision
+        run: |
+          python3 -B - <<'PYTHON' >> "$GITHUB_OUTPUT"
+          import runpy
+          print("sha=" + runpy.run_path("verification/gateway_fixture.py")["PINNED_REVISION"])
+          PYTHON
+      - name: Check out the fixture gateway
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: LLM-4-People/hermes-agent
+          ref: ${{ steps.fixture.outputs.sha }}
+          path: .fixture/hermes
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
+        with:
+          version: '0.11.17'
+          enable-cache: false
+      - name: Install the fork's locked gateway dependencies
+        run: |
+          UV_PROJECT_ENVIRONMENT="$RUNNER_TEMP/hermes-env" \
+            uv sync --project .fixture/hermes --frozen --group dev --no-install-project --extra sms
+          uv pip install --python "$RUNNER_TEMP/hermes-env/bin/python" -r server/requirements.txt
+      - name: Verify the notification bridge against real Hermes ledger writers
+        env:
+          HERMES_TEST_CHECKOUT: ${{ github.workspace }}/.fixture/hermes
+        run: |
+          "$RUNNER_TEMP/hermes-env/bin/python" -B -m unittest discover -s server/tests
+      - name: Enable KVM
+        run: sudo chmod a+rw /dev/kvm
+      - name: Run device tests
+        uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: ${{ steps.android.outputs.sdk }}
+          target: google_apis
+          arch: x86_64
+          script: ci/device-check.sh
+      - name: Retain instrumentation reports
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: android-device-reports
+          path: app/build/reports/androidTests/
+          if-no-files-found: ignore
+      - name: Retain device journey captures
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: android-device-captures
+          path: ${{ runner.temp }}/hermes-device/**/*.png
+          if-no-files-found: ignore
