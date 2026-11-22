@@ -11,6 +11,7 @@ import java.util.List;
 /** The authority fences canonical prompts by generation. Standalone approvals use exact request ids. */
 final class RunPrompts {
     record Key(String id, long generation, boolean question) {}
+    enum Presence { PENDING, ABSENT, UNCONFIRMED }
     private final LinkedHashMap<Key, JSONObject> waiting = new LinkedHashMap<>();
     private List<JSONObject> snapshot = Collections.emptyList();
     private Object generation;
@@ -69,6 +70,13 @@ final class RunPrompts {
     void settle(JSONObject event) {
         Key key = key(event);
         if (key != null && waiting.remove(key) != null) snapshot = null;
+    }
+
+    static Presence presence(JSONObject status, JSONObject prompt) {
+        RunPrompts fresh = new RunPrompts();
+        fresh.restore(status);
+        if (fresh.match(prompt) != null) return Presence.PENDING;
+        return status.optJSONArray("pending_controls") != null ? Presence.ABSENT : Presence.UNCONFIRMED;
     }
 
     JSONObject match(JSONObject expected) {
