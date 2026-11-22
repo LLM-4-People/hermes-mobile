@@ -58,6 +58,32 @@ public final class InstrumentComparisonTest extends TestCase {
         assertEquals("Champ retiré", rename.get(1).label());
     }
 
+    public void testDuplicateHeadingsFollowExactBlockContentAcrossAReorder() throws Exception {
+        String apple = "{\"title\":\"Rubrique\",\"note\":\"Pomme\"}";
+        String pear = apple.replace("Pomme", "Poire");
+        List<InstrumentChanges.Change> changes = InstrumentChanges.between(page(apple + "," + pear),
+                page(pear + "," + apple));
+        assertEquals(1, changes.size());
+        assertEquals("Ordre des rubriques", changes.get(0).label());
+        assertEquals("Rubrique · Pomme\nRubrique · Poire", changes.get(0).before());
+        assertEquals("Rubrique · Poire\nRubrique · Pomme", changes.get(0).after());
+    }
+
+    public void testEqualFieldLabelsUseKindThenStableIdToExplainTheirNewOrder() throws Exception {
+        String a = FIELD.replace("Fichier", "Même");
+        for (String kind : new String[]{"text", "multiline"}) {
+            String b = a.replace("file", "objet").replace("\"text\"", "\"" + kind + "\"");
+            List<InstrumentChanges.Change> changes = InstrumentChanges.between(page(form(a + "," + b)),
+                    page(form(b + "," + a)));
+            assertEquals(1, changes.size());
+            InstrumentChanges.Change change = changes.get(0);
+            assertEquals("Ordre des champs", change.label());
+            assertFalse(change.before().equals(change.after()));
+            assertTrue(change.before().startsWith("Même · Texte court"));
+            assertTrue(change.after().startsWith("text".equals(kind) ? "Même · Texte court (objet)" : "Même · Texte long"));
+        }
+    }
+
     public void testOnlyChoiceMeaningOrBindingChanged() throws Exception {
         String value = "{\"type\":\"value\",\"title\":\"Contexte\",\"source\":\"thread.title\"}";
         WorkspaceLayout old = page(value + "," + form(CHOICE));

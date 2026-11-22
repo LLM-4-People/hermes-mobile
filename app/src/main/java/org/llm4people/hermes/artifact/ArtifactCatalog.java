@@ -72,7 +72,7 @@ final class ArtifactCatalog {
             JSONObject msg = messages.optJSONObject(i);
             if (msg == null || !"assistant".equals(msg.optString("role"))
                     || "hidden".equals(msg.optString("display_kind"))) continue;
-            String text = messageText(msg.opt("content"));
+            String text = MessageParts.eligible(msg.opt("content"));
             if (text == null) { scan.limited = true; continue; }
             remaining -= text.length();
             if (remaining < 0) { scan.limited = true; break; }
@@ -108,25 +108,4 @@ final class ArtifactCatalog {
         catch (IOException e) { return null; }
     }
 
-    private static String messageText(Object value) {
-        if (value instanceof String) return ((String) value).length() <= MAX_MESSAGE_CHARS ? (String) value : null;
-        if (!(value instanceof JSONArray)) return "";
-        JSONArray parts = (JSONArray) value;
-        if (parts.length() > 1024) return null;
-        StringBuilder result = new StringBuilder();
-        for (int i = 0; i < parts.length(); i++) {
-            JSONObject part = parts.optJSONObject(i);
-            if (part == null) continue;
-            String type = part.optString("type");
-            if (!"text".equals(type) && !"output_text".equals(type)) continue;
-            Object v = part.opt("text");
-            if (!(v instanceof String)) continue;
-            String text = (String) v;
-            int separatorLength = result.length() == 0 ? 0 : 1;
-            if (text.length() > MAX_MESSAGE_CHARS - result.length() - separatorLength) return null;
-            if (separatorLength != 0) result.append('\n');
-            result.append(text);
-        }
-        return result.toString();
-    }
 }

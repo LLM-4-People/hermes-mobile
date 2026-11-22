@@ -79,7 +79,7 @@ public final class Fences {
         });
     }
 
-    /** Redact the exact verified bodies. The visible transcript can contain additional typed parts. */
+    /** Redact the exact verified bodies of a scalar text message. */
     public static String without(String text, Map<Integer,String> proposals) {
         return described(text, proposals, ignored -> "");
     }
@@ -89,21 +89,29 @@ public final class Fences {
         if (proposals.isEmpty() || text.length() > ArtifactCatalog.MAX_MESSAGE_CHARS) return text;
         StringBuilder copy = new StringBuilder();
         int[] retainedFrom = {0};
-        ranges(text, (opening, start, body, contentEnd, end, ordinal) -> {
-            String expected = proposals.get(ordinal);
-            if (opening.workspace() && expected != null
-                    && expected.length() == contentEnd - body && text.regionMatches(body, expected, 0, expected.length())) {
-                copy.append(text, retainedFrom[0], start);
-                String label = description.apply(ordinal);
-                if (!label.isEmpty()) {
-                    copy.append(label);
-                    if (end > 0 && text.charAt(end - 1) == '\n') copy.append('\n');
-                }
-                retainedFrom[0] = end;
+        verifiedRanges(text, proposals, (start, end, ordinal) -> {
+            copy.append(text, retainedFrom[0], start);
+            String label = description.apply(ordinal);
+            if (!label.isEmpty()) {
+                copy.append(label);
+                if (text.charAt(end - 1) == '\n') copy.append('\n');
             }
-            return true;
+            retainedFrom[0] = end;
         });
         return retainedFrom[0] == 0 ? text : copy.append(text, retainedFrom[0], text.length()).toString();
+    }
+
+    interface ProposalVisitor {
+        void accept(int start, int end, int ordinal);
+    }
+
+    static void verifiedRanges(String text, Map<Integer,String> proposals, ProposalVisitor visitor) {
+        ranges(text, (opening, start, body, contentEnd, end, ordinal) -> {
+            String expected = proposals.get(ordinal);
+            if (opening.workspace() && expected != null && expected.length() == contentEnd - body
+                    && text.regionMatches(body, expected, 0, expected.length())) visitor.accept(start, end, ordinal);
+            return true;
+        });
     }
 
     private interface RangeVisitor {

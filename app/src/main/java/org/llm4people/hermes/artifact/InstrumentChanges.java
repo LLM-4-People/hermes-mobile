@@ -1,7 +1,6 @@
 package org.llm4people.hermes.artifact;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -18,18 +17,19 @@ final class InstrumentChanges {
         changed(changes, "", "Apparence", appearance(old.theme), appearance(next.theme));
         changed(changes, "", "Densité", density(old.density), density(next.density));
 
-        int[] previous = matchBlocks(old.blocks, next.blocks);
+        int[] previous = InstrumentIdentity.match(old.blocks, next.blocks);
+        List<String> labels = InstrumentIdentity.blockLabels(old.blocks);
         List<Integer> oldOrder = new ArrayList<>();
         List<String> newTitles = new ArrayList<>();
         for (int i : previous) {
             if (i >= 0) {
                 oldOrder.add(i);
-                newTitles.add(old.blocks.get(i).title);
+                newTitles.add(labels.get(i));
             }
         }
         Collections.sort(oldOrder);
         List<String> oldTitles = new ArrayList<>();
-        for (int i : oldOrder) oldTitles.add(old.blocks.get(i).title);
+        for (int i : oldOrder) oldTitles.add(labels.get(i));
         int n = 0;
         for (int i : previous) {
             if (i >= 0 && i != oldOrder.get(n++)) {
@@ -49,40 +49,6 @@ final class InstrumentChanges {
             }
         }
         return changes;
-    }
-
-    // A block has no wire ID. Match its type/title first. A single remaining block of each
-    // type on both sides can be recognized after a rename. Ambiguous edits remain additions/removals.
-    private static int[] matchBlocks(List<WorkspaceLayout.Block> old, List<WorkspaceLayout.Block> next) {
-        int[] matched = new int[next.size()];
-        Arrays.fill(matched, -1);
-        boolean[] used = new boolean[old.size()];
-        for (int i = 0; i < next.size(); i++) {
-            WorkspaceLayout.Block block = next.get(i);
-            for (int j = 0; j < old.size(); j++) {
-                if (!used[j] && old.get(j).type.equals(block.type) && old.get(j).title.equals(block.title)) {
-                    matched[i] = j;
-                    used[j] = true;
-                    break;
-                }
-            }
-        }
-        for (int i = 0; i < next.size(); i++) {
-            if (matched[i] >= 0) continue;
-            String type = next.get(i).type;
-            int available = -1;
-            int oldCount = 0, nextCount = 0;
-            for (int j = 0; j < old.size(); j++) {
-                if (!used[j] && type.equals(old.get(j).type)) { available = j; oldCount++; }
-            }
-            for (int j = 0; j < next.size(); j++)
-                if (matched[j] < 0 && type.equals(next.get(j).type)) nextCount++;
-            if (oldCount == 1 && nextCount == 1) {
-                matched[i] = available;
-                used[available] = true;
-            }
-        }
-        return matched;
     }
 
     private static void blockChanges(List<Change> changes, WorkspaceLayout.Block old, WorkspaceLayout.Block next) {
@@ -110,8 +76,7 @@ final class InstrumentChanges {
                 }
                 for (DraftForm.Field field : old.fields) if (!after.containsKey(field.id))
                     changes.add(new Change(group, "Champ retiré", prior.get(field.id), null));
-                Map<String, String> labels = new LinkedHashMap<>();
-                for (DraftForm.Field field : next.fields) labels.put(field.id, field.label);
+                Map<String,String> labels = InstrumentIdentity.fieldLabels(next.fields);
                 order(changes, group, "Ordre des champs", new ArrayList<>(prior.keySet()),
                         new ArrayList<>(after.keySet()), labels);
             }
@@ -133,19 +98,14 @@ final class InstrumentChanges {
     private static Map<String,String> fields(WorkspaceLayout.Block form) {
         Map<String,String> result = new LinkedHashMap<>();
         for (DraftForm.Field f : form.fields) {
-            String kind = switch (f.kind) {
-                case "multiline" -> "Texte long";
-                case "choice" -> "Choix";
-                default -> "Texte court";
-            };
-            String details = kind + (f.required ? " obligatoire" : " facultatif");
+            String details = InstrumentIdentity.kind(f.kind) + (f.required ? " obligatoire" : " facultatif");
             if (!f.options.isEmpty()) details += "\n" + lines(f.options);
             result.put(f.id, f.label + "\n" + details);
         }
         return result;
     }
 
-    private static String describe(WorkspaceLayout.Block block) {
+    static String describe(WorkspaceLayout.Block block) {
         List<String> items = new ArrayList<>();
         switch (block.type) {
             case "form" -> {
