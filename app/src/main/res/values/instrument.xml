@@ -1,0 +1,3 @@
+<resources>
+    <string name="workspace_missing_field">Renseignez le champ « %1$s ».</string>
+</resources>

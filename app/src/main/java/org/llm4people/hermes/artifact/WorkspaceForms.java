@@ -76,7 +76,7 @@ final class WorkspaceForms {
                 error.setVisibility(View.GONE);
                 review(activity, host, draft);
             } catch (DraftForm.MissingAnswer e) {
-                error.setText("Renseignez le champ « " + e.field.label + " ».");
+                error.setText(c.getString(R.string.workspace_missing_field, e.field.label));
                 error.setVisibility(View.VISIBLE);
                 controls.get(e.field.id).requestFocus();
             }
@@ -90,9 +90,12 @@ final class WorkspaceForms {
         if (multiline) kind |= InputType.TYPE_TEXT_FLAG_MULTI_LINE;
         text.setInputType(kind);
         text.setMinHeight(Ui.dp(c,48));
+        text.setBackgroundResource(R.drawable.profile_input);
+        text.setBackgroundTintList(null);
+        Ui.pad(text,12,9);
         text.setMaxLines(multiline ? 8 : 1);
         text.setTextColor(c.getColor(R.color.ink));
-        text.setImeOptions(EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING);
+        text.setImeOptions(EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING | EditorInfo.IME_FLAG_NO_EXTRACT_UI);
         text.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS);
         text.setSaveEnabled(false);
         text.setFilters(new InputFilter[]{new InputFilter.LengthFilter(limit)});
