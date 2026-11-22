@@ -176,14 +176,15 @@ final class ThreadViews {
     void rows(JSONArray data, boolean hasMore, boolean follow, int prepended) {
         int top = list.getFirstVisiblePosition();
         int y = list.getChildCount() == 0 ? 0 : list.getChildAt(0).getTop();
-        rows = data;
+        int previous = rows.length();
+        rows = transcript ? PromptHistory.display(data) : data;
         more.setVisibility(hasMore ? View.VISIBLE : View.GONE);
         more.setEnabled(true);
         adapter.notifyDataSetChanged();
         if (follow) list.post(() -> {
             if (!promptRows.visible() || !list.hasFocus()) list.setSelection(list.getCount() - 1);
         });
-        else if (prepended > 0) list.setSelectionFromTop(top + prepended, y);
+        else if (prepended > 0) list.setSelectionFromTop(top + rows.length() - previous, y);
     }
 
     void paging() { more.setEnabled(false); }
@@ -289,6 +290,7 @@ final class ThreadViews {
             String name = switch (role) {
                 case "user" -> "Vous";
                 case "assistant" -> "Hermes";
+                case "prompt_status" -> "Suivi de la question";
                 case "tool" -> "Outil · " + ThreadData.string(row, "tool_name");
                 default -> role;
             };

@@ -318,7 +318,8 @@ public final class ThreadWorkspace implements AutoCloseable {
         String path = ThreadData.path(session);
         int requestNo = ++transcriptRequest;
         int titleVersion = metadataRequest;
-        request(() -> api.get(path + "/messages?order=latest&visible_only=true&limit=" + ThreadData.PAGE + "&offset=" + offset), data -> {
+        String query = "/messages?order=latest&visible_only=true&include_compacted=true&limit=";
+        request(() -> api.get(path + query + ThreadData.PAGE + "&offset=" + offset), data -> {
             if (requestNo != transcriptRequest) return;
             loading = false;
             JSONArray page = data.optJSONArray("data");
