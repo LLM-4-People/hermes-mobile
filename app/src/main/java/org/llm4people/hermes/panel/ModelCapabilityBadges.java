@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 
 /** Friendly French model capability badges (Vision, Outils, Long contexte, Tarif) with unknown-safe pricing. */
 public final class ModelCapabilityBadges {
@@ -45,6 +46,26 @@ public final class ModelCapabilityBadges {
         @Override public String toString() {
             String summary = summaryLine();
             return summary.isEmpty() ? label : label + "\n" + summary;
+        }
+
+        // Explicit Double.compare equality so unknown (NaN) pricing remains reflexive on Android D8/ART.
+        @Override public boolean equals(Object other) {
+            if (this == other) return true;
+            if (!(other instanceof ModelInfo that)) return false;
+            return contextLength == that.contextLength
+                    && maxOutputTokens == that.maxOutputTokens
+                    && vision == that.vision
+                    && tools == that.tools
+                    && reasoning == that.reasoning
+                    && Double.compare(inputPer1mUsd, that.inputPer1mUsd) == 0
+                    && Double.compare(outputPer1mUsd, that.outputPer1mUsd) == 0
+                    && Objects.equals(id, that.id)
+                    && Objects.equals(label, that.label);
+        }
+
+        @Override public int hashCode() {
+            return Objects.hash(id, label, contextLength, maxOutputTokens, vision, tools, reasoning,
+                    Double.hashCode(inputPer1mUsd), Double.hashCode(outputPer1mUsd));
         }
     }
 

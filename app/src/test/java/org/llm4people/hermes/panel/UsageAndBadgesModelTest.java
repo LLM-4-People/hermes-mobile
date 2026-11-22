@@ -47,8 +47,12 @@ public final class UsageAndBadgesModelTest {
         assertTrue(badges.stream().anyMatch(b -> b.startsWith("Tarif · ") && b.contains("$/M")));
 
         ModelCapabilityBadges.ModelInfo minimal = ModelCapabilityBadges.ModelInfo.minimal("fake-model");
+        ModelCapabilityBadges.ModelInfo minimalCopy = ModelCapabilityBadges.ModelInfo.minimal("fake-model");
         assertTrue(minimal.badges().isEmpty());
         assertEquals("fake-model", minimal.toString());
+        assertEquals(minimal, minimal);
+        assertEquals(minimal, minimalCopy);
+        assertEquals(minimal.hashCode(), minimalCopy.hashCode());
 
         ModelCapabilityBadges.ModelInfo freeModel = new ModelCapabilityBadges.ModelInfo(
                 "local-llama", "Local Llama", 32_000, 4_096, false, true, false, 0.0, 0.0);

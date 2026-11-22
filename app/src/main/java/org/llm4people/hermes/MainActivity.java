@@ -336,7 +336,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         threads.setInstrumentHost(activeHost);
         LiveRunActionReceiver.setStopHandler(liveStopHandler);
         threadActions.unlock(account, api);
-        featureRoutes = BrainStudioRoutes.register(new RouteRegistry(), brainHandlers());
+        featureRoutes = BrainStudioRoutes.register(new RouteRegistry(), this, brainHandlers());
         DeliveryRouter.registerRoutes(featureRoutes, this,
                 () -> { if (account == unlocked && push != null) push.openInbox(account, deliveryActions(account)); },
                 () -> { if (account == unlocked && push != null) push.openPolicy(account); });
@@ -547,7 +547,8 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
 
             @Override public void refreshWidget(DeliveryItem item) {
                 if (owner != account || item == null) return;
-                boolean updated = HomePinBridge.applyDeliveryWidgetUpdate(MainActivity.this, item.payloadObject());
+                boolean updated = HomePinBridge.applyDeliveryWidgetUpdate(
+                        MainActivity.this, item.payloadObject(), owner.id);
                 Toast.makeText(MainActivity.this,
                         updated ? R.string.widget_updated_toast : R.string.widget_pin_invalid,
                         Toast.LENGTH_SHORT).show();
@@ -579,7 +580,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                             manager.apply(patch);
                             for (LiveUiPatch.Op op : patch.ops) {
                                 if (op instanceof LiveUiPatch.Op.UpsertWidget uw) {
-                                    HomePinBridge.syncWidget(this, uw.widget());
+                                    HomePinBridge.syncWidget(this, uw.widget(), owner.id);
                                 } else if (op instanceof LiveUiPatch.Op.RemoveWidget rw) {
                                     HomePinBridge.removeWidget(this, rw.widgetId());
                                 }
@@ -610,6 +611,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     private void dismissOverlays(boolean keepThreadEditor) {
         if (notice != null) notice.dismiss();
         notice = null;
+        if (activeAmbientPanel != null) activeAmbientPanel.dismissDialogs();
         if (files != null) files.dismiss();
         if (threadActions != null) threadActions.dismiss();
         if (!keepThreadEditor) {
@@ -1014,6 +1016,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     private void clearWorkspace() {
         clearGraceTimer();
         HermesNotificationListener.clearSession();
+        if (activeAmbientPanel != null) activeAmbientPanel.dismissDialogs();
         activeAmbientPanel = null;
         LiveRunActionReceiver.clearStopHandler(liveStopHandler);
         LiveRunNotification.cancel(this);
