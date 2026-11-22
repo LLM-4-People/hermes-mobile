@@ -9,12 +9,10 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
-import android.os.ParcelFileDescriptor;
 import android.test.InstrumentationTestCase;
 
 import org.unifiedpush.android.connector.UnifiedPush;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -40,23 +38,15 @@ public final class DistributorLifecycleTest extends InstrumentationTestCase {
             @Override public void sendBroadcast(Intent intent) { outgoing.add(intent); }
             @Override public void sendBroadcast(Intent intent, String permission, Bundle options) { outgoing.add(intent); }
         };
-        fixture = new ComponentName(getInstrumentation().getContext().getPackageName(), DistributorFixture.class.getName());
+        fixture = new ComponentName(base.getPackageName(), "org.llm4people.hermes.push.DistributorFixture");
         oldSetting = context.getPackageManager().getComponentEnabledSetting(fixture);
         setFixture(PackageManager.COMPONENT_ENABLED_STATE_ENABLED);
         store = PushStore.get(context);
     }
 
-    private void setFixture(int state) throws IOException {
-        String command = switch (state) {
-            case PackageManager.COMPONENT_ENABLED_STATE_ENABLED -> "enable";
-            case PackageManager.COMPONENT_ENABLED_STATE_DISABLED -> "disable";
-            default -> "default-state";
-        };
-        // The component belongs to the instrumentation APK. The shell command also works on API 28.
-        try (var result = new ParcelFileDescriptor.AutoCloseInputStream(getInstrumentation().getUiAutomation()
-                .executeShellCommand("pm " + command + " " + fixture.flattenToString()))) {
-            while (result.read() != -1) { /* Wait for the package manager operation to finish. */ }
-        }
+    private void setFixture(int state) {
+        // The disabled fixture is in the debug target. Its own UID can toggle it on every supported SDK.
+        context.getPackageManager().setComponentEnabledSetting(fixture, state, PackageManager.DONT_KILL_APP);
         assertEquals(state, context.getPackageManager().getComponentEnabledSetting(fixture));
     }
 
