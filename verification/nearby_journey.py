@@ -33,13 +33,22 @@ def open_consent(ui):
     return tree
 
 
+def choose_consent(ui, label):
+    ui.tap_until(
+        label,
+        lambda root: ui.node(CONSENT, root) is None,
+        scroll=True,
+        description="dismissed location consent dialog after choosing " + label,
+    )
+
+
 def stage_public_location(ui, fix, *, system_prompt=True, remember=False):
     """Stage the approximate fix. The caller must explicitly tap Envoyer a second time."""
     open_consent(ui)
     if remember:
         ui.tap("Utiliser ma position pour mes prochains messages sur ce profil", scroll=True)
     fix.publish()
-    ui.tap(USE_LOCATION, scroll=True)
+    choose_consent(ui, USE_LOCATION)
     if system_prompt:
         answer_android_location(ui, allow=True)
     ui.wait(STAGED)
@@ -48,7 +57,7 @@ def stage_public_location(ui, fix, *, system_prompt=True, remember=False):
 def unlock(ui, label, phrase):
     ui.tap(label)
     ui.field("Phrase secrète du profil", phrase)
-    ui.tap("Déverrouiller")
+    ui.tap("Déverrouiller", scroll=True)
 
 
 def lock(ui):

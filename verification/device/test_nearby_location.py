@@ -1,6 +1,7 @@
 import unittest
 import xml.etree.ElementTree as ET
 
+from verification.nearby_journey import CONSENT, USE_LOCATION, choose_consent
 from verification.nearby_location import COARSE, answer_android_location, location_access, public_city_fix
 from verification.nearby_restaurants import enter_discussion
 from verification.unifiedpush.ui import Screen
@@ -134,7 +135,11 @@ class NearbyLocationTest(unittest.TestCase):
             'package="com.google.android.permissioncontroller" window-id="2" scrollable="false" bounds="[16,520][304,580]"/>'
             '</node>'
         )
-        trees = iter([top_dialog, scrolled_dialog])
+        dismissed_to_app = ET.fromstring(
+            '<node text="" content-desc="" resource-id="" class="android.widget.FrameLayout" '
+            'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[0,0][320,640]"/>'
+        )
+        trees = iter([top_dialog, scrolled_dialog, dismissed_to_app])
         actions = []
 
         class StubDevice:
@@ -157,6 +162,90 @@ class NearbyLocationTest(unittest.TestCase):
         controller = answer_android_location(StubScreen(), allow=False)
         self.assertEqual(controller, "com.google.android.permissioncontroller")
         self.assertEqual(actions, ["scroll", ("tap", "com.android.permissioncontroller:id/permission_deny_button")])
+
+    def test_answer_android_location_retries_deny_until_dialog_actually_dismisses_and_scrolls_clipped_button(self):
+        clipped_dialog = ET.fromstring(
+            '<node text="" content-desc="" resource-id="" class="android.widget.ScrollView" '
+            'package="com.google.android.permissioncontroller" window-id="2" scrollable="true" bounds="[0,80][320,600]">'
+            '<node text="Allow Hermes Mobile to access this device’s approximate location?" content-desc="" '
+            'resource-id="com.android.permissioncontroller:id/permission_message" class="android.widget.TextView" '
+            'package="com.google.android.permissioncontroller" window-id="2" scrollable="false" bounds="[16,100][304,180]"/>'
+            '<node text="Don’t allow" content-desc="" '
+            'resource-id="com.android.permissioncontroller:id/permission_deny_button" class="android.widget.Button" '
+            'package="com.google.android.permissioncontroller" window-id="2" scrollable="false" bounds="[16,592][304,640]"/>'
+            '</node>'
+        )
+        settled_dialog = ET.fromstring(
+            '<node text="" content-desc="" resource-id="" class="android.widget.ScrollView" '
+            'package="com.google.android.permissioncontroller" window-id="2" scrollable="true" bounds="[0,80][320,600]">'
+            '<node text="Don’t allow" content-desc="" '
+            'resource-id="com.android.permissioncontroller:id/permission_deny_button" class="android.widget.Button" '
+            'package="com.google.android.permissioncontroller" window-id="2" scrollable="false" bounds="[16,500][304,560]"/>'
+            '</node>'
+        )
+        dismissed_to_app = ET.fromstring(
+            '<node text="" content-desc="" resource-id="" class="android.widget.FrameLayout" '
+            'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[0,0][320,640]"/>'
+        )
+        # First poll sees clipped button -> scrolls; second poll taps (swallowed by animation);
+        # third poll still sees dialog -> retries tap; fourth poll sees app -> returns!
+        trees = iter([clipped_dialog, settled_dialog, settled_dialog, dismissed_to_app])
+        actions = []
+
+        class StubDevice:
+            def shell(self, *args):
+                return COARSE + ": granted=false, flags=[ ]"
+
+        class StubScreen(Screen):
+            def __init__(self):
+                self.device = StubDevice()
+
+            def hierarchy(self):
+                return next(trees)
+
+            def scroll(self, root):
+                actions.append("scroll")
+
+            def tap_node(self, node):
+                actions.append(("tap", node.get("resource-id")))
+
+        controller = answer_android_location(StubScreen(), allow=False)
+        self.assertEqual(controller, "com.google.android.permissioncontroller")
+        self.assertEqual(actions, [
+            "scroll",
+            ("tap", "com.android.permissioncontroller:id/permission_deny_button"),
+            ("tap", "com.android.permissioncontroller:id/permission_deny_button"),
+        ])
+
+    def test_choose_consent_retries_until_consent_dialog_dismisses(self):
+        consent_open = ET.fromstring(
+            '<node text="" content-desc="" resource-id="" class="android.widget.FrameLayout" '
+            'package="org.llm4people.hermes" window-id="3" scrollable="false" bounds="[0,0][320,640]">'
+            f'<node text="{CONSENT}" content-desc="" resource-id="" class="android.widget.TextView" '
+            'package="org.llm4people.hermes" window-id="3" scrollable="false" bounds="[16,100][304,160]"/>'
+            f'<node text="{USE_LOCATION}" content-desc="" resource-id="" class="android.widget.Button" '
+            'package="org.llm4people.hermes" window-id="3" scrollable="false" bounds="[16,440][304,500]"/>'
+            '</node>'
+        )
+        consent_closed = ET.fromstring(
+            '<node text="" content-desc="" resource-id="" class="android.widget.FrameLayout" '
+            'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[0,0][320,640]"/>'
+        )
+        trees = iter([consent_open, consent_open, consent_closed])
+        taps = []
+
+        class StubScreen(Screen):
+            def __init__(self):
+                pass
+
+            def hierarchy(self):
+                return next(trees)
+
+            def tap_node(self, node):
+                taps.append(node.get("text"))
+
+        choose_consent(StubScreen(), USE_LOCATION)
+        self.assertEqual(taps, [USE_LOCATION, USE_LOCATION])
 
     def test_answer_android_location_rejects_non_location_permission_prompt(self):
         notification_dialog = ET.fromstring(
