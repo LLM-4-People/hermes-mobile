@@ -67,7 +67,7 @@ public final class AccountIndexCommitTest extends InstrumentationTestCase {
     private interface Write { void run() throws Exception; }
 
     /** A rejecting Android commit publishes its changes in memory before returning false. */
-    private static final class IndexContext extends ContextWrapper {
+    static final class IndexContext extends ContextWrapper {
         final Map<String, String> memory = new HashMap<>(), disk = new HashMap<>();
         boolean failNext;
         final SharedPreferences index = (SharedPreferences) Proxy.newProxyInstance(
