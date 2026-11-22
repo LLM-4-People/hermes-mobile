@@ -2,6 +2,7 @@ package org.llm4people.hermes;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.Context;
 import android.content.Intent;
 import android.content.res.Configuration;
 import android.graphics.Insets;
@@ -55,8 +56,13 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     private String handledDelivery;
     private long noticeRequest;
 
+    @Override protected void attachBaseContext(Context newBase) {
+        super.attachBaseContext(AppLanguage.wrapContext(newBase));
+    }
+
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
+        AppLanguage.refreshRuntime(this);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
         // Saved view hierarchies may contain composer or password text. Only Account storage
         // can restore private state; an OS recreation always comes back through the gate.
@@ -108,6 +114,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     private void opened(Account unlocked) {
         account = unlocked;
         photoPicker.unlocked(unlocked);
+        AppLanguage.refreshRuntime(this);
         HermesApi api = new HermesApi(account.endpoint, account.bearer);
         navigation = new WorkspaceNavigation();
         activeHost = new WorkspaceHost(this, () -> account == unlocked);
@@ -144,8 +151,8 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                 Diagnostics.warning("push", "open_failed");
                 runOnUiThread(() -> {
                     if (owner == account && request == noticeRequest && !isFinishing()) {
-                        message("Notification indisponible",
-                                "Vous pouvez retrouver le travail dans vos discussions ou vos rappels.");
+                        message(getString(R.string.ws_notification_unavailable_title),
+                                getString(R.string.ws_notification_unavailable_body));
                     }
                 });
             }
@@ -239,12 +246,20 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             case "workspace": navigate(WorkspaceNavigation.HOME); break;
             case "reminders": panels.showReminders(); break;
             case "notifications": push.settings(account); break;
+            case "language":
+                AppLanguage.showPicker(this, selected -> {
+                    if (account != null) {
+                        HermesApi syncApi = new HermesApi(account.endpoint, account.bearer);
+                        notifications.execute(() -> AppLanguage.syncToServer(syncApi, selected));
+                    }
+                });
+                break;
             case "restore": ArtifactDesk.manage(this, account, activeHost); break;
             case "profiles": lock(); break;
             case "stats": case "tools": case "models": case "artifacts":
                 String session = threads.sessionId();
                 if (session == null) {
-                    message("Choisir une discussion", "Ouvrez une discussion pour utiliser cette action.");
+                    message(getString(R.string.ws_choose_discussion_title), getString(R.string.ws_choose_discussion_body));
                 } else if ("stats".equals(id)) {
                     panels.showStats(session, threads.remoteSessionId());
                 } else if ("artifacts".equals(id)) {
@@ -262,7 +277,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     private void message(String title, String body) {
         if (notice != null) notice.dismiss();
         notice = Ui.secureDialog(new AlertDialog.Builder(this).setTitle(title).setMessage(body)
-                .setPositiveButton("Fermer", null));
+                .setPositiveButton(R.string.ws_close, null));
     }
 
     @Override public void onLayoutChanged() {
@@ -314,10 +329,10 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             threads.stageDraft(text);
         };
         if (threads.sessionId() != null) { edit.run(); return; }
-        notice = Ui.secureDialog(new AlertDialog.Builder(this).setTitle("Créer une discussion ?")
-                .setMessage("Le texte sera ajouté au brouillon de cette nouvelle discussion.")
-                .setNegativeButton("Annuler", null)
-                .setPositiveButton("Créer le brouillon", (d, w) -> {
+        notice = Ui.secureDialog(new AlertDialog.Builder(this).setTitle(R.string.ws_create_discussion_title)
+                .setMessage(R.string.ws_create_discussion_body)
+                .setNegativeButton(R.string.ws_cancel, null)
+                .setPositiveButton(R.string.ws_create_draft, (d, w) -> {
                     navigate(WorkspaceNavigation.COMPOSER);
                     threads.newThread(() -> threads.stageDraft(text));
                 }));
@@ -347,17 +362,18 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                     threadSlots(Collections.emptyList());
                     content = nativeView;
                 } else content = ArtifactDesk.decorate(this, account, surface, nativeView, activeHost);
-                shell.show(content, composer ? "Discussion d’origine" : null);
+                shell.show(content, composer ? getString(R.string.ws_original_discussion) : null);
                 ArtifactDesk.refreshBindings(shell.content(), activeHost);
                 if (editing) threads.focusComposer();
                 break;
             case WorkspaceNavigation.HOME:
                 navigation.display(route, this::leavingSurface);
-                shell.show(ArtifactDesk.decorate(this, account, "home", shell.desk(account.label), activeHost), "Atelier");
+                shell.show(ArtifactDesk.decorate(this, account, "home", shell.desk(account.label), activeHost),
+                        getString(R.string.ws_desk));
                 break;
             case WorkspaceNavigation.GALLERY:
                 navigation.display(route, this::leavingSurface);
-                shell.show(ArtifactDesk.pages(this, account, activeHost), "Mes écrans");
+                shell.show(ArtifactDesk.pages(this, account, activeHost), getString(R.string.ws_my_screens));
                 break;
             default:
                 View page = customPages.get(route);
@@ -368,7 +384,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                 } else {
                     navigation.display(route, this::leavingSurface);
                     customPages.put(route, page);
-                    shell.show(page, "Écran personnalisé");
+                    shell.show(page, getString(R.string.ws_custom_screen));
                     ArtifactDesk.refreshBindings(page, activeHost);
                 }
         }
@@ -401,7 +417,8 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
 
     @Override public void selected(String sessionId, String title) {
         if (shell == null) return;
-        String threadTitle = sessionId == null ? null : title == null || title.trim().isEmpty() ? "Discussion" : title;
+        String threadTitle = sessionId == null ? null : title == null || title.trim().isEmpty()
+                ? getString(R.string.ws_discussion) : title;
         shell.selected(sessionId, threadTitle);
         sharedText.selected(sessionId);
         deliverSelectedPhoto();

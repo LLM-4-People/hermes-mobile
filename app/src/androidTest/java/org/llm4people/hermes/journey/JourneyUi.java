@@ -302,8 +302,10 @@ public final class JourneyUi {
         try {
             until("fully visible 48dp composer actions", () -> {
                 View root = window();
-                View editor = find(root, v -> v instanceof EditText && named(v, "Message à Hermes"));
-                View send = find(root, v -> v instanceof Button && named(v, "Envoyer"));
+                String hint = activity.getString(org.llm4people.hermes.R.string.thread_message_hint);
+                String sendLabel = activity.getString(org.llm4people.hermes.R.string.thread_send);
+                View editor = find(root, v -> v instanceof EditText && named(v, hint));
+                View send = find(root, v -> v instanceof Button && named(v, sendLabel));
                 int target = Math.round(activity.getResources().getDisplayMetrics().density * 48);
                 for (View control : new View[]{editor, send}) {
                     Rect bounds = new Rect();

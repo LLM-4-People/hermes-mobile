@@ -1,0 +1,9 @@
+<resources>
+    <string name="language_action">Langue / Language</string>
+    <string name="language_picker_title">Langue / Language</string>
+    <string name="language_auto">Automatique (langue de l’appareil)</string>
+    <string name="language_french">Français</string>
+    <string name="language_english">English</string>
+    <string name="language_close">Fermer</string>
+    <string name="language_summary_auto">Automatique · %1$s</string>
+</resources>

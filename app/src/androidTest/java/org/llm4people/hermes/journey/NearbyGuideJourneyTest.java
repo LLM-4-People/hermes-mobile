@@ -82,7 +82,7 @@ public final class NearbyGuideJourneyTest extends InstrumentationTestCase {
                 // The persisted instrument can become unreadable between transcript hydration and run completion.
                 assertTrue(encrypted.edit().putInt(instrumentSlot, 3).commit());
                 runTestOnUiThread(() -> activity.nearbyGuide(origin, "root", "later-run", assistant, area));
-                ui.see("Réinitialiser…");
+                ui.see(activity.getString(org.llm4people.hermes.R.string.instrument_repair));
                 assertEquals(3, encrypted.getInt(instrumentSlot, 0));
                 String observed = server.observed();
                 assertEquals(1, observed.split("POST /p/travail/api/mobile/places/nearby ",-1).length - 1);

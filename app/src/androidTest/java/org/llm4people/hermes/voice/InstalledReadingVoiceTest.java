@@ -16,6 +16,10 @@ public final class InstalledReadingVoiceTest extends TestCase {
                 Collections.singleton(TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED))));
         assertFalse(AndroidReplySpeech.installedFrench(voice(Locale.ENGLISH, false, Collections.emptySet())));
         assertFalse(AndroidReplySpeech.installedFrench(null));
+
+        assertTrue(AndroidReplySpeech.installedForLanguage(voice(Locale.US, false, Collections.emptySet()), "en"));
+        assertFalse(AndroidReplySpeech.installedForLanguage(voice(Locale.US, true, Collections.emptySet()), "en"));
+        assertFalse(AndroidReplySpeech.installedForLanguage(voice(Locale.CANADA_FRENCH, false, Collections.emptySet()), "en"));
     }
 
     private static Voice voice(Locale locale, boolean network, Set<String> features) {

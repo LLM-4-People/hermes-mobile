@@ -1,0 +1,13 @@
+<resources>
+    <string name="transcript_page">Page %1$d</string>
+    <string name="transcript_previous">Previous</string>
+    <string name="transcript_next">Next</string>
+    <string name="code_open">Open code</string>
+    <string name="code_open_named">Open code · %1$s</string>
+    <string name="code_open_many">Open a snippet…</string>
+    <string name="code_excerpt">Code snippet</string>
+    <string name="code_excerpt_number">Snippet %1$d</string>
+    <string name="code_choose">Choose a snippet</string>
+    <string name="transcript_read_excerpt">Read current excerpt</string>
+    <string name="transcript_read_full">Read full reply</string>
+</resources>

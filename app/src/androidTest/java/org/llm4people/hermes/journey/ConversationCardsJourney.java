@@ -14,6 +14,7 @@ import android.widget.TextView;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.llm4people.hermes.AppLanguage;
 
 import java.io.File;
 import java.lang.reflect.Field;
@@ -46,6 +47,7 @@ public final class ConversationCardsJourney extends Instrumentation {
             fixture = new JSONObject(new String(Files.readAllBytes(
                     new File(directory, "fixture.json").toPath()), StandardCharsets.UTF_8));
             String pkg = getTargetContext().getPackageName();
+            AppLanguage.apply(getTargetContext(), AppLanguage.Mode.FRENCH);
             activity = startActivitySync(new Intent().setClassName(pkg, pkg + ".MainActivity")
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK));
             ui = new JourneyUi(this, activity, directory);

@@ -8,16 +8,19 @@ import android.speech.tts.TextToSpeech;
 import android.speech.tts.UtteranceProgressListener;
 import android.speech.tts.Voice;
 
+import org.llm4people.hermes.AppLanguage;
+
 import java.util.Comparator;
 import java.util.Locale;
 import java.util.Set;
 import java.util.function.Consumer;
 
-/** Uses the installed engine's local French voice. Never submits text to a network voice. */
+/** Uses the installed engine's local voice matching the active language. Never submits text to a network voice. */
 final class AndroidReplySpeech implements SpeechPlayback.Driver {
     private final Context context;
     private final Handler main = new Handler(Looper.getMainLooper());
     private TextToSpeech engine;
+    private String activeLanguage = AppLanguage.TAG_FRENCH;
     private boolean closed;
     private int sequence;
     private String utterance;
@@ -40,11 +43,13 @@ final class AndroidReplySpeech implements SpeechPlayback.Driver {
     private boolean configure() {
         Set<Voice> voices = engine.getVoices();
         if (voices == null) return false;
-        Locale preferred = context.getResources().getConfiguration().getLocales().get(0);
-        Voice voice = voices.stream().filter(AndroidReplySpeech::installedFrench)
+        Locale preferred = AppLanguage.resolvedLocale(context);
+        activeLanguage = AppLanguage.resolvedTag(context);
+        Voice voice = voices.stream().filter(option -> installedForLanguage(option, activeLanguage))
                 .max(Comparator.comparing((Voice option) -> option.getLocale().equals(preferred))
                         .thenComparingInt(Voice::getQuality).thenComparing(Voice::getName)).orElse(null);
-        if (voice == null || engine.setVoice(voice) != TextToSpeech.SUCCESS || !installedFrench(engine.getVoice())) return false;
+        if (voice == null || engine.setVoice(voice) != TextToSpeech.SUCCESS
+                || !installedForLanguage(engine.getVoice(), activeLanguage)) return false;
         engine.setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA)
                 .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build());
         return engine.setOnUtteranceProgressListener(new UtteranceProgressListener() {
@@ -56,7 +61,12 @@ final class AndroidReplySpeech implements SpeechPlayback.Driver {
     }
 
     static boolean installedFrench(Voice voice) {
-        return voice != null && voice.getLocale() != null && "fr".equals(voice.getLocale().getLanguage())
+        return installedForLanguage(voice, AppLanguage.TAG_FRENCH);
+    }
+
+    static boolean installedForLanguage(Voice voice, String languageTag) {
+        return voice != null && voice.getLocale() != null && languageTag != null
+                && languageTag.equals(voice.getLocale().getLanguage())
                 && !voice.isNetworkConnectionRequired() && voice.getFeatures() != null
                 && !voice.getFeatures().contains(TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED);
     }
@@ -69,7 +79,7 @@ final class AndroidReplySpeech implements SpeechPlayback.Driver {
     }
 
     @Override public void speak(String chunk, Consumer<Boolean> callback) {
-        if (closed || !installedFrench(engine.getVoice())) { callback.accept(false); return; }
+        if (closed || !installedForLanguage(engine.getVoice(), activeLanguage)) { callback.accept(false); return; }
         utterance = Integer.toString(++sequence);
         completion = callback;
         if (engine.speak(chunk, TextToSpeech.QUEUE_FLUSH, null, utterance) != TextToSpeech.SUCCESS) complete(utterance, false);

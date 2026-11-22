@@ -4,7 +4,9 @@ import android.app.AlertDialog;
 import android.os.SystemClock;
 import android.provider.Settings;
 
+import org.json.JSONException;
 import org.json.JSONObject;
+import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.VisibleText;
 import org.llm4people.hermes.net.HermesApi;
 
@@ -151,10 +153,12 @@ final class ThreadRun {
                 }
                 try {
                     NearbyTurn.attach(body, area);
+                    AppLanguage.acceptLanguageHeader(page.activity);
+                    body.put("user_language", AppLanguage.resolvedTag(page.activity));
                     journal.stage(body, SystemClock.elapsedRealtime(), bootCount(), idem.optLong("retention_seconds"),
                             idem.optBoolean("durable"), area);
                     page.nearby.clearTurn();
-                } catch (IllegalStateException e) {
+                } catch (IllegalStateException | JSONException e) {
                     admissionFinished();
                     ui.busy(false, false);
                     page.storageError();

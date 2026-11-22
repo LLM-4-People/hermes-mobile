@@ -67,17 +67,21 @@ public final class ThreadNoticeContinuityTest extends InstrumentationTestCase {
                 page.resumeLast();
             });
             JourneyUi ui = new JourneyUi(getInstrumentation(),activity,context.getCacheDir());
-            ui.see("Comparer les versions");
-            ui.fill("Message à Hermes","brouillon privé");
+            String compare = activity.getString(org.llm4people.hermes.R.string.instrument_compare);
+            String composerHint = activity.getString(org.llm4people.hermes.R.string.thread_message_hint);
+            String tabProposed = activity.getString(org.llm4people.hermes.R.string.instrument_tab_next_role);
+            String tabPinned = activity.getString(org.llm4people.hermes.R.string.instrument_tab_pin_role);
+            ui.see(compare);
+            ui.fill(composerHint,"brouillon privé");
             runTestOnUiThread(() -> {
                 workspace[0].focusComposer();
                 editor[0] = (EditText)activity.getCurrentFocus();
                 editor[0].setSelection(2,6);
             });
-            ui.tap("Comparer les versions");
-            ui.tap("Version proposée");
+            ui.tap(compare);
+            ui.tap(tabProposed);
             ui.fill("Fichier","candidate.py");
-            ui.tap("Version épinglée");
+            ui.tap(tabPinned);
             ui.fill("Fichier","pinned.py");
             runTestOnUiThread(() -> {
                 workspace[0].openNotice("intermediate","completed-run","run_completed");
@@ -85,7 +89,7 @@ public final class ThreadNoticeContinuityTest extends InstrumentationTestCase {
             });
             assertTrue(refreshed.await(5,TimeUnit.SECONDS));
             assertEquals("pinned.py",ui.fieldText("Fichier"));
-            ui.tap("Version proposée");
+            ui.tap(tabProposed);
             assertEquals("candidate.py",ui.fieldText("Fichier"));
             runTestOnUiThread(() -> {
                 assertEquals("tip-after",workspace[0].remoteSessionId());

@@ -1,0 +1,10 @@
+<resources>
+    <string name="read_listen">Listen</string>
+    <string name="read_stop">Stop</string>
+    <string name="read_stop_label">Stop reading</string>
+    <string name="read_question_label">Listen to the question and choices</string>
+    <string name="read_reply_label">Listen to the last reply</string>
+    <string name="read_empty">There is no text to read in the last reply of this discussion.</string>
+    <string name="read_unavailable">No offline English voice is available. Check the installed voices in Android speech settings.</string>
+    <string name="read_interrupted">Playback was interrupted. You can start it again.</string>
+</resources>
