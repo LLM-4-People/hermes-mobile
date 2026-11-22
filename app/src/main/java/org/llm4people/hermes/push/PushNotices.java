@@ -63,11 +63,8 @@ final class PushNotices {
         PushStore store = PushStore.get(context);
         PushStore.Device owner = store.forInstallation(id);
         if (owner == null || !owner.config.senderId.equals(sender) || !PushStore.ACTIVE.equals(owner.state)) return;
-        Intent intent = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
+        Intent intent = tapIntent(context, id, event);
         if (intent == null) return;
-        intent.setAction(ACTION).setData(new Uri.Builder().scheme("hermes-mobile").authority("event")
-                .appendPath(id).appendPath(event).build())
-                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         PendingIntent tap = PendingIntent.getActivity(context, 0, intent,
                 PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
         channel(context);
@@ -83,6 +80,15 @@ final class PushNotices {
                 context.getSystemService(NotificationManager.class).notify(id + "/" + event, 1, notice);
             }
         }
+    }
+
+    static Intent tapIntent(Context context, String id, String event) {
+        Intent intent = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
+        if (intent == null) return null;
+        intent.setAction(ACTION).setData(new Uri.Builder().scheme("hermes-mobile").authority("event")
+                .appendPath(id).appendPath(event).build())
+                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        return intent;
     }
 
     static synchronized void cancel(Context context, String installation) {

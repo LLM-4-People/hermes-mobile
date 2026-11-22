@@ -3,6 +3,7 @@ package org.llm4people.hermes.push;
 import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Build;
@@ -11,6 +12,9 @@ import android.provider.Settings;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.profile.Account;
+
+import java.util.ArrayDeque;
+import java.util.Locale;
 
 final class PushSettings {
     static final int PERMISSION = 6801;
@@ -47,10 +51,14 @@ final class PushSettings {
                     .setPositiveButton("Réessayer", (d,w) -> remove(device));
         } else if (device != null && PushStore.ACTIVE.equals(device.state)) {
             if (PushNotices.allowed(activity)) {
-                builder.setMessage("Les rappels et l’activité de vos sessions peuvent vous prévenir même après la fermeture de l’application.");
+                builder.setMessage("Les rappels et l’activité de vos sessions peuvent vous prévenir même après la fermeture de l’application.")
+                        .setNeutralButton("Historique", (d,w) -> history(device, 0, new ArrayDeque<>()));
             } else {
-                builder.setMessage("Android a bloqué les alertes d’Hermès sur cet appareil.")
-                        .setNeutralButton("Réglages Android", (d,w) -> systemSettings());
+                builder.setTitle("Alertes bloquées par Android")
+                        .setItems(new String[]{"Historique du profil", "Réglages Android"}, (d,w) -> {
+                            if (w == 0) history(device, 0, new ArrayDeque<>());
+                            else systemSettings();
+                        });
             }
             builder.setPositiveButton("Désactiver", (d,w) -> remove(device));
         } else {
@@ -61,6 +69,42 @@ final class PushSettings {
             if (device != null) builder.setNeutralButton("Désactiver", (d,w) -> remove(device));
         }
         display(builder);
+    }
+
+    private void history(PushStore.Device device, long cursor, ArrayDeque<Long> previous) {
+        display(new AlertDialog.Builder(activity).setTitle("Historique du profil").setMessage("Chargement…"));
+        Locale locale = activity.getResources().getConfiguration().getLocales().get(0);
+        PushConnection.WORK.execute(() -> {
+            try {
+                PushHistory.Page page = PushHistory.load(account, device, cursor, locale);
+                activity.runOnUiThread(() -> {
+                    if (!current()) return;
+                    AlertDialog.Builder list = new AlertDialog.Builder(activity).setTitle("Historique du profil")
+                            .setNegativeButton("Fermer", null);
+                    if (page.labels.isEmpty()) list.setMessage("Aucune activité sur cette page.");
+                    else list.setItems(page.labels.toArray(new String[0]), (d,index) -> {
+                        String id = page.ids.get(index);
+                        Context context = activity.getApplicationContext();
+                        PushStore.get(context).remember(device.installation, id, page.kinds.get(index));
+                        Intent intent = PushNotices.tapIntent(context, device.installation, id);
+                        if (MobilePush.target(context, intent) != null) activity.startActivity(intent);
+                    });
+                    if (page.more) list.setPositiveButton("Suite", (d,w) -> {
+                        previous.push(cursor);
+                        history(device, page.next, previous);
+                    });
+                    if (!previous.isEmpty()) list.setNeutralButton("Précédent",
+                            (d,w) -> history(device, previous.pop(), previous));
+                    display(list);
+                });
+            } catch (Exception error) {
+                Diagnostics.warning("push", "history_load_failed");
+                activity.runOnUiThread(() -> display(new AlertDialog.Builder(activity)
+                        .setTitle("Historique indisponible").setMessage(errorMessage(error))
+                        .setPositiveButton("Réessayer", (d,w) -> history(device, cursor, previous))
+                        .setNegativeButton("Fermer", null)));
+            }
+        });
     }
 
     private void systemSettings() {
