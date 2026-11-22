@@ -87,7 +87,8 @@ def verify_routes(
             names = {tool["function"]["name"] for tool in request["tools"]}
             if "read_file" not in names or ("write_file" in names) != (index == 1):
                 raise AssertionError(
-                    f"The provider received unexpected file tool schemas: {sorted(names)}"
+                    f"{slug}/{model} received {sorted(names)} with "
+                    f"excluded_tools={body['excluded_tools']}"
                 )
     return {
         "route_models": [item[1] for item in routes],

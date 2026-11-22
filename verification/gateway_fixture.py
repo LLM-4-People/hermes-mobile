@@ -38,6 +38,19 @@ class Gateway:
         from hermes_cli.config_defaults import DEFAULT_CONFIG
         from tests.fakes.fake_llm_provider import write_hermes_home
 
+        self.python = sys.executable
+        if sys.prefix == sys.base_prefix and os.environ.get("__HERMES_ACTIVATED"):
+            # The fork's launcher puts its dependencies on the base Python's
+            # PYTHONPATH. Start the isolated child with that checkout's venv.
+            from pm.environments import (
+                committed_venv,
+                running_from_selected_environment,
+                venv_python,
+            )
+
+            environment = committed_venv(source)
+            if environment and running_from_selected_environment(source):
+                self.python = venv_python(environment)
         self.port = unused_loopback_port()
         self.endpoint = f"http://{LOOPBACK}:{self.port}"
         self.key = secrets.token_urlsafe(32)
@@ -51,7 +64,7 @@ class Gateway:
         runtime = home / ".hermes"
         home.mkdir(parents=True, mode=0o700)
         providers = {
-            "custom": {"request_timeout_seconds": 10, "stale_timeout_seconds": 5},
+            "custom": {"request_timeout_seconds": 45, "stale_timeout_seconds": 30},
             **(extra_providers or {}),
         }
         write_hermes_home(
@@ -138,7 +151,7 @@ class Gateway:
             self.start()
             return self
         except BaseException:
-            self.stop()
+            self.__exit__(*sys.exc_info())
             raise
 
     def __exit__(self, kind, value, traceback):
@@ -151,14 +164,19 @@ class Gateway:
                     ),
                     file=sys.stderr,
                 )
-        self.stop()
+        try:
+            self.stop()
+        except Exception as failure:
+            if value is None:
+                raise
+            value.add_note(f"Gateway cleanup also failed: {failure}")
 
     def start(self):
         if self.process is not None:
             raise RuntimeError("Fixture gateway already started")
         with (self.root / "gateway.log").open("ab") as log:
             self.process = subprocess.Popen(
-                [sys.executable, "-m", "gateway.run"],
+                [self.python, "-m", "gateway.run"],
                 env=self.env,
                 cwd=self.root,
                 stdin=subprocess.DEVNULL,
@@ -167,10 +185,9 @@ class Gateway:
             )
         deadline = time.monotonic() + 90
         while time.monotonic() < deadline:
-            if self.process.poll() is not None:
-                raise RuntimeError(
-                    f"Gateway exited with status {self.process.returncode}"
-                )
+            if (status := self.process.poll()) is not None:
+                self.process = None
+                raise RuntimeError(f"Gateway exited with status {status}")
             try:
                 self.request("/v1/capabilities")
                 return
@@ -184,7 +201,7 @@ class Gateway:
         if self.process.poll() is None:
             subprocess.run(
                 [
-                    sys.executable,
+                    self.python,
                     "-c",
                     "import sys; from gateway.status import write_planned_stop_marker;"
                     "sys.exit(0 if write_planned_stop_marker(int(sys.argv[1])) else 1)",
