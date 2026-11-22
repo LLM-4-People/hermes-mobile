@@ -24,10 +24,10 @@ Tap **Préparer le brouillon** to append the skill request to your existing text
 > Utilise la compétence « qualite/synthese » pour cette demande.
 
 <a href="examples/discussion-context/03-competence-brouillon.png"><img src="examples/discussion-context/03-competence-brouillon.png" width="300" alt="The composer shows the end of the existing request and a new editable line naming qualite/synthese."></a>
-<a href="examples/discussion-context/04-competence-reponse.png"><img src="examples/discussion-context/04-competence-reponse.png" width="300" alt="The discussion displays the returned skill details followed by La fiche de relecture est ouverte."></a>
+<a href="examples/discussion-context/04-competence-reponse.png"><img src="examples/discussion-context/04-competence-reponse.png" width="300" alt="The thread shows Compétence consultée, a Voir le résultat button, and the reply La fiche de relecture est ouverte."></a>
 
-Preparing the draft started no run. After **Envoyer**, Hermes opened the installed `qualite/synthese` file once through `skill_view`. The test provider checked the returned instructions before replying « La fiche de relecture est ouverte. »
+The draft stayed on the phone until **Envoyer**. Hermes then opened the installed `qualite/synthese` file once through `skill_view`. The test provider checked its contents before replying « La fiche de relecture est ouverte. » Tap **Voir le résultat** under **Compétence consultée** to read the returned instructions. The native reader lets you select text or tap **Copier le contenu**.
 
-The photo captures used Android build `ba325fa` and gateway `3f19469`. The skill captures used Android build `2a41c63` and gateway `35e89fc`. The receipt identifies both APK pairs, the complete revisions and the SHA-256 of each original screen. [Native capture receipt](examples/discussion-context/receipt.json)
+Both journeys used the same Android packages and published gateway revision `3c43393`. The receipt identifies the package source, the matching public verification revision and the SHA-256 of each original screen. [Native capture receipt](examples/discussion-context/receipt.json)
 
 <!-- Generated from docs/sources/docs/discussion-context.md.in by scripts/docs.py. -->
