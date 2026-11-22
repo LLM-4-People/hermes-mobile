@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">Hermes Mobile</string>
+    <string name="instrument_create">Créer un outil pour ce fil</string>
+    <string name="instrument_create_request">Crée un outil que je pourrai réutiliser dans cette discussion à partir de notre échange.</string>
 </resources>

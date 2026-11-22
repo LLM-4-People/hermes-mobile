@@ -126,6 +126,7 @@ final class WorkspaceShell {
         if (threadTitle != null) {
             if (reading.getAsBoolean()) item(menu, activity.getString(R.string.read_stop_label), "stop_reading");
             else item(menu, activity.getString(R.string.read_reply_label), "read_reply");
+            item(menu, activity.getString(R.string.instrument_create), "create_instrument");
             item(menu, "Vue de discussion d’origine", "native_thread");
             item(menu, "Renommer la discussion", "rename");
             item(menu, "Artefacts", "artifacts");

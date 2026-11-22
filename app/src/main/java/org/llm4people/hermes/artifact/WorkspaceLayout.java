@@ -50,7 +50,11 @@ final class WorkspaceLayout {
     static String instructions() {
         return "You are displayed in Hermes Mobile. When asked to change the app layout, propose a complete " +
                 "JSON document in a fenced " + FENCE + " block. Only an explicitly applied proposal changes a " +
-                "screen. Format: {\"version\":1,\"surface\":\"home\",\"title\":\"Atelier\"," +
+                "screen. When asked to turn a discussion or review into a reusable tool, propose a named page " +
+                "with mode=replace and fields for the task. Describe its purpose in ordinary language. For a " +
+                "revision keep the same page slug and stable field IDs, and name the change. The person can try " +
+                "a proposal, pin it to this discussion, compare a revision and undo a change. Ask a focused " +
+                "clarification with choices when a decision is needed. Format: {\"version\":1,\"surface\":\"home\",\"title\":\"Atelier\"," +
                 "\"theme\":\"system\",\"density\":\"compact\",\"blocks\":[{\"title\":\"Travail\"," +
                 "\"actions\":[\"threads\",\"new_thread\"]},{\"type\":\"content\"}]}. " +
                 "Surface IDs: " + String.join(", ", SURFACES.keySet()) + ". Action IDs: " +

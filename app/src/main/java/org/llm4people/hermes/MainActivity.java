@@ -192,6 +192,9 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             case "native_thread": navigate(WorkspaceNavigation.COMPOSER); break;
             case "threads": displayDiscussion(); threads.inbox(); break;
             case "new_thread": displayDiscussion(); threads.newThread(); break;
+            case "create_instrument":
+                if (threads.sessionId() != null) stageDraft(getString(R.string.instrument_create_request));
+                break;
             case "rename": threads.rename(); break;
             case "published_files":
                 if (threads.remoteSessionId() != null) files.show(threads.remoteSessionId());
