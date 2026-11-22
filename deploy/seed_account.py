@@ -21,6 +21,10 @@ def seed_account(home, template):
         # A customized image already defines the policy. The image will seed its own example.
         return
     toolsets["api_server"] = ["hermes-api-server", "clarify"]
+    plugins = config.setdefault("plugins", {})
+    enabled = plugins.setdefault("enabled", [])
+    if "mobile_nearby" not in enabled and "mobile_nearby" not in plugins.get("disabled", []):
+        enabled.append("mobile_nearby")
 
     with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=home) as stream:
         yaml.dump(config, stream)

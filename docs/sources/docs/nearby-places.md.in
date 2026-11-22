@@ -1,0 +1,22 @@
+# Nearby restaurant data
+
+Hermes Mobile can show named restaurants mapped within 1.5 km of the approximate area approved for the search. The profile gateway sends its two-decimal center to an Overpass server in a POST body. It returns up to 12 places ordered by straight-line distance from that center. A way or relation uses its bounding-box center. The guide can use a city or neighborhood written in the discussion as context, but this endpoint accepts coordinates only. A coarse phone estimate can have more uncertainty than the search radius.
+
+Each result includes its OpenStreetMap type and ID. The map record is at `https://www.openstreetmap.org/TYPE/ID`. Names, cuisines, addresses and websites come from mapped tags. A listed website is the URL recorded by contributors. The displayed source date is the OSM database timestamp reported by the interpreter. Restaurant hours, ratings, current availability and travel times are outside this search. Data © OpenStreetMap contributors, available under the Open Database License. [OpenStreetMap attribution and license](https://www.openstreetmap.org/copyright)
+
+## Configure a gateway
+
+The isolated-account deployment mounts `server/nearby` read-only into each account's gateway and enables `mobile_nearby` in new stock account configurations. For an existing home or customized image, rerender the deployment with its original settings, enable the plugin, and recreate the gateway. For a standalone gateway, mount the folder at `$HERMES_HOME/plugins/mobile_nearby` and run `hermes plugins enable mobile_nearby` in that profile.
+
+Set `HERMES_MOBILE_OVERPASS_URL` in the account’s private `provider.env` to its operator-configured HTTPS Overpass interpreter. For example, an operator running an instance at `osm.example.org` would use `https://osm.example.org/api/interpreter`. A loopback test interpreter can use HTTP at `127.0.0.1` or `[::1]`. The endpoint never comes from the phone or model. Configure the interpreter and any proxy to avoid retaining query bodies containing approximate locations. A public shared Overpass service permits modest manual queries and advises app operators to provide their own backend. [Overpass usage policy](https://dev.overpass-api.de/overpass-doc/en/preface/commons.html) · [Run an Overpass instance](https://dev.overpass-api.de/overpass-doc/en/more_info/setup.html)
+
+```sh
+docker compose -f "$deployment/compose.json" run --rm gateway-north plugins enable mobile_nearby
+docker compose -f "$deployment/compose.json" up -d --no-deps --force-recreate gateway-north
+```
+
+The phone uses its profile bearer for `POST /api/mobile/places/nearby` and sends two JSON numbers, `latitude` and `longitude`. The gateway returns HTTP 200 with an empty list when the map has no qualifying records. A missing plugin yields 404. A missing interpreter setting, timeout, incomplete response or upstream failure yields 503. The gateway honors upstream retry delays and makes one request per search. It does not cache a user's location, pass on profile credentials, or add coordinates to its access-log path.
+
+## Recorded map check
+
+A single manual Overpass request around the public demonstration center 45.51, −73.57 in Montréal returned 522 tagged restaurants from the database dated 2026-11-22T07:27:46Z. Yamu Yamu Sushi was mapped 207 m from the center and Mae Sri Thai 214 m. The 195,650-byte raw response had SHA-256 `bc0a8aa9b2421980df48c4bbc56a39aa05f08d7e4d2094e1f76a39df1efa2303`. The small repository fixture contains the nearest twelve records plus one mapped way and retains only tags used by the guide. CI replays this dated sample against the actual plugin on loopback. [Yamu Yamu Sushi on OpenStreetMap](https://www.openstreetmap.org/node/11280151110) · [Mae Sri Thai on OpenStreetMap](https://www.openstreetmap.org/node/6732094290)
