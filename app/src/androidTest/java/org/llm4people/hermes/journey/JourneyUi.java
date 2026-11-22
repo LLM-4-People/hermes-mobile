@@ -170,6 +170,17 @@ public final class JourneyUi {
         driver.waitForIdleSync();
     }
 
+    void hideKeyboard() {
+        main(() -> {
+            activity.getWindow().getInsetsController().hide(WindowInsets.Type.ime());
+            return null;
+        });
+        until("input method hidden", () -> {
+            WindowInsets insets = activity.getWindow().getDecorView().getRootWindowInsets();
+            return insets != null && !insets.isVisible(WindowInsets.Type.ime()) ? Boolean.TRUE : null;
+        });
+    }
+
     void imeVisible() {
         until("visible input method", () -> {
             WindowInsets insets = activity.getWindow().getDecorView().getRootWindowInsets();
