@@ -4,7 +4,6 @@ import android.content.Context;
 import android.content.res.ColorStateList;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.RippleDrawable;
-import android.text.Layout;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.widget.Button;
@@ -24,7 +23,6 @@ final class PromptButtons {
         Button button = Ui.button(context, null, click == null ? null : v -> click.run());
         button.setText(label);
         button.setSingleLine(false);
-        button.setBreakStrategy(Layout.BREAK_STRATEGY_HIGH_QUALITY);
         button.setEllipsize(null);
         button.setMinWidth(0);
         button.setTextSize(role == Role.CHOICE || role == Role.DECISION ? 16 : 14);
