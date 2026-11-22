@@ -170,7 +170,7 @@ def run(primary, secondary, revision, phone=None):
             state = primary.request(path)
             require(state["status"] not in {"failed", "cancelled"}, f"Unsuccessful run: {state}")
             return state if state["status"] == "completed" else None
-        final = wait(completed, "agent continuation", phone.check if phone else None)
+        final = wait(completed, f"agent continuation after {kind} on turn {i + 1}", phone.check if phone else None)
         require(final["output"] == turn["reply"], f"Unexpected model continuation: {final['output']}")
         events = primary.events(run_id)
         controls = [(e["event"], e.get("prompt_id"), e.get("execution_generation")) for e in events

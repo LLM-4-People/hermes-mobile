@@ -1,6 +1,7 @@
 """Keep required card evidence tied to the installed app, test APK and captured images."""
 
 import base64
+from concurrent.futures import Future
 from hashlib import sha256
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -55,6 +56,15 @@ class CardJourneyTest(unittest.TestCase):
         (self.output / "card-voice-draft.png").unlink()
         with self.assertRaises(FileNotFoundError):
             self.phone.evidence()
+
+    def test_host_timeout_also_reports_the_android_failure_that_arrives_during_cleanup(self):
+        self.phone.task = Future()
+        self.phone.stack.callback(self.phone.task.set_result,
+            b"INSTRUMENTATION_RESULT: failure=Missing visible approval\nINSTRUMENTATION_CODE: 0")
+        error = TimeoutError("agent continuation after approval on turn 5")
+        self.phone.__exit__(type(error), error, None)
+        self.phone.device.shell.assert_called_once_with("run-as", APP, "touch", self.phone.directory + "/abort")
+        self.assertIn("Missing visible approval", error.__notes__[0])
 
     def test_truncated_export_fails_and_private_fixture_is_removed(self):
         self.phone.device.shell.side_effect = ["card-1.png", ""]

@@ -61,6 +61,14 @@ class CardPhone:
             if error and not self.task.done():
                 self.device.shell("run-as", APP, "touch", self.directory + "/abort")
         cleanup_all(abort, lambda: self.stack.__exit__(kind, error, traceback))
+        # The executor has now joined, even if Android was still cleaning up its profile
+        # when the host timed out. Keep its more specific assertion with the host failure.
+        if error is not None:
+            try:
+                self.check_instrumentation()
+            except Exception as native_error:
+                if str(native_error) != str(error):
+                    error.add_note(f"Android instrumentation: {native_error}")
 
     def check(self):
         if self.task.done():
@@ -75,10 +83,13 @@ class CardPhone:
     def submit_voice(self):
         self.device.shell("run-as", APP, "touch", self.directory + "/permit-voice-submit")
 
-    def finish(self):
+    def check_instrumentation(self):
         status = self.task.result().decode(errors="replace")
         if "cards=passed" not in status or "INSTRUMENTATION_CODE: -1" not in status:
             raise AssertionError(status)
+
+    def finish(self):
+        self.check_instrumentation()
         files = self.device.shell("run-as", APP, "ls", "-1", self.directory).splitlines()
         missing = CAPTURES.difference(files)
         if missing:
