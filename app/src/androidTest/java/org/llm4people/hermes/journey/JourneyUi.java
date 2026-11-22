@@ -1,0 +1,183 @@
+package org.llm4people.hermes.journey;
+
+import android.app.Instrumentation;
+import android.app.Activity;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.Rect;
+import android.os.Bundle;
+import android.os.SystemClock;
+import android.view.MotionEvent;
+import android.view.View;
+import android.view.ViewGroup;
+import android.view.WindowInsets;
+import android.view.accessibility.AccessibilityNodeInfo;
+import android.view.inspector.WindowInspector;
+import android.widget.EditText;
+import android.widget.TextView;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
+
+/** Drives visible native widgets using pointer input and Android's editable-text accessibility action. */
+final class JourneyUi {
+    private final Instrumentation driver;
+    private final Activity activity;
+    private final File evidence;
+
+    JourneyUi(Instrumentation driver, Activity activity, File evidence) {
+        this.driver = driver;
+        this.activity = activity;
+        this.evidence = evidence;
+    }
+
+    private <T> T main(Supplier<T> task) {
+        AtomicReference<T> result = new AtomicReference<>();
+        AtomicReference<Throwable> failure = new AtomicReference<>();
+        driver.runOnMainSync(() -> {
+            try { result.set(task.get()); }
+            catch (Throwable e) { failure.set(e); }
+        });
+        if (failure.get() != null) throw new AssertionError("UI operation failed", failure.get());
+        return result.get();
+    }
+
+    private View window() {
+        List<View> windows = WindowInspector.getGlobalWindowViews();
+        for (int i = windows.size() - 1; i >= 0; i--) {
+            View root = windows.get(i);
+            if (root.isShown() && root.hasWindowFocus()) return root;
+        }
+        return null;
+    }
+
+    private View find(View v, Predicate<View> predicate) {
+        if (v == null || !v.isShown()) return null;
+        if (predicate.test(v)) return v;
+        if (v instanceof ViewGroup group) {
+            for (int i = 0; i < group.getChildCount(); i++) {
+                View found = find(group.getChildAt(i), predicate);
+                if (found != null) return found;
+            }
+        }
+        return null;
+    }
+
+    private static boolean named(View v, String name) {
+        if (name.contentEquals(v.getContentDescription() == null ? "" : v.getContentDescription())) return true;
+        if (!(v instanceof TextView text)) return false;
+        return name.contentEquals(text.getText()) ||
+                (text.getHint() != null && name.contentEquals(text.getHint()));
+    }
+
+    private <T> T until(String expectation, Supplier<T> probe) {
+        long deadline = SystemClock.elapsedRealtime() + 60000;
+        while (SystemClock.elapsedRealtime() < deadline) {
+            T value = main(probe);
+            if (value != null) return value;
+            SystemClock.sleep(100);
+        }
+        throw new AssertionError("Timed out waiting for " + expectation);
+    }
+
+    void see(String label) {
+        until(label, () -> find(window(), v -> named(v, label)));
+    }
+
+    void contains(String fragment) {
+        until(fragment, () -> find(window(), v -> v instanceof TextView text &&
+                text.getText().toString().contains(fragment)));
+    }
+
+    void absent(String label) {
+        if (main(() -> find(window(), v -> named(v, label))) != null)
+            throw new AssertionError("Unexpected visible widget: " + label);
+    }
+
+    boolean has(String label) {
+        return main(() -> find(window(), v -> named(v, label))) != null;
+    }
+
+    void tap(String label) {
+        View target = until(label, () -> find(window(), v -> named(v, label) && v.isEnabled()));
+        tap(target, label);
+    }
+
+    void tapMatchingText(String fragment) {
+        View target = until(fragment, () -> find(window(), v -> v instanceof TextView text
+                && text.getText().toString().contains(fragment) && v.isEnabled()));
+        tap(target, fragment);
+    }
+
+    private void tap(View target, String label) {
+        main(() -> {
+            Rect bounds = new Rect();
+            target.getDrawingRect(bounds);
+            target.requestRectangleOnScreen(bounds, true);
+            return null;
+        });
+        int[] center = until("touch target " + label, () -> {
+            Rect visible = new Rect();
+            if (!target.isShown() || !target.getGlobalVisibleRect(visible) || visible.isEmpty()) return null;
+            int[] root = new int[2];
+            target.getRootView().getLocationOnScreen(root);
+            return new int[]{root[0] + visible.centerX(), root[1] + visible.centerY()};
+        });
+        long down = SystemClock.uptimeMillis();
+        for (int action : new int[]{MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP}) {
+            MotionEvent event = MotionEvent.obtain(down, SystemClock.uptimeMillis(), action, center[0], center[1], 0);
+            try { driver.sendPointerSync(event); }
+            finally { event.recycle(); }
+        }
+        driver.waitForIdleSync();
+    }
+
+    void fill(String label, String value) {
+        EditText edit = until("field " + label, () -> {
+            View root = window();
+            View direct = find(root, v -> v instanceof EditText && named(v, label));
+            if (direct != null) return (EditText) direct;
+            View caption = find(root, v -> named(v, label) && v.getLabelFor() != View.NO_ID);
+            return caption == null ? null : root.findViewById(caption.getLabelFor());
+        });
+        main(() -> {
+            Bundle args = new Bundle();
+            args.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, value);
+            if (!edit.performAccessibilityAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args))
+                throw new AssertionError("Field refused text entry: " + label);
+            return null;
+        });
+    }
+
+    void back() {
+        driver.sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK);
+        driver.waitForIdleSync();
+    }
+
+    void imeVisible() {
+        until("visible input method", () -> {
+            WindowInsets insets = activity.getWindow().getDecorView().getRootWindowInsets();
+            return insets != null && insets.isVisible(WindowInsets.Type.ime()) ? Boolean.TRUE : null;
+        });
+    }
+
+    void capture(String name) {
+        Bitmap bitmap = until("laid out app window", () -> {
+            View root = window();
+            if (root == null || root.getWidth() == 0 || root.getHeight() == 0) return null;
+            Bitmap screenshot = Bitmap.createBitmap(root.getWidth(), root.getHeight(), Bitmap.Config.ARGB_8888);
+            root.draw(new Canvas(screenshot));
+            return screenshot;
+        });
+        try (FileOutputStream output = new FileOutputStream(new File(evidence, name + ".png"))) {
+            if (!bitmap.compress(Bitmap.CompressFormat.PNG, 100, output))
+                throw new AssertionError("Failed to encode synthetic fixture capture");
+        } catch (java.io.IOException ex) {
+            throw new AssertionError("Failed to persist fixture capture", ex);
+        } finally { bitmap.recycle(); }
+    }
+}
