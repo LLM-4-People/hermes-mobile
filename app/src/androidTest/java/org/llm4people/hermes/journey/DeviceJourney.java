@@ -84,6 +84,23 @@ public final class DeviceJourney extends Instrumentation {
                 throw new AssertionError("Private workspace allows external screen capture");
             ui = new JourneyUi(this, activity, new File(dir, fixture.getString("run")));
             switch (phase) {
+                case "skills-draft": {
+                    String owner = "Compétences " + fixture.getString("run");
+                    profile(owner, "endpoint", "key", fixture.getString("phrase"));
+                    new DiscussionSkillsJourney(ui, fixture).stage();
+                    lock();
+                    break;
+                }
+                case "skills-send": {
+                    String owner = "Compétences " + fixture.getString("run");
+                    String phrase = fixture.getString("phrase");
+                    ui.see("Choisir un profil");
+                    unlock(owner, phrase);
+                    new DiscussionSkillsJourney(ui, fixture).send();
+                    lock();
+                    forget(owner, phrase);
+                    break;
+                }
                 case "photo": {
                     String owner = "Image " + fixture.getString("run");
                     String phrase = fixture.getString("phrase");
