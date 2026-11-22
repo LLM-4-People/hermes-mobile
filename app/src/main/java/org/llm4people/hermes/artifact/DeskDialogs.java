@@ -11,16 +11,21 @@ import java.util.WeakHashMap;
 
 /** Covers dialogs that would otherwise outlive the content behind the profile lock. UI thread only. */
 final class DeskDialogs {
-    private static final Map<Activity, List<WeakReference<AlertDialog>>> VISIBLE = new WeakHashMap<>();
+    private record Open(WeakReference<AlertDialog> dialog, WeakReference<ArtifactDesk.Host> owner) {}
+    private static final Map<Activity, List<Open>> VISIBLE = new WeakHashMap<>();
 
     static AlertDialog open(Activity activity, AlertDialog.Builder builder) {
+        return open(activity, null, builder);
+    }
+
+    static AlertDialog open(Activity activity, ArtifactDesk.Host owner, AlertDialog.Builder builder) {
         if (activity.isFinishing() || activity.isDestroyed()) return null;
         AlertDialog dialog = Ui.secureDialog(builder);
-        List<WeakReference<AlertDialog>> list = VISIBLE.computeIfAbsent(activity, a -> new ArrayList<>());
-        list.removeIf(ref -> ref.get() == null);
-        WeakReference<AlertDialog> reference = new WeakReference<>(dialog);
-        list.add(reference);
-        dialog.setOnDismissListener(d -> list.remove(reference));
+        List<Open> list = VISIBLE.computeIfAbsent(activity, a -> new ArrayList<>());
+        list.removeIf(entry -> entry.dialog.get() == null);
+        Open entry = new Open(new WeakReference<>(dialog), new WeakReference<>(owner));
+        list.add(entry);
+        dialog.setOnDismissListener(d -> list.remove(entry));
         return dialog;
     }
 
@@ -30,12 +35,19 @@ final class DeskDialogs {
     }
 
     static void dismiss(Activity activity) {
-        List<WeakReference<AlertDialog>> list = VISIBLE.remove(activity);
+        dismiss(activity, null);
+    }
+
+    static void dismiss(Activity activity, ArtifactDesk.Host owner) {
+        List<Open> list = VISIBLE.get(activity);
         if (list == null) return;
-        for (WeakReference<AlertDialog> ref : new ArrayList<>(list)) {
-            AlertDialog d = ref.get();
-            if (d != null && d.isShowing()) d.dismiss();
+        for (Open entry : new ArrayList<>(list)) {
+            AlertDialog dialog = entry.dialog.get();
+            if (dialog == null || owner == null || entry.owner.get() == owner) {
+                list.remove(entry);
+                if (dialog != null && dialog.isShowing()) dialog.dismiss();
+            }
         }
-        list.clear();
+        if (list.isEmpty()) VISIBLE.remove(activity);
     }
 }

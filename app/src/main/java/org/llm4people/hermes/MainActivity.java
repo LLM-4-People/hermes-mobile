@@ -47,6 +47,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     private MobilePush.Target delivery;
     private AlertDialog notice;
     private String handledDelivery;
+    private long noticeRequest;
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
@@ -101,6 +102,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         panels = new SessionPanel(this, api, account);
         panels.setLayoutHost(activeHost);
         threads = new ThreadWorkspace(this, api, account, this, voice);
+        threads.setInstrumentHost(activeHost);
         setContentView(shell.root);
         displayDiscussion();
         files.unlock(account, api);
@@ -118,14 +120,16 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     }
 
     private void resolve(Account owner, MobilePush.Target target) {
+        long request = ++noticeRequest;
+        threads.cancelNotice();
         notifications.execute(() -> {
             try {
                 JSONObject event = MobilePush.resolve(owner, target);
-                runOnUiThread(() -> openPushEvent(owner, event));
+                runOnUiThread(() -> { if (noticeRequest == request) openPushEvent(owner, event); });
             } catch (IOException | RuntimeException failure) {
                 Diagnostics.warning("push", "open_failed");
                 runOnUiThread(() -> {
-                    if (owner == account && !isFinishing()) {
+                    if (owner == account && request == noticeRequest && !isFinishing()) {
                         message("Notification indisponible",
                                 "Vous pouvez retrouver le travail dans vos discussions ou vos rappels.");
                     }
@@ -136,23 +140,35 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
 
     @Override public void openPushEvent(Account owner, JSONObject event) {
         if (owner != account || isFinishing()) return;
-        dismissOverlays();
+        ++noticeRequest;
         if ("reminder".equals(event.optString("kind"))) {
+            threads.cancelNotice();
+            dismissOverlays();
             if (!event.isNull("job_id") && !event.optString("job_id").isEmpty())
                 panels.showReminder(event.optString("job_id"));
             else panels.showReminders();
         } else if (!event.isNull("session_id") && !event.optString("session_id").isEmpty()) {
-            displayDiscussion();
             threads.openNotice(event.optString("session_id"), event.optString("run_id"), event.optString("kind"));
         }
     }
 
-    private void dismissOverlays() {
+    @Override public void noticeThread(boolean sameThread) {
+        boolean onThread = WorkspaceNavigation.DISCUSSION.equals(navigation.current())
+                || WorkspaceNavigation.COMPOSER.equals(navigation.current());
+        dismissOverlays(sameThread && onThread);
+        if (!sameThread || !onThread) displayDiscussion();
+    }
+
+    private void dismissOverlays() { dismissOverlays(false); }
+
+    private void dismissOverlays(boolean keepThreadEditor) {
         if (notice != null) notice.dismiss();
         notice = null;
         if (files != null) files.dismiss();
-        if (threads != null) threads.dismissDialogs();
-        ArtifactDesk.dismiss(this);
+        if (!keepThreadEditor) {
+            if (threads != null) threads.dismissDialogs();
+            ArtifactDesk.dismiss(this);
+        }
         if (panels != null) panels.close();
         if (push != null) push.lock();
     }
@@ -188,6 +204,9 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             case "native_thread": navigate(WorkspaceNavigation.COMPOSER); break;
             case "threads": displayDiscussion(); threads.inbox(); break;
             case "new_thread": displayDiscussion(); threads.newThread(); break;
+            case "create_instrument":
+                if (threads.sessionId() != null) stageDraft(getString(R.string.instrument_create_request));
+                break;
             case "rename": threads.rename(); break;
             case "published_files":
                 if (threads.remoteSessionId() != null) files.show(threads.remoteSessionId());
@@ -257,7 +276,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         if (threads == null || text == null || text.trim().isEmpty()) return;
         dismissOverlays();
         Runnable edit = () -> {
-            navigate(WorkspaceNavigation.COMPOSER);
+            if (!threads.composerVisible()) navigate(WorkspaceNavigation.COMPOSER);
             threads.stageDraft(text);
         };
         if (threads.sessionId() != null) { edit.run(); return; }
@@ -270,6 +289,11 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                 }));
     }
 
+    private void leavingSurface() {
+        shell.dismissMenu();
+        voice.reader().stop();
+    }
+
     private void render(boolean force) {
         String route = navigation.current();
         customPages.keySet().removeIf(id -> !navigation.contains(id));
@@ -279,7 +303,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                 boolean composer = WorkspaceNavigation.COMPOSER.equals(route);
                 String surface = threads.sessionId() == null ? "threads" : "thread";
                 String key = composer ? route : surface;
-                if (!navigation.display(key, voice.reader()::stop) && !force) return;
+                if (!navigation.display(key, this::leavingSurface) && !force) return;
                 boolean editing = threads.editing();
                 View nativeView = threads.view();
                 if (nativeView.getParent() instanceof android.view.ViewGroup)
@@ -290,14 +314,15 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                     content = nativeView;
                 } else content = ArtifactDesk.decorate(this, account, surface, nativeView, activeHost);
                 shell.show(content, composer ? "Discussion d’origine" : null);
+                ArtifactDesk.refreshBindings(shell.content(), activeHost);
                 if (editing) threads.focusComposer();
                 break;
             case WorkspaceNavigation.HOME:
-                navigation.display(route, voice.reader()::stop);
+                navigation.display(route, this::leavingSurface);
                 shell.show(ArtifactDesk.decorate(this, account, "home", shell.desk(account.label), activeHost), "Atelier");
                 break;
             case WorkspaceNavigation.GALLERY:
-                navigation.display(route, voice.reader()::stop);
+                navigation.display(route, this::leavingSurface);
                 shell.show(ArtifactDesk.pages(this, account, activeHost), "Mes écrans");
                 break;
             default:
@@ -307,7 +332,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                     navigation.forgetCurrentPage();
                     render(true);
                 } else {
-                    navigation.display(route, voice.reader()::stop);
+                    navigation.display(route, this::leavingSurface);
                     customPages.put(route, page);
                     shell.show(page, "Écran personnalisé");
                     ArtifactDesk.refreshBindings(page, activeHost);
@@ -333,7 +358,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     @Override public void selected(String sessionId, String title) {
         if (shell == null) return;
         String threadTitle = sessionId == null ? null : title == null || title.trim().isEmpty() ? "Discussion" : title;
-        shell.selected(threadTitle);
+        shell.selected(sessionId, threadTitle);
         if (WorkspaceNavigation.DISCUSSION.equals(navigation.current())) render(false);
         ArtifactDesk.refreshBindings(shell.content(), activeHost);
     }
@@ -341,7 +366,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     @Override public JSONObject options(String sessionId) {
         JSONObject options = SessionPanel.runOptions(this, account, sessionId);
         try {
-            options.put("instructions", ArtifactDesk.proposalInstructions());
+            options.put("instructions", ArtifactDesk.proposalInstructions(account, sessionId));
         } catch (JSONException invalid) {
             throw new IllegalStateException(invalid);
         }
@@ -355,6 +380,9 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     private void back() {
         if (threads == null) {
             if (!gate.onBack()) finish();
+        } else if ((WorkspaceNavigation.DISCUSSION.equals(navigation.current())
+                || WorkspaceNavigation.COMPOSER.equals(navigation.current())) && threads.closeInstrument()) {
+            return;
         } else if (navigation.back()) {
             render(false);
         } else if (!threads.back()) {
@@ -380,6 +408,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     }
 
     private void clearWorkspace() {
+        if (shell != null) shell.dismissMenu();
         if (voice != null) voice.reader().stop();
         dismissOverlays();
         if (files != null) files.lock();

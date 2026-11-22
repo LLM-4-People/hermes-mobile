@@ -3,6 +3,7 @@ package org.llm4people.hermes.artifact;
 import static org.junit.Assert.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import org.junit.Test;
 
 public class FencesTest {
@@ -43,6 +44,30 @@ public class FencesTest {
             result.add(c); return false;
         });
         assertEquals(List.of("```js\nlet n=1\n```"), result);
+    }
+
+    @Test public void hidesOnlySelectedCompletedProposalFencesWithoutEditingOtherSource() {
+        String code = "```python\r\nvalue = 1\r\n```\r\n";
+        String empty = "```hermes-workspace\r\n```\r\n";
+        String first = "  ~~~~hermes-workspace\r\nexample\r\n~~~~\r\n";
+        String second = "```hermes-workspace\nother\n```\n";
+        String incomplete = "```hermes-workspace\nstill typing";
+        String source = "Avant\r\n" + code + empty + first + second + "Après\n" + incomplete;
+        assertEquals("Avant\r\n" + code + empty + second + "Après\n" + incomplete,
+                Fences.without(source, Map.of(0, "value = 1", 1, "example", 3, "still typing")));
+        assertSame(source, Fences.without(source, Map.of(4, "unknown")));
+        assertSame(source, Fences.without(source, Map.of(1, "other")));
+        assertSame(source, Fences.without(source, Map.of(1, "examplE")));
+        assertEquals("", Fences.without(first.stripTrailing(), Map.of(0, "example")));
+    }
+
+    @Test public void readerUsesBoundedFirstLineNamingFromSourceOffset() {
+        String source = "```python\n# demo.py\nprint(1)\n```";
+        Fences.Marker marker = Fences.marker(source, 0, source.indexOf('\n'));
+        assertEquals("demo.py", marker.filename(source, source.indexOf('\n') + 1));
+        assertEquals("", marker.filename("# " + "x".repeat(161) + ".py", 0));
+        Fences.Marker named = Fences.marker("```sh file=Dockerfile", 0, "```sh file=Dockerfile".length());
+        assertEquals("Dockerfile", named.filename("# ignored.py", 0));
     }
 
     private List<String> scan(String source) {

@@ -2,16 +2,11 @@ package org.llm4people.hermes.artifact;
 
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.content.ClipData;
-import android.content.ClipboardManager;
-import android.content.Context;
-import android.os.PersistableBundle;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
-import android.widget.Toast;
 import org.json.JSONArray;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.Ui;
@@ -46,7 +41,16 @@ public final class ArtifactDesk {
         catalog = new ArtifactCatalog(messages == null ? new JSONArray() : messages);
     }
 
-    public static String proposalInstructions() { return WorkspaceLayout.instructions(); }
+    public static String proposalInstructions(Account account, String threadId) {
+        String instructions = WorkspaceLayout.instructions();
+        try {
+            ThreadInstruments.Pin pin = new ThreadInstruments(account, threadId).state().current;
+            if (pin != null) instructions += WorkspaceLayout.pinnedReference(pin.pageId, pin.messageId, pin.fenceOrdinal);
+        } catch (IllegalStateException unreadable) {
+            Diagnostics.warning("workspace", "instrument_reference_unavailable");
+        }
+        return instructions;
+    }
 
     public static View decorate(Activity activity, Account account, String surface, View nativeContent, Host host) {
         return SurfaceRenderer.decorate(activity, account, surface, nativeContent, host);
@@ -64,6 +68,9 @@ public final class ArtifactDesk {
     public static void refreshBindings(View root, Host host) { WorkspaceBlocks.refresh(root,host); }
 
     public static void dismiss(Activity activity) { DeskDialogs.dismiss(activity); }
+    public static void dismissReviews(Activity activity, Host owner) {
+        if (owner != null) DeskDialogs.dismiss(activity, owner);
+    }
 
     /** Recovery is always reachable from native navigation, even after a layout has been restored. */
     public static void manage(Activity activity, Account account, Host host) {
@@ -151,8 +158,7 @@ public final class ArtifactDesk {
                         "Disposition invalide. Demandez à Hermes de corriger la proposition.", 16));
             }
         }
-        box.addView(Ui.button(activity, "Copier le contenu", v -> copy(content, record.title)));
-        new CodeReader(content, record.language).mount(box, 0);
+        CodeReader.contents(box, record.title, record.language, content);
     }
 
     private void confirm(WorkspaceLayout layout, String raw) {
@@ -167,21 +173,5 @@ public final class ArtifactDesk {
         ScrollView scroll = new ScrollView(activity);
         scroll.addView(content);
         return scroll;
-    }
-
-    private void copy(String content, String title) {
-        ClipboardManager clipboard = (ClipboardManager)activity.getSystemService(Context.CLIPBOARD_SERVICE);
-        ClipData clip = ClipData.newPlainText(title, content);
-        PersistableBundle extras = new PersistableBundle();
-        extras.putBoolean("android.content.extra.IS_SENSITIVE", true);
-        clip.getDescription().setExtras(extras);
-        try {
-            clipboard.setPrimaryClip(clip);
-            if (android.os.Build.VERSION.SDK_INT < 33)
-                Toast.makeText(activity, "Contenu copié", Toast.LENGTH_SHORT).show();
-        } catch (RuntimeException e) {
-            Diagnostics.warning("artifact", "copy_failed");
-            Toast.makeText(activity, "La copie a échoué. Sélectionnez une partie du texte.", Toast.LENGTH_LONG).show();
-        }
     }
 }

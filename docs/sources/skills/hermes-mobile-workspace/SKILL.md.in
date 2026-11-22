@@ -35,7 +35,9 @@ Use an integer schema version of 1, a title of 1–64 characters, and 1–12 blo
 
 # Create a coding-review tool
 
-Set `mode` to `replace` to author all the content inside an authenticated screen. Omit the `content` block in this mode. For a new screen use `surface: "page/<slug>"`. A slug begins with a lowercase ASCII letter and contains up to 36 lowercase letters, digits or hyphens. The native **Mes écrans** library lists applied pages. One profile can hold 24 named pages, including removed pages awaiting undo.
+When someone asks to turn a conversation into a reusable tool, identify the parts they will want to change next time. Turn those into fields. If the purpose is unclear, ask one focused question and offer concrete answers. In the conversation, introduce the tool in a sentence describing what it helps the person do. They can try a proposal, pin it to the thread, and choose a revision. Keep the page slug and existing field IDs on subsequent revisions of the same tool. Describe which field, option, or action changed. The choice to pin or adopt belongs to the person.
+
+Set `mode` to `replace` to author all the content inside an authenticated screen. Omit the `content` block in this mode. For a new screen use `surface: "page/<slug>"`. A slug starts with a lowercase ASCII letter and may contain lowercase ASCII letters, digits, hyphens and underscores, up to 36 characters total. The app treats `revue-code` and `revue_code` as distinct identifiers. The native **Mes écrans** library lists applied pages. One profile can hold 24 named pages, including removed pages awaiting undo.
 
 This page asks for a file, review goal, and optional context. A person can inspect and edit the generated draft, transfer it into a conversation and choose when to send. Submitted form values stay in memory until the person transfers the text into the profile’s native draft. They do not enter the agent’s context on their own.
 

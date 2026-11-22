@@ -35,4 +35,19 @@ python verification/conversation_cards.py --source /path/to/clean/hermes-agent \
     app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
 ```
 
+The final journey uses the same installed APKs and pinned gateway checkout to exercise a model-authored tool inside one discussion. On the compact screen, the user edits the creation request, tries the proposed form, and checks the draft it produces. They compare a revision, adopt it and undo it. After the app restarts, the wide screen shows the discussion and its pinned form side by side. A second conversation checks that the pin stays with its owner.
+
+Download and extract the `android-thread-instruments` artifact. Open `walkthrough.html` in Chrome to follow the seven key steps offline. The walkthrough describes each step in English and preserves the French Android screenshots. Select a step or use the left and right arrow keys. The artifact also contains the full set of original phone captures, including separate views of the pinned and proposed revisions. Each image has a French caption, dimensions and a SHA-256 digest in `thread-instrument.json`. The receipt also identifies both installed APKs and the four completed gateway runs across the two conversations. If an assertion fails, CI retains the screenshots collected before the failure. The eight conversation-card images and their receipts remain available in `android-conversation-cards`.
+
+To rebuild the standalone walkthrough from a completed receipt and its original screenshots, run `python verification/instrument_walkthrough.py /path/to/evidence` from the repository root. Verification checks every capture against the receipt before embedding the selected steps.
+
+To repeat the instrument journey, use the same fork environment and a fresh output directory.
+
+```sh
+python verification/thread_instruments.py --source /path/to/clean/hermes-agent \
+    --serial emulator-5554 --output /tmp/hermes-thread-instrument \
+    --verify-apks app/build/outputs/apk/debug/app-debug.apk \
+    app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+```
+
 <!-- Generated from docs/sources/docs/device-checks.md.in by scripts/docs.py. -->

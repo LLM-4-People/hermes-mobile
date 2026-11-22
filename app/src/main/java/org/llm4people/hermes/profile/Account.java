@@ -7,6 +7,9 @@ import java.security.GeneralSecurityException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Objects;
+import java.util.Set;
+import java.util.HashSet;
+import java.util.function.Function;
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.Mac;
@@ -33,41 +36,66 @@ public final class Account implements AutoCloseable {
 
     /** The stored bytes are malformed or failed authentication. A locked profile raises a separate error. */
     public static final class UnreadableRecord extends IllegalStateException {
+        private final Account owner;
+        private final String slot;
         private final Object storedValue;
-        private UnreadableRecord(Throwable cause, Object value) {
+        private UnreadableRecord(Account owner, String slot, Throwable cause, Object value) {
             super("Unreadable account record", cause);
-            storedValue = value;
+            this.owner = owner;
+            this.slot = slot;
+            storedValue = value instanceof Set<?> set ? new HashSet<>(set) : value;
         }
 
         /** Compare observations without exposing the encrypted preference to the caller. */
         public boolean sameVersion(UnreadableRecord other) {
-            return other != null && Objects.equals(storedValue, other.storedValue);
+            return other != null && matches(other.storedValue);
         }
+
+        private boolean matches(Object current) { return Objects.equals(storedValue, current); }
     }
 
     /** Reads the last committed value, or null for an absent key. Corrupt values fail closed. */
-    public synchronized String read(String key) {
+    public String read(String key) { return read(key, Function.identity()); }
+
+    /** The decoder can reject an invalid schema with IllegalArgumentException. Absence returns null. */
+    public synchronized <T> T read(String key, Function<String, T> decode) {
         String stored = null;
+        String slot = null;
         try {
-            String slot = slot(key);
+            slot = slot(key);
             synchronized (prefs) {
                 try { stored = prefs.getString(slot, null); }
                 catch (ClassCastException wrongType) {
-                    throw new UnreadableRecord(wrongType, prefs.getAll().get(slot));
+                    throw new UnreadableRecord(this, slot, wrongType, prefs.getAll().get(slot));
                 }
             }
             if (stored == null) return null;
             byte[] clear = ProfileEnvelope.decrypt(new SecretKeySpec(keys, 0, 32, "AES"), context(slot),
                     Base64.decode(stored, Base64.NO_WRAP), 0);
             try {
-                return new String(clear, StandardCharsets.UTF_8);
+                return decode.apply(new String(clear, StandardCharsets.UTF_8));
             } finally {
                 Arrays.fill(clear, (byte) 0);
             }
         } catch (BadPaddingException | IllegalBlockSizeException | IllegalArgumentException ex) {
-            throw new UnreadableRecord(ex, stored);
+            throw new UnreadableRecord(this, slot, ex, stored);
         } catch (GeneralSecurityException ex) {
             throw new IllegalStateException("Account record could not be read", ex);
+        }
+    }
+
+    /** Replace only the exact damaged preference observed by this unlock, across all account handles. */
+    public synchronized boolean replaceUnreadable(String key, UnreadableRecord observed, String value) {
+        try {
+            String slot = slot(key);
+            if (observed == null || observed.owner != this || !slot.equals(observed.slot)) return false;
+            synchronized (prefs) {
+                if (!observed.matches(prefs.getAll().get(slot))) return false;
+                write(key, value);
+                return true;
+            }
+        } catch (GeneralSecurityException ex) {
+            throw new IllegalStateException("Account record recovery failed", ex);
         }
     }
 

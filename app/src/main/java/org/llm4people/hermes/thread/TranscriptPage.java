@@ -25,6 +25,7 @@ final class TranscriptPage {
         int offset;
         int lineEnd = -1;
         Fences.Marker fence;
+        int fenceBody;
         Style lineStyle;
         boolean image;
 
@@ -39,8 +40,47 @@ final class TranscriptPage {
             offset = other.offset;
             lineEnd = other.lineEnd;
             fence = other.fence;
+            fenceBody = other.fenceBody;
             lineStyle = other.lineStyle;
             image = other.image;
+        }
+    }
+
+    /** Source and display offsets are distinct after removing Markdown delimiters. */
+    static final class Block {
+        final Fences.Marker marker;
+        final int bodyStart, displayStart;
+        int displayEnd;
+        private int closingLine = -1;
+
+        Block(Cursor cursor, int start) {
+            marker = cursor.fence;
+            bodyStart = cursor.fenceBody;
+            displayStart = start;
+        }
+
+        String title(String source) {
+            String file = marker.filename(source, bodyStart);
+            if (file.isEmpty()) return marker.language;
+            return marker.language.isEmpty() ? file : file + " · " + marker.language;
+        }
+
+        // A block may outlast this page. Resolve its far boundary only when opened.
+        String content(String source) {
+            int end = closingLine;
+            if (end < 0) {
+                for (int at = bodyStart; at < source.length();) {
+                    int newline = source.indexOf('\n', at);
+                    int lineEnd = newline < 0 ? source.length() : newline;
+                    Fences.Marker candidate = Fences.marker(source, at, lineEnd);
+                    if (candidate != null && candidate.closes(marker)) { end = at; break; }
+                    at = lineEnd + 1;
+                }
+            }
+            if (end < 0) return source.substring(bodyStart);
+            if (end > bodyStart && source.charAt(end - 1) == '\n') end--;
+            if (end > bodyStart && source.charAt(end - 1) == '\r') end--;
+            return source.substring(bodyStart, end);
         }
     }
 
@@ -58,6 +98,7 @@ final class TranscriptPage {
     final Cursor next;
     final StringBuilder text = new StringBuilder();
     final List<Mark> marks = new ArrayList<>();
+    final List<Block> blocks = new ArrayList<>();
 
     TranscriptPage(String source, Cursor start, boolean markdown, int limit) {
         this.source = source;
@@ -78,12 +119,21 @@ final class TranscriptPage {
                 if (end - startOffset > 1) end--;
             }
             int spanStart = text.length();
+            Block block = null;
+            if (next.fence != null) {
+                block = blocks.isEmpty() ? null : blocks.get(blocks.size() - 1);
+                if (block == null || block.bodyStart != next.fenceBody) {
+                    block = new Block(next, spanStart);
+                    blocks.add(block);
+                }
+            }
             if (next.fence == null) inline(end); else literal(end);
             mark(spanStart, next.lineStyle);
             if (next.offset == next.lineEnd) {
                 if (next.offset < source.length()) { text.append('\n'); next.offset++; }
                 next.lineEnd = -1;
             }
+            if (block != null) block.displayEnd = text.length();
         }
     }
 
@@ -98,7 +148,14 @@ final class TranscriptPage {
         if (!markdown || start == next.lineEnd) return false;
         Fences.Marker marker = Fences.marker(source, start, next.lineEnd);
         if (marker != null && (next.fence == null || marker.closes(next.fence))) {
-            next.fence = next.fence == null ? marker : null;
+            if (next.fence == null) {
+                next.fence = marker;
+                next.fenceBody = Math.min(source.length(), next.lineEnd + 1);
+            } else {
+                if (!blocks.isEmpty() && blocks.get(blocks.size() - 1).bodyStart == next.fenceBody)
+                    blocks.get(blocks.size() - 1).closingLine = start;
+                next.fence = null;
+            }
             next.offset = Math.min(source.length(), next.lineEnd + 1);
             next.lineEnd = -1;
             return true;

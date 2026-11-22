@@ -1,6 +1,8 @@
 package org.llm4people.hermes.artifact;
 
 import java.util.Locale;
+import java.util.Map;
+import java.util.function.IntFunction;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -32,6 +34,15 @@ public final class Fences {
             this.filename = filename;
         }
 
+        /** Explicit fence filename or a safe filename from the first line of its body. */
+        public String filename(String source, int bodyStart) {
+            if (!filename.isEmpty()) return filename;
+            if (bodyStart < 0 || bodyStart >= source.length()) return "";
+            return commentName(source, bodyStart);
+        }
+
+        public boolean workspace() { return WorkspaceLayout.FENCE.equals(language); }
+
         public boolean closes(Marker opening) {
             return bare && opening.symbol == symbol && width >= opening.width;
         }
@@ -62,8 +73,54 @@ public final class Fences {
     }
 
     static void scan(String text, Visitor visitor) {
+        ranges(text, (opening, start, body, contentEnd, end, ordinal) -> {
+            String content = text.substring(body, contentEnd);
+            return visitor.accept(opening.language, opening.filename(content, 0), content, ordinal);
+        });
+    }
+
+    /** Redact the exact verified bodies of a scalar text message. */
+    public static String without(String text, Map<Integer,String> proposals) {
+        return described(text, proposals, ignored -> "");
+    }
+
+    /** Substitute a spoken description at each verified source, preserving the order of the authored reply. */
+    public static String described(String text, Map<Integer,String> proposals, IntFunction<String> description) {
+        if (proposals.isEmpty() || text.length() > ArtifactCatalog.MAX_MESSAGE_CHARS) return text;
+        StringBuilder copy = new StringBuilder();
+        int[] retainedFrom = {0};
+        verifiedRanges(text, proposals, (start, end, ordinal) -> {
+            copy.append(text, retainedFrom[0], start);
+            String label = description.apply(ordinal);
+            if (!label.isEmpty()) {
+                copy.append(label);
+                if (text.charAt(end - 1) == '\n') copy.append('\n');
+            }
+            retainedFrom[0] = end;
+        });
+        return retainedFrom[0] == 0 ? text : copy.append(text, retainedFrom[0], text.length()).toString();
+    }
+
+    interface ProposalVisitor {
+        void accept(int start, int end, int ordinal);
+    }
+
+    static void verifiedRanges(String text, Map<Integer,String> proposals, ProposalVisitor visitor) {
+        ranges(text, (opening, start, body, contentEnd, end, ordinal) -> {
+            String expected = proposals.get(ordinal);
+            if (opening.workspace() && expected != null && expected.length() == contentEnd - body
+                    && text.regionMatches(body, expected, 0, expected.length())) visitor.accept(start, end, ordinal);
+            return true;
+        });
+    }
+
+    private interface RangeVisitor {
+        boolean accept(Marker opening, int start, int body, int contentEnd, int end, int ordinal);
+    }
+
+    private static void ranges(String text, RangeVisitor visitor) {
         Marker opening = null;
-        int body = 0, ordinal = 0;
+        int fenceStart = 0, body = 0, ordinal = 0;
         for (int start = 0; start < text.length();) {
             int end = text.indexOf('\n', start);
             if (end < 0) end = text.length();
@@ -72,12 +129,13 @@ public final class Fences {
                 int contentEnd = start;
                 if (contentEnd > body && text.charAt(contentEnd - 1) == '\n') contentEnd--;
                 if (contentEnd > body && text.charAt(contentEnd - 1) == '\r') contentEnd--;
-                String content = text.substring(body, contentEnd);
-                if (!content.isEmpty() && !visitor.accept(opening.language,
-                        opening.filename.isEmpty() ? commentName(content) : opening.filename, content, ordinal++)) return;
+                int after = end < text.length() ? end + 1 : end;
+                if (contentEnd > body && !visitor.accept(opening, fenceStart, body, contentEnd, after, ordinal++))
+                    return;
                 opening = null;
             } else if (current != null && opening == null) {
                 opening = current;
+                fenceStart = start;
                 body = end + 1;
             }
             start = end + 1;
@@ -107,11 +165,13 @@ public final class Fences {
         return explicit || (dot > 0 && dot < basename.length() - 1);
     }
 
-    private static String commentName(String content) {
-        int end = content.indexOf('\n');
-        if (end < 0) end = content.length();
-        if (end > 160) return "";
-        Matcher m = FILE_COMMENT.matcher(content.substring(0, end));
+    private static String commentName(String source, int start) {
+        int end = start;
+        while (end < source.length() && source.charAt(end) != '\n') {
+            if (end - start >= 160) return "";
+            end++;
+        }
+        Matcher m = FILE_COMMENT.matcher(source.substring(start, end));
         return m.matches() && safeName(m.group(1), false) ? m.group(1) : "";
     }
 }

@@ -2,6 +2,12 @@
     <string name="transcript_page">Page %1$d</string>
     <string name="transcript_previous">Précédente</string>
     <string name="transcript_next">Suivante</string>
+    <string name="code_open">Ouvrir le code</string>
+    <string name="code_open_named">Ouvrir le code · %1$s</string>
+    <string name="code_open_many">Ouvrir un extrait…</string>
+    <string name="code_excerpt">Extrait de code</string>
+    <string name="code_excerpt_number">Extrait %1$d</string>
+    <string name="code_choose">Choisir un extrait</string>
     <string name="transcript_read_excerpt">Lire l’extrait en cours</string>
     <string name="transcript_read_full">Lire la réponse entière</string>
 </resources>

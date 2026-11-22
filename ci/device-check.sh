@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Exercise the packaged framework suite and both live journeys on one disposable phone.
+# Exercise the packaged framework suite and the live gateway journeys on one disposable phone.
 set -euo pipefail
 device=$(adb get-serialno)
 app_apk=app/build/outputs/apk/debug/app-debug.apk
@@ -10,7 +10,17 @@ python3 -B ci/native_tests.py "$device" "$RUNNER_TEMP/android-instrumentation" "
 # Remove private test state before the independent two-account journey.
 adb -s "$device" shell pm clear org.llm4people.hermes.test
 adb -s "$device" shell pm clear org.llm4people.hermes
-"$RUNNER_TEMP/hermes-env/bin/python" -B verification/live_api.py --source .fixture/hermes --require-tool-controls \
+fixture_python="$RUNNER_TEMP/hermes-env/bin/python"
+source_args=(--source .fixture/hermes)
+phone_args=(--serial "$device" --verify-apks "$app_apk" "$test_apk")
+"$fixture_python" -B verification/live_api.py "${source_args[@]}" --require-tool-controls \
   --device-command python3 -B verification/device/run.py --serial "$device" --output "$RUNNER_TEMP/hermes-device"
-"$RUNNER_TEMP/hermes-env/bin/python" -B verification/conversation_cards.py --source .fixture/hermes \
-  --serial "$device" --verify-apks "$app_apk" "$test_apk" --output "$RUNNER_TEMP/hermes-conversation-cards/android"
+"$fixture_python" -B verification/conversation_cards.py "${source_args[@]}" "${phone_args[@]}" \
+  --output "$RUNNER_TEMP/hermes-conversation-cards/android"
+echo "Verifying thread instruments on compact and wide Android layouts"
+"$fixture_python" -B verification/thread_instruments.py "${source_args[@]}" "${phone_args[@]}" \
+  --output "$RUNNER_TEMP/hermes-thread-instrument" || {
+  status=$?
+  echo "::error title=Android thread instruments::Journey failed (exit $status). See the phase output and any partial screenshots in android-thread-instruments." >&2
+  exit "$status"
+}

@@ -89,6 +89,60 @@ public class LivePageJourneyTest extends InstrumentationTestCase {
         }
     }
 
+    public void testTransientInstrumentUsesRealControlsWithoutApplyingThePage() throws Throwable {
+        Context app = getInstrumentation().getTargetContext();
+        Intent launch = app.getPackageManager().getLaunchIntentForPackage(app.getPackageName());
+        Activity activity = getInstrumentation().startActivitySync(launch);
+        String[] staged = {null};
+        WorkspaceTestHost host = new WorkspaceTestHost() {
+            @Override public String workspaceValue(String key) { return "Discussion active"; }
+            @Override public void stageDraft(String text) { staged[0] = text; }
+        };
+        try (WorkspaceAccountFixture account = new WorkspaceAccountFixture(app)) {
+            runTestOnUiThread(() -> {
+                String raw = LiveLayoutContractTest.REVIEW;
+                View page = InstrumentPreview.render(activity, raw, host);
+                assertFalse(page instanceof android.widget.ScrollView);
+                activity.setContentView(page);
+                List<View> text = views(page, v -> v instanceof EditText);
+                assertEquals(2, text.size());
+                ((EditText)text.get(0)).setText("source.java");
+                ((Spinner)views(page, v -> v instanceof Spinner).get(0)).setSelection(1);
+                button(page, "Préparer un brouillon…").performClick();
+                assertNull(staged[0]);
+                assertNull(ArtifactDesk.page(activity, account.account, "page/revue", host));
+            });
+            getInstrumentation().waitForIdleSync();
+            if (Build.VERSION.SDK_INT >= 29) {
+                runTestOnUiThread(() -> {
+                    for (View root : WindowInspector.getGlobalWindowViews()) {
+                        List<View> buttons = views(root, v -> v instanceof Button
+                                && "Vers le brouillon".contentEquals(((Button)v).getText()));
+                        if (buttons.isEmpty()) continue;
+                        EditText review = (EditText)views(root, v -> v instanceof EditText).get(0);
+                        assertTrue(review.getText().toString().contains("source.java"));
+                        review.setText("Relis source.java en priorité.");
+                        buttons.get(0).performClick();
+                        return;
+                    }
+                    fail("Missing native review");
+                });
+                assertEquals("Relis source.java en priorité.", staged[0]);
+            }
+            runTestOnUiThread(() -> {
+                String raw = LiveLayoutContractTest.REVIEW;
+                View changed = InstrumentPreview.compare(activity, raw, raw.replace("Fichier", "Module"));
+                assertEquals(1, views(changed, v -> v instanceof TextView && ((TextView)v).getText()
+                        .toString().contains("Champ modifié")).size());
+                View invalid = InstrumentPreview.render(activity, "{}", host);
+                assertTrue(views(invalid, v -> v instanceof Button).isEmpty());
+                assertTrue(PageLayouts.titles(account.account, true).isEmpty());
+            });
+        } finally {
+            runTestOnUiThread(() -> { ArtifactDesk.dismiss(activity); activity.finish(); });
+        }
+    }
+
     private void capture(Activity activity, String name) {
         if (!(getInstrumentation() instanceof InstrumentationTestRunner runner)
                 || !"true".equals(runner.getArguments().getString("captureLivePage")) || Build.VERSION.SDK_INT < 29)

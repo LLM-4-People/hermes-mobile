@@ -1,6 +1,7 @@
 package org.llm4people.hermes.thread;
 
 import org.json.JSONArray;
+import org.llm4people.hermes.artifact.MessageParts;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.llm4people.hermes.net.HermesApi;
@@ -46,36 +47,24 @@ final class ThreadData {
                 ThreadTitles.emptySession(session));
     }
 
-    static String content(JSONObject message) {
-        if (message == null) return "";
-        Object value = message.opt("content");
-        if (value instanceof String) return (String) value;
-        if (!(value instanceof JSONArray)) return "";
-        JSONArray parts = (JSONArray) value;
-        StringBuilder text = new StringBuilder();
-        for (int i = 0; i < parts.length(); i++) {
-            JSONObject part = parts.optJSONObject(i);
-            if (part == null) continue;
-            String type = string(part, "type");
-            if (type.equals("text") || type.equals("input_text") || type.equals("output_text")) {
-                if (text.length() > 0) text.append('\n');
-                text.append(string(part, "text"));
-            } else if (type.contains("image")) {
-                text.append("\n[Image jointe]");
-            }
-        }
-        return text.toString();
+    static String content(JSONObject message) { return MessageParts.display(message); }
+
+    record RowId(String segment, String id) {}
+
+    static RowId rowId(JSONObject row) {
+        String id = string(row, "id");
+        return id.isEmpty() ? null : new RowId(string(row, "session_id"), id);
     }
 
     static JSONArray join(JSONArray first, JSONArray second) {
         JSONArray joined = new JSONArray();
-        Set<String> ids = new HashSet<>();
+        Set<RowId> ids = new HashSet<>();
         for (JSONArray page : new JSONArray[]{first, second}) {
             for (int i = 0; i < page.length(); i++) {
                 JSONObject row = page.optJSONObject(i);
                 if (row == null) continue;
-                String id = string(row, "id");
-                if (id.isEmpty() || ids.add(id)) joined.put(row);
+                RowId id = rowId(row);
+                if (id == null || ids.add(id)) joined.put(row);
             }
         }
         return joined;

@@ -17,6 +17,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
+import org.llm4people.hermes.artifact.ThreadInstruments.Pin;
 import org.llm4people.hermes.voice.VoiceDrafts;
 import org.llm4people.hermes.voice.ReplyReader;
 
@@ -51,6 +52,8 @@ final class ThreadViews {
     private BaseAdapter adapter;
     private AlertDialog dialog;
     private boolean transcript;
+    ThreadInstrumentPanel instruments;
+    private InstrumentViewport instrumentSlot;
 
     ThreadViews(Activity activity) { this(activity, new VoiceDrafts(activity)); }
 
@@ -100,7 +103,8 @@ final class ThreadViews {
         liveText.setTextIsSelectable(true);
         fullLiveText = Ui.button(activity, activity.getString(R.string.transcript_read_full), v ->
                 show(new AlertDialog.Builder(activity).setTitle("Réponse de Hermes")
-                        .setView(MessageText.reader(activity, liveTranscript.source(), true, false, liveTranscript.readerStart()))
+                        .setView(MessageText.reader(activity, liveTranscript.source(), true, false,
+                                liveTranscript.readerStart(), null))
                         .setPositiveButton("Fermer", null)));
         list.setItemsCanFocus(true);
         outgoing = Ui.text(activity, "", 17);
@@ -130,7 +134,11 @@ final class ThreadViews {
         input.setText(draft);
         input.setSelection(input.length());
         composerVoice = voice.bind(input);
-        send = Ui.button(activity, "Envoyer", v -> { composerVoice.cancel(); onSend.run(); });
+        send = Ui.button(activity, "Envoyer", v -> {
+            composerVoice.cancel();
+            if (instruments != null) instruments.revealDiscussionIfCompact();
+            onSend.run();
+        });
         stop = Ui.button(activity, "Arrêter", v -> onStop.run());
         composer.addView(input, new LinearLayout.LayoutParams(0, -2, 1));
         composer.addView(composerVoice.button);
@@ -198,10 +206,31 @@ final class ThreadViews {
         input.setSelection(input.length());
     }
 
+    InstrumentViewport attachInstrumentViewport() {
+        int index = root.indexOfChild(list);
+        ViewGroup.LayoutParams size = list.getLayoutParams();
+        root.removeView(list);
+        instrumentSlot = new InstrumentViewport(list);
+        root.addView(instrumentSlot, index, size);
+        return instrumentSlot;
+    }
+
+    void refreshInstrumentRows() { if (adapter != null) adapter.notifyDataSetChanged(); }
+
+    void revealProposal(Pin pin) {
+        for (int i = 0; i < rows.length(); i++) {
+            if (pin.fromMessage(rows.optJSONObject(i))) {
+                int position = list.getHeaderViewsCount() + i;
+                list.post(() -> list.setSelectionFromTop(position, Ui.dp(activity, 8)));
+                return;
+            }
+        }
+    }
+
     private View slot(String name) {
         return switch (name) {
             case "notice" -> noticeSlot;
-            case "transcript" -> list;
+            case "transcript" -> instrumentSlot == null ? list : instrumentSlot;
             case "composer" -> composerSlot;
             default -> throw new IllegalArgumentException("Unknown thread slot");
         };
@@ -228,7 +257,8 @@ final class ThreadViews {
     }
 
     void focusComposer() { if (input != null) input.requestFocus(); }
-    boolean editing() { return input != null && input.hasFocus() && input.isShown(); }
+    boolean composerVisible() { return input != null && input.isShown(); }
+    boolean editing() { return composerVisible() && input.hasFocus(); }
 
     void clearDraft() { input.setText(""); }
 
@@ -257,7 +287,8 @@ final class ThreadViews {
         MessageText.updateLive(liveText, liveTranscript, text, origin);
         if (wasExcerpt != liveTranscript.excerpt())
             fullLiveText.setText(liveTranscript.excerpt() ? R.string.transcript_read_excerpt : R.string.transcript_read_full);
-        fullLiveText.setVisibility(!text.isEmpty() && (liveTranscript.earlier || liveTranscript.later) ? View.VISIBLE : View.GONE);
+        boolean readableSource = liveTranscript.earlier || liveTranscript.later || liveTranscript.foldedWorkspace;
+        fullLiveText.setVisibility(!text.isEmpty() && readableSource ? View.VISIBLE : View.GONE);
         if (atEnd && !hasPrompts && !text.isEmpty()) followTail();
     }
 
@@ -276,15 +307,22 @@ final class ThreadViews {
         remedy.setOnClickListener(action == null ? null : v -> action.run());
     }
 
-    void show(AlertDialog.Builder builder) {
+    AlertDialog show(AlertDialog.Builder builder) {
         dismiss();
         dialog = Ui.secureDialog(builder);
+        return dialog;
+    }
+
+    void dismiss(AlertDialog expected) {
+        if (expected != null && dialog == expected) {
+            dialog.dismiss();
+            dialog = null;
+        }
     }
 
     void dismiss() {
         voice.cancel();
-        if (dialog != null) dialog.dismiss();
-        dialog = null;
+        dismiss(dialog);
     }
 
     private final class Cell extends LinearLayout {
@@ -311,7 +349,11 @@ final class ThreadViews {
                 case "tool" -> "Outil · " + ThreadData.string(row, "tool_name");
                 default -> role;
             };
-            String content = chat ? ThreadData.content(row) : ThreadData.string(row, "preview");
+            List<Pin> proposals =
+                    chat && instruments != null ? instruments.forRow(row) : java.util.Collections.emptyList();
+            String content;
+            if (!chat) content = ThreadData.string(row, "preview");
+            else content = proposals.isEmpty() ? ThreadData.content(row) : instruments.prose(row, proposals);
             if (chat && content.trim().isEmpty() && row.optJSONArray("tool_calls") != null) {
                 StringBuilder names = new StringBuilder();
                 JSONArray calls = row.optJSONArray("tool_calls");
@@ -341,9 +383,11 @@ final class ThreadViews {
             boolean markdown = chat && "assistant".equals(role);
             TranscriptPage preview = new TranscriptPage(content, new TranscriptPage.Cursor(), markdown,
                     chat ? TranscriptPage.PAGE_CHARS : 300);
-            CharSequence rendered = MessageText.styled(getContext(), preview);
+            CharSequence rendered = markdown && !preview.blocks.isEmpty() ? MessageText.excerpt(getContext(), preview)
+                    : MessageText.styled(getContext(), preview);
             body.setText(preview.hasMore() ? android.text.TextUtils.concat(rendered, "…") : rendered);
             if (getChildCount() > 2) removeViews(2, getChildCount() - 2);
+            if (markdown) MessageText.addCodeAction(this, preview, content, ThreadViews.this::show);
             if (chat && "approval_result".equals(role)) {
                 String details = ThreadData.string(row, "receipt_details");
                 addView(Ui.button(getContext(), "Voir les détails", v ->
@@ -355,9 +399,12 @@ final class ThreadViews {
                 String full = content;
                 addView(Ui.button(getContext(), "Lire le message entier", v ->
                         show(new AlertDialog.Builder(getContext()).setTitle(name)
-                                .setView(MessageText.reader(getContext(), full, markdown, role.equals("tool")))
+                                .setView(MessageText.reader(getContext(), full, markdown, role.equals("tool"),
+                                        new TranscriptPage.Cursor(), ThreadViews.this::show))
                                 .setPositiveButton("Fermer", null))));
             }
+            for (Pin proposal : proposals)
+                instruments.proposal(this, proposal);
         }
     }
 }

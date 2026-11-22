@@ -3,7 +3,10 @@ package org.llm4people.hermes.journey;
 import android.app.Activity;
 import android.app.Instrumentation;
 import android.content.Intent;
+import android.content.pm.ActivityInfo;
 import android.os.Bundle;
+import android.os.SystemClock;
+import android.view.View;
 import android.view.WindowManager;
 
 import org.json.JSONObject;
@@ -19,6 +22,45 @@ public final class DeviceJourney extends Instrumentation {
     private JSONObject fixture;
     private String primary;
     private String secondary;
+    private Activity resumed;
+
+    private boolean instrumentViewport() {
+        return "instrument".equals(phase) || "instrument-wide".equals(phase);
+    }
+
+    @Override public void callActivityOnCreate(Activity activity, Bundle state) {
+        if (instrumentViewport()) {
+            activity.setRequestedOrientation("instrument".equals(phase)
+                    ? ActivityInfo.SCREEN_ORIENTATION_PORTRAIT : ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+        }
+        super.callActivityOnCreate(activity, state);
+    }
+
+    @Override public void callActivityOnResume(Activity activity) {
+        super.callActivityOnResume(activity);
+        resumed = activity;
+    }
+
+    private Activity instrumentActivity() {
+        boolean wide = "instrument-wide".equals(phase);
+        int width = wide ? 1200 : 320, height = wide ? 720 : 640;
+        Activity[] ready = new Activity[1];
+        String[] observed = {"no resumed activity"};
+        long deadline = SystemClock.elapsedRealtime() + 30000;
+        while (SystemClock.elapsedRealtime() < deadline) {
+            runOnMainSync(() -> {
+                if (resumed == null || resumed.isDestroyed() || resumed.isFinishing()) return;
+                View root = resumed.getWindow().getDecorView();
+                observed[0] = root.getWidth() + "×" + root.getHeight();
+                if (root.hasWindowFocus() && root.getWidth() == width && root.getHeight() == height) {
+                    ready[0] = resumed;
+                }
+            });
+            if (ready[0] != null) return ready[0];
+            SystemClock.sleep(100);
+        }
+        throw new AssertionError("Expected app viewport " + width + "×" + height + ", saw " + observed[0]);
+    }
 
     @Override public void onCreate(Bundle arguments) {
         super.onCreate(arguments);
@@ -37,12 +79,29 @@ public final class DeviceJourney extends Instrumentation {
             String pkg = getTargetContext().getPackageName();
             Activity activity = startActivitySync(new Intent().setClassName(pkg, pkg + ".MainActivity")
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK));
+            if (instrumentViewport()) activity = instrumentActivity();
             if ((activity.getWindow().getAttributes().flags & WindowManager.LayoutParams.FLAG_SECURE) == 0)
                 throw new AssertionError("Private workspace allows external screen capture");
             ui = new JourneyUi(this, activity, new File(dir, fixture.getString("run")));
             switch (phase) {
                 case "work": work(); break;
                 case "restart": restart(); break;
+                case "instrument": {
+                    String owner = "Relecture " + fixture.getString("run");
+                    profile(owner, "endpoint", "key", fixture.getString("phrase"));
+                    new ThreadInstrumentJourney(ui, fixture).portrait();
+                    lock();
+                    break;
+                }
+                case "instrument-wide": {
+                    String owner = "Relecture " + fixture.getString("run");
+                    ui.see("Choisir un profil");
+                    unlock(owner, fixture.getString("phrase"));
+                    new ThreadInstrumentJourney(ui, fixture).wide();
+                    lock();
+                    forget(owner, fixture.getString("phrase"));
+                    break;
+                }
                 case "pages":
                     String name = "Écrans " + fixture.getString("run");
                     profile(name, "endpoint", "key", fixture.getString("phrase"));
@@ -134,6 +193,10 @@ public final class DeviceJourney extends Instrumentation {
         ui.hideKeyboard();
         ui.heading("Bonjour depuis le téléphone");
         ui.capture("03-discussion-code");
+        ui.tap("Ouvrir le code · python");
+        ui.contains("return n * n");
+        ui.see("Copier le contenu");
+        ui.tap("Fermer");
         ui.tap("Toutes les discussions");
         ui.see("Bonjour depuis le téléphone");
         ui.capture("15-discussion-retrouvee");

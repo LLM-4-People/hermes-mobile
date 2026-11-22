@@ -62,6 +62,15 @@ final class WorkspaceBlocks {
         }
     }
 
+    static String sourceLabel(String source) {
+        switch (source) {
+            case "profile.label": return "Nom du profil";
+            case "thread.title": return "Titre de la conversation";
+            case "thread.messageCount": return "Nombre de messages";
+            default: throw new IllegalArgumentException("Unknown value source");
+        }
+    }
+
     /** Mark and update only our bindings; writing a form never triggers a rebuild. */
     private static final class Value extends TextView {
         final String source;
@@ -78,14 +87,7 @@ final class WorkspaceBlocks {
             if (text.length() > 240) text = text.substring(0,240) + "…";
             if (!text.contentEquals(getText())) setText(text);
         }
-        private static String sourceLabel(String source) {
-            switch (source) {
-                case "profile.label": return "Nom du profil";
-                case "thread.title": return "Titre de la conversation";
-                case "thread.messageCount": return "Nombre de messages";
-                default: throw new IllegalArgumentException("Unknown value source");
-            }
-        }
+
     }
 
     static void refresh(View root, ArtifactDesk.Host host) {

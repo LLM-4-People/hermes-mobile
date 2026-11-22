@@ -16,6 +16,8 @@ final class ThreadRun {
     private RunFollower.Frame frame;
     private RunDecisions decisions;
     private boolean submitting;
+    private Runnable afterAdmission;
+    private boolean keepCompletionPosition;
     private long started = -1;
     private long subscription;
     private boolean canStop;
@@ -55,6 +57,32 @@ final class ThreadRun {
         else follow();
     }
 
+    boolean afterAdmission(Runnable next) {
+        if (!submitting) return false;
+        afterAdmission = next;
+        return true;
+    }
+
+    private void admissionFinished() {
+        submitting = false;
+        if (afterAdmission != null) page.main.post(afterAdmission);
+        afterAdmission = null;
+    }
+
+    void refreshNotice(String notifiedRun, String observed) {
+        // A completion refresh must never replay an unacknowledged send from the editor.
+        if (submitting || observed == null && (runId().isEmpty() || !runId().equals(notifiedRun) || !journal.sameOwner())) return;
+        if (observed != null && (!observed.equals(runId()) || !journal.sameOwner())) {
+            detach();
+            frame = null;
+            started = -1;
+            journal.observe(observed);
+        } else checkpoint();
+        keepCompletionPosition = true;
+        if (journal.reconnectsExhausted()) journal.resetReconnects();
+        restore();
+    }
+
     private void submitWithCapabilities(JSONObject body, boolean fresh) {
         if (submitting) return;
         submitting = true;
@@ -64,7 +92,7 @@ final class ThreadRun {
             JSONObject features = capabilities.optJSONObject("features");
             JSONObject idem = features == null ? null : features.optJSONObject("runs_idempotency");
             if (body == null || idem == null || !idem.optBoolean("supported")) {
-                submitting = false;
+                admissionFinished();
                 if (!fresh) { uncertain(); return; }
                 ui.busy(false, false);
                 ui.notice("Cette passerelle doit prendre en charge les envois identifiables. Mettez Hermes à jour.", "", null);
@@ -73,17 +101,18 @@ final class ThreadRun {
             boolean ignoresToolsets = body.has("allowed_toolsets") && !features.optBoolean("run_toolset_selection");
             boolean ignoresExclusions = body.has("excluded_tools") && !features.optBoolean("run_tool_exclusions");
             if (ignoresToolsets || ignoresExclusions) {
-                submitting = false;
+                admissionFinished();
                 if (!fresh) { uncertain(); return; }
                 ui.busy(false, false);
                 ui.notice("Cette passerelle ne peut pas appliquer la sélection d’outils. Vérifiez les réglages de la conversation.", "", null);
                 return;
             }
             if (fresh) {
+                keepCompletionPosition = false;
                 // Edits while capability discovery was in flight must stay in the composer.
                 String snapshot = ThreadData.string(body, "input");
                 if (!snapshot.equals(ui.draft())) {
-                    submitting = false;
+                    admissionFinished();
                     ui.busy(false, false);
                     ui.notice("Le brouillon a changé. Vous pouvez l’envoyer.", "", null);
                     return;
@@ -92,7 +121,7 @@ final class ThreadRun {
                     journal.stage(body, SystemClock.elapsedRealtime(), bootCount(), idem.optLong("retention_seconds"),
                             idem.optBoolean("durable"));
                 } catch (IllegalStateException e) {
-                    submitting = false;
+                    admissionFinished();
                     ui.busy(false, false);
                     page.storageError();
                     return;
@@ -106,14 +135,14 @@ final class ThreadRun {
                 if (!ThreadData.canReplay(SystemClock.elapsedRealtime(), pending.optLong("elapsed", -1),
                         bootCount(), pending.optInt("boot", -1), ttl,
                         pending.optBoolean("durable") && idem.optBoolean("durable"))) {
-                    submitting = false;
+                    admissionFinished();
                     uncertain();
                     return;
                 }
             }
             admit(body, fresh);
         }, error -> {
-            submitting = false;
+            admissionFinished();
             ui.busy(!fresh, false);
             page.error(error, fresh ? this::send : this::restore);
         });
@@ -127,7 +156,7 @@ final class ThreadRun {
         String key = journal.pending().optString("key");
         ui.notice("Envoi à Hermes…", "", null);
         page.request(() -> page.api.post("/v1/runs", body, key), response -> {
-            submitting = false;
+            admissionFinished();
             String id = ThreadData.string(response, "run_id");
             if (!ThreadData.validId(id)) { uncertain(); return; }
             journal.setRunId(id);
@@ -135,7 +164,7 @@ final class ThreadRun {
             ui.busy(true, true);
             follow();
         }, error -> {
-            submitting = false;
+            admissionFinished();
             started = -1;
             // Only a definitive rejection of the first attempt can return the text to the draft.
             if (fresh && error instanceof HermesApi.HttpError http
@@ -182,7 +211,9 @@ final class ThreadRun {
         if (journal.pending() == null) return false;
         // Resume the preserved local receipt with its own cursor and retry state.
         frame = null;
-        page.open(page.sessionId());
+        started = -1;
+        ui.live("", "", false);
+        restore();
         return true;
     }
 
@@ -322,6 +353,8 @@ final class ThreadRun {
         frame = null;
         ui.busy(true, false);
         ui.live(summary, output, false);
+        boolean keepPosition = keepCompletionPosition;
+        keepCompletionPosition = false;
         page.loadMessages(false, owner.guard(() -> {
             if (finishTracking()) return;
             ui.outgoing("");
@@ -337,7 +370,7 @@ final class ThreadRun {
             ui.live("completed".equals(outcome) && (output.isEmpty() || visible) ? "" : summary,
                     visible ? "" : output, false);
             ui.notice("", "", null);
-        }));
+        }), keepPosition);
     }
 
     void stop() {

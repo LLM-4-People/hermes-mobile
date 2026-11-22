@@ -57,22 +57,22 @@ final class SurfaceRenderer {
     static View render(Activity activity, WorkspaceLayout layout, View nativeContent,
                        ArtifactDesk.Host host, Runnable manage) {
         Context c = palette(activity, layout);
-        // Preserve chat/editor space and let each collection of controls scroll independently.
-        SurfaceFrame frame = new SurfaceFrame(c);
-        LinearLayout before = Ui.column(c), after = Ui.column(c);
-        title(before, layout);
-        if (!"replace".equals(layout.mode)) before.addView(Ui.button(c, "Modifier la disposition", v -> manage.run()));
-        LinearLayout zone = before;
-        for (WorkspaceLayout.Block block : layout.blocks) {
-            if (block.nativeContent) zone = after;
-            else WorkspaceBlocks.add(zone, layout, block, activity, host);
-        }
         if ("replace".equals(layout.mode)) {
             ScrollView page = new ScrollView(c);
             page.setBackgroundColor(c.getColor(R.color.paper));
             page.setFillViewport(true);
-            page.addView(before);
+            page.addView(pageContent(c, activity, layout, host, true));
             return page;
+        }
+        // Preserve chat/editor space and let each collection of controls scroll independently.
+        SurfaceFrame frame = new SurfaceFrame(c);
+        LinearLayout before = Ui.column(c), after = Ui.column(c);
+        title(before, layout);
+        before.addView(Ui.button(c, "Modifier la disposition", v -> manage.run()));
+        LinearLayout zone = before;
+        for (WorkspaceLayout.Block block : layout.blocks) {
+            if (block.nativeContent) zone = after;
+            else WorkspaceBlocks.add(zone, layout, block, activity, host);
         }
         frame.addRegion(before);
         frame.addView(nativeContent, new LinearLayout.LayoutParams(-1, 0, 1));
@@ -80,7 +80,17 @@ final class SurfaceRenderer {
         return frame;
     }
 
-    private static Context palette(Context context, WorkspaceLayout layout) {
+    static LinearLayout pageContent(Context c, Activity activity, WorkspaceLayout layout,
+                                    ArtifactDesk.Host host, boolean showTitle) {
+        LinearLayout body = Ui.column(c);
+        body.setBackgroundColor(c.getColor(R.color.paper));
+        body.setSaveFromParentEnabled(false);
+        if (showTitle) title(body, layout);
+        for (WorkspaceLayout.Block block : layout.blocks) WorkspaceBlocks.add(body, layout, block, activity, host);
+        return body;
+    }
+
+    static Context palette(Context context, WorkspaceLayout layout) {
         if ("system".equals(layout.theme)) return context;
         Configuration config = new Configuration(context.getResources().getConfiguration());
         int mode = "dark".equals(layout.theme) ? Configuration.UI_MODE_NIGHT_YES : Configuration.UI_MODE_NIGHT_NO;

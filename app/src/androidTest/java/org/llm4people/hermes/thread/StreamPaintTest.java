@@ -77,6 +77,19 @@ public final class StreamPaintTest extends InstrumentationTestCase {
         getInstrumentation().sendStatus(0, metrics);
     }
 
+    public void testOneLongCodeLineSpanningLivePagesKeepsASingleParagraph() throws Throwable {
+        Context context = getInstrumentation().getTargetContext();
+        runTestOnUiThread(() -> {
+            Preview preview = new Preview(context);
+            String code = "x".repeat(LiveTranscript.PAGE_CHARS + 100);
+            preview.paint("```txt\n" + code + "\n```");
+            Spannable text = (Spannable) preview.body.getText();
+            assertEquals(code + "\n", text.toString());
+            assertTrue(text.getSpans(0, code.length(), android.text.style.LineBackgroundSpan.class).length > 0);
+            assertEquals(0, text.getSpans(0, code.length(), android.text.style.LeadingMarginSpan.class).length);
+        });
+    }
+
     public void testSelectReselectClearAndRecreateInBothThemes() throws Throwable {
         Context target = getInstrumentation().getTargetContext();
         runTestOnUiThread(() -> {

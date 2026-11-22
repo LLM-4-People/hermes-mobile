@@ -16,7 +16,7 @@ import static org.llm4people.hermes.artifact.WorkspaceLayout.*;
 
 /** Inert, typed draft construction. Only user-entered answers are added to the declared prompt. */
 final class DraftForm {
-    private static final Pattern SLUG = Pattern.compile("[a-z][a-z0-9-]{0,35}");
+    static final Pattern SLUG = Pattern.compile("[a-z][a-z0-9_-]{0,35}");
     static final int MAX_INPUT = 1500;
     static final int MAX_FIELDS = 6;
     static boolean validId(String id) { return id != null && SLUG.matcher(id).matches(); }

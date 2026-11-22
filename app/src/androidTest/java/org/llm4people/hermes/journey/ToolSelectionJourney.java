@@ -7,6 +7,7 @@ final class ToolSelectionJourney {
 
     void run() {
         ui.tap("Nouvelle conversation");
+        ui.see("Message à Hermes");
         toggleAndAsk("Écriture désactivée.");
         toggleAndAsk("Écriture disponible.");
         ui.capture("14-outil-discussion");
