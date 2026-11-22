@@ -37,7 +37,7 @@ def response_for(query):
             "type": kind, "id": osm_id, **(point if kind == "node" else {"center": point}),
             "tags": {"amenity": "restaurant", "name": name, "cuisine": cuisine},
         })
-    return (latitude, longitude), {"version": 0.6, "osm3s": {"timestamp_osm_base": SOURCE_DATE},
+    return (latitude, longitude), {"version": 0.6, "osm3s": {"timestamp_osm_base": SOURCE_DATE, "copyright": "© OpenStreetMap contributors"},
                                    "elements": elements}
 
 
