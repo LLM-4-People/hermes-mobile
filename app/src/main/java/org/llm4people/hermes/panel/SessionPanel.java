@@ -207,7 +207,7 @@ public final class SessionPanel implements AutoCloseable {
         });
     }
 
-    void failure(LinearLayout box, Exception error, Runnable retry) {
+    TextView failure(LinearLayout box, Exception error, Runnable retry) {
         org.llm4people.hermes.Diagnostics.warning("panel", "operation_failed");
         String message = error instanceof HermesApi.HttpError
                 ? t(R.string.panel_http_error, ((HermesApi.HttpError) error).status)
@@ -216,6 +216,7 @@ public final class SessionPanel implements AutoCloseable {
         TextView status = note(box, message);
         status.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         if (retry != null) action(box, R.string.panel_retry, retry);
+        return status;
     }
 
     void present(Dialog childDialog) {
