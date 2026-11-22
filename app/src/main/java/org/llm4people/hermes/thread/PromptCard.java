@@ -133,7 +133,7 @@ final class PromptCard extends LinearLayout {
         if (next == state) return;
         state = next;
         enabled(actions, next == State.READY);
-        if (question != null) question.updateSubmit();
+        if (question != null) question.stateChanged();
         String message = switch (next) {
             case SENDING -> "Envoi de votre réponse…";
             case VERIFY -> "Hermes n’a pas confirmé la réponse.";

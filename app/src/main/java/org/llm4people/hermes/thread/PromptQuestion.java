@@ -14,6 +14,7 @@ import android.widget.LinearLayout;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.llm4people.hermes.Ui;
+import org.llm4people.hermes.voice.VoiceDrafts;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,6 +26,7 @@ final class PromptQuestion {
     private final PromptCard card;
     private final EditText input;
     private Button submit;
+    private final VoiceDrafts.Controls voice;
     private final List<CheckBox> checks = new ArrayList<>();
 
     PromptQuestion(PromptCard card, LinearLayout actions, JSONObject prompt, Consumer<String> answer) {
@@ -74,7 +76,13 @@ final class PromptQuestion {
         input.setImeOptions(EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING | EditorInfo.IME_FLAG_NO_EXTRACT_UI);
         input.setMaxLines(4);
         input.setMinimumHeight(Ui.dp(card.getContext(), 48));
-        card.spaced(custom, input);
+        voice = card.ui.voice.bind(input);
+        LinearLayout entry = Ui.row(card.getContext());
+        entry.setGravity(Gravity.BOTTOM);
+        entry.addView(input, new LinearLayout.LayoutParams(0, -2, 1));
+        entry.addView(voice.button);
+        card.spaced(custom, entry);
+        custom.addView(voice.feedback);
         input.addTextChangedListener(new TextWatcher() {
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
             public void afterTextChanged(Editable s) { updateSubmit(); }
@@ -97,7 +105,12 @@ final class PromptQuestion {
         return selected.length() == 0 ? "" : selected.toString();
     }
 
-    void updateSubmit() {
+    void stateChanged() {
+        if (!card.ready()) voice.cancel();
+        updateSubmit();
+    }
+
+    private void updateSubmit() {
         if (submit != null) submit.setEnabled(card.ready() && !selectedAnswer().isEmpty());
     }
 
