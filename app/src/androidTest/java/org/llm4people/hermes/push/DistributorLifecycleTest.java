@@ -184,6 +184,43 @@ public final class DistributorLifecycleTest extends InstrumentationTestCase {
         assertNull(restored.failure);
     }
 
+    public void testResetBeforeFirstBindingResponseFencesTheOldPutAndRetainsOnlyMatchingReceipts() throws Exception {
+        for (boolean sameEndpoint : new boolean[]{true, false}) {
+            PushStore.Device owner = prepare();
+            String token = register(owner);
+            assertTrue(store.updateSubscription(owner, "{}"));
+            PushStore.Device uploading = store.forProfile(owner.profile);
+            String event = UUID.randomUUID().toString().replace("-", "");
+            long now = System.currentTimeMillis();
+            store.defer(uploading, event, "reminder", now + 60_000, now);
+            outgoing.clear();
+            new DistributorPackageReceiver().onReceive(context, new Intent(Intent.ACTION_PACKAGE_DATA_CLEARED,
+                    Uri.fromParts("package", fixture.getPackageName(), null)));
+            assertTrue(outgoing.stream().anyMatch(i -> REGISTER.equals(i.getAction()) && token.equals(i.getStringExtra("token"))));
+            PushStore.Device repairing = store.forProfile(owner.profile);
+            assertFalse(uploading.subscriptionVersion.equals(repairing.subscriptionVersion));
+            store.enable(uploading);
+            assertFalse(store.forProfile(owner.profile).receives());
+            assertTrue(store.registrationFailed(repairing, org.unifiedpush.android.connector.FailedReason.NETWORK, now));
+            try (PushStore reopened = new PushStore(context, "push.db")) {
+                assertEquals(PushStore.RETRY_REPAIR, reopened.forProfile(owner.profile).repair);
+                assertEquals(repairing.subscriptionVersion, reopened.forProfile(owner.profile).subscriptionVersion);
+            }
+            assertTrue(store.updateSubscription(store.forProfile(owner.profile), sameEndpoint ? "{}" : "{\"new\":true}"));
+            store.enable(uploading); // Even after NEW_ENDPOINT, a pre-reset ACK remains obsolete.
+            assertFalse(store.forProfile(owner.profile).receives());
+            try (android.database.Cursor staged = store.getReadableDatabase().rawQuery(
+                    "SELECT COUNT(*) FROM deferred WHERE installation=? AND event=?", new String[]{owner.installation, event})) {
+                assertTrue(staged.moveToFirst());
+                assertEquals(sameEndpoint ? 1 : 0, staged.getInt(0));
+            }
+            PushStore.Device confirmed = store.forProfile(owner.profile);
+            store.enable(confirmed);
+            assertTrue(store.forProfile(owner.profile).receives());
+            store.deactivate(owner.profile);
+        }
+    }
+
     public void testUnprovenOrChangedSignerReceivesNoOldWireTokenEvenWhenRemoved() throws Exception {
         for (String pin : new String[]{"different-certificate", null}) {
             PushStore.Device device = prepare();

@@ -62,7 +62,8 @@ final class DistributorEnrollment {
                     unregister(context, device);
                     MobilePush.forget(context, device.profile);
                 } else if (repair && (resetPackage == null || resetPackage.equals(device.distributor))) {
-                    if (PushStore.ACTIVE.equals(device.state)) repair(context, device, false);
+                    if (device.subscription != null && (PushStore.ACTIVE.equals(device.state) || PushStore.PENDING.equals(device.state)))
+                        repair(context, device, false);
                     else if (resetPackage != null) requestEndpoint(context, device);
                 }
             }
@@ -83,7 +84,8 @@ final class DistributorEnrollment {
         synchronized (PushConnection.class) {
             PushStore.Device stored = PushStore.get(context).forInstallation(device.installation);
             if (stored == null || PushStore.REMOVING.equals(stored.state)) return;
-            if (stored.subscription == null) requestEndpoint(context, stored);
+            if (stored.repair != PushStore.NO_REPAIR) repair(context, stored, stored.repair == PushStore.REPAIR_ACTION);
+            else if (stored.subscription == null) requestEndpoint(context, stored);
             else PushSyncService.schedule(context);
         }
     }
@@ -118,7 +120,8 @@ final class DistributorEnrollment {
         synchronized (PushConnection.class) {
             PushStore store = PushStore.get(context);
             PushStore.Device current = store.forInstallation(device.installation);
-            if (current == null || !PushStore.ACTIVE.equals(current.state)) return;
+            if (current == null || current.subscription == null
+                    || !(PushStore.ACTIVE.equals(current.state) || PushStore.PENDING.equals(current.state))) return;
             if (!DistributorIdentity.matches(context, current.distributor, current.signer)
                     || !current.distributor.equals(UnifiedPush.getSavedDistributor(context))) {
                 reconcile(context);
@@ -169,7 +172,7 @@ final class DistributorEnrollment {
     }
 
     static void sync(Context context, PushStore.Device device) throws Exception {
-        if (!PushStore.PENDING.equals(device.state)) return;
+        if (!PushStore.PENDING.equals(device.state) || device.repair != PushStore.NO_REPAIR) return;
         if (device.subscription == null) {
             requestEndpoint(context, device);
             return;

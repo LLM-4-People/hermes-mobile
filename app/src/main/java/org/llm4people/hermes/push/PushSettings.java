@@ -72,7 +72,8 @@ final class PushSettings {
         if (device != null && PushStore.REMOVING.equals(device.state)) {
             builder.setMessage("Les alertes sont coupées sur cet appareil. La désactivation sur le serveur reste à confirmer.")
                     .setPositiveButton("Réessayer", (d,w) -> remove(device));
-        } else if (device != null && PushStore.ACTIVE.equals(device.state) && device.repair != PushStore.NO_REPAIR && device.failure != null) {
+        } else if (device != null && (PushStore.ACTIVE.equals(device.state) || PushStore.PENDING.equals(device.state))
+                && device.repair != PushStore.NO_REPAIR && device.failure != null) {
             builder.setTitle("Connexion au distributeur à rétablir").setMessage(registrationMessage(device))
                     .setNegativeButton("Désactiver", (d,w) -> remove(device));
             if (device.repair == PushStore.REPAIR_ACTION)
