@@ -289,6 +289,11 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                 }));
     }
 
+    private void leavingSurface() {
+        shell.dismissMenu();
+        voice.reader().stop();
+    }
+
     private void render(boolean force) {
         String route = navigation.current();
         customPages.keySet().removeIf(id -> !navigation.contains(id));
@@ -298,7 +303,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                 boolean composer = WorkspaceNavigation.COMPOSER.equals(route);
                 String surface = threads.sessionId() == null ? "threads" : "thread";
                 String key = composer ? route : surface;
-                if (!navigation.display(key, voice.reader()::stop) && !force) return;
+                if (!navigation.display(key, this::leavingSurface) && !force) return;
                 boolean editing = threads.editing();
                 View nativeView = threads.view();
                 if (nativeView.getParent() instanceof android.view.ViewGroup)
@@ -313,11 +318,11 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                 if (editing) threads.focusComposer();
                 break;
             case WorkspaceNavigation.HOME:
-                navigation.display(route, voice.reader()::stop);
+                navigation.display(route, this::leavingSurface);
                 shell.show(ArtifactDesk.decorate(this, account, "home", shell.desk(account.label), activeHost), "Atelier");
                 break;
             case WorkspaceNavigation.GALLERY:
-                navigation.display(route, voice.reader()::stop);
+                navigation.display(route, this::leavingSurface);
                 shell.show(ArtifactDesk.pages(this, account, activeHost), "Mes écrans");
                 break;
             default:
@@ -327,7 +332,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                     navigation.forgetCurrentPage();
                     render(true);
                 } else {
-                    navigation.display(route, voice.reader()::stop);
+                    navigation.display(route, this::leavingSurface);
                     customPages.put(route, page);
                     shell.show(page, "Écran personnalisé");
                     ArtifactDesk.refreshBindings(page, activeHost);
@@ -353,7 +358,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     @Override public void selected(String sessionId, String title) {
         if (shell == null) return;
         String threadTitle = sessionId == null ? null : title == null || title.trim().isEmpty() ? "Discussion" : title;
-        shell.selected(threadTitle);
+        shell.selected(sessionId, threadTitle);
         if (WorkspaceNavigation.DISCUSSION.equals(navigation.current())) render(false);
         ArtifactDesk.refreshBindings(shell.content(), activeHost);
     }
@@ -403,6 +408,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     }
 
     private void clearWorkspace() {
+        if (shell != null) shell.dismissMenu();
         if (voice != null) voice.reader().stop();
         dismissOverlays();
         if (files != null) files.lock();

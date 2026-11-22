@@ -17,6 +17,7 @@ import android.widget.PopupMenu;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
+import java.util.Objects;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
@@ -33,7 +34,9 @@ final class WorkspaceShell {
     private final ImageButton leading;
     private final ImageButton desk;
     private String pageTitle;
+    private String threadId;
     private String threadTitle;
+    private PopupMenu overflow;
 
     WorkspaceShell(Activity activity, Consumer<String> action, BooleanSupplier reading) {
         this.reading = reading;
@@ -69,7 +72,9 @@ final class WorkspaceShell {
         root.addView(body, new LinearLayout.LayoutParams(-1, 0, 1));
     }
 
-    void selected(String title) {
+    void selected(String id, String title) {
+        if (!Objects.equals(threadId, id)) dismissMenu();
+        threadId = id;
         threadTitle = title;
         updateHeading();
     }
@@ -131,7 +136,12 @@ final class WorkspaceShell {
     }
 
     private void menu(View anchor) {
+        dismissMenu();
         PopupMenu menu = new PopupMenu(activity, anchor);
+        overflow = menu;
+        menu.setOnDismissListener(closed -> {
+            if (overflow == closed) overflow = null;
+        });
         item(menu, "Nouvelle discussion", "new_thread");
         if (threadTitle != null) {
             if (reading.getAsBoolean()) item(menu, activity.getString(R.string.read_stop_label), "stop_reading");
@@ -152,9 +162,16 @@ final class WorkspaceShell {
 
     private void item(PopupMenu menu, String label, String id) {
         menu.getMenu().add(label).setOnMenuItemClickListener(item -> {
+            if (overflow != menu) return false;
             action.accept(id);
             return true;
         });
+    }
+
+    void dismissMenu() {
+        PopupMenu previous = overflow;
+        overflow = null;
+        if (previous != null) previous.dismiss();
     }
 
     private void section(LinearLayout list, String name) {
