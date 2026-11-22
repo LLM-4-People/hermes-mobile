@@ -34,3 +34,16 @@ python verification/conversation_cards.py --source /path/to/clean/hermes-agent \
     --verify-apks app/build/outputs/apk/debug/app-debug.apk \
     app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
 ```
+
+The final journey uses the same installed APKs and pinned gateway checkout to exercise a model-authored tool inside one discussion. On the compact screen, the user edits the creation request, tries the proposed form, and checks the draft it produces. They compare a revision, adopt it and undo it. After the app restarts, the wide screen shows the discussion and its pinned form side by side. A second conversation checks that the pin stays with its owner.
+
+Download `android-thread-instruments` for the seven screenshots. Each image has a French caption and a SHA-256 digest in `thread-instrument.json`. The receipt also identifies both installed APKs and the four completed gateway runs across the two conversations. If an assertion fails, CI retains the screenshots collected before the failure. The eight conversation-card images and their receipts remain available in `android-conversation-cards`.
+
+To repeat the instrument journey, use the same fork environment and a fresh output directory.
+
+```sh
+python verification/thread_instruments.py --source /path/to/clean/hermes-agent \
+    --serial emulator-5554 --output /tmp/hermes-thread-instrument \
+    --verify-apks app/build/outputs/apk/debug/app-debug.apk \
+    app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+```
