@@ -1,0 +1,177 @@
+{
+  "observed_utc": "2026-11-22T07:20:04.499722+00:00",
+  "hermes_commit": "3f194698f9cb586d3302129e744ed30e18c3d6ff",
+  "hermes_url": "https://github.com/LLM-4-People/hermes-agent/tree/3f194698f9cb586d3302129e744ed30e18c3d6ff",
+  "local_gateway_fixture": "https://github.com/LLM-4-People/hermes-mobile/blob/2f7353b26e4b3f020f2268b0fe06b234ecd8a190/verification/gateway_fixture.py",
+  "model": "SmolVLM-256M-Instruct, Q8_0, Apache-2.0, English",
+  "model_source": "https://huggingface.co/HuggingFaceTB/SmolVLM-256M-Instruct/tree/d039ab0d4b9311b617e8ffec1d06c8464364aeb3",
+  "quantized_weights": "https://huggingface.co/ggml-org/SmolVLM-256M-Instruct-GGUF/tree/b9e4379657e1450d04d02eec8e345667265b0a00",
+  "llama_cpp_commit": "8a97fa98ab1a454709bbf5ac979661feaeadec40",
+  "artifacts": [
+    {
+      "file": "SmolVLM-256M-Instruct-Q8_0.gguf",
+      "bytes": 175054528,
+      "sha256": "2a31195d3769c0b0fd0a4906201666108834848db768af11de1d2cef7cd35e65"
+    },
+    {
+      "file": "mmproj-SmolVLM-256M-Instruct-Q8_0.gguf",
+      "bytes": 103769856,
+      "sha256": "7e943f7c53f0382a6fc41b6ee0c2def63ba4fded9ab8ed039cc9e2ab905e0edd"
+    },
+    {
+      "file": "llama-b12628-bin-ubuntu-x64.tar.gz",
+      "bytes": 23225939,
+      "sha256": "d84ba76c8a9066f13f55834f0171cfa9bae86e228e66f9b2bbff9769d7cbf389"
+    }
+  ],
+  "cpu": {
+    "logical_core_ids": [
+      2
+    ],
+    "threads": 1,
+    "nice": 19,
+    "gpu_layers": 0,
+    "projector_gpu_offload": false
+  },
+  "vision_context_tokens": {
+    "trained": 8192,
+    "served": 8192
+  },
+  "decoding": {
+    "temperature": 0,
+    "seed": 42
+  },
+  "network": "inference used isolated loopback only",
+  "direct_entrypoint": "tools.vision_tools.vision_analyze_tool",
+  "gateway_configuration": {
+    "agent.image_input_mode": "text",
+    "model.supports_vision": false,
+    "auxiliary.vision.provider": "custom, loopback llama-server",
+    "main_model": "Deterministic text-only protocol fixture. It checked the actual incoming last user message for both the French question and the most recent real model description, then returned that description. It performed no independent inference."
+  },
+  "interpretation": "Both local model paths identified both shapes and the red background. Neither identified blue. All replies were in English. In the gateway run the longer response speculated that the abstract square might be paper. These two synthetic PNGs do not measure general accuracy, hardware performance across devices, Android capture, or a full natural-language reasoning model.",
+  "samples": [
+    {
+      "file": "screen-a.png",
+      "ground_truth": {
+        "background_rgb": [
+          27,
+          77,
+          222
+        ],
+        "center_rgb": [
+          250,
+          250,
+          250
+        ],
+        "center_shape": "circle"
+      },
+      "provider_inputs_for_both_calls": {
+        "png_sha256": "546c67b559333d16b6835588b1ce79a5cbe119d09807adde23c6ebe6347c4707",
+        "pixels_sha256": "8e08c4f94743bda03dabd3e077a5792a547cd052b1a2b250ec1bfd5e476f4a66",
+        "width": 384,
+        "height": 256,
+        "bytes": 1278
+      },
+      "direct_auxiliary_call": {
+        "request_text": "Quelle est la couleur du fond de cet écran ?",
+        "http_status": 200,
+        "raw_model_output": " The circle is in the center.",
+        "application_output": "The circle is in the center.",
+        "tokens": {
+          "completion_tokens": 8,
+          "prompt_tokens": 158,
+          "total_tokens": 166,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "elapsed_seconds": 11.36
+      },
+      "full_local_hermes_run": {
+        "session_id": "api_1795332029_c9d43547",
+        "run_id": "run_2e30405f355d48ff86dc47f2aa9fca52",
+        "create_session_http": 201,
+        "submit_run_http": 202,
+        "poll_terminal_http": 200,
+        "terminal_status": "completed",
+        "original_user_text": "Quelle est la couleur du fond de cet écran ?",
+        "gateway_auxiliary_prompt": "Describe everything visible in this image in thorough detail. Include any text, code, UI, data, objects, people, layout, colors, and any other notable visual information.",
+        "auxiliary_http_status": 200,
+        "raw_model_output": " A circle.",
+        "text_fixture_verified_question_and_actual_auxiliary_description": true,
+        "final_api_output": "A circle.",
+        "tokens": {
+          "completion_tokens": 4,
+          "prompt_tokens": 177,
+          "total_tokens": 181,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        }
+      }
+    },
+    {
+      "file": "screen-b.png",
+      "ground_truth": {
+        "background_rgb": [
+          215,
+          34,
+          34
+        ],
+        "center_rgb": [
+          250,
+          250,
+          250
+        ],
+        "center_shape": "square"
+      },
+      "provider_inputs_for_both_calls": {
+        "png_sha256": "bae7b1df6d492c7461f0bdb5b8af33b36e36fe7cb1c0c0658d7a0baf5f36e78c",
+        "pixels_sha256": "3d5608ef71513bbf62b4384dfb828954f725506e2e8d0ea9c001d31f1c0589eb",
+        "width": 384,
+        "height": 256,
+        "bytes": 912
+      },
+      "direct_auxiliary_call": {
+        "request_text": "Quelle est la couleur du fond de cet écran ?",
+        "http_status": 200,
+        "raw_model_output": " The image displays a flat, red background with a square in the center.",
+        "application_output": "The image displays a flat, red background with a square in the center.",
+        "tokens": {
+          "completion_tokens": 16,
+          "prompt_tokens": 158,
+          "total_tokens": 174,
+          "prompt_tokens_details": {
+            "cached_tokens": 21
+          }
+        },
+        "elapsed_seconds": 8.5
+      },
+      "full_local_hermes_run": {
+        "session_id": "api_1795332055_8d1f703d",
+        "run_id": "run_7043053e46164416bae4aa38b6288af6",
+        "create_session_http": 201,
+        "submit_run_http": 202,
+        "poll_terminal_http": 200,
+        "terminal_status": "completed",
+        "original_user_text": "Quelle est la couleur du fond de cet écran ?",
+        "gateway_auxiliary_prompt": "Describe everything visible in this image in thorough detail. Include any text, code, UI, data, objects, people, layout, colors, and any other notable visual information.",
+        "auxiliary_http_status": 200,
+        "raw_model_output": " The image displays a flat, minimalist design featuring a square white piece of paper or a similar rectangular shape. The background is a solid red color, which makes the white square the focal point of the image. The design is minimalist, with no additional elements or decorations.",
+        "text_fixture_verified_question_and_actual_auxiliary_description": true,
+        "final_api_output": "The image displays a flat, minimalist design featuring a square white piece of paper or a similar rectangular shape. The background is a solid red color, which makes the white square the focal point of the image. The design is minimalist, with no additional elements or decorations.",
+        "tokens": {
+          "completion_tokens": 54,
+          "prompt_tokens": 177,
+          "total_tokens": 231,
+          "prompt_tokens_details": {
+            "cached_tokens": 40
+          }
+        }
+      }
+    }
+  ],
+  "llama_cpp_source": "https://github.com/ggml-org/llama.cpp/commit/8a97fa98ab1a454709bbf5ac979661feaeadec40",
+  "llama_cpp_build": "b12628"
+}

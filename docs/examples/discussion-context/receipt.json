@@ -1,0 +1,40 @@
+{
+  "apk_source_revision": "55146268f3ad436683909ef07ab14ef56e346a69",
+  "verification_source_revision": "df6ad51c1af630d29003dfde04f794afe642a167",
+  "public_verification_revision": "b9f390c1dcb8ee08ff55911daa39e037780d3630",
+  "gateway_revision": "3c43393e5dc075fa216d1b2cd9d60894dc0faf78",
+  "apk_sha256": "7b96ecb3d1676ac5e36b79012f7ac57b8eaf50efd4fb26e98419ba046f7c3b77",
+  "test_apk_sha256": "119fac5b15ef754b1e6285814c2fa667805f63c9c63d08678af6a543bc667a89",
+  "photo": {
+    "original_receipt_sha256": "64f3964ee99e2f50de9c52d8b90a0ebb5751f7b16a394996447bb3b3c4d0bbac",
+    "captures_sha256": {
+      "01-photo-brouillon.png": "55fd07270454632bd2852b660e0c96ebb99898970a8caca9f1055b888968aa6f",
+      "02-photo-reponse.png": "1cc68193d16c56bfcf824d035570fab4ee76264518224380fa80c593394991bf"
+    },
+    "native_thumbnail_verified": true,
+    "system_picker_verified": true,
+    "model_received_exact_pixels": true,
+    "idempotent": true,
+    "main_provider_requests": 2,
+    "provider": "Test provider comparing each decoded pixel with the synthetic 96 × 64 image.",
+    "provider_requests_by_origin": {
+      "android": 1,
+      "http_idempotency_control": 1
+    }
+  },
+  "skills": {
+    "original_receipt_sha256": "8ddf3725f7f795c234d684cb1cd731e1450dc1cfdd6ff42e2d7c532097d8b804",
+    "captures_sha256": {
+      "01-competence-recherche.png": "5e8d6ae8daf7bba53b3746112ed1992f7498c5c61be0df7dfb2a3bdb05131e79",
+      "02-competence-resume.png": "14e3bfb250e709fd6a626bdff6eef44886abdec0dc467c7079506367525b91bb",
+      "03-competence-brouillon.png": "e94c168e4a6cd96c21a0e75ad9c27ad24d8b31119ec403b8c119296ee0afa3d0",
+      "04-competence-reponse.png": "cc14d001fac240dfb18044428126f0dda623ea16e7142e8e2be688ef2f9792e8"
+    },
+    "selected_skill": "qualite/synthese",
+    "admissions_before_send": 0,
+    "completed_runs": 1,
+    "skill_view_calls": 1,
+    "result_reader_verified": true,
+    "provider": "Test provider requesting the installed gateway skill through skill_view and checking its returned content."
+  }
+}

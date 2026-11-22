@@ -1,0 +1,20 @@
+# What a local vision model saw
+
+Two pictures went through the same Hermes gateway. Each had the same size and a single off-white shape in the center. The question was **« Quelle est la couleur du fond de cet écran ? »** (“What color is the background of this screen?”).
+
+| Blue background with a circle | Red background with a square |
+| --- | --- |
+| ![Off-white circle on a blue background](examples/discussion-vision/screen-a.png) | ![Off-white square on a red background](examples/discussion-vision/screen-b.png) |
+| “The circle is in the center.” | “The image displays a flat, red background with a square in the center.” |
+
+Those are the vision model’s answers when the Hermes vision tool passed it the French question directly. It recognized both shapes and the red background. It missed blue and answered in English.
+
+## What came back in a discussion
+
+Two separate gateway discussions received the same pictures and French question through the runs API. With image input set to text mode, Hermes asked its auxiliary vision model to describe each image in detail. For the blue image it returned “A circle.” For the red image it described a white square against a solid red background and guessed that the square might be paper. Both original PNGs reached the vision model byte for byte. Both runs completed.
+
+The gateway ran SmolVLM-256M-Instruct Q8_0 on one CPU core, using its trained context of 8,192 tokens. The primary text provider was a test fixture. It checked that Hermes delivered both the original question and the genuine visual description, then echoed that description. All image inference ran on the gateway. These synthetic images were submitted directly through the API. [Model source](https://huggingface.co/HuggingFaceTB/SmolVLM-256M-Instruct/tree/d039ab0d4b9311b617e8ffec1d06c8464364aeb3) · [Quantized weights](https://huggingface.co/ggml-org/SmolVLM-256M-Instruct-GGUF/tree/b9e4379657e1450d04d02eec8e345667265b0a00)
+
+The receipt includes the complete replies, the gateway’s actual vision prompt, HTTP outcomes, image hashes, model files and software revisions. [Run receipt](examples/discussion-vision/receipt.json)
+
+<!-- Generated from docs/sources/docs/local-vision.md.in by scripts/docs.py. -->

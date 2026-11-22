@@ -132,6 +132,52 @@ public final class ThreadWorkspace implements AutoCloseable {
     public boolean editing() { return screen != null && screen.editing(); }
     public void focusComposer() { if (screen != null) screen.focusComposer(); }
 
+    boolean importingPhoto;
+    public boolean readyForPhoto() {
+        if (closed || journal == null || run == null) return false;
+        if (!importingPhoto && !run.submitting() && journal.pending() == null && journal.photo() == null) return true;
+        String text = journal.photo() != null ? "Retirez d’abord l’image jointe pour la remplacer."
+                : "Patientez jusqu’à la fin de l’envoi en cours.";
+        android.widget.Toast.makeText(activity, text, android.widget.Toast.LENGTH_SHORT).show();
+        return false;
+    }
+
+    boolean hasPhotoDraft() { return journal != null && journal.photo() != null; }
+
+    void importPhoto(android.net.Uri uri, Runnable completed) {
+        if (!readyForPhoto()) { completed.run(); return; }
+        importingPhoto = true;
+        screen.importingPhoto(true);
+        screen.notice("Préparation de l’image…", "", null);
+        request(() -> DiscussionPhoto.read(activity.getContentResolver(), uri), photo -> {
+            importingPhoto = false;
+            screen.importingPhoto(false);
+            try {
+                if (journal.pending() != null || journal.photo() != null) return;
+                journal.photo(photo.info, photo.pixels);
+                refreshPhoto();
+                screen.notice("", "", null);
+                screen.focusComposer();
+            } finally { completed.run(); }
+        }, failure -> {
+            importingPhoto = false;
+            screen.importingPhoto(false);
+            completed.run();
+            screen.notice("Image illisible ou trop volumineuse. Choisissez une photo ou une capture fixe de moins de 16 Mio.", "", null);
+        });
+    }
+
+    void refreshPhoto() {
+        JSONObject current = journal.photo();
+        screen.photo(current, () -> {
+            if (current != journal.photo() || journal.pending() != null) return;
+            try { journal.photo(null, null); }
+            catch (IllegalStateException unavailable) { storageError(); return; }
+            refreshPhoto();
+        });
+        updateStarters();
+    }
+
     public void stageDraft(String text) {
         if (journal == null || session == null || text == null || text.isEmpty()) return;
         String current = journal.draft();
@@ -163,7 +209,7 @@ public final class ThreadWorkspace implements AutoCloseable {
     }
 
     private boolean canStartDraft() {
-        return journal != null && ThreadStarters.available(emptyTranscript, journal.draft(), journal.pending() != null, slotOrder);
+        return journal != null && journal.photo() == null && ThreadStarters.available(emptyTranscript, journal.draft(), journal.pending() != null, slotOrder);
     }
 
     private void updateStarters() {
@@ -384,6 +430,7 @@ public final class ThreadWorkspace implements AutoCloseable {
             main.removeCallbacks(save);
             main.postDelayed(save, 300);
         }, run::send, run::stop, () -> loadMessages(true, null));
+        refreshPhoto();
         if (instrumentHost != null) {
             instruments = new ThreadInstrumentPanel(this, new ThreadInstruments(account, id), instrumentHost);
             screen.instruments = instruments;
@@ -400,7 +447,12 @@ public final class ThreadWorkspace implements AutoCloseable {
                         + "L’historique de la passerelle sera rechargé. Un envoi antérieur peut encore être en cours.")
                 .setNegativeButton("Annuler", null)
                 .setPositiveButton("Effacer les données locales", (dialog, which) -> {
-                    try { account.remove("thread:" + identity.root); }
+                    try {
+                        java.util.Map<String, String> records = new java.util.HashMap<>();
+                        records.put("thread:" + identity.root, null);
+                        records.put("thread-photo:" + identity.root, null);
+                        account.writeTogether(records);
+                    }
                     catch (RuntimeException failure) { storageError(); return; }
                     open(identity, label);
                 }));
@@ -571,6 +623,7 @@ public final class ThreadWorkspace implements AutoCloseable {
     private void reset() {
         onBackground();
         if (journal != null) journal.retire();
+        importingPhoto = false;
         loading = creating = false;
         run = null;
         journal = null;

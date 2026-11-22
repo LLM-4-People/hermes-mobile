@@ -19,6 +19,7 @@ import org.json.JSONObject;
 import org.llm4people.hermes.VisibleText;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
+import org.llm4people.hermes.artifact.CodeReader;
 import org.llm4people.hermes.artifact.ThreadInstruments.Pin;
 import org.llm4people.hermes.voice.VoiceDrafts;
 import org.llm4people.hermes.voice.ReplyReader;
@@ -38,6 +39,9 @@ final class ThreadViews {
     private final LinearLayout notice;
     private final LinearLayout noticeSlot;
     private LinearLayout composerSlot;
+    private LinearLayout photoSlot;
+    private boolean importingPhoto;
+    private boolean runActive;
     private Button more;
     private EditText input;
     final VoiceDrafts voice;
@@ -150,6 +154,7 @@ final class ThreadViews {
         input.setSelection(input.length());
         composerVoice = voice.bind(input);
         send = Ui.button(activity, "Envoyer", v -> {
+            if (!send.isEnabled()) return;
             composerVoice.cancel();
             if (instruments != null) instruments.revealDiscussionIfCompact();
             onSend.run();
@@ -180,6 +185,11 @@ final class ThreadViews {
         composer.addView(stop);
         composerSlot = Ui.column(activity);
         composerSlot.addView(Ui.divider(activity));
+        photoSlot = Ui.row(activity);
+        photoSlot.setGravity(Gravity.CENTER_VERTICAL);
+        Ui.pad(photoSlot, 8, 0);
+        photoSlot.setVisibility(View.GONE);
+        composerSlot.addView(photoSlot);
         composerSlot.addView(composerVoice.feedback);
         composerSlot.addView(composer);
         root.addView(composerSlot);
@@ -188,7 +198,7 @@ final class ThreadViews {
             @Override public void afterTextChanged(Editable s) {}
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
                 onDraft.accept(s.toString());
-                send.setEnabled(!VisibleText.isBlank(s.toString()));
+                updateSend();
             }
         });
         busy(false, false);
@@ -303,9 +313,41 @@ final class ThreadViews {
 
     void clearDraft() { input.setText(""); }
 
+    void importingPhoto(boolean importing) {
+        importingPhoto = importing;
+        updateSend();
+    }
+
+    void photo(JSONObject info, Runnable remove) {
+        photoSlot.removeAllViews();
+        photoSlot.setVisibility(info == null ? View.GONE : View.VISIBLE);
+        input.setHint(info == null ? "Message à Hermes" : "Votre question sur l’image");
+        if (info == null) return;
+        ImageView preview = new ImageView(activity);
+        preview.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        preview.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        preview.setImageBitmap(DiscussionPhoto.thumbnail(info));
+        photoSlot.addView(preview, Ui.dp(activity, 44), Ui.dp(activity, 44));
+        String name = info.optString("name");
+        TextView label = Ui.text(activity, name, 14);
+        Ui.pad(label, 8, 0);
+        label.setMaxLines(2);
+        label.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        label.setContentDescription("Image jointe : " + name);
+        photoSlot.addView(label, new LinearLayout.LayoutParams(0, -2, 1));
+        Button removeButton = Ui.button(activity, "Retirer", v -> remove.run());
+        removeButton.setContentDescription("Retirer l’image " + name);
+        photoSlot.addView(removeButton);
+    }
+
+    private void updateSend() {
+        send.setEnabled(!runActive && !importingPhoto && !VisibleText.isBlank(draft()));
+    }
+
     void busy(boolean active, boolean canStop) {
+        runActive = active;
         send.setVisibility(active ? View.GONE : View.VISIBLE);
-        send.setEnabled(!active && !VisibleText.isBlank(draft()));
+        updateSend();
         stop.setVisibility(active && canStop ? View.VISIBLE : View.GONE);
         stop.setEnabled(canStop);
     }
@@ -386,19 +428,23 @@ final class ThreadViews {
         }
 
         void bind(JSONObject row, boolean chat) {
+            if (getChildCount() > 2) removeViews(2, getChildCount() - 2);
             String role = ThreadData.string(row, "role");
+            if (chat && role.equals("tool")) {
+                bindTool(row);
+                return;
+            }
             String name = switch (role) {
                 case "user" -> "Vous";
                 case "assistant" -> "Hermes";
                 case "prompt_status" -> "Suivi de la question";
                 case "approval_result" -> "Autorisation";
-                case "tool" -> "Outil · " + ThreadData.string(row, "tool_name");
                 default -> role;
             };
             List<Pin> proposals =
                     chat && instruments != null ? instruments.forRow(row) : java.util.Collections.emptyList();
             String content;
-            if (!chat) content = ThreadData.string(row, "preview");
+            if (!chat) content = ThreadTitles.previewForRow(row);
             else content = proposals.isEmpty() ? ThreadData.content(row) : instruments.prose(row, proposals);
             if (chat && content.trim().isEmpty() && row.optJSONArray("tool_calls") != null) {
                 StringBuilder names = new StringBuilder();
@@ -423,7 +469,7 @@ final class ThreadViews {
             body.setTextColor(getContext().getColor(chat ? R.color.ink : R.color.muted));
             body.setMaxLines(chat ? Integer.MAX_VALUE : 2);
             body.setTextSize(chat ? 17 : 14);
-            body.setTypeface(role.equals("tool") ? Typeface.MONOSPACE : Typeface.DEFAULT);
+            body.setTypeface(Typeface.DEFAULT);
             body.setTextIsSelectable(chat);
             body.setVisibility(content.isEmpty() ? View.GONE : View.VISIBLE);
             boolean markdown = chat && "assistant".equals(role);
@@ -432,7 +478,6 @@ final class ThreadViews {
             CharSequence rendered = markdown && !preview.blocks.isEmpty() ? MessageText.excerpt(getContext(), preview)
                     : MessageText.styled(getContext(), preview);
             body.setText(preview.hasMore() ? android.text.TextUtils.concat(rendered, "…") : rendered);
-            if (getChildCount() > 2) removeViews(2, getChildCount() - 2);
             if (markdown) MessageText.addCodeAction(this, preview, content, ThreadViews.this::show);
             if (chat && "approval_result".equals(role)) {
                 String details = ThreadData.string(row, "receipt_details");
@@ -445,12 +490,30 @@ final class ThreadViews {
                 String full = content;
                 addView(Ui.button(getContext(), "Lire le message entier", v ->
                         show(new AlertDialog.Builder(getContext()).setTitle(name)
-                                .setView(MessageText.reader(getContext(), full, markdown, role.equals("tool"),
+                                .setView(MessageText.reader(getContext(), full, markdown, false,
                                         new TranscriptPage.Cursor(), ThreadViews.this::show))
                                 .setPositiveButton("Fermer", null))));
             }
             for (Pin proposal : proposals)
                 instruments.proposal(this, proposal);
+        }
+
+        private void bindTool(JSONObject row) {
+            Context context = getContext();
+            heading.setText(ToolResult.label(row));
+            heading.setTextSize(14);
+            heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+            heading.setMaxLines(2);
+            heading.setTextColor(context.getColor(R.color.muted));
+            body.setText(null);
+            body.setVisibility(View.GONE);
+            if (row.isNull("content") || "".equals(row.opt("content"))) return;
+            String name = ToolResult.name(row);
+            Button details = Ui.button(context, "Voir le résultat", v -> show(CodeReader.dialog(context,
+                    name.isEmpty() ? "Résultat de l’outil" : "Résultat · " + name, "", ToolResult.raw(row))));
+            details.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+            details.setContentDescription("Voir le résultat · " + heading.getText());
+            addView(details);
         }
     }
 }

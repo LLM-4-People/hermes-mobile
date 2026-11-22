@@ -7,6 +7,9 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
+import java.util.HashMap;
+import java.util.Map;
+import java.io.IOException;
 import java.util.UUID;
 import java.util.function.Consumer;
 
@@ -16,6 +19,11 @@ final class ThreadJournal {
     private final String session;
     private final String owner;
     private final Consumer<String> write;
+    interface PhotoStore {
+        String read();
+        void pair(String journal, String pixels);
+    }
+    private final PhotoStore photos;
     private final JSONObject state;
     private long revision;
     private long committed;
@@ -23,15 +31,29 @@ final class ThreadJournal {
 
     ThreadJournal(Account account, String session) {
         this(session, scope(account.id, account.endpoint, account.bearer, session), account.read("thread:" + session),
-                value -> account.write("thread:" + session, value));
+                value -> account.write("thread:" + session, value), new PhotoStore() {
+                    public String read() { return account.read("thread-photo:" + session); }
+                    public void pair(String journal, String pixels) {
+                        Map<String, String> changes = new HashMap<>();
+                        changes.put("thread:" + session, journal);
+                        changes.put("thread-photo:" + session, pixels);
+                        account.writeTogether(changes);
+                    }
+                });
     }
 
     ThreadJournal(String session, String owner, String encoded, Consumer<String> write) {
+        this(session, owner, encoded, write, null);
+    }
+
+    ThreadJournal(String session, String owner, String encoded, Consumer<String> write, PhotoStore photos) {
+        this.photos = photos;
         this.session = session;
         this.owner = owner;
         this.write = write;
         state = ThreadData.object(encoded);
         if ((state.has("draft") && !(state.opt("draft") instanceof String))
+                || (state.has("photo") && !DiscussionPhoto.valid(state.optJSONObject("photo")))
                 || (state.has("pending") && !validPending(state.optJSONObject("pending")))
                 || (state.has("observed") && !validObservation(state.optJSONObject("observed")))) {
             throw new IllegalStateException("Invalid thread record");
@@ -39,7 +61,7 @@ final class ThreadJournal {
     }
 
     private boolean validPending(JSONObject pending) {
-        if (pending == null) return false;
+        if (pending == null || pending.has("photo") && !DiscussionPhoto.valid(pending.optJSONObject("photo"))) return false;
         JSONObject body = pending.optJSONObject("body");
         if (!validReconnects(pending)) return false;
         return body != null && ThreadData.validId(ThreadData.string(body, "session_id")) && body.opt("input") instanceof String
@@ -129,6 +151,38 @@ final class ThreadJournal {
         }
     }
 
+    JSONObject photo() { return state.optJSONObject("photo"); }
+
+    boolean photoOwned() { return photo() == null || owner.equals(photo().optString("owner")); }
+
+    void photo(JSONObject info, String pixels) {
+        if (pending() != null || info != null && (!DiscussionPhoto.valid(info) || pixels == null))
+            throw new IllegalStateException("Invalid photo change");
+        if (info != null) ThreadData.put(info, "owner", owner);
+        JSONObject old = photo();
+        ThreadData.put(state, "photo", info);
+        revision++;
+        try { commitPhoto(pixels); }
+        catch (RuntimeException error) {
+            ThreadData.put(state, "photo", old);
+            revision++;
+            throw error;
+        }
+    }
+
+    private synchronized void commitPhoto(String pixels) {
+        if (retired || photos == null) throw new IllegalStateException("Inactive thread");
+        photos.pair(state.toString(), pixels);
+        committed = revision;
+    }
+
+    JSONObject wire(JSONObject body, JSONObject info) throws IOException {
+        if (info == null) return body;
+        if (!owner.equals(info.optString("owner"))) throw new IOException("Image owner changed");
+        try { return DiscussionPhoto.wire(body, info, photos.read()); }
+        catch (Account.UnreadableRecord damaged) { throw new DiscussionPhoto.Unavailable(); }
+    }
+
     JSONObject stage(JSONObject body, long elapsed, int boot, long ttl, boolean durable) {
         if (pending() != null || !ThreadData.validId(ThreadData.string(body, "session_id"))) throw new IllegalStateException("Invalid admission");
         JSONObject run = new JSONObject();
@@ -141,6 +195,10 @@ final class ThreadJournal {
         ThreadData.put(run, "ttl", ttl);
         ThreadData.put(run, "durable", durable);
         String oldDraft = draft();
+        JSONObject originalPhoto = photo();
+        if (!photoOwned()) throw new IllegalStateException("Image owner changed");
+        ThreadData.put(run, "photo", originalPhoto);
+        state.remove("photo");
         ThreadData.put(state, "pending", run);
         draft("");
         revision++;
@@ -148,6 +206,7 @@ final class ThreadJournal {
             flush();
         } catch (RuntimeException e) {
             state.remove("pending");
+            ThreadData.put(state, "photo", originalPhoto);
             draft(oldDraft);
             revision++;
             throw e;
@@ -199,23 +258,28 @@ final class ThreadJournal {
         revision++;
     }
 
-    void finish() { clearPending(draft()); }
+    void finish() { clearPending(draft(), false); }
 
     void reject() {
         String original = ThreadData.string(pending().optJSONObject("body"), "input");
-        clearPending(draft().isEmpty() ? original : original + "\n" + draft());
+        clearPending(draft().isEmpty() ? original : original + "\n" + draft(), true);
     }
 
-    private void clearPending(String newDraft) {
+    private void clearPending(String newDraft, boolean rejected) {
         String slot = state.has("observed") ? "observed" : "pending";
         JSONObject previous = pending();
         String oldDraft = draft();
+        JSONObject originalPhoto = previous.optJSONObject("photo");
+        JSONObject oldPhoto = photo();
         state.remove(slot);
+        if (rejected && originalPhoto != null) ThreadData.put(state, "photo", originalPhoto);
         draft(newDraft);
         revision++;
         try {
-            flush();
+            if (originalPhoto != null && !rejected) commitPhoto(null);
+            else flush();
         } catch (RuntimeException error) {
+            ThreadData.put(state, "photo", oldPhoto);
             ThreadData.put(state, slot, previous);
             draft(oldDraft);
             revision++;

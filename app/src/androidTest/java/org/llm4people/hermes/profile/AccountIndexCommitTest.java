@@ -14,6 +14,32 @@ public final class AccountIndexCommitTest extends InstrumentationTestCase {
         checkIndexTransactions(getInstrumentation().getTargetContext());
     }
 
+    public void testPhotoAndJournalRollbackRestoreBothCiphertexts() {
+        IndexContext prefs = new IndexContext(getInstrumentation().getTargetContext());
+        byte[] key = new byte[Account.KEY_BYTES];
+        new java.security.SecureRandom().nextBytes(key);
+        try (Account account = new Account("image-owner", "Photo", "https://example.invalid", "key", prefs.index, key)) {
+            account.writeTogether(Map.of("journal", "draft-caption", "photo", "image-pixels"));
+            Map<String, String> prior = new HashMap<>(prefs.disk);
+            assertEquals(2, prior.size());
+            assertFalse(prior.toString().contains("draft-caption"));
+            assertFalse(prior.toString().contains("image-pixels"));
+            Map<String, String> finish = new HashMap<>();
+            finish.put("journal", "terminal");
+            finish.put("photo", null);
+            prefs.failNext = true;
+            try { account.writeTogether(finish); fail("Failed atomic removal accepted"); }
+            catch (IllegalStateException expected) { }
+            assertEquals(prior, prefs.disk);
+            assertEquals(prior, prefs.memory);
+            assertEquals("image-pixels", account.read("photo"));
+            assertEquals("draft-caption", account.read("journal"));
+            account.writeTogether(finish);
+            assertEquals("terminal", account.read("journal"));
+            assertNull(account.read("photo"));
+        }
+    }
+
     static void checkIndexTransactions(Context target) throws Exception {
         IndexContext context = new IndexContext(target);
         AccountStore writer = new AccountStore(context);

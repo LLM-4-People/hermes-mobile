@@ -105,6 +105,11 @@ public final class JourneyUi {
         matchingText(fragments);
     }
 
+    void selectableText(String... fragments) {
+        TextView body = (TextView) matchingText(fragments);
+        if (!main(body::isTextSelectable)) throw new AssertionError("Expected selectable text in the result reader");
+    }
+
     private View matchingText(String... fragments) {
         return until(String.join(" + ", fragments), () -> find(window(), view -> {
             if (!(view instanceof TextView text)) return false;

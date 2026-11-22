@@ -12,7 +12,7 @@ from urllib.error import HTTPError, URLError
 from urllib.request import ProxyHandler, Request, build_opener
 
 
-PINNED_REVISION = "3f194698f9cb586d3302129e744ed30e18c3d6ff"
+PINNED_REVISION = "3c43393e5dc075fa216d1b2cd9d60894dc0faf78"
 LOOPBACK = "127.0.0.1"
 
 
@@ -109,9 +109,7 @@ class Gateway:
             "TRANSFORMERS_OFFLINE": "1",
         }
 
-    def request(
-        self, path, *, method="GET", body=None, expected=200, headers=None, bearer=True
-    ):
+    def _json_response(self, path, *, method="GET", body=None, headers=None, bearer=True):
         auth = {"Authorization": f"Bearer {self.key}"} if bearer else {}
         payload = None if body is None else json.dumps(body).encode()
         request = Request(
@@ -129,12 +127,22 @@ class Gateway:
         except HTTPError as failure:
             response = failure
         with response:
-            value = json.load(response)
-            if response.status != expected:
-                raise AssertionError(
-                    f"{method} {path}: expected {expected}, got {response.status}: {value}"
-                )
-            return value
+            return response.status, json.load(response)
+
+    def request(self, path, *, method="GET", body=None, expected=200, headers=None, bearer=True):
+        status, value = self._json_response(path, method=method, body=body, headers=headers, bearer=bearer)
+        if status != expected:
+            raise AssertionError(f"{method} {path}: expected {expected}, got {status}: {value}")
+        return value
+
+    def _capabilities_ready(self):
+        status, data = self._json_response("/v1/capabilities")
+        if (status == 503 and isinstance(data, dict) and data.get("error") == "gateway_not_ready"
+                and data.get("state") == "starting"):
+            return False
+        if status != 200 or not isinstance(data, dict) or not data.get("features"):
+            raise RuntimeError(f"Invalid gateway capabilities response during startup (HTTP {status})")
+        return True
 
     def events(self, run_id, last_seq=None):
         headers = {"Authorization": f"Bearer {self.key}", "Accept": "text/event-stream"}
@@ -200,11 +208,11 @@ class Gateway:
                 time.sleep(0.2)
                 continue
             try:
-                if not self.request("/v1/capabilities").get("features"):
-                    raise RuntimeError("Expected capabilities from this Hermes gateway")
-                return
+                if self._capabilities_ready():
+                    return
             except URLError:
-                time.sleep(0.2)
+                pass
+            time.sleep(0.2)
         raise TimeoutError("Gateway did not accept requests within 90 seconds")
 
     def stop(self):

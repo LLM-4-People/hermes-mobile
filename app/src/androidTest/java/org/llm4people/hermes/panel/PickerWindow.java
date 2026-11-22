@@ -4,7 +4,6 @@ import android.content.res.Configuration;
 import android.graphics.Rect;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.CheckedTextView;
 import android.widget.EditText;
 import android.widget.ListView;
 import java.util.function.Consumer;
@@ -16,16 +15,20 @@ public final class PickerWindow {
     private PickerWindow() {}
 
     public static void open(SessionPanel panel, boolean landscape) {
+        open(panel, landscape, null);
+    }
+
+    public static void open(SessionPanel panel, boolean landscape, Consumer<String> stageDraft) {
         Configuration window = new Configuration(panel.activity.getResources().getConfiguration());
         window.orientation = landscape ? Configuration.ORIENTATION_LANDSCAPE : Configuration.ORIENTATION_PORTRAIT;
         window.screenWidthDp = landscape ? 640 : 320;
         // Exercise a live multi-window resize between opening settings and choosing a model.
         window.screenHeightDp = landscape ? 481 : 640;
-        new SessionSettings(panel, "thread", "thread", () -> window).show();
+        new SessionSettings(panel, "thread", "thread", () -> stageDraft != null, stageDraft, () -> window).show();
         if (landscape) window.screenHeightDp = 320;
     }
 
-    public static void check(ListView list, EditText search, boolean landscape, Consumer<CheckedTextView> tap) {
+    public static void check(ListView list, EditText search, boolean landscape, Consumer<View> tap) {
         ViewGroup dialog = list.getRootView().findViewById(android.R.id.content);
         ViewGroup panel = (ViewGroup) dialog.getChildAt(0);
         int width = Ui.dp(panel.getContext(), landscape ? 640 : 320);
@@ -42,9 +45,9 @@ public final class PickerWindow {
             Assert.assertTrue("Search target " + field, field.width() >= minimum && field.height() >= minimum);
             Assert.assertTrue(search.isEnabled() && search.isFocusable());
             Assert.assertTrue("No laid-out native match", list.getChildCount() > 0);
-            CheckedTextView row = (CheckedTextView) list.getChildAt(0);
+            View row = list.getChildAt(0);
             Rect target = visibleBounds(row, panel, viewport);
-            Assert.assertTrue("First model target " + target, target.width() >= minimum && target.height() >= minimum);
+            Assert.assertTrue("First result target " + target, target.width() >= minimum && target.height() >= minimum);
             Assert.assertFalse("Search overlaps the result", Rect.intersects(field, target));
             Assert.assertEquals("Match must be reachable through the native hit test", 0,
                     list.pointToPosition(row.getLeft() + row.getWidth() / 2, row.getTop() + minimum / 2));

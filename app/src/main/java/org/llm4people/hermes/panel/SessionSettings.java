@@ -34,6 +34,8 @@ final class SessionSettings {
     private final SessionPanel panel;
     private final String id;
     private final String remoteId;
+    private final BooleanSupplier activeThread;
+    private final Consumer<String> stageDraft;
     private final Supplier<Configuration> currentWindow;
     private JSONObject saved;
     private TextView saveError;
@@ -53,8 +55,13 @@ final class SessionSettings {
         @Override public String toString() { return name.isEmpty() || name.equals(slug) ? slug : name + " · " + slug; }
     }
 
-    SessionSettings(SessionPanel panel, String id, String remoteId, Supplier<Configuration> currentWindow) {
-        this.panel = panel; this.id = id; this.remoteId = remoteId;
+    SessionSettings(SessionPanel panel, String id, String remoteId, BooleanSupplier activeThread,
+                    Consumer<String> stageDraft, Supplier<Configuration> currentWindow) {
+        this.panel = panel;
+        this.id = id;
+        this.remoteId = remoteId;
+        this.activeThread = activeThread;
+        this.stageDraft = stageDraft;
         this.currentWindow = currentWindow;
     }
 
@@ -81,6 +88,9 @@ final class SessionSettings {
         panel.note(box, panel.t(R.string.panel_session_scope));
         panel.section(box, R.string.panel_model);
         modelSetting(box);
+        if (stageDraft != null) panel.action(box, R.string.skills_title, () -> {
+            if (activeThread.getAsBoolean()) new SkillBrowser(panel, activeThread, stageDraft, this).show();
+        });
         panel.section(box, R.string.panel_tools);
         LinearLayout controls = Ui.column(panel.activity);
         box.addView(controls);
@@ -198,8 +208,8 @@ final class SessionSettings {
         });
     }
 
-    /** Keep long provider names scrollable while reserving space for search and a selectable result. */
-    private ScrollView attachPickerControls(LinearLayout page, EditText search, LinearLayout.LayoutParams field) {
+    /** Keep the picker heading scrollable while reserving room for its search controls and a result. */
+    ScrollView attachPickerControls(LinearLayout page, View search, LinearLayout.LayoutParams field) {
         LinearLayout context = Ui.column(panel.activity);
         while (page.getChildCount() > 0) {
             View detail = page.getChildAt(0);

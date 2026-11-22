@@ -192,6 +192,23 @@ jobs:
           if-no-files-found: ${{ job.status == 'success' && 'error' || 'warn' }}
           compression-level: 0
 
+      - name: Retain system picker and staged skill evidence
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: android-discussion-photo-skills
+          path: |
+            ${{ runner.temp }}/hermes-discussion-photo/vision-receipt.json
+            ${{ runner.temp }}/hermes-discussion-photo/01-photo-brouillon.png
+            ${{ runner.temp }}/hermes-discussion-photo/02-photo-reponse.png
+            ${{ runner.temp }}/hermes-discussion-skills/skills-receipt.json
+            ${{ runner.temp }}/hermes-discussion-skills/01-competence-recherche.png
+            ${{ runner.temp }}/hermes-discussion-skills/02-competence-resume.png
+            ${{ runner.temp }}/hermes-discussion-skills/03-competence-brouillon.png
+            ${{ runner.temp }}/hermes-discussion-skills/04-competence-reponse.png
+          if-no-files-found: ${{ job.status == 'success' && 'error' || 'warn' }}
+          compression-level: 0
+
       - name: Retain Android phone action receipts and receiver captures
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

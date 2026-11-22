@@ -190,7 +190,7 @@ public final class SessionSettingsStorageTest extends InstrumentationTestCase {
         throw new AssertionError("Missing laid-out model choice " + label);
     }
 
-    private static void tapChoice(CheckedTextView row) {
+    private static void tapChoice(View row) {
         ListView list = (ListView) row.getParent();
         int position = list.getPositionForView(row);
         assertTrue(list.performItemClick(row, position, list.getItemIdAtPosition(position)));

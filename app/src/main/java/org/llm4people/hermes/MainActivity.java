@@ -21,6 +21,7 @@ import org.llm4people.hermes.profile.ProfileGate;
 import org.llm4people.hermes.push.MobilePush;
 import org.llm4people.hermes.thread.ThreadWorkspace;
 import org.llm4people.hermes.share.SharedTextFlow;
+import org.llm4people.hermes.thread.ThreadPhotoPicker;
 import org.llm4people.hermes.voice.VoiceDrafts;
 
 import java.io.IOException;
@@ -38,6 +39,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     private ProfileGate gate;
     private VoiceDrafts voice;
     private PublishedFiles files;
+    private ThreadPhotoPicker photoPicker;
     private Account account;
     private SessionPanel panels;
     private ThreadWorkspace threads;
@@ -67,6 +69,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         voice = new VoiceDrafts(this);
         push = new MobilePush(this);
         files = new PublishedFiles(this);
+        photoPicker = new ThreadPhotoPicker(this, state);
         sharedText = new SharedTextFlow(this, () -> { displayDiscussion(); threads.inbox(); },
                 () -> navigate(WorkspaceNavigation.COMPOSER));
         sharedText.restore(state, getIntent());
@@ -83,6 +86,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         // The activity has no public view state. Discard framework dialog and view text too.
         outState.clear();
         sharedText.save(outState);
+        photoPicker.save(outState);
         if (handledDelivery != null) outState.putString("handled_delivery", handledDelivery);
     }
 
@@ -102,6 +106,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
 
     private void opened(Account unlocked) {
         account = unlocked;
+        photoPicker.unlocked(unlocked);
         HermesApi api = new HermesApi(account.endpoint, account.bearer);
         navigation = new WorkspaceNavigation();
         activeHost = new WorkspaceHost(this, () -> account == unlocked);
@@ -217,6 +222,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             case "previous": back(); break;
             case "return": displayDiscussion(); break;
             case "pages": navigate(WorkspaceNavigation.GALLERY); break;
+            case "attach_photo": photoPicker.launch(account, threads); break;
             case "native_thread": navigate(WorkspaceNavigation.COMPOSER); break;
             case "threads": displayDiscussion(); threads.inbox(); break;
             case "new_thread": displayDiscussion(); threads.newThread(); break;
@@ -241,7 +247,9 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                 } else if ("artifacts".equals(id)) {
                     new ArtifactDesk(this, account, session, threads.messages(), activeHost).show();
                 } else {
-                    panels.show(session, threads.remoteSessionId());
+                    ThreadWorkspace origin = threads;
+                    panels.show(session, origin.remoteSessionId(),
+                            () -> threads == origin && session.equals(origin.sessionId()), this::stageDraft);
                 }
                 break;
             default: Diagnostics.warning("workspace", "unknown_action");
@@ -383,6 +391,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         String threadTitle = sessionId == null ? null : title == null || title.trim().isEmpty() ? "Discussion" : title;
         shell.selected(sessionId, threadTitle);
         sharedText.selected(sessionId);
+        deliverSelectedPhoto();
         if (WorkspaceNavigation.DISCUSSION.equals(navigation.current())) render(false);
         ArtifactDesk.refreshBindings(shell.content(), activeHost);
     }
@@ -422,8 +431,16 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     }
 
     @Override protected void onActivityResult(int code, int result, Intent data) {
+        if (photoPicker != null && photoPicker.result(code, result, data)) {
+            deliverSelectedPhoto();
+            return;
+        }
         if (files != null && files.result(code, result, data)) return;
         super.onActivityResult(code, result, data);
+    }
+
+    private void deliverSelectedPhoto() {
+        if (photoPicker.deliver(account, threads) && !threads.composerVisible()) navigate(WorkspaceNavigation.COMPOSER);
     }
 
     @Override public void onRequestPermissionsResult(int code, String[] permissions, int[] results) {
@@ -433,6 +450,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
 
     private void clearWorkspace() {
         if (sharedText != null) sharedText.lock();
+        if (photoPicker != null) photoPicker.interruptImport();
         if (shell != null) shell.dismissMenu();
         if (voice != null) voice.reader().stop();
         dismissOverlays();
