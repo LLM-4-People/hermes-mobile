@@ -5,6 +5,7 @@ import android.os.SystemClock;
 import android.provider.Settings;
 
 import org.json.JSONObject;
+import org.llm4people.hermes.VisibleText;
 import org.llm4people.hermes.net.HermesApi;
 
 /** Manages exactly one mobile-originated run in the selected thread. */
@@ -32,7 +33,7 @@ final class ThreadRun {
 
     void send() {
         String text = ui.draft();
-        if (submitting || journal.pending() != null || text.trim().isEmpty()) return;
+        if (submitting || journal.pending() != null || VisibleText.isBlank(text)) return;
         JSONObject options;
         try {
             options = page.host.options(page.sessionId());

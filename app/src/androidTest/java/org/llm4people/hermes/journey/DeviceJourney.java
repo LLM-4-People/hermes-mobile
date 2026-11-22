@@ -232,7 +232,11 @@ public final class DeviceJourney extends Instrumentation {
         ui.tap("fake-model");
         ui.contains("fake-model");
         ui.tap("Choisir le modèle");
+        ui.see(fixture.getString("provider"));
+        ui.capture("06-fournisseurs");
         ui.tap(fixture.getString("alternateProvider"));
+        ui.see(fixture.getString("alternateModel"));
+        ui.capture("06-modeles");
         ui.tap(fixture.getString("alternateModel"));
         ui.contains(fixture.getString("alternateModel"));
         ui.tap("Fermer");

@@ -16,6 +16,7 @@ import android.widget.*;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.llm4people.hermes.VisibleText;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.artifact.ThreadInstruments.Pin;
@@ -187,7 +188,7 @@ final class ThreadViews {
             @Override public void afterTextChanged(Editable s) {}
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
                 onDraft.accept(s.toString());
-                send.setEnabled(!s.toString().trim().isEmpty());
+                send.setEnabled(!VisibleText.isBlank(s.toString()));
             }
         });
         busy(false, false);
@@ -304,7 +305,7 @@ final class ThreadViews {
 
     void busy(boolean active, boolean canStop) {
         send.setVisibility(active ? View.GONE : View.VISIBLE);
-        send.setEnabled(!active && !draft().trim().isEmpty());
+        send.setEnabled(!active && !VisibleText.isBlank(draft()));
         stop.setVisibility(active && canStop ? View.VISIBLE : View.GONE);
         stop.setEnabled(canStop);
     }

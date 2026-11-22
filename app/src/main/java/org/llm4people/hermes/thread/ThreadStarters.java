@@ -56,7 +56,7 @@ final class ThreadStarters {
         action.setSingleLine(false);
         action.setTextSize(16);
         action.setTextColor(context.getColor(R.color.ink));
-        action.setCompoundDrawablesRelativeWithIntrinsicBounds(0, 0, R.drawable.ic_go, 0);
+        action.setCompoundDrawablesRelativeWithIntrinsicBounds(0, 0, R.drawable.ic_navigate_forward, 0);
         action.setCompoundDrawableTintList(context.getColorStateList(R.color.accent));
         action.setCompoundDrawablePadding(Ui.dp(context, 8));
         Ui.pad(action, 0, 4);

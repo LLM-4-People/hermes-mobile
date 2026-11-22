@@ -201,7 +201,7 @@ final class WorkspaceShell {
         text.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         row.addView(text, new LinearLayout.LayoutParams(0, -2, 1));
         ImageView arrow = new ImageView(activity);
-        arrow.setImageResource(R.drawable.ic_go);
+        arrow.setImageResource(R.drawable.ic_navigate_forward);
         arrow.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         row.addView(arrow, Ui.dp(activity, 18), Ui.dp(activity, 18));
         list.addView(row);
