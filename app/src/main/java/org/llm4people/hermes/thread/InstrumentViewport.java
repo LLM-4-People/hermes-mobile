@@ -22,6 +22,7 @@ final class InstrumentViewport extends LinearLayout {
     private final View rule;
     private boolean opened;
     private boolean split;
+    private Runnable visibilityChanged;
     private int first, top;
 
     InstrumentViewport(ListView transcript) {
@@ -89,8 +90,17 @@ final class InstrumentViewport extends LinearLayout {
         if (!split && first >= 0) transcript.setSelectionFromTop(first, top);
     }
 
+    void onTranscriptVisibilityChanged(Runnable action) { visibilityChanged = action; }
+
     private void showPanes() {
-        transcript.setVisibility(!opened || split ? VISIBLE : GONE);
+        int visibility = !opened || split ? VISIBLE : GONE;
+        if (transcript.getVisibility() != visibility) {
+            transcript.setVisibility(visibility);
+            if (visibilityChanged != null) {
+                removeCallbacks(visibilityChanged);
+                post(visibilityChanged);
+            }
+        }
         rule.setVisibility(opened && split ? VISIBLE : GONE);
         tool.setVisibility(opened ? VISIBLE : GONE);
     }

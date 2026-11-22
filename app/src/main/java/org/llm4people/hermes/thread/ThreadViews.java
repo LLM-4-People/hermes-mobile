@@ -281,7 +281,6 @@ final class ThreadViews {
     }
 
     void live(String detail, String text, boolean hasPrompts, RunPreview.Origin origin) {
-        if (hasPrompts && instruments != null) instruments.revealDiscussionIfCompact();
         boolean atEnd = list.getLastVisiblePosition() >= list.getCount() - 1;
         progress.setVisibility(detail.isEmpty() ? View.GONE : View.VISIBLE);
         progress.setText(detail);

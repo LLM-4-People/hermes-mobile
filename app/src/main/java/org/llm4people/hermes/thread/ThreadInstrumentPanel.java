@@ -72,6 +72,7 @@ final class ThreadInstrumentPanel {
         this.store = store;
         this.actions = actions;
         viewport = screen.attachInstrumentViewport();
+        viewport.onTranscriptVisibilityChanged(() -> { if (current()) workspace.host.pendingChanged(); });
         readState();
     }
 
