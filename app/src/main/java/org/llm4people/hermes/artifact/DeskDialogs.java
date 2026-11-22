@@ -26,6 +26,11 @@ final class DeskDialogs {
 
     static AlertDialog open(Activity activity, ArtifactDesk.Host owner, AlertDialog.Builder builder,
                             View source, BooleanSupplier current) {
+        return open(activity, owner, builder, source, current, null);
+    }
+
+    static AlertDialog open(Activity activity, ArtifactDesk.Host owner, AlertDialog.Builder builder,
+                            View source, BooleanSupplier current, Runnable onDismissed) {
         if (activity.isFinishing() || activity.isDestroyed()) return null;
         AlertDialog dialog = Ui.secureDialog(builder);
         List<Open> list = VISIBLE.computeIfAbsent(activity, a -> new ArrayList<>());
@@ -40,6 +45,7 @@ final class DeskDialogs {
         dialog.setOnDismissListener(d -> {
             list.remove(entry);
             if (source != null) source.removeOnAttachStateChangeListener(departure);
+            if (onDismissed != null) onDismissed.run();
         });
         return dialog;
     }

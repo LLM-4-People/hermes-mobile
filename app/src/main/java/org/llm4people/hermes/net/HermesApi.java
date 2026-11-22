@@ -91,6 +91,32 @@ public final class HermesApi {
         request("DELETE", path, null, null);
     }
 
+    /** Send a bounded multipart/form-data upload and decode the JSON response. */
+    public JSONObject postMultipart(String path, String boundary, byte[] body) throws IOException {
+        if (boundary == null || !visibleAscii(boundary) || body == null || body.length == 0) {
+            throw new IllegalArgumentException("Invalid multipart payload");
+        }
+        long maxUpload = Math.max(limits.jsonBytes, HermesConfig.defaults().artifactDefaultMaxBytes + 4096L);
+        if (body.length > maxUpload) throw new IOException("Upload exceeded the byte limit");
+        HttpURLConnection http = connection(path, "POST", "application/json");
+        try {
+            http.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
+            http.setDoOutput(true);
+            http.setFixedLengthStreamingMode(body.length);
+            try (OutputStream out = http.getOutputStream()) { out.write(body); }
+            int status = checkResponse(http);
+            if (status == 204 || status == 205) return new JSONObject();
+            try (InputStream in = http.getInputStream()) {
+                return Wire.object(Wire.read(in, limits.jsonBytes));
+            }
+        } catch (IOException error) {
+            Diagnostics.event("network", "multipart_upload_failed");
+            throw error;
+        } finally {
+            http.disconnect();
+        }
+    }
+
     private static boolean visibleAscii(String text) {
         if (text == null || text.isEmpty()) return false;
         for (int i = 0; i < text.length(); i++) {

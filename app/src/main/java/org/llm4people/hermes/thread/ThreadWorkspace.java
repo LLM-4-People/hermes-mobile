@@ -13,10 +13,16 @@ import org.json.JSONObject;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.artifact.ArtifactDesk;
 import org.llm4people.hermes.artifact.ThreadInstruments;
+import org.llm4people.hermes.camera.CapturedMedia;
+import org.llm4people.hermes.camera.ThreadCameraCapture;
 import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.os.LiveRunNotification;
 import org.llm4people.hermes.profile.Account;
+import org.llm4people.hermes.share.ClipboardPastePill;
+import org.llm4people.hermes.share.DeviceBridgeFlow;
 import org.llm4people.hermes.voice.VoiceDrafts;
+
+import java.io.IOException;
 
 import java.util.UUID;
 import java.util.ArrayList;
@@ -56,8 +62,9 @@ public final class ThreadWorkspace implements AutoCloseable {
     ThreadViews screen;
     ThreadJournal journal;
     final NearbyConsent nearby;
+    final DeviceBridgeFlow deviceBridge = new DeviceBridgeFlow();
     private ThreadRun run;
-    private ArtifactDesk.Host instrumentHost;
+    ArtifactDesk.Host instrumentHost;
     private ThreadInstrumentPanel instruments;
     private ThreadStarters starters;
     private boolean emptyTranscript;
@@ -242,6 +249,47 @@ public final class ThreadWorkspace implements AutoCloseable {
         screen.displayDraft(current.isEmpty() ? text : current + "\n" + text);
         queueSave();
         screen.focusComposer();
+    }
+
+    public void attachMedia(List<CapturedMedia.Item> items) {
+        if (closed || screen == null || session == null || items == null || items.isEmpty()) return;
+        screen.attachMedia(items, suggestion -> stageDraft(suggestion.draftText()));
+        screen.focusComposer();
+    }
+
+    public boolean importCapturedPhoto(ThreadCameraCapture capture, Account owner) {
+        if (closed || capture == null || !capture.isReady() || owner == null || session == null) return false;
+        String targetSession = session;
+        request(() -> capture.consumeIfReady(owner, targetSession), item -> {
+            if (item != null && targetSession.equals(session)) {
+                attachMedia(Collections.singletonList(item));
+            }
+        }, failure -> {
+            Diagnostics.warning("camera", "import_failed", failure);
+            if (screen != null) {
+                screen.notice("La photo capturée n’a pas pu être lue. Réessayez.", "", null);
+            }
+        });
+        return true;
+    }
+
+    public void refreshClipboardPill() {
+        if (!closed && screen != null && session != null) screen.refreshClipboardPill();
+    }
+
+    void handleDeviceRequests(String runId, List<DeviceBridgeFlow.BridgeRequest> requests) {
+        if (closed || screen == null || requests == null || requests.isEmpty()) return;
+        DeviceBridgeFlow.Executor executor = DeviceBridgeFlow.clipboardExecutor(new ClipboardPastePill(activity));
+        for (DeviceBridgeFlow.BridgeRequest req : requests) {
+            deviceBridge.promptUser(activity, instrumentHost, screen.root, req, executor, (status, data) ->
+                    workers.execute(() -> {
+                        try {
+                            DeviceBridgeFlow.submitResult(api, runId, req.requestId(), status, data);
+                        } catch (IOException failed) {
+                            Diagnostics.warning("device_bridge", "result_submit_failed", failed);
+                        }
+                    }));
+        }
     }
 
     /** Checks the durable receipt even if a different discussion was restored after process death. */

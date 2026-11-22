@@ -17,6 +17,7 @@ import android.view.WindowManager;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.llm4people.hermes.artifact.ArtifactDesk;
+import org.llm4people.hermes.camera.ThreadCameraCapture;
 import org.llm4people.hermes.files.PublishedFiles;
 import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.os.HermesShortcuts;
@@ -29,6 +30,7 @@ import org.llm4people.hermes.panel.SessionPanel;
 import org.llm4people.hermes.profile.Account;
 import org.llm4people.hermes.profile.ProfileGate;
 import org.llm4people.hermes.push.MobilePush;
+import org.llm4people.hermes.share.SharedMediaFlow;
 import org.llm4people.hermes.share.SharedTextFlow;
 import org.llm4people.hermes.thread.ThreadPhotoPicker;
 import org.llm4people.hermes.thread.ThreadWorkspace;
@@ -53,6 +55,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     private VoiceDrafts voice;
     private PublishedFiles files;
     private ThreadPhotoPicker photoPicker;
+    private ThreadCameraCapture cameraCapture;
     private Account account;
     private SessionPanel panels;
     private ThreadWorkspace threads;
@@ -61,6 +64,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     private ArtifactDesk.Host activeHost;
     private final Map<String, View> customPages = new HashMap<>();
     private SharedTextFlow sharedText;
+    private SharedMediaFlow sharedMedia;
     private MobilePush push;
     private MobilePush.Target delivery;
     private OsEntryIntent.Request pendingOsEntry;
@@ -97,9 +101,13 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         push = new MobilePush(this);
         files = new PublishedFiles(this);
         photoPicker = new ThreadPhotoPicker(this, state);
+        cameraCapture = new ThreadCameraCapture(this, state);
         sharedText = new SharedTextFlow(this, () -> { displayDiscussion(); threads.inbox(); },
                 () -> navigate(WorkspaceNavigation.COMPOSER));
         sharedText.restore(state, getIntent());
+        sharedMedia = new SharedMediaFlow(this, () -> { displayDiscussion(); threads.inbox(); },
+                () -> navigate(WorkspaceNavigation.COMPOSER));
+        sharedMedia.restore(state, getIntent());
         gate = new ProfileGate(this);
         gate.setOnForget(id -> MobilePush.forget(this, id));
         handledDelivery = state == null ? null : state.getString("handled_delivery");
@@ -162,6 +170,9 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         actions.register("pages", () -> navigate(WorkspaceNavigation.GALLERY));
         actions.register("nearby_area", () -> { if (threads != null) threads.editNearbyArea(); });
         actions.register("attach_photo", () -> photoPicker.launch(account, threads));
+        actions.register("capture_camera", () -> {
+            if (threads.sessionId() != null) cameraCapture.launch(account, threads.sessionId());
+        });
         actions.register("native_thread", () -> navigate(WorkspaceNavigation.COMPOSER));
         actions.register("toggle_discussions", () -> threads.toggleDiscussions());
         actions.register("threads", () -> { displayDiscussion(); threads.inbox(); });
@@ -221,7 +232,9 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         // The activity has no public view state. Discard framework dialog and view text too.
         outState.clear();
         sharedText.save(outState);
+        sharedMedia.save(outState);
         photoPicker.save(outState);
+        cameraCapture.save(outState);
         if (handledDelivery != null) outState.putString("handled_delivery", handledDelivery);
     }
 
@@ -236,13 +249,17 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     }
 
     private void unlock() {
-        gate.start(delivery == null ? sharedText.requestedProfile() : delivery.profileId, this::opened);
+        String requested = delivery != null ? delivery.profileId
+                : sharedText.requestedProfile() != null ? sharedText.requestedProfile()
+                : sharedMedia.requestedProfile();
+        gate.start(requested, this::opened);
     }
 
     private void opened(Account unlocked) {
         clearGraceTimer();
         account = unlocked;
         photoPicker.unlocked(unlocked);
+        cameraCapture.unlocked(unlocked);
         HermesApi api = new HermesApi(account.endpoint, account.bearer);
         navigation = new WorkspaceNavigation();
         activeHost = new WorkspaceHost(this, () -> account == unlocked);
@@ -263,6 +280,8 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             threads.inbox();
         }
         sharedText.opened(unlocked, threads);
+        sharedMedia.opened(unlocked, threads);
+        deliverCapturedPhoto();
         MobilePush.Target target = delivery;
         if (target != null) {
             handled(target);
@@ -368,7 +387,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         // Android invokes onNewIntent() before onStart()/onResume(); enforce grace expiry first
         // so an expired session locks immediately and queues incoming OS intents until re-unlock.
         checkGraceOnReturn();
-        if (sharedText.receive(intent)) {
+        if (sharedText.receive(intent) || sharedMedia.receive(intent)) {
             setIntent(new Intent(this, MainActivity.class));
             delivery = null;
             pendingOsEntry = null;
@@ -386,6 +405,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         MobilePush.Target incoming = MobilePush.target(this, intent);
         if (incoming == null) return;
         sharedText.leave();
+        sharedMedia.leave();
         setIntent(intent);
         delivery = incoming;
         if (account != null && account.id.equals(incoming.profileId)) {
@@ -547,7 +567,9 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         String threadTitle = sessionId == null ? null : title == null || title.trim().isEmpty() ? "Discussion" : title;
         shell.selected(sessionId, threadTitle);
         sharedText.selected(sessionId);
+        sharedMedia.selected(sessionId);
         deliverSelectedPhoto();
+        deliverCapturedPhoto();
         if (WorkspaceNavigation.DISCUSSION.equals(navigation.current())) render(false);
         ArtifactDesk.refreshBindings(shell.content(), activeHost);
     }
@@ -587,6 +609,10 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     }
 
     @Override protected void onActivityResult(int code, int result, Intent data) {
+        if (cameraCapture != null && cameraCapture.onActivityResult(code, result)) {
+            deliverCapturedPhoto();
+            return;
+        }
         if (photoPicker != null && photoPicker.result(code, result, data)) {
             deliverSelectedPhoto();
             return;
@@ -597,6 +623,14 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
 
     private void deliverSelectedPhoto() {
         if (photoPicker.deliver(account, threads) && !threads.composerVisible()) navigate(WorkspaceNavigation.COMPOSER);
+    }
+
+    private void deliverCapturedPhoto() {
+        if (cameraCapture != null && account != null && threads != null && threads.sessionId() != null) {
+            if (threads.importCapturedPhoto(cameraCapture, account) && !threads.composerVisible()) {
+                navigate(WorkspaceNavigation.COMPOSER);
+            }
+        }
     }
 
     @Override public void onRequestPermissionsResult(int code, String[] permissions, int[] results) {
@@ -616,6 +650,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         LiveRunActionReceiver.clearStopHandler(liveStopHandler);
         LiveRunNotification.cancel(this);
         if (sharedText != null) sharedText.lock();
+        if (sharedMedia != null) sharedMedia.lock();
         if (photoPicker != null) photoPicker.interruptImport();
         if (shell != null) shell.dismissMenu();
         if (voice != null) voice.reader().stop();
@@ -660,6 +695,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     @Override public void onWindowFocusChanged(boolean focused) {
         super.onWindowFocusChanged(focused);
         if (voice != null) voice.windowFocusChanged(focused);
+        if (focused && threads != null) threads.refreshClipboardPill();
     }
 
     @Override protected void onStart() {

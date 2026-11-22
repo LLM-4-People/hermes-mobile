@@ -316,6 +316,9 @@ final class WorkspaceShell {
             item(menu, activity.getString(R.string.instrument_create), "create_instrument");
             if (pageTitle == null) {
                 item(menu, "Joindre une image…", "attach_photo");
+                if (org.llm4people.hermes.camera.ThreadCameraCapture.isAvailable(activity)) {
+                    item(menu, "Prendre une photo…", "capture_camera");
+                }
                 item(menu, "Position pour ce message…", "nearby_area");
             }
             item(menu, "Renommer la discussion", "rename");

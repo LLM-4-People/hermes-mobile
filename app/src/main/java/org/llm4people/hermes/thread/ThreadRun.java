@@ -4,10 +4,18 @@ import android.app.AlertDialog;
 import android.os.SystemClock;
 import android.provider.Settings;
 
+import org.json.JSONException;
 import org.json.JSONObject;
+import org.llm4people.hermes.HermesConfig;
 import org.llm4people.hermes.VisibleText;
+import org.llm4people.hermes.camera.CapturedMedia;
 import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.os.LiveRunNotification;
+import org.llm4people.hermes.share.AttachmentUploader;
+import org.llm4people.hermes.share.DeviceBridgeFlow;
+
+import java.util.Collections;
+import java.util.List;
 
 /** Manages exactly one mobile-originated run in the selected thread. */
 final class ThreadRun {
@@ -141,6 +149,7 @@ final class ThreadRun {
                 ui.notice("Cette passerelle ne peut pas appliquer la sélection d’outils. Vérifiez les réglages de la conversation.", "", null);
                 return;
             }
+            List<CapturedMedia.Item> stagedAttachments = fresh ? ui.stagedAttachments() : Collections.emptyList();
             if (fresh) {
                 keepCompletionPosition = false;
                 // Edits while capability discovery was in flight must stay in the composer.
@@ -151,6 +160,13 @@ final class ThreadRun {
                     reportProgress(LiveRunNotification.Snapshot.idle());
                     ui.busy(false, false);
                     ui.notice("Le brouillon a changé. Vous pouvez l’envoyer.", "", null);
+                    return;
+                }
+                if (!stagedAttachments.isEmpty() && !AttachmentUploader.supportsUploads(features)) {
+                    admissionFinished();
+                    reportProgress(LiveRunNotification.Snapshot.idle());
+                    ui.busy(false, false);
+                    ui.notice("Mettez Hermes à jour pour envoyer des fichiers joints.", "", null);
                     return;
                 }
                 if (area != null && !NearbyTurn.supportsScope(features)) {
@@ -165,22 +181,40 @@ final class ThreadRun {
                     });
                     return;
                 }
-                try {
-                    NearbyTurn.attach(body, area);
-                    journal.stage(body, SystemClock.elapsedRealtime(), bootCount(), idem.optLong("retention_seconds"),
-                            idem.optBoolean("durable"), area);
-                    page.nearby.clearTurn();
-                } catch (IllegalStateException e) {
-                    admissionFinished();
-                    reportProgress(LiveRunNotification.Snapshot.idle());
-                    ui.busy(false, false);
-                    page.storageError();
+                if (!stagedAttachments.isEmpty()) {
+                    String remoteSession = page.remoteSessionId();
+                    if (remoteSession == null || remoteSession.trim().isEmpty()) {
+                        admissionFinished();
+                        reportProgress(LiveRunNotification.Snapshot.idle());
+                        ui.busy(false, false);
+                        ui.notice("La discussion n’est pas encore prête pour recevoir des fichiers. Réessayez.", "", null);
+                        return;
+                    }
+                    long maxUploadBytes = HermesConfig.load(page.activity).artifactDefaultMaxBytes;
+                    ui.notice("Envoi des fichiers joints…", "", null);
+                    page.request(() -> AttachmentUploader.uploadAll(
+                            page.api::postMultipart, remoteSession, stagedAttachments, maxUploadBytes), receipts -> {
+                        if (!snapshot.equals(ui.draft()) || selectedPhoto != journal.photo()
+                                || !page.nearby.stillCurrent(nearbyVersion, area)
+                                || !stagedAttachments.equals(ui.stagedAttachments())) {
+                            admissionFinished();
+                            reportProgress(LiveRunNotification.Snapshot.idle());
+                            ui.busy(false, false);
+                            ui.notice("Le brouillon a changé. Vous pouvez l’envoyer.", "", null);
+                            return;
+                        }
+                        AttachmentUploader.attachToRunBody(body, receipts);
+                        finalizeStageAndAdmit(body, features, idem, area, stagedAttachments);
+                    }, error -> {
+                        admissionFinished();
+                        reportProgress(LiveRunNotification.Snapshot.idle());
+                        ui.busy(false, false);
+                        page.error(error, this::send);
+                    });
                     return;
                 }
-                ui.clearDraft();
-                page.refreshPhoto();
-                ui.outgoing(outgoing(journal.pending()));
-                started = SystemClock.elapsedRealtime();
+                finalizeStageAndAdmit(body, features, idem, area, Collections.emptyList());
+                return;
             } else {
                 JSONObject pending = journal.pending();
                 long ttl = Math.min(pending.optLong("ttl"), idem.optLong("retention_seconds"));
@@ -193,13 +227,39 @@ final class ThreadRun {
                     return;
                 }
             }
-            admit(body, fresh);
+            admit(body, false, Collections.emptyList());
         }, error -> {
             admissionFinished();
             ui.busy(!fresh, false);
             reportProgress(LiveRunNotification.Snapshot.idle());
             page.error(error, fresh ? this::send : this::restore);
         });
+    }
+
+    private void finalizeStageAndAdmit(JSONObject body, JSONObject features, JSONObject idem,
+                                       JSONObject area, List<CapturedMedia.Item> stagedAttachments) {
+        try {
+            NearbyTurn.attach(body, area);
+            if (features.optBoolean("device_bridge")) {
+                List<String> caps = DeviceBridgeFlow.executableCapabilities(true, true, true);
+                body.put("device_capabilities", DeviceBridgeFlow.capabilitiesJson(caps));
+            }
+            journal.stage(body, SystemClock.elapsedRealtime(), bootCount(), idem.optLong("retention_seconds"),
+                    idem.optBoolean("durable"), area);
+            page.nearby.clearTurn();
+        } catch (IllegalStateException | JSONException e) {
+            admissionFinished();
+            reportProgress(LiveRunNotification.Snapshot.idle());
+            ui.busy(false, false);
+            page.storageError();
+            return;
+        }
+        ui.clearDraft();
+        if (!stagedAttachments.isEmpty()) ui.clearAttachments();
+        page.refreshPhoto();
+        ui.outgoing(outgoing(journal.pending()));
+        started = SystemClock.elapsedRealtime();
+        admit(body, true, stagedAttachments);
     }
 
     private static String outgoing(JSONObject receipt) {
@@ -211,7 +271,7 @@ final class ThreadRun {
         return Settings.Global.getInt(page.activity.getContentResolver(), Settings.Global.BOOT_COUNT, -1);
     }
 
-    private void admit(JSONObject body, boolean fresh) {
+    private void admit(JSONObject body, boolean fresh, List<CapturedMedia.Item> stagedAttachments) {
         String key = journal.pending().optString("key");
         ui.notice("Envoi à Hermes…", "", null);
         JSONObject image = journal.pending().optJSONObject("photo");
@@ -235,6 +295,7 @@ final class ThreadRun {
                 journal.reject();
                 page.nearby.restore();
                 ui.displayDraft(journal.draft());
+                if (stagedAttachments != null && !stagedAttachments.isEmpty()) page.attachMedia(stagedAttachments);
                 page.refreshPhoto();
                 ui.outgoing("");
                 ui.busy(false, false);
@@ -318,6 +379,7 @@ final class ThreadRun {
                             ? "Hermes attend votre réponse" : count + " demandes en attente";
                     ui.live(activity, next.text, count > 0, next.origin);
                     decisions.present(next.prompts);
+                    if (!next.deviceRequests.isEmpty()) page.handleDeviceRequests(id, next.deviceRequests);
                     ui.notice("", "", null);
                     reportProgress(new LiveRunNotification.Snapshot(
                             count > 0 ? LiveRunNotification.Phase.AWAITING_DECISION
