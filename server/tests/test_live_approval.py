@@ -103,11 +103,11 @@ class CanonicalPush(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(answered.status, 200, await answered.text())
                 final = await async_wait_until(lambda: find("run_completed"), what="private completion event")
                 expected_events = [requested]
-                if question:
-                    dismissed = store.claim(time.time(), 30)
-                    self.assertEqual((dismissed["kind"], dismissed["event_id"]), ("question_settled", requested["event_id"]))
-                    deliver(dismissed, settings, store, sender)
-                    expected_events.append({**requested, "kind": "question_settled"})
+                withdrawal_kind = "question_settled" if question else "approval_settled"
+                dismissed = store.claim(time.time(), 30)
+                self.assertEqual((dismissed["kind"], dismissed["event_id"]), (withdrawal_kind, requested["event_id"]))
+                deliver(dismissed, settings, store, sender)
+                expected_events.append({**requested, "kind": withdrawal_kind})
                 deliver(store.claim(time.time(), 30), settings, store, sender)
                 await asyncio.wait_for(authority_task, 10)
                 self.assertEqual(decisions[0] if question else decisions[0]["choice"],

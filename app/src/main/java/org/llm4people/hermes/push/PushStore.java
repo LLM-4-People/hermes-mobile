@@ -75,7 +75,7 @@ final class PushStore extends SQLiteOpenHelper {
         db.execSQL("CREATE INDEX dismissed_age ON dismissed_questions(received_at)");
     }
 
-    void dismissQuestion(String installation, String event) {
+    void dismissPrompt(String installation, String event) {
         // Earlier requests can arrive for 28 days, after recent notification history rolls over.
         long now = System.currentTimeMillis() / 1000;
         SQLiteDatabase db = getWritableDatabase();
@@ -311,7 +311,7 @@ final class PushStore extends SQLiteOpenHelper {
         try {
             Device owner = forInstallation(installation);
             if (owner == null || !owner.receives()) return false;
-            if (PushNotices.QUESTION.equals(kind)) {
+            if (PushNotices.isPrompt(kind)) {
                 try (Cursor marker = db.rawQuery("SELECT 1 FROM dismissed_questions WHERE installation=? AND event=?",
                         new String[]{installation, event})) {
                     if (marker.moveToFirst()) return false;

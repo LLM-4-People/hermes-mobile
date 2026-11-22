@@ -1,11 +1,10 @@
 package org.llm4people.hermes.thread;
 
-import android.test.AndroidTestCase;
+import junit.framework.TestCase;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-@SuppressWarnings("deprecation")
-public class PromptHistoryTest extends AndroidTestCase {
+public class PromptHistoryTest extends TestCase {
     public void testCanonicalResultsBecomeConversationalTurnsWithoutDuplicatingTheToolRequest() throws Exception {
         JSONObject call = new JSONObject().put("id", "a").put("function", new JSONObject().put("name", "clarify"));
         JSONObject ask = new JSONObject().put("role", "assistant").put("session_id", "t").put("tool_calls", new JSONArray().put(call));
@@ -19,15 +18,15 @@ public class PromptHistoryTest extends AndroidTestCase {
         JSONObject assistant = new JSONObject().put("role", "assistant").put("content", "Voici votre note.");
         JSONArray source = new JSONArray().put(ask).put(result).put(assistant);
         JSONArray display = PromptHistory.display(source);
-        assertEquals(9, display.length());
+        assertEquals(8, display.length());
         assertEquals("Quel format ?", display.getJSONObject(0).getString("content"));
         assertEquals("user", display.getJSONObject(1).getString("role"));
         assertEquals("Une liste", display.getJSONObject(1).getString("content"));
         assertEquals("• Lundi\n• Jeudi", display.getJSONObject(3).getString("content"));
         assertEquals("prompt_status", display.getJSONObject(5).getString("role"));
         assertEquals("Question passée.", display.getJSONObject(5).getString("content"));
-        assertEquals("Aucune réponse reçue.", display.getJSONObject(7).getString("content"));
-        assertSame(assistant, display.getJSONObject(8));
+        assertEquals("Des réponses manquent dans cette demande.", display.getJSONObject(6).getString("content"));
+        assertSame(assistant, display.getJSONObject(7));
         assertEquals(3, source.length());
         result.put("session_id", "another-session");
         assertSame(source, PromptHistory.display(source));
@@ -35,6 +34,26 @@ public class PromptHistoryTest extends AndroidTestCase {
         assertSame(source, PromptHistory.display(source));
         result.put("tool_name", "clarify").put("content", "{invalid");
         assertSame(source, PromptHistory.display(source));
+    }
+
+    public void testBatchOutcomeAndNoticeSurviveWithoutPresentingUnreachedQuestions() throws Exception {
+        JSONArray responses = new JSONArray().put(response("Question répondue ?", "answered", "Oui"))
+                .put(response("Question suivante ?", "unanswered", JSONObject.NULL))
+                .put(response("Dernière question ?", "unanswered", JSONObject.NULL));
+        for (String[] example : new String[][] {
+                {"undelivered", "La demande n’a pas pu être transmise."},
+                {"timed_out", "Le délai de réponse a expiré."}, {"cancelled", "La demande a été annulée."}}) {
+            JSONObject receipt = new JSONObject().put("responses", responses).put("outcome", example[0])
+                    .put("notice", "Précision de la passerelle");
+            JSONObject tool = new JSONObject().put("role", "tool").put("tool_name", "clarify")
+                    .put("content", receipt.toString());
+            JSONArray turns = PromptHistory.display(new JSONArray().put(tool));
+            assertEquals(3, turns.length());
+            assertEquals("Question répondue ?", turns.getJSONObject(0).getString("content"));
+            assertEquals("Oui", turns.getJSONObject(1).getString("content"));
+            assertEquals("prompt_status", turns.getJSONObject(2).getString("role"));
+            assertEquals(example[1] + "\nPrécision de la passerelle", turns.getJSONObject(2).getString("content"));
+        }
     }
 
     public void testTerminalHistoryUsesExplicitHumanDecisionProvenance() throws Exception {

@@ -42,7 +42,17 @@ final class RunPrompts {
         }
     }
 
-    void add(JSONObject prompt) {
+    /** Accept standalone requests directly. A new canonical identity needs an authoritative status
+     * check because a replayed request may already have settled before this subscription opened. */
+    boolean requestNeedsSnapshot(JSONObject event) {
+        Key identity = key(event);
+        if (identity == null) return false;
+        if (identity.generation() >= 0) return match(event) == null;
+        add(event);
+        return false;
+    }
+
+    private void add(JSONObject prompt) {
         Key key = key(prompt);
         if (key == null) return;
         if (generation != null && (!(generation instanceof Long || generation instanceof Integer)

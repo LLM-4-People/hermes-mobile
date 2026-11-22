@@ -97,6 +97,94 @@ class Delivery(unittest.TestCase):
             resp.json.return_value["error"]["details"][0]["@type"] = "type.googleapis.com/google.firebase.fcm.v1.FcmError"
             self.assertFalse(sender.send(item))
 
+    def test_prompt_withdrawal_has_fresh_ttl_after_public_history_expires(self):
+        from dataclasses import replace
+        from server.mobile_push.provider import lifetime, opaque_notice
+
+        for request, settled, field in (("question_requested", "question_settled", "pending_questions"),
+                                        ("approval_requested", "approval_settled", "pending_approvals")):
+            for expire_first in (True, False):
+                with self.subTest(request=request, expire_first=expire_first), TemporaryDirectory() as root:
+                    settings, store = fixture(root)
+                    settings = replace(settings, retention=5)
+                    for device in ("accepted", "unattempted"):
+                        store.device(device, settings.profile_key, profile=True, now=90,
+                                     token=device, management_key="a"*64)
+                    runs = create_runs(settings)
+                    self.addCleanup(runs.close)
+                    status = "waiting_for_input" if field == "pending_questions" else "waiting_for_approval"
+                    insert_run(runs, settings.run_scope, "private-run", 100, status,
+                               session_id="private-session", **{field: {"private-prompt": 100}})
+                    ledgers = HermesLedgers(settings)
+                    self.addCleanup(ledgers.close)
+                    ledgers.runs.scan((settings.run_scope, 95), store, 95)
+                    sent = store.claim(101, 60)
+                    self.assertEqual(sent["kind"], request)
+                    # Simulate a provider acceptance whose acknowledgement never reached the worker.
+                    self.assertTrue(store.begin_send(sent))
+                    store = Store(settings.state)
+                    with patch("server.mobile_push.store.time.time", return_value=108):
+                        if expire_first:
+                            store.expire(103)
+                        runs.execute("UPDATE run_idempotency SET status_json=?,updated_at=108",
+                                     (json.dumps({"status": "running", "session_id": "private-session"}),))
+                        runs.commit()
+                        ledgers.runs.scan((settings.run_scope, 103), store, 103)
+                        store.expire(103)
+                    store.settle(sent, unregistered=True)
+                    store = Store(settings.state)
+                    withdrawal = store.claim(108, 1)
+                    self.assertEqual(opaque_notice(withdrawal), {"kind": settled, "event_id": sent["event_id"],
+                                                                 "installation_id": sent["device_id"]})
+                    self.assertIsNone(withdrawal["run_id"])
+                    self.assertEqual(lifetime(withdrawal, settings.retention, 108), 5)
+                    self.assertIsNone(store.events(event_id=sent["event_id"]))
+                    self.assertIsNone(store.events(event_id=withdrawal["storage_id"]))
+                    self.assertEqual(store.events()["events"], [])
+                    with patch("server.mobile_push.fcm.google.auth.default", return_value=(Mock(), None)):
+                        sender = FirebaseSender(settings)
+                    self.addCleanup(sender.session.close)
+                    with patch.object(sender.session, "post") as post, self.assertLogs("hermes.mobile.push"):
+                        response = post.return_value.__enter__.return_value
+                        response.ok = False
+                        response.status_code = 503
+                        response.headers = {}
+                        with patch("server.mobile_push.worker.time.time", return_value=109):
+                            deliver(withdrawal, settings, store, sender)
+                        self.assertIsNone(store.claim(110, 2))
+                        store.expire(105)
+                        retried = Store(settings.state).claim(111, 1)
+                        self.assertEqual((retried["created_at"], retried["attempts"]), (108, 1))
+                        response.ok = True
+                        response.status_code = 200
+                        with patch("server.mobile_push.worker.time.time", return_value=111):
+                            deliver(retried, settings, store, sender)
+                        message = post.call_args.kwargs["json"]["message"]
+                        self.assertEqual(post.call_count, 2)
+                        self.assertEqual(message["android"]["ttl"], "2s")
+                        self.assertEqual(message["data"], opaque_notice(withdrawal))
+                    self.assertEqual(lifetime(retried, settings.retention, 114), 0)
+                    store.expire(109)
+                    self.assertIsNone(store.claim(120, 5))
+
+    def test_previous_outbox_migrates_queued_dismissal_with_fresh_clock(self):
+        event = Event.make(["old"], "question_requested", 100, run_id="private-run")
+        self.store.record([event])
+        with self.store.write() as db:
+            db.execute("DROP INDEX visible_events")
+            db.execute("ALTER TABLE events DROP COLUMN supersedes")
+            db.execute("ALTER TABLE prompt_recipients RENAME TO question_recipients")
+            db.execute("ALTER TABLE deliveries ADD COLUMN dismiss INTEGER NOT NULL DEFAULT 0")
+            db.execute("UPDATE deliveries SET dismiss=1")
+        with patch("server.mobile_push.store.time.time", return_value=110):
+            migrated = Store(self.settings.state)
+        migrated.expire(106)
+        item = Store(self.settings.state).claim(111, 2)
+        self.assertEqual((item["kind"], item["event_id"], item["created_at"]), ("question_settled", event.event_id, 110))
+        migrated.device("d1", self.settings.profile_key, profile=True, now=111)
+        self.assertFalse(migrated.begin_send(item))
+        self.assertIsNone(migrated.claim(120, 2))
+
     def test_reconciles_actual_fields_across_writes_scope_and_restart(self):
         runs = create_runs(self.settings)
         self.addCleanup(runs.close)

@@ -6,7 +6,9 @@ import json
 APPROVAL = "approval_requested"
 QUESTION = "question_requested"
 DISMISS_QUESTION = "question_settled"
+DISMISS_APPROVAL = "approval_settled"
 PROMPT_KINDS = (APPROVAL, QUESTION)
+WITHDRAWAL_KINDS = (DISMISS_APPROVAL, DISMISS_QUESTION)
 
 
 @dataclass(frozen=True)

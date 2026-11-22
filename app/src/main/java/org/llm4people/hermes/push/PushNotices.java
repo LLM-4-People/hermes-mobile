@@ -19,6 +19,9 @@ import java.util.regex.Pattern;
 
 final class PushNotices {
     static final String QUESTION = "question_requested";
+    static final String APPROVAL = "approval_requested";
+    static final String DISMISS_APPROVAL = "approval_settled";
+    static final long PROMPT_DISPLAY_MILLIS = java.util.concurrent.TimeUnit.HOURS.toMillis(24);
     static final String DISMISS_QUESTION = "question_settled";
     static final String CHANNEL = "hermes_activity";
     static final String ACTION = "org.llm4people.hermes.OPEN_EVENT";
@@ -40,10 +43,14 @@ final class PushNotices {
             case "run_completed" -> "Hermes a terminé";
             case "run_failed" -> "Vérifiez votre session";
             case QUESTION -> "Hermes a une question";
-            case "approval_requested" -> "Autorisation requise";
+            case APPROVAL -> "Autorisation requise";
             case "reminder" -> "Un rappel vous attend";
             default -> null;
         };
+    }
+
+    static boolean isPrompt(String kind) {
+        return QUESTION.equals(kind) || APPROVAL.equals(kind);
     }
 
     static void channel(Context context) {
@@ -76,10 +83,10 @@ final class PushNotices {
         String id = owner.installation;
         if (!owner.receives() || !validIds(id, event)) return;
         PushStore store = PushStore.get(context);
-        if (DISMISS_QUESTION.equals(kind)) {
+        if (DISMISS_QUESTION.equals(kind) || DISMISS_APPROVAL.equals(kind)) {
             // A transport may deliver the dismissal before the original notice.
             synchronized (PushNotices.class) {
-                store.dismissQuestion(id, event);
+                store.dismissPrompt(id, event);
                 context.getSystemService(NotificationManager.class).cancel(id + "/" + event, 1);
             }
             return;
@@ -95,7 +102,8 @@ final class PushNotices {
                 .setContentTitle(title(kind))
                 .setContentText("Ouvrez votre profil pour voir les détails.")
                 .setVisibility(Notification.VISIBILITY_PRIVATE).setContentIntent(tap)
-                .setOnlyAlertOnce(true).setAutoCancel(true).build();
+                .setOnlyAlertOnce(true).setAutoCancel(true)
+                .setTimeoutAfter(isPrompt(kind) ? PROMPT_DISPLAY_MILLIS : 0).build();
 
         synchronized (PushNotices.class) {
             if (store.remember(id,event,kind)) {
