@@ -39,7 +39,8 @@ public final class SessionPanel implements AutoCloseable {
     private volatile int generation;
     private Runnable back;
     private String surface;
-    private View nativeContent;
+    private LinearLayout nativeContent;
+    private LinearLayout navigation;
     private ArtifactDesk.Host layoutHost;
 
     public SessionPanel(Activity activity, HermesApi api, Account account) {
@@ -116,11 +117,11 @@ public final class SessionPanel implements AutoCloseable {
         LinearLayout container = Ui.column(activity);
         container.setFitsSystemWindows(true);
         container.setBackgroundColor(activity.getColor(R.color.paper));
-        LinearLayout nav = Ui.row(activity);
-        Ui.pad(nav, 12, 0);
-        nav.addView(Ui.button(activity, t(parent == null ? R.string.panel_done : R.string.panel_back),
+        navigation = Ui.row(activity);
+        Ui.pad(navigation, 12, 0);
+        navigation.addView(Ui.button(activity, t(parent == null ? R.string.panel_done : R.string.panel_back),
                 view -> { if (parent == null) dialog.dismiss(); else parent.run(); }));
-        container.addView(nav);
+        container.addView(navigation);
         ScrollView scroll = new ScrollView(activity);
         scroll.setFillViewport(true);
         LinearLayout content = Ui.column(activity);
@@ -150,6 +151,21 @@ public final class SessionPanel implements AutoCloseable {
         }
         dialog.getWindow().setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
         return content;
+    }
+
+    /** The landscape IME can leave just one touch target's height for both search and results. */
+    void splitPicker(LinearLayout results, View heading, View search) {
+        LinearLayout controls = Ui.column(activity);
+        nativeContent.removeView(navigation);
+        nativeContent.setOrientation(LinearLayout.HORIZONTAL);
+        nativeContent.addView(controls, 0, new LinearLayout.LayoutParams(0, -1, 1));
+        results.setLayoutParams(new LinearLayout.LayoutParams(0, -1, 1));
+        Ui.pad(navigation, 4, 0);
+        navigation.addView(search, new LinearLayout.LayoutParams(0, -2, 1));
+        controls.addView(navigation);
+        Ui.pad(heading, 12, 2);
+        controls.addView(heading, new LinearLayout.LayoutParams(-1, 0, 1));
+        Ui.pad(results, 8, 0);
     }
 
     TextView note(LinearLayout box, String value) {
@@ -235,6 +251,7 @@ public final class SessionPanel implements AutoCloseable {
         dialog = null;
         surface = null;
         nativeContent = null;
+        navigation = null;
         back = null;
     }
 
