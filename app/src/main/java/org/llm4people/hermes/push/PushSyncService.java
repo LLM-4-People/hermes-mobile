@@ -40,7 +40,8 @@ public final class PushSyncService extends JobService {
     private static synchronized void scheduleRetries(Context context, boolean completed) {
         long due = Long.MAX_VALUE;
         for (PushStore.Device device : PushStore.get(context).devices()) {
-            if (device.unified() && PushStore.PENDING.equals(device.state) && device.retryAt > 0)
+            if (device.unified() && device.retryAt > 0 && (PushStore.PENDING.equals(device.state)
+                    || PushStore.ACTIVE.equals(device.state) && device.repair != PushStore.NO_REPAIR))
                 due = Math.min(due, device.retryAt);
         }
         if (due == Long.MAX_VALUE) return;

@@ -152,6 +152,37 @@ public final class DistributorLifecycleTest extends InstrumentationTestCase {
         assertTrue(outgoing.isEmpty());
     }
 
+    public void testFailedActiveRepairRetriesOnlyItsBindingAndIgnoresFailureAfterEndpoint() throws Exception {
+        PushStore.Device first = prepare(), second = prepare();
+        String token = register(first);
+        register(second);
+        for (PushStore.Device device : devices) {
+            store.updateSubscription(device, "{}");
+            store.enable(store.forProfile(device.profile));
+        }
+        DistributorEnrollment.reconcile(context, true, null);
+        Intent failure = new Intent(CONNECTOR + "REGISTRATION_FAILED").putExtra("token", token).putExtra("reason", "NETWORK");
+        new DistributorReceiver().process(context, failure);
+        PushStore.Device failed = store.forProfile(first.profile);
+        assertTrue(failed.receives());
+        assertEquals(PushStore.RETRY_REPAIR, failed.repair);
+        assertTrue(failed.retryAt > System.currentTimeMillis());
+        assertNull(store.forProfile(second.profile).failure);
+        outgoing.clear();
+        DistributorEnrollment.reconcile(context, true, null);
+        assertTrue(outgoing.isEmpty());
+        store.getWritableDatabase().execSQL("UPDATE devices SET retry_at=1 WHERE installation=?", new Object[]{first.installation});
+        DistributorEnrollment.retryDue(context);
+        assertEquals(1, outgoing.stream().filter(intent -> REGISTER.equals(intent.getAction())).count());
+        assertEquals(token, outgoing.get(0).getStringExtra("token"));
+        assertFalse(store.updateSubscription(store.forProfile(first.profile), "{}"));
+        new DistributorReceiver().process(context, failure);
+        PushStore.Device restored = store.forProfile(first.profile);
+        assertEquals(PushStore.NO_REPAIR, restored.repair);
+        assertEquals(0L, restored.retryAt);
+        assertNull(restored.failure);
+    }
+
     public void testUnprovenOrChangedSignerReceivesNoOldWireTokenEvenWhenRemoved() throws Exception {
         for (String pin : new String[]{"different-certificate", null}) {
             PushStore.Device device = prepare();
