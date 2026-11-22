@@ -15,8 +15,31 @@ import time
 class AndroidControls:
     """Keep the official SDK UI automation connected independently of both application processes."""
 
-    def __init__(self, process):
-        self.process = process
+    def __init__(self, command):
+        self.command = command
+        self.process = None
+
+    def connect(self):
+        self.process = subprocess.Popen(self.command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                        stderr=subprocess.STDOUT, bufsize=0)
+        if self.answer() != b"ready":
+            raise RuntimeError("Android SDK UI session did not initialize")
+
+    def close(self):
+        if self.process is None:
+            return
+        try:
+            if self.process.poll() is None:
+                self.send("finish")
+        finally:
+            self.process.stdin.close()
+            self.process.wait(timeout=30)
+            self.process.stdout.close()
+            self.process = None
+
+    def reconnect(self):
+        self.close()
+        self.connect()
 
     def answer(self):
         limit = time.monotonic() + 35
@@ -74,21 +97,11 @@ def editor(device, directory):
         device.shell("chmod", "444", remote_jar)
         command = device.command + ["shell", "-T", "uiautomator", "runtest", remote_jar, "-c",
                                     "org.llm4people.hermes.verification.FocusedText", "-s"]
-        with subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                              stderr=subprocess.STDOUT, bufsize=0) as process:
-            controls = AndroidControls(process)
-            initialized = False
-            try:
-                if controls.answer() != b"ready":
-                    raise RuntimeError("Android SDK UI session did not initialize")
-                initialized = True
-                yield controls
-            finally:
-                try:
-                    if initialized and process.poll() is None:
-                        controls.send("finish")
-                finally:
-                    process.stdin.close()
-                    process.wait(timeout=30)
+        controls = AndroidControls(command)
+        try:
+            controls.connect()
+            yield controls
+        finally:
+            controls.close()
     finally:
         device.shell("rm", "-f", remote_jar)

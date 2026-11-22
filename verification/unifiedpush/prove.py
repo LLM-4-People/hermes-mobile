@@ -171,6 +171,8 @@ def disposable_app(device, apk):
 
 
 def run(args):
+    if args.evidence_dir:
+        args.evidence_dir.mkdir(mode=0o700, parents=True, exist_ok=False)
     source = args.source.resolve()
     check_source(source, args.revision)
     sys.path.insert(0, str(source))
@@ -250,7 +252,7 @@ def run(args):
                 except Exception as diagnostic:
                     failure.add_note("Delivery state unavailable (" + type(diagnostic).__name__ + ")")
                 raise
-            tap_notice(ui, notice_title(adb, notice), owner, phrase, title, reply)
+            tap_notice(ui, notice_title(adb, notice), owner, phrase, title, reply, args.evidence_dir)
             ui.tap("Atelier")
             ui.tap("Notifications")
             ui.tap("Désactiver")
@@ -320,6 +322,7 @@ def main():
         default=os.environ.get("HERMES_FIXTURE_TLS_CA"),
         help="PEM fixture CA trusted by the disposable Android phone",
     )
+    parser.add_argument("--evidence-dir", type=Path, help="New directory for the generic shade labels and verified thread controls")
     args = parser.parse_args()
     tls = (args.tls_cert, args.tls_key, args.tls_ca)
     if any(tls) and not all(tls):

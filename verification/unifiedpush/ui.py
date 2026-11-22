@@ -1,6 +1,8 @@
 """Interact with the real apps and the Android notification shade through accessibility."""
 
 from contextlib import contextmanager
+import io
+import json
 import re
 import secrets
 import subprocess
@@ -246,11 +248,46 @@ def thread_screen(ui, root, title, reply):
     return all(ui.node(label, root) is not None for label in (title, reply, "Envoyer"))
 
 
-def tap_notice(ui, notice_text, owner, phrase, title, reply):
+def capture_notice(ui, title, directory):
+    from PIL import Image
+
+    root = ui.hierarchy()
+    heading = ui.node(title, root)
+    if heading is None:
+        raise AssertionError("The expected notification left the shade before capture")
+    controls = [heading]
+    body = ui.node("Ouvrez votre profil pour voir les détails.", root)
+    if body is not None:
+        controls.append(body)
+    # Only retain pixels within these two generic native label bounds. Other notifications
+    # and the status bar are never written to disk.
+    with Image.open(io.BytesIO(ui.device.run("exec-out", "screencap", "-p"))) as image:
+        source = image.convert("RGB")
+        redacted = Image.new("RGB", source.size, "black")
+        rects = [tuple(map(int, re.findall(r"-?\d+", control.get("bounds")))) for control in controls]
+        for box in rects:
+            redacted.paste(source.crop(box), box)
+        left = min(box[0] for box in rects)
+        top = min(box[1] for box in rects)
+        right = max(box[2] for box in rects)
+        bottom = max(box[3] for box in rects)
+        with (directory / "native-notification-shade.png").open("xb") as output:
+            redacted.save(output, "PNG")
+        with (directory / "native-notification-labels.png").open("xb") as output:
+            redacted.crop((left, top, right, bottom)).save(output, "PNG")
+
+
+def tap_notice(ui, notice_text, owner, phrase, title, reply, evidence=None):
     device = ui.device
     device.shell("cmd", "statusbar", "expand-notifications")
+    ui.wait(notice_text)
+    if evidence:
+        capture_notice(ui, notice_text, evidence)
     ui.tap(notice_text)
-    ui.wait(owner)
+    # The OS just transferred focus from SystemUI to a new process for the same app.
+    # Reacquire Android's accessibility connection to its newly created secure window.
+    ui.controls.reconnect()
+    profile_label = ui.wait(owner).get("text")
     ui.field("Phrase secrète du profil", phrase)
     ui.tap("Déverrouiller")
 
@@ -260,6 +297,11 @@ def tap_notice(ui, notice_text, owner, phrase, title, reply):
             return False
         if thread_screen(ui, root, title, "Absent-" + secrets.token_hex(16)):
             raise AssertionError("A different thread reply matched the opened transcript")
+        if evidence:
+            visible = [ui.node(label, root).get("text") for label in (title, reply, "Envoyer")]
+            with (evidence / "secure-thread-visible-controls.json").open("x") as output:
+                json.dump({"unlocked_profile": profile_label, "visible_thread_controls": visible}, output, ensure_ascii=False, indent=2)
+                output.write("\n")
         return True
 
     eventually("unique title and reply alongside the thread composer", opened)
