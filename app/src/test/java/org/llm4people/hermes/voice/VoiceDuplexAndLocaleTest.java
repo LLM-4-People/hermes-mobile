@@ -23,8 +23,10 @@ public final class VoiceDuplexAndLocaleTest {
         assertEquals("de", VoiceLocale.SYSTEM.resolveLanguage(Locale.GERMANY));
         assertEquals("fr-FR", VoiceLocale.SYSTEM.resolveTag(null));
 
-        assertEquals(VoiceLocale.FRENCH, VoiceLocale.fromStorageKey(null));
-        assertEquals(VoiceLocale.FRENCH, VoiceLocale.fromStorageKey("unknown"));
+        assertEquals(VoiceLocale.SYSTEM, VoiceLocale.fromStorageKey(null));
+        assertEquals(VoiceLocale.SYSTEM, VoiceLocale.fromStorageKey("unknown"));
+        assertEquals(VoiceLocale.FRENCH, VoiceLocale.fromStorageKey("french"));
+        assertEquals(VoiceLocale.FRENCH, VoiceLocale.fromStorageKey("fr"));
         assertEquals(VoiceLocale.ENGLISH, VoiceLocale.fromStorageKey("english"));
         assertEquals(VoiceLocale.SYSTEM, VoiceLocale.fromStorageKey("system"));
     }

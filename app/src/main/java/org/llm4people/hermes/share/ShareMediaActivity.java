@@ -2,11 +2,13 @@ package org.llm4people.hermes.share;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
 import android.view.WindowManager;
 
+import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.HermesConfig;
 import org.llm4people.hermes.MainActivity;
@@ -31,6 +33,10 @@ public final class ShareMediaActivity extends Activity {
 
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private String waiting;
+
+    @Override protected void attachBaseContext(Context newBase) {
+        super.attachBaseContext(AppLanguage.wrapContext(newBase));
+    }
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
@@ -71,10 +77,17 @@ public final class ShareMediaActivity extends Activity {
                 sanitized.add(CapturedMedia.readFromUri(getContentResolver(), uri, declaredMime, maxBytes));
             }
             String receipt = IncomingMediaShare.create(this, sanitized);
+            if (receipt != null && (Thread.currentThread().isInterrupted() || isFinishing() || isDestroyed())) {
+                IncomingMediaShare.discard(this, receipt);
+                return;
+            }
             String existing = receipt == null ? IncomingMediaShare.pending(this) : null;
             runOnUiThread(() -> {
                 setIntent(new Intent());
-                if (isFinishing() || isDestroyed()) return;
+                if (isFinishing() || isDestroyed()) {
+                    if (receipt != null) IncomingMediaShare.discard(this, receipt);
+                    return;
+                }
                 if (receipt != null) review(receipt);
                 else busy(existing);
             });

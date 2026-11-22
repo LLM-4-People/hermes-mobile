@@ -5,6 +5,7 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.Toast;
 
+import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.R;
 
 import java.util.List;
@@ -20,13 +21,13 @@ public final class ReplyReader {
     private Button owner;
 
     ReplyReader(Activity activity, Runnable cancelDictation) {
-        this(activity, cancelDictation, () -> VoiceLocale.FRENCH);
+        this(activity, cancelDictation, () -> VoiceLocale.SYSTEM);
     }
 
     ReplyReader(Activity activity, Runnable cancelDictation, Supplier<VoiceLocale> localeSupplier) {
         this.activity = activity;
         this.cancelDictation = cancelDictation;
-        this.localeSupplier = localeSupplier == null ? () -> VoiceLocale.FRENCH : localeSupplier;
+        this.localeSupplier = localeSupplier == null ? () -> VoiceLocale.SYSTEM : localeSupplier;
         playback = new SpeechPlayback(() -> new AndroidReplySpeech(activity, this.localeSupplier), this::finished);
     }
 
@@ -98,8 +99,13 @@ public final class ReplyReader {
         if (failure != null) {
             int message = switch (failure) {
                 case EMPTY -> R.string.read_empty;
-                case UNAVAILABLE -> localeSupplier.get() == VoiceLocale.FRENCH
-                        ? R.string.read_unavailable : R.string.read_unavailable_locale;
+                case UNAVAILABLE -> {
+                    VoiceLocale selected = localeSupplier.get();
+                    boolean french = selected == VoiceLocale.FRENCH
+                            || ((selected == null || selected == VoiceLocale.SYSTEM)
+                                    && AppLanguage.TAG_FRENCH.equals(AppLanguage.resolvedTag(activity)));
+                    yield french ? R.string.read_unavailable : R.string.read_unavailable_locale;
+                }
                 case INTERRUPTED -> R.string.read_interrupted;
             };
             Toast.makeText(activity, message, Toast.LENGTH_LONG).show();

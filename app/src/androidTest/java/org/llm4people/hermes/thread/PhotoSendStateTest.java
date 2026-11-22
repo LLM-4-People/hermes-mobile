@@ -7,6 +7,7 @@ import android.test.InstrumentationTestCase;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import org.llm4people.hermes.R;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @SuppressWarnings("deprecation")
@@ -20,7 +21,7 @@ public final class PhotoSendStateTest extends InstrumentationTestCase {
                 ThreadViews screen = new ThreadViews(activity);
                 AtomicInteger sends = new AtomicInteger();
                 screen.chat("", text -> {}, sends::incrementAndGet, () -> {}, () -> {});
-                Button send = findSend(screen.root);
+                Button send = findSend(screen.root, activity.getString(R.string.thread_send));
                 assertNotNull(send);
                 for (String spaces : new String[]{"\u00a0", "\u202f", " \u00a0\u202f "}) {
                     screen.displayDraft(spaces);
@@ -51,11 +52,11 @@ public final class PhotoSendStateTest extends InstrumentationTestCase {
             });
         } finally { runTestOnUiThread(activity::finish); }
     }
-    private static Button findSend(View view) {
-        if (view instanceof Button b && "Envoyer".contentEquals(b.getText())) return b;
+    private static Button findSend(View view, String label) {
+        if (view instanceof Button b && label.contentEquals(b.getText())) return b;
         if (view instanceof ViewGroup group) {
             for (int i = 0; i < group.getChildCount(); i++) {
-                Button button = findSend(group.getChildAt(i));
+                Button button = findSend(group.getChildAt(i), label);
                 if (button != null) return button;
             }
         }

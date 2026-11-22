@@ -25,11 +25,11 @@ public enum VoiceLocale {
     }
 
     public static VoiceLocale fromStorageKey(String key) {
-        if (key == null) return FRENCH;
+        if (key == null) return SYSTEM;
         return switch (key.trim().toLowerCase(Locale.ROOT)) {
+            case "french", "fr" -> FRENCH;
             case "english", "en" -> ENGLISH;
-            case "system", "auto" -> SYSTEM;
-            default -> FRENCH;
+            default -> SYSTEM;
         };
     }
 

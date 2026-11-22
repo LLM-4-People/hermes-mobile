@@ -26,5 +26,5 @@ interface VoiceInput {
     void requestPermission(int code);
     Recording open(Source source, Listener listener);
     default void setLocale(VoiceLocale locale) {}
-    default VoiceLocale locale() { return VoiceLocale.FRENCH; }
+    default VoiceLocale locale() { return VoiceLocale.SYSTEM; }
 }

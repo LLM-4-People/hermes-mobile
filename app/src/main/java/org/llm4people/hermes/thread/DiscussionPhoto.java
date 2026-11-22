@@ -13,6 +13,7 @@ import android.provider.OpenableColumns;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.llm4people.hermes.HermesConfig;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -24,7 +25,7 @@ import java.util.Base64;
 
 /** A user-selected still image. Only re-encoded pixels leave the phone. */
 final class DiscussionPhoto {
-    private static final int SOURCE_LIMIT = 16 * 1024 * 1024;
+    private static final long SOURCE_LIMIT = HermesConfig.DEFAULT_ARTIFACT_MAX_BYTES;
     static final int PAYLOAD_LIMIT = 640 * 1024;
     final JSONObject info;
     final String pixels;
@@ -35,7 +36,12 @@ final class DiscussionPhoto {
     }
 
     static DiscussionPhoto read(ContentResolver resolver, Uri uri) throws IOException {
+        return read(resolver, uri, SOURCE_LIMIT);
+    }
+
+    static DiscussionPhoto read(ContentResolver resolver, Uri uri, long maxSourceBytes) throws IOException {
         if (!ContentResolver.SCHEME_CONTENT.equals(uri.getScheme())) throw new IOException();
+        long limit = HermesConfig.defaults().resolveArtifactLimit(maxSourceBytes);
         byte[] source;
         try (InputStream input = resolver.openInputStream(uri)) {
             if (input == null) throw new IOException();
@@ -43,16 +49,21 @@ final class DiscussionPhoto {
             byte[] buffer = new byte[32768];
             int length;
             while ((length = input.read(buffer)) != -1) {
-                if (Thread.currentThread().isInterrupted() || data.size() + length > SOURCE_LIMIT) throw new IOException();
+                if (Thread.currentThread().isInterrupted() || data.size() + (long) length > limit) throw new IOException();
                 data.write(buffer, 0, length);
             }
             source = data.toByteArray();
         }
-        return fromBytes(source, name(resolver, uri));
+        return fromBytes(source, name(resolver, uri), limit);
     }
 
     static DiscussionPhoto fromBytes(byte[] source, String name) throws IOException {
-        if (source.length == 0 || source.length > SOURCE_LIMIT) throw new IOException("Unsupported image size");
+        return fromBytes(source, name, SOURCE_LIMIT);
+    }
+
+    static DiscussionPhoto fromBytes(byte[] source, String name, long maxSourceBytes) throws IOException {
+        long limit = HermesConfig.defaults().resolveArtifactLimit(maxSourceBytes);
+        if (source.length == 0 || source.length > limit) throw new IOException("Unsupported image size");
         Bitmap image = ImageDecoder.decodeBitmap(ImageDecoder.createSource(ByteBuffer.wrap(source)), (decoder, details, src) -> {
             int width = details.getSize().getWidth(), height = details.getSize().getHeight();
             if (details.isAnimated() || width <= 0 || height <= 0 || (long) width * height > 128_000_000L)

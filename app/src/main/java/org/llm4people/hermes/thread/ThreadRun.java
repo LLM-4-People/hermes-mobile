@@ -56,8 +56,12 @@ final class ThreadRun {
 
     void send() {
         String text = ui.draft();
-        if (submitting || page.importingPhoto || journal.pending() != null || VisibleText.isBlank(text)) return;
+        if (submitting || page.importingPhoto || journal.pending() != null || VisibleText.isBlank(text)) {
+            ui.stopDuplex();
+            return;
+        }
         if (!journal.photoOwned()) {
+            ui.stopDuplex();
             ui.notice("Le profil a changé. Retirez l’image et sélectionnez-la de nouveau.", "", null);
             return;
         }
@@ -66,13 +70,17 @@ final class ThreadRun {
         if (!page.nearby.beforeSend(text, () -> {
             if (page.token() == token && page.journal == journal && !page.importingPhoto && original.getAsBoolean()
                     && ui.root.isShown() && text.equals(ui.draft())) send();
-        })) return;
+        })) {
+            ui.stopDuplex();
+            return;
+        }
         JSONObject options;
         try {
             options = page.host.options(page.sessionId());
             if (options == null) throw new IllegalStateException("Missing session settings");
         }
         catch (RuntimeException unreadable) {
+            ui.stopDuplex();
             ui.notice("Réglages illisibles. Vérifiez le modèle et les outils avant l’envoi.", "", null);
             return;
         }
@@ -132,6 +140,7 @@ final class ThreadRun {
             if (body == null || idem == null || !idem.optBoolean("supported")) {
                 admissionFinished();
                 reportProgress(LiveRunNotification.Snapshot.idle());
+                ui.stopDuplex();
                 if (!fresh) { uncertain(); return; }
                 ui.busy(false, false);
                 ui.notice("Cette passerelle doit prendre en charge les envois identifiables. Mettez Hermes à jour.", "", null);
@@ -140,6 +149,7 @@ final class ThreadRun {
             if (!fresh && !NearbyTurn.canReplay(journal.pending(), features)) {
                 admissionFinished();
                 reportProgress(LiveRunNotification.Snapshot.idle());
+                ui.stopDuplex();
                 uncertain();
                 return;
             }
@@ -148,6 +158,7 @@ final class ThreadRun {
             if (ignoresToolsets || ignoresExclusions) {
                 admissionFinished();
                 reportProgress(LiveRunNotification.Snapshot.idle());
+                ui.stopDuplex();
                 if (!fresh) { uncertain(); return; }
                 ui.busy(false, false);
                 ui.notice("Cette passerelle ne peut pas appliquer la sélection d’outils. Vérifiez les réglages de la conversation.", "", null);
@@ -162,6 +173,7 @@ final class ThreadRun {
                 if (!snapshot.equals(ui.draft()) || selectedPhoto != journal.photo() || !page.nearby.stillCurrent(nearbyVersion, area)) {
                     admissionFinished();
                     reportProgress(LiveRunNotification.Snapshot.idle());
+                    ui.stopDuplex();
                     ui.busy(false, false);
                     ui.notice("Le brouillon a changé. Vous pouvez l’envoyer.", "", null);
                     return;
@@ -169,6 +181,7 @@ final class ThreadRun {
                 if (!stagedAttachments.isEmpty() && !AttachmentUploader.supportsUploads(features)) {
                     admissionFinished();
                     reportProgress(LiveRunNotification.Snapshot.idle());
+                    ui.stopDuplex();
                     ui.busy(false, false);
                     ui.notice("Mettez Hermes à jour pour envoyer des fichiers joints.", "", null);
                     return;
@@ -176,6 +189,7 @@ final class ThreadRun {
                 if (area != null && !NearbyTurn.supportsScope(features)) {
                     admissionFinished();
                     reportProgress(LiveRunNotification.Snapshot.idle());
+                    ui.stopDuplex();
                     ui.busy(false, false);
                     int token = page.token();
                     java.util.function.BooleanSupplier unchanged = journal.unchangedDraft(snapshot);
@@ -190,6 +204,7 @@ final class ThreadRun {
                     if (remoteSession == null || remoteSession.trim().isEmpty()) {
                         admissionFinished();
                         reportProgress(LiveRunNotification.Snapshot.idle());
+                        ui.stopDuplex();
                         ui.busy(false, false);
                         ui.notice("La discussion n’est pas encore prête pour recevoir des fichiers. Réessayez.", "", null);
                         return;
@@ -203,6 +218,7 @@ final class ThreadRun {
                                 || !stagedAttachments.equals(ui.stagedAttachments())) {
                             admissionFinished();
                             reportProgress(LiveRunNotification.Snapshot.idle());
+                            ui.stopDuplex();
                             ui.busy(false, false);
                             ui.notice("Le brouillon a changé. Vous pouvez l’envoyer.", "", null);
                             return;
@@ -212,6 +228,7 @@ final class ThreadRun {
                     }, error -> {
                         admissionFinished();
                         reportProgress(LiveRunNotification.Snapshot.idle());
+                        ui.stopDuplex();
                         ui.busy(false, false);
                         page.error(error, this::send);
                     });
@@ -227,6 +244,7 @@ final class ThreadRun {
                         pending.optBoolean("durable") && idem.optBoolean("durable"))) {
                     admissionFinished();
                     reportProgress(LiveRunNotification.Snapshot.idle());
+                    ui.stopDuplex();
                     uncertain();
                     return;
                 }
@@ -236,6 +254,7 @@ final class ThreadRun {
             admissionFinished();
             ui.busy(!fresh, false);
             reportProgress(LiveRunNotification.Snapshot.idle());
+            ui.stopDuplex();
             page.error(error, fresh ? this::send : this::restore);
         });
     }
@@ -262,10 +281,12 @@ final class ThreadRun {
         } catch (IllegalStateException | JSONException e) {
             admissionFinished();
             reportProgress(LiveRunNotification.Snapshot.idle());
+            ui.stopDuplex();
             ui.busy(false, false);
             page.storageError();
             return;
         }
+        page.clearSuggestedActions();
         ui.clearDraft();
         if (!stagedAttachments.isEmpty()) ui.clearAttachments();
         page.refreshPhoto();
@@ -298,6 +319,7 @@ final class ThreadRun {
         }, error -> {
             admissionFinished();
             reportProgress(LiveRunNotification.Snapshot.idle());
+            ui.stopDuplex();
             started = -1;
             // Only a definitive rejection of the first attempt can return the text to the draft.
             boolean imageUnavailable = image != null && error instanceof DiscussionPhoto.Unavailable;
@@ -325,6 +347,7 @@ final class ThreadRun {
 
     private void uncertain() {
         reportProgress(LiveRunNotification.Snapshot.idle());
+        ui.stopDuplex();
         RunAction owner = owner();
         canStop = false;
         ui.busy(true, false);
@@ -429,6 +452,7 @@ final class ThreadRun {
         ++subscription;
         canStop = false;
         reportProgress(LiveRunNotification.Snapshot.idle());
+        ui.stopDuplex();
         decisions.clear();
         frame = null;
         started = -1;
@@ -466,6 +490,7 @@ final class ThreadRun {
 
     private void trackingInterrupted() {
         reportProgress(LiveRunNotification.Snapshot.idle());
+        ui.stopDuplex();
         RunAction owner = owner().when(journal::reconnectsExhausted);
         ui.notice("Suivi interrompu. Vous pouvez consulter la conversation.",
                 "Vérifier la conversation", owner.guard(() -> page.loadMessages(false,
@@ -537,6 +562,7 @@ final class ThreadRun {
             ui.live("completed".equals(outcome) && (output.isEmpty() || visible) ? "" : summary,
                     visible ? "" : output, false);
             if (status.has("suggested_actions")) page.onSuggestedActions(status.opt("suggested_actions"));
+            else page.clearSuggestedActions();
             ui.notice("", "", null);
         }), keepPosition);
     }
@@ -570,6 +596,7 @@ final class ThreadRun {
         ++subscription;
         canStop = false;
         reportProgress(LiveRunNotification.Snapshot.idle());
+        ui.stopDuplex();
         if (decisions != null) decisions.clear();
         if (follower != null) follower.close();
         checkpoint();

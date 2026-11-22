@@ -100,7 +100,8 @@ public final class CapturedMedia {
         }
         String normalized = resolvedMime.trim().toLowerCase(Locale.ROOT);
         long limit = HermesConfig.defaults().resolveArtifactLimit(maxDocumentBytes);
-        byte[] raw = readBounded(resolver, uri, normalized.startsWith("image/") ? Math.min(limit, 16L * 1024 * 1024) : limit);
+        byte[] raw = readBounded(resolver, uri, normalized.startsWith("image/")
+                ? Math.min(limit, HermesConfig.DEFAULT_ARTIFACT_MAX_BYTES) : limit);
         String name = queryName(resolver, uri, normalized.startsWith("image/") ? "Photo.jpg" : "Document");
         if (normalized.startsWith("image/")) {
             return stripImageExif(raw, name);
@@ -110,7 +111,7 @@ public final class CapturedMedia {
 
     /** Re-encode a still image into fresh sRGB opaque pixels, discarding all EXIF, GPS, and ICC tags. */
     public static Item stripImageExif(byte[] source, String name) throws IOException {
-        if (source == null || source.length == 0 || source.length > 16 * 1024 * 1024) {
+        if (source == null || source.length == 0 || source.length > HermesConfig.DEFAULT_ARTIFACT_MAX_BYTES) {
             throw new IOException("Unsupported image size");
         }
         Bitmap image = ImageDecoder.decodeBitmap(ImageDecoder.createSource(ByteBuffer.wrap(source)), (decoder, details, src) -> {

@@ -63,7 +63,7 @@ public final class VoiceDrafts {
     public VoiceLocale locale() { return selectedLocale; }
 
     public void setLocale(VoiceLocale locale) {
-        VoiceLocale next = locale == null ? VoiceLocale.FRENCH : locale;
+        VoiceLocale next = locale == null ? VoiceLocale.SYSTEM : locale;
         if (next == selectedLocale) return;
         selectedLocale = next;
         input.setLocale(next);
@@ -276,7 +276,11 @@ public final class VoiceDrafts {
 
     public void pause() {
         reader.stop();
-        if (activeDuplex != null) activeDuplex.stop();
+        boolean awaitingDuplexPermission = active != null
+                && active.phase == Phase.PERMISSION
+                && active.duplex != null
+                && active.duplex == activeDuplex;
+        if (activeDuplex != null && !awaitingDuplexPermission) activeDuplex.stop();
         if (optionsDialog != null) { optionsDialog.dismiss(); optionsDialog = null; }
         paused = true;
         // The system permission sheet pauses the activity. Only its pending grant can survive that pause.

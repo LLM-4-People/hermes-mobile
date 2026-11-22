@@ -2,12 +2,18 @@ package org.llm4people.hermes.share;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.text.InputFilter;
+import android.text.InputType;
 import android.view.View;
+import android.widget.EditText;
+import android.widget.LinearLayout;
+import android.widget.TextView;
 
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.llm4people.hermes.Diagnostics;
+import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.VisibleText;
 import org.llm4people.hermes.ambient.AmbientNotification;
@@ -26,8 +32,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.regex.Pattern;
 
 /**
@@ -46,6 +54,7 @@ public final class DeviceBridgeFlow {
             "notifications_digest", "notification_reply", "media_control", "calendar_read");
 
     private static final Pattern REQUEST_ID = Pattern.compile("[A-Za-z0-9_.-]{1,64}");
+    private static final int MAX_NOTIFICATION_REPLY_CHARS = 1000;
 
     public enum Status {
         COMPLETED("completed"),
@@ -74,13 +83,42 @@ public final class DeviceBridgeFlow {
     /** Executor providing its own dedicated FLAG_SECURE confirmation dialog for specific actions. */
     public interface InteractiveExecutor extends Executor {
         boolean handleReviewed(Activity activity, BridgeRequest request, Callback callback);
+
+        default boolean handleReviewed(Activity activity, BridgeRequest request, Callback callback,
+                                       Consumer<AlertDialog> onDialogShown) {
+            return handleReviewed(activity, request, callback);
+        }
     }
 
     public interface Callback {
         void finish(Status status, JSONObject data);
     }
 
+    private record OpenPrompt(AlertDialog dialog, Callback settle) {}
+
     private final Set<String> handled = new LinkedHashSet<>();
+    private final List<OpenPrompt> openPrompts = new ArrayList<>();
+
+    /** Dismisses every active confirmation dialog fail-closed (reporting UNAVAILABLE for unsettled prompts). */
+    public void dismissDialogs() {
+        List<OpenPrompt> snapshot = new ArrayList<>(openPrompts);
+        openPrompts.clear();
+        for (OpenPrompt entry : snapshot) {
+            try {
+                if (entry.dialog().isShowing()) entry.dialog().dismiss();
+            } catch (RuntimeException ignored) {
+                Diagnostics.debug("device_bridge", "dialog_dismiss_ignored", ignored);
+            }
+            entry.settle().finish(Status.UNAVAILABLE, null);
+        }
+    }
+
+    private void trackDialog(AlertDialog dialog, Callback settle) {
+        if (dialog == null) return;
+        OpenPrompt entry = new OpenPrompt(dialog, settle);
+        openPrompts.add(entry);
+        dialog.setOnDismissListener(d -> openPrompts.remove(entry));
+    }
 
     /** Build the bounded per-run device_capabilities list strictly within Fork PR #15's allowlist. */
     public static List<String> advertisedCapabilities(
@@ -151,6 +189,63 @@ public final class DeviceBridgeFlow {
         return Collections.unmodifiableList(caps);
     }
 
+    static String rawMediaCommand(JSONObject params) {
+        if (params == null) return "";
+        String action = params.optString("action", "").trim();
+        if (!action.isEmpty()) return action;
+        return params.optString("command", "").trim();
+    }
+
+    static boolean isMediaStatusCommand(String rawCommand) {
+        String cmd = rawCommand == null ? "" : rawCommand.trim();
+        return cmd.isEmpty() || "status".equalsIgnoreCase(cmd);
+    }
+
+    static boolean isMediaStatusCommand(JSONObject params) {
+        return isMediaStatusCommand(rawMediaCommand(params));
+    }
+
+    static int resolveCalendarDays(Integer daysAhead, Integer days) {
+        if (daysAhead != null) return daysAhead;
+        if (days != null) return days;
+        return CalendarContextReader.DEFAULT_WINDOW_DAYS;
+    }
+
+    static int resolveCalendarDays(JSONObject params) {
+        if (params == null) return CalendarContextReader.DEFAULT_WINDOW_DAYS;
+        Integer ahead = params.has("days_ahead") && params.opt("days_ahead") instanceof Number n ? n.intValue() : null;
+        Integer legacy = params.has("days") && params.opt("days") instanceof Number n ? n.intValue() : null;
+        return resolveCalendarDays(ahead, legacy);
+    }
+
+    private static NotificationAllowlist.Settings liveSettings(Account account) {
+        if (account == null) return null;
+        try {
+            return NotificationAllowlist.forAccount(account).settings();
+        } catch (IllegalStateException lockedOrUnavailable) {
+            Diagnostics.warning("device_bridge", "account_locked");
+            return null;
+        }
+    }
+
+    private static boolean packageStillAllowed(Account account, String packageName) {
+        if (account == null || packageName == null || packageName.isEmpty()) return false;
+        try {
+            return NotificationAllowlist.forAccount(account).effectiveAllowedPackages().contains(packageName);
+        } catch (IllegalStateException lockedOrUnavailable) {
+            return false;
+        }
+    }
+
+    private static String mediaActionLabel(Activity activity, MediaContextBridge.ControlAction action) {
+        return switch (action) {
+            case PLAY -> activity.getString(R.string.ambient_media_play);
+            case PAUSE -> activity.getString(R.string.ambient_media_pause);
+            case NEXT -> activity.getString(R.string.ambient_media_next);
+            case PREVIOUS -> activity.getString(R.string.ambient_media_previous);
+        };
+    }
+
     /**
      * Unified executor for clipboard_read + fail-closed ambient capabilities
      * (notifications_digest, notification_reply, media_control, calendar_read).
@@ -160,46 +255,86 @@ public final class DeviceBridgeFlow {
         Executor clipboard = clipboardExecutor(pill);
         return new InteractiveExecutor() {
             @Override public boolean handleReviewed(Activity hostActivity, BridgeRequest request, Callback callback) {
+                return handleReviewed(hostActivity, request, callback, null);
+            }
+
+            @Override public boolean handleReviewed(Activity hostActivity, BridgeRequest request, Callback callback,
+                                                    Consumer<AlertDialog> onDialogShown) {
                 if (hostActivity == null || request == null || callback == null || account == null) return false;
-                NotificationAllowlist allowlist = NotificationAllowlist.forAccount(account);
-                NotificationAllowlist.Settings settings = allowlist.settings();
+                NotificationAllowlist.Settings settings = liveSettings(account);
                 if ("notification_reply".equals(request.actionType())) {
-                    if (!settings.notificationsEnabled() || !HermesNotificationListener.isListenerEnabled(hostActivity)) {
+                    if (settings == null || !settings.notificationsEnabled()
+                            || !HermesNotificationListener.isListenerEnabled(hostActivity)) {
                         callback.finish(Status.UNAVAILABLE, null);
                         return true;
                     }
                     AmbientNotification target = findReplyTarget(request.params());
-                    if (target == null || !target.replyable) {
+                    if (target == null || !target.replyable || !packageStillAllowed(account, target.packageName)) {
                         callback.finish(Status.UNAVAILABLE, null);
                         return true;
                     }
                     String draft = request.params().optString("text",
                             request.params().optString("reply_text", "")).trim();
-                    HermesNotificationListener.showQuickReplyConfirmation(hostActivity, target, draft, outcome -> {
-                        if (outcome == HermesNotificationListener.ReplyOutcome.SENT) {
-                            try {
-                                callback.finish(Status.COMPLETED, new JSONObject()
-                                        .put("sent", true)
-                                        .put("key", target.key)
-                                        .put("app", target.displaySource()));
-                            } catch (JSONException invalid) {
-                                callback.finish(Status.COMPLETED, null);
-                            }
-                        } else if (outcome == HermesNotificationListener.ReplyOutcome.CANCELLED) {
-                            callback.finish(Status.DENIED, null);
-                        } else {
-                            callback.finish(Status.UNAVAILABLE, null);
-                        }
-                    });
+                    LinearLayout content = Ui.column(hostActivity);
+                    Ui.pad(content, 20, 12);
+                    TextView header = Ui.text(hostActivity,
+                            hostActivity.getString(R.string.ambient_reply_target, target.displaySource(), target.displaySender()), 14);
+                    header.setTextColor(hostActivity.getColor(R.color.muted));
+                    content.addView(header);
+                    EditText editor = new EditText(hostActivity);
+                    editor.setHint(R.string.ambient_reply_hint);
+                    editor.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+                            | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+                    editor.setMinHeight(Ui.dp(hostActivity, 56));
+                    editor.setTextColor(hostActivity.getColor(R.color.ink));
+                    editor.setHintTextColor(hostActivity.getColor(R.color.muted));
+                    editor.setSaveEnabled(false);
+                    editor.setFilters(new InputFilter[]{new InputFilter.LengthFilter(MAX_NOTIFICATION_REPLY_CHARS)});
+                    editor.setText(draft);
+                    content.addView(editor);
+                    AlertDialog dialog = Ui.secureDialog(new AlertDialog.Builder(hostActivity)
+                            .setTitle(R.string.ambient_reply_title)
+                            .setView(content)
+                            .setNegativeButton(R.string.ambient_reply_cancel, (d, w) -> callback.finish(Status.DENIED, null))
+                            .setOnCancelListener(d -> callback.finish(Status.DENIED, null))
+                            .setPositiveButton(R.string.ambient_reply_send, (d, w) -> {
+                                NotificationAllowlist.Settings current = liveSettings(account);
+                                if (current == null || !current.notificationsEnabled()
+                                        || !HermesNotificationListener.isListenerEnabled(hostActivity)
+                                        || !packageStillAllowed(account, target.packageName)) {
+                                    callback.finish(Status.UNAVAILABLE, null);
+                                    return;
+                                }
+                                boolean sent = HermesNotificationListener.sendReviewedReply(
+                                        hostActivity, target.key, editor.getText().toString(), true);
+                                if (sent) {
+                                    try {
+                                        callback.finish(Status.COMPLETED, new JSONObject()
+                                                .put("sent", true)
+                                                .put("key", target.key)
+                                                .put("app", target.displaySource()));
+                                    } catch (JSONException invalid) {
+                                        callback.finish(Status.COMPLETED, null);
+                                    }
+                                } else {
+                                    callback.finish(Status.UNAVAILABLE, null);
+                                }
+                            }));
+                    if (onDialogShown != null) onDialogShown.accept(dialog);
                     return true;
                 }
                 if ("media_control".equals(request.actionType())) {
-                    if (!settings.mediaEnabled() || !HermesNotificationListener.isListenerEnabled(hostActivity)) {
+                    if (settings == null || !settings.mediaEnabled()
+                            || !HermesNotificationListener.isListenerEnabled(hostActivity)) {
                         callback.finish(Status.UNAVAILABLE, null);
                         return true;
                     }
+                    if (isMediaStatusCommand(request.params())) {
+                        // Fall through to promptUser() confirmation dialog, then execute() reads sanitized status.
+                        return false;
+                    }
                     MediaContextBridge.ControlAction action = MediaContextBridge.ControlAction.fromWire(
-                            request.params().optString("action", request.params().optString("command", "")));
+                            rawMediaCommand(request.params()));
                     if (action == null) {
                         callback.finish(Status.UNAVAILABLE, null);
                         return true;
@@ -212,22 +347,35 @@ public final class DeviceBridgeFlow {
                         callback.finish(Status.UNAVAILABLE, null);
                         return true;
                     }
-                    MediaContextBridge.showControlConfirmationOutcome(hostActivity, true, track, action, outcome -> {
-                        if (outcome == MediaContextBridge.ControlOutcome.APPLIED) {
-                            try {
-                                callback.finish(Status.COMPLETED, new JSONObject()
-                                        .put("applied", true)
-                                        .put("action", action.name().toLowerCase(java.util.Locale.ROOT))
-                                        .put("package", track.packageName()));
-                            } catch (JSONException invalid) {
-                                callback.finish(Status.COMPLETED, null);
-                            }
-                        } else if (outcome == MediaContextBridge.ControlOutcome.CANCELLED) {
-                            callback.finish(Status.DENIED, null);
-                        } else {
-                            callback.finish(Status.UNAVAILABLE, null);
-                        }
-                    });
+                    String actionLabel = mediaActionLabel(hostActivity, action);
+                    AlertDialog dialog = Ui.secureDialog(new AlertDialog.Builder(hostActivity)
+                            .setTitle(R.string.ambient_media_confirm_title)
+                            .setMessage(hostActivity.getString(R.string.ambient_media_confirm_body, actionLabel, track.displayTrack()))
+                            .setNegativeButton(R.string.ambient_reply_cancel, (d, w) -> callback.finish(Status.DENIED, null))
+                            .setOnCancelListener(d -> callback.finish(Status.DENIED, null))
+                            .setPositiveButton(R.string.ambient_media_confirm_ok, (d, w) -> {
+                                NotificationAllowlist.Settings current = liveSettings(account);
+                                if (current == null || !current.mediaEnabled()
+                                        || !HermesNotificationListener.isListenerEnabled(hostActivity)) {
+                                    callback.finish(Status.UNAVAILABLE, null);
+                                    return;
+                                }
+                                boolean ok = MediaContextBridge.dispatchConfirmedAction(
+                                        hostActivity, true, track.packageName(), action, true);
+                                if (ok) {
+                                    try {
+                                        callback.finish(Status.COMPLETED, new JSONObject()
+                                                .put("applied", true)
+                                                .put("action", action.name().toLowerCase(Locale.ROOT))
+                                                .put("package", track.packageName()));
+                                    } catch (JSONException invalid) {
+                                        callback.finish(Status.COMPLETED, null);
+                                    }
+                                } else {
+                                    callback.finish(Status.UNAVAILABLE, null);
+                                }
+                            }));
+                    if (onDialogShown != null) onDialogShown.accept(dialog);
                     return true;
                 }
                 return false;
@@ -235,16 +383,19 @@ public final class DeviceBridgeFlow {
 
             @Override public void execute(BridgeRequest request, Callback callback) {
                 if (request == null || callback == null) return;
+                NotificationAllowlist.Settings settings = liveSettings(account);
+                if (settings == null) {
+                    callback.finish(Status.UNAVAILABLE, null);
+                    return;
+                }
                 if ("clipboard_read".equals(request.actionType())) {
                     clipboard.execute(request, callback);
                     return;
                 }
-                if (activity == null || account == null) {
+                if (activity == null) {
                     callback.finish(Status.UNAVAILABLE, null);
                     return;
                 }
-                NotificationAllowlist allowlist = NotificationAllowlist.forAccount(account);
-                NotificationAllowlist.Settings settings = allowlist.settings();
                 if ("notifications_digest".equals(request.actionType())) {
                     if (!settings.notificationsEnabled() || !HermesNotificationListener.isListenerEnabled(activity)) {
                         callback.finish(Status.UNAVAILABLE, null);
@@ -265,12 +416,37 @@ public final class DeviceBridgeFlow {
                     }
                     return;
                 }
+                if ("media_control".equals(request.actionType()) && isMediaStatusCommand(request.params())) {
+                    if (!settings.mediaEnabled() || !HermesNotificationListener.isListenerEnabled(activity)) {
+                        callback.finish(Status.UNAVAILABLE, null);
+                        return;
+                    }
+                    List<MediaContextBridge.NowPlaying> sessions =
+                            MediaContextBridge.readActiveSessions(activity, true);
+                    MediaContextBridge.NowPlaying primary = MediaContextBridge.selectTargetSession(
+                            sessions, request.params().optString("package", ""));
+                    JSONArray items = new JSONArray();
+                    try {
+                        for (MediaContextBridge.NowPlaying session : sessions) {
+                            items.put(new JSONObject(session.toSanitizedJson()));
+                        }
+                        JSONObject payload = new JSONObject()
+                                .put("sessions", items)
+                                .put("count", items.length());
+                        if (primary != null) payload.put("primary", new JSONObject(primary.toSanitizedJson()));
+                        else payload.put("primary", JSONObject.NULL);
+                        callback.finish(Status.COMPLETED, payload);
+                    } catch (JSONException invalid) {
+                        callback.finish(Status.UNAVAILABLE, null);
+                    }
+                    return;
+                }
                 if ("calendar_read".equals(request.actionType())) {
                     if (!settings.calendarEnabled() || !CalendarContextReader.hasPermission(activity)) {
                         callback.finish(Status.UNAVAILABLE, null);
                         return;
                     }
-                    int requestedDays = request.params().optInt("days", CalendarContextReader.DEFAULT_WINDOW_DAYS);
+                    int requestedDays = resolveCalendarDays(request.params());
                     CalendarContextReader.Window window = CalendarContextReader.resolveWindow(
                             System.currentTimeMillis(), requestedDays);
                     List<CalendarContextReader.AgendaEvent> events =
@@ -445,7 +621,7 @@ public final class DeviceBridgeFlow {
             return;
         }
         if (executor instanceof InteractiveExecutor interactive
-                && interactive.handleReviewed(activity, request, once)) {
+                && interactive.handleReviewed(activity, request, once, shown -> trackDialog(shown, once))) {
             return;
         }
         DeviceAction action = toDeviceAction(request);
@@ -454,6 +630,10 @@ public final class DeviceBridgeFlow {
                     () -> once.finish(Status.COMPLETED, null),
                     () -> once.finish(Status.DENIED, null),
                     () -> once.finish(Status.UNAVAILABLE, null));
+            return;
+        }
+        if (activity == null || activity.isFinishing() || activity.isDestroyed()) {
+            once.finish(Status.UNAVAILABLE, null);
             return;
         }
         AlertDialog.Builder dialog = new AlertDialog.Builder(activity)
@@ -468,7 +648,7 @@ public final class DeviceBridgeFlow {
                         executor.execute(request, once);
                     }
                 });
-        Ui.secureDialog(dialog);
+        trackDialog(Ui.secureDialog(dialog), once);
     }
 
     public static String frenchTitle(String actionType) {

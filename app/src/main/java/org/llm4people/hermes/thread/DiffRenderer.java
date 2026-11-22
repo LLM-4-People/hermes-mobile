@@ -156,11 +156,11 @@ public final class DiffRenderer {
                     String line = sanitizeLine(raw);
                     LineKind kind;
                     String formatted;
-                    if (line.startsWith("+") && !line.startsWith("+++")) {
+                    if (line.startsWith("+")) {
                         kind = LineKind.ADD;
                         formatted = line;
                         countedAdd++;
-                    } else if (line.startsWith("-") && !line.startsWith("---")) {
+                    } else if (line.startsWith("-")) {
                         kind = LineKind.REMOVE;
                         formatted = line;
                         countedDel++;

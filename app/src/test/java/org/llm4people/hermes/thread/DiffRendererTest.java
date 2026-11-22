@@ -59,6 +59,31 @@ public final class DiffRendererTest {
         assertEquals("Risque élevé", DiffRenderer.riskLabel(patchEdit.risk()));
     }
 
+    @Test public void hunksClassifyAddedPlusPlusAndRemovedMinusMinusLinesAccurately() {
+        var hunk = new DiffRenderer.HunkInput(1, 1, List.of(
+                "--- old yaml divider",
+                "---",
+                "---flag",
+                "+++count;",
+                "++x;"));
+        DiffRenderer.DiffModel model = DiffRenderer.fromHunks(
+                "script.sql", "sql", List.of(hunk), -1, -1, false, "", "", "low");
+        assertNotNull(model);
+        assertEquals(2, model.additions());
+        assertEquals(3, model.deletions());
+        assertEquals(DiffRenderer.LineKind.REMOVE, model.lines().get(1).kind());
+        assertEquals(DiffRenderer.LineKind.REMOVE, model.lines().get(2).kind());
+        assertEquals(DiffRenderer.LineKind.REMOVE, model.lines().get(3).kind());
+        assertEquals(DiffRenderer.LineKind.ADD, model.lines().get(4).kind());
+        assertEquals(DiffRenderer.LineKind.ADD, model.lines().get(5).kind());
+
+        DiffRenderer.DiffModel fromEdit = DiffRenderer.fromEditStrings(
+                "doc.md", "---\n-- SQL comment", "++count;\n+++more", "", "", "", "low");
+        assertNotNull(fromEdit);
+        assertEquals(2, fromEdit.deletions());
+        assertEquals(2, fromEdit.additions());
+    }
+
     @Test public void malformedEmptyAndHugePayloadsDegradeSafelyAndStayBounded() {
         assertNull(DiffRenderer.fromEditStrings("", "", "", "", "", "", ""));
         assertNull(DiffRenderer.fromEditStrings(null, null, null, null, null, null, null));

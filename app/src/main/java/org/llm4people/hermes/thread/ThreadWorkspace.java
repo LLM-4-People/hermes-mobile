@@ -7,10 +7,12 @@ import android.os.Looper;
 import android.view.View;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
+import android.widget.Toast;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.llm4people.hermes.Diagnostics;
+import org.llm4people.hermes.HermesConfig;
 import org.llm4people.hermes.artifact.ArtifactDesk;
 import org.llm4people.hermes.artifact.HomePinBridge;
 import org.llm4people.hermes.artifact.LiveUiPatch;
@@ -20,6 +22,9 @@ import org.llm4people.hermes.artifact.ThreadInstruments;
 import org.llm4people.hermes.camera.CapturedMedia;
 import org.llm4people.hermes.camera.ThreadCameraCapture;
 import org.llm4people.hermes.net.HermesApi;
+import org.llm4people.hermes.os.HermesWidgetPinning;
+import org.llm4people.hermes.os.HermesWidgetSpec;
+import org.llm4people.hermes.os.HermesWidgetStore;
 import org.llm4people.hermes.os.LiveRunNotification;
 import org.llm4people.hermes.profile.Account;
 import org.llm4people.hermes.share.ClipboardPastePill;
@@ -143,7 +148,10 @@ public final class ThreadWorkspace implements AutoCloseable {
     boolean admitting() { return run != null && run.submitting(); }
 
     public View view() { return container; }
-    public void dismissDialogs() { if (screen != null) screen.dismiss(); }
+    public void dismissDialogs() {
+        deviceBridge.dismissDialogs();
+        if (screen != null) screen.dismiss();
+    }
     public String sessionId() { return session; }
     public String remoteSessionId() { return remoteSession; }
     Account account() { return account; }
@@ -219,7 +227,8 @@ public final class ThreadWorkspace implements AutoCloseable {
         importingPhoto = true;
         screen.importingPhoto(true);
         screen.notice("Préparation de l’image…", "", null);
-        request(() -> DiscussionPhoto.read(activity.getContentResolver(), uri), photo -> {
+        long maxSourceBytes = HermesConfig.load(activity).artifactDefaultMaxBytes;
+        request(() -> DiscussionPhoto.read(activity.getContentResolver(), uri, maxSourceBytes), photo -> {
             importingPhoto = false;
             screen.importingPhoto(false);
             try {
@@ -762,10 +771,12 @@ public final class ThreadWorkspace implements AutoCloseable {
     private int metadataRequest;
     private volatile int transcriptRequest;
     private JSONObject pendingLiveUiPatch;
+    private String appliedLiveUiRevisionId;
 
     public void onBackground() {
         nearby.clearTurn();
         voice.reader().stop();
+        deviceBridge.dismissDialogs();
         if (!closed) {
             ++generation;
             main.removeCallbacksAndMessages(null);
@@ -795,6 +806,7 @@ public final class ThreadWorkspace implements AutoCloseable {
         legacyTitleTip = null;
         openingRequested = false;
         namedTitle = firstPrompt = "";
+        appliedLiveUiRevisionId = null;
         screen = next;
     }
 
@@ -822,6 +834,7 @@ public final class ThreadWorkspace implements AutoCloseable {
             openingPrompts.clear();
             namedTitle = firstPrompt = "";
             pendingLiveUiPatch = null;
+            appliedLiveUiRevisionId = null;
         }
     }
 
@@ -877,6 +890,32 @@ public final class ThreadWorkspace implements AutoCloseable {
 
     String failureDetail(JSONObject status) { return ThreadData.failureDetail(status, account.bearer); }
 
+    void clearSuggestedActions() {
+        if (closed || screen == null) return;
+        screen.suggestedActions(Collections.emptyList(), null, null, null, null, null);
+    }
+
+    /** Reconciles composer quick actions and LiveUiPatchBar after external layout/rollback changes. */
+    public void onLayoutChanged() {
+        if (closed || screen == null || account == null) return;
+        refreshQuickActions();
+        if (appliedLiveUiRevisionId != null && screen.liveUiBar != null) {
+            LiveUiPatch.StateManager manager = LiveUiPatch.StateManager.forAccount(
+                    account, ThemePalette.isNight(activity));
+            boolean stillApplied = false;
+            for (LiveUiPatch.StateManager.AppliedRevision rev : manager.history()) {
+                if (appliedLiveUiRevisionId.equals(rev.revisionId)) {
+                    stillApplied = true;
+                    break;
+                }
+            }
+            if (!stillApplied) {
+                appliedLiveUiRevisionId = null;
+                screen.liveUiBar.showReverted();
+            }
+        }
+    }
+
     void onSuggestedActions(Object rawSuggestedActions) {
         if (closed || screen == null) return;
         try {
@@ -907,6 +946,7 @@ public final class ThreadWorkspace implements AutoCloseable {
         pendingLiveUiPatch = null;
         try {
             LiveUiPatch patch = LiveUiPatch.parse(rawPatch, ThemePalette.isNight(activity));
+            appliedLiveUiRevisionId = null;
             screen.liveUiBar.present(patch);
             if (!patch.suggestedActions.isEmpty()) {
                 ThemePalette palette = ThemePalette.active(activity, account);
@@ -931,6 +971,20 @@ public final class ThreadWorkspace implements AutoCloseable {
                 return;
             }
         }
+        LiveUiPatch pending = screen != null && screen.liveUiBar != null ? screen.liveUiBar.pendingPatch() : null;
+        if (pending != null) {
+            for (LiveUiPatch.Op op : pending.ops) {
+                if (op instanceof LiveUiPatch.Op.UpsertWidget uw && widgetId.equals(uw.widget().widgetId)) {
+                    HomePinBridge.requestPinWidget(activity, uw.widget());
+                    return;
+                }
+            }
+        }
+        HermesWidgetSpec osSpec = new HermesWidgetStore(activity).spec(widgetId);
+        if (osSpec != null && osSpec.homeScreenSafe) {
+            HermesWidgetPinning.PinResult result = HermesWidgetPinning.requestPinWidget(activity, osSpec);
+            Toast.makeText(activity, HermesWidgetPinning.guidanceMessage(activity, result), Toast.LENGTH_LONG).show();
+        }
     }
 
     private void attachLiveUiControls() {
@@ -941,6 +995,7 @@ public final class ThreadWorkspace implements AutoCloseable {
                 try {
                     LiveUiPatch.StateManager manager = LiveUiPatch.StateManager.forAccount(account, ThemePalette.isNight(activity));
                     manager.apply(patch);
+                    appliedLiveUiRevisionId = patch.revisionId;
                     if (screen != null && screen.liveUiBar != null) screen.liveUiBar.showApplied(patch);
                     refreshQuickActions();
                     for (LiveUiPatch.Op op : patch.ops) {
@@ -968,6 +1023,7 @@ public final class ThreadWorkspace implements AutoCloseable {
                     manager.rollbackTo(revisionId);
                     affectedWidgets.addAll(manager.widgetIds());
                     HomePinBridge.syncWidgets(activity, manager.widgets(), affectedWidgets);
+                    appliedLiveUiRevisionId = null;
                     if (screen != null && screen.liveUiBar != null) screen.liveUiBar.showReverted();
                     refreshQuickActions();
                     if (instrumentHost != null) instrumentHost.onLayoutChanged();
@@ -981,6 +1037,7 @@ public final class ThreadWorkspace implements AutoCloseable {
             }
 
             @Override public void onDismiss(LiveUiPatch patch) {
+                appliedLiveUiRevisionId = null;
                 Diagnostics.event("live_ui", "patch_dismissed");
             }
         });

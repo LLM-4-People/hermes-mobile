@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.regex.Pattern;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -110,5 +111,21 @@ public final class DeviceBridgeCapabilitiesTest {
             assertFalse("Blank title for " + action, title.trim().isEmpty());
             assertFalse("AI jargon found in: " + title, JARGON.matcher(title.toLowerCase()).find());
         }
+    }
+
+    @Test
+    public void mediaStatusCommandAndCalendarDaysAheadParametersResolveCleanly() {
+        assertTrue(DeviceBridgeFlow.isMediaStatusCommand((String) null));
+        assertTrue(DeviceBridgeFlow.isMediaStatusCommand(""));
+        assertTrue(DeviceBridgeFlow.isMediaStatusCommand("   "));
+        assertTrue(DeviceBridgeFlow.isMediaStatusCommand("status"));
+        assertTrue(DeviceBridgeFlow.isMediaStatusCommand("STATUS"));
+        assertFalse(DeviceBridgeFlow.isMediaStatusCommand("pause"));
+        assertFalse(DeviceBridgeFlow.isMediaStatusCommand("next"));
+
+        assertEquals(7, DeviceBridgeFlow.resolveCalendarDays(null, null));
+        assertEquals(14, DeviceBridgeFlow.resolveCalendarDays(14, null));
+        assertEquals(3, DeviceBridgeFlow.resolveCalendarDays(null, 3));
+        assertEquals(1, DeviceBridgeFlow.resolveCalendarDays(1, 10));
     }
 }

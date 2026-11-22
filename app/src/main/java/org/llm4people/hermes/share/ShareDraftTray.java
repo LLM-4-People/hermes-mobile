@@ -36,7 +36,6 @@ public final class ShareDraftTray {
     private final Context context;
     private final HorizontalScrollView scroller;
     private final LinearLayout row;
-    private final TextView announcement;
     private final List<CapturedMedia.Item> items = new ArrayList<>();
     private final Listener listener;
 
@@ -50,10 +49,6 @@ public final class ShareDraftTray {
         row.setGravity(Gravity.CENTER_VERTICAL);
         Ui.pad(row, 14, 6);
         scroller.addView(row);
-
-        announcement = Ui.text(context, "", 13);
-        announcement.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
-        announcement.setVisibility(View.GONE);
     }
 
     public View view() { return scroller; }
@@ -136,7 +131,9 @@ public final class ShareDraftTray {
             if (i > 0) cp.setMarginStart(gap);
             row.addView(chip, cp);
         }
-        announcement.setText(notice);
+        if (notice != null && !notice.isEmpty() && scroller.isAttachedToWindow()) {
+            scroller.announceForAccessibility(notice);
+        }
         if (listener != null) listener.onChanged(items());
     }
 
