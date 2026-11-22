@@ -2,9 +2,10 @@ package org.llm4people.hermes.journey;
 
 import android.app.Activity;
 import android.app.Instrumentation;
-import android.content.pm.ActivityInfo;
+import android.app.UiAutomation;
 import android.content.res.Configuration;
 import android.graphics.Rect;
+import android.view.Surface;
 import android.view.View;
 import android.widget.EditText;
 import org.json.JSONException;
@@ -54,45 +55,56 @@ final class AdaptiveJourney {
         }
 
         int startingOrientation = ui.main(() -> activity.getResources().getConfiguration().orientation);
-        int targetOrientation = startingOrientation == Configuration.ORIENTATION_LANDSCAPE
-                ? ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-                : ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE;
-        ui.main(() -> {
-            activity.setRequestedOrientation(targetOrientation);
-            return null;
-        });
-        ui.until("in-place configuration change", () -> {
-            if (activity.isDestroyed() || activity.isFinishing()) {
-                throw new AssertionError("Rotation recreated or finished MainActivity");
-            }
-            int current = activity.getResources().getConfiguration().orientation;
-            return current != startingOrientation ? Boolean.TRUE : null;
-        });
-        driver.waitForIdleSync();
-        ui.usableComposer();
-        assertPreserved(initialComposer, draft, selection);
-        matrix.put("rotated", snapshot());
-        matrix.put("sameActivity", true);
-        matrix.put("sameComposer", true);
-        ui.capture("31-adaptatif-rotation");
-
-        ui.tap("Autres actions");
-        ui.tap("Rappels");
-        ui.tap("Nouveau rappel");
-        String reminderDraft = "Rappel adaptatif " + fixture.optString("run", "test");
-        ui.fill("Titre", reminderDraft);
-        if (!reminderDraft.equals(ui.fieldText("Titre"))) {
-            throw new AssertionError("Reminder title draft did not stick");
+        int startingRotation = ui.main(() -> activity.getDisplay().getRotation());
+        int targetRotation = startingOrientation == Configuration.ORIENTATION_LANDSCAPE
+                ? UiAutomation.ROTATION_FREEZE_0
+                : UiAutomation.ROTATION_FREEZE_90;
+        UiAutomation automation = driver.getUiAutomation();
+        // Drive rotation at the WindowManager level: Android 16 (API 36) ignores
+        // Activity.setRequestedOrientation() on sw >= 600dp displays for targetSdk 36.
+        if (!automation.setRotation(targetRotation)) {
+            throw new AssertionError("WindowManager rejected display rotation request " + targetRotation);
         }
-        ui.tap("Retour");
-        ui.tap("Fermer");
-        assertPreserved(initialComposer, draft, selection);
+        try {
+            ui.until("in-place configuration change", () -> {
+                if (activity.isDestroyed() || activity.isFinishing()) {
+                    throw new AssertionError("Rotation recreated or finished MainActivity");
+                }
+                int current = activity.getResources().getConfiguration().orientation;
+                return current != startingOrientation ? Boolean.TRUE : null;
+            });
+            driver.waitForIdleSync();
+            ui.usableComposer();
+            assertPreserved(initialComposer, draft, selection);
+            matrix.put("rotated", snapshot());
+            matrix.put("sameActivity", true);
+            matrix.put("sameComposer", true);
+            ui.capture("31-adaptatif-rotation");
 
-        ui.main(() -> {
-            activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
-            return null;
-        });
-        driver.waitForIdleSync();
+            ui.tap("Autres actions");
+            ui.tap("Rappels");
+            ui.tap("Nouveau rappel");
+            String reminderDraft = "Rappel adaptatif " + fixture.optString("run", "test");
+            ui.fill("Titre", reminderDraft);
+            if (!reminderDraft.equals(ui.fieldText("Titre"))) {
+                throw new AssertionError("Reminder title draft did not stick");
+            }
+            ui.tap("Retour");
+            ui.tap("Fermer");
+            assertPreserved(initialComposer, draft, selection);
+        } finally {
+            automation.setRotation(freezeFor(startingRotation));
+            driver.waitForIdleSync();
+        }
+    }
+
+    private static int freezeFor(int surfaceRotation) {
+        return switch (surfaceRotation) {
+            case Surface.ROTATION_90 -> UiAutomation.ROTATION_FREEZE_90;
+            case Surface.ROTATION_180 -> UiAutomation.ROTATION_FREEZE_180;
+            case Surface.ROTATION_270 -> UiAutomation.ROTATION_FREEZE_270;
+            default -> UiAutomation.ROTATION_FREEZE_0;
+        };
     }
 
     void largeText() throws Exception {

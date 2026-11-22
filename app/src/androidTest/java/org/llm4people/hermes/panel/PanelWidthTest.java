@@ -101,6 +101,54 @@ public final class PanelWidthTest extends InstrumentationTestCase {
         });
     }
 
+    public void testPickerSwitchesCleanlyBetweenShortLandscapeAndPortraitPreservingSearchDraft() throws Throwable {
+        runTestOnUiThread(() -> {
+            Context context = getInstrumentation().getTargetContext();
+            LinearLayout sheet = Ui.column(context);
+            PanelFrame frame = new PanelFrame(context, sheet);
+            LinearLayout navigation = Ui.row(context);
+            navigation.addView(Ui.button(context, "Retour", v -> {}));
+            sheet.addView(navigation);
+            LinearLayout results = Ui.column(context);
+            sheet.addView(results, new LinearLayout.LayoutParams(-1, 0, 1));
+            View header = Ui.text(context, "Choisir le modèle", 29);
+            EditText search = new EditText(context);
+            search.setText("mistral");
+            search.setSelection(4);
+            boolean[] splitFlag = {false};
+            frame.bindPicker(navigation, results, header, search,
+                    new LinearLayout.LayoutParams(-1, -2), splitFlag, true);
+            assertTrue(search.requestFocus());
+
+            // Short landscape (e.g. phone with IME visible): split horizontally.
+            size(frame, 640, 82);
+            assertEquals(LinearLayout.HORIZONTAL, sheet.getOrientation());
+            assertTrue(splitFlag[0]);
+            assertSame(navigation, search.getParent());
+            assertEquals("mistral", search.getText().toString());
+            assertEquals(4, search.getSelectionStart());
+
+            // Rotating to portrait un-splits back to vertical so phone columns are never crushed.
+            size(frame, 360, 640);
+            assertEquals(LinearLayout.VERTICAL, sheet.getOrientation());
+            assertFalse(splitFlag[0]);
+            assertSame(results, search.getParent());
+            nearDp(sheet, 360);
+            assertEquals("mistral", search.getText().toString());
+            assertEquals(4, search.getSelectionStart());
+            assertSame(search, frame.findFocus());
+
+            // Rotating back to short landscape re-splits cleanly with the same EditText.
+            size(frame, 740, 360);
+            assertEquals(LinearLayout.HORIZONTAL, sheet.getOrientation());
+            assertTrue(splitFlag[0]);
+            assertSame(navigation, search.getParent());
+            nearDp(sheet, 740);
+            assertEquals("mistral", search.getText().toString());
+            assertEquals(4, search.getSelectionStart());
+        });
+    }
+
     private static void size(PanelFrame frame, int widthDp, int heightDp) {
         int w = Ui.dp(frame.getContext(), widthDp) + frame.getPaddingLeft() + frame.getPaddingRight();
         int h = Ui.dp(frame.getContext(), heightDp) + frame.getPaddingTop() + frame.getPaddingBottom();

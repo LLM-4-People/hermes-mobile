@@ -101,6 +101,18 @@ public class AdaptiveLayoutTest {
         assertFalse(AdaptiveLayout.splitNearbyGuide(619.9f));
         assertTrue(AdaptiveLayout.splitNearbyGuide(620f));
 
+        // Picker split threshold: short landscape only (width >= 480dp, 0 < height <= 480dp, width > height).
+        assertTrue(AdaptiveLayout.splitPicker(640f, 82f));
+        assertTrue(AdaptiveLayout.splitPicker(740f, 360f));
+        assertTrue(AdaptiveLayout.splitPicker(1200f, 420f));
+        assertFalse(AdaptiveLayout.splitPicker(360f, 740f));
+        assertFalse(AdaptiveLayout.splitPicker(320f, 240f));
+        assertFalse(AdaptiveLayout.splitPicker(480f, 480f));
+        assertFalse(AdaptiveLayout.splitPicker(1200f, 800f));
+        assertFalse(AdaptiveLayout.splitPicker(640f, 0f));
+        assertFalse(AdaptiveLayout.splitPicker(Float.NaN, 320f));
+        assertFalse(AdaptiveLayout.splitPicker(640f, Float.POSITIVE_INFINITY));
+
         assertEquals(22, AdaptiveLayout.centeredGutterDp(360, 520, 22));
         assertEquals(340, AdaptiveLayout.centeredGutterDp(1200, 520, 22));
         assertEquals(260, AdaptiveLayout.centeredGutterDp(1200, 680, 22));

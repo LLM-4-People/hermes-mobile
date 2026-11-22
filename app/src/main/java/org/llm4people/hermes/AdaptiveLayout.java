@@ -16,6 +16,8 @@ public final class AdaptiveLayout {
     public static final int PANEL_GAP_DP = 24;
     public static final int PANEL_MIN_COLUMN_DP = 340;
     public static final int PANEL_SCALED_COLUMN_DP = 320;
+    public static final int PICKER_SPLIT_MIN_WIDTH_DP = 480;
+    public static final int PICKER_SPLIT_MAX_HEIGHT_DP = 480;
     public static final int PROFILE_COLUMN_MAX_DP = 520;
     public static final int READING_COLUMN_MAX_DP = 680;
 
@@ -39,6 +41,13 @@ public final class AdaptiveLayout {
 
     public static boolean splitNearbyGuide(float paneWidthDp) {
         return safeDimension(paneWidthDp) >= NEARBY_SPLIT_DP;
+    }
+
+    /** Short landscape viewports (such as above a phone IME) place picker controls beside results. */
+    public static boolean splitPicker(float widthDp, float heightDp) {
+        float w = safeDimension(widthDp);
+        float h = safeDimension(heightDp);
+        return w >= PICKER_SPLIT_MIN_WIDTH_DP && h > 0 && h <= PICKER_SPLIT_MAX_HEIGHT_DP && w > h;
     }
 
     /** Size the discussion rail and decide whether inbox and thread sit side by side. */

@@ -158,20 +158,10 @@ public final class SessionPanel implements AutoCloseable {
 
     PanelFrame.Sections sections(LinearLayout page) { return frame.sections(page); }
 
-    /** The landscape IME can leave just one touch target's height for both search and results. */
-    void splitPicker(LinearLayout results, View heading, View search) {
-        if (frame != null) frame.allowWide();
-        LinearLayout controls = Ui.column(activity);
-        nativeContent.removeView(navigation);
-        nativeContent.setOrientation(LinearLayout.HORIZONTAL);
-        nativeContent.addView(controls, 0, new LinearLayout.LayoutParams(0, -1, 1));
-        results.setLayoutParams(new LinearLayout.LayoutParams(0, -1, 1));
-        Ui.pad(navigation, 4, 0);
-        navigation.addView(search, new LinearLayout.LayoutParams(0, -2, 1));
-        controls.addView(navigation);
-        Ui.pad(heading, 12, 2);
-        controls.addView(heading, new LinearLayout.LayoutParams(-1, 0, 1));
-        Ui.pad(results, 8, 0);
+    /** Re-arranges picker controls beside or above results as available height and width change. */
+    void bindPicker(LinearLayout results, View heading, View search, LinearLayout.LayoutParams fieldParams,
+                    boolean[] splitFlag, boolean initialSplit) {
+        if (frame != null) frame.bindPicker(navigation, results, heading, search, fieldParams, splitFlag, initialSplit);
     }
 
     TextView note(LinearLayout box, String value) {
