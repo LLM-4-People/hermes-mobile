@@ -322,6 +322,20 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                     ArtifactDesk.refreshBindings(page, activeHost);
                 }
         }
+        pendingChanged();
+    }
+
+    @Override public void pendingChanged() {
+        if (shell == null) return;
+        WorkspaceShell owner = shell;
+        Runnable open = null;
+        if (threads != null && WorkspaceNavigation.DISCUSSION.equals(navigation.current())) {
+            open = threads.hiddenPromptAction(() -> {
+                if (shell == owner && WorkspaceNavigation.DISCUSSION.equals(navigation.current()))
+                    navigate(WorkspaceNavigation.COMPOSER);
+            });
+        }
+        owner.pendingResponse(open);
     }
 
     @Override public void selected(String sessionId, String title) {

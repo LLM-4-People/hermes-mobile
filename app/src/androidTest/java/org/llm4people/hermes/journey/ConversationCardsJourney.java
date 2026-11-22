@@ -168,9 +168,9 @@ public final class ConversationCardsJourney extends Instrumentation {
         if (approval) {
             ui.see("Autoriser une fois");
             ui.see("Refuser");
-            ui.tap("Voir les détails");
-            ui.contains("partage-demo.txt");
-            ui.tap("Masquer les détails");
+            ui.tapInListRow("Refuser", "Voir les détails");
+            ui.containsInListRow("Refuser", "chmod 666 partage-demo.txt");
+            ui.tapInListRow("Refuser", "Masquer les détails");
         } else {
             ui.contains(turn.getString("question"));
         }

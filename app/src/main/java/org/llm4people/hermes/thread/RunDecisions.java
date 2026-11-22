@@ -51,10 +51,14 @@ final class RunDecisions {
         connected = false;
         prompts = Collections.emptyList();
         page.screen.promptRows.clear();
+        page.host.pendingChanged();
     }
 
     private void paint() {
-        if (current()) page.screen.promptRows.render(prompts, this);
+        if (current()) {
+            page.screen.promptRows.render(prompts, this);
+            page.host.pendingChanged();
+        }
     }
 
     PromptCard.State state(RunPrompts.Key key) {
@@ -63,8 +67,10 @@ final class RunDecisions {
         return attempts.getOrDefault(key, PromptCard.State.READY);
     }
 
+    boolean observing() { return connected && current() && observation != null && observation.current(); }
+
     private boolean available(RunPrompts.Key key, PromptCard.State state) {
-        if (!current() || observation == null || !observation.current() || !connected || state(key) != state) return false;
+        if (!observing() || state(key) != state) return false;
         for (JSONObject prompt : prompts) if (key.equals(RunPrompts.key(prompt))) return true;
         return false;
     }

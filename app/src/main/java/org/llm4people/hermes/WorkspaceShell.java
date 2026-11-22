@@ -29,6 +29,7 @@ final class WorkspaceShell {
     private final LinearLayout header;
     private final FrameLayout body;
     private final TextView heading;
+    private final Button pending;
     private final ImageButton leading;
     private final ImageButton desk;
     private String pageTitle;
@@ -60,6 +61,10 @@ final class WorkspaceShell {
         header.addView(more);
         root.addView(header);
         root.addView(Ui.divider(activity));
+        pending = Ui.button(activity, "Répondre à Hermes", null);
+        pending.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        pending.setVisibility(View.GONE);
+        root.addView(pending);
         body = new FrameLayout(activity);
         root.addView(body, new LinearLayout.LayoutParams(-1, 0, 1));
     }
@@ -75,6 +80,11 @@ final class WorkspaceShell {
         if (page.getParent() instanceof ViewGroup) ((ViewGroup) page.getParent()).removeView(page);
         body.removeAllViews();
         body.addView(page, new FrameLayout.LayoutParams(-1, -1));
+    }
+
+    void pendingResponse(Runnable open) {
+        pending.setVisibility(open == null ? View.GONE : View.VISIBLE);
+        pending.setOnClickListener(open == null ? null : v -> open.run());
     }
 
     View content() { return body; }

@@ -7,6 +7,9 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.speech.SpeechRecognizer;
+import android.os.Build;
+import android.view.inspector.WindowInspector;
+import android.widget.ListView;
 import android.test.InstrumentationTestCase;
 import android.view.View;
 import android.widget.Button;
@@ -206,6 +209,100 @@ public final class VoiceDraftsTest extends InstrumentationTestCase {
             assertEquals(VoiceInput.Source.SYSTEM, input.opened);
             input.result("");
             status(R.string.voice_empty);
+            assertEquals("", editor.getText().toString());
+        });
+    }
+
+    private void modelAction(int label) {
+        assertEquals(View.VISIBLE, controls.feedback.getVisibility());
+        assertEquals(View.GONE, controls.feedback.getChildAt(0).getVisibility());
+        assertEquals(activity.getString(label), action().getText().toString());
+    }
+
+    @android.annotation.TargetApi(33)
+    private void choose(int label) {
+        action().performClick();
+        int listId = activity.getResources().getIdentifier("select_dialog_listview", "id", "android");
+        for (View window : WindowInspector.getGlobalWindowViews()) {
+            ListView list = window.findViewById(listId);
+            if (list == null) continue;
+            for (int i = 0; i < list.getCount(); i++) {
+                if (activity.getString(label).equals(list.getItemAtPosition(i))) {
+                    list.performItemClick(null, i, i);
+                    return;
+                }
+            }
+        }
+        fail("Missing model recovery option");
+    }
+
+    public void testLocalModelNeedsAnExplicitDownloadAndReadyNeverStartsRecording() throws Throwable {
+        if (Build.VERSION.SDK_INT < 33) return;
+        runTestOnUiThread(() -> {
+            FakeDictation.FakeModel model = new FakeDictation.FakeModel();
+            input.model = model;
+            editor.setText("Brouillon privé");
+            controls.button.performClick();
+            input.listener.error(SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE);
+            modelAction(R.string.voice_model_options);
+            assertEquals(0, model.downloads);
+            choose(R.string.voice_model_download);
+            assertEquals(1, model.downloads);
+            modelAction(R.string.voice_model_follow);
+            voice.pause();
+            model.events.accept(VoiceModel.State.PENDING);
+            voice.resume();
+            modelAction(R.string.voice_model_progress);
+            model.events.accept(VoiceModel.State.READY);
+            status(R.string.voice_model_ready);
+            assertEquals(1, model.closes);
+            assertEquals(1, input.recordings);
+            assertEquals("Brouillon privé", editor.getText().toString());
+        });
+    }
+
+    public void testLocalDownloadFailureKeepsSystemConsentAndIgnoresLateCompletion() throws Throwable {
+        if (Build.VERSION.SDK_INT < 33) return;
+        runTestOnUiThread(() -> {
+            FakeDictation.FakeModel model = new FakeDictation.FakeModel();
+            input.model = model;
+            controls.button.performClick();
+            input.listener.error(SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE);
+            choose(R.string.voice_model_download);
+            model.events.accept(VoiceModel.State.FAILED);
+            modelAction(R.string.voice_model_retry);
+            choose(R.string.voice_other_service);
+            status(R.string.voice_system_notice);
+            assertEquals(1, input.recordings);
+            model.events.accept(VoiceModel.State.READY);
+            status(R.string.voice_system_notice);
+            action().performClick();
+            assertEquals(VoiceInput.Source.SYSTEM, input.opened);
+        });
+    }
+
+    public void testModelVerificationSurvivesAnUnmonitoredRequestAndIgnoresDetachedEditor() throws Throwable {
+        if (Build.VERSION.SDK_INT < 33) return;
+        runTestOnUiThread(() -> {
+            FakeDictation.FakeModel model = new FakeDictation.FakeModel();
+            input.model = model;
+            input.hasSystem = false;
+            controls.button.performClick();
+            input.listener.error(SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED);
+            modelAction(R.string.voice_model_options);
+            choose(R.string.voice_model_download);
+            model.events.accept(VoiceModel.State.REQUESTED);
+            model.availability = VoiceModel.State.READY;
+            choose(R.string.voice_model_check);
+            status(R.string.voice_model_ready);
+            controls.button.performClick();
+            model.availability = VoiceModel.State.OFFERED;
+            input.listener.error(SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE);
+            choose(R.string.voice_model_download);
+            layout.removeAllViews();
+            attachEditor();
+            model.events.accept(VoiceModel.State.READY);
+            assertEquals(View.GONE, controls.feedback.getVisibility());
             assertEquals("", editor.getText().toString());
         });
     }

@@ -32,6 +32,7 @@ import java.util.function.Consumer;
 public final class ThreadWorkspace implements AutoCloseable {
     public interface Host {
         void selected(String sessionId, String title);
+        void pendingChanged();
         JSONObject options(String sessionId);
         void timing(String sessionId, long firstTextMillis, long elapsedMillis, long outputTokens);
     }
@@ -116,6 +117,10 @@ public final class ThreadWorkspace implements AutoCloseable {
     }
 
     public boolean composerVisible() { return screen != null && screen.composerVisible(); }
+    public Runnable hiddenPromptAction(Runnable reveal) {
+        return closed || screen == null ? null : screen.promptRows.whenHidden(reveal);
+    }
+
     public boolean editing() { return screen != null && screen.editing(); }
     public void focusComposer() { if (screen != null) screen.focusComposer(); }
 

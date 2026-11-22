@@ -2,6 +2,7 @@ package org.llm4people.hermes.voice;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.pm.PackageManager;
 import android.os.Handler;
 import android.os.Looper;
@@ -30,6 +31,7 @@ public final class VoiceDrafts {
     private final ReplyReader reader;
     private final Handler main = new Handler(Looper.getMainLooper());
     private Attempt active;
+    private ModelRecovery recovery;
     private boolean paused;
 
     public VoiceDrafts(Activity activity) { this(activity, new AndroidVoiceInput(activity)); }
@@ -95,6 +97,7 @@ public final class VoiceDrafts {
         }
 
         private void report(int message, int actionLabel, Runnable click) {
+            status.setVisibility(message == 0 ? View.GONE : View.VISIBLE);
             boolean stacked = click != null && actionLabel != R.string.voice_cancel_short;
             feedback.setOrientation(stacked ? LinearLayout.VERTICAL : LinearLayout.HORIZONTAL);
             feedback.setGravity(stacked ? Gravity.START : Gravity.CENTER_VERTICAL);
@@ -102,15 +105,23 @@ public final class VoiceDrafts {
                     : new LinearLayout.LayoutParams(0, -2, 1));
             feedback.setVisibility(message == 0 ? View.GONE : View.VISIBLE);
             status.setText(message == 0 ? "" : activity.getString(message));
+            action.setAccessibilityLiveRegion(message == 0 && click != null
+                    ? View.ACCESSIBILITY_LIVE_REGION_POLITE : View.ACCESSIBILITY_LIVE_REGION_NONE);
             action.setVisibility(click == null ? View.GONE : View.VISIBLE);
             action.setText(click == null ? "" : activity.getString(actionLabel));
             action.setOnClickListener(click == null ? null : v -> click.run());
         }
 
+        private void modelAction(int label, Runnable click) {
+            report(0, label, click);
+            feedback.setVisibility(View.VISIBLE);
+        }
+
         private void reset() { icon(false, R.string.voice_dictate); report(0, 0, null); }
 
         public void cancel() {
-            if (active != null && active.target == this) VoiceDrafts.this.cancel();
+            if ((active != null && active.target == this) || (recovery != null && recovery.target == this))
+                VoiceDrafts.this.cancel();
             else reset();
         }
     }
@@ -163,12 +174,110 @@ public final class VoiceDrafts {
     }
 
     public void cancel() {
+        if (recovery != null) {
+            ModelRecovery previous = recovery;
+            recovery = null;
+            main.removeCallbacks(previous.timeout);
+            previous.dismiss();
+            previous.model.close();
+            previous.target.reset();
+        }
         Attempt attempt = active;
         if (attempt == null) return;
         active = null;
         main.removeCallbacks(attempt.timeout);
         attempt.target.reset();
         if (attempt.recording != null) attempt.recording.close();
+    }
+
+    private void recoverLanguage(Controls target) {
+        cancel();
+        if (!target.visible() || paused) return;
+        try {
+            VoiceModel model = input.localModel();
+            if (model != null) {
+                recovery = new ModelRecovery(target, model);
+                target.report(R.string.voice_model_checking, 0, null);
+                main.postDelayed(recovery.timeout, SERVICE_TIMEOUT_MS);
+                model.check(recovery::update);
+                return;
+            }
+        } catch (RuntimeException unavailable) { cancel(); }
+        languageFallback(target);
+    }
+
+    private void languageFallback(Controls target) {
+        if (input.systemAvailable()) {
+            target.report(R.string.voice_local_language, R.string.voice_other_service,
+                    () -> begin(target, VoiceInput.Source.SYSTEM));
+        } else target.report(R.string.voice_language, 0, null);
+    }
+
+    private final class ModelRecovery {
+        final Controls target;
+        final VoiceModel model;
+        final Runnable timeout = () -> update(VoiceModel.State.UNKNOWN);
+        VoiceModel.State displayed;
+        AlertDialog dialog;
+
+        ModelRecovery(Controls target, VoiceModel model) { this.target = target; this.model = model; }
+
+        void update(VoiceModel.State state) {
+            if (recovery != this) return;
+            main.removeCallbacks(timeout);
+            if (!target.visible()) { cancel(); return; }
+            if (displayed == state) return;
+            displayed = state;
+            dismiss();
+            switch (state) {
+                case OFFERED:
+                    options(R.string.voice_model_options, R.string.voice_model_offer, R.string.voice_model_download, this::download);
+                    break;
+                case PENDING:
+                    options(R.string.voice_model_progress, R.string.voice_model_pending, R.string.voice_model_check, () -> recoverLanguage(target));
+                    break;
+                case REQUESTED:
+                    options(R.string.voice_model_follow, R.string.voice_model_requested, R.string.voice_model_check, () -> recoverLanguage(target));
+                    break;
+                case READY:
+                    cancel();
+                    target.report(R.string.voice_model_ready, 0, null);
+                    break;
+                case FAILED:
+                    options(R.string.voice_model_retry, R.string.voice_model_failed, R.string.voice_model_check, () -> recoverLanguage(target));
+                    break;
+                case UNKNOWN:
+                    cancel();
+                    languageFallback(target);
+                    break;
+            }
+        }
+
+        void options(int compactLabel, int title, int action, Runnable select) {
+            target.modelAction(compactLabel, () -> {
+                if (recovery != this || paused || !target.visible()) return;
+                boolean system = input.systemAvailable();
+                String first = activity.getString(action);
+                String[] choices = system ? new String[]{first, activity.getString(R.string.voice_other_service)}
+                        : new String[]{first};
+                dismiss();
+                dialog = Ui.secureDialog(new AlertDialog.Builder(activity).setTitle(title)
+                        .setItems(choices, (view, which) -> {
+                            if (recovery != this || paused || !target.visible()) return;
+                            if (which == 0) select.run();
+                            else begin(target, VoiceInput.Source.SYSTEM);
+                        }).setNegativeButton(R.string.voice_cancel_short, null));
+            });
+        }
+
+        void dismiss() { if (dialog != null) dialog.dismiss(); dialog = null; }
+
+        void download() {
+            if (recovery != this || paused || !target.visible()) return;
+            update(VoiceModel.State.REQUESTED);
+            try { model.download(this::update); }
+            catch (RuntimeException unavailable) { update(VoiceModel.State.FAILED); }
+        }
     }
 
     private enum Phase { CONSENT, PERMISSION, STARTING, LISTENING, PROCESSING }
@@ -247,10 +356,9 @@ public final class VoiceDrafts {
         @Override public void error(int reason) {
             if (active != this) return;
             if ((reason == SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED || reason == SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE)
-                    && source == VoiceInput.Source.DEVICE && input.systemAvailable()) {
+                    && source == VoiceInput.Source.DEVICE) {
                 finish(0);
-                target.report(R.string.voice_local_language, R.string.voice_other_service,
-                        () -> begin(target, VoiceInput.Source.SYSTEM));
+                recoverLanguage(target);
                 return;
             }
             finish(switch (reason) {

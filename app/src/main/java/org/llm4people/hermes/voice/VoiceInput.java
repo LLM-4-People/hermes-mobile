@@ -19,6 +19,7 @@ interface VoiceInput {
 
     Source preferred();
     boolean systemAvailable();
+    VoiceModel localModel();
     boolean permitted();
     void requestPermission(int code);
     Recording open(Source source, Listener listener);
