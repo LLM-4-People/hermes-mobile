@@ -31,7 +31,10 @@ require_receiver() {
     return 1
   fi
 }
-require_receiver org.fossify.calendar -a android.intent.action.INSERT -d content://com.android.calendar/events
+# The package-manager shell matches the supplied type; normal app dispatch gets
+# CalendarContract.Events.CONTENT_TYPE from the URI's ContentProvider.
+require_receiver org.fossify.calendar -a android.intent.action.INSERT -d content://com.android.calendar/events \
+  -t vnd.android.cursor.dir/event
 require_receiver com.google.android.apps.maps -a android.intent.action.VIEW -d 'geo:0,0?q=Laval'
 
 # Android disconnects asynchronously. The verifier independently asserts offline state.
