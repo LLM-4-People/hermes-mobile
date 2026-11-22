@@ -19,6 +19,24 @@ final class PromptRows {
 
     boolean visible() { return !cards.isEmpty(); }
 
+    /** The shell can reveal the same cards when a custom discussion omits the native transcript. */
+    Runnable whenHidden(Runnable reveal) {
+        RunDecisions source = owner;
+        if (!hidden(source)) return null;
+        return () -> {
+            if (!hidden(source)) return;
+            reveal.run();
+            ui.list.post(() -> {
+                if (owner == source && source.observing() && visible() && ui.list.isShown())
+                    ui.list.setSelectionFromTop(ui.list.getCount() - cards.size(), 0);
+            });
+        };
+    }
+
+    private boolean hidden(RunDecisions source) {
+        return source != null && source == owner && source.observing() && visible() && !ui.list.isShown();
+    }
+
     void clear() {
         for (View card : cards.values()) ui.list.removeFooterView(card);
         cards.clear();
