@@ -30,6 +30,14 @@ typography:
     fontFamily: sans-serif
     fontSize: 20px
     fontWeight: 500
+  tool-title:
+    fontFamily: sans-serif
+    fontSize: 22px
+    fontWeight: 700
+  version-option:
+    fontFamily: sans-serif
+    fontSize: 15px
+    fontWeight: 500
   prompt-title:
     fontFamily: sans-serif
     fontSize: 18px
@@ -55,6 +63,7 @@ typography:
     fontSize: 20px
     fontWeight: 400
 rounded:
+  version-option: 6px
   profile-field: 8px
   prompt: 12px
 spacing:
@@ -93,6 +102,19 @@ components:
     textColor: "{colors.ink}"
     rounded: "{rounded.prompt}"
     padding: 12px 14px
+  tool-title:
+    textColor: "{colors.ink}"
+    typography: "{typography.tool-title}"
+  version-option-selected:
+    backgroundColor: "{colors.ink}"
+    textColor: "{colors.paper}"
+    typography: "{typography.version-option}"
+    rounded: "{rounded.version-option}"
+  version-option-proposed-selected:
+    backgroundColor: "{colors.primary}"
+    textColor: "{colors.on-accent}"
+    typography: "{typography.version-option}"
+    rounded: "{rounded.version-option}"
   usage-value:
     typography: "{typography.measurement}"
     textColor: "{colors.ink}"
@@ -141,7 +163,7 @@ components:
 
 The conversation reads down one margin. A small speaker name introduces each turn, and a pending question stands out against the paper as a bordered surface. The person can answer where the question appears and still see the message composer below.
 
-The same paper, ink and teal carry through to the atelier. A person can ask Hermes to build a review form, preview its arrangement, then use its fields to prepare a message. Technical views make their units, scope and available actions legible in French.
+The same paper, ink and teal carry through to the atelier. A person can ask Hermes for a review form, try it in the conversation that produced it and pin it there for later. Its fields prepare an editable message. Technical views make their units, scope and available actions legible in French.
 
 **Key Characteristics:**
 
@@ -156,13 +178,13 @@ The same paper, ink and teal carry through to the atelier. A person can ask Herm
 
 **Semantic.** Danger marks field errors and removed code. Keep the error wording or the diff sign visible alongside the color.
 
-**Neutral.** Paper fills the workspace. Surface lifts the question card and frames code spans. Ink carries the message, muted carries supporting labels, and line separates sections and outlines prompts. Night resources give every role a companion color. The primary token maps to Android’s accent resource. Other base names use hyphens for Android’s underscores. Night values come from the matching resources in `values-night`.
+**Neutral.** Paper fills the workspace. Surface lifts the question card and groups the lines of a fenced code excerpt. Ink carries the message, muted carries supporting labels, and line separates sections and outlines prompts. Night resources give every role a companion color. The primary token maps to Android’s accent resource. Other base names use hyphens for Android’s underscores. Night values come from the matching resources in `values-night`.
 
 ## Typography
 
 Use the platform sans-serif for conversation and controls. Speaker names are small and bold (13 sp). Message text is larger and regular (17 sp). An in-thread question is an accessibility heading (18 sp, bold). The busy-state or connection message uses a quieter size (13–14 sp).
 
-The top bar uses medium weight (20 sp). Full-screen panels give the page name (29 sp, bold) more prominence than their section headings (20 sp, bold). Workspace blocks use a heading (18 sp, bold) above their description (16 sp). Code and tool output use monospace. Usage values use monospace at 20 sp under a 16 sp label, including when the value reads “Indisponible”.
+The thread title in the top bar can wrap to two lines at medium weight (20 sp). Full-screen panels give the page name (29 sp, bold) more prominence than their section headings (20 sp, bold). Workspace blocks use a heading (18 sp, bold) above their description (16 sp). Code and tool output use monospace. Usage values use monospace at 20 sp under a 16 sp label, including when the value reads “Indisponible”.
 
 Frontmatter and browser previews use CSS pixels at the Android baseline density and default font scale. Use sp for text and dp for layout in the app. Android controls retain their native font metrics.
 
@@ -174,7 +196,9 @@ Question buttons stack to the available width, wrap their labels and grow with t
 
 Editable workspace sections use 16 dp side insets. Compact density reduces the vertical inset of a block from 12 dp to 5 dp. In a layout that wraps native content, each surrounding scroll region can take up to a third of the available height. The native region receives the remaining space.
 
-The 320 × 640 px phone previews show the reading column, truncated toolbar title and stacked usage labels. The 1080 × 2340 px conversation captures show a long prompt scrolling above the composer and a dictated answer in its own field. These capture sizes illustrate the layouts. The app measures the available window in dp. [Discussion and usage journey](app/src/androidTest/java/org/llm4people/hermes/journey/DeviceJourney.java) · [Question and approval journey](app/src/androidTest/java/org/llm4people/hermes/journey/ConversationCardsJourney.java)
+A trial or pinned tool occupies the transcript area. Below 640 dp of available pane width, the tool takes that space and the return arrow restores the person’s place in the conversation. At 640 dp and above, the transcript and tool share the width equally, separated by a 1 dp rule. The composer stays below both. Keep the mounted form and editor when the window changes width. [Viewport implementation](app/src/main/java/org/llm4people/hermes/thread/InstrumentViewport.java)
+
+The 320 × 640 px phone previews show the reading column and stacked usage labels. The 1080 × 2340 px conversation captures show a long prompt scrolling above the composer and a dictated answer in its own field. These capture sizes illustrate the layouts. The app measures the available window in dp. [Discussion and usage journey](app/src/androidTest/java/org/llm4people/hermes/journey/DeviceJourney.java) · [Question and approval journey](app/src/androidTest/java/org/llm4people/hermes/journey/ConversationCardsJourney.java)
 
 ## Elevation & Depth
 
@@ -188,6 +212,8 @@ Use the same rounded corners for a pending prompt and its tonal options (12 dp).
 
 **Conversation.** “Vous” and “Hermes” name the speakers. On a confirmed empty thread, “Comprendre du code” and “Planifier mon travail” prepare editable starters. In an active thread, selectable message text can include code, diff signs and tool output. Longer messages offer a paged reader.
 
+**Code excerpt.** Put fenced code on one light or dark surface across the full text column, preserving line breaks, indentation and selectable text. A settled turn previews up to four lines or 200 characters per block. A trailing code block shares its surface with “Ouvrir le code”. Use a supplied filename or language in the action label. Several blocks in the same display page use “Ouvrir un extrait…” to select one. The native reader pages through the complete source block and offers “Copier le contenu”. [Transcript formatter](app/src/main/java/org/llm4people/hermes/thread/MessageText.java) · [Source reader](app/src/main/java/org/llm4people/hermes/artifact/CodeReader.java)
+
 **Question.** Put the question first, with “Écouter” for spoken playback. A single-choice button submits its answer immediately. For multiple choices, Android checkboxes collect selections until “Envoyer la réponse”. A person can write or dictate a different answer or choose “Passer la question”. Mark a recommended answer in the label with “(choix recommandé)”. Once answered, the question and reply read as ordinary turns in the restored conversation.
 
 **Approval.** Lead with “Autoriser cette action ?” and describe the proposed effect. “Voir les détails” expands the exact command or edit when available. Show the supported actions on the same card. “Autoriser une fois” and “Refuser” share the tonal treatment. While a response is being sent or checked, disable the submission controls and report progress in text. An unconfirmed response exposes “Vérifier la demande”.
@@ -197,6 +223,14 @@ Use the same rounded corners for a pending prompt and its tonal options (12 dp).
 **Voice controls.** Pair the native text field with a 24 dp microphone inside a 48 dp icon button labelled “Dicter”. The square stop icon and an updated accessible label identify an active attempt. Announce recording, transcription and recovery messages through a polite live region. Keep the draft available for editing when recognition fails. Spoken playback uses its own “Écouter” and “Arrêter” actions.
 
 **Navigation and workspace tools.** A labelled icon opens the discussion list or returns to the previous page. “Atelier” opens the workspace, where a full-width row combines a title and chevron into one accessible button. A proposed screen can contain native content, links, labelled values, sections and draft forms. Keep preview, apply and undo distinct. In an applied form, text fields and choice lists collect input for “Préparer un brouillon…”.
+
+**Thread tool.** “Créer un outil pour ce fil” starts an editable request. The reply places the proposed tool’s own title and “Essayer dans la discussion” beneath the message. The selected proposal gains an accent-surface background. In the tool pane, put its return arrow, bold title and overflow in one header. A short teal status under the title identifies a trial or a pin. “Épingler à cette discussion” keeps the tool with that thread. When the tool is closed, its title and “Ouvrir” share a tinted row above the transcript.
+
+**Form answers.** Give each input a visible label and mark optional fields “(facultatif)”. A missing required answer focuses the field and names it in the error message. “Préparer un brouillon…” opens “Relire le brouillon”. “Vers le brouillon” places the reviewed text in the discussion composer, where the person can still edit it before choosing “Envoyer”.
+
+**Version comparison.** “Comparer les versions” opens on “Écarts”. Arrange “Épinglée”, “Écarts” and “Proposée” in one native radio group. Use ink for the selected pinned or differences view and accent for the selected proposal. In either form view, the header shows that version’s title. While switching between versions, keep each form’s unsent answers with its version.
+
+Group differences by the affected section. For a changed value, “Avant” introduces the earlier value in muted ink and “Après” introduces its replacement in ink. Single-sided changes use a label such as “Champ ajouté” followed by the affected field and its declared type. The comparison uses the two tool definitions, including field types, requirements and choice lists. Keep the decision actions below the comparison. “Garder la version épinglée” returns to the saved version. “Adopter cette version” replaces the pin and “Annuler la modification” restores the previous state. [Native comparison](app/src/main/java/org/llm4people/hermes/artifact/InstrumentPreview.java) · [Thread tool journey](app/src/androidTest/java/org/llm4people/hermes/journey/ThreadInstrumentJourney.java)
 
 **The Measurement Label Rule.** Place the French measure name directly above the value. Give the value one accessible description containing both the name and value.
 

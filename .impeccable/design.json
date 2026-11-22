@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-11-22T04:39:46Z",
+  "generatedAt": "2026-11-22T05:02:16Z",
   "title": "Design System: Hermes Mobile",
   "extensions": {
     "colorMeta": {
@@ -289,8 +289,22 @@
       "measurement": {
         "displayName": "Measurement",
         "purpose": "Presents a usage value or its unavailable state."
+      },
+      "tool-title": {
+        "displayName": "Tool title",
+        "purpose": "Names the version on display in the tool pane."
+      },
+      "version-option": {
+        "displayName": "Version selector",
+        "purpose": "Identifies the pinned form, differences or proposed form in the comparison."
       }
-    }
+    },
+    "breakpoints": [
+      {
+        "name": "Side-by-side thread tool",
+        "value": "640px"
+      }
+    ]
   },
   "components": [
     {
@@ -368,7 +382,7 @@
   ],
   "narrative": {
     "northStar": "A paper workspace for conversation",
-    "overview": "The conversation reads down one margin. A small speaker name introduces each turn, and a pending question stands out against the paper as a bordered surface. The person can answer where the question appears and still see the message composer below.\n\nThe same paper, ink and teal carry through to the atelier. A person can ask Hermes to build a review form, preview its arrangement, then use its fields to prepare a message. Technical views make their units, scope and available actions legible in French.",
+    "overview": "The conversation reads down one margin. A small speaker name introduces each turn, and a pending question stands out against the paper as a bordered surface. The person can answer where the question appears and still see the message composer below.\n\nThe same paper, ink and teal carry through to the atelier. A person can ask Hermes for a review form, try it in the conversation that produced it and pin it there for later. Its fields prepare an editable message. Technical views make their units, scope and available actions legible in French.",
     "keyCharacteristics": [
       "One reading column for speakers, messages and decisions.",
       "A quiet teal action color shared by text buttons, choices and the microphone.",
