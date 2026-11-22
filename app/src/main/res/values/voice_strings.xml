@@ -1,0 +1,21 @@
+<resources>
+    <string name="voice_dictate">Dicter</string>
+    <string name="voice_finish">Terminer la dictée</string>
+    <string name="voice_cancel">Annuler la dictée</string>
+    <string name="voice_cancel_short">Annuler</string>
+    <string name="voice_system_notice">Le service vocal Android peut transmettre votre voix à son fournisseur pour la transcrire.</string>
+    <string name="voice_use_system">Dicter avec Android</string>
+    <string name="voice_permission_wait">Autorisez l’accès au micro pour dicter.</string>
+    <string name="voice_permission_denied">Accès au micro refusé. Vous pouvez écrire ou autoriser le micro dans les réglages de l’application.</string>
+    <string name="voice_starting">Ouverture du micro…</string>
+    <string name="voice_listening">Parlez maintenant.</string>
+    <string name="voice_processing">Transcription en cours…</string>
+    <string name="voice_added">Dictée ajoutée. Relisez votre texte.</string>
+    <string name="voice_empty">Aucune parole reconnue. Réessayez ou écrivez votre texte.</string>
+    <string name="voice_unavailable">La dictée est indisponible sur ce téléphone. Vous pouvez écrire votre texte.</string>
+    <string name="voice_language">La dictée en français est indisponible. Vérifiez les langues vocales d’Android ou écrivez votre texte.</string>
+    <string name="voice_local_language">La dictée en français est indisponible sur l’appareil. Vous pouvez écrire ou utiliser le service vocal Android.</string>
+    <string name="voice_network">Le service vocal est hors connexion. Réessayez ou écrivez votre texte.</string>
+    <string name="voice_failed">La dictée a été interrompue. Réessayez ou écrivez votre texte.</string>
+    <string name="voice_other_service">Utiliser le service Android</string>
+</resources>

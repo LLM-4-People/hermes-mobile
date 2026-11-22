@@ -17,6 +17,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
+import org.llm4people.hermes.voice.VoiceDrafts;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -34,6 +35,8 @@ final class ThreadViews {
     private LinearLayout composerSlot;
     private Button more;
     private EditText input;
+    final VoiceDrafts voice;
+    private VoiceDrafts.Controls composerVoice;
     private Button send;
     private Button stop;
     private TextView progress;
@@ -47,7 +50,10 @@ final class ThreadViews {
     private AlertDialog dialog;
     private boolean transcript;
 
-    ThreadViews(Activity activity) {
+    ThreadViews(Activity activity) { this(activity, new VoiceDrafts(activity)); }
+
+    ThreadViews(Activity activity, VoiceDrafts voice) {
+        this.voice = voice;
         this.activity = activity;
         root = Ui.column(activity);
         list = new ListView(activity);
@@ -119,13 +125,16 @@ final class ThreadViews {
         input.setHint("Message à Hermes");
         input.setText(draft);
         input.setSelection(input.length());
-        send = Ui.button(activity, "Envoyer", v -> onSend.run());
+        composerVoice = voice.bind(input);
+        send = Ui.button(activity, "Envoyer", v -> { composerVoice.cancel(); onSend.run(); });
         stop = Ui.button(activity, "Arrêter", v -> onStop.run());
         composer.addView(input, new LinearLayout.LayoutParams(0, -2, 1));
+        composer.addView(composerVoice.button);
         composer.addView(send);
         composer.addView(stop);
         composerSlot = Ui.column(activity);
         composerSlot.addView(Ui.divider(activity));
+        composerSlot.addView(composerVoice.feedback);
         composerSlot.addView(composer);
         root.addView(composerSlot);
         input.addTextChangedListener(new TextWatcher() {
@@ -199,6 +208,7 @@ final class ThreadViews {
         List<String> all = Arrays.asList("notice", "transcript", "composer");
         List<String> order = requested.isEmpty() ? all : requested;
         for (String name : all) slot(name).setVisibility(order.contains(name) ? View.VISIBLE : View.GONE);
+        if (!order.contains("composer")) composerVoice.cancel();
         List<View> visible = new ArrayList<>();
         for (int i = 0; i < root.getChildCount(); i++) {
             View child = root.getChildAt(i);
@@ -254,6 +264,7 @@ final class ThreadViews {
     }
 
     void dismiss() {
+        voice.cancel();
         if (dialog != null) dialog.dismiss();
         dialog = null;
     }

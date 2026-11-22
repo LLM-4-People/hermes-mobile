@@ -20,6 +20,7 @@ import org.llm4people.hermes.profile.Account;
 import org.llm4people.hermes.profile.ProfileGate;
 import org.llm4people.hermes.push.MobilePush;
 import org.llm4people.hermes.thread.ThreadWorkspace;
+import org.llm4people.hermes.voice.VoiceDrafts;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -33,6 +34,7 @@ import java.util.concurrent.Executors;
 public final class MainActivity extends Activity implements ThreadWorkspace.Host, ArtifactDesk.Host, MobilePush.EventHost {
     private final ExecutorService notifications = Executors.newSingleThreadExecutor();
     private ProfileGate gate;
+    private VoiceDrafts voice;
     private PublishedFiles files;
     private Account account;
     private SessionPanel panels;
@@ -59,6 +61,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
                     android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT, this::back);
         }
+        voice = new VoiceDrafts(this);
         push = new MobilePush(this);
         files = new PublishedFiles(this);
         gate = new ProfileGate(this);
@@ -98,7 +101,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         shell = new WorkspaceShell(this, this::onAction);
         panels = new SessionPanel(this, api, account);
         panels.setLayoutHost(activeHost);
-        threads = new ThreadWorkspace(this, api, account, this);
+        threads = new ThreadWorkspace(this, api, account, this, voice);
         setContentView(shell.root);
         displayDiscussion();
         files.unlock(account, api);
@@ -354,7 +357,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
 
     @Override public void onRequestPermissionsResult(int code, String[] permissions, int[] results) {
         super.onRequestPermissionsResult(code, permissions, results);
-        push.onPermissionResult(code);
+        if (!voice.permissionResult(code, permissions, results)) push.onPermissionResult(code);
     }
 
     private void clearWorkspace() {
@@ -384,6 +387,16 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         } finally {
             gate.lock();
         }
+    }
+
+    @Override protected void onPause() {
+        voice.pause();
+        super.onPause();
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        voice.resume();
     }
 
     @Override protected void onStop() {

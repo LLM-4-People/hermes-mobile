@@ -13,6 +13,7 @@ import org.json.JSONObject;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.profile.Account;
+import org.llm4people.hermes.voice.VoiceDrafts;
 
 import java.util.UUID;
 import java.util.ArrayList;
@@ -37,6 +38,7 @@ public final class ThreadWorkspace implements AutoCloseable {
     final Handler main = new Handler(Looper.getMainLooper());
     final ExecutorService workers = Executors.newFixedThreadPool(3);
     private final Account account;
+    private final VoiceDrafts voice;
     private final FrameLayout container;
     ThreadViews screen;
     ThreadJournal journal;
@@ -69,7 +71,8 @@ public final class ThreadWorkspace implements AutoCloseable {
         });
     }
 
-    public ThreadWorkspace(Activity activity, HermesApi api, Account account, Host host) {
+    public ThreadWorkspace(Activity activity, HermesApi api, Account account, Host host, VoiceDrafts voice) {
+        this.voice = voice;
         this.activity = activity;
         this.api = api;
         this.account = account;
@@ -344,7 +347,7 @@ public final class ThreadWorkspace implements AutoCloseable {
         messages = new JSONArray();
         messageOffset = 0;
         messageCount = -1;
-        screen = new ThreadViews(activity);
+        screen = new ThreadViews(activity, voice);
         container.removeAllViews();
         container.addView(screen.root);
     }
