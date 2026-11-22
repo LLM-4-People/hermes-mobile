@@ -26,6 +26,7 @@ final class ThreadJournal {
     private final PhotoStore photos;
     private final JSONObject state;
     private long revision;
+    private long draftRevision;
     private long committed;
     private boolean retired;
 
@@ -144,8 +145,15 @@ final class ThreadJournal {
         }
     }
 
+    java.util.function.BooleanSupplier unchangedDraft(String original) {
+        long captured = draftRevision;
+        JSONObject selectedPhoto = photo();
+        return () -> !retired && draftRevision == captured && photo() == selectedPhoto && original.equals(draft());
+    }
+
     void draft(String text) {
         if (!text.equals(draft())) {
+            draftRevision++;
             ThreadData.put(state, "draft", text);
             revision++;
         }
@@ -179,6 +187,7 @@ final class ThreadJournal {
     void photo(JSONObject info, String pixels) {
         if (pending() != null || info != null && (!DiscussionPhoto.valid(info) || pixels == null))
             throw new IllegalStateException("Invalid photo change");
+        draftRevision++;
         if (info != null) ThreadData.put(info, "owner", owner);
         JSONObject old = photo();
         ThreadData.put(state, "photo", info);

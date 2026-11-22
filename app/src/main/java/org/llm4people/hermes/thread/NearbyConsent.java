@@ -7,6 +7,8 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.os.SystemClock;
 import android.text.InputFilter;
+import android.view.View;
+import android.view.inputmethod.EditorInfo;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
@@ -28,7 +30,7 @@ final class NearbyConsent {
     private long generation;
     private long stagedAt;
     private JSONObject staged;
-    private boolean skip, remembered, busy;
+    private boolean skip, remembered, busy, stagedFromPreference;
     private String failure = "";
     private Runnable cancelFix;
     private Runnable onGrant;
@@ -37,26 +39,38 @@ final class NearbyConsent {
     NearbyConsent(ThreadWorkspace page, Account account) {
         this.page = page;
         this.account = account;
-        try { remembered = owner().equals(account.read(PREF)); }
-        catch (RuntimeException unavailable) { failure = "Réglage de position indisponible"; }
+        refreshPreference();
     }
 
     private String owner() { return account.selectionBinding(PREF, "profile"); }
 
-    boolean beforeSend(String text, Runnable sendWithout) {
+    private void refreshPreference() {
+        try { remembered = owner().equals(account.read(PREF)); }
+        catch (RuntimeException unavailable) { remembered = false; failure = "Réglage de position indisponible"; }
+        if (stagedFromPreference && !remembered) {
+            staged = null;
+            stagedFromPreference = false;
+            generation++;
+            failure = "Partage de position désactivé pour ce profil";
+        }
+    }
+
+    boolean beforeSend(String text, Runnable exactSend) {
         if (busy) return false;
         if (skip) return true;
+        if (staged == null || stagedFromPreference) refreshPreference();
+        if (!failure.isEmpty()) { show(exactSend); return false; }
         if (staged != null) {
             if (frozen() != null && (!deviceStaged() || granted())) return true;
             staged = null;
             failure = "Position expirée ou autorisation retirée";
         }
         if (remembered && failure.isEmpty() && granted()) {
-            locateTurn(false, remembered);
+            locateTurn(false, remembered, exactSend);
             return false;
         }
         if (remembered || !failure.isEmpty() || NearbyTurn.suggests(text)) {
-            show(sendWithout);
+            show(exactSend);
             return false;
         }
         return true;
@@ -65,10 +79,11 @@ final class NearbyConsent {
     long version() { return generation; }
     JSONObject frozen() { return NearbyTurn.fresh(staged, stagedAt, SystemClock.elapsedRealtime()); }
     boolean stillCurrent(long version, JSONObject snapshot) {
+        if (stagedFromPreference) refreshPreference();
         return version == generation && (staged == null || snapshot != null && (!deviceStaged() || granted()));
     }
     private boolean deviceStaged() { return staged != null && "device".equals(staged.optString("source")); }
-    private boolean granted() { return page.activity.checkSelfPermission(PERMISSION) == PackageManager.PERMISSION_GRANTED; }
+    boolean granted() { return page.activity.checkSelfPermission(PERMISSION) == PackageManager.PERMISSION_GRANTED; }
 
     void restore() {
         clearTurn();
@@ -91,10 +106,25 @@ final class NearbyConsent {
         }
     }
 
-    private void locateTurn(boolean allowPermission, boolean remember) {
-        if (!saveChoice("confirm", null)) return;
+    boolean prepareDeviceChoice(boolean remember) {
+        // A replacement retires the old choice even when permission, storage, or acquisition fails.
+        staged = null;
+        stagedFromPreference = false;
+        skip = false;
+        if (!remember && remembered && !preference(false)) return false;
+        return saveChoice("confirm", null);
+    }
+
+    private void locateTurn(boolean allowPermission, boolean remember, Runnable exactSend) {
+        if (!prepareDeviceChoice(remember)) return;
         locate(allowPermission, () -> true, area -> {
-            if (preference(remember)) stage(area);
+            if (!allowPermission) {
+                refreshPreference();
+                if (!remembered) { failure = "Partage de position désactivé pour ce profil"; refresh(); return; }
+            } else if (!preference(remember)) return;
+            stage(area);
+            stagedFromPreference = !allowPermission;
+            if (exactSend != null && page.activity.hasWindowFocus()) exactSend.run();
         });
     }
 
@@ -102,6 +132,7 @@ final class NearbyConsent {
         generation++;
         cancel();
         staged = null;
+        stagedFromPreference = false;
         skip = false;
         failure = "";
         refresh();
@@ -132,6 +163,7 @@ final class NearbyConsent {
 
     void show(Runnable sendWithout) {
         if (page.journal == null || page.screen == null) return;
+        refreshPreference();
         generation++;
         cancel();
         refresh();
@@ -146,17 +178,13 @@ final class NearbyConsent {
         remember.setChecked(remembered);
         if (editable) {
             items.addView(remember);
-            option(items, "Utiliser ma position approximative", ticket, () -> locateTurn(true, remember.isChecked()));
+            option(items, "Utiliser ma position approximative", ticket, () -> locateTurn(true, remember.isChecked(), null));
             option(items, "Saisir un quartier", ticket, () -> {
                 if (!remembered || remember.isChecked() || preference(false)) manual();
             });
             option(items, sendWithout == null ? "Sans position pour ce message" : "Envoyer sans position", ticket, () -> {
                 if (remembered && !remember.isChecked() && !preference(false)) return;
-                if (!saveChoice("omit", null)) return;
-                clearTurn();
-                skip = true;
-                refresh();
-                if (sendWithout != null) sendWithout.run();
+                omit(sendWithout);
             });
         }
         if (remembered) option(items, "Désactiver pour ce profil", ticket, () -> {
@@ -168,6 +196,14 @@ final class NearbyConsent {
         scroll.addView(items);
         page.screen.show(new AlertDialog.Builder(page.activity).setTitle("Ajouter une zone à ce message ?")
                 .setView(scroll).setNegativeButton("Annuler", null));
+    }
+
+    void omit(Runnable sendWithout) {
+        if (!saveChoice("omit", null)) return;
+        clearTurn();
+        skip = true;
+        refresh();
+        if (sendWithout != null) sendWithout.run();
     }
 
     private boolean preference(boolean enable) {
@@ -197,6 +233,9 @@ final class NearbyConsent {
         long ticket = generation;
         EditText input = new EditText(page.activity);
         input.setSingleLine();
+        input.setSaveEnabled(false);
+        input.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS);
+        input.setImeOptions(EditorInfo.IME_ACTION_DONE | EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING | EditorInfo.IME_FLAG_NO_EXTRACT_UI);
         input.setHint("Quartier et ville");
         input.setFilters(new InputFilter[]{new InputFilter.LengthFilter(100)});
         LinearLayout box = Ui.column(page.activity);
@@ -229,6 +268,7 @@ final class NearbyConsent {
     private void stage(JSONObject area) {
         generation++;
         stagedAt = SystemClock.elapsedRealtime();
+        stagedFromPreference = false;
         staged = area;
         skip = false;
         failure = "";
@@ -267,9 +307,11 @@ final class NearbyConsent {
     private int nextPermission() {
         // An old Activity or profile can still receive a delayed result. Allocate a non-private, persistent ticket.
         SharedPreferences values = page.activity.getSharedPreferences("nearby-permission", Context.MODE_PRIVATE);
-        int next = values.getInt("next", 8000);
-        if (next >= 19000 || !values.edit().putInt("next", next + 1).commit()) throw new IllegalStateException();
-        return next;
+        synchronized (values) {
+            int next = values.getInt("next", 8000);
+            if (next >= 19000 || !values.edit().putInt("next", next + 1).commit()) throw new IllegalStateException();
+            return next;
+        }
     }
 
     boolean permissionResult(int code, String[] permissions, int[] results) {

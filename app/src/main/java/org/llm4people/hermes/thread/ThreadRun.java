@@ -40,7 +40,12 @@ final class ThreadRun {
             ui.notice("Le profil a changé. Retirez l’image et sélectionnez-la de nouveau.", "", null);
             return;
         }
-        if (!page.nearby.beforeSend(text, () -> { if (text.equals(ui.draft())) send(); })) return;
+        int token = page.token();
+        java.util.function.BooleanSupplier original = journal.unchangedDraft(text);
+        if (!page.nearby.beforeSend(text, () -> {
+            if (page.token() == token && page.journal == journal && !page.importingPhoto && original.getAsBoolean()
+                    && ui.root.isShown() && text.equals(ui.draft())) send();
+        })) return;
         JSONObject options;
         try {
             options = page.host.options(page.sessionId());
@@ -108,6 +113,11 @@ final class ThreadRun {
                 ui.notice("Cette passerelle doit prendre en charge les envois identifiables. Mettez Hermes à jour.", "", null);
                 return;
             }
+            if (!fresh && !NearbyTurn.canReplay(journal.pending(), features)) {
+                admissionFinished();
+                uncertain();
+                return;
+            }
             boolean ignoresToolsets = body.has("allowed_toolsets") && !features.optBoolean("run_toolset_selection");
             boolean ignoresExclusions = body.has("excluded_tools") && !features.optBoolean("run_tool_exclusions");
             if (ignoresToolsets || ignoresExclusions) {
@@ -126,6 +136,17 @@ final class ThreadRun {
                     admissionFinished();
                     ui.busy(false, false);
                     ui.notice("Le brouillon a changé. Vous pouvez l’envoyer.", "", null);
+                    return;
+                }
+                if (area != null && !NearbyTurn.supportsScope(features)) {
+                    admissionFinished();
+                    ui.busy(false, false);
+                    int token = page.token();
+                    java.util.function.BooleanSupplier unchanged = journal.unchangedDraft(snapshot);
+                    ui.notice("Mettez Hermes à jour pour partager une zone avec ce seul message.", "Envoyer sans position", () -> {
+                        if (page.token() == token && page.journal == journal && unchanged.getAsBoolean()
+                                && snapshot.equals(ui.draft())) page.nearby.omit(this::send);
+                    });
                     return;
                 }
                 try {
@@ -387,9 +408,12 @@ final class ThreadRun {
         keepCompletionPosition = false;
         page.loadMessages(false, owner.guard(() -> {
             JSONObject receipt = journal.pending();
-            JSONObject source = journal.sameOwner() ? NearbyTurn.response(receipt, status, page.messages()) : null;
+            boolean enrolled = journal.sameOwner() && receipt.has("nearby_guide");
             if (finishTracking()) return;
-            if (source != null) page.host.nearbyGuide(page, page.sessionId(), owner.run, source, receipt.optJSONObject("nearby_guide"));
+            if (enrolled && page.nearby.granted()) {
+                NearbyTurn.Guide guide = NearbyTurn.response(receipt, status, page.messages(), SystemClock.elapsedRealtime(), bootCount());
+                if (guide != null) page.host.nearbyGuide(page, page.sessionId(), owner.run, guide.row(), guide.area());
+            }
             ui.outgoing("");
             ui.busy(false, false);
             boolean visible = false;
