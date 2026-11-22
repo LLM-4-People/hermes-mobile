@@ -298,6 +298,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                     content = nativeView;
                 } else content = ArtifactDesk.decorate(this, account, surface, nativeView, activeHost);
                 shell.show(content, composer ? "Discussion d’origine" : null);
+                ArtifactDesk.refreshBindings(shell.content(), activeHost);
                 if (editing) threads.focusComposer();
                 break;
             case WorkspaceNavigation.HOME:
