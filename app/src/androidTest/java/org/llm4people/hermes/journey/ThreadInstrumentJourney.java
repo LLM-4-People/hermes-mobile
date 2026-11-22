@@ -70,6 +70,24 @@ final class ThreadInstrumentJourney {
                 "Après", "Relire ce changement par priorité.");
         ui.contains("Champ ajouté", "Priorité");
         ui.capture("22-comparaison-outil");
+        ui.tap("Version proposée");
+        String candidateFile = "facture/revue-proposee.py";
+        ui.fill("Fichier", candidateFile);
+        ui.fill("Priorité", "Élevée");
+        ui.hideKeyboard();
+        ui.capture("22-version-proposee");
+        ui.tap("Version épinglée");
+        ui.see(form);
+        ui.absent("Priorité");
+        if (candidateFile.equals(ui.fieldText("Fichier")))
+            throw new AssertionError("An unadopted revision changed the pinned form");
+        ui.fill("Fichier", "facture/revue-epinglee.py");
+        ui.capture("22-version-epinglee");
+        ui.tap("Version proposée");
+        if (!candidateFile.equals(ui.fieldText("Fichier")) || !"Élevée".equals(ui.fieldText("Priorité")))
+            throw new AssertionError("Switching between revisions discarded the private candidate fields");
+        ui.tap("Différences entre les versions");
+        ui.contains("Champ ajouté", "Priorité");
         ui.tap("Garder la version épinglée");
         ui.see(form);
         ui.absent("Priorité");

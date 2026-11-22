@@ -38,6 +38,8 @@ CAPTURES = {
     "20-essai-discussion.png": "Le formulaire proposé est ouvert en essai dans la discussion.",
     "21-brouillon-outil.png": "Le formulaire prépare un brouillon que la personne peut modifier.",
     "22-comparaison-outil.png": "La comparaison décrit l’ajout du champ Priorité.",
+    "22-version-epinglee.png": "La version épinglée conserve son formulaire à un champ.",
+    "22-version-proposee.png": "La version proposée peut être essayée avant son adoption.",
     "23-outil-adopte.png": "La version adoptée présente le nouveau champ éditable.",
     "24-outil-annule.png": "L’annulation rétablit la première version épinglée.",
     "25-outil-grand-ecran.png": "La discussion et le formulaire éditable occupent deux panneaux.",
@@ -101,6 +103,10 @@ def verify_history(gateway, provider):
             raise AssertionError("Unexpected user or assistant message in the canonical transcript")
     if admission(gateway, len(expected)) is not None or len(provider.main_requests()) != len(expected):
         raise AssertionError("A local trial, pin, draft or revision decision triggered an extra model request")
+    for body in provider.main_requests():
+        wire = json.dumps(body, ensure_ascii=False)
+        if any(value in wire for value in ("facture/revue-proposee.py", "facture/revue-epinglee.py")):
+            raise AssertionError("An unsent comparison field reached the model")
     return receipts
 
 
