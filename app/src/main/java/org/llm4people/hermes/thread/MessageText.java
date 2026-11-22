@@ -48,6 +48,17 @@ final class MessageText {
         return content;
     }
 
+    static void updateLive(TextView target, LiveTranscript stream, String source) {
+        if (!stream.update(source)) return;
+        Context context = target.getContext();
+        SpannableStringBuilder rendered = new SpannableStringBuilder();
+        if (stream.earlier) rendered.append("…\n");
+        if (stream.preceding != null) rendered.append(styled(context, stream.preceding));
+        rendered.append(styled(context, stream.latest));
+        if (stream.later) rendered.append("…");
+        target.setText(rendered);
+    }
+
     private static void span(SpannableStringBuilder content, TranscriptPage.Mark mark, Object style) {
         content.setSpan(style, mark.start, mark.end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
     }

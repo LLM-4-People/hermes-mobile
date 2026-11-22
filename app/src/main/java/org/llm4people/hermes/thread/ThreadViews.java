@@ -39,6 +39,8 @@ final class ThreadViews {
     private TextView progress;
     private TextView outgoing;
     private TextView liveText;
+    private Button fullLiveText;
+    private final LiveTranscript liveTranscript = new LiveTranscript();
     private Button approval;
     private JSONArray rows = new JSONArray();
     private BaseAdapter adapter;
@@ -86,6 +88,10 @@ final class ThreadViews {
         progress.setTextColor(activity.getColor(R.color.muted));
         liveText = Ui.text(activity, "", 17);
         liveText.setTextIsSelectable(true);
+        fullLiveText = Ui.button(activity, "Lire la réponse entière", v ->
+                show(new AlertDialog.Builder(activity).setTitle("Réponse de Hermes")
+                        .setView(MessageText.reader(activity, liveTranscript.source(), true, false))
+                        .setPositiveButton("Fermer", null)));
         approval = Ui.button(activity, "Examiner la demande", v -> approve.run());
         outgoing = Ui.text(activity, "", 17);
         outgoing.setTextIsSelectable(true);
@@ -93,6 +99,7 @@ final class ThreadViews {
         live.addView(outgoing);
         live.addView(progress);
         live.addView(liveText);
+        live.addView(fullLiveText);
         live.addView(approval);
         list.addFooterView(live, null, false);
         bindList();
@@ -227,7 +234,8 @@ final class ThreadViews {
         progress.setVisibility(detail.isEmpty() ? View.GONE : View.VISIBLE);
         progress.setText(detail);
         liveText.setVisibility(text.isEmpty() ? View.GONE : View.VISIBLE);
-        if (!text.contentEquals(liveText.getText())) liveText.setText(text);
+        MessageText.updateLive(liveText, liveTranscript, text);
+        fullLiveText.setVisibility(liveTranscript.earlier || liveTranscript.later ? View.VISIBLE : View.GONE);
         approval.setVisibility(needsApproval ? View.VISIBLE : View.GONE);
         if (atEnd && !text.isEmpty()) list.post(() -> list.setSelection(list.getCount() - 1));
     }

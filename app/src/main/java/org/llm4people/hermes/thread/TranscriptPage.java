@@ -27,6 +27,12 @@ final class TranscriptPage {
         Fences.Marker fence;
         Style lineStyle;
 
+        void extendLine(String source, int oldLength) {
+            if (lineEnd != oldLength) return;
+            int newline = source.indexOf('\n', oldLength);
+            lineEnd = newline < 0 ? source.length() : newline;
+        }
+
         Cursor() {}
         private Cursor(Cursor other) {
             offset = other.offset;
