@@ -13,6 +13,7 @@ GATE = Path(__file__).with_name("device-check.sh").resolve()
 FRAMEWORK = "org.llm4people.hermes.test/android.test.InstrumentationTestRunner"
 TEST_CLASS = "org.llm4people.hermes.thread.CodeExcerptCapture"
 ADB = ["adb", "-s", "emulator-fixture"]
+HANDOFF = ["adb", "-s", "emulator-handoffs"]
 INSTRUMENT = [*ADB, "shell", "am", "instrument", "-w", "-r", "-e", "class", TEST_CLASS]
 APP_APK = "app/build/outputs/apk/debug/app-debug.apk"
 TEST_APK = "app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk"
@@ -45,7 +46,7 @@ if "resolve-activity" in sys.argv:
 if sys.argv[3:] == ["shell", "dumpsys", "connectivity"]:
     print("Active default network: none")
 if sys.argv[1:] == ["get-serialno"]:
-    print("emulator-fixture")
+    print(os.environ.get("FIXTURE_ADB_SERIAL", "emulator-fixture"))
 if Path(sys.argv[0]).name == "dexdump":
     print(Path(sys.argv[3]).read_text())
 if sys.argv[3:6] == ["shell", "am", "instrument"]:
@@ -103,9 +104,27 @@ class DeviceGateTest(unittest.TestCase):
                "PATH": str(self.root / "bin") + os.pathsep + os.environ["PATH"],
                "FAIL_VERIFIER": fail, "EXECUTION_STATUS": str(execution_status), **changes}
         result = subprocess.run(["bash", GATE], cwd=self.root, env=env, text=True, capture_output=True)
+        if result.returncode == 0:
+            env["FIXTURE_ADB_SERIAL"] = HANDOFF[2]
+            result = subprocess.run(["bash", GATE.with_name("phone-action-check.sh"), APP_APK],
+                                    cwd=self.root, env=env, text=True, capture_output=True)
         return result, [json.loads(line) for line in self.trace.read_text().splitlines()]
 
-    def test_all_journeys_use_one_fork_serial_and_installed_apk_pair(self):
+    def test_workflow_requires_a_fresh_second_emulator_for_os_handoffs(self):
+        workflow = (GATE.parents[1] / ".github/workflows/checks.yml").read_text()
+        job = workflow.split("\n  device:\n", 1)[1].split("\n  aosp:", 1)[0]
+        primary, handoffs = job.split("      - name: Verify Android phone handoffs on a fresh emulator", 1)
+        self.assertIn("script: ci/device-check.sh", primary)
+        handoffs = handoffs.split("      - name:", 1)[0]
+        self.assertIn("ReactiveCircus/android-emulator-runner@", handoffs)
+        self.assertIn("target: google_apis", handoffs)
+        self.assertIn("avd-name: hermes-handoffs", handoffs)
+        self.assertIn("force-avd-creation: true", handoffs)
+        self.assertIn("script: bash ci/phone-action-check.sh " + APP_APK, handoffs)
+        self.assertNotIn("if:", handoffs)
+        self.assertNotIn("continue-on-error", handoffs)
+
+    def test_journeys_use_the_packaged_apks_and_their_own_emulator(self):
         result, calls = self.gate()
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(calls[:8], [
@@ -126,7 +145,7 @@ class DeviceGateTest(unittest.TestCase):
             "verification/discussion_photo.py", "verification/discussion_skills.py", "-m"])
         for cmd in verifiers:
             self.assertEqual(cmd[cmd.index("--source") + 1], ".fixture/hermes")
-            self.assertEqual(cmd[cmd.index("--serial") + 1], "emulator-fixture")
+            self.assertEqual(cmd[cmd.index("--serial") + 1], HANDOFF[2] if cmd is verifiers[-1] else ADB[2])
         self.assertIn("--require-tool-controls", verifiers[0])
         self.assertIn("verification/device/run.py", verifiers[0])
         for cmd in verifiers[1:-1]:
@@ -138,13 +157,15 @@ class DeviceGateTest(unittest.TestCase):
         self.assertEqual(verifiers[-1][3], "verification.phone_actions")
         self.assertEqual(verifiers[-1][verifiers[-1].index("--apk") + 1], APP_APK)
         self.assertIn("--inbound", verifiers[-1])
-        self.assertIn([*ADB, "shell", "cmd", "connectivity", "airplane-mode", "enable"], calls)
-        self.assertIn([*ADB, "shell", "svc", "wifi", "disable"], calls)
-        self.assertIn([*ADB, "shell", "pm", "disable-user", "--user", "0", "com.google.android.calendar"], calls)
+        self.assertIn([*HANDOFF, "install", "-r", "-t", APP_APK], calls)
+        self.assertEqual(calls.count(["adb", "get-serialno"]), 2)
+        self.assertIn([*HANDOFF, "shell", "cmd", "connectivity", "airplane-mode", "enable"], calls)
+        self.assertIn([*HANDOFF, "shell", "svc", "wifi", "disable"], calls)
+        self.assertIn([*HANDOFF, "shell", "pm", "disable-user", "--user", "0", "com.google.android.calendar"], calls)
         calendar = str(self.runner / "calendar-25-foss-release.apk")
         self.assertEqual((self.root / "calendar-check.txt").read_text().split(maxsplit=1), [
             "2825816d0a972bd85eb289e556221293fadecfd3179a4a2531bde6f89c6f0238", calendar + "\n"])
-        self.assertLess(calls.index(["sha256sum", "--check"]), calls.index([*ADB, "install", "-r", calendar]))
+        self.assertLess(calls.index(["sha256sum", "--check"]), calls.index([*HANDOFF, "install", "-r", calendar]))
 
     def test_each_journey_failure_stops_the_gate_with_its_diagnostic(self):
         journeys = ["verification/live_api.py", "verification/conversation_cards.py",
