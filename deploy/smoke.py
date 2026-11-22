@@ -88,7 +88,18 @@ class Probe:
             self.check(status == 200 and isinstance(json.loads(files).get("data"), list),
                        f"{name} can open its authenticated file-artifact catalog")
             marker = "/opt/data/workspace/" + thread
-            self.command("exec", "-T", "-u", "hermes", "gateway-" + name, "touch", marker)
+            runtime = ("exec", "-T", "-u", "hermes", "-w", "/opt/data/workspace", "gateway-" + name)
+            artifact = "Fixture for " + thread
+            self.command(*runtime, "python3", "-c",
+                         "import sys; from pathlib import Path; Path(sys.argv[1]).write_text(sys.argv[2])",
+                         thread, artifact)
+            ident = self.command(*runtime, "python3", "/opt/data/plugins/mobile_artifacts/publish.py",
+                                 "--session", thread, thread)
+            route = f"/api/mobile/files/{thread}/{ident}"
+            status, content = self.request(name, key, "GET", route)
+            self.check(status == 200 and content == artifact.encode(), f"{name} retrieved its published file bytes")
+            self.check(self.request(other, self.keys[other], "GET", route)[0] == 404,
+                       f"{other}'s runtime cannot retrieve {name}'s artifact")
             self.command("exec", "-T", "-u", "hermes", "gateway-" + other, "test", "!", "-e", marker)
             self.check(True, f"{name}'s coding workspace is absent from {other}")
 
