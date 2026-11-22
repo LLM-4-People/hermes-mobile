@@ -131,8 +131,10 @@ final class SessionSettings {
         LinearLayout box = panel.page("settings", R.string.panel_choose_model, this::pickProvider, provider.models.isEmpty());
         panel.note(box, provider.toString());
         if (provider.models.isEmpty()) { panel.note(box, panel.t(R.string.panel_no_model)); return; }
+        LinearLayout feedback = Ui.column(panel.activity);
+        box.addView(feedback, 0);
         String current = provider.slug.equals(PanelData.text(saved, "provider")) ? PanelData.text(saved, "model") : null;
-        picker(box, new ArrayList<>(provider.models), current, model -> selectModel(box, provider.slug, model));
+        picker(box, new ArrayList<>(provider.models), current, model -> selectModel(feedback, provider.slug, model));
     }
 
     private void selectModel(View anchor, String provider, String model) {
@@ -152,7 +154,7 @@ final class SessionSettings {
         Ui.pad(search, 12, 8);
         LinearLayout.LayoutParams field = new LinearLayout.LayoutParams(-1, -2);
         field.setMargins(0, Ui.dp(panel.activity, 8), 0, Ui.dp(panel.activity, 8));
-        reservePickerResults(box, search, field);
+        ScrollView header = reservePickerResults(box, search, field);
         box.addView(search, field);
         TextView empty = panel.note(box, panel.t(R.string.panel_empty_search));
         ListView list = new ListView(panel.activity);
@@ -167,6 +169,7 @@ final class SessionSettings {
             select.accept(adapter.getItem(i));
             // Both successful choices navigate away. A failed save leaves the picker open.
             if (currentPage.getAsBoolean()) {
+                header.scrollTo(0, 0);
                 int committed = adapter.getPosition(current);
                 restoreChoice(list, committed);
                 // Native clicks update visible radio buttons immediately; setItemChecked defers layout.
@@ -193,7 +196,7 @@ final class SessionSettings {
     }
 
     /** Keep long provider names scrollable while reserving space for search and a selectable result. */
-    private void reservePickerResults(LinearLayout page, EditText search, LinearLayout.LayoutParams field) {
+    private ScrollView reservePickerResults(LinearLayout page, EditText search, LinearLayout.LayoutParams field) {
         LinearLayout context = Ui.column(panel.activity);
         while (page.getChildCount() > 0) {
             View detail = page.getChildAt(0);
@@ -214,6 +217,7 @@ final class SessionSettings {
         };
         header.addView(context);
         page.addView(header, new LinearLayout.LayoutParams(-1, -2));
+        return header;
     }
 
     private void restoreChoice(ListView list, int committed) {
