@@ -1,6 +1,6 @@
 {
-  "package": "system-images;android-36;default;x86_64",
+  "package": "system-images;android-33;default;x86_64",
   "revision": 2,
-  "archive": "x86_64-36_r02.zip",
-  "repositorySha1": "829c076e8ff448a336097ae25a355b495ba36e2c"
+  "archive": "x86_64-33_r02.zip",
+  "repositorySha1": "d4698590184a21fe1e8754284130ad3006b5fc79"
 }
