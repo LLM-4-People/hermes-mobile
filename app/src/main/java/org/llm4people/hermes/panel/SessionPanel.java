@@ -49,7 +49,10 @@ public final class SessionPanel implements AutoCloseable {
     }
 
     public void setLayoutHost(ArtifactDesk.Host host) { layoutHost = host; }
-    public void show(String stableId, String remoteId) { new SessionSettings(this, stableId, remoteId).show(); }
+    public void show(String stableId, String remoteId) { show(stableId, remoteId, () -> false, null); }
+    public void show(String stableId, String remoteId, BooleanSupplier activeThread, Consumer<String> stageDraft) {
+        new SessionSettings(this, stableId, remoteId, activeThread, stageDraft).show();
+    }
     public void showStats(String stableId, String remoteId) { new UsagePanel(this, stableId, remoteId, null).show(); }
     public void showReminders() { new ReminderPanel(this).show(); }
     public void showReminder(String jobId) { new ReminderPanel(this).open(jobId); }

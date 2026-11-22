@@ -32,6 +32,8 @@ final class SessionSettings {
     private final SessionPanel panel;
     private final String id;
     private final String remoteId;
+    private final BooleanSupplier activeThread;
+    private final Consumer<String> stageDraft;
     private JSONObject saved;
     private TextView saveError;
     private boolean individualTools;
@@ -50,8 +52,9 @@ final class SessionSettings {
         @Override public String toString() { return name.isEmpty() || name.equals(slug) ? slug : name + " · " + slug; }
     }
 
-    SessionSettings(SessionPanel panel, String id, String remoteId) {
+    SessionSettings(SessionPanel panel, String id, String remoteId, BooleanSupplier activeThread, Consumer<String> stageDraft) {
         this.panel = panel; this.id = id; this.remoteId = remoteId;
+        this.activeThread = activeThread; this.stageDraft = stageDraft;
     }
 
     void show() {
@@ -77,6 +80,9 @@ final class SessionSettings {
         panel.note(box, panel.t(R.string.panel_session_scope));
         panel.section(box, R.string.panel_model);
         modelSetting(box);
+        if (stageDraft != null) panel.action(box, R.string.skills_title, () -> {
+            if (activeThread.getAsBoolean()) new SkillBrowser(panel, activeThread, stageDraft, this::show).show();
+        });
         panel.section(box, R.string.panel_tools);
         LinearLayout controls = Ui.column(panel.activity);
         box.addView(controls);

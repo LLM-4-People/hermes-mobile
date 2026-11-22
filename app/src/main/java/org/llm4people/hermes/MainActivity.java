@@ -246,7 +246,9 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                 } else if ("artifacts".equals(id)) {
                     new ArtifactDesk(this, account, session, threads.messages(), activeHost).show();
                 } else {
-                    panels.show(session, threads.remoteSessionId());
+                    ThreadWorkspace origin = threads;
+                    panels.show(session, origin.remoteSessionId(),
+                            () -> threads == origin && session.equals(origin.sessionId()), this::stageDraft);
                 }
                 break;
             default: Diagnostics.warning("workspace", "unknown_action");

@@ -1,0 +1,13 @@
+<resources>
+    <string name="skills_title">Compétences de Hermes</string>
+    <string name="skills_search">Rechercher une compétence</string>
+    <string name="skills_refresh">Actualiser les compétences</string>
+    <string name="skills_empty">La passerelle ne liste aucune compétence pour ce profil.</string>
+    <string name="skills_no_matches">Aucune compétence ne correspond à cette recherche.</string>
+    <string name="skills_missing">Cette passerelle ne propose pas la liste des compétences.</string>
+    <string name="skills_denied">Ce profil ne peut pas consulter les compétences de cette passerelle.</string>
+    <string name="skills_no_summary">Résumé non fourni.</string>
+    <string name="skills_category">Catégorie · %1$s</string>
+    <string name="skills_prepare">Préparer le brouillon</string>
+    <string name="skills_request">Utilise la compétence « %1$s » pour cette demande.</string>
+</resources>
