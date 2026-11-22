@@ -119,17 +119,19 @@ def event_rows(device):
     return result
 
 
-def local_event_count(dev):
+def local_event_count(dev, *, missing_ok=False):
     # The pinned Fossify Calendar stores local events outside the Android Calendar provider.
     db = "/data/user/0/org.fossify.calendar/databases/events.db"
-    result = dev.shell("su", "0", "sh", "-c", f"'if test -f {db}; then sqlite3 -readonly {db} "
-                       + '"SELECT count(*) FROM events"; else echo 0; fi' + "'")
+    query = f'if test -f {db}; then sqlite3 -readonly {db} "SELECT count(*) FROM events"; else echo missing; fi'
+    result = dev.shell("su", "0", "sh", "-c", shlex.quote(query))
+    if missing_ok and result == "missing":
+        return 0
     if not result.isdecimal():
         raise AssertionError("Unable to inspect the disposable Fossify Calendar database")
     return int(result)
 
 
-def capture_fields(ui, component, matches, path):
+def capture_fields(ui, component, matches, path, full_screen):
     """Save only the proposed public fields from the foreground receiving application's pixels."""
     from PIL import Image
     package = component.split("/", 1)[0]
@@ -137,15 +139,23 @@ def capture_fields(ui, component, matches, path):
         if focused(ui.device) != component:
             return []
         result = []
+        seen = set()
         tree = ui.hierarchy()
-        for parts in matches:
-            candidate = next((n for n in tree.iter("node") if n.get("package") == package and
-                              any(part.casefold() in n.get(key, "").casefold() for key in ("text", "content-desc")
-                                  for part in parts)), None)
-            if candidate is None:
+        for alternatives in matches:
+            for node in tree.iter("node"):
+                if node in seen or node.get("package") != package:
+                    continue
+                observed = next((node.get(key) for key in ("text", "content-desc")
+                                 if any(value.casefold() in node.get(key, "").casefold() for value in alternatives)), None)
+                if observed is not None:
+                    box = tuple(map(int, re.findall(r"-?\d+", node.get("bounds", ""))))
+                    result.append((box, observed))
+                    seen.add(node)
+                    break
+            else:
                 return []
-            result.append(tuple(map(int, re.findall(r"-?\d+", candidate.get("bounds", "")))))
         return result
+
     def stable():
         rects = regions()
         if not rects:
@@ -156,16 +166,19 @@ def capture_fields(ui, component, matches, path):
         with Image.open(BytesIO(frame)) as raw:
             image = raw.convert("RGB")
             masked = Image.new("RGB", image.size)
-            for box in rects:
+            for box, _ in rects:
                 x, y, right, bottom = box
                 if not (0 <= x < right <= image.width and 0 <= y < bottom <= image.height):
                     return False
                 masked.paste(image.crop(box), box)
             with path.open("xb") as handle:
                 masked.save(handle, "PNG")
-        return True
-    eventually("stable receiving application fields for " + package, stable)
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+            if full_screen:
+                with path.with_stem(path.stem + "-screen").open("xb") as handle:
+                    image.save(handle, "PNG")
+        return [label for _, label in rects]
+    rendered = eventually("stable receiving application fields for " + package, stable)
+    return rendered, hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def calendar_fields(request, zone):
@@ -214,7 +227,7 @@ def leave_receiver(ui, package, kind):
         eventually("the native sharesheet to close", lambda: not focused(ui.device).startswith(package + "/"))
 
 
-def review(ui, kind, request, output):
+def review(ui, kind, request, output, full_screen):
     prepare, confirm = ACTIONS[kind]
     ui.tap(prepare, scroll=True)
     ui.wait(confirm)
@@ -259,11 +272,14 @@ def review(ui, kind, request, output):
     if kind == "calendar_event":
         matches.extend(calendar_fields(request, ui.device.shell("getprop", "persist.sys.timezone")))
     filename = output.with_name(output.stem + "-" + kind + ".png")
-    digest = capture_fields(ui, component, matches, filename)
+    rendered, digest = capture_fields(ui, component, matches, filename, full_screen)
     leave_receiver(ui, package, kind)
-    return {"kind": kind, "receiver": component, "fields": detail, "captured_labels": matches,
-            "image": filename.name, "image_sha256": digest}
-
+    proof = {"kind": kind, "receiver": component, "fields": detail, "rendered_labels": rendered,
+             "image": filename.name, "image_sha256": digest}
+    if full_screen:
+        frame = filename.with_stem(filename.stem + "-screen")
+        proof.update(screen=frame.name, screen_sha256=hashlib.sha256(frame.read_bytes()).hexdigest())
+    return proof
 
 
 def inbound_drafts(ui, account_name, phrase, session):
@@ -301,6 +317,14 @@ def run(args):
     if dev.shell("getprop", "ro.kernel.qemu") != "1":
         raise ValueError("Expected a disposable emulator")
     assert_offline(dev)
+    if dev.shell("id", "-u") != "2000":
+        raise ValueError("Use the non-root adb shell for the external sender")
+    if args.full_screens:
+        counts = re.findall(r"Accounts: (\d+)", dev.shell("dumpsys", "account"))
+        contacts = dev.shell("su", "0", "content", "query", "--uri", "content://com.android.contacts/contacts",
+                             "--projection", "_id")
+        if counts != ["0"] or contacts != "No result found.":
+            raise ValueError("Full screenshots require an empty disposable guest with zero Android accounts and contacts")
     if installed_apk_sha256(dev, CALENDAR) != CALENDAR_APK:
         raise ValueError("Install the pinned Fossify Calendar release in the disposable emulator")
     package_hash = installed_apk_sha256(dev, APP)
@@ -329,7 +353,7 @@ def run(args):
         stack.enter_context(dev.reverse(gateway.endpoint))
         ui = Screen(dev, stack.enter_context(editor(dev, root)))
         phrase = secrets.token_hex(16)
-        start = (event_rows(dev), local_event_count(dev))
+        start = (event_rows(dev), local_event_count(dev, missing_ok=True))
         launch(dev, APP)
         account_name = "Actions" + secrets.token_hex(3)
         start_account(ui, account_name, gateway.endpoint, gateway.key, phrase)
@@ -368,12 +392,12 @@ def run(args):
             kind = request["kind"]
             if results:
                 back_to_page(ui, account_name, phrase, ACTIONS[kind][0])
-            results.append(review(ui, kind, request, args.output))
+            results.append(review(ui, kind, request, args.output, args.full_screens))
         inbound = inbound_drafts(ui, account_name, phrase, session_id) if args.inbound else []
         if (event_rows(dev), local_event_count(dev)) != start or admissions(gateway) != [(run_id, session_id)]:
             raise AssertionError("Android review created a calendar entry or an extra Hermes run")
-        return dict(receipt, actions=results, inbound=inbound, calendar_writes=0, additional_runs=0)
-
+        return dict(receipt, actions=results, inbound=inbound, calendar_writes=0, additional_runs=0,
+                    local_event_count=start[1], android_event_count=start[0].count("Row: "))
 
 
 if __name__ == "__main__":
@@ -387,6 +411,7 @@ if __name__ == "__main__":
     provider = parser.add_mutually_exclusive_group()
     provider.add_argument("--provider-url")
     provider.add_argument("--response-file", type=Path)
+    parser.add_argument("--full-screens", action="store_true", help="Retain full public receiver screens on a verified empty guest")
     parser.add_argument("--inbound", action="store_true", help="Also stage Android SEND and PROCESS_TEXT from uid shell")
     parser.add_argument("--model", default="Qwen2.5-Coder-7B-Instruct-int4-ov")
     parser.add_argument("--prompt", default=PROMPT)
