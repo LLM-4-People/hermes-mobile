@@ -51,10 +51,10 @@ public class HiddenPromptTest extends InstrumentationTestCase {
         MainActivity activity = (MainActivity) getInstrumentation().startActivitySync(launch);
         try (WorkspaceAccountFixture profile = new WorkspaceAccountFixture(context)) {
             ThreadWorkspace page = main(() -> selectThread(activity, profile.account));
+            JSONArray history = new JSONArray();
+            for (int i = 0; i < 60; ++i)
+                history.put(new JSONObject().put("role", "user").put("content", "Message de lecture " + i));
             RunDecisions actions = main(() -> {
-                JSONArray history = new JSONArray();
-                for (int i = 0; i < 60; ++i)
-                    history.put(new JSONObject().put("role", "user").put("content", "Message de lecture " + i));
                 page.screen.rows(history, false, false, 0);
                 page.screen.displayDraft("Mon brouillon");
                 page.journal.observe("pending-approval");
@@ -69,7 +69,10 @@ public class HiddenPromptTest extends InstrumentationTestCase {
             JSONObject prompt = new JSONObject().put("prompt_id", "decision").put("kind", "approval")
                     .put("execution_generation", 1).put("description", "Partager le fichier")
                     .put("choices", new JSONArray().put("once").put("deny"));
-            runTestOnUiThread(() -> actions.present(Collections.singletonList(prompt)));
+            runTestOnUiThread(() -> {
+                page.screen.rows(history, false, true, 0);
+                actions.present(Collections.singletonList(prompt));
+            });
             awaitUi(reveal::isShown);
             assertEquals(3, (int) main(() -> page.screen.list.getFirstVisiblePosition()));
             assertEquals(top, (int) main(() -> page.screen.list.getChildAt(0).getTop()));

@@ -185,9 +185,7 @@ final class ThreadViews {
         more.setVisibility(hasMore ? View.VISIBLE : View.GONE);
         more.setEnabled(true);
         adapter.notifyDataSetChanged();
-        if (follow) list.post(() -> {
-            if (!promptRows.visible() || !list.hasFocus()) list.setSelection(list.getCount() - 1);
-        });
+        if (follow) followTail();
         else if (prepended > 0) list.setSelectionFromTop(top + rows.length() - previous, y);
     }
 
@@ -260,7 +258,14 @@ final class ThreadViews {
         if (wasExcerpt != liveTranscript.excerpt())
             fullLiveText.setText(liveTranscript.excerpt() ? R.string.transcript_read_excerpt : R.string.transcript_read_full);
         fullLiveText.setVisibility(!text.isEmpty() && (liveTranscript.earlier || liveTranscript.later) ? View.VISIBLE : View.GONE);
-        if (atEnd && !hasPrompts && !promptRows.visible() && !text.isEmpty()) list.post(() -> list.setSelection(list.getCount() - 1));
+        if (atEnd && !hasPrompts && !text.isEmpty()) followTail();
+    }
+
+    private void followTail() {
+        // A prompt can arrive between a transcript refresh and its queued scroll.
+        if (!promptRows.visible()) list.post(() -> {
+            if (!promptRows.visible()) list.setSelection(list.getCount() - 1);
+        });
     }
 
     void notice(String message, String label, Runnable action) {
