@@ -3,6 +3,7 @@ package org.llm4people.hermes.push;
 import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.database.DataSetObserver;
 import android.content.pm.PackageManager;
@@ -60,7 +61,9 @@ final class PushSettings {
                     .setPositiveButton("Réessayer", (d,w) -> remove(device));
         } else if (device != null && PushStore.ACTIVE.equals(device.state)) {
             if (PushNotices.allowed(activity)) {
-                builder.setMessage("Les rappels et l’activité de vos sessions peuvent vous prévenir même après la fermeture de l’application.")
+                builder.setMessage(device.unified()
+                                ? "Le relais a enregistré ce profil. Ouvrez le distributeur pour vérifier sa connexion et terminer la configuration des alertes."
+                                : "Les rappels et l’activité de vos sessions peuvent vous prévenir même après la fermeture de l’application.")
                         .setPositiveButton("Désactiver", (d,w) -> remove(device));
             } else {
                 builder.setTitle("Alertes bloquées par Android")
@@ -76,6 +79,10 @@ final class PushSettings {
         } else {
             builder.setMessage("Recevez les rappels, les demandes d’autorisation et la fin des sessions. Le contenu de vos échanges reste privé.")
                     .setPositiveButton("Activer", (d,w) -> begin());
+        }
+        if (device != null && device.unified() && (PushStore.ACTIVE.equals(device.state)
+                || "ACTION_REQUIRED".equals(device.failure))) {
+            builder.setView(Ui.button(activity, "Ouvrir le distributeur", v -> openDistributor(device)));
         }
         display(builder);
         observeState(device);
@@ -151,6 +158,21 @@ final class PushSettings {
     private void systemSettings() {
         activity.startActivity(new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
                 .putExtra(Settings.EXTRA_APP_PACKAGE, activity.getPackageName()));
+    }
+
+    private void openDistributor(PushStore.Device device) {
+        Intent launch = activity.getPackageManager().getLaunchIntentForPackage(device.distributor);
+        if (launch != null) {
+            try {
+                activity.startActivity(launch);
+                return;
+            } catch (ActivityNotFoundException | SecurityException gone) {
+                Diagnostics.warning("push", "distributor_launcher_unavailable");
+            }
+        }
+        display(new AlertDialog.Builder(activity).setTitle("Distributeur indisponible")
+                .setMessage("Vérifiez que le distributeur choisi est installé et activé sur ce téléphone.")
+                .setPositiveButton("Retour", (d,w) -> show()));
     }
 
     private void begin() {
