@@ -17,6 +17,7 @@ from deploy.accounts import CADDY_IMAGE
 from verification.gateway_fixture import unused_loopback_port
 
 LOCAL_HTTP = build_opener(ProxyHandler({}))
+NTFY_MANAGER_LOG = "ntfy-manager.jsonl"
 
 
 def eventually(description, check, timeout=90):
@@ -82,13 +83,43 @@ def caddy_binary(directory):
 def ntfy(directory, executable):
     endpoint = f"http://127.0.0.1:{unused_loopback_port()}"
     config = directory / "server.yml"
+    manager_log = directory / NTFY_MANAGER_LOG
+    manager_log.touch(mode=0o600)
     config.write_text(
         f'base-url: "{endpoint}"\nlisten-http: "{urlsplit(endpoint).netloc}"\n'
         f'cache-file: "{directory / "messages.sqlite"}"\nweb-root: disable\n'
+        f'log-file: "{manager_log}"\nlog-format: json\nmanager-interval: 5s\n'
+        'log-level: warn\nlog-level-overrides: ["tag=manager -> trace"]\n'
     )
     with serve([executable, "serve", "--config", config], directory) as proc:
         wait_http(proc, endpoint + "/v1/health", lambda obj: obj.get("healthy"))
         yield endpoint
+
+
+def wait_for_ntfy_subscriber(directory, endpoint):
+    topic = urlsplit(endpoint).path.removeprefix("/")
+    # A cache poll and a successful enrollment both work before ntfy has a live subscriber.
+    # Its manager samples the in-memory per-topic subscriber count every five seconds.
+    with (directory / NTFY_MANAGER_LOG).open("rb") as stream:
+        end = stream.seek(0, os.SEEK_END)
+        if end:
+            stream.seek(-1, os.SEEK_END)  # Discard a sample already being written when the wait began.
+
+        def active():
+            latest = False
+            while True:
+                start = stream.tell()
+                line = stream.readline()
+                if not line.endswith(b"\n"):
+                    stream.seek(start)
+                    return latest
+                if start < end:
+                    continue
+                record = json.loads(line)
+                if record.get("tag") == "manager" and record.get("topic") == topic:
+                    latest = record.get("topic_subscribers", 0) > 0
+
+        eventually("a live ntfy subscriber on the enrolled topic", active)
 
 
 @contextmanager

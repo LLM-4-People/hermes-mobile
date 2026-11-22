@@ -27,6 +27,7 @@ from .stack import (
     json_request,
     ntfy,
     proxy,
+    wait_for_ntfy_subscriber,
 )
 from .ui import (
     APP,
@@ -221,8 +222,11 @@ def run(args):
             ui.wait("Désactiver")
             ui.tap("Ouvrir le distributeur")
             ui.wait("Subscribed topics")
+            wait_for_ntfy_subscriber(root, topic)
             launch(adb, APP)
             start_account(ui, alt, other_url, other.key, secrets.token_hex(14))
+            # Confirm the same stream stays connected after leaving ntfy, before closing Hermes.
+            wait_for_ntfy_subscriber(root, topic)
             process_absent(ui)
             session, run_id = trigger(primary, title)
             event = eventually(

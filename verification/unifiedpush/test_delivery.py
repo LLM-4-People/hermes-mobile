@@ -1,10 +1,12 @@
+import json
 import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from .prove import delivery_state, new_binary_publication
+from .stack import NTFY_MANAGER_LOG, wait_for_ntfy_subscriber
 
 
 class ColdDeliveryTest(unittest.TestCase):
@@ -15,6 +17,33 @@ class ColdDeliveryTest(unittest.TestCase):
         for messages in ([], prior + [{}], prior * 3):
             with self.subTest(messages=messages), self.assertRaises(AssertionError):
                 new_binary_publication(messages, 1)
+
+    def test_only_a_fresh_live_count_for_the_enrolled_topic_is_ready(self):
+        def sample(topic, count):
+            return json.dumps({"tag": "manager", "topic": topic, "topic_subscribers": count}).encode() + b"\n"
+
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            path = root / NTFY_MANAGER_LOG
+            historical = sample("upEnrolled", 1)
+            path.write_bytes(historical + historical[:10])
+            with path.open("ab", buffering=0) as log:
+                def exercise(_description, active):
+                    self.assertFalse(active())  # Ignore a subscriber that existed before this wait.
+                    log.write(historical[10:])
+                    self.assertFalse(active())
+                    log.write(sample("upOther", 1) + sample("upEnrolled", 0))
+                    self.assertFalse(active())
+                    record = sample("upEnrolled", 1)
+                    log.write(record[:-1])
+                    self.assertFalse(active())
+                    log.write(record[-1:])
+                    self.assertTrue(active())
+                    log.write(record + sample("upEnrolled", 0))
+                    self.assertFalse(active())
+
+                with patch("verification.unifiedpush.stack.eventually", side_effect=exercise):
+                    wait_for_ntfy_subscriber(root, "http://127.0.0.1:54321/upEnrolled")
 
     def test_reports_only_state_for_the_exact_delivery(self):
         phone = Mock()
