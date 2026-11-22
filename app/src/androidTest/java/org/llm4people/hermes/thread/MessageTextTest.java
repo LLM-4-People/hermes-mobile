@@ -117,6 +117,7 @@ public final class MessageTextTest extends InstrumentationTestCase {
     }
 
     private static TextView find(View view, String words) {
+        if (view == null || view.getVisibility() != View.VISIBLE) return null;
         if (view instanceof TextView text && text.getText().toString().contains(words)) return text;
         if (view instanceof android.view.ViewGroup group)
             for (int i = 0; i < group.getChildCount(); i++) {

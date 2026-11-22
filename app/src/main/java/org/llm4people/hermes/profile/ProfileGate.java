@@ -14,6 +14,7 @@ import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
+import org.llm4people.hermes.ambient.NotificationAllowlist;
 import org.llm4people.hermes.os.BiometricVault;
 import java.util.Arrays;
 import java.util.Map;
@@ -329,8 +330,9 @@ public final class ProfileGate {
 
     private void forget(ProfileScreen screen, String id) {
         try {
-            // Persist notification revocation first so process death cannot leave an orphan listener.
+            // Persist notification revocation and wipe ambient allowlist/session before forgetting profile.
             onForget.accept(id);
+            NotificationAllowlist.wipe(active != null && id.equals(active.id) ? active : null);
             store.forget(id);
         } catch (java.io.IOException | RuntimeException ex) {
             screen.status("Suppression impossible. Réessayez.", true);

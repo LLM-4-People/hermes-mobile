@@ -17,6 +17,7 @@ import android.widget.PopupMenu;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
+import org.llm4people.hermes.ambient.AmbientAccessPanel;
 import org.llm4people.hermes.panel.BrainStudioRoutes;
 
 import java.util.Objects;
@@ -271,6 +272,8 @@ final class WorkspaceShell {
                 activity.getString(R.string.activity_notifications_hint), "notifications");
         link(list, activity.getString(R.string.activity_push_policy_title),
                 activity.getString(R.string.activity_push_policy_hint), "push_policy");
+        link(list, activity.getString(R.string.ambient_route_label),
+                activity.getString(R.string.ambient_route_hint), AmbientAccessPanel.ROUTE_ID);
         link(list, activity.getString(R.string.activity_usage_title),
                 activity.getString(R.string.activity_usage_hint), "stats");
         link(list, activity.getString(R.string.activity_security_title), securitySummary, "security");
@@ -329,9 +332,7 @@ final class WorkspaceShell {
         });
         boolean atelierSurface = activity.getString(R.string.ws_desk).equals(pageTitle)
                 || activity.getString(R.string.ws_my_screens).equals(pageTitle)
-                || "Atelier".equals(pageTitle)
-                || "Mes écrans".equals(pageTitle)
-                || "Écran personnalisé".equals(pageTitle);
+                || activity.getString(R.string.ws_custom_screen).equals(pageTitle);
         if (atelierSurface) {
             item(menu, activity.getString(R.string.ws_my_screens), "pages");
             item(menu, activity.getString(R.string.ws_restore_desk), "restore");

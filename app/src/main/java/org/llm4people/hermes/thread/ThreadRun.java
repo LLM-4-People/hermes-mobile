@@ -9,6 +9,9 @@ import org.json.JSONObject;
 import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.HermesConfig;
 import org.llm4people.hermes.VisibleText;
+import org.llm4people.hermes.ambient.CalendarContextReader;
+import org.llm4people.hermes.ambient.HermesNotificationListener;
+import org.llm4people.hermes.ambient.NotificationAllowlist;
 import org.llm4people.hermes.camera.CapturedMedia;
 import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.os.LiveRunNotification;
@@ -244,7 +247,13 @@ final class ThreadRun {
             AppLanguage.acceptLanguageHeader(page.activity);
             body.put("user_language", AppLanguage.resolvedTag(page.activity));
             if (features.optBoolean("device_bridge")) {
-                List<String> caps = DeviceBridgeFlow.executableCapabilities(true, true, true);
+                NotificationAllowlist allowlist = NotificationAllowlist.forAccount(page.account());
+                NotificationAllowlist.Settings ambient = allowlist.settings();
+                boolean listenerOn = HermesNotificationListener.isListenerEnabled(page.activity);
+                boolean hasApps = !allowlist.effectiveAllowedPackages().isEmpty();
+                boolean calendarGranted = CalendarContextReader.hasPermission(page.activity);
+                List<String> caps = DeviceBridgeFlow.executableCapabilities(
+                        true, true, true, ambient, listenerOn, calendarGranted, hasApps);
                 body.put("device_capabilities", DeviceBridgeFlow.capabilitiesJson(caps));
             }
             journal.stage(body, SystemClock.elapsedRealtime(), bootCount(), idem.optLong("retention_seconds"),

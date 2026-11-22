@@ -225,7 +225,16 @@ final class NotesPanel {
         return card;
     }
 
+    void showWithDraft(String prefillTitle, String prefillBody) {
+        show();
+        openEditor(null, prefillTitle, prefillBody);
+    }
+
     private void openEditor(NotesModel.Note existing) {
+        openEditor(existing, null, null);
+    }
+
+    private void openEditor(NotesModel.Note existing, String prefillTitle, String prefillBody) {
         LinearLayout form = Ui.column(panel.activity);
         Ui.pad(form, 18, 10);
         EditText titleField = BrainUi.searchField(panel.activity, 0, R.string.brain_notes_title_hint);
@@ -239,6 +248,9 @@ final class NotesPanel {
             bodyField.setText(existing.body());
             tagsField.setText(String.join(", ", existing.tags()));
             pinBox.setChecked(existing.pinned());
+        } else {
+            if (prefillTitle != null && !prefillTitle.isEmpty()) titleField.setText(prefillTitle);
+            if (prefillBody != null && !prefillBody.isEmpty()) bodyField.setText(prefillBody);
         }
         LinearLayout.LayoutParams gap = new LinearLayout.LayoutParams(-1, -2);
         gap.setMargins(0, Ui.dp(panel.activity, 4), 0, Ui.dp(panel.activity, 6));

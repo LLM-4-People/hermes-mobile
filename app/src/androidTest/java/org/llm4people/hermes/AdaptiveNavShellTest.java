@@ -96,7 +96,8 @@ public final class AdaptiveNavShellTest extends InstrumentationTestCase {
                 shell.selected("t1", "Fil courant");
 
                 ArrayList<View> more = new ArrayList<>();
-                shell.root.findViewsWithText(more, "Autres actions", View.FIND_VIEWS_WITH_CONTENT_DESCRIPTION);
+                shell.root.findViewsWithText(more, activity.getString(R.string.ws_more_actions),
+                        View.FIND_VIEWS_WITH_CONTENT_DESCRIPTION);
                 assertEquals(1, more.size());
                 assertTrue(more.get(0).performClick());
 
@@ -106,11 +107,14 @@ public final class AdaptiveNavShellTest extends InstrumentationTestCase {
                 for (int i = 0; i < menu.size(); i++) {
                     titles.add(menu.getItem(i).getTitle().toString());
                 }
-                assertTrue(titles.contains("Modèle et outils"));
-                assertTrue(titles.contains("Artefacts"));
-                assertFalse("Rappels belongs in Activité tab", titles.contains("Rappels"));
-                assertFalse("Mes écrans belongs in Atelier tab", titles.contains("Mes écrans"));
-                assertFalse("Verrouiller belongs in top bar Profile/Lock", titles.contains("Verrouiller le profil"));
+                assertTrue(titles.contains(activity.getString(R.string.ws_model_and_tools)));
+                assertTrue(titles.contains(activity.getString(R.string.ws_artifacts)));
+                assertFalse("Rappels belongs in Activité tab",
+                        titles.contains(activity.getString(R.string.ws_reminders)));
+                assertFalse("Mes écrans belongs in Atelier tab",
+                        titles.contains(activity.getString(R.string.ws_my_screens)));
+                assertFalse("Verrouiller belongs in top bar Profile/Lock",
+                        titles.contains(activity.getString(R.string.ws_lock_profile)));
                 shell.dismissMenu();
             });
         } finally {

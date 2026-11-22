@@ -10,6 +10,7 @@ import android.view.ViewGroup;
 import android.view.inspector.WindowInspector;
 import android.widget.Switch;
 import android.widget.TextView;
+import org.llm4people.hermes.R;
 import org.llm4people.hermes.net.Exchange;
 import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.profile.WorkspaceAccountFixture;
@@ -42,8 +43,8 @@ public final class BrainStudioPanelsTest extends InstrumentationTestCase {
             SessionPanel panel = new SessionPanel(activity, new HermesApi(legacy.endpoint(), "test"), profile.account);
             try {
                 runTestOnUiThread(() -> panel.showMemory(null));
-                assertTextVisible("Mémoire de Hermes");
-                assertTextVisible("Cette fonction nécessite une mise à jour de votre serveur Hermes.");
+                assertTextVisible(activity.getString(R.string.brain_memory_title));
+                assertTextVisible(activity.getString(R.string.brain_upgrade_required));
             } finally {
                 runTestOnUiThread(panel::close);
             }
@@ -85,7 +86,7 @@ public final class BrainStudioPanelsTest extends InstrumentationTestCase {
                     });
                     assertNotNull("Expected skill toggle Switch", toggleRef[0]);
                     // Deterministic HTTP 500 on PUT /v1/skills/travail/revue/enabled -> switch MUST roll back to checked=true.
-                    assertTextVisible("Impossible de modifier l’état de ce savoir-faire. L’état précédent a été rétabli.");
+                    assertTextVisible(activity.getString(R.string.brain_skills_toggle_failed));
                     runTestOnUiThread(() -> assertTrue("Switch did not roll back", toggleRef[0].isChecked()));
                 } finally {
                     runTestOnUiThread(panel::close);
@@ -167,11 +168,11 @@ public final class BrainStudioPanelsTest extends InstrumentationTestCase {
             SessionPanel panel = new SessionPanel(activity, new HermesApi(gateway.endpoint(), "test"), profile.account);
             try {
                 runTestOnUiThread(() -> panel.showStats("s1", "s1"));
-                assertTextVisible("Temps de réponse");
-                assertTextVisible("Vitesse");
-                assertTextVisible("Indisponible");
-                assertTextVisible("Détails techniques");
-                assertTextVisible("Jetons de sortie");
+                assertTextVisible(activity.getString(R.string.brain_usage_response_time));
+                assertTextVisible(activity.getString(R.string.brain_usage_speed));
+                assertTextVisible(UsageFormatter.UNAVAILABLE);
+                assertTextVisible(activity.getString(R.string.brain_usage_technical_toggle));
+                assertTextVisible(activity.getString(R.string.panel_out));
             } finally {
                 runTestOnUiThread(panel::close);
             }

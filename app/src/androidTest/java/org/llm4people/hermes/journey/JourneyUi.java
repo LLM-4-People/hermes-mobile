@@ -174,7 +174,7 @@ public final class JourneyUi {
     }
 
     void showPendingControl(String expected) {
-        String reveal = "Répondre à Hermes";
+        String reveal = activity.getString(org.llm4people.hermes.R.string.ws_reply_hermes);
         View target = until(expected + " or " + reveal, () -> {
             View root = window();
             View prompt = find(root, v -> v instanceof TextView text

@@ -2,6 +2,7 @@ package org.llm4people.hermes;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
 import android.content.res.Configuration;
@@ -11,6 +12,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
+import android.provider.CalendarContract;
 import android.view.View;
 import android.view.WindowInsets;
 import android.view.WindowManager;
@@ -18,6 +20,9 @@ import android.widget.Toast;
 
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.llm4people.hermes.ambient.AmbientAccessPanel;
+import org.llm4people.hermes.ambient.HermesNotificationListener;
+import org.llm4people.hermes.ambient.NotificationAllowlist;
 import org.llm4people.hermes.artifact.ArtifactDesk;
 import org.llm4people.hermes.artifact.HomePinBridge;
 import org.llm4people.hermes.artifact.LiveUiPatch;
@@ -76,6 +81,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     private WorkspaceShell shell;
     private WorkspaceNavigation navigation;
     private ArtifactDesk.Host activeHost;
+    private AmbientAccessPanel activeAmbientPanel;
     private final Map<String, View> customPages = new HashMap<>();
     private SharedTextFlow sharedText;
     private SharedMediaFlow sharedMedia;
@@ -131,7 +137,10 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                 () -> navigate(WorkspaceNavigation.COMPOSER));
         sharedMedia.restore(state, getIntent());
         gate = new ProfileGate(this);
-        gate.setOnForget(id -> MobilePush.forget(this, id));
+        gate.setOnForget(id -> {
+            MobilePush.forget(this, id);
+            HermesNotificationListener.clearSession();
+        });
         handledDelivery = state == null ? null : state.getString("handled_delivery");
         delivery = MobilePush.target(this, getIntent());
         if (delivery != null && key(delivery).equals(handledDelivery)) delivery = null;
@@ -162,8 +171,15 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         });
         shellRoutes.register(WorkspaceNavigation.ACTIVITY, (route, force) -> {
             navigation.display(route, this::leavingSurface);
+            activeAmbientPanel = null;
             shell.show(shell.activitySurface(WorkspaceDialogs.securitySummary(this, account.id)),
                     getString(R.string.nav_activity));
+        });
+        shellRoutes.register(AmbientAccessPanel.ROUTE_ID, (route, force) -> {
+            navigation.display(route, this::leavingSurface);
+            activeAmbientPanel = new AmbientAccessPanel(this, NotificationAllowlist.forAccount(account),
+                    ambientCallbacks());
+            shell.show(activeAmbientPanel.buildView(), getString(R.string.ambient_panel_title));
         });
         shellRoutes.register(WorkspaceNavigation.GALLERY, (route, force) -> {
             navigation.display(route, this::leavingSurface);
@@ -217,6 +233,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         actions.register("notifications", () -> push.settings(account, deliveryActions(account)));
         actions.register("deliveries", () -> push.openInbox(account, deliveryActions(account)));
         actions.register("push_policy", () -> push.openPolicy(account));
+        actions.register(AmbientAccessPanel.ROUTE_ID, () -> navigate(AmbientAccessPanel.ROUTE_ID));
         actions.register("language", () -> AppLanguage.showPicker(this, selected -> {
             if (account != null) {
                 HermesApi syncApi = new HermesApi(account.endpoint, account.bearer);
@@ -296,6 +313,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         photoPicker.unlocked(unlocked);
         cameraCapture.unlocked(unlocked);
         AppLanguage.refreshRuntime(this);
+        HermesNotificationListener.bindProfile(this, unlocked);
         HermesApi api = new HermesApi(account.endpoint, account.bearer);
         navigation = new WorkspaceNavigation();
         activeHost = new WorkspaceHost(this, () -> account == unlocked);
@@ -310,6 +328,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         featureRoutes = BrainStudioRoutes.register(new RouteRegistry(), brainHandlers());
         DeliveryRouter.registerRoutes(featureRoutes,
                 () -> onAction("deliveries"), () -> onAction("push_policy"));
+        AmbientAccessPanel.registerRoute(featureRoutes, this, () -> onAction(AmbientAccessPanel.ROUTE_ID));
         setContentView(shell.root);
         displayDiscussion();
         files.unlock(account, api);
@@ -504,8 +523,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                 displayDiscussion();
                 if (item.sessionId != null && !item.sessionId.isEmpty()
                         && !item.sessionId.equals(threads.sessionId())) {
-                    threads.onLiveUiPatch(payload);
-                    threads.open(item.sessionId);
+                    threads.openWithLiveUiPatch(item.sessionId, payload);
                 } else if (threads.sessionId() != null) {
                     threads.onLiveUiPatch(payload);
                 } else {
@@ -722,6 +740,39 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         };
     }
 
+    private AmbientAccessPanel.ActionCallbacks ambientCallbacks() {
+        return new AmbientAccessPanel.ActionCallbacks() {
+            @Override public void stageDraft(String text) {
+                MainActivity.this.stageDraft(text);
+            }
+
+            @Override public void createNote(String title, String body, String fallbackDraft) {
+                if (panels == null) {
+                    stageDraft(fallbackDraft);
+                    return;
+                }
+                ThreadWorkspace origin = threads;
+                String currentSession = origin == null ? null : origin.sessionId();
+                BooleanSupplier activeCheck = () -> origin != null && threads == origin
+                        && currentSession != null && currentSession.equals(origin.sessionId());
+                panels.showCreateNote(title, body, activeCheck, MainActivity.this::stageDraft, null);
+            }
+
+            @Override public void addToCalendar(String title, String description, String fallbackDraft) {
+                Intent insert = new Intent(Intent.ACTION_INSERT, CalendarContract.Events.CONTENT_URI)
+                        .putExtra(CalendarContract.Events.TITLE, title == null ? "" : title)
+                        .putExtra(CalendarContract.Events.DESCRIPTION, description == null ? "" : description);
+                try {
+                    startActivity(insert);
+                    Diagnostics.event("ambient", "calendar_intent_opened");
+                } catch (ActivityNotFoundException | SecurityException unavailable) {
+                    Diagnostics.warning("ambient", "calendar_intent_unavailable");
+                    stageDraft(fallbackDraft);
+                }
+            }
+        };
+    }
+
     private void message(String title, String body) {
         if (notice != null) notice.dismiss();
         notice = Ui.secureDialog(new AlertDialog.Builder(this).setTitle(title).setMessage(body)
@@ -930,6 +981,10 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
 
     @Override public void onRequestPermissionsResult(int code, String[] permissions, int[] results) {
         super.onRequestPermissionsResult(code, permissions, results);
+        if (code == AmbientAccessPanel.REQUEST_READ_CALENDAR || code == AmbientAccessPanel.REQUEST_READ_CONTACTS) {
+            if (activeAmbientPanel != null) activeAmbientPanel.refreshAll();
+            return;
+        }
         if (threads != null && threads.nearbyPermission(code, permissions, results)) return;
         if (!voice.permissionResult(code, permissions, results)) push.onPermissionResult(code);
     }
@@ -942,6 +997,8 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
 
     private void clearWorkspace() {
         clearGraceTimer();
+        HermesNotificationListener.clearSession();
+        activeAmbientPanel = null;
         LiveRunActionReceiver.clearStopHandler(liveStopHandler);
         LiveRunNotification.cancel(this);
         if (sharedText != null) sharedText.lock();
@@ -1009,6 +1066,10 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     @Override protected void onResume() {
         super.onResume();
         checkGraceOnReturn();
+        if (account != null && activeAmbientPanel != null
+                && navigation != null && AmbientAccessPanel.ROUTE_ID.equals(navigation.current())) {
+            activeAmbientPanel.refreshAll();
+        }
         voice.resume();
     }
 

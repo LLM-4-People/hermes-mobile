@@ -284,7 +284,8 @@ public final class ThreadWorkspace implements AutoCloseable {
 
     void handleDeviceRequests(String runId, List<DeviceBridgeFlow.BridgeRequest> requests) {
         if (closed || screen == null || requests == null || requests.isEmpty()) return;
-        DeviceBridgeFlow.Executor executor = DeviceBridgeFlow.clipboardExecutor(new ClipboardPastePill(activity));
+        DeviceBridgeFlow.Executor executor = DeviceBridgeFlow.ambientAwareExecutor(
+                activity, account, new ClipboardPastePill(activity));
         for (DeviceBridgeFlow.BridgeRequest req : requests) {
             deviceBridge.promptUser(activity, instrumentHost, screen.root, req, executor, (status, data) ->
                     workers.execute(() -> {
@@ -889,6 +890,12 @@ public final class ThreadWorkspace implements AutoCloseable {
         } catch (java.io.IOException rejected) {
             Diagnostics.warning("live_ui", "suggested_actions_rejected");
         }
+    }
+
+    public void openWithLiveUiPatch(String id, JSONObject rawPatch) {
+        if (closed || rawPatch == null) return;
+        pendingLiveUiPatch = rawPatch;
+        open(id);
     }
 
     public void onLiveUiPatch(JSONObject rawPatch) {

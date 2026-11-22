@@ -9,6 +9,7 @@ import android.view.inspector.WindowInspector;
 import android.widget.Button;
 
 import org.json.JSONObject;
+import org.llm4people.hermes.R;
 
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -34,18 +35,18 @@ public final class ReminderEditorScheduleTest extends InstrumentationTestCase {
             runTestOnUiThread(() -> {
                 List<View> windows = WindowInspector.getGlobalWindowViews();
                 View top = windows.get(windows.size() - 1);
-                assertTrue(hasText(top, "Une seule fois"));
-                assertTrue(hasText(top, "Chaque jour"));
-                assertTrue(hasText(top, "Jours de semaine"));
-                assertTrue(hasText(top, "Chaque semaine"));
-                assertTrue(hasText(top, "Personnalisé"));
+                assertTrue(hasText(top, activity.getString(R.string.panel_preset_once)));
+                assertTrue(hasText(top, activity.getString(R.string.panel_preset_daily)));
+                assertTrue(hasText(top, activity.getString(R.string.panel_preset_weekdays)));
+                assertTrue(hasText(top, activity.getString(R.string.panel_preset_weekly)));
+                assertTrue(hasText(top, activity.getString(R.string.panel_preset_custom)));
                 assertTrue(hasText(top, "Du lundi au vendredi à 09 h 00"));
-                // Raw cron expression input stays tucked away until user opens "Expression avancée".
-                assertFalse(hasText(top, "Expression horaire Hermes"));
-                Button adv = findButton(top, "Expression avancée");
+                // Raw cron expression input stays tucked away until user opens advanced schedule.
+                assertFalse(hasText(top, activity.getString(R.string.panel_expression)));
+                Button adv = findButton(top, activity.getString(R.string.panel_advanced_toggle_show));
                 assertNotNull(adv);
                 adv.performClick();
-                assertTrue(hasText(top, "Expression horaire Hermes"));
+                assertTrue(hasText(top, activity.getString(R.string.panel_expression)));
             });
             // Native schedule builder produces valid gateway schedule string.
             ReminderSchedule parsed = ReminderSchedule.parse("0 9 * * 1-5", ZoneId.of("Europe/Paris"),

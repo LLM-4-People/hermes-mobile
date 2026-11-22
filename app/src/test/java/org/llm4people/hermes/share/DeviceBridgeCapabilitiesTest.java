@@ -1,6 +1,7 @@
 package org.llm4people.hermes.share;
 
 import org.junit.Test;
+import org.llm4people.hermes.ambient.NotificationAllowlist;
 
 import java.util.List;
 import java.util.Set;
@@ -11,18 +12,19 @@ import static org.junit.Assert.assertTrue;
 
 public final class DeviceBridgeCapabilitiesTest {
     private static final Pattern JARGON = Pattern.compile("\\b(json|sse|prompt|endpoint|token|toolset|cron|yaml)\\b");
-    private static final Set<String> FORK_PR15_ALLOWLIST = Set.of(
+    private static final Set<String> FORK_PR18_ALLOWLIST = Set.of(
             "camera", "location_coarse", "nearby_osm",
             "calendar_draft", "alarm_timer", "maps_handoff",
             "share_sheet", "clipboard_read",
-            "dial_draft", "email_draft", "contacts_pick", "ui_surfaces_v2");
+            "dial_draft", "email_draft", "contacts_pick", "ui_surfaces_v2",
+            "notifications_digest", "notification_reply", "media_control", "calendar_read");
 
     @Test
     public void advertisedCapabilitiesStrictlyMatchForkPr15Allowlist() {
         List<String> full = DeviceBridgeFlow.advertisedCapabilities(true, true, true, true);
         for (String cap : full) {
             assertTrue("Non-allowlisted capability would trigger HTTP 400: " + cap,
-                    FORK_PR15_ALLOWLIST.contains(cap));
+                    FORK_PR18_ALLOWLIST.contains(cap));
         }
         assertTrue(full.contains("camera"));
         assertTrue(full.contains("location_coarse"));
@@ -48,8 +50,8 @@ public final class DeviceBridgeCapabilitiesTest {
 
         List<String> executable = DeviceBridgeFlow.executableCapabilities(true, true, true);
         for (String cap : executable) {
-            assertTrue("Executable capability must be in Fork PR #15 allowlist: " + cap,
-                    FORK_PR15_ALLOWLIST.contains(cap));
+            assertTrue("Executable capability must be in Fork PR #18 allowlist: " + cap,
+                    FORK_PR18_ALLOWLIST.contains(cap));
         }
         assertTrue(executable.contains("calendar_draft"));
         assertTrue(executable.contains("alarm_timer"));
@@ -58,17 +60,47 @@ public final class DeviceBridgeCapabilitiesTest {
         assertTrue(executable.contains("clipboard_read"));
         assertTrue(executable.contains("dial_draft"));
         assertTrue(executable.contains("email_draft"));
-        // Unbacked capabilities must NOT be advertised until backed by a real executor.
+        // Unbacked or disabled ambient capabilities must NOT be advertised by default.
         assertFalse(executable.contains("camera"));
         assertFalse(executable.contains("location_coarse"));
         assertFalse(executable.contains("nearby_osm"));
         assertFalse(executable.contains("contacts_pick"));
         assertFalse(executable.contains("ui_surfaces_v2"));
+        assertFalse(executable.contains("notifications_digest"));
+        assertFalse(executable.contains("notification_reply"));
+        assertFalse(executable.contains("media_control"));
+        assertFalse(executable.contains("calendar_read"));
 
         List<String> restricted = DeviceBridgeFlow.executableCapabilities(false, false, false);
         assertFalse(restricted.contains("maps_handoff"));
         assertFalse(restricted.contains("alarm_timer"));
         assertFalse(restricted.contains("clipboard_read"));
+    }
+
+    @Test
+    public void ambientCapabilitiesAdvertiseStrictlyWhenBothOptInAndOsPermissionAreActive() {
+        NotificationAllowlist.Settings allOn = new NotificationAllowlist.Settings(true, true, true, true, true);
+        // Fail closed when OS listener & calendar permission are missing.
+        assertTrue(DeviceBridgeFlow.ambientExecutableCapabilities(allOn, false, false, true).isEmpty());
+        // Fail closed when opt-in is OFF even if OS listener & calendar permission are granted.
+        assertTrue(DeviceBridgeFlow.ambientExecutableCapabilities(
+                NotificationAllowlist.Settings.ALL_OFF, true, true, true).isEmpty());
+        // Fail closed for notifications when allowlist is empty.
+        List<String> noApps = DeviceBridgeFlow.ambientExecutableCapabilities(allOn, true, true, false);
+        assertFalse(noApps.contains("notifications_digest"));
+        assertFalse(noApps.contains("notification_reply"));
+        assertTrue(noApps.contains("media_control"));
+        assertTrue(noApps.contains("calendar_read"));
+        // Full opt-in + OS permissions + non-empty allowlist advertises all 4 ambient capabilities.
+        List<String> ready = DeviceBridgeFlow.executableCapabilities(true, true, true, allOn, true, true, true);
+        assertTrue(ready.contains("notifications_digest"));
+        assertTrue(ready.contains("notification_reply"));
+        assertTrue(ready.contains("media_control"));
+        assertTrue(ready.contains("calendar_read"));
+        for (String cap : ready) {
+            assertTrue("Ambient capability must stay in Fork PR #18 allowlist: " + cap,
+                    FORK_PR18_ALLOWLIST.contains(cap));
+        }
     }
 
     @Test
