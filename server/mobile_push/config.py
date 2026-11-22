@@ -16,6 +16,7 @@ class Settings:
     retention: int
     retry_max: int
     send_timeout: int
+    reconcile_seconds: int = 600
 
     @property
     def run_scope(self) -> str:
@@ -50,4 +51,5 @@ class Settings:
             number("MOBILE_PUSH_POLL_SECONDS", 2),
             number("MOBILE_PUSH_RETENTION_SECONDS", 604800),
             number("MOBILE_PUSH_RETRY_MAX_SECONDS", 3600),
-            number("MOBILE_PUSH_SEND_TIMEOUT_SECONDS", 10))
+            number("MOBILE_PUSH_SEND_TIMEOUT_SECONDS", 10),
+            number("MOBILE_PUSH_RECONCILE_SECONDS", 600))

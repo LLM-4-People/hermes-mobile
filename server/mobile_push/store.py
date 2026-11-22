@@ -3,6 +3,7 @@ from contextlib import closing, contextmanager
 from dataclasses import asdict
 import hashlib
 import hmac
+import json
 import sqlite3
 import uuid
 
@@ -34,6 +35,7 @@ class Store:
                     seq INTEGER PRIMARY KEY AUTOINCREMENT, event_id TEXT NOT NULL UNIQUE,
                     kind TEXT NOT NULL, created_at REAL NOT NULL, run_id TEXT, session_id TEXT, job_id TEXT);
                 CREATE INDEX IF NOT EXISTS event_time ON events(created_at);
+                CREATE INDEX IF NOT EXISTS run_events ON events(run_id,kind);
                 CREATE TABLE IF NOT EXISTS deliveries (
                     device_id TEXT REFERENCES devices(id) ON DELETE CASCADE,
                     event_id TEXT REFERENCES events(event_id) ON DELETE CASCADE,
@@ -84,23 +86,37 @@ class Store:
                 # Release any in-flight lease tied to the previous address.
                 db.execute("UPDATE deliveries SET lease=NULL,due=?,attempts=0 WHERE device_id=?", (now, device_id))
 
+    @staticmethod
+    def _record(db, event):
+        inserted = db.execute("""
+            INSERT INTO events(event_id,kind,created_at,run_id,session_id,job_id)
+            SELECT :event_id,:kind,:created_at,:run_id,:session_id,:job_id
+             WHERE NOT EXISTS (SELECT 1 FROM events WHERE event_id=:event_id)
+        """, asdict(event))
+        if inserted.rowcount:
+            db.execute("""
+                INSERT INTO deliveries(device_id,event_id,due)
+                SELECT id,?,? FROM devices WHERE enrolled<=?
+            """, (event.event_id, event.created_at, event.created_at))
+
     def record(self, events):
         with self.write() as db:
             for event in events:
-                inserted = db.execute("""
-                    INSERT INTO events(event_id,kind,created_at,run_id,session_id,job_id)
-                    SELECT :event_id,:kind,:created_at,:run_id,:session_id,:job_id
-                     WHERE NOT EXISTS (SELECT 1 FROM events WHERE event_id=:event_id)
-                """, asdict(event))
-                if inserted.rowcount:
-                    if event.kind in {"run_completed", "run_failed"}:
-                        db.execute("""DELETE FROM deliveries WHERE event_id IN (
-                                      SELECT event_id FROM events WHERE run_id=? AND kind='approval_requested')""",
-                                   (event.run_id,))
+                self._record(db, event)
+
+    def reconcile(self, observations, cutoff):
+        with self.write() as db:
+            for observation in observations:
+                if observation.run_id is not None:
+                    pending = [e.event_id for e in observation.events if e.kind == "approval_requested"]
                     db.execute("""
-                        INSERT INTO deliveries(device_id,event_id,due)
-                        SELECT id,?,? FROM devices WHERE enrolled<=?
-                    """, (event.event_id, event.created_at, event.created_at))
+                        DELETE FROM deliveries WHERE event_id IN (
+                            SELECT event_id FROM events WHERE run_id=? AND kind='approval_requested'
+                            AND event_id NOT IN (SELECT value FROM json_each(?)))
+                    """, (observation.run_id, json.dumps(pending)))
+                for event in observation.events:
+                    if event.created_at >= cutoff:
+                        self._record(db, event)
 
     def events(self, *, event_id=None, after=0, limit=50):
         with closing(self.connect()) as db:
@@ -134,6 +150,11 @@ class Store:
             db.execute("UPDATE deliveries SET due=?,lease=? WHERE device_id=? AND event_id=?",
                        (now + lease_seconds, item["lease"], item["device_id"], item["event_id"]))
             return item
+
+    def owns_delivery(self, item):
+        with closing(self.connect()) as db:
+            return db.execute("SELECT 1 FROM deliveries WHERE device_id=? AND event_id=? AND lease=?",
+                              (item["device_id"], item["event_id"], item["lease"])).fetchone() is not None
 
     def settle(self, item, *, retry_at=None, unregistered=False):
         args = (item["device_id"], item["event_id"], item["lease"])

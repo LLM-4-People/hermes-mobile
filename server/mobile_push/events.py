@@ -17,3 +17,11 @@ class Event:
         identity = json.dumps([kind, *source], separators=(",", ":"))
         event_id = hashlib.sha256(identity.encode()).hexdigest()[:32]
         return cls(event_id, kind, created_at, **links)
+
+
+@dataclass(frozen=True)
+class Observation:
+    updated_at: float
+    events: tuple[Event, ...]
+    # When supplied, the observed run owns the complete set of pending approvals.
+    run_id: str | None = None

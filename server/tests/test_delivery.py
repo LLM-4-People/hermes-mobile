@@ -78,6 +78,13 @@ class Delivery(unittest.TestCase):
             msg = post.call_args.kwargs["json"]["message"]
             self.assertEqual(msg, {"token":"token", "data":{"kind":"run_completed","event_id":self.event.event_id,
                              "installation_id":"d1"}, "android":{"priority":"high","ttl":"9998s"}})
+            with patch("server.mobile_push.fcm.time.time", return_value=item["created_at"] + sender.retention - 2):
+                self.assertTrue(sender.send(item))
+                self.assertEqual(post.call_args.kwargs["json"]["message"]["android"]["ttl"],"2s")
+            count = post.call_count
+            with patch("server.mobile_push.fcm.time.time", return_value=item["created_at"] + sender.retention):
+                self.assertTrue(sender.send(item))
+                self.assertEqual(post.call_count, count)
             resp.status_code, resp.headers = 429, {"Retry-After": "450"}
             with self.assertRaises(ProviderError) as raised:
                 sender.send(item)
@@ -150,3 +157,64 @@ class Delivery(unittest.TestCase):
         insert_run(writer, self.settings.run_scope, "run2", 102, "failed")
         ledgers.runs.scan((self.settings.run_scope, 0), self.store, 0)
         self.assertEqual([v["run_id"] for v in self.store.events()["events"]], ["run1", "run2"])
+
+    def test_settled_cancelled_and_replaced_approvals_are_retracted_before_delivery(self):
+        import json
+        runs = create_runs(self.settings)
+        self.addCleanup(runs.close)
+        sources = HermesLedgers(self.settings)
+        self.addCleanup(sources.close)
+        scope = self.settings.run_scope
+        insert_run(runs, scope, "run", 110, "waiting_for_approval",
+                   session_id="s", pending_approvals={"p1": 101, "p2": 102})
+        def scan():
+            sources.runs.scan((scope, 0), self.store, 0)
+        def change(status, **fields):
+            runs.execute("UPDATE run_idempotency SET status_json=?, updated_at=updated_at+1",
+                         (json.dumps({"status":status,"session_id":"s",**fields}),))
+            runs.commit()
+            scan()
+        scan()
+        first,second = self.store.events()["events"]
+        self.assertNotEqual(first["event_id"], second["event_id"])
+        change("waiting_for_approval",pending_approvals={"p2":102})
+        claim = self.store.claim(120, 1)
+        self.assertEqual(claim["event_id"], second["event_id"])
+        change("cancelled")
+        sender = Mock()
+        deliver(claim, self.settings, self.store, sender)
+        sender.send.assert_not_called()
+        self.assertIsNone(self.store.claim(130, 1))
+        change("completed")
+        self.assertEqual(self.store.claim(130, 1)["kind"], "run_completed")
+
+    def test_incremental_scan_retries_atomic_batch_and_catches_backdated_commits(self):
+        runs = create_runs(self.settings)
+        self.addCleanup(runs.close)
+        scope = self.settings.run_scope
+        runs.executemany("INSERT INTO run_idempotency VALUES(?,?,?,?,?)",
+                         [(scope,f"r{i}","fp",i,'{"status":"completed"}') for i in range(5000)])
+        runs.commit()
+        sources = HermesLedgers(self.settings)
+        self.addCleanup(sources.close)
+        stream = sources.runs
+        stream.scan((scope,0), self.store,0)
+        insert_run(runs, scope, "rnew", 5020, "completed")
+        with patch.object(self.store, "reconcile", side_effect=sqlite3.OperationalError("locked")):
+            with self.assertRaises(sqlite3.OperationalError):
+                stream.scan((scope,0), self.store,0)
+        with patch.object(self.store, "reconcile", wraps=self.store.reconcile) as write:
+            stream.scan((scope,0), self.store,0)
+            self.assertLessEqual(len(write.call_args.args[0]), 4)
+        insert_run(runs, scope, "late", 150, "failed")
+        stream.scan((scope,0), self.store,0)
+        with patch("server.mobile_push.ledgers.time.monotonic", return_value=stream.last_full + self.settings.reconcile_seconds):
+            stream.scan((scope,0), self.store,0)
+        late_id = Event.make(["late"],"run_failed",150).event_id
+        self.assertEqual(self.store.events(event_id=late_id)["run_id"],"late")
+        reopened = HermesLedgers(self.settings)
+        try:
+            reopened.runs.scan((scope,0), self.store,0)
+        finally:
+            reopened.close()
+        self.assertEqual(len(self.store.events(limit=6000)["events"]), 5002)

@@ -30,6 +30,8 @@ def scan_loop(settings, store, stopped, changed):
 
 
 def deliver(item, settings, store, sender):
+    if not store.owns_delivery(item):
+        return
     try:
         active = sender.send(item)
     except Exception as exc:

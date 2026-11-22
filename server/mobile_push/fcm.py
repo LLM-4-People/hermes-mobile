@@ -34,7 +34,10 @@ class FirebaseSender:
 
     def send(self, item):
         now = time.time()
-        ttl = max(0, min(28 * 86400, int(item["created_at"] + self.retention - now)))
+        remaining = item["created_at"] + self.retention - now
+        if remaining <= 0:
+            return True
+        ttl = min(28 * 86400, int(remaining))
         data = {"event_id": item["event_id"], "installation_id": item["device_id"], "kind": item["kind"]}
         message = {"token": item["token"], "data": data, "android": {"priority": "high", "ttl": f"{ttl}s"}}
         with self.session.post(self.url, json={"message": message}, timeout=self.timeout,
