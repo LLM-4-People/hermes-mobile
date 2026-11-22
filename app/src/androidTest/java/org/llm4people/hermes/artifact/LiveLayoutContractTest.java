@@ -59,7 +59,7 @@ public class LiveLayoutContractTest extends InstrumentationTestCase {
         answers.put("why","Fiabilité");
         String supplemental = new String(Character.toChars(0xe0100));
         for (String blank : Arrays.asList(" \t", "\u2003", "\u00a0", "\u202f\n", "\u200b\u200d",
-                "\u00a0\ufe0f", "\ufe00", supplemental, new String(Character.toChars(0xe01ef)))) {
+                "\u00a0\ufe0f", "\ufe00", "\u180f", supplemental, new String(Character.toChars(0xe01ef)))) {
             answers.put("file",blank);
             assertMissing(form,answers,"file");
             answers.put("file","src/Parser.java");
