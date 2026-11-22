@@ -1,16 +1,23 @@
 package org.llm4people.hermes.journey;
 
 import android.app.Activity;
+import android.app.Application;
 import android.app.Instrumentation;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
+import android.os.Bundle;
 import android.os.SystemClock;
 import android.test.InstrumentationTestCase;
+import android.view.View;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+
 import org.llm4people.hermes.MainActivity;
+import org.llm4people.hermes.share.ShareTextActivity;
 import org.llm4people.hermes.net.Exchange;
 import org.llm4people.hermes.profile.IncomingShare;
 import org.llm4people.hermes.profile.RegisteredShareProfile;
@@ -75,15 +82,31 @@ public final class SharedTextEntryTest extends InstrumentationTestCase {
             Activity[] current = {first};
             String receipt = null;
             try {
-                JourneyUi ui = new JourneyUi(driver, first, context.getCacheDir());
                 Intent external = new Intent(action).setType("text/plain").setPackage(context.getPackageName())
                         .putExtra(key, text).putExtra(Intent.EXTRA_PROCESS_TEXT_READONLY, false);
                 assertEquals("org.llm4people.hermes.share.ShareTextActivity", external.resolveActivity(context.getPackageManager()).getClassName());
                 assertNull(IncomingShare.pending(context));
-                runTestOnUiThread(() -> first.startActivity(external));
-                long end = SystemClock.uptimeMillis() + 10_000;
-                while ((receipt = IncomingShare.pending(context)) == null && SystemClock.uptimeMillis() < end) SystemClock.sleep(30);
-                assertNotNull(receipt);
+                ShareHandoff handoff = new ShareHandoff();
+                Application application = first.getApplication();
+                application.registerActivityLifecycleCallbacks(handoff);
+                try {
+                    runTestOnUiThread(() -> first.startActivity(external));
+                    long end = SystemClock.uptimeMillis() + 10_000;
+                    while ((receipt = IncomingShare.pending(context)) == null && SystemClock.uptimeMillis() < end) SystemClock.sleep(30);
+                    assertNotNull(receipt);
+                    assertTrue("The share entry did not return to the protected workspace",
+                            handoff.resumed.await(15, TimeUnit.SECONDS));
+                    current[0] = handoff.workspace;
+                } finally { application.unregisterActivityLifecycleCallbacks(handoff); }
+                View chooser = current[0].getWindow().getDecorView();
+                boolean[] focused = {false};
+                long focusDeadline = SystemClock.uptimeMillis() + 10_000;
+                do {
+                    runTestOnUiThread(() -> focused[0] = chooser.hasWindowFocus() && chooser.isShown());
+                    if (!focused[0]) SystemClock.sleep(30);
+                } while (!focused[0] && SystemClock.uptimeMillis() < focusDeadline);
+                assertTrue("The receiving profile chooser did not acquire input focus", focused[0]);
+                JourneyUi ui = new JourneyUi(driver, current[0], context.getCacheDir());
                 ui.tap(profile.label);
                 ui.fill("Phrase secrète du profil", profile.passphrase);
                 ui.tap("Déverrouiller");
@@ -92,7 +115,7 @@ public final class SharedTextEntryTest extends InstrumentationTestCase {
                 if (recreate) {
                     Instrumentation.ActivityMonitor monitor = driver.addMonitor(MainActivity.class.getName(), null, false);
                     try {
-                        runTestOnUiThread(first::recreate);
+                        runTestOnUiThread(current[0]::recreate);
                         Activity restored = monitor.waitForActivityWithTimeout(10_000);
                         assertNotNull(restored);
                         current[0] = restored;
@@ -120,5 +143,29 @@ public final class SharedTextEntryTest extends InstrumentationTestCase {
                 runTestOnUiThread(current[0]::finish);
             }
         }
+    }
+
+    /** A persisted receipt exists before the receiving MainActivity replaces the previous profile chooser. */
+    private static final class ShareHandoff implements Application.ActivityLifecycleCallbacks {
+        final CountDownLatch resumed = new CountDownLatch(1);
+        private boolean entryCreated;
+        MainActivity workspace;
+
+        @Override public void onActivityCreated(Activity activity, Bundle state) {
+            if (activity instanceof ShareTextActivity) entryCreated = true;
+        }
+
+        @Override public void onActivityResumed(Activity activity) {
+            if (entryCreated && activity instanceof MainActivity main) {
+                workspace = main;
+                resumed.countDown();
+            }
+        }
+
+        @Override public void onActivityStarted(Activity activity) {}
+        @Override public void onActivityPaused(Activity activity) {}
+        @Override public void onActivityStopped(Activity activity) {}
+        @Override public void onActivitySaveInstanceState(Activity activity, Bundle out) {}
+        @Override public void onActivityDestroyed(Activity activity) {}
     }
 }
