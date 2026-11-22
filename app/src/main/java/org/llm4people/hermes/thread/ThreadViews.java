@@ -294,24 +294,21 @@ final class ThreadViews {
             body.setTextColor(getContext().getColor(chat ? R.color.ink : R.color.muted));
             body.setMaxLines(chat ? Integer.MAX_VALUE : 2);
             body.setTextSize(chat ? 17 : 14);
-            body.setTypeface(role.equals("tool") || content.startsWith("```") ? Typeface.MONOSPACE : Typeface.DEFAULT);
+            body.setTypeface(role.equals("tool") ? Typeface.MONOSPACE : Typeface.DEFAULT);
             body.setTextIsSelectable(chat);
             body.setVisibility(content.isEmpty() ? View.GONE : View.VISIBLE);
-            // Large output remains available in full without forcing ListView to lay out a whole log.
-            boolean clipped = chat && content.length() > 6000;
-            body.setText(clipped ? content.substring(0, 6000) + "…" : content);
+            boolean markdown = chat && "assistant".equals(role);
+            TranscriptPage preview = new TranscriptPage(content, new TranscriptPage.Cursor(), markdown,
+                    chat ? TranscriptPage.PAGE_CHARS : 300);
+            CharSequence rendered = MessageText.styled(getContext(), preview);
+            body.setText(preview.hasMore() ? android.text.TextUtils.concat(rendered, "…") : rendered);
             if (getChildCount() > 2) removeViewAt(2);
-            if (clipped) {
+            if (chat && preview.hasMore()) {
                 String full = content;
-                addView(Ui.button(getContext(), "Lire le message entier", v -> {
-                    TextView text = Ui.text(getContext(), full, 16);
-                    text.setTextIsSelectable(true);
-                    Ui.pad(text, 20, 12);
-                    ScrollView scroll = new ScrollView(getContext());
-                    scroll.addView(text);
-                    show(new AlertDialog.Builder(getContext()).setTitle(name).setView(scroll)
-                            .setPositiveButton("Fermer", null));
-                }));
+                addView(Ui.button(getContext(), "Lire le message entier", v ->
+                        show(new AlertDialog.Builder(getContext()).setTitle(name)
+                                .setView(MessageText.reader(getContext(), full, markdown, role.equals("tool")))
+                                .setPositiveButton("Fermer", null))));
             }
         }
     }
