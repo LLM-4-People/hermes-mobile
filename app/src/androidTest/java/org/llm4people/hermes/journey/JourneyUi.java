@@ -101,12 +101,31 @@ public final class JourneyUi {
     }
 
     void contains(String... fragments) {
-        until(String.join(" + ", fragments), () -> find(window(), view -> {
+        matchingText(fragments);
+    }
+
+    private View matchingText(String... fragments) {
+        return until(String.join(" + ", fragments), () -> find(window(), view -> {
             if (!(view instanceof TextView text)) return false;
             String value = text.getText().toString();
             for (String fragment : fragments) if (!value.contains(fragment)) return false;
             return true;
         }));
+    }
+
+    void revealText(String... fragments) { reveal(matchingText(fragments)); }
+
+    void revealField(String name) { reveal(field(name)); }
+
+    private void reveal(View view) {
+        until("unclipped control in the app viewport", () -> {
+            Rect rectangle = new Rect();
+            view.getDrawingRect(rectangle);
+            view.requestRectangleOnScreen(rectangle, true);
+            Rect visible = new Rect();
+            return view.getGlobalVisibleRect(visible) && visible.height() >= view.getHeight() &&
+                    visible.width() >= view.getWidth() ? Boolean.TRUE : null;
+        });
     }
 
     void absent(String label) {

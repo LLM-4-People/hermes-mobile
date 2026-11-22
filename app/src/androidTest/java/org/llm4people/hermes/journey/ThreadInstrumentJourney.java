@@ -44,6 +44,7 @@ final class ThreadInstrumentJourney {
         ui.see(form);
         ui.fill("Fichier", "facture.py");
         ui.hideKeyboard();
+        ui.revealField("Fichier");
         ui.capture("20-essai-discussion");
         ui.tap(RETURN);
         ui.absent(OPEN);
@@ -68,13 +69,14 @@ final class ThreadInstrumentJourney {
         ui.tap(COMPARE);
         ui.contains("Consigne du brouillon", "Avant", "Relire ce changement.",
                 "Après", "Relire ce changement par priorité.");
-        ui.contains("Champ ajouté", "Priorité");
+        ui.revealText("Champ ajouté", "Priorité");
         ui.capture("22-comparaison-outil");
         ui.tap("Version proposée");
         String candidateFile = "facture/revue-proposee.py";
         ui.fill("Fichier", candidateFile);
         ui.fill("Priorité", "Élevée");
         ui.hideKeyboard();
+        ui.revealField("Priorité");
         ui.capture("22-version-proposee");
         ui.tap("Version épinglée");
         ui.see(form);
@@ -82,6 +84,7 @@ final class ThreadInstrumentJourney {
         if (candidateFile.equals(ui.fieldText("Fichier")))
             throw new AssertionError("An unadopted revision changed the pinned form");
         ui.fill("Fichier", "facture/revue-epinglee.py");
+        ui.revealField("Fichier");
         ui.capture("22-version-epinglee");
         ui.tap("Version proposée");
         if (!candidateFile.equals(ui.fieldText("Fichier")) || !"Élevée".equals(ui.fieldText("Priorité")))
@@ -97,10 +100,12 @@ final class ThreadInstrumentJourney {
         ui.see("Priorité");
         ui.fill("Priorité", "Élevée");
         ui.hideKeyboard();
+        ui.revealField("Priorité");
         ui.capture("23-outil-adopte");
         ui.tap("Annuler la modification");
         ui.see(form);
         ui.absent("Priorité");
+        ui.revealField("Fichier");
         ui.capture("24-outil-annule");
         ui.tap(RETURN);
         ui.tap("Toutes les discussions");
