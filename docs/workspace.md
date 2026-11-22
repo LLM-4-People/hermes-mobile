@@ -6,6 +6,8 @@ In a coding discussion, ask “Turn this review into a tool I can use again.” 
 
 Ask for a calendar event, text to share or a place to find on a map in the same conversation. Hermes proposes a native action to review and open on your phone. [Android actions and examples](android-actions.md)
 
+For a nearby restaurant guide, ask “Trouve-moi des restaurants près de moi.” You choose which location to share. [Location and restaurant sources](nearby-restaurants.md)
+
 Ask Hermes to rearrange a built-in screen, replace its authenticated content, or create a named screen for a task. It can build forms, link workspace pages, show the active conversation title and order the native composer, status and transcript. Open the resulting layout proposal from the thread’s artifact library. The preview names the destination screen and shows the proposed sections. Select **Appliquer la disposition…** and confirm to use it for this profile. The Atelier’s native screen-layout menu provides **Annuler la modification** and **Rétablir**. A change retains its preceding revision for undo. Applying and undoing keep each profile’s layouts in its encrypted account storage.
 
 If a built-in screen’s saved layout cannot be read, choose **Rétablir l’atelier** in the menu, select that screen and confirm **Rétablir**. This discards its unreadable layout history for the unlocked profile and allows a new proposal to be applied.

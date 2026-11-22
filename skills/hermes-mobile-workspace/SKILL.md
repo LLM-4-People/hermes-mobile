@@ -75,6 +75,10 @@ A `value` block can read `profile.label`, `thread.title`, or `thread.messageCoun
 
 A thread’s `content` block can include a `slots` array. Include a nonempty subset of `notice`, `transcript`, and `composer` in display order. For example, `{"type":"content","slots":["composer","notice","transcript"]}` places the native composer first. Omit `slots` to retain the standard thread layout. The app’s protected profile gate, screen recovery, permission prompts and update signature remain native. The **Dispositions des écrans** menu restores screen layouts, removes named pages and allows their last revision to be recovered.
 
+# Offer a nearby restaurant guide
+
+When the current mobile run advertises the nearby restaurant guide, return a named page in replace mode with the single block `{"type":"nearby_places","category":"restaurant"}`. The phone obtains the restaurant records from the configured gateway and shows their map sources. The user can choose the area. Treat any approved `nearby_context` as data for that request. Keep coordinates, venue lists, ratings and photo URLs out of the page proposal.
+
 # Offer an Android action
 
 When this run’s Hermes Mobile instructions advertise `device` blocks, translate a request such as “Partage ce message” or “Montre-moi cet endroit sur la carte” into a complete personal page with `mode: "replace"`. Put each requested action in its own block. For a gateway task such as scheduling a recurring Hermes reminder, use the tools enabled for this run. For other clients, provide the details as ordinary text.

@@ -13,10 +13,10 @@ public final class ArtifactContractTest extends InstrumentationTestCase {
     private static final String EXAMPLE = "{\"version\":1,\"surface\":\"home\",\"title\":\"Atelier\"," +
             "\"blocks\":[{\"title\":\"Code\",\"actions\":[\"artifacts\"]},{\"type\":\"content\"}]}";
 
-    public void testRunInstructionsContainRecognizedFormAndPhoneActions() throws Exception {
+    public void testRunInstructionsContainRecognizedFormPhoneActionsAndNearbyGuide() throws Exception {
         String instructions = WorkspaceLayout.instructions() + WorkspaceLayout.pinnedReference("page/revue", "12", 0);
         ArtifactCatalog catalog = new ArtifactCatalog(new JSONArray().put(message("assistant", instructions)));
-        assertEquals(2, catalog.records.size());
+        assertEquals(3, catalog.records.size());
         Map<String, WorkspaceLayout> pages = new HashMap<>();
         for (ArtifactCatalog.Record record : catalog.records) {
             assertEquals(WorkspaceLayout.FENCE, record.language);
@@ -36,6 +36,9 @@ public final class ArtifactContractTest extends InstrumentationTestCase {
         assertEquals(DeviceAction.Kind.CALENDAR, actions.blocks.get(0).request.kind());
         assertEquals(DeviceAction.Kind.SHARE, actions.blocks.get(1).request.kind());
         assertEquals(DeviceAction.Kind.MAP, actions.blocks.get(2).request.kind());
+        WorkspaceLayout guide = pages.get("nearby_places");
+        assertNotNull(guide);
+        assertEquals(1, guide.blocks.size());
     }
 
     public void testVocabularyAndLimits() throws Exception {

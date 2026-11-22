@@ -1,0 +1,15 @@
+# Find restaurants near a place
+
+Ask Hermes “Trouve-moi des restaurants près de moi.” You can share an approximate position for that message or enter an area such as “Rosemont, Montréal”. The location choice is separate from the words you send. If you use your device location, Android asks for permission in the foreground. Choosing the one-time option keeps subsequent messages free of that location context. The profile preference for sharing on future sends can be turned off.
+
+The configured gateway and model receive the approved area with the request. A device sample includes the rounded position, its approximate accuracy and its age. A manual area is sent as plain place text. The restaurant lookup currently needs a rounded device position. Entering a neighborhood name alone does not start that lookup. Hermes can suggest a native restaurant guide. The guide reads named restaurants from the gateway’s OpenStreetMap search and displays source links. Each item comes from an identified map record. A missing cuisine tag means the cuisine is unknown. Distance describes the separation from the rounded search point. For a precise destination, open the place in a map.
+
+## How the guide is proposed
+
+The model can return a named page with one `nearby_places` block. Android recognizes the block and obtains the results separately. The proposal contains no coordinates or venue list.
+
+```hermes-workspace
+{"version":1,"surface":"page/restaurants","mode":"replace","title":"Restaurants à proximité","blocks":[{"type":"nearby_places","category":"restaurant"}]}
+```
+
+The map data is © OpenStreetMap contributors, available under the Open Database License. Contributors supply restaurant names and may supply a `cuisine` tag. A source link identifies the node, way or relation behind a row. [OpenStreetMap attribution and license](https://www.openstreetmap.org/copyright), [restaurant tagging](https://wiki.openstreetmap.org/wiki/Tag:amenity%3Drestaurant) and [cuisine tagging](https://wiki.openstreetmap.org/wiki/Key:cuisine)

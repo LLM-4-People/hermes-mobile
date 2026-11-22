@@ -137,6 +137,8 @@ def verify_history(gateway, provider):
                    and {block["request"]["kind"]: set(block["request"]) for block in blocks} == shapes
                    for blocks in named):
             raise AssertionError("The provider did not receive a complete page with the three Android actions")
+        if [{"type": "nearby_places", "category": "restaurant"}] not in named:
+            raise AssertionError("The provider did not receive the source-backed restaurant guide example")
         surfaces = sorted(set(re.findall(r"\bsurface=(page/[a-z0-9_-]+)", instructions)))
         expected_surfaces = ["page/revue-code"] if receipt["user"] == REVISE else []
         if surfaces != expected_surfaces:
