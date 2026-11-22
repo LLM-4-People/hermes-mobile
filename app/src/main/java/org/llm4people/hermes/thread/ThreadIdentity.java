@@ -11,20 +11,25 @@ final class ThreadIdentity {
     final String root;
     final String tip;
     final String label;
+    final String name;
+    final String prompt;
 
-    ThreadIdentity(String root, String tip) { this(root, tip, "Conversation"); }
+    ThreadIdentity(String root, String tip) { this(root, tip, "", "", false); }
 
-    private ThreadIdentity(String root, String tip, String label) {
+    private ThreadIdentity(String root, String tip, String name, String prompt, boolean empty) {
         if (!ThreadData.validId(root) || !ThreadData.validId(tip)) throw new IllegalArgumentException("Invalid thread id");
         this.root = root;
         this.tip = tip;
-        this.label = label;
+        this.name = name;
+        this.prompt = prompt;
+        this.label = ThreadTitles.display(name, prompt, empty);
     }
 
     static ThreadIdentity of(JSONObject row) {
         String tip = ThreadData.string(row, "id");
         String root = ThreadData.string(row, "_lineage_root_id");
-        return new ThreadIdentity(root.isEmpty() ? tip : root, tip, ThreadData.title(row));
+        return new ThreadIdentity(root.isEmpty() ? tip : root, tip, ThreadData.string(row, "title").trim(),
+                ThreadTitles.inboxPrompt(row), row.optLong("message_count", 0) == 0);
     }
 
     static ThreadIdentity find(JSONArray page, String id) {
@@ -40,7 +45,7 @@ final class ThreadIdentity {
         String root = ThreadData.string(page, "thread_id");
         String tip = ThreadData.string(page, "session_id");
         if (!ThreadData.validId(root) || !ThreadData.validId(tip)) return null;
-        return new ThreadIdentity(root, tip, ThreadContext.title(page, "thread_title", "Conversation"));
+        return new ThreadIdentity(root, tip, ThreadData.string(page, "thread_title").trim(), "", false);
     }
 
     static boolean hasPendingQuestion(String sessionId, String runId, JSONObject status) throws IOException {

@@ -91,6 +91,15 @@ public final class JourneyUi {
         until(label, () -> find(window(), v -> named(v, label)));
     }
 
+    void heading(String text) {
+        until("accessible heading " + text, () -> find(window(), view -> {
+            if (!(view instanceof TextView label) || !label.isAccessibilityHeading()) return false;
+            AccessibilityNodeInfo node = label.createAccessibilityNodeInfo();
+            try { return text.contentEquals(node.getText() == null ? "" : node.getText()); }
+            finally { node.recycle(); }
+        }));
+    }
+
     void contains(String fragment) {
         until(fragment, () -> find(window(), v -> v instanceof TextView text &&
                 text.getText().toString().contains(fragment)));

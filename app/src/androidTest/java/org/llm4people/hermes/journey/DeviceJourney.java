@@ -131,7 +131,14 @@ public final class DeviceJourney extends Instrumentation {
         send("Bonjour depuis le téléphone", "La conversation est prête.");
         ui.absent("Quelques idées pour commencer");
         send("Donne une fonction Python pour calculer un carré.", "return n * n");
+        ui.heading("Bonjour depuis le téléphone");
         ui.capture("03-discussion-code");
+        ui.tap("Toutes les discussions");
+        ui.see("Bonjour depuis le téléphone");
+        ui.capture("15-discussion-retrouvee");
+        ui.tap("Bonjour depuis le téléphone");
+        ui.heading("Bonjour depuis le téléphone");
+        ui.contains("return n * n");
         menu("Artefacts");
         ui.tap("Extrait python");
         ui.contains("return n * n");

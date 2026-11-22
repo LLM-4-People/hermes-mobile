@@ -1,0 +1,71 @@
+package org.llm4people.hermes.thread;
+
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+/** Select a readable hint from the user's own opening message when the discussion has no name. */
+final class ThreadTitles {
+    static final String FIRST_PROMPT = "_mobile_first_prompt";
+
+    static String snippet(String text) {
+        StringBuilder out = new StringBuilder();
+        boolean space = false;
+        int count = 0;
+        for (int pos = 0; pos < text.length();) {
+            int point = text.codePointAt(pos);
+            pos += Character.charCount(point);
+            if (Character.isWhitespace(point) || Character.isSpaceChar(point)) {
+                space = out.length() > 0;
+                continue;
+            }
+            if (Character.isISOControl(point) || Character.getType(point) == Character.FORMAT
+                    && point != 0x200c && point != 0x200d) continue;
+            // An attachment can be a textual data URL in a legacy message.
+            if ((point == 'd' || point == 'D') && text.regionMatches(true, pos - 1, "data:image/", 0, 11)) break;
+            if (count + (space ? 1 : 0) >= 80) { out.append('…'); break; }
+            if (space) { out.append(' '); count++; }
+            out.appendCodePoint(point);
+            space = false;
+            count++;
+        }
+        return out.toString();
+    }
+
+    static String firstPrompt(JSONArray rows) {
+        for (int i = 0; i < rows.length(); i++) {
+            JSONObject row = rows.optJSONObject(i);
+            if (!"user".equals(ThreadData.string(row, "role")) || "hidden".equals(ThreadData.string(row, "display_kind"))) continue;
+            Object content = row.opt("content");
+            if (content instanceof String) return snippet((String) content);
+            if (content instanceof JSONArray parts) {
+                for (int j = 0; j < parts.length(); j++) {
+                    JSONObject part = parts.optJSONObject(j);
+                    String type = ThreadData.string(part, "type");
+                    if (type.equals("text") || type.equals("input_text")) {
+                        String text = snippet(ThreadData.string(part, "text"));
+                        if (!text.isEmpty()) return text;
+                    }
+                }
+            }
+            return "";
+        }
+        return "";
+    }
+
+    static String inboxPrompt(JSONObject row) {
+        String known = ThreadData.string(row, FIRST_PROMPT);
+        if (!known.isEmpty()) return known;
+        // Older list projections put the first user message of the tip in preview.
+        String root = ThreadData.string(row, "_lineage_root_id");
+        if (!root.isEmpty() && !root.equals(ThreadData.string(row, "id"))) return "";
+        return snippet(ThreadData.string(row, "preview"));
+    }
+
+    static String display(String name, String prompt, boolean empty) {
+        if (!name.isEmpty()) return name;
+        if (!prompt.isEmpty()) return prompt;
+        return empty ? "Nouvelle conversation" : "Conversation";
+    }
+
+    private ThreadTitles() {}
+}

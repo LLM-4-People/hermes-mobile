@@ -73,6 +73,8 @@ class Gateway:
             extra_config=(
                 f"_config_version: {DEFAULT_CONFIG['_config_version']}\n"
                 "updates:\n  check: false\n"
+                # Exercise the app's unnamed-thread fallback with real user messages.
+                "auxiliary:\n  title_generation:\n    enabled: false\n"
                 "compression:\n  enabled: false\n"
                 "memory:\n  memory_enabled: false\n  user_profile_enabled: false\n"
                 f"terminal:\n  backend: local\n  cwd: {json.dumps(str(self.workspace))}\n"
