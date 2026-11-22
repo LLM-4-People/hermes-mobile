@@ -19,6 +19,8 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 
 /** Read rendered Android views and enter synthetic test values through one shell UI automation session. */
 @SuppressWarnings("deprecation")
@@ -96,7 +98,7 @@ public final class FocusedText extends UiAutomatorTestCase {
         return editor.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, text);
     }
 
-    private static boolean sameFocusedWindow(String window) throws Exception {
+    private static String checkFocusedWindow(String window) throws Exception {
         Process report = new ProcessBuilder("dumpsys", "window").redirectErrorStream(true).start();
         String expected = "mCurrentFocus=" + window;
         boolean focused = false;
@@ -106,27 +108,40 @@ public final class FocusedText extends UiAutomatorTestCase {
                 if (expected.equals(line.trim())) focused = true;
             }
         }
-        return report.waitFor() == 0 && focused;
+        if (report.waitFor() != 0) return "window_report";
+        return focused ? null : "focus";
     }
 
-    private boolean tapNotice(JSONObject command) throws Exception {
-        if (!sameFocusedWindow(command.getString("focus"))) return false;
-        AccessibilityNodeInfo root = new Control(new UiSelector()).node();
-        if (root == null || !"com.android.systemui".equals(string(root.getPackageName()))
-                || root.getWindowId() != command.getInt("window")) return false;
-        String title = command.getString("title");
-        Rect heading = null;
-        for (AccessibilityNodeInfo candidate : root.findAccessibilityNodeInfosByText(title)) {
-            if (!title.equals(string(candidate.getText())) || !candidate.isVisibleToUser()) continue;
-            if (heading != null || candidate.getWindowId() != root.getWindowId()) return false;
-            heading = new Rect();
-            candidate.getBoundsInScreen(heading);
+    private static void findVisibleTitles(AccessibilityNodeInfo node, String title,
+            List<AccessibilityNodeInfo> matches) {
+        // Match the child traversal that produced the host's verified passive snapshot.
+        if (title.equals(string(node.getText()))) matches.add(node);
+        for (int i = 0; i < node.getChildCount() && matches.size() < 2; i++) {
+            AccessibilityNodeInfo child = node.getChild(i);
+            if (child != null && child.isVisibleToUser()) findVisibleTitles(child, title, matches);
         }
+    }
+
+    private String tapNotice(JSONObject command) throws Exception {
+        String focusFailure = checkFocusedWindow(command.getString("focus"));
+        if (focusFailure != null) return focusFailure;
+        AccessibilityNodeInfo root = new Control(new UiSelector()).node();
+        if (root == null) return "root";
+        if (!"com.android.systemui".equals(string(root.getPackageName()))) return "package";
+        if (root.getWindowId() != command.getInt("window")) return "window_id";
+        List<AccessibilityNodeInfo> matches = new ArrayList<>(2);
+        findVisibleTitles(root, command.getString("title"), matches);
+        if (matches.isEmpty()) return "no_title";
+        if (matches.size() > 1) return "multiple_titles";
+        AccessibilityNodeInfo target = matches.get(0);
+        if (target.getWindowId() != root.getWindowId()) return "title_window";
+        Rect heading = new Rect();
+        target.getBoundsInScreen(heading);
         JSONArray coordinates = command.getJSONArray("bounds");
         Rect expected = new Rect(coordinates.getInt(0), coordinates.getInt(1),
                 coordinates.getInt(2), coordinates.getInt(3));
-        return heading != null && !heading.isEmpty() && expected.equals(heading)
-                && getUiDevice().click(heading.centerX(), heading.centerY());
+        if (heading.isEmpty() || !expected.equals(heading)) return "bounds";
+        return getUiDevice().click(heading.centerX(), heading.centerY()) ? "tapped" : "touch";
     }
 
     private static void response(String value) {
@@ -155,7 +170,7 @@ public final class FocusedText extends UiAutomatorTestCase {
                     response(getUiDevice().openNotification() ? "opened" : "retry");
                     break;
                 case "tap-notice":
-                    response(tapNotice(command) ? "tapped" : "retry");
+                    response(tapNotice(command));
                     break;
                 case "scroll-shade":
                     AccessibilityNodeInfo list = new Control(new UiSelector()

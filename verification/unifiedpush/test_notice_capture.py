@@ -1,4 +1,6 @@
 import io
+import json
+from contextlib import redirect_stderr
 from importlib.util import find_spec
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -91,6 +93,21 @@ class CaptureTest(unittest.TestCase):
                 open_notice(self.ui, TITLE, self.directory)
         self.ui.controls.send.assert_called_once_with("tap-notice", title=TITLE, window=17, focus=WINDOW, bounds=(1, 1, 6, 3))
         self.assertEqual(list(self.directory.iterdir()), [])
+
+    def test_rejection_counts_distinguish_outer_title_and_native_geometry_without_exposing_inputs(self):
+        for stage in ("multiple_titles", "native_bounds", "native_unexpected"):
+            with self.subTest(stage=stage):
+                root = snapshot(window="123456")
+                if stage == "multiple_titles":
+                    SubElement(root, "node", {"text": TITLE})
+                else:
+                    self.ui.controls.send.return_value = b"bounds" if stage == "native_bounds" else b"private fixture value"
+                self.ui.snapshot = Mock(return_value=root)
+                stderr = io.StringIO()
+                with redirect_stderr(stderr), self.assertRaisesRegex(AssertionError, "stable focused"):
+                    open_notice(self.ui, TITLE)
+                self.assertEqual(json.loads(stderr.getvalue().removeprefix("Android notification tap ")),
+                                 {"attempts": 1, stage: 1})
 
     def test_without_capture_tap_uses_fresh_current_window_and_bounds(self):
         self.ui.snapshot = Mock(return_value=snapshot(window="75", heading="[20,21][40,45]"))
