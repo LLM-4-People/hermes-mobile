@@ -70,7 +70,7 @@ def await_viewport(device, config_tokens, expected_rotation, description, timeou
             return
         if time.monotonic() >= deadline:
             break
-        time.sleep(0.2)
+        time.sleep(0.05)
     raise AssertionError(
         f"Emulator did not settle to {description} "
         f"(expected tokens={config_tokens}, rotation={expected_rotation!r}; "

@@ -205,14 +205,14 @@ class Gateway:
             # Send the disposable account token only after our process owns its listener.
             if not any(c.status == psutil.CONN_LISTEN and c.laddr == (LOOPBACK, self.port)
                        for c in owner.net_connections(kind="tcp")):
-                time.sleep(0.2)
+                time.sleep(0.05)
                 continue
             try:
                 if self._capabilities_ready():
                     return
             except URLError:
                 pass
-            time.sleep(0.2)
+            time.sleep(0.05)
         raise TimeoutError("Gateway did not accept requests within 90 seconds")
 
     def stop(self):

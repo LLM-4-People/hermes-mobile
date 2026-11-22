@@ -28,7 +28,7 @@ def eventually(description, check, timeout=90):
         result = check()
         if result:
             return result
-        time.sleep(0.4)
+        time.sleep(0.1)
     raise AssertionError(f"Timed out waiting for {description}")
 
 

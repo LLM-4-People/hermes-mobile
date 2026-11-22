@@ -15,6 +15,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: workspace-checks-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' && github.event_name != 'workflow_call' }}
+
 jobs:
   validate:
     name: Validate sources
@@ -24,8 +28,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - run: python3 scripts/docs.py --check
-      - run: python3 -m unittest discover -s ci -p 'test_*.py'
+      - run: python3 -B scripts/docs.py --check
+      - run: python3 -B -m unittest discover -s ci -p 'test_*.py'
       - name: Check workflows and shell
         run: |
           go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
@@ -39,14 +43,15 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - run: python3 -m venv "$RUNNER_TEMP/server-env"
-      - run: '"$RUNNER_TEMP/server-env/bin/python" -m pip install -r server/requirements.txt'
-      - run: '"$RUNNER_TEMP/server-env/bin/python" -m unittest discover -s server/tests'
-      - run: '"$RUNNER_TEMP/server-env/bin/python" -m unittest server.artifacts.test_files'
-      - run: python3 -m unittest discover -s deploy -v
-      - run: python3 -B -m unittest discover -s verification/device -v
-      - run: python3 -B -m unittest discover -s verification/unifiedpush -t . -v
-      - run: python3 -B -m unittest verification.test_phone_actions -v
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
+        with:
+          version: '0.11.17'
+          enable-cache: true
+          cache-dependency-glob: server/requirements.txt
+      - run: |
+          uv venv "$RUNNER_TEMP/server-env"
+          uv pip install --python "$RUNNER_TEMP/server-env/bin/python" -r server/requirements.txt
+      - run: python3 -B scripts/fast_check.py --workspace-only --server-python "$RUNNER_TEMP/server-env/bin/python"
 
   package:
     name: Android package
@@ -82,7 +87,7 @@ jobs:
         run: |
           apk=app/build/outputs/apk/release/app-release-unsigned.apk
           cp "$apk" "$RUNNER_TEMP/release-reference.apk"
-          python3 ci/gradle_check.py --no-build-cache :app:clean :app:assembleRelease
+          python3 ci/gradle_check.py --no-build-cache --no-configuration-cache :app:clean :app:assembleRelease
           cmp "$RUNNER_TEMP/release-reference.apk" "$apk"
       - name: Exercise signing with a disposable key
         env:
@@ -102,7 +107,7 @@ jobs:
     needs: package
     if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 75
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -139,30 +144,15 @@ jobs:
       - name: Run device tests
         env:
           ANDROID_BUILD_TOOLS: ${{ steps.android.outputs.tools }}
+          HERMES_DEVICE_SUITE: core
         uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
           api-level: ${{ steps.android.outputs.sdk }}
           target: google_apis
           arch: x86_64
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-save
+          disable-animations: true
           script: ci/device-check.sh
-      - name: Verify Android phone handoffs on a fresh emulator
-        uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
-        with:
-          api-level: ${{ steps.android.outputs.sdk }}
-          target: google_apis
-          arch: x86_64
-          avd-name: hermes-handoffs
-          force-avd-creation: true
-          script: bash ci/phone-action-check.sh app/build/outputs/apk/debug/app-debug.apk
-      - name: Verify Android foreground location and restaurant guide on a fresh emulator
-        uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
-        with:
-          api-level: ${{ steps.android.outputs.sdk }}
-          target: google_apis
-          arch: x86_64
-          avd-name: hermes-nearby
-          force-avd-creation: true
-          script: bash ci/nearby-device-check.sh
       - name: Retain instrumentation reports
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -177,7 +167,6 @@ jobs:
           name: android-device-captures
           path: ${{ runner.temp }}/hermes-device/**/*.png
           if-no-files-found: ignore
-
       - name: Retain card screenshots and gateway receipts
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -189,6 +178,49 @@ jobs:
           if-no-files-found: ${{ job.status == 'success' && 'error' || 'warn' }}
           compression-level: 0
 
+  device-journeys:
+    name: Android device journeys
+    needs: package
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: android
+        uses: ./.github/actions/android
+      - name: Download the debug APK from this build
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: android-debug
+          path: app/build/outputs/apk/debug
+      - name: Download its framework instrumentation APK
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: android-debug-tests
+          path: app/build/outputs/apk/androidTest/debug
+      - uses: ./.github/actions/hermes-fixture
+      - name: Install the fork's locked gateway dependencies
+        run: |
+          UV_PROJECT_ENVIRONMENT="$RUNNER_TEMP/hermes-env" \
+            uv sync --project .fixture/hermes --frozen --group dev --no-install-project --extra sms
+      - name: Enable KVM
+        run: sudo chmod a+rw /dev/kvm
+      - name: Run instrument, photo, and skill journeys
+        env:
+          ANDROID_BUILD_TOOLS: ${{ steps.android.outputs.tools }}
+          HERMES_DEVICE_SUITE: journeys
+        uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: ${{ steps.android.outputs.sdk }}
+          target: google_apis
+          arch: x86_64
+          avd-name: hermes-journeys
+          force-avd-creation: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-save
+          disable-animations: true
+          script: ci/device-check.sh
       - name: Retain the offline walkthrough, screenshots and gateway receipt
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -200,7 +232,6 @@ jobs:
             ${{ runner.temp }}/hermes-thread-instrument/*.png
           if-no-files-found: ${{ job.status == 'success' && 'error' || 'warn' }}
           compression-level: 0
-
       - name: Retain system picker and staged skill evidence
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -218,6 +249,41 @@ jobs:
           if-no-files-found: ${{ job.status == 'success' && 'error' || 'warn' }}
           compression-level: 0
 
+  phone-handoffs:
+    name: Android phone handoffs
+    needs: package
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: android
+        uses: ./.github/actions/android
+      - name: Download the debug APK from this build
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: android-debug
+          path: app/build/outputs/apk/debug
+      - uses: ./.github/actions/hermes-fixture
+      - name: Install the fork's locked gateway dependencies
+        run: |
+          UV_PROJECT_ENVIRONMENT="$RUNNER_TEMP/hermes-env" \
+            uv sync --project .fixture/hermes --frozen --group dev --no-install-project --extra sms
+      - name: Enable KVM
+        run: sudo chmod a+rw /dev/kvm
+      - name: Verify Android phone handoffs on a fresh emulator
+        uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: ${{ steps.android.outputs.sdk }}
+          target: google_apis
+          arch: x86_64
+          avd-name: hermes-handoffs
+          force-avd-creation: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-save
+          disable-animations: true
+          script: bash ci/phone-action-check.sh app/build/outputs/apk/debug/app-debug.apk
       - name: Retain Android phone action receipts and receiver captures
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -229,6 +295,46 @@ jobs:
           if-no-files-found: ${{ job.status == 'success' && 'error' || 'warn' }}
           compression-level: 0
 
+  nearby-guide:
+    name: Android nearby guide
+    needs: package
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: android
+        uses: ./.github/actions/android
+      - name: Download the debug APK from this build
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: android-debug
+          path: app/build/outputs/apk/debug
+      - name: Download its framework instrumentation APK
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: android-debug-tests
+          path: app/build/outputs/apk/androidTest/debug
+      - uses: ./.github/actions/hermes-fixture
+      - name: Install the fork's locked gateway dependencies
+        run: |
+          UV_PROJECT_ENVIRONMENT="$RUNNER_TEMP/hermes-env" \
+            uv sync --project .fixture/hermes --frozen --group dev --no-install-project --extra sms
+      - name: Enable KVM
+        run: sudo chmod a+rw /dev/kvm
+      - name: Verify Android foreground location and restaurant guide on a fresh emulator
+        uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: ${{ steps.android.outputs.sdk }}
+          target: google_apis
+          arch: x86_64
+          avd-name: hermes-nearby
+          force-avd-creation: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-save
+          disable-animations: true
+          script: bash ci/nearby-device-check.sh
       - name: Retain Android nearby restaurant guide evidence
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

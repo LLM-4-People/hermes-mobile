@@ -136,7 +136,7 @@ def show_notice(ui, title):
 
         if ui.controls.send("scroll-shade", forward=forward) == b"scrolled":
             scrolls += 1
-            time.sleep(0.3)
+            time.sleep(0.1)
             return None
 
         # AOSP can expose visible rows without advertising an accessibility scroll action.

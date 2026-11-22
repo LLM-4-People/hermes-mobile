@@ -39,10 +39,10 @@ require_receiver org.fossify.calendar -a android.intent.action.INSERT -d content
 require_receiver com.google.android.apps.maps -a android.intent.action.VIEW -d 'geo:0,0?q=Laval'
 
 # Android disconnects asynchronously. The verifier independently asserts offline state.
-for ((i = 0; i < 30; i++)); do
+for ((i = 0; i < 120; i++)); do
   connectivity=$("${device[@]}" shell dumpsys connectivity)
   if [[ "$connectivity" == *'Active default network: none'* ]]; then break; fi
-  sleep 1
+  sleep 0.25
 done
 mkdir "$proof"
 "$RUNNER_TEMP/hermes-env/bin/python" -B -m verification.phone_actions --source .fixture/hermes \
