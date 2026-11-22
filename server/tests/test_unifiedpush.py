@@ -106,6 +106,17 @@ class UnifiedPush(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(await asyncio.to_thread(self.senders.send, dict(item, created_at=0)))
         self.assertFalse(self.requests)
 
+    async def test_webpush_delivers_live_subsecond_message_with_zero_storage_ttl(self):
+        self.assertEqual(await self.put(self.owner, self.reserve), 204)
+        self.assertEqual(await self.put(self.cap, self.body), 204)
+        event, item = self.event("short-retention")
+        senders = Transports(replace(self.settings, retention=1))
+        self.addCleanup(senders.close)
+        for elapsed in (.02, .999, 1, 1.1):
+            with patch("server.mobile_push.webpush.time.time", return_value=event.created_at + elapsed):
+                self.assertTrue(await asyncio.to_thread(senders.send, item))
+        self.assertEqual([headers["TTL"] for headers, _ in self.requests], ["0", "0"])
+
     async def test_origin_key_and_provider_validation(self):
         for endpoint in (self.origin + "/other?up=1", self.origin + "/up123456789aBc?up=1&extra=1",
                          self.origin + ".invalid/up123456789aBc?up=1", "https://elsewhere.invalid/up123456789aBc?up=1"):

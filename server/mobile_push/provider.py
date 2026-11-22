@@ -32,7 +32,7 @@ def retry_seconds(header):
 
 
 def lifetime(item, retention, now):
-    return max(0, int(item["created_at"] + retention - now))
+    return max(0, item["created_at"] + retention - now)
 
 
 def opaque_notice(item):
