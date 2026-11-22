@@ -1,13 +1,14 @@
 package org.llm4people.hermes.profile;
 
 import android.app.Activity;
-import org.llm4people.hermes.Ui;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.text.InputType;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.EditText;
+import org.llm4people.hermes.R;
+import org.llm4people.hermes.Ui;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
@@ -106,12 +107,14 @@ public final class ProfileGate {
     private void add(boolean canGoBack) {
         generation++;
         nested = canGoBack;
-        ProfileScreen screen = new ProfileScreen(activity, "Connecter Hermes",
-                "Les informations de connexion de ce profil seront chiffrées sur cet appareil.");
+        ProfileScreen screen = new ProfileScreen(activity, "Connecter Hermes", null);
         EditText name = screen.field("Nom du profil", "Ex. Personnel", TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES, 80, false);
         EditText server = screen.field("Adresse du serveur", "https://hermes.exemple.fr", TEXT | InputType.TYPE_TEXT_VARIATION_URI, 2048, false);
         EditText key = screen.field("Clé d’accès Hermes", "", SECRET, 8192, true);
-        EditText phrase = screen.field("Phrase secrète du profil", "12 caractères minimum", SECRET, 512, true);
+        screen.section(activity.getString(R.string.profile_lock_section), activity.getString(R.string.profile_lock_detail));
+        EditText phrase = screen.field("Phrase secrète du profil",
+                activity.getResources().getQuantityString(R.plurals.profile_passphrase_hint, MIN_PASSPHRASE, MIN_PASSPHRASE),
+                SECRET, 512, true);
         EditText repeat = screen.field("Confirmer la phrase secrète", "", SECRET, 512, true);
         screen.action("Enregistrer le profil", true, view -> {
             if (busy) return;
@@ -138,7 +141,9 @@ public final class ProfileGate {
                 boolean shortPhrase = pass.length < MIN_PASSPHRASE;
                 Arrays.fill(pass, '\0');
                 invalid(shortPhrase ? phrase : repeat, shortPhrase
-                        ? "Utilisez au moins 12 caractères." : "Les phrases secrètes doivent correspondre.");
+                        ? activity.getResources().getQuantityString(R.plurals.profile_passphrase_too_short,
+                                MIN_PASSPHRASE, MIN_PASSPHRASE)
+                        : "Les phrases secrètes doivent correspondre.");
                 return;
             }
             run(screen, (Button) view, pass, () -> store.create(label, endpoint, bearer, pass),
@@ -152,14 +157,7 @@ public final class ProfileGate {
         nested = true;
         ProfileScreen screen = new ProfileScreen(activity, label, "Déverrouillez ce profil pour retrouver vos fils.");
         EditText phrase = screen.field("Phrase secrète du profil", "", SECRET, 512, true);
-        Button open = screen.action("Déverrouiller", true, view ->
-                authenticate(screen, phrase, (Button) view, id, this::opened));
-        phrase.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_DONE);
-        phrase.setOnEditorActionListener((edit, action, event) -> {
-            if (action != android.view.inputmethod.EditorInfo.IME_ACTION_DONE) return false;
-            open.performClick();
-            return true;
-        });
+        screen.action("Déverrouiller", true, view -> authenticate(screen, phrase, (Button) view, id, this::opened));
         screen.action("Choisir un autre profil", false, view -> { if (!busy) chooser(null); });
         screen.action("Remplacer la clé d’accès", false, view -> { if (!busy) rotate(id, label); });
         screen.action("Retirer ce profil", false, view -> authenticate(screen, phrase, (Button) view, id, account -> {

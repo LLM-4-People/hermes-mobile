@@ -27,12 +27,12 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /** Drives visible native widgets using pointer input and Android's editable-text accessibility action. */
-final class JourneyUi {
+public final class JourneyUi {
     private final Instrumentation driver;
     private final Activity activity;
     private final File evidence;
 
-    JourneyUi(Instrumentation driver, Activity activity, File evidence) {
+    public JourneyUi(Instrumentation driver, Activity activity, File evidence) {
         this.driver = driver;
         this.activity = activity;
         this.evidence = evidence;
@@ -89,6 +89,15 @@ final class JourneyUi {
 
     void see(String label) {
         until(label, () -> find(window(), v -> named(v, label)));
+    }
+
+    void heading(String text) {
+        until("accessible heading " + text, () -> find(window(), view -> {
+            if (!(view instanceof TextView label) || !label.isAccessibilityHeading()) return false;
+            AccessibilityNodeInfo node = label.createAccessibilityNodeInfo();
+            try { return text.contentEquals(node.getText() == null ? "" : node.getText()); }
+            finally { node.recycle(); }
+        }));
     }
 
     void contains(String fragment) {
@@ -161,6 +170,17 @@ final class JourneyUi {
         driver.waitForIdleSync();
     }
 
+    void hideKeyboard() {
+        main(() -> {
+            activity.getWindow().getInsetsController().hide(WindowInsets.Type.ime());
+            return null;
+        });
+        until("input method hidden", () -> {
+            WindowInsets insets = activity.getWindow().getDecorView().getRootWindowInsets();
+            return insets != null && !insets.isVisible(WindowInsets.Type.ime()) ? Boolean.TRUE : null;
+        });
+    }
+
     void imeVisible() {
         until("visible input method", () -> {
             WindowInsets insets = activity.getWindow().getDecorView().getRootWindowInsets();
@@ -195,7 +215,7 @@ final class JourneyUi {
         }
     }
 
-    void capture(String name) {
+    public void capture(String name) {
         Bitmap bitmap = until("laid out app viewport", () -> {
             View activityRoot = activity.getWindow().getDecorView();
             View focused = window();

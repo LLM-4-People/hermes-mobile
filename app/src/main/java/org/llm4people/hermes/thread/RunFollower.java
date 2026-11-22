@@ -30,7 +30,8 @@ final class RunFollower implements AutoCloseable {
         }
     }
 
-    private static final int PREVIEW_LIMIT = 65_536;
+    static final int PREVIEW_LIMIT = 65_536;
+    static final int PAINT_INTERVAL_MS = 80;
     private final HermesApi api;
     private final String run;
     private final Listener listener;
@@ -82,7 +83,7 @@ final class RunFollower implements AutoCloseable {
                     long now = SystemClock.elapsedRealtime();
                     if (!"message.delta".equals(type) || now >= nextPaint) {
                         publish();
-                        nextPaint = now + 80;
+                        nextPaint = now + PAINT_INTERVAL_MS;
                     }
                 }
             } finally {

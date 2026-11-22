@@ -42,10 +42,8 @@ final class ThreadData {
     }
 
     static String title(JSONObject session) {
-        String title = string(session, "title").trim();
-        if (!title.isEmpty()) return title;
-        String preview = string(session, "preview").replace('\n', ' ').trim();
-        return preview.isEmpty() ? "Nouvelle conversation" : preview;
+        return ThreadTitles.display(string(session, "title").trim(), ThreadTitles.inboxPrompt(session),
+                ThreadTitles.emptySession(session));
     }
 
     static String content(JSONObject message) {

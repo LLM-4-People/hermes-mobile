@@ -20,7 +20,7 @@ public final class LayoutRecoveryTest extends InstrumentationTestCase {
             LayoutHistory history = new LayoutHistory(fixture.account, "home");
             fixture.account.write("workspace.v1.home", "{invalid history");
             boolean[] changed = {false};
-            ArtifactDesk.Host host = new ArtifactDesk.Host() {
+            ArtifactDesk.Host host = new WorkspaceTestHost() {
                 @Override public void onAction(String id) { fail("Unexpected navigation"); }
                 @Override public void onLayoutChanged() { changed[0] = true; }
             };
@@ -45,6 +45,21 @@ public final class LayoutRecoveryTest extends InstrumentationTestCase {
         }
     }
 
+    public void testNativeRecoveryNeverDiscardsNamedPageCatalog() {
+        Context app = getInstrumentation().getTargetContext();
+        try (WorkspaceAccountFixture fixture = new WorkspaceAccountFixture(app)) {
+            fixture.account.write("workspace.pages.v1", "{unreadable pages");
+            LayoutHistory page = new LayoutHistory(fixture.account, "page/review");
+            try { page.resetUnreadable(); fail("Discarded a shared catalog"); }
+            catch (IllegalStateException expected) { }
+            LayoutHistory home = new LayoutHistory(fixture.account, "home");
+            fixture.account.write("workspace.v1.home", "[]");
+            home.resetUnreadable();
+            assertEquals("", home.current());
+            assertEquals("{unreadable pages", fixture.account.read("workspace.pages.v1"));
+        }
+    }
+
     public void testConfirmedRecoveryRemovesOnlyUnreadableNativeScreenAfterUnlock() {
         Context app = getInstrumentation().getTargetContext();
         try (WorkspaceAccountFixture first = new WorkspaceAccountFixture(app);
@@ -58,6 +73,7 @@ public final class LayoutRecoveryTest extends InstrumentationTestCase {
             String damaged = Base64.encodeToString(invalid, Base64.NO_WRAP);
             new LayoutHistory(first.account, "stats").replace("statistics");
             new LayoutHistory(other.account, "home").replace("other profile");
+            new LayoutHistory(first.account, "page/review").replace("named page");
             first.account.write("draft", "private text");
             assertTrue(vault.edit().putString(slot, damaged).commit());
 
@@ -79,6 +95,7 @@ public final class LayoutRecoveryTest extends InstrumentationTestCase {
                 assertEquals("", restored.current());
                 assertFalse(restored.canUndo());
                 assertEquals("statistics", new LayoutHistory(reopened, "stats").current());
+                assertEquals("named page", new LayoutHistory(reopened, "page/review").current());
                 assertEquals("private text", reopened.read("draft"));
                 assertEquals("other profile", new LayoutHistory(other.account, "home").current());
                 restored.replace("replacement");

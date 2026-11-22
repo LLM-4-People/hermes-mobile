@@ -1,6 +1,6 @@
 ---
 name: hermes-mobile-workspace
-description: Propose profile-scoped Hermes Mobile screen layouts and publish versioned source or diff artifacts into a chat thread.
+description: Propose profile-scoped Hermes Mobile screen layouts and forms, create linked screens, and publish versioned source or diff artifacts into a chat thread.
 ---
 
 # Shape a Hermes Mobile screen
@@ -29,9 +29,49 @@ When someone asks to rearrange their Android workspace, return a complete layout
 }
 ```
 
-Choose a surface from `home`, `threads`, `thread`, `settings`, `reminders`, `artifacts`, or `stats`. The person can restore each one independently. The required `content` block places the existing native screen between the surrounding sections. Change block order and include the action IDs the person wants to see.
+Choose a surface from `home`, `threads`, `thread`, `settings`, `reminders`, `artifacts`, or `stats`. The person can restore each one independently. When extending a screen, the `content` block places its native controls between the surrounding sections. Change block order and include the action IDs the person wants to see.
 
-Use an integer schema version of 1, a title of 1–64 characters, and 1–8 blocks. Include exactly one `{"type":"content"}` block. Every other block contains a title and at least one note or action. A note accepts up to 240 characters. A section accepts up to eight distinct action IDs from `threads`, `new_thread`, `artifacts`, `models`, `tools`, `reminders`, `stats`, `profiles`, `notifications`, and `workspace`. The app supplies localized action labels. Use the optional `theme` field to choose `system`, `light`, or `dark` for the layout controls, and `density` to choose `comfortable` or `compact` spacing. Use plain text and standard JSON. Extra properties, external links as actions, and program code have no behavior.
+Use an integer schema version of 1, a title of 1–64 characters, and 1–12 blocks. On a built-in screen in the default `extend` mode, include exactly one `{"type":"content"}` block. Each section block needs a title and at least one note or action. A note accepts up to 240 characters. A section accepts up to eight distinct action IDs from `threads`, `new_thread`, `artifacts`, `models`, `tools`, `reminders`, `stats`, `profiles`, `notifications`, `workspace`, and `pages`. The app supplies localized action labels. Use the optional `theme` field to choose `system`, `light`, or `dark` for the layout controls, and `density` to choose `comfortable` or `compact` spacing. Use plain text and standard JSON. Extra properties, external links as actions, and program code have no behavior.
+
+# Create a coding-review tool
+
+Set `mode` to `replace` to author all the content inside an authenticated screen. Omit the `content` block in this mode. For a new screen use `surface: "page/<slug>"`. A slug begins with a lowercase ASCII letter and contains up to 36 lowercase letters, digits or hyphens. The native **Mes écrans** library lists applied pages. One profile can hold 24 named pages, including removed pages awaiting undo.
+
+This page asks for a file, review goal, and optional context. A person can inspect and edit the generated draft, transfer it into a conversation and choose when to send. Submitted form values stay in memory until the person transfers the text into the profile’s native draft. They do not enter the agent’s context on their own.
+
+```hermes-workspace
+{
+  "version": 1, "mode": "replace", "surface": "page/revue-code", "title": "Revue de code",
+  "blocks": [
+    {"type":"value","title":"Conversation active","source":"thread.title"},
+    {
+      "type":"form","title":"Préparer la revue",
+      "prompt":"Examine les changements décrits et propose des vérifications concrètes.",
+      "fields":[
+        {"id":"fichier","label":"Fichier ou composant","kind":"text"},
+        {"id":"objectif","label":"Objectif","kind":"choice","options":["Fiabilité","Lisibilité","Performance"]},
+        {"id":"contexte","label":"Contexte","kind":"multiline","required":false}
+      ]
+    }
+  ]
+}
+```
+
+The next proposal replaces the Atelier body and links directly to the new tool. Send both proposals so the person can preview and apply each destination.
+
+```hermes-workspace
+{
+  "version":1, "mode":"replace", "surface":"home", "title":"Atelier de revue",
+  "blocks":[
+    {"type":"link","title":"Ouvrir la revue de code","page":"page/revue-code"},
+    {"title":"Conversations","actions":["threads","new_thread","pages"]}
+  ]
+}
+```
+
+A `value` block can read `profile.label`, `thread.title`, or `thread.messageCount`. These values appear locally on the screen. Form fields use `text`, `multiline`, or `choice`; fields default to required. Each form accepts up to six fields with unique IDs following the slug syntax. Choice fields accept one to twelve distinct options. The app limits free-text answers to 1,500 characters. Use a short imperative `prompt` for the draft, followed by a label for each answer. Form submission always offers a native, editable review before transferring the draft.
+
+A thread’s `content` block can include a `slots` array. Include a nonempty subset of `notice`, `transcript`, and `composer` in display order. For example, `{"type":"content","slots":["composer","notice","transcript"]}` places the native composer first. Omit `slots` to retain the standard thread layout. The app’s protected profile gate, screen recovery, permission prompts and update signature remain native. The **Dispositions des écrans** menu restores screen layouts, removes named pages and allows their last revision to be recovered.
 
 # Share a versioned artifact
 

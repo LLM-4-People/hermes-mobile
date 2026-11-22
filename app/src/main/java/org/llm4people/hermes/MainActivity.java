@@ -22,6 +22,10 @@ import org.llm4people.hermes.push.MobilePush;
 import org.llm4people.hermes.thread.ThreadWorkspace;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -34,6 +38,9 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     private SessionPanel panels;
     private ThreadWorkspace threads;
     private WorkspaceShell shell;
+    private WorkspaceNavigation navigation;
+    private ArtifactDesk.Host activeHost;
+    private final Map<String, View> customPages = new HashMap<>();
     private MobilePush push;
     private MobilePush.Target delivery;
     private AlertDialog notice;
@@ -86,9 +93,11 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     private void opened(Account unlocked) {
         account = unlocked;
         HermesApi api = new HermesApi(account.endpoint, account.bearer);
+        navigation = new WorkspaceNavigation();
+        activeHost = new WorkspaceHost(this, () -> account == unlocked);
         shell = new WorkspaceShell(this, this::onAction);
         panels = new SessionPanel(this, api, account);
-        panels.setLayoutHost(this);
+        panels.setLayoutHost(activeHost);
         threads = new ThreadWorkspace(this, api, account, this);
         setContentView(shell.root);
         displayDiscussion();
@@ -165,17 +174,20 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         if (threads == null) return;
         if (!"restore".equals(id)) dismissOverlays();
         switch (id) {
+            case "previous": back(); break;
             case "return": displayDiscussion(); break;
+            case "pages": navigate(WorkspaceNavigation.GALLERY); break;
+            case "native_thread": navigate(WorkspaceNavigation.COMPOSER); break;
             case "threads": displayDiscussion(); threads.inbox(); break;
             case "new_thread": displayDiscussion(); threads.newThread(); break;
             case "rename": threads.rename(); break;
             case "published_files":
                 if (threads.remoteSessionId() != null) files.show(threads.remoteSessionId());
                 break;
-            case "workspace": showDesk(); break;
+            case "workspace": navigate(WorkspaceNavigation.HOME); break;
             case "reminders": panels.showReminders(); break;
             case "notifications": push.settings(account); break;
-            case "restore": ArtifactDesk.manage(this, account, this); break;
+            case "restore": ArtifactDesk.manage(this, account, activeHost); break;
             case "profiles": lock(); break;
             case "stats": case "tools": case "models": case "artifacts":
                 String session = threads.sessionId();
@@ -184,7 +196,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                 } else if ("stats".equals(id)) {
                     panels.showStats(session, threads.remoteSessionId());
                 } else if ("artifacts".equals(id)) {
-                    new ArtifactDesk(this, account, session, threads.messages(), this).show();
+                    new ArtifactDesk(this, account, session, threads.messages(), activeHost).show();
                 } else {
                     panels.show(session, threads.remoteSessionId());
                 }
@@ -202,32 +214,106 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     @Override public void onLayoutChanged() {
         if (shell == null) return;
         panels.refreshLayout();
-        if (shell.inDesk()) showDesk(); else {
-            displayedSurface = null;
-            displayDiscussion();
+        customPages.clear();
+        render(true);
+    }
+
+    private void displayDiscussion() { navigate(WorkspaceNavigation.DISCUSSION); }
+
+    private void navigate(String destination) {
+        navigation.open(destination);
+        render(false);
+    }
+
+    @Override public void openWorkspace(String pageId) {
+        if (account == null || pageId == null || !pageId.startsWith("page/")) return;
+        dismissOverlays();
+        navigate(pageId);
+    }
+
+    @Override public void threadSlots(List<String> order) {
+        if (threads != null) threads.slots(order);
+    }
+
+    @Override public String workspaceValue(String source) {
+        if (account == null || threads == null) return "";
+        return switch (source) {
+            case "profile.label" -> account.label;
+            case "thread.title" -> threads.title();
+            case "thread.messageCount" -> threads.messageCount();
+            default -> "";
+        };
+    }
+
+    @Override public void stageDraft(String text) {
+        if (threads == null || text == null || text.trim().isEmpty()) return;
+        dismissOverlays();
+        Runnable edit = () -> {
+            navigate(WorkspaceNavigation.COMPOSER);
+            threads.stageDraft(text);
+        };
+        if (threads.sessionId() != null) { edit.run(); return; }
+        notice = Ui.secureDialog(new AlertDialog.Builder(this).setTitle("Créer une discussion ?")
+                .setMessage("Le texte sera ajouté au brouillon de cette nouvelle discussion.")
+                .setNegativeButton("Annuler", null)
+                .setPositiveButton("Créer le brouillon", (d, w) -> {
+                    navigate(WorkspaceNavigation.COMPOSER);
+                    threads.newThread(() -> threads.stageDraft(text));
+                }));
+    }
+
+    private void render(boolean force) {
+        String route = navigation.current();
+        customPages.keySet().removeIf(id -> !navigation.contains(id));
+        switch (route) {
+            case WorkspaceNavigation.DISCUSSION:
+            case WorkspaceNavigation.COMPOSER:
+                boolean composer = WorkspaceNavigation.COMPOSER.equals(route);
+                String surface = threads.sessionId() == null ? "threads" : "thread";
+                String key = composer ? route : surface;
+                if (!force && key.equals(displayedSurface)) return;
+                boolean editing = threads.editing();
+                displayedSurface = key;
+                View nativeView = threads.view();
+                if (nativeView.getParent() instanceof android.view.ViewGroup)
+                    ((android.view.ViewGroup) nativeView.getParent()).removeView(nativeView);
+                View content;
+                if (composer) {
+                    threadSlots(Collections.emptyList());
+                    content = nativeView;
+                } else content = ArtifactDesk.decorate(this, account, surface, nativeView, activeHost);
+                shell.show(content, composer ? "Discussion d’origine" : null);
+                if (editing) threads.focusComposer();
+                break;
+            case WorkspaceNavigation.HOME:
+                displayedSurface = route;
+                shell.show(ArtifactDesk.decorate(this, account, "home", shell.desk(account.label), activeHost), "Atelier");
+                break;
+            case WorkspaceNavigation.GALLERY:
+                displayedSurface = route;
+                shell.show(ArtifactDesk.pages(this, account, activeHost), "Mes écrans");
+                break;
+            default:
+                View page = customPages.get(route);
+                if (page == null) page = ArtifactDesk.page(this, account, route, activeHost);
+                if (page == null) {
+                    navigation.forgetCurrentPage();
+                    render(true);
+                } else {
+                    displayedSurface = route;
+                    customPages.put(route, page);
+                    shell.show(page, "Écran personnalisé");
+                    ArtifactDesk.refreshBindings(page, activeHost);
+                }
         }
-    }
-
-    private void displayDiscussion() {
-        // Session panels and artifact sheets apply their own surface layouts.
-        String surface = threads.sessionId() == null ? "threads" : "thread";
-        if (surface.equals(displayedSurface) && !shell.inDesk()) return;
-        displayedSurface = surface;
-        View view = threads.view();
-        if (view.getParent() instanceof android.view.ViewGroup)
-            ((android.view.ViewGroup) view.getParent()).removeView(view);
-        shell.show(ArtifactDesk.decorate(this, account, surface, view, this), false);
-    }
-
-    private void showDesk() {
-        shell.show(ArtifactDesk.decorate(this, account, "home", shell.desk(account.label), this), true);
     }
 
     @Override public void selected(String sessionId, String title) {
         if (shell == null) return;
         String threadTitle = sessionId == null ? null : title == null || title.trim().isEmpty() ? "Discussion" : title;
         shell.selected(threadTitle);
-        if (threads != null && !shell.inDesk()) displayDiscussion();
+        if (WorkspaceNavigation.DISCUSSION.equals(navigation.current())) render(false);
+        ArtifactDesk.refreshBindings(shell.content(), activeHost);
     }
 
     @Override public JSONObject options(String sessionId) {
@@ -247,8 +333,8 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     private void back() {
         if (threads == null) {
             if (!gate.onBack()) finish();
-        } else if (shell.inDesk()) {
-            displayDiscussion();
+        } else if (navigation.back()) {
+            render(false);
         } else if (!threads.back()) {
             lock();
         }
@@ -285,6 +371,9 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         panels = null;
         threads = null;
         shell = null;
+        navigation = null;
+        customPages.clear();
+        activeHost = null;
         account = null;
         displayedSurface = null;
     }

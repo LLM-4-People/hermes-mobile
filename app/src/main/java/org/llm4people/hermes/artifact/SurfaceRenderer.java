@@ -5,9 +5,7 @@ import android.app.AlertDialog;
 import android.content.Context;
 import android.content.res.Configuration;
 import android.graphics.Typeface;
-import android.view.Gravity;
 import android.view.View;
-import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -17,34 +15,41 @@ import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.profile.Account;
 import java.io.IOException;
-import java.util.function.Consumer;
+import java.util.Collections;
 
 final class SurfaceRenderer {
     static View decorate(Activity activity, Account account, String surface, View nativeContent, ArtifactDesk.Host host) {
         LayoutHistory history = new LayoutHistory(account, surface);
         try {
             String current = history.current();
-            if (current.isEmpty()) return nativeContent;
+            if (current.isEmpty()) {
+                if ("thread".equals(surface)) host.threadSlots(Collections.emptyList());
+                return nativeContent;
+            }
             WorkspaceLayout layout = WorkspaceLayout.parse(current);
             if (!surface.equals(layout.surface)) throw new IOException("Mismatched surface");
+            if ("thread".equals(surface)) host.threadSlots(layout.slots());
             return render(activity, layout, nativeContent, host, () -> controls(activity, history, host));
         } catch (IOException | IllegalStateException e) {
             Diagnostics.warning("workspace", "read_failed");
+            if ("thread".equals(surface)) host.threadSlots(Collections.emptyList());
             return nativeContent;
         }
     }
 
     static View preview(Context context, WorkspaceLayout layout) {
         Context c = palette(context, layout);
-        TextView sample = Ui.text(c, WorkspaceLayout.SURFACES.get(layout.surface) + " · Contenu de l’écran", 16);
+        TextView sample = Ui.text(c, WorkspaceLayout.screenName(layout.surface) + " · Contenu de l’écran", 16);
         Ui.pad(sample, 20, 20);
         sample.setBackgroundColor(c.getColor(R.color.accent_surface));
         LinearLayout column = Ui.column(c);
         column.setBackgroundColor(c.getColor(R.color.paper));
         title(column, layout);
         for (WorkspaceLayout.Block block : layout.blocks) {
-            if (block.nativeContent) column.addView(sample);
-            else section(column, layout, block, null);
+            if (block.nativeContent) {
+                if (!block.slots.isEmpty()) sample.setText(slotSummary(block));
+                column.addView(sample);
+            } else WorkspaceBlocks.add(column, layout, block, null, null);
         }
         return column;
     }
@@ -56,13 +61,18 @@ final class SurfaceRenderer {
         SurfaceFrame frame = new SurfaceFrame(c);
         LinearLayout before = Ui.column(c), after = Ui.column(c);
         title(before, layout);
-        Button options = Ui.button(c, "Modifier la disposition", v -> manage.run());
-        before.addView(options);
-        Consumer<String> select = id -> DeskDialogs.navigate(activity, () -> host.onAction(id));
+        if (!"replace".equals(layout.mode)) before.addView(Ui.button(c, "Modifier la disposition", v -> manage.run()));
         LinearLayout zone = before;
         for (WorkspaceLayout.Block block : layout.blocks) {
             if (block.nativeContent) zone = after;
-            else section(zone, layout, block, select);
+            else WorkspaceBlocks.add(zone, layout, block, activity, host);
+        }
+        if ("replace".equals(layout.mode)) {
+            ScrollView page = new ScrollView(c);
+            page.setBackgroundColor(c.getColor(R.color.paper));
+            page.setFillViewport(true);
+            page.addView(before);
+            return page;
         }
         frame.addRegion(before);
         frame.addView(nativeContent, new LinearLayout.LayoutParams(-1, 0, 1));
@@ -91,41 +101,39 @@ final class SurfaceRenderer {
 
     private static int gap(WorkspaceLayout layout) { return "compact".equals(layout.density) ? 4 : 12; }
 
-    private static void section(LinearLayout parent, WorkspaceLayout layout, WorkspaceLayout.Block block,
-                                Consumer<String> select) {
-        Context c = parent.getContext();
-        LinearLayout group = Ui.column(c);
-        Ui.pad(group, 16, gap(layout));
-        TextView heading = Ui.text(c, block.title, 18);
-        heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        heading.setAccessibilityHeading(true);
-        group.addView(heading);
-        if (!block.note.isEmpty()) group.addView(Ui.text(c, block.note, 16));
-        for (String action : block.actions) {
-            String label = WorkspaceLayout.ACTIONS.get(action);
-            if (select == null) {
-                TextView sample = Ui.text(c, label, 16);
-                Ui.pad(sample, 8, 6);
-                group.addView(sample);
-            } else {
-                Button b = Ui.button(c, label, v -> select.accept(action));
-                b.setGravity(Gravity.CENTER_VERTICAL | Gravity.START);
-                group.addView(b);
-            }
+    private static String slotSummary(WorkspaceLayout.Block block) {
+        java.util.List<String> labels = new java.util.ArrayList<>();
+        for (String slot : block.slots) {
+            if ("notice".equals(slot)) labels.add("État");
+            else if ("transcript".equals(slot)) labels.add("Messages");
+            else labels.add("Rédaction");
         }
-        parent.addView(group);
-        parent.addView(Ui.divider(c));
+        return String.join(" · ", labels);
     }
 
     static AlertDialog controls(Activity activity, LayoutHistory history, ArtifactDesk.Host host) {
         try {
+            boolean page = WorkspaceLayout.custom(history.surface);
+            boolean removed = page && history.current().isEmpty();
             AlertDialog.Builder builder = new AlertDialog.Builder(activity)
-                    .setTitle("Disposition de l’écran").setMessage("Vous pouvez rétablir la disposition d’origine.")
-                    .setNegativeButton("Fermer", null).setPositiveButton("Rétablir", (d, w) ->
-                            change(activity, host, () -> history.replace("")));
+                    .setTitle(WorkspaceLayout.screenName(history.surface)).setNegativeButton("Fermer", null);
+            if (removed) {
+                builder.setMessage("Cet écran a été supprimé. Vous pouvez annuler sa suppression ou effacer sa révision.")
+                        .setPositiveButton("Effacer la révision…", (d,w) -> DeskDialogs.open(activity,
+                                new AlertDialog.Builder(activity).setTitle("Effacer définitivement la révision ?")
+                                .setNegativeButton("Annuler",null).setPositiveButton("Effacer",(dialog,n) ->
+                                        change(activity,host,history::forgetRemoved))));
+            } else {
+                builder.setMessage(page ? "Supprimer cet écran de votre atelier ? Vous pourrez annuler cette opération."
+                        : "Vous pouvez rétablir la disposition d’origine.")
+                        .setPositiveButton(page ? "Supprimer" : "Rétablir", (d,w) ->
+                                change(activity,host,() -> history.replace("")));
+            }
             if (history.canUndo()) builder.setNeutralButton("Annuler la modification",
                     (d, w) -> change(activity, host, history::undo));
             return DeskDialogs.open(activity, builder);
+        } catch (PageLayouts.Damaged damaged) {
+            return WorkspacePages.confirmRecovery(activity, damaged, host);
         } catch (LayoutHistory.Unreadable e) {
             Diagnostics.warning("workspace", "read_failed");
             String screen = WorkspaceLayout.SURFACES.get(history.surface);
@@ -141,6 +149,16 @@ final class SurfaceRenderer {
 
     static void change(Activity activity, ArtifactDesk.Host host, Runnable write) {
         try { write.run(); }
+        catch (PageLayouts.Full full) {
+            DeskDialogs.open(activity, new AlertDialog.Builder(activity).setTitle("Bibliothèque pleine")
+                    .setMessage("Libérez une place depuis les dispositions des écrans en effaçant une révision supprimée.")
+                    .setPositiveButton("Fermer",null));
+            return;
+        }
+        catch (PageLayouts.Damaged damaged) {
+            WorkspacePages.confirmRecovery(activity, damaged, host);
+            return;
+        }
         catch (LayoutHistory.Unreadable e) {
             Diagnostics.warning("workspace", "read_failed");
             DeskDialogs.open(activity, new AlertDialog.Builder(activity).setTitle("Disposition illisible")
