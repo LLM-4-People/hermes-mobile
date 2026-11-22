@@ -146,13 +146,14 @@ jobs:
           if-no-files-found: ${{ job.status == 'success' && 'error' || 'warn' }}
           compression-level: 0
 
-      - name: Retain thread instrument screenshots and gateway receipt
+      - name: Retain the offline walkthrough, screenshots and gateway receipt
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: android-thread-instruments
           path: |
             ${{ runner.temp }}/hermes-thread-instrument/thread-instrument.json
+            ${{ runner.temp }}/hermes-thread-instrument/walkthrough.html
             ${{ runner.temp }}/hermes-thread-instrument/*.png
           if-no-files-found: ${{ job.status == 'success' && 'error' || 'warn' }}
           compression-level: 0

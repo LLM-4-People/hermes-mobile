@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src 'sha256-SCRIPT_DIGEST'; base-uri 'none'; form-action 'none'">
+<title>Un outil dans la discussion · Hermes Mobile</title>
+<style>
+:root { color-scheme: light; font: 100%/1.5 system-ui, sans-serif; color: #172521; background: #f7f5ef; }
+* { box-sizing: border-box; }
+body { margin: 0 auto; max-width: 90rem; padding: 2.4rem clamp(1rem, 4vw, 4rem) 2rem; }
+header { border-bottom: 1px solid #b8c2b9; padding-bottom: 1.25rem; }
+.brand { margin: 0; font-size: .875rem; font-weight: 700; color: #225c50; }
+h1 { margin: .2rem 0 0; font-size: clamp(1.85rem, 3.2vw, 3.3rem); line-height: 1.13; letter-spacing: -.025em; }
+.layout { display: grid; grid-template-columns: minmax(13rem, 20rem) minmax(0, 1fr); gap: clamp(1.5rem, 5vw, 5.5rem); }
+nav { padding-top: 1.6rem; }
+ol { list-style: none; padding: 0; margin: 0; counter-reset: stage; }
+li { counter-increment: stage; border-bottom: 1px solid #ced4cb; }
+nav a { display: flex; align-items: baseline; gap: .8rem; padding: .72rem .48rem; text-decoration: none; color: #35443e; border-inline-start: 3px solid transparent; }
+nav a::before { content: counter(stage, decimal-leading-zero); color: #53625b; font-size: .75rem; font-variant-numeric: tabular-nums; }
+nav a:hover { background: #e9ede6; }
+nav a[aria-current] { color: #194e42; background: #dcede3; border-color: #225c50; font-weight: 680; }
+main { min-width: 0; }
+.tools { min-height: 4.75rem; display: flex; align-items: center; justify-content: space-between; gap: .8rem; }
+#position { color: #53625b; font-size: .875rem; font-variant-numeric: tabular-nums; }
+.controls { display: flex; gap: .35rem; }
+button { border: 1px solid #9aa99e; border-radius: .4rem; background: #fffefa; color: #225c50; font: inherit; font-weight: 600; padding: .45rem .85rem; cursor: pointer; min-height: 2.75rem; }
+button:disabled { color: #65716a; border-color: #ced4cb; background: transparent; cursor: default; }
+button:enabled:hover { background: #dcede3; }
+:focus-visible { outline: 3px solid #225c50; outline-offset: 2px; }
+figure { margin: 0 0 2rem; }
+.canvas { display: grid; place-items: center; padding: clamp(.55rem, 1.6vw, 1.25rem); background: #e7eae2; border: 1px solid #c7cfc4; }
+img { display: block; width: auto; height: auto; max-width: 100%; max-height: max(15rem, calc(100vh - 17rem)); max-height: max(15rem, calc(100svh - 17rem)); border: 1px solid #b8c2b9; object-fit: contain; }
+figcaption { margin: .75rem 0 0; font-size: 1rem; }
+[hidden] { display: none !important; }
+@media (max-width: 47rem) {
+  body { padding-top: 1.2rem; }
+  .layout { display: flex; flex-direction: column; gap: 0; }
+  nav { padding-top: .7rem; }
+  ol { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 .7rem; }
+  nav a { gap: .4rem; padding: .45rem .3rem; font-size: .85rem; min-height: 2.75rem; }
+  .tools { min-height: 3.8rem; }
+  img { max-height: 68svh; }
+}
+@media (max-width: 24rem) {
+  .tools { gap: .4rem; }
+  button { padding: .3rem .5rem; }
+}
+</style>
+</head>
+<body>
+<header><p class="brand">Hermes Mobile</p><h1>Un outil dans la discussion</h1></header>
+<div class="layout">
+<nav aria-label="Étapes du parcours"><ol><!-- STEPS --></ol></nav>
+<main>
+<div class="tools" hidden>
+<span id="position" role="status" aria-live="polite" aria-atomic="true"></span>
+<div class="controls"><button type="button" id="previous">Précédent</button><button type="button" id="next">Suivant</button></div>
+</div>
+<!-- SCREENS -->
+</main>
+</div>
+<script>
+const links = [...document.querySelectorAll("nav a")];
+const screens = links.map(link => document.getElementById(link.hash.slice(1)));
+const previous = document.querySelector("#previous");
+const next = document.querySelector("#next");
+let active = 0;
+function show(index) {
+  active = index;
+  screens.forEach((screen, i) => {
+    screen.hidden = i !== index;
+    if (i === index) links[i].setAttribute("aria-current", "step");
+    else links[i].removeAttribute("aria-current");
+  });
+  previous.disabled = index === 0;
+  next.disabled = index === screens.length - 1;
+  document.querySelector("#position").textContent = "Étape " + (index + 1) + " sur " + screens.length;
+}
+function navigate(index) {
+  if (index < 0 || index >= screens.length || index === active) return;
+  history.pushState(null, "", links[index].hash);
+  show(index);
+}
+function fromUrl() {
+  const index = links.findIndex(link => link.hash === location.hash);
+  show(index < 0 ? 0 : index);
+}
+links.forEach((link, index) => link.addEventListener("click", event => {
+  if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+  event.preventDefault();
+  navigate(index);
+}));
+previous.addEventListener("click", () => navigate(active - 1));
+next.addEventListener("click", () => navigate(active + 1));
+addEventListener("keydown", event => {
+  if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+  const destinations = {ArrowLeft: active - 1, ArrowRight: active + 1, Home: 0, End: screens.length - 1};
+  if (Object.hasOwn(destinations, event.key)) {
+    event.preventDefault();
+    navigate(destinations[event.key]);
+  }
+});
+addEventListener("popstate", fromUrl);
+addEventListener("hashchange", fromUrl);
+fromUrl();
+document.querySelector(".tools").hidden = false;
+</script>
+</body>
+</html>

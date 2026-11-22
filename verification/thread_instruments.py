@@ -23,6 +23,7 @@ from device.installed import installed_apk_sha256
 from device.run import APP, DEVICE_DIR, DRIVER, Emulator, cleanup_all, collect_captures
 from gateway_fixture import Gateway, PINNED_REVISION, check_source
 from live_api import transcript
+from instrument_walkthrough import write_walkthrough
 
 
 FIRST = "Relis le calcul dans facture.py."
@@ -218,6 +219,7 @@ def main():
     report.update({"gateway_revision": args.revision, "canonical_review_turns": 3,
                    "unrelated_thread_turns": 1, "automatically_submitted_turns": 0})
     (args.output / "thread-instrument.json").write_text(json.dumps(report, indent=2) + "\n")
+    write_walkthrough(args.output, CAPTURES)
     print(json.dumps(report), flush=True)
 
 
