@@ -38,7 +38,8 @@ public final class Account implements AutoCloseable {
     public synchronized String read(String key) {
         try {
             String slot = slot(key);
-            String stored = prefs.getString(slot, null);
+            String stored;
+            synchronized (prefs) { stored = prefs.getString(slot, null); }
             if (stored == null) return null;
             byte[] clear = ProfileEnvelope.decrypt(new SecretKeySpec(keys, 0, 32, "AES"), context(slot),
                     Base64.decode(stored, Base64.NO_WRAP), 0);
@@ -61,8 +62,7 @@ public final class Account implements AutoCloseable {
             byte[] plain = value.getBytes(StandardCharsets.UTF_8);
             try {
                 byte[] cipher = ProfileEnvelope.encrypt(new SecretKeySpec(keys, 0, 32, "AES"), context(slot), plain);
-                if (!prefs.edit().putString(slot, Base64.encodeToString(cipher, Base64.NO_WRAP)).commit())
-                    throw new IllegalStateException("Account record write failed");
+                commit(slot, Base64.encodeToString(cipher, Base64.NO_WRAP));
             } finally {
                 Arrays.fill(plain, (byte) 0);
             }
@@ -73,9 +73,21 @@ public final class Account implements AutoCloseable {
 
     public synchronized void remove(String key) {
         try {
-            if (!prefs.edit().remove(slot(key)).commit()) throw new IllegalStateException("Account record removal failed");
+            commit(slot(key), null);
         } catch (GeneralSecurityException ex) {
             throw new IllegalStateException("Account record removal failed", ex);
+        }
+    }
+
+    private void commit(String slot, String value) {
+        // All unlocked handles share the vault. Keep readers behind a failed commit and its rollback.
+        synchronized (prefs) {
+            String previous = prefs.getString(slot, null);
+            if (prefs.edit().putString(slot, value).commit()) return;
+            // Android changes its process cache even when the disk write fails.
+            if (!prefs.edit().putString(slot, previous).commit())
+                throw new IllegalStateException("Account record rollback could not be committed");
+            throw new IllegalStateException("Account record could not be committed");
         }
     }
 

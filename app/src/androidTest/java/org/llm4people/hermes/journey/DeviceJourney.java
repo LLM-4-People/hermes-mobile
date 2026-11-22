@@ -190,15 +190,19 @@ public final class DeviceJourney extends Instrumentation {
         ui.fill("Titre", name);
         ui.fill("Consigne pour Hermes", "Relire la fonction carré.");
         ui.tap("Enregistrer");
-        ui.tap(name);
+        ui.tapButton(name);
+        ui.see("État : Planifié");
         ui.see("Relire la fonction carré.");
         ui.capture("08-rappel");
         ui.tap("Mettre en pause");
-        ui.tap(name);
+        ui.tapButton(name);
+        ui.see("État : En pause");
         ui.tap("Reprendre");
-        ui.tap(name);
-        ui.tap("Supprimer");
-        ui.tap("Supprimer");
+        ui.tapButton(name);
+        ui.see("État : Planifié");
+        ui.tapButton("Supprimer");
+        ui.see("Supprimer « " + name + " » ?");
+        ui.tapButton("Supprimer");
         ui.see("Aucun rappel planifié pour ce profil.");
         ui.tap("Fermer");
     }

@@ -25,6 +25,7 @@ final class SessionSettings {
     private final String id;
     private final String remoteId;
     private JSONObject saved;
+    private TextView saveError;
     private boolean individualTools;
     private final Map<String, Provider> providers = new LinkedHashMap<>();
     private final Map<String, Set<String>> toolsets = new LinkedHashMap<>();
@@ -68,10 +69,10 @@ final class SessionSettings {
         panel.note(box, panel.t(R.string.panel_session_scope));
         panel.section(box, R.string.panel_model);
         String model = PanelData.text(saved, "model");
-        panel.note(box, model.isEmpty() ? panel.t(R.string.panel_profile_default) :
+        TextView selectedModel = panel.note(box, model.isEmpty() ? panel.t(R.string.panel_profile_default) :
                 PanelData.text(saved, "provider") + " · " + model);
         panel.action(box, R.string.panel_route, this::pickProvider);
-        if (!model.isEmpty()) panel.action(box, R.string.panel_profile_default, () -> selectModel(box, "", ""));
+        if (!model.isEmpty()) panel.action(box, R.string.panel_profile_default, () -> selectModel(selectedModel, "", ""));
         panel.section(box, R.string.panel_tools);
         LinearLayout controls = Ui.column(panel.activity);
         box.addView(controls);
@@ -103,9 +104,9 @@ final class SessionSettings {
         picker(box, new ArrayList<>(provider.models), model -> selectModel(box, provider.slug, model));
     }
 
-    private void selectModel(LinearLayout box, String provider, String model) {
+    private void selectModel(View anchor, String provider, String model) {
         JSONObject options = PanelData.selection(provider, model, saved.optJSONArray("allowed_toolsets"), saved.optJSONArray("excluded_tools"));
-        if (save(box, options)) show();
+        if (save(anchor, options)) show();
     }
 
     private <T> void picker(LinearLayout box, ArrayList<T> choices, Consumer<T> select) {
@@ -171,10 +172,11 @@ final class SessionSettings {
         Set<String> checked = custom == null ? new LinkedHashSet<>(toolsets.keySet()) : names(custom);
         if (editable) {
             CheckBox defaults = toggle(box, panel.t(R.string.panel_tools_defaults), custom == null, true);
-            defaults.setOnCheckedChangeListener((v, on) -> {
+            defaults.setOnClickListener(v -> {
+                boolean on = defaults.isChecked();
                 JSONObject next = withTools(on ? null : new JSONArray(toolsets.keySet()));
-                if (save(box, next)) renderTools(box, true);
-                else { defaults.setEnabled(false); }
+                if (save(defaults, next)) renderTools(box, true);
+                else defaults.setChecked(custom == null);
             });
         } else {
             panel.note(box, panel.t(R.string.panel_tools_readonly));
@@ -201,11 +203,11 @@ final class SessionSettings {
                         v -> editMembers(name)));
                 else panel.note(box, members);
             }
-            control.setOnCheckedChangeListener((v, on) -> {
+            control.setOnClickListener(v -> {
                 Set<String> next = new LinkedHashSet<>(checked);
-                if (on) next.add(name); else next.remove(name);
-                if (save(box, withTools(new JSONArray(next)))) { checked.clear(); checked.addAll(next); }
-                else control.setEnabled(false);
+                if (control.isChecked()) next.add(name); else next.remove(name);
+                if (save(control, withTools(new JSONArray(next)))) { checked.clear(); checked.addAll(next); }
+                else control.setChecked(checked.contains(name));
             });
         }
     }
@@ -223,13 +225,13 @@ final class SessionSettings {
         for (String name : toolsets.get(set)) {
             boolean present = available.contains(name);
             CheckBox toggle = toggle(box, name, present && !excluded.contains(name), present);
-            toggle.setOnCheckedChangeListener((v, on) -> {
+            toggle.setOnClickListener(v -> {
                 Set<String> updated = new LinkedHashSet<>(excluded);
-                if (on) updated.remove(name); else updated.add(name);
+                if (toggle.isChecked()) updated.remove(name); else updated.add(name);
                 JSONObject options = PanelData.selection(PanelData.text(saved, "provider"),
                         PanelData.text(saved, "model"), saved.optJSONArray("allowed_toolsets"), new JSONArray(updated));
-                if (save(box, options)) { excluded.clear(); excluded.addAll(updated); }
-                else toggle.setEnabled(false);
+                if (save(toggle, options)) { excluded.clear(); excluded.addAll(updated); }
+                else toggle.setChecked(present && !excluded.contains(name));
             });
         }
     }
@@ -244,11 +246,21 @@ final class SessionSettings {
         return view;
     }
 
-    private boolean save(LinearLayout box, JSONObject next) {
+    private boolean save(View anchor, JSONObject next) {
+        if (saveError != null && saveError.getParent() instanceof LinearLayout parent) parent.removeView(saveError);
+        saveError = null;
         try {
             panel.saveOptions(id, next);
             saved = next;
             return true;
-        } catch (IllegalStateException error) { panel.failure(box, error, null); return false; }
+        } catch (IllegalStateException error) {
+            LinearLayout box = anchor instanceof LinearLayout ? (LinearLayout) anchor : (LinearLayout) anchor.getParent();
+            saveError = panel.failure(box, error, null);
+            if (anchor != box) {
+                box.removeView(saveError);
+                box.addView(saveError, box.indexOfChild(anchor) + 1);
+            }
+            return false;
+        }
     }
 }

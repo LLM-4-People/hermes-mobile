@@ -15,6 +15,7 @@ import android.view.WindowInsets;
 import android.view.WindowManager;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.inspector.WindowInspector;
+import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
 
@@ -109,6 +110,12 @@ public final class JourneyUi {
         tap(target, label);
     }
 
+    void tapButton(String label) {
+        View target = until("button " + label, () -> find(window(),
+                v -> v instanceof Button && v.isEnabled() && named(v, label)));
+        tap(target, label);
+    }
+
     private void tap(View target, String label) {
         main(() -> {
             Rect bounds = new Rect();
@@ -162,20 +169,30 @@ public final class JourneyUi {
     }
 
     void usableComposer() {
-        main(() -> {
-            View root = window();
-            View editor = find(root, v -> v instanceof EditText && named(v, "Message à Hermes"));
-            View send = find(root, v -> named(v, "Envoyer"));
-            int target = Math.round(activity.getResources().getDisplayMetrics().density * 48);
-            for (View control : new View[]{editor, send}) {
-                Rect bounds = new Rect();
-                if (control == null || !control.getGlobalVisibleRect(bounds)
-                        || bounds.width() < target || bounds.height() < target
-                        || bounds.height() < control.getHeight() || bounds.width() < control.getWidth())
-                    throw new AssertionError("Composer action is clipped or under the 48dp touch target");
-            }
-            return null;
-        });
+        String[] observations = new String[1];
+        try {
+            until("fully visible 48dp composer actions", () -> {
+                View root = window();
+                View editor = find(root, v -> v instanceof EditText && named(v, "Message à Hermes"));
+                View send = find(root, v -> v instanceof Button && named(v, "Envoyer"));
+                int target = Math.round(activity.getResources().getDisplayMetrics().density * 48);
+                for (View control : new View[]{editor, send}) {
+                    Rect bounds = new Rect();
+                    if (control == null || !control.getGlobalVisibleRect(bounds)
+                            || bounds.width() < target || bounds.height() < target
+                            || bounds.height() < control.getHeight() || bounds.width() < control.getWidth()) {
+                        observations[0] = (control == editor ? "editor" : "send") + " observed "
+                                + bounds + ", measured " + (control == null ? "absent"
+                                : control.getWidth() + "×" + control.getHeight()) + ", 48dp=" + target;
+                        return null;
+                    }
+                }
+                return Boolean.TRUE;
+            });
+        } catch (AssertionError timeout) {
+            capture("09-compositeur-incomplet");
+            throw new AssertionError(observations[0], timeout);
+        }
     }
 
     public void capture(String name) {
