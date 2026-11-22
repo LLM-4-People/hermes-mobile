@@ -4,21 +4,32 @@ import org.json.JSONException;
 import org.json.JSONObject;
 import org.llm4people.hermes.profile.Account;
 
-/** The active and previous layouts for a surface are replaced in one encrypted account record. */
+/** One previous revision per surface. Each mutation is committed to authenticated local storage. */
 final class LayoutHistory {
     private final Account account;
-    private final String key;
+    final String surface;
     LayoutHistory(Account account, String surface) {
-        if (!WorkspaceLayout.SURFACES.containsKey(surface)) throw new IllegalArgumentException("Unknown screen");
+        if (!WorkspaceLayout.SURFACES.containsKey(surface) && !WorkspaceLayout.custom(surface))
+            throw new IllegalArgumentException("Unknown screen");
         this.account = account;
-        key = "workspace.v1." + surface;
+        this.surface = surface;
     }
 
     private JSONObject read() {
-        String raw = account.read(key);
+        if (WorkspaceLayout.custom(surface)) {
+            JSONObject row = PageLayouts.read(account).optJSONObject(surface);
+            return row == null ? new JSONObject() : row;
+        }
+        String raw = account.read("workspace.v1." + surface);
         if (raw == null) return new JSONObject();
         try { return new JSONObject(raw); }
         catch (JSONException e) { throw new IllegalStateException("Unreadable workspace record"); }
+    }
+
+    private void save(JSONObject record) {
+        if (WorkspaceLayout.custom(surface)) PageLayouts.save(account, surface, record);
+        else if (record == null) account.remove("workspace.v1." + surface);
+        else account.write("workspace.v1." + surface, record.toString());
     }
 
     String current() { return read().optString("current", ""); }
@@ -28,9 +39,8 @@ final class LayoutHistory {
         synchronized (account) {
             String old = current();
             if (old.equals(next)) return;
-            try {
-                account.write(key, new JSONObject().put("current", next).put("previous", old).toString());
-            } catch (JSONException e) { throw new IllegalStateException(e); }
+            try { save(new JSONObject().put("current", next).put("previous", old)); }
+            catch (JSONException e) { throw new IllegalStateException(e); }
         }
     }
 
@@ -39,9 +49,14 @@ final class LayoutHistory {
             JSONObject record = read();
             if (!record.has("previous")) return;
             String previous = record.optString("previous", "");
-            if (previous.isEmpty()) { account.remove(key); return; }
-            try { account.write(key, new JSONObject().put("current", previous).toString()); }
+            try { save(previous.isEmpty() ? null : new JSONObject().put("current", previous)); }
             catch (JSONException e) { throw new IllegalStateException(e); }
+        }
+    }
+
+    void forgetRemoved() {
+        synchronized (account) {
+            if (WorkspaceLayout.custom(surface) && current().isEmpty()) save(null);
         }
     }
 }

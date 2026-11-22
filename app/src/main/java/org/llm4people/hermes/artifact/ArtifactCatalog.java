@@ -51,7 +51,7 @@ final class ArtifactCatalog {
                 String surface = layout ? surfaceOf(content) : null;
                 String key = surface != null ? "workspace:" + surface : filename.isEmpty() || layout ? "block:" + messageIndex + ":" + n
                         : "file:" + language + ":" + filename;
-                String title = layout ? (surface == null ? "Proposition à corriger" : "Disposition · " + WorkspaceLayout.SURFACES.get(surface))
+                String title = layout ? (surface == null ? "Proposition à corriger" : "Disposition · " + WorkspaceLayout.screenName(surface))
                         : !filename.isEmpty() ? filename
                         : ("diff".equals(language) || "patch".equals(language)) ? "Modifications"
                         : language.isEmpty() ? "Extrait de code" : "Extrait " + language;

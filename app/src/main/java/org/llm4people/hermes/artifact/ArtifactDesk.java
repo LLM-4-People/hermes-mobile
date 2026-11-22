@@ -17,12 +17,19 @@ import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.profile.Account;
 import java.io.IOException;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 /** Native, profile-scoped artifact reader. Construct from the current ordered transcript. */
 public final class ArtifactDesk {
     public interface Host {
         void onAction(String actionId);
         void onLayoutChanged();
+        void openWorkspace(String pageId);
+        void stageDraft(String text);
+        String workspaceValue(String source);
+        void threadSlots(List<String> order);
     }
 
     private final Activity activity;
@@ -45,12 +52,29 @@ public final class ArtifactDesk {
         return SurfaceRenderer.decorate(activity, account, surface, nativeContent, host);
     }
 
+    public static View pages(Activity activity, Account account, Host host) {
+        return WorkspacePages.gallery(activity, account, host);
+    }
+
+    public static View page(Activity activity, Account account, String id, Host host) {
+        if (!WorkspaceLayout.custom(id)) return null;
+        return SurfaceRenderer.decorate(activity, account, id, null, host);
+    }
+
+    public static void refreshBindings(View root, Host host) { WorkspaceBlocks.refresh(root,host); }
+
     public static void dismiss(Activity activity) { DeskDialogs.dismiss(activity); }
 
     /** Recovery is always reachable from native navigation, even after a layout has been restored. */
     public static void manage(Activity activity, Account account, Host host) {
-        String[] surfaces = WorkspaceLayout.SURFACES.keySet().toArray(new String[0]);
-        String[] labels = WorkspaceLayout.SURFACES.values().toArray(new String[0]);
+        Map<String,String> all = new LinkedHashMap<>(WorkspaceLayout.SURFACES);
+        try {
+            PageLayouts.titles(account,true).forEach((id,title) -> all.put(id, title + " (" + id.substring(5) + ")"));
+        } catch (IllegalStateException error) {
+            Diagnostics.warning("workspace","page_index_unavailable");
+        }
+        String[] surfaces = all.keySet().toArray(new String[0]);
+        String[] labels = all.values().toArray(new String[0]);
         DeskDialogs.open(activity, new AlertDialog.Builder(activity).setTitle("Dispositions des écrans")
                 .setItems(labels, (d, which) -> SurfaceRenderer.controls(activity,
                         new LayoutHistory(account, surfaces[which]), host))
@@ -110,8 +134,10 @@ public final class ArtifactDesk {
         if (WorkspaceLayout.FENCE.equals(record.language)) {
             try {
                 WorkspaceLayout layout = WorkspaceLayout.parse(content);
-                String surface = WorkspaceLayout.SURFACES.get(layout.surface);
+                String surface = WorkspaceLayout.screenName(layout.surface);
                 box.addView(Ui.text(activity, "Écran concerné · " + surface, 16));
+                if ("replace".equals(layout.mode)) box.addView(Ui.text(activity, WorkspaceLayout.custom(layout.surface)
+                        ? "Écran personnel enregistré dans ce profil." : "Cette proposition remplace le contenu de cet écran.", 15));
                 box.addView(SurfaceRenderer.preview(activity, layout));
                 box.addView(Ui.button(activity, "Appliquer la disposition…",
                         v -> confirm(layout, content)));
@@ -127,7 +153,7 @@ public final class ArtifactDesk {
     }
 
     private void confirm(WorkspaceLayout layout, String raw) {
-        String screen = WorkspaceLayout.SURFACES.get(layout.surface);
+        String screen = WorkspaceLayout.screenName(layout.surface);
         DeskDialogs.open(activity, new AlertDialog.Builder(activity).setTitle("Modifier l’écran « " + screen + " » ?")
                 .setMessage("Cette disposition sera utilisée dans ce profil. Vous pourrez l’annuler depuis l’atelier.")
                 .setNegativeButton("Annuler", null).setPositiveButton("Appliquer", (d, w) ->
