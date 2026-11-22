@@ -1,7 +1,7 @@
 import unittest
 import xml.etree.ElementTree as ET
 
-from verification.nearby_journey import CONSENT, USE_LOCATION, choose_consent, lock, open_consent
+from verification.nearby_journey import CONSENT, PROMPT, USE_LOCATION, choose_consent, enter_message, lock, open_consent
 from verification.nearby_location import (COARSE, answer_android_location, app_activity_stopped,
                                           location_access, public_city_fix)
 from verification.nearby_restaurants import enter_discussion
@@ -100,7 +100,9 @@ class NearbyLocationTest(unittest.TestCase):
             '<node text="Nouvelle conversation" content-desc="" resource-id="" class="android.widget.TextView" '
             'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[48,0][200,48]"/>'
             '<node text="Message à Hermes" content-desc="" resource-id="" class="android.widget.EditText" '
-            'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[12,560][240,620]"/>'
+            'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[12,560][210,620]"/>'
+            '<node text="Envoyer" content-desc="" resource-id="" class="android.widget.Button" '
+            'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[220,560][310,620]"/>'
             '</node>'
         )
         trees = iter([inbox, loading_chat, ready_chat])
@@ -118,6 +120,44 @@ class NearbyLocationTest(unittest.TestCase):
 
         enter_discussion(StubScreen())
         self.assertEqual(tapped, [("android.widget.Button", "Nouvelle conversation")])
+
+    def test_enter_discussion_and_enter_message_accept_restored_non_empty_draft(self):
+        restored_chat = ET.fromstring(
+            '<node text="" content-desc="" resource-id="" class="android.widget.FrameLayout" '
+            'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[0,0][320,640]">'
+            '<node text="Nouvelle conversation" content-desc="" resource-id="" class="android.widget.TextView" '
+            'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[48,0][200,48]"/>'
+            f'<node text="{PROMPT}" content-desc="" resource-id="" class="android.widget.EditText" '
+            'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[12,560][210,620]"/>'
+            '<node text="Envoyer" content-desc="" resource-id="" class="android.widget.Button" '
+            'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[220,560][310,620]"/>'
+            '</node>'
+        )
+        sent = []
+
+        class StubControls:
+            def send(self, *args, **kwargs):
+                sent.append((args, kwargs))
+                return b"applied"
+
+        class StubDevice:
+            def ime_shown(self):
+                return False
+
+        class StubScreen(Screen):
+            def __init__(self):
+                self.device = StubDevice()
+                self.controls = StubControls()
+
+            def hierarchy(self):
+                return restored_chat
+
+        ui = StubScreen()
+        enter_discussion(ui)
+        enter_message(ui, PROMPT)
+        self.assertEqual(sent, [])
+        enter_message(ui, "Autre question")
+        self.assertEqual(sent, [(("text",), {"label": PROMPT, "value": "Autre question"})])
 
     def test_answer_android_location_matches_google_controller_aosp_resource_id_and_scrolls(self):
         top_dialog = ET.fromstring(

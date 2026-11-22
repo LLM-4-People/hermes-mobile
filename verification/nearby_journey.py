@@ -25,9 +25,21 @@ def dismiss_ime(ui):
 
 
 def enter_message(ui, prompt=PROMPT):
-    ui.wait("Message à Hermes")
-    if ui.controls.send("text", label="Message à Hermes", value=prompt) != b"applied":
-        raise AssertionError("The public Android composer did not accept the French request")
+    def composer():
+        tree = ui.hierarchy()
+        if ui.node("Envoyer", tree) is None:
+            return None
+        for node in tree.iter("node"):
+            if node.get("package") == APP and node.get("class") == "android.widget.EditText":
+                return (node,)
+        return None
+
+    field = eventually("visible composer editor", composer)[0]
+    current = field.get("text", "")
+    if current != prompt:
+        label = current or "Message à Hermes"
+        if ui.controls.send("text", label=label, value=prompt) != b"applied":
+            raise AssertionError("The public Android composer did not accept the French request")
     dismiss_ime(ui)
 
 

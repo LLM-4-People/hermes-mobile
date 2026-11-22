@@ -103,7 +103,9 @@ def verified_turn(gateway, provider, question, previous, *, location):
 def enter_discussion(ui):
     def opened():
         tree = ui.hierarchy()
-        if ui.node("Message à Hermes", tree) is not None:
+        if (ui.node("Envoyer", tree) is not None
+                and any(node.get("package") == APP and node.get("class") == "android.widget.EditText"
+                        for node in tree.iter("node"))):
             return True
         create = ui.node("Nouvelle conversation", tree)
         if create is not None and create.get("class") == "android.widget.Button":
