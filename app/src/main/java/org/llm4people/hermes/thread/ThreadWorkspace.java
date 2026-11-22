@@ -14,6 +14,7 @@ import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.artifact.ArtifactDesk;
 import org.llm4people.hermes.artifact.ThreadInstruments;
 import org.llm4people.hermes.net.HermesApi;
+import org.llm4people.hermes.os.LiveRunNotification;
 import org.llm4people.hermes.profile.Account;
 import org.llm4people.hermes.voice.VoiceDrafts;
 
@@ -30,12 +31,15 @@ import java.util.function.Consumer;
 
 /** Profile-scoped native workspace. Call its public methods on the Android main thread. */
 public final class ThreadWorkspace implements AutoCloseable {
+    public record ThreadSummary(String id, String title) {}
+
     public interface Host {
         void selected(String sessionId, String title);
         void pendingChanged();
         default void discussionPanes(boolean canToggle, boolean listVisible) {}
         default void noticeThread(boolean sameThread) {}
         default void nearbyGuide(ThreadWorkspace origin, String threadId, String runId, JSONObject assistantRow, JSONObject area) {}
+        default void runProgress(LiveRunNotification.Snapshot snapshot) {}
         JSONObject options(String sessionId);
         void timing(String sessionId, long firstTextMillis, long elapsedMillis, long outputTokens);
     }
@@ -153,6 +157,38 @@ public final class ThreadWorkspace implements AutoCloseable {
 
     public boolean editing() { return screen != null && screen.editing(); }
     public void focusComposer() { if (screen != null) screen.focusComposer(); }
+
+    public void startDictation() {
+        if (closed || screen == null) return;
+        screen.focusComposer();
+        main.post(() -> {
+            if (!closed && screen != null) screen.triggerDictation();
+        });
+    }
+
+    public void stopActiveRun() {
+        if (!closed && run != null) run.stop();
+    }
+
+    public List<ThreadSummary> recentThreads() {
+        List<ThreadSummary> result = new ArrayList<>();
+        for (int i = 0; i < inbox.length(); i++) {
+            JSONObject row = inbox.optJSONObject(i);
+            if (row == null) continue;
+            String id = ThreadIdentity.rootId(row);
+            String label = ThreadData.title(row);
+            if (ThreadData.validId(id) && !label.isEmpty()) {
+                result.add(new ThreadSummary(id, label));
+            }
+        }
+        return result;
+    }
+
+    public void openSummary(String rootId, String label) {
+        if (closed || !ThreadData.validId(rootId)) return;
+        if (!rootId.equals(session)) open(new ThreadIdentity(rootId, rootId),
+                label == null || label.trim().isEmpty() ? "Conversation" : label);
+    }
 
     boolean importingPhoto;
     public boolean readyForPhoto() {

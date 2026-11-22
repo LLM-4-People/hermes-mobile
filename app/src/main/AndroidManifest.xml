@@ -5,6 +5,7 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
     <uses-feature android:name="android.hardware.location" android:required="false" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
     <queries>
@@ -56,6 +57,33 @@
             android:name=".push.PushSyncService"
             android:exported="false"
             android:permission="android.permission.BIND_JOB_SERVICE" />
+        <receiver
+            android:name=".os.LiveRunActionReceiver"
+            android:exported="false" />
+        <service
+            android:name=".os.HermesTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_push_notification"
+            android:label="@string/ask_hermes"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.service.quicksettings.ACTIVE_TILE"
+                android:value="false" />
+        </service>
+        <receiver
+            android:name=".os.HermesWidgetProvider"
+            android:exported="true"
+            android:label="@string/widget_title">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/hermes_widget_info" />
+        </receiver>
         <activity android:name=".share.ShareTextActivity" android:exported="true" android:taskAffinity=""
             android:excludeFromRecents="true" android:label="@string/ask_hermes">
             <intent-filter>

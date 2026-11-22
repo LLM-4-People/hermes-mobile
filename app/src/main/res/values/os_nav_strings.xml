@@ -1,0 +1,86 @@
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="fr">
+    <string name="nav_discussions">Discussions</string>
+    <string name="nav_atelier">Atelier</string>
+    <string name="nav_brain">Cerveau</string>
+    <string name="nav_activity">Activité</string>
+
+    <string name="top_search">Rechercher</string>
+    <string name="top_profile_lock">Profil et verrouillage</string>
+    <string name="search_dialog_title">Rechercher dans Hermes</string>
+    <string name="search_dialog_hint">Chercher une discussion ou un espace…</string>
+    <string name="search_no_results">Aucun résultat pour cette recherche.</string>
+
+    <string name="atelier_subtitle">Organisez vos écrans, vos outils et les réglages de votre profil.</string>
+    <string name="brain_subtitle">Découvrez ce que Hermes sait faire et choisissez ses capacités.</string>
+    <string name="brain_skills_title">Compétences de Hermes</string>
+    <string name="brain_skills_hint">Parcourir les savoir-faire prêts à l’emploi de votre assistant.</string>
+    <string name="brain_models_title">Modèle et capacités</string>
+    <string name="brain_models_hint">Choisir l’assistant et les capacités actives pour la discussion en cours.</string>
+    <string name="brain_memory_title">Mémoire et préférences</string>
+    <string name="brain_memory_hint">Vos préférences et outils restent chiffrés sur cet appareil. Votre profil protège vos échanges.</string>
+    <string name="brain_create_tool_title">Créer un outil sur mesure</string>
+    <string name="brain_create_tool_hint">Demander à Hermes un formulaire ou un tableau adapté à votre besoin.</string>
+
+    <string name="activity_subtitle">Retrouvez vos rappels, vos alertes et le suivi de vos échanges.</string>
+    <string name="activity_reminders_title">Rappels</string>
+    <string name="activity_reminders_hint">Consulter, créer ou modifier vos rappels automatiques.</string>
+    <string name="activity_notifications_title">Notifications</string>
+    <string name="activity_notifications_hint">Gérer les alertes sur cet appareil et voir l’historique récent.</string>
+    <string name="activity_usage_title">Utilisation</string>
+    <string name="activity_usage_hint">Consulter le coût estimé et le temps de réponse de la discussion.</string>
+    <string name="activity_security_title">Sécurité et verrouillage</string>
+
+    <string name="security_dialog_title">Sécurité et verrouillage</string>
+    <string name="security_lock_now">Verrouiller le profil</string>
+    <string name="security_biometric_title">Déverrouillage rapide</string>
+    <string name="security_biometric_enable">Activer le déverrouillage rapide</string>
+    <string name="security_biometric_disable">Désactiver le déverrouillage rapide</string>
+    <string name="security_biometric_prompt_title">Déverrouiller « %1$s »</string>
+    <string name="security_biometric_prompt_subtitle">Confirmez votre identité pour ouvrir votre profil privé.</string>
+    <string name="security_biometric_enroll_title">Activer le déverrouillage rapide</string>
+    <string name="security_biometric_enroll_subtitle">Votre phrase secrète reste toujours nécessaire en cas de changement sur l’appareil.</string>
+    <string name="security_biometric_use_passphrase">Utiliser la phrase secrète</string>
+    <string name="security_biometric_button">Déverrouiller rapidement</string>
+    <string name="security_biometric_enabled_note">Activé : empreinte, visage ou code de l’appareil.</string>
+    <string name="security_biometric_disabled_note">Désactivé : ouverture uniquement avec votre phrase secrète.</string>
+    <string name="security_biometric_unavailable_note">Configurez une empreinte, un visage ou un code dans les réglages Android pour activer cette option.</string>
+    <string name="security_biometric_invalidated">Le verrouillage de votre appareil a changé. Utilisez votre phrase secrète, puis réactivez le déverrouillage rapide si vous le souhaitez.</string>
+    <string name="security_biometric_failed">Déverrouillage rapide impossible. Utilisez votre phrase secrète.</string>
+    <string name="security_biometric_enabled_toast">Déverrouillage rapide activé pour ce profil.</string>
+    <string name="security_biometric_disabled_toast">Déverrouillage rapide désactivé.</string>
+    <string name="security_grace_title">Verrouillage automatique</string>
+    <string name="security_grace_hint">Utile pour choisir une photo ou consulter le calendrier sans ressaisir votre phrase secrète.</string>
+    <string name="security_grace_0s">Immédiat (recommandé)</string>
+    <string name="security_grace_30s">Après 30 secondes</string>
+    <string name="security_grace_2m">Après 2 minutes</string>
+    <string name="security_grace_5m">Après 5 minutes</string>
+
+    <string name="live_run_channel_name">Travaux en cours</string>
+    <string name="live_run_action_open">Ouvrir</string>
+    <string name="live_run_action_stop">Arrêter</string>
+
+    <string name="tile_subtitle">Ouvrir l’assistant</string>
+
+    <string name="shortcut_new_short">Nouvelle discussion</string>
+    <string name="shortcut_new_long">Démarrer une nouvelle discussion</string>
+    <string name="shortcut_dictate_short">Dicter</string>
+    <string name="shortcut_dictate_long">Dicter un message à Hermes</string>
+    <string name="shortcut_atelier_short">Atelier</string>
+    <string name="shortcut_atelier_long">Ouvrir l’Atelier</string>
+    <string name="shortcut_activity_short">Activité</string>
+    <string name="shortcut_activity_long">Voir les rappels et l’activité</string>
+
+    <string name="widget_title">Hermes</string>
+    <string name="widget_description">Accès rapide privé à Hermes pour écrire ou dicter une question.</string>
+    <string name="widget_status_private">Assistant privé</string>
+    <string name="widget_status_working">Travail en cours</string>
+    <string name="widget_ask">Demander</string>
+    <string name="widget_ask_description">Demander à Hermes</string>
+    <string name="widget_dictate">Dicter</string>
+    <string name="widget_dictate_description">Dicter un message à Hermes</string>
+    <string name="widget_pin_action">Épingler sur l’écran d’accueil</string>
+    <string name="widget_pin_requested">Confirmez l’ajout du widget sur votre écran d’accueil.</string>
+    <string name="widget_pin_unsupported">Votre écran d’accueil ne permet pas l’ajout automatique. Maintenez le doigt sur l’écran d’accueil, ouvrez Widgets, puis choisissez Hermes.</string>
+    <string name="widget_pin_invalid">Ce widget ne peut pas être affiché sur l’écran d’accueil.</string>
+    <string name="widget_pin_failed">Impossible d’ajouter ce widget pour le moment.</string>
+</resources>

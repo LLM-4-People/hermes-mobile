@@ -134,4 +134,20 @@ public class AdaptiveLayoutTest {
         assertFalse(invalidPanel.paired());
         assertEquals(0, invalidPanel.sheetWidthDp());
     }
+
+    @Test public void navigationChromeSwitchesBetweenPhoneBottomBarImeHiddenAndTabletRail() {
+        assertEquals(AdaptiveLayout.NavChrome.BOTTOM_BAR, AdaptiveLayout.navigationChrome(360f, 780f, false));
+        assertEquals(AdaptiveLayout.NavChrome.BOTTOM_BAR, AdaptiveLayout.navigationChrome(719.9f, 800f, false));
+        assertEquals(AdaptiveLayout.NavChrome.HIDDEN, AdaptiveLayout.navigationChrome(360f, 780f, true));
+        assertEquals(AdaptiveLayout.NavChrome.HIDDEN, AdaptiveLayout.navigationChrome(719.9f, 400f, true));
+
+        assertEquals(AdaptiveLayout.NavChrome.RAIL, AdaptiveLayout.navigationChrome(720f, 1000f, false));
+        assertEquals(AdaptiveLayout.NavChrome.RAIL, AdaptiveLayout.navigationChrome(720f, 1000f, true));
+        assertEquals(AdaptiveLayout.NavChrome.RAIL, AdaptiveLayout.navigationChrome(1200f, 800f, true));
+
+        // Improper dimensions must fail safely to phone bottom bar (or hidden when IME is visible).
+        assertEquals(AdaptiveLayout.NavChrome.BOTTOM_BAR, AdaptiveLayout.navigationChrome(Float.NaN, -100f, false));
+        assertEquals(AdaptiveLayout.NavChrome.HIDDEN, AdaptiveLayout.navigationChrome(-500f, Float.POSITIVE_INFINITY, true));
+        assertEquals(AdaptiveLayout.NavChrome.BOTTOM_BAR, AdaptiveLayout.navigationChrome(0f, 0f, false));
+    }
 }

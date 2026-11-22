@@ -7,6 +7,7 @@ import android.provider.Settings;
 import org.json.JSONObject;
 import org.llm4people.hermes.VisibleText;
 import org.llm4people.hermes.net.HermesApi;
+import org.llm4people.hermes.os.LiveRunNotification;
 
 /** Manages exactly one mobile-originated run in the selected thread. */
 final class ThreadRun {
@@ -103,6 +104,8 @@ final class ThreadRun {
         submitting = true;
         ui.busy(true, false);
         ui.notice(fresh ? "Préparation de l’envoi…" : "Vérification de l’envoi…", "", null);
+        page.host.runProgress(new LiveRunNotification.Snapshot(
+                LiveRunNotification.Phase.STARTING, 0, 0, false, false));
         page.request(() -> page.api.get("/v1/capabilities"), capabilities -> {
             JSONObject features = capabilities.optJSONObject("features");
             JSONObject idem = features == null ? null : features.optJSONObject("runs_idempotency");
@@ -179,6 +182,7 @@ final class ThreadRun {
         }, error -> {
             admissionFinished();
             ui.busy(!fresh, false);
+            if (fresh) page.host.runProgress(LiveRunNotification.Snapshot.idle());
             page.error(error, fresh ? this::send : this::restore);
         });
     }
@@ -280,6 +284,8 @@ final class ThreadRun {
         ui.busy(true, true);
         RunPreview saved = new RunPreview(receipt);
         ui.live("Hermes travaille…", saved.toString(), false, saved.origin());
+        page.host.runProgress(new LiveRunNotification.Snapshot(
+                LiveRunNotification.Phase.WORKING, 0, 0, false, true));
         RunFollower nextFollower = new RunFollower(page.api, id, receipt, started, new RunFollower.Listener() {
             private boolean current() { return serial == subscription && receipt == journal.pending(); }
 
@@ -296,6 +302,11 @@ final class ThreadRun {
                     ui.live(activity, next.text, count > 0, next.origin);
                     decisions.present(next.prompts);
                     ui.notice("", "", null);
+                    page.host.runProgress(new LiveRunNotification.Snapshot(
+                            count > 0 ? LiveRunNotification.Phase.AWAITING_DECISION
+                                    : next.toolSteps > 0 ? LiveRunNotification.Phase.TOOL_RUNNING
+                                    : LiveRunNotification.Phase.WORKING,
+                            next.toolSteps, 0, count > 0, canStop));
                 });
             }
             @Override public void complete(JSONObject status, long firstText, long elapsed) {
@@ -381,6 +392,7 @@ final class ThreadRun {
     private void completed(JSONObject status, long firstText, long elapsed) {
         ++subscription;
         canStop = false;
+        page.host.runProgress(LiveRunNotification.Snapshot.idle());
         decisions.clear();
         RunAction owner = owner();
         String outcome = status.optString("status");
@@ -458,6 +470,7 @@ final class ThreadRun {
     void detach() {
         ++subscription;
         canStop = false;
+        page.host.runProgress(LiveRunNotification.Snapshot.idle());
         if (decisions != null) decisions.clear();
         if (follower != null) follower.close();
         checkpoint();

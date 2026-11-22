@@ -81,4 +81,56 @@ public class WorkspaceNavigationTest {
         assertTrue(calls.isEmpty());
         assertEquals("", host.workspaceValue("profile.label"));
     }
+
+    @Test public void fourDestinationTabSwitchingKeepsDiscussionsAsBackRoot() {
+        WorkspaceNavigation nav = new WorkspaceNavigation();
+        assertEquals(WorkspaceNavigation.DISCUSSION, WorkspaceNavigation.topDestination(null));
+        assertEquals(WorkspaceNavigation.DISCUSSION, WorkspaceNavigation.topDestination(WorkspaceNavigation.COMPOSER));
+        assertEquals(WorkspaceNavigation.HOME, WorkspaceNavigation.topDestination(WorkspaceNavigation.GALLERY));
+        assertEquals(WorkspaceNavigation.HOME, WorkspaceNavigation.topDestination("page/custom"));
+        assertEquals(WorkspaceNavigation.BRAIN, WorkspaceNavigation.topDestination(WorkspaceNavigation.BRAIN));
+        assertEquals(WorkspaceNavigation.ACTIVITY, WorkspaceNavigation.topDestination(WorkspaceNavigation.ACTIVITY));
+
+        nav.selectTab(WorkspaceNavigation.HOME);
+        assertEquals(WorkspaceNavigation.HOME, nav.current());
+        nav.selectTab(WorkspaceNavigation.BRAIN);
+        assertEquals(WorkspaceNavigation.BRAIN, nav.current());
+        nav.selectTab(WorkspaceNavigation.ACTIVITY);
+        assertEquals(WorkspaceNavigation.ACTIVITY, nav.current());
+        assertTrue(nav.back());
+        assertEquals(WorkspaceNavigation.DISCUSSION, nav.current());
+        assertFalse(nav.back());
+    }
+
+    @Test public void routeAndActionRegistriesDispatchAndRejectInvalidEntries() {
+        List<String> events = new ArrayList<>();
+        ShellRoutes routes = new ShellRoutes();
+        routes.register("brain", (r, f) -> events.add("route:" + r + ":" + f));
+        routes.setFallback((r, f) -> events.add("fallback:" + r));
+        assertTrue(routes.hasRoute("brain"));
+        assertFalse(routes.hasRoute("unknown"));
+        assertTrue(routes.render("brain", true));
+        assertTrue(routes.render("page/notes", false));
+        assertFalse(routes.render(null, false));
+        assertEquals(Arrays.asList("route:brain:true", "fallback:page/notes"), events);
+
+        try {
+            routes.register("", (r, f) -> {});
+            fail("Blank route accepted");
+        } catch (IllegalArgumentException expected) {}
+
+        ActionRegistry actions = new ActionRegistry();
+        actions.register("search", () -> events.add("action:search"));
+        assertTrue(actions.contains("search"));
+        assertFalse(actions.contains(null));
+        assertTrue(actions.dispatch("search"));
+        assertFalse(actions.dispatch("does_not_exist"));
+        assertFalse(actions.dispatch(null));
+        assertEquals("action:search", events.get(events.size() - 1));
+
+        try {
+            actions.register("", () -> {});
+            fail("Blank action id accepted");
+        } catch (IllegalArgumentException expected) {}
+    }
 }

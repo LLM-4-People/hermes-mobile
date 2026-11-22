@@ -186,7 +186,8 @@ public final class DeviceJourney extends Instrumentation {
         lock();
         profile(other, "secondEndpoint", "secondKey", passphrase);
         ui.see("Aucune conversation pour ce profil.");
-        menu("Mes écrans");
+        ui.tap("Atelier");
+        ui.tap("Mes écrans");
         ui.contains("Demandez à Hermes de créer un écran");
         ui.absent("Diagnostic mobile");
         lock();
@@ -196,7 +197,7 @@ public final class DeviceJourney extends Instrumentation {
     }
 
     private void lock() {
-        ui.tap("Autres actions");
+        ui.tap("Profil et verrouillage");
         ui.tap("Verrouiller le profil");
         ui.see("Choisir un profil");
     }
@@ -315,7 +316,8 @@ public final class DeviceJourney extends Instrumentation {
 
     private void reminders() throws Exception {
         String name = "Rappel " + fixture.getString("run");
-        menu("Rappels");
+        ui.tap("Activité");
+        ui.tap("Rappels");
         ui.tap("Nouveau rappel");
         ui.fill("Titre", name);
         ui.fill("Consigne pour Hermes", "Relire la fonction carré.");
@@ -335,6 +337,7 @@ public final class DeviceJourney extends Instrumentation {
         ui.tapButton("Supprimer");
         ui.see("Aucun rappel planifié pour ce profil.");
         ui.tap("Fermer");
+        ui.tap("Discussions");
     }
 
     private void restart() throws Exception {

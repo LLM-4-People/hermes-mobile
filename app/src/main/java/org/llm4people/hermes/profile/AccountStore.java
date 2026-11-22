@@ -5,6 +5,9 @@ import android.content.SharedPreferences;
 import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
 import android.util.Base64;
+import org.llm4people.hermes.os.BiometricVault;
+import org.llm4people.hermes.os.LockGracePolicy;
+
 import java.io.*;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
@@ -55,15 +58,19 @@ final class AccountStore {
         return new Account(id, label, endpoint, bearer, vault(id), keys);
     }
 
-    private String encode(String id, String label, String endpoint, String bearer, byte[] keys,
-                          char[] pass, SecretKey device) throws GeneralSecurityException, IOException {
+    private static byte[] packPayload(String endpoint, String bearer, byte[] keys) throws IOException {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         try (DataOutputStream data = new DataOutputStream(bytes)) {
             data.writeUTF(endpoint);
             data.writeUTF(bearer);
             data.write(keys);
         }
-        byte[] payload = bytes.toByteArray();
+        return bytes.toByteArray();
+    }
+
+    private String encode(String id, String label, String endpoint, String bearer, byte[] keys,
+                          char[] pass, SecretKey device) throws GeneralSecurityException, IOException {
+        byte[] payload = packPayload(endpoint, bearer, keys);
         try {
             byte[] envelope = ProfileEnvelope.seal(device, id, label, pass, payload);
             return Base64.encodeToString(envelope, Base64.NO_WRAP);
@@ -72,12 +79,52 @@ final class AccountStore {
         }
     }
 
+    byte[] serializeForBiometric(Account account) throws IOException {
+        Objects.requireNonNull(account);
+        byte[] keys = account.copyKeys();
+        try {
+            return packPayload(account.endpoint, account.bearer, keys);
+        } finally {
+            Arrays.fill(keys, (byte) 0);
+        }
+    }
+
+    Account openBiometric(String id, byte[] plain) throws IOException, GeneralSecurityException {
+        if (plain == null) throw new GeneralSecurityException("Biometric payload unavailable");
+        try {
+            String label;
+            synchronized (prefs) {
+                label = prefs.getString(LABEL + id, null);
+                if (label == null || !prefs.contains(id)) {
+                    throw new GeneralSecurityException("Profile unavailable");
+                }
+            }
+            try (DataInputStream data = new DataInputStream(new ByteArrayInputStream(plain))) {
+                String endpoint = GatewayAddress.normalize(data.readUTF());
+                String bearer = data.readUTF();
+                byte[] keys = new byte[Account.KEY_BYTES];
+                data.readFully(keys);
+                synchronized (prefs) {
+                    if (!label.equals(prefs.getString(LABEL + id, null)) || !prefs.contains(id)) {
+                        Arrays.fill(keys, (byte) 0);
+                        throw new IOException("Profile changed while opening");
+                    }
+                    return new Account(id, label, endpoint, bearer, vault(id), keys);
+                }
+            }
+        } finally {
+            Arrays.fill(plain, (byte) 0);
+        }
+    }
+
     Account open(String id, char[] pass) throws IOException, GeneralSecurityException {
         return restore(id, pass, null);
     }
 
     Account replaceBearer(String id, char[] pass, String bearer) throws IOException, GeneralSecurityException {
-        return restore(id, pass, Objects.requireNonNull(bearer));
+        Account updated = restore(id, pass, Objects.requireNonNull(bearer));
+        BiometricVault.revoke(context, id);
+        return updated;
     }
 
     private Account restore(String id, char[] pass, String replacement) throws IOException, GeneralSecurityException {
@@ -113,6 +160,8 @@ final class AccountStore {
     }
 
     void forget(String id) throws IOException {
+        BiometricVault.revoke(context, id);
+        LockGracePolicy.forget(context, id);
         commitMembership(id, null, null);
         context.deleteSharedPreferences("hermes.vault." + id);
     }

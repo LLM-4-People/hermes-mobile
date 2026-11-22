@@ -7,6 +7,9 @@ import android.content.res.Configuration;
 import android.graphics.Insets;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.SystemClock;
 import android.view.View;
 import android.view.WindowInsets;
 import android.view.WindowManager;
@@ -16,27 +19,36 @@ import org.json.JSONObject;
 import org.llm4people.hermes.artifact.ArtifactDesk;
 import org.llm4people.hermes.files.PublishedFiles;
 import org.llm4people.hermes.net.HermesApi;
+import org.llm4people.hermes.os.HermesShortcuts;
+import org.llm4people.hermes.os.HermesWidgetStore;
+import org.llm4people.hermes.os.LiveRunActionReceiver;
+import org.llm4people.hermes.os.LiveRunNotification;
+import org.llm4people.hermes.os.LockGracePolicy;
+import org.llm4people.hermes.os.OsEntryIntent;
 import org.llm4people.hermes.panel.SessionPanel;
 import org.llm4people.hermes.profile.Account;
 import org.llm4people.hermes.profile.ProfileGate;
 import org.llm4people.hermes.push.MobilePush;
-import org.llm4people.hermes.thread.ThreadWorkspace;
 import org.llm4people.hermes.share.SharedTextFlow;
 import org.llm4people.hermes.thread.ThreadPhotoPicker;
+import org.llm4people.hermes.thread.ThreadWorkspace;
 import org.llm4people.hermes.voice.VoiceDrafts;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.List;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
-import java.util.function.BooleanSupplier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.function.BooleanSupplier;
 
 /** Owns the unlocked account and the lifetime of every screen using its credentials. */
 public final class MainActivity extends Activity implements ThreadWorkspace.Host, ArtifactDesk.Host, MobilePush.EventHost {
     private final ExecutorService notifications = Executors.newSingleThreadExecutor();
+    private final Handler main = new Handler(Looper.getMainLooper());
+    private final ShellRoutes routes = new ShellRoutes();
+    private final ActionRegistry actions = new ActionRegistry();
     private ProfileGate gate;
     private VoiceDrafts voice;
     private PublishedFiles files;
@@ -51,9 +63,22 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     private SharedTextFlow sharedText;
     private MobilePush push;
     private MobilePush.Target delivery;
+    private OsEntryIntent.Request pendingOsEntry;
     private AlertDialog notice;
     private String handledDelivery;
     private long noticeRequest;
+    private long backgroundedAtElapsedMs = -1L;
+    private long activeGraceMillis;
+    private boolean imeVisible;
+    private final Runnable graceExpiry = () -> {
+        if (account != null && backgroundedAtElapsedMs >= 0L) {
+            Diagnostics.event("security", "grace_expired");
+            lock();
+        }
+    };
+    private final Runnable liveStopHandler = () -> main.post(() -> {
+        if (threads != null && account != null) threads.stopActiveRun();
+    });
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
@@ -67,6 +92,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
                     android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT, this::back);
         }
+        HermesShortcuts.publish(this);
         voice = new VoiceDrafts(this);
         push = new MobilePush(this);
         files = new PublishedFiles(this);
@@ -79,7 +105,115 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         handledDelivery = state == null ? null : state.getString("handled_delivery");
         delivery = MobilePush.target(this, getIntent());
         if (delivery != null && key(delivery).equals(handledDelivery)) delivery = null;
+        pendingOsEntry = OsEntryIntent.parseRequest(getIntent());
+        registerBuiltInRoutes();
+        registerBuiltInActions();
         unlock();
+    }
+
+    /** Extensibility hook for feature modules registering additional destinations. */
+    public ShellRoutes shellRoutes() { return routes; }
+
+    /** Extensibility hook for feature modules registering additional workspace actions. */
+    public ActionRegistry actionRegistry() { return actions; }
+
+    private void registerBuiltInRoutes() {
+        routes.register(WorkspaceNavigation.DISCUSSION, (route, force) -> renderDiscussion(false, force));
+        routes.register(WorkspaceNavigation.COMPOSER, (route, force) -> renderDiscussion(true, force));
+        routes.register(WorkspaceNavigation.HOME, (route, force) -> {
+            navigation.display(route, this::leavingSurface);
+            shell.show(ArtifactDesk.decorate(this, account, "home", shell.desk(account.label), activeHost), "Atelier");
+        });
+        routes.register(WorkspaceNavigation.BRAIN, (route, force) -> {
+            navigation.display(route, this::leavingSurface);
+            shell.show(shell.brain(), getString(R.string.nav_brain));
+        });
+        routes.register(WorkspaceNavigation.ACTIVITY, (route, force) -> {
+            navigation.display(route, this::leavingSurface);
+            shell.show(shell.activitySurface(WorkspaceDialogs.securitySummary(this, account.id)),
+                    getString(R.string.nav_activity));
+        });
+        routes.register(WorkspaceNavigation.GALLERY, (route, force) -> {
+            navigation.display(route, this::leavingSurface);
+            shell.show(ArtifactDesk.pages(this, account, activeHost), "Mes écrans");
+        });
+        routes.setFallback((route, force) -> {
+            View page = customPages.get(route);
+            if (page == null) page = ArtifactDesk.page(this, account, route, activeHost);
+            if (page == null) {
+                navigation.forgetCurrentPage();
+                render(true);
+            } else {
+                navigation.display(route, this::leavingSurface);
+                customPages.put(route, page);
+                shell.show(page, "Écran personnalisé");
+                ArtifactDesk.refreshBindings(page, activeHost);
+            }
+        });
+    }
+
+    private void registerBuiltInActions() {
+        actions.register("previous", this::back);
+        actions.register("return", this::displayDiscussion);
+        actions.register("nav_discussions", () -> switchTab(WorkspaceNavigation.DISCUSSION));
+        actions.register("nav_atelier", () -> switchTab(WorkspaceNavigation.HOME));
+        actions.register("nav_brain", () -> switchTab(WorkspaceNavigation.BRAIN));
+        actions.register("nav_activity", () -> switchTab(WorkspaceNavigation.ACTIVITY));
+        actions.register("pages", () -> navigate(WorkspaceNavigation.GALLERY));
+        actions.register("nearby_area", () -> { if (threads != null) threads.editNearbyArea(); });
+        actions.register("attach_photo", () -> photoPicker.launch(account, threads));
+        actions.register("native_thread", () -> navigate(WorkspaceNavigation.COMPOSER));
+        actions.register("toggle_discussions", () -> threads.toggleDiscussions());
+        actions.register("threads", () -> { displayDiscussion(); threads.inbox(); });
+        actions.register("new_thread", () -> { displayDiscussion(); threads.newThread(); });
+        actions.register("create_instrument", () -> {
+            if (threads.sessionId() != null) stageDraft(getString(R.string.instrument_create_request));
+            else message("Choisir une discussion", "Ouvrez une discussion pour créer un outil.");
+        });
+        actions.register("rename", () -> threads.rename());
+        actions.register("published_files", () -> {
+            if (threads.remoteSessionId() != null) files.show(threads.remoteSessionId());
+        });
+        actions.register("workspace", () -> navigate(WorkspaceNavigation.HOME));
+        actions.register("reminders", () -> panels.showReminders());
+        actions.register("notifications", () -> push.settings(account));
+        actions.register("restore", () -> ArtifactDesk.manage(this, account, activeHost));
+        actions.register("profiles", this::lock);
+        actions.register("pin_widget", () -> WorkspaceDialogs.pinQuickWidget(this));
+        actions.register("search", () -> {
+            if (notice != null) notice.dismiss();
+            notice = WorkspaceDialogs.showSearch(this, threads, this::onAction, () -> notice = null);
+        });
+        actions.register("security", () -> {
+            if (account == null) return;
+            if (notice != null) notice.dismiss();
+            notice = WorkspaceDialogs.showSecurity(this, account, gate, this::lock, () -> {
+                if (navigation != null && WorkspaceNavigation.ACTIVITY.equals(navigation.current())) render(true);
+            }, () -> notice = null);
+        });
+        actions.register("skills", () -> {
+            Account owner = account;
+            panels.showSkills(() -> account == owner && !isFinishing(), this::stageDraft);
+        });
+        actions.register("stats", () -> openThreadAction("stats"));
+        actions.register("tools", () -> openThreadAction("tools"));
+        actions.register("models", () -> openThreadAction("models"));
+        actions.register("artifacts", () -> openThreadAction("artifacts"));
+    }
+
+    private void openThreadAction(String id) {
+        String session = threads.sessionId();
+        if (session == null) {
+            message("Choisir une discussion", "Ouvrez une discussion pour utiliser cette action.");
+        } else if ("stats".equals(id)) {
+            panels.showStats(session, threads.remoteSessionId());
+        } else if ("artifacts".equals(id)) {
+            new ArtifactDesk(this, account, session, threads.messages(), activeHost).show();
+        } else {
+            ThreadWorkspace origin = threads;
+            panels.show(session, origin.remoteSessionId(),
+                    () -> threads == origin && session.equals(origin.sessionId()), this::stageDraft);
+        }
     }
 
     @Override protected void onSaveInstanceState(Bundle outState) {
@@ -106,16 +240,19 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     }
 
     private void opened(Account unlocked) {
+        clearGraceTimer();
         account = unlocked;
         photoPicker.unlocked(unlocked);
         HermesApi api = new HermesApi(account.endpoint, account.bearer);
         navigation = new WorkspaceNavigation();
         activeHost = new WorkspaceHost(this, () -> account == unlocked);
         shell = new WorkspaceShell(this, this::onAction, voice.reader()::active);
+        shell.setImeVisible(imeVisible);
         panels = new SessionPanel(this, api, account);
         panels.setLayoutHost(activeHost);
         threads = new ThreadWorkspace(this, api, account, this, voice);
         threads.setInstrumentHost(activeHost);
+        LiveRunActionReceiver.setStopHandler(liveStopHandler);
         setContentView(shell.root);
         displayDiscussion();
         files.unlock(account, api);
@@ -130,6 +267,45 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         if (target != null) {
             handled(target);
             if (unlocked.id.equals(target.profileId)) resolve(unlocked, target);
+        }
+        dispatchPendingOsEntry();
+    }
+
+    private void dispatchPendingOsEntry() {
+        OsEntryIntent.Request request = pendingOsEntry;
+        if (request == null || account == null || threads == null) return;
+        pendingOsEntry = null;
+        setIntent(new Intent(this, MainActivity.class));
+        HermesShortcuts.reportUsed(this, request.target());
+        switch (request.target()) {
+            case ASK -> {
+                displayDiscussion();
+                if (threads.sessionId() != null) threads.focusComposer();
+                else threads.newThread(threads::focusComposer);
+            }
+            case NEW_DISCUSSION -> {
+                displayDiscussion();
+                threads.newThread(threads::focusComposer);
+            }
+            case DICTATE -> {
+                displayDiscussion();
+                if (threads.sessionId() != null) threads.startDictation();
+                else threads.newThread(threads::startDictation);
+            }
+            case ATELIER -> switchTab(WorkspaceNavigation.HOME);
+            case ACTIVITY -> switchTab(WorkspaceNavigation.ACTIVITY);
+            case WIDGET_ACTION -> {
+                String draft = new HermesWidgetStore(this)
+                        .draftForAction(request.widgetId(), request.itemIndex());
+                displayDiscussion();
+                if (draft != null && !draft.isEmpty()) {
+                    stageDraft(draft);
+                } else if (threads.sessionId() != null) {
+                    threads.focusComposer();
+                } else {
+                    threads.newThread(threads::focusComposer);
+                }
+            }
         }
     }
 
@@ -192,8 +368,16 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         if (sharedText.receive(intent)) {
             setIntent(new Intent(this, MainActivity.class));
             delivery = null;
+            pendingOsEntry = null;
             clearWorkspace();
             unlock();
+            return;
+        }
+        OsEntryIntent.Request entry = OsEntryIntent.parseRequest(intent);
+        if (entry != null) {
+            setIntent(intent);
+            pendingOsEntry = entry;
+            if (account != null && threads != null) dispatchPendingOsEntry();
             return;
         }
         MobilePush.Target incoming = MobilePush.target(this, intent);
@@ -219,44 +403,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         voice.reader().stop();
         if ("stop_reading".equals(id)) return;
         if (!"restore".equals(id)) dismissOverlays();
-        switch (id) {
-            case "previous": back(); break;
-            case "return": displayDiscussion(); break;
-            case "pages": navigate(WorkspaceNavigation.GALLERY); break;
-            case "nearby_area": if (threads != null) threads.editNearbyArea(); break;
-            case "attach_photo": photoPicker.launch(account, threads); break;
-            case "native_thread": navigate(WorkspaceNavigation.COMPOSER); break;
-            case "toggle_discussions": threads.toggleDiscussions(); break;
-            case "threads": displayDiscussion(); threads.inbox(); break;
-            case "new_thread": displayDiscussion(); threads.newThread(); break;
-            case "create_instrument":
-                if (threads.sessionId() != null) stageDraft(getString(R.string.instrument_create_request));
-                break;
-            case "rename": threads.rename(); break;
-            case "published_files":
-                if (threads.remoteSessionId() != null) files.show(threads.remoteSessionId());
-                break;
-            case "workspace": navigate(WorkspaceNavigation.HOME); break;
-            case "reminders": panels.showReminders(); break;
-            case "notifications": push.settings(account); break;
-            case "restore": ArtifactDesk.manage(this, account, activeHost); break;
-            case "profiles": lock(); break;
-            case "stats": case "tools": case "models": case "artifacts":
-                String session = threads.sessionId();
-                if (session == null) {
-                    message("Choisir une discussion", "Ouvrez une discussion pour utiliser cette action.");
-                } else if ("stats".equals(id)) {
-                    panels.showStats(session, threads.remoteSessionId());
-                } else if ("artifacts".equals(id)) {
-                    new ArtifactDesk(this, account, session, threads.messages(), activeHost).show();
-                } else {
-                    ThreadWorkspace origin = threads;
-                    panels.show(session, origin.remoteSessionId(),
-                            () -> threads == origin && session.equals(origin.sessionId()), this::stageDraft);
-                }
-                break;
-            default: Diagnostics.warning("workspace", "unknown_action");
-        }
+        actions.dispatch(id);
     }
 
     private void message(String title, String body) {
@@ -273,6 +420,12 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     }
 
     private void displayDiscussion() { navigate(WorkspaceNavigation.DISCUSSION); }
+
+    private void switchTab(String destination) {
+        if (navigation == null) return;
+        navigation.selectTab(destination);
+        render(false);
+    }
 
     private void navigate(String destination) {
         navigation.open(destination);
@@ -328,50 +481,29 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         voice.reader().stop();
     }
 
+    private void renderDiscussion(boolean composer, boolean force) {
+        String surface = threads.sessionId() == null ? "threads" : "thread";
+        String key = composer ? WorkspaceNavigation.COMPOSER : surface;
+        if (!navigation.display(key, this::leavingSurface) && !force) return;
+        boolean editing = threads.editing();
+        View nativeView = threads.view();
+        if (nativeView.getParent() instanceof android.view.ViewGroup)
+            ((android.view.ViewGroup) nativeView.getParent()).removeView(nativeView);
+        View content;
+        if (composer) {
+            threadSlots(Collections.emptyList());
+            content = nativeView;
+        } else content = ArtifactDesk.decorate(this, account, surface, nativeView, activeHost);
+        shell.show(content, composer ? "Discussion d’origine" : null);
+        ArtifactDesk.refreshBindings(shell.content(), activeHost);
+        if (editing) threads.focusComposer();
+    }
+
     private void render(boolean force) {
         String route = navigation.current();
         customPages.keySet().removeIf(id -> !navigation.contains(id));
-        switch (route) {
-            case WorkspaceNavigation.DISCUSSION:
-            case WorkspaceNavigation.COMPOSER:
-                boolean composer = WorkspaceNavigation.COMPOSER.equals(route);
-                String surface = threads.sessionId() == null ? "threads" : "thread";
-                String key = composer ? route : surface;
-                if (!navigation.display(key, this::leavingSurface) && !force) return;
-                boolean editing = threads.editing();
-                View nativeView = threads.view();
-                if (nativeView.getParent() instanceof android.view.ViewGroup)
-                    ((android.view.ViewGroup) nativeView.getParent()).removeView(nativeView);
-                View content;
-                if (composer) {
-                    threadSlots(Collections.emptyList());
-                    content = nativeView;
-                } else content = ArtifactDesk.decorate(this, account, surface, nativeView, activeHost);
-                shell.show(content, composer ? "Discussion d’origine" : null);
-                ArtifactDesk.refreshBindings(shell.content(), activeHost);
-                if (editing) threads.focusComposer();
-                break;
-            case WorkspaceNavigation.HOME:
-                navigation.display(route, this::leavingSurface);
-                shell.show(ArtifactDesk.decorate(this, account, "home", shell.desk(account.label), activeHost), "Atelier");
-                break;
-            case WorkspaceNavigation.GALLERY:
-                navigation.display(route, this::leavingSurface);
-                shell.show(ArtifactDesk.pages(this, account, activeHost), "Mes écrans");
-                break;
-            default:
-                View page = customPages.get(route);
-                if (page == null) page = ArtifactDesk.page(this, account, route, activeHost);
-                if (page == null) {
-                    navigation.forgetCurrentPage();
-                    render(true);
-                } else {
-                    navigation.display(route, this::leavingSurface);
-                    customPages.put(route, page);
-                    shell.show(page, "Écran personnalisé");
-                    ArtifactDesk.refreshBindings(page, activeHost);
-                }
-        }
+        shell.setActiveRoute(route);
+        routes.render(route, force);
         pendingChanged();
     }
 
@@ -393,6 +525,14 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         if (origin != null && threads == origin && threadId != null && threadId.equals(origin.sessionId())
                 && origin.view().isAttachedToWindow() && origin.view().isShown())
             origin.acceptNearbyGuide(threadId, runId, assistantRow, approvedArea);
+    }
+
+    @Override public void runProgress(LiveRunNotification.Snapshot snapshot) {
+        if (account == null) {
+            LiveRunNotification.cancel(this);
+            return;
+        }
+        LiveRunNotification.update(this, snapshot);
     }
 
     @Override public void discussionPanes(boolean canToggle, boolean listVisible) {
@@ -462,7 +602,16 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         if (!voice.permissionResult(code, permissions, results)) push.onPermissionResult(code);
     }
 
+    private void clearGraceTimer() {
+        main.removeCallbacks(graceExpiry);
+        backgroundedAtElapsedMs = -1L;
+        activeGraceMillis = 0L;
+    }
+
     private void clearWorkspace() {
+        clearGraceTimer();
+        LiveRunActionReceiver.clearStopHandler(liveStopHandler);
+        LiveRunNotification.cancel(this);
         if (sharedText != null) sharedText.lock();
         if (photoPicker != null) photoPicker.interruptImport();
         if (shell != null) shell.dismissMenu();
@@ -496,7 +645,10 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
 
     @Override public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
-        if (shell != null) shell.dismissMenu();
+        if (shell != null) {
+            shell.dismissMenu();
+            shell.updateNavigationChrome(newConfig.screenWidthDp, newConfig.screenHeightDp);
+        }
         View content = findViewById(android.R.id.content);
         if (content != null) content.requestApplyInsets();
         Diagnostics.event("workspace", "window_resized");
@@ -507,6 +659,11 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         if (voice != null) voice.windowFocusChanged(focused);
     }
 
+    @Override protected void onStart() {
+        super.onStart();
+        checkGraceOnReturn();
+    }
+
     @Override protected void onPause() {
         if (threads != null) threads.pauseNearbyFix();
         voice.pause();
@@ -515,12 +672,39 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
 
     @Override protected void onResume() {
         super.onResume();
+        checkGraceOnReturn();
         voice.resume();
+    }
+
+    private void checkGraceOnReturn() {
+        if (account == null || backgroundedAtElapsedMs < 0L) return;
+        long now = SystemClock.elapsedRealtime();
+        if (LockGracePolicy.shouldLockOnReturn(backgroundedAtElapsedMs, now, activeGraceMillis, false)) {
+            Diagnostics.event("security", "grace_expired_on_return");
+            lock();
+        } else {
+            clearGraceTimer();
+            Diagnostics.event("security", "grace_resumed");
+        }
     }
 
     @Override protected void onStop() {
         super.onStop();
-        if (gate != null) lock();
+        if (gate == null) return;
+        if (account == null || isFinishing() || isChangingConfigurations()) {
+            if (!isChangingConfigurations()) lock();
+            return;
+        }
+        LockGracePolicy.Window window = LockGracePolicy.window(this, account.id);
+        if (window.millis <= 0L) {
+            lock();
+            return;
+        }
+        backgroundedAtElapsedMs = SystemClock.elapsedRealtime();
+        activeGraceMillis = window.millis;
+        main.removeCallbacks(graceExpiry);
+        main.postDelayed(graceExpiry, window.millis);
+        Diagnostics.event("security", "grace_started");
     }
 
     @Override protected void onDestroy() {
@@ -533,14 +717,20 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     private void fitSystemBars(View content) {
         if (Build.VERSION.SDK_INT >= 30) getWindow().setDecorFitsSystemWindows(false);
         content.setOnApplyWindowInsetsListener((v, insets) -> {
+            boolean ime;
             if (Build.VERSION.SDK_INT >= 30) {
                 Insets safe = insets.getInsets(WindowInsets.Type.systemBars()
                         | WindowInsets.Type.displayCutout() | WindowInsets.Type.ime());
                 v.setPadding(safe.left, safe.top, safe.right, safe.bottom);
+                ime = insets.isVisible(WindowInsets.Type.ime());
             } else {
+                int bottom = insets.getSystemWindowInsetBottom();
                 v.setPadding(insets.getSystemWindowInsetLeft(), insets.getSystemWindowInsetTop(),
-                        insets.getSystemWindowInsetRight(), insets.getSystemWindowInsetBottom());
+                        insets.getSystemWindowInsetRight(), bottom);
+                ime = bottom > Ui.dp(this, 100);
             }
+            imeVisible = ime;
+            if (shell != null) shell.setImeVisible(ime);
             return insets;
         });
     }

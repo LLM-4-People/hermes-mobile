@@ -87,8 +87,8 @@ public final class ConversationCardsJourney extends Instrumentation {
     }
 
     private void removeOwnProfile() throws Exception {
-        if (ui.has("Autres actions")) {
-            ui.tap("Autres actions");
+        if (ui.has("Profil et verrouillage")) {
+            ui.tap("Profil et verrouillage");
             ui.tap("Verrouiller le profil");
         }
         ui.see("Choisir un profil");
@@ -103,7 +103,7 @@ public final class ConversationCardsJourney extends Instrumentation {
 
     private void reopenHistory(JSONObject turn) throws Exception {
         ui.see("Envoyer");
-        ui.tap("Autres actions");
+        ui.tap("Profil et verrouillage");
         ui.tap("Verrouiller le profil");
         ui.see("Choisir un profil");
         ui.tap(fixture.getString("profile"));
