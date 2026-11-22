@@ -57,7 +57,9 @@ public class LiveLayoutContractTest extends InstrumentationTestCase {
         WorkspaceLayout.Block form = WorkspaceLayout.parse(REVIEW).blocks.get(2);
         Map<String,String> answers = new HashMap<>();
         answers.put("why","Fiabilité");
-        for (String blank : Arrays.asList(" \t", "\u2003", "\u00a0", "\u202f\n", "\u200b\u200d")) {
+        String supplemental = new String(Character.toChars(0xe0100));
+        for (String blank : Arrays.asList(" \t", "\u2003", "\u00a0", "\u202f\n", "\u200b\u200d",
+                "\u00a0\ufe0f", "\ufe00", "\u180f", supplemental, new String(Character.toChars(0xe01ef)))) {
             answers.put("file",blank);
             assertMissing(form,answers,"file");
             answers.put("file","src/Parser.java");
@@ -65,7 +67,7 @@ public class LiveLayoutContractTest extends InstrumentationTestCase {
             assertFalse(DraftForm.compose(form,answers).contains("Notes"));
             assertTrue(DraftForm.blank(blank));
         }
-        String visible = "\u00a0résumé\u2003";
+        String visible = "\u00a0résumé\u2003\u2708\ufe0f字" + supplemental;
         answers.put("file",visible);
         assertTrue(DraftForm.compose(form,answers).contains(visible));
         assertFalse(DraftForm.blank(visible));
