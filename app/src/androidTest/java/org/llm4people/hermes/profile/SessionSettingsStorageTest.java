@@ -13,7 +13,6 @@ import android.view.inspector.WindowInspector;
 import android.widget.CheckBox;
 import android.widget.CheckedTextView;
 import android.widget.EditText;
-import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.TextView;
 import java.io.File;
@@ -128,10 +127,11 @@ public final class SessionSettingsStorageTest extends InstrumentationTestCase {
                     assertRadio((CheckedTextView) list.getChildAt(0), true);
                     assertRadio(beta, false);
                     assertEquals(1, matching(activity.getString(R.string.panel_storage_error)).size());
-                    LinearLayout page = (LinearLayout) list.getParent();
-                    for (int i = 0; i < page.getChildCount(); i++) {
-                        if (page.getChildAt(i) instanceof EditText filter) filter.setText("Bet");
-                    }
+                    EditText filter = null;
+                    for (View view : list.getRootView().getFocusables(View.FOCUS_FORWARD))
+                        if (view instanceof EditText field) filter = field;
+                    assertNotNull(filter);
+                    filter.setText("Bet");
                 });
                 CheckedTextView filtered = awaitChoice("Beta", 1);
                 runTestOnUiThread(() -> {
