@@ -8,7 +8,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public class ThreadStateTest extends TestCase {
     public void testUnacknowledgedSendRestoresSameKeyAndExactBodyAcrossRestart() throws Exception {
         AtomicReference<String> stored = new AtomicReference<>();
-        ThreadJournal first = new ThreadJournal(null, stored::set);
+        ThreadJournal first = new ThreadJournal("abc", "original", null, stored::set);
         first.draft("corrige le test");
         first.flush();
         JSONObject options = new JSONObject().put("model", "m").put("provider", "p")
@@ -16,7 +16,7 @@ public class ThreadStateTest extends TestCase {
                 .put("session_id", "untrusted").put("input", "overwritten");
         JSONObject body = ThreadData.body("abc", first.draft(), options);
         JSONObject sent = first.stage(body, 10_000, 3, 60, true);
-        ThreadJournal resumed = new ThreadJournal(stored.get(), stored::set);
+        ThreadJournal resumed = new ThreadJournal("abc", "original", stored.get(), stored::set);
         assertEquals("", resumed.draft());
         assertEquals(sent.getString("key"), resumed.pending().getString("key"));
         assertEquals(body.toString(), resumed.pending().getJSONObject("body").toString());
@@ -27,18 +27,19 @@ public class ThreadStateTest extends TestCase {
         resumed.setRunId("r7");
         resumed.draft("autre message");
         resumed.checkpoint(4, "bonjour");
-        ThreadJournal followed = new ThreadJournal(stored.get(), stored::set);
+        resumed.flush();
+        ThreadJournal followed = new ThreadJournal("abc", "original", stored.get(), stored::set);
         assertEquals("r7", followed.pending().getString("run_id"));
         assertEquals(4, followed.pending().getInt("seq"));
         assertEquals("bonjour", followed.pending().getString("preview"));
         followed.finish();
-        ThreadJournal done = new ThreadJournal(stored.get(), stored::set);
+        ThreadJournal done = new ThreadJournal("abc", "original", stored.get(), stored::set);
         assertNull(done.pending());
         assertEquals("autre message", done.draft());
     }
 
     public void testFailedOutboxCommitCannotAdmitAndRetainsDraft() {
-        ThreadJournal journal = new ThreadJournal(null, ignored -> { throw new IllegalStateException("full"); });
+        ThreadJournal journal = new ThreadJournal("thread", "original", null, ignored -> { throw new IllegalStateException("full"); });
         journal.draft("bonjour");
         try {
             journal.stage(ThreadData.body("thread", journal.draft(), null), 100, 2, 3, true);
@@ -57,6 +58,78 @@ public class ThreadStateTest extends TestCase {
         assertFalse(ThreadData.canReplay(10_001, 10_000, 3, 3, 10, false));
         assertFalse(ThreadData.canReplay(9_999, 10_000, 3, 3, 10, true));
         assertFalse(ThreadData.canReplay(10_000, 10_000, 3, 3, 0, true));
+    }
+
+    public void testBearerRotationAndEndpointSwitchFenceAmbiguousReceipt() {
+        String initial = ThreadJournal.scope("account", "https://one/p/a", "bearer1", "s");
+        AtomicReference<String> saved = new AtomicReference<>();
+        ThreadJournal original = new ThreadJournal("s", initial, null, saved::set);
+        original.stage(ThreadData.body("tip-id", "bonjour", null), 10, 1, 60, true);
+        for (String other : new String[]{
+                ThreadJournal.scope("account", "https://one/p/a", "bearer2", "s"),
+                ThreadJournal.scope("account", "https://one/p/b", "bearer1", "s"),
+                ThreadJournal.scope("account", "https://two/p/a", "bearer1", "s"),
+                ThreadJournal.scope("different", "https://one/p/a", "bearer1", "s")}) {
+            assertFalse(new ThreadJournal("s", other, saved.get(), saved::set).sameOwner());
+        }
+        assertTrue(new ThreadJournal("s", initial, saved.get(), saved::set).sameOwner());
+        assertFalse(saved.get().contains("bearer1"));
+    }
+
+    public void testAtomicRejectionRetainsConcurrentDraftAndDiscardsStaleAsyncWrites() {
+        AtomicReference<String> saved = new AtomicReference<>();
+        ThreadJournal journal = new ThreadJournal("root", "owner", null, saved::set);
+        journal.draft("first");
+        Runnable late = journal.snapshot();
+        journal.stage(ThreadData.body("tip", journal.draft(), null), 10, 1, 60, true);
+        journal.draft("next");
+        journal.reject();
+        late.run();
+        ThreadJournal restored = new ThreadJournal("root", "owner", saved.get(), saved::set);
+        assertNull(restored.pending());
+        assertEquals("first\nnext", restored.draft());
+        journal.draft("old opened view");
+        Runnable lateAfterClose = journal.snapshot();
+        journal.retire();
+        restored.draft("new opened view");
+        restored.flush();
+        lateAfterClose.run();
+        assertEquals("new opened view", new ThreadJournal("root", "owner", saved.get(), saved::set).draft());
+    }
+
+    public void testMalformedStateIsRefusedBeforeAdmission() {
+        for (String bad : new String[]{"{", "{\"pending\":null}", "{\"draft\":{}}",
+                "{\"pending\":{\"body\":{\"session_id\":\"other\",\"input\":\"x\"},\"key\":\"id\"}}"}) {
+            try {
+                new ThreadJournal("s", "owner", bad, ignored -> fail("corrupt state overwritten"));
+                fail("malformed state accepted");
+            } catch (IllegalStateException expected) {}
+        }
+    }
+
+    public void testCompactionPreservesLocalIdentityAndIndependentFork() throws Exception {
+        JSONObject compacted = new JSONObject().put("id", "tip").put("_lineage_root_id", "root");
+        JSONObject fork = new JSONObject().put("id", "fork").put("parent_session_id", "root");
+        JSONArray listing = new JSONArray().put(compacted).put(fork);
+        assertEquals("root", ThreadIdentity.find(listing, "tip").root);
+        assertEquals("tip", ThreadIdentity.find(listing, "root").tip);
+        assertEquals("fork", ThreadIdentity.find(listing, "fork").root);
+        assertNull(ThreadIdentity.find(listing, "other"));
+    }
+
+    public void testUnknownAcknowledgementUsesExactGenerationAndReportedErrorsAreRedacted() throws Exception {
+        JSONObject status = new JSONObject().put("status", "unknown").put("admission_id", "adm");
+        assertNull(ThreadData.unknownReceipt(status));
+        assertNull(ThreadData.unknownReceipt(status.put("execution_generation", "42")));
+        JSONObject receipt = ThreadData.unknownReceipt(status.put("execution_generation", 42));
+        assertEquals(2, receipt.length());
+        assertEquals(42, receipt.getInt("execution_generation"));
+        assertEquals("adm", receipt.getString("admission_id"));
+        assertNull(ThreadData.unknownReceipt(status.put("status", "running")));
+        status.put("error", "authorization: Bearer aaaa; api_key=bbbb; http error my-credential");
+        String reason = ThreadData.failureDetail(status, "my-credential");
+        for (String secret : new String[]{"aaaa", "bbbb", "my-credential"}) assertFalse(reason.contains(secret));
+        assertTrue(reason.contains("http error"));
     }
 
     public void testCanonicalControlsRehydrateAndSettleExactlyOneRequest() throws Exception {

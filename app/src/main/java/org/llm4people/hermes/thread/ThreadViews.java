@@ -163,9 +163,8 @@ final class ThreadViews {
 
     String draft() { return input.getText().toString(); }
 
-    void restoreDraft(String original) {
-        String current = draft();
-        input.setText(current.isEmpty() ? original : original + "\n" + current);
+    void displayDraft(String draft) {
+        input.setText(draft);
         input.setSelection(input.length());
     }
 
@@ -203,7 +202,7 @@ final class ThreadViews {
 
     void show(AlertDialog.Builder builder) {
         dismiss();
-        dialog = builder.show();
+        dialog = Ui.secureDialog(builder);
     }
 
     void dismiss() {

@@ -41,19 +41,28 @@ public final class ThreadWorkspace implements AutoCloseable {
     private JSONArray messages = new JSONArray();
     private JSONArray inbox = new JSONArray();
     private String session;
+    private String remoteSession;
     private String title;
-    private int generation;
+    private volatile int generation;
     private int inboxOffset;
     private int messageOffset;
     private boolean closed;
     private boolean creating;
     private boolean loading;
-    private final Runnable save = () -> {
-        if (journal != null) {
-            try { journal.flush(); }
-            catch (IllegalStateException e) { storageError(); }
-        }
-    };
+    private String inboxWarning = "";
+    private Runnable inboxRecovery;
+    private final ExecutorService drafts = Executors.newSingleThreadExecutor();
+    private final Runnable save = this::queueSave;
+
+    void queueSave() {
+        if (journal == null || closed) return;
+        Runnable snapshot = journal.snapshot();
+        int owner = generation;
+        drafts.execute(() -> {
+            try { snapshot.run(); }
+            catch (RuntimeException unavailable) { deliver(owner, this::storageError); }
+        });
+    }
 
     public ThreadWorkspace(Activity activity, HermesApi api, Account account, Host host) {
         this.activity = activity;
@@ -65,11 +74,19 @@ public final class ThreadWorkspace implements AutoCloseable {
 
     public View view() { return container; }
     public String sessionId() { return session; }
+    public String remoteSessionId() { return remoteSession; }
     public JSONArray messages() { return messages; }
     public void resumeLast() {
-        String last = account.read("last-thread");
+        if (closed) return;
+        String last;
+        try { last = account.read("last-thread"); }
+        catch (RuntimeException unavailable) {
+            inbox("Dernière conversation illisible. Choisissez une conversation pour reprendre.", null);
+            return;
+        }
         if (last == null || last.isEmpty()) inbox();
-        else open(last);
+        else if (ThreadData.validId(last)) open(new ThreadIdentity(last, last), "Conversation");
+        else inbox("L’identifiant de la dernière conversation est invalide.", null);
     }
 
     public boolean back() {
@@ -78,15 +95,26 @@ public final class ThreadWorkspace implements AutoCloseable {
         return true;
     }
 
-    public void inbox() {
+    public void inbox() { inbox("", null); }
+
+    private void inbox(String warning, Runnable recovery) {
         if (closed) return;
         reset();
-        session = null;
+        session = remoteSession = null;
         title = "Conversations";
-        account.remove("last-thread");
+        inboxWarning = warning;
+        inboxRecovery = recovery;
+        try { account.remove("last-thread"); }
+        catch (RuntimeException unavailable) {
+            Diagnostics.warning("threads", "last_selection_clear_failed");
+            if (inboxWarning.isEmpty()) inboxWarning = "Impossible d’enregistrer la sélection. Vérifiez l’espace disponible.";
+        }
         inboxOffset = 0;
         inbox = new JSONArray();
-        screen.inbox(this::newThread, row -> open(row.optString("id"), ThreadData.title(row)), this::moreThreads);
+        screen.inbox(this::newThread, row -> {
+            try { open(ThreadIdentity.of(row), ThreadData.title(row)); }
+            catch (IllegalArgumentException invalid) { invalidReply(this::inbox); }
+        }, this::moreThreads);
         host.selected(null, title);
         moreThreads();
     }
@@ -105,7 +133,11 @@ public final class ThreadWorkspace implements AutoCloseable {
                     inbox = ThreadData.join(inbox, page);
                     inboxOffset += ThreadData.PAGE;
                     screen.rows(inbox, data.optBoolean("has_more"), false, 0);
-                    screen.notice(inbox.length() == 0 ? "Aucune conversation pour ce profil." : "", "", null);
+                    if (inboxWarning.isEmpty()) {
+                        screen.notice(inbox.length() == 0 ? "Aucune conversation pour ce profil." : "", "", null);
+                    } else {
+                        screen.notice(inboxWarning, "Récupérer la conversation…", inboxRecovery);
+                    }
                 }, e -> {
                     loading = false;
                     error(e, this::moreThreads);
@@ -131,27 +163,47 @@ public final class ThreadWorkspace implements AutoCloseable {
             creating = false;
             JSONObject row = response.optJSONObject("session");
             if (row == null || !id.equals(row.optString("id"))) { invalidReply(() -> create(id)); return; }
-            open(id, ThreadData.title(row));
+            open(new ThreadIdentity(id, id), ThreadData.title(row));
         }, e -> {
             creating = false;
             error(e, () -> create(id));
         });
     }
 
-    public void open(String id) { open(id, "Conversation"); }
-
-    private void open(String id, String label) {
+    public void open(String id) {
         if (closed) return;
         if (!ThreadData.validId(id)) {
-            inbox();
-            screen.notice("L’identifiant de cette conversation est invalide.", "", null);
+            inbox("L’identifiant de cette conversation est invalide. Choisissez une autre conversation.", null);
             return;
         }
+        ThreadIdentity listed = ThreadIdentity.find(inbox, id);
+        if (listed != null) { open(listed, "Conversation"); return; }
+        inbox("Recherche de la conversation…", null);
+        int lookup = generation;
+        request(() -> ThreadIdentity.resolve(api, id, () -> lookup == generation), identity -> {
+            if (identity != null) open(identity, "Conversation");
+            else inbox("Cette conversation est introuvable dans le profil actif.", null);
+        }, e -> error(e, () -> open(id)));
+    }
+
+    private void open(ThreadIdentity identity, String label) {
+        if (closed) return;
         reset();
-        session = id;
+        session = identity.root;
+        remoteSession = identity.tip;
+        String id = session;
         title = label;
-        journal = new ThreadJournal(account, id);
-        account.write("last-thread", id);
+        try { journal = new ThreadJournal(account, id); }
+        catch (RuntimeException unreadable) {
+            Diagnostics.warning("threads", "journal_unreadable");
+            inbox("Les données locales de cette conversation sont illisibles.", () -> recover(identity, label));
+            return;
+        }
+        try { account.write("last-thread", id); }
+        catch (RuntimeException unavailable) {
+            inbox("Impossible d’enregistrer la sélection. Vérifiez l’espace disponible puis réessayez.", null);
+            return;
+        }
         run = new ThreadRun(this);
         screen.chat(journal.draft(), text -> {
             journal.draft(text);
@@ -160,7 +212,7 @@ public final class ThreadWorkspace implements AutoCloseable {
         }, run::send, run::stop, run::approve, () -> loadMessages(true, null));
         host.selected(id, title);
         int opened = generation;
-        request(() -> api.get(ThreadData.path(id)), response -> {
+        request(() -> api.get(ThreadData.path(identity.tip)), response -> {
             JSONObject row = response.optJSONObject("session");
             if (row != null && opened == generation) {
                 title = ThreadData.title(row);
@@ -171,9 +223,22 @@ public final class ThreadWorkspace implements AutoCloseable {
         run.restore();
     }
 
+    private void recover(ThreadIdentity identity, String label) {
+        screen.show(new AlertDialog.Builder(activity).setTitle("Récupérer la conversation ?")
+                .setMessage("Le brouillon et le suivi des envois enregistrés sur ce téléphone seront effacés. "
+                        + "L’historique de la passerelle sera rechargé. Un envoi antérieur peut encore être en cours.")
+                .setNegativeButton("Annuler", null)
+                .setPositiveButton("Effacer les données locales", (dialog, which) -> {
+                    try { account.remove("thread:" + identity.root); }
+                    catch (RuntimeException failure) { storageError(); return; }
+                    open(identity, label);
+                }));
+    }
+
     public void rename() {
         if (closed || session == null) return;
         String id = session;
+        String target = remoteSession;
         EditText input = new EditText(activity);
         input.setSingleLine();
         input.setSaveEnabled(false);
@@ -185,7 +250,7 @@ public final class ThreadWorkspace implements AutoCloseable {
                     if (closed || !id.equals(session)) return;
                     String value = input.getText().toString().trim();
                     if (value.isEmpty()) { screen.notice("Le titre est vide.", "Renommer", this::rename); return; }
-                    request(() -> api.patch(ThreadData.path(id), ThreadData.put(new JSONObject(), "title", value)),
+                    request(() -> api.patch(ThreadData.path(target), ThreadData.put(new JSONObject(), "title", value)),
                             r -> { title = value; host.selected(id, value); }, e -> error(e, this::rename));
                 }));
     }
@@ -202,6 +267,8 @@ public final class ThreadWorkspace implements AutoCloseable {
             loading = false;
             JSONArray page = data.optJSONArray("data");
             if (page == null) { invalidReply(() -> loadMessages(older, loaded)); return; }
+            String tip = ThreadData.string(data, "session_id");
+            if (ThreadData.validId(tip)) remoteSession = tip;
             int oldSize = messages.length();
             messages = ThreadData.join(page, older ? messages : new JSONArray());
             messageOffset = offset + page.length();
@@ -223,13 +290,18 @@ public final class ThreadWorkspace implements AutoCloseable {
             ++generation;
             main.removeCallbacksAndMessages(null);
             if (screen != null) screen.dismiss();
-            if (run != null) run.detach();
-            save.run();
+            try {
+                if (run != null) run.detach();
+                if (journal != null) journal.flush();
+            } catch (RuntimeException unavailable) {
+                storageError();
+            }
         }
     }
 
     private void reset() {
         onBackground();
+        if (journal != null) journal.retire();
         loading = creating = false;
         run = null;
         journal = null;
@@ -242,15 +314,21 @@ public final class ThreadWorkspace implements AutoCloseable {
 
     @Override public void close() {
         if (closed) return;
-        onBackground();
-        closed = true;
-        workers.shutdownNow();
-        container.removeAllViews();
-        screen = null;
-        run = null;
-        journal = null;
-        messages = new JSONArray();
-        inbox = new JSONArray();
+        try { onBackground(); }
+        finally {
+            closed = true;
+            if (journal != null) journal.retire();
+            workers.shutdownNow();
+            drafts.shutdownNow();
+            container.removeAllViews();
+            screen = null;
+            run = null;
+            journal = null;
+            session = remoteSession = null;
+            messages = new JSONArray();
+            inbox = new JSONArray();
+            inboxRecovery = null;
+        }
     }
 
     <T> void request(Callable<T> work, Consumer<T> success, Consumer<Exception> failure) {
@@ -293,6 +371,8 @@ public final class ThreadWorkspace implements AutoCloseable {
         }
         screen.notice(message, "Réessayer", retry);
     }
+
+    String failureDetail(JSONObject status) { return ThreadData.failureDetail(status, account.bearer); }
 
     void storageError() {
         Diagnostics.event("threads", "storage_failed");

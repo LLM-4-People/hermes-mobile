@@ -93,6 +93,26 @@ final class ThreadData {
         return body;
     }
 
+    static JSONObject unknownReceipt(JSONObject status) {
+        String admission = string(status, "admission_id");
+        Object generation = status.opt("execution_generation");
+        if (!"unknown".equals(status.optString("status")) || !validId(admission)
+                || (!(generation instanceof Long) && !(generation instanceof Integer))
+                || ((Number) generation).longValue() < 0) return null;
+        return put(put(new JSONObject(), "admission_id", admission), "execution_generation", generation);
+    }
+
+    static String failureDetail(JSONObject status, String bearer) {
+        String detail = string(status, "error");
+        if (detail.isEmpty()) detail = string(status, "turn_exit_reason");
+        if (!bearer.isEmpty()) detail = detail.replace(bearer, "•••");
+        // Hermes redacts the error before egress. Keep common auth fragments out of the UI
+        // even when a custom provider echoed its request headers or included a token in a URL.
+        detail = detail.replaceAll("(?i)(bearer\\s+|(?:api[_-]?key|access_token|token|password|secret)\\s*[=:]\\s*)[^\\s&;,]+", "$1•••")
+                .replaceAll("[\\p{Cntrl}\\p{Cf}]+", " ").trim();
+        return detail.length() <= 500 ? detail : detail.substring(0, 500) + "…";
+    }
+
     static boolean terminal(String status) {
         return "completed".equals(status) || "failed".equals(status)
                 || "cancelled".equals(status) || "interrupted".equals(status);

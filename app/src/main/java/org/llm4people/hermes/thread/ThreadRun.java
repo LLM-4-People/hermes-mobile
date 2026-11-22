@@ -31,13 +31,22 @@ final class ThreadRun {
     void send() {
         String text = ui.draft();
         if (submitting || journal.pending() != null || text.trim().isEmpty()) return;
-        JSONObject body = ThreadData.body(page.sessionId(), text, page.host.options(page.sessionId()));
-        submitWithCapabilities(body, true);
+        JSONObject options;
+        try {
+            options = page.host.options(page.sessionId());
+            if (options == null) throw new IllegalStateException("Missing session settings");
+        }
+        catch (RuntimeException unreadable) {
+            ui.notice("Réglages illisibles. Vérifiez le modèle et les outils avant l’envoi.", "", null);
+            return;
+        }
+        submitWithCapabilities(ThreadData.body(page.remoteSessionId(), text, options), true);
     }
 
     void restore() {
         JSONObject pending = journal.pending();
         if (pending == null) return;
+        if (!journal.sameOwner()) { uncertain(); return; }
         ui.outgoing(ThreadData.string(pending.optJSONObject("body"), "input"));
         ui.busy(true, !runId().isEmpty());
         if (runId().isEmpty()) submitWithCapabilities(pending.optJSONObject("body"), false);
@@ -129,9 +138,8 @@ final class ThreadRun {
             // Only a definitive rejection of the first attempt can return the text to the draft.
             if (fresh && error instanceof HermesApi.HttpError http
                     && (http.status == 400 || http.status == 401 || http.status == 403 || http.status == 422)) {
-                String original = ThreadData.string(body, "input");
-                journal.finish();
-                ui.restoreDraft(original);
+                journal.reject();
+                ui.displayDraft(journal.draft());
                 ui.outgoing("");
                 ui.busy(false, false);
                 page.error(error, this::send);
@@ -181,9 +189,13 @@ final class ThreadRun {
             @Override public void complete(JSONObject status, long firstText, long elapsed) {
                 page.deliver(token, () -> completed(status, firstText, elapsed));
             }
+            @Override public void unknown(JSONObject status) {
+                page.deliver(token, () -> unresolved(status));
+            }
             @Override public void disconnected() {
                 page.deliver(token, () -> {
                     checkpoint();
+                    page.queueSave();
                     started = -1;
                     if (++retries <= 5) {
                         ui.notice("Connexion interrompue. Reconnexion en cours…", "", null);
@@ -198,6 +210,37 @@ final class ThreadRun {
         });
         follower = subscription;
         page.workers.execute(subscription::follow);
+    }
+
+    private void unresolved(JSONObject status) {
+        frame = null;
+        started = -1;
+        ui.busy(true, false);
+        ui.live("Traitement interrompu", "", false);
+        JSONObject receipt = ThreadData.unknownReceipt(status);
+        if (receipt == null) {
+            ui.notice("La passerelle doit confirmer l’identité du traitement.", "Actualiser", this::follow);
+            return;
+        }
+        ui.notice("La passerelle attend votre décision pour débloquer la conversation.", "Examiner", () ->
+            ui.show(new AlertDialog.Builder(page.activity).setTitle("Débloquer la conversation ?")
+                    .setMessage("Hermes a perdu le suivi de ce traitement. Le clore permet à la passerelle de "
+                            + "poursuivre les messages suivants. Les opérations déjà effectuées restent en place.")
+                    .setNegativeButton("Attendre", (d,w) -> follow())
+                    .setPositiveButton("Clore le traitement", (d,w) -> resolve(receipt))));
+    }
+
+    private void resolve(JSONObject receipt) {
+        String path = statusPath();
+        ui.notice("Vérification du traitement…", "", null);
+        page.request(() -> {
+            JSONObject current = ThreadData.unknownReceipt(page.api.get(path));
+            if (current != null && ThreadData.string(current, "admission_id").equals(ThreadData.string(receipt, "admission_id"))
+                    && current.optLong("execution_generation") == receipt.optLong("execution_generation")) {
+                page.api.post(path + "/resolve-unknown", receipt);
+            }
+            return true;
+        }, done -> follow(), error -> page.error(error, this::follow));
     }
 
     private void reviewLost() {
@@ -217,6 +260,8 @@ final class ThreadRun {
             case "interrupted" -> "Traitement interrompu par la passerelle";
             default -> "Le traitement a échoué";
         };
+        String detail = "failed".equals(outcome) ? page.failureDetail(status) : "";
+        String summary = detail.isEmpty() ? label : label + "\n" + detail;
         if ("completed".equals(outcome) && elapsed >= 0 && firstText >= 0) {
             JSONObject usage = status.optJSONObject("usage");
             long tokens = usage != null && "run".equals(usage.optString("scope"))
@@ -225,7 +270,7 @@ final class ThreadRun {
         }
         frame = null;
         ui.busy(true, false);
-        ui.live(label, output, false);
+        ui.live(summary, output, false);
         page.loadMessages(false, () -> {
             journal.finish();
             ui.outgoing("");
@@ -238,7 +283,7 @@ final class ThreadRun {
                     break;
                 }
             }
-            ui.live("completed".equals(outcome) && (output.isEmpty() || visible) ? "" : label,
+            ui.live("completed".equals(outcome) && (output.isEmpty() || visible) ? "" : summary,
                     visible ? "" : output, false);
             ui.notice("", "", null);
         });

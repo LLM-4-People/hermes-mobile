@@ -13,6 +13,7 @@ final class RunFollower implements AutoCloseable {
         void update(Frame frame);
         void complete(JSONObject status, long firstTextMs, long elapsedMs);
         void disconnected();
+        void unknown(JSONObject status);
     }
 
     static final class Frame {
@@ -104,6 +105,10 @@ final class RunFollower implements AutoCloseable {
     }
 
     private boolean finish(JSONObject status) {
+        if ("unknown".equals(status.optString("status"))) {
+            if (!closed) listener.unknown(status);
+            return true;
+        }
         if (!ThreadData.terminal(status.optString("status"))) return false;
         if (!closed) listener.complete(status, started < 0 ? -1 : firstText,
                 started < 0 ? -1 : SystemClock.elapsedRealtime() - started);
@@ -121,7 +126,7 @@ final class RunFollower implements AutoCloseable {
                 }
                 break;
             case "message.interim":
-                activity = event.optString("text", "Hermes travaille…");
+                if (!event.optBoolean("already_streamed")) activity = event.optString("text", "Hermes travaille…");
                 break;
             case "tool.started":
                 activity = "Outil en cours · " + event.optString("tool");
