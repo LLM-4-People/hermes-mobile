@@ -67,14 +67,25 @@ class NoticeView:
     body: tuple
 
 
-def current_notice(ui, title):
+def current_notice(ui, title, observations=None):
+    def reject(reason):
+        if observations is not None:
+            observations[reason] += 1
+        return None
+
     # Evidence must observe the immediately visible window without dismissing SystemUI dialogs.
     root = ui.snapshot()
-    if root is None or root.get("package") != SYSTEM_UI or not root.get("window-id", "").isdigit():
-        return None
+    if root is None:
+        return reject("no_root")
+    if root.get("package") != SYSTEM_UI:
+        return reject("other_root")
+    if not root.get("window-id", "").isdigit():
+        return reject("no_window_id")
     headings = [n for n in root.iter("node") if n.get("text") == title]
-    if len(headings) != 1:
-        return None
+    if not headings:
+        return reject("title_only_in_other_attribute" if ui.node(title, root) is not None else "no_title")
+    if len(headings) > 1:
+        return reject("multiple_titles")
     heading = headings[0]
     # A native row, when exposed, scopes the optional generic body to the same alert.
     row = next((r for r in root.iter("node") if r.get("resource-id") == ROW
@@ -82,13 +93,13 @@ def current_notice(ui, title):
     bodies = [n for n in row.iter("node") if n.get("text") == BODY]
     heading_box = bounds(heading)
     body_box = bounds(bodies[0]) if len(bodies) == 1 else ()
-    for box in [heading_box] + ([body_box] if body_box else []):
+    for name, box in [("heading_bounds", heading_box)] + ([("body_bounds", body_box)] if body_box else []):
         if len(box) != 4 or min(box) < 0 or box[0] >= box[2] or box[1] >= box[3]:
-            return None
+            return reject(name)
     window = shade_window(ui.device)
     if window is not None:
         return NoticeView(window, int(root.get("window-id")), heading_box, body_box)
-    return None
+    return reject("shade_not_focused")
 
 
 def show_notice(ui, title):
