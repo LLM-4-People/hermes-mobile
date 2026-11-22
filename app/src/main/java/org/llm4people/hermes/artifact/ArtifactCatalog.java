@@ -26,9 +26,34 @@ final class ArtifactCatalog {
     }
 
     private static final class Block {
-        final String key, title, language, content;
-        Block(String key, String title, String language, String content) {
-            this.key = key; this.title = title; this.language = language; this.content = content;
+        final int messageIndex, ordinal;
+        final String language, filename, content;
+
+        Block(int messageIndex, int ordinal, String language, String filename, String content) {
+            this.messageIndex = messageIndex;
+            this.ordinal = ordinal;
+            this.language = language;
+            this.filename = filename;
+            this.content = content;
+        }
+
+        void addVersion(LinkedHashMap<String, Record> groups) {
+            boolean layout = WorkspaceLayout.FENCE.equals(language);
+            String surface = layout ? surfaceOf(content) : null;
+            String key = surface != null ? "workspace:" + surface : filename.isEmpty() || layout ? "block:" + messageIndex + ":" + ordinal
+                    : "file:" + language + ":" + filename;
+            Record record = groups.remove(key);
+            if (record == null) record = new Record(title(layout, surface), language);
+            if (record.versions.isEmpty() || !record.versions.get(record.versions.size() - 1).equals(content))
+                record.versions.add(content);
+            groups.put(key, record);
+        }
+
+        private String title(boolean layout, String surface) {
+            if (layout) return surface == null ? "Proposition à corriger" : "Disposition · " + WorkspaceLayout.SURFACES.get(surface);
+            if (!filename.isEmpty()) return filename;
+            if ("diff".equals(language) || "patch".equals(language)) return "Modifications";
+            return language.isEmpty() ? "Extrait de code" : "Extrait " + language;
         }
     }
 
@@ -52,15 +77,7 @@ final class ArtifactCatalog {
                     current.removeLast();
                     limited = true;
                 }
-                boolean layout = WorkspaceLayout.FENCE.equals(language);
-                String surface = layout ? surfaceOf(content) : null;
-                String key = surface != null ? "workspace:" + surface : filename.isEmpty() || layout ? "block:" + messageIndex + ":" + n
-                        : "file:" + language + ":" + filename;
-                String title = layout ? (surface == null ? "Proposition à corriger" : "Disposition · " + WorkspaceLayout.SURFACES.get(surface))
-                        : !filename.isEmpty() ? filename
-                        : ("diff".equals(language) || "patch".equals(language)) ? "Modifications"
-                        : language.isEmpty() ? "Extrait de code" : "Extrait " + language;
-                current.addFirst(new Block(key, title, language, content));
+                current.addFirst(new Block(messageIndex, n, language, filename, content));
                 return true;
             });
             newest.addAll(current);
@@ -68,13 +85,7 @@ final class ArtifactCatalog {
         }
         Collections.reverse(newest);
         LinkedHashMap<String, Record> groups = new LinkedHashMap<>();
-        for (Block b : newest) {
-            Record r = groups.remove(b.key);
-            if (r == null) r = new Record(b.title, b.language);
-            if (r.versions.isEmpty() || !r.versions.get(r.versions.size() - 1).equals(b.content))
-                r.versions.add(b.content);
-            groups.put(b.key, r);
-        }
+        for (Block b : newest) b.addVersion(groups);
         records.addAll(groups.values());
         Collections.reverse(records);
     }
