@@ -1,4 +1,9 @@
 <resources>
+    <string name="instrument_damaged">Outil épinglé illisible</string>
+    <string name="instrument_repair">Réinitialiser…</string>
+    <string name="instrument_repair_title">Réinitialiser l’outil de cette discussion ?</string>
+    <string name="instrument_repair_explain">La copie locale de l’outil épinglé et sa version précédente seront effacées. Vous pourrez épingler une proposition depuis la discussion.</string>
+    <string name="instrument_repair_confirm">Réinitialiser l’outil</string>
     <string name="instrument_stream_source">Source d’écran</string>
     <string name="instrument_spoken">Hermes propose l’outil « %1$s ».</string>
     <string name="instrument_try">Essayer dans la discussion</string>

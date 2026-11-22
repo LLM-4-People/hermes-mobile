@@ -42,6 +42,7 @@ final class ThreadInstrumentPanel {
     final InstrumentViewport viewport;
     private final Map<String, List<Pin>> byMessage = new HashMap<>();
     private State state;
+    private ThreadInstruments.Damaged damaged;
     private Pin displayed;
     private boolean comparing;
     private long document;
@@ -79,7 +80,9 @@ final class ThreadInstrumentPanel {
     private Pin pinned() { return state == null ? null : state.current; }
 
     private void readState() {
+        damaged = null;
         try { state = store.state(); }
+        catch (ThreadInstruments.Damaged broken) { state = null; damaged = broken; }
         catch (IllegalStateException unreadable) { state = null; }
         dock();
     }
@@ -90,7 +93,7 @@ final class ThreadInstrumentPanel {
             for (Pin pin : store.proposals(rows)) {
                 byMessage.computeIfAbsent(pin.messageId, ignored -> new ArrayList<>()).add(pin);
             }
-        } catch (IllegalStateException unavailable) { state = null; dock(); }
+        } catch (IllegalStateException unavailable) { readState(); }
         if (displayed != null && !displayed.sameSource(pinned()) && !present(displayed)) {
             close();
             discard();
@@ -158,7 +161,11 @@ final class ThreadInstrumentPanel {
 
     private void dock() {
         Pin pin = pinned();
-        if (state == null) {
+        if (damaged != null) {
+            ThreadInstruments.Damaged expected = damaged;
+            viewport.dock(t(R.string.instrument_damaged), t(R.string.instrument_repair),
+                    t(R.string.instrument_repair), () -> confirmRecovery(expected));
+        } else if (state == null) {
             viewport.dock(t(R.string.instrument_unavailable), t(R.string.instrument_retry), t(R.string.instrument_retry), () -> {
                 if (current()) { readState(); workspace.refreshInstruments(); }
             });
@@ -307,7 +314,10 @@ final class ThreadInstrumentPanel {
         }
         scope.setVisibility(View.VISIBLE);
         scope.setText(t(installed ? R.string.instrument_pinned : R.string.instrument_trial));
-        if (state == null) {
+        if (damaged != null) {
+            ThreadInstruments.Damaged expectedDamage = damaged;
+            control(R.string.instrument_repair, () -> confirmRecovery(expectedDamage));
+        } else if (state == null) {
             control(R.string.instrument_retry, () -> { readState(); updateControls(); });
         } else if (!installed) {
             if (revision(pin)) primary(R.string.instrument_compare, () -> show(pin, true));
@@ -360,6 +370,24 @@ final class ThreadInstrumentPanel {
         else show(pinned(), false);
         dock();
         screen.refreshInstrumentRows();
+    }
+
+    private void confirmRecovery(ThreadInstruments.Damaged expected) {
+        if (!current() || damaged != expected) return;
+        screen.show(new AlertDialog.Builder(activity).setTitle(R.string.instrument_repair_title)
+                .setMessage(R.string.instrument_repair_explain)
+                .setNegativeButton(android.R.string.cancel, null)
+                .setPositiveButton(R.string.instrument_repair_confirm, (dialog, which) -> {
+                    if (!current()) return;
+                    try { state = store.recover(expected); }
+                    catch (ThreadInstruments.Conflict changed) { recover(R.string.instrument_changed); return; }
+                    catch (IllegalStateException unavailable) { recover(R.string.instrument_unavailable); return; }
+                    damaged = null;
+                    close();
+                    discard();
+                    dock();
+                    workspace.refreshInstruments();
+                }));
     }
 
     private void recover(int message) {
