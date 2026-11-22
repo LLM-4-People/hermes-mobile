@@ -106,6 +106,22 @@ final class ThreadJournal {
 
     String draft() { return ThreadData.string(state, "draft"); }
 
+    boolean containsShare(String receipt) { return receipt.equals(state.optString("imported_share")); }
+
+    void appendShare(String receipt, String text) {
+        if (containsShare(receipt)) return;
+        String previous = draft();
+        String previousReceipt = state.optString("imported_share", null);
+        draft(previous.isEmpty() ? text : previous + "\n" + text);
+        ThreadData.put(state, "imported_share", receipt);
+        try { flush(); }
+        catch (RuntimeException failure) {
+            ThreadData.put(state, "imported_share", previousReceipt);
+            draft(previous);
+            throw failure;
+        }
+    }
+
     void draft(String text) {
         if (!text.equals(draft())) {
             ThreadData.put(state, "draft", text);

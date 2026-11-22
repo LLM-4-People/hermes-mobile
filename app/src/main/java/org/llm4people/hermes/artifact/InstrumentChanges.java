@@ -84,6 +84,7 @@ final class InstrumentChanges {
                                      WorkspaceLayout.Block next) {
         changed(changes, group, "Titre de la rubrique", old.title, next.title);
         switch (next.type) {
+            case "device" -> changed(changes, group, "Données transmises", old.request.preview(), next.request.preview());
             case "link" -> changed(changes, group, "Destination", old.page, next.page);
             case "value" -> changed(changes, group, "Valeur affichée", WorkspaceBlocks.sourceLabel(old.source),
                     WorkspaceBlocks.sourceLabel(next.source));
@@ -147,6 +148,7 @@ final class InstrumentChanges {
                 if (!block.note.isEmpty()) items.add(block.note);
                 for (String id : block.actions) items.add(WorkspaceLayout.ACTIONS.get(id));
             }
+            case "device" -> items.add(block.request.preview());
             case "link" -> items.add("Ouvrir " + block.page);
             case "value" -> items.add(WorkspaceBlocks.sourceLabel(block.source));
         }

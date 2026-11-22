@@ -136,6 +136,8 @@ public final class Account implements AutoCloseable {
         return ("hermes-record-v1\0" + id + "\0" + slot).getBytes(StandardCharsets.UTF_8);
     }
 
+    synchronized boolean unlocked() { return keys != null; }
+
     @Override public synchronized void close() {
         if (keys != null) Arrays.fill(keys, (byte) 0);
         keys = null;

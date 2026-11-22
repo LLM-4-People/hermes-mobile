@@ -22,6 +22,7 @@ import java.util.UUID;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.BooleanSupplier;
 import java.util.LinkedHashMap;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
@@ -137,6 +138,28 @@ public final class ThreadWorkspace implements AutoCloseable {
         screen.displayDraft(current.isEmpty() ? text : current + "\n" + text);
         queueSave();
         screen.focusComposer();
+    }
+
+    /** Checks the durable receipt even if a different discussion was restored after process death. */
+    public boolean containsShare(String target, String receipt) {
+        if (closed || target == null || !ThreadData.validId(target)) return false;
+        ThreadJournal record = target.equals(session) && journal != null ? journal : new ThreadJournal(account, target);
+        return record.containsShare(receipt);
+    }
+
+    public void openSharedDraft(String target) {
+        if (closed) return;
+        if (!target.equals(session)) open(new ThreadIdentity(target, target), "Conversation");
+        if (target.equals(session) && journal != null) {
+            screen.displayDraft(journal.draft());
+            screen.focusComposer();
+        }
+    }
+
+    public boolean appendShare(String expectedSession, String receipt, String text) {
+        if (closed || journal == null || !expectedSession.equals(session)) return false;
+        journal.appendShare(receipt, text);
+        return true;
     }
 
     private boolean canStartDraft() {
@@ -596,6 +619,11 @@ public final class ThreadWorkspace implements AutoCloseable {
                 deliver(generationAtStart, () -> failure.accept(e));
             }
         });
+    }
+
+    public BooleanSupplier discussionOrigin() {
+        int token = generation;
+        return () -> !closed && generation == token;
     }
 
     int token() { return generation; }

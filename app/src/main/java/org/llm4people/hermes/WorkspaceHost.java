@@ -14,6 +14,12 @@ final class WorkspaceHost implements ArtifactDesk.Host {
         this.unlocked = unlocked;
     }
 
+    @Override public BooleanSupplier deviceActionOrigin() {
+        if (!unlocked.getAsBoolean()) return () -> false;
+        BooleanSupplier origin = host.deviceActionOrigin();
+        return () -> unlocked.getAsBoolean() && origin.getAsBoolean();
+    }
+
     @Override public void onAction(String id) { if (unlocked.getAsBoolean()) host.onAction(id); }
     @Override public void onLayoutChanged() { if (unlocked.getAsBoolean()) host.onLayoutChanged(); }
     @Override public void openWorkspace(String id) { if (unlocked.getAsBoolean()) host.openWorkspace(id); }

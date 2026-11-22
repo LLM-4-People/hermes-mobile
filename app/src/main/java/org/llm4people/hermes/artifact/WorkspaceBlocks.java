@@ -38,6 +38,23 @@ final class WorkspaceBlocks {
                     if (host != null) value.refresh(host);
                     group.addView(value);
                     break;
+                case "device":
+                    DeviceAction.CalendarEvent event = host != null && block.request instanceof DeviceAction.CalendarEvent calendar
+                            ? calendar : null;
+                    TextView details = Ui.text(c, event == null ? block.request.preview() : event.title(), 16);
+                    if (host != null) {
+                        details.setMaxLines(2);
+                        details.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                    }
+                    group.addView(details);
+                    if (event != null) {
+                        TextView start = Ui.text(c, event.startSummary(), 16);
+                        start.setTextColor(c.getColor(R.color.muted));
+                        group.addView(start);
+                    }
+                    if (host != null) group.addView(Ui.button(c, block.request.kind().review,
+                            v -> DeviceReview.open(activity, host, v, block.request)));
+                    break;
                 case "form":
                     WorkspaceForms.mount(group, block, activity, host);
                     break;

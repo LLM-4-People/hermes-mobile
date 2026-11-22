@@ -10,11 +10,17 @@ import subprocess
 import sys
 from xml.etree import ElementTree
 
-from .shade import current_notice, show_notice
+from .shade import bounds, current_notice, show_notice
 from .stack import eventually
 
 APP = "org.llm4people.hermes"
 NTFY = "io.heckel.ntfy"
+
+
+def focused_window(device):
+    windows = device.shell("dumpsys", "window")
+    match = re.search(r"\bmCurrentFocus=(Window\{[^}\n]+\})", windows)
+    return match.group(1) if match else None
 
 
 class Screen:
@@ -65,18 +71,64 @@ class Screen:
         return eventually("visible control " + label, find)[0]
 
     def tap_node(self, node):
-        x1, y1, x2, y2 = map(int, re.findall(r"\d+", node.get("bounds")))
-        self.device.shell("input", "tap", str((x1 + x2) // 2), str((y1 + y2) // 2))
+        box = bounds(node)
+        if len(box) != 4:
+            raise ValueError("Control has malformed bounds")
+        x1, y1, x2, y2 = box
+        if x1 >= x2 or y1 >= y2 or x2 <= 0 or y2 <= 0:
+            raise ValueError("Control bounds are empty or off-screen")
+        x = (max(0, x1) + x2) // 2
+        y = (max(0, y1) + y2) // 2
+        self.device.shell("input", "tap", str(x), str(y))
 
     def tap(self, label, *, scroll=False, notification_permission=False):
         # Labels are static test controls. Never log field contents.
         print("Tap " + label, file=sys.stderr, flush=True)
         self.tap_node(self.wait(label, scroll=scroll, notification_permission=notification_permission))
 
+    def tap_until(
+        self,
+        label,
+        ready,
+        *,
+        scroll=False,
+        notification_permission=False,
+        description=None,
+        max_taps=None,
+    ):
+        # Labels are static test controls. Never log field contents.
+        print("Tap " + label, file=sys.stderr, flush=True)
+        taps = 0
+
+        def attempt():
+            nonlocal taps
+            root = self.hierarchy()
+            result = ready(root)
+            if result:
+                return (result,)
+            node = self.node(label, root)
+            if node is None:
+                if notification_permission:
+                    self.allow_if_prompted(root)
+                if scroll:
+                    self.scroll(root)
+                return None
+            if max_taps is None or taps < max_taps:
+                self.tap_node(node)
+                taps += 1
+            return None
+
+        return eventually(description or ("state after tapping " + label), attempt)[0]
+
     def scroll(self, root):
         for item in root.iter("node"):
             if item.get("scrollable") == "true":
-                x1, y1, x2, y2 = map(int, re.findall(r"\d+", item.get("bounds")))
+                box = bounds(item)
+                if len(box) != 4:
+                    continue
+                x1, y1, x2, y2 = max(0, box[0]), max(0, box[1]), box[2], box[3]
+                if x1 >= x2 or y1 >= y2:
+                    continue
                 x, h = (x1 + x2) // 2, y2 - y1
                 self.device.shell(
                     "input",
@@ -105,7 +157,7 @@ class Screen:
 
         eventually("editor for " + label, find)
         self.type(label, value)
-        if "mInputShown=true" in self.device.shell("dumpsys", "input_method"):
+        if self.device.ime_shown():
             self.device.shell("input", "keyevent", "BACK")
 
     def type(self, label, value):
@@ -172,7 +224,7 @@ def distributor(ui, apk, endpoint):
 
         eventually("ntfy default server editor", open_editor)
         ui.type(url_field, endpoint)
-        if "mInputShown=true" in d.shell("dumpsys", "input_method"):
+        if d.ime_shown():
             d.shell("input", "keyevent", "BACK")
 
         def saved():

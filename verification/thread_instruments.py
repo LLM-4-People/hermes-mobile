@@ -125,11 +125,18 @@ def verify_history(gateway, provider):
         if last_user_message(body) != receipt["user"]:
             raise AssertionError("Provider request does not match the canonical turn")
         instructions = provider_instructions(body)
-        example = re.search(r"^```hermes-workspace\n(.*?)\n```$", instructions, re.MULTILINE | re.DOTALL)
-        page = json.loads(example[1]) if example else {}
-        if not (page.get("surface", "").startswith("page/") and page.get("mode") == "replace" and
-                any(block.get("type") == "form" and block.get("fields") for block in page.get("blocks", []))):
+        examples = [json.loads(raw) for raw in re.findall(
+            r"^```hermes-workspace\n(.*?)\n```$", instructions, re.MULTILINE | re.DOTALL)]
+        named = [page["blocks"] for page in examples
+                 if page.get("surface", "").startswith("page/") and page.get("mode") == "replace"]
+        if not any(block.get("type") == "form" and block.get("fields") for blocks in named for block in blocks):
             raise AssertionError("The provider did not receive a complete named-page form example")
+        shapes = {"calendar_event": {"kind", "title", "start", "end", "location"},
+                  "share_text": {"kind", "text"}, "map_search": {"kind", "query"}}
+        if not any(blocks and all(block.get("type") == "device" for block in blocks)
+                   and {block["request"]["kind"]: set(block["request"]) for block in blocks} == shapes
+                   for blocks in named):
+            raise AssertionError("The provider did not receive a complete page with the three Android actions")
         surfaces = sorted(set(re.findall(r"\bsurface=(page/[a-z0-9_-]+)", instructions)))
         expected_surfaces = ["page/revue-code"] if receipt["user"] == REVISE else []
         if surfaces != expected_surfaces:

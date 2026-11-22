@@ -60,7 +60,7 @@ final class InstrumentIdentity {
     private static boolean identical(WorkspaceLayout.Block a, WorkspaceLayout.Block b) {
         if (!matches(a, b, true) || !a.note.equals(b.note) || !a.actions.equals(b.actions)
                 || !Objects.equals(a.page, b.page) || !Objects.equals(a.source, b.source)
-                || !Objects.equals(a.prompt, b.prompt)) return false;
+                || !Objects.equals(a.request, b.request) || !Objects.equals(a.prompt, b.prompt)) return false;
         if (a.fields == null) return b.fields == null;
         if (a.fields.size() != b.fields.size()) return false;
         for (int i = 0; i < a.fields.size(); i++) {

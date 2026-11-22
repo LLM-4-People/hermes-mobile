@@ -3,6 +3,8 @@ package org.llm4people.hermes.artifact;
 import android.test.InstrumentationTestCase;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -11,19 +13,29 @@ public final class ArtifactContractTest extends InstrumentationTestCase {
     private static final String EXAMPLE = "{\"version\":1,\"surface\":\"home\",\"title\":\"Atelier\"," +
             "\"blocks\":[{\"title\":\"Code\",\"actions\":[\"artifacts\"]},{\"type\":\"content\"}]}";
 
-    public void testRunInstructionsContainARecognizedPersonalForm() throws Exception {
+    public void testRunInstructionsContainRecognizedFormAndPhoneActions() throws Exception {
         String instructions = WorkspaceLayout.instructions() + WorkspaceLayout.pinnedReference("page/revue", "12", 0);
         ArtifactCatalog catalog = new ArtifactCatalog(new JSONArray().put(message("assistant", instructions)));
-        assertEquals(1, catalog.records.size());
-        ArtifactCatalog.Record record = catalog.records.get(0);
-        assertEquals(WorkspaceLayout.FENCE, record.language);
-        WorkspaceLayout layout = WorkspaceLayout.parse(record.versions.get(0));
-        assertTrue(WorkspaceLayout.custom(layout.surface));
-        assertEquals("replace", layout.mode);
-        WorkspaceLayout.Block form = layout.blocks.get(0);
-        assertEquals("form", form.type);
+        assertEquals(2, catalog.records.size());
+        Map<String, WorkspaceLayout> pages = new HashMap<>();
+        for (ArtifactCatalog.Record record : catalog.records) {
+            assertEquals(WorkspaceLayout.FENCE, record.language);
+            WorkspaceLayout layout = WorkspaceLayout.parse(record.versions.get(0));
+            assertTrue(WorkspaceLayout.custom(layout.surface));
+            assertEquals("replace", layout.mode);
+            pages.put(layout.blocks.get(0).type, layout);
+        }
+        assertNotNull(pages.get("form"));
+        WorkspaceLayout.Block form = pages.get("form").blocks.get(0);
         assertFalse(form.fields.isEmpty());
         assertFalse(form.prompt.isEmpty());
+        WorkspaceLayout actions = pages.get("device");
+        assertNotNull(actions);
+        assertEquals(3, actions.blocks.size());
+        for (WorkspaceLayout.Block block : actions.blocks) assertEquals("device", block.type);
+        assertEquals(DeviceAction.Kind.CALENDAR, actions.blocks.get(0).request.kind());
+        assertEquals(DeviceAction.Kind.SHARE, actions.blocks.get(1).request.kind());
+        assertEquals(DeviceAction.Kind.MAP, actions.blocks.get(2).request.kind());
     }
 
     public void testVocabularyAndLimits() throws Exception {

@@ -132,13 +132,17 @@ final class AccountStore {
         }
     }
 
-    private static synchronized SecretKey deviceKey(boolean allowCreation) throws GeneralSecurityException, IOException {
+    private static SecretKey deviceKey(boolean allowCreation) throws GeneralSecurityException, IOException {
+        return deviceKey(KEY_ALIAS, allowCreation);
+    }
+
+    static synchronized SecretKey deviceKey(String alias, boolean allowCreation) throws GeneralSecurityException, IOException {
         KeyStore store = KeyStore.getInstance("AndroidKeyStore");
         store.load(null);
-        if (store.containsAlias(KEY_ALIAS)) return (SecretKey) store.getKey(KEY_ALIAS, null);
+        if (store.containsAlias(alias)) return (SecretKey) store.getKey(alias, null);
         if (!allowCreation) throw new GeneralSecurityException("Device key unavailable");
         KeyGenerator generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore");
-        generator.init(new KeyGenParameterSpec.Builder(KEY_ALIAS,
+        generator.init(new KeyGenParameterSpec.Builder(alias,
                 KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
                 .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
                 .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)

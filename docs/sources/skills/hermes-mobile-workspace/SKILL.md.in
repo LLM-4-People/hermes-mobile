@@ -75,6 +75,20 @@ A `value` block can read `profile.label`, `thread.title`, or `thread.messageCoun
 
 A thread’s `content` block can include a `slots` array. Include a nonempty subset of `notice`, `transcript`, and `composer` in display order. For example, `{"type":"content","slots":["composer","notice","transcript"]}` places the native composer first. Omit `slots` to retain the standard thread layout. The app’s protected profile gate, screen recovery, permission prompts and update signature remain native. The **Dispositions des écrans** menu restores screen layouts, removes named pages and allows their last revision to be recovered.
 
+# Offer an Android action
+
+When this run’s Hermes Mobile instructions advertise `device` blocks, translate a request such as “Partage ce message” or “Montre-moi cet endroit sur la carte” into a complete personal page with `mode: "replace"`. Put each requested action in its own block. For a gateway task such as scheduling a recurring Hermes reminder, use the tools enabled for this run. For other clients, provide the details as ordinary text.
+
+Use exactly `{"type":"device","request":{…}}`. Each request has one of three shapes.
+
+| Kind | Required fields | Optional fields |
+| --- | --- | --- |
+| `calendar_event` | `title` (1–120), `start`, `end` | `location` (1–200) |
+| `share_text` | `text` (1–2,000, may contain line breaks) | |
+| `map_search` | `query` (1–200, a place or address) | |
+
+Lengths are UTF-16 code units. Use visible text for every value. Calendar times need seconds and an explicit offset, for example `2027-04-12T14:00:00-04:00` or `2027-04-12T18:00:00Z`. The end must follow the start. Ask for any missing date, duration or time zone before preparing the event. The person reviews the proposed values before opening their calendar, maps app or Android share sheet. Describe that next step. The chat cannot confirm that an event was saved or that a recipient received a message.
+
 # Share a versioned artifact
 
 Send code as a fenced block. Put the same relative filename after the language in subsequent revisions to collect them under one entry in the thread. Use an explicit `file=` name for extensionless files such as `Dockerfile`, `Makefile`, and `src/LICENSE`. For a patch use a `diff` fence. Preserve the complete file or diff body in each revision. The phone provides a selectable code reader and copy action.
