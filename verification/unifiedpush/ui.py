@@ -4,6 +4,7 @@ from contextlib import contextmanager
 import re
 import secrets
 import subprocess
+import sys
 from xml.etree import ElementTree
 
 from .stack import eventually
@@ -19,11 +20,9 @@ class Screen:
 
     def hierarchy(self):
         def capture():
-            output = self.device.shell("uiautomator", "dump", self.tmp)
-            if "UI hier" not in output and "UI Hier" not in output:
-                if "idle state" in output or "null root node" in output:
-                    return None
-                raise RuntimeError("Android did not produce an accessibility hierarchy")
+            self.device.shell("uiautomator", "dump", self.tmp)
+            if self.device.shell("sh", "-c", f"'test -s {self.tmp} && echo ready || true'") != "ready":
+                return None
             try:
                 return (ElementTree.fromstring(self.device.run("exec-out", "cat", self.tmp)),)
             finally:
@@ -58,6 +57,8 @@ class Screen:
         self.device.shell("input", "tap", str((x1 + x2) // 2), str((y1 + y2) // 2))
 
     def tap(self, label, *, scroll=False):
+        # Labels are static test controls. Never log field contents.
+        print("Tap " + label, file=sys.stderr, flush=True)
         self.tap_node(self.wait(label, scroll=scroll))
 
     def scroll(self, root):
@@ -69,6 +70,8 @@ class Screen:
                 return
 
     def field(self, label, value):
+        print("Fill " + label, file=sys.stderr, flush=True)
+
         def find():
             root = self.hierarchy()
             for parent in root.iter("node"):
@@ -118,9 +121,11 @@ def distributor(ui, apk, endpoint):
         ui.tap("More options")
         ui.tap("Settings")
         ui.tap("Default server")
-        ui.tap(NTFY + ":id/default_server_dialog_url")
+        ui.tap("Service URL")
         ui.type(endpoint)
-        ui.tap(NTFY + ":id/default_server_dialog_action_save")
+        if "mInputShown=true" in d.shell("dumpsys", "input_method"):
+            d.shell("input", "keyevent", "BACK")
+        ui.tap("Save")
         ui.wait(endpoint)
         yield
     finally:

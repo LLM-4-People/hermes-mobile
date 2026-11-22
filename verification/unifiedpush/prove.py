@@ -29,7 +29,7 @@ def same_port(device, url):
         raise RuntimeError("Fixture port already in use on emulator")
     device.run("reverse", "--no-rebind", spec, spec)
     try:
-        yield
+        yield url
     finally:
         device.run("reverse", "--remove", spec)
 
@@ -126,8 +126,8 @@ def run(args):
         ntfy_url = stack.enter_context(ntfy(root, extract_server(archive, root)))
         push, db = stack.enter_context(bridge(root, primary, ntfy_url, args.push_python, PROJECT))
         url = stack.enter_context(proxy(root, primary, push))
-        account_url = stack.enter_context(adb.reverse(url))
-        other_url = stack.enter_context(adb.reverse(other.endpoint))
+        account_url = stack.enter_context(same_port(adb, url))
+        other_url = stack.enter_context(same_port(adb, other.endpoint))
         stack.enter_context(same_port(adb, ntfy_url))
         ui = Screen(adb)
         stack.enter_context(distributor(ui, apk, ntfy_url))
