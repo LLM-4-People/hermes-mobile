@@ -1,0 +1,6 @@
+<resources>
+    <string name="profile_lock_section">Verrouillage du profil</string>
+    <string name="profile_lock_detail">Cette phrase chiffre vos accès et déverrouille le profil sur cet appareil.</string>
+    <string name="profile_passphrase_hint">%1$d caractères minimum</string>
+    <string name="profile_passphrase_too_short">Utilisez au moins %1$d caractères.</string>
+</resources>
