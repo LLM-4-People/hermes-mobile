@@ -111,7 +111,7 @@ final class PushConnection {
     }
 
     private static JSONObject payload(String token) throws JSONException {
-        return new JSONObject().put("token", token);
+        return new JSONObject().put("provider", "fcm").put("token", token);
     }
 
     static boolean synchronize(Context context, BooleanSupplier stopped) {

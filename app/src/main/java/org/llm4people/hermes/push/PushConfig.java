@@ -22,7 +22,7 @@ final class PushConfig {
 
     static boolean offers(JSONObject discovery, String transport) {
         org.json.JSONArray providers = discovery.optJSONArray("providers");
-        if (providers == null) return transport.equals(discovery.optString("provider"));
+        if (providers == null) return false;
         for (int i = 0; i < providers.length(); i++)
             if (transport.equals(providers.optString(i))) return true;
         return false;
