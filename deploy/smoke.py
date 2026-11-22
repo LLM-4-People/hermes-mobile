@@ -10,6 +10,8 @@ import tempfile
 import time
 import uuid
 
+import push_probe
+
 from accounts import CADDY_IMAGE, account_map, provision, stack, write_file
 
 
@@ -94,25 +96,31 @@ class Probe:
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--image", required=True, help="Same immutable Hermes image as the deployment")
+    parser.add_argument("--push", action="store_true", help="Verify both push bridges and their own reminder ledgers")
     parser.add_argument("--proxy-image", default=CADDY_IMAGE)
     parser.add_argument("--plugin-dir", type=Path, help="Use a staged mobile file-artifact plugin")
     args = parser.parse_args()
     with tempfile.TemporaryDirectory(prefix="hermes-mobile-smoke-") as temp:
         root = Path(temp)
         accounts = account_map(["north=north.localhost", "south=south.localhost"])
-        config, caddy = stack(accounts, set(), args.image, args.proxy_image, True, 0, plugin=args.plugin_dir)
-        provision(root, accounts, set())
+        pushes = set(accounts) if args.push else set()
+        config, caddy = stack(accounts, pushes, args.image, args.proxy_image, True, 0, plugin=args.plugin_dir)
+        config["name"] = provision(root, accounts, set())
+        if args.push:
+            push_probe.prepare(root, accounts)
         write_file(root / "Caddyfile", caddy)
         write_file(root / "compose.json", json.dumps(config))
-        compose = ["docker", "compose", "-p", "hermes-mobile-smoke-" + uuid.uuid4().hex[:10],
-                   "-f", str(root / "compose.json")]
+        compose = ["docker", "compose", "-f", str(root / "compose.json")]
         try:
             for name in accounts:
                 subprocess.run([*compose, "run", "--rm", "-T", "gateway-" + name,
                                 "plugins", "enable", "mobile_artifacts"], check=True,
                                stdout=subprocess.DEVNULL)
             subprocess.run([*compose, "up", "-d"], check=True)
-            Probe(root, compose, accounts).run()
+            probe = Probe(root, compose, accounts)
+            probe.run()
+            if args.push:
+                push_probe.verify(probe, wait_for)
         finally:
             subprocess.run([*compose, "down", "-v", "--timeout", "10"], check=True)
 

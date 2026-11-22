@@ -30,23 +30,24 @@ def account_map(items):
     return accounts
 
 
-def private_file(path, initial):
-    try:
-        with open(path, "x", opener=private_open) as stream:
-            stream.write(initial)
-    except FileExistsError:
-        pass
-
-
-def private_open(path, flags):
-    return os.open(path, flags, 0o600)
-
-
-def write_file(path, data):
+def write_file(path, data, *, preserve=False):
+    if preserve and path.exists():
+        return
     with tempfile.NamedTemporaryFile(mode="w", dir=path.parent, delete=False) as stream:
-        stream.write(data)
-        temp = stream.name
-    os.replace(temp, path)
+        temp = Path(stream.name)
+        try:
+            stream.write(data)
+            stream.flush()
+            if preserve:
+                # A concurrent renderer either installs a complete value or keeps the first.
+                try:
+                    os.link(temp, path)
+                except FileExistsError:
+                    pass
+            else:
+                os.replace(temp, path)
+        finally:
+            temp.unlink(missing_ok=True)
 
 
 def file_env(path):
@@ -154,11 +155,16 @@ def provision(root, accounts, pushes):
     root.mkdir(mode=0o700, parents=True, exist_ok=True)
     if root.stat().st_mode & 0o077:
         raise ValueError("Deployment directory must be private (chmod 700)")
+    identity = root / "project-id"
+    write_file(identity, "hermes-mobile-" + secrets.token_hex(16) + "\n", preserve=True)
+    project = identity.read_text().strip()
+    if not re.fullmatch(r"hermes-mobile-[0-9a-f]{32}", project):
+        raise ValueError("Invalid deployment project-id. Restore its backed-up value")
     keys = set()
     for name in accounts:
         directory = root / "accounts" / name
         directory.mkdir(mode=0o700, parents=True, exist_ok=True)
-        private_file(directory / "gateway.env", f"API_SERVER_KEY={secrets.token_hex(32)}\n")
+        write_file(directory / "gateway.env", f"API_SERVER_KEY={secrets.token_hex(32)}\n", preserve=True)
         key_path = directory / "gateway.env"
         key = key_path.read_text().strip()
         if key_path.stat().st_mode & 0o077 or not re.fullmatch(r"API_SERVER_KEY=[0-9a-f]{64}", key):
@@ -166,10 +172,11 @@ def provision(root, accounts, pushes):
         if key in keys:
             raise ValueError("Each configured account must have a unique bearer key")
         keys.add(key)
-        private_file(directory / "provider.env", "")
+        write_file(directory / "provider.env", "", preserve=True)
         if name in pushes:
             if not all((directory / f).is_file() for f in ("push.env", "firebase.json")):
                 raise ValueError(f"Configure accounts/{name}/push.env and firebase.json before enabling push")
+    return project
 
 
 def main():
@@ -187,7 +194,7 @@ def main():
         pushes = set(args.push)
         compose, caddy = stack(accounts, pushes, args.image, args.proxy_image, args.local, args.port)
         root = args.directory.resolve()
-        provision(root, accounts, pushes)
+        compose["name"] = provision(root, accounts, pushes)
         write_file(root / "Caddyfile", caddy)
         write_file(root / "compose.json", json.dumps(compose, indent=2) + "\n")
     except (ValueError, OSError) as exc:

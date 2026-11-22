@@ -1,5 +1,9 @@
+import json
 import os
 from pathlib import Path
+import shutil
+import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -46,6 +50,35 @@ class AccountDeploymentTest(unittest.TestCase):
         for image, pushes in [(IMAGE, {"missing"}), ("hermes:latest", set())]:
             with self.assertRaises(ValueError):
                 stack(self.accounts, pushes, image, CADDY_IMAGE, False, 443)
+
+    def test_same_basename_separate_projects_and_relocation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            east = Path(directory) / "east" / "deployment"
+            west = Path(directory) / "west" / "deployment"
+            first = provision(east, self.accounts, set())
+            second = provision(west, self.accounts, set())
+            self.assertNotEqual(first, second)
+            self.assertEqual(first, provision(east, self.accounts, set()))
+            moved = east.with_name("new-name")
+            east.rename(moved)
+            self.assertEqual(first, provision(moved, self.accounts, set()))
+
+    @unittest.skipUnless(shutil.which("docker"), "Docker Compose is required to inspect actual volume names")
+    def test_rendered_compose_keeps_separate_volumes_for_equal_basenames(self):
+        def volume_name(directory):
+            command = [sys.executable, str(Path(__file__).with_name("accounts.py")), str(directory),
+                       "--account", "one=one.example.org", "--image", IMAGE]
+            subprocess.run(command, check=True, capture_output=True)
+            spec = subprocess.check_output(["docker", "compose", "-f", str(directory / "compose.json"),
+                                            "config", "--format", "json"])
+            return json.loads(spec)["volumes"]["home-one"]["name"]
+
+        with tempfile.TemporaryDirectory() as directory:
+            first = Path(directory) / "east" / "deployment"
+            second = Path(directory) / "west" / "deployment"
+            volume = volume_name(first)
+            self.assertNotEqual(volume, volume_name(second))
+            self.assertEqual(volume, volume_name(first))
 
     def test_rerender_preserves_credentials_and_detects_bad_secrets(self):
         with tempfile.TemporaryDirectory() as directory:
