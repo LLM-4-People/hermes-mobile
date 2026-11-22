@@ -85,6 +85,11 @@ final class RunPrompts {
         return identity != null && identity.equals(key(found)) ? found : null;
     }
 
+    boolean hasStandaloneApproval() {
+        for (Key key : waiting.keySet()) if (key.generation() < 0) return true;
+        return false;
+    }
+
     List<JSONObject> snapshot() {
         if (snapshot == null) snapshot = Collections.unmodifiableList(new ArrayList<>(waiting.values()));
         return snapshot;

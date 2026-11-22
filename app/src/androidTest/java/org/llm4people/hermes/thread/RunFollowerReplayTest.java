@@ -84,6 +84,33 @@ public class RunFollowerReplayTest extends TestCase {
         }
     }
 
+    public void testSilentStandaloneRetirementRefreshesOnHeartbeatAndNewWork() throws Exception {
+        JSONObject first = new JSONObject().put("request_id", "expired");
+        JSONObject second = new JSONObject().put("request_id", "withdrawn");
+        Exchange.Reply both = standalone("waiting_for_approval", new JSONArray().put(first).put(second), first);
+        Exchange.Reply one = standalone("waiting_for_approval", new JSONArray().put(second), second);
+        Exchange.Reply none = standalone("running", new JSONArray(), null);
+        String work = frame(new JSONObject().put("text", "Suite"), 1, "message.interim");
+        String events = ": keepalive\n\n" + work + ": keepalive\n\n" + frame(new JSONObject(), 2, "run.completed");
+        try (Exchange gateway = new Exchange("200 OK", both,
+                new Exchange.Reply("Content-Type: text/event-stream\r\n", events), one, none, status("completed"))) {
+            long[] time = {0};
+            List<Integer> counts = new ArrayList<>();
+            new RunFollower(new HermesApi(gateway.endpoint(), "test"), "run", new JSONObject(), -1,
+                    new RunFollower.Listener() {
+                        public void update(RunFollower.Frame frame) {
+                            counts.add(frame.prompts.size());
+                            time[0] += counts.size() == 2 ? 2_000 : 15_000;
+                        }
+                        public void complete(JSONObject status, long firstText, long elapsed) {}
+                        public void disconnected() { fail("Unexpected disconnect"); }
+                        public void unknown(JSONObject status) { fail("Unexpected run state"); }
+                    }, () -> time[0]).follow();
+            assertEquals(java.util.Arrays.asList(2, 1, 0), counts);
+            gateway.observed();
+        }
+    }
+
     private static Exchange.Reply standalone(String state, JSONArray controls, JSONObject approval) throws Exception {
         JSONObject body = new JSONObject().put("run_id", "run").put("status", state);
         if (controls != null) body.put("pending_controls", controls);
