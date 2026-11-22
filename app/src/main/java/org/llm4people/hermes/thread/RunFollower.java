@@ -41,7 +41,7 @@ final class RunFollower implements AutoCloseable {
     private final String run;
     private final Listener listener;
     private final RunPreview preview;
-    private long publishedSeq = Long.MIN_VALUE;
+    private boolean textAwaitingPaint;
     private long seq;
     private long started;
     private long firstText = -1;
@@ -111,7 +111,7 @@ final class RunFollower implements AutoCloseable {
             }
             if (!closed) {
                 // Deliver any throttled final delta and its matching cursor before checkpointing.
-                if (seq != publishedSeq) publish();
+                if (textAwaitingPaint) publish();
                 listener.disconnected();
             }
         }
@@ -143,6 +143,7 @@ final class RunFollower implements AutoCloseable {
                 if (!delta.isEmpty()) {
                     if (started >= 0 && firstText < 0) firstText = SystemClock.elapsedRealtime() - started;
                     preview.append(delta);
+                    textAwaitingPaint = true;
                 }
                 break;
             case "message.interim":
@@ -170,7 +171,7 @@ final class RunFollower implements AutoCloseable {
 
     private void publish() {
         if (!closed) {
-            publishedSeq = seq;
+            textAwaitingPaint = false;
             listener.update(new Frame(seq, preview, activity, controls.snapshot()));
         }
     }
