@@ -45,12 +45,13 @@ def presentation(ui, root, title):
     }
 
 
+def shade_focused(device):
+    windows = device.shell("dumpsys", "window")
+    return any("mCurrentFocus=" in line and "NotificationShade" in line for line in windows.splitlines())
+
+
 def show_notice(ui, title):
     device = ui.device
-    device.shell("input", "keyevent", "KEYCODE_WAKEUP")
-    device.shell("wm", "dismiss-keyguard")
-    device.shell("cmd", "statusbar", "expand-notifications")
-    ui.controls.reconnect()
     state = {}
     forward = True
     expansions = 0
@@ -63,7 +64,9 @@ def show_notice(ui, title):
         nonlocal forward, expansions, scrolls, reopens, gestures, last_gesture
         root = ui.hierarchy()
         state.update(presentation(ui, root, title))
-        if not state["system_ui"] or not (state["notification_stack"] or state["notification_rows"] or state["event_title"]):
+        target = ui.node(title, root)
+        drawer = state["notification_stack"] or (state["notification_rows"] or target is not None) and shade_focused(device)
+        if not state["system_ui"] or not drawer:
             if reopens % 2:
                 ui.controls.send("open-shade")
             else:
@@ -71,7 +74,6 @@ def show_notice(ui, title):
             reopens += 1
             return None
 
-        target = ui.node(title, root)
         if target is not None:
             return (target,)
         expander = own_group_expander(ui, root)
@@ -108,16 +110,19 @@ def show_notice(ui, title):
         return None
 
     try:
+        device.shell("input", "keyevent", "KEYCODE_WAKEUP")
+        device.shell("wm", "dismiss-keyguard")
+        device.shell("cmd", "statusbar", "expand-notifications")
+        ui.controls.reconnect()
         return eventually("the posted event title inside Android's notification shade", find)[0]
     except (AssertionError, TimeoutError, RuntimeError):
         # Emit only known status flags and counts. Platform windows, labels and notification keys are private.
-        focus = device.shell("dumpsys", "window", "windows")
         policy = device.shell("dumpsys", "window", "policy")
         power = device.shell("dumpsys", "power")
         state.update(
             awake="mWakefulness=Awake" in power,
             keyguard_showing=bool(re.search(r"(?:mKeyguardShowing|showing)=(?:true|1)\b", policy)),
-            shade_focused=any("mCurrentFocus=" in line and "NotificationShade" in line for line in focus.splitlines()),
+            shade_focused=shade_focused(device),
             hermes_active_notifications=sum(
                 len(parts) >= 5 and parts[1] == "org.llm4people.hermes"
                 for parts in (line.split("|") for line in device.shell("cmd", "notification", "list").splitlines())

@@ -42,6 +42,19 @@ class ShadeTest(unittest.TestCase):
             "empty_shade": False, "app_label": True, "event_title": False, "generic_body": False,
         })
 
+    def test_floating_notification_does_not_count_as_the_open_drawer(self):
+        device = Mock()
+        device.shell.return_value = "mCurrentFocus=Window{Launcher}"
+        ui = Screen(device, Mock())
+        heads_up = Element("node", {"package": SYSTEM_UI})
+        SubElement(heads_up, "node", {"text": "Hermes a terminé"})
+        visible, stack = shade()
+        title = SubElement(stack, "node", {"text": "Hermes a terminé"})
+        ui.hierarchy = Mock(side_effect=[heads_up, visible])
+        with patch("verification.unifiedpush.stack.time.sleep"):
+            self.assertIs(show_notice(ui, "Hermes a terminé"), title)
+        device.shell.assert_any_call("dumpsys", "window")
+
     def test_physical_swipe_remains_inside_notification_stack(self):
         device, controls = Mock(), Mock()
         controls.send.return_value = b"edge"
