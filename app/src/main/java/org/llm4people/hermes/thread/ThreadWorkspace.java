@@ -35,7 +35,7 @@ public final class ThreadWorkspace implements AutoCloseable {
         void selected(String sessionId, String title);
         void pendingChanged();
         default void noticeThread(boolean sameThread) {}
-        default void nearbyGuide(String threadId, String runId, JSONObject assistantRow, JSONObject area) {}
+        default void nearbyGuide(ThreadWorkspace origin, String threadId, String runId, JSONObject assistantRow, JSONObject area) {}
         JSONObject options(String sessionId);
         void timing(String sessionId, long firstTextMillis, long elapsedMillis, long outputTokens);
     }

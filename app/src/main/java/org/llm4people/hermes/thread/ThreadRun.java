@@ -389,7 +389,7 @@ final class ThreadRun {
             JSONObject receipt = journal.pending();
             JSONObject source = journal.sameOwner() ? NearbyTurn.response(receipt, status, page.messages()) : null;
             if (finishTracking()) return;
-            if (source != null) page.host.nearbyGuide(page.sessionId(), owner.run, source, receipt.optJSONObject("nearby_guide"));
+            if (source != null) page.host.nearbyGuide(page, page.sessionId(), owner.run, source, receipt.optJSONObject("nearby_guide"));
             ui.outgoing("");
             ui.busy(false, false);
             boolean visible = false;
