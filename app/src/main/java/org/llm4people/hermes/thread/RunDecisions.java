@@ -102,11 +102,12 @@ final class RunDecisions {
             String state = status.optString("status");
             if (action.run.equals(status.opt("run_id")) && (ThreadData.terminal(state) || "unknown".equals(state))) {
                 settled.add(key);
-            } else if (action.stoppable(status) && (status.optJSONArray("pending_controls") != null || key.generation() < 0)) {
-                RunPrompts fresh = new RunPrompts();
-                fresh.restore(status);
-                if (fresh.match(prompt) == null) settled.add(key);
-                attempts.remove(key);
+            } else if (action.stoppable(status)) {
+                switch (RunPrompts.presence(status, prompt)) {
+                    case PENDING -> attempts.remove(key);
+                    case ABSENT -> settled.add(key);
+                    case UNCONFIRMED -> attempts.put(key, PromptCard.State.VERIFY);
+                }
             } else {
                 attempts.put(key, PromptCard.State.VERIFY);
             }

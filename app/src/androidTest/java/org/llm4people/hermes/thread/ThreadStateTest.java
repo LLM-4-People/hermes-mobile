@@ -256,6 +256,19 @@ public class ThreadStateTest extends TestCase {
         assertEquals(2, RunPrompts.response(prompts.snapshot().get(0), "deny").length());
     }
 
+    public void testPartialStandaloneStatusCannotConfirmAnAmbiguousAnswer() throws Exception {
+        JSONObject prompt = new JSONObject().put("request_id", "a");
+        JSONObject other = new JSONObject().put("request_id", "b");
+        JSONObject status = new JSONObject().put("status", "waiting_for_approval");
+        assertEquals(RunPrompts.Presence.UNCONFIRMED, RunPrompts.presence(status, prompt));
+        status.put("approval", other);
+        assertEquals(RunPrompts.Presence.UNCONFIRMED, RunPrompts.presence(status, prompt));
+        status.put("approval", prompt);
+        assertEquals(RunPrompts.Presence.PENDING, RunPrompts.presence(status, prompt));
+        status.put("pending_controls", new JSONArray().put(other));
+        assertEquals(RunPrompts.Presence.ABSENT, RunPrompts.presence(status, prompt));
+    }
+
     public void testStaleGenerationOrSettledDifferentKindCannotRemoveAnActiveQuestion() throws Exception {
         RunPrompts prompts = new RunPrompts();
         JSONObject question = new JSONObject().put("kind", "clarify").put("prompt_id", "same")
