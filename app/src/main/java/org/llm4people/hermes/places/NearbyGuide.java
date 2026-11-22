@@ -21,12 +21,14 @@ import java.util.Locale;
 public final class NearbyGuide extends LinearLayout {
     public enum Phase { OFFER, LOADING, READY, UNAVAILABLE }
     public record State(Phase phase, NearbyResult result, double latitude, double longitude, double accuracy,
-                        int selected, boolean details, boolean all) {}
+                        PlaceSelection selection) {}
     public interface Actions {
         void locate();
         void manual();
         void select(int index, boolean toggleDetails);
         void list(boolean all);
+        void cuisine();
+        void compare();
         void map(View clicked, NearbyResult.Place place);
         void source(View clicked, NearbyResult.Place place);
     }
@@ -37,7 +39,8 @@ public final class NearbyGuide extends LinearLayout {
     private State state;
     private boolean wide, renderedWide;
     private PlaceCompass chart;
-    private Button more;
+    private Button more, cuisineButton, compareButton;
+    private TextView range;
     private final java.util.ArrayList<Venue> venues = new java.util.ArrayList<>();
 
     public NearbyGuide(Context context, Actions actions) {
@@ -62,13 +65,14 @@ public final class NearbyGuide extends LinearLayout {
                 && next.result == state.result && chart != null && wide == renderedWide;
         state = next;
         if (sameResult) {
-            if (chart != null) chart.setSelectedIndex(next.selected);
             updateVenues();
             return;
         }
         renderedWide = wide;
         chart = null;
         more = null;
+        cuisineButton = null;
+        compareButton = null;
         venues.clear();
         View focused = findFocus();
         Object focusKey = focused == null ? null : focused.getTag();
@@ -111,7 +115,8 @@ public final class NearbyGuide extends LinearLayout {
             alternatives();
             return;
         }
-        addView(text(count + (count == 1 ? " adresse" : " adresses") + " · " + scope, 15, R.color.muted));
+        range = text("", 15, R.color.muted);
+        addView(range);
         LinearLayout layout = new LinearLayout(getContext());
         layout.setOrientation(wide ? HORIZONTAL : VERTICAL);
         layout.setBaselineAligned(false);
@@ -129,16 +134,24 @@ public final class NearbyGuide extends LinearLayout {
             layout.addView(rows);
         }
         chart = new PlaceCompass(getContext(), result, s.latitude, s.longitude,
-                s.selected, index -> actions.select(index, false));
+                s.selection.selected(), index -> actions.select(index, false));
         chart.setTag("places-compass");
         overview.addView(chart, new LayoutParams(-1, dp(wide ? 185 : 136)));
         TextView caption = text("Distances approximatives à vol d’oiseau depuis le centre", 13, R.color.muted);
         Ui.pad(caption, 0, 3);
         overview.addView(caption);
+        LinearLayout filters = new LinearLayout(getContext());
+        boolean inline = getResources().getConfiguration().fontScale <= 1.2f;
+        filters.setOrientation(inline ? HORIZONTAL : VERTICAL);
+        cuisineButton = action("Cuisine", "places-cuisine", v -> actions.cuisine());
+        compareButton = action("Comparer", "places-compare", v -> actions.compare());
+        filters.addView(cuisineButton, inline ? new LayoutParams(0,-2,1) : new LayoutParams(-1,-2));
+        filters.addView(compareButton, inline ? new LayoutParams(0,-2,1) : new LayoutParams(-1,-2));
+        rows.addView(filters);
         List<NearbyResult.Place> places = result.places;
         for (int i = 0; i < places.size(); i++) venues.add(new Venue(rows, places.get(i), i));
         if (places.size() > 2) {
-            more = action("", "places-list", clicked -> actions.list(!state.all));
+            more = action("", "places-list", clicked -> actions.list(!state.selection.all()));
             rows.addView(more);
         }
         updateVenues();
@@ -146,15 +159,35 @@ public final class NearbyGuide extends LinearLayout {
     }
 
     private void updateVenues() {
-        for (Venue row : venues) row.update();
-        if (more != null) more.setText(state.all ? "Réduire la liste" : "Afficher les " + venues.size() + " adresses");
+        PlaceSelection choice = state.selection;
+        chart.setSelection(choice.selected(), choice.comparison(), choice.visible());
+        int count = choice.visible().size();
+        String number = count + (count == 1 ? " adresse" : " adresses");
+        if (count != venues.size()) number += " sur " + venues.size();
+        range.setText(number + " · rayon de " + distance(state.result.radiusMeters));
+        cuisineButton.setVisibility(choice.cuisines.isEmpty() ? GONE : VISIBLE);
+        cuisineButton.setText(choice.cuisine().isEmpty() ? "Cuisine" : "Cuisine · " + choice.cuisine());
+        cuisineButton.setContentDescription("Filtrer par cuisine, " + (choice.cuisine().isEmpty() ? "toutes les cuisines" : choice.cuisine()));
+        compareButton.setVisibility(count < 2 ? GONE : VISIBLE);
+        compareButton.setText(choice.comparison() < 0 ? "Comparer" : "Comparaison");
+        compareButton.setContentDescription(choice.comparison() < 0 ? "Comparer deux restaurants" : "Modifier la comparaison");
+        int visibleRank = 0;
+        for (Venue row : venues) {
+            boolean inFilter = choice.visible().contains(row.index);
+            row.update(inFilter, visibleRank);
+            if (inFilter) visibleRank++;
+        }
+        if (more != null) {
+            more.setVisibility(count > 2 ? VISIBLE : GONE);
+            more.setText(choice.all() ? "Réduire la liste" : "Afficher les " + count + " adresses");
+        }
     }
 
     private final class Venue {
         final int index;
         final NearbyResult.Place place;
         final LinearLayout group, top, detail;
-        final TextView name;
+        final TextView name, pairNote;
         final View divider;
         final GradientDrawable tint = new GradientDrawable();
 
@@ -187,6 +220,9 @@ public final class NearbyGuide extends LinearLayout {
             });
             top.setOnClickListener(v -> actions.select(index, true));
             group.addView(top);
+            pairNote = text("", 14, R.color.ink);
+            Ui.pad(pairNote, 0, 3);
+            group.addView(pairNote);
             detail = Ui.column(getContext());
             group.addView(detail);
             if (!place.cuisine.isEmpty()) detail.addView(text(place.cuisine, 15, R.color.ink));
@@ -206,15 +242,23 @@ public final class NearbyGuide extends LinearLayout {
             rows.addView(divider);
         }
 
-        void update() {
-            boolean selected = index == state.selected, expanded = selected && state.details;
-            boolean visible = state.all || index < 2 || selected;
+        void update(boolean inFilter, int rank) {
+            PlaceSelection choice = state.selection;
+            boolean selected = index == choice.selected(), expanded = selected && choice.details();
+            boolean paired = index == choice.comparison();
+            boolean visible = inFilter && (choice.all() || rank < 2 || selected || paired);
             group.setVisibility(visible ? VISIBLE : GONE);
             group.setBackground(selected ? tint : null);
+            pairNote.setVisibility(paired ? VISIBLE : GONE);
+            if (paired) {
+                String note = "En comparaison";
+                if (!place.cuisine.isEmpty()) note += " · " + place.cuisine;
+                pairNote.setText(note);
+            }
             divider.setVisibility(visible && !selected ? VISIBLE : GONE);
             top.setSelected(selected);
             top.setContentDescription(place.name + ", environ " + distance(place.distanceMeters) + " du centre. "
-                    + (expanded ? "Replier les détails" : "Afficher les détails"));
+                    + (paired ? "En comparaison. " : "") + (expanded ? "Replier les détails" : "Afficher les détails"));
             name.setTextSize(selected ? 18 : 16);
             name.setTypeface(Typeface.create(Typeface.DEFAULT, selected ? 650 : 500, false));
             detail.setVisibility(expanded ? VISIBLE : GONE);

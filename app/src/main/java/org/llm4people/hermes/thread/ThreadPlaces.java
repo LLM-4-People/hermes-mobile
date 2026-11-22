@@ -13,6 +13,7 @@ import org.llm4people.hermes.artifact.DeviceReview;
 import org.llm4people.hermes.artifact.ThreadInstruments.Pin;
 import org.llm4people.hermes.places.NearbyGuide;
 import org.llm4people.hermes.places.NearbyResult;
+import org.llm4people.hermes.places.PlaceSelection;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -37,17 +38,17 @@ final class ThreadPlaces {
         NearbyGuide.Phase phase = NearbyGuide.Phase.OFFER;
         NearbyResult result;
         double lat, lon, accuracy;
-        int selected;
-        boolean details = true, all;
+        PlaceSelection selection;
         volatile boolean retired;
         Entry(Pin pin) { this.pin = pin; }
         void update() {
-            NearbyGuide.State state = new NearbyGuide.State(phase, result, lat, lon, accuracy, selected, details, all);
+            NearbyGuide.State state = new NearbyGuide.State(phase, result, lat, lon, accuracy, selection);
             for (NearbyGuide view : new ArrayList<>(views.keySet())) if (view != null) view.bind(state);
         }
         void retire() {
             retired = true;
             result = null;
+            selection = null;
             lat = lon = accuracy = 0;
             phase = NearbyGuide.Phase.OFFER;
             update();
@@ -102,11 +103,37 @@ final class ThreadPlaces {
             public void manual() { if (active.getAsBoolean()) neighborhood(active); }
             public void select(int i, boolean toggle) {
                 if (!active.getAsBoolean() || e.result == null || i < 0 || i >= e.result.places.size()) return;
-                e.details = !(toggle && i == e.selected && e.details);
-                e.selected = i;
+                e.selection.choose(i, toggle);
                 e.update();
             }
-            public void list(boolean all) { if (active.getAsBoolean()) { e.all = all; e.update(); } }
+            public void list(boolean all) { if (active.getAsBoolean()) { e.selection.all(all); e.update(); } }
+            public void cuisine() {
+                if (!active.getAsBoolean() || e.selection == null) return;
+                List<String> terms = new ArrayList<>(e.selection.cuisines);
+                terms.add(0, "");
+                List<String> labels = new ArrayList<>(terms);
+                labels.set(0, "Toutes les cuisines");
+                choose("Choisir une cuisine", labels, terms.indexOf(e.selection.cuisine()), active,
+                        i -> { e.selection.filter(terms.get(i)); e.update(); });
+            }
+            public void compare() {
+                if (!active.getAsBoolean() || e.selection == null) return;
+                List<Integer> ids = new ArrayList<>(e.selection.visible());
+                ids.remove(Integer.valueOf(e.selection.selected()));
+                if (e.selection.comparison() >= 0) ids.add(0, -1);
+                if (ids.isEmpty()) return;
+                List<String> labels = new ArrayList<>();
+                for (int i : ids) {
+                    if (i < 0) labels.add("Arrêter la comparaison");
+                    else {
+                        NearbyResult.Place place = e.result.places.get(i);
+                        labels.add(place.name + " · " + NearbyGuide.distance(place.distanceMeters));
+                    }
+                }
+                String name = e.result.places.get(e.selection.selected()).name;
+                choose("Comparer " + name + " avec…", labels, ids.indexOf(e.selection.comparison()), active,
+                        i -> { e.selection.compare(ids.get(i)); e.update(); });
+            }
             public void map(View clicked, NearbyResult.Place place) {
                 if (selected(place)) DeviceReview.placeMap(thread.activity, host, clicked, place);
             }
@@ -114,12 +141,12 @@ final class ThreadPlaces {
                 if (selected(place)) DeviceReview.placeSource(thread.activity, host, clicked, place);
             }
             private boolean selected(NearbyResult.Place place) {
-                return active.getAsBoolean() && e.result != null && e.result.places.get(e.selected) == place && e.details;
+                return active.getAsBoolean() && e.result != null && e.result.places.get(e.selection.selected()) == place && e.selection.details();
             }
         });
         mounted[0] = guide;
         e.views.put(guide, true);
-        guide.bind(new NearbyGuide.State(e.phase, e.result, e.lat, e.lon, e.accuracy, e.selected, e.details, e.all));
+        guide.bind(new NearbyGuide.State(e.phase, e.result, e.lat, e.lon, e.accuracy, e.selection));
         return guide;
     }
 
@@ -140,15 +167,21 @@ final class ThreadPlaces {
             if (e.retired || !valid.test(e.pin)) return;
             e.result = result;
             e.phase = NearbyGuide.Phase.READY;
-            e.selected = 0;
-            e.details = true;
-            e.all = false;
+            e.selection = new PlaceSelection(result);
             e.update();
         }, ignored -> {
             if (e.retired || !valid.test(e.pin)) return;
             e.phase = NearbyGuide.Phase.UNAVAILABLE;
             e.update();
         });
+    }
+
+    private void choose(String title, List<String> labels, int selected, BooleanSupplier active, java.util.function.IntConsumer action) {
+        thread.screen.show(new AlertDialog.Builder(thread.activity).setTitle(title)
+                .setSingleChoiceItems(labels.toArray(new String[0]), selected, (dialog, index) -> {
+                    if (active.getAsBoolean()) action.accept(index);
+                    dialog.dismiss();
+                }).setNegativeButton("Annuler", null));
     }
 
     private void neighborhood(BooleanSupplier active) {
