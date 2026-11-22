@@ -370,20 +370,22 @@ final class ThreadViews {
     }
 
     void quickActions(List<LiveUiPatch.QuickAction> actions, ThemePalette palette,
-                      Consumer<String> stageDraft, Consumer<String> openSurface) {
+                      Consumer<String> stageDraft, Consumer<String> openSurface,
+                      Consumer<String> openAction) {
         if (quickActionSlot == null) return;
         quickActionSlot.removeAllViews();
         if (actions == null || actions.isEmpty()) {
             quickActionSlot.setVisibility(View.GONE);
             return;
         }
-        quickActionSlot.addView(LiveUiPatchBar.quickActionStrip(activity, actions, palette, stageDraft, openSurface));
+        quickActionSlot.addView(LiveUiPatchBar.quickActionStrip(
+                activity, actions, palette, stageDraft, openSurface, openAction));
         quickActionSlot.setVisibility(View.VISIBLE);
     }
 
     void suggestedActions(List<LiveUiPatch.SuggestedAction> suggestions, ThemePalette palette,
                           Consumer<String> stageDraft, Consumer<String> openSurface,
-                          Consumer<String> openAction) {
+                          Consumer<String> openAction, Consumer<String> pinWidget) {
         if (suggestedActionSlot == null) return;
         suggestedActionSlot.removeAllViews();
         if (suggestions == null || suggestions.isEmpty()) {
@@ -391,7 +393,7 @@ final class ThreadViews {
             return;
         }
         suggestedActionSlot.addView(LiveUiPatchBar.suggestedActionsStrip(
-                activity, suggestions, palette, stageDraft, openSurface, openAction));
+                activity, suggestions, palette, stageDraft, openSurface, openAction, pinWidget));
         suggestedActionSlot.setVisibility(View.VISIBLE);
     }
 

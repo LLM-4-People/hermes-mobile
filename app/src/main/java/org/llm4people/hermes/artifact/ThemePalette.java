@@ -15,7 +15,7 @@ import org.llm4people.hermes.profile.Account;
 
 /**
  * Single source of truth for DESIGN.md tokens and WCAG-AA contrast-checked live theme overrides.
- * Strictly rejects invalid hex codes or low-contrast accents before they can reach any screen.
+ * Strictly rejects invalid hex codes or low-contrast colors before they can reach any screen.
  */
 public final class ThemePalette {
     public static final double WCAG_AA_NORMAL = 4.5;
@@ -49,9 +49,10 @@ public final class ThemePalette {
 
     public static final List<String> THEMES = Collections.unmodifiableList(Arrays.asList("system", "light", "dark"));
     public static final List<String> DENSITIES = Collections.unmodifiableList(Arrays.asList("compact", "comfortable", "spacious"));
-    public static final List<String> SURFACE_STYLES = Collections.unmodifiableList(Arrays.asList("paper", "outlined", "tinted"));
-    public static final int MIN_FONT_SCALE_STEP = -1;
-    public static final int MAX_FONT_SCALE_STEP = 2;
+    public static final List<String> SURFACE_STYLES = Collections.unmodifiableList(
+            Arrays.asList("paper", "elevated", "outlined", "tinted", "glass"));
+    public static final int MIN_FONT_SCALE_STEP = -2;
+    public static final int MAX_FONT_SCALE_STEP = 3;
     private static final String STORAGE_KEY = "workspace.theme.v2";
 
     public static final class ContrastException extends IOException {
@@ -64,27 +65,40 @@ public final class ThemePalette {
         }
     }
 
-    /** Immutable, validated theme override specification. */
+    /** Immutable, validated theme override specification (aligned with Fork PR #15 + WorkspaceLayout). */
     public static final class OverrideSpec {
-        public final String theme;         // system | light | dark
-        public final String accentHex;     // nullable #RRGGBB
-        public final String density;       // compact | comfortable | spacious
-        public final int fontScaleStep;    // -1..2
-        public final String surfaceStyle;  // paper | outlined | tinted
+        public final String theme;          // system | light | dark
+        public final String accentHex;      // nullable #RRGGBB
+        public final String accentInkHex;   // nullable #RRGGBB
+        public final String surfaceHex;     // nullable #RRGGBB
+        public final String inkHex;         // nullable #RRGGBB
+        public final String density;        // compact | comfortable | spacious
+        public final int fontScaleStep;     // -2..3
+        public final String surfaceStyle;   // paper | elevated | outlined | tinted | glass
 
-        private OverrideSpec(String theme, String accentHex, String density, int fontScaleStep, String surfaceStyle) {
+        private OverrideSpec(String theme, String accentHex, String accentInkHex, String surfaceHex,
+                             String inkHex, String density, int fontScaleStep, String surfaceStyle) {
             this.theme = theme;
             this.accentHex = accentHex;
+            this.accentInkHex = accentInkHex;
+            this.surfaceHex = surfaceHex;
+            this.inkHex = inkHex;
             this.density = density;
             this.fontScaleStep = fontScaleStep;
             this.surfaceStyle = surfaceStyle;
         }
 
         public static OverrideSpec defaults() {
-            return new OverrideSpec("system", null, "comfortable", 0, "paper");
+            return new OverrideSpec("system", null, null, null, null, "comfortable", 0, "paper");
         }
 
         public static OverrideSpec validated(String theme, String accentHex, String density,
+                                             int fontScaleStep, String surfaceStyle, boolean nightMode) throws IOException {
+            return validated(theme, accentHex, null, null, null, density, fontScaleStep, surfaceStyle, nightMode);
+        }
+
+        public static OverrideSpec validated(String theme, String accentHex, String accentInkHex,
+                                             String surfaceHex, String inkHex, String density,
                                              int fontScaleStep, String surfaceStyle, boolean nightMode) throws IOException {
             String safeTheme = theme == null || theme.isEmpty() ? "system" : theme;
             if (!THEMES.contains(safeTheme)) throw new IOException("Unsupported theme mode");
@@ -95,25 +109,75 @@ public final class ThemePalette {
             }
             String safeStyle = surfaceStyle == null || surfaceStyle.isEmpty() ? "paper" : surfaceStyle;
             if (!SURFACE_STYLES.contains(safeStyle)) throw new IOException("Unsupported surface style");
-            String normalizedHex = null;
+
+            boolean checkNight = "dark".equals(safeTheme) || ("system".equals(safeTheme) && nightMode);
+            String normalizedSurface = null;
+            String normalizedInk = null;
+            int effSurface = checkNight ? NIGHT_SURFACE : DAY_SURFACE;
+            int effPaper = checkNight ? NIGHT_PAPER : DAY_PAPER;
+            int effInk = checkNight ? NIGHT_INK : DAY_INK;
+
+            if (surfaceHex != null && !surfaceHex.isEmpty()) {
+                effSurface = parseHexColor(surfaceHex);
+                effPaper = effSurface;
+                normalizedSurface = formatHex(effSurface);
+            }
+            if (inkHex != null && !inkHex.isEmpty()) {
+                effInk = parseHexColor(inkHex);
+                normalizedInk = formatHex(effInk);
+            }
+            if (normalizedSurface != null || normalizedInk != null) {
+                double textContrast = contrastRatio(effInk, effSurface);
+                if (textContrast < WCAG_AA_NORMAL) {
+                    throw new ContrastException("Text/surface contrast below WCAG AA (4.5:1)", textContrast);
+                }
+            }
+
+            String normalizedAccent = null;
+            String normalizedAccentInk = null;
+            if (accentInkHex != null && !accentInkHex.isEmpty() && (accentHex == null || accentHex.isEmpty())) {
+                throw new IOException("accent_ink_hex requires accent_hex");
+            }
             if (accentHex != null && !accentHex.isEmpty()) {
                 int rgb = parseHexColor(accentHex);
-                boolean checkNight = "dark".equals(safeTheme) || ("system".equals(safeTheme) && nightMode);
-                validateAccentContrast(rgb, checkNight);
-                normalizedHex = formatHex(rgb);
+                if (accentInkHex != null && !accentInkHex.isEmpty()) {
+                    int inkRgb = parseHexColor(accentInkHex);
+                    double onAccentRatio = contrastRatio(inkRgb, rgb);
+                    if (onAccentRatio < WCAG_AA_NORMAL) {
+                        throw new ContrastException("Accent ink contrast below WCAG AA (4.5:1)", onAccentRatio);
+                    }
+                    normalizedAccentInk = formatHex(inkRgb);
+                }
+                if (normalizedSurface != null) {
+                    double vsCustomSurface = contrastRatio(rgb, effSurface);
+                    double vsOnAccent = contrastRatio(
+                            normalizedAccentInk != null ? parseHexColor(normalizedAccentInk) : bestOnAccent(rgb), rgb);
+                    double minRatio = Math.min(vsCustomSurface, vsOnAccent);
+                    if (minRatio < WCAG_AA_NORMAL) {
+                        throw new ContrastException("Accent contrast against custom surface below WCAG AA", minRatio);
+                    }
+                } else {
+                    validateAccentContrast(rgb, checkNight);
+                }
+                normalizedAccent = formatHex(rgb);
             }
-            return new OverrideSpec(safeTheme, normalizedHex, safeDensity, fontScaleStep, safeStyle);
+            return new OverrideSpec(safeTheme, normalizedAccent, normalizedAccentInk,
+                    normalizedSurface, normalizedInk, safeDensity, fontScaleStep, safeStyle);
         }
 
         public boolean isDefault() {
-            return "system".equals(theme) && accentHex == null && "comfortable".equals(density)
-                    && fontScaleStep == 0 && "paper".equals(surfaceStyle);
+            return "system".equals(theme) && accentHex == null && accentInkHex == null
+                    && surfaceHex == null && inkHex == null
+                    && "comfortable".equals(density) && fontScaleStep == 0 && "paper".equals(surfaceStyle);
         }
 
         public String encode() {
             StringBuilder out = new StringBuilder();
             out.append("theme=").append(theme);
             if (accentHex != null) out.append("\naccent=").append(accentHex);
+            if (accentInkHex != null) out.append("\naccent_ink=").append(accentInkHex);
+            if (surfaceHex != null) out.append("\nsurface=").append(surfaceHex);
+            if (inkHex != null) out.append("\nink=").append(inkHex);
             out.append("\ndensity=").append(density);
             out.append("\nfont=").append(fontScaleStep);
             out.append("\nstyle=").append(surfaceStyle);
@@ -135,7 +199,8 @@ public final class ThemePalette {
                 try { step = Integer.parseInt(values.get("font")); }
                 catch (NumberFormatException e) { throw new IOException("Invalid font scale step", e); }
             }
-            return validated(values.get("theme"), values.get("accent"), values.get("density"),
+            return validated(values.get("theme"), values.get("accent"), values.get("accent_ink"),
+                    values.get("surface"), values.get("ink"), values.get("density"),
                     step, values.get("style"), nightMode);
         }
 
@@ -158,7 +223,12 @@ public final class ThemePalette {
             }
             if (!"paper".equals(surfaceStyle)) {
                 if (sb.length() > 0) sb.append(" · ");
-                sb.append("outlined".equals(surfaceStyle) ? "Cartes encadrées" : "Cartes teintées");
+                sb.append(switch (surfaceStyle) {
+                    case "outlined" -> "Cartes encadrées";
+                    case "elevated" -> "Cartes relevées";
+                    case "glass" -> "Cartes translucides";
+                    default -> "Cartes teintées";
+                });
             }
             return sb.length() == 0 ? "Apparence par défaut" : sb.toString();
         }
@@ -168,12 +238,15 @@ public final class ThemePalette {
             return fontScaleStep == other.fontScaleStep
                     && theme.equals(other.theme)
                     && Objects.equals(accentHex, other.accentHex)
+                    && Objects.equals(accentInkHex, other.accentInkHex)
+                    && Objects.equals(surfaceHex, other.surfaceHex)
+                    && Objects.equals(inkHex, other.inkHex)
                     && density.equals(other.density)
                     && surfaceStyle.equals(other.surfaceStyle);
         }
 
         @Override public int hashCode() {
-            return Objects.hash(theme, accentHex, density, fontScaleStep, surfaceStyle);
+            return Objects.hash(theme, accentHex, accentInkHex, surfaceHex, inkHex, density, fontScaleStep, surfaceStyle);
         }
     }
 
@@ -184,12 +257,13 @@ public final class ThemePalette {
     public final String surfaceStyle;
     public final OverrideSpec spec;
 
-    private ThemePalette(boolean night, int accent, int onAccent, int accentSurface, OverrideSpec spec) {
+    private ThemePalette(boolean night, int paper, int surface, int ink, int accent,
+                         int onAccent, int accentSurface, OverrideSpec spec) {
         this.night = night;
         this.spec = spec;
-        this.paper = night ? NIGHT_PAPER : DAY_PAPER;
-        this.surface = night ? NIGHT_SURFACE : DAY_SURFACE;
-        this.ink = night ? NIGHT_INK : DAY_INK;
+        this.paper = paper;
+        this.surface = surface;
+        this.ink = ink;
         this.muted = night ? NIGHT_MUTED : DAY_MUTED;
         this.accent = accent;
         this.onAccent = onAccent;
@@ -204,9 +278,11 @@ public final class ThemePalette {
             default -> 12;
         };
         this.textDeltaSp = switch (spec.fontScaleStep) {
+            case -2 -> -2f;
             case -1 -> -1f;
             case 1 -> 2f;
             case 2 -> 4f;
+            case 3 -> 5f;
             default -> 0f;
         };
         this.surfaceStyle = spec.surfaceStyle;
@@ -283,24 +359,75 @@ public final class ThemePalette {
         }
     }
 
+    /**
+     * Adapts a valid day-authored accent for night mode (or vice versa) when theme == "system",
+     * preserving hue while guaranteeing WCAG AA >= 4.5:1 on paper, surface, and onAccent.
+     */
+    public static int adaptAccentForMode(int accentArgb, boolean targetNight) {
+        try {
+            validateAccentContrast(accentArgb, targetNight);
+            return accentArgb;
+        } catch (ContrastException needsShift) {
+            int targetAnchor = targetNight ? 0xFFFFFFFF : 0xFF000000;
+            for (int step = 1; step <= 20; step++) {
+                float weight = step / 20f;
+                int candidate = blendTint(targetAnchor, accentArgb, weight);
+                try {
+                    validateAccentContrast(candidate, targetNight);
+                    return candidate;
+                } catch (ContrastException ignored) {
+                    // continue shifting luminance while preserving hue
+                }
+            }
+            return targetNight ? NIGHT_ACCENT : DAY_ACCENT;
+        }
+    }
+
     public static ThemePalette resolve(OverrideSpec spec, boolean systemNight) {
         OverrideSpec safe = spec == null ? OverrideSpec.defaults() : spec;
         boolean night = "dark".equals(safe.theme) || (!"light".equals(safe.theme) && systemNight);
+        int paper = night ? NIGHT_PAPER : DAY_PAPER;
+        int surface = night ? NIGHT_SURFACE : DAY_SURFACE;
+        int ink = night ? NIGHT_INK : DAY_INK;
+        if (safe.surfaceHex != null) {
+            try {
+                int customSurf = parseHexColor(safe.surfaceHex);
+                int customInk = safe.inkHex != null ? parseHexColor(safe.inkHex) : ink;
+                if (contrastRatio(customInk, customSurf) >= WCAG_AA_NORMAL) {
+                    paper = customSurf;
+                    surface = customSurf;
+                    ink = customInk;
+                }
+            } catch (IOException ignored) {}
+        } else if (safe.inkHex != null) {
+            try {
+                int customInk = parseHexColor(safe.inkHex);
+                if (contrastRatio(customInk, surface) >= WCAG_AA_NORMAL) ink = customInk;
+            } catch (IOException ignored) {}
+        }
+
         int accent = night ? NIGHT_ACCENT : DAY_ACCENT;
         int onAccent = night ? NIGHT_ON_ACCENT : DAY_ON_ACCENT;
         int accentSurface = night ? NIGHT_ACCENT_SURFACE : DAY_ACCENT_SURFACE;
         if (safe.accentHex != null) {
             try {
                 int candidate = parseHexColor(safe.accentHex);
-                validateAccentContrast(candidate, night);
-                accent = candidate;
-                onAccent = bestOnAccent(candidate);
-                accentSurface = blendTint(candidate, night ? NIGHT_PAPER : DAY_PAPER, night ? 0.20f : 0.14f);
+                if (safe.surfaceHex != null && contrastRatio(candidate, surface) >= WCAG_AA_NORMAL) {
+                    accent = candidate;
+                    onAccent = safe.accentInkHex != null ? parseHexColor(safe.accentInkHex) : bestOnAccent(candidate);
+                    if (contrastRatio(onAccent, accent) < WCAG_AA_NORMAL) onAccent = bestOnAccent(accent);
+                } else {
+                    accent = adaptAccentForMode(candidate, night);
+                    onAccent = safe.accentInkHex != null && accent == candidate
+                            ? parseHexColor(safe.accentInkHex) : bestOnAccent(accent);
+                    if (contrastRatio(onAccent, accent) < WCAG_AA_NORMAL) onAccent = bestOnAccent(accent);
+                }
+                accentSurface = blendTint(accent, paper, night ? 0.20f : 0.14f);
             } catch (IOException ignored) {
-                // Fall back to DESIGN.md default accent when switching day/night invalidates contrast.
+                // Fall back to DESIGN.md default accent.
             }
         }
-        return new ThemePalette(night, accent, onAccent, accentSurface, safe);
+        return new ThemePalette(night, paper, surface, ink, accent, onAccent, accentSurface, safe);
     }
 
     public static boolean isNight(Context context) {

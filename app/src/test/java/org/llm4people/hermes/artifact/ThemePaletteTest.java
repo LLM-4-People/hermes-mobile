@@ -76,12 +76,30 @@ public final class ThemePaletteTest {
             }
         }
 
-        // Out-of-bounds density / font scale / surface style / theme
+        // Out-of-bounds density / font scale (-2..3) / surface style / theme
         assertInvalid(() -> ThemePalette.OverrideSpec.validated("neon", null, "comfortable", 0, "paper", false));
         assertInvalid(() -> ThemePalette.OverrideSpec.validated("light", null, "ultra", 0, "paper", false));
-        assertInvalid(() -> ThemePalette.OverrideSpec.validated("light", null, "comfortable", 3, "paper", false));
-        assertInvalid(() -> ThemePalette.OverrideSpec.validated("light", null, "comfortable", -2, "paper", false));
-        assertInvalid(() -> ThemePalette.OverrideSpec.validated("light", null, "comfortable", 0, "glass", false));
+        assertInvalid(() -> ThemePalette.OverrideSpec.validated("light", null, "comfortable", 4, "paper", false));
+        assertInvalid(() -> ThemePalette.OverrideSpec.validated("light", null, "comfortable", -3, "paper", false));
+        assertInvalid(() -> ThemePalette.OverrideSpec.validated("light", null, "comfortable", 0, "neon_card", false));
+        // Custom surface/ink WCAG AA check
+        assertInvalid(() -> ThemePalette.OverrideSpec.validated("light", null, null, "#FFFFFF", "#EEEEEE", "comfortable", 0, "paper", false));
+        assertInvalid(() -> ThemePalette.OverrideSpec.validated("light", "#1B4D89", "#224466", null, null, "comfortable", 0, "paper", false));
+    }
+
+    @Test public void adaptsSystemDayAccentForDarkModeWhileGuaranteeingWcagAa() throws Exception {
+        ThemePalette.OverrideSpec systemBlue = ThemePalette.OverrideSpec.validated(
+                "system", "#1B4D89", "comfortable", 3, "glass", false);
+        ThemePalette day = ThemePalette.resolve(systemBlue, false);
+        assertEquals(0xFF1B4D89, day.accent);
+        assertEquals("glass", day.surfaceStyle);
+
+        ThemePalette night = ThemePalette.resolve(systemBlue, true);
+        assertTrue(night.night);
+        assertNotEquals(ThemePalette.NIGHT_ACCENT, night.accent);
+        assertTrue(ThemePalette.contrastRatio(night.accent, night.paper) >= ThemePalette.WCAG_AA_NORMAL);
+        assertTrue(ThemePalette.contrastRatio(night.accent, night.surface) >= ThemePalette.WCAG_AA_NORMAL);
+        assertTrue(ThemePalette.contrastRatio(night.onAccent, night.accent) >= ThemePalette.WCAG_AA_NORMAL);
     }
 
     private interface Action { void run() throws IOException; }

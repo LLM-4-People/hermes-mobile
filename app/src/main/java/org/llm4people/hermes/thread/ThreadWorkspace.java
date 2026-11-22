@@ -798,7 +798,8 @@ public final class ThreadWorkspace implements AutoCloseable {
             screen.suggestedActions(actions, palette,
                     this::stageDraft,
                     page -> { if (instrumentHost != null) instrumentHost.openWorkspace(page); },
-                    action -> { if (instrumentHost != null) instrumentHost.onAction(action); });
+                    action -> { if (instrumentHost != null) instrumentHost.onAction(action); },
+                    this::pinWidgetById);
         } catch (java.io.IOException rejected) {
             Diagnostics.warning("live_ui", "suggested_actions_rejected");
         }
@@ -814,11 +815,23 @@ public final class ThreadWorkspace implements AutoCloseable {
                 screen.suggestedActions(patch.suggestedActions, palette,
                         this::stageDraft,
                         page -> { if (instrumentHost != null) instrumentHost.openWorkspace(page); },
-                        action -> { if (instrumentHost != null) instrumentHost.onAction(action); });
+                        action -> { if (instrumentHost != null) instrumentHost.onAction(action); },
+                        this::pinWidgetById);
             }
             Diagnostics.event("live_ui", "patch_presented");
         } catch (java.io.IOException rejected) {
             Diagnostics.warning("live_ui", "patch_rejected");
+        }
+    }
+
+    private void pinWidgetById(String widgetId) {
+        if (closed || account == null || widgetId == null || widgetId.isEmpty()) return;
+        LiveUiPatch.StateManager manager = LiveUiPatch.StateManager.forAccount(account, ThemePalette.isNight(activity));
+        for (LiveUiPatch.WidgetSpec spec : manager.widgets()) {
+            if (widgetId.equals(spec.widgetId)) {
+                HomePinBridge.requestPinWidget(activity, spec);
+                return;
+            }
         }
     }
 
@@ -835,6 +848,8 @@ public final class ThreadWorkspace implements AutoCloseable {
                     for (LiveUiPatch.Op op : patch.ops) {
                         if (op instanceof LiveUiPatch.Op.UpsertWidget uw) {
                             HomePinBridge.notifyWidgetUpdated(activity, uw.widget().widgetId);
+                        } else if (op instanceof LiveUiPatch.Op.RemoveWidget rw) {
+                            HomePinBridge.notifyWidgetUpdated(activity, rw.widgetId());
                         }
                     }
                     if (instrumentHost != null) instrumentHost.onLayoutChanged();
@@ -851,7 +866,10 @@ public final class ThreadWorkspace implements AutoCloseable {
                 if (closed) return;
                 try {
                     LiveUiPatch.StateManager manager = LiveUiPatch.StateManager.forAccount(account, ThemePalette.isNight(activity));
+                    java.util.Set<String> affectedWidgets = new java.util.HashSet<>(manager.widgetIds());
                     manager.rollbackTo(revisionId);
+                    affectedWidgets.addAll(manager.widgetIds());
+                    for (String wid : affectedWidgets) HomePinBridge.notifyWidgetUpdated(activity, wid);
                     if (screen != null && screen.liveUiBar != null) screen.liveUiBar.showReverted();
                     refreshQuickActions();
                     if (instrumentHost != null) instrumentHost.onLayoutChanged();
@@ -877,7 +895,8 @@ public final class ThreadWorkspace implements AutoCloseable {
         LiveUiPatch.StateManager manager = LiveUiPatch.StateManager.forAccount(account, palette.night);
         screen.quickActions(manager.quickActions(), palette,
                 this::stageDraft,
-                page -> { if (instrumentHost != null) instrumentHost.openWorkspace(page); });
+                page -> { if (instrumentHost != null) instrumentHost.openWorkspace(page); },
+                action -> { if (instrumentHost != null) instrumentHost.onAction(action); });
     }
 
     void storageError() {

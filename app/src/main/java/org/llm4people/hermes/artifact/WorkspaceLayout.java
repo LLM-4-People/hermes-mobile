@@ -175,6 +175,8 @@ final class WorkspaceLayout {
             if (layout.accent != null) {
                 int rgb = ThemePalette.parseHexColor(layout.accent);
                 boolean checkNight = "dark".equals(layout.theme);
+                // Light and system layouts author a WCAG-AA day accent; dark layouts author a WCAG-AA night accent.
+                // Under theme="system", ThemePalette.resolve adapts a verified day accent cleanly for dark-mode devices.
                 ThemePalette.validateAccentContrast(rgb, checkNight);
                 layout.accent = ThemePalette.formatHex(rgb);
             }

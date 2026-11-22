@@ -38,6 +38,9 @@ final class InstrumentChanges {
         changed(changes, "", "Titre", old.title, next.title);
         changed(changes, "", "Apparence", appearance(old.theme), appearance(next.theme));
         changed(changes, "", "Densité", density(old.density), density(next.density));
+        changed(changes, "", "Couleur d’accent", old.accent == null ? "" : old.accent,
+                next.accent == null ? "" : next.accent);
+        changed(changes, "", "Style de surface", surfaceStyle(old.surfaceStyle), surfaceStyle(next.surfaceStyle));
 
         int[] previous = InstrumentIdentity.match(old.blocks, next.blocks);
         List<String> oldLabels = InstrumentIdentity.blockLabels(old.blocks);
@@ -116,6 +119,56 @@ final class InstrumentChanges {
                 order(changes, group, "Ordre des champs", new ArrayList<>(oldNames.keySet()),
                         new ArrayList<>(nextNames.keySet()), nextNames);
             }
+            case "nearby_places" -> {
+                changed(changes, group, "Catégorie", old.category == null ? "" : old.category,
+                        next.category == null ? "" : next.category);
+                changed(changes, group, "Rayon de recherche", old.radiusMeters + " m", next.radiusMeters + " m");
+                changed(changes, group, "Nombre maximal de lieux", Integer.toString(old.limit), Integer.toString(next.limit));
+            }
+            case "metric_grid" -> {
+                changed(changes, group, "Description", old.note, next.note);
+                changed(changes, group, "Indicateurs", describeMetrics(old.metrics), describeMetrics(next.metrics));
+            }
+            case "sparkline" -> {
+                changed(changes, group, "Description", old.note, next.note);
+                changed(changes, group, "Style de graphique",
+                        old.sparkline == null ? "" : old.sparkline.style,
+                        next.sparkline == null ? "" : next.sparkline.style);
+                changed(changes, group, "Légende",
+                        old.sparkline == null ? "" : old.sparkline.caption,
+                        next.sparkline == null ? "" : next.sparkline.caption);
+                changed(changes, group, "Unité",
+                        old.sparkline == null ? "" : old.sparkline.unit,
+                        next.sparkline == null ? "" : next.sparkline.unit);
+                changed(changes, group, "Objectif",
+                        old.sparkline == null || old.sparkline.target == null ? "" : String.valueOf(old.sparkline.target),
+                        next.sparkline == null || next.sparkline.target == null ? "" : String.valueOf(next.sparkline.target));
+                changed(changes, group, "Série de valeurs",
+                        old.sparkline == null ? "" : old.sparkline.values.toString(),
+                        next.sparkline == null ? "" : next.sparkline.values.toString());
+            }
+            case "table" -> {
+                changed(changes, group, "Description", old.note, next.note);
+                changed(changes, group, "Tri interactif",
+                        old.table != null && old.table.sortable ? "Activé" : "Désactivé",
+                        next.table != null && next.table.sortable ? "Activé" : "Désactivé");
+                changed(changes, group, "Filtre interactif",
+                        old.table != null && old.table.filterable ? "Activé" : "Désactivé",
+                        next.table != null && next.table.filterable ? "Activé" : "Désactivé");
+                changed(changes, group, "Consigne du brouillon",
+                        old.table == null ? "" : old.table.draftPrompt,
+                        next.table == null ? "" : next.table.draftPrompt);
+                changed(changes, group, "Colonnes", describeColumns(old.table), describeColumns(next.table));
+                changed(changes, group, "Lignes", describeRows(old.table), describeRows(next.table));
+            }
+            case "controls" -> {
+                changed(changes, group, "Description", old.note, next.note);
+                changed(changes, group, "Identifiant d’état", old.stateKey == null ? "" : old.stateKey,
+                        next.stateKey == null ? "" : next.stateKey);
+                changed(changes, group, "Consigne du brouillon", old.prompt == null ? "" : old.prompt,
+                        next.prompt == null ? "" : next.prompt);
+                changed(changes, group, "Contrôles", describeControls(old.controls), describeControls(next.controls));
+            }
         }
     }
 
@@ -187,7 +240,52 @@ final class InstrumentChanges {
             default -> "Confortable";
         };
     }
+    private static String surfaceStyle(String style) {
+        if (style == null) return "Papier";
+        return switch (style) {
+            case "outlined" -> "Encadrée";
+            case "tinted" -> "Teintée";
+            case "elevated" -> "Relevée";
+            case "glass" -> "Translucide";
+            default -> "Papier";
+        };
+    }
     private static String appearance(String theme) {
         return switch (theme) { case "light" -> "Claire"; case "dark" -> "Sombre"; default -> "Système"; };
+    }
+    private static String describeMetrics(List<MetricGridBlock.Item> items) {
+        if (items == null) return "";
+        List<String> rows = new ArrayList<>();
+        for (MetricGridBlock.Item m : items) {
+            String src = m.source != null ? "source=" + m.source : m.formattedValue("");
+            rows.add(m.label + " · " + src + (m.delta.isEmpty() ? "" : " (" + m.delta + ")")
+                    + (m.provenance.isEmpty() ? "" : " · " + m.provenance));
+        }
+        return lines(rows);
+    }
+    private static String describeColumns(DataTableBlock.Model table) {
+        if (table == null) return "";
+        List<String> cols = new ArrayList<>();
+        for (DataTableBlock.Column c : table.columns) cols.add(c.label + (c.numeric ? " (numérique)" : ""));
+        return lines(cols);
+    }
+    private static String describeRows(DataTableBlock.Model table) {
+        if (table == null) return "";
+        List<String> rows = new ArrayList<>();
+        for (List<String> row : table.rows) rows.add(String.join(" · ", row));
+        return lines(rows);
+    }
+    private static String describeControls(List<InteractiveControlsBlock.Control> controls) {
+        if (controls == null) return "";
+        List<String> items = new ArrayList<>();
+        for (InteractiveControlsBlock.Control ctrl : controls) {
+            String extra = switch (ctrl.kind) {
+                case "slider" -> ctrl.min + "–" + ctrl.max + " (pas " + ctrl.step + ", défaut " + ctrl.defaultNumber + ")";
+                case "chips" -> String.join(", ", ctrl.options) + (ctrl.multi ? " · multiple" : "");
+                default -> ctrl.defaultChecked ? "activé par défaut" : "désactivé par défaut";
+            };
+            items.add(ctrl.label + " (" + ctrl.kind + ") · " + extra);
+        }
+        return lines(items);
     }
 }

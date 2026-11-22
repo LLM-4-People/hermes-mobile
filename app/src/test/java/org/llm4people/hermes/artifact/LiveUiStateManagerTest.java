@@ -94,7 +94,7 @@ public final class LiveUiStateManagerTest {
         assertThrowsIo(() -> new LiveUiPatch.QuickAction("BAD ID", "Test", "Brouillon", null));
         assertThrowsIo(() -> new LiveUiPatch.QuickAction("qa_a", "Test", null, "https://evil.example"));
 
-        // Widget must opt in explicitly with home_screen_safe: true and valid template + contrast.
+        // Widget must opt in explicitly with home_screen_safe: true and valid template + contrast + no secrets.
         assertThrowsIo(() -> new LiveUiPatch.WidgetSpec(
                 "w1", "Titre", "", "metric",
                 List.of(new LiveUiPatch.WidgetItem("A", "1", null)), null, false, false));
@@ -105,7 +105,34 @@ public final class LiveUiStateManagerTest {
                 "w1", "Titre", "", "metric",
                 List.of(new LiveUiPatch.WidgetItem("A", "1", null)), "#FFFF00", true, false));
         assertThrowsIo(() -> new LiveUiPatch.WidgetSpec(
-                "w1", "Titre", "", "metric", Collections.emptyList(), null, true, false));
+                "w1", "Bearer abcdefghijklmnopqrstuvwx", "", "status",
+                Collections.emptyList(), null, true, false));
+        // Fork PR #15 allows 0..8 items + checked + accent_ink_hex
+        try {
+            LiveUiPatch.WidgetSpec emptyItemsOk = new LiveUiPatch.WidgetSpec(
+                    "w_empty", "Statut calme", "Rien à signaler", "status",
+                    Collections.emptyList(), "#0D6E6E", "#FFFFFF", true, false);
+            assertEquals("#FFFFFF", emptyItemsOk.accentInkHex);
+            assertTrue(emptyItemsOk.items.isEmpty());
+            LiveUiPatch.WidgetItem checkedItem = new LiveUiPatch.WidgetItem("Courses", "", Boolean.TRUE, null);
+            assertEquals(Boolean.TRUE, checkedItem.checked);
+        } catch (IOException unexpected) {
+            fail("Valid Fork PR #15 widget rejected: " + unexpected);
+        }
+
+        // UTF-8 byte cap check (65,536 bytes, counting multi-byte UTF-8 sequences properly)
+        assertFalse(LiveUiPatch.exceedsByteLimit("a".repeat(LiveUiPatch.MAX_PATCH_BYTES)));
+        assertTrue(LiveUiPatch.exceedsByteLimit("a".repeat(LiveUiPatch.MAX_PATCH_BYTES + 1)));
+        assertTrue(LiveUiPatch.exceedsByteLimit("é".repeat(LiveUiPatch.MAX_PATCH_BYTES / 2 + 1)));
+
+        // Fork PR #15 QuickAction destination mapping
+        try {
+            LiveUiPatch.QuickAction dest = new LiveUiPatch.QuickAction("qa_act", "Activité", null, null, "activite", "bell");
+            assertEquals("reminders", dest.nativeActionId());
+        } catch (IOException unexpected) {
+            fail("Valid destination quick action rejected: " + unexpected);
+        }
+        assertThrowsIo(() -> new LiveUiPatch.QuickAction("qa_bad", "Bad", null, null, "unknown_dest", null));
 
         // Patch revision id & ops count bounds.
         assertThrowsIo(() -> new LiveUiPatch("", "", "thread", "Bad",
@@ -133,6 +160,30 @@ public final class LiveUiStateManagerTest {
     }
 
     private interface IoRunnable { void run() throws IOException; }
+
+    @Test public void failsClosedOnCorruptedStateUntilExplicitReset() throws Exception {
+        MemoryStore store = new MemoryStore();
+        MemorySurfaces surfaces = new MemorySurfaces();
+        store.write("workspace.live_ui.v2", "CORRUPT\tLINE");
+
+        LiveUiPatch.StateManager manager = new LiveUiPatch.StateManager(store, surfaces, false);
+        assertTrue(manager.isCorrupted());
+        assertFalse(manager.canRollback());
+
+        LiveUiPatch patch = new LiveUiPatch("rev-new", "", "atelier", "Test",
+                List.of(new LiveUiPatch.Op.ResetTheme()), true);
+        assertThrowsIo(() -> manager.apply(patch));
+        assertThrowsIo(manager::rollbackLast);
+        // Corrupted record must still be intact (never silently wiped on apply).
+        assertEquals("CORRUPT\tLINE", store.read("workspace.live_ui.v2"));
+
+        // Only explicit user-confirmed reset clears corruption and allows new patches.
+        manager.resetCorrupted();
+        assertFalse(manager.isCorrupted());
+        assertNull(store.read("workspace.live_ui.v2"));
+        manager.apply(patch);
+        assertTrue(manager.canRollback());
+    }
 
     private static void assertThrowsIo(IoRunnable runnable) {
         try {

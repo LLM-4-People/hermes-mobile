@@ -202,7 +202,7 @@ final class RunFollower implements AutoCloseable {
                 break;
             case "ui.patch":
             case "surface.update":
-                if (event.toString().length() > LiveUiPatch.MAX_PATCH_BYTES) {
+                if (LiveUiPatch.exceedsByteLimit(event.toString())) {
                     Diagnostics.warning("live_ui", "sse_patch_oversized");
                 } else {
                     if (pendingUiPatches.size() >= MAX_PENDING_PATCHES) pendingUiPatches.remove(0);

@@ -153,7 +153,7 @@ public final class LiveUiAndSurfacesV2Test extends InstrumentationTestCase {
         assertEquals(1, parsedClear.suggestedActions.size());
         assertEquals("Rappelle-moi demain à 9h.", parsedClear.suggestedActions.get(0).draft);
 
-        // Negative cases: oversized patch, non-reversible, low-contrast theme, auto-send quick action, unsafe widget.
+        // Negative cases: oversized patch (>65,536 UTF-8 bytes), non-reversible, low-contrast theme, auto-send quick action, unsafe widget.
         JSONObject oversized = new JSONObject(validPatch.toString())
                 .put("summary", "a".repeat(LiveUiPatch.MAX_PATCH_BYTES + 10));
         assertPatchRejected(oversized);
@@ -283,5 +283,148 @@ public final class LiveUiAndSurfacesV2Test extends InstrumentationTestCase {
             LiveUiPatch.parse(raw, false);
             fail("Expected malformed ui.patch to be rejected");
         } catch (IOException expected) {}
+    }
+
+    public void testParsesExactForkPr15CanonicalWireContractAndProtectsDamagedLayouts() throws Exception {
+        JSONObject forkPayload = new JSONObject("""
+                {
+                  "revision_id": "rev-fork-01",
+                  "parent_revision_id": null,
+                  "scope": "atelier",
+                  "summary": "Tableau de bord quotidien et widget d’accueil",
+                  "reversible": true,
+                  "requires_apply": true,
+                  "ops": [
+                    {
+                      "op": "upsert_surface",
+                      "surface_id": "suivi_jour",
+                      "scope": "atelier",
+                      "kind": "kpi_grid",
+                      "title": "Mon suivi du jour",
+                      "order": 1,
+                      "tab": "suivi",
+                      "spec": {
+                        "items": [
+                          {"label": "Focus", "value": "3/4", "delta": "+1", "tone": "positive"}
+                        ]
+                      }
+                    },
+                    {
+                      "op": "upsert_quick_action",
+                      "action_id": "ouvrir_activite",
+                      "label": "Voir mes rappels",
+                      "action_kind": "open_destination",
+                      "icon": "bell",
+                      "destination": "activite"
+                    },
+                    {
+                      "op": "upsert_quick_action",
+                      "action_id": "ouvrir_suivi",
+                      "label": "Mon suivi",
+                      "action_kind": "toggle_surface",
+                      "surface_id": "suivi_jour"
+                    },
+                    {
+                      "op": "set_theme_override",
+                      "theme": {
+                        "accent_hex": "#0D6E6E",
+                        "accent_ink_hex": "#FFFFFF",
+                        "surface_hex": "#FAF8F5",
+                        "ink_hex": "#1A1917",
+                        "density": "comfortable",
+                        "font_scale_step": 3,
+                        "surface_style": "glass"
+                      }
+                    },
+                    {
+                      "op": "upsert_widget",
+                      "widget_id": "briefing_matin",
+                      "title": "Briefing matinal de votre journée avec résumé synthétique",
+                      "subtitle": "2 actions prioritaires",
+                      "template": "checklist",
+                      "accent_hex": "#0D6E6E",
+                      "accent_ink_hex": "#FFFFFF",
+                      "home_screen_safe": true,
+                      "items": [
+                        {"label": "Préparer la réunion", "checked": true},
+                        {"label": "Acheter du café", "checked": false, "action_draft": "Ajoute café à ma liste"}
+                      ]
+                    }
+                  ],
+                  "suggested_actions": [
+                    {"id": "epingle_w", "label": "Épingler le widget", "kind": "pin_widget", "widget_id": "briefing_matin"},
+                    {"id": "ouvre_s", "label": "Ouvrir le suivi", "kind": "open_surface", "target": "suivi_jour"},
+                    {"id": "rappel", "label": "Créer un rappel", "kind": "create_reminder", "prompt": "Rappelle-moi à 9h"}
+                  ]
+                }
+                """);
+
+        LiveUiPatch parsed = LiveUiPatch.parse(forkPayload, false);
+        assertEquals("rev-fork-01", parsed.revisionId);
+        // upsert_surface with tab expands cleanly to UpsertSurface + UpsertTab -> 6 ops total
+        assertEquals(6, parsed.ops.size());
+        assertEquals(3, parsed.suggestedActions.size());
+        assertEquals("briefing_matin", parsed.suggestedActions.get(0).widgetId);
+        assertEquals("page/suivi_jour", parsed.suggestedActions.get(1).page);
+        assertEquals("Rappelle-moi à 9h", parsed.suggestedActions.get(2).draft);
+
+        Context app = getInstrumentation().getTargetContext();
+        try (WorkspaceAccountFixture fixture = new WorkspaceAccountFixture(app)) {
+            LiveUiPatch.StateManager manager = LiveUiPatch.StateManager.forAccount(fixture.account, false);
+            manager.apply(parsed);
+            assertEquals(1, manager.tabs().size());
+            assertEquals(2, manager.quickActions().size());
+            assertEquals("reminders", manager.quickActions().get(0).nativeActionId());
+            assertEquals("page/suivi_jour", manager.quickActions().get(1).page);
+            assertEquals(1, manager.widgets().size());
+            assertEquals(Boolean.TRUE, manager.widgets().get(0).items.get(0).checked);
+            assertEquals("#0D6E6E", manager.theme().accentHex);
+            assertEquals("glass", manager.theme().surfaceStyle);
+            assertEquals(3, manager.theme().fontScaleStep);
+
+            // Damaged native layout record must NOT be silently overwritten by apply().
+            fixture.account.write("workspace.v1.home", "{corrupt");
+            LiveUiPatch touchHome = new LiveUiPatch("rev-home", "", "atelier", "Modifier accueil",
+                    Collections.singletonList(new LiveUiPatch.Op.RemoveSurface("home")), true);
+            try {
+                manager.apply(touchHome);
+                fail("Expected damaged LayoutHistory to fail closed");
+            } catch (LayoutHistory.Unreadable expected) {
+                assertEquals("{corrupt", fixture.account.read("workspace.v1.home"));
+            }
+        }
+    }
+
+    public void testInstrumentChangesDetectsAllV2BlockAndThemeDifferences() throws Exception {
+        WorkspaceLayout base = WorkspaceLayout.parse(V2_DASHBOARD);
+        assertTrue(InstrumentChanges.between(base, base).isEmpty());
+
+        // Accent & surface_style diff
+        WorkspaceLayout themed = WorkspaceLayout.parse(
+                V2_DASHBOARD.replace("#1B4D89", "#225C50").replace("\"outlined\"", "\"tinted\""));
+        assertFalse(InstrumentChanges.between(base, themed).isEmpty());
+
+        // Metric grid diff
+        WorkspaceLayout metricChanged = WorkspaceLayout.parse(V2_DASHBOARD.replace("\"12\"", "\"18\""));
+        assertFalse(InstrumentChanges.between(base, metricChanged).isEmpty());
+
+        // Sparkline diff
+        WorkspaceLayout sparkChanged = WorkspaceLayout.parse(V2_DASHBOARD.replace("[4, 7, 9, 12]", "[4, 7, 9, 20]"));
+        assertFalse(InstrumentChanges.between(base, sparkChanged).isEmpty());
+
+        // Table diff
+        WorkspaceLayout tableChanged = WorkspaceLayout.parse(V2_DASHBOARD.replace("\"Courses\"", "\"Achats\""));
+        assertFalse(InstrumentChanges.between(base, tableChanged).isEmpty());
+
+        // Controls diff
+        WorkspaceLayout controlsChanged = WorkspaceLayout.parse(V2_DASHBOARD.replace("\"default\": 45", "\"default\": 60"));
+        assertFalse(InstrumentChanges.between(base, controlsChanged).isEmpty());
+
+        // Nearby places category / radius / limit diff
+        WorkspaceLayout nearbyA = WorkspaceLayout.parse(
+                "{\"version\":2,\"surface\":\"page/lieux\",\"mode\":\"replace\",\"title\":\"Lieux\",\"blocks\":[{\"type\":\"nearby_places\",\"category\":\"cafe\",\"radius_m\":1500,\"limit\":12}]}");
+        WorkspaceLayout nearbyB = WorkspaceLayout.parse(
+                "{\"version\":2,\"surface\":\"page/lieux\",\"mode\":\"replace\",\"title\":\"Lieux\",\"blocks\":[{\"type\":\"nearby_places\",\"category\":\"cafe\",\"radius_m\":3000,\"limit\":20}]}");
+        assertFalse(InstrumentChanges.between(nearbyA, nearbyB).isEmpty());
     }
 }

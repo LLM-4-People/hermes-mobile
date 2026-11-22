@@ -68,9 +68,11 @@ final class SurfaceRenderer {
         String accent = layout.accent != null ? layout.accent : base.accentHex;
         String density = !"comfortable".equals(layout.density) ? layout.density : base.density;
         String style = !"paper".equals(layout.surfaceStyle) ? layout.surfaceStyle : base.surfaceStyle;
+        boolean validateNight = "dark".equals(theme) || (layout.accent == null && sysNight);
         try {
             ThemePalette.OverrideSpec merged = ThemePalette.OverrideSpec.validated(
-                    theme, accent, density, base.fontScaleStep, style, sysNight);
+                    theme, accent, base.accentInkHex, base.surfaceHex, base.inkHex,
+                    density, base.fontScaleStep, style, validateNight);
             return ThemePalette.resolve(merged, sysNight);
         } catch (IOException fallback) {
             return ThemePalette.resolve(base, sysNight);

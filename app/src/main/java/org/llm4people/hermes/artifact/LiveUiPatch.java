@@ -1,12 +1,14 @@
 package org.llm4people.hermes.artifact;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -15,27 +17,44 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.llm4people.hermes.Diagnostics;
+import org.llm4people.hermes.places.NearbyCategory;
 import org.llm4people.hermes.profile.Account;
 
 /**
- * Validated, bounded, reversible Real-Time Live UI Editing v2 protocol (Fork PR #15 ui.patch SSE
- * and /api/mobile/ui/* REST endpoints). Every mutation is declarative, sandboxed, contrast-checked,
- * and atomically reversible.
+ * Validated, bounded, reversible Real-Time Live UI Editing v2 protocol aligned with Fork PR #15
+ * (tools/mobile_ui_patch.py) and /api/mobile/ui/* REST endpoints. Every mutation is declarative,
+ * sandboxed, WCAG-AA contrast-checked, fail-closed on storage damage, and atomically reversible.
  */
 public final class LiveUiPatch {
-    public static final int MAX_PATCH_BYTES = 32 * 1024;
+    public static final int MAX_PATCH_BYTES = 65_536;
     public static final int MAX_OPS = 16;
-    public static final int MAX_QUICK_ACTIONS = 8;
+    public static final int MAX_QUICK_ACTIONS = 12;
     public static final int MAX_CUSTOM_TABS = 6;
-    public static final int MAX_WIDGETS = 8;
-    public static final int MAX_WIDGET_ITEMS = 6;
+    public static final int MAX_WIDGETS = 16;
+    public static final int MAX_WIDGET_ITEMS = 8;
     public static final int MAX_SUGGESTED_ACTIONS = 4;
     public static final int MAX_HISTORY = 16;
-    public static final int MAX_SUMMARY_CHARS = 200;
-    public static final int MAX_DRAFT_CHARS = 500;
+    public static final int MAX_SUMMARY_CHARS = 240;
+    public static final int MAX_DRAFT_CHARS = 1000;
+
     public static final List<String> WIDGET_TEMPLATES = Collections.unmodifiableList(
             Arrays.asList("metric", "checklist", "quick_actions", "status", "briefing"));
+    public static final List<String> FORK_SURFACE_KINDS = Collections.unmodifiableList(Arrays.asList(
+            "kpi_grid", "sparkline", "bar_chart", "table", "form", "toggle_group",
+            "chip_filter", "slider", "action_bar", "markdown_card", "progress_tracker", "map_compass"));
+    public static final List<String> FORK_DESTINATIONS = Collections.unmodifiableList(
+            Arrays.asList("discussions", "atelier", "cerveau", "activite"));
+    public static final List<String> FORK_QUICK_ACTION_KINDS = Collections.unmodifiableList(
+            Arrays.asList("prompt", "open_destination", "toggle_surface"));
+    public static final List<String> FORK_SUGGESTED_ACTION_KINDS = Collections.unmodifiableList(
+            Arrays.asList("pin_widget", "save_memory", "create_reminder", "open_surface", "save_skill", "prompt"));
+
     private static final Pattern REVISION_ID = Pattern.compile("[A-Za-z0-9._:-]{1,64}");
+    private static final Pattern SAFE_ID = Pattern.compile("[a-z0-9][a-z0-9_-]{0,63}");
+    private static final Pattern FORBIDDEN_PAYLOAD = Pattern.compile(
+            "(?i)<\\s*/?\\s*(script|iframe|object|embed|svg)\\b|javascript\\s*:|vbscript\\s*:|data\\s*:\\s*text/html|intent\\s*:|file\\s*://");
+    private static final Pattern WIDGET_SECRET = Pattern.compile(
+            "(?i)(?:sk-[a-z0-9_-]{12,}|ghp_[a-z0-9]{20,}|bearer\\s+[a-z0-9._-]{16,}|-----begin\\s+[a-z ]*private key-----)");
     private static final List<String> SCOPES = Arrays.asList("thread", "atelier", "global");
     private static final String STATE_KEY = "workspace.live_ui.v2";
 
@@ -45,8 +64,8 @@ public final class LiveUiPatch {
         public final String page;
 
         public CustomTab(String id, String label, String page) throws IOException {
-            if (!DraftForm.validId(id)) throw new IOException("Invalid tab id");
-            if (!validText(label, 32)) throw new IOException("Invalid tab label");
+            if (!validSafeId(id)) throw new IOException("Invalid tab id");
+            if (!validText(label, 48)) throw new IOException("Invalid tab label");
             if (!WorkspaceLayout.custom(page)) throw new IOException("Invalid tab page");
             this.id = id;
             this.label = label;
@@ -61,114 +80,190 @@ public final class LiveUiPatch {
         @Override public int hashCode() { return Objects.hash(id, label, page); }
     }
 
-    /** Custom composer/toolbar chip: prepares an editable draft or opens a surface — NEVER auto-sends. */
+    /** Custom composer/toolbar chip: prepares an editable draft, opens a surface, or navigates — NEVER auto-sends. */
     public static final class QuickAction {
         public final String id;
         public final String label;
-        public final String draft; // nullable
-        public final String page;  // nullable
+        public final String draft;       // nullable
+        public final String page;        // nullable (page/<slug>)
+        public final String destination; // nullable (discussions | atelier | cerveau | activite)
+        public final String icon;        // nullable
 
         public QuickAction(String id, String label, String draft, String page) throws IOException {
-            if (!DraftForm.validId(id)) throw new IOException("Invalid quick action id");
-            if (!validText(label, 36)) throw new IOException("Invalid quick action label");
+            this(id, label, draft, page, null, null);
+        }
+
+        public QuickAction(String id, String label, String draft, String page,
+                           String destination, String icon) throws IOException {
+            if (!validSafeId(id)) throw new IOException("Invalid quick action id");
+            if (!validText(label, 64)) throw new IOException("Invalid quick action label");
             boolean hasDraft = draft != null && !draft.isEmpty();
             boolean hasPage = page != null && !page.isEmpty();
-            if (hasDraft == hasPage) throw new IOException("Quick action must specify either draft or page");
+            boolean hasDest = destination != null && !destination.isEmpty();
+            int targets = (hasDraft ? 1 : 0) + (hasPage ? 1 : 0) + (hasDest ? 1 : 0);
+            if (targets != 1) throw new IOException("Quick action must specify exactly one target");
             if (hasDraft && !validText(draft, MAX_DRAFT_CHARS)) throw new IOException("Invalid quick action draft");
             if (hasPage && !WorkspaceLayout.custom(page)) throw new IOException("Invalid quick action page");
+            if (hasDest && !FORK_DESTINATIONS.contains(destination)) throw new IOException("Invalid quick action destination");
+            if (icon != null && !icon.isEmpty() && !validSafeId(icon)) throw new IOException("Invalid quick action icon");
             this.id = id;
             this.label = label;
             this.draft = hasDraft ? draft : null;
             this.page = hasPage ? page : null;
+            this.destination = hasDest ? destination : null;
+            this.icon = icon == null || icon.isEmpty() ? null : icon;
+        }
+
+        /** Maps Fork PR #15 destination names to existing native action IDs. */
+        public String nativeActionId() {
+            if (destination == null) return null;
+            return switch (destination) {
+                case "discussions" -> "threads";
+                case "atelier" -> "workspace";
+                case "cerveau" -> "models";
+                case "activite" -> "reminders";
+                default -> null;
+            };
         }
 
         @Override public boolean equals(Object o) {
             return o instanceof QuickAction other && id.equals(other.id) && label.equals(other.label)
-                    && Objects.equals(draft, other.draft) && Objects.equals(page, other.page);
+                    && Objects.equals(draft, other.draft) && Objects.equals(page, other.page)
+                    && Objects.equals(destination, other.destination) && Objects.equals(icon, other.icon);
         }
 
-        @Override public int hashCode() { return Objects.hash(id, label, draft, page); }
+        @Override public int hashCode() { return Objects.hash(id, label, draft, page, destination, icon); }
     }
 
-    /** Contextual 1-tap follow-up suggestion chip below a Hermes reply (always safe, never auto-sends). */
+    /** Contextual 1-tap follow-up suggestion chip below a Hermes reply (aligned with Fork PR #15, never auto-sends). */
     public static final class SuggestedAction {
+        public final String id;       // optional safe slug
         public final String label;
-        public final String draft;  // nullable
-        public final String page;   // nullable
-        public final String action; // nullable (allowlisted WorkspaceLayout.ACTIONS key)
+        public final String kind;     // prompt | open_surface | pin_widget | create_reminder | save_memory | save_skill
+        public final String draft;    // nullable
+        public final String page;     // nullable
+        public final String action;   // nullable (allowlisted WorkspaceLayout.ACTIONS key)
+        public final String widgetId; // nullable
 
         public SuggestedAction(String label, String draft, String page, String action) throws IOException {
-            if (!validText(label, 40)) throw new IOException("Invalid suggested action label");
+            this("", label,
+                    page != null && !page.isEmpty() ? "open_surface" : "prompt",
+                    draft, page, action, null);
+        }
+
+        public SuggestedAction(String id, String label, String kind, String draft,
+                               String page, String action, String widgetId) throws IOException {
+            if (id != null && !id.isEmpty() && !validSafeId(id)) throw new IOException("Invalid suggested action id");
+            if (!validText(label, 48)) throw new IOException("Invalid suggested action label");
+            String safeKind = kind == null || kind.isEmpty() ? "prompt" : kind;
+            if (!FORK_SUGGESTED_ACTION_KINDS.contains(safeKind)) throw new IOException("Invalid suggested action kind");
             boolean hasDraft = draft != null && !draft.isEmpty();
             boolean hasPage = page != null && !page.isEmpty();
             boolean hasAction = action != null && !action.isEmpty();
-            int count = (hasDraft ? 1 : 0) + (hasPage ? 1 : 0) + (hasAction ? 1 : 0);
+            boolean hasWidget = widgetId != null && !widgetId.isEmpty();
+            int count = (hasDraft ? 1 : 0) + (hasPage ? 1 : 0) + (hasAction ? 1 : 0) + (hasWidget ? 1 : 0);
             if (count != 1) throw new IOException("Suggested action must declare exactly one target");
             if (hasDraft && !validText(draft, MAX_DRAFT_CHARS)) throw new IOException("Invalid suggested action draft");
             if (hasPage && !WorkspaceLayout.custom(page)) throw new IOException("Invalid suggested action page");
             if (hasAction && !WorkspaceLayout.ACTIONS.containsKey(action)) throw new IOException("Unknown suggested action");
+            if (hasWidget && !validSafeId(widgetId)) throw new IOException("Invalid suggested widget_id");
+            this.id = id == null ? "" : id;
             this.label = label;
+            this.kind = safeKind;
             this.draft = hasDraft ? draft : null;
             this.page = hasPage ? page : null;
             this.action = hasAction ? action : null;
+            this.widgetId = hasWidget ? widgetId : null;
         }
 
         @Override public boolean equals(Object o) {
-            return o instanceof SuggestedAction other && label.equals(other.label)
-                    && Objects.equals(draft, other.draft) && Objects.equals(page, other.page)
-                    && Objects.equals(action, other.action);
+            return o instanceof SuggestedAction other && id.equals(other.id) && label.equals(other.label)
+                    && kind.equals(other.kind) && Objects.equals(draft, other.draft)
+                    && Objects.equals(page, other.page) && Objects.equals(action, other.action)
+                    && Objects.equals(widgetId, other.widgetId);
         }
 
-        @Override public int hashCode() { return Objects.hash(label, draft, page, action); }
+        @Override public int hashCode() { return Objects.hash(id, label, kind, draft, page, action, widgetId); }
     }
 
     public static final class WidgetItem {
         public final String label;
         public final String value;
-        public final String actionDraft; // nullable
+        public final Boolean checked;     // nullable
+        public final String actionDraft;  // nullable
 
         public WidgetItem(String label, String value, String actionDraft) throws IOException {
-            if (!validText(label, 48)) throw new IOException("Invalid widget item label");
+            this(label, value, null, actionDraft);
+        }
+
+        public WidgetItem(String label, String value, Boolean checked, String actionDraft) throws IOException {
+            if (!validText(label, 80)) throw new IOException("Invalid widget item label");
             String safeVal = value == null ? "" : value;
-            if (!safeVal.isEmpty() && !validText(safeVal, 48)) throw new IOException("Invalid widget item value");
+            if (!safeVal.isEmpty() && !validText(safeVal, 80)) throw new IOException("Invalid widget item value");
             String safeDraft = actionDraft == null || actionDraft.isEmpty() ? null : actionDraft;
-            if (safeDraft != null && !validText(safeDraft, MAX_DRAFT_CHARS)) throw new IOException("Invalid widget action draft");
+            if (safeDraft != null && !validText(safeDraft, 240)) throw new IOException("Invalid widget action draft");
+            if (containsSecret(label) || containsSecret(safeVal) || (safeDraft != null && containsSecret(safeDraft))) {
+                throw new IOException("Widget item contains secret-like material");
+            }
             this.label = label;
             this.value = safeVal;
+            this.checked = checked;
             this.actionDraft = safeDraft;
         }
 
         @Override public boolean equals(Object o) {
             return o instanceof WidgetItem other && label.equals(other.label)
-                    && value.equals(other.value) && Objects.equals(actionDraft, other.actionDraft);
+                    && value.equals(other.value) && Objects.equals(checked, other.checked)
+                    && Objects.equals(actionDraft, other.actionDraft);
         }
 
-        @Override public int hashCode() { return Objects.hash(label, value, actionDraft); }
+        @Override public int hashCode() { return Objects.hash(label, value, checked, actionDraft); }
     }
 
-    /** Declarative home-screen-safe widget specification (strictly requires home_screen_safe: true). */
+    /** Declarative home-screen-safe widget specification aligned with Fork PR #15 (strictly home_screen_safe: true). */
     public static final class WidgetSpec {
         public final String widgetId;
         public final String title;
         public final String subtitle;
         public final String template;
         public final List<WidgetItem> items;
-        public final String accentHex; // nullable, WCAG-AA verified
+        public final String accentHex;    // nullable, WCAG-AA verified
+        public final String accentInkHex; // nullable, WCAG-AA verified
         public final boolean homeScreenSafe;
 
         public WidgetSpec(String widgetId, String title, String subtitle, String template,
                           List<WidgetItem> items, String accentHex, boolean homeScreenSafe, boolean nightMode) throws IOException {
+            this(widgetId, title, subtitle, template, items, accentHex, null, homeScreenSafe, nightMode);
+        }
+
+        public WidgetSpec(String widgetId, String title, String subtitle, String template,
+                          List<WidgetItem> items, String accentHex, String accentInkHex,
+                          boolean homeScreenSafe, boolean nightMode) throws IOException {
             if (!homeScreenSafe) throw new IOException("Widget must explicitly opt in with home_screen_safe: true");
-            if (!DraftForm.validId(widgetId)) throw new IOException("Invalid widget_id");
-            if (!validText(title, 48)) throw new IOException("Invalid widget title");
+            if (!validSafeId(widgetId)) throw new IOException("Invalid widget_id");
+            if (!validText(title, 80)) throw new IOException("Invalid widget title");
             String safeSub = subtitle == null ? "" : subtitle;
-            if (!safeSub.isEmpty() && !validText(safeSub, 80)) throw new IOException("Invalid widget subtitle");
+            if (!safeSub.isEmpty() && !validText(safeSub, 120)) throw new IOException("Invalid widget subtitle");
+            if (containsSecret(title) || containsSecret(safeSub)) throw new IOException("Widget text contains secret-like material");
             if (template == null || !WIDGET_TEMPLATES.contains(template)) throw new IOException("Invalid widget template");
-            if (items == null || items.isEmpty() || items.size() > MAX_WIDGET_ITEMS) throw new IOException("Invalid widget items");
+            if (items == null || items.size() > MAX_WIDGET_ITEMS) throw new IOException("Invalid widget items");
             String normalizedAccent = null;
+            String normalizedAccentInk = null;
+            if (accentInkHex != null && !accentInkHex.isEmpty() && (accentHex == null || accentHex.isEmpty())) {
+                throw new IOException("accent_ink_hex requires accent_hex");
+            }
             if (accentHex != null && !accentHex.isEmpty()) {
                 int rgb = ThemePalette.parseHexColor(accentHex);
-                ThemePalette.validateAccentContrast(rgb, nightMode);
+                if (accentInkHex != null && !accentInkHex.isEmpty()) {
+                    int inkRgb = ThemePalette.parseHexColor(accentInkHex);
+                    if (ThemePalette.contrastRatio(inkRgb, rgb) < ThemePalette.WCAG_AA_NORMAL) {
+                        throw new ThemePalette.ContrastException("Widget accent_ink_hex contrast below WCAG AA",
+                                ThemePalette.contrastRatio(inkRgb, rgb));
+                    }
+                    normalizedAccentInk = ThemePalette.formatHex(inkRgb);
+                } else {
+                    ThemePalette.validateAccentContrast(rgb, nightMode);
+                }
                 normalizedAccent = ThemePalette.formatHex(rgb);
             }
             this.widgetId = widgetId;
@@ -177,6 +272,7 @@ public final class LiveUiPatch {
             this.template = template;
             this.items = Collections.unmodifiableList(new ArrayList<>(items));
             this.accentHex = normalizedAccent;
+            this.accentInkHex = normalizedAccentInk;
             this.homeScreenSafe = true;
         }
 
@@ -184,11 +280,12 @@ public final class LiveUiPatch {
             return o instanceof WidgetSpec other && homeScreenSafe == other.homeScreenSafe
                     && widgetId.equals(other.widgetId) && title.equals(other.title)
                     && subtitle.equals(other.subtitle) && template.equals(other.template)
-                    && items.equals(other.items) && Objects.equals(accentHex, other.accentHex);
+                    && items.equals(other.items) && Objects.equals(accentHex, other.accentHex)
+                    && Objects.equals(accentInkHex, other.accentInkHex);
         }
 
         @Override public int hashCode() {
-            return Objects.hash(widgetId, title, subtitle, template, items, accentHex, homeScreenSafe);
+            return Objects.hash(widgetId, title, subtitle, template, items, accentHex, accentInkHex, homeScreenSafe);
         }
     }
 
@@ -198,9 +295,7 @@ public final class LiveUiPatch {
 
         record UpsertSurface(String surface, String layoutJson, String title) implements Op {
             @Override public String kind() { return "upsert_surface"; }
-            @Override public String frenchDescription() {
-                return "Mettre à jour l’écran « " + title + " »";
-            }
+            @Override public String frenchDescription() { return "Mettre à jour l’écran « " + title + " »"; }
         }
 
         record RemoveSurface(String surface) implements Op {
@@ -213,58 +308,42 @@ public final class LiveUiPatch {
 
         record UpsertTab(CustomTab tab) implements Op {
             @Override public String kind() { return "upsert_tab"; }
-            @Override public String frenchDescription() {
-                return "Ajouter l’onglet « " + tab.label + " » dans l’atelier";
-            }
+            @Override public String frenchDescription() { return "Ajouter l’onglet « " + tab.label + " » dans l’atelier"; }
         }
 
         record RemoveTab(String id) implements Op {
             @Override public String kind() { return "remove_tab"; }
-            @Override public String frenchDescription() {
-                return "Retirer l’onglet « " + id + " » de l’atelier";
-            }
+            @Override public String frenchDescription() { return "Retirer l’onglet « " + id + " » de l’atelier"; }
         }
 
         record UpsertQuickAction(QuickAction action) implements Op {
             @Override public String kind() { return "upsert_quick_action"; }
-            @Override public String frenchDescription() {
-                return "Ajouter le raccourci « " + action.label + " »";
-            }
+            @Override public String frenchDescription() { return "Ajouter le raccourci « " + action.label + " »"; }
         }
 
         record RemoveQuickAction(String id) implements Op {
             @Override public String kind() { return "remove_quick_action"; }
-            @Override public String frenchDescription() {
-                return "Retirer le raccourci « " + id + " »";
-            }
+            @Override public String frenchDescription() { return "Retirer le raccourci « " + id + " »"; }
         }
 
         record SetThemeOverride(ThemePalette.OverrideSpec spec) implements Op {
             @Override public String kind() { return "set_theme_override"; }
-            @Override public String frenchDescription() {
-                return "Apparence : " + spec.frenchSummary();
-            }
+            @Override public String frenchDescription() { return "Apparence : " + spec.frenchSummary(); }
         }
 
         record ResetTheme() implements Op {
-            @Override public String kind() { return "reset_theme"; }
-            @Override public String frenchDescription() {
-                return "Rétablir l’apparence par défaut";
-            }
+            @Override public String kind() { return "clear_theme_override"; }
+            @Override public String frenchDescription() { return "Rétablir l’apparence par défaut"; }
         }
 
         record UpsertWidget(WidgetSpec widget) implements Op {
             @Override public String kind() { return "upsert_widget"; }
-            @Override public String frenchDescription() {
-                return "Préparer le widget d’accueil « " + widget.title + " »";
-            }
+            @Override public String frenchDescription() { return "Préparer le widget d’accueil « " + widget.title + " »"; }
         }
 
         record RemoveWidget(String widgetId) implements Op {
             @Override public String kind() { return "remove_widget"; }
-            @Override public String frenchDescription() {
-                return "Retirer le widget d’accueil « " + widgetId + " »";
-            }
+            @Override public String frenchDescription() { return "Retirer le widget d’accueil « " + widgetId + " »"; }
         }
     }
 
@@ -312,6 +391,14 @@ public final class LiveUiPatch {
         return id != null && REVISION_ID.matcher(id).matches();
     }
 
+    public static boolean validSafeId(String id) {
+        return id != null && SAFE_ID.matcher(id).matches();
+    }
+
+    public static boolean exceedsByteLimit(String serializedJson) {
+        return serializedJson != null && serializedJson.getBytes(StandardCharsets.UTF_8).length > MAX_PATCH_BYTES;
+    }
+
     private static String defaultSummary(List<Op> ops) {
         if (ops.size() == 1) return ops.get(0).frenchDescription();
         return ops.size() + " ajustements proposés pour votre espace";
@@ -327,9 +414,9 @@ public final class LiveUiPatch {
     public static LiveUiPatch parse(JSONObject raw, boolean nightMode) throws IOException {
         if (raw == null) throw new IOException("Missing patch object");
         String serialized = raw.toString();
-        if (serialized.length() > MAX_PATCH_BYTES) {
+        if (exceedsByteLimit(serialized)) {
             warnRejected();
-            throw new IOException("Patch exceeded byte limit");
+            throw new IOException("Patch exceeded UTF-8 byte limit");
         }
         try {
             JSONObject payload = raw.has("patch") && raw.opt("patch") instanceof JSONObject nested ? nested : raw;
@@ -337,7 +424,7 @@ public final class LiveUiPatch {
                 throw new IOException("Non-reversible patches are rejected");
             }
             String revId = payload.optString("revision_id", "");
-            String parentId = payload.optString("parent_revision_id", "");
+            String parentId = payload.isNull("parent_revision_id") ? "" : payload.optString("parent_revision_id", "");
             String scope = payload.optString("scope", "thread");
             String summary = payload.optString("summary", "");
             boolean requiresApply = payload.optBoolean("requires_apply", true);
@@ -349,7 +436,7 @@ public final class LiveUiPatch {
             for (int i = 0; i < rawOps.length(); i++) {
                 JSONObject opObj = rawOps.optJSONObject(i);
                 if (opObj == null) throw new IOException("Malformed op entry");
-                parsed.add(parseOp(opObj, nightMode));
+                parseOp(opObj, nightMode, parsed);
             }
             List<SuggestedAction> suggestions = parseSuggestedActions(payload.opt("suggested_actions"));
             return new LiveUiPatch(revId, parentId, scope, summary, parsed, suggestions, requiresApply);
@@ -368,135 +455,365 @@ public final class LiveUiPatch {
         for (int i = 0; i < arr.length(); i++) {
             JSONObject obj = arr.optJSONObject(i);
             if (obj == null) throw new IOException("Malformed suggested action");
-            Set<String> keys = new HashSet<>();
-            java.util.Iterator<String> it = obj.keys();
-            while (it.hasNext()) keys.add(it.next());
-            allowOnly(keys, "label", "draft", "action_draft", "page", "action");
-            String draft = obj.has("draft") ? obj.optString("draft", "")
+            Set<String> keys = keySet(obj);
+            allowOnly(keys, "id", "label", "kind", "prompt", "draft", "action_draft", "page", "target", "action", "widget_id");
+            String id = obj.optString("id", "");
+            String label = obj.optString("label", "");
+            String kind = obj.has("kind") ? obj.optString("kind", "prompt") : null;
+            String prompt = obj.has("prompt") ? obj.optString("prompt", "")
+                    : obj.has("draft") ? obj.optString("draft", "")
                     : obj.has("action_draft") ? obj.optString("action_draft", "") : null;
-            out.add(new SuggestedAction(
-                    obj.optString("label", ""),
-                    draft,
-                    obj.has("page") ? obj.optString("page", "") : null,
-                    obj.has("action") ? obj.optString("action", "") : null));
+            String page = obj.has("page") ? obj.optString("page", "") : null;
+            String target = obj.has("target") ? obj.optString("target", "") : null;
+            String action = obj.has("action") ? obj.optString("action", "") : null;
+            String widgetId = obj.has("widget_id") ? obj.optString("widget_id", "") : null;
+
+            if (kind != null) {
+                if (!FORK_SUGGESTED_ACTION_KINDS.contains(kind)) throw new IOException("Unknown suggested action kind");
+                switch (kind) {
+                    case "pin_widget" -> {
+                        String wid = widgetId != null && !widgetId.isEmpty() ? widgetId : target;
+                        out.add(new SuggestedAction(id, label, kind, null, null, null, wid));
+                    }
+                    case "open_surface" -> {
+                        String pageId = page != null && !page.isEmpty() ? page : normalizePageId(target);
+                        out.add(new SuggestedAction(id, label, kind, null, pageId, null, null));
+                    }
+                    case "create_reminder" -> {
+                        if (prompt != null && !prompt.isEmpty()) {
+                            out.add(new SuggestedAction(id, label, kind, prompt, null, null, null));
+                        } else {
+                            out.add(new SuggestedAction(id, label, kind, null, null, "reminders", null));
+                        }
+                    }
+                    case "save_memory", "save_skill", "prompt" -> {
+                        String effectiveDraft = prompt != null && !prompt.isEmpty() ? prompt : label;
+                        out.add(new SuggestedAction(id, label, kind, effectiveDraft, null, null, null));
+                    }
+                    default -> throw new IOException("Unsupported suggested action kind");
+                }
+            } else {
+                out.add(new SuggestedAction(label, prompt, page, action));
+            }
         }
         return out;
     }
 
-    private static Op parseOp(JSONObject obj, boolean nightMode) throws IOException, JSONException {
+    private static void parseOp(JSONObject obj, boolean nightMode, List<Op> out) throws IOException, JSONException {
         String op = obj.optString("op", "");
-        Set<String> keys = new HashSet<>();
-        java.util.Iterator<String> it = obj.keys();
-        while (it.hasNext()) keys.add(it.next());
-        return switch (op) {
+        Set<String> keys = keySet(obj);
+        switch (op) {
             case "upsert_surface" -> {
-                allowOnly(keys, "op", "surface", "layout");
-                Object layoutVal = obj.opt("layout");
-                String layoutJson;
-                if (layoutVal instanceof JSONObject lo) layoutJson = lo.toString();
-                else if (layoutVal instanceof String ls) layoutJson = ls;
-                else throw new IOException("Missing layout document");
-                WorkspaceLayout layout = WorkspaceLayout.parse(layoutJson);
-                String surface = obj.optString("surface", layout.surface);
-                if (!surface.equals(layout.surface)) throw new IOException("Surface mismatch");
-                yield new Op.UpsertSurface(surface, layoutJson, layout.title);
+                if (obj.has("layout")) {
+                    allowOnly(keys, "op", "surface", "layout");
+                    Object layoutVal = obj.opt("layout");
+                    String layoutJson;
+                    if (layoutVal instanceof JSONObject lo) layoutJson = lo.toString();
+                    else if (layoutVal instanceof String ls) layoutJson = ls;
+                    else throw new IOException("Missing layout document");
+                    WorkspaceLayout layout = WorkspaceLayout.parse(layoutJson);
+                    String surface = obj.optString("surface", layout.surface);
+                    if (!surface.equals(layout.surface)) throw new IOException("Surface mismatch");
+                    out.add(new Op.UpsertSurface(surface, layoutJson, layout.title));
+                } else {
+                    // Fork PR #15 canonical upsert_surface payload
+                    allowOnly(keys, "op", "surface_id", "scope", "kind", "title", "spec", "order", "tab");
+                    String surfaceId = obj.optString("surface_id", "");
+                    if (!validSafeId(surfaceId)) throw new IOException("Invalid surface_id");
+                    String scope = obj.optString("scope", "atelier");
+                    if (!"atelier".equals(scope) && !"thread".equals(scope)) throw new IOException("Invalid surface scope");
+                    String kind = obj.optString("kind", "");
+                    if (!FORK_SURFACE_KINDS.contains(kind)) throw new IOException("Unsupported surface kind");
+                    String title = obj.optString("title", "");
+                    if (!validText(title, 160)) throw new IOException("Invalid surface title");
+                    String boundedTitle = title.length() > 64 ? title.substring(0, 64).trim() : title;
+                    JSONObject spec = obj.optJSONObject("spec");
+                    if (spec == null) spec = new JSONObject();
+                    String pageId = normalizePageId(surfaceId);
+                    String layoutJson = translateForkSurfaceToLayoutJson(pageId, boundedTitle, kind, spec);
+                    WorkspaceLayout validated = WorkspaceLayout.parse(layoutJson);
+                    out.add(new Op.UpsertSurface(validated.surface, layoutJson, validated.title));
+                    if (obj.has("tab") && !obj.isNull("tab")) {
+                        String tabId = obj.optString("tab", "");
+                        if (!validSafeId(tabId)) throw new IOException("Invalid surface tab");
+                        String tabLabel = boundedTitle.length() > 48 ? boundedTitle.substring(0, 48).trim() : boundedTitle;
+                        out.add(new Op.UpsertTab(new CustomTab(tabId, tabLabel, validated.surface)));
+                    }
+                }
             }
             case "remove_surface" -> {
-                allowOnly(keys, "op", "surface");
-                String surface = obj.optString("surface", "");
-                if (!WorkspaceLayout.SURFACES.containsKey(surface) && !WorkspaceLayout.custom(surface)) {
+                allowOnly(keys, "op", "surface", "surface_id", "scope");
+                String rawSurface = obj.has("surface") ? obj.optString("surface", "") : normalizePageId(obj.optString("surface_id", ""));
+                if (!WorkspaceLayout.SURFACES.containsKey(rawSurface) && !WorkspaceLayout.custom(rawSurface)) {
                     throw new IOException("Unknown surface");
                 }
-                yield new Op.RemoveSurface(surface);
+                out.add(new Op.RemoveSurface(rawSurface));
             }
             case "upsert_tab" -> {
                 allowOnly(keys, "op", "id", "label", "page");
-                yield new Op.UpsertTab(new CustomTab(
-                        obj.optString("id", ""), obj.optString("label", ""), obj.optString("page", "")));
+                out.add(new Op.UpsertTab(new CustomTab(
+                        obj.optString("id", ""), obj.optString("label", ""), obj.optString("page", ""))));
             }
             case "remove_tab" -> {
                 allowOnly(keys, "op", "id");
                 String id = obj.optString("id", "");
-                if (!DraftForm.validId(id)) throw new IOException("Invalid tab id");
-                yield new Op.RemoveTab(id);
+                if (!validSafeId(id)) throw new IOException("Invalid tab id");
+                out.add(new Op.RemoveTab(id));
             }
             case "upsert_quick_action" -> {
-                // Reject any auto-send / script / url keys strictly.
-                allowOnly(keys, "op", "id", "label", "draft", "prompt", "page");
+                // Accepts both Fork PR #15 (action_id, action_kind, icon, prompt/destination/surface_id) and direct format.
+                // Rejects any auto-send / script / url keys strictly.
+                allowOnly(keys, "op", "id", "action_id", "label", "action_kind", "icon",
+                        "draft", "prompt", "page", "surface_id", "destination");
+                String id = obj.has("action_id") ? obj.optString("action_id", "") : obj.optString("id", "");
+                String label = obj.optString("label", "");
+                String icon = obj.has("icon") && !obj.isNull("icon") ? obj.optString("icon", "") : null;
+                String actionKind = obj.has("action_kind") ? obj.optString("action_kind", "") : null;
+                if (actionKind != null && !FORK_QUICK_ACTION_KINDS.contains(actionKind)) {
+                    throw new IOException("Invalid action_kind");
+                }
                 String draft = obj.has("draft") ? obj.optString("draft", "")
                         : obj.has("prompt") ? obj.optString("prompt", "") : null;
-                yield new Op.UpsertQuickAction(new QuickAction(
-                        obj.optString("id", ""), obj.optString("label", ""),
-                        draft,
-                        obj.has("page") ? obj.optString("page", "") : null));
+                String page = obj.has("page") ? obj.optString("page", "")
+                        : obj.has("surface_id") ? normalizePageId(obj.optString("surface_id", "")) : null;
+                String dest = obj.has("destination") ? obj.optString("destination", "") : null;
+                if ("prompt".equals(actionKind)) {
+                    if (draft == null || page != null || dest != null) throw new IOException("prompt quick action requires prompt only");
+                } else if ("open_destination".equals(actionKind)) {
+                    if (dest == null || draft != null || page != null) throw new IOException("open_destination requires destination only");
+                } else if ("toggle_surface".equals(actionKind)) {
+                    if (page == null || draft != null || dest != null) throw new IOException("toggle_surface requires surface_id only");
+                }
+                out.add(new Op.UpsertQuickAction(new QuickAction(id, label, draft, page, dest, icon)));
             }
             case "remove_quick_action" -> {
-                allowOnly(keys, "op", "id");
-                String id = obj.optString("id", "");
-                if (!DraftForm.validId(id)) throw new IOException("Invalid quick action id");
-                yield new Op.RemoveQuickAction(id);
+                allowOnly(keys, "op", "id", "action_id");
+                String id = obj.has("action_id") ? obj.optString("action_id", "") : obj.optString("id", "");
+                if (!validSafeId(id)) throw new IOException("Invalid quick action id");
+                out.add(new Op.RemoveQuickAction(id));
             }
             case "set_theme_override" -> {
-                allowOnly(keys, "op", "theme", "accent_hex", "density", "font_scale_step", "surface_style");
+                JSONObject themeObj = obj.opt("theme") instanceof JSONObject nested ? nested : obj;
+                if (themeObj == obj) {
+                    allowOnly(keys, "op", "theme", "accent_hex", "accent_ink_hex", "surface_hex", "ink_hex",
+                            "density", "font_scale_step", "surface_style");
+                } else {
+                    allowOnly(keys, "op", "theme");
+                    allowOnly(keySet(themeObj), "theme", "accent_hex", "accent_ink_hex", "surface_hex", "ink_hex",
+                            "density", "font_scale_step", "surface_style");
+                }
                 int step = 0;
-                if (obj.has("font_scale_step")) {
-                    Object rawStep = obj.opt("font_scale_step");
+                if (themeObj.has("font_scale_step")) {
+                    Object rawStep = themeObj.opt("font_scale_step");
                     if (!(rawStep instanceof Integer)) throw new IOException("font_scale_step must be an integer");
                     step = (Integer) rawStep;
                 }
+                String mode = themeObj.opt("theme") instanceof String s ? s : "system";
                 ThemePalette.OverrideSpec spec = ThemePalette.OverrideSpec.validated(
-                        obj.has("theme") ? obj.optString("theme", "") : "system",
-                        obj.has("accent_hex") ? obj.optString("accent_hex", "") : null,
-                        obj.has("density") ? obj.optString("density", "") : "comfortable",
+                        mode,
+                        themeObj.has("accent_hex") ? themeObj.optString("accent_hex", "") : null,
+                        themeObj.has("accent_ink_hex") ? themeObj.optString("accent_ink_hex", "") : null,
+                        themeObj.has("surface_hex") ? themeObj.optString("surface_hex", "") : null,
+                        themeObj.has("ink_hex") ? themeObj.optString("ink_hex", "") : null,
+                        themeObj.has("density") ? themeObj.optString("density", "") : "comfortable",
                         step,
-                        obj.has("surface_style") ? obj.optString("surface_style", "") : "paper",
+                        themeObj.has("surface_style") ? themeObj.optString("surface_style", "") : "paper",
                         nightMode);
-                yield new Op.SetThemeOverride(spec);
+                out.add(new Op.SetThemeOverride(spec));
             }
             case "reset_theme", "clear_theme_override" -> {
                 allowOnly(keys, "op");
-                yield new Op.ResetTheme();
+                out.add(new Op.ResetTheme());
             }
             case "upsert_widget" -> {
-                allowOnly(keys, "op", "widget_id", "title", "subtitle", "template", "items", "accent_hex", "home_screen_safe");
+                allowOnly(keys, "op", "widget_id", "title", "subtitle", "template", "items",
+                        "accent_hex", "accent_ink_hex", "home_screen_safe");
                 if (!(obj.opt("home_screen_safe") instanceof Boolean safe) || !safe) {
                     throw new IOException("Widget requires home_screen_safe=true");
                 }
                 JSONArray rawItems = obj.optJSONArray("items");
-                if (rawItems == null || rawItems.length() == 0 || rawItems.length() > MAX_WIDGET_ITEMS) {
+                if (rawItems == null || rawItems.length() > MAX_WIDGET_ITEMS) {
                     throw new IOException("Invalid widget items");
                 }
                 List<WidgetItem> items = new ArrayList<>(rawItems.length());
                 for (int i = 0; i < rawItems.length(); i++) {
                     JSONObject itemObj = rawItems.optJSONObject(i);
                     if (itemObj == null) throw new IOException("Malformed widget item");
-                    Set<String> itemKeys = new HashSet<>();
-                    java.util.Iterator<String> itemIt = itemObj.keys();
-                    while (itemIt.hasNext()) itemKeys.add(itemIt.next());
-                    allowOnly(itemKeys, "label", "value", "action_draft");
+                    allowOnly(keySet(itemObj), "label", "value", "checked", "action_draft");
+                    Boolean checked = null;
+                    if (itemObj.has("checked") && !itemObj.isNull("checked")) {
+                        if (!(itemObj.opt("checked") instanceof Boolean b)) throw new IOException("checked must be boolean");
+                        checked = b;
+                    }
                     items.add(new WidgetItem(
                             itemObj.optString("label", ""),
-                            itemObj.optString("value", ""),
-                            itemObj.has("action_draft") ? itemObj.optString("action_draft", "") : null));
+                            itemObj.has("value") && !itemObj.isNull("value") ? itemObj.optString("value", "") : "",
+                            checked,
+                            itemObj.has("action_draft") && !itemObj.isNull("action_draft") ? itemObj.optString("action_draft", "") : null));
                 }
-                yield new Op.UpsertWidget(new WidgetSpec(
+                out.add(new Op.UpsertWidget(new WidgetSpec(
                         obj.optString("widget_id", ""),
                         obj.optString("title", ""),
-                        obj.optString("subtitle", ""),
+                        obj.has("subtitle") && !obj.isNull("subtitle") ? obj.optString("subtitle", "") : "",
                         obj.optString("template", ""),
                         items,
-                        obj.has("accent_hex") ? obj.optString("accent_hex", "") : null,
+                        obj.has("accent_hex") && !obj.isNull("accent_hex") ? obj.optString("accent_hex", "") : null,
+                        obj.has("accent_ink_hex") && !obj.isNull("accent_ink_hex") ? obj.optString("accent_ink_hex", "") : null,
                         true,
-                        nightMode));
+                        nightMode)));
             }
             case "remove_widget" -> {
                 allowOnly(keys, "op", "widget_id");
                 String id = obj.optString("widget_id", "");
-                if (!DraftForm.validId(id)) throw new IOException("Invalid widget_id");
-                yield new Op.RemoveWidget(id);
+                if (!validSafeId(id)) throw new IOException("Invalid widget_id");
+                out.add(new Op.RemoveWidget(id));
             }
             default -> throw new IOException("Unsupported ui.patch op");
-        };
+        }
+    }
+
+    /** Translates a validated Fork PR #15 declarative surface op into a bounded WorkspaceLayout v2 JSON document. */
+    private static String translateForkSurfaceToLayoutJson(String pageId, String title, String kind, JSONObject spec)
+            throws IOException, JSONException {
+        JSONObject block = new JSONObject();
+        block.put("title", title);
+        switch (kind) {
+            case "kpi_grid" -> {
+                block.put("type", "metric_grid");
+                JSONArray srcItems = spec.optJSONArray("items");
+                if (srcItems == null || srcItems.length() == 0) srcItems = spec.optJSONArray("metrics");
+                JSONArray items = new JSONArray();
+                if (srcItems != null) {
+                    for (int i = 0; i < Math.min(srcItems.length(), MetricGridBlock.MAX_ITEMS); i++) {
+                        JSONObject m = srcItems.optJSONObject(i);
+                        if (m == null) continue;
+                        JSONObject item = new JSONObject();
+                        item.put("label", trimTo(m.optString("label", "Mesure"), 48));
+                        if (m.has("source") && WorkspaceLayout.SOURCES.contains(m.optString("source"))) {
+                            item.put("source", m.optString("source"));
+                        } else {
+                            item.put("value", trimTo(m.optString("value", "Indisponible"), 48));
+                        }
+                        if (m.has("delta") && !m.optString("delta").isEmpty()) item.put("delta", trimTo(m.optString("delta"), 24));
+                        if (m.has("unit") && !m.optString("unit").isEmpty()) item.put("unit", trimTo(m.optString("unit"), 16));
+                        if (m.has("tone") && MetricGridBlock.TONES.contains(m.optString("tone"))) item.put("tone", m.optString("tone"));
+                        if (m.has("provenance") && !m.optString("provenance").isEmpty()) item.put("provenance", trimTo(m.optString("provenance"), 80));
+                        items.put(item);
+                    }
+                }
+                if (items.length() == 0) items.put(new JSONObject().put("label", title).put("value", "Indisponible"));
+                block.put("items", items);
+            }
+            case "sparkline", "bar_chart" -> {
+                block.put("type", "sparkline");
+                block.put("style", "bar_chart".equals(kind) ? "bar" : spec.optString("style", "line"));
+                JSONArray vals = spec.optJSONArray("values");
+                if (vals == null) vals = spec.optJSONArray("series");
+                if (vals == null || vals.length() < SparklineView.MIN_POINTS) {
+                    throw new IOException("sparkline/bar_chart spec requires at least 2 numeric values");
+                }
+                block.put("values", vals);
+                if (spec.has("unit") && !spec.optString("unit").isEmpty()) block.put("unit", trimTo(spec.optString("unit"), 16));
+                if (spec.has("caption") && !spec.optString("caption").isEmpty()) block.put("caption", trimTo(spec.optString("caption"), 120));
+                if (spec.has("target") && spec.opt("target") instanceof Number) block.put("target", spec.getDouble("target"));
+            }
+            case "table" -> {
+                block.put("type", "table");
+                JSONArray cols = spec.optJSONArray("columns");
+                JSONArray rows = spec.optJSONArray("rows");
+                if (cols == null || rows == null) throw new IOException("table spec requires columns and rows");
+                block.put("columns", cols);
+                block.put("rows", rows);
+                if (spec.has("sortable")) block.put("sortable", spec.optBoolean("sortable", true));
+                if (spec.has("filterable")) block.put("filterable", spec.optBoolean("filterable", false));
+                if (spec.has("prompt") && !spec.optString("prompt").isEmpty()) block.put("prompt", trimTo(spec.optString("prompt"), 240));
+            }
+            case "form" -> {
+                block.put("type", "form");
+                block.put("prompt", trimTo(spec.optString("prompt", title), 240));
+                JSONArray fields = spec.optJSONArray("fields");
+                if (fields == null) throw new IOException("form spec requires fields");
+                block.put("fields", fields);
+            }
+            case "toggle_group", "chip_filter", "slider", "progress_tracker" -> {
+                block.put("type", "controls");
+                if (spec.has("state_key")) block.put("state_key", spec.optString("state_key"));
+                if (spec.has("prompt") && !spec.optString("prompt").isEmpty()) block.put("prompt", trimTo(spec.optString("prompt"), 240));
+                JSONArray items = spec.optJSONArray("items");
+                if (items == null) items = spec.optJSONArray("controls");
+                if (items == null || items.length() == 0) {
+                    if ("slider".equals(kind)) {
+                        JSONObject slider = new JSONObject()
+                                .put("id", "valeur")
+                                .put("label", trimTo(spec.optString("label", title), 64))
+                                .put("kind", "slider")
+                                .put("min", spec.optDouble("min", 0))
+                                .put("max", spec.optDouble("max", 100));
+                        if (spec.has("step")) slider.put("step", spec.optDouble("step", 1));
+                        if (spec.has("default")) slider.put("default", spec.optDouble("default", 0));
+                        if (spec.has("unit") && !spec.optString("unit").isEmpty()) slider.put("unit", trimTo(spec.optString("unit"), 16));
+                        items = new JSONArray().put(slider);
+                    } else if ("chip_filter".equals(kind) && spec.optJSONArray("options") != null) {
+                        JSONObject chips = new JSONObject()
+                                .put("id", "filtre")
+                                .put("label", trimTo(spec.optString("label", title), 64))
+                                .put("kind", "chips")
+                                .put("options", spec.getJSONArray("options"))
+                                .put("multi", spec.optBoolean("multi", false));
+                        items = new JSONArray().put(chips);
+                    } else {
+                        throw new IOException(kind + " spec requires items");
+                    }
+                }
+                block.put("items", items);
+            }
+            case "map_compass" -> {
+                block.remove("title");
+                block.put("type", "nearby_places");
+                String cat = spec.optString("category", NearbyCategory.RESTAURANT.id);
+                block.put("category", NearbyCategory.valid(cat) ? cat : NearbyCategory.RESTAURANT.id);
+                if (spec.has("radius_m")) block.put("radius_m", spec.optInt("radius_m", NearbyCategory.DEFAULT_RADIUS_M));
+                if (spec.has("limit")) block.put("limit", spec.optInt("limit", NearbyCategory.DEFAULT_LIMIT));
+            }
+            case "markdown_card", "action_bar" -> {
+                block.put("type", "section");
+                String note = spec.optString("body", spec.optString("note", spec.optString("text", "")));
+                if (!note.isEmpty()) block.put("note", trimTo(note, 240));
+                JSONArray acts = spec.optJSONArray("actions");
+                if (acts != null && acts.length() > 0) block.put("actions", acts);
+                else if (note.isEmpty()) block.put("note", title);
+            }
+            default -> throw new IOException("Unsupported surface kind");
+        }
+        return new JSONObject()
+                .put("version", 2)
+                .put("surface", pageId)
+                .put("mode", "replace")
+                .put("title", title)
+                .put("blocks", new JSONArray().put(block))
+                .toString();
+    }
+
+    static String normalizePageId(String raw) throws IOException {
+        if (raw == null || raw.isEmpty()) throw new IOException("Missing surface_id");
+        if (WorkspaceLayout.SURFACES.containsKey(raw) || WorkspaceLayout.custom(raw)) return raw;
+        String slug = raw.startsWith("page/") ? raw.substring(5) : raw;
+        if (slug.length() > 36) slug = slug.substring(0, 36);
+        if (!slug.isEmpty() && Character.isDigit(slug.charAt(0))) slug = "s_" + (slug.length() > 34 ? slug.substring(0, 34) : slug);
+        if (!DraftForm.validId(slug)) throw new IOException("Invalid surface slug");
+        return "page/" + slug;
+    }
+
+    private static String trimTo(String raw, int max) {
+        String s = raw == null ? "" : raw.trim().replace('\n', ' ').replace('\r', ' ');
+        return s.length() > max ? s.substring(0, max).trim() : s;
+    }
+
+    private static Set<String> keySet(JSONObject obj) {
+        Set<String> keys = new HashSet<>();
+        java.util.Iterator<String> it = obj.keys();
+        while (it.hasNext()) keys.add(it.next());
+        return keys;
     }
 
     private static void allowOnly(Set<String> keys, String... allowed) throws IOException {
@@ -505,8 +822,13 @@ public final class LiveUiPatch {
         }
     }
 
+    static boolean containsSecret(String s) {
+        return s != null && WIDGET_SECRET.matcher(s).find();
+    }
+
     static boolean validText(String s, int max) {
         if (s == null || s.isEmpty() || s.length() > max) return false;
+        if (FORBIDDEN_PAYLOAD.matcher(s).find()) return false;
         boolean hasVisible = false;
         for (int i = 0; i < s.length(); ) {
             int cp = s.codePointAt(i);
@@ -534,9 +856,14 @@ public final class LiveUiPatch {
         catch (RuntimeException ignoredInHostJvmTests) {}
     }
 
+    private static void warnStateUnreadable() {
+        try { Diagnostics.warning("live_ui", "state_unreadable"); }
+        catch (RuntimeException ignoredInHostJvmTests) {}
+    }
+
     /**
      * Profile-scoped persistent state for live UI edits: custom Atelier tabs, custom composer quick-action chips,
-     * live theme override, and atomic rollback history. Works with Account in Android and in-memory BackingStore in JVM tests.
+     * widgets, live theme override, and atomic rollback history. Fails closed on storage corruption.
      */
     public static final class StateManager {
         public interface SurfaceAdapter {
@@ -574,6 +901,7 @@ public final class LiveUiPatch {
         private final List<WidgetSpec> widgets = new ArrayList<>();
         private ThemePalette.OverrideSpec theme = ThemePalette.OverrideSpec.defaults();
         private final List<AppliedRevision> history = new ArrayList<>();
+        private boolean corrupted;
 
         public StateManager(InstrumentStateStore.BackingStore store, SurfaceAdapter surfaces, boolean nightMode) {
             this.store = Objects.requireNonNull(store);
@@ -590,9 +918,9 @@ public final class LiveUiPatch {
                 @Override public void remove(String key) { account.remove(key); }
             };
             SurfaceAdapter adapter = new SurfaceAdapter() {
+                // Propagate LayoutHistory.Unreadable / PageLayouts.Damaged so damaged records are never overwritten silently.
                 @Override public String readCurrent(String surface) {
-                    try { return new LayoutHistory(account, surface).current(); }
-                    catch (RuntimeException e) { return ""; }
+                    return new LayoutHistory(account, surface).current();
                 }
                 @Override public void replace(String surface, String revisionId, String summary, String nextRaw) {
                     new LayoutHistory(account, surface).replaceWithRevision(revisionId, summary, nextRaw);
@@ -601,16 +929,30 @@ public final class LiveUiPatch {
             return new StateManager(backing, adapter, nightMode);
         }
 
+        public boolean isCorrupted() { return corrupted; }
         public List<CustomTab> tabs() { return Collections.unmodifiableList(new ArrayList<>(tabs)); }
         public List<QuickAction> quickActions() { return Collections.unmodifiableList(new ArrayList<>(quickActions)); }
         public List<WidgetSpec> widgets() { return Collections.unmodifiableList(new ArrayList<>(widgets)); }
         public ThemePalette.OverrideSpec theme() { return theme; }
         public List<AppliedRevision> history() { return Collections.unmodifiableList(new ArrayList<>(history)); }
-        public boolean canRollback() { return !history.isEmpty(); }
+        public boolean canRollback() { return !corrupted && !history.isEmpty(); }
 
-        /** Atomically applies all validated ops and records a full rollback snapshot. */
+        /** Explicit user-confirmed recovery of a corrupted workspace.live_ui.v2 record. */
+        public synchronized void resetCorrupted() {
+            store.remove(STATE_KEY);
+            store.remove("workspace.theme.v2");
+            tabs.clear();
+            quickActions.clear();
+            widgets.clear();
+            history.clear();
+            theme = ThemePalette.OverrideSpec.defaults();
+            corrupted = false;
+        }
+
+        /** Atomically applies all validated ops and records a full rollback snapshot. Refuses if state is corrupted. */
         public synchronized void apply(LiveUiPatch patch) throws IOException {
             Objects.requireNonNull(patch);
+            if (corrupted) throw new IOException("Live UI state is corrupted; explicit reset required");
             List<CustomTab> nextTabs = new ArrayList<>(tabs);
             List<QuickAction> nextActions = new ArrayList<>(quickActions);
             List<WidgetSpec> nextWidgets = new ArrayList<>(widgets);
@@ -618,7 +960,7 @@ public final class LiveUiPatch {
             Map<String, String> surfaceWrites = new LinkedHashMap<>();
             Map<String, String> priorSurfaces = new LinkedHashMap<>();
 
-            // Stage & validate all bounds before mutating anything.
+            // Stage & validate all bounds (and verify existing surface records are readable) before mutating anything.
             for (Op op : patch.ops) {
                 if (op instanceof Op.UpsertSurface up) {
                     priorSurfaces.putIfAbsent(up.surface(), surfaces.readCurrent(up.surface()));
@@ -672,6 +1014,7 @@ public final class LiveUiPatch {
 
         /** 1-tap atomic rollback of the most recent applied patch. */
         public synchronized AppliedRevision rollbackLast() throws IOException {
+            if (corrupted) throw new IOException("Live UI state is corrupted; explicit reset required");
             if (history.isEmpty()) return null;
             AppliedRevision last = history.remove(history.size() - 1);
             restoreSnapshot(last);
@@ -681,6 +1024,7 @@ public final class LiveUiPatch {
 
         /** Atomic rollback to the state right before the specified revisionId (reverting it and any later patches). */
         public synchronized AppliedRevision rollbackTo(String revisionId) throws IOException {
+            if (corrupted) throw new IOException("Live UI state is corrupted; explicit reset required");
             int target = -1;
             for (int i = history.size() - 1; i >= 0; i--) {
                 if (history.get(i).revisionId.equals(revisionId)) { target = i; break; }
@@ -693,6 +1037,13 @@ public final class LiveUiPatch {
             }
             persist();
             return reverted;
+        }
+
+        /** Collects every widget ID present in current state (helper for broadcasting HomePinBridge refreshes). */
+        public synchronized Set<String> widgetIds() {
+            Set<String> ids = new HashSet<>();
+            for (WidgetSpec w : widgets) ids.add(w.widgetId);
+            return ids;
         }
 
         private void restoreSnapshot(AppliedRevision snapshot) {
@@ -715,9 +1066,14 @@ public final class LiveUiPatch {
             widgets.clear();
             history.clear();
             theme = ThemePalette.OverrideSpec.defaults();
+            corrupted = false;
             String raw;
             try { raw = store.read(STATE_KEY); }
-            catch (RuntimeException e) { return; }
+            catch (RuntimeException unreadable) {
+                corrupted = true;
+                warnStateUnreadable();
+                return;
+            }
             if (raw == null || raw.isEmpty()) return;
             try {
                 decodeState(raw);
@@ -727,7 +1083,8 @@ public final class LiveUiPatch {
                 widgets.clear();
                 history.clear();
                 theme = ThemePalette.OverrideSpec.defaults();
-                warnRejected();
+                corrupted = true;
+                warnStateUnreadable();
             }
         }
 
@@ -753,7 +1110,9 @@ public final class LiveUiPatch {
             for (QuickAction a : quickActions) {
                 out.append("ACT\t").append(esc(a.id)).append('\t').append(esc(a.label))
                         .append('\t').append(esc(a.draft == null ? "" : a.draft))
-                        .append('\t').append(esc(a.page == null ? "" : a.page)).append('\n');
+                        .append('\t').append(esc(a.page == null ? "" : a.page))
+                        .append('\t').append(esc(a.destination == null ? "" : a.destination))
+                        .append('\t').append(esc(a.icon == null ? "" : a.icon)).append('\n');
             }
             for (WidgetSpec w : widgets) {
                 out.append("WDG\t").append(esc(encodeWidget(w))).append('\n');
@@ -783,11 +1142,16 @@ public final class LiveUiPatch {
                         tabs.add(new CustomTab(unesc(parts[1]), unesc(parts[2]), unesc(parts[3])));
                     }
                     case "ACT" -> {
-                        if (parts.length != 5 || quickActions.size() >= MAX_QUICK_ACTIONS) throw new IOException("Bad action row");
+                        if ((parts.length != 5 && parts.length != 7) || quickActions.size() >= MAX_QUICK_ACTIONS) {
+                            throw new IOException("Bad action row");
+                        }
                         String draft = unesc(parts[3]);
                         String page = unesc(parts[4]);
+                        String dest = parts.length == 7 ? unesc(parts[5]) : "";
+                        String icon = parts.length == 7 ? unesc(parts[6]) : "";
                         quickActions.add(new QuickAction(unesc(parts[1]), unesc(parts[2]),
-                                draft.isEmpty() ? null : draft, page.isEmpty() ? null : page));
+                                draft.isEmpty() ? null : draft, page.isEmpty() ? null : page,
+                                dest.isEmpty() ? null : dest, icon.isEmpty() ? null : icon));
                     }
                     case "WDG" -> {
                         if (parts.length != 2 || widgets.size() >= MAX_WIDGETS) throw new IOException("Bad widget row");
@@ -816,29 +1180,41 @@ public final class LiveUiPatch {
             StringBuilder items = new StringBuilder();
             for (WidgetItem item : w.items) {
                 if (items.length() > 0) items.append(',');
+                String checkedStr = item.checked == null ? "" : (item.checked ? "1" : "0");
                 items.append(esc(item.label)).append(':').append(esc(item.value)).append(':')
-                        .append(esc(item.actionDraft == null ? "" : item.actionDraft));
+                        .append(checkedStr).append(':').append(esc(item.actionDraft == null ? "" : item.actionDraft));
             }
             return esc(w.widgetId) + "|" + esc(w.title) + "|" + esc(w.subtitle) + "|" + esc(w.template)
-                    + "|" + esc(w.accentHex == null ? "" : w.accentHex) + "|" + esc(items.toString());
+                    + "|" + esc(w.accentHex == null ? "" : w.accentHex)
+                    + "|" + esc(w.accentInkHex == null ? "" : w.accentInkHex)
+                    + "|" + esc(items.toString());
         }
 
         private static WidgetSpec decodeWidget(String raw, boolean nightMode) throws IOException {
             String[] p = raw.split("\\|", -1);
-            if (p.length != 6) throw new IOException("Bad widget encoding");
+            if (p.length != 6 && p.length != 7) throw new IOException("Bad widget encoding");
+            boolean hasInk = p.length == 7;
+            String accent = unesc(p[4]);
+            String accentInk = hasInk ? unesc(p[5]) : "";
+            String itemsRaw = unesc(p[hasInk ? 6 : 5]);
             List<WidgetItem> items = new ArrayList<>();
-            String itemsRaw = unesc(p[5]);
             if (!itemsRaw.isEmpty()) {
                 for (String itemPart : itemsRaw.split(",", -1)) {
                     String[] f = itemPart.split(":", -1);
-                    if (f.length != 3) throw new IOException("Bad widget item encoding");
-                    String draft = unesc(f[2]);
-                    items.add(new WidgetItem(unesc(f[0]), unesc(f[1]), draft.isEmpty() ? null : draft));
+                    if (f.length == 3) {
+                        String draft = unesc(f[2]);
+                        items.add(new WidgetItem(unesc(f[0]), unesc(f[1]), null, draft.isEmpty() ? null : draft));
+                    } else if (f.length == 4) {
+                        Boolean checked = f[2].isEmpty() ? null : "1".equals(f[2]);
+                        String draft = unesc(f[3]);
+                        items.add(new WidgetItem(unesc(f[0]), unesc(f[1]), checked, draft.isEmpty() ? null : draft));
+                    } else {
+                        throw new IOException("Bad widget item encoding");
+                    }
                 }
             }
-            String accent = unesc(p[4]);
             return new WidgetSpec(unesc(p[0]), unesc(p[1]), unesc(p[2]), unesc(p[3]),
-                    items, accent.isEmpty() ? null : accent, true, nightMode);
+                    items, accent.isEmpty() ? null : accent, accentInk.isEmpty() ? null : accentInk, true, nightMode);
         }
 
         private static String encodeWidgets(List<WidgetSpec> list) {
@@ -853,9 +1229,7 @@ public final class LiveUiPatch {
         private static List<WidgetSpec> decodeWidgets(String raw, boolean nightMode) throws IOException {
             List<WidgetSpec> list = new ArrayList<>();
             if (raw.isEmpty()) return list;
-            for (String part : raw.split(";", -1)) {
-                list.add(decodeWidget(unesc(part), nightMode));
-            }
+            for (String part : raw.split(";", -1)) list.add(decodeWidget(unesc(part), nightMode));
             return list;
         }
 
@@ -905,7 +1279,9 @@ public final class LiveUiPatch {
                 if (sb.length() > 0) sb.append(';');
                 sb.append(esc(a.id)).append('|').append(esc(a.label)).append('|')
                         .append(esc(a.draft == null ? "" : a.draft)).append('|')
-                        .append(esc(a.page == null ? "" : a.page));
+                        .append(esc(a.page == null ? "" : a.page)).append('|')
+                        .append(esc(a.destination == null ? "" : a.destination)).append('|')
+                        .append(esc(a.icon == null ? "" : a.icon));
             }
             return sb.toString();
         }
@@ -915,11 +1291,14 @@ public final class LiveUiPatch {
             if (raw.isEmpty()) return list;
             for (String item : raw.split(";", -1)) {
                 String[] p = item.split("\\|", -1);
-                if (p.length != 4) throw new IOException("Bad quick action snapshot");
+                if (p.length != 4 && p.length != 6) throw new IOException("Bad quick action snapshot");
                 String draft = unesc(p[2]);
                 String page = unesc(p[3]);
+                String dest = p.length == 6 ? unesc(p[4]) : "";
+                String icon = p.length == 6 ? unesc(p[5]) : "";
                 list.add(new QuickAction(unesc(p[0]), unesc(p[1]),
-                        draft.isEmpty() ? null : draft, page.isEmpty() ? null : page));
+                        draft.isEmpty() ? null : draft, page.isEmpty() ? null : page,
+                        dest.isEmpty() ? null : dest, icon.isEmpty() ? null : icon));
             }
             return list;
         }
@@ -951,11 +1330,8 @@ public final class LiveUiPatch {
                 if (c != '%') { sb.append(c); continue; }
                 if (i + 2 >= s.length()) throw new IOException("Truncated escape");
                 String hex = s.substring(i + 1, i + 3);
-                try {
-                    sb.append((char) Integer.parseInt(hex, 16));
-                } catch (NumberFormatException e) {
-                    throw new IOException("Invalid escape", e);
-                }
+                try { sb.append((char) Integer.parseInt(hex, 16)); }
+                catch (NumberFormatException e) { throw new IOException("Invalid escape", e); }
                 i += 2;
             }
             return sb.toString();

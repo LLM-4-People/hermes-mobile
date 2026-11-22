@@ -222,12 +222,20 @@ public final class LiveUiPatchBar extends LinearLayout {
 
     /**
      * Populates a horizontal quick-action chip strip above the composer.
-     * Tapping a chip ONLY prepares an editable draft or opens a surface — never auto-sends.
+     * Tapping a chip ONLY prepares an editable draft, opens a surface, or opens a destination — never auto-sends.
      */
     public static View quickActionStrip(Context context, List<LiveUiPatch.QuickAction> actions,
                                         ThemePalette palette,
                                         java.util.function.Consumer<String> stageDraft,
                                         java.util.function.Consumer<String> openSurface) {
+        return quickActionStrip(context, actions, palette, stageDraft, openSurface, null);
+    }
+
+    public static View quickActionStrip(Context context, List<LiveUiPatch.QuickAction> actions,
+                                        ThemePalette palette,
+                                        java.util.function.Consumer<String> stageDraft,
+                                        java.util.function.Consumer<String> openSurface,
+                                        java.util.function.Consumer<String> openAction) {
         HorizontalScrollView scroll = new HorizontalScrollView(context);
         scroll.setHorizontalScrollBarEnabled(false);
         LinearLayout row = Ui.row(context);
@@ -244,6 +252,7 @@ public final class LiveUiPatchBar extends LinearLayout {
             Button chip = Ui.button(context, action.label, v -> {
                 if (action.draft != null && stageDraft != null) stageDraft.accept(action.draft);
                 else if (action.page != null && openSurface != null) openSurface.accept(action.page);
+                else if (action.nativeActionId() != null && openAction != null) openAction.accept(action.nativeActionId());
             });
             chip.setTag("quick-action-" + action.id);
             chip.setTextSize(14);
@@ -257,7 +266,7 @@ public final class LiveUiPatchBar extends LinearLayout {
             chip.setBackground(bg);
             chip.setContentDescription(action.draft != null
                     ? action.label + ", préparer un brouillon"
-                    : action.label + ", ouvrir l’écran");
+                    : action.label + ", ouvrir");
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
             lp.setMarginEnd(Ui.dp(context, 6));
             row.addView(chip, lp);
@@ -268,13 +277,22 @@ public final class LiveUiPatchBar extends LinearLayout {
 
     /**
      * Renders optional contextual "Actions rapides suggérées" chips below a Hermes reply.
-     * Every chip is 1-tap safe (stages an editable draft, opens a surface, or opens a native panel — never auto-sends).
+     * Every chip is 1-tap safe (stages an editable draft, opens a surface, opens a native panel, or pins a widget — never auto-sends).
      */
     public static View suggestedActionsStrip(Context context, List<LiveUiPatch.SuggestedAction> suggestions,
                                              ThemePalette palette,
                                              java.util.function.Consumer<String> stageDraft,
                                              java.util.function.Consumer<String> openSurface,
                                              java.util.function.Consumer<String> openAction) {
+        return suggestedActionsStrip(context, suggestions, palette, stageDraft, openSurface, openAction, null);
+    }
+
+    public static View suggestedActionsStrip(Context context, List<LiveUiPatch.SuggestedAction> suggestions,
+                                             ThemePalette palette,
+                                             java.util.function.Consumer<String> stageDraft,
+                                             java.util.function.Consumer<String> openSurface,
+                                             java.util.function.Consumer<String> openAction,
+                                             java.util.function.Consumer<String> pinWidget) {
         LinearLayout container = Ui.column(context);
         if (suggestions == null || suggestions.isEmpty()) {
             container.setVisibility(GONE);
@@ -299,6 +317,7 @@ public final class LiveUiPatchBar extends LinearLayout {
                 if (item.draft != null && stageDraft != null) stageDraft.accept(item.draft);
                 else if (item.page != null && openSurface != null) openSurface.accept(item.page);
                 else if (item.action != null && openAction != null) openAction.accept(item.action);
+                else if (item.widgetId != null && pinWidget != null) pinWidget.accept(item.widgetId);
             });
             chip.setTag("suggested-action-" + i);
             chip.setTextSize(colors.scaledSp(14));
