@@ -2,6 +2,7 @@ package org.llm4people.hermes.artifact;
 
 import android.test.InstrumentationTestCase;
 import java.io.IOException;
+import java.util.Arrays;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -24,7 +25,64 @@ public final class ArtifactContractTest extends InstrumentationTestCase {
         invalid(EXAMPLE.replace("{\"type\":\"content\"}", "{\"type\":\"content\",\"note\":\"X\"}"));
         invalid(EXAMPLE.replace("Atelier", "A\u202eX"));
         invalid(EXAMPLE + " {}");
-        invalid("[".repeat(10000));
+        invalid(pad('[', 10000));
+    }
+
+    public void testLayoutRequiresJsonStringSyntaxAndVisibleLabelBoundaries() throws Exception {
+        for (String title : new String[]{"Alph\\q", "A\\u＋023", "A\\u００４１", "A\nB",
+                "\u2003", "\u00a0", "\u202fNom", "Nom\u2002"}) {
+            invalid(EXAMPLE.replace("Atelier", title));
+        }
+        invalid(EXAMPLE.replace("\"title\"", "\"tit\\le\""));
+        String wire = "Code \\\\q \\\"été\\\"\\u00a0\\/ Notes";
+        assertEquals("Code \\q \"été\"\u00a0/ Notes",
+                WorkspaceLayout.parse(EXAMPLE.replace("Atelier", wire)).title);
+    }
+
+    public void testNewestFencesSurviveTheBoundWithinAndAcrossMessages() throws Exception {
+        StringBuilder older = new StringBuilder();
+        for (int revision = 1; revision <= 257; revision++)
+            older.append("~~~txt file=build.txt\n").append(revision).append("\n~~~\n");
+        JSONArray rows = new JSONArray().put(message("assistant", older.toString()));
+        assertWindow(new ArtifactCatalog(rows), "2", "257");
+        rows.put(message("assistant", "~~~txt file=build.txt\n258\n~~~\n~~~txt file=build.txt\nunfinished"));
+        assertWindow(new ArtifactCatalog(rows), "3", "258");
+    }
+
+    private static void assertWindow(ArtifactCatalog catalog, String oldest, String latest) {
+        assertTrue(catalog.limited);
+        assertEquals(1, catalog.records.size());
+        ArtifactCatalog.Record record = catalog.records.get(0);
+        assertEquals(256, record.versions.size());
+        assertEquals(oldest, record.versions.get(0));
+        assertEquals(latest, record.versions.get(record.versions.size() - 1));
+    }
+
+    public void testTextAndTypedPartsShareInclusiveMessageLimit() throws Exception {
+        String fence = "~~~txt file=answer.txt\nx\n~~~";
+        String padding = pad(' ', ArtifactCatalog.MAX_MESSAGE_CHARS - fence.length() - 1);
+        for (String prefix : new String[]{padding, padding + " "}) {
+            String full = prefix + "\n" + fence;
+            for (Object content : new Object[]{full,
+                    new JSONArray().put(part("output_text", full)),
+                    new JSONArray().put(part("text", prefix)).put(part("output_text", fence))}) {
+                ArtifactCatalog catalog = new ArtifactCatalog(new JSONArray().put(message("assistant", content)));
+                boolean tooLong = full.length() > ArtifactCatalog.MAX_MESSAGE_CHARS;
+                assertEquals(tooLong, catalog.limited);
+                assertEquals(tooLong ? 0 : 1, catalog.records.size());
+                if (!tooLong) assertEquals("x", catalog.records.get(0).versions.get(0));
+            }
+        }
+    }
+
+    private static JSONObject part(String type, String text) throws Exception {
+        return new JSONObject().put("type", type).put("text", text);
+    }
+
+    private static String pad(char c, int length) {
+        char[] chars = new char[length];
+        Arrays.fill(chars, c);
+        return new String(chars);
     }
 
     public void testVersionsAreIsolatedByFilenameSurfaceAndRole() throws Exception {

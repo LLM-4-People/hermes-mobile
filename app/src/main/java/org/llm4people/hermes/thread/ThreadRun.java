@@ -18,7 +18,7 @@ final class ThreadRun {
     private RunFollower.Frame frame;
     private boolean submitting;
     private long started = -1;
-    private int retries;
+    private long subscription;
     private String statusPath() { return "/v1/runs/" + HermesApi.segment(runId()); }
     private String runId() { return ThreadData.string(journal.pending(), "run_id"); }
 
@@ -50,6 +50,7 @@ final class ThreadRun {
         ui.outgoing(ThreadData.string(pending.optJSONObject("body"), "input"));
         ui.busy(true, !runId().isEmpty());
         if (runId().isEmpty()) submitWithCapabilities(pending.optJSONObject("body"), false);
+        else if (journal.reconnectsExhausted()) trackingInterrupted();
         else follow();
     }
 
@@ -173,43 +174,46 @@ final class ThreadRun {
     private void follow() {
         if (follower != null) follower.close();
         int token = page.token();
+        long serial = ++subscription;
+        JSONObject receipt = journal.pending();
         String id = runId();
         if (id.isEmpty()) return;
+        frame = null;
         ui.busy(true, true);
         ui.live("Hermes travaille…", ThreadData.string(journal.pending(), "preview"), false);
-        RunFollower subscription = new RunFollower(page.api, id, journal.pending(), started, new RunFollower.Listener() {
+        RunFollower nextFollower = new RunFollower(page.api, id, receipt, started, new RunFollower.Listener() {
+            private boolean current() { return serial == subscription && receipt == journal.pending(); }
+
+            private void deliver(Runnable update) {
+                page.deliver(token, () -> { if (current()) update.run(); });
+            }
+
             @Override public void update(RunFollower.Frame next) {
-                page.deliver(token, () -> {
-                    if (journal.pending() == null) return;
+                deliver(() -> {
                     frame = next;
                     ui.live(next.activity, next.text, next.approval != null);
                     ui.notice("", "", null);
                 });
             }
             @Override public void complete(JSONObject status, long firstText, long elapsed) {
-                page.deliver(token, () -> completed(status, firstText, elapsed));
+                deliver(() -> completed(status, firstText, elapsed));
             }
             @Override public void unknown(JSONObject status) {
-                page.deliver(token, () -> unresolved(status));
+                deliver(() -> unresolved(status));
             }
             @Override public void disconnected() {
-                page.deliver(token, () -> {
+                deliver(() -> {
                     checkpoint();
-                    page.queueSave();
                     started = -1;
-                    if (++retries <= 5) {
-                        ui.notice("Connexion interrompue. Reconnexion en cours…", "", null);
-                        page.main.postDelayed(() -> { if (token == page.token()) follow(); },
-                                1000L << (retries - 1));
-                    } else {
-                        ui.notice("Suivi interrompu. Vous pouvez consulter la conversation.",
-                                "Vérifier la conversation", () -> page.loadMessages(false, ThreadRun.this::reviewLost));
-                    }
+                    long delay = journal.nextReconnectDelayMillis();
+                    if (delay < 0) { trackingInterrupted(); return; }
+                    ui.notice("Connexion interrompue. Reconnexion en cours…", "", null);
+                    page.main.postDelayed(() -> { if (token == page.token() && current()) follow(); }, delay);
                 });
             }
         });
-        follower = subscription;
-        page.workers.execute(subscription::follow);
+        follower = nextFollower;
+        page.workers.execute(nextFollower::follow);
     }
 
     private void unresolved(JSONObject status) {
@@ -243,12 +247,24 @@ final class ThreadRun {
         }, done -> follow(), error -> page.error(error, this::follow));
     }
 
+    private void trackingInterrupted() {
+        ui.notice("Suivi interrompu. Vous pouvez consulter la conversation.",
+                "Vérifier la conversation", () -> page.loadMessages(false, this::reviewLost));
+    }
+
     private void reviewLost() {
-        ui.notice("Le résultat reste inconnu.", "Reprendre le suivi", () -> { retries = 0; follow(); });
+        JSONObject receipt = journal.pending();
+        Runnable resume = () -> {
+            if (receipt == null || receipt != journal.pending()) return;
+            try { journal.resetReconnects(); }
+            catch (IllegalStateException unavailable) { page.storageError(); return; }
+            follow();
+        };
+        ui.notice("Le résultat reste inconnu.", "Reprendre le suivi", resume);
         ui.show(new AlertDialog.Builder(page.activity).setTitle("Suivi interrompu")
                 .setMessage("Reprenez le suivi pour retrouver l’état du traitement sur la passerelle.")
                 .setNegativeButton("Clore le suivi…", (d,w) -> offerDismiss())
-                .setPositiveButton("Reprendre", (d,w) -> { retries = 0; follow(); }));
+                .setPositiveButton("Reprendre", (d,w) -> resume.run()));
     }
 
     private void completed(JSONObject status, long firstText, long elapsed) {

@@ -234,11 +234,11 @@ public final class ThreadWorkspace implements AutoCloseable {
             return;
         }
         ThreadIdentity listed = ThreadIdentity.find(inbox, id);
-        if (listed != null) { open(listed, "Conversation"); return; }
+        if (listed != null) { open(listed, listed.label); return; }
         inbox("Recherche de la conversation…", null);
         int lookup = generation;
         request(() -> ThreadIdentity.resolve(api, id, () -> lookup == generation), identity -> {
-            if (identity != null) open(identity, "Conversation");
+            if (identity != null) open(identity, identity.label);
             else inbox("Cette conversation est introuvable dans le profil actif.", null);
         }, e -> error(e, () -> open(id)));
     }
@@ -317,7 +317,8 @@ public final class ThreadWorkspace implements AutoCloseable {
         int offset = older ? messageOffset : 0;
         String path = ThreadData.path(session);
         int requestNo = ++transcriptRequest;
-        request(() -> api.get(path + "/messages?order=latest&limit=" + ThreadData.PAGE + "&offset=" + offset), data -> {
+        int titleVersion = metadataRequest;
+        request(() -> api.get(path + "/messages?order=latest&visible_only=true&limit=" + ThreadData.PAGE + "&offset=" + offset), data -> {
             if (requestNo != transcriptRequest) return;
             loading = false;
             JSONArray page = data.optJSONArray("data");
@@ -325,14 +326,26 @@ public final class ThreadWorkspace implements AutoCloseable {
             String tip = ThreadData.string(data, "session_id");
             if (ThreadData.validId(tip)) remoteSession = tip;
             int oldSize = messages.length();
-            messages = ThreadData.join(page, older ? messages : new JSONArray());
+            messages = ThreadData.visibleMessages(ThreadData.join(page, older ? messages : new JSONArray()));
+            // Advance by the rows this response actually returned. The scroll anchor counts displayed rows.
             messageOffset = offset + page.length();
-            boolean hasMore = page.length() == ThreadData.PAGE;
+            long total = ThreadContext.visibleTotal(data);
+            boolean hasMore = total < 0 ? page.length() == ThreadData.PAGE : messageOffset < total;
             emptyTranscript = messages.length() == 0 && !hasMore;
             screen.rows(messages, hasMore, !older && !emptyTranscript,
                     older ? messages.length() - oldSize : 0);
             if (journal.pending() == null) screen.notice("", "", null);
-            if (!older) refreshContext();
+            long previousCount = messageCount;
+            messageCount = ThreadContext.messageCount(total, page.length(), messages.length());
+            boolean receivedTitle = data.has("thread_title");
+            if (receivedTitle) legacyTitleTip = null;
+            String nextTitle = titleVersion == metadataRequest
+                    ? ThreadContext.title(data, "thread_title", title) : title;
+            if (previousCount != messageCount || !title.equals(nextTitle)) {
+                title = nextTitle;
+                host.selected(session, title);
+            }
+            if (!older && !receivedTitle && titleVersion == metadataRequest) readLegacyTitle();
             if (loaded != null) loaded.run();
             updateStarters();
         }, e -> {
@@ -341,19 +354,26 @@ public final class ThreadWorkspace implements AutoCloseable {
             error(e, () -> loadMessages(older, loaded));
         });
     }
-    private void refreshContext() {
-        String path = ThreadData.path(remoteSession);
-        int version = ++metadataRequest;
-        request(() -> api.get(path), response -> {
-            JSONObject row = response.optJSONObject("session");
-            if (row != null && metadataRequest == version) {
-                title = ThreadData.title(row);
-                messageCount = row.optLong("message_count", -1);
+    // Older gateways return segment titles separately. Check the root only when the live tip
+    // is untitled. A page navigation or polling refresh never scans segments or walks older pages.
+    private void readLegacyTitle() {
+        String root = session;
+        String tip = remoteSession;
+        if (tip.equals(legacyTitleTip)) return;
+        legacyTitleTip = tip;
+        int version = metadataRequest;
+        request(() -> ThreadContext.legacyTitle(root, tip, api::get), label -> {
+            if (version == metadataRequest && tip.equals(legacyTitleTip) && !label.isEmpty() && !label.equals(title)) {
+                title = label;
                 host.selected(session, title);
             }
-        }, failure -> Diagnostics.event("threads", "metadata_unavailable"));
+        }, failure -> {
+            if (tip.equals(legacyTitleTip)) legacyTitleTip = null;
+            Diagnostics.event("threads", "metadata_unavailable");
+        });
     }
 
+    private String legacyTitleTip;
     private int metadataRequest;
     private int transcriptRequest;
 
@@ -382,6 +402,7 @@ public final class ThreadWorkspace implements AutoCloseable {
         messageCount = -1;
         emptyTranscript = false;
         starters = null;
+        legacyTitleTip = null;
         screen = new ThreadViews(activity, voice);
         container.removeAllViews();
         container.addView(screen.root);

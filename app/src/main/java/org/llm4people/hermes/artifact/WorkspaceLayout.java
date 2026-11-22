@@ -67,6 +67,7 @@ final class WorkspaceLayout {
 
     static WorkspaceLayout parse(String raw) throws IOException {
         require(raw != null && raw.length() <= MAX_CHARS);
+        validateJsonStrings(raw);
         WorkspaceLayout layout = new WorkspaceLayout();
         Set<String> fields = new HashSet<>();
         try (JsonReader in = new JsonReader(new StringReader(raw))) {
@@ -105,6 +106,31 @@ final class WorkspaceLayout {
         }
     }
 
+    // Android's strict JsonReader still decodes unknown escapes as literal characters.
+    // Check string syntax before it discards the original spelling of field names and values.
+    private static void validateJsonStrings(String raw) throws IOException {
+        boolean quoted = false;
+        for (int i = 0; i < raw.length(); i++) {
+            char c = raw.charAt(i);
+            if (c == '"') {
+                quoted = !quoted;
+            } else if (quoted) {
+                require(c >= 0x20);
+                if (c != '\\') continue;
+                require(++i < raw.length());
+                char escape = raw.charAt(i);
+                if (escape == 'u') {
+                    require(i + 4 < raw.length());
+                    for (int digit = 0; digit < 4; digit++)
+                        require("0123456789abcdefABCDEF".indexOf(raw.charAt(++i)) >= 0);
+                } else {
+                    require("\"\\/bfnrt".indexOf(escape) >= 0);
+                }
+            }
+        }
+        require(!quoted);
+    }
+
     static boolean custom(String id) {
         return id != null && id.startsWith("page/") && DraftForm.validId(id.substring(5));
     }
@@ -127,7 +153,8 @@ final class WorkspaceLayout {
     static String label(JsonReader in, int max) throws IOException {
         require(in.peek() == JsonToken.STRING);
         String s = in.nextString();
-        require(!s.trim().isEmpty() && s.length() <= max && s.equals(s.trim()));
+        require(!s.isEmpty() && s.length() <= max);
+        require(!Character.isSpaceChar(s.codePointAt(0)) && !Character.isSpaceChar(s.codePointBefore(s.length())));
         for (int i = 0; i < s.length();) {
             int cp = s.codePointAt(i);
             int kind = Character.getType(cp);

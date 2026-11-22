@@ -83,6 +83,16 @@ final class ThreadData {
         return joined;
     }
 
+    static JSONArray visibleMessages(JSONArray rows) {
+        JSONArray visible = new JSONArray();
+        for (int i = 0; i < rows.length(); i++) {
+            JSONObject row = rows.optJSONObject(i);
+            if (row != null && !"session_meta".equals(string(row, "role"))
+                    && !"hidden".equals(string(row, "display_kind"))) visible.put(row);
+        }
+        return visible;
+    }
+
     static JSONObject body(String id, String text, JSONObject options) {
         JSONObject body = put(put(new JSONObject(), "session_id", id), "input", text);
         if (options != null) {

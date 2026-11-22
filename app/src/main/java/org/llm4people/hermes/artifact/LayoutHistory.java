@@ -9,11 +9,18 @@ import org.llm4people.hermes.profile.Account;
 final class LayoutHistory {
     private final Account account;
     final String surface;
+    private final String key;
+
+    static final class Unreadable extends IllegalStateException {
+        private Unreadable(Throwable cause) { super("Unreadable workspace record", cause); }
+    }
+
     LayoutHistory(Account account, String surface) {
         if (!WorkspaceLayout.SURFACES.containsKey(surface) && !WorkspaceLayout.custom(surface))
             throw new IllegalArgumentException("Unknown screen");
         this.account = account;
         this.surface = surface;
+        key = "workspace.v1." + surface;
     }
 
     private JSONObject read() {
@@ -21,10 +28,15 @@ final class LayoutHistory {
             JSONObject row = PageLayouts.read(account).optJSONObject(surface);
             return row == null ? new JSONObject() : row;
         }
-        String raw = account.read("workspace.v1." + surface);
-        if (raw == null) return new JSONObject();
-        try { return new JSONObject(raw); }
-        catch (JSONException e) { throw new IllegalStateException("Unreadable workspace record"); }
+        try {
+            String raw = account.read(key);
+            if (raw == null) return new JSONObject();
+            JSONObject record = new JSONObject(raw);
+            if (!(record.opt("current") instanceof String)
+                    || (record.has("previous") && !(record.opt("previous") instanceof String)))
+                throw new JSONException("Invalid layout history");
+            return record;
+        } catch (Account.UnreadableRecord | JSONException e) { throw new Unreadable(e); }
     }
 
     private void update(UnaryOperator<JSONObject> mutation) {
@@ -36,8 +48,8 @@ final class LayoutHistory {
             JSONObject old = read();
             JSONObject updated = mutation.apply(old);
             if (updated == old) return;
-            if (updated == null) account.remove("workspace.v1." + surface);
-            else account.write("workspace.v1." + surface, updated.toString());
+            if (updated == null) account.remove(key);
+            else account.write(key, updated.toString());
         }
     }
 
@@ -51,6 +63,16 @@ final class LayoutHistory {
             try { return new JSONObject().put("current", next).put("previous", previous); }
             catch (JSONException e) { throw new IllegalStateException(e); }
         });
+    }
+
+    /** Discard only an explicitly selected native surface that is still unreadable at confirmation. */
+    void resetUnreadable() {
+        if (!WorkspaceLayout.SURFACES.containsKey(surface)) throw new IllegalStateException("Not a native screen");
+        synchronized (LayoutHistory.class) {
+            try { read(); }
+            catch (Unreadable e) { account.remove(key); return; }
+            throw new IllegalStateException("Layout history is readable");
+        }
     }
 
     void undo() {
