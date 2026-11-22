@@ -9,6 +9,7 @@ import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.CheckBox;
+import android.widget.CheckedTextView;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ListView;
@@ -22,6 +23,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 final class SessionSettings {
@@ -154,26 +156,41 @@ final class SessionSettings {
         ArrayAdapter<T> adapter = new ArrayAdapter<>(panel.activity, R.layout.discussion_setting_choice,
                 new ArrayList<>(choices));
         list.setAdapter(adapter);
-        int selected = adapter.getPosition(current);
-        if (selected >= 0) list.setItemChecked(selected, true);
+        restoreChoice(list, adapter.getPosition(current));
         list.setEmptyView(empty);
-        list.setOnItemClickListener((p, v, i, rowId) -> select.accept(adapter.getItem(i)));
+        BooleanSupplier currentPage = panel.currentPage();
+        list.setOnItemClickListener((p, v, i, rowId) -> {
+            select.accept(adapter.getItem(i));
+            // Both successful choices navigate away. A failed save leaves the picker open.
+            if (currentPage.getAsBoolean()) {
+                int committed = adapter.getPosition(current);
+                restoreChoice(list, committed);
+                // Native clicks update visible radio buttons immediately; setItemChecked defers layout.
+                int first = list.getFirstVisiblePosition();
+                for (int child = 0; child < list.getChildCount(); child++) {
+                    ((CheckedTextView) list.getChildAt(child)).setChecked(first + child == committed);
+                }
+            }
+        });
         box.addView(list, new LinearLayout.LayoutParams(-1, 0, 1));
         search.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
                 String needle = s.toString().trim().toLowerCase(java.util.Locale.ROOT);
-                list.clearChoices();
                 adapter.setNotifyOnChange(false);
                 adapter.clear();
                 for (T choice : choices)
                     if (choice.toString().toLowerCase(java.util.Locale.ROOT).contains(needle)) adapter.add(choice);
                 adapter.notifyDataSetChanged();
-                int position = adapter.getPosition(current);
-                if (position >= 0) list.setItemChecked(position, true);
+                restoreChoice(list, adapter.getPosition(current));
             }
             @Override public void afterTextChanged(Editable s) {}
         });
+    }
+
+    private void restoreChoice(ListView list, int committed) {
+        list.clearChoices();
+        if (committed >= 0) list.setItemChecked(committed, true);
     }
 
     private static Set<String> names(JSONArray array) {
