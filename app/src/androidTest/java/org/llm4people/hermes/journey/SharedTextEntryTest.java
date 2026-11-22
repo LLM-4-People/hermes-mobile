@@ -53,6 +53,7 @@ public final class SharedTextEntryTest extends InstrumentationTestCase {
                 ui.fill("Phrase secrète du profil", profile.passphrase);
                 ui.tap("Déverrouiller");
                 ui.see("Ajouter au brouillon ?");
+                ui.contains(profile.label, "Identifiant : " + thread);
                 if (recreate) {
                     Instrumentation.ActivityMonitor monitor = driver.addMonitor(MainActivity.class.getName(), null, false);
                     try {
@@ -67,6 +68,7 @@ public final class SharedTextEntryTest extends InstrumentationTestCase {
                     ui.fill("Phrase secrète du profil", profile.passphrase);
                     ui.tap("Déverrouiller");
                     ui.see("Ajouter au brouillon ?");
+                    ui.contains(profile.label, "Identifiant : " + thread);
                 }
                 assertEquals("Mon texte initial", new JSONObject(profile.account.read("thread:" + thread)).getString("draft"));
                 ui.tap("Ajouter au brouillon");
