@@ -4,6 +4,7 @@ import json
 import re
 import sys
 import time
+from dataclasses import dataclass
 
 from .stack import eventually
 
@@ -34,7 +35,7 @@ def own_group_expander(ui, root):
 def presentation(ui, root, title):
     nodes = list(root.iter("node"))
     return {
-        "system_ui": any(n.get("package") == SYSTEM_UI for n in nodes),
+        "system_ui": root.get("package") == SYSTEM_UI,
         "notification_stack": ui.node(STACK, root) is not None,
         "notification_rows": sum(n.get("resource-id") == ROW for n in nodes),
         "scrollable": any(n.get("scrollable") == "true" for n in nodes),
@@ -45,12 +46,49 @@ def presentation(ui, root, title):
     }
 
 
-def shade_focused(device):
+def shade_window(device):
     windows = device.shell("dumpsys", "window")
     # Android 13 names its TYPE_NOTIFICATION_SHADE window "NotificationShade".
     # The same SystemUI stack can also render heads-up rows while the launcher owns focus.
-    return re.search(r"\bmCurrentFocus=Window\{[^}\n]*\bu\d+\s+"
-                     r"(?:com\.android\.systemui/)?NotificationShade\}", windows) is not None
+    match = re.search(r"\bmCurrentFocus=(Window\{[^}\n]*\bu\d+\s+"
+                      r"(?:com\.android\.systemui/)?NotificationShade\})", windows)
+    return match.group(1) if match else None
+
+
+def shade_focused(device):
+    return shade_window(device) is not None
+
+
+@dataclass(frozen=True)
+class NoticeView:
+    focused_window: str
+    accessibility_window: int
+    heading: tuple
+    body: tuple
+
+
+def current_notice(ui, title):
+    # Evidence must observe the immediately visible window without dismissing SystemUI dialogs.
+    root = ui.snapshot()
+    if root is None or root.get("package") != SYSTEM_UI or not root.get("window-id", "").isdigit():
+        return None
+    headings = [n for n in root.iter("node") if n.get("text") == title]
+    if len(headings) != 1:
+        return None
+    heading = headings[0]
+    # A native row, when exposed, scopes the optional generic body to the same alert.
+    row = next((r for r in root.iter("node") if r.get("resource-id") == ROW
+                and any(n is heading for n in r.iter("node"))), root)
+    bodies = [n for n in row.iter("node") if n.get("text") == BODY]
+    heading_box = bounds(heading)
+    body_box = bounds(bodies[0]) if len(bodies) == 1 else ()
+    for box in [heading_box] + ([body_box] if body_box else []):
+        if len(box) != 4 or min(box) < 0 or box[0] >= box[2] or box[1] >= box[3]:
+            return None
+    window = shade_window(ui.device)
+    if window is not None:
+        return NoticeView(window, int(root.get("window-id")), heading_box, body_box)
+    return None
 
 
 def show_notice(ui, title):
