@@ -24,4 +24,4 @@ runs:
         [[ "$sdk" =~ ^[0-9]+$ && "$tools" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
         echo "sdk=$sdk" >> "$GITHUB_OUTPUT"
         echo "tools=$ANDROID_HOME/build-tools/$tools" >> "$GITHUB_OUTPUT"
-        sdkmanager "platforms;android-$sdk" "build-tools;$tools" > /dev/null
+        "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-$sdk" "build-tools;$tools" > /dev/null
