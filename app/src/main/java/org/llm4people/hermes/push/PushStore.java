@@ -100,6 +100,7 @@ final class PushStore extends SQLiteOpenHelper {
         }
 
         boolean unified() { return distributor != null; }
+        boolean retryScheduled() { return retryAt != 0; }
 
         boolean receives() {
             return ACTIVE.equals(state) || established && (PENDING.equals(state)
@@ -244,11 +245,14 @@ final class PushStore extends SQLiteOpenHelper {
     }
 
     void registered(Device device) {
+        if (!device.retryScheduled() && !RENEW.equals(device.failure)) return;
         ContentValues data = new ContentValues();
         data.put("retry_at", 0);
         if (RENEW.equals(device.failure)) data.putNull("failure");
-        getWritableDatabase().update("devices", data, "installation=? AND state=? AND subscription IS NULL",
-                new String[]{device.installation, PENDING});
+        if (getWritableDatabase().update("devices", data,
+                "installation=? AND state=? AND subscription IS NULL AND retry_at=? AND failure=?",
+                new String[]{device.installation, PENDING, Long.toString(device.retryAt), device.failure}) > 0)
+            changes.notifyChanged();
     }
 
     void uploadRejected(Device device, String cause) {

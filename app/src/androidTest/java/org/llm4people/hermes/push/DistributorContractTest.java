@@ -2,6 +2,7 @@ package org.llm4people.hermes.push;
 
 import android.Manifest;
 import android.content.Context;
+import android.database.DataSetObserver;
 import android.os.Build;
 import android.test.InstrumentationTestCase;
 
@@ -109,6 +110,32 @@ public final class DistributorContractTest extends InstrumentationTestCase {
             assertEquals(PushStore.RENEW, device.failure);
             store.registered(device);
         }
+    }
+
+    public void testRegistrationHandoffNotifiesOnceAndRetainsNewerRetry() throws Exception {
+        prepare("https://example.test");
+        assertTrue(store.registrationFailed(device, FailedReason.NETWORK, 1000));
+        PushStore.Device due = store.forProfile(device.profile);
+        int[] changes = {0};
+        DataSetObserver observer = new DataSetObserver() {
+            @Override public void onChanged() { changes[0]++; }
+        };
+        store.observe(observer);
+        try {
+            store.registered(due);
+            assertEquals(1, changes[0]);
+            PushStore.Device waiting = store.forProfile(device.profile);
+            assertEquals(0L, waiting.retryAt);
+            assertEquals(due.state, waiting.state);
+            assertEquals(due.failure, waiting.failure);
+            store.registered(due);
+            assertEquals(1, changes[0]);
+            assertTrue(store.registrationFailed(waiting, FailedReason.NETWORK, 2000));
+            long next = store.forProfile(device.profile).retryAt;
+            store.registered(due);
+            assertEquals(2, changes[0]);
+            assertEquals(next, store.forProfile(device.profile).retryAt);
+        } finally { store.stopObserving(observer); }
     }
 
     public void testRejectedServerEndpointDeliberatelyRenewsBinding() throws Exception {
