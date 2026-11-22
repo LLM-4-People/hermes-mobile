@@ -39,7 +39,7 @@ public final class DeviceJourney extends Instrumentation {
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK));
             if ((activity.getWindow().getAttributes().flags & WindowManager.LayoutParams.FLAG_SECURE) == 0)
                 throw new AssertionError("Private workspace allows external screen capture");
-            ui = new JourneyUi(this, activity, dir);
+            ui = new JourneyUi(this, activity, new File(dir, fixture.getString("run")));
             switch (phase) {
                 case "work": work(); break;
                 case "restart": restart(); break;

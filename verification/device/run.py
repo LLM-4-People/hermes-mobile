@@ -82,7 +82,8 @@ class Emulator:
 def model_provider(endpoint, key):
     query = urllib.request.Request(endpoint + "/api/model/options?include_unconfigured=false",
                                    headers={"Authorization": "Bearer " + key})
-    with urllib.request.urlopen(query, timeout=15) as response:
+    client = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    with client.open(query, timeout=15) as response:
         catalog = json.load(response)
     for row in catalog["providers"]:
         if row.get("authenticated", True) and "fake-model" in row["models"]:
@@ -106,7 +107,10 @@ def run(device, output):
                    "secondKey": os.environ["HERMES_TEST_SECOND_BEARER"],
                    "run": number, "phrase": secrets.token_hex(16), "secondPhrase": secrets.token_hex(16),
                    "draft": "Brouillon privé " + number, "provider": model_provider(primary, key)}
-        device.shell("run-as", APP, "mkdir", "-p", DEVICE_DIR)
+        capture_dir = DEVICE_DIR + "/" + number
+        device.shell("run-as", APP, "mkdir", "-p", capture_dir)
+        output = output / number
+        output.mkdir()
         device.run("shell", "run-as", APP, "sh", "-c", f"'umask 077 && cat > {DEVICE_DIR}/fixture.json'",
                    data=json.dumps(fixture).encode())
         try:
@@ -118,16 +122,17 @@ def run(device, output):
         finally:
             device.shell("run-as", APP, "rm", "-f", DEVICE_DIR + "/fixture.json")
             captures = {}
-            for filename in device.shell("run-as", APP, "ls", "-1", DEVICE_DIR).splitlines():
+            for filename in device.shell("run-as", APP, "ls", "-1", capture_dir).splitlines():
                 if not re.fullmatch(r"[0-9]{2}-[a-z-]+\.png", filename):
                     continue
-                image = device.run("exec-out", "run-as", APP, "cat", DEVICE_DIR + "/" + filename)
+                image = device.run("exec-out", "run-as", APP, "cat", capture_dir + "/" + filename)
                 if image[:8] != b"\x89PNG\r\n\x1a\n":
                     raise ValueError("Unexpected app capture format")
                 (output / filename).write_bytes(image)
                 captures[filename] = hashlib.sha256(image).hexdigest()
-                device.shell("run-as", APP, "rm", "-f", DEVICE_DIR + "/" + filename)
-            print(json.dumps({"captures": captures}, indent=2))
+                device.shell("run-as", APP, "rm", "-f", capture_dir + "/" + filename)
+            device.shell("run-as", APP, "rmdir", capture_dir)
+            print(json.dumps({"output": str(output), "captures": captures}, indent=2))
 
 
 def main():
