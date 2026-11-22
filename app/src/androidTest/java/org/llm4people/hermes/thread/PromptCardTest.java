@@ -79,6 +79,78 @@ public class PromptCardTest extends InstrumentationTestCase {
         });
     }
 
+    public void testInvisibleAnswersAndChoicesLeaveOnlyAnExplicitSkip() throws Throwable {
+        String[] invisible = {"\u00a0", "\u2003", "\u200b", "\ufe0f", "\u00a0\ufe0f",
+                "\u180f", new String(Character.toChars(0xe0100))};
+        JSONArray choices = new JSONArray().put("(Recommended)").put("\u00a0 (Recommended)");
+        for (String blank : invisible) choices.put(blank);
+        JSONObject prompt = new JSONObject().put("kind", "clarify").put("prompt_id", "empty-choices")
+                .put("execution_generation", 3).put("question", "Que souhaitez-vous ?")
+                .put("choices", choices);
+        runTestOnUiThread(() -> {
+            PromptCard card = mount(prompt);
+            assertNull(find(card, "Écrire une réponse"));
+            assertTrue(find(card, "Votre réponse").isShown());
+            View submit = find(card, "Envoyer la réponse");
+            EditText input = (EditText) find(card, "Votre réponse");
+            for (String blank : invisible) {
+                input.setText(blank);
+                assertFalse(submit.isEnabled());
+                submit.performClick();
+            }
+            assertTrue(answers.isEmpty());
+            find(card, "Passer la question").performClick();
+            assertEquals("", answers.get(0));
+            String visible = "  Préparer un vol ✈️\u202f? 👩🏽‍💻  ";
+            input.setText(visible);
+            assertTrue(submit.isEnabled());
+            submit.performClick();
+            assertEquals(visible, answers.get(1));
+        });
+    }
+
+    public void testInvisibleCustomTextAddsNoEntryToMultipleChoices() throws Throwable {
+        String option = "Réunion ✈️";
+        JSONObject prompt = new JSONObject().put("kind", "clarify").put("prompt_id", "mixed-choices")
+                .put("execution_generation", 4).put("question", "Quel choix ?")
+                .put("multi_select", true).put("choices", new JSONArray().put("\u200b (Recommended)")
+                        .put(option + " (Recommended)"));
+        runTestOnUiThread(() -> {
+            PromptCard card = mount(prompt);
+            assertNull(find(card, "\u200b (choix recommandé)"));
+            find(card, "Écrire une réponse").performClick();
+            EditText input = (EditText) find(card, "Votre réponse");
+            input.setText("\u00a0\ufe0f");
+            View submit = find(card, "Envoyer la réponse");
+            assertFalse(submit.isEnabled());
+            find(card, option + " (choix recommandé)").performClick();
+            assertTrue(submit.isEnabled());
+            submit.performClick();
+            assertEquals(new JSONArray().put(option).toString(), answers.get(0));
+            String visible = "  👩🏽‍💻\u2003à midi  ";
+            input.setText(visible);
+            submit.performClick();
+            assertEquals(new JSONArray().put(option).put(visible).toString(), answers.get(1));
+        });
+    }
+
+    public void testMultipleChoiceWithNoVisibleOptionsStillEncodesACustomAnswer() throws Throwable {
+        JSONObject prompt = new JSONObject().put("kind", "clarify").put("prompt_id", "no-valid-options")
+                .put("execution_generation", 2).put("question", "Que proposez-vous ?")
+                .put("multi_select", true).put("choices", new JSONArray().put("\u00a0").put("(Recommended)"));
+        runTestOnUiThread(() -> {
+            PromptCard card = mount(prompt);
+            EditText input = (EditText) find(card, "Votre réponse");
+            View submit = find(card, "Envoyer la réponse");
+            input.setText("\u200b");
+            assertFalse(submit.isEnabled());
+            String visible = "Une réponse libre";
+            input.setText(visible);
+            submit.performClick();
+            assertEquals(new JSONArray().put(visible).toString(), answers.get(0));
+        });
+    }
+
     public void testAuthorizationRequiresAnOfferedOneTimeChoiceAndDetails() throws Throwable {
         JSONObject prompt = new JSONObject().put("kind", "approval").put("prompt_id", "a")
                 .put("execution_generation", 1).put("choices", new JSONArray().put("once").put("deny").put("always"));

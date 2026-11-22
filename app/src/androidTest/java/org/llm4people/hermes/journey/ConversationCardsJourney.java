@@ -166,6 +166,11 @@ public final class ConversationCardsJourney extends Instrumentation {
         boolean approval = "approval".equals(turn.getString("kind"));
         String answer = turn.getString("answer");
         ui.showPendingControl(approval ? "Autoriser une fois" : turn.getString("question"));
+        if (turn.optBoolean("read_history")) {
+            await("permit-" + index);
+            seeTranscriptRow("Vous", fixture.getJSONArray("turns").getJSONObject(0).getString("prompt"));
+            ui.tap("Répondre à Hermes");
+        }
         if (approval) {
             ui.see("Autoriser une fois");
             ui.see("Refuser");

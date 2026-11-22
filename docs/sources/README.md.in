@@ -1,6 +1,6 @@
 # {{ project }}
 
-An Android client for chatting and coding with your own Hermes Agent. Continue a discussion on your phone, review a command that needs approval, read a diff, or schedule a reminder. The interface is in French.
+An Android client for chatting and coding with your own Hermes Agent. Ask a question, talk through a code change, inspect a diff, or schedule a reminder. When Hermes needs a decision, it offers choices in the discussion. The interface is in French.
 
 ## Get the APK
 
@@ -14,7 +14,7 @@ Pull requests produce an installable development APK. Open a successful **Worksp
 
 ## Talk to Hermes
 
-Write a request in your own words or tap **Dicter** and speak. For example, ask « Peux-tu m’expliquer ce changement et me proposer deux façons de le tester ? » Edit the transcript, then tap **Envoyer**. On supported phones, Hermes uses Android’s on-device recognizer. If recognition needs the system speech service, the app explains that the service may send audio to its provider and lets you choose whether to use it.
+Write a request in your own words or tap **Dicter** and speak. For example, ask « Peux-tu m’expliquer ce changement et me proposer deux façons de le tester ? » Edit the transcript, then tap **Envoyer**. On supported phones, Hermes uses Android’s on-device recognizer. If French is available to download, open **Dictée hors connexion…** and choose **Télécharger le français…**. Once Android finishes the download, tap the microphone to dictate. If recognition needs the system speech service, the app explains that the service may send audio to its provider and lets you choose whether to use it.
 
 When Hermes has a question, its suggestions appear in the discussion. Tap a single choice, select several if the question allows it, or choose **Écrire une réponse** to type or dictate your own answer. A coding approval shows what Hermes proposes and lets you inspect the technical details. You can allow that action once or decline it from the same screen.
 

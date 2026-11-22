@@ -19,6 +19,7 @@ import java.util.Map;
 import java.util.function.Supplier;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
+import org.llm4people.hermes.VisibleText;
 
 final class WorkspaceForms {
     static void mount(LinearLayout group, WorkspaceLayout.Block form, Activity activity, ArtifactDesk.Host host) {
@@ -115,7 +116,7 @@ final class WorkspaceForms {
         if (dialog != null) dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
             if (!dialog.isShowing()) return;
             String text = edit.getText().toString();
-            if (DraftForm.blank(text)) { edit.setError("Saisissez un message."); return; }
+            if (VisibleText.isBlank(text)) { edit.setError("Saisissez un message."); return; }
             DeskDialogs.navigate(a, () -> host.stageDraft(text));
         });
     }

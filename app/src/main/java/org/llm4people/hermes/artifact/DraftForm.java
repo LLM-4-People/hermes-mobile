@@ -1,9 +1,8 @@
 package org.llm4people.hermes.artifact;
 
-import android.icu.lang.UCharacter;
-import android.icu.lang.UProperty;
 import android.util.JsonReader;
 import android.util.JsonToken;
+import org.llm4people.hermes.VisibleText;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -69,7 +68,7 @@ final class DraftForm {
         for (Field f : form.fields) {
             String answer = inputs.get(f.id);
             answer = answer == null ? "" : answer.trim();
-            if (blank(answer)) {
+            if (VisibleText.isBlank(answer)) {
                 if (f.required) throw new MissingAnswer(f);
                 continue;
             }
@@ -78,18 +77,6 @@ final class DraftForm {
             out.append("\n\n").append(f.label).append("\n").append(answer);
         }
         return out.toString();
-    }
-
-    static boolean blank(String value) {
-        for (int i = 0; i < value.length();) {
-            int cp = value.codePointAt(i);
-            // Older Android ICU tables predate Mongolian free variation selector four (Unicode 14).
-            if (!Character.isWhitespace(cp) && !Character.isSpaceChar(cp) && !Character.isISOControl(cp)
-                    && Character.getType(cp) != Character.FORMAT
-                    && cp != 0x180f && !UCharacter.hasBinaryProperty(cp, UProperty.VARIATION_SELECTOR)) return false;
-            i += Character.charCount(cp);
-        }
-        return true;
     }
 
     static final class MissingAnswer extends Exception {

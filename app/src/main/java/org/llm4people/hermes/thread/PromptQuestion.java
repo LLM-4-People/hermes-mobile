@@ -14,6 +14,7 @@ import android.widget.LinearLayout;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.llm4people.hermes.Ui;
+import org.llm4people.hermes.VisibleText;
 import org.llm4people.hermes.voice.VoiceDrafts;
 
 import java.util.ArrayList;
@@ -25,6 +26,7 @@ final class PromptQuestion {
     private static final String RECOMMENDED = "(Recommended)";
     private final PromptCard card;
     private final EditText input;
+    private final boolean multiple;
     private Button submit;
     private final VoiceDrafts.Controls voice;
     private final List<CheckBox> checks = new ArrayList<>();
@@ -32,13 +34,14 @@ final class PromptQuestion {
     PromptQuestion(PromptCard card, LinearLayout actions, JSONObject prompt, Button listen, Consumer<String> answer) {
         this.card = card;
         JSONArray choices = prompt.optJSONArray("choices");
-        boolean multiple = prompt.optBoolean("multi_select");
+        multiple = prompt.optBoolean("multi_select");
         input = new EditText(card.getContext());
         List<String> displayed = new ArrayList<>();
         for (int i = 0; choices != null && i < choices.length(); i++) {
-            if (!(choices.opt(i) instanceof String choice) || choice.trim().isEmpty()) continue;
+            if (!(choices.opt(i) instanceof String choice)) continue;
             boolean recommended = choice.endsWith(RECOMMENDED);
             String value = recommended ? choice.substring(0, choice.length() - RECOMMENDED.length()).trim() : choice;
+            if (VisibleText.isBlank(value)) continue;
             String label = recommended ? value + " (choix recommandé)" : choice;
             displayed.add(label);
             if (multiple) {
@@ -98,8 +101,9 @@ final class PromptQuestion {
     }
 
     private String selectedAnswer() {
-        String draft = input.getText().toString().trim();
-        if (checks.isEmpty()) return draft;
+        String draft = input.getText().toString();
+        if (VisibleText.isBlank(draft)) draft = "";
+        if (!multiple) return draft;
         JSONArray selected = new JSONArray();
         for (CheckBox check : checks) if (check.isChecked()) selected.put(check.getTag());
         if (!draft.isEmpty()) selected.put(draft);
