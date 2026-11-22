@@ -143,6 +143,8 @@ def system_trust(device, avd, directory):
 
     def remove_anchor():
         adb_mode(device, "root")
+        # A normal reboot by the acceptance runner leaves the existing overlay read-only.
+        device.run("remount")
         device.shell("rm", "-f", anchor)
 
     device.shell("mkdir", remote)
