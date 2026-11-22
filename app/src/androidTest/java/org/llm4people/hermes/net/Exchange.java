@@ -19,9 +19,13 @@ public final class Exchange implements Closeable {
     private final FutureTask<String> observation;
 
     public Exchange(String status, String headers, String... replies) throws IOException {
+        this(status, headers, () -> {}, replies);
+    }
+
+    public Exchange(String status, String headers, Runnable beforeReply, String... replies) throws IOException {
         observation = new FutureTask<>(() -> {
             StringBuilder requests = new StringBuilder();
-            for (String reply : replies) requests.append(exchange(status, headers, reply));
+            for (String reply : replies) requests.append(exchange(status, headers, beforeReply, reply));
             return requests.toString();
         });
         Thread server = new Thread(observation, "hermes-test-server");
@@ -29,7 +33,7 @@ public final class Exchange implements Closeable {
         server.start();
     }
 
-    private String exchange(String status, String headers, String reply) throws IOException {
+    private String exchange(String status, String headers, Runnable beforeReply, String reply) throws IOException {
         byte[] body = reply.getBytes(StandardCharsets.UTF_8);
         try (Socket socket = listener.accept()) {
             socket.setSoTimeout(3000);
@@ -45,6 +49,7 @@ public final class Exchange implements Closeable {
                 }
             }
             for (int i = 0; i < bytes; i++) wire.append((char) reader.read());
+            beforeReply.run();
             OutputStream out = socket.getOutputStream();
             String head = "HTTP/1.1 " + status + "\r\n" + headers + "Content-Length: " +
                     body.length + "\r\nConnection: close\r\n\r\n";

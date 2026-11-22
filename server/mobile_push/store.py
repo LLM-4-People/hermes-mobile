@@ -2,8 +2,8 @@
 from contextlib import closing, contextmanager
 from dataclasses import asdict
 import hashlib
-import hmac
 import json
+import hmac
 import sqlite3
 import uuid
 
@@ -44,6 +44,14 @@ class Store:
                 CREATE INDEX IF NOT EXISTS next_delivery ON deliveries(due);
                 CREATE INDEX IF NOT EXISTS event_deliveries ON deliveries(event_id);
             """)
+            # Upgrade pre-Web-Push databases atomically; their existing tokens are FCM registrations.
+            with db:
+                db.execute("BEGIN IMMEDIATE")
+                columns = {row["name"] for row in db.execute("PRAGMA table_info(devices)")}
+                if "provider" not in columns:
+                    db.execute("ALTER TABLE devices ADD COLUMN provider TEXT NOT NULL DEFAULT 'fcm'")
+                if "webpush_keys" not in columns:
+                    db.execute("ALTER TABLE devices ADD COLUMN webpush_keys TEXT")
 
     def connect(self):
         db = sqlite3.connect(self.path, timeout=5)
@@ -57,8 +65,15 @@ class Store:
             db.execute("BEGIN IMMEDIATE")
             yield db
 
-    def device(self, device_id, credential, *, profile, now, token=None, management_key=None):
+    def device(self, device_id, credential, *, profile, now, token=None, management_key=None,
+               provider="fcm", webpush_keys=None, reserve=False):
         with self.write() as db:
+            if reserve:
+                if not profile or not management_key:
+                    raise Forbidden
+                # A pending enrollment has a management capability but no delivery address.
+                # The marker contains a space, which both supported address formats reject.
+                provider, token = "pending", "pending " + device_id
             if token is None:
                 if profile:
                     db.execute("DELETE FROM devices WHERE id=?", (device_id,))
@@ -67,7 +82,7 @@ class Store:
                     # result after revocation, an abandoned enrollment, or key rotation.
                     db.execute("DELETE FROM devices WHERE id=? AND key_digest=?", (device_id, digest(credential)))
                 return
-            row = db.execute("SELECT key_digest,token FROM devices WHERE id=?", (device_id,)).fetchone()
+            row = db.execute("SELECT key_digest,token,provider,webpush_keys FROM devices WHERE id=?", (device_id,)).fetchone()
             if not profile and (not row or not hmac.compare_digest(digest(credential), row["key_digest"])):
                 raise Forbidden
             if profile and management_key:
@@ -76,14 +91,23 @@ class Store:
                 key_digest = row["key_digest"]
             else:
                 raise Forbidden
+            if reserve and row and hmac.compare_digest(key_digest, row["key_digest"]):
+                # A retried reservation may arrive after the initial binding callback.
+                return
+            keys = json.dumps(webpush_keys, sort_keys=True, separators=(",", ":")) if webpush_keys else None
             try:
                 db.execute("""
-                    INSERT INTO devices(id,token,key_digest,enrolled) VALUES(?,?,?,?)
-                    ON CONFLICT(id) DO UPDATE SET token=excluded.token,key_digest=excluded.key_digest
-                """, (device_id, token, key_digest, now))
+                    INSERT INTO devices(id,token,key_digest,enrolled,provider,webpush_keys) VALUES(?,?,?,?,?,?)
+                    ON CONFLICT(id) DO UPDATE SET token=excluded.token,key_digest=excluded.key_digest,
+                        provider=excluded.provider,webpush_keys=excluded.webpush_keys,
+                        enrolled=CASE WHEN devices.provider='pending' OR excluded.provider='pending'
+                                 THEN excluded.enrolled ELSE devices.enrolled END
+                """, (device_id, token, key_digest, now, provider, keys))
             except sqlite3.IntegrityError as exc:
                 raise TokenConflict from exc
-            if row and row["token"] != token:
+            if reserve:
+                db.execute("DELETE FROM deliveries WHERE device_id=?", (device_id,))
+            elif row and (row["token"] != token or row["webpush_keys"] != keys or row["provider"] != provider):
                 # Release any in-flight lease tied to the previous address.
                 db.execute("UPDATE deliveries SET lease=NULL,due=?,attempts=0 WHERE device_id=?", (now, device_id))
 
@@ -97,7 +121,7 @@ class Store:
         if inserted.rowcount:
             db.execute("""
                 INSERT INTO deliveries(device_id,event_id,due)
-                SELECT id,?,? FROM devices WHERE enrolled<=?
+                SELECT id,?,? FROM devices WHERE enrolled<=? AND provider!='pending'
             """, (event.event_id, event.created_at, event.created_at))
 
     def record(self, events):
@@ -140,7 +164,7 @@ class Store:
     def claim(self, now, lease_seconds):
         with self.write() as db:
             row = db.execute("""
-                SELECT d.device_id,d.event_id,d.attempts,v.token,e.kind,e.created_at,e.run_id
+                SELECT d.device_id,d.event_id,d.attempts,v.token,v.provider,v.webpush_keys,e.kind,e.created_at,e.run_id
                   FROM deliveries d JOIN devices v ON v.id=d.device_id JOIN events e USING(event_id)
                  WHERE d.due<=? ORDER BY d.due,d.rowid LIMIT 1
             """, (now,)).fetchone()

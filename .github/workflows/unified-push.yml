@@ -1,0 +1,82 @@
+name: Self-hosted push acceptance
+
+on:
+  workflow_call:
+    outputs:
+      verified_unsigned_sha256:
+        description: SHA-256 of the unsigned release payload exercised by the AOSP phone
+        value: ${{ jobs.phone.outputs.verified_unsigned_sha256 }}
+
+permissions:
+  contents: read
+
+jobs:
+  phone:
+    name: AOSP closed-app delivery
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    outputs:
+      verified_unsigned_sha256: ${{ steps.receipt.outputs.verified_unsigned_sha256 }}
+    steps:
+      - name: Download the already-checked minified release package
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: android-release-input
+          path: ${{ runner.temp }}/android-release-input
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fetch and verify the official distributor and server releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 -B -m verification.unifiedpush.assets "$RUNNER_TEMP/ntfy"
+      - id: android
+        uses: ./.github/actions/android
+      - uses: ./.github/actions/hermes-fixture
+      - name: Install isolated gateway and relay environments
+        run: |
+          UV_PROJECT_ENVIRONMENT="$RUNNER_TEMP/hermes-env" \
+            uv sync --project .fixture/hermes --frozen --no-dev --no-install-project --extra sms
+          python3 -m venv "$RUNNER_TEMP/push-env"
+          "$RUNNER_TEMP/push-env/bin/python" -m pip install -r server/requirements.txt
+      - id: image
+        name: Check the official AOSP package and archive digest
+        run: python3 -B ci/aosp_phone.py >> "$GITHUB_OUTPUT"
+      - name: Allow the runner user to use KVM
+        run: sudo setfacl -m "u:$(id -u):rw" /dev/kvm
+      - name: Verify delivery after process death
+        env:
+          ANDROID_BUILD_TOOLS: ${{ steps.android.outputs.tools }}
+          HERMES_FIXTURE_AVD: hermes-aosp-delivery
+        uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: ${{ steps.image.outputs.sdk }}
+          target: ${{ steps.image.outputs.target }}
+          arch: ${{ steps.image.outputs.arch }}
+          avd-name: ${{ env.HERMES_FIXTURE_AVD }}
+          profile: pixel_6
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -writable-system
+          disable-linux-hw-accel: false
+          pre-emulator-launch-script: python3 -B ci/aosp_phone.py --installed
+          script: python3 -B ci/aosp_trust.py --serial "$(adb get-serialno)" --avd "$HERMES_FIXTURE_AVD" -- ci/unified-push-check.sh
+      - id: receipt
+        name: Bind the device check to the release payload
+        run: |
+          digest=$(jq -er '.unsigned_apk_sha256' "$RUNNER_TEMP/unified-push-result.json")
+          echo "verified_unsigned_sha256=$digest" >> "$GITHUB_OUTPUT"
+      - name: Retain anonymous verification results
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: aosp-closed-app-delivery
+          path: ${{ runner.temp }}/unified-push-result.json
+          retention-days: 7
+          if-no-files-found: error
+      - name: Retain the generic Android notification and synthetic thread witness
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: aosp-notification-evidence
+          path: |
+            ${{ runner.temp }}/aosp-notification/native-notification-labels.png
+            ${{ runner.temp }}/aosp-notification/secure-thread-visible-controls.json
+          retention-days: 7
+          if-no-files-found: error

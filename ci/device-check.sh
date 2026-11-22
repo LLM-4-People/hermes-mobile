@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
-# Run framework tests, then install the same APKs for the two-account journey.
+# Exercise the packaged debug APKs on one disposable phone.
 set -euo pipefail
-# Release build workers before booting two gateway processes beside the emulator.
-./gradlew --no-daemon --max-workers=2 :app:connectedDebugAndroidTest
 device=$(adb get-serialno)
 adb -s "$device" install -r -t app/build/outputs/apk/debug/app-debug.apk
-adb -s "$device" install -r -t app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+test_apk=app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+adb -s "$device" install -r -t "$test_apk"
+python3 -B ci/native_tests.py "$device" "$RUNNER_TEMP/android-instrumentation" "$ANDROID_BUILD_TOOLS/dexdump" "$test_apk"
+# Remove private test state before the independent two-account journey.
+adb -s "$device" shell pm clear org.llm4people.hermes.test
+adb -s "$device" shell pm clear org.llm4people.hermes
 "$RUNNER_TEMP/hermes-env/bin/python" -B verification/live_api.py --source .fixture/hermes --require-tool-controls \
   --device-command python3 -B verification/device/run.py --serial "$device" --output "$RUNNER_TEMP/hermes-device"

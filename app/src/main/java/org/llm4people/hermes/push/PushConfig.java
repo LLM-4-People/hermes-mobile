@@ -20,8 +20,18 @@ final class PushConfig {
         this.senderId = senderId;
     }
 
+    static boolean offers(JSONObject discovery, String transport) {
+        org.json.JSONArray providers = discovery.optJSONArray("providers");
+        if (providers == null) {
+            return !discovery.has("providers") && "fcm".equals(transport) && "fcm".equals(discovery.optString("provider"));
+        }
+        for (int i = 0; i < providers.length(); i++)
+            if (transport.equals(providers.optString(i))) return true;
+        return false;
+    }
+
     static PushConfig parse(JSONObject discovery) throws IOException {
-        if (!"fcm".equals(discovery.optString("provider"))) throw new IOException("provider");
+        if (!offers(discovery, "fcm")) throw new IOException("provider");
         try {
             JSONObject firebase = discovery.getJSONObject("firebase");
             String app = firebase.getString("applicationId");

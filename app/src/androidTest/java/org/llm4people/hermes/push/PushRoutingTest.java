@@ -31,7 +31,7 @@ public final class PushRoutingTest extends InstrumentationTestCase {
         super.setUp();
         context = getInstrumentation().getTargetContext();
         store = PushStore.get(context);
-        PushConfig config = PushConfig.parse(new JSONObject("{\"provider\":\"fcm\",\"firebase\":"
+        PushConfig config = PushConfig.parse(new JSONObject("{\"providers\":[\"fcm\"],\"firebase\":"
                 + "{\"applicationId\":\"1:123456:android:aabbcc\",\"gcmSenderId\":\"123456\","
                 + "\"apiKey\":\"public-test-key\",\"projectId\":\"example-test\"}}"));
         device = store.prepare(UUID.randomUUID().toString(), "https://example.test/p/a", config);
@@ -51,6 +51,27 @@ public final class PushRoutingTest extends InstrumentationTestCase {
     private Intent tapIntent() {
         return new Intent(PushNotices.ACTION, new Uri.Builder().scheme("hermes-mobile")
                 .authority("event").appendPath(device.installation).appendPath(event).build());
+    }
+
+    public void testFcmContractOnLegacyAndMultipleProviderBridges() throws Exception {
+        JSONObject firebase = new JSONObject().put("applicationId", device.config.applicationId)
+                .put("apiKey", device.config.apiKey).put("projectId", device.config.projectId)
+                .put("gcmSenderId", device.config.senderId);
+        JSONObject discovery = new JSONObject().put("provider", "fcm").put("firebase", firebase);
+        assertEquals(device.config.applicationId, PushConfig.parse(discovery).applicationId);
+        assertFalse(PushConfig.offers(discovery, "unifiedpush"));
+        discovery.put("providers", new JSONArray().put("fcm").put("unifiedpush"));
+        assertTrue(PushConfig.offers(discovery, "unifiedpush"));
+        assertEquals(device.config.senderId, PushConfig.parse(discovery).senderId);
+        discovery.put("providers", new JSONArray().put("unifiedpush"));
+        assertFalse(PushConfig.offers(discovery, "fcm"));
+
+        JSONObject rotation = PushConnection.fcmRegistration("new-token");
+        assertEquals(1, rotation.length());
+        assertEquals("new-token", rotation.getString("token"));
+        JSONObject enrollment = PushConnection.fcmRegistration("initial-token").put("management_key", device.managementKey());
+        assertEquals(2, enrollment.length());
+        assertEquals("initial-token", enrollment.getString("token"));
     }
 
     public void testMissingOrRemovedEventCannotSelectProfile() {

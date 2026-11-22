@@ -1,4 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
+import math
 import sqlite3
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -61,6 +62,21 @@ class Delivery(unittest.TestCase):
         self.assertEqual(self.store.claim(162,5)["attempts"], 1)
         self.store.expire(101)
         self.assertIsNone(self.store.claim(170,5))
+
+    def test_firebase_delivers_live_subsecond_message_with_zero_storage_ttl(self):
+        from dataclasses import replace
+        with patch("server.mobile_push.fcm.google.auth.default", return_value=(Mock(), None)):
+            sender = FirebaseSender(replace(self.settings, retention=1))
+        self.addCleanup(sender.session.close)
+        self.store.record([self.event])
+        item = self.store.claim(100, 5)
+        with patch.object(sender.session, "post") as post:
+            post.return_value.__enter__.return_value.status_code = 200
+            for now in (100.02, 100.999, 101, 101.1):
+                with patch("server.mobile_push.fcm.time.time", return_value=now):
+                    self.assertTrue(sender.send(item))
+            self.assertEqual([r.kwargs["json"]["message"]["android"]["ttl"] for r in post.call_args_list],
+                             ["0s", "0s"])
 
     def test_firebase_uses_only_opaque_data_and_no_collapse_for_distinct_events(self):
         with patch("server.mobile_push.fcm.google.auth.default", return_value=(Mock(), None)):
@@ -188,7 +204,9 @@ class Delivery(unittest.TestCase):
         change("completed")
         self.assertEqual(self.store.claim(130, 1)["kind"], "run_completed")
 
-    def test_incremental_scan_retries_atomic_batch_and_catches_backdated_commits(self):
+    # At this clock origin, subtracting 600.1 from the 1200.1 deadline rounds below 600.
+    @patch("server.mobile_push.ledgers.time.monotonic", return_value=600.1)
+    def test_incremental_scan_retries_atomic_batch_and_catches_backdated_commits(self, clock):
         runs = create_runs(self.settings)
         self.addCleanup(runs.close)
         scope = self.settings.run_scope
@@ -207,11 +225,14 @@ class Delivery(unittest.TestCase):
             stream.scan((scope,0), self.store,0)
             self.assertLessEqual(len(write.call_args.args[0]), 4)
         insert_run(runs, scope, "late", 150, "failed")
-        stream.scan((scope,0), self.store,0)
-        with patch("server.mobile_push.ledgers.time.monotonic", return_value=stream.last_full + self.settings.reconcile_seconds):
-            stream.scan((scope,0), self.store,0)
-        late_id = Event.make(["late"],"run_failed",150).event_id
-        self.assertEqual(self.store.events(event_id=late_id)["run_id"],"late")
+        late_id = Event.make(["late"], "run_failed", 150).event_id
+        deadline = clock.return_value + self.settings.reconcile_seconds
+        clock.return_value = math.nextafter(deadline, -math.inf)
+        stream.scan((scope, 0), self.store, 0)
+        self.assertIsNone(self.store.events(event_id=late_id))
+        clock.return_value = deadline
+        stream.scan((scope, 0), self.store, 0)
+        self.assertEqual(self.store.events(event_id=late_id)["run_id"], "late")
         reopened = HermesLedgers(self.settings)
         try:
             reopened.runs.scan((scope,0), self.store,0)

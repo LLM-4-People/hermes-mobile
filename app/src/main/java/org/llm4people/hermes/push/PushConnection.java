@@ -43,7 +43,8 @@ final class PushConnection {
             return;
         }
         if (!config.matches(app.getOptions())) {
-            if (!PushStore.get(context).devices().isEmpty()) throw new DifferentProject();
+            for (PushStore.Device device : PushStore.get(context).devices())
+                if (!device.unified() && !PushStore.REMOVING.equals(device.state)) throw new DifferentProject();
             FirebaseMessaging.getInstance().setAutoInitEnabled(false);
             app.delete();
             FirebaseApp.initializeApp(context.getApplicationContext(), config.options());
@@ -52,7 +53,7 @@ final class PushConnection {
 
     static synchronized void restore(Context context) {
         for (PushStore.Device device : PushStore.get(context).devices()) {
-            if (PushStore.REMOVING.equals(device.state)) continue;
+            if (PushStore.REMOVING.equals(device.state) || device.unified()) continue;
             try {
                 configure(context, device.config);
                 FirebaseMessaging.getInstance().setAutoInitEnabled(true);
@@ -65,7 +66,7 @@ final class PushConnection {
 
     static synchronized void releaseIfEmpty(Context context) {
         for (PushStore.Device device : PushStore.get(context).devices()) {
-            if (!PushStore.REMOVING.equals(device.state)) return;
+            if (!device.unified() && !PushStore.REMOVING.equals(device.state)) return;
         }
         try {
             FirebaseApp current = FirebaseApp.getInstance();
@@ -84,9 +85,8 @@ final class PushConnection {
         return Tasks.await(FirebaseMessaging.getInstance().getToken(), 45, TimeUnit.SECONDS);
     }
 
-    static void enroll(Context context, Account account, long before, BooleanSupplier current) throws Exception {
+    static void enroll(Context context, Account account, PushConfig config, long before, BooleanSupplier current) throws Exception {
         HermesApi api = new HermesApi(account.endpoint, account.bearer);
-        PushConfig config = PushConfig.parse(api.get(BASE));
         if (!current.getAsBoolean()) return;
         String token = token(context, config);
         PushStore store = PushStore.get(context);
@@ -95,7 +95,7 @@ final class PushConnection {
             if (before != forgetVersion || !current.getAsBoolean()) return;
             device = store.prepare(account.id, account.endpoint, config);
         }
-        api.put(device.path(), payload(token).put("management_key", device.managementKey()));
+        api.put(device.path(), fcmRegistration(token).put("management_key", device.managementKey()));
         store.enable(device);
         if (PushStore.ACTIVE.equals(store.forProfile(account.id).state)) {
             FirebaseMessaging.getInstance().setAutoInitEnabled(true);
@@ -104,32 +104,36 @@ final class PushConnection {
     }
 
     static void remove(Context context, PushStore.Device device, String bearer) throws Exception {
+        if (device.unified()) DistributorEnrollment.unregister(context, device);
         new HermesApi(device.endpoint, bearer).delete(device.path());
         PushStore.get(context).finishRemoval(device);
         releaseIfEmpty(context);
     }
 
-    private static JSONObject payload(String token) throws JSONException {
+    static JSONObject fcmRegistration(String token) throws JSONException {
         return new JSONObject().put("token", token);
     }
 
     static boolean synchronize(Context context, BooleanSupplier stopped) {
         PushStore store = PushStore.get(context);
         boolean retry = false;
+        DistributorEnrollment.reconcile(context);
         for (PushStore.Device device : store.devices()) {
             if (stopped.getAsBoolean()) return true;
             try {
                 if (PushStore.REMOVING.equals(device.state)) {
                     remove(context, device, device.managementKey());
+                } else if (device.unified()) {
+                    DistributorEnrollment.sync(context, device);
                 } else {
                     String token = token(context, device.config);
-                    new HermesApi(device.endpoint, device.managementKey()).put(device.path(), payload(token));
+                    new HermesApi(device.endpoint, device.managementKey()).put(device.path(), fcmRegistration(token));
                     store.enable(device);
                 }
             } catch (HermesApi.HttpError failure) {
                 if (failure.status == 404 && PushStore.REMOVING.equals(device.state)) {
                     store.finishRemoval(device);
-                } else if (failure.status == 401 || failure.status == 403 || failure.status == 409) {
+                } else if (failure.status == 400 || failure.status == 401 || failure.status == 403 || failure.status == 409 || failure.status == 422) {
                     store.pending(device);
                     Diagnostics.event("push", "registration_needs_unlock");
                 } else {

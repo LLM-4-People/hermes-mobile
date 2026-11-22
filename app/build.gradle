@@ -38,6 +38,7 @@ def frameworkTestLibraries = androidComponents.sdkComponents.sdkDirectory.map { 
 
 dependencies {
     implementation 'com.google.firebase:firebase-messaging:26.0.2'
+    implementation 'org.unifiedpush.android:connector:3.3.6'
     androidTestCompileOnly files(frameworkTestLibraries)
     testImplementation 'junit:junit:4.13.2'
 }
