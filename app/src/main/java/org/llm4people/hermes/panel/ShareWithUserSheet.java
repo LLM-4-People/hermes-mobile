@@ -41,9 +41,8 @@ public final class ShareWithUserSheet {
     }
 
     /** Open the "Partagé avec moi" section inside Cerveau listing all incoming same-server shares. */
-    public static void showSharedWithMe(SessionPanel panel, Consumer<String> openThread,
-                                        Consumer<String> stageDraft, Runnable parent) {
-        new IncomingController(panel, openThread, stageDraft, parent).show();
+    public static void showSharedWithMe(SessionPanel panel, Consumer<String> stageDraft, Runnable parent) {
+        new IncomingController(panel, stageDraft, parent).show();
     }
 
     static String extractReadableContent(JSONObject reply) {
@@ -236,17 +235,14 @@ public final class ShareWithUserSheet {
 
     private static final class IncomingController {
         private final SessionPanel panel;
-        private final Consumer<String> openThread;
         private final Consumer<String> stageDraft;
         private final Runnable parent;
         private String kindFilter = "";
         private LinearLayout filterRow;
         private LinearLayout body;
 
-        IncomingController(SessionPanel panel, Consumer<String> openThread,
-                           Consumer<String> stageDraft, Runnable parent) {
+        IncomingController(SessionPanel panel, Consumer<String> stageDraft, Runnable parent) {
             this.panel = panel;
-            this.openThread = openThread;
             this.stageDraft = stageDraft;
             this.parent = parent;
         }
@@ -271,6 +267,7 @@ public final class ShareWithUserSheet {
             filterRow.addView(filterChip(UniversalShareModel.KIND_TOOL, "Outils"));
             filterRow.addView(filterChip(UniversalShareModel.KIND_SURFACE, "Écrans"));
             filterRow.addView(filterChip(UniversalShareModel.KIND_WIDGET, "Widgets"));
+            filterRow.addView(filterChip(UniversalShareModel.KIND_ARTIFACT, "Artefacts"));
         }
 
         private View filterChip(String kind, String label) {

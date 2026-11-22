@@ -72,6 +72,37 @@ public final class BrainJsonAndApiContractTest extends TestCase {
         assertEquals("Pain et café", sharedNoteText);
     }
 
+    public void testAnalyticsSummaryParsesForkBrainTotalsAndPeriodDays() throws Exception {
+        BrainJson.AnalyticsSummary summary = BrainJson.parseAnalyticsSummary(new JSONObject("""
+                {"object":"hermes.analytics.usage","period_days":30,"session_id":null,"totals":{
+                  "total_input":12400,"total_output":3200,"total_cache_read":8000,"total_cache_write":400,
+                  "total_reasoning":512,"total_estimated_cost":0.145,"total_actual_cost":0.132,
+                  "total_sessions":9,"total_api_calls":27}}
+                """), 7);
+        assertEquals(30, summary.days());
+        assertEquals(0.132, summary.actualCostUsd(), 1e-9);
+        assertEquals(0.145, summary.estimatedCostUsd(), 1e-9);
+        assertEquals(9.0, summary.sessions(), 0);
+        assertEquals(27.0, summary.apiCalls(), 0);
+        assertEquals(12400.0, summary.inputTokens(), 0);
+        assertEquals(3200.0, summary.outputTokens(), 0);
+        assertEquals(8000.0, summary.cacheReadTokens(), 0);
+        assertEquals(400.0, summary.cacheWriteTokens(), 0);
+        assertEquals(512.0, summary.reasoningTokens(), 0);
+        assertTrue(Double.isNaN(summary.avgTtftMs()));
+        assertTrue(Double.isNaN(summary.avgTps()));
+
+        // Missing/null actual cost stays NaN (never 0) while preserving known estimated cost.
+        BrainJson.AnalyticsSummary partial = BrainJson.parseAnalyticsSummary(new JSONObject("""
+                {"period_days":14,"totals":{"total_actual_cost":null,"total_estimated_cost":0.05,"total_sessions":2}}
+                """), 30);
+        assertEquals(14, partial.days());
+        assertTrue(Double.isNaN(partial.actualCostUsd()));
+        assertEquals(0.05, partial.estimatedCostUsd(), 1e-9);
+        assertEquals(2.0, partial.sessions(), 0);
+        assertTrue(Double.isNaN(partial.inputTokens()));
+    }
+
     public void testWorkspaceTreeFiltersUnsafeEntriesAndModelBadgesHandleBothShapes() throws Exception {
         BrainJson.WorkspaceTree tree = BrainJson.parseWorkspaceTree(new JSONObject("""
                 {"root_label":"hermes-mobile","entries":[

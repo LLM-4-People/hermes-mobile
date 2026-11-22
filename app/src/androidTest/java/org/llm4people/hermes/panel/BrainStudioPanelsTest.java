@@ -14,8 +14,19 @@ import org.llm4people.hermes.net.Exchange;
 import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.profile.WorkspaceAccountFixture;
 
+import java.io.BufferedReader;
+import java.io.Closeable;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.InetAddress;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 @SuppressWarnings("deprecation")
 public final class BrainStudioPanelsTest extends InstrumentationTestCase {
@@ -51,8 +62,10 @@ public final class BrainStudioPanelsTest extends InstrumentationTestCase {
                 {"object":"list","data":[
                   {"name":"travail/revue","description":"Relire du code","category":"Qualité","enabled":true,"writable":true,"source":"user"}]}
                 """;
-        // Third response simulates HTTP 500 on PUT /v1/skills/travail/revue/enabled.
-        try (Exchange gateway = new Exchange("200 OK", JSON, caps, list)) {
+        String toggleError = "{\"error\":{\"code\":\"toggle_failed\"}}";
+        try (MultiStatusServer gateway = new MultiStatusServer(
+                new String[]{"200 OK", "200 OK", "500 Internal Server Error"},
+                new String[]{caps, list, toggleError})) {
             try (WorkspaceAccountFixture profile = new WorkspaceAccountFixture(app, gateway.endpoint())) {
                 SessionPanel panel = new SessionPanel(activity, new HermesApi(gateway.endpoint(), "test"), profile.account);
                 try {
@@ -71,7 +84,7 @@ public final class BrainStudioPanelsTest extends InstrumentationTestCase {
                         }
                     });
                     assertNotNull("Expected skill toggle Switch", toggleRef[0]);
-                    // Server has no 3rd response so connection fails -> switch MUST roll back to checked=true.
+                    // Deterministic HTTP 500 on PUT /v1/skills/travail/revue/enabled -> switch MUST roll back to checked=true.
                     assertTextVisible("Impossible de modifier l’état de ce savoir-faire. L’état précédent a été rétabli.");
                     runTestOnUiThread(() -> assertTrue("Switch did not roll back", toggleRef[0].isChecked()));
                 } finally {
@@ -80,6 +93,62 @@ public final class BrainStudioPanelsTest extends InstrumentationTestCase {
             }
         } finally {
             runTestOnUiThread(activity::finish);
+        }
+    }
+
+    /** Minimal deterministic loopback HTTP server supporting per-reply status codes. */
+    private static final class MultiStatusServer implements Closeable {
+        private final ServerSocket listener;
+        private final ExecutorService executor = Executors.newSingleThreadExecutor();
+
+        MultiStatusServer(String[] statuses, String[] bodies) throws IOException {
+            listener = new ServerSocket(0, 4, InetAddress.getByName("127.0.0.1"));
+            executor.submit(() -> {
+                for (int i = 0; i < statuses.length; i++) {
+                    try (Socket peer = listener.accept()) {
+                        peer.setSoTimeout(3000);
+                        BufferedReader reader = new BufferedReader(
+                                new InputStreamReader(peer.getInputStream(), StandardCharsets.US_ASCII));
+                        int contentLength = 0;
+                        String line;
+                        while ((line = reader.readLine()) != null && !line.isEmpty()) {
+                            String lower = line.toLowerCase(java.util.Locale.ROOT);
+                            if (lower.startsWith("content-length:")) {
+                                contentLength = Integer.parseInt(line.substring(15).trim());
+                            }
+                        }
+                        if (contentLength > 0) {
+                            char[] discard = new char[contentLength];
+                            int remaining = contentLength;
+                            while (remaining > 0) {
+                                int read = reader.read(discard, 0, remaining);
+                                if (read < 0) break;
+                                remaining -= read;
+                            }
+                        }
+                        byte[] payload = bodies[i].getBytes(StandardCharsets.UTF_8);
+                        String head = "HTTP/1.1 " + statuses[i] + "\r\n"
+                                + "Content-Type: application/json\r\n"
+                                + "Content-Length: " + payload.length + "\r\n"
+                                + "Connection: close\r\n\r\n";
+                        OutputStream out = peer.getOutputStream();
+                        out.write(head.getBytes(StandardCharsets.US_ASCII));
+                        out.write(payload);
+                        out.flush();
+                    } catch (IOException stopped) {
+                        return;
+                    }
+                }
+            });
+        }
+
+        String endpoint() {
+            return "http://127.0.0.1:" + listener.getLocalPort() + "/p/travail";
+        }
+
+        @Override public void close() throws IOException {
+            listener.close();
+            executor.shutdownNow();
         }
     }
 

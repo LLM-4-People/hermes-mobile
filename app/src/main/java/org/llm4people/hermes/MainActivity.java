@@ -285,6 +285,12 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                         && currentSession.equals(origin.sessionId());
             }
 
+            private String activeRemoteSessionId() {
+                if (threads == null) return null;
+                String tip = threads.remoteSessionId();
+                return tip != null && !tip.isEmpty() ? tip : threads.sessionId();
+            }
+
             @Override public void openMemory() { panels.showMemory(returnToHub()); }
 
             @Override public void openNotes() {
@@ -292,8 +298,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             }
 
             @Override public void openSharedWithMe() {
-                panels.showSharedWithMe(id -> { displayDiscussion(); threads.open(id); },
-                        MainActivity.this::stageDraft, returnToHub());
+                panels.showSharedWithMe(MainActivity.this::stageDraft, returnToHub());
             }
 
             @Override public void openGlobalSearch() {
@@ -305,7 +310,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             }
 
             @Override public void openWorkspaceFiles() {
-                String session = threads == null ? null : threads.sessionId();
+                String session = activeRemoteSessionId();
                 if (session == null) {
                     message("Choisir une discussion", "Ouvrez une discussion pour parcourir les fichiers du projet.");
                     return;
@@ -316,12 +321,12 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             @Override public void openProfileDefaults() { panels.showProfileDefaults(returnToHub()); }
 
             @Override public void togglePinThread() {
-                String remote = threads == null ? null : threads.remoteSessionId();
+                String remote = activeRemoteSessionId();
                 if (remote != null) threadActions.togglePin(remote, null);
             }
 
             @Override public void forkThread() {
-                String session = threads == null ? null : threads.sessionId();
+                String session = activeRemoteSessionId();
                 if (session != null) {
                     threadActions.showForkDialog(session, threads.messages(),
                             forkedId -> { displayDiscussion(); threads.open(forkedId); });
@@ -329,12 +334,12 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             }
 
             @Override public void exportThread() {
-                String session = threads == null ? null : threads.sessionId();
+                String session = activeRemoteSessionId();
                 if (session != null) threadActions.showExportDialog(session, threads.title());
             }
 
             @Override public void shareThread() {
-                String session = threads == null ? null : threads.sessionId();
+                String session = activeRemoteSessionId();
                 if (session != null) {
                     ShareWithUserSheet.openShareSheet(panels, UniversalShareModel.KIND_SESSION,
                             session, threads.title(), null);

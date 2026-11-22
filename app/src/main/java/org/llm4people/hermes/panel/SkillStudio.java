@@ -312,7 +312,7 @@ final class SkillStudio {
             editRow.addView(Ui.button(panel.activity, panel.t(R.string.brain_share_action),
                     v -> ShareWithUserSheet.openShareSheet(panel, UniversalShareModel.KIND_SKILL,
                             detail.name(), detail.name(), () -> openDetail(new SkillInventoryPlaceholder(detail).toInventory()))));
-            Button del = Ui.button(panel.activity, panel.t(R.string.panel_delete), v -> confirmDelete(detail));
+            Button del = Ui.button(panel.activity, panel.t(R.string.panel_delete), v -> confirmDelete(box, detail));
             del.setTextColor(panel.activity.getColor(R.color.danger));
             editRow.addView(del);
             box.addView(editRow);
@@ -416,21 +416,21 @@ final class SkillStudio {
         });
     }
 
-    private void confirmDelete(SkillStudioModel.SkillDetail detail) {
+    private void confirmDelete(LinearLayout feedbackTarget, SkillStudioModel.SkillDetail detail) {
         if (!detail.writable()) return;
         panel.present(new AlertDialog.Builder(panel.activity)
                 .setTitle(R.string.panel_delete)
                 .setMessage(panel.t(R.string.brain_skills_delete_confirm, detail.name()))
                 .setNegativeButton(R.string.panel_cancel, null)
                 .setPositiveButton(R.string.panel_delete, (d, w) -> {
-                    panel.request(statusBox, () -> panel.api.deleteJson(
+                    panel.request(feedbackTarget, () -> panel.api.deleteJson(
                             "/v1/skills/" + HermesApi.relativePath(detail.name())),
                             ok -> {
                                 Diagnostics.event("skills", "skill_deleted");
                                 show();
                             }, error -> {
                                 Diagnostics.warning("skills", "delete_failed", error);
-                                panel.failure(statusBox, error, null);
+                                panel.failure(feedbackTarget, error, null);
                             });
                 }).create());
     }

@@ -45,13 +45,16 @@ final class BrainJson {
 
     record AnalyticsSummary(
             int days,
-            double totalCostUsd,
+            double actualCostUsd,
+            double estimatedCostUsd,
             double avgTtftMs,
             double avgTps,
-            double runs,
+            double sessions,
+            double apiCalls,
             double inputTokens,
             double outputTokens,
             double cacheReadTokens,
+            double cacheWriteTokens,
             double reasoningTokens) {}
 
     static BrainCapabilities parseCapabilities(JSONObject response) {
@@ -331,19 +334,33 @@ final class BrainJson {
     static AnalyticsSummary parseAnalyticsSummary(JSONObject response, int requestedDays) {
         if (response == null) {
             return new AnalyticsSummary(requestedDays, Double.NaN, Double.NaN, Double.NaN, Double.NaN,
-                    Double.NaN, Double.NaN, Double.NaN, Double.NaN);
+                    Double.NaN, Double.NaN, Double.NaN, Double.NaN, Double.NaN, Double.NaN, Double.NaN);
         }
+        int periodDays = response.has("period_days")
+                ? response.optInt("period_days", requestedDays)
+                : response.optInt("days", requestedDays);
         JSONObject totals = response.optJSONObject("totals") != null ? response.optJSONObject("totals") : response;
         return new AnalyticsSummary(
-                response.optInt("days", requestedDays),
-                PanelData.measure(totals, "cost_usd"),
-                PanelData.measure(totals, "avg_ttft_ms"),
-                PanelData.measure(totals, "avg_tps"),
-                PanelData.measure(totals, "runs"),
-                PanelData.measure(totals, "input_tokens"),
-                PanelData.measure(totals, "output_tokens"),
-                PanelData.measure(totals, "cache_read_tokens"),
-                PanelData.measure(totals, "reasoning_tokens"));
+                periodDays,
+                firstMeasure(totals, "total_actual_cost", "actual_cost_usd", "cost_usd"),
+                firstMeasure(totals, "total_estimated_cost", "estimated_cost_usd"),
+                firstMeasure(totals, "avg_ttft_ms", "ttft_ms"),
+                firstMeasure(totals, "avg_tps", "tokens_per_sec"),
+                firstMeasure(totals, "total_sessions", "sessions", "runs"),
+                firstMeasure(totals, "total_api_calls", "api_calls"),
+                firstMeasure(totals, "total_input", "input_tokens"),
+                firstMeasure(totals, "total_output", "output_tokens"),
+                firstMeasure(totals, "total_cache_read", "cache_read_tokens"),
+                firstMeasure(totals, "total_cache_write", "cache_write_tokens"),
+                firstMeasure(totals, "total_reasoning", "reasoning_tokens"));
+    }
+
+    private static double firstMeasure(JSONObject source, String... keys) {
+        for (String key : keys) {
+            double value = PanelData.measure(source, key);
+            if (Double.isFinite(value)) return value;
+        }
+        return Double.NaN;
     }
 
     static UsageFormatter.RunTelemetry parseRunTelemetry(JSONObject timing) {

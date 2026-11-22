@@ -138,10 +138,20 @@ final class UsagePanel {
         if (source != 0) panel.note(details, panel.t(R.string.panel_last_cost_source, panel.t(source)));
         if (analytics != null) {
             panel.section(details, R.string.brain_usage_profile_analytics);
-            metric(details, R.string.brain_usage_cost_known, UsageFormatter.formatUsd(analytics.totalCostUsd()));
-            metric(details, R.string.brain_usage_profile_runs, UsageFormatter.formatCount(analytics.runs()));
-            metric(details, R.string.brain_usage_profile_avg_ttft, UsageFormatter.formatResponseTime(analytics.avgTtftMs()));
-            metric(details, R.string.brain_usage_profile_avg_tps, UsageFormatter.formatSpeed(analytics.avgTps()));
+            metric(details, R.string.brain_usage_cost_known,
+                    UsageFormatter.primaryCostSummary(analytics.actualCostUsd(), analytics.estimatedCostUsd(), ""));
+            metric(details, R.string.brain_usage_profile_runs, UsageFormatter.formatCount(analytics.sessions()));
+            if (Double.isFinite(analytics.apiCalls())) {
+                metric(details, R.string.brain_usage_api_calls, UsageFormatter.formatCount(analytics.apiCalls()));
+            }
+            if (Double.isFinite(analytics.avgTtftMs())) {
+                metric(details, R.string.brain_usage_profile_avg_ttft, UsageFormatter.formatResponseTime(analytics.avgTtftMs()));
+            }
+            if (Double.isFinite(analytics.avgTps())) {
+                metric(details, R.string.brain_usage_profile_avg_tps, UsageFormatter.formatSpeed(analytics.avgTps()));
+            }
+            metric(details, R.string.panel_in, UsageFormatter.formatCount(analytics.inputTokens()));
+            metric(details, R.string.panel_out, UsageFormatter.formatCount(analytics.outputTokens()));
         }
 
         boolean[] open = {false};
