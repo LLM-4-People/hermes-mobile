@@ -49,15 +49,22 @@ final class ThreadData {
 
     static String content(JSONObject message) { return MessageParts.display(message); }
 
+    record RowId(String segment, String id) {}
+
+    static RowId rowId(JSONObject row) {
+        String id = string(row, "id");
+        return id.isEmpty() ? null : new RowId(string(row, "session_id"), id);
+    }
+
     static JSONArray join(JSONArray first, JSONArray second) {
         JSONArray joined = new JSONArray();
-        Set<String> ids = new HashSet<>();
+        Set<RowId> ids = new HashSet<>();
         for (JSONArray page : new JSONArray[]{first, second}) {
             for (int i = 0; i < page.length(); i++) {
                 JSONObject row = page.optJSONObject(i);
                 if (row == null) continue;
-                String id = string(row, "id");
-                if (id.isEmpty() || ids.add(id)) joined.put(row);
+                RowId id = rowId(row);
+                if (id == null || ids.add(id)) joined.put(row);
             }
         }
         return joined;

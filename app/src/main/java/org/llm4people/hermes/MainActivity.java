@@ -47,6 +47,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     private MobilePush.Target delivery;
     private AlertDialog notice;
     private String handledDelivery;
+    private long noticeRequest;
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
@@ -119,14 +120,16 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     }
 
     private void resolve(Account owner, MobilePush.Target target) {
+        long request = ++noticeRequest;
+        threads.cancelNotice();
         notifications.execute(() -> {
             try {
                 JSONObject event = MobilePush.resolve(owner, target);
-                runOnUiThread(() -> openPushEvent(owner, event));
+                runOnUiThread(() -> { if (noticeRequest == request) openPushEvent(owner, event); });
             } catch (IOException | RuntimeException failure) {
                 Diagnostics.warning("push", "open_failed");
                 runOnUiThread(() -> {
-                    if (owner == account && !isFinishing()) {
+                    if (owner == account && request == noticeRequest && !isFinishing()) {
                         message("Notification indisponible",
                                 "Vous pouvez retrouver le travail dans vos discussions ou vos rappels.");
                     }
@@ -137,23 +140,35 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
 
     @Override public void openPushEvent(Account owner, JSONObject event) {
         if (owner != account || isFinishing()) return;
-        dismissOverlays();
+        ++noticeRequest;
         if ("reminder".equals(event.optString("kind"))) {
+            threads.cancelNotice();
+            dismissOverlays();
             if (!event.isNull("job_id") && !event.optString("job_id").isEmpty())
                 panels.showReminder(event.optString("job_id"));
             else panels.showReminders();
         } else if (!event.isNull("session_id") && !event.optString("session_id").isEmpty()) {
-            displayDiscussion();
             threads.openNotice(event.optString("session_id"), event.optString("run_id"), event.optString("kind"));
         }
     }
 
-    private void dismissOverlays() {
+    @Override public void noticeThread(boolean sameThread) {
+        boolean onThread = WorkspaceNavigation.DISCUSSION.equals(navigation.current())
+                || WorkspaceNavigation.COMPOSER.equals(navigation.current());
+        dismissOverlays(sameThread && onThread);
+        if (!sameThread || !onThread) displayDiscussion();
+    }
+
+    private void dismissOverlays() { dismissOverlays(false); }
+
+    private void dismissOverlays(boolean keepThreadEditor) {
         if (notice != null) notice.dismiss();
         notice = null;
         if (files != null) files.dismiss();
-        if (threads != null) threads.dismissDialogs();
-        ArtifactDesk.dismiss(this);
+        if (!keepThreadEditor) {
+            if (threads != null) threads.dismissDialogs();
+            ArtifactDesk.dismiss(this);
+        }
         if (panels != null) panels.close();
         if (push != null) push.lock();
     }

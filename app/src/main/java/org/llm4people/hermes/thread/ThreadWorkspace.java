@@ -33,6 +33,7 @@ public final class ThreadWorkspace implements AutoCloseable {
     public interface Host {
         void selected(String sessionId, String title);
         void pendingChanged();
+        default void noticeThread(boolean sameThread) {}
         JSONObject options(String sessionId);
         void timing(String sessionId, long firstTextMillis, long elapsedMillis, long outputTokens);
     }
@@ -282,38 +283,50 @@ public final class ThreadWorkspace implements AutoCloseable {
         });
     }
 
-    public void openNotice(String id, String runId, String eventKind) {
-        if (closed) return;
-        String kind = ThreadIdentity.noticePromptKind(eventKind);
-        if (kind == null || !ThreadData.validId(id) || !ThreadData.validId(runId)) {
-            open(id);
-            return;
-        }
-        inbox("Vérification de la demande…", null);
-        Runnable retry = () -> openNotice(id, runId, eventKind);
-        request(() -> ThreadIdentity.hasPendingPrompt(id, runId, kind, api.get("/v1/runs/" + HermesApi.segment(runId))),
-                waiting -> open(id, waiting ? runId : null), failure -> {
-            if (failure instanceof HermesApi.HttpError http && http.status == 404) open(id);
-            else error(failure, retry);
-        });
-    }
+    private volatile int noticeRequest;
 
-    public void open(String id) { open(id, null); }
+    public void open(String id) { openNotice(id, null, null); }
+    public void openQuestion(String id, String runId) { openNotice(id, runId, "question_requested"); }
 
-    private void open(String id, String observedRun) {
-        if (closed) return;
-        if (!ThreadData.validId(id)) {
-            inbox("L’identifiant de cette conversation est invalide. Choisissez une autre conversation.", null);
-            return;
-        }
-        ThreadIdentity listed = ThreadIdentity.find(inbox, id);
-        if (listed != null) { open(listed, listed.label, observedRun); return; }
-        inbox("Recherche de la conversation…", null);
-        int lookup = generation;
-        request(() -> ThreadIdentity.resolve(api, id, () -> lookup == generation), identity -> {
-            if (identity != null) open(identity, identity.label, observedRun);
-            else inbox("Cette conversation est introuvable dans le profil actif.", null);
-        }, e -> error(e, () -> open(id, observedRun)));
+    public void cancelNotice() { ++noticeRequest; }
+
+    private record NoticeTarget(ThreadIdentity thread, String observedRun) {}
+
+    public void openNotice(String id, String runId, String kind) {
+        if (closed || !ThreadData.validId(id)) return;
+        String promptKind = ThreadIdentity.noticePromptKind(kind);
+        if (promptKind != null && !ThreadData.validId(runId)) return;
+        int lookup = ++noticeRequest, owner = generation;
+        Runnable retry = () -> openNotice(id, runId, kind);
+        request(() -> {
+            ThreadIdentity identity = ThreadIdentity.resolve(api, id, () -> owner == generation && lookup == noticeRequest);
+            String observed = null;
+            if (identity != null && promptKind != null) {
+                try {
+                    if (ThreadIdentity.hasPendingPrompt(id, runId, promptKind, api.get("/v1/runs/" + HermesApi.segment(runId))))
+                        observed = runId;
+                } catch (HermesApi.HttpError gone) {
+                    if (gone.status != 404) throw gone;
+                }
+            }
+            return new NoticeTarget(identity, observed);
+        }, target -> {
+            if (lookup != noticeRequest) return;
+            ThreadIdentity identity = target.thread();
+            if (identity == null) {
+                screen.notice("Cette conversation est introuvable dans le profil actif.", "", null);
+                return;
+            }
+            boolean same = journal != null && identity.root.equals(session);
+            host.noticeThread(same);
+            if (!same) { open(identity, identity.label, target.observedRun()); return; }
+            remoteSession = identity.tip;
+            if (target.observedRun() != null && run.afterAdmission(() -> {
+                if (!closed && owner == generation && lookup == noticeRequest) retry.run();
+            })) return;
+            run.refreshNotice(runId, target.observedRun());
+            loadMessages(false, null, true);
+        }, failure -> { if (lookup == noticeRequest) error(failure, retry); });
     }
 
     private void open(ThreadIdentity identity, String label) { open(identity, label, null); }
@@ -390,7 +403,9 @@ public final class ThreadWorkspace implements AutoCloseable {
                 }));
     }
 
-    void loadMessages(boolean older, Runnable loaded) {
+    void loadMessages(boolean older, Runnable loaded) { loadMessages(older, loaded, false); }
+
+    void loadMessages(boolean older, Runnable loaded, boolean keepPosition) {
         if (older && loading) return;
         if (!older && emptyTranscript) {
             emptyTranscript = false;
@@ -402,24 +417,43 @@ public final class ThreadWorkspace implements AutoCloseable {
         String path = ThreadData.path(session);
         int requestNo = ++transcriptRequest;
         int titleVersion = metadataRequest;
-        String query = "/messages?order=latest&visible_only=true&include_compacted=true&limit=";
-        request(() -> api.get(path + query + ThreadData.PAGE + "&offset=" + offset), data -> {
+        String query = path + "/messages?order=latest&visible_only=true&include_compacted=true&limit=";
+        int retained = keepPosition ? messageOffset : 0;
+        ThreadData.RowId oldest = retained == 0 ? null : ThreadData.rowId(messages.optJSONObject(0));
+        long priorTotal = messageCount;
+        int owner = generation;
+        request(() -> ThreadWindow.read(api::get, query, offset, retained, priorTotal, oldest,
+                () -> owner == generation && requestNo == transcriptRequest), window -> {
             if (requestNo != transcriptRequest) return;
             loading = false;
-            JSONArray page = data.optJSONArray("data");
-            if (page == null) { invalidReply(() -> loadMessages(older, loaded)); return; }
+            JSONObject data = window.metadata();
+            JSONArray page = window.rows();
             String tip = ThreadData.string(data, "session_id");
             if (ThreadData.validId(tip)) remoteSession = tip;
             int oldSize = messages.length();
             messages = ThreadData.visibleMessages(ThreadData.join(page, older ? messages : new JSONArray()));
             // Advance by the rows this response actually returned. The scroll anchor counts displayed rows.
-            messageOffset = offset + page.length();
+            messageOffset = offset + window.rawCount();
             long total = ThreadContext.visibleTotal(data);
-            boolean hasMore = total < 0 ? page.length() == ThreadData.PAGE : messageOffset < total;
+            boolean hasMore = window.more();
             emptyTranscript = messages.length() == 0 && !hasMore;
             if (instruments != null) instruments.proposals(messages);
-            screen.rows(messages, hasMore, !older && !emptyTranscript,
+            int top = screen.list.getFirstVisiblePosition();
+            Object anchor = retained == 0 ? null : screen.list.getItemAtPosition(top);
+            int y = screen.list.getChildCount() == 0 ? 0 : screen.list.getChildAt(0).getTop();
+            screen.rows(messages, hasMore, !older && retained == 0 && !emptyTranscript,
                     older ? messages.length() - oldSize : 0);
+            if (retained > 0) {
+                if (anchor instanceof JSONObject previous) {
+                    ThreadData.RowId id = ThreadData.rowId(previous);
+                    for (int i = 0; i < screen.list.getCount(); i++) {
+                        Object item = screen.list.getItemAtPosition(i);
+                        if (item instanceof JSONObject row && (id == null ? previous.toString().equals(row.toString())
+                                : id.equals(ThreadData.rowId(row)))) { top = i; break; }
+                    }
+                }
+                screen.list.setSelectionFromTop(top, y);
+            }
             if (journal.pending() == null) screen.notice("", "", null);
             long previousCount = messageCount;
             messageCount = ThreadContext.messageCount(total, page.length(), messages.length());
@@ -440,7 +474,7 @@ public final class ThreadWorkspace implements AutoCloseable {
         }, e -> {
             if (requestNo != transcriptRequest) return;
             loading = false;
-            error(e, () -> loadMessages(older, loaded));
+            error(e, () -> loadMessages(older, loaded, keepPosition));
         });
     }
     private void rememberOpening(String value) {
@@ -493,7 +527,7 @@ public final class ThreadWorkspace implements AutoCloseable {
 
     private String legacyTitleTip;
     private int metadataRequest;
-    private int transcriptRequest;
+    private volatile int transcriptRequest;
 
     public void onBackground() {
         voice.reader().stop();
