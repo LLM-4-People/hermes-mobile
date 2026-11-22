@@ -1,0 +1,194 @@
+"""Verify a real ntfy wake-up, its private Android deep link, and device revocation."""
+
+import argparse
+from contextlib import ExitStack, closing, contextmanager
+import json
+from pathlib import Path
+import secrets
+import shutil
+import sqlite3
+import sys
+import tempfile
+from urllib.parse import urlsplit
+
+from .assets import APK, SERVER, extract_server
+from verification.device.run import Emulator
+from verification.gateway_fixture import Gateway, PINNED_REVISION, check_source
+from .stack import LOCAL_HTTP, bridge, eventually, json_request, ntfy, proxy
+from .ui import APP, Screen, distributor, enroll, launch, process_absent, start_account, tap_notice
+
+
+PROJECT = Path(__file__).resolve().parents[2]
+
+
+@contextmanager
+def same_port(device, url):
+    port = urlsplit(url).port
+    spec = f"tcp:{port}"
+    if any(spec in entry.split()[1:2] for entry in device.run("reverse", "--list").decode().splitlines()):
+        raise RuntimeError("Fixture port already in use on emulator")
+    device.run("reverse", "--no-rebind", spec, spec)
+    try:
+        yield
+    finally:
+        device.run("reverse", "--remove", spec)
+
+
+def active_registration(database):
+    with closing(sqlite3.connect(database.as_uri() + "?mode=ro", uri=True)) as db:
+        return db.execute(
+            "SELECT id,token FROM devices WHERE provider='unifiedpush' AND token IS NOT NULL AND token!=''"
+        ).fetchone()
+
+
+def trigger(gateway, title):
+    session = gateway.request("/api/sessions", method="POST", body={"title": title}, expected=201)["session"]["id"]
+    result = gateway.request(
+        "/v1/runs",
+        method="POST",
+        body={"session_id": session, "input": "Bonjour"},
+        headers={"Idempotency-Key": secrets.token_hex(24)},
+        expected=202,
+    )
+    return session, result["run_id"]
+
+
+def completed_event(endpoint, key, run):
+    page = json_request(endpoint + "/api/mobile/push/events", key)
+    return next(
+        (item for item in page["events"] if item["kind"] == "run_completed" and item["run_id"] == run), None
+    )
+
+
+def published_messages(topic):
+    parts = urlsplit(topic)
+    url = parts._replace(path=parts.path + "/json", query="poll=1&since=all").geturl()
+    with LOCAL_HTTP.open(url, timeout=10) as response:
+        return [obj for line in response if line.strip() and (obj := json.loads(line))["event"] == "message"]
+
+
+def app_notice(device, event_id):
+    # cmd notification list gives active notification keys; the application uses its event ID in the tag.
+    return any(
+        APP in line and event_id in line for line in device.shell("cmd", "notification", "list").splitlines()
+    )
+
+
+@contextmanager
+def disposable_app(device, apk):
+    if device.shell("getprop", "ro.kernel.qemu") != "1":
+        raise RuntimeError("Use a dedicated Android emulator")
+    if int(device.shell("getprop", "ro.build.version.sdk")) < 33:
+        raise RuntimeError("This test exercises Android 13+ Task Manager stop")
+    packages = device.shell("pm", "list", "packages")
+    if "package:com.android.systemui" not in packages.splitlines():
+        raise RuntimeError("Use a full Android phone image with SystemUI")
+    if device.shell("am", "get-current-user") != "0":
+        raise RuntimeError("Use user 0 of a disposable test emulator")
+    if "package:" + APP in packages.splitlines():
+        raise RuntimeError("Use a fresh emulator without a Hermes Mobile installation")
+    device.run("install", str(apk))
+    try:
+        yield
+    finally:
+        device.run("uninstall", APP)
+
+
+def run(args):
+    source = args.source.resolve()
+    check_source(source, args.revision)
+    sys.path.insert(0, str(source))
+    from tests.fakes.fake_llm_provider import FakeLLMServer
+
+    adb = Emulator(args.serial, args.adb, args.adb_port)
+    apk = APK.fetch(args.cache)
+    archive = SERVER.fetch(args.cache)
+    with tempfile.TemporaryDirectory(prefix="hm-notice-") as tmp, ExitStack() as stack:
+        stack.enter_context(disposable_app(adb, args.apk))
+        root = Path(tmp)
+        fake = stack.enter_context(FakeLLMServer(default_text="Vérification terminée."))
+        primary = stack.enter_context(Gateway(root / "one", source, fake.base_url))
+        other = stack.enter_context(Gateway(root / "two", source, fake.base_url))
+        ntfy_url = stack.enter_context(ntfy(root, extract_server(archive, root)))
+        push, db = stack.enter_context(bridge(root, primary, ntfy_url, args.push_python, PROJECT))
+        url = stack.enter_context(proxy(root, primary, push))
+        account_url = stack.enter_context(adb.reverse(url))
+        other_url = stack.enter_context(adb.reverse(other.endpoint))
+        stack.enter_context(same_port(adb, ntfy_url))
+        ui = Screen(adb)
+        stack.enter_context(distributor(ui, apk, ntfy_url))
+        unique = secrets.token_hex(4)
+        owner, alt = "Bureau-" + unique, "Autre-" + unique
+        phrase = secrets.token_hex(14)
+        title = "Discussion-" + unique
+        try:
+            launch(adb, APP)
+            start_account(ui, owner, account_url, primary.key, phrase)
+            enroll(ui)
+            _, topic = eventually("authenticated device subscription", lambda: active_registration(db))
+            if not topic.startswith(ntfy_url + "/up"):
+                raise AssertionError("Device registered with another push origin")
+            before = len(published_messages(topic))
+            ui.wait("Désactiver")
+            adb.shell("input", "keyevent", "BACK")
+            ui.tap("Autres actions")
+            ui.tap("Verrouiller le profil")
+            start_account(ui, alt, other_url, other.key, secrets.token_hex(14))
+            process_absent(ui)
+            session, run_id = trigger(primary, title)
+            event = eventually("terminal event in relay", lambda: completed_event(push, primary.key, run_id))
+            if event["session_id"] != session:
+                raise AssertionError("Event lost its session association")
+            eventually("Android notification with this exact event", lambda: app_notice(adb, event["event_id"]))
+            pushed = published_messages(topic)
+            if len(pushed) != before + 1 or pushed[-1].get("encoding") != "base64":
+                raise AssertionError("Expected one encrypted binary Web Push on the registered topic")
+            tap_notice(ui, owner, phrase, title)
+            ui.tap("Atelier")
+            ui.tap("Notifications")
+            ui.tap("Désactiver")
+            eventually("server revocation", lambda: active_registration(db) is None)
+            _, second_run = trigger(primary, "Après révocation")
+            revoked = eventually(
+                "terminal event after revoke", lambda: completed_event(push, primary.key, second_run)
+            )
+            if app_notice(adb, revoked["event_id"]) or len(published_messages(topic)) != len(pushed):
+                raise AssertionError("Revoked device received another message")
+            print(
+                json.dumps(
+                    {
+                        "hermes_revision": args.revision,
+                        "sdk": adb.shell("getprop", "ro.build.version.sdk"),
+                        "ntfy_server": SERVER.version,
+                        "distributor": APK.version,
+                        "absent_before_delivery": True,
+                        "webpush_messages": 1,
+                        "notification_event_matched": True,
+                        "owning_profile_unlocked": True,
+                        "owning_thread_opened": True,
+                        "revoked_delivery_suppressed": True,
+                    },
+                    sort_keys=True,
+                )
+            )
+        finally:
+            adb.shell("rm", "-f", ui.tmp)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--source", type=Path, required=True)
+    parser.add_argument("--apk", type=Path, required=True, help="Android debug APK under test")
+    parser.add_argument("--revision", default=PINNED_REVISION)
+    parser.add_argument("--serial", required=True)
+    parser.add_argument("--adb", default=shutil.which("adb") or "adb")
+    parser.add_argument("--adb-port", type=int, default=5037)
+    parser.add_argument(
+        "--push-python", default=sys.executable, help="Python with the dependencies from server/requirements.txt"
+    )
+    parser.add_argument("--cache", type=Path, default=Path.home() / ".cache/hermes-mobile/ntfy")
+    run(parser.parse_args())
+
+
+if __name__ == "__main__":
+    main()
