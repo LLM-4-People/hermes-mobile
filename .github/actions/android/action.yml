@@ -1,5 +1,10 @@
 name: Android build environment
 description: Select the project JDK and read Android versions from Gradle.
+inputs:
+  gradle:
+    description: Set to cached for normal Gradle builds or clean for release verification.
+    required: false
+    default: none
 outputs:
   sdk:
     description: Compile SDK level
@@ -15,6 +20,20 @@ runs:
       with:
         distribution: temurin
         java-version: '21'
+        cache: ${{ inputs.gradle == 'cached' && 'gradle' || '' }}
+        cache-jdk: false
+    - name: Prepare the pinned Gradle distribution
+      if: inputs.gradle != 'none'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        BUILD_MODE: ${{ inputs.gradle }}
+      run: |
+        if [[ "$BUILD_MODE" == clean ]]; then
+          export GRADLE_USER_HOME="$RUNNER_TEMP/gradle-release-home"
+          echo "GRADLE_USER_HOME=$GRADLE_USER_HOME" >> "$GITHUB_ENV"
+        fi
+        python3 -B ci/gradle_distribution.py
     - id: versions
       shell: bash
       run: |

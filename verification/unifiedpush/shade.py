@@ -47,7 +47,10 @@ def presentation(ui, root, title):
 
 def shade_focused(device):
     windows = device.shell("dumpsys", "window")
-    return any("mCurrentFocus=" in line and "NotificationShade" in line for line in windows.splitlines())
+    # Android 13 names its TYPE_NOTIFICATION_SHADE window "NotificationShade".
+    # The same SystemUI stack can also render heads-up rows while the launcher owns focus.
+    return re.search(r"\bmCurrentFocus=Window\{[^}\n]*\bu\d+\s+"
+                     r"(?:com\.android\.systemui/)?NotificationShade\}", windows) is not None
 
 
 def show_notice(ui, title):
@@ -65,8 +68,8 @@ def show_notice(ui, title):
         root = ui.hierarchy()
         state.update(presentation(ui, root, title))
         target = ui.node(title, root)
-        drawer = state["notification_stack"] or (state["notification_rows"] or target is not None) and shade_focused(device)
-        if not state["system_ui"] or not drawer:
+        state["shade_focused"] = state["system_ui"] and shade_focused(device)
+        if not state["shade_focused"]:
             if reopens % 2:
                 ui.controls.send("open-shade")
             else:

@@ -4,9 +4,9 @@
 
 Use a short-lived branch based on current `main`. Open a pull request after completing a milestone. Preserve unique work before deleting merged branches.
 
-The `main` ruleset requires pull requests, resolved review threads and successful **Validate sources**, **Workspace tests**, **Android package** and **Android device** checks. GitHub requires an up-to-date branch and blocks deletion and force-pushes. Record the independent review, confirmed findings, repairs and verification in the pull request before merging. The repository currently has one maintainer and uses independent project reviewers for this gate. Actions starts with read access and cannot approve pull requests.
+Promotion to `main` requires a pull request, resolved review threads and passing results for all five checks (**Validate sources**, **Workspace tests**, **Android package**, **Android device** and **Phone acceptance / AOSP closed-app delivery**). GitHub requires an up-to-date branch and blocks deletion and force-pushes. Record the independent review, confirmed findings, repairs and verification in the pull request before merging. The repository currently has one maintainer and uses independent project reviewers for this gate. Actions starts with read access and cannot approve pull requests.
 
-Every pull request also runs **Phone acceptance / AOSP closed-app delivery** on the release payload. The checks validate generated Markdown and workflows, run the backend and Android host tests, lint and build the app, and exercise it on an Android emulator. Download the debug APK from the **android-debug** artifact on a successful package job.
+The checks validate generated Markdown and workflows, run backend and Android host tests, lint and build the app, and exercise it on Android emulators. The AOSP phone checks closed-app notification delivery using the minified release payload. Download the debug APK from the **android-debug** artifact on a successful package job.
 
 ```sh
 python3 scripts/docs.py --check

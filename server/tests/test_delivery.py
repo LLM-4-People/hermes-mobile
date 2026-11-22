@@ -1,5 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor
 import json
+import math
 import sqlite3
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -352,7 +353,9 @@ class Delivery(unittest.TestCase):
         retired = self.store.claim(103, 1)
         self.assertEqual((retired["kind"], retired["event_id"]), ("question_settled", posted["event_id"]))
 
-    def test_incremental_scan_retries_atomic_batch_and_catches_backdated_commits(self):
+    # At this clock origin, subtracting 600.1 from the 1200.1 deadline rounds below 600.
+    @patch("server.mobile_push.ledgers.time.monotonic", return_value=600.1)
+    def test_incremental_scan_retries_atomic_batch_and_catches_backdated_commits(self, clock):
         runs = create_runs(self.settings)
         self.addCleanup(runs.close)
         scope = self.settings.run_scope
@@ -371,11 +374,14 @@ class Delivery(unittest.TestCase):
             stream.scan((scope,0), self.store,0)
             self.assertLessEqual(len(write.call_args.args[0]), 4)
         insert_run(runs, scope, "late", 150, "failed")
-        stream.scan((scope,0), self.store,0)
-        with patch("server.mobile_push.ledgers.time.monotonic", return_value=stream.last_full + self.settings.reconcile_seconds):
-            stream.scan((scope,0), self.store,0)
-        late_id = Event.make(["late"],"run_failed",150).event_id
-        self.assertEqual(self.store.events(event_id=late_id)["run_id"],"late")
+        late_id = Event.make(["late"], "run_failed", 150).event_id
+        deadline = clock.return_value + self.settings.reconcile_seconds
+        clock.return_value = math.nextafter(deadline, -math.inf)
+        stream.scan((scope, 0), self.store, 0)
+        self.assertIsNone(self.store.events(event_id=late_id))
+        clock.return_value = deadline
+        stream.scan((scope, 0), self.store, 0)
+        self.assertEqual(self.store.events(event_id=late_id)["run_id"], "late")
         reopened = HermesLedgers(self.settings)
         try:
             reopened.runs.scan((scope,0), self.store,0)
