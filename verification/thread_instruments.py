@@ -163,7 +163,7 @@ def await_viewport(device, *, expected_rotation, required_tokens, label, timeout
         last_rotation = device.shell("wm", "user-rotation")
         if last_rotation == expected_rotation and all(token in last_config for token in required_tokens):
             return
-        time.sleep(0.2)
+        time.sleep(0.05)
     raise AssertionError(
         f"The emulator did not apply {label} (expected rotation={expected_rotation!r}, "
         f"tokens={list(required_tokens)!r}; saw rotation={last_rotation!r}, config={last_config!r})"

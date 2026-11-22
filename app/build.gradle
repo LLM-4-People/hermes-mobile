@@ -29,6 +29,20 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+
+    buildFeatures {
+        aidl = false
+        buildConfig = false
+        renderScript = false
+        resValues = false
+        shaders = false
+    }
+
+    testOptions {
+        unitTests.all {
+            maxParallelForks = Math.max(1, Runtime.runtime.availableProcessors().intdiv(2))
+        }
+    }
 }
 
 def frameworkTestLibraries = androidComponents.sdkComponents.sdkDirectory.map { location ->

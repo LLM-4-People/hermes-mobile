@@ -104,31 +104,70 @@ class DeviceGateTest(unittest.TestCase):
             command.write_text(RECORDER)
             command.chmod(0o755)
 
-    def gate(self, fail="", execution_status=0, **changes):
+    def gate(self, fail="", execution_status=0, suite=None, include_handoff=True, **changes):
         env = {**os.environ, "RUNNER_TEMP": str(self.runner), "GATE_COMMANDS": str(self.trace),
                "ANDROID_BUILD_TOOLS": str(self.build_tools),
                "PATH": str(self.root / "bin") + os.pathsep + os.environ["PATH"],
                "FAIL_VERIFIER": fail, "EXECUTION_STATUS": str(execution_status), **changes}
+        if suite is not None:
+            env["HERMES_DEVICE_SUITE"] = suite
         result = subprocess.run(["bash", GATE], cwd=self.root, env=env, text=True, capture_output=True)
-        if result.returncode == 0:
+        if result.returncode == 0 and include_handoff:
             env["FIXTURE_ADB_SERIAL"] = HANDOFF[2]
             result = subprocess.run(["bash", GATE.with_name("phone-action-check.sh"), APP_APK],
                                     cwd=self.root, env=env, text=True, capture_output=True)
         return result, [json.loads(line) for line in self.trace.read_text().splitlines()]
 
-    def test_workflow_requires_a_fresh_second_emulator_for_os_handoffs(self):
+    def handoff_gate(self, **changes):
+        env = {**os.environ, "RUNNER_TEMP": str(self.runner), "GATE_COMMANDS": str(self.trace),
+               "ANDROID_BUILD_TOOLS": str(self.build_tools),
+               "PATH": str(self.root / "bin") + os.pathsep + os.environ["PATH"],
+               "FIXTURE_ADB_SERIAL": HANDOFF[2], **changes}
+        result = subprocess.run(["bash", GATE.with_name("phone-action-check.sh"), APP_APK],
+                                cwd=self.root, env=env, text=True, capture_output=True)
+        return result, [json.loads(line) for line in self.trace.read_text().splitlines()]
+
+    def test_workflow_requires_parallel_fresh_emulators_and_concurrency(self):
         workflow = (GATE.parents[1] / ".github/workflows/checks.yml").read_text()
-        job = workflow.split("\n  device:\n", 1)[1].split("\n  aosp:", 1)[0]
-        primary, handoffs = job.split("      - name: Verify Android phone handoffs on a fresh emulator", 1)
-        self.assertIn("script: ci/device-check.sh", primary)
-        handoffs = handoffs.split("      - name:", 1)[0]
-        self.assertIn("ReactiveCircus/android-emulator-runner@", handoffs)
-        self.assertIn("target: google_apis", handoffs)
-        self.assertIn("avd-name: hermes-handoffs", handoffs)
-        self.assertIn("force-avd-creation: true", handoffs)
-        self.assertIn("script: bash ci/phone-action-check.sh " + APP_APK, handoffs)
-        self.assertNotIn("if:", handoffs)
-        self.assertNotIn("continue-on-error", handoffs)
+        self.assertIn("concurrency:", workflow)
+        self.assertIn("cancel-in-progress: ${{ github.ref != 'refs/heads/main' && github.event_name != 'workflow_call' }}", workflow)
+        device_section = workflow.split("\n  device:\n", 1)[1].split("\n  aosp:", 1)[0]
+        self.assertIn("HERMES_DEVICE_SUITE: core", device_section)
+        self.assertIn("HERMES_DEVICE_SUITE: journeys", device_section)
+        self.assertIn("avd-name: hermes-journeys", device_section)
+        self.assertIn("\n  device-journeys:\n", device_section)
+        self.assertIn("\n  phone-handoffs:\n", device_section)
+        self.assertIn("\n  nearby-guide:\n", device_section)
+
+        handoffs = workflow.split("\n  phone-handoffs:\n", 1)[1].split("\n  nearby-guide:", 1)[0]
+        self.assertIn("needs: package", handoffs)
+        handoff_step = handoffs.split("      - name: Verify Android phone handoffs on a fresh emulator", 1)[1].split("      - name:", 1)[0]
+        self.assertIn("ReactiveCircus/android-emulator-runner@", handoff_step)
+        self.assertIn("target: google_apis", handoff_step)
+        self.assertIn("avd-name: hermes-handoffs", handoff_step)
+        self.assertIn("force-avd-creation: true", handoff_step)
+        self.assertIn("script: bash ci/phone-action-check.sh " + APP_APK, handoff_step)
+        self.assertNotIn("if:", handoff_step)
+        self.assertNotIn("continue-on-error", handoff_step)
+
+    def test_device_check_shards_cover_full_gate_without_gaps(self):
+        core_res, core_calls = self.gate(suite="core", include_handoff=False)
+        self.assertEqual(core_res.returncode, 0, core_res.stderr)
+        core_verifiers = [cmd[2] for cmd in core_calls if cmd[0] == "python"]
+        self.assertIn(["dexdump", "-l", "xml", TEST_APK], core_calls)
+        self.assertEqual(core_verifiers, ["verification/live_api.py", "verification/conversation_cards.py"])
+
+        self.trace.write_text("")
+        journeys_res, journeys_calls = self.gate(suite="journeys", include_handoff=False)
+        self.assertEqual(journeys_res.returncode, 0, journeys_res.stderr)
+        journeys_verifiers = [cmd[2] for cmd in journeys_calls if cmd[0] == "python"]
+        self.assertEqual(journeys_verifiers, [
+            "verification/thread_instruments.py", "verification/discussion_photo.py", "verification/discussion_skills.py"])
+
+        self.trace.write_text("")
+        bad_res, _ = self.gate(suite="bogus", include_handoff=False)
+        self.assertEqual(bad_res.returncode, 2)
+        self.assertIn("Unknown HERMES_DEVICE_SUITE", bad_res.stderr)
 
     def test_journeys_use_the_packaged_apks_and_their_own_emulator(self):
         result, calls = self.gate()
@@ -189,18 +228,18 @@ class DeviceGateTest(unittest.TestCase):
                     self.assertIn("partial screenshots in android-thread-instruments", result.stderr)
 
     def test_missing_expected_evidence_fails_even_when_verifier_exits_zero(self):
-        result, calls = self.gate(MISSING_EVIDENCE="-map_search.png")
+        result, calls = self.handoff_gate(MISSING_EVIDENCE="-map_search.png")
         self.assertEqual(result.returncode, 1)
         self.assertIn("Android handoff evidence missing: phone-actions-map_search.png", result.stderr)
         self.assertIn("verification.phone_actions", calls[-1])
 
     def test_unverified_calendar_stops_before_installation(self):
-        result, calls = self.gate(CALENDAR_CHECK_STATUS="1")
+        result, calls = self.handoff_gate(CALENDAR_CHECK_STATUS="1")
         self.assertEqual(result.returncode, 1)
         self.assertEqual(calls[-1], ["sha256sum", "--check"])
 
     def test_unexpected_map_resolver_stops_before_handoff_proof(self):
-        result, calls = self.gate(MAP_COMPONENT="android/.ResolverActivity")
+        result, calls = self.handoff_gate(MAP_COMPONENT="android/.ResolverActivity")
         self.assertEqual(result.returncode, 1)
         self.assertIn("com.google.android.apps.maps", result.stderr)
         self.assertNotIn("verification.phone_actions", [arg for cmd in calls for arg in cmd])
@@ -243,7 +282,8 @@ class DeviceGateTest(unittest.TestCase):
 
     def test_workflow_requires_a_fresh_third_emulator_for_nearby_restaurants(self):
         workflow = (GATE.parents[1] / ".github/workflows/checks.yml").read_text()
-        job = workflow.split("\n  device:\n", 1)[1].split("\n  aosp:", 1)[0]
+        job = workflow.split("\n  nearby-guide:\n", 1)[1].split("\n  aosp:", 1)[0]
+        self.assertIn("needs: package", job)
         _, nearby = job.split("      - name: Verify Android foreground location and restaurant guide on a fresh emulator", 1)
         nearby_step, rest = nearby.split("      - name:", 1)
         self.assertIn("ReactiveCircus/android-emulator-runner@", nearby_step)

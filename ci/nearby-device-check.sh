@@ -17,10 +17,10 @@ if [[ "$resolved" != com.google.android.apps.maps/* ]]; then
   echo "Expected Android to resolve geo intent to com.google.android.apps.maps. Received: $resolved" >&2
   exit 1
 fi
-for ((i = 0; i < 30; i++)); do
+for ((i = 0; i < 120; i++)); do
   connectivity=$(adb -s "$serial" shell dumpsys connectivity)
   if [[ "$connectivity" == *'Active default network: none'* ]]; then break; fi
-  sleep 1
+  sleep 0.25
 done
 "$RUNNER_TEMP/hermes-env/bin/python" -B -m verification.nearby_restaurants --serial "$serial" \
   --source .fixture/hermes --verify-apks "$app" "$tests" --output "$evidence"
