@@ -61,6 +61,11 @@ public class HermesOsPrivacyAndWidgetTest {
         assertEquals("", HermesWidgetSpec.sanitizeHomeText("sk-1234567890abcdef", 48));
         assertEquals("", HermesWidgetSpec.sanitizeHomeText("eyJhbGciOiJIUzI1NiJ9.payload", 48));
         assertEquals("Bonjour", HermesWidgetSpec.sanitizeHomeText("Bon\u202Ejour\n", 48));
+        // Draft actions must also reject secret-like tokens.
+        assertEquals("", HermesWidgetSpec.sanitizeDraft("Bearer abcdefgh12345678"));
+        assertEquals("", HermesWidgetSpec.sanitizeDraft("sk-1234567890abcdef"));
+        assertEquals("", HermesWidgetSpec.sanitizeDraft("ghp_1234567890abcdef1234567890"));
+        assertEquals("Prépare ma journée", HermesWidgetSpec.sanitizeDraft("Prépare ma journée"));
 
         // Invalid IDs, blank titles, and unsupported templates must fail cleanly.
         try {
@@ -74,11 +79,64 @@ public class HermesOsPrivacyAndWidgetTest {
             fail("Invalid widget template accepted");
         } catch (IllegalArgumentException expected) {}
 
-        // Lossless encode/decode roundtrip preserves fields and redaction invariants.
-        HermesWidgetSpec decoded = HermesWidgetSpec.decode(privateSpec.encode());
+        // Lossless v2 encode/decode roundtrip preserves ownerProfileId and redaction invariants,
+        // while legacy v1 payloads remain readable.
+        HermesWidgetSpec owned = privateSpec.withOwner("profile-alpha");
+        HermesWidgetSpec decoded = HermesWidgetSpec.decode(owned.encode());
         assertEquals("daily_brief", decoded.widgetId);
+        assertEquals("profile-alpha", decoded.ownerProfileId);
         assertFalse(decoded.homeScreenSafe);
         assertEquals("Hermes", decoded.redactedForHomeScreen().title);
+
+        String legacyV1 = "v1\n" + java.util.Base64.getUrlEncoder().withoutPadding()
+                .encodeToString("legacy_w".getBytes(java.nio.charset.StandardCharsets.UTF_8)) + "\n"
+                + java.util.Base64.getUrlEncoder().withoutPadding()
+                .encodeToString("Ancien".getBytes(java.nio.charset.StandardCharsets.UTF_8)) + "\n\nstatus\n1\n\n0";
+        HermesWidgetSpec decodedV1 = HermesWidgetSpec.decode(legacyV1);
+        assertEquals("legacy_w", decodedV1.widgetId);
+        assertNull(decodedV1.ownerProfileId);
+    }
+
+    @Test public void widgetStoreIsolatesProfilesAndPurgesForgottenProfile() {
+        MemoryBacking backing = new MemoryBacking();
+        HermesWidgetStore store = new HermesWidgetStore(backing);
+
+        HermesWidgetSpec aliceWidget = new HermesWidgetSpec(
+                "alice_brief",
+                "Alice",
+                "Résumé",
+                HermesWidgetSpec.Template.QUICK_ACTIONS,
+                List.of(new HermesWidgetSpec.Item("Ouvrir", "", "Brouillon confidentiel Alice")),
+                null,
+                true,
+                "profile-alice");
+        HermesWidgetSpec bobWidget = new HermesWidgetSpec(
+                "bob_brief",
+                "Bob",
+                "Résumé",
+                HermesWidgetSpec.Template.QUICK_ACTIONS,
+                List.of(new HermesWidgetSpec.Item("Ouvrir", "", "Brouillon Bob")),
+                null,
+                true,
+                "profile-bob");
+        store.upsertSpec(aliceWidget, "profile-alice");
+        store.upsertSpec(bobWidget, "profile-bob");
+        store.bindInstance(201, "alice_brief");
+        store.bindInstance(202, "bob_brief");
+
+        assertEquals("profile-alice", store.ownerForWidget("alice_brief"));
+        assertEquals("Brouillon confidentiel Alice", store.draftForAction("alice_brief", 0, "profile-alice"));
+        // Fail closed when another profile (or no profile) is active!
+        assertNull(store.draftForAction("alice_brief", 0, "profile-bob"));
+        assertNull(store.draftForAction("alice_brief", 0, null));
+
+        // Purging Alice removes Alice's spec and bindings while keeping Bob intact.
+        assertEquals(1, store.purgeProfile("profile-alice"));
+        assertNull(store.spec("alice_brief"));
+        assertNull(store.specForInstance(201));
+        assertNotNull(store.spec("bob_brief"));
+        assertNotNull(store.specForInstance(202));
+        assertEquals("Brouillon Bob", store.draftForAction("bob_brief", 0, "profile-bob"));
     }
 
     @Test public void widgetStoreHandlesMultiInstanceBindingLiveUpdateRemovalAndCorruptRows() {

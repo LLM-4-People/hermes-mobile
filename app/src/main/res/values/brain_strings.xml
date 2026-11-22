@@ -102,7 +102,7 @@
     <string name="brain_thread_fork_empty">Envoyez au moins un message avant de créer une nouvelle piste.</string>
     <string name="brain_thread_export">Exporter la discussion</string>
     <string name="brain_thread_export_md">Document texte (Markdown)</string>
-    <string name="brain_thread_export_json">Données complètes (JSON)</string>
+    <string name="brain_thread_export_json">Données complètes structurées</string>
     <string name="brain_thread_export_saved">Discussion exportée.</string>
     <string name="brain_thread_export_failed">Impossible d’exporter cette discussion. Réessayez.</string>
     <string name="brain_thread_export_unavailable">L’exportation nécessite une mise à jour de votre serveur Hermes.</string>

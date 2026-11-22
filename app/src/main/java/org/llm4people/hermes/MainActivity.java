@@ -139,6 +139,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         gate = new ProfileGate(this);
         gate.setOnForget(id -> {
             MobilePush.forget(this, id);
+            HermesWidgetStore.forgetProfile(this, id);
             HermesNotificationListener.clearSession();
         });
         handledDelivery = state == null ? null : state.getString("handled_delivery");
@@ -219,7 +220,8 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         actions.register("new_thread", () -> { displayDiscussion(); threads.newThread(); });
         actions.register("create_instrument", () -> {
             if (threads.sessionId() != null) stageDraft(getString(R.string.instrument_create_request));
-            else message("Choisir une discussion", "Ouvrez une discussion pour créer un outil.");
+            else message(getString(R.string.ws_choose_discussion_title),
+                    getString(R.string.ws_choose_discussion_tool_body));
         });
         actions.register("rename", () -> threads.rename());
         actions.register("published_files", () -> {
@@ -236,13 +238,15 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         actions.register(AmbientAccessPanel.ROUTE_ID, () -> navigate(AmbientAccessPanel.ROUTE_ID));
         actions.register("language", () -> AppLanguage.showPicker(this, selected -> {
             if (account != null) {
-                HermesApi syncApi = new HermesApi(account.endpoint, account.bearer);
+                HermesApi syncApi = new HermesApi(account.endpoint, account.bearer,
+                        HermesApi.Limits.from(HermesConfig.load(this)));
                 AppLanguage.syncToServerAsync(syncApi, selected);
             }
         }));
         actions.register("restore", () -> ArtifactDesk.manage(this, account, activeHost));
         actions.register("profiles", this::lock);
-        actions.register("pin_widget", () -> WorkspaceDialogs.pinQuickWidget(this));
+        actions.register("pin_widget", () -> WorkspaceDialogs.pinQuickWidget(this,
+                account == null ? null : account.id));
         actions.register("search", () -> {
             if (notice != null) notice.dismiss();
             notice = WorkspaceDialogs.showSearch(this, threads, this::onAction, () -> notice = null);
@@ -267,7 +271,8 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     private void openThreadAction(String id) {
         String session = threads.sessionId();
         if (session == null) {
-            message("Choisir une discussion", "Ouvrez une discussion pour utiliser cette action.");
+            message(getString(R.string.ws_choose_discussion_title),
+                    getString(R.string.ws_choose_discussion_body));
         } else if ("stats".equals(id)) {
             panels.showStats(session, threads.remoteSessionId());
         } else if ("artifacts".equals(id)) {
@@ -301,9 +306,14 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     }
 
     private void unlock() {
+        String widgetId = pendingPinnedWidget != null ? pendingPinnedWidget
+                : (pendingOsEntry != null && pendingOsEntry.target() == OsEntryIntent.Target.WIDGET_ACTION
+                ? pendingOsEntry.widgetId() : null);
+        String widgetOwner = widgetId != null ? new HermesWidgetStore(this).ownerForWidget(widgetId) : null;
         String requested = delivery != null ? delivery.profileId
                 : sharedText.requestedProfile() != null ? sharedText.requestedProfile()
-                : sharedMedia.requestedProfile();
+                : sharedMedia.requestedProfile() != null ? sharedMedia.requestedProfile()
+                : widgetOwner;
         gate.start(requested, this::opened);
     }
 
@@ -314,7 +324,8 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         cameraCapture.unlocked(unlocked);
         AppLanguage.refreshRuntime(this);
         HermesNotificationListener.bindProfile(this, unlocked);
-        HermesApi api = new HermesApi(account.endpoint, account.bearer);
+        HermesApi api = new HermesApi(account.endpoint, account.bearer,
+                HermesApi.Limits.from(HermesConfig.load(this)));
         navigation = new WorkspaceNavigation();
         activeHost = new WorkspaceHost(this, () -> account == unlocked);
         shell = new WorkspaceShell(this, this::onAction, voice.reader()::active);
@@ -326,9 +337,11 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         LiveRunActionReceiver.setStopHandler(liveStopHandler);
         threadActions.unlock(account, api);
         featureRoutes = BrainStudioRoutes.register(new RouteRegistry(), brainHandlers());
-        DeliveryRouter.registerRoutes(featureRoutes,
-                () -> onAction("deliveries"), () -> onAction("push_policy"));
-        AmbientAccessPanel.registerRoute(featureRoutes, this, () -> onAction(AmbientAccessPanel.ROUTE_ID));
+        DeliveryRouter.registerRoutes(featureRoutes, this,
+                () -> { if (account == unlocked && push != null) push.openInbox(account, deliveryActions(account)); },
+                () -> { if (account == unlocked && push != null) push.openPolicy(account); });
+        AmbientAccessPanel.registerRoute(featureRoutes, this,
+                () -> { if (account == unlocked) navigate(AmbientAccessPanel.ROUTE_ID); });
         setContentView(shell.root);
         displayDiscussion();
         files.unlock(account, api);
@@ -377,7 +390,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             String wid = pendingPinnedWidget;
             pendingPinnedWidget = null;
             setIntent(new Intent(this, MainActivity.class));
-            String draft = new HermesWidgetStore(this).draftForAction(wid, 0);
+            String draft = new HermesWidgetStore(this).draftForAction(wid, 0, account.id);
             displayDiscussion();
             if (draft != null && !draft.isEmpty()) stageDraft(draft);
             else if (threads.sessionId() != null) threads.focusComposer();
@@ -408,7 +421,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             case ACTIVITY -> switchTab(WorkspaceNavigation.ACTIVITY);
             case WIDGET_ACTION -> {
                 String draft = new HermesWidgetStore(this)
-                        .draftForAction(request.widgetId(), request.itemIndex());
+                        .draftForAction(request.widgetId(), request.itemIndex(), account.id);
                 displayDiscussion();
                 if (draft != null && !draft.isEmpty()) {
                     stageDraft(draft);
@@ -454,7 +467,8 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                 notifications.execute(() -> {
                     try {
                         DeliveryItem fetched = new org.llm4people.hermes.push.DeliveryInbox().fetchOne(
-                                owner, new HermesApi(owner.endpoint, owner.bearer), targetId);
+                                owner, new HermesApi(owner.endpoint, owner.bearer,
+                                        HermesApi.Limits.from(HermesConfig.load(this))), targetId);
                         runOnUiThread(() -> {
                             if (owner == account && request == noticeRequest && !isFinishing()) {
                                 push.openDelivery(owner, fetched, deliveryActions(owner));
@@ -554,10 +568,10 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             }
             if (notice != null) notice.dismiss();
             notice = Ui.secureDialog(new AlertDialog.Builder(this)
-                    .setTitle("Mise à jour d’écran proposée")
+                    .setTitle(R.string.live_ui_delivery_title)
                     .setMessage(details.toString())
-                    .setNegativeButton("Fermer", null)
-                    .setPositiveButton("Appliquer", (d, w) -> {
+                    .setNegativeButton(R.string.ws_close, null)
+                    .setPositiveButton(R.string.live_ui_delivery_apply, (d, w) -> {
                         if (owner != account) return;
                         try {
                             LiveUiPatch.StateManager manager = LiveUiPatch.StateManager.forAccount(
@@ -573,13 +587,14 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                             onLayoutChanged();
                         } catch (IOException | IllegalStateException e) {
                             Diagnostics.warning("live_ui", "delivery_apply_failed");
-                            message("Mise à jour impossible",
-                                    "Impossible d’appliquer cette modification d’écran.");
+                            message(getString(R.string.live_ui_delivery_failed_title),
+                                    getString(R.string.live_ui_delivery_failed_body));
                         }
                     }));
         } catch (IOException rejected) {
             Diagnostics.warning("live_ui", "delivery_patch_rejected");
-            message("Proposition invalide", "Cette mise à jour d’écran ne peut pas être appliquée.");
+            message(getString(R.string.live_ui_delivery_invalid_title),
+                    getString(R.string.live_ui_delivery_invalid_body));
         }
     }
 
@@ -704,7 +719,8 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             @Override public void openWorkspaceFiles() {
                 String session = activeRemoteSessionId();
                 if (session == null) {
-                    message("Choisir une discussion", "Ouvrez une discussion pour parcourir les fichiers du projet.");
+                    message(getString(R.string.ws_choose_discussion_title),
+                            getString(R.string.ws_choose_discussion_files_body));
                     return;
                 }
                 panels.showWorkspaceFiles(session, activeThreadCheck(), MainActivity.this::stageDraft, returnToHub());
@@ -1106,6 +1122,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
 
     @Override protected void onDestroy() {
         clearWorkspace();
+        if (gate != null) gate.close();
         if (files != null) files.close();
         if (threadActions != null) threadActions.close();
         notifications.shutdownNow();

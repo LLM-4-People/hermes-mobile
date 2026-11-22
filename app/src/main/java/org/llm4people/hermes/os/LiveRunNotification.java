@@ -68,14 +68,19 @@ public final class LiveRunNotification {
 
     /** Pure privacy-safe presentation mapper tested deterministically on the host JVM. */
     public static Presentation present(Snapshot snapshot) {
+        return present(null, snapshot);
+    }
+
+    /** Localized privacy-safe presentation mapper using FR/EN string resources when Context is provided. */
+    public static Presentation present(Context context, Snapshot snapshot) {
         if (snapshot == null || !snapshot.active()) return null;
         int completed = Math.max(0, Math.min(99, snapshot.completedSteps()));
         int total = Math.max(0, Math.min(99, snapshot.totalSteps()));
         if (snapshot.awaitingDecision() || snapshot.phase() == Phase.AWAITING_DECISION) {
             return new Presentation(
-                    "Décision requise",
-                    "Hermes attend votre réponse dans l’application.",
-                    "Action",
+                    context == null ? "Décision requise" : context.getString(R.string.live_run_decision_title),
+                    context == null ? "Hermes attend votre réponse dans l’application." : context.getString(R.string.live_run_decision_body),
+                    context == null ? "Action" : context.getString(R.string.live_run_chip_action),
                     SEGMENT_PREP + SEGMENT_WORK / 2,
                     TOTAL_UNITS,
                     false);
@@ -85,25 +90,29 @@ public final class LiveRunNotification {
         boolean indeterminate;
         if (total > 0 && completed > 0) {
             int boundedCompleted = Math.min(completed, total);
-            chip = "Étape " + boundedCompleted + "/" + total;
+            chip = context == null
+                    ? "Étape " + boundedCompleted + "/" + total
+                    : context.getString(R.string.live_run_chip_step_of, boundedCompleted, total);
             progress = SEGMENT_PREP + Math.round((SEGMENT_WORK * (float) boundedCompleted) / total);
             indeterminate = false;
         } else if (completed > 0) {
-            chip = "Étape " + completed;
+            chip = context == null
+                    ? "Étape " + completed
+                    : context.getString(R.string.live_run_chip_step, completed);
             progress = Math.min(SEGMENT_PREP + SEGMENT_WORK, SEGMENT_PREP + completed * 12);
             indeterminate = false;
         } else if (snapshot.phase() == Phase.STARTING) {
-            chip = "Envoi";
+            chip = context == null ? "Envoi" : context.getString(R.string.live_run_chip_sending);
             progress = SEGMENT_PREP / 2;
             indeterminate = true;
         } else {
-            chip = "En cours";
+            chip = context == null ? "En cours" : context.getString(R.string.live_run_chip_working);
             progress = SEGMENT_PREP + SEGMENT_WORK / 3;
             indeterminate = true;
         }
         return new Presentation(
-                "Hermes travaille…",
-                "Ouvrez l’application pour suivre la réponse.",
+                context == null ? "Hermes travaille…" : context.getString(R.string.live_run_working_title),
+                context == null ? "Ouvrez l’application pour suivre la réponse." : context.getString(R.string.live_run_working_body),
                 chip,
                 progress,
                 TOTAL_UNITS,
@@ -127,7 +136,7 @@ public final class LiveRunNotification {
             return;
         }
         if (!allowed(app)) return;
-        Presentation model = present(normalized);
+        Presentation model = present(context, normalized);
         if (model == null) {
             cancelNotificationOnly(app);
             return;

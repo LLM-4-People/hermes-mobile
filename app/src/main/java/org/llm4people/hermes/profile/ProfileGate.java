@@ -3,6 +3,7 @@ package org.llm4people.hermes.profile;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
+import android.os.CancellationSignal;
 import android.text.Editable;
 import android.text.InputType;
 import android.text.TextWatcher;
@@ -35,6 +36,7 @@ public final class ProfileGate {
     private Consumer<String> onForget = id -> {};
     private Account active;
     private AlertDialog confirmation;
+    private CancellationSignal activeBiometric;
     private int generation;
     private boolean nested;
     private boolean busy;
@@ -80,6 +82,12 @@ public final class ProfileGate {
         }
     }
 
+    /** Permanently tears down the gate on Activity destroy: cancels biometrics, dismisses dialogs, zeroes Account keys. */
+    public void close() {
+        onOpen = null;
+        invalidate();
+    }
+
     /** Returns true only when handling navigation within the gate. */
     public boolean onBack() {
         if (!nested || active != null) return false;
@@ -88,10 +96,17 @@ public final class ProfileGate {
         return true;
     }
 
+    private void cancelBiometric() {
+        CancellationSignal signal = activeBiometric;
+        activeBiometric = null;
+        if (signal != null && !signal.isCanceled()) signal.cancel();
+    }
+
     private void invalidate() {
         generation++;
         busy = false;
         nested = false;
+        cancelBiometric();
         if (confirmation != null) {
             confirmation.dismiss();
             confirmation = null;
@@ -188,18 +203,39 @@ public final class ProfileGate {
     }
 
     /** Opt-in hardware-backed biometric enrollment using the currently unlocked account. */
-    public void enrollBiometric(Account unlocked, BiometricVault.EnrollmentCallback callback) {
+    public CancellationSignal enrollBiometric(Account unlocked, BiometricVault.EnrollmentCallback callback) {
         Objects.requireNonNull(callback);
         if (unlocked == null || unlocked != active) {
             callback.onError();
-            return;
+            return null;
         }
+        cancelBiometric();
+        int epoch = generation;
         try {
             byte[] payload = store.serializeForBiometric(unlocked);
-            BiometricVault.enroll(activity, unlocked.id, unlocked.label, payload, callback);
+            CancellationSignal signal = BiometricVault.enroll(activity, unlocked.id, unlocked.label, payload,
+                    new BiometricVault.EnrollmentCallback() {
+                        @Override public void onEnrolled() {
+                            activeBiometric = null;
+                            if (epoch == generation && active == unlocked) callback.onEnrolled();
+                        }
+
+                        @Override public void onCancelled() {
+                            activeBiometric = null;
+                            if (epoch == generation && active == unlocked) callback.onCancelled();
+                        }
+
+                        @Override public void onError() {
+                            activeBiometric = null;
+                            if (epoch == generation && active == unlocked) callback.onError();
+                        }
+                    });
+            activeBiometric = signal;
+            return signal;
         } catch (java.io.IOException | RuntimeException error) {
             Diagnostics.warning("biometric", "serialize_failed");
             callback.onError();
+            return null;
         }
     }
 
@@ -249,11 +285,13 @@ public final class ProfileGate {
 
     private void authenticateBiometric(ProfileScreen screen, Button bioButton, String id, String label) {
         if (busy) return;
+        cancelBiometric();
         busy = true;
         int epoch = generation;
         bioButton.setEnabled(false);
-        BiometricVault.authenticate(activity, id, label, new BiometricVault.Callback() {
+        activeBiometric = BiometricVault.authenticate(activity, id, label, new BiometricVault.Callback() {
             @Override public void onSuccess(byte[] payload) {
+                activeBiometric = null;
                 if (epoch != generation || activity.isFinishing() || activity.isDestroyed()) {
                     Arrays.fill(payload, (byte) 0);
                     return;
@@ -271,12 +309,14 @@ public final class ProfileGate {
             }
 
             @Override public void onCancelled() {
+                activeBiometric = null;
                 if (epoch != generation) return;
                 busy = false;
                 bioButton.setEnabled(true);
             }
 
             @Override public void onInvalidated() {
+                activeBiometric = null;
                 if (epoch != generation) return;
                 busy = false;
                 bioButton.setVisibility(android.view.View.GONE);
@@ -284,6 +324,7 @@ public final class ProfileGate {
             }
 
             @Override public void onError() {
+                activeBiometric = null;
                 if (epoch != generation) return;
                 busy = false;
                 bioButton.setEnabled(true);

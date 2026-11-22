@@ -162,6 +162,7 @@ final class AccountStore {
     void forget(String id) throws IOException {
         BiometricVault.revoke(context, id);
         LockGracePolicy.forget(context, id);
+        org.llm4people.hermes.os.HermesWidgetStore.forgetProfile(context, id);
         commitMembership(id, null, null);
         context.deleteSharedPreferences("hermes.vault." + id);
     }

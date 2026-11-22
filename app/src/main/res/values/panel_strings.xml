@@ -58,7 +58,7 @@
     <string name="panel_out">Jetons de sortie</string>
     <string name="panel_last_run">Dernière réponse mesurée sur cet appareil</string>
     <string name="panel_timing_empty">Aucune réponse mesurée dans cette discussion.</string>
-    <string name="panel_first_text">Délai avant le premier texte (TTFT)</string>
+    <string name="panel_first_text">Délai avant le premier texte</string>
     <string name="panel_rate">Débit de sortie de bout en bout</string>
     <string name="panel_duration">Durée totale</string>
     <string name="panel_seconds">%1$s s</string>

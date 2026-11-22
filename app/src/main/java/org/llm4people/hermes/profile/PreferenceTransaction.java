@@ -5,11 +5,11 @@ import java.util.Map;
 import java.util.Set;
 
 /** Commits a group of string records, restoring their previous values if the disk write fails. */
-final class PreferenceTransaction {
+public final class PreferenceTransaction {
     private PreferenceTransaction() {}
 
     /** A null value removes the key. Readers and conditional writers synchronize on the same preferences. */
-    static void commit(SharedPreferences prefs, Map<String, String> changes) {
+    public static void commit(SharedPreferences prefs, Map<String, String> changes) {
         synchronized (prefs) {
             SharedPreferences.Editor previous = prefs.edit();
             try {

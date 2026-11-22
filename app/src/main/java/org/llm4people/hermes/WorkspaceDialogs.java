@@ -3,6 +3,7 @@ package org.llm4people.hermes;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.graphics.Typeface;
+import android.os.CancellationSignal;
 import android.text.Editable;
 import android.text.InputType;
 import android.text.TextWatcher;
@@ -80,7 +81,7 @@ final class WorkspaceDialogs {
                 if (threads != null) threads.openSummary(item.id(), item.title());
             }));
         }
-        entries.add(new Entry("Rechercher dans tout l’historique", () -> {
+        entries.add(new Entry(activity.getString(R.string.search_all_history), () -> {
             if (dialogHolder[0] != null) dialogHolder[0].dismiss();
             onAction.accept(org.llm4people.hermes.panel.BrainStudioRoutes.ROUTE_SEARCH);
         }));
@@ -88,7 +89,8 @@ final class WorkspaceDialogs {
             if (dialogHolder[0] != null) dialogHolder[0].dismiss();
             onAction.accept("deliveries");
         }));
-        entries.add(new Entry(activity.getString(R.string.nav_atelier) + " · Mes écrans", () -> {
+        entries.add(new Entry(activity.getString(R.string.nav_atelier) + " · "
+                + activity.getString(R.string.ws_my_screens), () -> {
             if (dialogHolder[0] != null) dialogHolder[0].dismiss();
             onAction.accept("pages");
         }));
@@ -134,7 +136,7 @@ final class WorkspaceDialogs {
         AlertDialog dialog = Ui.secureDialog(new AlertDialog.Builder(activity)
                 .setTitle(R.string.search_dialog_title)
                 .setView(box)
-                .setNegativeButton("Fermer", null));
+                .setNegativeButton(R.string.ws_close, null));
         dialogHolder[0] = dialog;
         dialog.setOnDismissListener(d -> { if (onDismissed != null) onDismissed.run(); });
         return dialog;
@@ -186,6 +188,8 @@ final class WorkspaceDialogs {
         };
         refreshBio.run();
 
+        final AlertDialog[] dialogHolder = new AlertDialog[1];
+        final CancellationSignal[] activeEnroll = new CancellationSignal[1];
         bioAction.setOnClickListener(v -> {
             if (BiometricVault.isEnrolled(activity, account.id)) {
                 BiometricVault.revoke(activity, account.id);
@@ -194,8 +198,12 @@ final class WorkspaceDialogs {
                 Toast.makeText(activity, R.string.security_biometric_disabled_toast, Toast.LENGTH_SHORT).show();
             } else {
                 bioAction.setEnabled(false);
-                gate.enrollBiometric(account, new BiometricVault.EnrollmentCallback() {
+                if (activeEnroll[0] != null) activeEnroll[0].cancel();
+                activeEnroll[0] = gate.enrollBiometric(account, new BiometricVault.EnrollmentCallback() {
                     @Override public void onEnrolled() {
+                        activeEnroll[0] = null;
+                        if (dialogHolder[0] == null || !dialogHolder[0].isShowing()
+                                || activity.isFinishing() || activity.isDestroyed()) return;
                         bioAction.setEnabled(true);
                         refreshBio.run();
                         if (onPolicyChanged != null) onPolicyChanged.run();
@@ -203,10 +211,16 @@ final class WorkspaceDialogs {
                     }
 
                     @Override public void onCancelled() {
+                        activeEnroll[0] = null;
+                        if (dialogHolder[0] == null || !dialogHolder[0].isShowing()
+                                || activity.isFinishing() || activity.isDestroyed()) return;
                         bioAction.setEnabled(true);
                     }
 
                     @Override public void onError() {
+                        activeEnroll[0] = null;
+                        if (dialogHolder[0] == null || !dialogHolder[0].isShowing()
+                                || activity.isFinishing() || activity.isDestroyed()) return;
                         bioAction.setEnabled(true);
                         Toast.makeText(activity, R.string.security_biometric_failed, Toast.LENGTH_SHORT).show();
                     }
@@ -253,27 +267,40 @@ final class WorkspaceDialogs {
         AlertDialog dialog = Ui.secureDialog(new AlertDialog.Builder(activity)
                 .setTitle(R.string.security_dialog_title)
                 .setView(scroll)
-                .setPositiveButton("Fermer", null));
+                .setPositiveButton(R.string.ws_close, null));
+        dialogHolder[0] = dialog;
         lockNow.setOnClickListener(v -> {
             dialog.dismiss();
             onLockNow.run();
         });
-        dialog.setOnDismissListener(d -> { if (onDismissed != null) onDismissed.run(); });
+        dialog.setOnDismissListener(d -> {
+            if (activeEnroll[0] != null) {
+                activeEnroll[0].cancel();
+                activeEnroll[0] = null;
+            }
+            if (onDismissed != null) onDismissed.run();
+        });
         return dialog;
     }
 
     static void pinQuickWidget(Activity activity) {
+        pinQuickWidget(activity, null);
+    }
+
+    static void pinQuickWidget(Activity activity, String ownerProfileId) {
         HermesWidgetSpec spec = new HermesWidgetSpec(
                 "hermes_quick_actions",
-                "Hermes",
-                "Accès rapide privé",
+                activity.getString(R.string.widget_title),
+                activity.getString(R.string.widget_quick_subtitle),
                 HermesWidgetSpec.Template.QUICK_ACTIONS,
                 List.of(
-                        new HermesWidgetSpec.Item("Poser une question", "", ""),
-                        new HermesWidgetSpec.Item("Préparer ma journée", "", "Aide-moi à planifier ma journée.")
+                        new HermesWidgetSpec.Item(activity.getString(R.string.widget_quick_ask), "", ""),
+                        new HermesWidgetSpec.Item(activity.getString(R.string.widget_quick_plan), "",
+                                activity.getString(R.string.widget_quick_plan_draft))
                 ),
                 null,
-                true);
+                true,
+                ownerProfileId);
         HermesWidgetPinning.PinResult result = HermesWidgetPinning.requestPinWidget(activity, spec);
         Toast.makeText(activity, HermesWidgetPinning.guidanceMessage(activity, result), Toast.LENGTH_LONG).show();
     }

@@ -29,7 +29,7 @@ final class PushStore extends SQLiteOpenHelper {
         return instance;
     }
 
-    private static final int DATABASE_VERSION = 6;
+    private static final int DATABASE_VERSION = 7;
 
     PushStore(Context context, String database) { super(context, database, null, DATABASE_VERSION); }
 
@@ -44,6 +44,7 @@ final class PushStore extends SQLiteOpenHelper {
         addDismissals(db);
         addRecovery(db);
         addRepair(db);
+        addDeferredUrgency(db);
         db.execSQL("CREATE TABLE seen(installation TEXT NOT NULL REFERENCES devices(installation) ON DELETE CASCADE,"
                 + "event TEXT NOT NULL, kind TEXT NOT NULL, PRIMARY KEY(installation,event))");
     }
@@ -62,24 +63,31 @@ final class PushStore extends SQLiteOpenHelper {
         addDismissals(db);
         addRecovery(db);
         addRepair(db);
+        addDeferredUrgency(db);
     }
 
     private static void addRepair(SQLiteDatabase db) {
-        if (!hasDeviceColumn(db, "repair"))
+        if (!hasColumn(db, "devices", "repair"))
             db.execSQL("ALTER TABLE devices ADD COLUMN repair INTEGER NOT NULL DEFAULT 0");
     }
 
-    private static boolean hasDeviceColumn(SQLiteDatabase db, String name) {
-        try (Cursor columns = db.rawQuery("SELECT * FROM devices LIMIT 0", null)) {
+    private static void addDeferredUrgency(SQLiteDatabase db) {
+        if (!hasColumn(db, "deferred", "urgency")) {
+            db.execSQL("ALTER TABLE deferred ADD COLUMN urgency TEXT NOT NULL DEFAULT 'normal'");
+        }
+    }
+
+    private static boolean hasColumn(SQLiteDatabase db, String table, String name) {
+        try (Cursor columns = db.rawQuery("SELECT * FROM " + table + " LIMIT 0", null)) {
             return columns.getColumnIndex(name) >= 0;
         }
     }
 
     private static void addRecovery(SQLiteDatabase db) {
-        if (!hasDeviceColumn(db, "signer")) db.execSQL("ALTER TABLE devices ADD COLUMN signer TEXT");
+        if (!hasColumn(db, "devices", "signer")) db.execSQL("ALTER TABLE devices ADD COLUMN signer TEXT");
         db.execSQL("CREATE TABLE IF NOT EXISTS deferred(installation TEXT NOT NULL REFERENCES devices(installation) ON DELETE CASCADE,"
                 + "version TEXT NOT NULL,event TEXT NOT NULL,kind TEXT NOT NULL,expires INTEGER NOT NULL,"
-                + "discard_at INTEGER NOT NULL,PRIMARY KEY(installation,version,event))");
+                + "discard_at INTEGER NOT NULL,urgency TEXT NOT NULL DEFAULT 'normal',PRIMARY KEY(installation,version,event))");
         db.execSQL("CREATE TRIGGER IF NOT EXISTS discard_deferred AFTER UPDATE OF state,subscription_version ON devices BEGIN "
                 + "DELETE FROM deferred WHERE installation=NEW.installation AND "
                 + "(NEW.state IN ('failed','removing') OR version IS NOT NEW.subscription_version); END");
@@ -451,6 +459,12 @@ final class PushStore extends SQLiteOpenHelper {
 
     // Only opaque receipts for a known, unconfirmed binding enter this queue.
     void defer(Device owner, String event, String kind, long expires, long now) {
+        defer(owner, event, kind, DeliveryItem.Urgency.NORMAL, expires, now);
+    }
+
+    void defer(Device owner, String event, String kind, DeliveryItem.Urgency urgency, long expires, long now) {
+        DeliveryItem.Urgency effective = urgency == null ? DeliveryItem.Urgency.NORMAL : urgency;
+        if (effective == DeliveryItem.Urgency.SILENT) return;
         if (!PENDING.equals(owner.state) || owner.established || owner.subscriptionVersion == null
                 || !PushNotices.validIds(owner.installation, event) || !WebPushExpiry.mayDispatch(kind, expires, now)) return;
         String request = switch (kind) {
@@ -467,13 +481,14 @@ final class PushStore extends SQLiteOpenHelper {
                     || !owner.subscriptionVersion.equals(current.subscriptionVersion)) return;
             db.execSQL("DELETE FROM deferred WHERE discard_at<=?", new Object[]{now});
             long discardAt = now + 24 * 3_600_000L;
-            db.execSQL("INSERT OR IGNORE INTO deferred(installation,version,event,kind,expires,discard_at) "
-                    + "VALUES(?,?,?,?,?,?)", new Object[]{owner.installation, owner.subscriptionVersion, event, kind, expires, discardAt});
+            db.execSQL("INSERT OR IGNORE INTO deferred(installation,version,event,kind,expires,discard_at,urgency) "
+                    + "VALUES(?,?,?,?,?,?,?)", new Object[]{owner.installation, owner.subscriptionVersion,
+                            event, kind, expires, discardAt, effective.wire});
             if (request != null) {
                 // The settlement uses the original event ID. Preserve it whichever callback arrived first.
-                db.execSQL("UPDATE deferred SET kind=?,expires=?,discard_at=? WHERE installation=? AND version=? "
-                        + "AND event=? AND kind=?", new Object[]{kind, expires, discardAt, owner.installation,
-                                owner.subscriptionVersion, event, request});
+                db.execSQL("UPDATE deferred SET kind=?,expires=?,discard_at=?,urgency=? WHERE installation=? AND version=? "
+                        + "AND event=? AND kind=?", new Object[]{kind, expires, discardAt, effective.wire,
+                                owner.installation, owner.subscriptionVersion, event, request});
             }
             db.execSQL("DELETE FROM deferred WHERE installation=? AND rowid NOT IN "
                     + "(SELECT rowid FROM deferred WHERE installation=? ORDER BY rowid DESC LIMIT 64)",
@@ -495,13 +510,14 @@ final class PushStore extends SQLiteOpenHelper {
             Device owner = forInstallation(device.installation);
             if (owner == null || !ACTIVE.equals(owner.state) || owner.subscriptionVersion == null) return;
             String[] binding = {owner.installation, owner.subscriptionVersion};
-            try (Cursor rows = db.rawQuery("SELECT event,kind,expires,discard_at FROM deferred "
+            try (Cursor rows = db.rawQuery("SELECT event,kind,expires,discard_at,urgency FROM deferred "
                     + "WHERE installation=? AND version=? ORDER BY rowid", binding)) {
                 while (rows.moveToNext()) {
                     long now = System.currentTimeMillis();
                     String kind = rows.getString(1);
+                    DeliveryItem.Urgency urgency = DeliveryItem.Urgency.fromWireOrDefault(rows.getString(4));
                     if (rows.getLong(3) > now && WebPushExpiry.mayDispatch(kind, rows.getLong(2), now))
-                        PushNotices.post(context, owner, rows.getString(0), kind);
+                        PushNotices.post(context, owner, rows.getString(0), kind, urgency);
                 }
             }
             db.delete("deferred", "installation=? AND version=?", binding);

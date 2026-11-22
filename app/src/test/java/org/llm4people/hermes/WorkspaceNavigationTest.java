@@ -1,6 +1,7 @@
 package org.llm4people.hermes;
 
 import org.junit.Test;
+import org.llm4people.hermes.ambient.AmbientAccessPanel;
 import org.llm4people.hermes.artifact.ArtifactDesk;
 import java.util.Arrays;
 import java.util.ArrayList;
@@ -90,6 +91,7 @@ public class WorkspaceNavigationTest {
         assertEquals(WorkspaceNavigation.HOME, WorkspaceNavigation.topDestination("page/custom"));
         assertEquals(WorkspaceNavigation.BRAIN, WorkspaceNavigation.topDestination(WorkspaceNavigation.BRAIN));
         assertEquals(WorkspaceNavigation.ACTIVITY, WorkspaceNavigation.topDestination(WorkspaceNavigation.ACTIVITY));
+        assertEquals(WorkspaceNavigation.ACTIVITY, WorkspaceNavigation.topDestination(AmbientAccessPanel.ROUTE_ID));
 
         nav.selectTab(WorkspaceNavigation.HOME);
         assertEquals(WorkspaceNavigation.HOME, nav.current());

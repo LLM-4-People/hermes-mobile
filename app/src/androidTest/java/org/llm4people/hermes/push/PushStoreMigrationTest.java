@@ -31,6 +31,35 @@ public final class PushStoreMigrationTest extends InstrumentationTestCase {
         for (int version = 0; version <= 3; version++) checkDatabase(version);
     }
 
+    public void testVersionSixUpgradeAddsUrgencyAndSkipsSilentDeferred() {
+        checkDatabase(6, Feature.RECOVERY, Feature.DISMISSALS, Feature.REPAIR);
+        Context context = getInstrumentation().getTargetContext();
+        String name = "push-migration-v7-" + UUID.randomUUID() + ".db";
+        try {
+            try (SQLiteDatabase db = context.openOrCreateDatabase(name, Context.MODE_PRIVATE, null)) {
+                seed(db, 6, Arrays.asList(Feature.RECOVERY, Feature.DISMISSALS, Feature.REPAIR));
+                db.execSQL("UPDATE devices SET state='pending',established=0 WHERE installation=?",
+                        new Object[]{INSTALLATION});
+                db.setVersion(6);
+            }
+            try (PushStore store = new PushStore(context, name)) {
+                SQLiteDatabase db = store.getWritableDatabase();
+                assertEquals(7, db.getVersion());
+                assertEquals(1, count(db, "SELECT COUNT(*) FROM deferred WHERE event=? AND urgency='normal'", DEFERRED));
+                PushStore.Device pending = store.forProfile("account");
+                long now = System.currentTimeMillis();
+                String highEvent = "00000000000000000000000000000004";
+                String silentEvent = "00000000000000000000000000000005";
+                store.defer(pending, highEvent, "run_completed", DeliveryItem.Urgency.HIGH, now + 60_000L, now);
+                store.defer(pending, silentEvent, "run_completed", DeliveryItem.Urgency.SILENT, now + 60_000L, now);
+                assertEquals(1, count(db, "SELECT COUNT(*) FROM deferred WHERE event=? AND urgency='high'", highEvent));
+                assertEquals(0, count(db, "SELECT COUNT(*) FROM deferred WHERE event=?", silentEvent));
+            }
+        } finally {
+            context.deleteDatabase(name);
+        }
+    }
+
     private void checkDatabase(int version, Feature... features) {
         List<Feature> history = Arrays.asList(features);
         Context context = getInstrumentation().getTargetContext();
@@ -44,7 +73,7 @@ public final class PushStoreMigrationTest extends InstrumentationTestCase {
             }
             try (PushStore store = new PushStore(context, name)) {
                 SQLiteDatabase db = store.getWritableDatabase();
-                assertEquals(6, db.getVersion());
+                assertEquals(7, db.getVersion());
                 assertEquals(1, count(db, "SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name='dismissed_age'"));
                 assertEquals(1, count(db, "SELECT COUNT(*) FROM sqlite_master WHERE type='trigger' AND name='discard_deferred'"));
                 if (version == 0) {

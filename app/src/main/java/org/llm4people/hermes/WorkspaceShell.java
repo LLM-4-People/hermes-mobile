@@ -208,18 +208,18 @@ final class WorkspaceShell {
         subtitle(list, activity.getString(R.string.atelier_subtitle));
         if (threadTitle != null) {
             section(list, threadTitle);
-            link(list, "Reprendre la discussion", null, "return");
-            link(list, "Artefacts", null, "artifacts");
-            link(list, "Fichiers du projet", null, BrainStudioRoutes.ROUTE_WORKSPACE_FILES);
-            link(list, "Modèle et outils", null, "models");
-            link(list, "Utilisation", null, "stats");
+            link(list, activity.getString(R.string.ws_resume_discussion), null, "return");
+            link(list, activity.getString(R.string.ws_artifacts), null, "artifacts");
+            link(list, activity.getString(R.string.brain_files_title), null, BrainStudioRoutes.ROUTE_WORKSPACE_FILES);
+            link(list, activity.getString(R.string.ws_model_and_tools), null, "models");
+            link(list, activity.getString(R.string.ws_usage), null, "stats");
         }
-        section(list, "Espace de travail");
-        link(list, "Mes écrans", null, "pages");
-        link(list, "Nouvelle discussion", null, "new_thread");
-        link(list, "Toutes les discussions", null, "threads");
+        section(list, activity.getString(R.string.ws_workspace));
+        link(list, activity.getString(R.string.ws_my_screens), null, "pages");
+        link(list, activity.getString(R.string.ws_new_discussion), null, "new_thread");
+        link(list, activity.getString(R.string.ws_all_discussions), null, "threads");
         link(list, activity.getString(R.string.widget_pin_action), null, "pin_widget");
-        link(list, "Rétablir l’atelier", null, "restore");
+        link(list, activity.getString(R.string.ws_restore_desk), null, "restore");
         section(list, accountName);
         link(list, activity.getString(R.string.activity_security_title), null, "security");
         link(list, activity.getString(R.string.ws_notifications), null, "notifications");
@@ -233,24 +233,24 @@ final class WorkspaceShell {
         ScrollView scroll = centeredScroll(list);
         subtitle(list, activity.getString(R.string.brain_subtitle));
         section(list, activity.getString(R.string.nav_brain));
-        link(list, "Ouvrir tout le Cerveau de Hermes",
-                "Mémoire, notes, partages, recherche et réglages vérifiés avec votre serveur.", "brain");
-        link(list, "Mémoire de Hermes",
-                "Ce que Hermes retient et ce qu’il sait à propos de vous.", BrainStudioRoutes.ROUTE_MEMORY);
-        link(list, "Notes intelligentes",
-                "Vos notes structurées et habitudes apprises avec Hermes.", BrainStudioRoutes.ROUTE_NOTES);
-        link(list, "Partagé avec moi",
-                "Notes, savoir-faire et éléments partagés par d’autres utilisateurs sur ce serveur.",
+        link(list, activity.getString(R.string.brain_open_all_title),
+                activity.getString(R.string.brain_open_all_hint), "brain");
+        link(list, activity.getString(R.string.brain_memory_title),
+                activity.getString(R.string.brain_memory_card_hint), BrainStudioRoutes.ROUTE_MEMORY);
+        link(list, activity.getString(R.string.brain_notes_title),
+                activity.getString(R.string.brain_notes_card_hint), BrainStudioRoutes.ROUTE_NOTES);
+        link(list, activity.getString(R.string.brain_shared_with_me_title),
+                activity.getString(R.string.brain_shared_card_hint),
                 BrainStudioRoutes.ROUTE_SHARED_WITH_ME);
-        link(list, "Rechercher dans vos discussions",
-                "Retrouvez un passage dans tout votre historique.", BrainStudioRoutes.ROUTE_SEARCH);
+        link(list, activity.getString(R.string.brain_search_title),
+                activity.getString(R.string.brain_search_card_hint), BrainStudioRoutes.ROUTE_SEARCH);
         link(list, activity.getString(R.string.brain_skills_title),
                 activity.getString(R.string.brain_skills_hint), BrainStudioRoutes.ROUTE_SKILLS);
-        link(list, "Fichiers du projet",
-                "Parcourez les fichiers et modifications de la discussion en cours.",
+        link(list, activity.getString(R.string.brain_files_title),
+                activity.getString(R.string.brain_files_card_hint),
                 BrainStudioRoutes.ROUTE_WORKSPACE_FILES);
-        link(list, "Réglages du profil",
-                "Modèle et capacités utilisés par défaut pour ce profil.",
+        link(list, activity.getString(R.string.brain_profile_defaults_title),
+                activity.getString(R.string.brain_profile_defaults_card_hint),
                 BrainStudioRoutes.ROUTE_PROFILE_DEFAULTS);
         link(list, activity.getString(R.string.brain_models_title),
                 activity.getString(R.string.brain_models_hint), "models");
@@ -343,16 +343,16 @@ final class WorkspaceShell {
             if (pageTitle == null) {
                 item(menu, activity.getString(R.string.ws_attach_image), "attach_photo");
                 if (org.llm4people.hermes.camera.ThreadCameraCapture.isAvailable(activity)) {
-                    item(menu, "Prendre une photo…", "capture_camera");
+                    item(menu, activity.getString(R.string.ws_capture_photo), "capture_camera");
                 }
                 item(menu, activity.getString(R.string.ws_location_for_message), "nearby_area");
             }
             item(menu, activity.getString(R.string.ws_rename_discussion), "rename");
-            item(menu, "Épingler la discussion", BrainStudioRoutes.ACTION_PIN_THREAD);
-            item(menu, "Nouvelle piste à partir d’ici", BrainStudioRoutes.ACTION_FORK_THREAD);
-            item(menu, "Exporter la discussion", BrainStudioRoutes.ACTION_EXPORT_THREAD);
-            item(menu, "Partager sur ce serveur", BrainStudioRoutes.ACTION_SHARE_THREAD);
-            item(menu, "Fichiers du projet", BrainStudioRoutes.ROUTE_WORKSPACE_FILES);
+            item(menu, activity.getString(R.string.brain_thread_pin), BrainStudioRoutes.ACTION_PIN_THREAD);
+            item(menu, activity.getString(R.string.brain_thread_fork), BrainStudioRoutes.ACTION_FORK_THREAD);
+            item(menu, activity.getString(R.string.brain_thread_export), BrainStudioRoutes.ACTION_EXPORT_THREAD);
+            item(menu, activity.getString(R.string.brain_share_action), BrainStudioRoutes.ACTION_SHARE_THREAD);
+            item(menu, activity.getString(R.string.brain_files_title), BrainStudioRoutes.ROUTE_WORKSPACE_FILES);
             item(menu, activity.getString(R.string.ws_artifacts), "artifacts");
             item(menu, activity.getString(R.string.ws_model_and_tools), "models");
             item(menu, activity.getString(R.string.ws_usage), "stats");

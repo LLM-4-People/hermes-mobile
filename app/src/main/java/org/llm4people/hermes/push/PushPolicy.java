@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 
 import org.llm4people.hermes.Diagnostics;
+import org.llm4people.hermes.profile.PreferenceTransaction;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -11,7 +12,9 @@ import java.security.NoSuchAlgorithmException;
 import java.time.LocalTime;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -220,7 +223,13 @@ public final class PushPolicy {
         if (context == null || profileId == null || profileId.trim().isEmpty()) return;
         SharedPreferences prefs = context.getApplicationContext()
                 .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-        prefs.edit().remove(storageKey(profileId)).apply();
+        Map<String, String> removals = new HashMap<>();
+        removals.put(storageKey(profileId), null);
+        try {
+            PreferenceTransaction.commit(prefs, removals);
+        } catch (IllegalStateException fallback) {
+            Diagnostics.warning("push", "policy_clear_commit_failed");
+        }
         Diagnostics.debug("push", "policy_cleared");
     }
 

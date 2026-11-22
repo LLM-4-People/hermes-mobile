@@ -3,6 +3,7 @@ package org.llm4people.hermes.push;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
+import android.content.Context;
 import android.content.Intent;
 import android.graphics.Typeface;
 import android.net.Uri;
@@ -64,12 +65,26 @@ public final class DeliveryRouter {
 
     /** Plug Activité delivery routes into the shared RouteRegistry with zero switch-table edits. */
     public static void registerRoutes(RouteRegistry registry, Runnable openInbox, Runnable openPolicy) {
+        registerRoutes(registry, null, openInbox, openPolicy);
+    }
+
+    /** Localized overload plugging Activité delivery routes into the shared RouteRegistry. */
+    public static void registerRoutes(RouteRegistry registry, Context context,
+                                      Runnable openInbox, Runnable openPolicy) {
         Objects.requireNonNull(registry, "registry");
+        String deliveriesLabel = context == null ? "Livraisons" : context.getString(R.string.push_route_deliveries_label);
+        String deliveriesHint = context == null
+                ? "Briefings, fichiers et propositions envoyés par Hermes"
+                : context.getString(R.string.push_route_deliveries_hint);
+        String policyLabel = context == null ? "Préférences d’alertes" : context.getString(R.string.push_route_policy_label);
+        String policyHint = context == null
+                ? "Catégories de notifications et heures calmes"
+                : context.getString(R.string.push_route_policy_hint);
         registry.register(new RouteRegistry.Destination(
                 "activite/livraisons",
                 RouteRegistry.Section.ACTIVITE,
-                "Livraisons",
-                "Briefings, fichiers et propositions envoyés par Hermes",
+                deliveriesLabel,
+                deliveriesHint,
                 R.drawable.ic_push_notification,
                 false,
                 null,
@@ -77,8 +92,8 @@ public final class DeliveryRouter {
         registry.register(new RouteRegistry.Destination(
                 "activite/preferences_notifications",
                 RouteRegistry.Section.ACTIVITE,
-                "Préférences d’alertes",
-                "Catégories de notifications et heures calmes",
+                policyLabel,
+                policyHint,
                 R.drawable.ic_push_notification,
                 false,
                 null,
@@ -143,7 +158,7 @@ public final class DeliveryRouter {
             Ui.pad(empty, 0, 12);
             box.addView(empty);
         } else {
-            DateFormat fmt = DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT, Locale.FRENCH);
+            DateFormat fmt = DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT, Locale.getDefault());
             for (DeliveryItem item : items) {
                 box.addView(Ui.divider(activity));
                 box.addView(buildRowView(item, fmt));
@@ -352,7 +367,7 @@ public final class DeliveryRouter {
      */
     private void openDeviceActionReview(DeliveryItem item) {
         actions.reviewDeviceAction(item);
-        ReviewedAction parsed = parseSafeDeviceAction(item.payloadObject());
+        ReviewedAction parsed = parseSafeDeviceAction(activity, item.payloadObject());
         if (parsed == null) {
             Diagnostics.warning("push", "device_action_rejected");
             present(new AlertDialog.Builder(activity)
@@ -393,6 +408,10 @@ public final class DeliveryRouter {
     }
 
     static ReviewedAction parseSafeDeviceAction(JSONObject payload) {
+        return parseSafeDeviceAction(null, payload);
+    }
+
+    static ReviewedAction parseSafeDeviceAction(Context context, JSONObject payload) {
         if (payload == null) return null;
         JSONObject action = payload.optJSONObject("action");
         if (action == null) action = payload;
@@ -413,9 +432,19 @@ public final class DeliveryRouter {
                             .putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, start.toInstant().toEpochMilli())
                             .putExtra(CalendarContract.EXTRA_EVENT_END_TIME, end.toInstant().toEpochMilli());
                     if (!location.isEmpty()) intent.putExtra(CalendarContract.Events.EVENT_LOCATION, location);
-                    String preview = title + "\n\nDébut · " + startRaw + "\nFin · " + endRaw
-                            + (location.isEmpty() ? "" : "\nLieu · " + location);
-                    yield new ReviewedAction("Événement d’agenda", preview, "Ouvrir l’agenda", intent);
+                    String startLine = context == null ? "Début · " + startRaw
+                            : context.getString(R.string.push_action_calendar_start, startRaw);
+                    String endLine = context == null ? "Fin · " + endRaw
+                            : context.getString(R.string.push_action_calendar_end, endRaw);
+                    String locLine = location.isEmpty() ? ""
+                            : "\n" + (context == null ? "Lieu · " + location
+                            : context.getString(R.string.push_action_calendar_location, location));
+                    String preview = title + "\n\n" + startLine + "\n" + endLine + locLine;
+                    yield new ReviewedAction(
+                            context == null ? "Événement d’agenda" : context.getString(R.string.push_action_calendar_title),
+                            preview,
+                            context == null ? "Ouvrir l’agenda" : context.getString(R.string.push_action_calendar_open),
+                            intent);
                 } catch (DateTimeException invalid) {
                     yield null;
                 }
@@ -425,14 +454,21 @@ public final class DeliveryRouter {
                 if (text.isEmpty() || text.length() > 2000) yield null;
                 Intent send = new Intent(Intent.ACTION_SEND).setType("text/plain")
                         .putExtra(Intent.EXTRA_TEXT, text);
-                yield new ReviewedAction("Texte à partager", text, "Choisir une application",
+                yield new ReviewedAction(
+                        context == null ? "Texte à partager" : context.getString(R.string.push_action_share_title),
+                        text,
+                        context == null ? "Choisir une application" : context.getString(R.string.push_action_share_open),
                         Intent.createChooser(send, null));
             }
             case "map_search" -> {
                 String query = action.optString("query", "").trim();
                 if (query.isEmpty() || query.length() > 200) yield null;
                 Intent map = new Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=" + Uri.encode(query)));
-                yield new ReviewedAction("Lieu à rechercher", query, "Ouvrir la carte", map);
+                yield new ReviewedAction(
+                        context == null ? "Lieu à rechercher" : context.getString(R.string.push_action_map_title),
+                        query,
+                        context == null ? "Ouvrir la carte" : context.getString(R.string.push_action_map_open),
+                        map);
             }
             default -> null;
         };

@@ -31,4 +31,17 @@
     <string name="push_inbox_action_cancel">Cancel</string>
     <string name="push_inbox_action_unavailable">No available app can open this proposal.</string>
     <string name="push_inbox_action_invalid">This proposed action could not be safely verified.</string>
+    <string name="push_route_deliveries_label">Deliveries</string>
+    <string name="push_route_deliveries_hint">Briefings, files, and proposals sent by Hermes</string>
+    <string name="push_route_policy_label">Alert preferences</string>
+    <string name="push_route_policy_hint">Notification categories and quiet hours</string>
+    <string name="push_action_calendar_title">Calendar event</string>
+    <string name="push_action_calendar_open">Open calendar</string>
+    <string name="push_action_calendar_start">Start · %1$s</string>
+    <string name="push_action_calendar_end">End · %1$s</string>
+    <string name="push_action_calendar_location">Location · %1$s</string>
+    <string name="push_action_share_title">Text to share</string>
+    <string name="push_action_share_open">Choose an app</string>
+    <string name="push_action_map_title">Place to search</string>
+    <string name="push_action_map_open">Open map</string>
 </resources>

@@ -60,6 +60,15 @@
     <string name="live_run_channel_name">Active work</string>
     <string name="live_run_action_open">Open</string>
     <string name="live_run_action_stop">Stop</string>
+    <string name="live_run_decision_title">Decision needed</string>
+    <string name="live_run_decision_body">Hermes is waiting for your reply in the app.</string>
+    <string name="live_run_chip_action">Action</string>
+    <string name="live_run_chip_step_of">Step %1$d/%2$d</string>
+    <string name="live_run_chip_step">Step %1$d</string>
+    <string name="live_run_chip_sending">Sending</string>
+    <string name="live_run_chip_working">Working</string>
+    <string name="live_run_working_title">Hermes is working…</string>
+    <string name="live_run_working_body">Open the app to follow the reply.</string>
 
     <string name="tile_subtitle">Open assistant</string>
 
@@ -80,10 +89,38 @@
     <string name="widget_ask_description">Ask Hermes</string>
     <string name="widget_dictate">Dictate</string>
     <string name="widget_dictate_description">Dictate a message to Hermes</string>
+    <string name="widget_redacted_subtitle">Open Hermes to view</string>
+    <string name="widget_badge_metric">Metric</string>
+    <string name="widget_badge_checklist">Checklist</string>
+    <string name="widget_badge_quick_actions">Actions</string>
+    <string name="widget_badge_briefing">Briefing</string>
+    <string name="widget_quick_subtitle">Private quick access</string>
+    <string name="widget_quick_ask">Ask a question</string>
+    <string name="widget_quick_plan">Plan my day</string>
+    <string name="widget_quick_plan_draft">Help me plan my day.</string>
     <string name="widget_pin_action">Pin to Home screen</string>
     <string name="widget_pin_requested">Confirm adding the widget to your Home screen.</string>
     <string name="widget_pin_unsupported">Your launcher does not support automatic pinning. Long-press the Home screen, open Widgets, and choose Hermes.</string>
     <string name="widget_pin_invalid">This widget cannot be displayed on the Home screen.</string>
     <string name="widget_pin_failed">Unable to add this widget right now.</string>
     <string name="widget_updated_toast">Home screen widget updated.</string>
+
+    <string name="ws_capture_photo">Take a photo…</string>
+    <string name="ws_choose_discussion_tool_body">Open a discussion to create a tool.</string>
+    <string name="ws_choose_discussion_files_body">Open a discussion to browse project files.</string>
+    <string name="brain_open_all_title">Open all of Hermes Brain</string>
+    <string name="brain_open_all_hint">Memory, notes, shared items, search, and settings verified with your server.</string>
+    <string name="brain_memory_card_hint">What Hermes remembers and knows about you.</string>
+    <string name="brain_notes_card_hint">Your structured notes and habits learned with Hermes.</string>
+    <string name="brain_shared_card_hint">Notes, skills, and items shared by other profiles on this server.</string>
+    <string name="brain_search_card_hint">Find any passage across all your conversations.</string>
+    <string name="brain_files_card_hint">Browse files and changes in the current discussion.</string>
+    <string name="brain_profile_defaults_card_hint">Default model and capabilities for this profile.</string>
+    <string name="search_all_history">Search all history</string>
+    <string name="live_ui_delivery_title">Proposed screen update</string>
+    <string name="live_ui_delivery_apply">Apply</string>
+    <string name="live_ui_delivery_failed_title">Update unavailable</string>
+    <string name="live_ui_delivery_failed_body">Unable to apply this screen change.</string>
+    <string name="live_ui_delivery_invalid_title">Invalid proposal</string>
+    <string name="live_ui_delivery_invalid_body">This screen update cannot be applied.</string>
 </resources>

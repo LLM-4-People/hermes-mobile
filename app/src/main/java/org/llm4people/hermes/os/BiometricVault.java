@@ -14,6 +14,7 @@ import android.util.Base64;
 
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.R;
+import org.llm4people.hermes.profile.PreferenceTransaction;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -21,8 +22,11 @@ import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
@@ -147,49 +151,65 @@ public final class BiometricVault {
         SharedPreferences prefs = prefs(context);
         synchronized (prefs) {
             storedAlias = prefs.getString(ALIAS_PREFIX + profileId, null);
-            prefs.edit()
-                    .remove(ENVELOPE_PREFIX + profileId)
-                    .remove(MODE_PREFIX + profileId)
-                    .remove(ALIAS_PREFIX + profileId)
-                    .apply();
+            Map<String, String> removals = new HashMap<>();
+            removals.put(ENVELOPE_PREFIX + profileId, null);
+            removals.put(MODE_PREFIX + profileId, null);
+            removals.put(ALIAS_PREFIX + profileId, null);
+            try {
+                PreferenceTransaction.commit(prefs, removals);
+            } catch (IllegalStateException fallback) {
+                Diagnostics.warning("biometric", "revoke_commit_failed");
+            }
         }
         if (storedAlias != null && !storedAlias.isEmpty()) deleteKeyAlias(storedAlias);
         deleteKeyAlias(KEY_PREFIX + profileId);
         Diagnostics.event("biometric", "revoked");
     }
 
-    public static void enroll(Activity activity, String profileId, String label, byte[] rawPayload,
-                              EnrollmentCallback callback) {
+    public static CancellationSignal enroll(Activity activity, String profileId, String label, byte[] rawPayload,
+                                            EnrollmentCallback callback) {
         Objects.requireNonNull(callback);
         if (activity == null || profileId == null || profileId.isEmpty()
                 || rawPayload == null || rawPayload.length == 0) {
             callback.onError();
-            return;
+            return null;
         }
         Availability mode = availability(activity);
         if (mode == Availability.UNAVAILABLE) {
             Arrays.fill(rawPayload, (byte) 0);
             callback.onError();
-            return;
+            return null;
         }
         byte[] payloadCopy = Arrays.copyOf(rawPayload, rawPayload.length);
         Arrays.fill(rawPayload, (byte) 0);
         // Stage enrollment under a fresh keystore alias so cancel/failure never corrupts an existing enrollment.
         String stagingAlias = KEY_PREFIX + profileId + "." + UUID.randomUUID();
+        AtomicBoolean settled = new AtomicBoolean(false);
+        Runnable cleanupCancel = () -> {
+            Arrays.fill(payloadCopy, (byte) 0);
+            deleteKeyAlias(stagingAlias);
+            if (settled.compareAndSet(false, true)) callback.onCancelled();
+        };
         try {
             boolean strong = mode == Availability.STRONG;
             SecretKey key = generateKey(stagingAlias, strong);
             BiometricPrompt prompt = buildPrompt(activity,
                     activity.getString(R.string.security_biometric_enroll_title),
                     activity.getString(R.string.security_biometric_enroll_subtitle),
-                    strong, () -> {
-                        Arrays.fill(payloadCopy, (byte) 0);
-                        deleteKeyAlias(stagingAlias);
-                        callback.onCancelled();
-                    });
+                    strong, cleanupCancel);
             CancellationSignal signal = new CancellationSignal();
+            signal.setOnCancelListener(() -> {
+                Arrays.fill(payloadCopy, (byte) 0);
+                deleteKeyAlias(stagingAlias);
+                settled.set(true);
+            });
             BiometricPrompt.AuthenticationCallback auth = new BiometricPrompt.AuthenticationCallback() {
                 @Override public void onAuthenticationSucceeded(BiometricPrompt.AuthenticationResult result) {
+                    if (!settled.compareAndSet(false, true)) {
+                        Arrays.fill(payloadCopy, (byte) 0);
+                        deleteKeyAlias(stagingAlias);
+                        return;
+                    }
                     try {
                         Cipher cipher = strong && result.getCryptoObject() != null
                                 ? result.getCryptoObject().getCipher()
@@ -214,6 +234,7 @@ public final class BiometricVault {
                 @Override public void onAuthenticationError(int errorCode, CharSequence errString) {
                     Arrays.fill(payloadCopy, (byte) 0);
                     deleteKeyAlias(stagingAlias);
+                    if (!settled.compareAndSet(false, true)) return;
                     if (isUserCancel(errorCode)) callback.onCancelled();
                     else {
                         Diagnostics.warning("biometric", "enroll_auth_error");
@@ -227,19 +248,21 @@ public final class BiometricVault {
             } else {
                 prompt.authenticate(signal, activity.getMainExecutor(), auth);
             }
+            return signal;
         } catch (GeneralSecurityException | IOException | RuntimeException error) {
             Arrays.fill(payloadCopy, (byte) 0);
             deleteKeyAlias(stagingAlias);
             Diagnostics.warning("biometric", "enroll_init_failed");
-            callback.onError();
+            if (settled.compareAndSet(false, true)) callback.onError();
+            return null;
         }
     }
 
-    public static void authenticate(Activity activity, String profileId, String label, Callback callback) {
+    public static CancellationSignal authenticate(Activity activity, String profileId, String label, Callback callback) {
         Objects.requireNonNull(callback);
         if (activity == null || profileId == null || profileId.isEmpty() || !isEnrolled(activity, profileId)) {
             callback.onError();
-            return;
+            return null;
         }
         String encoded;
         String storedMode;
@@ -252,7 +275,7 @@ public final class BiometricVault {
         }
         if (encoded == null || storedMode == null || alias == null || alias.isEmpty()) {
             callback.onError();
-            return;
+            return null;
         }
         byte[] stored;
         try {
@@ -260,23 +283,26 @@ public final class BiometricVault {
         } catch (IllegalArgumentException corrupt) {
             revoke(activity, profileId);
             callback.onInvalidated();
-            return;
+            return null;
         }
         boolean strong = MODE_STRONG.equals(storedMode);
+        AtomicBoolean settled = new AtomicBoolean(false);
         try {
             SecretKey key = loadKey(alias);
             if (key == null) {
                 revoke(activity, profileId);
                 callback.onInvalidated();
-                return;
+                return null;
             }
             BiometricPrompt prompt = buildPrompt(activity,
                     activity.getString(R.string.security_biometric_prompt_title, label),
                     activity.getString(R.string.security_biometric_prompt_subtitle),
-                    strong, callback::onCancelled);
+                    strong, () -> { if (settled.compareAndSet(false, true)) callback.onCancelled(); });
             CancellationSignal signal = new CancellationSignal();
+            signal.setOnCancelListener(() -> settled.set(true));
             BiometricPrompt.AuthenticationCallback auth = new BiometricPrompt.AuthenticationCallback() {
                 @Override public void onAuthenticationSucceeded(BiometricPrompt.AuthenticationResult result) {
+                    if (!settled.compareAndSet(false, true)) return;
                     try {
                         Cipher cipher = strong && result.getCryptoObject() != null
                                 ? result.getCryptoObject().getCipher()
@@ -295,6 +321,7 @@ public final class BiometricVault {
                 }
 
                 @Override public void onAuthenticationError(int errorCode, CharSequence errString) {
+                    if (!settled.compareAndSet(false, true)) return;
                     if (isUserCancel(errorCode)) callback.onCancelled();
                     else {
                         Diagnostics.warning("biometric", "unlock_auth_error");
@@ -308,13 +335,16 @@ public final class BiometricVault {
             } else {
                 prompt.authenticate(signal, activity.getMainExecutor(), auth);
             }
+            return signal;
         } catch (KeyPermanentlyInvalidatedException invalidated) {
             Diagnostics.warning("biometric", "key_invalidated");
             revoke(activity, profileId);
-            callback.onInvalidated();
+            if (settled.compareAndSet(false, true)) callback.onInvalidated();
+            return null;
         } catch (GeneralSecurityException | IOException | RuntimeException error) {
             Diagnostics.warning("biometric", "unlock_init_failed");
-            callback.onError();
+            if (settled.compareAndSet(false, true)) callback.onError();
+            return null;
         }
     }
 

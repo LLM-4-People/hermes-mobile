@@ -26,7 +26,11 @@ public final class HermesApi {
             this.eventBytes = eventBytes;
         }
         public static Limits defaults() {
-            HermesConfig cfg = HermesConfig.defaults();
+            return from(HermesConfig.defaults());
+        }
+
+        public static Limits from(HermesConfig config) {
+            HermesConfig cfg = config == null ? HermesConfig.defaults() : config;
             return new Limits(cfg.httpConnectTimeoutMs, cfg.httpReadTimeoutMs, cfg.httpJsonMaxBytes, cfg.httpEventMaxBytes);
         }
     }

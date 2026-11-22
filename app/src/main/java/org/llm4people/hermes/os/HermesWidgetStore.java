@@ -47,6 +47,44 @@ public final class HermesWidgetStore {
         logEvent("spec_upserted");
     }
 
+    public synchronized void upsertSpec(HermesWidgetSpec spec, String ownerProfileId) {
+        Objects.requireNonNull(spec);
+        upsertSpec(spec.withOwner(ownerProfileId));
+    }
+
+    public synchronized String ownerForWidget(String widgetId) {
+        HermesWidgetSpec found = spec(widgetId);
+        return found == null ? null : found.ownerProfileId;
+    }
+
+    /** Purges all widget specs, bound instances, and pending pins belonging to a forgotten profile. */
+    public synchronized int purgeProfile(String profileId) {
+        if (profileId == null || profileId.trim().isEmpty()) return 0;
+        String target = profileId.trim();
+        List<String> ownedIds = new ArrayList<>();
+        for (HermesWidgetSpec spec : allSpecs()) {
+            if (target.equals(spec.ownerProfileId)) ownedIds.add(spec.widgetId);
+        }
+        for (String wid : ownedIds) {
+            removeSpec(wid);
+            for (Map.Entry<String, String> entry : backing.all().entrySet()) {
+                if (entry.getKey().startsWith(PIN_PREFIX) && wid.equals(entry.getValue())) {
+                    backing.remove(entry.getKey());
+                }
+            }
+        }
+        if (!ownedIds.isEmpty()) logEvent("profile_purged");
+        return ownedIds.size();
+    }
+
+    /** Convenience helper for AccountStore.forget / ProfileGate.onForget: purges widgets and refreshes Home Screen. */
+    public static void forgetProfile(Context context, String profileId) {
+        if (context == null || profileId == null || profileId.trim().isEmpty()) return;
+        Context app = context.getApplicationContext();
+        int removed = new HermesWidgetStore(app).purgeProfile(profileId);
+        if (removed > 0) HermesWidgetProvider.refresh(app, false);
+    }
+
     public synchronized boolean removeSpec(String widgetId) {
         if (!HermesWidgetSpec.validWidgetId(widgetId)) return false;
         boolean existed = backing.get(SPEC_PREFIX + widgetId) != null;
@@ -78,7 +116,7 @@ public final class HermesWidgetStore {
     private static HermesWidgetSpec parseStoredSpec(String raw) {
         if (raw == null || raw.isEmpty()) return null;
         try {
-            if (raw.startsWith("v1\n")) return HermesWidgetSpec.decode(raw);
+            if (raw.startsWith("v1\n") || raw.startsWith("v2\n")) return HermesWidgetSpec.decode(raw);
             return HermesWidgetSpec.fromJson(new JSONObject(raw));
         } catch (JSONException | RuntimeException corrupt) {
             logWarning("spec_corrupt");
@@ -151,6 +189,18 @@ public final class HermesWidgetStore {
     public synchronized String draftForAction(String widgetId, int itemIndex) {
         HermesWidgetSpec found = spec(widgetId);
         if (found == null || itemIndex < 0 || itemIndex >= found.items.size()) return null;
+        String draft = found.items.get(itemIndex).actionDraft();
+        return draft.isEmpty() ? null : draft;
+    }
+
+    /** Fail-closed profile-scoped draft lookup: blocks cross-profile draft injection. */
+    public synchronized String draftForAction(String widgetId, int itemIndex, String activeProfileId) {
+        HermesWidgetSpec found = spec(widgetId);
+        if (found == null || itemIndex < 0 || itemIndex >= found.items.size()) return null;
+        if (found.ownerProfileId != null && !found.ownerProfileId.equals(activeProfileId)) {
+            logWarning("widget_cross_profile_blocked");
+            return null;
+        }
         String draft = found.items.get(itemIndex).actionDraft();
         return draft.isEmpty() ? null : draft;
     }

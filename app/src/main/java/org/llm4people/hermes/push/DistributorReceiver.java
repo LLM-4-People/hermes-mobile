@@ -64,7 +64,7 @@ public final class DistributorReceiver extends MessagingReceiver {
                 String event = payload.optString("event_id"), kind = payload.optString("kind");
                 DeliveryItem.Urgency urgency = DeliveryItem.Urgency.fromWireOrDefault(payload.optString("urgency", null));
                 if (owner.receives()) PushNotices.post(context, owner, event, kind, urgency);
-                else store.defer(owner, event, kind, expiresAt, System.currentTimeMillis());
+                else store.defer(owner, event, kind, urgency, expiresAt, System.currentTimeMillis());
             }
         } catch (JSONException ignored) {
             Diagnostics.warning("push", "invalid_message");

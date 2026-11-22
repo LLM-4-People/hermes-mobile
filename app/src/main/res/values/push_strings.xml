@@ -31,4 +31,17 @@
     <string name="push_inbox_action_cancel">Annuler</string>
     <string name="push_inbox_action_unavailable">Aucune application disponible ne peut ouvrir cette proposition.</string>
     <string name="push_inbox_action_invalid">Cette action proposée ne peut pas être vérifiée en toute sécurité.</string>
+    <string name="push_route_deliveries_label">Livraisons</string>
+    <string name="push_route_deliveries_hint">Briefings, fichiers et propositions envoyés par Hermes</string>
+    <string name="push_route_policy_label">Préférences d’alertes</string>
+    <string name="push_route_policy_hint">Catégories de notifications et heures calmes</string>
+    <string name="push_action_calendar_title">Événement d’agenda</string>
+    <string name="push_action_calendar_open">Ouvrir l’agenda</string>
+    <string name="push_action_calendar_start">Début · %1$s</string>
+    <string name="push_action_calendar_end">Fin · %1$s</string>
+    <string name="push_action_calendar_location">Lieu · %1$s</string>
+    <string name="push_action_share_title">Texte à partager</string>
+    <string name="push_action_share_open">Choisir une application</string>
+    <string name="push_action_map_title">Lieu à rechercher</string>
+    <string name="push_action_map_open">Ouvrir la carte</string>
 </resources>

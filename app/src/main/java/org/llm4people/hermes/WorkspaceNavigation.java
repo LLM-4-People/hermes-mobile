@@ -19,7 +19,9 @@ final class WorkspaceNavigation {
     static String topDestination(String route) {
         if (route == null || DISCUSSION.equals(route) || COMPOSER.equals(route)) return DISCUSSION;
         if (BRAIN.equals(route)) return BRAIN;
-        if (ACTIVITY.equals(route)) return ACTIVITY;
+        if (ACTIVITY.equals(route) || org.llm4people.hermes.ambient.AmbientAccessPanel.ROUTE_ID.equals(route)) {
+            return ACTIVITY;
+        }
         return HOME;
     }
 

@@ -141,10 +141,10 @@ public final class HermesWidgetProvider extends AppWidgetProvider {
     }
 
     static RemoteViews buildDynamicViews(Context context, HermesWidgetSpec rawSpec) {
-        HermesWidgetSpec safe = rawSpec.redactedForHomeScreen();
+        HermesWidgetSpec safe = rawSpec.redactedForHomeScreen(context);
         RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.hermes_widget_dynamic);
         views.setTextViewText(R.id.widget_dynamic_title, safe.title);
-        views.setTextViewText(R.id.widget_dynamic_badge, badgeForTemplate(safe.template));
+        views.setTextViewText(R.id.widget_dynamic_badge, badgeForTemplate(context, safe.template));
         if (safe.accentHex != null) {
             try {
                 views.setTextColor(R.id.widget_dynamic_badge, Color.parseColor(safe.accentHex));
@@ -176,13 +176,14 @@ public final class HermesWidgetProvider extends AppWidgetProvider {
         return views;
     }
 
-    private static String badgeForTemplate(HermesWidgetSpec.Template template) {
-        return switch (template) {
-            case METRIC -> "Indicateur";
-            case CHECKLIST -> "Liste";
-            case QUICK_ACTIONS -> "Actions";
-            case BRIEFING -> "Résumé";
-            case STATUS -> "Hermes";
+    private static String badgeForTemplate(Context context, HermesWidgetSpec.Template template) {
+        int res = switch (template) {
+            case METRIC -> R.string.widget_badge_metric;
+            case CHECKLIST -> R.string.widget_badge_checklist;
+            case QUICK_ACTIONS -> R.string.widget_badge_quick_actions;
+            case BRIEFING -> R.string.widget_badge_briefing;
+            case STATUS -> R.string.widget_title;
         };
+        return context.getString(res);
     }
 }

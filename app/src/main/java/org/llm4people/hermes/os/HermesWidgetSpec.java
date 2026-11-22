@@ -1,8 +1,11 @@
 package org.llm4people.hermes.os;
 
+import android.content.Context;
+
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.llm4people.hermes.R;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -59,9 +62,16 @@ public final class HermesWidgetSpec {
     public final List<Item> items;
     public final String accentHex;
     public final boolean homeScreenSafe;
+    /** Nullable ONLY for built-in static quick-actions widgets; profile widgets bind strictly to their owner. */
+    public final String ownerProfileId;
 
     public HermesWidgetSpec(String widgetId, String title, String subtitle, Template template,
                             List<Item> items, String accentHex, boolean homeScreenSafe) {
+        this(widgetId, title, subtitle, template, items, accentHex, homeScreenSafe, null);
+    }
+
+    public HermesWidgetSpec(String widgetId, String title, String subtitle, Template template,
+                            List<Item> items, String accentHex, boolean homeScreenSafe, String ownerProfileId) {
         if (!validWidgetId(widgetId)) throw new IllegalArgumentException("Invalid widget_id");
         if (template == null) throw new IllegalArgumentException("Invalid widget template");
         this.widgetId = widgetId;
@@ -84,6 +94,12 @@ public final class HermesWidgetSpec {
         this.items = Collections.unmodifiableList(safeItems);
         this.accentHex = validAccentHex(accentHex) ? accentHex.toUpperCase(Locale.ROOT) : null;
         this.homeScreenSafe = homeScreenSafe;
+        String trimmedOwner = ownerProfileId == null ? "" : ownerProfileId.trim();
+        this.ownerProfileId = trimmedOwner.isEmpty() ? null : trimmedOwner;
+    }
+
+    public HermesWidgetSpec withOwner(String profileId) {
+        return new HermesWidgetSpec(widgetId, title, subtitle, template, items, accentHex, homeScreenSafe, profileId);
     }
 
     public static boolean validWidgetId(String value) {
@@ -112,7 +128,7 @@ public final class HermesWidgetSpec {
         return trimmed.length() <= maxChars ? trimmed : trimmed.substring(0, maxChars).trim();
     }
 
-    private static String sanitizeDraft(String raw) {
+    public static String sanitizeDraft(String raw) {
         if (raw == null) return "";
         StringBuilder out = new StringBuilder();
         for (int i = 0; i < raw.length(); i++) {
@@ -121,7 +137,7 @@ public final class HermesWidgetSpec {
             out.append(c);
         }
         String trimmed = out.toString().trim();
-        if (trimmed.isEmpty()) return "";
+        if (trimmed.isEmpty() || containsSecretLikePattern(trimmed)) return "";
         return trimmed.length() <= MAX_DRAFT_CHARS ? trimmed : trimmed.substring(0, MAX_DRAFT_CHARS).trim();
     }
 
@@ -132,18 +148,27 @@ public final class HermesWidgetSpec {
 
     /**
      * Returns a strictly home-screen-safe copy. If {@code homeScreenSafe} is false, all custom
-     * titles, subtitles, and items are replaced with generic French privacy copy.
+     * titles, subtitles, and items are replaced with generic privacy copy.
      */
     public HermesWidgetSpec redactedForHomeScreen() {
+        return redactedForHomeScreen(null);
+    }
+
+    public HermesWidgetSpec redactedForHomeScreen(Context context) {
         if (homeScreenSafe) return this;
+        String redactedTitle = context == null ? "Hermes" : context.getString(R.string.widget_title);
+        String redactedSubtitle = context == null
+                ? "Contenu masqué · Ouvrez l’application"
+                : context.getString(R.string.widget_redacted_subtitle);
         return new HermesWidgetSpec(
                 widgetId,
-                "Hermes",
-                "Contenu masqué · Ouvrez l’application",
+                redactedTitle,
+                redactedSubtitle,
                 Template.STATUS,
                 Collections.emptyList(),
                 null,
-                false);
+                false,
+                ownerProfileId);
     }
 
     public String formattedItemLine(Item item) {
@@ -159,13 +184,14 @@ public final class HermesWidgetSpec {
 
     /** Pure Java lossless persistence codec usable identically on Android and host JVM tests. */
     public String encode() {
-        StringBuilder out = new StringBuilder("v1\n");
+        StringBuilder out = new StringBuilder("v2\n");
         out.append(b64(widgetId)).append('\n');
         out.append(b64(title)).append('\n');
         out.append(b64(subtitle)).append('\n');
         out.append(template.wire).append('\n');
         out.append(homeScreenSafe ? '1' : '0').append('\n');
         out.append(b64(accentHex == null ? "" : accentHex)).append('\n');
+        out.append(b64(ownerProfileId == null ? "" : ownerProfileId)).append('\n');
         out.append(items.size());
         for (Item item : items) {
             out.append('\n')
@@ -177,11 +203,13 @@ public final class HermesWidgetSpec {
     }
 
     public static HermesWidgetSpec decode(String raw) {
-        if (raw == null || !raw.startsWith("v1\n")) {
+        if (raw == null || (!raw.startsWith("v1\n") && !raw.startsWith("v2\n"))) {
             throw new IllegalArgumentException("Unsupported widget encoding");
         }
+        boolean v2 = raw.startsWith("v2\n");
+        int headerLines = v2 ? 9 : 8;
         String[] lines = raw.split("\n", -1);
-        if (lines.length < 8) throw new IllegalArgumentException("Truncated widget record");
+        if (lines.length < headerLines) throw new IllegalArgumentException("Truncated widget record");
         String id = unb64(lines[1]);
         String title = unb64(lines[2]);
         String subtitle = unb64(lines[3]);
@@ -192,22 +220,24 @@ public final class HermesWidgetSpec {
         }
         boolean safe = "1".equals(lines[5]);
         String accent = unb64(lines[6]);
+        String owner = v2 ? unb64(lines[7]) : "";
         int count;
         try {
-            count = Integer.parseInt(lines[7]);
+            count = Integer.parseInt(lines[headerLines - 1]);
         } catch (NumberFormatException badCount) {
             throw new IllegalArgumentException("Invalid item count", badCount);
         }
-        if (count < 0 || count > MAX_ITEMS || lines.length != 8 + count) {
+        if (count < 0 || count > MAX_ITEMS || lines.length != headerLines + count) {
             throw new IllegalArgumentException("Mismatched item count");
         }
         List<Item> items = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
-            String[] cols = lines[8 + i].split("\t", -1);
+            String[] cols = lines[headerLines + i].split("\t", -1);
             if (cols.length != 3) throw new IllegalArgumentException("Malformed item row");
             items.add(new Item(unb64(cols[0]), unb64(cols[1]), unb64(cols[2])));
         }
-        return new HermesWidgetSpec(id, title, subtitle, template, items, accent.isEmpty() ? null : accent, safe);
+        return new HermesWidgetSpec(id, title, subtitle, template, items,
+                accent.isEmpty() ? null : accent, safe, owner.isEmpty() ? null : owner);
     }
 
     private static String b64(String text) {
@@ -229,6 +259,7 @@ public final class HermesWidgetSpec {
             obj.put("template", template.wire);
             obj.put("home_screen_safe", homeScreenSafe);
             if (accentHex != null) obj.put("accent_hex", accentHex);
+            if (ownerProfileId != null) obj.put("owner_profile_id", ownerProfileId);
             JSONArray array = new JSONArray();
             for (Item item : items) {
                 JSONObject row = new JSONObject();
@@ -253,6 +284,7 @@ public final class HermesWidgetSpec {
         if (template == null) throw new IllegalArgumentException("Unsupported widget template");
         boolean safe = obj.optBoolean("home_screen_safe", false);
         String accent = obj.isNull("accent_hex") ? null : obj.optString("accent_hex", null);
+        String owner = obj.isNull("owner_profile_id") ? null : obj.optString("owner_profile_id", null);
         List<Item> items = new ArrayList<>();
         JSONArray array = obj.optJSONArray("items");
         if (array != null) {
@@ -265,6 +297,6 @@ public final class HermesWidgetSpec {
                         row.optString("action_draft", "")));
             }
         }
-        return new HermesWidgetSpec(id, title, subtitle, template, items, accent, safe);
+        return new HermesWidgetSpec(id, title, subtitle, template, items, accent, safe, owner);
     }
 }

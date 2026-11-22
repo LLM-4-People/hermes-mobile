@@ -60,6 +60,15 @@
     <string name="live_run_channel_name">Travaux en cours</string>
     <string name="live_run_action_open">Ouvrir</string>
     <string name="live_run_action_stop">Arrêter</string>
+    <string name="live_run_decision_title">Décision requise</string>
+    <string name="live_run_decision_body">Hermes attend votre réponse dans l’application.</string>
+    <string name="live_run_chip_action">Action</string>
+    <string name="live_run_chip_step_of">Étape %1$d/%2$d</string>
+    <string name="live_run_chip_step">Étape %1$d</string>
+    <string name="live_run_chip_sending">Envoi</string>
+    <string name="live_run_chip_working">En cours</string>
+    <string name="live_run_working_title">Hermes travaille…</string>
+    <string name="live_run_working_body">Ouvrez l’application pour suivre la réponse.</string>
 
     <string name="tile_subtitle">Ouvrir l’assistant</string>
 
@@ -80,10 +89,38 @@
     <string name="widget_ask_description">Demander à Hermes</string>
     <string name="widget_dictate">Dicter</string>
     <string name="widget_dictate_description">Dicter un message à Hermes</string>
+    <string name="widget_redacted_subtitle">Ouvrez Hermes pour consulter</string>
+    <string name="widget_badge_metric">Indicateur</string>
+    <string name="widget_badge_checklist">Liste</string>
+    <string name="widget_badge_quick_actions">Actions</string>
+    <string name="widget_badge_briefing">Briefing</string>
+    <string name="widget_quick_subtitle">Accès rapide privé</string>
+    <string name="widget_quick_ask">Poser une question</string>
+    <string name="widget_quick_plan">Préparer ma journée</string>
+    <string name="widget_quick_plan_draft">Aide-moi à planifier ma journée.</string>
     <string name="widget_pin_action">Épingler sur l’écran d’accueil</string>
     <string name="widget_pin_requested">Confirmez l’ajout du widget sur votre écran d’accueil.</string>
     <string name="widget_pin_unsupported">Votre écran d’accueil ne permet pas l’ajout automatique. Maintenez le doigt sur l’écran d’accueil, ouvrez Widgets, puis choisissez Hermes.</string>
     <string name="widget_pin_invalid">Ce widget ne peut pas être affiché sur l’écran d’accueil.</string>
     <string name="widget_pin_failed">Impossible d’ajouter ce widget pour le moment.</string>
     <string name="widget_updated_toast">Widget d’accueil mis à jour.</string>
+
+    <string name="ws_capture_photo">Prendre une photo…</string>
+    <string name="ws_choose_discussion_tool_body">Ouvrez une discussion pour créer un outil.</string>
+    <string name="ws_choose_discussion_files_body">Ouvrez une discussion pour parcourir les fichiers du projet.</string>
+    <string name="brain_open_all_title">Ouvrir tout le Cerveau de Hermes</string>
+    <string name="brain_open_all_hint">Mémoire, notes, partages, recherche et réglages vérifiés avec votre serveur.</string>
+    <string name="brain_memory_card_hint">Ce que Hermes retient et ce qu’il sait à propos de vous.</string>
+    <string name="brain_notes_card_hint">Vos notes structurées et habitudes apprises avec Hermes.</string>
+    <string name="brain_shared_card_hint">Notes, savoir-faire et éléments partagés par d’autres utilisateurs sur ce serveur.</string>
+    <string name="brain_search_card_hint">Retrouvez un passage dans tout votre historique.</string>
+    <string name="brain_files_card_hint">Parcourez les fichiers et modifications de la discussion en cours.</string>
+    <string name="brain_profile_defaults_card_hint">Modèle et capacités utilisés par défaut pour ce profil.</string>
+    <string name="search_all_history">Rechercher dans tout l’historique</string>
+    <string name="live_ui_delivery_title">Mise à jour d’écran proposée</string>
+    <string name="live_ui_delivery_apply">Appliquer</string>
+    <string name="live_ui_delivery_failed_title">Mise à jour impossible</string>
+    <string name="live_ui_delivery_failed_body">Impossible d’appliquer cette modification d’écran.</string>
+    <string name="live_ui_delivery_invalid_title">Proposition invalide</string>
+    <string name="live_ui_delivery_invalid_body">Cette mise à jour d’écran ne peut pas être appliquée.</string>
 </resources>

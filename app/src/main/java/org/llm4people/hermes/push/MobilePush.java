@@ -96,6 +96,7 @@ public final class MobilePush {
         boolean pending = false;
         for (PushStore.Device device : PushStore.get(context).devices()) {
             if (!PushStore.REMOVING.equals(device.state) && ProfileGate.contains(context, device.profile)) continue;
+            PushPolicy.clear(context, device.profile);
             PushConnection.forget(context, device.profile);
             PushNotices.cancel(context, device.installation);
             pending = true;
