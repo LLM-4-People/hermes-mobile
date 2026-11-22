@@ -1,5 +1,6 @@
 package org.llm4people.hermes.panel;
 
+import android.content.res.Configuration;
 import android.graphics.Typeface;
 import android.text.Editable;
 import android.text.TextWatcher;
@@ -160,8 +161,7 @@ final class SessionSettings {
         Ui.pad(search, 12, 8);
         LinearLayout.LayoutParams field = new LinearLayout.LayoutParams(-1, -2);
         field.setMargins(0, Ui.dp(panel.activity, 8), 0, Ui.dp(panel.activity, 8));
-        ScrollView header = reservePickerResults(box, search, field);
-        box.addView(search, field);
+        ScrollView header = attachPickerControls(box, search, field);
         TextView empty = panel.note(box, panel.t(R.string.panel_empty_search));
         ListView list = new ListView(panel.activity);
         list.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
@@ -202,12 +202,20 @@ final class SessionSettings {
     }
 
     /** Keep long provider names scrollable while reserving space for search and a selectable result. */
-    private ScrollView reservePickerResults(LinearLayout page, EditText search, LinearLayout.LayoutParams field) {
+    private ScrollView attachPickerControls(LinearLayout page, EditText search, LinearLayout.LayoutParams field) {
         LinearLayout context = Ui.column(panel.activity);
         while (page.getChildCount() > 0) {
             View detail = page.getChildAt(0);
             page.removeViewAt(0);
             context.addView(detail);
+        }
+        Configuration window = panel.activity.getResources().getConfiguration();
+        if (window.orientation == Configuration.ORIENTATION_LANDSCAPE
+                && window.screenHeightDp <= 480 && window.screenWidthDp >= 480) {
+            ScrollView header = new ScrollView(panel.activity);
+            header.addView(context);
+            panel.splitPicker(page, header, search);
+            return header;
         }
         ScrollView header = new ScrollView(panel.activity) {
             @Override protected void onMeasure(int widthSpec, int heightSpec) {
@@ -223,6 +231,7 @@ final class SessionSettings {
         };
         header.addView(context);
         page.addView(header, new LinearLayout.LayoutParams(-1, -2));
+        page.addView(search, field);
         return header;
     }
 

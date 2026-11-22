@@ -53,8 +53,10 @@ public final class IncomingShare {
         return data == null ? null : data.optString("owner", null);
     }
 
+    public record Entry(String text, String confirmedThread) {}
+
     /** Only the first unlocked profile may claim and subsequently open this receipt. */
-    public static synchronized String open(Context context, String id, Account account) {
+    public static synchronized Entry open(Context context, String id, Account account) {
         if (!account.unlocked()) return null;
         JSONObject data = read(context, id);
         if (data == null) return null;
@@ -65,7 +67,7 @@ public final class IncomingShare {
             catch (JSONException invalid) { throw new IllegalStateException(invalid); }
             save(context, id, expiry(prefs(context)), data);
         }
-        return data.optString("text", null);
+        return new Entry(data.optString("text"), data.optString("thread", null));
     }
 
     /** After explicit confirmation, a retry can append only in the originally selected discussion. */

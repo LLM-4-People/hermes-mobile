@@ -186,11 +186,25 @@ public final class ThreadWorkspace implements AutoCloseable {
         screen.focusComposer();
     }
 
+    /** Checks the durable receipt even if a different discussion was restored after process death. */
+    public boolean containsShare(String target, String receipt) {
+        if (closed || target == null || !ThreadData.validId(target)) return false;
+        ThreadJournal record = target.equals(session) && journal != null ? journal : new ThreadJournal(account, target);
+        return record.containsShare(receipt);
+    }
+
+    public void openSharedDraft(String target) {
+        if (closed) return;
+        if (!target.equals(session)) open(new ThreadIdentity(target, target), "Conversation");
+        if (target.equals(session) && journal != null) {
+            screen.displayDraft(journal.draft());
+            screen.focusComposer();
+        }
+    }
+
     public boolean appendShare(String expectedSession, String receipt, String text) {
         if (closed || journal == null || !expectedSession.equals(session)) return false;
         journal.appendShare(receipt, text);
-        screen.displayDraft(journal.draft());
-        screen.focusComposer();
         return true;
     }
 

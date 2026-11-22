@@ -25,6 +25,41 @@ public final class SharedTextEntryTest extends InstrumentationTestCase {
         share(Intent.ACTION_PROCESS_TEXT, Intent.EXTRA_PROCESS_TEXT, "  if (ok) {\n\treturn 2;\n}", true);
     }
 
+    public void testCommittedReceiptReopensTheEditedDraftAfterInterruptedCleanup() throws Throwable {
+        if (Build.VERSION.SDK_INT < 29) return;
+        Instrumentation driver = getInstrumentation();
+        Context context = driver.getTargetContext();
+        String thread = "share-recovery";
+        String response = ThreadNoticeContinuityTest.transcript(thread, thread, "Relecture", new JSONArray());
+        try (Exchange gateway = new Exchange("200 OK", "Content-Type: application/json\r\n", response);
+             RegisteredShareProfile profile = new RegisteredShareProfile(context, gateway.endpoint())) {
+            String receipt = IncomingShare.create(context, "déjà ajouté");
+            assertNotNull(receipt);
+            Activity activity = null;
+            try {
+                assertNotNull(IncomingShare.open(context, receipt, profile.account));
+                assertTrue(IncomingShare.target(context, receipt, profile.account, thread));
+                profile.account.write("last-thread", thread);
+                profile.account.write("thread:" + thread, new JSONObject().put("draft", "ma version modifiée")
+                        .put("imported_share", receipt).toString());
+                Intent resume = new Intent(context, MainActivity.class).setAction("org.llm4people.hermes.REVIEW_SHARED_TEXT")
+                        .putExtra("org.llm4people.hermes.SHARE_RECEIPT", receipt).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                activity = driver.startActivitySync(resume);
+                JourneyUi ui = new JourneyUi(driver, activity, context.getCacheDir());
+                ui.see("Déverrouiller");
+                ui.fill("Phrase secrète du profil", profile.passphrase);
+                ui.tap("Déverrouiller");
+                ui.see("Envoyer");
+                assertEquals("ma version modifiée", ui.fieldText("Message à Hermes"));
+                assertNull(IncomingShare.pending(context));
+                assertFalse(gateway.observed().contains("POST "));
+            } finally {
+                if (activity != null) runTestOnUiThread(activity::finish);
+                IncomingShare.discard(context, receipt);
+            }
+        }
+    }
+
     private void share(String action, String key, String text, boolean recreate) throws Throwable {
         if (Build.VERSION.SDK_INT < 29) return;
         Instrumentation driver = getInstrumentation();

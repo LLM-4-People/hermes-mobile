@@ -56,7 +56,8 @@ public final class SharedTextContractTest extends InstrumentationTestCase {
             assertNotNull(id);
             try {
                 assertNull(IncomingShare.create(context, "Autre partage"));
-                assertEquals("Texte confidentiel", IncomingShare.open(context, id, first.account));
+                assertEquals("Texte confidentiel", IncomingShare.open(context, id, first.account).text());
+                assertNull(IncomingShare.open(context, id, first.account).confirmedThread());
                 assertNull(IncomingShare.open(context, id, second.account));
                 assertFalse(IncomingShare.target(context, id, second.account, "même fil"));
                 assertTrue(IncomingShare.target(context, id, first.account, "même fil"));
@@ -64,7 +65,8 @@ public final class SharedTextContractTest extends InstrumentationTestCase {
                 first.account.close();
                 assertNull(IncomingShare.open(context, id, first.account));
                 try (var unlocked = first.reopen()) {
-                    assertEquals("Texte confidentiel", IncomingShare.open(context, id, unlocked));
+                    assertEquals("Texte confidentiel", IncomingShare.open(context, id, unlocked).text());
+                    assertEquals("même fil", IncomingShare.open(context, id, unlocked).confirmedThread());
                     assertTrue(IncomingShare.target(context, id, unlocked, "même fil"));
                 }
                 assertFalse(context.getSharedPreferences("hermes.share.text.v1", 0).getAll().toString().contains("confidentiel"));
