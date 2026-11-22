@@ -6,11 +6,14 @@ Each person gets a HTTPS hostname, a gateway bearer key, a container network and
 
 Install Docker, Docker Compose with support for raw environment files (2.30 or newer), and Python 3. Give every account its own DNS hostname pointing to the Docker host. Public TLS certificate issuance uses ports 80 and 443. The local verification command below uses a private CA and an ephemeral loopback port.
 
-Use an immutable registry reference such as `registry.example.com/hermes@sha256:…` for the reviewed fork image. To build a local image from a reviewed Hermes checkout, archive the committed tree into the fork's Docker build. The resulting SHA identifies the image on that Docker engine. Select a fork revision containing every server feature you plan to use. The app discovers run tool selection through the server capability.
+Use an immutable registry digest for an image you published from the matching fork revision. To build it locally, run the following from the mobile repository. It fetches the exact commit used by this checkout’s gateway integration tests and builds the fork’s Dockerfile. Keep the resulting image ID when rendering the deployment or running the isolation test.
 
 ```sh
-revision=$(git -C /path/to/hermes-agent rev-parse HEAD)
-git -C /path/to/hermes-agent archive "$revision" |
+revision=$(python3 -c 'import runpy; print(runpy.run_path("verification/gateway_fixture.py")["PINNED_REVISION"])')
+checkout=$(mktemp -d)
+git -C "$checkout" init -q
+git -C "$checkout" fetch --depth=1 --no-tags https://github.com/LLM-4-People/hermes-agent.git "$revision"
+git -C "$checkout" archive "$revision" |
   docker build -t "hermes-mobile-gateway:$revision" --label "org.opencontainers.image.revision=$revision" -
 image=$(docker image inspect --format '{{.Id}}' "hermes-mobile-gateway:$revision")
 ```
