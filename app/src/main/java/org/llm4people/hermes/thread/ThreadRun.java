@@ -380,6 +380,9 @@ final class ThreadRun {
                     ui.live(activity, next.text, count > 0, next.origin, next.reasoning);
                     decisions.present(next.prompts);
                     if (!next.deviceRequests.isEmpty()) page.handleDeviceRequests(id, next.deviceRequests);
+                    if (!next.uiPatches.isEmpty()) {
+                        for (JSONObject rawPatch : next.uiPatches) page.onLiveUiPatch(rawPatch);
+                    }
                     ui.notice("", "", null);
                     reportProgress(new LiveRunNotification.Snapshot(
                             count > 0 ? LiveRunNotification.Phase.AWAITING_DECISION
@@ -521,6 +524,7 @@ final class ThreadRun {
             }
             ui.live("completed".equals(outcome) && (output.isEmpty() || visible) ? "" : summary,
                     visible ? "" : output, false);
+            if (status.has("suggested_actions")) page.onSuggestedActions(status.opt("suggested_actions"));
             ui.notice("", "", null);
         }), keepPosition);
     }

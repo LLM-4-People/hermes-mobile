@@ -20,6 +20,9 @@ import org.llm4people.hermes.VisibleText;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.artifact.CodeReader;
+import org.llm4people.hermes.artifact.LiveUiPatch;
+import org.llm4people.hermes.artifact.LiveUiPatchBar;
+import org.llm4people.hermes.artifact.ThemePalette;
 import org.llm4people.hermes.artifact.ThreadInstruments.Pin;
 import org.llm4people.hermes.camera.CapturedMedia;
 import org.llm4people.hermes.profile.IncomingMediaShare;
@@ -44,7 +47,10 @@ final class ThreadViews {
     private final Button remedy;
     private final LinearLayout notice;
     private final LinearLayout noticeSlot;
+    LiveUiPatchBar liveUiBar;
     private LinearLayout composerSlot;
+    private LinearLayout quickActionSlot;
+    private LinearLayout suggestedActionSlot;
     private Button nearbyStatus;
     private LinearLayout photoSlot;
     private ShareDraftTray attachmentTray;
@@ -156,6 +162,9 @@ final class ThreadViews {
         live.addView(liveReasoningSlot);
         live.addView(liveText);
         live.addView(fullLiveText);
+        suggestedActionSlot = Ui.column(activity);
+        suggestedActionSlot.setVisibility(View.GONE);
+        live.addView(suggestedActionSlot);
         list.addFooterView(live, null, false);
         bindList();
         list.setOnItemClickListener(null);
@@ -243,6 +252,9 @@ final class ThreadViews {
         nearbyStatus.setVisibility(View.GONE);
         composerSlot.addView(nearbyStatus);
         composerSlot.addView(duplex.bar());
+        quickActionSlot = Ui.column(activity);
+        quickActionSlot.setVisibility(View.GONE);
+        composerSlot.addView(quickActionSlot);
         composerSlot.addView(composerVoice.feedback);
         composerSlot.addView(composer);
         root.addView(composerSlot);
@@ -388,6 +400,43 @@ final class ThreadViews {
         nearbyStatus.setText(label);
         nearbyStatus.setOnClickListener(v -> open.run());
         nearbyStatus.setVisibility(label.isEmpty() ? View.GONE : View.VISIBLE);
+    }
+
+    void attachLiveUiBar(LiveUiPatchBar.Listener listener) {
+        if (liveUiBar != null) noticeSlot.removeView(liveUiBar);
+        liveUiBar = new LiveUiPatchBar(activity, listener);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+        int margin = Ui.dp(activity, 8);
+        lp.setMargins(margin, Ui.dp(activity, 4), margin, Ui.dp(activity, 4));
+        noticeSlot.addView(liveUiBar, lp);
+    }
+
+    void quickActions(List<LiveUiPatch.QuickAction> actions, ThemePalette palette,
+                      Consumer<String> stageDraft, Consumer<String> openSurface,
+                      Consumer<String> openAction) {
+        if (quickActionSlot == null) return;
+        quickActionSlot.removeAllViews();
+        if (actions == null || actions.isEmpty()) {
+            quickActionSlot.setVisibility(View.GONE);
+            return;
+        }
+        quickActionSlot.addView(LiveUiPatchBar.quickActionStrip(
+                activity, actions, palette, stageDraft, openSurface, openAction));
+        quickActionSlot.setVisibility(View.VISIBLE);
+    }
+
+    void suggestedActions(List<LiveUiPatch.SuggestedAction> suggestions, ThemePalette palette,
+                          Consumer<String> stageDraft, Consumer<String> openSurface,
+                          Consumer<String> openAction, Consumer<String> pinWidget) {
+        if (suggestedActionSlot == null) return;
+        suggestedActionSlot.removeAllViews();
+        if (suggestions == null || suggestions.isEmpty()) {
+            suggestedActionSlot.setVisibility(View.GONE);
+            return;
+        }
+        suggestedActionSlot.addView(LiveUiPatchBar.suggestedActionsStrip(
+                activity, suggestions, palette, stageDraft, openSurface, openAction, pinWidget));
+        suggestedActionSlot.setVisibility(View.VISIBLE);
     }
 
     void photo(JSONObject info, Runnable remove) {

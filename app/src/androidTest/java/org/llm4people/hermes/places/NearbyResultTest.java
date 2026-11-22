@@ -87,16 +87,26 @@ public final class NearbyResultTest extends TestCase {
     public void testAttributedEmptyDataDiffersFromAChangedOrDamagedEnvelope() throws Exception {
         assertTrue(NearbyResult.parse(response(new JSONArray())).places.isEmpty());
         JSONArray many = new JSONArray();
-        for (int i = 0; i < 13; i++) many.put(venue("node",i + 1,"X",i));
+        for (int i = 0; i < 13; i++) many.put(venue("node", i + 1, "X", i));
         invalid(response(many));
+        // Higher configured limit up to 24 is accepted, above 24 rejected.
+        NearbyResult twenty = NearbyResult.parse(response(many).put("limit", 20).put("radius_m", 3000).put("category", "cafe"));
+        assertEquals(NearbyCategory.CAFE, twenty.category);
+        assertEquals(3000, twenty.radiusMeters);
+        assertEquals(20, twenty.limit);
+        assertEquals(13, twenty.places.size());
+        invalid(response(new JSONArray()).put("limit", 25));
+        invalid(response(new JSONArray()).put("limit", 5));
+        invalid(response(new JSONArray()).put("category", "invalid_category"));
         invalid(response(new JSONArray().put(false)));
-        invalid(response(new JSONArray()).put("source","Other"));
-        invalid(response(new JSONArray()).put("attribution",""));
-        invalid(response(new JSONArray()).put("source_date","2026-02-30T12:00:00Z"));
-        invalid(response(new JSONArray()).put("source_date","2026-11-22T14:05:00+01:00"));
-        invalid(response(new JSONArray()).put("radius_m","1500"));
-        invalid(response(new JSONArray()).put("radius_m",5000));
-        invalid(response(new JSONArray()).put("places",new JSONObject()));
+        invalid(response(new JSONArray()).put("source", "Other"));
+        invalid(response(new JSONArray()).put("attribution", ""));
+        invalid(response(new JSONArray()).put("source_date", "2026-02-30T12:00:00Z"));
+        invalid(response(new JSONArray()).put("source_date", "2026-11-22T14:05:00+01:00"));
+        invalid(response(new JSONArray()).put("radius_m", "1500"));
+        invalid(response(new JSONArray()).put("radius_m", 499));
+        invalid(response(new JSONArray()).put("radius_m", 5001));
+        invalid(response(new JSONArray()).put("places", new JSONObject()));
     }
 
     private void invalid(JSONObject response) {

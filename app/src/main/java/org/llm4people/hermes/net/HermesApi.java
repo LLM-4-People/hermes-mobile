@@ -117,6 +117,30 @@ public final class HermesApi {
         }
     }
 
+    /** Reads the active profile's live UI state (custom tabs, quick actions, theme overrides). */
+    public JSONObject mobileUiState(String sessionId) throws IOException {
+        String path = sessionId == null || sessionId.isEmpty()
+                ? "/api/mobile/ui/state"
+                : "/api/mobile/ui/state?session_id=" + segment(sessionId);
+        return get(path);
+    }
+
+    /** Reads ordered live UI revision history for the active profile. */
+    public JSONObject mobileUiHistory(int limit) throws IOException {
+        int bounded = Math.max(1, Math.min(50, limit));
+        return get("/api/mobile/ui/history?limit=" + bounded);
+    }
+
+    /** Confirms application of a previewed live UI revision on the gateway. */
+    public JSONObject applyMobileUiRevision(String revisionId) throws IOException {
+        return post("/api/mobile/ui/revisions/" + segment(revisionId) + "/apply", new JSONObject());
+    }
+
+    /** Atomically reverts a live UI revision on the gateway. */
+    public JSONObject revertMobileUiRevision(String revisionId) throws IOException {
+        return post("/api/mobile/ui/revisions/" + segment(revisionId) + "/revert", new JSONObject());
+    }
+
     private static boolean visibleAscii(String text) {
         if (text == null || text.isEmpty()) return false;
         for (int i = 0; i < text.length(); i++) {

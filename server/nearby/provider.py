@@ -11,7 +11,16 @@ from urllib.parse import urlsplit
 
 from aiohttp import ClientError, ClientSession, ClientTimeout, DummyCookieJar
 
-from .records import RADIUS_M, places
+from .config import (
+    DEFAULT_CATEGORY,
+    DEFAULT_LIMIT,
+    DEFAULT_RADIUS_M,
+    HTTP_TIMEOUT_S,
+    MAX_RESPONSE_BYTES,
+    USER_AGENT,
+    overpass_query,
+)
+from .records import places
 
 try:
     from server.logging_util import get_logger, safe_reason
@@ -24,7 +33,7 @@ except ImportError:
 log = get_logger("nearby")
 
 
-MAX_BYTES = 4 * 1024 * 1024
+MAX_BYTES = MAX_RESPONSE_BYTES
 
 
 class Unavailable(Exception):
@@ -81,7 +90,7 @@ class Overpass:
         self.busy = asyncio.Lock()
         self.resume_at = 0.0
 
-    async def search(self, lat, lon):
+    async def search(self, lat, lon, category=DEFAULT_CATEGORY, radius_m=DEFAULT_RADIUS_M, limit=DEFAULT_LIMIT):
         if not self.url:
             log.warning("nearby_provider_unconfigured")
             raise Unavailable()
@@ -89,16 +98,13 @@ class Overpass:
         if remaining > 0 or self.busy.locked():
             log.warning("nearby_provider_throttled retry_after=%d", max(1, math.ceil(remaining)))
             raise Unavailable(max(1, math.ceil(remaining)))
-        query = (
-            f'[out:json][timeout:12][maxsize:12582912];nwr["amenity"="restaurant"]["name"]'
-            f"(around:{RADIUS_M},{lat:.2f},{lon:.2f});out center;"
-        )
+        query = overpass_query(category, radius_m, lat, lon)
         async with self.busy:
             try:
                 async with ClientSession(
-                    timeout=ClientTimeout(total=20),
+                    timeout=ClientTimeout(total=HTTP_TIMEOUT_S),
                     cookie_jar=DummyCookieJar(),
-                    headers={"User-Agent": "Hermes-Mobile/1.0 (github.com/LLM-4-People/hermes-mobile)"},
+                    headers={"User-Agent": USER_AGENT},
                 ) as client:
                     async with client.post(self.url, data={"data": query}, allow_redirects=False) as response:
                         if response.status != 200:
@@ -111,7 +117,7 @@ class Overpass:
                             log.warning("nearby_upstream_status status=%d retry_after=%d", response.status, delay)
                             raise Unavailable(delay or None)
                         raw = await bounded_bytes(response.content, MAX_BYTES)
-                return places(json.loads(raw), lat, lon)
+                return places(json.loads(raw), lat, lon, category=category, radius_m=radius_m, limit=limit)
             except (ClientError, TimeoutError, ValueError, RecursionError) as exc:
                 log.warning("nearby_upstream_failed reason=%s", safe_reason(exc))
                 raise Unavailable() from exc

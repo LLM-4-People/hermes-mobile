@@ -6,7 +6,6 @@ import org.json.JSONObject;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.VisibleText;
 
-import java.math.BigDecimal;
 import java.time.DateTimeException;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -19,36 +18,42 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Pattern;
 
-/** A snapshot of the gateway's bounded, attributed OpenStreetMap restaurant results. */
+/** A snapshot of the gateway's bounded, attributed OpenStreetMap nearby results. */
 public final class NearbyResult {
-    private static final int RADIUS_METERS = 1500;
-    private static final int MAX_PLACES = 12;
     private static final String CREDIT = "© OpenStreetMap contributors";
     private static final Pattern UTC = Pattern.compile("[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z");
 
     public final String attribution, sourceDate;
+    public final NearbyCategory category;
     public final int radiusMeters;
+    public final int limit;
     public final List<Place> places;
 
-    private NearbyResult(String date, List<Place> places) {
+    private NearbyResult(String date, NearbyCategory category, int radiusMeters, int limit, List<Place> places) {
         this.attribution = CREDIT;
         this.sourceDate = date;
-        this.radiusMeters = RADIUS_METERS;
+        this.category = category;
+        this.radiusMeters = radiusMeters;
+        this.limit = limit;
         this.places = Collections.unmodifiableList(places);
     }
 
     public static final class Place {
-        public final String id, name, cuisine, address, sourceUrl;
+        public final String id, name, cuisine, address, openingHours, sourceUrl;
         public final List<String> cuisines;
+        public final List<String> tags;
         public final double latitude, longitude;
         public final int distanceMeters;
 
-        private Place(String id, String name, List<String> cuisines, String address, double lat, double lon, int distance) {
+        private Place(String id, String name, List<String> cuisines, List<String> tags, String address,
+                      String openingHours, double lat, double lon, int distance) {
             this.id = id;
             this.name = name;
             this.cuisines = cuisines;
             this.cuisine = String.join(" · ", cuisines);
+            this.tags = tags;
             this.address = address;
+            this.openingHours = openingHours;
             this.latitude = lat;
             this.longitude = lon;
             this.distanceMeters = distance;
@@ -57,18 +62,44 @@ public final class NearbyResult {
 
         /** Coordinates of the public venue, as plain decimal degrees suitable for Android's geo query. */
         public String coordinates() {
-            return BigDecimal.valueOf(latitude).stripTrailingZeros().toPlainString() + ","
-                    + BigDecimal.valueOf(longitude).stripTrailingZeros().toPlainString();
+            return NearbyCategory.plainCoords(latitude, longitude);
         }
     }
 
     public static NearbyResult parse(JSONObject response) throws JSONException {
         if (response == null || !"OpenStreetMap".equals(response.opt("source"))
-                || !CREDIT.equals(response.opt("attribution")) || integer(response.opt("radius_m")) != RADIUS_METERS
+                || !CREDIT.equals(response.opt("attribution"))
                 || !(response.opt("source_date") instanceof String date) || !UTC.matcher(date).matches()
-                || !(response.opt("places") instanceof JSONArray rows) || rows.length() > MAX_PLACES) {
+                || !(response.opt("places") instanceof JSONArray rows)) {
             Diagnostics.warning("places", "invalid_response");
-            throw new JSONException("Invalid nearby restaurant response");
+            throw new JSONException("Invalid nearby places response");
+        }
+        long rawRadius = integer(response.opt("radius_m"));
+        if (rawRadius < NearbyCategory.MIN_RADIUS_M || rawRadius > NearbyCategory.MAX_RADIUS_M) {
+            Diagnostics.warning("places", "invalid_radius");
+            throw new JSONException("Invalid nearby radius");
+        }
+        int radius = (int) rawRadius;
+        int limit = NearbyCategory.DEFAULT_LIMIT;
+        if (response.has("limit")) {
+            long rawLimit = integer(response.opt("limit"));
+            if (rawLimit < NearbyCategory.MIN_LIMIT || rawLimit > NearbyCategory.MAX_LIMIT) {
+                Diagnostics.warning("places", "invalid_limit");
+                throw new JSONException("Invalid nearby limit");
+            }
+            limit = (int) rawLimit;
+        }
+        if (rows.length() > limit) {
+            Diagnostics.warning("places", "limit_exceeded");
+            throw new JSONException("Nearby places exceeded limit");
+        }
+        NearbyCategory category = NearbyCategory.RESTAURANT;
+        if (response.has("category")) {
+            Object rawCategory = response.opt("category");
+            if (!(rawCategory instanceof String catId) || (category = NearbyCategory.fromId(catId)) == null) {
+                Diagnostics.warning("places", "invalid_category");
+                throw new JSONException("Invalid nearby category");
+            }
         }
         try {
             if (!Instant.parse(date).toString().equals(date)) {
@@ -82,32 +113,47 @@ public final class NearbyResult {
 
         List<Place> places = new ArrayList<>();
         for (int i = 0; i < rows.length(); i++) {
-            Place place = readPlace(rows.optJSONObject(i));
+            Place place = readPlace(rows.optJSONObject(i), radius);
             if (place != null) places.add(place);
         }
         if (rows.length() > 0 && places.isEmpty()) {
             Diagnostics.warning("places", "no_usable_records");
-            throw new JSONException("No usable restaurant records");
+            throw new JSONException("No usable place records");
         }
         places.sort(Comparator.comparingInt(place -> place.distanceMeters));
         Set<String> seen = new HashSet<>();
         places.removeIf(place -> !seen.add(place.id));
-        return new NearbyResult(date, places);
+        return new NearbyResult(date, category, radius, limit, places);
     }
 
-    private static Place readPlace(JSONObject row) {
+    private static Place readPlace(JSONObject row, int radiusMeters) {
         if (row == null || !(row.opt("osm_type") instanceof String type)
                 || !("node".equals(type) || "way".equals(type) || "relation".equals(type))) return null;
         long id = integer(row.opt("osm_id"));
         long distance = integer(row.opt("distance_m"));
         String name = label(row.opt("name"), 256);
-        if (id <= 0 || distance < 0 || distance > RADIUS_METERS || name.isEmpty()
+        if (id <= 0 || distance < 0 || distance > radiusMeters || name.isEmpty()
                 || !(row.opt("latitude") instanceof Number lat) || !(row.opt("longitude") instanceof Number lon)) return null;
         double latitude = lat.doubleValue(), longitude = lon.doubleValue();
         if (!Double.isFinite(latitude) || Math.abs(latitude) > 90 || !Double.isFinite(longitude)
                 || Math.abs(longitude) > 180) return null;
         return new Place(type + "/" + id, name, cuisines(label(row.opt("cuisine"), 256)),
-                label(row.opt("address"), 320), latitude, longitude, (int) distance);
+                readTags(row.opt("tags")), label(row.opt("address"), 320),
+                label(row.opt("opening_hours"), 160), latitude, longitude, (int) distance);
+    }
+
+    private static List<String> readTags(Object raw) {
+        if (!(raw instanceof JSONArray array)) return Collections.emptyList();
+        Set<String> labels = new LinkedHashSet<>();
+        int cap = Math.min(array.length(), 10);
+        for (int i = 0; i < cap; i++) {
+            Object item = array.opt(i);
+            if (item instanceof String text) {
+                String mapped = NearbyCategory.tagLabel(text);
+                if (!mapped.isEmpty()) labels.add(mapped);
+            }
+        }
+        return Collections.unmodifiableList(new ArrayList<>(labels));
     }
 
     private static long integer(Object value) {

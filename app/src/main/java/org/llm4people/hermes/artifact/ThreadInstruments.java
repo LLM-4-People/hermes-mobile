@@ -32,6 +32,9 @@ public final class ThreadInstruments {
         public final String pageId, title, pageJson, messageId;
         public final int fenceOrdinal, version;
         public final boolean nearbyPlaces;
+        public final String nearbyCategory;
+        public final int nearbyRadiusMeters;
+        public final int nearbyLimit;
         private final ThreadInstruments owner;
         private final String sourceSession;
 
@@ -39,7 +42,14 @@ public final class ThreadInstruments {
                     String sourceSession, int fenceOrdinal, int version) {
             this.owner = owner;
             this.pageId = layout.surface;
-            this.nearbyPlaces = layout.blocks.stream().anyMatch(block -> "nearby_places".equals(block.type));
+            WorkspaceLayout.Block nearbyBlock = null;
+            for (WorkspaceLayout.Block block : layout.blocks) {
+                if ("nearby_places".equals(block.type)) { nearbyBlock = block; break; }
+            }
+            this.nearbyPlaces = nearbyBlock != null;
+            this.nearbyCategory = nearbyBlock == null ? "" : nearbyBlock.category;
+            this.nearbyRadiusMeters = nearbyBlock == null ? 0 : nearbyBlock.radiusMeters;
+            this.nearbyLimit = nearbyBlock == null ? 0 : nearbyBlock.limit;
             this.title = layout.title;
             this.pageJson = pageJson;
             this.messageId = messageId;

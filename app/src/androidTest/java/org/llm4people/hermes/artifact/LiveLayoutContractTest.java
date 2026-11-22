@@ -21,12 +21,22 @@ public class LiveLayoutContractTest extends InstrumentationTestCase {
                 + slots + "}]}";
     }
 
-    public void testNearbyGuideAcceptsOnlyOneRestaurantRequestOnANamedPage() throws Exception {
+    public void testNearbyGuideAcceptsOnlyOneAllowlistedCategoryOnANamedPage() throws Exception {
         String block = "{\"type\":\"nearby_places\",\"category\":\"restaurant\"}";
         String page = "{\"version\":1,\"surface\":\"page/guide\",\"mode\":\"replace\",\"title\":\"À table\",\"blocks\":[" + block + "]}";
         assertEquals("nearby_places", WorkspaceLayout.parse(page).blocks.get(0).type);
-        invalid(page.replace("restaurant", "pharmacy"));
+        WorkspaceLayout pharmacy = WorkspaceLayout.parse(page.replace("restaurant", "pharmacy"));
+        assertEquals("pharmacy", pharmacy.blocks.get(0).category);
+        assertEquals("Pharmacies dans la zone", pharmacy.blocks.get(0).title);
+        WorkspaceLayout bounded = WorkspaceLayout.parse(
+                "{\"version\":2,\"surface\":\"page/cafes\",\"mode\":\"replace\",\"title\":\"Cafés\",\"blocks\":[{\"type\":\"nearby_places\",\"category\":\"cafe\",\"radius_m\":3000,\"limit\":20}]}");
+        assertEquals(3000, bounded.blocks.get(0).radiusMeters);
+        assertEquals(20, bounded.blocks.get(0).limit);
+        invalid(page.replace("restaurant", "nuclear_plant"));
         invalid(page.replace(",\"category\":\"restaurant\"", ""));
+        invalid(page.replace("\"category\":\"restaurant\"", "\"category\":\"cafe\",\"radius_m\":499"));
+        invalid(page.replace("\"category\":\"restaurant\"", "\"category\":\"cafe\",\"radius_m\":5001"));
+        invalid(page.replace("\"category\":\"restaurant\"", "\"category\":\"cafe\",\"limit\":25"));
         invalid(page.replace("\"type\":\"nearby_places\"", "\"type\":\"nearby_places\",\"places\":[]"));
         invalid(page.replace("\"type\":\"nearby_places\"", "\"type\":\"nearby_places\",\"latitude\":45"));
         invalid(page.replace(block, block + "," + block));

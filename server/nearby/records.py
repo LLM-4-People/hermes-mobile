@@ -1,4 +1,4 @@
-"""Select named restaurants with provenance and straight-line distances from a coarse center."""
+"""Select named nearby OpenStreetMap places with provenance and straight-line distances."""
 
 import math
 import re
@@ -7,9 +7,21 @@ from datetime import datetime
 from ipaddress import ip_address
 from urllib.parse import urlsplit
 
+from .config import (
+    DEFAULT_CATEGORY,
+    DEFAULT_LIMIT,
+    DEFAULT_RADIUS_M,
+    InvalidCategory,
+    matches_category,
+    validate_category,
+    validate_limit,
+    validate_radius,
+)
 
-RADIUS_M = 1500
-LIMIT = 12
+
+RADIUS_M = DEFAULT_RADIUS_M
+LIMIT = DEFAULT_LIMIT
+ALLOWED_REQUEST_KEYS = frozenset({"latitude", "longitude", "category", "radius_m", "limit"})
 OSM_CREDIT = "© OpenStreetMap contributors"
 OVERPASS_CREDIT = "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL."
 CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f\u2028\u2029\ud800-\udfff]")
@@ -23,16 +35,24 @@ class InvalidDataset(ValueError):
 
 
 def coordinate(value, bound):
-    return type(value) in (int, float) and -bound <= value <= bound
+    return type(value) in (int, float) and math.isfinite(value) and -bound <= value <= bound
 
 
 def accepted_center(data):
-    if not isinstance(data, dict) or set(data) != {"latitude", "longitude"}:
-        raise ValueError
+    lat, lon, _, _, _ = accepted_request(data)
+    return lat, lon
+
+
+def accepted_request(data):
+    if not isinstance(data, dict) or not {"latitude", "longitude"}.issubset(data) or not set(data).issubset(ALLOWED_REQUEST_KEYS):
+        raise ValueError("Invalid nearby request keys")
     lat, lon = data["latitude"], data["longitude"]
     if not (coordinate(lat, 90) and coordinate(lon, 180) and lat == round(lat, 2) and lon == round(lon, 2)):
-        raise ValueError
-    return lat, lon
+        raise ValueError("Invalid coarse coordinates")
+    category = validate_category(data.get("category")) if "category" in data else DEFAULT_CATEGORY
+    radius_m = validate_radius(data.get("radius_m")) if "radius_m" in data else DEFAULT_RADIUS_M
+    limit = validate_limit(data.get("limit")) if "limit" in data else DEFAULT_LIMIT
+    return lat, lon, category, radius_m, limit
 
 
 def text(value, limit):
@@ -85,7 +105,22 @@ def distance_m(lat, lon, place_lat, place_lon):
     return 12_742_000 * math.asin(math.sqrt(min(1, h)))
 
 
-def restaurant(element, lat, lon):
+def _place_tags(tags: dict) -> list[str]:
+    result = []
+    if tags.get("wheelchair") == "yes":
+        result.append("wheelchair")
+    if tags.get("takeaway") in ("yes", "only"):
+        result.append("takeaway")
+    if tags.get("internet_access") in ("wlan", "yes", "wifi"):
+        result.append("wifi")
+    if tags.get("opening_hours") == "24/7":
+        result.append("24/7")
+    if tags.get("outdoor_seating") == "yes":
+        result.append("outdoor_seating")
+    return result
+
+
+def place(element, lat, lon, category=DEFAULT_CATEGORY, radius_m=DEFAULT_RADIUS_M):
     if not isinstance(element, dict):
         raise InvalidDataset
     kind, osm_id, tags = element.get("type"), element.get("id"), element.get("tags", {})
@@ -96,11 +131,11 @@ def restaurant(element, lat, lon):
         raise InvalidDataset
     if any(key in point and not coordinate(point[key], bound) for key, bound in (("lat", 90), ("lon", 180))):
         raise InvalidDataset
-    if (tags.get("amenity") != "restaurant" or not (name := text(tags.get("name"), 256))
+    if (not matches_category(tags, category) or not (name := text(tags.get("name"), 256))
             or "lat" not in point or "lon" not in point):
         return None
     distance = distance_m(lat, lon, point["lat"], point["lon"])
-    if distance > RADIUS_M:
+    if distance > radius_m:
         return None
     row = {
         "osm_type": kind,
@@ -117,13 +152,24 @@ def restaurant(element, lat, lon):
     optional = {
         "address": address,
         "cuisine": text(tags.get("cuisine"), 256),
+        "opening_hours": text(tags.get("opening_hours"), 160),
         "website": website(tags.get("website")) or website(tags.get("contact:website")),
     }
     row.update((key, value) for key, value in optional.items() if value)
+    extra_tags = _place_tags(tags)
+    if extra_tags:
+        row["tags"] = extra_tags
     return distance, row
 
 
-def places(data, lat, lon):
+def restaurant(element, lat, lon):
+    return place(element, lat, lon, category=DEFAULT_CATEGORY, radius_m=DEFAULT_RADIUS_M)
+
+
+def places(data, lat, lon, category=DEFAULT_CATEGORY, radius_m=DEFAULT_RADIUS_M, limit=DEFAULT_LIMIT):
+    category = validate_category(category)
+    radius_m = validate_radius(radius_m)
+    limit = validate_limit(limit)
     if not isinstance(data, dict) or "remark" in data or not isinstance(data.get("elements"), list):
         raise InvalidDataset
     source = data.get("osm3s")
@@ -147,7 +193,7 @@ def places(data, lat, lon):
     malformed = 0
     for element in data["elements"]:
         try:
-            pair = restaurant(element, lat, lon)
+            pair = place(element, lat, lon, category=category, radius_m=radius_m)
         except InvalidDataset:
             malformed += 1
             continue
@@ -159,12 +205,28 @@ def places(data, lat, lon):
     unique = {}
     for _, row in ordered:
         unique.setdefault((row["osm_type"], row["osm_id"]), row)
-        if len(unique) == LIMIT:
+        if len(unique) == limit:
             break
     return {
         "source": "OpenStreetMap",
         "attribution": OSM_CREDIT,
         "source_date": stamp,
-        "radius_m": RADIUS_M,
+        "category": category,
+        "radius_m": radius_m,
+        "limit": limit,
         "places": list(unique.values()),
     }
+
+
+__all__ = [
+    "InvalidCategory",
+    "InvalidDataset",
+    "LIMIT",
+    "OSM_CREDIT",
+    "RADIUS_M",
+    "accepted_center",
+    "accepted_request",
+    "place",
+    "places",
+    "restaurant",
+]

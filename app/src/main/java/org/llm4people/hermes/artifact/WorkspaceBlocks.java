@@ -16,74 +16,141 @@ import org.llm4people.hermes.Ui;
 final class WorkspaceBlocks {
     static void add(LinearLayout parent, WorkspaceLayout layout, WorkspaceLayout.Block block,
                     Activity activity, ArtifactDesk.Host host) {
+        add(parent, layout, block, null, null, "", activity, host);
+    }
+
+    static void add(LinearLayout parent, WorkspaceLayout layout, WorkspaceLayout.Block block,
+                    ThemePalette palette, InstrumentStateStore stateStore, String stateScope,
+                    Activity activity, ArtifactDesk.Host host) {
         Context c = parent.getContext();
+        ThemePalette colors = palette == null
+                ? ThemePalette.resolve(ThemePalette.OverrideSpec.defaults(), ThemePalette.isNight(c))
+                : palette;
         if ("nearby_places".equals(block.type)) {
             View guide = host == null ? null : host.nearbyGuide();
             if (guide != null) parent.addView(guide);
             else {
-                TextView unavailable = Ui.text(c, "Retrouvez le guide des restaurants dans la discussion d’origine.", 16);
-                Ui.pad(unavailable, 16, 12);
+                TextView unavailable = Ui.text(c, "Retrouvez ce guide de proximité dans la discussion d’origine.", colors.scaledSp(16));
+                unavailable.setTextColor(colors.ink);
+                Ui.pad(unavailable, 16, colors.blockVerticalPaddingDp);
                 parent.addView(unavailable);
             }
             return;
         }
         LinearLayout group = Ui.column(c);
-        Ui.pad(group, 16, "compact".equals(layout.density) ? 5 : 12);
+        int vPad = "compact".equals(layout.density) ? 5 : "spacious".equals(layout.density) ? 18 : colors.blockVerticalPaddingDp;
+        Ui.pad(group, 16, vPad);
         if ("link".equals(block.type)) {
-            action(group, block.title, host == null ? null : () ->
+            action(group, block.title, colors, host == null ? null : () ->
                     DeskDialogs.navigate(activity, () -> host.openWorkspace(block.page)));
         } else {
-            TextView heading = Ui.text(c, block.title, 18);
+            TextView heading = Ui.text(c, block.title, colors.scaledSp(18));
             heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+            heading.setTextColor(colors.ink);
             heading.setAccessibilityHeading(true);
             group.addView(heading);
             switch (block.type) {
                 case "section":
-                    if (!block.note.isEmpty()) group.addView(Ui.text(c, block.note,16));
-                    for (String id : block.actions) action(group, WorkspaceLayout.ACTIONS.get(id),
+                    if (!block.note.isEmpty()) {
+                        TextView note = Ui.text(c, block.note, colors.scaledSp(16));
+                        note.setTextColor(colors.ink);
+                        group.addView(note);
+                    }
+                    for (String id : block.actions) action(group, WorkspaceLayout.ACTIONS.get(id), colors,
                             host == null ? null : () -> DeskDialogs.navigate(activity, () -> host.onAction(id)));
                     break;
                 case "value":
-                    Value value = new Value(c, block.source);
+                    Value value = new Value(c, block.source, colors);
                     if (host != null) value.refresh(host);
                     group.addView(value);
                     break;
                 case "device":
                     DeviceAction.CalendarEvent event = host != null && block.request instanceof DeviceAction.CalendarEvent calendar
                             ? calendar : null;
-                    TextView details = Ui.text(c, event == null ? block.request.preview() : event.title(), 16);
+                    TextView details = Ui.text(c, event == null ? block.request.preview() : event.title(), colors.scaledSp(16));
+                    details.setTextColor(colors.ink);
                     if (host != null) {
                         details.setMaxLines(2);
                         details.setEllipsize(android.text.TextUtils.TruncateAt.END);
                     }
                     group.addView(details);
                     if (event != null) {
-                        TextView start = Ui.text(c, event.startSummary(), 16);
-                        start.setTextColor(c.getColor(R.color.muted));
+                        TextView start = Ui.text(c, event.startSummary(), colors.scaledSp(16));
+                        start.setTextColor(colors.muted);
                         group.addView(start);
                     }
-                    if (host != null) group.addView(Ui.button(c, block.request.kind().review,
-                            v -> DeviceReview.open(activity, host, v, block.request)));
+                    if (host != null) {
+                        Button review = Ui.button(c, block.request.kind().review,
+                                v -> DeviceReview.open(activity, host, v, block.request));
+                        review.setTextColor(colors.accent);
+                        group.addView(review);
+                    }
                     break;
                 case "form":
                     WorkspaceForms.mount(group, block, activity, host);
                     break;
-                default: throw new IllegalArgumentException("Unknown layout block");
+                case "metric_grid":
+                    if (!block.note.isEmpty()) {
+                        TextView note = Ui.text(c, block.note, colors.scaledSp(15));
+                        note.setTextColor(colors.muted);
+                        note.setPadding(0, Ui.dp(c, 3), 0, Ui.dp(c, 6));
+                        group.addView(note);
+                    }
+                    View grid = MetricGridBlock.build(c, block.metrics, colors, host);
+                    LinearLayout.LayoutParams gridLp = new LinearLayout.LayoutParams(-1, -2);
+                    gridLp.topMargin = Ui.dp(c, 6);
+                    group.addView(grid, gridLp);
+                    break;
+                case "sparkline":
+                    if (!block.note.isEmpty()) {
+                        TextView note = Ui.text(c, block.note, colors.scaledSp(15));
+                        note.setTextColor(colors.muted);
+                        group.addView(note);
+                    }
+                    SparklineView chart = new SparklineView(c, block.sparkline, colors);
+                    LinearLayout.LayoutParams chartLp = new LinearLayout.LayoutParams(-1, Ui.dp(c, 96));
+                    chartLp.topMargin = Ui.dp(c, 6);
+                    group.addView(chart, chartLp);
+                    if (!block.sparkline.caption.isEmpty()) {
+                        TextView cap = Ui.text(c, block.sparkline.caption, colors.scaledSp(13));
+                        cap.setTextColor(colors.muted);
+                        cap.setPadding(0, Ui.dp(c, 4), 0, 0);
+                        group.addView(cap);
+                    }
+                    break;
+                case "table":
+                    if (!block.note.isEmpty()) {
+                        TextView note = Ui.text(c, block.note, colors.scaledSp(15));
+                        note.setTextColor(colors.muted);
+                        note.setPadding(0, Ui.dp(c, 3), 0, Ui.dp(c, 6));
+                        group.addView(note);
+                    }
+                    View table = DataTableBlock.build(c, block.table, colors, host);
+                    LinearLayout.LayoutParams tableLp = new LinearLayout.LayoutParams(-1, -2);
+                    tableLp.topMargin = Ui.dp(c, 6);
+                    group.addView(table, tableLp);
+                    break;
+                case "controls":
+                    InteractiveControlsBlock.mount(group, layout, block, colors, stateStore, stateScope, activity, host);
+                    break;
+                default:
+                    throw new IllegalArgumentException("Unknown layout block");
             }
         }
         parent.addView(group);
         parent.addView(Ui.divider(c));
     }
 
-    private static void action(LinearLayout group, String label, Runnable action) {
+    private static void action(LinearLayout group, String label, ThemePalette colors, Runnable action) {
         Context c = group.getContext();
         if (action == null) {
-            TextView sample = Ui.text(c,label,16);
-            sample.setTextColor(c.getColor(R.color.accent));
-            Ui.pad(sample,8,6);
+            TextView sample = Ui.text(c, label, colors.scaledSp(16));
+            sample.setTextColor(colors.accent);
+            Ui.pad(sample, 8, 6);
             group.addView(sample);
         } else {
-            Button button = Ui.button(c,label,v -> action.run());
+            Button button = Ui.button(c, label, v -> action.run());
+            button.setTextColor(colors.accent);
             button.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
             group.addView(button);
         }
@@ -101,27 +168,26 @@ final class WorkspaceBlocks {
     /** Mark and update only our bindings; writing a form never triggers a rebuild. */
     private static final class Value extends TextView {
         final String source;
-        Value(Context c, String source) {
+        Value(Context c, String source, ThemePalette colors) {
             super(c);
             this.source = source;
-            setTextSize(16);
-            setTextColor(c.getColor(R.color.muted));
+            setTextSize(colors.scaledSp(16));
+            setTextColor(colors.muted);
             setText(sourceLabel(source));
         }
         void refresh(ArtifactDesk.Host host) {
             String text = host.workspaceValue(source);
             if (text == null || text.isEmpty()) text = "Indisponible";
-            if (text.length() > 240) text = text.substring(0,240) + "…";
+            if (text.length() > 240) text = text.substring(0, 240) + "…";
             if (!text.contentEquals(getText())) setText(text);
         }
-
     }
 
     static void refresh(View root, ArtifactDesk.Host host) {
-        if (root instanceof Value) ((Value)root).refresh(host);
-        else if (root instanceof ViewGroup && !(root instanceof android.widget.AdapterView)) {
-            ViewGroup g = (ViewGroup)root;
-            for (int i=0; i<g.getChildCount(); i++) refresh(g.getChildAt(i), host);
+        if (root instanceof Value v) v.refresh(host);
+        else if (root instanceof MetricGridBlock.MetricValueView mv) mv.refresh(host);
+        else if (root instanceof ViewGroup g && !(root instanceof android.widget.AdapterView)) {
+            for (int i = 0; i < g.getChildCount(); i++) refresh(g.getChildAt(i), host);
         }
     }
 }
