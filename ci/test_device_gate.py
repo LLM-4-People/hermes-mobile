@@ -10,6 +10,12 @@ import unittest
 
 
 GATE = Path(__file__).with_name("device-check.sh").resolve()
+FRAMEWORK = "org.llm4people.hermes.test/android.test.InstrumentationTestRunner"
+ADB = ["adb", "-s", "emulator-fixture"]
+INSTRUMENT = [*ADB, "shell", "am", "instrument", "-w", "-r"]
+APP_APK = "app/build/outputs/apk/debug/app-debug.apk"
+TEST_APK = "app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk"
+
 RECORDER = """#!/usr/bin/env python3
 import json, os, sys
 from pathlib import Path
@@ -17,13 +23,24 @@ with open(os.environ["GATE_COMMANDS"], "a") as stream:
     print(json.dumps([Path(sys.argv[0]).name, *sys.argv[1:]]), file=stream)
 if sys.argv[1:] == ["get-serialno"]:
     print("emulator-fixture")
-if Path(sys.argv[0]).name == "gradlew" and os.environ.get("FAIL_GRADLE") == "1":
-    print("Native Android tests failed", file=sys.stderr)
-    sys.exit(17)
+if sys.argv[3:6] == ["shell", "am", "instrument"]:
+    discovery = "-e" in sys.argv
+    print(Path("discovery.txt" if discovery else "execution.txt").read_text(), end="")
+    if not discovery:
+        sys.exit(int(os.environ["EXECUTION_STATUS"]))
 if os.environ.get("FAIL_VERIFIER") in sys.argv[1:]:
-    print("instrument-wide failed to show the pinned form", file=sys.stderr)
+    print("journey failed: " + os.environ["FAIL_VERIFIER"], file=sys.stderr)
     sys.exit(31)
 """
+
+# Framework protocol for one discovered and executed test on the installed test APK.
+def successful_report():
+    fields = ("INSTRUMENTATION_STATUS: class=org.llm4people.hermes.thread.CodeExcerptCapture\n"
+              "INSTRUMENTATION_STATUS: id=InstrumentationTestRunner\n"
+              "INSTRUMENTATION_STATUS: numtests=1\n"
+              "INSTRUMENTATION_STATUS: test=testConversationAndOpenedSource\n")
+    return (fields + "INSTRUMENTATION_STATUS_CODE: 1\n" + fields + "INSTRUMENTATION_STATUS_CODE: 0\n"
+            "INSTRUMENTATION_RESULT: stream=\nOK (1 test)\nINSTRUMENTATION_CODE: -1\n")
 
 
 class DeviceGateTest(unittest.TestCase):
@@ -36,31 +53,36 @@ class DeviceGateTest(unittest.TestCase):
         self.trace.touch()
         ci = self.root / "ci"
         ci.mkdir()
-        shutil.copyfile(GATE.with_name("gradle_check.py"), ci / "gradle_check.py")
-        for command in (self.root / "gradlew", self.root / "bin/adb", self.runner / "hermes-env/bin/python"):
+        shutil.copyfile(GATE.with_name("native_tests.py"), ci / "native_tests.py")
+        for phase in ("discovery", "execution"):
+            (self.root / f"{phase}.txt").write_text(successful_report())
+        for command in (self.root / "bin/adb", self.runner / "hermes-env/bin/python"):
             command.parent.mkdir(parents=True, exist_ok=True)
             command.write_text(RECORDER)
             command.chmod(0o755)
 
-    def gate(self, fail="", fail_gradle=False):
+    def gate(self, fail="", execution_status=0):
         env = {**os.environ, "RUNNER_TEMP": str(self.runner), "GATE_COMMANDS": str(self.trace),
                "PATH": str(self.root / "bin") + os.pathsep + os.environ["PATH"],
-               "FAIL_VERIFIER": fail, "FAIL_GRADLE": "1" if fail_gradle else "0"}
+               "FAIL_VERIFIER": fail, "EXECUTION_STATUS": str(execution_status)}
         result = subprocess.run(["bash", GATE], cwd=self.root, env=env, text=True, capture_output=True)
         return result, [json.loads(line) for line in self.trace.read_text().splitlines()]
 
     def test_all_journeys_use_one_fork_serial_and_installed_apk_pair(self):
         result, calls = self.gate()
         self.assertEqual(result.returncode, 0, result.stderr)
-        builds = [cmd for cmd in calls if cmd[0] == "gradlew"]
-        self.assertEqual(len(builds), 1)
-        self.assertIn(":app:connectedDebugAndroidTest", builds[0])
-        installs = [cmd for cmd in calls if cmd[0] == "adb" and "install" in cmd]
-        self.assertEqual(len(installs), 2)
-        app, tests = [cmd[-1] for cmd in installs]
-        for cmd in installs:
-            self.assertEqual(cmd[1:-1], ["-s", "emulator-fixture", "install", "-r", "-t"])
-        verifiers = [cmd for cmd in calls if cmd[0] == "python"]
+        self.assertEqual(calls[:7], [
+            ["adb", "get-serialno"],
+            [*ADB, "install", "-r", "-t", APP_APK], [*ADB, "install", "-r", "-t", TEST_APK],
+            [*INSTRUMENT, "-e", "log", "true", FRAMEWORK], [*INSTRUMENT, FRAMEWORK],
+            [*ADB, "shell", "pm", "clear", "org.llm4people.hermes.test"],
+            [*ADB, "shell", "pm", "clear", "org.llm4people.hermes"],
+        ])
+        for phase in ("discovery", "execution"):
+            saved = self.runner / "android-instrumentation" / f"{phase}.txt"
+            self.assertEqual(saved.read_text(), (self.root / f"{phase}.txt").read_text())
+        verifiers = calls[7:]
+        self.assertEqual([cmd[:2] for cmd in verifiers], [["python", "-B"]] * 3)
         self.assertEqual([cmd[2] for cmd in verifiers], [
             "verification/live_api.py", "verification/conversation_cards.py", "verification/thread_instruments.py"])
         for cmd in verifiers:
@@ -70,18 +92,35 @@ class DeviceGateTest(unittest.TestCase):
         self.assertIn("verification/device/run.py", verifiers[0])
         for cmd in verifiers[1:]:
             index = cmd.index("--verify-apks")
-            self.assertEqual(cmd[index + 1:index + 3], [app, tests])
+            self.assertEqual(cmd[index + 1:index + 3], [APP_APK, TEST_APK])
         self.assertEqual([cmd[-1] for cmd in verifiers], [str(self.runner / subdir) for subdir in (
             "hermes-device", "hermes-conversation-cards/android", "hermes-thread-instrument")])
 
-    def test_thread_instrument_failure_fails_the_gate_with_its_diagnostic(self):
-        result, _ = self.gate(fail="verification/thread_instruments.py")
-        self.assertEqual(result.returncode, 31)
-        self.assertIn("instrument-wide failed", result.stderr)
-        self.assertIn("partial screenshots in android-thread-instruments", result.stderr)
+    def test_each_journey_failure_stops_the_gate_with_its_diagnostic(self):
+        journeys = ["verification/live_api.py", "verification/conversation_cards.py",
+                    "verification/thread_instruments.py"]
+        for index, failed in enumerate(journeys):
+            with self.subTest(journey=failed):
+                self.trace.write_text("")
+                result, calls = self.gate(fail=failed)
+                self.assertEqual(result.returncode, 31)
+                self.assertIn("journey failed: " + failed, result.stderr)
+                self.assertEqual([cmd[2] for cmd in calls if cmd[0] == "python"], journeys[:index + 1])
+                if failed == "verification/thread_instruments.py":
+                    self.assertIn("partial screenshots in android-thread-instruments", result.stderr)
 
-    def test_native_test_failure_stops_before_device_setup(self):
-        result, calls = self.gate(fail_gradle=True)
-        self.assertEqual(result.returncode, 17)
-        self.assertIn("Native Android tests failed", result.stdout)
-        self.assertEqual(calls, [["gradlew", "--no-daemon", "--max-workers=2", ":app:connectedDebugAndroidTest"]])
+    def test_native_failures_stop_before_clearing_evidence_or_running_journeys(self):
+        failed_case = successful_report().replace("INSTRUMENTATION_STATUS_CODE: 0", "INSTRUMENTATION_STATUS_CODE: -2")
+        for output, adb_status, expected_status, diagnostic in (
+                ("device disconnected", 17, 17, "device disconnected"),
+                (failed_case, 0, 1, "unexpected instrumentation status -2")):
+            with self.subTest(diagnostic=diagnostic):
+                self.trace.write_text("")
+                (self.root / "execution.txt").write_text(output)
+                result, calls = self.gate(execution_status=adb_status)
+                self.assertEqual(result.returncode, expected_status)
+                self.assertIn(diagnostic, result.stderr)
+                self.assertEqual(calls[-1], [*INSTRUMENT, FRAMEWORK])
+                self.assertFalse(any("clear" in cmd or cmd[0] == "python" for cmd in calls))
+                report = self.runner / "android-instrumentation/execution.txt"
+                self.assertEqual(report.read_text(), output)
