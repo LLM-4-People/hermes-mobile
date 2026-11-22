@@ -36,8 +36,12 @@ if name == "sha256sum":
 if sys.argv[3:7] == ["shell", "pm", "list", "packages"]:
     print("package:com.google.android.calendar")
 if "resolve-activity" in sys.argv:
-    print("org.fossify.calendar/.EventActivity" if "android.intent.action.INSERT" in sys.argv
-          else os.environ.get("MAP_COMPONENT", "com.google.android.apps.maps/.MapsActivity"))
+    if "android.intent.action.INSERT" in sys.argv:
+        # Android's package-manager shell resolves only an explicit MIME type.
+        print("org.fossify.calendar/.EventActivity" if sys.argv[-2:] == ["-t", "vnd.android.cursor.dir/event"]
+              else "No activity found")
+    else:
+        print(os.environ.get("MAP_COMPONENT", "com.google.android.apps.maps/.MapsActivity"))
 if sys.argv[3:] == ["shell", "dumpsys", "connectivity"]:
     print("Active default network: none")
 if sys.argv[1:] == ["get-serialno"]:
