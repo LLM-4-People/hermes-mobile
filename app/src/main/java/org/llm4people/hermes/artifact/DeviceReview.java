@@ -9,14 +9,23 @@ import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.view.View;
+import org.llm4people.hermes.places.NearbyResult;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BooleanSupplier;
 
 /** The second, explicit gesture is the only way to send reviewed values to an Android app. */
-final class DeviceReview {
+public final class DeviceReview {
     private DeviceReview() {}
+
+    public static void placeMap(Activity activity, ArtifactDesk.Host host, View source, NearbyResult.Place place) {
+        open(activity, host, source, new DeviceAction.PlaceMap(place));
+    }
+
+    public static void placeSource(Activity activity, ArtifactDesk.Host host, View source, NearbyResult.Place place) {
+        open(activity, host, source, new DeviceAction.PlaceSource(place));
+    }
 
     static void open(Activity activity, ArtifactDesk.Host host, View source, DeviceAction request) {
         BooleanSupplier origin = host.deviceActionOrigin();
