@@ -1,32 +1,12 @@
-from datetime import timedelta
 import logging
 import random
 import sqlite3
 import time
 from .ledgers import HermesLedgers
+from .fcm import ProviderError
 
 
 log = logging.getLogger("hermes.mobile.push")
-
-
-class FirebaseSender:
-    def __init__(self, settings):
-        import firebase_admin
-        self.app = firebase_admin.initialize_app(options={
-            "projectId": settings.firebase["projectId"], "httpTimeout": settings.send_timeout})
-        self.retention = settings.retention
-
-    def send(self, item):
-        from firebase_admin import messaging
-        data = {"event_id": item["event_id"], "installation_id": item["device_id"], "kind": item["kind"]}
-        message = messaging.Message(token=item["token"], data=data,
-                                    android=messaging.AndroidConfig(priority="high", ttl=timedelta(seconds=min(
-                                        self.retention, 28 * 86400))))
-        try:
-            messaging.send(message, app=self.app)
-        except messaging.UnregisteredError:
-            return False
-        return True
 
 
 def scan_loop(settings, store, stopped, changed):
@@ -56,7 +36,10 @@ def deliver(item, settings, store, sender):
         # Credentials, request URLs, payloads and provider error messages stay out of logs.
         log.warning("FCM delivery deferred (%s), attempt %d", type(exc).__name__, item["attempts"] + 1)
         cap = min(settings.retry_max, max(60, settings.poll_seconds * 2 ** min(item["attempts"], 20)))
-        store.settle(item, retry_at=time.time() + random.uniform(max(1, cap / 2), cap))
+        backoff = random.uniform(max(1, cap / 2), cap)
+        if isinstance(exc, ProviderError):
+            backoff = max(exc.retry_after, backoff)
+        store.settle(item, retry_at=time.time() + backoff)
     else:
         store.settle(item, unregistered=not active)
 

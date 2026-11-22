@@ -6,7 +6,7 @@ Hermes Mobile receives Android notifications for completed or failed runs, pendi
 
 Deploy one stand-alone Hermes API process and one bridge per user, with separate credentials, runtime home, and bridge state. Point the APK at the HTTPS origin serving that runtime. On this same origin route the exact path `/api/mobile/push` and its children to the bridge, and the remaining Hermes API paths to the gateway. A gateway prefix in the phone’s URL requires the reverse proxy to remove that prefix when forwarding to this bridge. The bridge supports one profile per process, and uses the non-multiplexed gateway's API key namespace.
 
-Register the APK’s Android application ID in your Firebase project, enable the Cloud Messaging API and give the bridge service account permission to send messages. Supply the four values from the registered Android application's Firebase configuration. Application Default Credentials on the server authorize FCM HTTP v1. The Android SDK configuration can be returned to the authenticated phone. [Firebase authorization](https://firebase.google.com/docs/cloud-messaging/auth-server)
+Register the APK’s Android application ID in your Firebase project, enable the Cloud Messaging API and give the bridge service account permission to send messages. Supply the four values from the registered Android application's Firebase configuration. Application Default Credentials on the server authorize FCM HTTP v1 through Google's OAuth client. The bridge checks for usable credential configuration at startup. The Android SDK configuration can be returned to the authenticated phone. [Firebase authorization](https://firebase.google.com/docs/cloud-messaging/auth-server)
 
 | Server environment | Value |
 | --- | --- |
@@ -48,7 +48,7 @@ All responses are private and carry `Cache-Control: no-store`. Discovery and eve
 | `GET /api/mobile/push/events/{event_id}` | Returns event kind, timestamp and nullable `run_id`, `session_id`, `job_id`. Using an unknown or expired ID returns 404. |
 | `GET /api/mobile/push/events?after=0&limit=50` | Returns `events`, `next_cursor` and `has_more` in insertion order. Retain the cursor per profile and fetch while `has_more` is true. Maximum page size is 100. |
 
-A provider acceptance settles an outbox row. A network error leaves it queued with backoff. If a worker exits after FCM accepts a request, a retry can arrive with the same event ID. Device handling must deduplicate using both the installation and event IDs. An unregistered-token response removes that exact device registration, with a lease check to protect a newer registration. Opening an alert only navigates. Approval decisions go through the existing authenticated run approval API.
+A provider acceptance settles an outbox row. A network error leaves it queued with backoff. The sender honors Google's `Retry-After` header and caps a notification's remaining lifetime at event expiry. If a worker exits after FCM accepts a request, a retry can arrive with the same event ID. Device handling must deduplicate using both the installation and event IDs. An unregistered-token response removes that exact device registration, with a lease check to protect a newer registration. Opening an alert only navigates. Approval decisions go through the existing authenticated run approval API.
 
 ## Verify delivery
 

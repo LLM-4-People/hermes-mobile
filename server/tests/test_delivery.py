@@ -3,12 +3,13 @@ import sqlite3
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 from datetime import datetime, timezone
 from server.mobile_push.events import Event
 from server.mobile_push.ledgers import HermesLedgers
 from server.mobile_push.store import Store
-from server.mobile_push.worker import FirebaseSender, deliver
+from server.mobile_push.fcm import FirebaseSender, ProviderError
+from server.mobile_push.worker import deliver
 from support import fixture, create_runs, insert_run
 
 
@@ -62,18 +63,31 @@ class Delivery(unittest.TestCase):
         self.assertIsNone(self.store.claim(170,5))
 
     def test_firebase_uses_only_opaque_data_and_no_collapse_for_distinct_events(self):
-        from firebase_admin import messaging
-        sender = object.__new__(FirebaseSender)
-        sender.app, sender.retention = Mock(), 1000
+        with patch("server.mobile_push.fcm.google.auth.default", return_value=(Mock(), None)):
+            sender = FirebaseSender(self.settings)
+        self.addCleanup(sender.session.close)
         self.store.record([self.event])
-        with patch.object(messaging, "send") as send:
-            self.assertTrue(sender.send(self.store.claim(101,5)))
-        msg = send.call_args.args[0]
-        self.assertIsNone(msg.notification)
-        self.assertEqual(msg.token, "token")
-        self.assertEqual(msg.data, {"kind":"run_completed", "event_id":self.event.event_id, "installation_id":"d1"})
-        self.assertEqual(msg.android.priority, "high")
-        self.assertIsNone(msg.android.collapse_key)
+        item = self.store.claim(101, 5)
+        resp = MagicMock()
+        resp.__enter__.return_value = resp
+        resp.status_code = 200
+        with patch.object(sender.session, "post", return_value=resp) as post, \
+             patch("server.mobile_push.fcm.time.time", return_value=102):
+            self.assertTrue(sender.send(item))
+            self.assertEqual(post.call_args.args, ("https://fcm.googleapis.com/v1/projects/test-project/messages:send",))
+            msg = post.call_args.kwargs["json"]["message"]
+            self.assertEqual(msg, {"token":"token", "data":{"kind":"run_completed","event_id":self.event.event_id,
+                             "installation_id":"d1"}, "android":{"priority":"high","ttl":"9998s"}})
+            resp.status_code, resp.headers = 429, {"Retry-After": "450"}
+            with self.assertRaises(ProviderError) as raised:
+                sender.send(item)
+            self.assertEqual(raised.exception.retry_after, 450)
+            resp.status_code = 404
+            resp.json.return_value = {"error":{"details":[{"errorCode":"UNREGISTERED"}]}}
+            with self.assertRaises(ProviderError):
+                sender.send(item)
+            resp.json.return_value["error"]["details"][0]["@type"] = "type.googleapis.com/google.firebase.fcm.v1.FcmError"
+            self.assertFalse(sender.send(item))
 
     def test_reconciles_actual_fields_across_writes_scope_and_restart(self):
         runs = create_runs(self.settings)

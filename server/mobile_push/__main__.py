@@ -6,7 +6,8 @@ from aiohttp import web
 from .api import build_app
 from .config import Settings
 from .store import Store
-from .worker import FirebaseSender, scan_loop, send_loop
+from .worker import scan_loop, send_loop
+from .fcm import FirebaseSender
 
 
 def main():
@@ -30,6 +31,7 @@ def main():
             stopped.set()
             changed.set()
             await asyncio.gather(*(asyncio.to_thread(thread.join) for thread in threads))
+            sender.session.close()
 
     app.cleanup_ctx.append(workers)
     web.run_app(app, host=os.environ.get("MOBILE_PUSH_BIND", "127.0.0.1"), port=settings.port,

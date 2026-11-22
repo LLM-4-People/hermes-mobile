@@ -118,7 +118,7 @@ class Store:
     def claim(self, now, lease_seconds):
         with self.write() as db:
             row = db.execute("""
-                SELECT d.device_id,d.event_id,d.attempts,v.token,e.kind
+                SELECT d.device_id,d.event_id,d.attempts,v.token,e.kind,e.created_at
                   FROM deliveries d JOIN devices v ON v.id=d.device_id JOIN events e USING(event_id)
                  WHERE d.due<=? ORDER BY d.due,d.rowid LIMIT 1
             """, (now,)).fetchone()
