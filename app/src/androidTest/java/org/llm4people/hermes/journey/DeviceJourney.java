@@ -46,6 +46,7 @@ public final class DeviceJourney extends Instrumentation {
                 case "pages":
                     String name = "Écrans " + fixture.getString("run");
                     profile(name, "endpoint", "key", fixture.getString("phrase"));
+                    new ToolSelectionJourney(ui).run();
                     new WorkspacePagesJourney(ui).run(name);
                     lock();
                     forget(name, fixture.getString("phrase"));
