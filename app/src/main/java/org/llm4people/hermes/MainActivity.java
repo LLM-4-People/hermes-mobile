@@ -388,7 +388,8 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     }
 
     @Override public void nearbyGuide(ThreadWorkspace origin, String threadId, String runId, JSONObject assistantRow, JSONObject approvedArea) {
-        if (origin != null && threads == origin && threadId != null && threadId.equals(origin.sessionId()))
+        if (origin != null && threads == origin && threadId != null && threadId.equals(origin.sessionId())
+                && origin.view().isAttachedToWindow() && origin.view().isShown())
             origin.acceptNearbyGuide(threadId, runId, assistantRow, approvedArea);
     }
 

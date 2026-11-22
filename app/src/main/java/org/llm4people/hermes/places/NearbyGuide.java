@@ -298,7 +298,7 @@ public final class NearbyGuide extends LinearLayout {
         addView(action("Utiliser ma zone approximative", "places-locate", v -> actions.locate()));
         addView(action("Préciser un quartier", "places-manual", v -> actions.manual()));
     }
-    static String distance(int meters) {
+    public static String distance(int meters) {
         if (meters < 1000) return meters + " m";
         NumberFormat format = NumberFormat.getNumberInstance(Locale.FRANCE);
         format.setMaximumFractionDigits(1);
