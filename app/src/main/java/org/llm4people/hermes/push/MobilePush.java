@@ -10,11 +10,16 @@ import org.json.JSONObject;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.profile.Account;
+import org.llm4people.hermes.profile.ProfileGate;
 
 import java.io.IOException;
 import java.util.List;
 
 public final class MobilePush {
+    public interface EventHost {
+        void openPushEvent(Account owner, JSONObject event);
+    }
+
     private final Activity activity;
 
     public MobilePush(Activity activity) { this.activity = activity; }
@@ -49,6 +54,17 @@ public final class MobilePush {
         if (device == null) return;
         PushNotices.cancel(context, device.installation);
         PushSyncService.schedule(context);
+    }
+
+    static boolean reconcileRemovals(Context context) {
+        boolean pending = false;
+        for (PushStore.Device device : PushStore.get(context).devices()) {
+            if (!PushStore.REMOVING.equals(device.state) && ProfileGate.contains(context, device.profile)) continue;
+            PushConnection.forget(context, device.profile);
+            PushNotices.cancel(context, device.installation);
+            pending = true;
+        }
+        return pending;
     }
 
     public static final class Target {

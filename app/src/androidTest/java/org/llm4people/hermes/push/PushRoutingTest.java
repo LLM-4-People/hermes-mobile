@@ -9,6 +9,7 @@ import android.os.Build;
 import android.service.notification.StatusBarNotification;
 import android.test.InstrumentationTestCase;
 
+import org.llm4people.hermes.net.Exchange;
 import org.json.JSONObject;
 import org.json.JSONArray;
 
@@ -66,17 +67,47 @@ public final class PushRoutingTest extends InstrumentationTestCase {
         assertFalse(store.remember(device.installation, "45db19fc00bd4d7cb516cb64e6a4f000", "reminder"));
     }
 
+    public void testAcknowledgedDeviceRevocationClearsDurableTombstone() throws Exception {
+        try (Exchange bridge = new Exchange("204 No Content", "", "")) {
+            PushStore.Device removing = store.prepare(UUID.randomUUID().toString(), bridge.endpoint(), device.config);
+            try {
+                store.deactivate(removing.profile);
+                String key = removing.managementKey();
+                PushConnection.remove(context, removing, key);
+                String request = bridge.observed();
+                assertTrue(request.startsWith("DELETE /p/travail/api/mobile/push/devices/"
+                        + removing.installation + " HTTP/1.1"));
+                assertTrue(request.toLowerCase(Locale.ROOT).contains("authorization: bearer " + key));
+                assertNull(store.forProfile(removing.profile));
+            } finally {
+                store.deactivate(removing.profile);
+                store.finishRemoval(removing);
+            }
+        }
+    }
+
+    public void testColdStartRevokesEnrolledDeviceMissingItsProfile() {
+        assertTrue(store.remember(device.installation, event, "reminder"));
+        assertNotNull(MobilePush.target(context, tapIntent()));
+        assertTrue(MobilePush.reconcileRemovals(context));
+        assertEquals(PushStore.REMOVING, store.forProfile(device.profile).state);
+        assertNull(MobilePush.target(context, tapIntent()));
+        assertFalse(MobilePush.isEnabled(context, device.profile));
+        assertFalse(store.remember(device.installation, "55db19fc00bd4d7cb516cb64e6a4f000", "reminder"));
+        assertTrue(MobilePush.reconcileRemovals(context));
+    }
+
     public void testHistorySkipsUnknownEventsAndChecksPagination() throws Exception {
         JSONArray events = new JSONArray()
                 .put(new JSONObject().put("event_id", event).put("kind", "reminder").put("created_at", 1700000000))
                 .put(new JSONObject().put("event_id", "../other").put("kind", "reminder"));
         JSONObject response = new JSONObject().put("events", events).put("next_cursor", 12).put("has_more", true);
-        PushHistory.Page page = new PushHistory.Page(response, 0, device.installation, Locale.CANADA_FRENCH);
-        assertEquals(1, page.ids.size());
-        assertEquals(event, page.ids.get(0));
+        PushHistory.Page page = new PushHistory.Page(response, 0, Locale.CANADA_FRENCH);
+        assertEquals(1, page.events.size());
+        assertEquals(event, page.events.get(0).getString("event_id"));
         assertTrue(page.labels.get(0).startsWith("Un rappel vous attend"));
         try {
-            new PushHistory.Page(response, 12, device.installation, Locale.CANADA_FRENCH);
+            new PushHistory.Page(response, 12, Locale.CANADA_FRENCH);
             fail("Non-advancing cursor accepted");
         } catch (IOException expected) {}
     }

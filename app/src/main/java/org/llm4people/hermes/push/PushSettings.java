@@ -3,13 +3,13 @@ package org.llm4people.hermes.push;
 import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.provider.Settings;
 
 import org.llm4people.hermes.Diagnostics;
+import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.profile.Account;
 
@@ -38,70 +38,70 @@ final class PushSettings {
     private void display(AlertDialog.Builder builder) {
         if (!current()) return;
         if (dialog != null) dialog.dismiss();
-        dialog = builder.show();
+        dialog = Ui.secureDialog(builder);
     }
 
     void show() {
         if (!current()) return;
         PushStore.Device device = PushStore.get(activity).forProfile(account.id);
         AlertDialog.Builder builder = new AlertDialog.Builder(activity).setTitle("Notifications du profil")
-                .setNegativeButton("Fermer", null);
+                .setNegativeButton("Fermer", null)
+                .setNeutralButton("Historique", (d,w) -> history(0, new ArrayDeque<>()));
         if (device != null && PushStore.REMOVING.equals(device.state)) {
             builder.setMessage("Les alertes sont coupées sur cet appareil. La désactivation sur le serveur reste à confirmer.")
                     .setPositiveButton("Réessayer", (d,w) -> remove(device));
         } else if (device != null && PushStore.ACTIVE.equals(device.state)) {
             if (PushNotices.allowed(activity)) {
                 builder.setMessage("Les rappels et l’activité de vos sessions peuvent vous prévenir même après la fermeture de l’application.")
-                        .setNeutralButton("Historique", (d,w) -> history(device, 0, new ArrayDeque<>()));
+                        .setPositiveButton("Désactiver", (d,w) -> remove(device));
             } else {
                 builder.setTitle("Alertes bloquées par Android")
-                        .setItems(new String[]{"Historique du profil", "Réglages Android"}, (d,w) -> {
-                            if (w == 0) history(device, 0, new ArrayDeque<>());
-                            else systemSettings();
-                        });
+                        .setMessage("Autorisez les notifications dans les réglages Android pour recevoir les alertes de ce profil.")
+                        .setPositiveButton("Réglages Android", (d,w) -> systemSettings())
+                        .setNegativeButton("Désactiver", (d,w) -> remove(device));
             }
-            builder.setPositiveButton("Désactiver", (d,w) -> remove(device));
+        } else if (device != null) {
+            builder.setTitle("Inscription à confirmer")
+                    .setMessage("L’inscription de cet appareil auprès du serveur reste à confirmer.")
+                    .setPositiveButton("Réessayer", (d,w) -> begin())
+                    .setNegativeButton("Désactiver", (d,w) -> remove(device));
         } else {
-            builder.setMessage(device == null
-                    ? "Recevez les rappels, les demandes d’autorisation et la fin des sessions. Les alertes passent par Google, sans le contenu de vos échanges."
-                    : "L’inscription de cet appareil auprès du serveur reste à confirmer.")
-                    .setPositiveButton(device == null ? "Activer" : "Réessayer", (d,w) -> begin());
-            if (device != null) builder.setNeutralButton("Désactiver", (d,w) -> remove(device));
+            builder.setMessage("Recevez les rappels, les demandes d’autorisation et la fin des sessions. Les alertes passent par Google, sans le contenu de vos échanges.")
+                    .setPositiveButton("Activer", (d,w) -> begin());
         }
         display(builder);
     }
 
-    private void history(PushStore.Device device, long cursor, ArrayDeque<Long> previous) {
+    private void history(long cursor, ArrayDeque<Long> previous) {
         display(new AlertDialog.Builder(activity).setTitle("Historique du profil").setMessage("Chargement…"));
         Locale locale = activity.getResources().getConfiguration().getLocales().get(0);
         PushConnection.WORK.execute(() -> {
             try {
-                PushHistory.Page page = PushHistory.load(account, device, cursor, locale);
+                if (!current()) return;
+                PushHistory.Page page = PushHistory.load(account, cursor, locale);
                 activity.runOnUiThread(() -> {
                     if (!current()) return;
                     AlertDialog.Builder list = new AlertDialog.Builder(activity).setTitle("Historique du profil")
                             .setNegativeButton("Fermer", null);
                     if (page.labels.isEmpty()) list.setMessage("Aucune activité sur cette page.");
                     else list.setItems(page.labels.toArray(new String[0]), (d,index) -> {
-                        String id = page.ids.get(index);
-                        Context context = activity.getApplicationContext();
-                        PushStore.get(context).remember(device.installation, id, page.kinds.get(index));
-                        Intent intent = PushNotices.tapIntent(context, device.installation, id);
-                        if (MobilePush.target(context, intent) != null) activity.startActivity(intent);
+                        if (current() && activity instanceof MobilePush.EventHost host) {
+                            host.openPushEvent(account, page.events.get(index));
+                        }
                     });
                     if (page.more) list.setPositiveButton("Suite", (d,w) -> {
                         previous.push(cursor);
-                        history(device, page.next, previous);
+                        history(page.next, previous);
                     });
                     if (!previous.isEmpty()) list.setNeutralButton("Précédent",
-                            (d,w) -> history(device, previous.pop(), previous));
+                            (d,w) -> history(previous.pop(), previous));
                     display(list);
                 });
             } catch (Exception error) {
                 Diagnostics.warning("push", "history_load_failed");
                 activity.runOnUiThread(() -> display(new AlertDialog.Builder(activity)
                         .setTitle("Historique indisponible").setMessage(errorMessage(error))
-                        .setPositiveButton("Réessayer", (d,w) -> history(device, cursor, previous))
+                        .setPositiveButton("Réessayer", (d,w) -> history(cursor, previous))
                         .setNegativeButton("Fermer", null)));
             }
         });
@@ -124,7 +124,7 @@ final class PushSettings {
         if (!current()) return;
         if (!PushNotices.allowed(activity)) {
             display(new AlertDialog.Builder(activity).setTitle("Autoriser les notifications")
-                    .setMessage("Ouvrez les réglages Android pour autoriser les alertes d’Hermès.")
+                    .setMessage("Ouvrez les réglages Android pour autoriser les alertes d’Hermes.")
                     .setPositiveButton("Réglages Android", (d,w) -> systemSettings())
                     .setNegativeButton("Fermer", null));
             return;

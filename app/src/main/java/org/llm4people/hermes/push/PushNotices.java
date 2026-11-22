@@ -25,14 +25,17 @@ final class PushNotices {
             "[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}");
 
     static boolean validIds(String installation, String event) {
-        return installation != null && event != null && INSTALLATION.matcher(installation).matches()
-                && EVENT.matcher(event).matches();
+        return installation != null && INSTALLATION.matcher(installation).matches() && validEvent(event);
+    }
+
+    static boolean validEvent(String event) {
+        return event != null && EVENT.matcher(event).matches();
     }
 
     static String title(String kind) {
         if (kind == null) return null;
         return switch (kind) {
-            case "run_completed" -> "Hermès a terminé";
+            case "run_completed" -> "Hermes a terminé";
             case "run_failed" -> "Vérifiez votre session";
             case "approval_requested" -> "Autorisation requise";
             case "reminder" -> "Un rappel vous attend";
@@ -41,7 +44,7 @@ final class PushNotices {
     }
 
     static void channel(Context context) {
-        NotificationChannel channel = new NotificationChannel(CHANNEL, "Activité d’Hermès",
+        NotificationChannel channel = new NotificationChannel(CHANNEL, "Activité d’Hermes",
                 NotificationManager.IMPORTANCE_DEFAULT);
         channel.setLockscreenVisibility(Notification.VISIBILITY_PRIVATE);
         context.getSystemService(NotificationManager.class).createNotificationChannel(channel);

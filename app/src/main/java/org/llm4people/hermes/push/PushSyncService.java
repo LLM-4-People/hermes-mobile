@@ -15,6 +15,10 @@ public final class PushSyncService extends JobService {
     private static final int JOB_ID = 0x484d5055;
     private AtomicBoolean stopped;
 
+    static void ensureScheduled(Context context) {
+        if (context.getSystemService(JobScheduler.class).getPendingJob(JOB_ID) == null) schedule(context);
+    }
+
     static void schedule(Context context) {
         JobInfo job = new JobInfo.Builder(JOB_ID, new ComponentName(context, PushSyncService.class))
                 .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)

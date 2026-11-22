@@ -14,11 +14,12 @@ import java.util.Locale;
 
 final class PushHistory {
     static final class Page {
-        final List<String> ids = new ArrayList<>(), kinds = new ArrayList<>(), labels = new ArrayList<>();
+        final List<JSONObject> events = new ArrayList<>();
+        final List<String> labels = new ArrayList<>();
         final long next;
         final boolean more;
 
-        Page(JSONObject response, long cursor, String installation, Locale locale) throws IOException {
+        Page(JSONObject response, long cursor, Locale locale) throws IOException {
             JSONArray events = response.optJSONArray("events");
             next = response.optLong("next_cursor", -1);
             more = response.optBoolean("has_more");
@@ -29,18 +30,17 @@ final class PushHistory {
                 if (row == null) continue;
                 String id = row.optString("event_id"), kind = row.optString("kind");
                 String title = PushNotices.title(kind);
-                if (!PushNotices.validIds(installation, id) || title == null) continue;
-                ids.add(id);
-                kinds.add(kind);
+                if (!PushNotices.validEvent(id) || title == null) continue;
+                this.events.add(row);
                 long time = row.optLong("created_at");
                 labels.add(time > 0 ? title + "\n" + dates.format(new Date(time * 1000)) : title);
             }
         }
     }
 
-    static Page load(Account account, PushStore.Device device, long cursor, Locale locale) throws IOException {
+    static Page load(Account account, long cursor, Locale locale) throws IOException {
         JSONObject response = new HermesApi(account.endpoint, account.bearer)
                 .get(PushConnection.BASE + "/events?after=" + cursor + "&limit=25");
-        return new Page(response, cursor, device.installation, locale);
+        return new Page(response, cursor, locale);
     }
 }
