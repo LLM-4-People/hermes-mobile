@@ -20,7 +20,8 @@ import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.profile.Account;
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.OutputStream;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -38,11 +39,23 @@ public final class PublishedFiles implements Closeable {
     private int generation;
     private AlertDialog dialog;
     private Selection selection;
+    private Selection exporting;
+    private final Set<String> incomplete = new HashSet<>();
+
+    private static final class ExportFailure extends IOException {
+        private static final long serialVersionUID = 1L;
+        final transient Selection transfer;
+        ExportFailure(Selection transfer, Exception cause) {
+            super("Document export failed", cause);
+            this.transfer = transfer;
+        }
+    }
 
     private static final class Selection {
         final String owner;
         final PublishedFile item;
         Uri destination;
+        boolean warned;
         Selection(String owner, PublishedFile item) { this.owner = owner; this.item = item; }
     }
 
@@ -55,7 +68,14 @@ public final class PublishedFiles implements Closeable {
             selection = null;
             toast("Exportation annulée après le changement de profil.");
         }
+        notifyIncomplete();
         finishSelection();
+    }
+
+    private void notifyIncomplete() {
+        if (owner != null && incomplete.remove(owner)) {
+            toast("Exportation interrompue. Le document choisi peut être incomplet.");
+        }
     }
 
     public void show(String sessionId) {
@@ -63,9 +83,9 @@ public final class PublishedFiles implements Closeable {
         page("/api/mobile/files/" + HermesApi.segment(sessionId), null);
     }
 
-    private void page(String path, Long before) {
+    private void page(String path, String before) {
         perform(client -> {
-            JSONObject result = client.get(path + (before == null ? "" : "?before=" + before));
+            JSONObject result = client.get(path + (before == null ? "" : "?before=" + Uri.encode(before)));
             JSONArray rows = result.getJSONArray("data");
             List<PublishedFile> files = new ArrayList<>();
             List<String> labels = new ArrayList<>();
@@ -74,12 +94,12 @@ public final class PublishedFiles implements Closeable {
                 files.add(file);
                 labels.add(file.name + "\n" + Formatter.formatShortFileSize(activity, file.size));
             }
-            Long next = result.isNull("next") ? null : result.getLong("next");
+            String next = result.isNull("next") ? null : result.getString("next");
             if (next != null) labels.add("Fichiers plus anciens");
             return () -> {
                 AlertDialog.Builder sheet = new AlertDialog.Builder(activity).setTitle("Fichiers publiés")
                         .setNegativeButton("Fermer", null);
-                if (files.isEmpty()) sheet.setMessage("Les fichiers que Hermès publie dans cette discussion apparaîtront ici.");
+                if (files.isEmpty()) sheet.setMessage("Les fichiers que Hermes publie dans cette discussion apparaîtront ici.");
                 else sheet.setItems(labels.toArray(new String[0]), (ignored, index) -> {
                     if (index == files.size()) page(path, next);
                     else options(files.get(index));
@@ -134,13 +154,14 @@ public final class PublishedFiles implements Closeable {
         perform(client -> {
             try (VerifiedFile file = VerifiedFile.fetch(activity.getCacheDir(), client, target.item)) {
                 if (Thread.currentThread().isInterrupted()) throw new IOException("Transfer cancelled");
-                try (OutputStream out = activity.getContentResolver().openOutputStream(target.destination, "wt")) {
-                    if (out == null) throw new IOException("Destination unavailable");
-                    file.save(out);
-                }
+                DocumentWriter.save(activity.getContentResolver().openFileDescriptor(target.destination, "wt"), file::save);
+            } catch (IOException | RuntimeException failure) {
+                // The system picker may already have created a document, even when the fetch failed.
+                throw new ExportFailure(target, failure);
             }
             return () -> toast("Fichier enregistré.");
         }, false);
+        exporting = target;
     }
 
     private void preview(PublishedFile item) {
@@ -180,7 +201,7 @@ public final class PublishedFiles implements Closeable {
 
     private void perform(Operation operation, boolean discovery) {
         if (api == null) return;
-        if (worker != null) worker.cancel(true);
+        stopWorker();
         int token = ++generation;
         HermesApi client = api;
         AlertDialog progress = present(new AlertDialog.Builder(activity)
@@ -190,6 +211,16 @@ public final class PublishedFiles implements Closeable {
         worker = io.submit(() -> {
             Runnable update;
             try { update = operation.execute(client); }
+            catch (ExportFailure failure) {
+                Diagnostics.warning("files", "export_incomplete");
+                activity.runOnUiThread(() -> {
+                    if (activity.isDestroyed()) return;
+                    progress.dismiss();
+                    if (generation == token) exporting = null;
+                    warnIncomplete(failure.transfer);
+                });
+                return;
+            }
             catch (Exception e) {
                 boolean absent = discovery && e instanceof HermesApi.HttpError && ((HermesApi.HttpError) e).status == 404;
                 Diagnostics.warning("files", absent ? "extension_absent" : "transfer_failed");
@@ -200,15 +231,29 @@ public final class PublishedFiles implements Closeable {
             activity.runOnUiThread(() -> {
                 if (generation != token || activity.isDestroyed()) return;
                 progress.dismiss();
+                exporting = null;
                 result.run();
             });
         });
     }
 
+    private void warnIncomplete(Selection transfer) {
+        if (transfer.warned) return;
+        transfer.warned = true;
+        incomplete.add(transfer.owner);
+        notifyIncomplete();
+    }
+
+    private void stopWorker() {
+        if (worker != null && worker.cancel(true) && exporting != null) warnIncomplete(exporting);
+        exporting = null;
+        worker = null;
+    }
+
     private void cancel(int token) {
         if (generation != token) return;
         generation++;
-        if (worker != null) worker.cancel(true);
+        stopWorker();
     }
 
     AlertDialog present(AlertDialog.Builder sheet) {
@@ -219,14 +264,17 @@ public final class PublishedFiles implements Closeable {
 
     private void toast(String text) { Toast.makeText(activity, text, Toast.LENGTH_LONG).show(); }
 
-    public void lock() {
+    public void dismiss() {
         generation++;
-        if (worker != null) worker.cancel(true);
-        worker = null;
+        stopWorker();
         if (dialog != null) dialog.dismiss();
         dialog = null;
+    }
+
+    public void lock() {
         api = null;
         owner = null;
+        dismiss();
     }
 
     @Override public void close() {

@@ -1,6 +1,7 @@
 """Immutable, explicitly published files in one SQLite database per profile and session."""
 from contextlib import closing, contextmanager
 import hashlib
+import heapq
 import mimetypes
 import os
 from pathlib import Path
@@ -82,8 +83,9 @@ def publish(home, session, workspace, path, name=None):
         db = location(home, session, create=True)
         with closing(sqlite3.connect(db)) as conn, conn:
             conn.execute(SCHEMA)
+            conn.execute('CREATE INDEX IF NOT EXISTS files_page ON files(created DESC,id DESC)')
             row = conn.execute('INSERT INTO files VALUES (?,?,?,?,?,?,zeroblob(?))',
-                               (ident, name, mime, size, '', int(time.time()), size))
+                               (ident, name, mime, size, '', time.time(), size))
             copied = 0
             with conn.blobopen('files', 'content', row.lastrowid) as blob:
                 while chunk := source.read(BLOCK):
@@ -107,27 +109,45 @@ def reader(home, session):
     return conn
 
 
-def inventory(home, session, before, limit):
-    try:
-        conn = reader(home, session)
-    except FileNotFoundError:
-        return {'data': [], 'next': None}
-    with closing(conn):
-        rows = conn.execute(f'SELECT rowid AS cursor, {COLUMNS} FROM files WHERE rowid<? '
-                            'ORDER BY rowid DESC LIMIT ?', (before, limit + 1)).fetchall()
-        return {'data': [{k: row[k] for k in row.keys() if k != 'cursor'} for row in rows[:limit]],
-                'next': rows[limit - 1]['cursor'] if len(rows) > limit else None}
+def decode_cursor(value):
+    if value is None:
+        return (2**63 - 1, '')
+    match = re.fullmatch(r'([0-9]{1,18}(?:[.][0-9]{1,9})?):([0-9a-f]{32})', value)
+    if not match:
+        raise ValueError('Invalid cursor')
+    return float(match[1]), match[2]
 
 
-def download(home, session, ident):
+def inventory(home, segments, before, limit):
+    rows = []
+    for session in segments:
+        try:
+            conn = reader(home, session)
+        except FileNotFoundError:
+            continue
+        with closing(conn):
+            batch = conn.execute(f'SELECT {COLUMNS} FROM files WHERE (created, id)<(?,?) '
+                                 'ORDER BY created DESC, id DESC LIMIT ?', (*before, limit + 1))
+            # Retain at most one page across the verified compression generations.
+            rows = heapq.nlargest(limit + 1, [*rows, *map(dict, batch)], key=lambda row: (row['created'], row['id']))
+    cursor = f"{rows[limit-1]['created']}:{rows[limit-1]['id']}" if len(rows) > limit else None
+    return {'data': rows[:limit], 'next': cursor}
+
+
+def download(home, segments, ident):
     if not re.fullmatch('[0-9a-f]{32}', ident):
         raise FileNotFoundError
-    conn = reader(home, session)
-    try:
-        row = conn.execute(f'SELECT rowid, {COLUMNS} FROM files WHERE id=?', (ident,)).fetchone()
-        if row is None:
-            raise FileNotFoundError
-        return conn, conn.blobopen('files', 'content', row['rowid'], readonly=True), dict(row)
-    except BaseException:
+    for session in segments:
+        try:
+            conn = reader(home, session)
+        except FileNotFoundError:
+            continue
+        try:
+            row = conn.execute(f'SELECT rowid, {COLUMNS} FROM files WHERE id=?', (ident,)).fetchone()
+            if row is not None:
+                return conn, conn.blobopen('files', 'content', row['rowid'], readonly=True), dict(row)
+        except BaseException:
+            conn.close()
+            raise
         conn.close()
-        raise
+    raise FileNotFoundError

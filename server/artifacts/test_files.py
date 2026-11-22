@@ -21,7 +21,7 @@ class FileRoutesTest(unittest.IsolatedAsyncioTestCase):
         self.ident = self.publish()
         app = web.Application()
         register_routes(app, lambda r: None if r.headers.get('Authorization') == 'Bearer fixture'
-                        else web.Response(status=401), lambda: self.home)
+                        else web.Response(status=401), lambda: self.home, lambda home, session: (session,))
         self.client = TestClient(TestServer(app))
         await self.client.start_server()
         self.addAsyncCleanup(self.client.close)
@@ -73,6 +73,6 @@ class FileRoutesTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await (await self.get('s1/' + empty)).read(), b'')
         other = self.home / 'other-profile'
         other.mkdir()
-        self.assertEqual(store.inventory(other, 's1', 2**63 - 1, 10)['data'], [])
+        self.assertEqual(store.inventory(other, ('s1',), store.decode_cursor(None), 10)['data'], [])
         with self.assertRaises(FileNotFoundError):
-            store.download(other, 's1', empty)
+            store.download(other, ('s1',), empty)

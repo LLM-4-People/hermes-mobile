@@ -5,6 +5,7 @@ from pathlib import Path
 from aiohttp import web
 
 from . import store
+from .lineage import session_segments
 
 
 def mount(app, adapter):
@@ -18,7 +19,7 @@ def register(ctx):
                        description='Publish a completed workspace file in this mobile discussion.')
 
 
-def register_routes(app, authorize, profile_home):
+def register_routes(app, authorize, profile_home, resolve=session_segments):
     def scope(request):
         refusal = authorize(request)
         if refusal is not None:
@@ -28,11 +29,12 @@ def register_routes(app, authorize, profile_home):
     async def listing(request):
         home, session = scope(request)
         try:
-            before = int(request.query.get('before', 2**63 - 1))
+            before = store.decode_cursor(request.query.get('before'))
             limit = int(request.query.get('limit', 50))
-            if not 1 <= limit <= 100 or not 1 <= before <= 2**63 - 1:
+            if not 1 <= limit <= 100:
                 raise ValueError
-            data = await asyncio.to_thread(store.inventory, home, session, before, limit)
+            segments = await asyncio.to_thread(resolve, home, session)
+            data = await asyncio.to_thread(store.inventory, home, segments, before, limit)
         except ValueError:
             raise web.HTTPBadRequest() from None
         return web.json_response(data, headers={'Cache-Control': 'no-store'})
@@ -40,7 +42,8 @@ def register_routes(app, authorize, profile_home):
     async def content(request):
         home, session = scope(request)
         try:
-            conn, blob, row = await asyncio.to_thread(store.download, home, session, request.match_info['id'])
+            segments = await asyncio.to_thread(resolve, home, session)
+            conn, blob, row = await asyncio.to_thread(store.download, home, segments, request.match_info['id'])
         except (ValueError, FileNotFoundError):
             raise web.HTTPNotFound() from None
         with closing(conn), closing(blob):

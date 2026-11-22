@@ -1,6 +1,8 @@
 package org.llm4people.hermes.files;
 
 import android.test.AndroidTestCase;
+import android.os.ParcelFileDescriptor;
+import java.io.InputStream;
 import org.json.JSONObject;
 import org.llm4people.hermes.net.Exchange;
 import org.llm4people.hermes.net.HermesApi;
@@ -30,6 +32,22 @@ public class VerifiedFileTest extends AndroidTestCase {
                 assertEquals("File integrity check failed", ex.getMessage());
             }
             assertTrue(server.observed().startsWith("GET /p/travail" + item(digest).path + " HTTP/1.1"));
+        }
+    }
+
+    public void testInterruptedCopyReportsFailureToReliableProvider() throws Exception {
+        ParcelFileDescriptor[] pipe = ParcelFileDescriptor.createReliablePipe();
+        try (InputStream reader = new ParcelFileDescriptor.AutoCloseInputStream(pipe[0])) {
+            try {
+                DocumentWriter.save(pipe[1], destination -> {
+                    destination.write(65);
+                    throw new IOException("fixture interruption");
+                });
+                fail("partial write returned success");
+            } catch (IOException observed) { assertEquals("fixture interruption", observed.getMessage()); }
+            assertEquals(65, reader.read());
+            try { pipe[0].checkError(); fail("provider received success"); }
+            catch (IOException expected) { assertTrue(expected.getMessage().contains("Incomplete document export")); }
         }
     }
 

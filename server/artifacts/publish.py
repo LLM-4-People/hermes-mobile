@@ -4,8 +4,10 @@ import os
 from pathlib import Path
 
 if __package__:
+    from .lineage import session_segments
     from .store import publish
 else:
+    from lineage import session_segments
     from store import publish
 
 
@@ -19,7 +21,10 @@ def main():
     if not home:
         parser.error('Set HERMES_HOME to the active profile home')
     try:
-        print(publish(home, args.session, Path.cwd(), args.file, args.name))
+        segments = session_segments(home, args.session)
+        if not segments:
+            parser.error('Unknown session in this Hermes profile')
+        print(publish(home, segments[0], Path.cwd(), args.file, args.name))
     except (ValueError, OSError) as exc:
         parser.exit(1, f'Publication failed ({type(exc).__name__}).\n')
 
