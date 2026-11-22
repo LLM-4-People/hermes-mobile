@@ -148,6 +148,7 @@ final class InstrumentChanges {
                 if (!block.note.isEmpty()) items.add(block.note);
                 for (String id : block.actions) items.add(WorkspaceLayout.ACTIONS.get(id));
             }
+            case "nearby_places" -> items.add("Guide des restaurants de la zone choisie, selon OpenStreetMap.");
             case "device" -> items.add(block.request.preview());
             case "link" -> items.add("Ouvrir " + block.page);
             case "value" -> items.add(WorkspaceBlocks.sourceLabel(block.source));

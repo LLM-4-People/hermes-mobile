@@ -30,7 +30,7 @@ final class WorkspaceLayout {
     static final int MAX_BLOCKS = 12;
     static final class Block {
         String type = "section";
-        String page, source, prompt;
+        String page, source, prompt, category;
         DeviceAction request;
         List<String> slots = Collections.emptyList();
         List<DraftForm.Field> fields;
@@ -128,8 +128,13 @@ final class WorkspaceLayout {
                     && layout.title != null && layout.blocks != null);
             require(SURFACES.containsKey(layout.surface) || custom(layout.surface));
             int nativeCount = 0;
+            boolean nearby = false;
             for (Block block : layout.blocks) {
                 if (block.nativeContent) nativeCount++;
+                if ("nearby_places".equals(block.type)) {
+                    require(custom(layout.surface) && !nearby);
+                    nearby = true;
+                }
                 if (!block.slots.isEmpty()) require("thread".equals(layout.surface));
             }
             require("extend".equals(layout.mode) ? nativeCount == 1 : nativeCount == 0);

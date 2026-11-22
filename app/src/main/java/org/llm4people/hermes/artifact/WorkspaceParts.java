@@ -32,7 +32,7 @@ final class WorkspaceParts {
             String key = in.nextName();
             require(keys.add(key));
             switch (key) {
-                case "type": b.type = choice(in, Arrays.asList("section","content","link","value","form","device")); break;
+                case "type": b.type = choice(in, Arrays.asList("section","content","link","value","form","device","nearby_places")); break;
                 case "title": b.title = label(in,64); break;
                 case "note": b.note = label(in,240); break;
                 case "actions": b.actions = strings(in, ACTIONS.keySet(), 8); break;
@@ -40,6 +40,7 @@ final class WorkspaceParts {
                 case "page": b.page = label(in,48); require(custom(b.page)); break;
                 case "source": b.source = choice(in, SOURCES); break;
                 case "prompt": b.prompt = label(in,240); break;
+                case "category": b.category = choice(in, java.util.Collections.singleton("restaurant")); break;
                 case "request": b.request = DeviceAction.read(in); break;
                 case "fields": b.fields = DraftForm.fields(in); break;
                 default: throw invalid();
@@ -61,6 +62,11 @@ final class WorkspaceParts {
                 allow(keys,"type","request");
                 require(b.request != null);
                 b.title = b.request.kind().title;
+                break;
+            case "nearby_places":
+                allow(keys, "type", "category");
+                require("restaurant".equals(b.category));
+                b.title = "Restaurants dans la zone";
                 break;
             case "form":
                 allow(keys,"type","title","prompt","fields");
