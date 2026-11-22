@@ -49,6 +49,25 @@ public final class WorkspacePresentationTest extends InstrumentationTestCase {
         return app.createConfigurationContext(config);
     }
 
+    public void testAThreadFormCanDismissOnlyItsOwnReview() throws Throwable {
+        Context app = getInstrumentation().getTargetContext();
+        Intent intent = app.getPackageManager().getLaunchIntentForPackage(app.getPackageName());
+        Activity activity = getInstrumentation().startActivitySync(intent);
+        try {
+            runTestOnUiThread(() -> {
+                ArtifactDesk.Host thread = new WorkspaceTestHost();
+                ArtifactDesk.Host foreground = new WorkspaceTestHost();
+                AlertDialog threadReview = DeskDialogs.open(activity, thread, new AlertDialog.Builder(activity));
+                AlertDialog foregroundReview = DeskDialogs.open(activity, foreground, new AlertDialog.Builder(activity));
+                ArtifactDesk.dismissReviews(activity, thread);
+                assertFalse(threadReview.isShowing());
+                assertTrue(foregroundReview.isShowing());
+                ArtifactDesk.dismiss(activity);
+                assertFalse(foregroundReview.isShowing());
+            });
+        } finally { runTestOnUiThread(activity::finish); }
+    }
+
     public void testNavigationAndLayoutChangeCloseEverySecureReaderDialogBeforeRouting() throws Throwable {
         Context app = getInstrumentation().getTargetContext();
         Intent intent = app.getPackageManager().getLaunchIntentForPackage(app.getPackageName());

@@ -375,7 +375,7 @@ final class ThreadInstrumentPanel {
         if (!current() || damaged != expected) return;
         screen.show(new AlertDialog.Builder(activity).setTitle(R.string.instrument_repair_title)
                 .setMessage(R.string.instrument_repair_explain)
-                .setNegativeButton(android.R.string.cancel, null)
+                .setNegativeButton(R.string.instrument_cancel, null)
                 .setPositiveButton(R.string.instrument_repair_confirm, (dialog, which) -> {
                     if (!current()) return;
                     try { state = store.recover(expected); }
