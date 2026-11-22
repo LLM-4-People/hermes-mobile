@@ -4,7 +4,7 @@ import xml.etree.ElementTree as ET
 from verification.nearby_journey import CONSENT, PROMPT, USE_LOCATION, choose_consent, enter_message, lock, open_consent
 from verification.nearby_location import (COARSE, answer_android_location, app_activity_stopped,
                                           location_access, public_city_fix)
-from verification.nearby_restaurants import enter_discussion
+from verification.nearby_restaurants import enter_discussion, matches_map_coordinate
 from verification.unifiedpush.ui import Screen
 
 
@@ -387,6 +387,13 @@ class NearbyLocationTest(unittest.TestCase):
             "scroll",
             ("tap", "Verrouiller le profil"),
         ])
+
+    def test_matches_map_coordinate_handles_padded_decimals_and_dms_and_rejects_other_venues(self):
+        self.assertTrue(matches_map_coordinate("45.506,-73.57", 45.506, -73.57))
+        self.assertTrue(matches_map_coordinate("45.506000, -73.570000", 45.506, -73.57))
+        self.assertTrue(matches_map_coordinate('45°30\'21.6"N 73°34\'12.0"W', 45.506, -73.57))
+        self.assertFalse(matches_map_coordinate("45.511000, -73.570000", 45.506, -73.57))
+        self.assertFalse(matches_map_coordinate('45°30\'39.6"N 73°34\'12.0"W', 45.506, -73.57))
 
     def test_app_activity_stopped_waits_for_stopped_state_and_ignores_test_package(self):
         paused_dump = (

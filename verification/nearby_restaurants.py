@@ -20,7 +20,8 @@ from verification.nearby_fixture import overpass, PLACES
 from verification.nearby_journey import (CONSENT, FAILED, PROMPT, STAGED, USE_LOCATION, choose_consent, dismiss_ime,
                                           enter_message, lock, open_consent, stage_public_location,
                                           tap_visible_app_until, unlock, verify_guide)
-from verification.nearby_location import COARSE, answer_android_location, app_activity_stopped, location_access, public_city_fix
+from verification.nearby_location import (COARSE, PERMISSION_CONTROLLERS, answer_android_location,
+                                          app_activity_stopped, location_access, public_city_fix)
 from verification.phone_actions import MAPS, admissions, assert_offline, focused, visible
 from verification.unifiedpush.editor import editor
 from verification.unifiedpush.stack import eventually
@@ -188,6 +189,25 @@ def consent_failures(ui, fix, second, names, phrases, check_idle):
     return controller, background
 
 
+def matches_map_coordinate(text, lat, lon):
+    target_lat = Decimal(str(lat))
+    target_lon = Decimal(str(lon))
+    for found_lat, found_lon in re.findall(r"(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)", text):
+        if Decimal(found_lat) == target_lat and Decimal(found_lon) == target_lon:
+            return True
+    dms = re.search(
+        r"(\d+)°(\d+)'(\d+(?:\.\d+)?)\"([NS])\s*(\d+)°(\d+)'(\d+(?:\.\d+)?)\"([EW])",
+        text,
+    )
+    if dms:
+        d1, m1, s1, h1, d2, m2, s2, h2 = dms.groups()
+        parsed_lat = (Decimal(d1) + Decimal(m1) / 60 + Decimal(s1) / 3600) * (-1 if h1 == "S" else 1)
+        parsed_lon = (Decimal(d2) + Decimal(m2) / 60 + Decimal(s2) / 3600) * (-1 if h2 == "W" else 1)
+        if abs(parsed_lat - target_lat) < Decimal("0.0002") and abs(parsed_lon - target_lon) < Decimal("0.0002"):
+            return True
+    return False
+
+
 def map_selected(ui, title, point):
     coordinate = ",".join(format(Decimal(str(point[key])).normalize(), "f") for key in ("lat", "lon"))
     tap_visible_app_until(
@@ -203,25 +223,48 @@ def map_selected(ui, title, point):
         lambda root: ui.node("Ouvrir la carte", root) is None,
         description="dismissed map handoff review dialog",
     )
+    deny_ids = {controller + ":id/permission_deny_button" for controller in PERMISSION_CONTROLLERS}
 
     def received():
         component = focused(ui.device)
-        if not component.startswith(MAPS + "/"):
-            return None
         tree = ui.hierarchy()
+        if component.startswith(MAPS + "/"):
+            for node in tree.iter("node"):
+                if node.get("package") == MAPS:
+                    for key in ("text", "content-desc"):
+                        value = node.get(key, "")
+                        if coordinate in "".join(value.split()) or matches_map_coordinate(value, point["lat"], point["lon"]):
+                            return component
         for node in tree.iter("node"):
-            if node.get("package") == MAPS:
-                for key in ("text", "content-desc"):
-                    if coordinate in "".join(node.get(key, "").split()):
-                        return component
-        for label in ("Skip", "Continue without an account"):
+            if node.get("package") in PERMISSION_CONTROLLERS and node.get("resource-id") in deny_ids:
+                ui.tap_node(node)
+                return None
+        for label in ("Skip", "Continue without an account", "No thanks", "Not now", "Dismiss", "Got it"):
             option = ui.node(label, tree)
-            if option is not None and option.get("package") == MAPS:
+            if option is not None and option.get("package") != APP:
                 ui.tap_node(option)
                 break
         return None
 
-    component = eventually("public venue coordinates visible in the actual Maps app", received, timeout=150)
+    try:
+        component = eventually("public venue coordinates visible in the actual Maps app", received, timeout=150)
+    except AssertionError:
+        tree = ui.hierarchy()
+        packages = sorted({node.get("package", "") for node in tree.iter("node") if node.get("package")})
+        non_app_labels = [
+            value[:80]
+            for node in tree.iter("node")
+            if node.get("package") != APP
+            for key in ("text", "content-desc")
+            if (value := node.get(key, "").strip())
+        ][:20]
+        print("Android maps handoff " + json.dumps({
+            "focused": focused(ui.device),
+            "packages": packages,
+            "expected": coordinate,
+            "labels": non_app_labels,
+        }, ensure_ascii=False, sort_keys=True), file=sys.stderr, flush=True)
+        raise
     return {"source_venue": title, "source_coordinates": coordinate, "receiver": component}
 
 
