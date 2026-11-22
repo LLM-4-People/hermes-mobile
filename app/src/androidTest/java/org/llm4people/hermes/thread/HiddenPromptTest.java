@@ -8,11 +8,13 @@ import android.test.InstrumentationTestCase;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.ListView;
 import android.widget.TextView;
 
 import org.json.JSONObject;
 import org.json.JSONArray;
 import org.llm4people.hermes.MainActivity;
+import org.llm4people.hermes.net.Exchange;
 import org.llm4people.hermes.profile.Account;
 import org.llm4people.hermes.profile.WorkspaceAccountFixture;
 
@@ -49,23 +51,42 @@ public class HiddenPromptTest extends InstrumentationTestCase {
         Context context = getInstrumentation().getTargetContext();
         Intent launch = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
         MainActivity activity = (MainActivity) getInstrumentation().startActivitySync(launch);
-        try (WorkspaceAccountFixture profile = new WorkspaceAccountFixture(context)) {
+        JSONArray history = new JSONArray();
+        for (int i = 0; i < ThreadData.PAGE; ++i)
+            history.put(new JSONObject().put("id", "line-" + i).put("role", "user").put("content", "Message de lecture " + i));
+        String transcript = new JSONObject().put("data", history).put("session_id", "discussion")
+                .put("thread_title", "Discussion").put("pagination", new JSONObject()
+                        .put("visible_only", true).put("total", history.length())).toString();
+        try (Exchange gateway = new Exchange("200 OK", "Content-Type: application/json\r\n",
+                     transcript, "{\"data\":[],\"has_more\":false}");
+             WorkspaceAccountFixture profile = new WorkspaceAccountFixture(context, gateway.endpoint())) {
             ThreadWorkspace page = main(() -> selectThread(activity, profile.account));
-            JSONArray history = new JSONArray();
-            for (int i = 0; i < 60; ++i)
-                history.put(new JSONObject().put("role", "user").put("content", "Message de lecture " + i));
+            ListView list = page.screen.list;
+            String tail = history.getJSONObject(history.length() - 1).getString("content");
+            awaitUi(list, "hydrated transcript tail", () -> list.isLaidOut() && !list.isLayoutRequested()
+                    && page.messages().length() == history.length() && visibleText(list, tail));
             RunDecisions actions = main(() -> {
-                page.screen.rows(history, false, false, 0);
                 page.screen.displayDraft("Mon brouillon");
                 page.journal.observe("pending-approval");
                 RunDecisions decisions = new RunDecisions(page);
                 decisions.observe(RunAction.capture(page.journal, page::token));
-                page.screen.list.setSelectionFromTop(3, 0);
                 return decisions;
             });
             Button reveal = main(() -> button(activity.getWindow().getDecorView()));
-            awaitUi(() -> page.screen.list.getFirstVisiblePosition() == 3);
-            int top = main(() -> page.screen.list.getChildAt(0).getTop());
+            JSONObject anchor = history.getJSONObject(6);
+            String label = anchor.getString("content");
+            int position = main(() -> {
+                for (int i = 0; i < list.getCount(); ++i) {
+                    if (list.getItemAtPosition(i) instanceof JSONObject row && anchor.getString("id").equals(row.opt("id"))) {
+                        list.setSelectionFromTop(i, 0);
+                        return i;
+                    }
+                }
+                throw new AssertionError("Missing seeded message " + label);
+            });
+            awaitUi(list, label + " at the top", () -> list.getFirstVisiblePosition() == position
+                    && visibleText(list.getChildAt(0), label));
+            int top = main(() -> list.getChildAt(0).getTop());
             JSONObject prompt = new JSONObject().put("prompt_id", "decision").put("kind", "approval")
                     .put("execution_generation", 1).put("description", "Partager le fichier")
                     .put("choices", new JSONArray().put("once").put("deny"));
@@ -73,18 +94,21 @@ public class HiddenPromptTest extends InstrumentationTestCase {
                 page.screen.rows(history, false, true, 0);
                 actions.present(Collections.singletonList(prompt));
             });
-            awaitUi(reveal::isShown);
-            assertEquals(3, (int) main(() -> page.screen.list.getFirstVisiblePosition()));
-            assertEquals(top, (int) main(() -> page.screen.list.getChildAt(0).getTop()));
+            awaitUi(list, "response action over the reading position", reveal::isShown);
+            assertEquals(position, (int) main(list::getFirstVisiblePosition));
+            assertTrue(main(() -> visibleText(list.getChildAt(0), label)));
+            assertEquals(top, (int) main(() -> list.getChildAt(0).getTop()));
             assertTrue(main(reveal::performClick));
-            awaitUi(() -> !reveal.isShown() && visibleText(page.screen.list, "Refuser"));
+            awaitUi(list, "visible approval", () -> !reveal.isShown() && visibleText(list, "Refuser"));
             assertEquals("Mon brouillon", main(page.screen::draft));
-            runTestOnUiThread(() -> page.screen.list.setSelectionFromTop(3, 0));
-            awaitUi(reveal::isShown);
+            runTestOnUiThread(() -> list.setSelectionFromTop(position, 0));
+            awaitUi(list, "response action after scrolling back", () -> reveal.isShown()
+                    && visibleText(list.getChildAt(0), label));
             runTestOnUiThread(() -> actions.present(Collections.emptyList()));
-            awaitUi(() -> !reveal.isShown());
+            awaitUi(list, "settled response action", () -> !reveal.isShown());
             runTestOnUiThread(() -> activity.onAction("previous"));
             assertNull(main(page::sessionId)); // One Back from the original route returns directly to the inbox.
+            assertTrue(gateway.observed().contains("/api/sessions/discussion/messages?"));
             runTestOnUiThread(() -> activity.onAction("profiles"));
         } finally {
             getInstrumentation().runOnMainSync(activity::finish);
@@ -100,14 +124,16 @@ public class HiddenPromptTest extends InstrumentationTestCase {
         return result.get();
     }
 
-    private void awaitUi(Callable<Boolean> ready) throws Throwable {
+    private void awaitUi(ListView list, String expectation, Callable<Boolean> ready) throws Throwable {
         long deadline = SystemClock.uptimeMillis() + 5_000;
         do {
             getInstrumentation().waitForIdleSync();
             if (main(ready)) return;
             SystemClock.sleep(25);
         } while (SystemClock.uptimeMillis() < deadline);
-        fail("The expected discussion viewport did not appear");
+        fail("Expected " + expectation + main(() -> " (visible positions " + list.getFirstVisiblePosition()
+                + "–" + list.getLastVisiblePosition() + ", children " + list.getChildCount()
+                + ", items " + list.getCount() + ", viewport " + list.getWidth() + "×" + list.getHeight() + ")"));
     }
 
     private static boolean visibleText(View view, String label) {
@@ -121,16 +147,13 @@ public class HiddenPromptTest extends InstrumentationTestCase {
     }
 
     private static ThreadWorkspace selectThread(MainActivity activity, Account account) throws Exception {
+        account.write("last-thread", "discussion");
         Method unlock = MainActivity.class.getDeclaredMethod("opened", Account.class);
         unlock.setAccessible(true);
         unlock.invoke(activity, account);
         Field field = MainActivity.class.getDeclaredField("threads");
         field.setAccessible(true);
-        ThreadWorkspace page = (ThreadWorkspace) field.get(activity);
-        Method select = ThreadWorkspace.class.getDeclaredMethod("open", ThreadIdentity.class, String.class);
-        select.setAccessible(true);
-        select.invoke(page, new ThreadIdentity("discussion", "discussion"), "Discussion");
-        return page;
+        return (ThreadWorkspace) field.get(activity);
     }
 
     private static void checkSurfaces(MainActivity activity, Account account) throws Exception {
