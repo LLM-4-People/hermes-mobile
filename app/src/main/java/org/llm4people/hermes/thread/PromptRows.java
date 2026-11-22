@@ -1,7 +1,10 @@
 package org.llm4people.hermes.thread;
 
+import android.graphics.Rect;
 import android.view.View;
+import android.widget.AbsListView;
 import android.widget.ListView;
+import org.llm4people.hermes.Ui;
 import org.json.JSONObject;
 
 import java.util.HashMap;
@@ -15,17 +18,55 @@ final class PromptRows {
     private final Map<RunPrompts.Key, PromptCard> cards = new HashMap<>();
     private RunDecisions owner;
 
-    PromptRows(ThreadViews ui) { this.ui = ui; }
+    private final Rect viewport = new Rect();
+    private boolean wasInView;
+    private boolean checkingViewport;
+
+    PromptRows(ThreadViews ui) {
+        this.ui = ui;
+        ui.list.setOnScrollListener(new AbsListView.OnScrollListener() {
+            @Override public void onScroll(AbsListView list, int first, int shown, int total) { checkViewport(); }
+            @Override public void onScrollStateChanged(AbsListView list, int state) {}
+        });
+        ui.list.addOnLayoutChangeListener((view, l, t, r, b, ol, ot, or, ob) -> checkViewport());
+    }
+
+    private void checkViewport() {
+        if (owner == null || !visible() || checkingViewport) return;
+        checkingViewport = true;
+        ui.list.postOnAnimation(() -> {
+            checkingViewport = false;
+            if (owner == null) return;
+            boolean inView = cardInViewport();
+            if (inView != wasInView) {
+                wasInView = inView;
+                owner.viewportChanged();
+            }
+        });
+    }
+
+    private boolean cardInViewport() {
+        if (!ui.list.isShown()) return false;
+        // An unmeasured native page is about to lay out its footers. Check the resulting viewport.
+        if (!ui.list.isLaidOut()) return true;
+        int minHeight = Math.min(ui.list.getHeight(), Ui.dp(ui.activity, 48));
+        for (PromptCard card : cards.values()) {
+            if (card.isShown() && card.getGlobalVisibleRect(viewport)
+                    && viewport.height() >= Math.min(minHeight, card.getHeight())) return true;
+        }
+        return false;
+    }
 
     boolean visible() { return !cards.isEmpty(); }
 
-    /** The shell can reveal the same cards when a custom discussion omits the native transcript. */
+    /** Reveal the current cards without leaving a readable transcript or moving it until tapped. */
     Runnable whenHidden(Runnable reveal) {
         RunDecisions source = owner;
-        if (!hidden(source)) return null;
+        wasInView = cardInViewport();
+        if (source == null || !source.observing() || !visible() || wasInView) return null;
         return () -> {
-            if (!hidden(source)) return;
-            reveal.run();
+            if (owner != source || !source.observing() || !visible() || cardInViewport()) return;
+            if (!ui.list.isShown()) reveal.run();
             ui.list.post(() -> {
                 if (owner == source && source.observing() && visible() && ui.list.isShown())
                     ui.list.setSelectionFromTop(ui.list.getCount() - cards.size(), 0);
@@ -33,19 +74,15 @@ final class PromptRows {
         };
     }
 
-    private boolean hidden(RunDecisions source) {
-        return source != null && source == owner && source.observing() && visible() && !ui.list.isShown();
-    }
-
     void clear() {
         for (View card : cards.values()) ui.list.removeFooterView(card);
         cards.clear();
         owner = null;
+        wasInView = false;
     }
 
     void render(List<JSONObject> prompts, RunDecisions actions) {
         ListView list = ui.list;
-        boolean atEnd = list.getLastVisiblePosition() >= list.getCount() - 1;
         if (owner != actions) {
             clear();
             owner = actions;
@@ -63,23 +100,17 @@ final class PromptRows {
                 it.remove();
             }
         }
-        int firstAdded = -1;
         for (Map.Entry<RunPrompts.Key, JSONObject> entry : pending.entrySet()) {
             RunPrompts.Key key = entry.getKey();
             JSONObject prompt = entry.getValue();
             PromptCard card = cards.get(key);
             if (card == null) {
-                if (firstAdded == -1) firstAdded = list.getCount();
                 card = new PromptCard(ui, prompt, value -> actions.respond(prompt, value),
                         () -> actions.verify(prompt));
                 cards.put(key, card);
                 list.addFooterView(card, null, true);
             }
             card.state(actions.state(key));
-        }
-        if (firstAdded >= 0 && atEnd && !list.hasFocus()) {
-            int target = firstAdded;
-            list.post(() -> { if (owner == actions && !list.hasFocus()) list.setSelectionFromTop(target, 0); });
         }
     }
 }

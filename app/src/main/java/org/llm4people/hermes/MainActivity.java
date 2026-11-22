@@ -320,11 +320,12 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         if (shell == null) return;
         WorkspaceShell owner = shell;
         Runnable open = null;
-        if (threads != null && WorkspaceNavigation.DISCUSSION.equals(navigation.current())) {
-            open = threads.hiddenPromptAction(() -> {
-                if (shell == owner && WorkspaceNavigation.DISCUSSION.equals(navigation.current()))
-                    navigate(WorkspaceNavigation.COMPOSER);
-            });
+        String route = navigation.current();
+        if (threads != null && (WorkspaceNavigation.DISCUSSION.equals(route) || WorkspaceNavigation.COMPOSER.equals(route))) {
+            Runnable reveal = threads.hiddenPromptAction(() -> navigate(WorkspaceNavigation.COMPOSER));
+            if (reveal != null) open = () -> {
+                if (shell == owner && route.equals(navigation.current())) reveal.run();
+            };
         }
         owner.pendingResponse(open);
     }

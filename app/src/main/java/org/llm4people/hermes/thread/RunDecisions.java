@@ -67,6 +67,10 @@ final class RunDecisions {
         return attempts.getOrDefault(key, PromptCard.State.READY);
     }
 
+    void viewportChanged() {
+        if (observing()) page.host.pendingChanged();
+    }
+
     boolean observing() { return connected && current() && observation != null && observation.current(); }
 
     private boolean available(RunPrompts.Key key, PromptCard.State state) {
