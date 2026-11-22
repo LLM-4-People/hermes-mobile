@@ -1,19 +1,20 @@
 package org.llm4people.hermes.journey;
 
 import android.app.Instrumentation;
+import android.app.UiAutomation;
 import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.graphics.Bitmap;
 import android.graphics.Color;
+import android.graphics.Rect;
 import android.net.Uri;
 import android.os.SystemClock;
 import android.provider.MediaStore;
 import android.view.accessibility.AccessibilityNodeInfo;
 import java.io.OutputStream;
-import java.util.Locale;
 import java.util.function.Predicate;
 
-/** Opt-in dedicated-device proof. Only a generated image in this run's own album is selected. */
+/** Opt-in dedicated-device proof. Only the generated image with the verified blue-and-yellow thumbnail is selected. */
 final class DiscussionPhotoJourney {
     private final Instrumentation test;
     private final JourneyUi ui;
@@ -70,15 +71,7 @@ final class DiscussionPhotoJourney {
     private void select() {
         ui.tap("Autres actions");
         ui.tap("Joindre une image…");
-        clickSystem(node -> "Albums".equals(name(node)));
-        clickSystem(node -> name(node).contains(album));
-        clickSystem(node -> {
-            String id = node.getViewIdResourceName();
-            String name = name(node).toLowerCase(Locale.ROOT);
-            return id != null && (id.endsWith("/icon_thumbnail") || id.endsWith("/photo_thumbnail"))
-                    || name.startsWith("photo taken") || name.startsWith("photo prise")
-                    || name.startsWith("image taken") || name.contains(album.toLowerCase(Locale.ROOT) + ".png");
-        });
+        selectSyntheticThumbnail();
         long end = SystemClock.elapsedRealtime() + 15000;
         while (SystemClock.elapsedRealtime() < end) {
             if (ui.has("Choisir un profil")) { unlock.run(); return; }
@@ -88,28 +81,56 @@ final class DiscussionPhotoJourney {
         throw new AssertionError("Picker did not return to the protected composer");
     }
 
-    private static String name(AccessibilityNodeInfo node) {
-        CharSequence text = node.getText(), description = node.getContentDescription();
-        return text != null ? text.toString() : description == null ? "" : description.toString();
-    }
-
-    private void clickSystem(Predicate<AccessibilityNodeInfo> predicate) {
-        long end = SystemClock.elapsedRealtime() + 20000;
+    private void selectSyntheticThumbnail() {
+        UiAutomation automation = test.getUiAutomation();
+        long end = SystemClock.elapsedRealtime() + 60000;
         while (SystemClock.elapsedRealtime() < end) {
-            AccessibilityNodeInfo root = test.getUiAutomation().getRootInActiveWindow();
+            AccessibilityNodeInfo root = automation.getRootInActiveWindow();
             if (root != null && root.getPackageName() != null) {
                 String pkg = root.getPackageName().toString();
                 if (pkg.contains("providers.media") || pkg.contains("photopicker")) {
-                    AccessibilityNodeInfo match = find(root, predicate);
-                    while (match != null) {
-                        if (match.isClickable() && match.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return;
-                        match = match.getParent();
+                    Bitmap shot = automation.takeScreenshot();
+                    if (shot != null) {
+                        Bitmap pixels = shot.getConfig() == Bitmap.Config.HARDWARE
+                                ? shot.copy(Bitmap.Config.ARGB_8888, false) : shot;
+                        try {
+                            AccessibilityNodeInfo tile = find(root, node -> syntheticTile(node, pixels));
+                            while (tile != null) {
+                                if (tile.isClickable() && tile.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return;
+                                tile = tile.getParent();
+                            }
+                        } finally {
+                            if (pixels != shot) pixels.recycle();
+                            shot.recycle();
+                        }
                     }
                 }
             }
-            SystemClock.sleep(125);
+            SystemClock.sleep(350);
         }
-        throw new AssertionError("System photo picker did not expose the synthetic album or image");
+        throw new AssertionError("System picker did not show the generated blue and yellow thumbnail");
+    }
+
+    private static boolean syntheticTile(AccessibilityNodeInfo node, Bitmap screenshot) {
+        Rect bounds = new Rect();
+        node.getBoundsInScreen(bounds);
+        if (bounds.width() < 24 || bounds.height() < 24 || bounds.width() > 2 * bounds.height()
+                || bounds.height() > 2 * bounds.width() || bounds.left < 0 || bounds.top < 0
+                || bounds.right > screenshot.getWidth() || bounds.bottom > screenshot.getHeight()) return false;
+        // Match the image, never the first or newest gallery item. The system may center-crop the edges.
+        int gold = Color.rgb(247, 195, 63), blue = Color.rgb(38, 75, 123);
+        return colorAt(screenshot, bounds, .5, .5, gold) && colorAt(screenshot, bounds, .41, .43, gold)
+                && colorAt(screenshot, bounds, .59, .57, gold) && colorAt(screenshot, bounds, .5, .13, blue)
+                && colorAt(screenshot, bounds, .5, .87, blue) && colorAt(screenshot, bounds, .17, .13, blue)
+                && colorAt(screenshot, bounds, .83, .87, blue);
+    }
+
+    private static boolean colorAt(Bitmap bitmap, Rect bounds, double x, double y, int expected) {
+        int actual = bitmap.getPixel(bounds.left + (int) (bounds.width() * x),
+                bounds.top + (int) (bounds.height() * y));
+        return Math.abs(Color.red(actual) - Color.red(expected)) < 25
+                && Math.abs(Color.green(actual) - Color.green(expected)) < 25
+                && Math.abs(Color.blue(actual) - Color.blue(expected)) < 25;
     }
 
     private static AccessibilityNodeInfo find(AccessibilityNodeInfo node, Predicate<AccessibilityNodeInfo> predicate) {
