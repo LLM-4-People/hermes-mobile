@@ -35,7 +35,7 @@ Use an integer schema version of 1, a title of 1–64 characters, and 1–8 bloc
 
 # Share a versioned artifact
 
-Send code as a fenced block. Put the same relative filename after the language in subsequent revisions to collect them under one entry in the thread. For a patch use a `diff` fence. Preserve the complete file or diff body in each revision. The phone provides a selectable code reader and copy action.
+Send code as a fenced block. Put the same relative filename after the language in subsequent revisions to collect them under one entry in the thread. Use an explicit `file=` name for extensionless files such as `Dockerfile`, `Makefile`, and `src/LICENSE`. For a patch use a `diff` fence. Preserve the complete file or diff body in each revision. The phone provides a selectable code reader and copy action.
 
 ```python file=tools/ready.py
 def is_ready(state):

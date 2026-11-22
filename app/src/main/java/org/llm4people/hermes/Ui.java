@@ -1,6 +1,8 @@
 package org.llm4people.hermes;
 
 import android.content.Context;
+import android.app.AlertDialog;
+import android.view.WindowManager;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
@@ -53,6 +55,14 @@ public final class Ui {
         layout.setOrientation(LinearLayout.HORIZONTAL);
         layout.setGravity(Gravity.CENTER_VERTICAL);
         return layout;
+    }
+
+    /** Dialogs have their own windows, independent of the activity's screen capture policy. */
+    public static AlertDialog secureDialog(AlertDialog.Builder builder) {
+        AlertDialog dialog = builder.create();
+        dialog.getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
+        dialog.show();
+        return dialog;
     }
 
     public static View divider(Context context) {
