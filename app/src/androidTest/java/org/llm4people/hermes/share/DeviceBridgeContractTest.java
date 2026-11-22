@@ -169,4 +169,16 @@ public final class DeviceBridgeContractTest extends InstrumentationTestCase {
                 .put("request_id", "req_2")
                 .put("action_type", "map_navigation")));
     }
+
+    public void testMediaStatusCommandAndCalendarDaysAheadJsonParsing() throws Exception {
+        assertTrue(DeviceBridgeFlow.isMediaStatusCommand(new JSONObject()));
+        assertTrue(DeviceBridgeFlow.isMediaStatusCommand(new JSONObject().put("command", "status")));
+        assertTrue(DeviceBridgeFlow.isMediaStatusCommand(new JSONObject().put("action", "STATUS")));
+        assertFalse(DeviceBridgeFlow.isMediaStatusCommand(new JSONObject().put("command", "pause")));
+
+        assertEquals(7, DeviceBridgeFlow.resolveCalendarDays(new JSONObject()));
+        assertEquals(14, DeviceBridgeFlow.resolveCalendarDays(new JSONObject().put("days_ahead", 14)));
+        assertEquals(3, DeviceBridgeFlow.resolveCalendarDays(new JSONObject().put("days", 3)));
+        assertEquals(1, DeviceBridgeFlow.resolveCalendarDays(new JSONObject().put("days_ahead", 1).put("days", 10)));
+    }
 }

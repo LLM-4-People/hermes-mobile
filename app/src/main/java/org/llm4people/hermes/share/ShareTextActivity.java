@@ -2,10 +2,12 @@ package org.llm4people.hermes.share;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
 import android.view.WindowManager;
 
+import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.MainActivity;
 import org.llm4people.hermes.Ui;
@@ -18,6 +20,10 @@ public final class ShareTextActivity extends Activity {
     static final String RECEIPT = "org.llm4people.hermes.SHARE_RECEIPT";
 
     private String waiting;
+
+    @Override protected void attachBaseContext(Context newBase) {
+        super.attachBaseContext(AppLanguage.wrapContext(newBase));
+    }
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);

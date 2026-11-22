@@ -7,6 +7,7 @@ import android.view.View;
 import android.view.WindowManager;
 import android.view.inspector.WindowInspector;
 import android.widget.Button;
+import org.llm4people.hermes.R;
 import org.llm4people.hermes.artifact.ThreadInstruments;
 import org.llm4people.hermes.profile.WorkspaceAccountFixture;
 import org.llm4people.hermes.voice.VoiceDrafts;
@@ -33,29 +34,32 @@ public final class ThreadInstrumentRecoveryTest extends InstrumentationTestCase 
                 screen.instruments = new ThreadInstrumentPanel(workspace[0], store, null);
                 activity.setContentView(screen.root);
             });
+            String repairLabel = activity.getString(R.string.instrument_repair);
+            String confirmLabel = activity.getString(R.string.instrument_repair_confirm);
+            String cancelLabel = activity.getString(R.string.instrument_cancel);
             getInstrumentation().waitForIdleSync();
-            runTestOnUiThread(() -> tap("Réinitialiser…"));
+            runTestOnUiThread(() -> tap(repairLabel));
             getInstrumentation().waitForIdleSync();
             runTestOnUiThread(() -> {
-                View confirm = button("Réinitialiser l’outil");
+                View confirm = button(confirmLabel);
                 WindowManager.LayoutParams params = (WindowManager.LayoutParams)confirm.getRootView().getLayoutParams();
                 assertTrue((params.flags & WindowManager.LayoutParams.FLAG_SECURE) != 0);
-                tap("Annuler");
+                tap(cancelLabel);
             });
             getInstrumentation().waitForIdleSync();
             assertEquals("{broken", profile.account.read(slot));
 
-            runTestOnUiThread(() -> tap("Réinitialiser…"));
+            runTestOnUiThread(() -> tap(repairLabel));
             getInstrumentation().waitForIdleSync();
             // A second writer has changed the record since the dialog was displayed.
             profile.account.write(slot, "{different");
-            runTestOnUiThread(() -> tap("Réinitialiser l’outil"));
+            runTestOnUiThread(() -> tap(confirmLabel));
             getInstrumentation().waitForIdleSync();
             assertEquals("{different", profile.account.read(slot));
 
-            runTestOnUiThread(() -> tap("Réinitialiser…"));
+            runTestOnUiThread(() -> tap(repairLabel));
             getInstrumentation().waitForIdleSync();
-            runTestOnUiThread(() -> tap("Réinitialiser l’outil"));
+            runTestOnUiThread(() -> tap(confirmLabel));
             getInstrumentation().waitForIdleSync();
             assertNull(store.state().current);
             assertFalse(store.state().canUndo);

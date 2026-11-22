@@ -127,4 +127,35 @@ public final class DuplexVoiceUiTest extends InstrumentationTestCase {
             assertEquals(View.GONE, duplex.bar().getVisibility());
         });
     }
+
+    public void testDuplexSurvivesActivityPauseDuringAudioPermissionGrant() throws Throwable {
+        runTestOnUiThread(() -> {
+            input.allowed = false;
+            VoiceDrafts.DuplexHandle duplex = voice.bindDuplex(controls, utterance -> {});
+            LinearLayout root = (LinearLayout) editor.getParent();
+            root.addView(duplex.bar());
+
+            duplex.start();
+            assertTrue(duplex.active());
+            assertTrue(input.requested > 0);
+
+            // Runtime permission sheet pauses and unfocuses the Activity before delivering the grant.
+            voice.pause();
+            assertTrue("Duplex must remain active while awaiting RECORD_AUDIO permission", duplex.active());
+
+            input.allowed = true;
+            assertTrue(voice.permissionResult(input.requested,
+                    new String[]{android.Manifest.permission.RECORD_AUDIO},
+                    new int[]{android.content.pm.PackageManager.PERMISSION_GRANTED}));
+            voice.resume();
+            voice.windowFocusChanged(true);
+
+            assertTrue(duplex.active());
+            assertEquals(DuplexVoiceSession.State.LISTENING, duplex.state());
+            assertEquals(1, input.recordings);
+
+            duplex.stop();
+            assertFalse(duplex.active());
+        });
+    }
 }
