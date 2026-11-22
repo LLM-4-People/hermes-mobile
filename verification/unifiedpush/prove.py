@@ -41,6 +41,20 @@ def active_registration(database):
         ).fetchone()
 
 
+def revoked_everywhere(database, device_id, event_id=None):
+    with closing(sqlite3.connect(database.as_uri() + "?mode=ro", uri=True)) as db:
+        if db.execute("SELECT 1 FROM devices WHERE id=?", (device_id,)).fetchone():
+            return False
+        if event_id is None:
+            return True
+        return (
+            db.execute(
+                "SELECT 1 FROM deliveries WHERE event_id=? AND device_id=?", (event_id, device_id)
+            ).fetchone()
+            is None
+        )
+
+
 def trigger(gateway, title):
     session = gateway.request("/api/sessions", method="POST", body={"title": title}, expected=201)["session"]["id"]
     result = gateway.request(
@@ -125,7 +139,7 @@ def run(args):
             launch(adb, APP)
             start_account(ui, owner, account_url, primary.key, phrase)
             enroll(ui)
-            _, topic = eventually("authenticated device subscription", lambda: active_registration(db))
+            device_id, topic = eventually("authenticated device subscription", lambda: active_registration(db))
             if not topic.startswith(ntfy_url + "/up"):
                 raise AssertionError("Device registered with another push origin")
             before = len(published_messages(topic))
@@ -147,12 +161,16 @@ def run(args):
             ui.tap("Atelier")
             ui.tap("Notifications")
             ui.tap("Désactiver")
-            eventually("server revocation", lambda: active_registration(db) is None)
+            eventually("server revocation", lambda: revoked_everywhere(db, device_id))
             _, second_run = trigger(primary, "Après révocation")
             revoked = eventually(
                 "terminal event after revoke", lambda: completed_event(push, primary.key, second_run)
             )
-            if app_notice(adb, revoked["event_id"]) or len(published_messages(topic)) != len(pushed):
+            if (
+                not revoked_everywhere(db, device_id, revoked["event_id"])
+                or app_notice(adb, revoked["event_id"])
+                or len(published_messages(topic)) != len(pushed)
+            ):
                 raise AssertionError("Revoked device received another message")
             print(
                 json.dumps(

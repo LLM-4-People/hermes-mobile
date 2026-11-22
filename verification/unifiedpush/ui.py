@@ -30,7 +30,7 @@ class Screen:
         for node in root.iter("node"):
             attrs = node.attrib
             if any(
-                attrs.get(key, "").casefold() == label.casefold()
+                attrs.get(key, "").casefold().split() == label.casefold().split()
                 for key in ("text", "content-desc", "resource-id")
             ):
                 return node
