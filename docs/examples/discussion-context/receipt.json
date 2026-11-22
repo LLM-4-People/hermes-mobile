@@ -1,42 +1,40 @@
 {
+  "apk_source_revision": "55146268f3ad436683909ef07ab14ef56e346a69",
+  "verification_source_revision": "df6ad51c1af630d29003dfde04f794afe642a167",
+  "public_verification_revision": "b9f390c1dcb8ee08ff55911daa39e037780d3630",
+  "gateway_revision": "3c43393e5dc075fa216d1b2cd9d60894dc0faf78",
+  "apk_sha256": "7b96ecb3d1676ac5e36b79012f7ac57b8eaf50efd4fb26e98419ba046f7c3b77",
+  "test_apk_sha256": "119fac5b15ef754b1e6285814c2fa667805f63c9c63d08678af6a543bc667a89",
   "photo": {
-    "mobile_revision": "ba325faefc21c641d6c5a00b25b1e803763359e5",
-    "original_receipt_sha256": "a0f287bb89fd96f3a92f790dbcce33f0df599f515538d3aa783378c301303bac",
-    "production_equivalent_revision": "fc665ea07905360c4dc45fe4ef9a4cf3fcbdc68a",
-    "gateway_revision": "3f194698f9cb586d3302129e744ed30e18c3d6ff",
-    "provider": "Deterministic test provider comparing every decoded pixel with the synthetic reference image.",
-    "native_runs": 1,
-    "apk_sha256": "483ea25697bb1feb21a86dd9ea177d3b35a57d66751ce3caf4b1ffffa72e0a85",
-    "test_apk_sha256": "df02a9fe137f0078e81481ddfb2ed7277144c31d77d72e6dc0a4747a0d0a09d9",
+    "original_receipt_sha256": "64f3964ee99e2f50de9c52d8b90a0ebb5751f7b16a394996447bb3b3c4d0bbac",
     "captures_sha256": {
-      "02-photo-reponse.png": "d66b409f01f16386b38da73fa7a6338f712538c9e036177b4ac9aeee600a914d",
-      "01-photo-brouillon.png": "976f041987b68bc8847e8193ddb271c567d6aafbd60e0b9434c92a2515b0e1bd"
+      "01-photo-brouillon.png": "55fd07270454632bd2852b660e0c96ebb99898970a8caca9f1055b888968aa6f",
+      "02-photo-reponse.png": "1cc68193d16c56bfcf824d035570fab4ee76264518224380fa80c593394991bf"
     },
+    "native_thumbnail_verified": true,
+    "system_picker_verified": true,
     "model_received_exact_pixels": true,
     "idempotent": true,
     "main_provider_requests": 2,
-    "system_picker_verified": true,
+    "provider": "Test provider comparing each decoded pixel with the synthetic 96 × 64 image.",
     "provider_requests_by_origin": {
       "android": 1,
       "http_idempotency_control": 1
     }
   },
   "skills": {
-    "mobile_revision": "2a41c63dfa5a7a116ccffb3ffec2dc9b199f7697",
-    "original_receipt_sha256": "adf38e00353e6e4280fcaa90a23f2c47e2106e649965896752e6302f8d244c1e",
-    "provider": "Test provider requesting the installed gateway skill through skill_view and checking its returned content.",
-    "apk_sha256": "49d48898d9cfec9be937107c9007a9b95d83e7bb5cef29f903f9151edfc1acef",
-    "test_apk_sha256": "21d468942beda55082c405445549952c24f2ae99a37478041074a24d708fd342",
-    "gateway_revision": "35e89fcb626b36c798913c38b69e30c12df97f52",
-    "selected_skill": "qualite/synthese",
-    "admissions_before_send": 0,
-    "completed_runs": 1,
-    "skill_view_calls": 1,
+    "original_receipt_sha256": "8ddf3725f7f795c234d684cb1cd731e1450dc1cfdd6ff42e2d7c532097d8b804",
     "captures_sha256": {
       "01-competence-recherche.png": "5e8d6ae8daf7bba53b3746112ed1992f7498c5c61be0df7dfb2a3bdb05131e79",
       "02-competence-resume.png": "14e3bfb250e709fd6a626bdff6eef44886abdec0dc467c7079506367525b91bb",
       "03-competence-brouillon.png": "e94c168e4a6cd96c21a0e75ad9c27ad24d8b31119ec403b8c119296ee0afa3d0",
-      "04-competence-reponse.png": "90699dfcbbf10cb9b5d0ce30c4bf97370c5e65e1bbb00b6f41caa816f8cba5c6"
-    }
+      "04-competence-reponse.png": "cc14d001fac240dfb18044428126f0dda623ea16e7142e8e2be688ef2f9792e8"
+    },
+    "selected_skill": "qualite/synthese",
+    "admissions_before_send": 0,
+    "completed_runs": 1,
+    "skill_view_calls": 1,
+    "result_reader_verified": true,
+    "provider": "Test provider requesting the installed gateway skill through skill_view and checking its returned content."
   }
 }
