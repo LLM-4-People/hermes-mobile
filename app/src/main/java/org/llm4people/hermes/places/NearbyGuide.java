@@ -40,7 +40,8 @@ public final class NearbyGuide extends LinearLayout {
     private boolean wide, renderedWide;
     private PlaceCompass chart;
     private Button more, cuisineButton, compareButton;
-    private TextView range;
+    private TextView range, primaryFact, comparisonFact, difference;
+    private LinearLayout comparisonFacts;
     private final java.util.ArrayList<Venue> venues = new java.util.ArrayList<>();
 
     public NearbyGuide(Context context, Actions actions) {
@@ -148,6 +149,18 @@ public final class NearbyGuide extends LinearLayout {
         filters.addView(cuisineButton, inline ? new LayoutParams(0,-2,1) : new LayoutParams(-1,-2));
         filters.addView(compareButton, inline ? new LayoutParams(0,-2,1) : new LayoutParams(-1,-2));
         rows.addView(filters);
+        comparisonFacts = Ui.column(getContext());
+        Ui.pad(comparisonFacts, 4, 4);
+        primaryFact = text("", 16, R.color.accent);
+        comparisonFact = text("", 16, R.color.places_compare_ink);
+        Typeface emphasis = Typeface.create(Typeface.DEFAULT, 600, false);
+        primaryFact.setTypeface(emphasis);
+        comparisonFact.setTypeface(emphasis);
+        difference = text("", 14, R.color.muted);
+        comparisonFacts.addView(primaryFact);
+        comparisonFacts.addView(comparisonFact);
+        comparisonFacts.addView(difference);
+        rows.addView(comparisonFacts);
         List<NearbyResult.Place> places = result.places;
         for (int i = 0; i < places.size(); i++) venues.add(new Venue(rows, places.get(i), i));
         if (places.size() > 2) {
@@ -171,6 +184,14 @@ public final class NearbyGuide extends LinearLayout {
         compareButton.setVisibility(count < 2 ? GONE : VISIBLE);
         compareButton.setText(choice.comparison() < 0 ? "Comparer" : "Comparaison");
         compareButton.setContentDescription(choice.comparison() < 0 ? "Comparer deux restaurants" : "Modifier la comparaison");
+        comparisonFacts.setVisibility(choice.comparison() >= 0 ? VISIBLE : GONE);
+        if (choice.comparison() >= 0) {
+            NearbyResult.Place a = state.result.places.get(choice.selected());
+            NearbyResult.Place b = state.result.places.get(choice.comparison());
+            primaryFact.setText(a.name + " · " + distance(a.distanceMeters));
+            comparisonFact.setText(b.name + " · " + distance(b.distanceMeters));
+            difference.setText("Écart des distances au centre : " + distance(Math.abs(a.distanceMeters - b.distanceMeters)));
+        }
         int visibleRank = 0;
         for (Venue row : venues) {
             boolean inFilter = choice.visible().contains(row.index);

@@ -4,4 +4,5 @@
     <color name="places_grid">#608579</color>
     <color name="places_label">#E3F1E6</color>
     <color name="places_focus">#FFD488</color>
+    <color name="places_compare_ink">#79501F</color>
 </resources>
