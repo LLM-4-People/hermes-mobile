@@ -12,7 +12,7 @@ from urllib.error import HTTPError, URLError
 from urllib.request import ProxyHandler, Request, build_opener
 
 
-PINNED_REVISION = "07efe6a26aed516116c6241c44c0e0db42e7e004"
+PINNED_REVISION = "71311ce3f6abff0c2193384d4570f62789a313ca"
 LOOPBACK = "127.0.0.1"
 
 
