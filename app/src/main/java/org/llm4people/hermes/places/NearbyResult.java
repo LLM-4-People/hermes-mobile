@@ -38,13 +38,15 @@ public final class NearbyResult {
 
     public static final class Place {
         public final String id, name, cuisine, address, sourceUrl;
+        public final List<String> cuisines;
         public final double latitude, longitude;
         public final int distanceMeters;
 
-        private Place(String id, String name, String cuisine, String address, double lat, double lon, int distance) {
+        private Place(String id, String name, List<String> cuisines, String address, double lat, double lon, int distance) {
             this.id = id;
             this.name = name;
-            this.cuisine = cuisine;
+            this.cuisines = cuisines;
+            this.cuisine = String.join(" · ", cuisines);
             this.address = address;
             this.latitude = lat;
             this.longitude = lon;
@@ -93,7 +95,7 @@ public final class NearbyResult {
         double latitude = lat.doubleValue(), longitude = lon.doubleValue();
         if (!Double.isFinite(latitude) || Math.abs(latitude) > 90 || !Double.isFinite(longitude)
                 || Math.abs(longitude) > 180) return null;
-        return new Place(type + "/" + id, name, cuisine(label(row.opt("cuisine"), 256)),
+        return new Place(type + "/" + id, name, cuisines(label(row.opt("cuisine"), 256)),
                 label(row.opt("address"), 320), latitude, longitude, (int) distance);
     }
 
@@ -114,7 +116,7 @@ public final class NearbyResult {
         return text.trim();
     }
 
-    private static String cuisine(String value) {
+    private static List<String> cuisines(String value) {
         Set<String> labels = new LinkedHashSet<>();
         for (String part : value.split(";")) {
             String name = part.trim();
@@ -144,6 +146,6 @@ public final class NearbyResult {
                 default -> name;
             });
         }
-        return String.join(" · ", labels);
+        return Collections.unmodifiableList(new ArrayList<>(labels));
     }
 }

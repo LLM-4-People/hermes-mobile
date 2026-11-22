@@ -35,6 +35,9 @@ public final class NearbyResultTest extends TestCase {
         assertEquals("way/17", place.id);
         assertEquals("https://www.openstreetmap.org/way/17", place.sourceUrl);
         assertEquals("Italienne · Cuisine de l’archipel · Pizza", place.cuisine);
+        assertEquals(java.util.Arrays.asList("Italienne", "Cuisine de l’archipel", "Pizza"), place.cuisines);
+        try { place.cuisines.remove(0); fail("Cuisine filters must be immutable"); }
+        catch (UnsupportedOperationException expected) {}
         assertEquals("34, rue du Parc", place.address);
         assertEquals(205, place.distanceMeters);
         assertEquals("45.5018,-73.5674", place.coordinates());
@@ -42,6 +45,14 @@ public final class NearbyResultTest extends TestCase {
         assertEquals("", result.places.get(2).address);
         try { result.places.clear(); fail("Result must be immutable"); }
         catch (UnsupportedOperationException expected) {}
+    }
+
+    public void testCuisineFilterKeepsAnUnknownSourceTagContainingAMiddleDot() throws Exception {
+        JSONArray rows = new JSONArray().put(venue("node", 42, "Restaurant", 10)
+                .put("cuisine", "du marché · local; italian;du marché · local"));
+        NearbyResult.Place place = NearbyResult.parse(response(rows)).places.get(0);
+        assertEquals(java.util.Arrays.asList("du marché · local", "Italienne"), place.cuisines);
+        assertEquals("du marché · local · Italienne", place.cuisine);
     }
 
     public void testCuisineTagsFromTheMontrealSourceUseFrenchLabels() throws Exception {
@@ -69,6 +80,7 @@ public final class NearbyResultTest extends TestCase {
         assertEquals("Deux voisins 👩‍🍳", result.places.get(0).name);
         assertEquals("", result.places.get(0).address);
         assertEquals("", result.places.get(0).cuisine);
+        assertTrue(result.places.get(0).cuisines.isEmpty());
         assertEquals(0, result.places.get(0).distanceMeters);
     }
 
