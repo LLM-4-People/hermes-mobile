@@ -117,7 +117,9 @@ def push(name, firebase):
     return service
 
 
-def account_routes(name, domain, with_push, local):
+def account_routes(name, domain, with_push, local, *, gateway_upstream=None, push_upstream=None):
+    gateway_upstream = gateway_upstream or f"gateway-{name}:{API_PORT}"
+    push_upstream = push_upstream or f"push-{name}:{PUSH_PORT}"
     lines = [domain + " {"]
     if local:
         lines.append("    tls internal")
@@ -128,10 +130,10 @@ def account_routes(name, domain, with_push, local):
         "    }",
         "    @push path /api/mobile/push /api/mobile/push/*",
         "    handle @push {",
-        f"        reverse_proxy push-{name}:{PUSH_PORT}" if with_push else "        respond 404",
+        f"        reverse_proxy {push_upstream}" if with_push else "        respond 404",
         "    }",
         "    handle {",
-        f"        reverse_proxy gateway-{name}:{API_PORT}",
+        f"        reverse_proxy {gateway_upstream}",
         "    }", "}",
     ]
     return "\n".join(lines)
