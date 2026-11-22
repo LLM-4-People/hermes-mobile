@@ -91,7 +91,6 @@ public class ThreadSlotsTest extends InstrumentationTestCase {
         Context context = getInstrumentation().getTargetContext();
         Intent launch = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
         Activity activity = getInstrumentation().startActivitySync(launch);
-        FrameLayout[] window = new FrameLayout[1];
         ThreadViews[] chat = new ThreadViews[1];
         try {
             runTestOnUiThread(() -> {
@@ -99,7 +98,6 @@ public class ThreadSlotsTest extends InstrumentationTestCase {
                 ThreadViews thread = new ThreadViews(activity, input.controller(activity));
                 thread.chat("Brouillon", ignored -> {}, () -> fail("Unexpected send"), () -> {}, () -> {});
                 FrameLayout frame = new FrameLayout(activity);
-                window[0] = frame;
                 chat[0] = thread;
                 int width = Ui.dp(activity, 320), height = Ui.dp(activity, 140);
                 frame.addView(thread.root, new FrameLayout.LayoutParams(width, height));
@@ -114,19 +112,18 @@ public class ThreadSlotsTest extends InstrumentationTestCase {
             });
             getInstrumentation().waitForIdleSync();
             runTestOnUiThread(() -> {
-                FrameLayout frame = window[0];
                 ThreadViews thread = chat[0];
                 int width = Ui.dp(activity, 320), height = Ui.dp(activity, 140);
                 TextView options = (TextView) find(thread.root, activity.getString(R.string.voice_model_options));
                 EditText field = editor(thread.root);
                 View send = find(thread.root, "Envoyer");
-                frame.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+                thread.root.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
                         View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY));
-                frame.layout(0, 0, width, height);
+                thread.root.layout(0, 0, width, height);
                 for (View control : new View[]{options, field, send}) {
                     Rect visible = new Rect();
                     String detail = ((TextView) control).getText() + " measured " + control.getMeasuredWidth()
-                            + "×" + control.getMeasuredHeight() + " in " + frame.getWidth() + "×" + frame.getHeight();
+                            + "×" + control.getMeasuredHeight() + " in " + thread.root.getWidth() + "×" + thread.root.getHeight();
                     assertTrue(detail, control.getGlobalVisibleRect(visible));
                     assertTrue(detail + " visible " + visible, visible.height() >= Ui.dp(activity, 48));
                 }
