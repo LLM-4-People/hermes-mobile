@@ -87,7 +87,7 @@ public final class DeviceJourney extends Instrumentation {
         ui.tap("Envoyer");
         ui.contains(expected);
         // Wait for transcript reconciliation, as it owns artifact and usage records.
-        ui.see("Vous");
+        ui.see("Envoyer");
     }
 
     private void work() throws Exception {
