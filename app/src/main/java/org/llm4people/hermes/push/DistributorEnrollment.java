@@ -62,8 +62,7 @@ final class DistributorEnrollment {
                     unregister(context, device);
                     MobilePush.forget(context, device.profile);
                 } else if (repair && (resetPackage == null || resetPackage.equals(device.distributor))) {
-                    if (PushStore.ACTIVE.equals(device.state) || PushStore.PENDING.equals(device.state) && device.subscription != null)
-                        register(context, device);
+                    if (PushStore.ACTIVE.equals(device.state)) repair(context, device, false);
                     else if (resetPackage != null) requestEndpoint(context, device);
                 }
             }
@@ -115,10 +114,27 @@ final class DistributorEnrollment {
         UnifiedPush.register(DistributorIdentity.outgoing(context, device), device.installation, "Hermes Mobile", device.vapid);
     }
 
+    static void repair(Context context, PushStore.Device device, boolean explicit) {
+        synchronized (PushConnection.class) {
+            PushStore store = PushStore.get(context);
+            PushStore.Device current = store.forInstallation(device.installation);
+            if (current == null || !PushStore.ACTIVE.equals(current.state)) return;
+            if (!DistributorIdentity.matches(context, current.distributor, current.signer)
+                    || !current.distributor.equals(UnifiedPush.getSavedDistributor(context))) {
+                reconcile(context);
+                return;
+            }
+            if (!store.beginRepair(current, System.currentTimeMillis(), explicit)) return;
+            PushSyncService.scheduleRetries(context);
+            register(context, current);
+        }
+    }
+
     static void retryDue(Context context) {
         for (PushStore.Device device : PushStore.get(context).devices()) {
-            if (device.unified() && PushStore.PENDING.equals(device.state) && device.retryAt != 0)
-                requestEndpoint(context, device);
+            if (!device.unified() || device.retryAt == 0) continue;
+            if (device.repair != PushStore.NO_REPAIR) repair(context, device, false);
+            else if (PushStore.PENDING.equals(device.state)) requestEndpoint(context, device);
         }
     }
 

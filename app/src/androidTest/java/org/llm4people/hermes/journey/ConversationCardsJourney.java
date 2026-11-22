@@ -165,6 +165,7 @@ public final class ConversationCardsJourney extends Instrumentation {
         ui.tap("Envoyer");
         boolean approval = "approval".equals(turn.getString("kind"));
         String answer = turn.getString("answer");
+        ui.showPendingControl(approval ? "Autoriser une fois" : turn.getString("question"));
         if (approval) {
             ui.see("Autoriser une fois");
             ui.see("Refuser");

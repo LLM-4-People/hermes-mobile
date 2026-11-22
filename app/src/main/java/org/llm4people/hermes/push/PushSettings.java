@@ -4,11 +4,13 @@ import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
+import android.content.Context;
 import android.content.Intent;
 import android.database.DataSetObserver;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.provider.Settings;
+import android.view.View;
 
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.Ui;
@@ -70,6 +72,12 @@ final class PushSettings {
         if (device != null && PushStore.REMOVING.equals(device.state)) {
             builder.setMessage("Les alertes sont coupées sur cet appareil. La désactivation sur le serveur reste à confirmer.")
                     .setPositiveButton("Réessayer", (d,w) -> remove(device));
+        } else if (device != null && PushStore.ACTIVE.equals(device.state) && device.repair != PushStore.NO_REPAIR && device.failure != null) {
+            builder.setTitle("Connexion au distributeur à rétablir").setMessage(registrationMessage(device))
+                    .setNegativeButton("Désactiver", (d,w) -> remove(device));
+            if (device.repair == PushStore.REPAIR_ACTION)
+                builder.setPositiveButton("Réessayer", (d,w) -> run("Reconnexion au distributeur…",
+                        () -> DistributorEnrollment.repair(activity.getApplicationContext(), device, true)));
         } else if (device != null && PushStore.ACTIVE.equals(device.state)) {
             if (PushNotices.allowed(activity)) {
                 builder.setMessage(device.unified()
@@ -91,16 +99,15 @@ final class PushSettings {
             builder.setMessage("Recevez les rappels, les demandes d’autorisation et la fin des sessions. Le contenu de vos échanges reste privé.")
                     .setPositiveButton("Activer", (d,w) -> begin());
         }
-        if (device != null && device.unified() && (PushStore.ACTIVE.equals(device.state)
-                || "ACTION_REQUIRED".equals(device.failure))) {
-            builder.setView(Ui.button(activity, "Ouvrir le distributeur", v -> openDistributor(device)));
+        if (offersDistributor(device)) {
+            builder.setView(Ui.button(activity, "Ouvrir le distributeur", v -> openDistributor(v, device)));
         }
         if (display(builder) != null) observeState(device);
     }
 
     private static String registrationMessage(PushStore.Device device) {
         if (device.retryScheduled()) return "Hermes réessaiera automatiquement lorsque le réseau sera disponible.";
-        if (!PushStore.FAILED.equals(device.state)) return "L’inscription de cet appareil auprès du serveur reste à confirmer.";
+        if (!PushStore.FAILED.equals(device.state) && device.repair != PushStore.REPAIR_ACTION) return "L’inscription de cet appareil auprès du serveur reste à confirmer.";
         return switch (device.failure == null ? "" : device.failure) {
             case "ACTION_REQUIRED" -> "Ouvrez le distributeur pour terminer sa configuration, puis réessayez.";
             case "VAPID_REQUIRED" -> "Le distributeur demande une clé VAPID. Vérifiez la configuration du relais, puis réessayez.";
@@ -173,18 +180,38 @@ final class PushSettings {
                 .putExtra(Settings.EXTRA_APP_PACKAGE, activity.getPackageName()));
     }
 
-    private void openDistributor(PushStore.Device device) {
-        Intent launch = activity.getPackageManager().getLaunchIntentForPackage(device.distributor);
-        if (launch != null) {
-            try {
-                activity.startActivity(launch);
-                return;
-            } catch (ActivityNotFoundException | SecurityException gone) {
-                Diagnostics.warning("push", "distributor_launcher_unavailable");
+    private static boolean offersDistributor(PushStore.Device device) {
+        return device != null && device.unified() && (PushStore.ACTIVE.equals(device.state)
+                || PushStore.FAILED.equals(device.state) && "ACTION_REQUIRED".equals(device.failure));
+    }
+
+    static boolean mayOpenDistributor(Context context, String profile, PushStore.Device displayed) {
+        PushStore.Device enrolled = PushStore.get(context).forProfile(profile);
+        return profile.equals(displayed.profile) && offersDistributor(enrolled)
+                && enrolled.installation.equals(displayed.installation) && enrolled.distributor.equals(displayed.distributor)
+                && Objects.equals(enrolled.signer, displayed.signer)
+                && DistributorIdentity.matches(context, enrolled.distributor, enrolled.signer);
+    }
+
+    private void openDistributor(View button, PushStore.Device displayed) {
+        if (!current() || dialog == null || !dialog.isShowing()
+                || button.getRootView() != dialog.getWindow().getDecorView()) return;
+        String message = "Android ne propose pas d’écran à ouvrir pour ce distributeur.";
+        try {
+            Intent launch = activity.getPackageManager().getLaunchIntentForPackage(displayed.distributor);
+            synchronized (PushConnection.class) {
+                if (!mayOpenDistributor(activity, account.id, displayed)) {
+                    message = "Ce distributeur n’est plus autorisé pour cette inscription. Revenez aux notifications du profil pour vérifier son état.";
+                } else if (launch != null) {
+                    activity.startActivity(launch);
+                    return;
+                }
             }
+        } catch (ActivityNotFoundException | SecurityException gone) {
+            Diagnostics.warning("push", "distributor_launcher_unavailable");
         }
         display(new AlertDialog.Builder(activity).setTitle("Distributeur indisponible")
-                .setMessage("Vérifiez que le distributeur choisi est installé et activé sur ce téléphone.")
+                .setMessage(message)
                 .setPositiveButton("Retour", (d,w) -> show()));
     }
 

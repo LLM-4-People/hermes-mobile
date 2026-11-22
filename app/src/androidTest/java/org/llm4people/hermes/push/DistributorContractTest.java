@@ -210,6 +210,34 @@ public final class DistributorContractTest extends InstrumentationTestCase {
         }
     }
 
+    public void testPreconfirmationSettlementSupersedesItsPromptInEitherOrder() throws Exception {
+        prepare("https://example.test");
+        store.updateSubscription(device, "{}");
+        PushStore.Device pending = store.forProfile(device.profile);
+        long now = System.currentTimeMillis();
+        for (String type : new String[]{"question", "approval"}) {
+            for (boolean first : new boolean[]{true, false}) {
+                String event = UUID.randomUUID().toString().replace("-", "");
+                if (!first) store.defer(pending, event, type + "_requested", now + 60_000, now);
+                store.defer(pending, event, type + "_settled", now - 1, now);
+                store.defer(pending, event, type + "_requested", now + 60_000, now);
+                try (android.database.Cursor rows = store.getReadableDatabase().rawQuery(
+                        "SELECT kind FROM deferred WHERE installation=? AND event=?", new String[]{pending.installation, event})) {
+                    assertTrue(rows.moveToFirst());
+                    assertEquals(type + "_settled", rows.getString(0));
+                    assertFalse(rows.moveToNext());
+                }
+            }
+        }
+        store.enable(pending);
+        store.drain(context, pending);
+        try (android.database.Cursor rows = store.getReadableDatabase().rawQuery(
+                "SELECT COUNT(*) FROM dismissed_questions WHERE installation=?", new String[]{pending.installation})) {
+            assertTrue(rows.moveToFirst());
+            assertEquals(4, rows.getInt(0));
+        }
+    }
+
     public void testObsoleteExpiredOrRemovedPendingReceiptsCannotBeReleased() throws Exception {
         prepare("https://example.test");
         store.updateSubscription(device, "{}");

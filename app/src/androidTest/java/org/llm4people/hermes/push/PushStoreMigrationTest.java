@@ -6,6 +6,7 @@ import android.database.sqlite.SQLiteDatabase;
 import android.test.InstrumentationTestCase;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.UUID;
 
 @SuppressWarnings("deprecation")
@@ -14,33 +15,40 @@ public final class PushStoreMigrationTest extends InstrumentationTestCase {
     private static final String SEEN = "00000000000000000000000000000001";
     private static final String DISMISSED = "00000000000000000000000000000002";
     private static final String DEFERRED = "00000000000000000000000000000003";
+    private enum Feature { RECOVERY, DISMISSALS, REPAIR }
 
     public void testBothVersionFourSchemasKeepTheirData() {
-        checkDatabase(4, true);
-        checkDatabase(4, false);
+        checkDatabase(4, Feature.RECOVERY);
+        checkDatabase(4, Feature.DISMISSALS);
+    }
+
+    public void testBothVersionFiveSchemasKeepTheirData() {
+        checkDatabase(5, Feature.RECOVERY, Feature.REPAIR);
+        checkDatabase(5, Feature.RECOVERY, Feature.DISMISSALS);
     }
 
     public void testEarlierSchemasAndFreshInstall() {
-        for (int version = 0; version <= 3; version++) checkDatabase(version, false);
+        for (int version = 0; version <= 3; version++) checkDatabase(version);
     }
 
-    private void checkDatabase(int version, boolean hadRecovery) {
+    private void checkDatabase(int version, Feature... features) {
+        List<Feature> history = Arrays.asList(features);
         Context context = getInstrumentation().getTargetContext();
         String name = "push-migration-" + UUID.randomUUID() + ".db";
         try {
             if (version > 0) {
                 try (SQLiteDatabase db = context.openOrCreateDatabase(name, Context.MODE_PRIVATE, null)) {
-                    seed(db, version, hadRecovery);
+                    seed(db, version, history);
                     db.setVersion(version);
                 }
             }
             try (PushStore store = new PushStore(context, name)) {
                 SQLiteDatabase db = store.getWritableDatabase();
-                assertEquals(5, db.getVersion());
+                assertEquals(6, db.getVersion());
                 assertEquals(1, count(db, "SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name='dismissed_age'"));
                 assertEquals(1, count(db, "SELECT COUNT(*) FROM sqlite_master WHERE type='trigger' AND name='discard_deferred'"));
                 if (version == 0) {
-                    assertEquals(0, count(db, "SELECT COUNT(signer) FROM devices"));
+                    assertEquals(0, count(db, "SELECT COUNT(signer) + COUNT(repair) FROM devices"));
                     assertEquals(0, count(db, "SELECT COUNT(*) FROM dismissed_questions"));
                     assertEquals(0, count(db, "SELECT COUNT(*) FROM deferred"));
                     return;
@@ -51,20 +59,23 @@ public final class PushStoreMigrationTest extends InstrumentationTestCase {
                 assertTrue(Arrays.equals(new byte[]{1, 2, 3}, device.secret));
                 assertEquals("active", device.state);
                 assertEquals(version >= 2, device.established);
-                assertEquals(hadRecovery ? "saved-signer" : null, device.signer);
+                assertEquals(history.contains(Feature.RECOVERY) ? "saved-signer" : null, device.signer);
+                assertEquals(history.contains(Feature.REPAIR) ? PushStore.RETRY_REPAIR : PushStore.NO_REPAIR, device.repair);
+                assertEquals(history.contains(Feature.REPAIR) ? 3 : 0, device.attempts);
+                assertEquals(history.contains(Feature.REPAIR) ? 123456L : 0L, device.retryAt);
                 if (version >= 2) {
                     assertEquals("transport.pkg", device.distributor);
                     assertEquals("v1", device.subscriptionVersion);
                     assertTrue(Arrays.equals(new byte[]{4, 5}, device.subscription));
                 } else assertEquals("saved-project", device.config.projectId);
                 assertEquals("run_completed", store.knownKind(INSTALLATION, SEEN));
-                boolean hadDismissals = version == 4 && !hadRecovery;
+                boolean hadDismissals = history.contains(Feature.DISMISSALS);
                 if (hadDismissals) assertFalse(store.remember(INSTALLATION, DISMISSED, "question_requested"));
                 else store.dismissPrompt(INSTALLATION, DISMISSED);
                 assertFalse(store.remember(INSTALLATION, DISMISSED, "question_requested"));
                 if (hadDismissals)
                     assertEquals(42, count(db, "SELECT received_at FROM dismissed_questions WHERE event=?", DISMISSED));
-                if (hadRecovery) {
+                if (history.contains(Feature.RECOVERY)) {
                     assertEquals(999, count(db, "SELECT expires FROM deferred WHERE installation=? AND version='v1'"
                             + " AND event=? AND kind='run_completed' AND discard_at=1000", INSTALLATION, DEFERRED));
                 } else {
@@ -91,7 +102,7 @@ public final class PushStoreMigrationTest extends InstrumentationTestCase {
     }
 
     // Recreate the historical DDL independently of the current helper.
-    private static void seed(SQLiteDatabase db, int version, boolean hadRecovery) {
+    private static void seed(SQLiteDatabase db, int version, List<Feature> history) {
         db.execSQL("CREATE TABLE devices(profile TEXT PRIMARY KEY,installation TEXT NOT NULL UNIQUE,"
                 + "endpoint TEXT NOT NULL,secret BLOB NOT NULL,state TEXT NOT NULL,app TEXT NOT NULL,"
                 + "api_key TEXT NOT NULL,project TEXT NOT NULL,sender TEXT NOT NULL)");
@@ -114,7 +125,7 @@ public final class PushStoreMigrationTest extends InstrumentationTestCase {
             db.execSQL("ALTER TABLE devices ADD COLUMN established INTEGER NOT NULL DEFAULT 0");
             db.execSQL("UPDATE devices SET established=1");
         }
-        if (hadRecovery) {
+        if (history.contains(Feature.RECOVERY)) {
             db.execSQL("ALTER TABLE devices ADD COLUMN signer TEXT");
             db.execSQL("UPDATE devices SET signer='saved-signer'");
             db.execSQL("CREATE TABLE deferred(installation TEXT NOT NULL REFERENCES devices(installation) ON DELETE CASCADE,"
@@ -124,11 +135,16 @@ public final class PushStoreMigrationTest extends InstrumentationTestCase {
                     + "DELETE FROM deferred WHERE installation=NEW.installation AND "
                     + "(NEW.state IN ('failed','removing') OR version IS NOT NEW.subscription_version); END");
             insertDeferred(db);
-        } else if (version == 4) {
+        }
+        if (history.contains(Feature.DISMISSALS)) {
             db.execSQL("CREATE TABLE dismissed_questions(installation TEXT NOT NULL REFERENCES devices(installation)"
                     + " ON DELETE CASCADE,event TEXT NOT NULL,received_at INTEGER NOT NULL,PRIMARY KEY(installation,event))");
             db.execSQL("CREATE INDEX dismissed_age ON dismissed_questions(received_at)");
             db.execSQL("INSERT INTO dismissed_questions VALUES(?,?,42)", new Object[]{INSTALLATION, DISMISSED});
+        }
+        if (history.contains(Feature.REPAIR)) {
+            db.execSQL("ALTER TABLE devices ADD COLUMN repair INTEGER NOT NULL DEFAULT 0");
+            db.execSQL("UPDATE devices SET repair=2,attempts=3,retry_at=123456");
         }
     }
 }

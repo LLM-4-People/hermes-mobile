@@ -12,6 +12,7 @@ import android.os.Bundle;
 import android.test.InstrumentationTestCase;
 
 import org.unifiedpush.android.connector.UnifiedPush;
+import org.unifiedpush.android.connector.FailedReason;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -152,6 +153,37 @@ public final class DistributorLifecycleTest extends InstrumentationTestCase {
         assertTrue(outgoing.isEmpty());
     }
 
+    public void testFailedActiveRepairRetriesOnlyItsBindingAndIgnoresFailureAfterEndpoint() throws Exception {
+        PushStore.Device first = prepare(), second = prepare();
+        String token = register(first);
+        register(second);
+        for (PushStore.Device device : devices) {
+            store.updateSubscription(device, "{}");
+            store.enable(store.forProfile(device.profile));
+        }
+        DistributorEnrollment.reconcile(context, true, null);
+        Intent failure = new Intent(CONNECTOR + "REGISTRATION_FAILED").putExtra("token", token).putExtra("reason", "NETWORK");
+        new DistributorReceiver().process(context, failure);
+        PushStore.Device failed = store.forProfile(first.profile);
+        assertTrue(failed.receives());
+        assertEquals(PushStore.RETRY_REPAIR, failed.repair);
+        assertTrue(failed.retryAt > System.currentTimeMillis());
+        assertNull(store.forProfile(second.profile).failure);
+        outgoing.clear();
+        DistributorEnrollment.reconcile(context, true, null);
+        assertTrue(outgoing.isEmpty());
+        store.getWritableDatabase().execSQL("UPDATE devices SET retry_at=1 WHERE installation=?", new Object[]{first.installation});
+        DistributorEnrollment.retryDue(context);
+        assertEquals(1, outgoing.stream().filter(intent -> REGISTER.equals(intent.getAction())).count());
+        assertEquals(token, outgoing.get(0).getStringExtra("token"));
+        assertFalse(store.updateSubscription(store.forProfile(first.profile), "{}"));
+        new DistributorReceiver().process(context, failure);
+        PushStore.Device restored = store.forProfile(first.profile);
+        assertEquals(PushStore.NO_REPAIR, restored.repair);
+        assertEquals(0L, restored.retryAt);
+        assertNull(restored.failure);
+    }
+
     public void testUnprovenOrChangedSignerReceivesNoOldWireTokenEvenWhenRemoved() throws Exception {
         for (String pin : new String[]{"different-certificate", null}) {
             PushStore.Device device = prepare();
@@ -163,6 +195,36 @@ public final class DistributorLifecycleTest extends InstrumentationTestCase {
             assertEquals(PushStore.REMOVING, store.forProfile(device.profile).state);
             assertTrue(outgoing.stream().noneMatch(intent -> token.equals(intent.getStringExtra("token"))));
         }
+    }
+
+    public void testOpenDistributorRequiresCurrentEligibleInstallationAndSigner() throws Exception {
+        PushStore.Device active = prepare();
+        store.updateSubscription(active, "{}");
+        store.enable(store.forProfile(active.profile));
+        active = store.forProfile(active.profile);
+        PushStore.Device pending = prepare();
+        assertFalse(PushSettings.mayOpenDistributor(context, pending.profile, pending));
+        assertTrue(store.registrationFailed(pending, FailedReason.ACTION_REQUIRED, 0));
+        PushStore.Device action = store.forProfile(pending.profile);
+        assertTrue(PushSettings.mayOpenDistributor(context, action.profile, action));
+        assertTrue(PushSettings.mayOpenDistributor(context, active.profile, active));
+        assertFalse(PushSettings.mayOpenDistributor(context, active.profile, action));
+
+        store.deactivate(action.profile);
+        assertFalse(PushSettings.mayOpenDistributor(context, action.profile, action));
+        store.finishRemoval(action);
+        assertFalse(PushSettings.mayOpenDistributor(context, action.profile, action));
+        PushStore.Device replacement = store.prepareUnified(action.profile, SERVER, action.distributor, action.signer, VAPID);
+        devices.add(replacement);
+        assertTrue(store.registrationFailed(replacement, FailedReason.ACTION_REQUIRED, 0));
+        assertFalse(PushSettings.mayOpenDistributor(context, action.profile, action));
+        assertTrue(PushSettings.mayOpenDistributor(context, active.profile, active));
+
+        store.getWritableDatabase().execSQL("UPDATE devices SET signer=? WHERE installation=?",
+                new Object[]{"different-certificate", active.installation});
+        assertFalse(PushSettings.mayOpenDistributor(context, active.profile, active));
+        PushStore.Device untrusted = store.forProfile(active.profile);
+        assertFalse(PushSettings.mayOpenDistributor(context, untrusted.profile, untrusted));
     }
 
     public void testMissingPackageReleasesAllAffectedProfilesAndPicker() throws Exception {
