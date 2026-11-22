@@ -24,11 +24,10 @@ final class RunPrompts {
     static Key key(JSONObject prompt) {
         if (id(prompt).trim().isEmpty()) return null;
         boolean canonical = prompt.has("prompt_id");
-        Object generation = prompt.opt("execution_generation");
-        if (canonical && (!(generation instanceof Integer || generation instanceof Long)
-                || ((Number) generation).longValue() < 0)) return null;
-        if (!canonical && (generation != null || question(prompt))) return null;
-        return new Key(id(prompt), canonical ? ((Number) generation).longValue() : -1, question(prompt));
+        long generation = ThreadData.generation(prompt);
+        if (canonical && generation < 0) return null;
+        if (!canonical && (prompt.has("execution_generation") || question(prompt))) return null;
+        return new Key(id(prompt), generation, question(prompt));
     }
 
     void restore(JSONObject status) {
@@ -56,6 +55,12 @@ final class RunPrompts {
     void settle(JSONObject event) {
         Key key = key(event);
         if (key != null && waiting.remove(key) != null) snapshot = null;
+    }
+
+    JSONObject match(JSONObject expected) {
+        Key identity = key(expected);
+        JSONObject found = waiting.get(identity);
+        return identity != null && identity.equals(key(found)) ? found : null;
     }
 
     List<JSONObject> snapshot() {

@@ -18,7 +18,8 @@ final class ThreadRun {
     private boolean submitting;
     private long started = -1;
     private long subscription;
-    private String statusPath() { return "/v1/runs/" + HermesApi.segment(runId()); }
+    private boolean canStop;
+    private RunAction owner() { return RunAction.capture(journal, page::token, () -> subscription); }
     private String runId() { return ThreadData.string(journal.pending(), "run_id"); }
 
     ThreadRun(ThreadWorkspace page) {
@@ -47,7 +48,8 @@ final class ThreadRun {
         if (pending == null) return;
         if (!journal.sameOwner()) { uncertain(); return; }
         ui.outgoing(ThreadData.string(pending.optJSONObject("body"), "input"));
-        ui.busy(true, !runId().isEmpty());
+        canStop = !runId().isEmpty();
+        ui.busy(true, canStop);
         if (runId().isEmpty()) submitWithCapabilities(pending.optJSONObject("body"), false);
         else if (journal.reconnectsExhausted()) trackingInterrupted();
         else follow();
@@ -151,17 +153,22 @@ final class ThreadRun {
     }
 
     private void uncertain() {
+        RunAction owner = owner();
+        canStop = false;
         ui.busy(true, false);
         ui.notice("Hermes a peut-être reçu le message. Vérifiez la conversation avant un nouvel envoi.",
-                "Vérifier la conversation", () -> page.loadMessages(false, this::offerDismiss));
+                "Vérifier la conversation", owner.guard(() -> page.loadMessages(false,
+                        owner.guard(() -> offerDismiss(owner)))));
     }
 
-    private void offerDismiss() {
+    private void offerDismiss(RunAction owner) {
         ui.show(new AlertDialog.Builder(page.activity)
                 .setTitle("Clore le suivi de cet envoi ?")
                 .setMessage("L’envoi a un résultat inconnu. Hermes peut encore le traiter. Vous pourrez écrire un nouveau message.")
-                .setNegativeButton("Continuer le suivi", (d, w) -> uncertain())
+                .setNegativeButton("Continuer le suivi", (d, w) -> { if (owner.current()) uncertain(); })
                 .setPositiveButton("Clore le suivi", (d, w) -> {
+                    if (!owner.current()) return;
+                    canStop = false;
                     if (finishTracking()) return;
                     ui.outgoing("");
                     ui.busy(false, false);
@@ -186,9 +193,10 @@ final class ThreadRun {
         JSONObject receipt = journal.pending();
         String id = runId();
         if (id.isEmpty()) return;
-        if (decisions == null || !decisions.current()) decisions = new RunDecisions(page, receipt);
-        decisions.disconnected();
+        if (decisions == null || !decisions.current()) decisions = new RunDecisions(page);
+        decisions.observe(owner());
         frame = null;
+        canStop = true;
         ui.busy(true, true);
         ui.live("Hermes travaille…", ThreadData.string(journal.pending(), "preview"), false);
         RunFollower nextFollower = new RunFollower(page.api, id, receipt, started, new RunFollower.Listener() {
@@ -232,59 +240,68 @@ final class ThreadRun {
     }
 
     private void unresolved(JSONObject status) {
+        ++subscription;
+        canStop = false;
         decisions.clear();
         frame = null;
         started = -1;
         ui.busy(true, false);
         ui.live("Traitement interrompu", "", false);
+        RunAction owner = owner();
         JSONObject receipt = ThreadData.unknownReceipt(status);
         if (receipt == null) {
-            ui.notice("La passerelle doit confirmer l’identité du traitement.", "Actualiser", this::follow);
+            ui.notice("La passerelle doit confirmer l’identité du traitement.", "Actualiser", owner.guard(this::follow));
             return;
         }
-        ui.notice("La passerelle attend votre décision pour débloquer la conversation.", "Examiner", () ->
+        ui.notice("La passerelle attend votre décision pour débloquer la conversation.", "Examiner", owner.guard(() ->
             ui.show(new AlertDialog.Builder(page.activity).setTitle("Débloquer la conversation ?")
                     .setMessage("Hermes a perdu le suivi de ce traitement. Le clore permet à la passerelle de "
                             + "poursuivre les messages suivants. Les opérations déjà effectuées restent en place.")
-                    .setNegativeButton("Attendre", (d,w) -> follow())
-                    .setPositiveButton("Clore le traitement", (d,w) -> resolve(receipt))));
+                    .setNegativeButton("Attendre", (d,w) -> { if (owner.current()) follow(); })
+                    .setPositiveButton("Clore le traitement", (d,w) -> { if (owner.current()) resolve(owner, receipt); }))));
     }
 
-    private void resolve(JSONObject receipt) {
-        String path = statusPath();
+    private void resolve(RunAction owner, JSONObject receipt) {
+        String path = owner.path();
         ui.notice("Vérification du traitement…", "", null);
-        page.request(() -> {
-            JSONObject current = ThreadData.unknownReceipt(page.api.get(path));
-            if (current != null && ThreadData.string(current, "admission_id").equals(ThreadData.string(receipt, "admission_id"))
-                    && current.optLong("execution_generation") == receipt.optLong("execution_generation")) {
-                page.api.post(path + "/resolve-unknown", receipt);
+        page.request(() -> page.api.get(path), owner.guard(status -> {
+            JSONObject current = ThreadData.unknownReceipt(status);
+            if (!owner.run.equals(status.opt("run_id")) || current == null
+                    || !current.optString("admission_id").equals(receipt.optString("admission_id"))
+                    || current.optLong("execution_generation") != receipt.optLong("execution_generation")) {
+                follow();
+                return;
             }
-            return true;
-        }, done -> follow(), error -> page.error(error, this::follow));
+            page.request(() -> page.api.post(path + "/resolve-unknown", receipt),
+                    owner.guard(done -> follow()), owner.guard(error -> page.error(error, owner.guard(this::follow))));
+        }), owner.guard(error -> page.error(error, owner.guard(this::follow))));
     }
 
     private void trackingInterrupted() {
+        RunAction owner = owner().when(journal::reconnectsExhausted);
         ui.notice("Suivi interrompu. Vous pouvez consulter la conversation.",
-                "Vérifier la conversation", () -> page.loadMessages(false, this::reviewLost));
+                "Vérifier la conversation", owner.guard(() -> page.loadMessages(false,
+                        owner.guard(() -> reviewLost(owner)))));
     }
 
-    private void reviewLost() {
-        JSONObject receipt = journal.pending();
-        Runnable resume = () -> {
-            if (receipt == null || receipt != journal.pending()) return;
+    private void reviewLost(RunAction owner) {
+        Runnable resume = owner.guard(() -> {
             try { journal.resetReconnects(); }
             catch (IllegalStateException unavailable) { page.storageError(); return; }
             follow();
-        };
+        });
         ui.notice("Le résultat reste inconnu.", "Reprendre le suivi", resume);
         ui.show(new AlertDialog.Builder(page.activity).setTitle("Suivi interrompu")
                 .setMessage("Reprenez le suivi pour retrouver l’état du traitement sur la passerelle.")
-                .setNegativeButton("Clore le suivi…", (d,w) -> offerDismiss())
+                .setNegativeButton("Clore le suivi…", (d,w) -> { if (owner.current()) offerDismiss(owner); })
                 .setPositiveButton("Reprendre", (d,w) -> resume.run()));
     }
 
     private void completed(JSONObject status, long firstText, long elapsed) {
+        ++subscription;
+        canStop = false;
         decisions.clear();
+        RunAction owner = owner();
         String outcome = status.optString("status");
         String output = ThreadData.string(status, "output");
         String label = switch (outcome) {
@@ -304,7 +321,7 @@ final class ThreadRun {
         frame = null;
         ui.busy(true, false);
         ui.live(summary, output, false);
-        page.loadMessages(false, () -> {
+        page.loadMessages(false, owner.guard(() -> {
             if (finishTracking()) return;
             ui.outgoing("");
             ui.busy(false, false);
@@ -319,18 +336,27 @@ final class ThreadRun {
             ui.live("completed".equals(outcome) && (output.isEmpty() || visible) ? "" : summary,
                     visible ? "" : output, false);
             ui.notice("", "", null);
-        });
+        }));
     }
 
     void stop() {
-        if (runId().isEmpty()) return;
-        String path = statusPath() + "/stop";
-        JSONObject receipt = journal.pending();
-        page.request(() -> page.api.post(path, new JSONObject()), ok -> {
-            if (receipt == journal.pending()) ui.notice("Demande d’arrêt envoyée.", "", null);
-        }, e -> {
-            if (receipt == journal.pending()) page.error(e, () -> { if (receipt == journal.pending()) stop(); });
-        });
+        RunAction owner = owner().when(() -> canStop && journal.sameOwner());
+        if (owner.current() && !owner.run.isEmpty()) stop(owner, false);
+    }
+
+    private void stop(RunAction owner, boolean retry) {
+        Runnable check = owner.guard(() -> stop(owner, true));
+        if (retry) {
+            page.request(() -> page.api.get(owner.path()), owner.guard(status -> {
+                if (owner.stoppable(status)) stop(owner, false);
+                else follow();
+            }), owner.guard(error -> page.error(error, check)));
+            return;
+        }
+        String path = owner.path() + "/stop";
+        page.request(() -> page.api.post(path, new JSONObject()),
+                owner.guard(ok -> ui.notice("Demande d’arrêt envoyée.", "", null)),
+                owner.guard(error -> page.error(error, check)));
     }
 
     private void checkpoint() {
@@ -339,6 +365,8 @@ final class ThreadRun {
     }
 
     void detach() {
+        ++subscription;
+        canStop = false;
         if (decisions != null) decisions.clear();
         if (follower != null) follower.close();
         checkpoint();

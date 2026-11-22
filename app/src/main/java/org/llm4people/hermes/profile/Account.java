@@ -5,6 +5,7 @@ import android.util.Base64;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.util.Arrays;
+import java.util.Collections;
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.Mac;
@@ -62,7 +63,8 @@ public final class Account implements AutoCloseable {
             byte[] plain = value.getBytes(StandardCharsets.UTF_8);
             try {
                 byte[] cipher = ProfileEnvelope.encrypt(new SecretKeySpec(keys, 0, 32, "AES"), context(slot), plain);
-                commit(slot, Base64.encodeToString(cipher, Base64.NO_WRAP));
+                String encoded = Base64.encodeToString(cipher, Base64.NO_WRAP);
+                PreferenceTransaction.commit(prefs, Collections.singletonMap(slot, encoded));
             } finally {
                 Arrays.fill(plain, (byte) 0);
             }
@@ -73,21 +75,9 @@ public final class Account implements AutoCloseable {
 
     public synchronized void remove(String key) {
         try {
-            commit(slot(key), null);
+            PreferenceTransaction.commit(prefs, Collections.singletonMap(slot(key), null));
         } catch (GeneralSecurityException ex) {
             throw new IllegalStateException("Account record removal failed", ex);
-        }
-    }
-
-    private void commit(String slot, String value) {
-        // All unlocked handles share the vault. Keep readers behind a failed commit and its rollback.
-        synchronized (prefs) {
-            String previous = prefs.getString(slot, null);
-            if (prefs.edit().putString(slot, value).commit()) return;
-            // Android changes its process cache even when the disk write fails.
-            if (!prefs.edit().putString(slot, previous).commit())
-                throw new IllegalStateException("Account record rollback could not be committed");
-            throw new IllegalStateException("Account record could not be committed");
         }
     }
 

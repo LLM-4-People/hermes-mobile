@@ -115,6 +115,7 @@ final class ThreadViews {
         list.setOnItemClickListener(null);
         LinearLayout composer = Ui.row(activity);
         composer.setGravity(Gravity.BOTTOM);
+        composer.setBaselineAligned(false);
         Ui.pad(composer, 8, 4);
         input = new EditText(activity);
         input.setSaveEnabled(false);

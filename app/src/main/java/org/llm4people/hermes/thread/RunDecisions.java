@@ -1,7 +1,6 @@
 package org.llm4people.hermes.thread;
 
 import org.json.JSONObject;
-import org.llm4people.hermes.net.HermesApi;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -13,28 +12,24 @@ import java.util.Set;
 /** One run receipt owns its controls. Only a fresh status check can reopen an unconfirmed response. */
 final class RunDecisions {
     private final ThreadWorkspace page;
-    private final ThreadJournal journal;
-    private final JSONObject receipt;
-    private final int token;
-    private final String run;
-    private final String path;
+    private final RunAction receipt;
+    private RunAction observation;
     private List<JSONObject> prompts = Collections.emptyList();
     private final Map<RunPrompts.Key, PromptCard.State> attempts = new HashMap<>();
     private final Set<RunPrompts.Key> settled = new HashSet<>();
     private boolean connected;
 
-    RunDecisions(ThreadWorkspace page, JSONObject receipt) {
+    RunDecisions(ThreadWorkspace page) {
         this.page = page;
-        this.journal = page.journal;
-        this.receipt = receipt;
-        token = page.token();
-        run = ThreadData.string(receipt, "run_id");
-        path = "/v1/runs/" + HermesApi.segment(run);
+        ThreadJournal journal = page.journal;
+        receipt = RunAction.capture(journal, page::token).when(() -> journal == page.journal && journal.sameOwner());
     }
 
-    boolean current() {
-        return token == page.token() && journal == page.journal && receipt == journal.pending()
-                && run.equals(ThreadData.string(receipt, "run_id")) && journal.sameOwner();
+    boolean current() { return receipt.current(); }
+
+    void observe(RunAction owner) {
+        disconnected();
+        observation = owner;
     }
 
     void present(List<JSONObject> fresh) {
@@ -45,11 +40,14 @@ final class RunDecisions {
     }
 
     void disconnected() {
+        observation = null;
         connected = false;
+        attempts.replaceAll((key, state) -> PromptCard.State.VERIFY);
         paint();
     }
 
     void clear() {
+        observation = null;
         connected = false;
         prompts = Collections.emptyList();
         page.screen.promptRows.clear();
@@ -66,7 +64,7 @@ final class RunDecisions {
     }
 
     private boolean available(RunPrompts.Key key, PromptCard.State state) {
-        if (!current() || !connected || state(key) != state) return false;
+        if (!current() || observation == null || !observation.current() || !connected || state(key) != state) return false;
         for (JSONObject prompt : prompts) if (key.equals(RunPrompts.key(prompt))) return true;
         return false;
     }
@@ -79,18 +77,19 @@ final class RunDecisions {
         attempts.put(key, PromptCard.State.SENDING);
         paint();
         JSONObject body = RunPrompts.response(prompt, value);
-        String endpoint = path + (key.question() ? "/clarify" : "/approval");
-        page.request(() -> page.api.post(endpoint, body), reply -> {
-            boolean confirmed = run.equals(reply.opt("run_id")) && key.id().equals(RunPrompts.id(reply))
+        RunAction action = observation.when(() -> available(key, PromptCard.State.SENDING));
+        String endpoint = action.path() + (key.question() ? "/clarify" : "/approval");
+        page.request(() -> page.api.post(endpoint, body), action.guard(reply -> {
+            boolean confirmed = action.run.equals(reply.opt("run_id")) && key.id().equals(RunPrompts.id(reply))
                     && ("resolved".equals(reply.opt("status")) || "already_resolved".equals(reply.opt("status"))
                     || reply.optInt("resolved") > 0);
             if (confirmed) settled.add(key);
             else attempts.put(key, PromptCard.State.VERIFY);
             paint();
-        }, error -> {
+        }), action.guard(error -> {
             attempts.put(key, PromptCard.State.VERIFY);
             paint();
-        });
+        }));
     }
 
     void verify(JSONObject prompt) {
@@ -98,22 +97,23 @@ final class RunDecisions {
         if (!available(key, PromptCard.State.VERIFY)) return;
         attempts.put(key, PromptCard.State.CHECKING);
         paint();
-        page.request(() -> page.api.get(path), status -> {
-            if (run.equals(status.opt("run_id")) && (ThreadData.terminal(status.optString("status"))
-                    || status.optJSONArray("pending_controls") != null || key.generation() < 0)) {
+        RunAction action = observation.when(() -> available(key, PromptCard.State.CHECKING));
+        page.request(() -> page.api.get(action.path()), action.guard(status -> {
+            String state = status.optString("status");
+            if (action.run.equals(status.opt("run_id")) && (ThreadData.terminal(state) || "unknown".equals(state))) {
+                settled.add(key);
+            } else if (action.stoppable(status) && (status.optJSONArray("pending_controls") != null || key.generation() < 0)) {
                 RunPrompts fresh = new RunPrompts();
                 fresh.restore(status);
-                boolean waiting = false;
-                for (JSONObject row : fresh.snapshot()) if (key.equals(RunPrompts.key(row))) waiting = true;
-                if (!waiting) settled.add(key);
+                if (fresh.match(prompt) == null) settled.add(key);
                 attempts.remove(key);
             } else {
                 attempts.put(key, PromptCard.State.VERIFY);
             }
             paint();
-        }, error -> {
+        }), action.guard(error -> {
             attempts.put(key, PromptCard.State.VERIFY);
             paint();
-        });
+        }));
     }
 }
