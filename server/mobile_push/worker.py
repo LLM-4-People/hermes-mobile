@@ -48,11 +48,17 @@ def deliver(item, settings, store, sender):
         active = sender.send(item)
     except Exception as exc:
         # Credentials, request URLs, payloads and provider error messages stay out of logs.
-        log.warning("Push delivery deferred (%s), attempt %d", type(exc).__name__, item["attempts"] + 1)
         cap = min(settings.retry_max, max(60, settings.poll_seconds * 2 ** min(item["attempts"], 20)))
         backoff = random.uniform(max(1, cap / 2), cap)
+        provider = item["provider"] if item["provider"] in ("fcm", "unifiedpush") else "unknown"
+        reason, status = type(exc).__name__, "local"
         if isinstance(exc, ProviderError):
-            backoff = max(exc.retry_after, backoff)
+            backoff = max(min(exc.retry_after, settings.retention), backoff)
+            reason = exc.reason.value
+            if isinstance(exc.status, int):
+                status = exc.status
+        log.warning("Push deferred provider=%s code=%s status=%s attempt=%d retry_seconds=%.2f",
+                    provider, reason, status, item["attempts"] + 1, backoff)
         store.settle(item, retry_at=time.time() + backoff)
     else:
         store.settle(item, unregistered=not active)

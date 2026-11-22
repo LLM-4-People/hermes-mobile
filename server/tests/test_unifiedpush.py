@@ -21,7 +21,9 @@ from server.mobile_push.api import BASE, build_app
 from server.mobile_push.config import Settings
 from server.mobile_push.events import Event
 from server.mobile_push.provider import ProviderError
+from server.mobile_push.store import Store
 from server.mobile_push.transports import Transports
+from server.mobile_push.worker import deliver
 from server.mobile_push.webpush import WebPushConfig, base64url, public_bytes
 from support import fixture
 
@@ -132,6 +134,68 @@ class UnifiedPush(unittest.IsolatedAsyncioTestCase):
         self.reply = 410
         self.assertFalse(await asyncio.to_thread(self.senders.send, item))
         self.store.settle(item, unregistered=True)
+        self.assertEqual(await self.put(self.cap, self.body), 401)
+        self.assertIsNone(self.event("revoked")[1])
+
+    async def test_origin_identity_normalizes_case_and_default_port(self):
+        canonical = "https://push.example.test"
+        config = WebPushConfig.load(self.settings.state, "HTTPS://Push.Example.Test:443", self.contact)
+        self.assertEqual(config.origin, canonical)
+        topic = "/up123456789aBc?up=1"
+        for origin in (canonical, canonical + ":443", "HTTPS://PUSH.EXAMPLE.TEST:443"):
+            with self.subTest(origin=origin):
+                target, _ = config.target(dict(self.sub, endpoint=origin + topic))
+                self.assertEqual(target, canonical + topic)
+        for different in (canonical + ":444", "http://push.example.test", "https://other.example.test",
+                          "https://push.example.test.", "https://someone@push.example.test",
+                          "https://push.example.test:", canonical + "/", " " + canonical):
+            with self.subTest(different=different), self.assertRaises(ValueError):
+                config.target(dict(self.sub, endpoint=different + topic))
+
+    async def test_changed_trusted_origin_defers_until_restored_after_restart(self):
+        self.assertEqual(await self.put(self.owner, dict(self.body, management_key=self.cap)), 204)
+        event, item = self.event("one")
+        later = Event.make(["two"], "reminder", event.created_at + 1)
+        self.store.record([later])
+        moved = WebPushConfig.load(self.settings.state, "https://push.example.test", self.contact)
+        changed = replace(self.settings, webpush=moved)
+        senders = Transports(changed)
+        self.addCleanup(senders.close)
+        with self.assertLogs("hermes.mobile.push") as log, patch.object(senders.senders["unifiedpush"].session, "post") as post:
+            await asyncio.to_thread(deliver, item, changed, self.store, senders)
+        post.assert_not_called()
+        self.assertFalse(self.requests)
+        self.assertIn("provider=unifiedpush", log.output[0])
+        self.assertIn("origin_mismatch", log.output[0])
+        self.assertIn("retry_seconds=", log.output[0])
+        self.assertNotIn(self.sub["endpoint"], log.output[0])
+        self.assertNotIn(self.ident, log.output[0])
+
+        restarted = Store(self.settings.state)
+        # The active device and both deliveries must survive a configuration correction.
+        for _ in range(2):
+            claim = restarted.claim(time.time() + 120, 10)
+            self.assertIsNotNone(claim)
+            await asyncio.to_thread(deliver, claim, self.settings, restarted, self.senders)
+        self.assertIsNone(restarted.claim(time.time() + 121, 10))
+        self.assertEqual(len(self.requests), 2)
+        self.assertEqual(await self.put(self.cap, self.body), 204)
+
+    async def test_provider_status_backoff_and_confirmed_revocation(self):
+        self.assertEqual(await self.put(self.owner, dict(self.body, management_key=self.cap)), 204)
+        _, item = self.event("transport")
+        self.reply = 429
+        with self.assertLogs("hermes.mobile.push") as log:
+            await asyncio.to_thread(deliver, item, self.settings, self.store, self.senders)
+        for field in ("provider=unifiedpush", "status=429", "retry_seconds=90"):
+            self.assertIn(field, log.output[0])
+        for private in (self.sub["endpoint"], self.ident, self.sub["keys"]["auth"], self.cap):
+            self.assertNotIn(private, log.output[0])
+        self.assertIsNone(self.store.claim(time.time() + 60, 10))
+        retry = Store(self.settings.state).claim(time.time() + 91, 10)
+        self.assertEqual(retry["attempts"], 1)
+        self.reply = 410
+        await asyncio.to_thread(deliver, retry, self.settings, self.store, self.senders)
         self.assertEqual(await self.put(self.cap, self.body), 401)
         self.assertIsNone(self.event("revoked")[1])
 

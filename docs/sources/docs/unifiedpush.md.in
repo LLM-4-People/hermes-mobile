@@ -13,7 +13,7 @@ MOBILE_VAPID_SUBJECT=mailto:operator@example.org
 
 The origin is the exact HTTPS scheme, hostname and optional port of the ntfy instance. Set the same base URL on the phone. Use a valid VAPID subject with the operator's contact address. A loopback-only test can use `http://127.0.0.1:PORT`. Setup with UnifiedPush alone needs these two provider settings. Add the Firebase settings described in the [push guide](push.md) to also offer Firebase.
 
-On first startup the bridge generates a VAPID signing key in its owner-only state directory. Preserve that volume across updates and include it in private backups. The authenticated discovery endpoint advertises the public key to the phone. Moving a registration to another signing key or another origin requires enrolling again.
+On first startup the bridge generates a VAPID signing key in its owner-only state directory. Preserve that volume across updates and include it in private backups. The authenticated discovery endpoint advertises the public key to the phone. Scheme and host case and an explicit default port represent the same origin. When the bridge restarts with a different origin, pending events remain queued until their retention expires. Restore the intended origin to resume those deliveries. To move a phone to a different distributor server or signing key, enroll it again.
 
 ## Set up the phone
 

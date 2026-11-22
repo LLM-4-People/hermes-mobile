@@ -1,11 +1,21 @@
 """Shared provider wire semantics for the private event outbox."""
 from email.utils import parsedate_to_datetime
+from enum import Enum
 import time
 
 
+class Failure(Enum):
+    HTTP = "http_error"
+    ORIGIN = "origin_mismatch"
+    SUBSCRIPTION = "invalid_subscription"
+    DISABLED = "provider_disabled"
+
+
 class ProviderError(Exception):
-    def __init__(self, status, retry_after=0):
-        super().__init__(f"Push HTTP {status}")
+    def __init__(self, status=None, retry_after=0, *, reason=Failure.HTTP):
+        super().__init__(reason.value)
+        self.status = status
+        self.reason = reason
         self.retry_after = retry_after
 
 

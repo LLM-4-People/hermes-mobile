@@ -1,13 +1,13 @@
 """Encrypted UnifiedPush delivery to one operator-selected ntfy instance."""
 import base64
 from dataclasses import dataclass
+from ipaddress import IPv6Address
 import json
 import os
 from pathlib import Path
 import re
 import tempfile
 import time
-from urllib.parse import urlsplit
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
@@ -15,11 +15,38 @@ from py_vapid import Vapid
 from pywebpush import WebPusher
 import requests
 
-from .provider import ProviderError, lifetime, opaque_notice, retry_seconds
+from .provider import Failure, ProviderError, lifetime, opaque_notice, retry_seconds
 
 # ntfy Android's distributor chooses "up" followed by 12 random alphanumeric characters.
 TOPIC = re.compile(r"/up[A-Za-z0-9]{12}\?up=1")
 URL_KEY = re.compile(r"[a-zA-Z0-9_-]+={0,2}")
+ORIGIN = re.compile(r"(https?)://(\[[a-f0-9:.]+\]|[a-z0-9.-]+)(?::([0-9]+))?", re.IGNORECASE | re.ASCII)
+DNS_LABEL = re.compile(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?")
+
+
+class OriginMismatch(ValueError):
+    pass
+
+
+def canonical_origin(value):
+    match = ORIGIN.fullmatch(value) if isinstance(value, str) else None
+    if not match:
+        raise ValueError("Expected a bare HTTPS origin or HTTP 127.0.0.1")
+    scheme, host, raw_port = match.groups()
+    scheme, host = scheme.lower(), host.lower()
+    if host.startswith("["):
+        host = f"[{IPv6Address(host[1:-1]).compressed}]"
+    else:
+        name = host.removesuffix(".")
+        if len(name) > 253 or not all(DNS_LABEL.fullmatch(label) for label in name.split(".")):
+            raise ValueError("Invalid UnifiedPush host")
+    if scheme == "http" and host != "127.0.0.1":
+        raise ValueError("Cleartext UnifiedPush requires literal loopback")
+    default_port = 443 if scheme == "https" else 80
+    port = int(raw_port) if raw_port is not None else default_port
+    if not 0 < port <= 65535:
+        raise ValueError("Invalid UnifiedPush port")
+    return f"{scheme}://{host}" + (f":{port}" if port != default_port else "")
 
 
 def public_bytes(key):
@@ -70,15 +97,7 @@ class WebPushConfig:
 
     @classmethod
     def load(cls, directory, origin, subject):
-        parsed = urlsplit(origin)
-        # Reconstruct registrations from an exact canonical origin and a fixed endpoint grammar.
-        if (not parsed.hostname or parsed.username is not None or parsed.password is not None
-                or parsed.path or parsed.query or parsed.fragment or not origin.isascii()
-                or re.search(r"[^a-zA-Z0-9.:/\[\]-]", origin)
-                or parsed.scheme != "https" and (parsed.scheme != "http" or parsed.hostname != "127.0.0.1")):
-            raise ValueError("MOBILE_UNIFIEDPUSH_ORIGIN requires a bare HTTPS origin or HTTP 127.0.0.1")
-        if parsed.port is not None and not 0 < parsed.port <= 65535:
-            raise ValueError("Invalid UnifiedPush port")
+        origin = canonical_origin(origin)
         identity = load_identity(Path(directory))
         config = cls(origin, subject, identity)
         config.authorization()  # Validate the configured operator contact and audience at startup.
@@ -95,16 +114,21 @@ class WebPushConfig:
         if not isinstance(subscription, dict) or subscription.keys() != {"endpoint", "keys"}:
             raise ValueError("Invalid Web Push subscription")
         endpoint = subscription["endpoint"]
-        if (not isinstance(endpoint, str) or not endpoint.startswith(self.origin)
-                or not TOPIC.fullmatch(endpoint[len(self.origin):])):
-            raise ValueError("Endpoint outside configured ntfy service")
+        if not isinstance(endpoint, str):
+            raise ValueError("Invalid ntfy subscription address")
+        origin, _, name = endpoint.rpartition("/")
+        topic = "/" + name
+        if not TOPIC.fullmatch(topic):
+            raise ValueError("Invalid ntfy subscription path")
+        if canonical_origin(origin) != self.origin:
+            raise OriginMismatch("Endpoint outside configured ntfy service")
         keys = subscription["keys"]
         if not isinstance(keys, dict) or keys.keys() != {"auth", "p256dh"}:
             raise ValueError("Invalid Web Push key fields")
         point = decode_key(keys["p256dh"], 65)
         ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256R1(), point)
         auth = decode_key(keys["auth"], 16)
-        return endpoint, {"p256dh": base64url(point), "auth": base64url(auth)}
+        return self.origin + topic, {"p256dh": base64url(point), "auth": base64url(auth)}
 
 
 class WebPushSender:
@@ -119,12 +143,15 @@ class WebPushSender:
         ttl = lifetime(item, self.retention, time.time())
         if ttl == 0:
             return True
-        sub = {"endpoint": item["token"], "keys": json.loads(item["webpush_keys"])}
-        # Revalidate the operator-pinned origin after restarts and configuration changes.
+        # A local policy change can be reversed. Only a response from the accepted
+        # distributor can invalidate a registration and discard all its deliveries.
         try:
-            self.config.target(sub)
-        except ValueError:
-            return False
+            endpoint, keys = self.config.target({"endpoint": item["token"], "keys": json.loads(item["webpush_keys"])})
+        except OriginMismatch as exc:
+            raise ProviderError(reason=Failure.ORIGIN) from exc
+        except (ValueError, TypeError) as exc:
+            raise ProviderError(reason=Failure.SUBSCRIPTION) from exc
+        sub = {"endpoint": endpoint, "keys": keys}
         data = json.dumps(opaque_notice(item), separators=(",", ":")).encode()
         body = WebPusher(sub).encode(data, content_encoding="aes128gcm")["body"]
         headers = self.config.authorization()

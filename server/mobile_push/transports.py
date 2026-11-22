@@ -1,5 +1,5 @@
 from .fcm import FirebaseSender
-from .provider import ProviderError
+from .provider import Failure, ProviderError
 from .webpush import WebPushSender
 
 
@@ -15,7 +15,7 @@ class Transports:
         sender = self.senders.get(item["provider"])
         if sender is None:
             # Retain the subscription across temporary provider maintenance.
-            raise ProviderError(503)
+            raise ProviderError(reason=Failure.DISABLED)
         return sender.send(item)
 
     def close(self):
