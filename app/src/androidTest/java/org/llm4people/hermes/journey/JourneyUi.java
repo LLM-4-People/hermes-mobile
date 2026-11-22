@@ -88,7 +88,7 @@ public final class JourneyUi {
         throw new AssertionError("Timed out waiting for " + expectation);
     }
 
-    void see(String label) {
+    public void see(String label) {
         until(label, () -> find(window(), v -> named(v, label)));
     }
 
@@ -159,10 +159,13 @@ public final class JourneyUi {
         tap(target, label);
     }
 
-    void tapButton(String label) {
-        View target = until("button " + label, () -> find(window(),
+    public Button button(String label) {
+        return (Button) until("button " + label, () -> find(window(),
                 v -> v instanceof Button && v.isEnabled() && named(v, label)));
-        tap(target, label);
+    }
+
+    public void tapButton(String label) {
+        tap(button(label), label);
     }
 
     void showPendingControl(String expected) {

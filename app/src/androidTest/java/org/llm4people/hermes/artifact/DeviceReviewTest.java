@@ -7,15 +7,13 @@ import android.content.Intent;
 import android.os.Build;
 import android.test.InstrumentationTestCase;
 import android.view.View;
-import android.view.ViewGroup;
-import android.view.inspector.WindowInspector;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
-import android.widget.TextView;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import org.llm4people.hermes.Ui;
+import org.llm4people.hermes.journey.JourneyUi;
 
 @SuppressWarnings("deprecation")
 public class DeviceReviewTest extends InstrumentationTestCase {
@@ -48,76 +46,51 @@ public class DeviceReviewTest extends InstrumentationTestCase {
         External external = new External();
         driver.addMonitor(external);
         try {
-            Button[] review = new Button[1], stale = new Button[1];
+            JourneyUi ui = new JourneyUi(driver, activity, null);
             EditText[] draft = new EditText[1];
             runTestOnUiThread(() -> {
                 LinearLayout root = Ui.column(activity);
+                root.setFocusableInTouchMode(true);
                 draft[0] = new EditText(activity);
                 draft[0].setText("Brouillon privé");
                 root.addView(draft[0]);
                 View page = InstrumentPreview.render(activity, DeviceActionContractTest.page(REQUEST), host);
                 root.addView(page);
                 activity.setContentView(root);
-                review[0] = (Button) find(page, "Vérifier le lieu");
-                assertNotNull(review[0]);
-                review[0].performClick();
-                assertNotNull(inWindow(QUERY));
-                assertEquals(0, external.count);
-                inWindow("Annuler").performClick();
             });
-            driver.waitForIdleSync();
+            ui.tapButton("Vérifier le lieu");
+            ui.see("Ouvrir la carte");
+            ui.see(QUERY);
+            assertEquals(0, external.count);
+            ui.tapButton("Annuler");
+
+            ui.tapButton("Vérifier le lieu");
+            Button stale = ui.button("Ouvrir la carte");
             runTestOnUiThread(() -> {
-                assertEquals(0, external.count);
-                review[0].performClick();
-                stale[0] = (Button) inWindow("Ouvrir la carte");
                 generation.incrementAndGet();
                 ArtifactDesk.refreshBindings(activity.findViewById(android.R.id.content), host);
-                stale[0].performClick();
+                stale.performClick();
             });
             driver.waitForIdleSync();
-            runTestOnUiThread(() -> {
-                assertEquals(0, external.count);
-                review[0].performClick();
-                inWindow("Ouvrir la carte").performClick();
-            });
-            driver.waitForIdleSync();
+            assertEquals(0, external.count);
+
+            ui.tapButton("Vérifier le lieu");
+            ui.tapButton("Ouvrir la carte");
             runTestOnUiThread(() -> {
                 assertEquals(1, external.count);
                 assertEquals(Intent.ACTION_VIEW, external.requested.getAction());
                 assertEquals("geo:0,0?q=Caf%C3%A9%20A%20%26%20B%2C%20Montr%C3%A9al", external.requested.getDataString());
                 assertEquals("Brouillon privé", draft[0].getText().toString());
-                review[0].performClick();
                 external.missing = true;
-                inWindow("Ouvrir la carte").performClick();
             });
-            driver.waitForIdleSync();
-            runTestOnUiThread(() -> {
-                assertNotNull(inWindow("Application indisponible"));
-                assertEquals("Brouillon privé", draft[0].getText().toString());
-                inWindow("Fermer").performClick();
-            });
+            ui.tapButton("Vérifier le lieu");
+            ui.tapButton("Ouvrir la carte");
+            ui.see("Application indisponible");
+            ui.tapButton("Fermer");
+            ui.see("Brouillon privé");
         } finally {
             driver.removeMonitor(external);
             runTestOnUiThread(() -> { ArtifactDesk.dismiss(activity); activity.finish(); });
         }
-    }
-
-    private static View inWindow(String label) {
-        for (View root : WindowInspector.getGlobalWindowViews()) {
-            View match = find(root, label);
-            if (match != null) return match;
-        }
-        throw new AssertionError("Missing visible control " + label);
-    }
-
-    private static View find(View root, String label) {
-        if (root instanceof TextView text && label.contentEquals(text.getText())) return root;
-        if (root instanceof ViewGroup group) {
-            for (int i = 0; i < group.getChildCount(); i++) {
-                View match = find(group.getChildAt(i), label);
-                if (match != null) return match;
-            }
-        }
-        return null;
     }
 }
