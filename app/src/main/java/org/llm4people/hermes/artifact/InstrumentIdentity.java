@@ -65,10 +65,14 @@ final class InstrumentIdentity {
         if (a.fields.size() != b.fields.size()) return false;
         for (int i = 0; i < a.fields.size(); i++) {
             DraftForm.Field x = a.fields.get(i), y = b.fields.get(i);
-            if (!x.id.equals(y.id) || !x.label.equals(y.label) || !x.kind.equals(y.kind)
-                    || x.required != y.required || !x.options.equals(y.options)) return false;
+            if (!sameField(x, y)) return false;
         }
         return true;
+    }
+
+    static boolean sameField(DraftForm.Field x, DraftForm.Field y) {
+        return x.id.equals(y.id) && x.label.equals(y.label) && x.kind.equals(y.kind)
+                && x.required == y.required && x.options.equals(y.options);
     }
 
     static List<String> blockLabels(List<WorkspaceLayout.Block> blocks) {

@@ -101,6 +101,30 @@ public final class InstrumentComparisonTest extends TestCase {
         }
     }
 
+    public void testSameNamedFieldsIdentifyEditsWithoutReportingUnchangedPeers() throws Exception {
+        String a = FIELD.replace("file", "contrainte_a").replace("Fichier", "Contrainte");
+        String b = a.replace("contrainte_a", "contrainte-a");
+        String optional = ",\"required\":false}";
+        WorkspaceLayout both = page(form(a + "," + b));
+        List<InstrumentChanges.Change> editA = InstrumentChanges.between(both, page(form(a.replace("}", optional) + "," + b)));
+        List<InstrumentChanges.Change> editB = InstrumentChanges.between(both, page(form(a + "," + b.replace("}", optional))));
+        assertEquals(1, editA.size());
+        assertEquals(1, editB.size());
+        assertTrue(editA.get(0).before().contains("(contrainte_a)"));
+        assertTrue(editA.get(0).after().contains("(contrainte_a)"));
+        assertTrue(editB.get(0).before().contains("(contrainte-a)"));
+        assertTrue(editB.get(0).after().contains("(contrainte-a)"));
+
+        // Introducing or losing a name collision doesn't change the surviving field's definition.
+        WorkspaceLayout justA = page(form(a));
+        List<InstrumentChanges.Change> added = InstrumentChanges.between(justA, both);
+        List<InstrumentChanges.Change> removed = InstrumentChanges.between(both, justA);
+        assertEquals(1, added.size());
+        assertEquals(1, removed.size());
+        assertTrue(added.get(0).after().contains("(contrainte-a)"));
+        assertTrue(removed.get(0).before().contains("(contrainte-a)"));
+    }
+
     public void testAuthoredLabelsThatResembleGeneratedQualifiersStillHaveDistinctOrder() throws Exception {
         String a = FIELD.replace("Fichier", "Même");
         String b = a.replace("file", "duplicat");

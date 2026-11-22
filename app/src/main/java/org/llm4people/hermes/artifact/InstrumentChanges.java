@@ -75,17 +75,21 @@ final class InstrumentChanges {
             }
             case "form" -> {
                 changed(changes, group, "Consigne du brouillon", old.prompt, next.prompt);
-                Map<String, String> prior = fields(old), after = fields(next);
+                Map<String, DraftForm.Field> prior = new LinkedHashMap<>();
+                for (DraftForm.Field field : old.fields) prior.put(field.id, field);
+                Map<String,String> oldNames = InstrumentIdentity.fieldLabels(old.fields);
+                Map<String,String> nextNames = InstrumentIdentity.fieldLabels(next.fields);
                 for (DraftForm.Field field : next.fields) {
-                    if (!prior.containsKey(field.id))
-                        changes.add(new Change(group, "Champ ajouté", null, after.get(field.id)));
-                    else changed(changes, group, "Champ modifié", prior.get(field.id), after.get(field.id));
+                    DraftForm.Field oldField = prior.get(field.id);
+                    if (oldField == null) changes.add(new Change(group, "Champ ajouté",
+                            null, describe(field, nextNames.get(field.id))));
+                    else if (!InstrumentIdentity.sameField(oldField, field)) changes.add(new Change(group, "Champ modifié",
+                            describe(oldField, oldNames.get(field.id)), describe(field, nextNames.get(field.id))));
                 }
-                for (DraftForm.Field field : old.fields) if (!after.containsKey(field.id))
-                    changes.add(new Change(group, "Champ retiré", prior.get(field.id), null));
-                Map<String,String> labels = InstrumentIdentity.fieldLabels(next.fields);
-                order(changes, group, "Ordre des champs", new ArrayList<>(prior.keySet()),
-                        new ArrayList<>(after.keySet()), labels);
+                for (DraftForm.Field field : old.fields) if (!nextNames.containsKey(field.id))
+                    changes.add(new Change(group, "Champ retiré", describe(field, oldNames.get(field.id)), null));
+                order(changes, group, "Ordre des champs", new ArrayList<>(oldNames.keySet()),
+                        new ArrayList<>(nextNames.keySet()), nextNames);
             }
         }
     }
@@ -102,14 +106,10 @@ final class InstrumentChanges {
         changes.add(new Change(group, what, lines(before), lines(after)));
     }
 
-    private static Map<String,String> fields(WorkspaceLayout.Block form) {
-        Map<String,String> result = new LinkedHashMap<>();
-        for (DraftForm.Field f : form.fields) {
-            String details = InstrumentIdentity.kind(f.kind) + (f.required ? " obligatoire" : " facultatif");
-            if (!f.options.isEmpty()) details += "\n" + lines(f.options);
-            result.put(f.id, f.label + "\n" + details);
-        }
-        return result;
+    private static String describe(DraftForm.Field field, String name) {
+        String details = InstrumentIdentity.kind(field.kind) + (field.required ? " obligatoire" : " facultatif");
+        if (!field.options.isEmpty()) details += "\n" + lines(field.options);
+        return name + "\n" + details;
     }
 
     static String describe(WorkspaceLayout.Block block) {
@@ -117,7 +117,8 @@ final class InstrumentChanges {
         switch (block.type) {
             case "form" -> {
                 items.add(block.prompt);
-                items.addAll(fields(block).values());
+                Map<String,String> names = InstrumentIdentity.fieldLabels(block.fields);
+                for (DraftForm.Field field : block.fields) items.add(describe(field, names.get(field.id)));
             }
             case "section" -> {
                 if (!block.note.isEmpty()) items.add(block.note);
