@@ -1,4 +1,12 @@
 <resources>
+    <string name="profile_connect_detail">Un même serveur Hermes (fork LLM-4-People/hermes-agent) peut héberger plusieurs profils isolés sous la même adresse HTTPS.</string>
+    <string name="profile_server_slug_label">Profil serveur (optionnel)</string>
+    <string name="profile_server_slug_hint">Ex. alice (vide = profil principal)</string>
+    <string name="profile_server_slug_help">Indiquez votre identifiant de profil pour composer automatiquement /p/profil sur le même serveur.</string>
+    <string name="profile_endpoint_preview">Adresse utilisée : %1$s</string>
+    <string name="profile_server_url_invalid">Saisissez l’adresse HTTPS du serveur Hermes.</string>
+    <string name="profile_server_slug_invalid">Utilisez un identifiant simple (lettres, chiffres, tirets ou tirets bas, sans chemin).</string>
+    <string name="profile_server_slug_conflict">L’adresse du serveur pointe déjà vers un autre profil.</string>
     <string name="profile_lock_section">Verrouillage du profil</string>
     <string name="profile_lock_detail">Cette phrase chiffre vos accès et déverrouille le profil sur cet appareil.</string>
     <plurals name="profile_passphrase_hint">

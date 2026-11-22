@@ -1,4 +1,4 @@
-"""Check two real Hermes runtime boundaries over locally trusted TLS in a disposable Compose project."""
+"""Check two isolated Hermes profiles behind one single-hostname HTTPS ingress over locally trusted TLS."""
 import argparse
 import http.client
 import json
@@ -12,7 +12,9 @@ import uuid
 
 import push_probe
 
-from accounts import CADDY_IMAGE, account_map, provision, push_transports, stack, write_file
+from accounts import (
+    CADDY_IMAGE, provision, push_transports, stack, validate_hostname, validate_profiles, write_file,
+)
 
 
 def wait_for(check, seconds):
@@ -29,14 +31,15 @@ def wait_for(check, seconds):
 
 
 class Probe:
-    def __init__(self, directory, compose, accounts):
+    def __init__(self, directory, compose, host, profiles):
         self.root = directory
         self.compose = compose
-        self.accounts = accounts
+        self.host = host
+        self.profiles = list(profiles)
         self.ca = self.root / "root.crt"
         self.port = int(self.command("port", "https", "443").rsplit(":", 1)[1])
         self.keys = {name: (directory / "accounts" / name / "gateway.env").read_text()
-                     .strip().split("=", 1)[1] for name in accounts}
+                     .strip().split("=", 1)[1] for name in self.profiles}
 
     def command(self, *args):
         return subprocess.run([*self.compose, *args], capture_output=True, check=True, text=True).stdout.strip()
@@ -45,12 +48,11 @@ class Probe:
         self.command("cp", "https:/data/caddy/pki/authorities/local/root.crt", str(self.ca))
         return self.ca.exists()
 
-    def request(self, name, key, method, path, data=None):
-        host = self.accounts[name]
+    def raw_request(self, key, method, path, data=None):
         with socket.create_connection(("127.0.0.1", self.port), timeout=4) as sock:
             tls = ssl.create_default_context(cafile=self.ca)
-            with tls.wrap_socket(sock, server_hostname=host) as wire:
-                connection = http.client.HTTPConnection(host)
+            with tls.wrap_socket(sock, server_hostname=self.host) as wire:
+                connection = http.client.HTTPConnection(self.host)
                 connection.sock = wire
                 connection.request(method, path, json.dumps(data) if data else None, {
                     "Authorization": "Bearer " + key, "Content-Type": "application/json"})
@@ -58,6 +60,9 @@ class Probe:
                 status, body = response.status, response.read()
                 connection.close()
         return status, body
+
+    def request(self, name, key, method, path, data=None):
+        return self.raw_request(key, method, f"/p/{name}{path}", data=data)
 
     def gateways_ready(self):
         return all(self.request(name, key, "GET", "/v1/capabilities")[0] == 200
@@ -78,13 +83,17 @@ class Probe:
     def run(self):
         wait_for(self.cert_ready, 45)
         wait_for(self.gateways_ready, 150)
-        self.check(True, "both gateways accepted their own account key over verified TLS")
+        self.check(True, f"both profiles accepted their own key on single host https://{self.host}")
+        self.check(self.raw_request(self.keys["north"], "GET", "/v1/capabilities")[0] == 404,
+                   "unprefixed root path returns 404")
+        self.check(self.raw_request(self.keys["north"], "GET", "/p/unknown/v1/capabilities")[0] == 404,
+                   "unknown profile path returns 404")
         for name, other in [("north", "south"), ("south", "north")]:
             key = self.keys[name]
             status, _ = self.request(other, key, "GET", "/v1/capabilities")
-            self.check(status == 401, f"{other} rejected {name}'s key")
+            self.check(status == 401, f"/p/{other} rejected {name}'s key on the same host")
             status, _ = self.request(name, key, "GET", "/p/other/v1/capabilities")
-            self.check(status == 404, f"{name} gateway exposed only its unprefixed runtime")
+            self.check(status == 404, f"/p/{name} rejected nested /p/ prefix")
             status, body = self.request(name, key, "GET", "/v1/capabilities")
             capabilities = json.loads(body)
             self.check(status == 200 and capabilities["features"].get("run_clarify_response")
@@ -92,7 +101,7 @@ class Probe:
                            "method": "POST", "path": "/v1/runs/{run_id}/clarify",
                        }, f"{name} advertises the canonical clarification response route")
             self.check(self.clarify_enabled(name),
-                       f"{name}'s fresh API account enables the clarify toolset")
+                       f"{name}'s fresh API profile enables the clarify toolset")
             thread = "mobile_" + uuid.uuid4().hex
             status, _ = self.request(name, key, "POST", "/api/sessions", {"id": thread, "title": "Private fixture"})
             self.check(status == 201, f"{name} created a private API thread")
@@ -135,30 +144,31 @@ class Probe:
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--image", required=True, help="Same immutable Hermes image as the deployment")
+    parser.add_argument("--image", required=True, help="Same immutable LLM-4-People/hermes-agent image as the deployment")
     parser.add_argument("--push", action="store_true", help="Verify both push bridges and their own reminder ledgers")
     parser.add_argument("--proxy-image", default=CADDY_IMAGE)
     parser.add_argument("--plugin-dir", type=Path, help="Use a staged mobile file-artifact plugin")
     args = parser.parse_args()
     with tempfile.TemporaryDirectory(prefix="hermes-mobile-smoke-") as temp:
         root = Path(temp)
-        accounts = account_map(["north=north.localhost", "south=south.localhost"])
-        project = provision(root, accounts)
+        host = validate_hostname("hermes.localhost")
+        profiles = validate_profiles(["north", "south"])
+        project = provision(root, profiles)
         if args.push:
-            push_probe.prepare(root, accounts)
-        pushes = push_transports(root, accounts if args.push else [])
-        config, caddy = stack(accounts, pushes, args.image, args.proxy_image, True, 0, plugin=args.plugin_dir)
+            push_probe.prepare(root, profiles)
+        pushes = push_transports(root, profiles if args.push else [])
+        config, caddy = stack(host, profiles, pushes, args.image, args.proxy_image, True, 0, plugin=args.plugin_dir)
         config["name"] = project
         write_file(root / "Caddyfile", caddy)
         write_file(root / "compose.json", json.dumps(config))
         compose = ["docker", "compose", "-f", str(root / "compose.json")]
         try:
-            for name in accounts:
+            for name in profiles:
                 subprocess.run([*compose, "run", "--rm", "-T", "gateway-" + name,
                                 "plugins", "enable", "mobile_artifacts"], check=True,
                                stdout=subprocess.DEVNULL)
             subprocess.run([*compose, "up", "-d"], check=True)
-            probe = Probe(root, compose, accounts)
+            probe = Probe(root, compose, host, profiles)
             probe.run()
             if args.push:
                 push_probe.verify(probe, wait_for)

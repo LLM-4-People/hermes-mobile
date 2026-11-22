@@ -8,11 +8,11 @@ android
 
 ## Stack
 
-Native Android views, with Java and the Android SDK. This project starts with an empty repository and connects to a separately hosted Hermes Agent.
+Native Android views, with Java and the Android SDK. This app requires our own Hermes Agent fork at [LLM-4-People/hermes-agent](https://github.com/LLM-4-People/hermes-agent) for single-host multi-profile `/p/{profile}`, run-scoped instructions, live UI editing, universal push, universal sharing, Smart Notes, visual approval diffs, and Brain Studio.
 
 ## Users and operating context
 
-People use their own protected Hermes profile to chat, write code, and return to long-running work from a phone or tablet. A device can hold more than one account. The people who own those accounts can have different private workspaces and provider credentials.
+People use their own protected Hermes profile to chat, write code, and return to long-running work from a phone or tablet. One single HTTPS server hostname serves all users and profiles under `/p/<profile>`, each isolated in its own profile directory with its own private workspace, provider credentials, and access key—without needing a separate HTTPS hostname per person. A device can hold more than one account, and users on the same server can share notes, tools, widgets, and discussions with one another.
 
 ## Product purpose
 
@@ -24,7 +24,7 @@ People describe what they want in everyday language, by typing or speaking. Herm
 
 The APK speaks to the Hermes API. Sessions, jobs, model inventory and available tools come from the connected runtime. Show the source and scope of each usage metric. An unavailable cost or timing measurement needs an explicit unknown state.
 
-A user can receive a private alert while the app is closed and unlock the owning account before opening its thread. Protect different people with separately isolated server runtimes. An agent can propose changes to the workspace in the conversation where the need arises. The user can preview, apply, and undo them.
+A user can receive a private alert while the app is closed and unlock the owning account before opening its thread. One single HTTPS server hostname serves all users while isolating each person’s profile directory, workspace, credentials, and access key (and allowing controlled sharing of notes, tools, widgets, and discussions on the same server). An agent can propose changes to the workspace in the conversation where the need arises. The user can preview, apply, and undo them.
 
 ## Product principles
 

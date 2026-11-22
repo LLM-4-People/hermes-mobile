@@ -1,6 +1,6 @@
 # Verify the real Hermes API
 
-The acceptance check starts the fork's gateway in two new temporary homes. Two recording OpenAI-compatible endpoints return distinct French replies over loopback. The fixture selects the alternate provider and model in an existing discussion, then switches back. It checks which endpoint received each turn and the model named in the actual inference request. The script checks authenticated discovery, private thread lists, chat, coding, tool results, token accounting, reminder creation and editing, SSE replay and idempotency after an actual gateway restart.
+The acceptance check starts our Hermes Agent fork ([LLM-4-People/hermes-agent](https://github.com/LLM-4-People/hermes-agent)) in two new temporary homes. Two recording OpenAI-compatible endpoints return distinct French replies over loopback. The fixture selects the alternate provider and model in an existing discussion, then switches back. It checks which endpoint received each turn and the model named in the actual inference request. The script checks authenticated discovery, private thread lists, chat, coding, tool results, token accounting, reminder creation and editing, SSE replay and idempotency after an actual gateway restart.
 
 Prepare a clean checkout of the fork with its Python development environment. The check verifies the checkout against the revision in `verification/gateway_fixture.py`. Run this from the mobile repository, with `fork` set to that checkout's absolute path.
 

@@ -3,10 +3,13 @@ package org.llm4people.hermes.profile;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
+import android.text.Editable;
 import android.text.InputType;
+import android.text.TextWatcher;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.TextView;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
@@ -109,9 +112,16 @@ public final class ProfileGate {
     private void add(boolean canGoBack) {
         generation++;
         nested = canGoBack;
-        ProfileScreen screen = new ProfileScreen(activity, "Connecter Hermes", null);
+        ProfileScreen screen = new ProfileScreen(
+                activity, "Connecter Hermes", activity.getString(R.string.profile_connect_detail));
         EditText name = screen.field("Nom du profil", "Ex. Personnel", TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES, 80, false);
         EditText server = screen.field("Adresse du serveur", "https://hermes.exemple.fr", TEXT | InputType.TYPE_TEXT_VARIATION_URI, 2048, false);
+        EditText serverProfile = screen.field(
+                activity.getString(R.string.profile_server_slug_label),
+                activity.getString(R.string.profile_server_slug_hint),
+                TEXT | InputType.TYPE_TEXT_VARIATION_URI, 64, false);
+        TextView endpointPreview = screen.note(activity.getString(R.string.profile_server_slug_help));
+        watchEndpointPreview(server, serverProfile, endpointPreview);
         EditText key = screen.field("Clé d’accès Hermes", "", SECRET, 8192, true);
         screen.section(activity.getString(R.string.profile_lock_section), activity.getString(R.string.profile_lock_detail));
         EditText phrase = screen.field("Phrase secrète du profil",
@@ -127,11 +137,26 @@ public final class ProfileGate {
             if (store.profiles().values().stream().anyMatch(label::equalsIgnoreCase)) {
                 invalid(name, "Ce nom est déjà utilisé sur cet appareil."); return;
             }
+            String serverText = server.getText().toString();
+            String slugText = serverProfile.getText().toString();
+            try {
+                GatewayAddress.normalize(serverText);
+            } catch (IllegalArgumentException ex) {
+                Diagnostics.warning("profile", "invalid_gateway_address", ex);
+                invalid(server, activity.getString(R.string.profile_server_url_invalid)); return;
+            }
+            try {
+                GatewayAddress.normalizeProfileSlug(slugText);
+            } catch (IllegalArgumentException ex) {
+                Diagnostics.warning("profile", "invalid_server_profile", ex);
+                invalid(serverProfile, activity.getString(R.string.profile_server_slug_invalid)); return;
+            }
             String endpoint;
             try {
-                endpoint = GatewayAddress.normalize(server.getText().toString());
+                endpoint = GatewayAddress.normalize(serverText, slugText);
             } catch (IllegalArgumentException ex) {
-                invalid(server, "Saisissez l’adresse HTTPS du serveur, avec son préfixe de profil si nécessaire."); return;
+                Diagnostics.warning("profile", "conflicting_server_profile", ex);
+                invalid(serverProfile, activity.getString(R.string.profile_server_slug_conflict)); return;
             }
             String bearer = checkedBearer(key);
             if (bearer == null) return;
@@ -168,6 +193,28 @@ public final class ProfileGate {
             Diagnostics.warning("biometric", "serialize_failed");
             callback.onError();
         }
+    }
+
+    private void watchEndpointPreview(EditText server, EditText serverProfile, TextView preview) {
+        TextWatcher watcher = new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {}
+            @Override public void afterTextChanged(Editable s) {
+                String slugText = serverProfile.getText().toString().trim();
+                if (slugText.isEmpty()) {
+                    preview.setText(activity.getString(R.string.profile_server_slug_help));
+                    return;
+                }
+                try {
+                    String composed = GatewayAddress.normalize(server.getText().toString(), slugText);
+                    preview.setText(activity.getString(R.string.profile_endpoint_preview, composed));
+                } catch (IllegalArgumentException ignored) {
+                    preview.setText(activity.getString(R.string.profile_server_slug_help));
+                }
+            }
+        };
+        server.addTextChangedListener(watcher);
+        serverProfile.addTextChangedListener(watcher);
     }
 
     private void unlock(String id, String label) {
