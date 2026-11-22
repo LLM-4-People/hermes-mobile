@@ -430,7 +430,7 @@ final class ThreadInstrumentPanel {
         return true;
     }
 
-    void livePrompt() { if (viewport.open() && !viewport.wide()) close(); }
+    void revealDiscussionIfCompact() { if (viewport.open() && !viewport.wide()) close(); }
 
     private void discard() {
         ++document;

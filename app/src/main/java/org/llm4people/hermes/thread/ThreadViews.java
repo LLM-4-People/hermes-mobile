@@ -134,7 +134,11 @@ final class ThreadViews {
         input.setText(draft);
         input.setSelection(input.length());
         composerVoice = voice.bind(input);
-        send = Ui.button(activity, "Envoyer", v -> { composerVoice.cancel(); onSend.run(); });
+        send = Ui.button(activity, "Envoyer", v -> {
+            composerVoice.cancel();
+            if (instruments != null) instruments.revealDiscussionIfCompact();
+            onSend.run();
+        });
         stop = Ui.button(activity, "Arrêter", v -> onStop.run());
         composer.addView(input, new LinearLayout.LayoutParams(0, -2, 1));
         composer.addView(composerVoice.button);
@@ -277,7 +281,7 @@ final class ThreadViews {
     }
 
     void live(String detail, String text, boolean hasPrompts, RunPreview.Origin origin) {
-        if (hasPrompts && instruments != null) instruments.livePrompt();
+        if (hasPrompts && instruments != null) instruments.revealDiscussionIfCompact();
         boolean atEnd = list.getLastVisiblePosition() >= list.getCount() - 1;
         progress.setVisibility(detail.isEmpty() ? View.GONE : View.VISIBLE);
         progress.setText(detail);
