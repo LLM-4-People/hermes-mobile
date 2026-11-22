@@ -4,6 +4,9 @@
     <instrumentation
         android:name="org.llm4people.hermes.journey.DeviceJourney"
         android:targetPackage="${hermesApplicationId}" />
+    <instrumentation
+        android:name="org.llm4people.hermes.journey.ConversationCardsJourney"
+        android:targetPackage="${hermesApplicationId}" />
     <application>
         <uses-library android:name="android.test.runner" />
     </application>
