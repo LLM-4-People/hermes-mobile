@@ -18,6 +18,8 @@ Write a request in your own words or tap **Dicter** and speak. For example, ask 
 
 When Hermes has a question, its suggestions appear in the discussion. Tap a single choice, select several if the question allows it, or choose **Écrire une réponse** to type or dictate your own answer. A coding approval shows what Hermes proposes and lets you inspect the technical details. You can allow that action once or decline it from the same screen.
 
+Tap **Écouter** on a question or choose **Écouter la dernière réponse** from the discussion menu to listen. Playback uses an installed offline French voice and stops when you leave the discussion, lock the account, or begin dictating.
+
 ## Work in a discussion
 
 - **Chat and code.** Follow a streaming reply, inspect tool activity and cancel ongoing work. On disconnect, the app uses the saved run identity and server state to reconcile the thread. An uncertain coding action needs an explicit decision before it can run again.
