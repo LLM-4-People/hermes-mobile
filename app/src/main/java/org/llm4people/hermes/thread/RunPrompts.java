@@ -42,14 +42,10 @@ final class RunPrompts {
         }
     }
 
-    /** Accept standalone requests directly. A new canonical identity needs an authoritative status
-     * check because a replayed request may already have settled before this subscription opened. */
+    /** Request events can be replayed after settlement. Only authenticated status admits a prompt. */
     boolean requestNeedsSnapshot(JSONObject event) {
         Key identity = key(event);
-        if (identity == null) return false;
-        if (identity.generation() >= 0) return match(event) == null;
-        add(event);
-        return false;
+        return identity != null && !waiting.containsKey(identity);
     }
 
     private void add(JSONObject prompt) {
