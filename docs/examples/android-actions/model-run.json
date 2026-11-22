@@ -1,0 +1,15 @@
+{
+  "model": "OpenVINO/Qwen2.5-Coder-7B-Instruct-int4-ov",
+  "model_weights_sha256": "dac6b4bc81ab5b0c555b3d8abbfb0ebe3740d2b97d2a484c4b6561f2a08fd250",
+  "gateway_revision": "3f194698f9cb586d3302129e744ed30e18c3d6ff",
+  "mobile_guidance_revision": "743c49a53c16510e3c8eb7f6b8d1297266ef5f3f",
+  "android_parser_revision": "8e2b5c66c0c428aa72de93cee98564e302cb3b82",
+  "run_id": "run_69a151db8d044a8cb5d359e7d7da2ef3",
+  "run_status": "completed",
+  "source_message_id": 2,
+  "user_prompt": "Je prépare un atelier de dessin à la Maison des arts de Laval le 12 avril 2027 de 14 h à 15 h, heure de Laval (UTC−04:00). Peux-tu me préparer un rendez-vous à ouvrir dans mon agenda, un message à partager avec mon équipe et une recherche pour retrouver ce lieu sur la carte de mon téléphone ?",
+  "assistant_output": "```hermes-workspace\n{\"version\":1,\"surface\":\"page/atelier-dessin\",\"mode\":\"replace\",\"title\":\"Atelier de dessin\",\"blocks\":[\n{\"type\":\"device\",\"request\":{\"kind\":\"calendar_event\",\"title\":\"Atelier de dessin à Laval\",\"start\":\"2027-04-12T14:00:00-04:00\",\"end\":\"2027-04-12T15:00:00-04:00\",\"location\":\"Maison des arts de Laval\"}},\n{\"type\":\"device\",\"request\":{\"kind\":\"share_text\",\"text\":\"Atelier de dessin à Laval le 12 avril 2027 de 14 h à 15 h. Joinez-nous !\"}},\n{\"type\":\"device\",\"request\":{\"kind\":\"map_search\",\"query\":\"Maison des arts de Laval, Laval\"}}\n]}\n```",
+  "assistant_output_sha256": "4ec3c984fd5b38c9c8d787cbcb0d2eea967457bb311fa9e5289438956f7e901a",
+  "provider_tools_offered": 0,
+  "phone_actions_launched": 0
+}

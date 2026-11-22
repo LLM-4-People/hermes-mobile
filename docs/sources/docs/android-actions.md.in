@@ -48,6 +48,10 @@ A compatible assistant can return this page. The calendar action carries its own
 }
 ```
 
+## A recorded local model run
+
+A local Qwen2.5-Coder-7B-Instruct model received an ordinary French request for a drawing workshop in Laval. It returned a calendar event for 14 h to 15 h with the requested UTC−04:00 offset, a text for the team and a map query for the Maison des arts de Laval. The 554-byte reply matched the provider output, the completed gateway run and assistant message 2 in its conversation. The Android parser accepted all three blocks on the host. This run stopped before opening a phone app. The receipt preserves the model’s original wording, including “Joinez-nous !”. [Exact request, reply and run identifiers](examples/android-actions/model-run.json)
+
 ## What the gateway supplies
 
 The mobile app sends its supported action shapes in the existing `instructions` field of `POST /v1/runs`. The pinned gateway passes those instructions and the selected conversation to the model. An assistant reply supplies the page document. Preparing or opening one of its device actions requires no new gateway route, plugin or provider credential. Other API clients retain their own instructions. [Pinned Hermes run admission](https://github.com/LLM-4-People/hermes-agent/blob/3f194698f9cb586d3302129e744ed30e18c3d6ff/gateway/platforms/api_server_runs.py#L949)
