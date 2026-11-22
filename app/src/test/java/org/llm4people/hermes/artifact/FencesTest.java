@@ -23,6 +23,20 @@ public class FencesTest {
         assertTrue(scan("```java\n```").isEmpty());
     }
 
+    @Test public void explicitNamesAcceptRelativeFilesWithAndWithoutExtensions() {
+        String[] names = {"Dockerfile", "Makefile", "packages/widget/LICENSE", ".dockerignore", ".config/aliases"};
+        for (String name : names) {
+            assertEquals(List.of("sh|" + name + "|example"),
+                    scan("```sh file=" + name + "\nexample\n```"));
+        }
+        assertEquals(List.of("|Dockerfile|example"), scan("```file=Dockerfile\nexample\n```"));
+        assertEquals(List.of("sh||# Example\nx"), scan("```sh\n# Example\nx\n```"));
+        String[] invalid = {"/Dockerfile", "../Makefile", "x/../y", "x/./z", "x//Makefile", ".", "test/"};
+        for (String name : invalid) {
+            assertEquals(List.of("sh||example"), scan("```sh file=" + name + "\nexample\n```"));
+        }
+    }
+
     @Test public void stopsAtCallerBudgetAndPreservesEmbeddedBackticks() {
         List<String> result = new ArrayList<>();
         Fences.scan("````md\n```js\nlet n=1\n```\n````\n~~~html\nb\n~~~", (l,f,c,o) -> {

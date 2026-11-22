@@ -50,7 +50,7 @@ final class WorkspaceLayout {
                 String.join(", ", ACTIONS.keySet()) + ". Theme system/light/dark; density compact/comfortable. " +
                 "Exactly one native content block, 1–8 blocks total. Section title, optional note and up to 8 " +
                 "distinct action IDs. Use French labels. For a versioned code artifact include its filename " +
-                "after the fence language as file=relative/name.ext. For diffs use diff.";
+                "after the fence language, e.g. file=src/main.py or file=Dockerfile. For diffs use diff.";
     }
 
     static WorkspaceLayout parse(String raw) throws IOException {

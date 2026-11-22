@@ -11,9 +11,8 @@ final class Fences {
     }
 
     private static final Pattern INFO = Pattern.compile(
-            "([a-zA-Z0-9_.+#-]{1,40})(?:\\s+(?:file=)?([^\\s]{1,120}))?");
-    private static final Pattern FILENAME = Pattern.compile(
-            "(?:[a-zA-Z0-9_.-]+/)*[a-zA-Z0-9_.-]+\\.[a-zA-Z0-9]{1,16}");
+            "(?:([a-zA-Z0-9_.+#-]{1,40})(?:\\s+|$))?(?:(file=)?([^\\s]{1,120}))?");
+    private static final Pattern PATH_SEGMENT = Pattern.compile("[\\p{L}\\p{N}_.-]+");
     private static final Pattern FILE_COMMENT = Pattern.compile(
             "^\\s*(?://|#|--|/\\*|<!--)\\s*([^\\s]+?)(?:\\s*\\*/|\\s*-->)?\\s*$");
 
@@ -48,8 +47,8 @@ final class Fences {
                     String info = trimmedEnd - after <= 180 ? text.substring(after, trimmedEnd).trim() : "";
                     Matcher m = INFO.matcher(info);
                     boolean valid = m.matches();
-                    language = valid ? m.group(1).toLowerCase(Locale.ROOT) : "";
-                    filename = valid && safeName(m.group(2)) ? m.group(2) : "";
+                    language = valid && m.group(1) != null ? m.group(1).toLowerCase(Locale.ROOT) : "";
+                    filename = valid && safeName(m.group(3), m.group(2) != null) ? m.group(3) : "";
                     opening = end + 1;
                     width = run;
                     marker = c;
@@ -69,8 +68,17 @@ final class Fences {
         return true;
     }
 
-    private static boolean safeName(String name) {
-        return name != null && name.length() <= 120 && !name.contains("..") && FILENAME.matcher(name).matches();
+    private static boolean safeName(String name, boolean explicit) {
+        if (name == null || name.length() > 120) return false;
+        String[] segments = name.split("/", -1);
+        for (String segment : segments) {
+            if (".".equals(segment) || "..".equals(segment) || !PATH_SEGMENT.matcher(segment).matches()) return false;
+        }
+        // Free-form language tags and first-line comments often contain ordinary words.
+        // Only an explicit file= declaration identifies an extensionless filename.
+        String basename = segments[segments.length - 1];
+        int dot = basename.lastIndexOf('.');
+        return explicit || (dot > 0 && dot < basename.length() - 1);
     }
 
     private static String commentName(String content) {
@@ -78,6 +86,6 @@ final class Fences {
         if (end < 0) end = content.length();
         if (end > 160) return "";
         Matcher m = FILE_COMMENT.matcher(content.substring(0, end));
-        return m.matches() && safeName(m.group(1)) ? m.group(1) : "";
+        return m.matches() && safeName(m.group(1), false) ? m.group(1) : "";
     }
 }

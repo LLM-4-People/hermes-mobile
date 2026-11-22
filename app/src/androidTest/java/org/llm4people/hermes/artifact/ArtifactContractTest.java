@@ -45,6 +45,19 @@ public final class ArtifactContractTest extends InstrumentationTestCase {
         assertEquals("a2", catalog.records.get(2).versions.get(1));
     }
 
+    public void testExplicitExtensionlessNamesRetainRevisions() throws Exception {
+        JSONArray rows = new JSONArray();
+        for (String name : new String[]{"Dockerfile", "Makefile", "Dockerfile"}) {
+            rows.put(message("assistant", "```text file=" + name + "\n" + rows.length() + "\n```"));
+        }
+        ArtifactCatalog catalog = new ArtifactCatalog(rows);
+        assertEquals(2, catalog.records.size());
+        assertEquals("Dockerfile", catalog.records.get(0).title);
+        assertEquals(2, catalog.records.get(0).versions.size());
+        assertEquals("2", catalog.records.get(0).versions.get(1));
+        assertEquals("Makefile", catalog.records.get(1).title);
+    }
+
     private static JSONObject message(String role, Object value) throws Exception {
         return new JSONObject().put("role", role).put("content", value);
     }

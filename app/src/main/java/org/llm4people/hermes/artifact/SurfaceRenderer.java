@@ -17,6 +17,7 @@ import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.profile.Account;
 import java.io.IOException;
+import java.util.function.Consumer;
 
 final class SurfaceRenderer {
     static View decorate(Activity activity, Account account, String surface, View nativeContent, ArtifactDesk.Host host) {
@@ -33,12 +34,13 @@ final class SurfaceRenderer {
         }
     }
 
-    static View preview(Activity activity, WorkspaceLayout layout) {
-        Context c = palette(activity, layout);
+    static View preview(Context context, WorkspaceLayout layout) {
+        Context c = palette(context, layout);
         TextView sample = Ui.text(c, WorkspaceLayout.SURFACES.get(layout.surface) + " · Contenu de l’écran", 16);
         Ui.pad(sample, 20, 20);
         sample.setBackgroundColor(c.getColor(R.color.accent_surface));
         LinearLayout column = Ui.column(c);
+        column.setBackgroundColor(c.getColor(R.color.paper));
         title(column, layout);
         for (WorkspaceLayout.Block block : layout.blocks) {
             if (block.nativeContent) column.addView(sample);
@@ -47,8 +49,8 @@ final class SurfaceRenderer {
         return column;
     }
 
-    private static View render(Activity activity, WorkspaceLayout layout, View nativeContent,
-                               ArtifactDesk.Host host, Runnable manage) {
+    static View render(Activity activity, WorkspaceLayout layout, View nativeContent,
+                       ArtifactDesk.Host host, Runnable manage) {
         Context c = palette(activity, layout);
         // Preserve chat/editor space and let each collection of controls scroll independently.
         SurfaceFrame frame = new SurfaceFrame(c);
@@ -56,10 +58,11 @@ final class SurfaceRenderer {
         title(before, layout);
         Button options = Ui.button(c, "Modifier la disposition", v -> manage.run());
         before.addView(options);
+        Consumer<String> select = id -> DeskDialogs.navigate(activity, () -> host.onAction(id));
         LinearLayout zone = before;
         for (WorkspaceLayout.Block block : layout.blocks) {
             if (block.nativeContent) zone = after;
-            else section(zone, layout, block, host);
+            else section(zone, layout, block, select);
         }
         frame.addRegion(before);
         frame.addView(nativeContent, new LinearLayout.LayoutParams(-1, 0, 1));
@@ -67,12 +70,12 @@ final class SurfaceRenderer {
         return frame;
     }
 
-    private static Context palette(Activity activity, WorkspaceLayout layout) {
-        if ("system".equals(layout.theme)) return activity;
-        Configuration config = new Configuration(activity.getResources().getConfiguration());
+    private static Context palette(Context context, WorkspaceLayout layout) {
+        if ("system".equals(layout.theme)) return context;
+        Configuration config = new Configuration(context.getResources().getConfiguration());
         int mode = "dark".equals(layout.theme) ? Configuration.UI_MODE_NIGHT_YES : Configuration.UI_MODE_NIGHT_NO;
         config.uiMode = (config.uiMode & ~Configuration.UI_MODE_NIGHT_MASK) | mode;
-        return new android.view.ContextThemeWrapper(activity.createConfigurationContext(config),
+        return new android.view.ContextThemeWrapper(context.createConfigurationContext(config),
                 mode == Configuration.UI_MODE_NIGHT_YES ? android.R.style.Theme_Material_NoActionBar
                         : android.R.style.Theme_Material_Light_NoActionBar);
     }
@@ -89,7 +92,7 @@ final class SurfaceRenderer {
     private static int gap(WorkspaceLayout layout) { return "compact".equals(layout.density) ? 4 : 12; }
 
     private static void section(LinearLayout parent, WorkspaceLayout layout, WorkspaceLayout.Block block,
-                                ArtifactDesk.Host host) {
+                                Consumer<String> select) {
         Context c = parent.getContext();
         LinearLayout group = Ui.column(c);
         Ui.pad(group, 16, gap(layout));
@@ -100,12 +103,12 @@ final class SurfaceRenderer {
         if (!block.note.isEmpty()) group.addView(Ui.text(c, block.note, 16));
         for (String action : block.actions) {
             String label = WorkspaceLayout.ACTIONS.get(action);
-            if (host == null) {
+            if (select == null) {
                 TextView sample = Ui.text(c, label, 16);
                 Ui.pad(sample, 8, 6);
                 group.addView(sample);
             } else {
-                Button b = Ui.button(c, label, v -> host.onAction(action));
+                Button b = Ui.button(c, label, v -> select.accept(action));
                 b.setGravity(Gravity.CENTER_VERTICAL | Gravity.START);
                 group.addView(b);
             }
@@ -130,8 +133,7 @@ final class SurfaceRenderer {
         try { write.run(); }
         catch (IllegalStateException e) { failure(activity); return; }
         Diagnostics.event("workspace", "changed");
-        DeskDialogs.dismiss(activity);
-        host.onLayoutChanged();
+        DeskDialogs.navigate(activity, host::onLayoutChanged);
     }
 
     private static void failure(Activity activity) {

@@ -61,8 +61,7 @@ public final class ArtifactDesk {
         LinearLayout list = Ui.column(activity);
         Ui.pad(list, 18, 8);
         if (threadSelected) list.addView(Ui.button(activity, "Fichiers publiés", v -> {
-            dismiss(activity);
-            host.onAction("published_files");
+            DeskDialogs.navigate(activity, () -> host.onAction("published_files"));
         }));
         if (catalog.records.isEmpty()) list.addView(Ui.text(activity,
                 "Les extraits de code, les correctifs et les propositions de disposition de ce fil apparaîtront ici.", 16));
@@ -120,7 +119,7 @@ public final class ArtifactDesk {
             } catch (IOException e) {
                 Diagnostics.warning("workspace", "proposal_rejected");
                 box.addView(Ui.text(activity,
-                        "Disposition invalide. Demandez à Hermès de corriger la proposition.", 16));
+                        "Disposition invalide. Demandez à Hermes de corriger la proposition.", 16));
             }
         }
         box.addView(Ui.button(activity, "Copier le contenu", v -> copy(content, record.title)));
