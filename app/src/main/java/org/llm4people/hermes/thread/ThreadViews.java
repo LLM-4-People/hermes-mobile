@@ -19,6 +19,7 @@ import org.json.JSONObject;
 import org.llm4people.hermes.VisibleText;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
+import org.llm4people.hermes.artifact.CodeReader;
 import org.llm4people.hermes.artifact.ThreadInstruments.Pin;
 import org.llm4people.hermes.voice.VoiceDrafts;
 import org.llm4people.hermes.voice.ReplyReader;
@@ -427,13 +428,17 @@ final class ThreadViews {
         }
 
         void bind(JSONObject row, boolean chat) {
+            if (getChildCount() > 2) removeViews(2, getChildCount() - 2);
             String role = ThreadData.string(row, "role");
+            if (chat && role.equals("tool")) {
+                bindTool(row);
+                return;
+            }
             String name = switch (role) {
                 case "user" -> "Vous";
                 case "assistant" -> "Hermes";
                 case "prompt_status" -> "Suivi de la question";
                 case "approval_result" -> "Autorisation";
-                case "tool" -> "Outil · " + ThreadData.string(row, "tool_name");
                 default -> role;
             };
             List<Pin> proposals =
@@ -464,7 +469,7 @@ final class ThreadViews {
             body.setTextColor(getContext().getColor(chat ? R.color.ink : R.color.muted));
             body.setMaxLines(chat ? Integer.MAX_VALUE : 2);
             body.setTextSize(chat ? 17 : 14);
-            body.setTypeface(role.equals("tool") ? Typeface.MONOSPACE : Typeface.DEFAULT);
+            body.setTypeface(Typeface.DEFAULT);
             body.setTextIsSelectable(chat);
             body.setVisibility(content.isEmpty() ? View.GONE : View.VISIBLE);
             boolean markdown = chat && "assistant".equals(role);
@@ -473,7 +478,6 @@ final class ThreadViews {
             CharSequence rendered = markdown && !preview.blocks.isEmpty() ? MessageText.excerpt(getContext(), preview)
                     : MessageText.styled(getContext(), preview);
             body.setText(preview.hasMore() ? android.text.TextUtils.concat(rendered, "…") : rendered);
-            if (getChildCount() > 2) removeViews(2, getChildCount() - 2);
             if (markdown) MessageText.addCodeAction(this, preview, content, ThreadViews.this::show);
             if (chat && "approval_result".equals(role)) {
                 String details = ThreadData.string(row, "receipt_details");
@@ -486,12 +490,30 @@ final class ThreadViews {
                 String full = content;
                 addView(Ui.button(getContext(), "Lire le message entier", v ->
                         show(new AlertDialog.Builder(getContext()).setTitle(name)
-                                .setView(MessageText.reader(getContext(), full, markdown, role.equals("tool"),
+                                .setView(MessageText.reader(getContext(), full, markdown, false,
                                         new TranscriptPage.Cursor(), ThreadViews.this::show))
                                 .setPositiveButton("Fermer", null))));
             }
             for (Pin proposal : proposals)
                 instruments.proposal(this, proposal);
+        }
+
+        private void bindTool(JSONObject row) {
+            Context context = getContext();
+            heading.setText(ToolResult.label(row));
+            heading.setTextSize(14);
+            heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+            heading.setMaxLines(2);
+            heading.setTextColor(context.getColor(R.color.muted));
+            body.setText(null);
+            body.setVisibility(View.GONE);
+            if (row.isNull("content") || "".equals(row.opt("content"))) return;
+            String name = ToolResult.name(row);
+            Button details = Ui.button(context, "Voir le résultat", v -> show(CodeReader.dialog(context,
+                    name.isEmpty() ? "Résultat de l’outil" : "Résultat · " + name, "", ToolResult.raw(row))));
+            details.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+            details.setContentDescription("Voir le résultat · " + heading.getText());
+            addView(details);
         }
     }
 }
