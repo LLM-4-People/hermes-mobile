@@ -17,7 +17,7 @@ On first startup the bridge generates a VAPID signing key in its owner-only stat
 
 ## Set up the phone
 
-Install the ntfy Android distributor and select the matching self-hosted ntfy server as its default server. Enable UnifiedPush distribution in ntfy. Unlock the intended Hermes profile and open its notification settings. Select UnifiedPush, choose ntfy and allow Android to display notifications. The distributor must be able to reach its server in the background. A user-initiated Android force-stop requires reopening the stopped app.
+Install the ntfy Android distributor and select the matching self-hosted ntfy server as its default server. Enable UnifiedPush distribution in ntfy. Unlock the intended Hermes profile. In **Atelier → Notifications**, choose **Activer**, then **Activer avec UnifiedPush**. Use **Choisir un distributeur** to select ntfy. Allow Android to display notifications. To change distributors, turn off enrollments using the current distributor first. The distributor must be able to reach its server in the background. A user-initiated Android force-stop requires reopening the stopped app.
 
 ## Device contract
 
