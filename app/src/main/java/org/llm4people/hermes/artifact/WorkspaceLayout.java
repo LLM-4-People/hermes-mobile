@@ -67,7 +67,19 @@ final class WorkspaceLayout {
                 "to the task; use French labels and the exact opening and closing fence lines:\n```" + FENCE + "\n" +
                 "{\"version\":1,\"surface\":\"page/visite-site\",\"mode\":\"replace\",\"title\":\"Visite\",\"blocks\":[" +
                 "{\"type\":\"form\",\"title\":\"Lieu à visiter\",\"prompt\":\"Prépare cette visite.\",\"fields\":[" +
-                "{\"id\":\"lieu-visite\",\"label\":\"Lieu\",\"kind\":\"text\",\"required\":true}]}]}\n```\n";
+                "{\"id\":\"lieu-visite\",\"label\":\"Lieu\",\"kind\":\"text\",\"required\":true}]}]}\n```\n" +
+                "When someone wants to use an Android app, propose a page/<slug> in replace mode. " +
+                "Use a device block for each requested handoff. These examples show the complete allowed shapes:\n" +
+                "{\"type\":\"device\",\"request\":{\"kind\":\"share_text\",\"text\":\"La réunion commence à neuf heures.\"}}\n" +
+                "{\"type\":\"device\",\"request\":{\"kind\":\"map_search\",\"query\":\"Bibliothèque de Québec\"}}\n" +
+                "{\"type\":\"device\",\"request\":{\"kind\":\"calendar_event\",\"title\":\"Visite\",\"start\":\"2027-04-12T09:00:00-04:00\"," +
+                "\"end\":\"2027-04-12T10:00:00-04:00\",\"location\":\"Québec\"}}\n" +
+                "Use the person's details. Keep text to 2000 characters, query and optional location to 200, title to 120. " +
+                "A calendar event needs a start and a later end with seconds and Z or a numeric ±HH:mm offset. " +
+                "Ask about missing or ambiguous dates, times or time zone. Use a place name or address for a map. " +
+                "The phone presents each proposal for review. The person opens the calendar editor, share sheet or maps app. " +
+                "Describe the next tap. Report completion only when you actually have confirmation. " +
+                "Use the server tools available for this run for work on the gateway.";
     }
 
     /** Only constrained identifiers enter run instructions. The proposed page and form values stay out. */

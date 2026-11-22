@@ -130,6 +130,12 @@ def verify_history(gateway, provider):
         if not (page.get("surface", "").startswith("page/") and page.get("mode") == "replace" and
                 any(block.get("type") == "form" and block.get("fields") for block in page.get("blocks", []))):
             raise AssertionError("The provider did not receive a complete named-page form example")
+        device_examples = [json.loads(line) for line in instructions.splitlines()
+                           if line.startswith('{"type":"device",')]
+        request_fields = {block["request"]["kind"]: set(block["request"]) for block in device_examples}
+        if request_fields != {"calendar_event": {"kind", "title", "start", "end", "location"},
+                              "share_text": {"kind", "text"}, "map_search": {"kind", "query"}}:
+            raise AssertionError("The provider did not receive the three Android action examples")
         surfaces = sorted(set(re.findall(r"\bsurface=(page/[a-z0-9_-]+)", instructions)))
         expected_surfaces = ["page/revue-code"] if receipt["user"] == REVISE else []
         if surfaces != expected_surfaces:
