@@ -29,7 +29,7 @@ final class SkillBrowser {
     private final SessionPanel panel;
     private final BooleanSupplier activeThread;
     private final Consumer<String> stageDraft;
-    private final Runnable parent;
+    private final SessionSettings parent;
     private BooleanSupplier activePage;
     private List<SkillInventory> inventory;
     private EditText search;
@@ -38,7 +38,7 @@ final class SkillBrowser {
     private LinearLayout status;
     private ArrayAdapter<SkillInventory> adapter;
 
-    SkillBrowser(SessionPanel panel, BooleanSupplier activeThread, Consumer<String> stageDraft, Runnable parent) {
+    SkillBrowser(SessionPanel panel, BooleanSupplier activeThread, Consumer<String> stageDraft, SessionSettings parent) {
         this.panel = panel;
         this.activeThread = activeThread;
         this.stageDraft = stageDraft;
@@ -47,7 +47,7 @@ final class SkillBrowser {
 
     void show() {
         LinearLayout box = panel.page("settings", R.string.skills_title, () -> {
-            if (current()) parent.run();
+            if (current()) parent.show();
         }, false);
         activePage = panel.currentPage();
         box.setFocusableInTouchMode(true);
@@ -78,7 +78,7 @@ final class SkillBrowser {
         refresh.setOnClickListener(v -> load());
         int target = Ui.dp(panel.activity, 48);
         toolbar.addView(refresh, new LinearLayout.LayoutParams(target, target));
-        box.addView(toolbar);
+        parent.attachPickerControls(box, toolbar, new LinearLayout.LayoutParams(-1, -2));
         status = Ui.column(panel.activity);
         box.addView(status);
         empty = panel.note(box, "");

@@ -82,7 +82,7 @@ final class SessionSettings {
         panel.section(box, R.string.panel_model);
         modelSetting(box);
         if (stageDraft != null) panel.action(box, R.string.skills_title, () -> {
-            if (activeThread.getAsBoolean()) new SkillBrowser(panel, activeThread, stageDraft, this::show).show();
+            if (activeThread.getAsBoolean()) new SkillBrowser(panel, activeThread, stageDraft, this).show();
         });
         panel.section(box, R.string.panel_tools);
         LinearLayout controls = Ui.column(panel.activity);
@@ -201,8 +201,8 @@ final class SessionSettings {
         });
     }
 
-    /** Keep long provider names scrollable while reserving space for search and a selectable result. */
-    private ScrollView attachPickerControls(LinearLayout page, EditText search, LinearLayout.LayoutParams field) {
+    /** Keep the picker heading scrollable while reserving room for its search controls and a result. */
+    ScrollView attachPickerControls(LinearLayout page, View search, LinearLayout.LayoutParams field) {
         LinearLayout context = Ui.column(panel.activity);
         while (page.getChildCount() > 0) {
             View detail = page.getChildAt(0);
