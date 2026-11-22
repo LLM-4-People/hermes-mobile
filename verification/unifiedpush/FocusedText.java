@@ -21,7 +21,7 @@ public final class FocusedText extends UiAutomatorTestCase {
         }
 
         AccessibilityNodeInfo node() {
-            return findAccessibilityNodeInfo(10000);
+            return findAccessibilityNodeInfo(2500);
         }
     }
 
@@ -33,6 +33,13 @@ public final class FocusedText extends UiAutomatorTestCase {
         AccessibilityNodeInfo editor;
         if (label.contains(":id/")) {
             editor = new Control(new UiSelector().resourceId(label)).node();
+            if (editor == null && "io.heckel.ntfy:id/default_server_dialog_url".equals(label)) {
+                // The signed distributor has one editable field on its Default server screen.
+                UiSelector ntfyField = new UiSelector().packageName("io.heckel.ntfy").className("android.widget.EditText");
+                if (new Control(ntfyField.instance(1)).node() == null) {
+                    editor = new Control(ntfyField.instance(0)).node();
+                }
+            }
         } else {
             AccessibilityNodeInfo caption = new Control(new UiSelector().text(label)).node();
             assertNotNull("The editor label is absent", caption);

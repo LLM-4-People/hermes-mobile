@@ -111,19 +111,20 @@ class Screen:
         path = self.editor_jar.removesuffix(".jar") + ".txt"
         try:
             self.device.run("shell", "sh", "-c", f"'umask 077 && cat > {path}'", data=(label + "\n" + value).encode())
-            result = self.device.shell(
-                "uiautomator",
-                "runtest",
-                self.editor_jar,
-                "-c",
-                "org.llm4people.hermes.verification.FocusedText",
-                "-e",
-                "valueFile",
-                path,
-                "-s",
-            )
-            if "OK (1 test)" not in result:
-                raise AssertionError("Android accessibility did not set the focused editor: " + result[:1600])
+            def enter():
+                # SystemUI can interrupt between identifying a field and applying the editor action.
+                self.hierarchy()
+                result = self.device.shell(
+                    "uiautomator", "runtest", self.editor_jar, "-c",
+                    "org.llm4people.hermes.verification.FocusedText", "-e", "valueFile", path, "-s",
+                )
+                if "OK (1 test)" in result:
+                    return True
+                if "No editor associated" in result or "editor label is absent" in result:
+                    return False
+                raise AssertionError("Android accessibility text entry failed: " + result[:1600])
+
+            eventually("the named Android editor to accept text", enter)
         finally:
             self.device.shell("rm", "-f", path)
 
