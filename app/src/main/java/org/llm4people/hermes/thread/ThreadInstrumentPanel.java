@@ -162,43 +162,50 @@ final class ThreadInstrumentPanel {
         LinearLayout surface = Ui.column(activity);
         surface.setAccessibilityPaneTitle(pin.title);
         LinearLayout bar = Ui.row(activity);
-        Ui.pad(bar, 8, 0);
-        Button back = Ui.button(activity, t(R.string.instrument_discussion), v -> close());
-        back.setContentDescription(t(R.string.instrument_return));
-        back.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
-        bar.addView(back, new LinearLayout.LayoutParams(0, -2, 1));
-        ImageButton overflow = new ImageButton(activity, null, android.R.attr.borderlessButtonStyle);
-        overflow.setImageResource(R.drawable.ic_more);
-        Ui.pad(overflow, 12, 12);
-        overflow.setContentDescription(t(R.string.instrument_options));
-        overflow.setOnClickListener(v -> options(v, pin, activeDocument));
+        Ui.pad(bar, 2, 0);
         int target = Ui.dp(activity, 48);
+        ImageButton back = icon(R.drawable.ic_back, R.string.instrument_return);
+        back.setOnClickListener(v -> close());
+        bar.addView(back, new LinearLayout.LayoutParams(target, target));
+        LinearLayout heading = Ui.column(activity);
+        Ui.pad(heading, 4, 4);
+        TextView title = Ui.text(activity, pin.title, 22);
+        title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        title.setAccessibilityHeading(true);
+        title.setMaxLines(2);
+        title.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        heading.addView(title);
+        scope = Ui.text(activity, "", 13);
+        scope.setTextColor(activity.getColor(R.color.accent));
+        heading.addView(scope);
+        bar.addView(heading, new LinearLayout.LayoutParams(0, -2, 1));
+        ImageButton overflow = icon(R.drawable.ic_more, R.string.instrument_options);
+        overflow.setOnClickListener(v -> options(v, pin, activeDocument));
         bar.addView(overflow, new LinearLayout.LayoutParams(target, target));
         surface.addView(bar);
         surface.addView(Ui.divider(activity));
         ScrollView scroll = new ScrollView(activity);
         scroll.setFillViewport(true);
         LinearLayout body = Ui.column(activity);
-        Ui.pad(body, 16, 10);
-        TextView title = Ui.text(activity, pin.title, 27);
-        title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        title.setAccessibilityHeading(true);
-        body.addView(title);
-        scope = Ui.text(activity, "", 14);
-        scope.setTextColor(activity.getColor(R.color.accent));
-        Ui.pad(scope, 0, 5);
-        body.addView(scope);
         if (comparing) {
             body.addView(InstrumentPreview.compare(activity, pinned().pageJson, pin.pageJson));
         } else {
             body.addView(InstrumentPreview.render(activity, pin.pageJson, rendererHost(pin, activeDocument)));
         }
         controls = Ui.column(activity);
-        Ui.pad(controls, 0, 6);
+        Ui.pad(controls, 16, 6);
         body.addView(controls);
         scroll.addView(body);
         surface.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
         sheet = surface;
+    }
+
+    private ImageButton icon(int drawable, int description) {
+        ImageButton button = new ImageButton(activity, null, android.R.attr.borderlessButtonStyle);
+        button.setImageResource(drawable);
+        Ui.pad(button, 12, 12);
+        button.setContentDescription(t(description));
+        return button;
     }
 
     private void updateControls() {
