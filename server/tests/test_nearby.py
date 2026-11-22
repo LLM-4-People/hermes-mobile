@@ -161,6 +161,23 @@ class NearbyHTTP(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status, 200)
         self.assertEqual([r["osm_id"] for r in (await response.json())["places"]], [known["id"]])
 
+    async def test_only_visible_names_use_the_twelve_result_slots(self):
+        original = list(self.dataset["elements"])
+        nearest = {**original[0], "id": 1, "lat": AREA["latitude"], "lon": AREA["longitude"]}
+        expected = (await (await self.lookup()).json())["places"]
+        invisible = ("\u200b", "\u200c\u200d", "\u180b\u180f", "\ufe0f\U000e0100", "\u202eCafe")
+        for name in invisible:
+            with self.subTest(name=repr(name)):
+                nearest["tags"] = {"amenity": "restaurant", "name": name}
+                self.dataset["elements"] = [nearest]
+                self.assertEqual((await (await self.lookup()).json())["places"], [])
+                self.dataset["elements"] = [nearest, *original]
+                self.assertEqual((await (await self.lookup()).json())["places"], expected)
+        for name in ("خانه\u200cی ما", "Atelier 👩\u200d🍳", "Café \u2665\ufe0f"):
+            nearest["tags"] = {"amenity": "restaurant", "name": name}
+            self.dataset["elements"] = [nearest]
+            self.assertEqual((await (await self.lookup()).json())["places"][0]["name"], name)
+
     async def test_unreachable_interpreter_returns_unavailable(self):
         await self.upstream.close()
         response = await self.lookup()

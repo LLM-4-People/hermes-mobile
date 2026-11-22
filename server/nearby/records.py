@@ -2,6 +2,7 @@
 
 import math
 import re
+import unicodedata
 from datetime import datetime
 from ipaddress import ip_address
 from urllib.parse import urlsplit
@@ -12,6 +13,8 @@ LIMIT = 12
 OSM_CREDIT = "© OpenStreetMap contributors"
 OVERPASS_CREDIT = "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL."
 CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f\u2028\u2029\ud800-\udfff]")
+# Android's VisibleText treats isolated joiners and Unicode variation selectors as blank.
+BLANK_LABEL = re.compile(r"[\s\u200c\u200d\u180b-\u180d\u180f\ufe00-\ufe0f\U000e0100-\U000e01ef]*")
 DATASET_DATE = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z")
 
 
@@ -34,6 +37,10 @@ def accepted_center(data):
 
 def text(value, limit):
     if not isinstance(value, str) or len(value) > limit or CONTROL.search(value):
+        return ""
+    if BLANK_LABEL.fullmatch(value) or any(
+        unicodedata.category(char) == "Cf" and char not in ("\u200c", "\u200d") for char in value
+    ):
         return ""
     return value.strip()
 
