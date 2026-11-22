@@ -29,7 +29,7 @@ The renderer creates a distinct 256-bit key in each account's `gateway.env` with
 
 Put provider credentials in the corresponding `accounts/north/provider.env` or `accounts/south/provider.env`. These raw Compose files accept literal `NAME=value` lines. Supply only the values intended for that runtime. Provider files are visible only to their own gateway. The container's supervised gateway runs as the image's Hermes user. The home volume holds its workspace at `/opt/data/workspace`. The launcher preserves the fork's s6 entrypoint and disables profile multiplexing.
 
-Enable the bundled file-artifact plugin in each new Hermes home, then start the stack. Docker Compose derives a project name from the deployment directory, so keep its path or explicitly preserve the same project name when moving it.
+Enable the bundled file-artifact plugin in each new Hermes home, then start the stack. The renderer saves a unique Compose identity in the private deployment directory’s `project-id` file. Keep it with the keys when moving the deployment. Each new deployment gets new volumes, even if two directories share a name. Let Compose use the generated project name when starting the stack.
 
 ```sh
 docker compose -f "$deployment/compose.json" config --quiet
@@ -51,9 +51,9 @@ Repeat the render with the same account declarations and `--push north` for each
 
 ```sh
 python3 -m unittest discover -s deploy -v
-python3 deploy/smoke.py --image "$image"
+python3 deploy/smoke.py --image "$image" --push
 ```
 
-The smoke test provisions two disposable homes on a loopback-only HTTPS port, verifies the generated CA, exercises both bearer keys at both hostnames, and checks independent session and workspace storage. It removes only the temporary Compose project and its volumes on exit. It does not require model-provider credentials or send a model request.
+The smoke test provisions two disposable homes on a loopback-only HTTPS port, verifies the generated CA, exercises both bearer keys at both hostnames, and checks independent session and workspace storage. It removes only the temporary Compose project and its volumes on exit. The push check verifies separate Firebase client discovery and reads a real Hermes reminder ledger entry through its owning bridge. It uses disposable credentials and registers zero devices. Neither check requires a model provider.
 
 <!-- Generated from docs/sources/docs/accounts.md.in by scripts/docs.py. -->

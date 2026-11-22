@@ -1,6 +1,7 @@
 package org.llm4people.hermes.profile;
 
 import android.app.Activity;
+import org.llm4people.hermes.Ui;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.text.InputType;
@@ -163,11 +164,10 @@ public final class ProfileGate {
         screen.action("Remplacer la clé d’accès", false, view -> { if (!busy) rotate(id, label); });
         screen.action("Retirer ce profil", false, view -> authenticate(screen, phrase, (Button) view, id, account -> {
             account.close();
-            confirmation = new AlertDialog.Builder(activity).setTitle("Retirer « " + label + " » ?")
+            confirmation = Ui.secureDialog(new AlertDialog.Builder(activity).setTitle("Retirer « " + label + " » ?")
                     .setMessage("Les données locales de ce profil seront effacées de cet appareil. Vos fils restent sur le serveur Hermes.")
                     .setNegativeButton("Annuler", null)
-                    .setPositiveButton("Retirer", (dialog, which) -> forget(screen, id))
-                    .show();
+                    .setPositiveButton("Retirer", (dialog, which) -> forget(screen, id)));
         }));
     }
 
