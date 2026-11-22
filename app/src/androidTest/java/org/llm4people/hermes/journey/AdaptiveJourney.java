@@ -94,6 +94,11 @@ final class AdaptiveJourney {
             assertPreserved(initialComposer, draft, selection);
         } finally {
             automation.setRotation(freezeFor(startingRotation));
+            ui.until("restored starting orientation", () -> {
+                if (activity.isDestroyed() || activity.isFinishing()) return Boolean.TRUE;
+                return activity.getResources().getConfiguration().orientation == startingOrientation
+                        && activity.getDisplay().getRotation() == startingRotation ? Boolean.TRUE : null;
+            });
             driver.waitForIdleSync();
         }
     }
