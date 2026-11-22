@@ -4,6 +4,7 @@ import android.content.Context;
 import android.graphics.Typeface;
 import android.text.SpannableStringBuilder;
 import android.text.Spanned;
+import android.text.TextUtils;
 import android.text.style.BackgroundColorSpan;
 import android.text.style.ForegroundColorSpan;
 import android.text.style.RelativeSizeSpan;
@@ -49,6 +50,7 @@ final class MessageText {
     }
 
     static void updateLive(TextView target, LiveTranscript stream, String source) {
+        int previousStart = stream.windowStart();
         if (!stream.update(source)) return;
         Context context = target.getContext();
         SpannableStringBuilder rendered = new SpannableStringBuilder();
@@ -56,7 +58,14 @@ final class MessageText {
         if (stream.preceding != null) rendered.append(styled(context, stream.preceding));
         rendered.append(styled(context, stream.latest));
         if (stream.later) rendered.append("…");
-        target.setText(rendered);
+        // Preserve a selection only while its original passage remains at the same offsets.
+        int selectedThrough = Math.max(target.getSelectionStart(), target.getSelectionEnd());
+        if (target.hasSelection() && stream.windowStart() == previousStart && selectedThrough <= rendered.length()
+                && TextUtils.regionMatches(target.getText(), 0, rendered, 0, selectedThrough)) {
+            target.setTextKeepState(rendered);
+        } else {
+            target.setText(rendered);
+        }
     }
 
     private static void span(SpannableStringBuilder content, TranscriptPage.Mark mark, Object style) {

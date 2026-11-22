@@ -11,6 +11,7 @@ final class LiveTranscript {
     boolean later;
 
     String source() { return prior; }
+    int windowStart() { return window.offset; }
 
     boolean update(String source) {
         if (source.equals(prior)) return false;
