@@ -130,6 +130,16 @@ public final class RunPreviewTest extends TestCase {
         }
     }
 
+    public void testUnavailableStatusDoesNotPresentASavedPreviewAsAConnectedFrame() throws Exception {
+        JSONObject receipt = new JSONObject().put("seq", 12).put("preview", "Texte précédent");
+        try (Exchange wire = new Exchange("503 Service Unavailable", "Content-Type: application/json\r\n", "{}", "{}")) {
+            Observer listener = new Observer();
+            new RunFollower(new HermesApi(wire.endpoint(), "test-only"), "r", receipt, -1, listener).follow();
+            assertTrue(listener.disconnected);
+            assertNull(listener.last);
+        }
+    }
+
     public void testSplitUnicodeDeltaCompletesAfterRestoringItsCursor() throws Exception {
         RunPreview first = new RunPreview(null);
         first.append("Suite " + Character.highSurrogate(0x1f33f));
