@@ -5,6 +5,7 @@ import android.app.AlertDialog;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.View;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 
@@ -43,6 +44,8 @@ public final class ThreadWorkspace implements AutoCloseable {
     ThreadViews screen;
     ThreadJournal journal;
     private ThreadRun run;
+    private ThreadStarters starters;
+    private boolean emptyTranscript;
     private JSONArray messages = new JSONArray();
     private JSONArray inbox = new JSONArray();
     private String session;
@@ -90,6 +93,7 @@ public final class ThreadWorkspace implements AutoCloseable {
     public void slots(List<String> order) {
         slotOrder = new ArrayList<>(order);
         if (screen != null) screen.slots(slotOrder);
+        updateStarters();
     }
 
     public boolean editing() { return screen != null && screen.editing(); }
@@ -101,6 +105,28 @@ public final class ThreadWorkspace implements AutoCloseable {
         screen.displayDraft(current.isEmpty() ? text : current + "\n" + text);
         queueSave();
         screen.focusComposer();
+    }
+
+    private boolean canStartDraft() {
+        return journal != null && ThreadStarters.available(emptyTranscript, journal.draft(), journal.pending() != null, slotOrder);
+    }
+
+    private void updateStarters() {
+        boolean available = canStartDraft();
+        if (available && starters == null) {
+            ThreadViews owner = screen;
+            int opened = generation;
+            starters = new ThreadStarters(owner.list, text -> {
+                if (opened != generation || owner != screen || !canStartDraft()) return;
+                if (text.isEmpty()) owner.focusComposer();
+                else stageDraft(text);
+                View editor = owner.root.findFocus();
+                if (editor instanceof EditText && editor.isShown()) {
+                    activity.getSystemService(InputMethodManager.class).showSoftInput(editor, InputMethodManager.SHOW_IMPLICIT);
+                }
+            });
+        }
+        if (starters != null) starters.show(available);
     }
 
     public JSONArray messages() { return messages; }
@@ -238,6 +264,7 @@ public final class ThreadWorkspace implements AutoCloseable {
         run = new ThreadRun(this);
         screen.chat(journal.draft(), text -> {
             journal.draft(text);
+            updateStarters();
             main.removeCallbacks(save);
             main.postDelayed(save, 300);
         }, run::send, run::stop, run::approve, () -> loadMessages(true, null));
@@ -281,6 +308,10 @@ public final class ThreadWorkspace implements AutoCloseable {
 
     void loadMessages(boolean older, Runnable loaded) {
         if (older && loading) return;
+        if (!older && emptyTranscript) {
+            emptyTranscript = false;
+            updateStarters();
+        }
         loading = true;
         screen.paging();
         int offset = older ? messageOffset : 0;
@@ -296,12 +327,13 @@ public final class ThreadWorkspace implements AutoCloseable {
             int oldSize = messages.length();
             messages = ThreadData.join(page, older ? messages : new JSONArray());
             messageOffset = offset + page.length();
-            screen.rows(messages, page.length() == ThreadData.PAGE, !older, older ? messages.length() - oldSize : 0);
-            if (journal.pending() == null) {
-                screen.notice(messages.length() == 0 ? "Écrivez le premier message." : "", "", null);
-            }
+            emptyTranscript = messages.length() == 0 && page.length() == 0;
+            screen.rows(messages, page.length() == ThreadData.PAGE, !older && !emptyTranscript,
+                    older ? messages.length() - oldSize : 0);
+            if (journal.pending() == null) screen.notice("", "", null);
             if (!older) refreshContext();
             if (loaded != null) loaded.run();
+            updateStarters();
         }, e -> {
             if (requestNo != transcriptRequest) return;
             loading = false;
@@ -347,6 +379,8 @@ public final class ThreadWorkspace implements AutoCloseable {
         messages = new JSONArray();
         messageOffset = 0;
         messageCount = -1;
+        emptyTranscript = false;
+        starters = null;
         screen = new ThreadViews(activity, voice);
         container.removeAllViews();
         container.addView(screen.root);
@@ -362,6 +396,7 @@ public final class ThreadWorkspace implements AutoCloseable {
             drafts.shutdownNow();
             container.removeAllViews();
             screen = null;
+            starters = null;
             run = null;
             journal = null;
             session = remoteSession = null;
