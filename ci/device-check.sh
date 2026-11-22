@@ -3,8 +3,9 @@
 set -euo pipefail
 device=$(adb get-serialno)
 adb -s "$device" install -r -t app/build/outputs/apk/debug/app-debug.apk
-adb -s "$device" install -r -t app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
-python3 -B ci/native_tests.py "$device" "$RUNNER_TEMP/android-instrumentation"
+test_apk=app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+adb -s "$device" install -r -t "$test_apk"
+python3 -B ci/native_tests.py "$device" "$RUNNER_TEMP/android-instrumentation" "$ANDROID_BUILD_TOOLS/dexdump" "$test_apk"
 # Remove private test state before the independent two-account journey.
 adb -s "$device" shell pm clear org.llm4people.hermes.test
 adb -s "$device" shell pm clear org.llm4people.hermes
