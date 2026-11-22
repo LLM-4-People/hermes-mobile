@@ -18,6 +18,7 @@ import java.util.UUID;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -46,6 +47,10 @@ public final class ThreadWorkspace implements AutoCloseable {
     private String session;
     private String remoteSession;
     private String title;
+    private String namedTitle = "";
+    private String firstPrompt = "";
+    private boolean openingRequested;
+    private final LinkedHashMap<String, String> openingPrompts = new LinkedHashMap<>();
     private long messageCount = -1;
     private List<String> slotOrder = Collections.emptyList();
     private volatile int generation;
@@ -155,6 +160,13 @@ public final class ThreadWorkspace implements AutoCloseable {
                     loading = false;
                     JSONArray page = data.optJSONArray("data");
                     if (page == null) { invalidReply(this::moreThreads); return; }
+                    for (int i = 0; i < page.length(); i++) {
+                        JSONObject row = page.optJSONObject(i);
+                        if (row == null) continue;
+                        String id = ThreadData.string(row, "_lineage_root_id");
+                        if (id.isEmpty()) id = ThreadData.string(row, "id");
+                        ThreadData.put(row, ThreadTitles.FIRST_PROMPT, openingPrompts.get(id));
+                    }
                     inbox = ThreadData.join(inbox, page);
                     inboxOffset += ThreadData.PAGE;
                     screen.rows(inbox, data.optBoolean("has_more"), false, 0);
@@ -190,7 +202,7 @@ public final class ThreadWorkspace implements AutoCloseable {
             creating = false;
             JSONObject row = response.optJSONObject("session");
             if (row == null || !id.equals(row.optString("id"))) { invalidReply(() -> create(id, afterOpen)); return; }
-            open(new ThreadIdentity(id, id), ThreadData.title(row));
+            open(ThreadIdentity.of(row), ThreadData.title(row));
             if (afterOpen != null && id.equals(session)) afterOpen.run();
         }, e -> {
             creating = false;
@@ -220,7 +232,9 @@ public final class ThreadWorkspace implements AutoCloseable {
         session = identity.root;
         remoteSession = identity.tip;
         String id = session;
-        title = label;
+        namedTitle = identity.name;
+        firstPrompt = openingPrompts.getOrDefault(id, identity.prompt);
+        title = !namedTitle.isEmpty() || firstPrompt.isEmpty() ? label : firstPrompt;
         try { journal = new ThreadJournal(account, id); }
         catch (RuntimeException unreadable) {
             Diagnostics.warning("threads", "journal_unreadable");
@@ -272,7 +286,7 @@ public final class ThreadWorkspace implements AutoCloseable {
                     String value = input.getText().toString().trim();
                     if (value.isEmpty()) { screen.notice("Le titre est vide.", "Renommer", this::rename); return; }
                     request(() -> api.patch(ThreadData.path(target), ThreadData.put(new JSONObject(), "title", value)),
-                            r -> { metadataRequest++; title = value; host.selected(id, value); }, e -> error(e, this::rename));
+                            r -> { metadataRequest++; namedTitle = title = value; host.selected(id, value); }, e -> error(e, this::rename));
                 }));
     }
 
@@ -284,7 +298,7 @@ public final class ThreadWorkspace implements AutoCloseable {
         String path = ThreadData.path(session);
         int requestNo = ++transcriptRequest;
         int titleVersion = metadataRequest;
-        request(() -> api.get(path + "/messages?order=latest&visible_only=true&limit=" + ThreadData.PAGE + "&offset=" + offset), data -> {
+        request(() -> api.get(path + "/messages?order=latest&include_compacted=true&visible_only=true&limit=" + ThreadData.PAGE + "&offset=" + offset), data -> {
             if (requestNo != transcriptRequest) return;
             loading = false;
             JSONArray page = data.optJSONArray("data");
@@ -305,13 +319,16 @@ public final class ThreadWorkspace implements AutoCloseable {
             messageCount = ThreadContext.messageCount(total, page.length(), messages.length());
             boolean receivedTitle = data.has("thread_title");
             if (receivedTitle) legacyTitleTip = null;
-            String nextTitle = titleVersion == metadataRequest
-                    ? ThreadContext.title(data, "thread_title", title) : title;
+            if (receivedTitle && titleVersion == metadataRequest)
+                namedTitle = ThreadData.string(data, "thread_title").trim();
+            if (!hasMore) rememberOpening(ThreadTitles.firstPrompt(messages));
+            String nextTitle = ThreadTitles.display(namedTitle, firstPrompt, !hasMore && messages.length() == 0);
             if (previousCount != messageCount || !title.equals(nextTitle)) {
                 title = nextTitle;
                 host.selected(session, title);
             }
             if (!older && !receivedTitle && titleVersion == metadataRequest) readLegacyTitle();
+            if (hasMore && firstPrompt.isEmpty() && namedTitle.isEmpty() && !openingRequested) readOpening();
             if (loaded != null) loaded.run();
         }, e -> {
             if (requestNo != transcriptRequest) return;
@@ -319,6 +336,33 @@ public final class ThreadWorkspace implements AutoCloseable {
             error(e, () -> loadMessages(older, loaded));
         });
     }
+    private void rememberOpening(String value) {
+        firstPrompt = value;
+        if (value.isEmpty()) {
+            openingPrompts.remove(session);
+            return;
+        }
+        openingPrompts.put(session, value);
+        if (openingPrompts.size() > 128) openingPrompts.remove(openingPrompts.keySet().iterator().next());
+    }
+
+    // A latest page is not an opening. One small oldest-page request supplies the source
+    // on restored or compacted unnamed discussions without fetching the intervening history.
+    private void readOpening() {
+        openingRequested = true;
+        String path = ThreadData.path(session);
+        request(() -> api.get(path + "/messages?order=oldest&limit="
+                + ThreadData.PAGE + "&include_compacted=true&visible_only=true"), data -> {
+            JSONArray page = data.optJSONArray("data");
+            if (page == null || !firstPrompt.isEmpty()) return;
+            rememberOpening(ThreadTitles.firstPrompt(page));
+            if (namedTitle.isEmpty() && !firstPrompt.isEmpty() && !firstPrompt.equals(title)) {
+                title = firstPrompt;
+                host.selected(session, title);
+            }
+        }, failure -> Diagnostics.event("threads", "opening_unavailable"));
+    }
+
     // Older gateways return segment titles separately. Check the root only when the live tip
     // is untitled. A page navigation or polling refresh never scans segments or walks older pages.
     private void readLegacyTitle() {
@@ -328,7 +372,9 @@ public final class ThreadWorkspace implements AutoCloseable {
         legacyTitleTip = tip;
         int version = metadataRequest;
         request(() -> ThreadContext.legacyTitle(root, tip, api::get), label -> {
-            if (version == metadataRequest && tip.equals(legacyTitleTip) && !label.isEmpty() && !label.equals(title)) {
+            if (version != metadataRequest || !tip.equals(legacyTitleTip) || label.isEmpty()) return;
+            namedTitle = label;
+            if (!label.equals(title)) {
                 title = label;
                 host.selected(session, title);
             }
@@ -366,6 +412,8 @@ public final class ThreadWorkspace implements AutoCloseable {
         messageOffset = 0;
         messageCount = -1;
         legacyTitleTip = null;
+        openingRequested = false;
+        namedTitle = firstPrompt = "";
         screen = new ThreadViews(activity);
         container.removeAllViews();
         container.addView(screen.root);
@@ -387,6 +435,8 @@ public final class ThreadWorkspace implements AutoCloseable {
             messages = new JSONArray();
             inbox = new JSONArray();
             inboxRecovery = null;
+            openingPrompts.clear();
+            namedTitle = firstPrompt = "";
         }
     }
 

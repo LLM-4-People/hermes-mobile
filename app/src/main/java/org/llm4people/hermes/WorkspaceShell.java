@@ -44,7 +44,7 @@ final class WorkspaceShell {
         header.addView(leading);
         heading = Ui.text(activity, "Discussions", 20);
         heading.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
-        heading.setSingleLine(true);
+        heading.setMaxLines(2);
         heading.setEllipsize(TextUtils.TruncateAt.END);
         Ui.pad(heading, 6, 2);
         heading.setAccessibilityHeading(true);

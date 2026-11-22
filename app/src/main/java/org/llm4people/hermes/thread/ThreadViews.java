@@ -295,7 +295,9 @@ final class ThreadViews {
                 }
                 content = names.length() == 0 ? "" : "Outils · " + names;
             }
-            heading.setText(chat ? name : ThreadData.title(row));
+            String label = chat ? name : ThreadData.title(row);
+            if (!chat && label.equals(ThreadTitles.snippet(content))) content = "";
+            heading.setText(label);
             heading.setTextSize(chat ? 13 : 17);
             heading.setMaxLines(chat ? 2 : 3);
             heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
