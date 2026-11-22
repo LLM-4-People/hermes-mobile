@@ -54,12 +54,14 @@ public class RunFollowerReplayTest extends TestCase {
         JSONObject second = new JSONObject().put("request_id", "second");
         String events = frame(old, 1, "approval.request") + frame(old, 2, "approval.responded")
                 + frame(first, 3, "approval.request") + frame(second, 4, "approval.request")
-                + frame(first, 5, "approval.responded") + frame(new JSONObject(), 6, "run.completed");
+                + frame(first, 5, "approval.responded")
+                + frame(new JSONObject().put("resolved", 1), 6, "approval.responded")
+                + frame(new JSONObject(), 7, "run.completed");
         Exchange.Reply noWaiters = standalone("running", new JSONArray(), null);
         try (Exchange gateway = new Exchange("200 OK", noWaiters,
                 new Exchange.Reply("Content-Type: text/event-stream\r\n", events), noWaiters,
                 standalone("waiting_for_approval", null, first),
-                standalone("running", new JSONArray().put(first).put(second), second),
+                standalone("running", new JSONArray().put(first).put(second), second), noWaiters,
                 standalone("completed", new JSONArray(), null))) {
             List<List<String>> snapshots = new ArrayList<>();
             new RunFollower(new HermesApi(gateway.endpoint(), "test"), "run", new JSONObject(), -1,
@@ -76,7 +78,8 @@ public class RunFollowerReplayTest extends TestCase {
                     }).follow();
             assertTrue(snapshots.contains(java.util.Collections.singletonList("first")));
             assertTrue(snapshots.contains(java.util.Arrays.asList("first", "second")));
-            assertEquals(java.util.Collections.singletonList("second"), snapshots.get(snapshots.size() - 1));
+            assertEquals(java.util.Collections.singletonList("second"), snapshots.get(snapshots.size() - 2));
+            assertTrue(snapshots.get(snapshots.size() - 1).isEmpty());
             gateway.observed();
         }
     }

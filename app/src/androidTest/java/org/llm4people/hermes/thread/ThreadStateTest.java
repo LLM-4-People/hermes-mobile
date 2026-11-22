@@ -250,7 +250,7 @@ public class ThreadStateTest extends TestCase {
         assertEquals(3, response.length());
         JSONObject classic = new JSONObject().put("request_id", "c");
         prompts.restore(new JSONObject().put("status", "running"));
-        assertTrue(prompts.requestNeedsSnapshot(classic));
+        assertTrue(prompts.needsSnapshot("approval.request", classic));
         assertNull(prompts.match(classic));
         prompts.restore(new JSONObject().put("status", "waiting_for_approval").put("approval", classic));
         assertEquals(2, RunPrompts.response(prompts.snapshot().get(0), "deny").length());
@@ -262,9 +262,12 @@ public class ThreadStateTest extends TestCase {
                 .put("execution_generation", 12);
         prompts.restore(new JSONObject().put("execution_generation", 12)
                 .put("pending_controls", new JSONArray().put(question)));
-        prompts.requestNeedsSnapshot(new JSONObject(question.toString()).put("execution_generation", 11));
-        prompts.requestNeedsSnapshot(new JSONObject(question.toString()).put("execution_generation", "12"));
-        prompts.requestNeedsSnapshot(new JSONObject(question.toString()).put("prompt_id", JSONObject.NULL));
+        assertTrue(prompts.needsSnapshot("clarify.request",
+                new JSONObject(question.toString()).put("execution_generation", 11)));
+        assertFalse(prompts.needsSnapshot("clarify.request",
+                new JSONObject(question.toString()).put("execution_generation", "12")));
+        assertFalse(prompts.needsSnapshot("clarify.request",
+                new JSONObject(question.toString()).put("prompt_id", JSONObject.NULL)));
         assertEquals(1, prompts.snapshot().size());
         prompts.settle(new JSONObject(question.toString()).put("execution_generation", 11));
         prompts.settle(new JSONObject().put("prompt_id", "same").put("execution_generation", 12)

@@ -42,10 +42,18 @@ final class RunPrompts {
         }
     }
 
-    /** Request events can be replayed after settlement. Only authenticated status admits a prompt. */
-    boolean requestNeedsSnapshot(JSONObject event) {
-        Key identity = key(event);
-        return identity != null && !waiting.containsKey(identity);
+    /** Only status can confirm a replayed request or identify the waiters left by a FIFO/bulk reply. */
+    boolean needsSnapshot(String type, JSONObject event) {
+        switch (type) {
+            case "approval.request":
+            case "clarify.request":
+                Key identity = key(event);
+                return identity != null && !waiting.containsKey(identity);
+            case "approval.responded":
+                return !waiting.isEmpty() && id(event).isEmpty();
+            default:
+                return false;
+        }
     }
 
     private void add(JSONObject prompt) {
