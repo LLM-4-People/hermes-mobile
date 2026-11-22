@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -87,6 +88,11 @@ final class InstrumentIdentity {
         for (int i = 0; i < labels.size(); i++) {
             if (Collections.frequency(labels, labels.get(i)) > 1) qualified.set(i, labels.get(i) + " (n° " + (i + 1) + ")");
         }
+        // A user-authored title can itself contain a generated qualifier. A position prefix
+        // on every block provides an unambiguous reading even in that case.
+        if (new HashSet<>(qualified).size() < qualified.size()) {
+            for (int i = 0; i < qualified.size(); i++) qualified.set(i, (i + 1) + ". " + qualified.get(i));
+        }
         return qualified;
     }
 
@@ -101,6 +107,9 @@ final class InstrumentIdentity {
         }
         List<String> names = new ArrayList<>(qualified.values());
         qualified.replaceAll((id, name) -> Collections.frequency(names, name) > 1 ? name + " (" + id + ")" : name);
+        if (new HashSet<>(qualified.values()).size() < qualified.size()) {
+            qualified.replaceAll((id, name) -> id + " · " + name);
+        }
         return qualified;
     }
 

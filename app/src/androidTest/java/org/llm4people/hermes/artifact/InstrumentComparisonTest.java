@@ -84,6 +84,16 @@ public final class InstrumentComparisonTest extends TestCase {
         }
     }
 
+    public void testAuthoredLabelsThatResembleGeneratedQualifiersStillHaveDistinctOrder() throws Exception {
+        String a = FIELD.replace("Fichier", "Même");
+        String b = a.replace("file", "duplicat");
+        String c = FIELD.replace("file", "autre").replace("Fichier", "Même · Texte court (file)");
+        List<InstrumentChanges.Change> changes = InstrumentChanges.between(page(form(a + "," + b + "," + c)),
+                page(form(c + "," + b + "," + a)));
+        assertEquals(1, changes.size());
+        assertFalse(changes.get(0).before().equals(changes.get(0).after()));
+    }
+
     public void testOnlyChoiceMeaningOrBindingChanged() throws Exception {
         String value = "{\"type\":\"value\",\"title\":\"Contexte\",\"source\":\"thread.title\"}";
         WorkspaceLayout old = page(value + "," + form(CHOICE));
