@@ -967,7 +967,7 @@ public final class ThreadWorkspace implements AutoCloseable {
         LiveUiPatch.StateManager manager = LiveUiPatch.StateManager.forAccount(account, ThemePalette.isNight(activity));
         for (LiveUiPatch.WidgetSpec spec : manager.widgets()) {
             if (widgetId.equals(spec.widgetId)) {
-                HomePinBridge.requestPinWidget(activity, spec);
+                HomePinBridge.requestPinWidget(activity, spec, account.id);
                 return;
             }
         }
@@ -975,14 +975,16 @@ public final class ThreadWorkspace implements AutoCloseable {
         if (pending != null) {
             for (LiveUiPatch.Op op : pending.ops) {
                 if (op instanceof LiveUiPatch.Op.UpsertWidget uw && widgetId.equals(uw.widget().widgetId)) {
-                    HomePinBridge.requestPinWidget(activity, uw.widget());
+                    HomePinBridge.requestPinWidget(activity, uw.widget(), account.id);
                     return;
                 }
             }
         }
         HermesWidgetSpec osSpec = new HermesWidgetStore(activity).spec(widgetId);
-        if (osSpec != null && osSpec.homeScreenSafe) {
-            HermesWidgetPinning.PinResult result = HermesWidgetPinning.requestPinWidget(activity, osSpec);
+        if (osSpec != null && osSpec.homeScreenSafe
+                && (osSpec.ownerProfileId == null || account.id.equals(osSpec.ownerProfileId))) {
+            HermesWidgetPinning.PinResult result = HermesWidgetPinning.requestPinWidget(
+                    activity, osSpec.withOwner(account.id));
             Toast.makeText(activity, HermesWidgetPinning.guidanceMessage(activity, result), Toast.LENGTH_LONG).show();
         }
     }
@@ -1000,7 +1002,7 @@ public final class ThreadWorkspace implements AutoCloseable {
                     refreshQuickActions();
                     for (LiveUiPatch.Op op : patch.ops) {
                         if (op instanceof LiveUiPatch.Op.UpsertWidget uw) {
-                            HomePinBridge.syncWidget(activity, uw.widget());
+                            HomePinBridge.syncWidget(activity, uw.widget(), account.id);
                         } else if (op instanceof LiveUiPatch.Op.RemoveWidget rw) {
                             HomePinBridge.removeWidget(activity, rw.widgetId());
                         }
@@ -1020,9 +1022,9 @@ public final class ThreadWorkspace implements AutoCloseable {
                 try {
                     LiveUiPatch.StateManager manager = LiveUiPatch.StateManager.forAccount(account, ThemePalette.isNight(activity));
                     java.util.Set<String> affectedWidgets = new java.util.HashSet<>(manager.widgetIds());
-                    manager.rollbackTo(revisionId);
+                    manager.rollbackAllTo(revisionId);
                     affectedWidgets.addAll(manager.widgetIds());
-                    HomePinBridge.syncWidgets(activity, manager.widgets(), affectedWidgets);
+                    HomePinBridge.syncWidgets(activity, manager.widgets(), affectedWidgets, account.id);
                     appliedLiveUiRevisionId = null;
                     if (screen != null && screen.liveUiBar != null) screen.liveUiBar.showReverted();
                     refreshQuickActions();

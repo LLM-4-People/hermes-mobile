@@ -799,6 +799,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
 
     @Override public void onLayoutChanged() {
         if (shell == null) return;
+        if (threads != null) threads.onLayoutChanged();
         panels.refreshLayout();
         customPages.clear();
         render(true);
