@@ -1,0 +1,42 @@
+plugins {
+    id 'com.android.application' version '9.1.0'
+}
+
+android {
+    namespace = 'org.llm4people.hermes'
+    compileSdk = providers.gradleProperty('hermesCompileSdk').get().toInteger()
+    buildToolsVersion = providers.gradleProperty('hermesBuildTools').get()
+
+    defaultConfig {
+        applicationId = namespace
+        minSdk = providers.gradleProperty('hermesMinSdk').get().toInteger()
+        targetSdk = providers.gradleProperty('hermesTargetSdk').get().toInteger()
+        versionCode = providers.gradleProperty('hermesVersionCode').get().toInteger()
+        versionName = providers.gradleProperty('hermesVersionName').get()
+        testInstrumentationRunner = 'android.test.InstrumentationTestRunner'
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled = true
+            shrinkResources = true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt')
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+}
+
+def frameworkTestLibraries = androidComponents.sdkComponents.sdkDirectory.map { location ->
+    def optional = location.dir("platforms/android-${android.compileSdk}/optional")
+    ['android.test.runner', 'android.test.base'].collect { optional.file("${it}.jar") }
+}
+
+dependencies {
+    implementation 'com.google.firebase:firebase-messaging:26.0.2'
+    androidTestCompileOnly files(frameworkTestLibraries)
+    testImplementation 'junit:junit:4.13.2'
+}
