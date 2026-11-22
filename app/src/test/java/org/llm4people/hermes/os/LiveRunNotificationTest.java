@@ -47,4 +47,24 @@ public class LiveRunNotificationTest {
         assertEquals("En cours", negative.shortCriticalText());
         assertTrue(negative.indeterminate());
     }
+
+    @Test public void consecutiveEqualSnapshotsAreDeduplicatedWhileStateChangesEmitImmediately() {
+        LiveRunNotification.Snapshot working = new LiveRunNotification.Snapshot(
+                LiveRunNotification.Phase.WORKING, 0, 0, false, true);
+        LiveRunNotification.Snapshot workingCopy = new LiveRunNotification.Snapshot(
+                LiveRunNotification.Phase.WORKING, 0, 0, false, true);
+        LiveRunNotification.Snapshot step1 = new LiveRunNotification.Snapshot(
+                LiveRunNotification.Phase.TOOL_RUNNING, 1, 0, false, true);
+        LiveRunNotification.Snapshot decision = new LiveRunNotification.Snapshot(
+                LiveRunNotification.Phase.AWAITING_DECISION, 1, 0, true, true);
+
+        assertFalse(LiveRunNotification.shouldEmit(null, LiveRunNotification.Snapshot.idle()));
+        assertTrue(LiveRunNotification.shouldEmit(LiveRunNotification.Snapshot.idle(), working));
+        assertFalse("Repeated 80ms SSE delta frames must not spam notify()",
+                LiveRunNotification.shouldEmit(working, workingCopy));
+        assertTrue(LiveRunNotification.shouldEmit(working, step1));
+        assertTrue(LiveRunNotification.shouldEmit(step1, decision));
+        assertTrue(LiveRunNotification.shouldEmit(decision, LiveRunNotification.Snapshot.idle()));
+        assertFalse(LiveRunNotification.shouldEmit(LiveRunNotification.Snapshot.idle(), null));
+    }
 }

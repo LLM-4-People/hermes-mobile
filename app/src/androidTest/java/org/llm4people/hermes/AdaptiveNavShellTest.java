@@ -27,6 +27,7 @@ public final class AdaptiveNavShellTest extends InstrumentationTestCase {
                 // Phone width (< 720dp): Bottom Navigation Bar visible.
                 int phoneW = Ui.dp(activity, 360);
                 int phoneH = Ui.dp(activity, 780);
+                shell.updateNavigationChrome(360f, 780f);
                 measureAndLayout(shell.root, phoneW, phoneH);
                 assertEquals(LinearLayout.VERTICAL, shell.root.getOrientation());
                 assertEquals(AdaptiveLayout.NavChrome.BOTTOM_BAR, shell.navBar().mode());
@@ -56,12 +57,14 @@ public final class AdaptiveNavShellTest extends InstrumentationTestCase {
 
                 // IME visible on phone auto-hides bottom navigation bar so composer stays full-height.
                 shell.setImeVisible(true);
+                shell.updateNavigationChrome(360f, 420f);
                 measureAndLayout(shell.root, phoneW, Ui.dp(activity, 420));
                 assertEquals(AdaptiveLayout.NavChrome.HIDDEN, shell.navBar().mode());
                 assertEquals(View.GONE, shell.navBar().getVisibility());
 
                 // IME hidden restores bottom navigation bar.
                 shell.setImeVisible(false);
+                shell.updateNavigationChrome(360f, 780f);
                 measureAndLayout(shell.root, phoneW, phoneH);
                 assertEquals(AdaptiveLayout.NavChrome.BOTTOM_BAR, shell.navBar().mode());
                 assertEquals(View.VISIBLE, shell.navBar().getVisibility());
@@ -70,6 +73,7 @@ public final class AdaptiveNavShellTest extends InstrumentationTestCase {
                 shell.setImeVisible(true);
                 int tabletW = Ui.dp(activity, 840);
                 int tabletH = Ui.dp(activity, 1100);
+                shell.updateNavigationChrome(840f, 1100f);
                 measureAndLayout(shell.root, tabletW, tabletH);
                 assertEquals(LinearLayout.HORIZONTAL, shell.root.getOrientation());
                 assertEquals(AdaptiveLayout.NavChrome.RAIL, shell.navBar().mode());

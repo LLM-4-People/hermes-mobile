@@ -16,6 +16,8 @@ import android.os.Bundle;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.R;
 
+import java.util.Objects;
+
 /**
  * Android 16 Live Updates ongoing run notification.
  * Privacy by construction: Snapshot carries only bounded phase and step counters, never private
@@ -30,6 +32,8 @@ public final class LiveRunNotification {
     private static final int SEGMENT_WORK = 60;
     private static final int SEGMENT_FINISH = 20;
     private static final int TOTAL_UNITS = SEGMENT_PREP + SEGMENT_WORK + SEGMENT_FINISH;
+    private static volatile Snapshot lastPosted;
+    private static volatile boolean lastWidgetActive;
 
     public enum Phase {
         IDLE,
@@ -54,6 +58,13 @@ public final class LiveRunNotification {
                                int progress, int max, boolean indeterminate) {}
 
     private LiveRunNotification() {}
+
+    /** Deduplicates consecutive identical snapshots to prevent Binder/notification rate-limit spam. */
+    public static boolean shouldEmit(Snapshot previous, Snapshot next) {
+        Snapshot prevNorm = previous == null || !previous.active() ? Snapshot.idle() : previous;
+        Snapshot nextNorm = next == null || !next.active() ? Snapshot.idle() : next;
+        return !Objects.equals(prevNorm, nextNorm);
+    }
 
     /** Pure privacy-safe presentation mapper tested deterministically on the host JVM. */
     public static Presentation present(Snapshot snapshot) {
@@ -100,25 +111,31 @@ public final class LiveRunNotification {
     }
 
     @SuppressLint("MissingPermission")
-    public static void update(Context context, Snapshot snapshot) {
+    public static synchronized void update(Context context, Snapshot snapshot) {
         if (context == null) return;
         Context app = context.getApplicationContext();
-        if (snapshot == null || !snapshot.active()) {
-            cancel(app);
-            HermesWidgetProvider.refresh(app, false);
+        Snapshot normalized = snapshot == null || !snapshot.active() ? Snapshot.idle() : snapshot;
+        if (!shouldEmit(lastPosted, normalized)) return;
+        lastPosted = normalized;
+        boolean nextActive = normalized.active();
+        if (lastWidgetActive != nextActive) {
+            lastWidgetActive = nextActive;
+            HermesWidgetProvider.refresh(app, nextActive);
+        }
+        if (!nextActive) {
+            cancelNotificationOnly(app);
             return;
         }
-        HermesWidgetProvider.refresh(app, true);
         if (!allowed(app)) return;
-        Presentation model = present(snapshot);
+        Presentation model = present(normalized);
         if (model == null) {
-            cancel(app);
+            cancelNotificationOnly(app);
             return;
         }
         NotificationManager manager = app.getSystemService(NotificationManager.class);
         if (manager == null) return;
         ensureChannel(app, manager);
-        Notification notification = build(app, manager, snapshot, model);
+        Notification notification = build(app, manager, normalized, model);
         try {
             manager.notify(NOTIFICATION_ID, notification);
         } catch (RuntimeException error) {
@@ -126,9 +143,19 @@ public final class LiveRunNotification {
         }
     }
 
-    public static void cancel(Context context) {
+    public static synchronized void cancel(Context context) {
+        lastPosted = Snapshot.idle();
         if (context == null) return;
-        NotificationManager manager = context.getApplicationContext().getSystemService(NotificationManager.class);
+        Context app = context.getApplicationContext();
+        if (lastWidgetActive) {
+            lastWidgetActive = false;
+            HermesWidgetProvider.refresh(app, false);
+        }
+        cancelNotificationOnly(app);
+    }
+
+    private static void cancelNotificationOnly(Context app) {
+        NotificationManager manager = app.getSystemService(NotificationManager.class);
         if (manager != null) manager.cancel(NOTIFICATION_ID);
     }
 

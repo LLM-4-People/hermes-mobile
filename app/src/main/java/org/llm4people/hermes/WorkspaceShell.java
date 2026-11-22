@@ -51,16 +51,18 @@ final class WorkspaceShell {
         this.activity = activity;
         this.action = action;
         root = new LinearLayout(activity) {
-            @Override protected void onMeasure(int widthSpec, int heightSpec) {
-                int widthPx = MeasureSpec.getSize(widthSpec);
-                int heightPx = MeasureSpec.getSize(heightSpec);
-                if (widthPx > 0) {
+            @Override protected void onSizeChanged(int w, int h, int oldw, int oldh) {
+                super.onSizeChanged(w, h, oldw, oldh);
+                if (w > 0 && (w != oldw || h != oldh)) {
                     float density = getResources().getDisplayMetrics().density;
                     if (density > 0f) {
-                        updateNavigationChrome(widthPx / density, heightPx / density);
+                        float widthDp = w / density;
+                        float heightDp = h / density;
+                        if (AdaptiveLayout.navigationChrome(widthDp, heightDp, imeVisible) != chrome) {
+                            post(() -> updateNavigationChrome(widthDp, heightDp));
+                        }
                     }
                 }
-                super.onMeasure(widthSpec, heightSpec);
             }
         };
         root.setOrientation(LinearLayout.VERTICAL);
@@ -118,7 +120,8 @@ final class WorkspaceShell {
             }
         });
 
-        applyChrome(AdaptiveLayout.NavChrome.BOTTOM_BAR);
+        android.content.res.Configuration config = activity.getResources().getConfiguration();
+        applyChrome(AdaptiveLayout.navigationChrome(config.screenWidthDp, config.screenHeightDp, false));
     }
 
     AdaptiveNavBar navBar() { return navBar; }

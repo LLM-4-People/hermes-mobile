@@ -22,6 +22,7 @@ import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.util.Arrays;
 import java.util.Objects;
+import java.util.UUID;
 
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
@@ -36,6 +37,7 @@ public final class BiometricVault {
     private static final String PREFS = "hermes.os.biometric";
     private static final String ENVELOPE_PREFIX = "bio.env.";
     private static final String MODE_PREFIX = "bio.mode.";
+    private static final String ALIAS_PREFIX = "bio.alias.";
     private static final String KEY_PREFIX = "hermes.bio.v1.";
     private static final String MODE_STRONG = "strong";
     private static final String MODE_CREDENTIAL = "credential";
@@ -106,6 +108,11 @@ public final class BiometricVault {
         return ("hermes-bio-v1\0" + profileId + "\0" + label).getBytes(StandardCharsets.UTF_8);
     }
 
+    /**
+     * Checks hardware-keystore-compatible authenticators only:
+     * Class-3 BIOMETRIC_STRONG first, otherwise DEVICE_CREDENTIAL (never Class-2 BIOMETRIC_WEAK,
+     * which cannot unlock AndroidKeyStore auth-bound keys).
+     */
     public static Availability availability(Context context) {
         if (context == null || Build.VERSION.SDK_INT < 29) return Availability.UNAVAILABLE;
         BiometricManager manager = context.getSystemService(BiometricManager.class);
@@ -115,9 +122,8 @@ public final class BiometricVault {
                     == BiometricManager.BIOMETRIC_SUCCESS) {
                 return Availability.STRONG;
             }
-            int fallback = BiometricManager.Authenticators.BIOMETRIC_WEAK
-                    | BiometricManager.Authenticators.DEVICE_CREDENTIAL;
-            if (manager.canAuthenticate(fallback) == BiometricManager.BIOMETRIC_SUCCESS) {
+            if (manager.canAuthenticate(BiometricManager.Authenticators.DEVICE_CREDENTIAL)
+                    == BiometricManager.BIOMETRIC_SUCCESS) {
                 return Availability.DEVICE_CREDENTIAL;
             }
             return Availability.UNAVAILABLE;
@@ -137,11 +143,18 @@ public final class BiometricVault {
 
     public static void revoke(Context context, String profileId) {
         if (context == null || profileId == null || profileId.isEmpty()) return;
+        String storedAlias;
         SharedPreferences prefs = prefs(context);
         synchronized (prefs) {
-            prefs.edit().remove(ENVELOPE_PREFIX + profileId).remove(MODE_PREFIX + profileId).apply();
+            storedAlias = prefs.getString(ALIAS_PREFIX + profileId, null);
+            prefs.edit()
+                    .remove(ENVELOPE_PREFIX + profileId)
+                    .remove(MODE_PREFIX + profileId)
+                    .remove(ALIAS_PREFIX + profileId)
+                    .apply();
         }
-        deleteKey(profileId);
+        if (storedAlias != null && !storedAlias.isEmpty()) deleteKeyAlias(storedAlias);
+        deleteKeyAlias(KEY_PREFIX + profileId);
         Diagnostics.event("biometric", "revoked");
     }
 
@@ -161,14 +174,19 @@ public final class BiometricVault {
         }
         byte[] payloadCopy = Arrays.copyOf(rawPayload, rawPayload.length);
         Arrays.fill(rawPayload, (byte) 0);
+        // Stage enrollment under a fresh keystore alias so cancel/failure never corrupts an existing enrollment.
+        String stagingAlias = KEY_PREFIX + profileId + "." + UUID.randomUUID();
         try {
-            deleteKey(profileId);
             boolean strong = mode == Availability.STRONG;
-            SecretKey key = generateKey(profileId, strong);
+            SecretKey key = generateKey(stagingAlias, strong);
             BiometricPrompt prompt = buildPrompt(activity,
                     activity.getString(R.string.security_biometric_enroll_title),
                     activity.getString(R.string.security_biometric_enroll_subtitle),
-                    strong, callback::onCancelled);
+                    strong, () -> {
+                        Arrays.fill(payloadCopy, (byte) 0);
+                        deleteKeyAlias(stagingAlias);
+                        callback.onCancelled();
+                    });
             CancellationSignal signal = new CancellationSignal();
             BiometricPrompt.AuthenticationCallback auth = new BiometricPrompt.AuthenticationCallback() {
                 @Override public void onAuthenticationSucceeded(BiometricPrompt.AuthenticationResult result) {
@@ -177,12 +195,16 @@ public final class BiometricVault {
                                 ? result.getCryptoObject().getCipher()
                                 : initEncryptCipher(key);
                         byte[] sealed = sealWithCipher(cipher, profileId, label, payloadCopy);
-                        storeEnvelope(activity, profileId, strong ? MODE_STRONG : MODE_CREDENTIAL, sealed);
+                        String previousAlias = storeEnvelope(activity, profileId,
+                                strong ? MODE_STRONG : MODE_CREDENTIAL, stagingAlias, sealed);
+                        if (previousAlias != null && !previousAlias.equals(stagingAlias)) {
+                            deleteKeyAlias(previousAlias);
+                        }
                         Diagnostics.event("biometric", "enrolled");
                         callback.onEnrolled();
                     } catch (GeneralSecurityException | RuntimeException error) {
                         Diagnostics.warning("biometric", "enroll_seal_failed");
-                        revoke(activity, profileId);
+                        deleteKeyAlias(stagingAlias);
                         callback.onError();
                     } finally {
                         Arrays.fill(payloadCopy, (byte) 0);
@@ -191,10 +213,10 @@ public final class BiometricVault {
 
                 @Override public void onAuthenticationError(int errorCode, CharSequence errString) {
                     Arrays.fill(payloadCopy, (byte) 0);
+                    deleteKeyAlias(stagingAlias);
                     if (isUserCancel(errorCode)) callback.onCancelled();
                     else {
                         Diagnostics.warning("biometric", "enroll_auth_error");
-                        revoke(activity, profileId);
                         callback.onError();
                     }
                 }
@@ -207,8 +229,8 @@ public final class BiometricVault {
             }
         } catch (GeneralSecurityException | IOException | RuntimeException error) {
             Arrays.fill(payloadCopy, (byte) 0);
+            deleteKeyAlias(stagingAlias);
             Diagnostics.warning("biometric", "enroll_init_failed");
-            revoke(activity, profileId);
             callback.onError();
         }
     }
@@ -221,12 +243,14 @@ public final class BiometricVault {
         }
         String encoded;
         String storedMode;
+        String alias;
         SharedPreferences prefs = prefs(activity);
         synchronized (prefs) {
             encoded = prefs.getString(ENVELOPE_PREFIX + profileId, null);
             storedMode = prefs.getString(MODE_PREFIX + profileId, null);
+            alias = prefs.getString(ALIAS_PREFIX + profileId, KEY_PREFIX + profileId);
         }
-        if (encoded == null || storedMode == null) {
+        if (encoded == null || storedMode == null || alias == null || alias.isEmpty()) {
             callback.onError();
             return;
         }
@@ -240,7 +264,7 @@ public final class BiometricVault {
         }
         boolean strong = MODE_STRONG.equals(storedMode);
         try {
-            SecretKey key = loadKey(profileId);
+            SecretKey key = loadKey(alias);
             if (key == null) {
                 revoke(activity, profileId);
                 callback.onInvalidated();
@@ -305,8 +329,7 @@ public final class BiometricVault {
                         .setNegativeButton(activity.getString(R.string.security_biometric_use_passphrase),
                                 activity.getMainExecutor(), (dialog, which) -> onCancel.run());
             } else {
-                builder.setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_WEAK
-                        | BiometricManager.Authenticators.DEVICE_CREDENTIAL);
+                builder.setAllowedAuthenticators(BiometricManager.Authenticators.DEVICE_CREDENTIAL);
             }
         } else {
             builder.setNegativeButton(activity.getString(R.string.security_biometric_use_passphrase),
@@ -315,22 +338,24 @@ public final class BiometricVault {
         return builder.build();
     }
 
-    private static SecretKey generateKey(String profileId, boolean strong) throws GeneralSecurityException, IOException {
+    private static SecretKey generateKey(String alias, boolean strong) throws GeneralSecurityException, IOException {
         KeyGenerator generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore");
         KeyGenParameterSpec.Builder spec = new KeyGenParameterSpec.Builder(
-                KEY_PREFIX + profileId,
+                alias,
                 KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
                 .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
                 .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
                 .setKeySize(256)
-                .setUserAuthenticationRequired(true)
-                .setInvalidatedByBiometricEnrollment(true);
+                .setUserAuthenticationRequired(true);
+        if (strong) {
+            spec.setInvalidatedByBiometricEnrollment(true);
+        }
         if (Build.VERSION.SDK_INT >= 30) {
             if (strong) {
                 spec.setUserAuthenticationParameters(0, KeyProperties.AUTH_BIOMETRIC_STRONG);
             } else {
                 spec.setUserAuthenticationParameters(CREDENTIAL_VALIDITY_SECONDS,
-                        KeyProperties.AUTH_BIOMETRIC_STRONG | KeyProperties.AUTH_DEVICE_CREDENTIAL);
+                        KeyProperties.AUTH_DEVICE_CREDENTIAL);
             }
         } else {
             @SuppressWarnings("deprecation")
@@ -341,19 +366,18 @@ public final class BiometricVault {
         return generator.generateKey();
     }
 
-    private static SecretKey loadKey(String profileId) throws GeneralSecurityException, IOException {
+    private static SecretKey loadKey(String alias) throws GeneralSecurityException, IOException {
         KeyStore store = KeyStore.getInstance("AndroidKeyStore");
         store.load(null);
-        String alias = KEY_PREFIX + profileId;
         if (!store.containsAlias(alias)) return null;
         return (SecretKey) store.getKey(alias, null);
     }
 
-    private static void deleteKey(String profileId) {
+    private static void deleteKeyAlias(String alias) {
+        if (alias == null || alias.isEmpty()) return;
         try {
             KeyStore store = KeyStore.getInstance("AndroidKeyStore");
             store.load(null);
-            String alias = KEY_PREFIX + profileId;
             if (store.containsAlias(alias)) store.deleteEntry(alias);
         } catch (GeneralSecurityException | IOException | RuntimeException ignored) {
             Diagnostics.warning("biometric", "key_delete_failed");
@@ -372,13 +396,17 @@ public final class BiometricVault {
         return cipher;
     }
 
-    private static void storeEnvelope(Context context, String profileId, String mode, byte[] sealed) {
+    private static String storeEnvelope(Context context, String profileId, String mode,
+                                        String alias, byte[] sealed) {
         SharedPreferences prefs = prefs(context);
         synchronized (prefs) {
+            String previousAlias = prefs.getString(ALIAS_PREFIX + profileId, KEY_PREFIX + profileId);
             prefs.edit()
                     .putString(ENVELOPE_PREFIX + profileId, Base64.encodeToString(sealed, Base64.NO_WRAP))
                     .putString(MODE_PREFIX + profileId, mode)
+                    .putString(ALIAS_PREFIX + profileId, alias)
                     .apply();
+            return previousAlias;
         }
     }
 

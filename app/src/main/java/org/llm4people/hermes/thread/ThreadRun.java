@@ -23,8 +23,16 @@ final class ThreadRun {
     private long started = -1;
     private long subscription;
     private boolean canStop;
+    private LiveRunNotification.Snapshot lastProgress = LiveRunNotification.Snapshot.idle();
     private RunAction owner() { return RunAction.capture(journal, page::token, () -> subscription); }
     private String runId() { return ThreadData.string(journal.pending(), "run_id"); }
+
+    private void reportProgress(LiveRunNotification.Snapshot next) {
+        LiveRunNotification.Snapshot safe = next == null ? LiveRunNotification.Snapshot.idle() : next;
+        if (!LiveRunNotification.shouldEmit(lastProgress, safe)) return;
+        lastProgress = safe;
+        page.host.runProgress(safe);
+    }
 
     ThreadRun(ThreadWorkspace page) {
         this.page = page;
@@ -104,13 +112,14 @@ final class ThreadRun {
         submitting = true;
         ui.busy(true, false);
         ui.notice(fresh ? "Préparation de l’envoi…" : "Vérification de l’envoi…", "", null);
-        page.host.runProgress(new LiveRunNotification.Snapshot(
+        reportProgress(new LiveRunNotification.Snapshot(
                 LiveRunNotification.Phase.STARTING, 0, 0, false, false));
         page.request(() -> page.api.get("/v1/capabilities"), capabilities -> {
             JSONObject features = capabilities.optJSONObject("features");
             JSONObject idem = features == null ? null : features.optJSONObject("runs_idempotency");
             if (body == null || idem == null || !idem.optBoolean("supported")) {
                 admissionFinished();
+                reportProgress(LiveRunNotification.Snapshot.idle());
                 if (!fresh) { uncertain(); return; }
                 ui.busy(false, false);
                 ui.notice("Cette passerelle doit prendre en charge les envois identifiables. Mettez Hermes à jour.", "", null);
@@ -118,6 +127,7 @@ final class ThreadRun {
             }
             if (!fresh && !NearbyTurn.canReplay(journal.pending(), features)) {
                 admissionFinished();
+                reportProgress(LiveRunNotification.Snapshot.idle());
                 uncertain();
                 return;
             }
@@ -125,6 +135,7 @@ final class ThreadRun {
             boolean ignoresExclusions = body.has("excluded_tools") && !features.optBoolean("run_tool_exclusions");
             if (ignoresToolsets || ignoresExclusions) {
                 admissionFinished();
+                reportProgress(LiveRunNotification.Snapshot.idle());
                 if (!fresh) { uncertain(); return; }
                 ui.busy(false, false);
                 ui.notice("Cette passerelle ne peut pas appliquer la sélection d’outils. Vérifiez les réglages de la conversation.", "", null);
@@ -137,12 +148,14 @@ final class ThreadRun {
                 JSONObject area = page.nearby.frozen();
                 if (!snapshot.equals(ui.draft()) || selectedPhoto != journal.photo() || !page.nearby.stillCurrent(nearbyVersion, area)) {
                     admissionFinished();
+                    reportProgress(LiveRunNotification.Snapshot.idle());
                     ui.busy(false, false);
                     ui.notice("Le brouillon a changé. Vous pouvez l’envoyer.", "", null);
                     return;
                 }
                 if (area != null && !NearbyTurn.supportsScope(features)) {
                     admissionFinished();
+                    reportProgress(LiveRunNotification.Snapshot.idle());
                     ui.busy(false, false);
                     int token = page.token();
                     java.util.function.BooleanSupplier unchanged = journal.unchangedDraft(snapshot);
@@ -159,6 +172,7 @@ final class ThreadRun {
                     page.nearby.clearTurn();
                 } catch (IllegalStateException e) {
                     admissionFinished();
+                    reportProgress(LiveRunNotification.Snapshot.idle());
                     ui.busy(false, false);
                     page.storageError();
                     return;
@@ -174,6 +188,7 @@ final class ThreadRun {
                         bootCount(), pending.optInt("boot", -1), ttl,
                         pending.optBoolean("durable") && idem.optBoolean("durable"))) {
                     admissionFinished();
+                    reportProgress(LiveRunNotification.Snapshot.idle());
                     uncertain();
                     return;
                 }
@@ -182,7 +197,7 @@ final class ThreadRun {
         }, error -> {
             admissionFinished();
             ui.busy(!fresh, false);
-            if (fresh) page.host.runProgress(LiveRunNotification.Snapshot.idle());
+            reportProgress(LiveRunNotification.Snapshot.idle());
             page.error(error, fresh ? this::send : this::restore);
         });
     }
@@ -210,6 +225,7 @@ final class ThreadRun {
             follow();
         }, error -> {
             admissionFinished();
+            reportProgress(LiveRunNotification.Snapshot.idle());
             started = -1;
             // Only a definitive rejection of the first attempt can return the text to the draft.
             boolean imageUnavailable = image != null && error instanceof DiscussionPhoto.Unavailable;
@@ -235,6 +251,7 @@ final class ThreadRun {
     }
 
     private void uncertain() {
+        reportProgress(LiveRunNotification.Snapshot.idle());
         RunAction owner = owner();
         canStop = false;
         ui.busy(true, false);
@@ -284,7 +301,7 @@ final class ThreadRun {
         ui.busy(true, true);
         RunPreview saved = new RunPreview(receipt);
         ui.live("Hermes travaille…", saved.toString(), false, saved.origin());
-        page.host.runProgress(new LiveRunNotification.Snapshot(
+        reportProgress(new LiveRunNotification.Snapshot(
                 LiveRunNotification.Phase.WORKING, 0, 0, false, true));
         RunFollower nextFollower = new RunFollower(page.api, id, receipt, started, new RunFollower.Listener() {
             private boolean current() { return serial == subscription && receipt == journal.pending(); }
@@ -302,7 +319,7 @@ final class ThreadRun {
                     ui.live(activity, next.text, count > 0, next.origin);
                     decisions.present(next.prompts);
                     ui.notice("", "", null);
-                    page.host.runProgress(new LiveRunNotification.Snapshot(
+                    reportProgress(new LiveRunNotification.Snapshot(
                             count > 0 ? LiveRunNotification.Phase.AWAITING_DECISION
                                     : next.toolSteps > 0 ? LiveRunNotification.Phase.TOOL_RUNNING
                                     : LiveRunNotification.Phase.WORKING,
@@ -334,6 +351,7 @@ final class ThreadRun {
     private void unresolved(JSONObject status) {
         ++subscription;
         canStop = false;
+        reportProgress(LiveRunNotification.Snapshot.idle());
         decisions.clear();
         frame = null;
         started = -1;
@@ -370,6 +388,7 @@ final class ThreadRun {
     }
 
     private void trackingInterrupted() {
+        reportProgress(LiveRunNotification.Snapshot.idle());
         RunAction owner = owner().when(journal::reconnectsExhausted);
         ui.notice("Suivi interrompu. Vous pouvez consulter la conversation.",
                 "Vérifier la conversation", owner.guard(() -> page.loadMessages(false,
@@ -392,7 +411,7 @@ final class ThreadRun {
     private void completed(JSONObject status, long firstText, long elapsed) {
         ++subscription;
         canStop = false;
-        page.host.runProgress(LiveRunNotification.Snapshot.idle());
+        reportProgress(LiveRunNotification.Snapshot.idle());
         decisions.clear();
         RunAction owner = owner();
         String outcome = status.optString("status");
@@ -470,7 +489,7 @@ final class ThreadRun {
     void detach() {
         ++subscription;
         canStop = false;
-        page.host.runProgress(LiveRunNotification.Snapshot.idle());
+        reportProgress(LiveRunNotification.Snapshot.idle());
         if (decisions != null) decisions.clear();
         if (follower != null) follower.close();
         checkpoint();

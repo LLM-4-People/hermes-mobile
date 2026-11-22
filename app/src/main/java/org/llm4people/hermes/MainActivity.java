@@ -365,6 +365,9 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
 
     @Override protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
+        // Android invokes onNewIntent() before onStart()/onResume(); enforce grace expiry first
+        // so an expired session locks immediately and queues incoming OS intents until re-unlock.
+        checkGraceOnReturn();
         if (sharedText.receive(intent)) {
             setIntent(new Intent(this, MainActivity.class));
             delivery = null;
