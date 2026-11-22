@@ -45,8 +45,9 @@ final class PromptCard extends LinearLayout {
         panel.addView(title);
         actions = Ui.column(ui.activity);
         if (question) {
+            Button listen = button(panel, "", null, false);
             panel.addView(actions);
-            this.question = new PromptQuestion(this, actions, prompt, answer);
+            this.question = new PromptQuestion(this, actions, prompt, listen, answer);
         } else {
             this.question = null;
             approval(panel, prompt, answer);
@@ -164,7 +165,7 @@ final class PromptCard extends LinearLayout {
     boolean ready() { return state == State.READY; }
 
     Button button(LinearLayout parent, String label, Runnable click, boolean tonal) {
-        Button button = Ui.button(getContext(), label, v -> click.run());
+        Button button = Ui.button(getContext(), label, click == null ? null : v -> click.run());
         button.setSingleLine(false);
         button.setEllipsize(null);
         button.setMinWidth(0);

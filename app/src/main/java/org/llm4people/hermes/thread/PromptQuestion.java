@@ -29,18 +29,18 @@ final class PromptQuestion {
     private final VoiceDrafts.Controls voice;
     private final List<CheckBox> checks = new ArrayList<>();
 
-    PromptQuestion(PromptCard card, LinearLayout actions, JSONObject prompt, Consumer<String> answer) {
+    PromptQuestion(PromptCard card, LinearLayout actions, JSONObject prompt, Button listen, Consumer<String> answer) {
         this.card = card;
         JSONArray choices = prompt.optJSONArray("choices");
         boolean multiple = prompt.optBoolean("multi_select");
         input = new EditText(card.getContext());
-        int count = 0;
+        List<String> displayed = new ArrayList<>();
         for (int i = 0; choices != null && i < choices.length(); i++) {
             if (!(choices.opt(i) instanceof String choice) || choice.trim().isEmpty()) continue;
-            count++;
             boolean recommended = choice.endsWith(RECOMMENDED);
             String value = recommended ? choice.substring(0, choice.length() - RECOMMENDED.length()).trim() : choice;
             String label = recommended ? value + " (choix recommandé)" : choice;
+            displayed.add(label);
             if (multiple) {
                 CheckBox option = new CheckBox(card.getContext());
                 option.setText(label);
@@ -55,8 +55,9 @@ final class PromptQuestion {
                 option.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
             }
         }
+        card.ui.reader.bindQuestion(listen, ThreadData.string(prompt, "question"), displayed);
         LinearLayout custom = Ui.column(card.getContext());
-        if (count > 0) {
+        if (!displayed.isEmpty()) {
             custom.setVisibility(View.GONE);
             Button write = card.button(actions, "Écrire une réponse", () -> {}, false);
             write.setOnClickListener(v -> {
