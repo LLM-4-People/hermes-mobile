@@ -42,15 +42,26 @@ class Emulator:
         self.command = [adb, "-P", str(port), "-s", serial]
 
     def run(self, *args, data=None, timeout=120):
-        name = " ".join(args[:2]) if args[0] == "shell" else args[0]
+        # A shell argument can be a whole command containing credentials or draft text.
+        name = args[0] if args and args[0] in {"shell", "exec-out", "install", "uninstall", "reverse",
+                                               "push", "pull", "forward", "get-state", "wait-for-device"} else "command"
+        if name == "shell" and len(args) > 1 and args[1] in {
+                "am", "cmd", "content", "dumpsys", "getprop", "id", "input", "pm", "run-as", "settings", "wm"}:
+            name += " " + args[1]
         try:
             completed = subprocess.run(self.command + list(args), input=data, stdout=subprocess.PIPE,
                                        stderr=subprocess.PIPE, timeout=timeout, check=False)
         except subprocess.TimeoutExpired:
             raise RuntimeError(f"adb {name} exceeded {timeout}s") from None
         if completed.returncode:
-            message = (completed.stderr or completed.stdout).decode(errors="replace").strip()
-            raise RuntimeError(f"adb {name} exited with status {completed.returncode}: {message or 'no output'}")
+            # A failed dumpsys can return thousands of lines of partial private UI state.
+            stdout, stderr = completed.stdout, completed.stderr
+            detail = f"{len(stdout)} stdout bytes, {len(stderr)} stderr bytes" if stdout or stderr else "no output"
+            if len(stderr) <= 96:
+                diagnostic = stderr.strip().removeprefix(b"adb: ").removeprefix(b"error: ")
+                if diagnostic in {b"device offline", b"device unauthorized", b"no devices/emulators found"}:
+                    detail = diagnostic.decode("ascii")
+            raise RuntimeError(f"adb {name} exited with status {completed.returncode}: {detail}")
         return completed.stdout
 
     def shell(self, *args):
