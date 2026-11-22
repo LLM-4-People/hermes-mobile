@@ -57,6 +57,8 @@ jobs:
           persist-credentials: false
       - id: android
         uses: ./.github/actions/android
+        with:
+          gradle: ${{ inputs.release && 'clean' || 'cached' }}
       - name: Build, lint and run host tests
         run: python3 ci/gradle_check.py :app:assembleDebug :app:assembleRelease :app:assembleDebugAndroidTest :app:lintDebug :app:testDebugUnitTest
       - name: Upload installable debug APK
@@ -96,6 +98,8 @@ jobs:
           persist-credentials: false
       - id: android
         uses: ./.github/actions/android
+        with:
+          gradle: ${{ inputs.release && 'clean' || 'cached' }}
       - uses: ./.github/actions/hermes-fixture
       - name: Install the fork's locked gateway dependencies
         run: |
