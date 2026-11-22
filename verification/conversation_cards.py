@@ -36,7 +36,7 @@ TURNS = [
     {"prompt": "Réessaie de partager mon fichier de démonstration.", "kind": "approval",
      "answer": "once", "reply": "Le fichier de démonstration est partagé."},
     {"prompt": "Vérifie si tu peux refaire ce partage.", "kind": "approval",
-     "answer": "deny", "reply": "Cette nouvelle demande a été refusée."},
+     "read_history": True, "answer": "deny", "reply": "Cette nouvelle demande a été refusée."},
 ]
 
 
