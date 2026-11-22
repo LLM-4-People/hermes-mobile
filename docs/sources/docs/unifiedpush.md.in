@@ -17,7 +17,12 @@ On first startup the bridge generates a VAPID signing key in its owner-only stat
 
 ## Set up the phone
 
-Install the ntfy Android distributor and select the matching self-hosted ntfy server as its default server. Enable UnifiedPush distribution in ntfy. Unlock the intended Hermes profile. In **Atelier → Notifications**, choose **Activer**, then **Activer avec UnifiedPush**. Use **Choisir un distributeur** to select ntfy. Allow Android to display notifications. To change distributors, turn off enrollments using the current distributor first. The distributor must be able to reach its server in the background. A user-initiated Android force-stop requires reopening the stopped app.
+1. Install and open the ntfy Android distributor. In **Settings → Default server**, enter the ntfy origin configured by your operator and tap **Save**.
+2. Unlock the intended Hermes profile. In **Atelier → Notifications**, tap **Activer**, allow Hermes to display notifications, then choose **Activer avec UnifiedPush** and select **ntfy**.
+3. When Hermes confirms that the relay registered this profile, tap **Ouvrir le distributeur**. Wait for ntfy’s **Subscribed topics** screen before leaving the app. On Android 13 this foreground visit lets ntfy start listening for the new subscription. You can reopen the same distributor from the profile’s notification settings.
+4. Start a short Hermes run and leave the app. Confirm that Android shows the completion alert and that tapping it opens the owning profile.
+
+If the relay accepted an event and the phone stayed silent, reopen ntfy and check its connection to the configured server. The relay records registration before ntfy opens its listening connection. On a private server, the operator can check whether the enrolled topic has a live subscriber. Treat topic identifiers as private. A user-initiated Android force-stop requires reopening the stopped app. To change distributors, turn off enrollments using the current distributor first.
 
 ## Device contract
 
