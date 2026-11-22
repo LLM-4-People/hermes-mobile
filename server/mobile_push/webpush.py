@@ -64,8 +64,11 @@ def validate_contact(subject):
     if parts.scheme != "mailto" or parts.netloc or parts.fragment:
         raise ValueError("Expected a mailto or HTTPS VAPID contact URI")
     for recipient in parts.path.split(","):
+        mailbox = unquote(recipient, errors="strict")
+        if not mailbox or mailbox.endswith("@"):
+            raise ValueError("Invalid VAPID mailto address")
         try:
-            address = Address(addr_spec=unquote(recipient, errors="strict"))
+            address = Address(addr_spec=mailbox)
         except (ValueError, HeaderParseError) as exc:
             raise ValueError("Invalid VAPID mailto address") from exc
         if not address.username or not address.domain:
