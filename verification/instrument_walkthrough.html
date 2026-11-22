@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="fr">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src 'sha256-SCRIPT_DIGEST'; base-uri 'none'; form-action 'none'">
-<title>Un outil dans la discussion · Hermes Mobile</title>
+<title>A tool in the conversation · Hermes Mobile</title>
 <style>
 :root { color-scheme: light; font: 100%/1.5 system-ui, sans-serif; color: #172521; background: #f7f5ef; }
 * { box-sizing: border-box; }
@@ -49,13 +49,13 @@ figcaption { margin: .75rem 0 0; font-size: 1rem; }
 </style>
 </head>
 <body>
-<header><p class="brand">Hermes Mobile</p><h1>Un outil dans la discussion</h1></header>
+<header><p class="brand">Hermes Mobile</p><h1>A tool in the conversation</h1></header>
 <div class="layout">
-<nav aria-label="Étapes du parcours"><ol><!-- STEPS --></ol></nav>
+<nav aria-label="Walkthrough steps"><ol><!-- STEPS --></ol></nav>
 <main>
 <div class="tools" hidden>
 <span id="position" role="status" aria-live="polite" aria-atomic="true"></span>
-<div class="controls"><button type="button" id="previous">Précédent</button><button type="button" id="next">Suivant</button></div>
+<div class="controls"><button type="button" id="previous">Previous</button><button type="button" id="next">Next</button></div>
 </div>
 <!-- SCREENS -->
 </main>
@@ -75,7 +75,7 @@ function show(index) {
   });
   previous.disabled = index === 0;
   next.disabled = index === screens.length - 1;
-  document.querySelector("#position").textContent = "Étape " + (index + 1) + " sur " + screens.length;
+  document.querySelector("#position").textContent = "Step " + (index + 1) + " of " + screens.length;
 }
 function navigate(index) {
   if (index < 0 || index >= screens.length || index === active) return;

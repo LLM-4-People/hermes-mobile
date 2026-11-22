@@ -1,4 +1,4 @@
-"""Build an offline French walkthrough from a completed thread-instrument phone receipt."""
+"""Build an offline walkthrough from a completed thread-instrument phone receipt."""
 
 import argparse
 import base64
@@ -15,9 +15,14 @@ from device.run import android_png_size
 
 
 # A numbered journey stage can have additional verified views. Its first declared capture is the overview.
-STEP_NAMES = (
-    "Demander un outil", "Essayer le formulaire", "Préparer le brouillon", "Comparer la révision",
-    "Adopter la version", "Annuler la révision", "Ouvrir les deux panneaux",
+STEPS = (
+    ("Request a tool", "The tool request can be edited before sending."),
+    ("Try the form", "The proposed form is open for a trial in the conversation."),
+    ("Prepare a draft", "The form puts its result in an editable message draft."),
+    ("Compare revisions", "The comparison shows the new “Priorité” field."),
+    ("Adopt the revision", "The adopted form now includes the editable “Priorité” field."),
+    ("Undo the revision", "Undoing the revision restores the first pinned version."),
+    ("Open both panels", "The conversation and editable form appear side by side."),
 )
 TEMPLATE = Path(__file__).with_name("instrument_walkthrough.html")
 
@@ -59,20 +64,20 @@ def render(directory, expected, report):
         if (width, height) != (entry.get("width"), entry.get("height")):
             raise ValueError(f"Capture dimensions differ from the receipt: {name}")
         if stage not in stages:
-            stages[stage] = (caption, width, height, data)
+            stages[stage] = (width, height, data)
 
     navigation, figures = [], []
-    for number, title in enumerate(STEP_NAMES, 1):
+    for number, (title, description) in enumerate(STEPS, 1):
         stage = str(18 + number)
         if stage not in stages:
             raise ValueError(f"Missing phone journey stage {stage}")
-        caption, width, height, data = stages[stage]
+        width, height, data = stages[stage]
         title = escape(title)
         navigation.append(f'<li><a href="#etape-{number}">{title}</a></li>')
         source = base64.b64encode(data).decode("ascii")
         figures.append(f'<figure id="etape-{number}"><div class="canvas"><img width="{width}" height="{height}" '
-                       f'alt="Capture Android · {title}" src="data:image/png;base64,{source}"></div>'
-                       f'<figcaption>{escape(caption)}</figcaption></figure>')
+                       f'alt="Android screenshot · {title}" src="data:image/png;base64,{source}"></div>'
+                       f'<figcaption>{escape(description)}</figcaption></figure>')
     template = TEMPLATE.read_text(encoding="utf-8")
     script = template.split("<script>", 1)[1].split("</script>", 1)[0].encode()
     digest = base64.b64encode(hashlib.sha256(script).digest()).decode("ascii")

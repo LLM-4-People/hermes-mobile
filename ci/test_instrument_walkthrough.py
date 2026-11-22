@@ -14,7 +14,7 @@ import zlib
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "verification"))
 from device.run import PNG_SIGNATURE
-from instrument_walkthrough import STEP_NAMES, write_walkthrough
+from instrument_walkthrough import STEPS, write_walkthrough
 from thread_instruments import CAPTURES
 
 
@@ -78,7 +78,11 @@ class InstrumentWalkthroughTest(unittest.TestCase):
         view = ImagesAndLinks()
         view.feed(html)
         self.assertEqual(view.steps, [f"#etape-{n}" for n in range(1, 8)])
-        self.assertTrue(all(title in html for title in STEP_NAMES))
+        self.assertTrue(all(title in html and caption in html for title, caption in STEPS))
+        self.assertIn('<html lang="en">', html)
+        self.assertIn('>Previous</button>', html)
+        self.assertIn('>Next</button>', html)
+        self.assertTrue(all(caption not in html for caption in self.expected.values()))
         selected = [next(name for name in self.images if name.startswith(f"{n}-")) for n in range(19, 26)]
         self.assertEqual(view.sources, ["data:image/png;base64," + base64.b64encode(self.images[name]).decode("ascii")
                                         for name in selected])
