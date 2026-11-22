@@ -28,11 +28,13 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 final class SessionSettings {
     private final SessionPanel panel;
     private final String id;
     private final String remoteId;
+    private final Supplier<Configuration> currentWindow;
     private JSONObject saved;
     private TextView saveError;
     private boolean individualTools;
@@ -51,8 +53,9 @@ final class SessionSettings {
         @Override public String toString() { return name.isEmpty() || name.equals(slug) ? slug : name + " · " + slug; }
     }
 
-    SessionSettings(SessionPanel panel, String id, String remoteId) {
+    SessionSettings(SessionPanel panel, String id, String remoteId, Supplier<Configuration> currentWindow) {
         this.panel = panel; this.id = id; this.remoteId = remoteId;
+        this.currentWindow = currentWindow;
     }
 
     void show() {
@@ -203,7 +206,7 @@ final class SessionSettings {
             page.removeViewAt(0);
             context.addView(detail);
         }
-        Configuration window = panel.activity.getResources().getConfiguration();
+        Configuration window = currentWindow.get();
         if (window.orientation == Configuration.ORIENTATION_LANDSCAPE
                 && window.screenHeightDp <= 480 && window.screenWidthDp >= 480) {
             ScrollView header = new ScrollView(panel.activity);
