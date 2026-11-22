@@ -6,6 +6,7 @@ import java.security.GeneralSecurityException;
 import java.security.SecureRandom;
 import java.util.Arrays;
 import javax.crypto.Cipher;
+import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.GCMParameterSpec;
@@ -74,7 +75,7 @@ final class ProfileEnvelope {
 
     static byte[] decrypt(SecretKey key, byte[] aad, byte[] data, int offset)
             throws GeneralSecurityException {
-        if (data.length - offset < IV_BYTES + TAG_BYTES) throw new GeneralSecurityException("Truncated envelope");
+        if (data.length - offset < IV_BYTES + TAG_BYTES) throw new IllegalBlockSizeException("Truncated envelope");
         Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
         cipher.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(TAG_BYTES * 8, data, offset, IV_BYTES));
         cipher.updateAAD(aad);

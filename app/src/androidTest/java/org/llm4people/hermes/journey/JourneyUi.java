@@ -4,6 +4,7 @@ import android.app.Instrumentation;
 import android.app.Activity;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
+import android.graphics.Color;
 import android.graphics.Rect;
 import android.os.Bundle;
 import android.os.SystemClock;
@@ -11,6 +12,7 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowInsets;
+import android.view.WindowManager;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.inspector.WindowInspector;
 import android.widget.EditText;
@@ -177,12 +179,40 @@ final class JourneyUi {
     }
 
     void capture(String name) {
-        Bitmap bitmap = until("laid out app window", () -> {
-            View root = window();
-            if (root == null || root.getWidth() == 0 || root.getHeight() == 0) return null;
-            Bitmap screenshot = Bitmap.createBitmap(root.getWidth(), root.getHeight(), Bitmap.Config.ARGB_8888);
-            root.draw(new Canvas(screenshot));
-            return screenshot;
+        Bitmap bitmap = until("laid out app viewport", () -> {
+            View activityRoot = activity.getWindow().getDecorView();
+            View focused = window();
+            if (focused == null || focused.getWidth() == 0 || activityRoot.getWidth() == 0
+                    || activityRoot.getHeight() == 0) return null;
+            Bitmap shot = Bitmap.createBitmap(activityRoot.getWidth(), activityRoot.getHeight(),
+                    Bitmap.Config.ARGB_8888);
+            Canvas canvas = new Canvas(shot);
+            int[] origin = new int[2];
+            activityRoot.getLocationOnScreen(origin);
+            List<View> roots = WindowInspector.getGlobalWindowViews();
+            int dimWindow = -1;
+            for (int i = 0; i < roots.size(); i++) {
+                View view = roots.get(i);
+                if (view.isShown() && view.getLayoutParams() instanceof WindowManager.LayoutParams lp
+                        && (lp.flags & WindowManager.LayoutParams.FLAG_DIM_BEHIND) != 0) dimWindow = i;
+            }
+            for (int i = 0; i < roots.size(); i++) {
+                View view = roots.get(i);
+                if (!view.isShown() || view.getWidth() == 0 || view.getHeight() == 0) continue;
+                if (i == dimWindow) {
+                    float amount = ((WindowManager.LayoutParams) view.getLayoutParams()).dimAmount;
+                    canvas.drawColor(Color.argb(Math.round(255 * amount), 0, 0, 0));
+                }
+                int[] location = new int[2];
+                view.getLocationOnScreen(location);
+                canvas.save();
+                canvas.translate(location[0] - origin[0], location[1] - origin[1]);
+                canvas.clipRect(0, 0, view.getWidth(), view.getHeight());
+                view.draw(canvas);
+                canvas.restore();
+                if (view == focused) break;
+            }
+            return shot;
         });
         try (FileOutputStream output = new FileOutputStream(new File(evidence, name + ".png"))) {
             if (!bitmap.compress(Bitmap.CompressFormat.PNG, 100, output))

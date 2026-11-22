@@ -4,6 +4,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.IOException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -25,9 +26,34 @@ final class ArtifactCatalog {
     }
 
     private static final class Block {
-        final String key, title, language, content;
-        Block(String key, String title, String language, String content) {
-            this.key = key; this.title = title; this.language = language; this.content = content;
+        final int messageIndex, ordinal;
+        final String language, filename, content;
+
+        Block(int messageIndex, int ordinal, String language, String filename, String content) {
+            this.messageIndex = messageIndex;
+            this.ordinal = ordinal;
+            this.language = language;
+            this.filename = filename;
+            this.content = content;
+        }
+
+        void addVersion(LinkedHashMap<String, Record> groups) {
+            boolean layout = WorkspaceLayout.FENCE.equals(language);
+            String surface = layout ? surfaceOf(content) : null;
+            String key = surface != null ? "workspace:" + surface : filename.isEmpty() || layout ? "block:" + messageIndex + ":" + ordinal
+                    : "file:" + language + ":" + filename;
+            Record record = groups.remove(key);
+            if (record == null) record = new Record(title(layout, surface), language);
+            if (record.versions.isEmpty() || !record.versions.get(record.versions.size() - 1).equals(content))
+                record.versions.add(content);
+            groups.put(key, record);
+        }
+
+        private String title(boolean layout, String surface) {
+            if (layout) return surface == null ? "Proposition à corriger" : "Disposition · " + WorkspaceLayout.SURFACES.get(surface);
+            if (!filename.isEmpty()) return filename;
+            if ("diff".equals(language) || "patch".equals(language)) return "Modifications";
+            return language.isEmpty() ? "Extrait de code" : "Extrait " + language;
         }
     }
 
@@ -44,33 +70,22 @@ final class ArtifactCatalog {
             remaining -= text.length();
             if (remaining < 0) { limited = true; break; }
             final int messageIndex = i;
-            List<Block> current = new ArrayList<>();
+            int capacity = MAX_FENCES - newest.size();
+            ArrayDeque<Block> current = new ArrayDeque<>();
             Fences.scan(text, (language, filename, content, n) -> {
-                if (current.size() + newest.size() >= MAX_FENCES) { limited = true; return false; }
-                boolean layout = WorkspaceLayout.FENCE.equals(language);
-                String surface = layout ? surfaceOf(content) : null;
-                String key = surface != null ? "workspace:" + surface : filename.isEmpty() || layout ? "block:" + messageIndex + ":" + n
-                        : "file:" + language + ":" + filename;
-                String title = layout ? (surface == null ? "Proposition à corriger" : "Disposition · " + WorkspaceLayout.SURFACES.get(surface))
-                        : !filename.isEmpty() ? filename
-                        : ("diff".equals(language) || "patch".equals(language)) ? "Modifications"
-                        : language.isEmpty() ? "Extrait de code" : "Extrait " + language;
-                current.add(new Block(key, title, language, content));
+                if (current.size() == capacity) {
+                    current.removeLast();
+                    limited = true;
+                }
+                current.addFirst(new Block(messageIndex, n, language, filename, content));
                 return true;
             });
-            Collections.reverse(current);
             newest.addAll(current);
             if (newest.size() == MAX_FENCES && i > oldest) { limited = true; break; }
         }
         Collections.reverse(newest);
         LinkedHashMap<String, Record> groups = new LinkedHashMap<>();
-        for (Block b : newest) {
-            Record r = groups.remove(b.key);
-            if (r == null) r = new Record(b.title, b.language);
-            if (r.versions.isEmpty() || !r.versions.get(r.versions.size() - 1).equals(b.content))
-                r.versions.add(b.content);
-            groups.put(b.key, r);
-        }
+        for (Block b : newest) b.addVersion(groups);
         records.addAll(groups.values());
         Collections.reverse(records);
     }
@@ -94,8 +109,9 @@ final class ArtifactCatalog {
             Object v = part.opt("text");
             if (!(v instanceof String)) continue;
             String text = (String) v;
-            if (text.length() > MAX_MESSAGE_CHARS - result.length() - 1) return null;
-            if (result.length() > 0) result.append('\n');
+            int separatorLength = result.length() == 0 ? 0 : 1;
+            if (text.length() > MAX_MESSAGE_CHARS - result.length() - separatorLength) return null;
+            if (separatorLength != 0) result.append('\n');
             result.append(text);
         }
         return result.toString();
