@@ -12,6 +12,7 @@ import java.util.function.Consumer;
 
 /** One encrypted commit moves a draft into or out of the outbox. Mutable state belongs to the UI. */
 final class ThreadJournal {
+    private static final int MAX_RECONNECTS = 5;
     private final String session;
     private final String owner;
     private final Consumer<String> write;
@@ -39,6 +40,8 @@ final class ThreadJournal {
     private boolean validPending(JSONObject pending) {
         if (pending == null) return false;
         JSONObject body = pending.optJSONObject("body");
+        if (pending.has("disconnects") && !(pending.opt("disconnects") instanceof Integer count
+                && count >= 0 && count <= MAX_RECONNECTS + 1)) return false;
         return body != null && ThreadData.validId(ThreadData.string(body, "session_id")) && body.opt("input") instanceof String
                 && session.equals(pending.opt("thread"))
                 && !ThreadData.string(pending, "key").isEmpty()
@@ -102,6 +105,34 @@ final class ThreadJournal {
         ThreadData.put(pending(), "run_id", runId);
         revision++;
         flush();
+    }
+
+    boolean reconnectsExhausted() {
+        return pending().optInt("disconnects") > MAX_RECONNECTS;
+    }
+
+    /** Reserve one reconnect on the admitted run, alongside its replay cursor, before scheduling it. */
+    long nextReconnectDelayMillis() {
+        int previous = pending().optInt("disconnects");
+        if (previous > MAX_RECONNECTS) return -1;
+        saveDisconnects(previous + 1);
+        return previous == MAX_RECONNECTS ? -1 : 1000L << previous;
+    }
+
+    void resetReconnects() { saveDisconnects(0); }
+
+    private void saveDisconnects(int count) {
+        JSONObject receipt = pending();
+        Object previous = receipt.opt("disconnects");
+        ThreadData.put(receipt, "disconnects", count);
+        revision++;
+        try {
+            flush();
+        } catch (RuntimeException error) {
+            ThreadData.put(receipt, "disconnects", previous);
+            revision++;
+            throw error;
+        }
     }
 
     void checkpoint(long seq, String text) {
