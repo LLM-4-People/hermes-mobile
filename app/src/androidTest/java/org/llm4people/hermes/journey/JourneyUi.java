@@ -100,9 +100,13 @@ public final class JourneyUi {
         }));
     }
 
-    void contains(String fragment) {
-        until(fragment, () -> find(window(), v -> v instanceof TextView text &&
-                text.getText().toString().contains(fragment)));
+    void contains(String... fragments) {
+        until(String.join(" + ", fragments), () -> find(window(), view -> {
+            if (!(view instanceof TextView text)) return false;
+            String value = text.getText().toString();
+            for (String fragment : fragments) if (!value.contains(fragment)) return false;
+            return true;
+        }));
     }
 
     void absent(String label) {
@@ -148,14 +152,23 @@ public final class JourneyUi {
         driver.waitForIdleSync();
     }
 
-    void fill(String label, String value) {
-        EditText edit = until("field " + label, () -> {
+    private EditText field(String label) {
+        return until("field " + label, () -> {
             View root = window();
             View direct = find(root, v -> v instanceof EditText && named(v, label));
             if (direct != null) return (EditText) direct;
             View caption = find(root, v -> named(v, label) && v.getLabelFor() != View.NO_ID);
             return caption == null ? null : root.findViewById(caption.getLabelFor());
         });
+    }
+
+    String fieldText(String label) {
+        EditText edit = field(label);
+        return main(() -> edit.getText().toString());
+    }
+
+    void fill(String label, String value) {
+        EditText edit = field(label);
         main(() -> {
             Bundle args = new Bundle();
             args.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, value);
@@ -178,6 +191,23 @@ public final class JourneyUi {
         until("input method hidden", () -> {
             WindowInsets insets = activity.getWindow().getDecorView().getRootWindowInsets();
             return insets != null && !insets.isVisible(WindowInsets.Type.ime()) ? Boolean.TRUE : null;
+        });
+    }
+
+    void sideBySide(String fieldLabel) {
+        until("visible conversation beside the editable instrument", () -> {
+            View root = window();
+            if (root == null || activity.getResources().getConfiguration().screenWidthDp < 720) return null;
+            View transcript = find(root, v -> v instanceof android.widget.ListView list && list.getCount() > 1);
+            View label = find(root, v -> named(v, fieldLabel) && v.getLabelFor() != View.NO_ID);
+            if (label == null || transcript == null) return null;
+            View editor = root.findViewById(label.getLabelFor());
+            Rect left = new Rect();
+            Rect right = new Rect();
+            if (!(editor instanceof EditText) || !editor.isEnabled()
+                    || !transcript.getGlobalVisibleRect(left) || !editor.getGlobalVisibleRect(right)) return null;
+            return left.right <= right.left && left.bottom > right.top && right.bottom > left.top
+                    ? Boolean.TRUE : null;
         });
     }
 

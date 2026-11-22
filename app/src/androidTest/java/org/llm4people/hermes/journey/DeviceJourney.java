@@ -43,6 +43,22 @@ public final class DeviceJourney extends Instrumentation {
             switch (phase) {
                 case "work": work(); break;
                 case "restart": restart(); break;
+                case "instrument": {
+                    String owner = "Relecture " + fixture.getString("run");
+                    profile(owner, "endpoint", "key", fixture.getString("phrase"));
+                    new ThreadInstrumentJourney(ui, fixture).portrait();
+                    lock();
+                    break;
+                }
+                case "instrument-wide": {
+                    String owner = "Relecture " + fixture.getString("run");
+                    ui.see("Choisir un profil");
+                    unlock(owner, fixture.getString("phrase"));
+                    new ThreadInstrumentJourney(ui, fixture).wide();
+                    lock();
+                    forget(owner, fixture.getString("phrase"));
+                    break;
+                }
                 case "pages":
                     String name = "Écrans " + fixture.getString("run");
                     profile(name, "endpoint", "key", fixture.getString("phrase"));
