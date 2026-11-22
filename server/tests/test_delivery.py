@@ -218,3 +218,47 @@ class Delivery(unittest.TestCase):
         finally:
             reopened.close()
         self.assertEqual(len(self.store.events(limit=6000)["events"]), 5002)
+
+    def test_recovered_lease_checks_authoritative_prompt_before_first_sweep(self):
+        runs = create_runs(self.settings)
+        self.addCleanup(runs.close)
+        scope = self.settings.run_scope
+        insert_run(runs, scope, "run", 110, "waiting_for_approval", pending_approvals={"p1": 101})
+        ledgers = HermesLedgers(self.settings)
+        ledgers.runs.scan((scope,0), self.store,0)
+        ledgers.close()
+        stale = self.store.claim(112, 10)
+        runs.execute("""UPDATE run_idempotency SET status_json='{"status":"cancelled"}' WHERE run_id='run'""")
+        runs.commit()
+        sender = Mock()
+        deliver(stale, self.settings, self.store, sender)
+        sender.send.assert_not_called()
+        self.assertIsNone(self.store.claim(150, 10))
+
+    def test_approval_retraction_cost_is_bounded_by_affected_deliveries(self):
+        from server.mobile_push.events import Observation
+
+        def measure(size):
+            with self.store.write() as db:
+                db.executemany("INSERT OR IGNORE INTO events(event_id,kind,created_at) VALUES(?,'reminder',1)",
+                               [(str(i),) for i in range(size)])
+                db.execute("INSERT OR IGNORE INTO deliveries(device_id,event_id,due) SELECT 'd1',event_id,1 FROM events WHERE kind='reminder'")
+            approval = Event.make([size], "approval_requested", 101, run_id="target")
+            self.store.record([approval])
+            # Count SQLite VM instructions (in tens). Independent of machine speed.
+            steps = 0
+            start = self.store.connect
+            def measured_connection():
+                db = start()
+                def progress():
+                    nonlocal steps
+                    steps += 1
+                    return 0
+                db.set_progress_handler(progress, 10)
+                return db
+            with patch.object(self.store, "connect", side_effect=measured_connection):
+                self.store.reconcile([Observation(105, (), "target")], 0)
+            return steps
+
+        small, large = measure(100), measure(10000)
+        self.assertLessEqual(large, small + 20, (small,large))

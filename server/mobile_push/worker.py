@@ -32,6 +32,18 @@ def scan_loop(settings, store, stopped, changed):
 def deliver(item, settings, store, sender):
     if not store.owns_delivery(item):
         return
+    if item["kind"] == "approval_requested":
+        # The sender can recover an outstanding lease before the next (or first) scan.
+        # Verify the exact scoped prompt again before its network request begins.
+        try:
+            pending = HermesLedgers(settings).approval_pending(item)
+        except (OSError, sqlite3.Error, ValueError) as exc:
+            log.warning("Cannot confirm pending approval (%s)", type(exc).__name__)
+            store.settle(item, retry_at=time.time() + settings.poll_seconds)
+            return
+        if not pending:
+            store.settle(item)
+            return
     try:
         active = sender.send(item)
     except Exception as exc:

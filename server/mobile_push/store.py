@@ -42,6 +42,7 @@ class Store:
                     due REAL NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, lease TEXT,
                     PRIMARY KEY(device_id,event_id));
                 CREATE INDEX IF NOT EXISTS next_delivery ON deliveries(due);
+                CREATE INDEX IF NOT EXISTS event_deliveries ON deliveries(event_id);
             """)
 
     def connect(self):
@@ -139,7 +140,7 @@ class Store:
     def claim(self, now, lease_seconds):
         with self.write() as db:
             row = db.execute("""
-                SELECT d.device_id,d.event_id,d.attempts,v.token,e.kind,e.created_at
+                SELECT d.device_id,d.event_id,d.attempts,v.token,e.kind,e.created_at,e.run_id
                   FROM deliveries d JOIN devices v ON v.id=d.device_id JOIN events e USING(event_id)
                  WHERE d.due<=? ORDER BY d.due,d.rowid LIMIT 1
             """, (now,)).fetchone()
