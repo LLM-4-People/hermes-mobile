@@ -59,14 +59,31 @@ def proposal(revised):
     return lead + "\n\n```hermes-workspace\n" + json.dumps(layout, ensure_ascii=False) + "\n```"
 
 
+def last_user_message(body):
+    return next((row.get("content") for row in reversed(body["messages"]) if row.get("role") == "user"), "")
+
+
 def response(record):
     from tests.fakes.fake_llm_provider import Text
-    messages = record["body"].get("messages", ())
-    prompt = next((row.get("content") for row in reversed(messages) if row.get("role") == "user"), "")
+    prompt = last_user_message(record["body"])
     if prompt == CREATE + "\n\n" + GOAL:
         return Text(proposal(False))
     replies = {FIRST: FEEDBACK, REVISE: proposal(True), OTHER: "La réunion est prête."}
     return Text(replies.get(prompt, "Aucune proposition demandée."))
+
+
+def provider_instructions(body):
+    parts = []
+    for message in body["messages"]:
+        if message.get("role") not in {"system", "developer"}:
+            continue
+        content = message.get("content")
+        if isinstance(content, str):
+            parts.append(content)
+        elif isinstance(content, list):
+            parts.extend(part["text"] for part in content if isinstance(part, dict)
+                         and part.get("type") in {"text", "input_text"} and isinstance(part.get("text"), str))
+    return "\n".join(parts)
 
 
 def verify_history(gateway, provider):
@@ -104,7 +121,18 @@ def verify_history(gateway, provider):
             raise AssertionError("Unexpected user or assistant message in the canonical transcript")
     if admission(gateway, len(expected)) is not None or len(provider.main_requests()) != len(expected):
         raise AssertionError("A local trial, pin, draft or revision decision triggered an extra model request")
-    for body in provider.main_requests():
+    for receipt, body in zip(receipts, provider.main_requests(), strict=True):
+        if last_user_message(body) != receipt["user"]:
+            raise AssertionError("Provider request does not match the canonical turn")
+        instructions = provider_instructions(body)
+        if not all(token in instructions for token in ("hermes-workspace", "mode=replace", "type:form,title,prompt,fields")):
+            raise AssertionError("The provider did not receive the named-page and form schema")
+        surfaces = sorted(set(re.findall(r"\bsurface=(page/[a-z0-9_-]+)", instructions)))
+        expected_surfaces = ["page/revue-code"] if receipt["user"] == REVISE else []
+        if surfaces != expected_surfaces:
+            raise AssertionError("Provider instructions contain an unexpected thread-local tool reference")
+        receipt["provider_schema_verified"] = True
+        receipt["provider_pinned_surfaces"] = surfaces
         wire = json.dumps(body, ensure_ascii=False)
         if any(value in wire for value in ("facture/revue-proposee.py", "facture/revue-epinglee.py")):
             raise AssertionError("An unsent comparison field reached the model")
