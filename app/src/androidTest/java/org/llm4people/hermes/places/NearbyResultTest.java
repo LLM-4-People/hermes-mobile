@@ -44,6 +44,13 @@ public final class NearbyResultTest extends TestCase {
         catch (UnsupportedOperationException expected) {}
     }
 
+    public void testCuisineTagsFromTheMontrealSourceUseFrenchLabels() throws Exception {
+        JSONArray rows = new JSONArray().put(venue("node", 42, "Restaurant", 10)
+                .put("cuisine", "italian_pizza;pasta;asian;korean"));
+        assertEquals("Pizza italienne · Pâtes · Asiatique · Coréenne",
+                NearbyResult.parse(response(rows)).places.get(0).cuisine);
+    }
+
     public void testMalformedNeighborsCannotSupplyAnIdentityOrReplaceGoodResults() throws Exception {
         JSONArray rows = new JSONArray().put(JSONObject.NULL)
                 .put(venue("node",12,"X",42).put("osm_id","12"))

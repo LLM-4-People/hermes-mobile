@@ -121,6 +121,10 @@ public final class NearbyResult {
             if (VisibleText.isBlank(name)) continue;
             labels.add(switch (name.toLowerCase(Locale.ROOT)) {
                 case "italian" -> "Italienne";
+                case "italian_pizza" -> "Pizza italienne";
+                case "pasta" -> "Pâtes";
+                case "asian" -> "Asiatique";
+                case "korean" -> "Coréenne";
                 case "french" -> "Française";
                 case "japanese" -> "Japonaise";
                 case "chinese" -> "Chinoise";
