@@ -18,8 +18,15 @@ import java.util.Locale;
 
 final class AndroidVoiceInput implements VoiceInput {
     private final Activity activity;
+    private VoiceLocale selectedLocale = VoiceLocale.FRENCH;
 
     AndroidVoiceInput(Activity activity) { this.activity = activity; }
+
+    @Override public void setLocale(VoiceLocale locale) {
+        selectedLocale = locale == null ? VoiceLocale.FRENCH : locale;
+    }
+
+    @Override public VoiceLocale locale() { return selectedLocale; }
 
     @Override public Source preferred() {
         if (Build.VERSION.SDK_INT >= 31 && SpeechRecognizer.isOnDeviceRecognitionAvailable(activity))
@@ -33,9 +40,11 @@ final class AndroidVoiceInput implements VoiceInput {
     }
 
     @Override public boolean systemAvailable() { return SpeechRecognizer.isRecognitionAvailable(activity); }
+
     @Override public boolean permitted() {
         return activity.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
     }
+
     @Override public void requestPermission(int code) {
         activity.requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, code);
     }
@@ -53,17 +62,22 @@ final class AndroidVoiceInput implements VoiceInput {
                     @Override public void onReadyForSpeech(Bundle params) { listener.ready(); }
                     @Override public void onBeginningOfSpeech() { listener.ready(); }
                     @Override public void onEndOfSpeech() { listener.ended(); }
-                    @Override public void onError(int error) { listener.error(error); }
-                    @Override public void onResults(Bundle results) {
-                        ArrayList<String> phrases = results == null ? null
-                                : results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
-                        listener.result(phrases == null || phrases.isEmpty() ? "" : phrases.get(0));
+                    @Override public void onError(int error) {
+                        Diagnostics.warning("voice", "recognition_error_" + error);
+                        listener.error(error);
                     }
-                    @Override public void onPartialResults(Bundle results) {}
+                    @Override public void onResults(Bundle results) {
+                        listener.result(firstPhrase(results));
+                    }
+                    @Override public void onPartialResults(Bundle results) {
+                        String partial = firstPhrase(results);
+                        if (!partial.isEmpty()) listener.partial(partial);
+                    }
                     @Override public void onBufferReceived(byte[] buffer) {}
-                    @Override public void onRmsChanged(float rmsdB) {}
+                    @Override public void onRmsChanged(float rmsdB) { listener.rms(rmsdB); }
                     @Override public void onEvent(int event, Bundle params) {}
                 });
+                Diagnostics.event("voice", "recognition_started");
                 recognizer.startListening(request());
             }
             @Override public void stop() { recognizer.stopListening(); }
@@ -78,19 +92,30 @@ final class AndroidVoiceInput implements VoiceInput {
         };
     }
 
+    private static String firstPhrase(Bundle results) {
+        ArrayList<String> phrases = results == null ? null
+                : results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
+        return phrases == null || phrases.isEmpty() || phrases.get(0) == null ? "" : phrases.get(0);
+    }
+
     private Intent request() {
         return new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
                 .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                 .putExtra(RecognizerIntent.EXTRA_LANGUAGE, language())
+                .putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
                 .putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1);
     }
 
     private String language() {
         LocaleList locales = activity.getResources().getConfiguration().getLocales();
-        for (int i = 0; i < locales.size(); i++) {
-            Locale locale = locales.get(i);
-            if ("fr".equals(locale.getLanguage())) return locale.toLanguageTag();
+        Locale primary = locales.isEmpty() ? Locale.FRANCE : locales.get(0);
+        if (selectedLocale != VoiceLocale.SYSTEM) {
+            String targetLang = selectedLocale.resolveLanguage(primary);
+            for (int i = 0; i < locales.size(); i++) {
+                Locale candidate = locales.get(i);
+                if (targetLang.equalsIgnoreCase(candidate.getLanguage())) return candidate.toLanguageTag();
+            }
         }
-        return "fr-FR";
+        return selectedLocale.resolveTag(primary);
     }
 }

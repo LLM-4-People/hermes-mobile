@@ -8,18 +8,26 @@ import android.widget.Toast;
 import org.llm4people.hermes.R;
 
 import java.util.List;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /** User-initiated speech for the visible workspace. Playback, including initialization, is disposable. */
 public final class ReplyReader {
     private final Activity activity;
     private final Runnable cancelDictation;
+    private final Supplier<VoiceLocale> localeSupplier;
     private final SpeechPlayback playback;
     private Button owner;
 
     ReplyReader(Activity activity, Runnable cancelDictation) {
+        this(activity, cancelDictation, () -> VoiceLocale.FRENCH);
+    }
+
+    ReplyReader(Activity activity, Runnable cancelDictation, Supplier<VoiceLocale> localeSupplier) {
         this.activity = activity;
         this.cancelDictation = cancelDictation;
-        playback = new SpeechPlayback(() -> new AndroidReplySpeech(activity), this::finished);
+        this.localeSupplier = localeSupplier == null ? () -> VoiceLocale.FRENCH : localeSupplier;
+        playback = new SpeechPlayback(() -> new AndroidReplySpeech(activity, this.localeSupplier), this::finished);
     }
 
     public boolean active() { return playback.active(); }
@@ -31,6 +39,22 @@ public final class ReplyReader {
             cancelDictation.run();
             playback.play(SpokenText.prose(source));
         }
+    }
+
+    /** Speak one sentence chunk for opt-in hands-free duplex streaming, reporting completion to the caller. */
+    void speakSentence(String sentence, Consumer<Boolean> done) {
+        if (activity.isFinishing() || activity.isDestroyed()) {
+            done.accept(false);
+            return;
+        }
+        playback.play(sentence, failure -> {
+            if (failure == SpeechPlayback.Failure.UNAVAILABLE) {
+                finished(failure);
+                done.accept(false);
+            } else {
+                done.accept(failure == null);
+            }
+        });
     }
 
     /** Pass the question and the displayed French option labels, excluding answer drafts and wire metadata. */
@@ -74,7 +98,8 @@ public final class ReplyReader {
         if (failure != null) {
             int message = switch (failure) {
                 case EMPTY -> R.string.read_empty;
-                case UNAVAILABLE -> R.string.read_unavailable;
+                case UNAVAILABLE -> localeSupplier.get() == VoiceLocale.FRENCH
+                        ? R.string.read_unavailable : R.string.read_unavailable_locale;
                 case INTERRUPTED -> R.string.read_interrupted;
             };
             Toast.makeText(activity, message, Toast.LENGTH_LONG).show();

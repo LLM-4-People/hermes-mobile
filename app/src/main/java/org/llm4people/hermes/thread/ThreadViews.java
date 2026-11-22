@@ -58,10 +58,13 @@ final class ThreadViews {
     final VoiceDrafts voice;
     final ReplyReader reader;
     private VoiceDrafts.Controls composerVoice;
+    private VoiceDrafts.DuplexHandle duplex;
     private Button send;
     private Button stop;
     private TextView progress;
     private TextView outgoing;
+    private LinearLayout liveReasoningSlot;
+    private String lastLiveReasoning = "";
     private TextView liveText;
     private Button fullLiveText;
     private final LiveTranscript liveTranscript = new LiveTranscript();
@@ -148,6 +151,9 @@ final class ThreadViews {
         outgoing.setVisibility(View.GONE);
         live.addView(outgoing);
         live.addView(progress);
+        liveReasoningSlot = Ui.column(activity);
+        liveReasoningSlot.setVisibility(View.GONE);
+        live.addView(liveReasoningSlot);
         live.addView(liveText);
         live.addView(fullLiveText);
         list.addFooterView(live, null, false);
@@ -176,6 +182,11 @@ final class ThreadViews {
         input.setText(draft);
         input.setSelection(input.length());
         composerVoice = voice.bind(input);
+        duplex = voice.bindDuplex(composerVoice, utterance -> {
+            displayDraft(utterance);
+            if (instruments != null) instruments.revealDiscussionIfCompact();
+            onSend.run();
+        });
         send = Ui.button(activity, "Envoyer", v -> {
             if (!send.isEnabled()) return;
             composerVoice.cancel();
@@ -231,6 +242,7 @@ final class ThreadViews {
         nearbyStatus.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
         nearbyStatus.setVisibility(View.GONE);
         composerSlot.addView(nearbyStatus);
+        composerSlot.addView(duplex.bar());
         composerSlot.addView(composerVoice.feedback);
         composerSlot.addView(composer);
         root.addView(composerSlot);
@@ -459,21 +471,56 @@ final class ThreadViews {
     }
 
     void live(String detail, String text, boolean hasPrompts) {
-        live(detail, text, hasPrompts, RunPreview.Origin.FIRST);
+        live(detail, text, hasPrompts, RunPreview.Origin.FIRST, "");
     }
 
     void live(String detail, String text, boolean hasPrompts, RunPreview.Origin origin) {
+        live(detail, text, hasPrompts, origin, "");
+    }
+
+    void live(String detail, String text, boolean hasPrompts, RunPreview.Origin origin, String sseReasoning) {
         boolean atEnd = list.getLastVisiblePosition() >= list.getCount() - 1;
         progress.setVisibility(detail.isEmpty() ? View.GONE : View.VISIBLE);
         progress.setText(detail);
-        liveText.setVisibility(text.isEmpty() ? View.GONE : View.VISIBLE);
+        TranscriptPage.ReasoningSplit split = TranscriptPage.splitReasoning(text, sseReasoning);
+        String visibleText = split.visible();
+        if (liveReasoningSlot != null) {
+            if (split.reasoning().isEmpty()) {
+                if (!lastLiveReasoning.isEmpty()) {
+                    lastLiveReasoning = "";
+                    liveReasoningSlot.removeAllViews();
+                    liveReasoningSlot.setVisibility(View.GONE);
+                }
+            } else if (!split.reasoning().equals(lastLiveReasoning)) {
+                lastLiveReasoning = split.reasoning();
+                liveReasoningSlot.removeAllViews();
+                liveReasoningSlot.addView(MessageText.reasoningCard(activity, lastLiveReasoning,
+                        split.open() || visibleText.isEmpty(), this::show));
+                liveReasoningSlot.setVisibility(View.VISIBLE);
+            }
+        }
+        liveText.setVisibility(visibleText.isEmpty() ? View.GONE : View.VISIBLE);
         boolean wasExcerpt = liveTranscript.excerpt();
-        MessageText.updateLive(liveText, liveTranscript, text, origin);
+        MessageText.updateLive(liveText, liveTranscript, visibleText, origin);
         if (wasExcerpt != liveTranscript.excerpt())
             fullLiveText.setText(liveTranscript.excerpt() ? R.string.transcript_read_excerpt : R.string.transcript_read_full);
         boolean readableSource = liveTranscript.earlier || liveTranscript.later || liveTranscript.foldedWorkspace;
-        fullLiveText.setVisibility(!text.isEmpty() && readableSource ? View.VISIBLE : View.GONE);
-        if (atEnd && !hasPrompts && !text.isEmpty()) followTail();
+        fullLiveText.setVisibility(!visibleText.isEmpty() && readableSource ? View.VISIBLE : View.GONE);
+        if (duplex != null && duplex.active() && !visibleText.isEmpty()) {
+            duplex.onReplyDelta(visibleText);
+        }
+        if (atEnd && !hasPrompts && !visibleText.isEmpty()) followTail();
+    }
+
+    void duplexReplyComplete(String output) {
+        if (duplex != null && duplex.active()) {
+            TranscriptPage.ReasoningSplit split = TranscriptPage.splitReasoning(output, "");
+            duplex.onReplyComplete(split.visible());
+        }
+    }
+
+    void stopDuplex() {
+        if (duplex != null && duplex.active()) duplex.stop();
     }
 
     private void followTail() {
@@ -584,14 +631,31 @@ final class ThreadViews {
             body.setTextSize(chat ? 17 : 14);
             body.setTypeface(Typeface.DEFAULT);
             body.setTextIsSelectable(chat);
-            body.setVisibility(content.isEmpty() ? View.GONE : View.VISIBLE);
             boolean markdown = chat && "assistant".equals(role);
-            TranscriptPage preview = new TranscriptPage(content, new TranscriptPage.Cursor(), markdown,
+            String visibleContent = content;
+            String reasoningContent = "";
+            if (markdown) {
+                TranscriptPage.ReasoningSplit split = TranscriptPage.splitReasoning(content, ThreadData.string(row, "reasoning"));
+                visibleContent = split.visible();
+                reasoningContent = split.reasoning();
+            }
+            body.setVisibility(visibleContent.isEmpty() ? View.GONE : View.VISIBLE);
+            TranscriptPage preview = new TranscriptPage(visibleContent, new TranscriptPage.Cursor(), markdown,
                     chat ? TranscriptPage.PAGE_CHARS : 300);
-            CharSequence rendered = markdown && !preview.blocks.isEmpty() ? MessageText.excerpt(getContext(), preview)
+            CharSequence rendered = markdown && (!preview.blocks.isEmpty() || !preview.tables.isEmpty())
+                    ? MessageText.excerpt(getContext(), preview)
                     : MessageText.styled(getContext(), preview);
             body.setText(preview.hasMore() ? android.text.TextUtils.concat(rendered, "…") : rendered);
-            if (markdown) MessageText.addCodeAction(this, preview, content, ThreadViews.this::show);
+            if (markdown && !reasoningContent.isEmpty()) {
+                LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, -2);
+                params.topMargin = Ui.dp(getContext(), 6);
+                addView(MessageText.reasoningCard(getContext(), reasoningContent, false, ThreadViews.this::show), params);
+            }
+            if (markdown) {
+                MessageText.addTables(this, preview);
+                MessageText.addLinkActions(this, preview, ThreadViews.this::show);
+                MessageText.addCodeAction(this, preview, visibleContent, ThreadViews.this::show);
+            }
             if (chat && "approval_result".equals(role)) {
                 String details = ThreadData.string(row, "receipt_details");
                 addView(Ui.button(getContext(), "Voir les détails", v ->

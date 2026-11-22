@@ -1,0 +1,12 @@
+<resources>
+    <color name="syntax_keyword">#A0D7BC</color>
+    <color name="syntax_string">#F0C674</color>
+    <color name="syntax_comment">#99ACA1</color>
+    <color name="syntax_number">#CFA8F5</color>
+    <color name="syntax_type">#8CC5F2</color>
+    <color name="syntax_annotation">#E6B87A</color>
+    <color name="syntax_diff_add_bg">#203A2E</color>
+    <color name="syntax_diff_del_bg">#3E2322</color>
+    <color name="syntax_search_match_bg">#4A3F1D</color>
+    <color name="syntax_search_current_bg">#735C18</color>
+</resources>

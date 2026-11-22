@@ -66,11 +66,13 @@ final class PromptCard extends LinearLayout {
     private void approval(LinearLayout panel, JSONObject prompt, Consumer<String> answer) {
         String description = ThreadData.string(prompt, "description").trim();
         String command = ThreadData.string(prompt, "command").trim();
-        JSONObject edit = prompt.optJSONObject("edit");
-        String path = ThreadData.string(edit, "path");
-        boolean described = !description.isEmpty() || !command.isEmpty() || !path.isEmpty();
+        DiffRenderer.DiffModel diff = DiffRenderer.parse(prompt);
+        String path = diff != null ? diff.path() : ThreadData.string(prompt.optJSONObject("edit"), "path");
+        boolean described = !description.isEmpty() || !command.isEmpty() || !path.isEmpty()
+                || (diff != null && (diff.hasLines() || !diff.summary().isEmpty()));
         String summary;
-        if (!path.isEmpty()) summary = "Hermes propose de modifier " + path + ".";
+        if (diff != null && !diff.summary().isEmpty()) summary = diff.summary();
+        else if (!path.isEmpty()) summary = "Hermes propose de modifier " + path + ".";
         else if (!description.isEmpty()) summary = switch (description) {
             case "world/other-writable permissions" -> "Hermes demande à accorder un droit d’écriture à d’autres utilisateurs.";
             case "recursive world/other-writable (long flag)" ->
@@ -83,7 +85,10 @@ final class PromptCard extends LinearLayout {
         else summary = "Hermes n’a pas précisé l’action demandée.";
         TextView reason = Ui.text(getContext(), summary, 16);
         spaced(panel, reason);
-        if (description.isEmpty() && !command.isEmpty() && edit == null) {
+        if (diff != null && (!diff.path().isEmpty() || !DiffRenderer.statsText(diff).isEmpty() || !diff.risk().isEmpty())) {
+            spaced(panel, DiffRenderer.summaryHeader(getContext(), diff));
+        }
+        if (description.isEmpty() && !command.isEmpty() && diff == null) {
             TextView preview = Ui.text(getContext(), command, 15);
             preview.setTypeface(Typeface.MONOSPACE);
             preview.setMaxLines(3);
@@ -91,22 +96,14 @@ final class PromptCard extends LinearLayout {
             spaced(panel, preview);
         }
         if (described) {
-            String details = approvalDetails(prompt);
+            String textDetails = approvalTextDetails(prompt);
             LinearLayout expanded = Ui.column(getContext());
             Button more = PromptButtons.add(panel, "Voir les détails", null, PromptButtons.Role.UTILITY);
             PromptButtons.icon(more, R.drawable.ic_prompt_disclosure);
             more.setOnClickListener(v -> {
                 boolean opening = expanded.getVisibility() == GONE;
                 if (opening && expanded.getChildCount() == 0) {
-                    boolean over = details.length() > TranscriptPage.PAGE_CHARS;
-                    TextView exact = Ui.text(getContext(), over
-                            ? details.substring(0, TranscriptPage.PAGE_CHARS) + "…" : details, 15);
-                    exact.setTextIsSelectable(true);
-                    expanded.addView(exact);
-                    if (over) PromptButtons.add(expanded, "Lire tous les détails", () ->
-                            ui.show(new AlertDialog.Builder(getContext()).setTitle("Détails de la demande")
-                                    .setView(MessageText.reader(getContext(), details, false, true))
-                                    .setPositiveButton("Fermer", null)), PromptButtons.Role.UTILITY);
+                    populateDetails(expanded, diff, textDetails);
                 }
                 expanded.setVisibility(opening ? VISIBLE : GONE);
                 more.setActivated(opening);
@@ -126,17 +123,29 @@ final class PromptCard extends LinearLayout {
         }
     }
 
-    private static String approvalDetails(JSONObject prompt) {
+    private void populateDetails(LinearLayout expanded, DiffRenderer.DiffModel diff, String textDetails) {
+        if (diff != null) {
+            spaced(expanded, DiffRenderer.diffView(getContext(), diff, ui::show));
+        }
+        if (!textDetails.isEmpty()) {
+            boolean over = textDetails.length() > TranscriptPage.PAGE_CHARS;
+            TextView exact = Ui.text(getContext(), over
+                    ? textDetails.substring(0, TranscriptPage.PAGE_CHARS) + "…" : textDetails, 15);
+            exact.setTextIsSelectable(true);
+            spaced(expanded, exact);
+            if (over) PromptButtons.add(expanded, "Lire tous les détails", () ->
+                    ui.show(new AlertDialog.Builder(getContext()).setTitle("Détails de la demande")
+                            .setView(MessageText.reader(getContext(), textDetails, false, true))
+                            .setPositiveButton("Fermer", null)), PromptButtons.Role.UTILITY);
+        }
+    }
+
+    private static String approvalTextDetails(JSONObject prompt) {
         List<String> details = new ArrayList<>();
         String reason = ThreadData.string(prompt, "description");
         String command = ThreadData.string(prompt, "command");
         if (!reason.trim().isEmpty()) details.add(reason);
         if (!command.trim().isEmpty()) details.add("Commande\n" + command);
-        JSONObject edit = prompt.optJSONObject("edit");
-        if (edit != null) {
-            try { details.add("Modification proposée\n" + edit.toString(2)); }
-            catch (org.json.JSONException invalid) { throw new IllegalArgumentException(invalid); }
-        }
         return String.join("\n\n", details);
     }
 
