@@ -2,6 +2,9 @@ package org.llm4people.hermes.thread;
 
 import android.app.AlertDialog;
 import android.content.Context;
+import android.content.res.ColorStateList;
+import android.graphics.drawable.ColorDrawable;
+import android.graphics.drawable.RippleDrawable;
 import android.graphics.Typeface;
 import android.text.SpannableStringBuilder;
 import android.text.Spanned;
@@ -90,6 +93,9 @@ final class MessageText {
                 text.replace(at, end, "…");
             }
         }
+        if (!page.blocks.isEmpty() && page.blocks.get(page.blocks.size() - 1).displayEnd == page.text.length()
+                && text.length() > 0 && text.charAt(text.length() - 1) == '\n')
+            text.delete(text.length() - 1, text.length());
         return text;
     }
 
@@ -146,6 +152,11 @@ final class MessageText {
                         .setNegativeButton("Fermer", null));
             }
         });
+        if (count == 1 && first.displayEnd == page.text.length()) {
+            action.setBackground(new RippleDrawable(ColorStateList.valueOf(context.getColor(R.color.line)),
+                    new ColorDrawable(context.getColor(R.color.surface)), null));
+            Ui.pad(action, 10, 4);
+        }
         action.setSingleLine(false);
         action.setGravity(Gravity.CENTER_VERTICAL | Gravity.START);
         parent.addView(action);
