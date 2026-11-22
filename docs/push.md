@@ -53,7 +53,7 @@ A provider acceptance settles an outbox row. A network error leaves it queued wi
 
 ## Verify delivery
 
-Run `python -m unittest discover -s server/tests` from the repository root after installing the server dependencies. To also exercise a locally installed Hermes fork, set `HERMES_TEST_CHECKOUT` to its checkout in an environment with the fork’s Python dependencies. The contract test creates run and cron rows through Hermes's real writers in a temporary home.
+Run `python -m unittest discover -s server/tests` from the repository root after installing the server dependencies. To also exercise a locally installed Hermes fork, set `HERMES_TEST_CHECKOUT` to its checkout in an environment with the fork’s Python dependencies. Use the matching fork’s test environment for the optional contracts. They create run and cron rows through Hermes’s real writers, raise and deny a real canonical test approval, and inspect the bridge’s outgoing FCM envelopes through a local transport capture.
 
 On an enrolled Android device, launch a run, dismiss the activity and inspect the notification drawer after completion. Open the alert, unlock its profile and confirm its thread. Repeat for a scheduled reminder, then check that a second isolated user receives neither event. Deny notification permission and confirm that the authenticated event feed still recovers the event. Revoke the device and verify its old management key receives 401 for token rotation and 204 for a replayed removal. Later runs should produce no alert there. These device checks require provisioned Firebase credentials, a registered installation and an actual connected gateway.
 
