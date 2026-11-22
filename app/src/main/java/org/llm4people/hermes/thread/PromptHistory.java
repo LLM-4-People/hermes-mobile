@@ -99,9 +99,11 @@ final class PromptHistory {
 
     private static JSONArray turns(String encoded) {
         try {
-            JSONArray rows = new JSONObject(encoded).optJSONArray("responses");
+            JSONObject result = new JSONObject(encoded);
+            JSONArray rows = result.optJSONArray("responses");
             if (rows == null || rows.length() == 0) return null;
             JSONArray turns = new JSONArray();
+            boolean unanswered = false;
             for (int i = 0; i < rows.length(); i++) {
                 JSONObject row = rows.getJSONObject(i);
                 if (!(row.opt("question") instanceof String question) || question.trim().isEmpty()) return null;
@@ -111,13 +113,28 @@ final class PromptHistory {
                 if ("answered".equals(status)) {
                     answer = answerText(row.opt("user_response"));
                     if (answer == null || answer.trim().isEmpty()) return null;
-                } else if (row.isNull("user_response") && ("skipped".equals(status) || "unanswered".equals(status))) {
+                } else if ("skipped".equals(status) && row.isNull("user_response")) {
                     role = "prompt_status";
-                    answer = "skipped".equals(status) ? "Question passée." : "Aucune réponse reçue.";
+                    answer = "Question passée.";
+                } else if ("unanswered".equals(status) && row.isNull("user_response")) {
+                    // Sequential delivery can stop before reaching later entries in the same batch.
+                    unanswered = true;
+                    continue;
                 } else return null;
                 turns.put(new JSONObject().put("role", "assistant").put("content", question));
                 turns.put(new JSONObject().put("role", role).put("content", answer));
             }
+            String summary = switch (result.optString("outcome")) {
+                case "submitted" -> unanswered ? "Des réponses manquent dans cette demande." : "";
+                case "undelivered" -> "La demande n’a pas pu être transmise.";
+                case "timed_out" -> "Le délai de réponse a expiré.";
+                case "cancelled" -> "La demande a été annulée.";
+                default -> null;
+            };
+            if (summary == null) return null;
+            String notice = ThreadData.string(result, "notice").trim();
+            if (!notice.isEmpty()) summary = summary.isEmpty() ? notice : summary + "\n" + notice;
+            if (!summary.isEmpty()) turns.put(new JSONObject().put("role", "prompt_status").put("content", summary));
             return turns;
         } catch (JSONException invalidReceipt) {
             return null;

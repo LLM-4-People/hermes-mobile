@@ -56,10 +56,7 @@ final class RunFollower implements AutoCloseable {
 
     void follow() {
         try {
-            JSONObject status = api.get(path());
-            if (!run.equals(status.optString("run_id"))) throw new IOException("Incorrect run identity");
-            if (finish(status) || closed) return;
-            controls.restore(status);
+            if (!refreshControls()) return;
             publish();
             try (HermesApi.RunEvents events = api.runEvents(run, seq)) {
                 synchronized (this) {
@@ -72,6 +69,7 @@ final class RunFollower implements AutoCloseable {
                     if (!run.equals(event.optString("run_id"))) continue;
                     String type = event.optString("event");
                     if ("replay.truncated".equals(type)) {
+                        if (!refreshControls()) return;
                         preview.setLength(0);
                         activity = "Extrait de la réponse en cours";
                         started = -1;
@@ -82,7 +80,11 @@ final class RunFollower implements AutoCloseable {
                     if (eventSeq < 0 || eventSeq <= seq) continue;
                     seq = eventSeq;
                     if (ThreadData.terminal(type.startsWith("run.") ? type.substring(4) : "")) break;
-                    apply(type, event);
+                    if ("approval.request".equals(type) || "clarify.request".equals(type)) {
+                        if (controls.requestNeedsSnapshot(event) && !refreshControls()) return;
+                    } else {
+                        apply(type, event);
+                    }
                     long now = SystemClock.elapsedRealtime();
                     if (!"message.delta".equals(type) || now >= nextPaint) {
                         publish();
@@ -106,6 +108,14 @@ final class RunFollower implements AutoCloseable {
                 listener.disconnected();
             }
         }
+    }
+
+    private boolean refreshControls() throws IOException {
+        JSONObject status = api.get(path());
+        if (!run.equals(status.opt("run_id"))) throw new IOException("Incorrect run identity");
+        if (closed || finish(status)) return false;
+        controls.restore(status);
+        return true;
     }
 
     private boolean finish(JSONObject status) {
@@ -138,10 +148,6 @@ final class RunFollower implements AutoCloseable {
             case "tool.completed":
                 activity = (event.optBoolean("error") ? "Échec de l’outil · " : "Outil terminé · ")
                         + event.optString("tool");
-                break;
-            case "approval.request":
-            case "clarify.request":
-                controls.add(event);
                 break;
             case "approval.responded":
             case "approval.settled":
