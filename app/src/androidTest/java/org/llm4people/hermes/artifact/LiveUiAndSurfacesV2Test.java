@@ -374,7 +374,7 @@ public final class LiveUiAndSurfacesV2Test extends InstrumentationTestCase {
             manager.apply(parsed);
             assertEquals(1, manager.tabs().size());
             assertEquals(2, manager.quickActions().size());
-            assertEquals("reminders", manager.quickActions().get(0).nativeActionId());
+            assertEquals("nav_activity", manager.quickActions().get(0).nativeActionId());
             assertEquals("page/suivi_jour", manager.quickActions().get(1).page);
             assertEquals(1, manager.widgets().size());
             assertEquals(Boolean.TRUE, manager.widgets().get(0).items.get(0).checked);
@@ -393,6 +393,74 @@ public final class LiveUiAndSurfacesV2Test extends InstrumentationTestCase {
                 assertEquals("{corrupt", fixture.account.read("workspace.v1.home"));
             }
         }
+    }
+
+    public void testInfersOmittedSuggestedActionTargetsAndAllowsExpandedSurfaceTabsUpToMaxOps() throws Exception {
+        // Forgiving Fork small-LLM chip without explicit widget_id/target infers from ops; orphan chip is skipped cleanly.
+        JSONObject inferred = new JSONObject("""
+                {
+                  "revision_id": "rev-infer-01",
+                  "ops": [
+                    {
+                      "op": "upsert_surface",
+                      "surface_id": "plan_jour",
+                      "scope": "atelier",
+                      "kind": "markdown_card",
+                      "title": "Plan du jour",
+                      "tab": "plan",
+                      "spec": {"markdown": "Étape 1"}
+                    },
+                    {
+                      "op": "upsert_widget",
+                      "widget_id": "widget_plan",
+                      "title": "Plan",
+                      "template": "status",
+                      "home_screen_safe": true,
+                      "items": []
+                    }
+                  ],
+                  "suggested_actions": [
+                    {"id": "epingler", "label": "Épingler ce widget", "kind": "pin_widget"},
+                    {"id": "ouvrir", "label": "Ouvrir l’écran", "kind": "open_surface"}
+                  ]
+                }
+                """);
+        LiveUiPatch parsed = LiveUiPatch.parse(inferred, true);
+        assertEquals(2, parsed.suggestedActions.size());
+        assertEquals("widget_plan", parsed.suggestedActions.get(0).widgetId);
+        assertEquals("page/plan_jour", parsed.suggestedActions.get(1).page);
+
+        // Orphan pin_widget with no widget op in patch is skipped without rejecting the patch.
+        JSONObject orphanChip = new JSONObject("""
+                {
+                  "revision_id": "rev-orphan-01",
+                  "ops": [{"op": "clear_theme_override"}],
+                  "suggested_actions": [
+                    {"id": "epingler", "label": "Épingler ce widget", "kind": "pin_widget"},
+                    {"id": "ok", "label": "Continuer", "kind": "prompt", "prompt": "Continue"}
+                  ]
+                }
+                """);
+        LiveUiPatch parsedOrphan = LiveUiPatch.parse(orphanChip, false);
+        assertEquals(1, parsedOrphan.suggestedActions.size());
+        assertEquals("Continue", parsedOrphan.suggestedActions.get(0).draft);
+
+        // 10 raw upsert_surface ops with "tab" expand to 20 internal ops and must be accepted (rawOps <= MAX_OPS=16).
+        JSONArray tenTabbed = new JSONArray();
+        for (int i = 0; i < 10; i++) {
+            tenTabbed.put(new JSONObject()
+                    .put("op", "upsert_surface")
+                    .put("surface_id", "surf_" + i)
+                    .put("scope", "atelier")
+                    .put("kind", "markdown_card")
+                    .put("title", "Écran " + i)
+                    .put("tab", "tab_" + i)
+                    .put("spec", new JSONObject().put("markdown", "Contenu " + i)));
+        }
+        LiveUiPatch expanded = LiveUiPatch.parse(new JSONObject()
+                .put("revision_id", "rev-10-tabs")
+                .put("ops", tenTabbed), false);
+        assertEquals(20, expanded.ops.size());
     }
 
     public void testInstrumentChangesDetectsAllV2BlockAndThemeDifferences() throws Exception {

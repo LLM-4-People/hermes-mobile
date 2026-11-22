@@ -1,0 +1,13 @@
+<resources>
+    <string name="home_pin_dialog_title">Épingler sur l’écran d’accueil ?</string>
+    <string name="home_pin_widget_privacy_note">Seul ce texte prévu pour l’écran d’accueil sera visible hors de l’application.</string>
+    <string name="home_pin_cancel">Annuler</string>
+    <string name="home_pin_close">Fermer</string>
+    <string name="home_pin_widget_action">Épingler le widget</string>
+    <string name="home_pin_shortcut_action">Créer un raccourci</string>
+    <string name="home_pin_surface_body">Ajoutez « %1$s » à votre écran d’accueil pour l’ouvrir en un geste. Votre profil reste protégé avant l’affichage du contenu.</string>
+    <string name="home_pin_shortcut_unsupported_title">Raccourci non pris en charge</string>
+    <string name="home_pin_shortcut_unsupported_body">Votre écran d’accueil actuel ne permet pas d’épingler un raccourci directement.</string>
+    <string name="home_pin_widget_fallback_title">Ajout depuis l’écran d’accueil</string>
+    <string name="home_pin_widget_fallback_body">Votre lanceur ne propose pas l’épinglage direct de widget. Vous pouvez créer un raccourci direct ou ajouter le widget Hermes depuis un appui long sur l’écran d’accueil.</string>
+</resources>

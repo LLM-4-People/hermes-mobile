@@ -122,7 +122,7 @@ final class ThreadPlaces {
         NearbyGuide guide = new NearbyGuide(thread.activity, new NearbyGuide.Actions() {
             public void locate() {
                 if (active.getAsBoolean() && e.phase != NearbyGuide.Phase.LOADING)
-                    thread.chooseGuideArea(active, area -> { if (active.getAsBoolean()) load(e, area); });
+                    thread.nearby.chooseGuide(active, e.category, area -> { if (active.getAsBoolean()) load(e, area); });
             }
 
             public void manual() { if (active.getAsBoolean()) neighborhood(active, e.category); }
@@ -224,9 +224,9 @@ final class ThreadPlaces {
         int limit = e.limit;
         e.update();
         JSONObject query = ThreadData.put(ThreadData.put(new JSONObject(), "latitude", e.lat), "longitude", e.lon);
-        if (category != NearbyCategory.RESTAURANT) ThreadData.put(query, "category", category.id);
-        if (radius != NearbyCategory.DEFAULT_RADIUS_M) ThreadData.put(query, "radius_m", radius);
-        if (limit != NearbyCategory.DEFAULT_LIMIT) ThreadData.put(query, "limit", limit);
+        ThreadData.put(query, "category", category.id);
+        ThreadData.put(query, "radius_m", radius);
+        ThreadData.put(query, "limit", limit);
         thread.request(() -> {
             if (!owner.getAsBoolean() || e.retired || e.requestSerial != serial) throw new CancellationException();
             return NearbyResult.parse(thread.api.post("/api/mobile/places/nearby", query));

@@ -273,7 +273,7 @@ public final class InteractiveControlsBlock {
         if (interactive) {
             sw.setOnCheckedChangeListener((buttonView, isChecked) -> {
                 state.put(ctrl.id, isChecked);
-                persist(store, scope, surfaceKey, state);
+                persistBoolean(store, scope, surfaceKey, ctrl.id, isChecked);
             });
         }
         group.addView(sw);
@@ -297,7 +297,7 @@ public final class InteractiveControlsBlock {
         if (interactive) {
             box.setOnCheckedChangeListener((buttonView, isChecked) -> {
                 state.put(ctrl.id, isChecked);
-                persist(store, scope, surfaceKey, state);
+                persistBoolean(store, scope, surfaceKey, ctrl.id, isChecked);
             });
         }
         group.addView(box);
@@ -334,16 +334,26 @@ public final class InteractiveControlsBlock {
         seek.setContentDescription(ctrl.label + ", " + formatSliderValue(current, ctrl.unit));
         if (interactive) {
             seek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+                private boolean dragging;
+
                 @Override public void onProgressChanged(SeekBar bar, int progress, boolean fromUser) {
                     double value = Math.min(ctrl.max, ctrl.min + progress * ctrl.step);
                     String formatted = formatSliderValue(value, ctrl.unit);
                     valueView.setText(formatted);
                     bar.setContentDescription(ctrl.label + ", " + formatted);
                     state.put(ctrl.id, value);
+                    if (fromUser && !dragging) {
+                        persistNumber(store, scope, surfaceKey, ctrl.id, value);
+                    }
                 }
-                @Override public void onStartTrackingTouch(SeekBar bar) {}
+                @Override public void onStartTrackingTouch(SeekBar bar) {
+                    dragging = true;
+                }
                 @Override public void onStopTrackingTouch(SeekBar bar) {
-                    persist(store, scope, surfaceKey, state);
+                    dragging = false;
+                    double value = Math.min(ctrl.max, ctrl.min + bar.getProgress() * ctrl.step);
+                    state.put(ctrl.id, value);
+                    persistNumber(store, scope, surfaceKey, ctrl.id, value);
                 }
             });
         }
@@ -403,9 +413,10 @@ public final class InteractiveControlsBlock {
                     mutableSelected.clear();
                     if (!already) mutableSelected.add(option);
                 }
-                state.put(ctrl.id, Collections.unmodifiableList(new ArrayList<>(mutableSelected)));
+                List<String> snapshot = Collections.unmodifiableList(new ArrayList<>(mutableSelected));
+                state.put(ctrl.id, snapshot);
                 restyle.run();
-                persist(store, scope, surfaceKey, state);
+                persistStringList(store, scope, surfaceKey, ctrl.id, snapshot);
             });
             chip.setEnabled(interactive);
             chip.setTextSize(colors.scaledSp(14));
@@ -436,10 +447,28 @@ public final class InteractiveControlsBlock {
         return fmt.format(value) + (unit.isEmpty() ? "" : " " + unit);
     }
 
-    private static void persist(InstrumentStateStore store, String scope, String surfaceKey, Map<String, Object> state) {
+    static void persistBoolean(InstrumentStateStore store, String scope, String surfaceKey, String id, boolean value) {
         if (store == null) return;
         try {
-            store.save(scope, surfaceKey, state);
+            store.putBoolean(scope, surfaceKey, id, value);
+        } catch (IOException | IllegalStateException e) {
+            Diagnostics.warning("instrument_state", "save_failed");
+        }
+    }
+
+    static void persistNumber(InstrumentStateStore store, String scope, String surfaceKey, String id, double value) {
+        if (store == null) return;
+        try {
+            store.putNumber(scope, surfaceKey, id, value);
+        } catch (IOException | IllegalStateException e) {
+            Diagnostics.warning("instrument_state", "save_failed");
+        }
+    }
+
+    static void persistStringList(InstrumentStateStore store, String scope, String surfaceKey, String id, List<String> value) {
+        if (store == null) return;
+        try {
+            store.putStringList(scope, surfaceKey, id, value);
         } catch (IOException | IllegalStateException e) {
             Diagnostics.warning("instrument_state", "save_failed");
         }

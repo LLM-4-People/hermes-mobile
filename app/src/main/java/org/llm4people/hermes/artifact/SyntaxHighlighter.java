@@ -440,16 +440,18 @@ public final class SyntaxHighlighter {
         if (source == null || query == null || query.isEmpty() || maxMatches <= 0) {
             return Collections.emptyList();
         }
-        String lowerSource = source.toLowerCase(Locale.ROOT);
-        String lowerQuery = query.toLowerCase(Locale.ROOT);
-        int qLen = lowerQuery.length();
+        int sLen = source.length();
+        int qLen = query.length();
+        if (qLen > sLen) return Collections.emptyList();
         List<SearchMatch> matches = new ArrayList<>();
-        int from = 0;
-        while (from <= lowerSource.length() - qLen && matches.size() < maxMatches) {
-            int hit = lowerSource.indexOf(lowerQuery, from);
-            if (hit < 0) break;
-            matches.add(new SearchMatch(hit, hit + qLen));
-            from = hit + qLen;
+        int limit = sLen - qLen;
+        for (int i = 0; i <= limit && matches.size() < maxMatches;) {
+            if (source.regionMatches(true, i, query, 0, qLen)) {
+                matches.add(new SearchMatch(i, i + qLen));
+                i += qLen;
+            } else {
+                i++;
+            }
         }
         return matches;
     }

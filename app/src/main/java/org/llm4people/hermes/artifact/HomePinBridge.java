@@ -13,7 +13,6 @@ import org.json.JSONObject;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.MainActivity;
 import org.llm4people.hermes.R;
-import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.os.HermesWidgetPinning;
 import org.llm4people.hermes.os.HermesWidgetProvider;
 import org.llm4people.hermes.os.HermesWidgetSpec;
@@ -95,13 +94,13 @@ public final class HomePinBridge {
         if (activity == null || spec == null || !spec.homeScreenSafe) return;
         String preview = spec.title
                 + (spec.subtitle.isEmpty() ? "" : "\n" + spec.subtitle)
-                + "\n\nSeul ce texte prévu pour l’écran d’accueil sera visible hors de l’application.";
-        Ui.secureDialog(new AlertDialog.Builder(activity)
-                .setTitle("Épingler sur l’écran d’accueil ?")
+                + "\n\n" + activity.getString(R.string.home_pin_widget_privacy_note);
+        DeskDialogs.open(activity, new AlertDialog.Builder(activity)
+                .setTitle(R.string.home_pin_dialog_title)
                 .setMessage(preview)
-                .setNegativeButton("Annuler", null)
-                .setPositiveButton("Épingler le widget", (d, w) -> launchWidgetPin(activity, spec))
-                .setNeutralButton("Créer un raccourci", (d, w) ->
+                .setNegativeButton(R.string.home_pin_cancel, null)
+                .setPositiveButton(R.string.home_pin_widget_action, (d, w) -> launchWidgetPin(activity, spec))
+                .setNeutralButton(R.string.home_pin_shortcut_action, (d, w) ->
                         requestPinShortcut(activity, "widget-" + spec.widgetId, spec.title, null, spec.widgetId)));
     }
 
@@ -109,12 +108,11 @@ public final class HomePinBridge {
     public static void offerPinSurface(Activity activity, String surfaceId, String title) {
         if (activity == null || !WorkspaceLayout.custom(surfaceId) || title == null || title.isEmpty()) return;
         String safeTitle = title.length() > 40 ? title.substring(0, 40) : title;
-        Ui.secureDialog(new AlertDialog.Builder(activity)
-                .setTitle("Épingler sur l’écran d’accueil ?")
-                .setMessage("Ajoutez « " + safeTitle + " » à votre écran d’accueil pour l’ouvrir en un geste. "
-                        + "Votre profil reste protégé avant l’affichage du contenu.")
-                .setNegativeButton("Annuler", null)
-                .setPositiveButton("Créer un raccourci", (d, w) ->
+        DeskDialogs.open(activity, new AlertDialog.Builder(activity)
+                .setTitle(R.string.home_pin_dialog_title)
+                .setMessage(activity.getString(R.string.home_pin_surface_body, safeTitle))
+                .setNegativeButton(R.string.home_pin_cancel, null)
+                .setPositiveButton(R.string.home_pin_shortcut_action, (d, w) ->
                         requestPinShortcut(activity, "page-" + surfaceId.substring(5), safeTitle, surfaceId, null)));
     }
 
@@ -133,15 +131,15 @@ public final class HomePinBridge {
                 return true;
             }
             Diagnostics.event("home_pin", "shortcut_unsupported");
-            guidance(activity, "Raccourci non pris en charge",
-                    "Votre écran d’accueil actuel ne permet pas d’épingler un raccourci directement.");
+            guidance(activity, activity.getString(R.string.home_pin_shortcut_unsupported_title),
+                    activity.getString(R.string.home_pin_shortcut_unsupported_body));
             return false;
         }
         ShortcutManager manager = activity.getSystemService(ShortcutManager.class);
         if (manager == null || !manager.isRequestPinShortcutSupported()) {
             Diagnostics.event("home_pin", "shortcut_unsupported");
-            guidance(activity, "Raccourci non pris en charge",
-                    "Votre écran d’accueil actuel ne permet pas d’épingler un raccourci directement.");
+            guidance(activity, activity.getString(R.string.home_pin_shortcut_unsupported_title),
+                    activity.getString(R.string.home_pin_shortcut_unsupported_body));
             return false;
         }
         Intent launch = new Intent(activity, MainActivity.class)
@@ -179,12 +177,11 @@ public final class HomePinBridge {
             }
         }
         Diagnostics.event("home_pin", "widget_fallback_guidance");
-        Ui.secureDialog(new AlertDialog.Builder(activity)
-                .setTitle("Ajout depuis l’écran d’accueil")
-                .setMessage("Votre lanceur ne propose pas l’épinglage direct de widget. "
-                        + "Vous pouvez créer un raccourci direct ou ajouter le widget Hermes depuis un appui long sur l’écran d’accueil.")
-                .setNegativeButton("Fermer", null)
-                .setPositiveButton("Créer un raccourci", (d, w) ->
+        DeskDialogs.open(activity, new AlertDialog.Builder(activity)
+                .setTitle(R.string.home_pin_widget_fallback_title)
+                .setMessage(R.string.home_pin_widget_fallback_body)
+                .setNegativeButton(R.string.home_pin_close, null)
+                .setPositiveButton(R.string.home_pin_shortcut_action, (d, w) ->
                         requestPinShortcut(activity, "widget-" + spec.widgetId, spec.title, null, spec.widgetId)));
     }
 
@@ -271,9 +268,9 @@ public final class HomePinBridge {
     }
 
     private static void guidance(Activity activity, String title, String message) {
-        Ui.secureDialog(new AlertDialog.Builder(activity)
+        DeskDialogs.open(activity, new AlertDialog.Builder(activity)
                 .setTitle(title)
                 .setMessage(message)
-                .setPositiveButton("Fermer", null));
+                .setPositiveButton(R.string.home_pin_close, null));
     }
 }

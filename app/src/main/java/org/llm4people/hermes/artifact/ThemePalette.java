@@ -156,6 +156,8 @@ public final class ThemePalette {
                     if (minRatio < WCAG_AA_NORMAL) {
                         throw new ContrastException("Accent contrast against custom surface below WCAG AA", minRatio);
                     }
+                } else if ("system".equals(safeTheme)) {
+                    validateSystemAccentContrast(rgb);
                 } else {
                     validateAccentContrast(rgb, checkNight);
                 }
@@ -257,21 +259,21 @@ public final class ThemePalette {
     public final String surfaceStyle;
     public final OverrideSpec spec;
 
-    private ThemePalette(boolean night, int paper, int surface, int ink, int accent,
+    private ThemePalette(boolean night, boolean darkSurface, int paper, int surface, int ink, int accent,
                          int onAccent, int accentSurface, OverrideSpec spec) {
         this.night = night;
         this.spec = spec;
         this.paper = paper;
         this.surface = surface;
         this.ink = ink;
-        this.muted = night ? NIGHT_MUTED : DAY_MUTED;
+        this.muted = darkSurface ? NIGHT_MUTED : DAY_MUTED;
         this.accent = accent;
         this.onAccent = onAccent;
         this.accentSurface = accentSurface;
-        this.line = night ? NIGHT_LINE : DAY_LINE;
-        this.danger = night ? NIGHT_DANGER : DAY_DANGER;
-        this.warning = night ? NIGHT_WARNING : DAY_WARNING;
-        this.positive = night ? NIGHT_POSITIVE : DAY_POSITIVE;
+        this.line = darkSurface ? NIGHT_LINE : DAY_LINE;
+        this.danger = darkSurface ? NIGHT_DANGER : DAY_DANGER;
+        this.warning = darkSurface ? NIGHT_WARNING : DAY_WARNING;
+        this.positive = darkSurface ? NIGHT_POSITIVE : DAY_POSITIVE;
         this.blockVerticalPaddingDp = switch (spec.density) {
             case "compact" -> 5;
             case "spacious" -> 18;
@@ -344,6 +346,20 @@ public final class ThemePalette {
         return 0xFF000000 | ((r & 0xFF) << 16) | ((g & 0xFF) << 8) | (b & 0xFF);
     }
 
+    /** Mode-invariant contrast check for theme="system" and widgets: accepts accents passing WCAG AA in day OR night. */
+    public static void validateSystemAccentContrast(int accentArgb) throws ContrastException {
+        try {
+            validateAccentContrast(accentArgb, false);
+            return;
+        } catch (ContrastException dayFailed) {
+            try {
+                validateAccentContrast(accentArgb, true);
+            } catch (ContrastException nightFailed) {
+                throw dayFailed.ratio >= nightFailed.ratio ? dayFailed : nightFailed;
+            }
+        }
+    }
+
     /** Enforces WCAG AA >= 4.5:1 against paper, surface, and its button label color. */
     public static void validateAccentContrast(int accentArgb, boolean nightMode) throws ContrastException {
         int paper = nightMode ? NIGHT_PAPER : DAY_PAPER;
@@ -406,9 +422,10 @@ public final class ThemePalette {
             } catch (IOException ignored) {}
         }
 
-        int accent = night ? NIGHT_ACCENT : DAY_ACCENT;
-        int onAccent = night ? NIGHT_ON_ACCENT : DAY_ON_ACCENT;
-        int accentSurface = night ? NIGHT_ACCENT_SURFACE : DAY_ACCENT_SURFACE;
+        boolean darkSurface = relativeLuminance(paper) < 0.2;
+        int accent = darkSurface ? NIGHT_ACCENT : DAY_ACCENT;
+        int onAccent = darkSurface ? NIGHT_ON_ACCENT : DAY_ON_ACCENT;
+        int accentSurface = darkSurface ? NIGHT_ACCENT_SURFACE : DAY_ACCENT_SURFACE;
         if (safe.accentHex != null) {
             try {
                 int candidate = parseHexColor(safe.accentHex);
@@ -417,17 +434,17 @@ public final class ThemePalette {
                     onAccent = safe.accentInkHex != null ? parseHexColor(safe.accentInkHex) : bestOnAccent(candidate);
                     if (contrastRatio(onAccent, accent) < WCAG_AA_NORMAL) onAccent = bestOnAccent(accent);
                 } else {
-                    accent = adaptAccentForMode(candidate, night);
+                    accent = adaptAccentForMode(candidate, darkSurface);
                     onAccent = safe.accentInkHex != null && accent == candidate
                             ? parseHexColor(safe.accentInkHex) : bestOnAccent(accent);
                     if (contrastRatio(onAccent, accent) < WCAG_AA_NORMAL) onAccent = bestOnAccent(accent);
                 }
-                accentSurface = blendTint(accent, paper, night ? 0.20f : 0.14f);
+                accentSurface = blendTint(accent, paper, darkSurface ? 0.20f : 0.14f);
             } catch (IOException ignored) {
                 // Fall back to DESIGN.md default accent.
             }
         }
-        return new ThemePalette(night, paper, surface, ink, accent, onAccent, accentSurface, safe);
+        return new ThemePalette(night, darkSurface, paper, surface, ink, accent, onAccent, accentSurface, safe);
     }
 
     public static boolean isNight(Context context) {

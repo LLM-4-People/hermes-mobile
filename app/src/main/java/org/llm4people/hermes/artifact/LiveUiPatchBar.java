@@ -186,7 +186,7 @@ public final class LiveUiPatchBar extends LinearLayout {
         }
         ScrollView scroll = new ScrollView(c);
         scroll.addView(body);
-        Ui.secureDialog(new AlertDialog.Builder(activity)
+        DeskDialogs.open(activity, new AlertDialog.Builder(activity)
                 .setTitle("Aperçu de l’amélioration")
                 .setView(scroll)
                 .setNegativeButton("Fermer", null)
@@ -346,7 +346,7 @@ public final class LiveUiPatchBar extends LinearLayout {
                                                 java.util.function.Consumer<String> onRevert) {
         List<LiveUiPatch.StateManager.AppliedRevision> revs = manager.history();
         if (revs.isEmpty()) {
-            return Ui.secureDialog(new AlertDialog.Builder(activity)
+            return DeskDialogs.open(activity, new AlertDialog.Builder(activity)
                     .setTitle("Historique des modifications")
                     .setMessage("Aucune modification d’écran en cours dans ce profil.")
                     .setPositiveButton("Fermer", null));
@@ -358,7 +358,7 @@ public final class LiveUiPatchBar extends LinearLayout {
             labels[i] = rev.summary;
             ids[i] = rev.revisionId;
         }
-        return Ui.secureDialog(new AlertDialog.Builder(activity)
+        return DeskDialogs.open(activity, new AlertDialog.Builder(activity)
                 .setTitle("Revenir avant une modification")
                 .setItems(labels, (d, which) -> onRevert.accept(ids[which]))
                 .setNegativeButton("Fermer", null));

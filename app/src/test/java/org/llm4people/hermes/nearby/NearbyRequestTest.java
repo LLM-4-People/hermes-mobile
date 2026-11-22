@@ -124,4 +124,26 @@ public final class NearbyRequestTest {
         assertEquals(1, silent.deliveries.size());
         assertNull(silent.deliveries.get(0));
     }
+
+    @Test public void respectsConfiguredTimeoutAndGraceBounds() {
+        Platform phone = new Platform();
+        NearbyRequest custom = new NearbyRequest(phone, phone.deliveries::add, 6_000, 1_500);
+        custom.start(true);
+        assertTrue(phone.timers.containsKey(6_000L));
+        assertTrue(phone.timers.containsKey(1_500L));
+        phone.time = 1_500;
+        phone.timers.get(1_500L).run();
+        assertEquals(List.of("fused", "network"), phone.providers);
+        phone.time = 6_000;
+        phone.network.accept(CELL);
+        assertEquals(1, phone.deliveries.size());
+        assertNull(phone.deliveries.get(0));
+
+        try {
+            new NearbyRequest(phone, phone.deliveries::add, 1_000, 2_000);
+            fail("Expected ordered timeout/grace check");
+        } catch (IllegalArgumentException expected) {
+            // expected
+        }
+    }
 }

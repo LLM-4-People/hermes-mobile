@@ -53,7 +53,7 @@ public class LivePageJourneyTest extends InstrumentationTestCase {
             runTestOnUiThread(() -> {
                 View page = activity.findViewById(android.R.id.content);
                 button(page,"Préparer un brouillon…").performClick();
-                assertTrue(hasText(page,"Renseignez le champ « Fichier »."));
+                assertTrue(hasText(page, activity.getString(org.llm4people.hermes.R.string.workspace_missing_field, "Fichier")));
                 List<View> edits = views(page,v -> v instanceof EditText);
                 assertEquals(2,edits.size());
                 ((EditText)edits.get(0)).setText("src/Code.java");
