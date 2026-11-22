@@ -12,7 +12,7 @@ import java.util.Set;
 /** Project persisted clarify tool receipts onto ordinary conversation turns, only for display. */
 final class PromptHistory {
     private record Call(String session, String id) {}
-    private record Tool(String name, String arguments, int owner) {}
+    private record Tool(String name, int owner) {}
     private PromptHistory() {}
 
     static JSONArray display(JSONArray source) {
@@ -31,7 +31,7 @@ final class PromptHistory {
                     String id = ThreadData.string(item, "id");
                     JSONObject function = item == null ? null : item.optJSONObject("function");
                     if (!id.isEmpty() && function != null) tools.put(new Call(session, id),
-                            new Tool(ThreadData.string(function, "name"), ThreadData.string(function, "arguments"), i));
+                            new Tool(ThreadData.string(function, "name"), i));
                 }
             } else if ("tool".equals(role)) {
                 Call call = new Call(session, ThreadData.string(row, "tool_call_id"));
@@ -41,7 +41,7 @@ final class PromptHistory {
                 if (name.isEmpty() && tool != null) name = tool.name();
                 JSONArray turns = switch (name) {
                     case "clarify" -> turns(ThreadData.content(row));
-                    case "terminal" -> approval(ThreadData.content(row), tool);
+                    case "terminal" -> approval(ThreadData.content(row));
                     default -> null;
                 };
                 if (turns != null) {
@@ -76,7 +76,7 @@ final class PromptHistory {
     }
 
     /** Only explicit gateway provenance identifies user consent. Exit codes and stdout do not. */
-    private static JSONArray approval(String encoded, Tool tool) {
+    private static JSONArray approval(String encoded) {
         if (!encoded.contains("\"user_summary\"") && !encoded.contains("\"approval\"")) return null;
         try {
             JSONObject result = new JSONObject(encoded);
@@ -89,10 +89,8 @@ final class PromptHistory {
             String summary = allowed ? "Action autorisée." : "Action refusée. La commande n’a pas été exécutée.";
             String output = ThreadData.string(result, "output");
             if (!output.isEmpty()) summary += "\n\n" + output;
-            String details = encoded;
-            if (tool != null && !tool.arguments().isEmpty()) details = tool.arguments() + "\n\n" + details;
             JSONObject row = new JSONObject().put("role", "approval_result").put("content", summary)
-                    .put("receipt_details", details);
+                    .put("receipt_details", encoded);
             return new JSONArray().put(row);
         } catch (JSONException invalidReceipt) {
             return null;
