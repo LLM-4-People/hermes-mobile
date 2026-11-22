@@ -27,6 +27,19 @@ import json, os, sys
 from pathlib import Path
 with open(os.environ["GATE_COMMANDS"], "a") as stream:
     print(json.dumps([Path(sys.argv[0]).name, *sys.argv[1:]]), file=stream)
+name = Path(sys.argv[0]).name
+if name == "curl":
+    Path(sys.argv[-1]).write_bytes(b"calendar fixture")
+if name == "sha256sum":
+    Path("calendar-check.txt").write_text(sys.stdin.read())
+    sys.exit(int(os.environ.get("CALENDAR_CHECK_STATUS", "0")))
+if sys.argv[3:7] == ["shell", "pm", "list", "packages"]:
+    print("package:com.google.android.calendar")
+if "resolve-activity" in sys.argv:
+    print("org.fossify.calendar/.EventActivity" if "android.intent.action.INSERT" in sys.argv
+          else os.environ.get("MAP_COMPONENT", "com.google.android.apps.maps/.MapsActivity"))
+if sys.argv[3:] == ["shell", "dumpsys", "connectivity"]:
+    print("Active default network: none")
 if sys.argv[1:] == ["get-serialno"]:
     print("emulator-fixture")
 if Path(sys.argv[0]).name == "dexdump":
@@ -39,6 +52,11 @@ if sys.argv[3:6] == ["shell", "am", "instrument"]:
 if os.environ.get("FAIL_VERIFIER") in sys.argv[1:]:
     print("journey failed: " + os.environ["FAIL_VERIFIER"], file=sys.stderr)
     sys.exit(31)
+if "verification.phone_actions" in sys.argv:
+    directory = Path(sys.argv[sys.argv.index("--output") + 1]).parent
+    for suffix in (".json", "-conversation.json", "-share_text.png", "-calendar_event.png", "-map_search.png"):
+        if suffix != os.environ.get("MISSING_EVIDENCE"):
+            (directory / ("phone-actions" + suffix)).write_bytes(b"recorded fixture")
 """
 
 # Framework protocol for one discovered and executed test on the installed test APK.
@@ -61,23 +79,25 @@ class DeviceGateTest(unittest.TestCase):
         self.trace.touch()
         ci = self.root / "ci"
         ci.mkdir()
-        shutil.copyfile(GATE.with_name("native_tests.py"), ci / "native_tests.py")
+        for name in ("native_tests.py", "phone-action-check.sh"):
+            shutil.copyfile(GATE.with_name(name), ci / name)
         apk = self.root / TEST_APK
         apk.parent.mkdir(parents=True)
         apk.write_text(DEX_XML)
         for phase in ("discovery", "execution"):
             (self.root / f"{phase}.txt").write_text(successful_report())
         self.build_tools = self.root / "android build tools"
-        for command in (self.root / "bin/adb", self.build_tools / "dexdump", self.runner / "hermes-env/bin/python"):
+        for command in (self.root / "bin/adb", self.root / "bin/curl", self.root / "bin/sha256sum",
+                        self.build_tools / "dexdump", self.runner / "hermes-env/bin/python"):
             command.parent.mkdir(parents=True, exist_ok=True)
             command.write_text(RECORDER)
             command.chmod(0o755)
 
-    def gate(self, fail="", execution_status=0):
+    def gate(self, fail="", execution_status=0, **changes):
         env = {**os.environ, "RUNNER_TEMP": str(self.runner), "GATE_COMMANDS": str(self.trace),
                "ANDROID_BUILD_TOOLS": str(self.build_tools),
                "PATH": str(self.root / "bin") + os.pathsep + os.environ["PATH"],
-               "FAIL_VERIFIER": fail, "EXECUTION_STATUS": str(execution_status)}
+               "FAIL_VERIFIER": fail, "EXECUTION_STATUS": str(execution_status), **changes}
         result = subprocess.run(["bash", GATE], cwd=self.root, env=env, text=True, capture_output=True)
         return result, [json.loads(line) for line in self.trace.read_text().splitlines()]
 
@@ -95,33 +115,62 @@ class DeviceGateTest(unittest.TestCase):
         for phase in ("discovery", "execution"):
             saved = self.runner / "android-instrumentation" / f"{phase}.txt"
             self.assertEqual(saved.read_text(), (self.root / f"{phase}.txt").read_text())
-        verifiers = calls[8:]
-        self.assertEqual([cmd[:2] for cmd in verifiers], [["python", "-B"]] * 3)
+        verifiers = [cmd for cmd in calls[8:] if cmd[0] == "python"]
+        self.assertEqual([cmd[:2] for cmd in verifiers], [["python", "-B"]] * 4)
         self.assertEqual([cmd[2] for cmd in verifiers], [
-            "verification/live_api.py", "verification/conversation_cards.py", "verification/thread_instruments.py"])
+            "verification/live_api.py", "verification/conversation_cards.py", "verification/thread_instruments.py", "-m"])
         for cmd in verifiers:
             self.assertEqual(cmd[cmd.index("--source") + 1], ".fixture/hermes")
             self.assertEqual(cmd[cmd.index("--serial") + 1], "emulator-fixture")
         self.assertIn("--require-tool-controls", verifiers[0])
         self.assertIn("verification/device/run.py", verifiers[0])
-        for cmd in verifiers[1:]:
+        for cmd in verifiers[1:3]:
             index = cmd.index("--verify-apks")
             self.assertEqual(cmd[index + 1:index + 3], [APP_APK, TEST_APK])
         self.assertEqual([cmd[-1] for cmd in verifiers], [str(self.runner / subdir) for subdir in (
-            "hermes-device", "hermes-conversation-cards/android", "hermes-thread-instrument")])
+            "hermes-device", "hermes-conversation-cards/android", "hermes-thread-instrument",
+            "hermes-phone-actions/phone-actions.json")])
+        self.assertEqual(verifiers[3][3], "verification.phone_actions")
+        self.assertEqual(verifiers[3][verifiers[3].index("--apk") + 1], APP_APK)
+        self.assertIn("--inbound", verifiers[3])
+        self.assertIn([*ADB, "shell", "cmd", "connectivity", "airplane-mode", "enable"], calls)
+        self.assertIn([*ADB, "shell", "svc", "wifi", "disable"], calls)
+        self.assertIn([*ADB, "shell", "pm", "disable-user", "--user", "0", "com.google.android.calendar"], calls)
+        calendar = str(self.runner / "calendar-25-foss-release.apk")
+        self.assertEqual((self.root / "calendar-check.txt").read_text().split(maxsplit=1), [
+            "2825816d0a972bd85eb289e556221293fadecfd3179a4a2531bde6f89c6f0238", calendar + "\n"])
+        self.assertLess(calls.index(["sha256sum", "--check"]), calls.index([*ADB, "install", "-r", calendar]))
 
     def test_each_journey_failure_stops_the_gate_with_its_diagnostic(self):
         journeys = ["verification/live_api.py", "verification/conversation_cards.py",
-                    "verification/thread_instruments.py"]
+                    "verification/thread_instruments.py", "verification.phone_actions"]
         for index, failed in enumerate(journeys):
             with self.subTest(journey=failed):
                 self.trace.write_text("")
                 result, calls = self.gate(fail=failed)
                 self.assertEqual(result.returncode, 31)
                 self.assertIn("journey failed: " + failed, result.stderr)
-                self.assertEqual([cmd[2] for cmd in calls if cmd[0] == "python"], journeys[:index + 1])
+                self.assertEqual([cmd[3] if cmd[2] == "-m" else cmd[2] for cmd in calls if cmd[0] == "python"],
+                                 journeys[:index + 1])
                 if failed == "verification/thread_instruments.py":
                     self.assertIn("partial screenshots in android-thread-instruments", result.stderr)
+
+    def test_missing_expected_evidence_fails_even_when_verifier_exits_zero(self):
+        result, calls = self.gate(MISSING_EVIDENCE="-map_search.png")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("Android handoff evidence missing: phone-actions-map_search.png", result.stderr)
+        self.assertIn("verification.phone_actions", calls[-1])
+
+    def test_unverified_calendar_stops_before_installation(self):
+        result, calls = self.gate(CALENDAR_CHECK_STATUS="1")
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(calls[-1], ["sha256sum", "--check"])
+
+    def test_unexpected_map_resolver_stops_before_handoff_proof(self):
+        result, calls = self.gate(MAP_COMPONENT="android/.ResolverActivity")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("com.google.android.apps.maps", result.stderr)
+        self.assertNotIn("verification.phone_actions", [arg for cmd in calls for arg in cmd])
 
     def test_incomplete_discovery_stops_before_execution_even_if_both_reports_match(self):
         apk = self.root / TEST_APK

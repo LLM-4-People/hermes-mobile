@@ -24,3 +24,5 @@ echo "Verifying thread instruments on compact and wide Android layouts"
   echo "::error title=Android thread instruments::Journey failed (exit $status). See the phase output and any partial screenshots in android-thread-instruments." >&2
   exit "$status"
 }
+echo "Verifying Android text entry, system sharing, calendar and map handoffs"
+bash ci/phone-action-check.sh "$device" "$app_apk"
