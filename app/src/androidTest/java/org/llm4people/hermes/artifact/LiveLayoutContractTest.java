@@ -53,6 +53,24 @@ public class LiveLayoutContractTest extends InstrumentationTestCase {
         assertMissing(form,answers,"file");
     }
 
+    public void testVisuallyBlankRequiredAndOptionalFormInputs() throws Exception {
+        WorkspaceLayout.Block form = WorkspaceLayout.parse(REVIEW).blocks.get(2);
+        Map<String,String> answers = new HashMap<>();
+        answers.put("why","Fiabilité");
+        for (String blank : Arrays.asList(" \t", "\u2003", "\u00a0", "\u202f\n", "\u200b\u200d")) {
+            answers.put("file",blank);
+            assertMissing(form,answers,"file");
+            answers.put("file","src/Parser.java");
+            answers.put("notes",blank);
+            assertFalse(DraftForm.compose(form,answers).contains("Notes"));
+            assertTrue(DraftForm.blank(blank));
+        }
+        String visible = "\u00a0résumé\u2003";
+        answers.put("file",visible);
+        assertTrue(DraftForm.compose(form,answers).contains(visible));
+        assertFalse(DraftForm.blank(visible));
+    }
+
     private void assertMissing(WorkspaceLayout.Block form, Map<String,String> answers, String id) {
         try { DraftForm.compose(form,answers); fail("Unexpected form acceptance"); }
         catch (DraftForm.MissingAnswer e) { assertEquals(id,e.field.id); }

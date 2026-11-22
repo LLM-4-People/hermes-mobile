@@ -68,15 +68,18 @@ public final class ArtifactDesk {
     /** Recovery is always reachable from native navigation, even after a layout has been restored. */
     public static void manage(Activity activity, Account account, Host host) {
         Map<String,String> all = new LinkedHashMap<>(WorkspaceLayout.SURFACES);
+        AlertDialog.Builder controls = new AlertDialog.Builder(activity).setTitle("Dispositions des écrans");
         try {
             PageLayouts.titles(account,true).forEach((id,title) -> all.put(id, title + " (" + id.substring(5) + ")"));
+        } catch (PageLayouts.Damaged damaged) {
+            controls.setNeutralButton(WorkspacePages.REPAIR, (dialog, which) ->
+                    WorkspacePages.confirmRecovery(activity, damaged, host));
         } catch (IllegalStateException error) {
             Diagnostics.warning("workspace","page_index_unavailable");
         }
         String[] surfaces = all.keySet().toArray(new String[0]);
         String[] labels = all.values().toArray(new String[0]);
-        DeskDialogs.open(activity, new AlertDialog.Builder(activity).setTitle("Dispositions des écrans")
-                .setItems(labels, (d, which) -> SurfaceRenderer.controls(activity,
+        DeskDialogs.open(activity, controls.setItems(labels, (d, which) -> SurfaceRenderer.controls(activity,
                         new LayoutHistory(account, surfaces[which]), host))
                 .setNegativeButton("Fermer", null));
     }

@@ -1,6 +1,8 @@
 package org.llm4people.hermes.artifact;
 
+import org.json.JSONArray;
 import org.json.JSONException;
+import org.json.JSONTokener;
 import org.json.JSONObject;
 import org.llm4people.hermes.profile.Account;
 import java.io.IOException;
@@ -15,9 +17,73 @@ final class PageLayouts {
     private static final int LIMIT = 24;
 
     static JSONObject read(Account account) {
-        String raw = account.read(KEY);
-        try { return raw == null ? new JSONObject() : new JSONObject(raw); }
-        catch (JSONException e) { throw new IllegalStateException("Unreadable page catalog"); }
+        String raw;
+        try { raw = account.read(KEY); }
+        catch (Account.UnreadableRecord error) { throw new Damaged(account, null, error, new JSONObject()); }
+        if (raw == null) return new JSONObject();
+        try {
+            JSONTokener input = new JSONTokener(raw);
+            if (!(input.nextValue() instanceof JSONObject pages)) throw new JSONException("Invalid catalog");
+            boolean damaged = retainReadableEntries(pages);
+            if (damaged || input.nextClean() != 0) throw new Damaged(account, raw, null, pages);
+            return pages;
+        } catch (JSONException malformed) {
+            throw new Damaged(account, raw, null, new JSONObject());
+        }
+    }
+
+    // Work only on decoded memory. A damaged catalog never changes until its owner confirms.
+    private static boolean retainReadableEntries(JSONObject pages) throws JSONException {
+        JSONArray ids = pages.names();
+        boolean damaged = false;
+        for (int i = 0; ids != null && i < ids.length(); i++) {
+            String id = ids.getString(i);
+            JSONObject record = pages.optJSONObject(id);
+            if (WorkspaceLayout.custom(id) && LayoutHistory.validRecord(record)) continue;
+            damaged = true;
+            if (!WorkspaceLayout.custom(id) || record == null
+                    || (!(record.opt("current") instanceof String) && !(record.opt("previous") instanceof String))) {
+                pages.remove(id);
+            } else {
+                // A surviving previous revision remains recoverable through Undo.
+                if (!(record.opt("current") instanceof String)) record.put("current", "");
+                if (!(record.opt("previous") instanceof String)) record.remove("previous");
+            }
+        }
+        return damaged;
+    }
+
+    static final class Damaged extends IllegalStateException {
+        private final Account owner;
+        private final String source;
+        private final Account.UnreadableRecord encrypted;
+        private final JSONObject retained;
+
+        private Damaged(Account owner, String source, Account.UnreadableRecord encrypted, JSONObject retained) {
+            super("Unreadable named page catalog", encrypted);
+            this.owner = owner;
+            this.source = source;
+            this.encrypted = encrypted;
+            this.retained = retained;
+        }
+
+        boolean hasReadablePages() { return retained.length() != 0; }
+
+        void recover() {
+            synchronized (LayoutHistory.class) {
+                try { read(owner); }
+                catch (Damaged current) {
+                    boolean unchanged = encrypted == null ? source.equals(current.source)
+                            : encrypted.sameVersion(current.encrypted);
+                    if (unchanged) {
+                        if (current.hasReadablePages()) owner.write(KEY, current.retained.toString());
+                        else owner.remove(KEY);
+                        return;
+                    }
+                }
+                throw new IllegalStateException("Named page catalog changed");
+            }
+        }
     }
 
     // Called under LayoutHistory's process-wide mutation lock. An account can be unlocked twice.
