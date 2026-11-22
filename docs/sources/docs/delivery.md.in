@@ -34,7 +34,7 @@ Set the environment variable `ANDROID_SIGNING_CERT_SHA256` to the SHA-256 finger
 
 Set the Android version name and a monotonically increasing version code with `hermesVersionName` and `hermesVersionCode` in `gradle.properties`. Merge the reviewed change. In Actions, dispatch **Signed Android release** on `main`. The workflow reruns the four checks, compares two unsigned release builds byte for byte, signs the APK, verifies its certificate and alignment, then attests the output. It derives the release tag from the signed manifest. A main revision change or conflicting tag stops publication.
 
-The publisher uploads the three release files to a draft, checks each server-reported digest and publishes the completed draft. A repeat run fills missing assets in a draft for the same commit. Conflicting assets require inspecting the draft in Releases. Published release assets and tags remain available for version-specific downloads.
+The publisher checks that the manifest version code exceeds every previous published release. It uploads the three release files to a draft and verifies the complete list of names and digests immediately before publication. A repeat run fills missing assets in a draft for the same commit. When the signing algorithm emits new signature bytes, the workflow can recover the original APK from that release after verifying its workflow attestation and commit, signing certificate, alignment and complete archive contents against the checked build. Conflicting assets require inspecting the draft in Releases. Published release assets and tags remain available for version-specific downloads.
 
 ## Verify a release
 

@@ -1,14 +1,16 @@
 """Run the production publisher against a local release service double."""
 
-import shutil
+import hashlib
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 
-PUBLISH = Path(__file__).with_name("publish-release.sh").resolve()
+PUBLISH = Path(__file__).with_name("publish_release.py").resolve()
 SHA = "a" * 40
 
 
@@ -24,12 +26,12 @@ class PublishTest(unittest.TestCase):
         self.stub.chmod(0o755)
         (self.root / "Hermes-Mobile.apk").write_bytes(b"APK bytes")
         (self.root / "SHA256SUMS").write_text("checksum")
-        (self.root / "release.json").write_text('{"tag":"v1.2.3"}')
+        (self.root / "release.json").write_text(json.dumps({"tag": "v1.2.3", "versionCode": 3, "sourceCommit": SHA}))
         self.env = dict(os.environ, PATH=f"{self.root}:{os.environ['PATH']}",
                         GITHUB_SHA=SHA, GITHUB_REPOSITORY="owner/app", TEST_STATE=str(self.state))
 
     def run_publisher(self):
-        return subprocess.run([PUBLISH, self.root], env=self.env, capture_output=True, text=True)
+        return subprocess.run([sys.executable, PUBLISH, self.root], env=self.env, capture_output=True, text=True)
 
     def test_interrupted_upload_resumes_and_published_rerun_is_idempotent(self):
         self.env["FAIL_UPLOAD"] = "SHA256SUMS"
@@ -54,3 +56,32 @@ class PublishTest(unittest.TestCase):
             self.state.write_text(json.dumps(state))
             self.assertNotEqual(self.run_publisher().returncode, 0)
             self.assertEqual(json.loads(self.state.read_text()), state)
+
+    def test_unknown_assets_in_draft_or_added_during_upload_remain_unpublished(self):
+        self.env["EXTRA_ON_UPLOAD"] = "1"
+        for attempt in range(2):
+            with self.subTest(attempt=attempt):
+                result = self.run_publisher()
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("unverified extra assets", result.stderr)
+                self.assertTrue(json.loads(self.state.read_text())["releases"][0]["draft"])
+
+    def test_all_published_version_codes_must_be_smaller(self):
+        metadata = json.dumps({"versionCode": 4})
+        previous = {"tag_name": "v1.1.0", "draft": False, "target_commitish": "b" * 40,
+                    "assets": [{"id": 21, "name": "release.json",
+                                "digest": "sha256:" + hashlib.sha256(metadata.encode()).hexdigest()}]}
+        self.state.write_text(json.dumps({"main": SHA, "ref": None, "releases": [previous],
+                                         "assetMetadata": {"21": metadata}}))
+        manifest = self.root / "release.json"
+        for code in [3, 4, 5]:
+            data = json.loads(manifest.read_text())
+            data["versionCode"] = code
+            manifest.write_text(json.dumps(data))
+            result = self.run_publisher()
+            if code <= 4:
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("versionCode must exceed", result.stderr)
+                self.assertEqual(len(json.loads(self.state.read_text())["releases"]), 1)
+            else:
+                self.assertEqual(result.returncode, 0, result.stderr)

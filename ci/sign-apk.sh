@@ -15,18 +15,11 @@ printf %s "$ANDROID_SIGNING_KEYSTORE_BASE64" | base64 --decode > "$private/keyst
 "$ANDROID_BUILD_TOOLS/zipalign" -c -P 16 4 "$unsigned"
 "$ANDROID_BUILD_TOOLS/apksigner" sign --ks "$private/keystore" \
   --ks-key-alias "$ANDROID_SIGNING_ALIAS" --ks-pass env:ANDROID_SIGNING_STORE_PASSWORD \
-  --key-pass env:ANDROID_SIGNING_KEY_PASSWORD --v4-signing-enabled false \
+  --key-pass env:ANDROID_SIGNING_KEY_PASSWORD --v1-signing-enabled false --v4-signing-enabled false \
   --out "$private/$name" "$unsigned"
 "$ANDROID_BUILD_TOOLS/zipalign" -c -P 16 4 "$private/$name"
-"$ANDROID_BUILD_TOOLS/apksigner" verify --verbose --print-certs "$private/$name" > "$private/signers"
-certificate=$(sed -n 's/^Signer #[0-9]* certificate SHA-256 digest: //p' "$private/signers")
-expected=${ANDROID_SIGNING_CERT_SHA256//:/}
-if [[ ! $expected =~ ^[[:xdigit:]]{64}$ || ${certificate,,} != "${expected,,}" ]]; then
-  echo "The APK signing certificate differs from the configured SHA-256 fingerprint." >&2
-  exit 1
-fi
 "$ANDROID_BUILD_TOOLS/aapt" dump badging "$private/$name" > "$private/badging"
 python3 "$(dirname "$0")/release_metadata.py" "$private/badging" "$unsigned" \
-  "$private/$name" "$certificate" "$GITHUB_SHA" > "$private/release.json"
+  "$private/$name" "$ANDROID_SIGNING_CERT_SHA256" "$GITHUB_SHA" "$ANDROID_BUILD_TOOLS" > "$private/release.json"
 (cd "$private" && sha256sum "$name" > SHA256SUMS)
 mv "$private/$name" "$private/SHA256SUMS" "$private/release.json" "$out/"
