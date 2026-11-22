@@ -93,6 +93,11 @@ public final class IncomingMediaShare {
         }
     }
 
+    public static synchronized String owner(Context context, String id) {
+        JSONObject data = read(context, id);
+        return data == null ? null : data.optString("owner", null);
+    }
+
     public static synchronized Batch open(Context context, String id, Account account) {
         if (account == null || !account.unlocked()) return null;
         JSONObject data = read(context, id);

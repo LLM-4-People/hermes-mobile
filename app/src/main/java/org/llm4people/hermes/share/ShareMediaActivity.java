@@ -18,15 +18,18 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * Exported FLAG_SECURE intake boundary for inbound images, PDFs, code/text files, and multi-file shares.
- * Strips all EXIF metadata from images, encrypts items into IncomingMediaShare, and forwards only an opaque UUID.
+ * Clears untrusted extras ClassLoader, strips EXIF & seals off the UI thread, and forwards only an opaque UUID.
  */
 public final class ShareMediaActivity extends Activity {
     public static final String REVIEW_MEDIA = "org.llm4people.hermes.REVIEW_SHARED_MEDIA";
     public static final String MEDIA_RECEIPT = "org.llm4people.hermes.MEDIA_SHARE_RECEIPT";
 
+    private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private String waiting;
 
     @Override protected void onCreate(Bundle state) {
@@ -43,32 +46,58 @@ public final class ShareMediaActivity extends Activity {
                 }
                 return;
             }
-            List<Uri> uris = extractUris(getIntent());
-            String declaredMime = getIntent() == null ? null : getIntent().getType();
-            setIntent(new Intent());
+            Intent incoming = getIntent();
+            List<Uri> uris = extractUris(incoming);
+            String declaredMime = incoming == null ? null : incoming.getType();
             if (uris.isEmpty() || uris.size() > IncomingMediaShare.MAX_ITEMS) {
+                setIntent(new Intent());
                 Diagnostics.warning("share", "media_count_rejected");
                 unavailable("Vous pouvez partager jusqu’à " + IncomingMediaShare.MAX_ITEMS + " photos ou fichiers à la fois.");
                 return;
             }
             long maxBytes = HermesConfig.load(this).artifactDefaultMaxBytes;
-            List<CapturedMedia.Item> sanitized = new ArrayList<>(uris.size());
-            for (Uri uri : uris) {
-                sanitized.add(CapturedMedia.readFromUri(getContentResolver(), uri, declaredMime, maxBytes));
-            }
-            String receipt = IncomingMediaShare.create(this, sanitized);
-            if (receipt != null) {
-                review(receipt);
-                return;
-            }
-            busy(IncomingMediaShare.pending(this));
-        } catch (IOException | IllegalArgumentException rejected) {
-            Diagnostics.warning("share", "media_rejected", rejected);
-            unavailable("Ce type de fichier ou sa taille n’est pas pris en charge. Partagez des photos, PDF ou fichiers texte.");
+            worker.execute(() -> processOffUiThread(uris, declaredMime, maxBytes));
         } catch (RuntimeException unavailable) {
             Diagnostics.warning("share", "media_unavailable", unavailable);
             unavailable("Le partage n’a pas pu être ouvert. Réessayez depuis l’application d’origine.");
         }
+    }
+
+    private void processOffUiThread(List<Uri> uris, String declaredMime, long maxBytes) {
+        try {
+            List<CapturedMedia.Item> sanitized = new ArrayList<>(uris.size());
+            for (Uri uri : uris) {
+                if (Thread.currentThread().isInterrupted()) return;
+                sanitized.add(CapturedMedia.readFromUri(getContentResolver(), uri, declaredMime, maxBytes));
+            }
+            String receipt = IncomingMediaShare.create(this, sanitized);
+            String existing = receipt == null ? IncomingMediaShare.pending(this) : null;
+            runOnUiThread(() -> {
+                setIntent(new Intent());
+                if (isFinishing() || isDestroyed()) return;
+                if (receipt != null) review(receipt);
+                else busy(existing);
+            });
+        } catch (IOException | IllegalArgumentException rejected) {
+            Diagnostics.warning("share", "media_rejected", rejected);
+            runOnUiThread(() -> {
+                if (!isFinishing() && !isDestroyed()) {
+                    unavailable("Ce type de fichier ou sa taille n’est pas pris en charge. Partagez des photos, PDF ou fichiers texte.");
+                }
+            });
+        } catch (RuntimeException unavailable) {
+            Diagnostics.warning("share", "media_unavailable", unavailable);
+            runOnUiThread(() -> {
+                if (!isFinishing() && !isDestroyed()) {
+                    unavailable("Le partage n’a pas pu être ouvert. Réessayez depuis l’application d’origine.");
+                }
+            });
+        }
+    }
+
+    @Override protected void onDestroy() {
+        worker.shutdownNow();
+        super.onDestroy();
     }
 
     @Override protected void onSaveInstanceState(Bundle state) {
@@ -80,6 +109,8 @@ public final class ShareMediaActivity extends Activity {
     @SuppressWarnings("deprecation")
     static List<Uri> extractUris(Intent intent) {
         if (intent == null) return Collections.emptyList();
+        // Prevent untrusted Parcelable deserialization from third-party callers.
+        intent.setExtrasClassLoader(null);
         String action = intent.getAction();
         List<Uri> out = new ArrayList<>();
         if (Intent.ACTION_SEND.equals(action)) {

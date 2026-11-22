@@ -20,6 +20,7 @@ import org.llm4people.hermes.places.NearbyResult;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
 
 /** The second, explicit gesture is the only way to send reviewed values to an Android app. */
@@ -35,40 +36,55 @@ public final class DeviceReview {
     }
 
     public static void review(Activity activity, ArtifactDesk.Host host, View source, DeviceAction request) {
-        open(activity, host, source, request, null, null);
+        open(activity, host, source, request, null, null, null);
     }
 
     public static void review(Activity activity, ArtifactDesk.Host host, View source, DeviceAction request,
                               Runnable onCompleted, Runnable onCancelled) {
-        open(activity, host, source, request, onCompleted, onCancelled);
+        open(activity, host, source, request, onCompleted, onCancelled, onCancelled);
+    }
+
+    public static void review(Activity activity, ArtifactDesk.Host host, View source, DeviceAction request,
+                              Runnable onCompleted, Runnable onCancelled, Runnable onUnavailable) {
+        open(activity, host, source, request, onCompleted, onCancelled, onUnavailable);
     }
 
     static void open(Activity activity, ArtifactDesk.Host host, View source, DeviceAction request) {
-        open(activity, host, source, request, null, null);
+        open(activity, host, source, request, null, null, null);
     }
 
     private static void open(Activity activity, ArtifactDesk.Host host, View source, DeviceAction request,
-                             Runnable onCompleted, Runnable onCancelled) {
+                             Runnable onCompleted, Runnable onCancelled, Runnable onUnavailable) {
+        AtomicBoolean settled = new AtomicBoolean(false);
+        AtomicBoolean handlingPositive = new AtomicBoolean(false);
+        Runnable fireCompleted = () -> { if (settled.compareAndSet(false, true) && onCompleted != null) onCompleted.run(); };
+        Runnable fireCancelled = () -> { if (settled.compareAndSet(false, true) && onCancelled != null) onCancelled.run(); };
+        Runnable fireUnavailable = () -> { if (settled.compareAndSet(false, true) && onUnavailable != null) onUnavailable.run(); };
+
         BooleanSupplier origin = host.deviceActionOrigin();
-        BooleanSupplier current = () -> source.isAttachedToWindow() && source.isShown() && origin.getAsBoolean();
-        if (!current.getAsBoolean()) return;
+        BooleanSupplier current = () -> source != null && source.isAttachedToWindow() && source.isShown() && origin.getAsBoolean();
+        if (!current.getAsBoolean()) {
+            Diagnostics.debug("device_action", "origin_unavailable");
+            fireUnavailable.run();
+            return;
+        }
         AlertDialog.Builder review = new AlertDialog.Builder(activity)
                 .setTitle(request.kind().title)
                 .setMessage(request.preview())
-                .setNegativeButton("Annuler", (dialog, which) -> {
-                    if (onCancelled != null) onCancelled.run();
-                })
-                .setOnCancelListener(dialog -> {
-                    if (onCancelled != null) onCancelled.run();
-                })
+                .setNegativeButton("Annuler", (dialog, which) -> fireCancelled.run())
+                .setOnCancelListener(dialog -> fireCancelled.run())
                 .setPositiveButton(request.kind().open, (dialog, which) -> {
-                    if (!((AlertDialog) dialog).isShowing() || !current.getAsBoolean()) return;
+                    if (!((AlertDialog) dialog).isShowing() || !current.getAsBoolean()) {
+                        fireUnavailable.run();
+                        return;
+                    }
+                    handlingPositive.set(true);
                     dialog.dismiss();
                     if (request instanceof DeviceAction.CopySensitive sensitive) {
                         if (copySensitive(activity, sensitive.text())) {
-                            if (onCompleted != null) onCompleted.run();
-                        } else if (onCancelled != null) {
-                            onCancelled.run();
+                            fireCompleted.run();
+                        } else {
+                            fireUnavailable.run();
                         }
                         return;
                     }
@@ -76,17 +92,19 @@ public final class DeviceReview {
                         Intent target = request.target();
                         activity.startActivity(request.kind() == DeviceAction.Kind.SHARE
                                 ? chooser(activity, target) : target);
-                        if (onCompleted != null) onCompleted.run();
+                        fireCompleted.run();
                     } catch (ActivityNotFoundException | SecurityException unavailable) {
                         Diagnostics.warning("device_action", "app_unavailable", unavailable);
                         DeskDialogs.open(activity, host, new AlertDialog.Builder(activity)
                                 .setTitle("Application indisponible")
                                 .setMessage("Aucune application disponible ne peut ouvrir cette proposition.")
                                 .setPositiveButton("Fermer", null));
-                        if (onCancelled != null) onCancelled.run();
+                        fireUnavailable.run();
                     }
                 });
-        DeskDialogs.open(activity, host, review, source, current);
+        DeskDialogs.open(activity, host, review, source, current, () -> {
+            if (!handlingPositive.get()) fireUnavailable.run();
+        });
     }
 
     private static boolean copySensitive(Activity activity, String text) {

@@ -4,9 +4,18 @@ import android.app.AlertDialog;
 import android.os.SystemClock;
 import android.provider.Settings;
 
+import org.json.JSONException;
 import org.json.JSONObject;
+import org.llm4people.hermes.HermesConfig;
 import org.llm4people.hermes.VisibleText;
+import org.llm4people.hermes.camera.CapturedMedia;
+import org.llm4people.hermes.camera.ThreadCameraCapture;
 import org.llm4people.hermes.net.HermesApi;
+import org.llm4people.hermes.share.AttachmentUploader;
+import org.llm4people.hermes.share.DeviceBridgeFlow;
+
+import java.util.Collections;
+import java.util.List;
 
 /** Manages exactly one mobile-originated run in the selected thread. */
 final class ThreadRun {
@@ -127,6 +136,7 @@ final class ThreadRun {
                 ui.notice("Cette passerelle ne peut pas appliquer la sélection d’outils. Vérifiez les réglages de la conversation.", "", null);
                 return;
             }
+            List<CapturedMedia.Item> stagedAttachments = fresh ? ui.stagedAttachments() : Collections.emptyList();
             if (fresh) {
                 keepCompletionPosition = false;
                 // Edits while capability discovery was in flight must stay in the composer.
@@ -136,6 +146,12 @@ final class ThreadRun {
                     admissionFinished();
                     ui.busy(false, false);
                     ui.notice("Le brouillon a changé. Vous pouvez l’envoyer.", "", null);
+                    return;
+                }
+                if (!stagedAttachments.isEmpty() && !AttachmentUploader.supportsUploads(features)) {
+                    admissionFinished();
+                    ui.busy(false, false);
+                    ui.notice("Mettez Hermes à jour pour envoyer des fichiers joints.", "", null);
                     return;
                 }
                 if (area != null && !NearbyTurn.supportsScope(features)) {
@@ -151,10 +167,18 @@ final class ThreadRun {
                 }
                 try {
                     NearbyTurn.attach(body, area);
+                    if (features.optBoolean("device_bridge")) {
+                        List<String> caps = DeviceBridgeFlow.advertisedCapabilities(
+                                ThreadCameraCapture.isAvailable(page.activity),
+                                page.nearby.granted(),
+                                true,
+                                true);
+                        body.put("device_capabilities", DeviceBridgeFlow.capabilitiesJson(caps));
+                    }
                     journal.stage(body, SystemClock.elapsedRealtime(), bootCount(), idem.optLong("retention_seconds"),
                             idem.optBoolean("durable"), area);
                     page.nearby.clearTurn();
-                } catch (IllegalStateException e) {
+                } catch (IllegalStateException | JSONException e) {
                     admissionFinished();
                     ui.busy(false, false);
                     page.storageError();
@@ -175,7 +199,7 @@ final class ThreadRun {
                     return;
                 }
             }
-            admit(body, fresh);
+            admit(body, fresh, stagedAttachments);
         }, error -> {
             admissionFinished();
             ui.busy(!fresh, false);
@@ -192,14 +216,25 @@ final class ThreadRun {
         return Settings.Global.getInt(page.activity.getContentResolver(), Settings.Global.BOOT_COUNT, -1);
     }
 
-    private void admit(JSONObject body, boolean fresh) {
+    private void admit(JSONObject body, boolean fresh, List<CapturedMedia.Item> stagedAttachments) {
         String key = journal.pending().optString("key");
         ui.notice("Envoi à Hermes…", "", null);
         JSONObject image = journal.pending().optJSONObject("photo");
-        page.request(() -> page.api.post("/v1/runs", journal.wire(body, image), key), response -> {
+        long maxUploadBytes = HermesConfig.load(page.activity).artifactDefaultMaxBytes;
+        String remoteSession = page.remoteSessionId();
+        page.request(() -> {
+            JSONObject wire = journal.wire(body, image);
+            if (stagedAttachments != null && !stagedAttachments.isEmpty()) {
+                List<AttachmentUploader.UploadReceipt> receipts = AttachmentUploader.uploadAll(
+                        page.api::postMultipart, remoteSession, stagedAttachments, maxUploadBytes);
+                AttachmentUploader.attachToRunBody(wire, receipts);
+            }
+            return page.api.post("/v1/runs", wire, key);
+        }, response -> {
             admissionFinished();
             String id = ThreadData.string(response, "run_id");
             if (!ThreadData.validId(id)) { uncertain(); return; }
+            if (stagedAttachments != null && !stagedAttachments.isEmpty()) ui.clearAttachments();
             journal.setRunId(id);
             ui.notice("", "", null);
             ui.busy(true, true);
@@ -295,6 +330,7 @@ final class ThreadRun {
                             ? "Hermes attend votre réponse" : count + " demandes en attente";
                     ui.live(activity, next.text, count > 0, next.origin);
                     decisions.present(next.prompts);
+                    if (!next.deviceRequests.isEmpty()) page.handleDeviceRequests(id, next.deviceRequests);
                     ui.notice("", "", null);
                 });
             }

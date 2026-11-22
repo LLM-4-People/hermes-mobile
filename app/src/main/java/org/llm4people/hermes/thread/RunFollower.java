@@ -4,8 +4,10 @@ import android.os.SystemClock;
 
 import org.json.JSONObject;
 import org.llm4people.hermes.net.HermesApi;
+import org.llm4people.hermes.share.DeviceBridgeFlow;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.LongSupplier;
 
@@ -25,14 +27,17 @@ final class RunFollower implements AutoCloseable {
         final int highSurrogate;
         final String activity;
         final List<JSONObject> prompts;
+        final List<DeviceBridgeFlow.BridgeRequest> deviceRequests;
 
-        Frame(long seq, RunPreview preview, String activity, List<JSONObject> prompts) {
+        Frame(long seq, RunPreview preview, String activity, List<JSONObject> prompts,
+              List<DeviceBridgeFlow.BridgeRequest> deviceRequests) {
             this.seq = seq;
             text = preview.toString();
             origin = preview.origin();
             highSurrogate = preview.pendingHighSurrogate();
             this.activity = activity;
             this.prompts = prompts;
+            this.deviceRequests = deviceRequests;
         }
     }
 
@@ -50,6 +55,7 @@ final class RunFollower implements AutoCloseable {
     private long firstText = -1;
     private String activity = "Hermes travaille…";
     private final RunPrompts controls = new RunPrompts();
+    private List<DeviceBridgeFlow.BridgeRequest> deviceRequests = Collections.emptyList();
     private long controlsCheckedAt;
     private volatile boolean closed;
     private HermesApi.RunEvents stream;
@@ -100,7 +106,8 @@ final class RunFollower implements AutoCloseable {
                     long eventSeq = event.optLong("seq", -1);
                     if (eventSeq < 0 || eventSeq <= seq) continue;
                     if (ThreadData.terminal(type.startsWith("run.") ? type.substring(4) : "")) break;
-                    if ((controls.needsSnapshot(type, event) || controlCheckDue(type)) && !refreshControls()) return;
+                    if ((controls.needsSnapshot(type, event) || "device.requested".equals(type)
+                            || "device.settled".equals(type) || controlCheckDue(type)) && !refreshControls()) return;
                     apply(type, event);
                     seq = eventSeq;
                     long now = uptime.getAsLong();
@@ -144,6 +151,7 @@ final class RunFollower implements AutoCloseable {
         if (!run.equals(status.opt("run_id"))) throw new IOException("Incorrect run identity");
         if (closed || finish(status)) return false;
         controls.restore(status);
+        deviceRequests = DeviceBridgeFlow.parsePending(status);
         controlsCheckedAt = uptime.getAsLong();
         return true;
     }
@@ -200,7 +208,7 @@ final class RunFollower implements AutoCloseable {
     private void publish() {
         if (!closed) {
             textAwaitingPaint = false;
-            listener.update(new Frame(seq, preview, activity, controls.snapshot()));
+            listener.update(new Frame(seq, preview, activity, controls.snapshot(), deviceRequests));
         }
     }
 

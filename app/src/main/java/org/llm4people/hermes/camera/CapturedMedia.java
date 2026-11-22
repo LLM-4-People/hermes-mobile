@@ -55,10 +55,25 @@ public final class CapturedMedia {
     public static boolean isAllowedMime(String rawMime) {
         if (rawMime == null) return false;
         String mime = rawMime.trim().toLowerCase(Locale.ROOT);
-        if (mime.isEmpty() || mime.length() > 128) return false;
+        if (mime.isEmpty() || mime.length() > 128 || mime.contains("*")) return false;
         if (mime.startsWith("image/") && !mime.contains("svg")) return true;
         if (mime.startsWith("text/")) return true;
         return ALLOWED_DOCUMENT_MIMES.contains(mime);
+    }
+
+    public static String resolveMime(String declaredMime, String resolverMime) {
+        String declared = declaredMime == null ? "" : declaredMime.trim();
+        if (declared.isEmpty() || declared.endsWith("/*")) {
+            String queried = resolverMime == null ? "" : resolverMime.trim();
+            if (!queried.isEmpty() && !queried.endsWith("/*")) {
+                return queried;
+            }
+            if ("text/*".equalsIgnoreCase(declared)) {
+                return "text/plain";
+            }
+            return queried;
+        }
+        return declared;
     }
 
     public static String sanitizeFilename(String raw, String fallback) {
@@ -76,10 +91,9 @@ public final class CapturedMedia {
         if (uri == null || !ContentResolver.SCHEME_CONTENT.equals(uri.getScheme())) {
             throw new IOException("Only content:// URIs are accepted");
         }
-        String resolvedMime = declaredMime;
-        if (resolvedMime == null || resolvedMime.trim().isEmpty() || "*/*".equals(resolvedMime.trim())) {
-            resolvedMime = resolver.getType(uri);
-        }
+        String resolvedMime = resolveMime(declaredMime,
+                (declaredMime == null || declaredMime.trim().isEmpty() || declaredMime.trim().endsWith("/*"))
+                        ? resolver.getType(uri) : null);
         if (!isAllowedMime(resolvedMime)) {
             Diagnostics.warning("capture", "mime_rejected");
             throw new IOException("Unsupported media type");

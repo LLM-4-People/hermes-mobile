@@ -2,6 +2,7 @@ package org.llm4people.hermes.camera;
 
 import android.app.Activity;
 import android.content.ActivityNotFoundException;
+import android.content.ClipData;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
@@ -18,13 +19,16 @@ import java.util.UUID;
 
 /**
  * System camera capture controller requiring zero CAMERA runtime permission.
- * Binds each capture to one profile/thread nonce and strips EXIF/GPS metadata immediately on import.
+ * Binds each capture to one profile/thread nonce, persists its private slot across recreation,
+ * grants ClipData URI permissions cleanly, and strips EXIF/GPS metadata immediately on import.
  */
 public final class ThreadCameraCapture {
     private static final String STATE_CODE = "camera_request";
     private static final String STATE_NONCE = "camera_nonce";
     private static final String STATE_OWNER = "camera_owner";
     private static final String STATE_THREAD = "camera_thread";
+    private static final String STATE_SLOT = "camera_slot";
+    private static final String STATE_READY = "camera_ready";
 
     private final Activity activity;
     private int requestCode = 0x5400;
@@ -41,7 +45,23 @@ public final class ThreadCameraCapture {
             nonce = state.getString(STATE_NONCE);
             ownerProof = state.getString(STATE_OWNER);
             threadProof = state.getString(STATE_THREAD);
+            String savedSlot = state.getString(STATE_SLOT);
+            if (savedSlot != null && isOwnedSlot(savedSlot)) {
+                pendingSlot = Uri.parse(savedSlot);
+                readyToImport = state.getBoolean(STATE_READY, false);
+            } else if (nonce != null) {
+                nonce = ownerProof = threadProof = null;
+                readyToImport = false;
+            }
         }
+    }
+
+    private boolean isOwnedSlot(String rawUri) {
+        if (rawUri == null || !rawUri.startsWith("content://")) return false;
+        if (activity != null) {
+            return rawUri.startsWith("content://" + PrivateCaptureProvider.authority(activity) + "/");
+        }
+        return rawUri.contains(".capture/capture/");
     }
 
     public static boolean isAvailable(Activity activity) {
@@ -53,10 +73,20 @@ public final class ThreadCameraCapture {
 
     public void save(Bundle state) {
         state.putInt(STATE_CODE, requestCode);
-        if (nonce == null) return;
+        if (nonce == null || pendingSlot == null) return;
         state.putString(STATE_NONCE, nonce);
         state.putString(STATE_OWNER, ownerProof);
         state.putString(STATE_THREAD, threadProof);
+        state.putString(STATE_SLOT, pendingSlot.toString());
+        state.putBoolean(STATE_READY, readyToImport);
+    }
+
+    static Intent buildCaptureIntent(Uri slot) {
+        Intent capture = new Intent(MediaStore.ACTION_IMAGE_CAPTURE)
+                .putExtra(MediaStore.EXTRA_OUTPUT, slot)
+                .addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION | Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        capture.setClipData(ClipData.newRawUri("", slot));
+        return capture;
     }
 
     public boolean launch(Account account, String sessionId) {
@@ -69,10 +99,7 @@ public final class ThreadCameraCapture {
             threadProof = account.selectionBinding(nonce, sessionId);
             requestCode = requestCode == 0x57ff ? 0x5400 : requestCode + 1;
 
-            Intent capture = new Intent(MediaStore.ACTION_IMAGE_CAPTURE)
-                    .putExtra(MediaStore.EXTRA_OUTPUT, pendingSlot)
-                    .addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION | Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            activity.startActivityForResult(capture, requestCode);
+            activity.startActivityForResult(buildCaptureIntent(pendingSlot), requestCode);
             Diagnostics.event("camera", "capture_launched");
             return true;
         } catch (IOException | ActivityNotFoundException | SecurityException unavailable) {
@@ -99,6 +126,20 @@ public final class ThreadCameraCapture {
             clear();
         }
     }
+
+    public boolean isReady() {
+        return readyToImport && pendingSlot != null;
+    }
+
+    public boolean isReadyFor(Account account, String sessionId) {
+        return isReady() && account != null && sessionId != null && owns(account, sessionId);
+    }
+
+    public static Intent captureIntentFor(Uri slot) {
+        return buildCaptureIntent(slot);
+    }
+
+    Uri pendingSlot() { return pendingSlot; }
 
     /** Consume and EXIF-strip the captured photo only if the unlocked profile and thread still match. */
     public CapturedMedia.Item consumeIfReady(Account account, String sessionId) throws IOException {

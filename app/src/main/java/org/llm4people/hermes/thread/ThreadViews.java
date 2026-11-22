@@ -21,11 +21,17 @@ import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.artifact.CodeReader;
 import org.llm4people.hermes.artifact.ThreadInstruments.Pin;
+import org.llm4people.hermes.camera.CapturedMedia;
+import org.llm4people.hermes.profile.IncomingMediaShare;
+import org.llm4people.hermes.share.ClipboardPastePill;
+import org.llm4people.hermes.share.ShareDraftTray;
+import org.llm4people.hermes.share.SmartIntake;
 import org.llm4people.hermes.voice.VoiceDrafts;
 import org.llm4people.hermes.voice.ReplyReader;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -41,6 +47,10 @@ final class ThreadViews {
     private LinearLayout composerSlot;
     private Button nearbyStatus;
     private LinearLayout photoSlot;
+    private ShareDraftTray attachmentTray;
+    private LinearLayout smartIntakeSlot;
+    private ClipboardPastePill clipboardPill;
+    private Button clipboardPillButton;
     private boolean importingPhoto;
     private boolean runActive;
     private Button more;
@@ -203,6 +213,19 @@ final class ThreadViews {
         Ui.pad(photoSlot, 8, 0);
         photoSlot.setVisibility(View.GONE);
         composerSlot.addView(photoSlot);
+        attachmentTray = new ShareDraftTray(activity, items -> {
+            if (items.isEmpty()) clearSmartIntake();
+            updateSend();
+        });
+        composerSlot.addView(attachmentTray.view());
+        smartIntakeSlot = Ui.column(activity);
+        smartIntakeSlot.setVisibility(View.GONE);
+        composerSlot.addView(smartIntakeSlot);
+        clipboardPill = new ClipboardPastePill(activity);
+        clipboardPillButton = clipboardPill.createView(activity, input);
+        clipboardPillButton.setVisibility(View.GONE);
+        composerSlot.addView(clipboardPillButton);
+        input.setOnFocusChangeListener((v, hasFocus) -> refreshClipboardPill());
         nearbyStatus = Ui.button(activity, "", null);
         nearbyStatus.setAllCaps(false);
         nearbyStatus.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
@@ -217,6 +240,7 @@ final class ThreadViews {
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
                 onDraft.accept(s.toString());
                 updateSend();
+                refreshClipboardPill();
             }
         });
         busy(false, false);
@@ -368,6 +392,47 @@ final class ThreadViews {
         Button removeButton = Ui.button(activity, "Retirer", v -> remove.run());
         removeButton.setContentDescription("Retirer l’image " + name);
         photoSlot.addView(removeButton);
+    }
+
+    void attachMedia(List<CapturedMedia.Item> items, Consumer<SmartIntake.Suggestion> onPick) {
+        if (attachmentTray == null || items == null || items.isEmpty()) return;
+        for (CapturedMedia.Item item : items) {
+            attachmentTray.add(item, IncomingMediaShare.MAX_ITEMS);
+        }
+        List<CapturedMedia.Item> current = attachmentTray.items();
+        if (!current.isEmpty() && smartIntakeSlot != null) {
+            smartIntakeSlot.removeAllViews();
+            List<SmartIntake.Suggestion> suggestions = SmartIntake.suggest(draft(), current, null);
+            smartIntakeSlot.addView(SmartIntake.createChipRow(activity, suggestions, suggestion -> {
+                if (onPick != null) onPick.accept(suggestion);
+                clearSmartIntake();
+            }));
+            smartIntakeSlot.setVisibility(suggestions.isEmpty() ? View.GONE : View.VISIBLE);
+        }
+        updateSend();
+    }
+
+    List<CapturedMedia.Item> stagedAttachments() {
+        return attachmentTray == null ? Collections.emptyList() : attachmentTray.items();
+    }
+
+    void clearAttachments() {
+        if (attachmentTray != null) attachmentTray.clear();
+        clearSmartIntake();
+    }
+
+    private void clearSmartIntake() {
+        if (smartIntakeSlot != null) {
+            smartIntakeSlot.removeAllViews();
+            smartIntakeSlot.setVisibility(View.GONE);
+        }
+    }
+
+    void refreshClipboardPill() {
+        if (clipboardPill != null && clipboardPillButton != null && input != null) {
+            boolean offer = input.hasFocus() && input.length() == 0 && clipboardPill.shouldOffer();
+            clipboardPillButton.setVisibility(offer ? View.VISIBLE : View.GONE);
+        }
     }
 
     private void updateSend() {

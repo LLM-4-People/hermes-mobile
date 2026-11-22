@@ -21,20 +21,22 @@ import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
 
 /**
- * Approved-only Bidirectional Device Bridge (paired with Fork PR #15).
+ * Approved-only Bidirectional Device Bridge (paired 1:1 with Fork PR #15 ALLOWED_DEVICE_CAPABILITIES).
  * Advertises per-run device capabilities, validates incoming device.requested events,
  * always asks for explicit plain-French user confirmation before acting, and posts
  * POST /v1/runs/{run_id}/device-result with completed, denied, or unavailable status.
  */
 public final class DeviceBridgeFlow {
+    /** Exact 1:1 allowlist matching Fork PR #15 tools/mobile_device_bridge.py ALLOWED_DEVICE_CAPABILITIES. */
     public static final Set<String> SUPPORTED_ACTIONS = Set.of(
             "camera", "location_coarse", "nearby_osm",
-            "calendar_draft", "alarm_timer", "maps_handoff", "map_navigation",
-            "share_sheet", "clipboard_read", "clipboard_write",
-            "dial_draft", "sms_draft", "email_draft", "contact_draft");
+            "calendar_draft", "alarm_timer", "maps_handoff",
+            "share_sheet", "clipboard_read",
+            "dial_draft", "email_draft", "contacts_pick", "ui_surfaces_v2");
 
     private static final Pattern REQUEST_ID = Pattern.compile("[A-Za-z0-9_.-]{1,64}");
 
@@ -68,7 +70,7 @@ public final class DeviceBridgeFlow {
 
     private final Set<String> handled = new LinkedHashSet<>();
 
-    /** Build the bounded per-run device_capabilities list reflecting what this phone actually offers. */
+    /** Build the bounded per-run device_capabilities list strictly within Fork PR #15's allowlist. */
     public static List<String> advertisedCapabilities(
             boolean cameraAvailable, boolean locationGranted, boolean mapsAvailable, boolean alarmAvailable) {
         List<String> caps = new ArrayList<>();
@@ -79,17 +81,13 @@ public final class DeviceBridgeFlow {
         }
         caps.add("calendar_draft");
         if (alarmAvailable) caps.add("alarm_timer");
-        if (mapsAvailable) {
-            caps.add("maps_handoff");
-            caps.add("map_navigation");
-        }
+        if (mapsAvailable) caps.add("maps_handoff");
         caps.add("share_sheet");
         caps.add("clipboard_read");
-        caps.add("clipboard_write");
         caps.add("dial_draft");
-        caps.add("sms_draft");
         caps.add("email_draft");
-        caps.add("contact_draft");
+        caps.add("contacts_pick");
+        caps.add("ui_surfaces_v2");
         return Collections.unmodifiableList(caps);
     }
 
@@ -161,22 +159,21 @@ public final class DeviceBridgeFlow {
     /** Convert a bridge request into a reviewed DeviceAction when it maps to a standard OS handoff. */
     public static DeviceAction toDeviceAction(BridgeRequest request) {
         if (request == null) return null;
+        JSONObject params = request.params();
         String mappedKind = switch (request.actionType()) {
             case "calendar_draft" -> "calendar_event";
-            case "maps_handoff" -> "map_search";
-            case "map_navigation" -> "map_navigation";
+            case "maps_handoff" -> params.has("destination") ? "map_navigation" : "map_search";
             case "share_sheet" -> "share_text";
-            case "clipboard_write" -> "copy_sensitive";
             case "dial_draft" -> "dial_draft";
-            case "sms_draft" -> "sms_draft";
             case "email_draft" -> "email_draft";
-            case "contact_draft" -> "insert_contact";
-            case "alarm_timer" -> request.params().has("seconds") ? "set_timer" : "set_alarm";
+            case "contacts_pick" -> (params.has("name") || params.has("phone") || params.has("email"))
+                    ? "insert_contact" : null;
+            case "alarm_timer" -> params.has("seconds") ? "set_timer" : "set_alarm";
             default -> null;
         };
         if (mappedKind == null) return null;
         try {
-            JSONObject normalized = new JSONObject(request.params().toString());
+            JSONObject normalized = new JSONObject(params.toString());
             normalized.put("kind", mappedKind);
             return DeviceAction.parseJson(normalized.toString());
         } catch (JSONException | IOException invalid) {
@@ -185,32 +182,37 @@ public final class DeviceBridgeFlow {
         }
     }
 
-    /** Present a calm, plain-French confirmation card; never executes silently. */
+    /** Present a calm, plain-French confirmation card; never executes silently and always reports a terminal status. */
     public void promptUser(Activity activity, ArtifactDesk.Host host, View anchor, BridgeRequest request,
                            Executor executor, Callback onDecision) {
-        if (request == null || !handled.add(request.requestId())) return;
+        if (request == null || onDecision == null || !handled.add(request.requestId())) return;
+        AtomicBoolean settled = new AtomicBoolean(false);
+        Callback once = (status, data) -> {
+            if (settled.compareAndSet(false, true)) onDecision.finish(status, data);
+        };
         if (request.expiredAt(System.currentTimeMillis() / 1000L)) {
             Diagnostics.debug("device_bridge", "request_expired");
-            onDecision.finish(Status.UNAVAILABLE, null);
+            once.finish(Status.UNAVAILABLE, null);
             return;
         }
         DeviceAction action = toDeviceAction(request);
         if (action != null && host != null && anchor != null) {
             DeviceReview.review(activity, host, anchor, action,
-                    () -> onDecision.finish(Status.COMPLETED, null),
-                    () -> onDecision.finish(Status.DENIED, null));
+                    () -> once.finish(Status.COMPLETED, null),
+                    () -> once.finish(Status.DENIED, null),
+                    () -> once.finish(Status.UNAVAILABLE, null));
             return;
         }
         AlertDialog.Builder dialog = new AlertDialog.Builder(activity)
                 .setTitle(frenchTitle(request.actionType()))
                 .setMessage(request.reason() + "\n\nRien n’est envoyé sans votre accord.")
-                .setNegativeButton("Refuser", (d, w) -> onDecision.finish(Status.DENIED, null))
-                .setOnCancelListener(d -> onDecision.finish(Status.DENIED, null))
+                .setNegativeButton("Refuser", (d, w) -> once.finish(Status.DENIED, null))
+                .setOnCancelListener(d -> once.finish(Status.DENIED, null))
                 .setPositiveButton("Autoriser une fois", (d, w) -> {
                     if (executor == null) {
-                        onDecision.finish(Status.UNAVAILABLE, null);
+                        once.finish(Status.UNAVAILABLE, null);
                     } else {
-                        executor.execute(request, onDecision);
+                        executor.execute(request, once);
                     }
                 });
         Ui.secureDialog(dialog);
@@ -223,12 +225,12 @@ public final class DeviceBridgeFlow {
             case "clipboard_read" -> "Partager le texte du presse-papiers ?";
             case "calendar_draft" -> "Préparer un événement dans l’agenda ?";
             case "alarm_timer" -> "Régler une alarme ou un minuteur ?";
-            case "maps_handoff", "map_navigation" -> "Ouvrir l’application de carte ?";
+            case "maps_handoff" -> "Ouvrir l’application de carte ?";
             case "share_sheet" -> "Partager avec une autre application ?";
             case "dial_draft" -> "Ouvrir le téléphone avec ce numéro ?";
-            case "sms_draft" -> "Préparer un message SMS ?";
             case "email_draft" -> "Préparer un courriel ?";
-            case "contact_draft" -> "Enregistrer un nouveau contact ?";
+            case "contacts_pick" -> "Choisir ou enregistrer un contact ?";
+            case "ui_surfaces_v2" -> "Afficher un écran interactif proposé ?";
             default -> "Autoriser cette action sur votre téléphone ?";
         };
     }
@@ -238,6 +240,7 @@ public final class DeviceBridgeFlow {
             case "camera" -> "Hermes souhaite utiliser une photo prise maintenant pour répondre à votre demande.";
             case "location_coarse", "nearby_osm" -> "Hermes demande votre quartier approximatif pour cette réponse.";
             case "clipboard_read" -> "Hermes propose de lire le texte copié dans votre presse-papiers.";
+            case "contacts_pick" -> "Hermes propose d’ouvrir votre carnet de contacts.";
             default -> "Hermes propose d’ouvrir cette action sur votre téléphone.";
         };
     }

@@ -16,10 +16,15 @@ public final class CapturedMediaTest {
             assertTrue("Expected allowed MIME: " + ok, CapturedMedia.isAllowedMime(ok));
         }
         for (String bad : new String[]{null, "", "   ", "image/svg+xml",
+                "text/*", "image/*", "*/*",
                 "application/vnd.android.package-archive", "application/octet-stream",
                 "application/x-sh", "text/plain;".repeat(20)}) {
             assertFalse("Expected rejected MIME: " + bad, CapturedMedia.isAllowedMime(bad));
         }
+        assertEquals("text/markdown", CapturedMedia.resolveMime("text/*", "text/markdown"));
+        assertEquals("text/plain", CapturedMedia.resolveMime("text/*", null));
+        assertEquals("application/pdf", CapturedMedia.resolveMime("*/*", "application/pdf"));
+        assertEquals("image/jpeg", CapturedMedia.resolveMime("image/*", "image/jpeg"));
     }
 
     @Test
