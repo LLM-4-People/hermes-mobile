@@ -98,9 +98,9 @@ final class ThreadViews {
         progress.setTextColor(activity.getColor(R.color.muted));
         liveText = Ui.text(activity, "", 17);
         liveText.setTextIsSelectable(true);
-        fullLiveText = Ui.button(activity, "Lire la réponse entière", v ->
+        fullLiveText = Ui.button(activity, activity.getString(R.string.transcript_read_full), v ->
                 show(new AlertDialog.Builder(activity).setTitle("Réponse de Hermes")
-                        .setView(MessageText.reader(activity, liveTranscript.source(), true, false))
+                        .setView(MessageText.reader(activity, liveTranscript.source(), true, false, liveTranscript.readerStart()))
                         .setPositiveButton("Fermer", null)));
         list.setItemsCanFocus(true);
         outgoing = Ui.text(activity, "", 17);
@@ -247,12 +247,19 @@ final class ThreadViews {
     }
 
     void live(String detail, String text, boolean hasPrompts) {
+        live(detail, text, hasPrompts, RunPreview.Origin.FIRST);
+    }
+
+    void live(String detail, String text, boolean hasPrompts, RunPreview.Origin origin) {
         boolean atEnd = list.getLastVisiblePosition() >= list.getCount() - 1;
         progress.setVisibility(detail.isEmpty() ? View.GONE : View.VISIBLE);
         progress.setText(detail);
         liveText.setVisibility(text.isEmpty() ? View.GONE : View.VISIBLE);
-        MessageText.updateLive(liveText, liveTranscript, text);
-        fullLiveText.setVisibility(liveTranscript.earlier || liveTranscript.later ? View.VISIBLE : View.GONE);
+        boolean wasExcerpt = liveTranscript.excerpt();
+        MessageText.updateLive(liveText, liveTranscript, text, origin);
+        if (wasExcerpt != liveTranscript.excerpt())
+            fullLiveText.setText(liveTranscript.excerpt() ? R.string.transcript_read_excerpt : R.string.transcript_read_full);
+        fullLiveText.setVisibility(!text.isEmpty() && (liveTranscript.earlier || liveTranscript.later) ? View.VISIBLE : View.GONE);
         if (atEnd && !hasPrompts && !promptRows.visible() && !text.isEmpty()) list.post(() -> list.setSelection(list.getCount() - 1));
     }
 

@@ -20,23 +20,28 @@ final class RunFollower implements AutoCloseable {
     static final class Frame {
         final long seq;
         final String text;
+        final RunPreview.Origin origin;
+        final int highSurrogate;
         final String activity;
         final List<JSONObject> prompts;
 
-        Frame(long seq, String text, String activity, List<JSONObject> prompts) {
+        Frame(long seq, RunPreview preview, String activity, List<JSONObject> prompts) {
             this.seq = seq;
-            this.text = text;
+            text = preview.toString();
+            origin = preview.origin();
+            highSurrogate = preview.pendingHighSurrogate();
             this.activity = activity;
             this.prompts = prompts;
         }
     }
 
-    static final int PREVIEW_LIMIT = 65_536;
+    static final int PREVIEW_LIMIT = RunPreview.LIMIT;
     static final int PAINT_INTERVAL_MS = 80;
     private final HermesApi api;
     private final String run;
     private final Listener listener;
-    private final StringBuilder preview;
+    private final RunPreview preview;
+    private long publishedSeq = Long.MIN_VALUE;
     private long seq;
     private long started;
     private long firstText = -1;
@@ -51,7 +56,7 @@ final class RunFollower implements AutoCloseable {
         this.listener = listener;
         this.started = started;
         seq = pending.optLong("seq", -1);
-        preview = new StringBuilder(ThreadData.string(pending, "preview"));
+        preview = new RunPreview(pending);
     }
 
     void follow() {
@@ -70,7 +75,7 @@ final class RunFollower implements AutoCloseable {
                     String type = event.optString("event");
                     if ("replay.truncated".equals(type)) {
                         if (!refreshControls()) return;
-                        preview.setLength(0);
+                        preview.gap();
                         activity = "Extrait de la réponse en cours";
                         started = -1;
                         publish();
@@ -105,6 +110,8 @@ final class RunFollower implements AutoCloseable {
                 // The durable receipt is retained for the next connection.
             }
             if (!closed) {
+                // Deliver any throttled final delta and its matching cursor before checkpointing.
+                if (seq != publishedSeq) publish();
                 listener.disconnected();
             }
         }
@@ -135,8 +142,7 @@ final class RunFollower implements AutoCloseable {
                 String delta = event.optString("delta");
                 if (!delta.isEmpty()) {
                     if (started >= 0 && firstText < 0) firstText = SystemClock.elapsedRealtime() - started;
-                    int room = PREVIEW_LIMIT - preview.length();
-                    if (room > 0) preview.append(delta, 0, Math.min(room, delta.length()));
+                    preview.append(delta);
                 }
                 break;
             case "message.interim":
@@ -163,7 +169,10 @@ final class RunFollower implements AutoCloseable {
     private String path() { return "/v1/runs/" + HermesApi.segment(run); }
 
     private void publish() {
-        if (!closed) listener.update(new Frame(seq, preview.toString(), activity, controls.snapshot()));
+        if (!closed) {
+            publishedSeq = seq;
+            listener.update(new Frame(seq, preview, activity, controls.snapshot()));
+        }
     }
 
     @Override public synchronized void close() {
