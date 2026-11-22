@@ -5,7 +5,9 @@ import android.app.AlertDialog;
 import android.graphics.Typeface;
 import android.view.Gravity;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.PopupMenu;
@@ -43,7 +45,19 @@ final class ThreadInstrumentPanel {
     private boolean comparing;
     private long document;
     private View sheet;
+    private TextView heading;
     private TextView scope;
+    private FrameLayout content;
+    private View changes;
+    private final List<Form> forms = new ArrayList<>(2);
+    private Form visibleForm;
+
+    private static final class Form {
+        final Pin pin;
+        View view;
+        Form(Pin pin) { this.pin = pin; }
+    }
+
     private LinearLayout controls;
     private PopupMenu menu;
 
@@ -159,6 +173,9 @@ final class ThreadInstrumentPanel {
 
     private void buildSheet(Pin pin) {
         long activeDocument = ++document;
+        if (visibleForm != null) ArtifactDesk.dismiss(activity);
+        visibleForm = null;
+        changes = null;
         LinearLayout surface = Ui.column(activity);
         surface.setAccessibilityPaneTitle(pin.title);
         LinearLayout bar = Ui.row(activity);
@@ -167,18 +184,18 @@ final class ThreadInstrumentPanel {
         ImageButton back = icon(R.drawable.ic_back, R.string.instrument_return);
         back.setOnClickListener(v -> close());
         bar.addView(back, new LinearLayout.LayoutParams(target, target));
-        LinearLayout heading = Ui.column(activity);
-        Ui.pad(heading, 4, 4);
-        TextView title = Ui.text(activity, pin.title, 22);
-        title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        title.setAccessibilityHeading(true);
-        title.setMaxLines(2);
-        title.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        heading.addView(title);
+        LinearLayout titles = Ui.column(activity);
+        Ui.pad(titles, 4, 4);
+        heading = Ui.text(activity, pin.title, 22);
+        heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        heading.setAccessibilityHeading(true);
+        heading.setMaxLines(2);
+        heading.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        titles.addView(heading);
         scope = Ui.text(activity, "", 13);
         scope.setTextColor(activity.getColor(R.color.accent));
-        heading.addView(scope);
-        bar.addView(heading, new LinearLayout.LayoutParams(0, -2, 1));
+        titles.addView(scope);
+        bar.addView(titles, new LinearLayout.LayoutParams(0, -2, 1));
         ImageButton overflow = icon(R.drawable.ic_more, R.string.instrument_options);
         overflow.setOnClickListener(v -> options(v, pin, activeDocument));
         bar.addView(overflow, new LinearLayout.LayoutParams(target, target));
@@ -187,17 +204,50 @@ final class ThreadInstrumentPanel {
         ScrollView scroll = new ScrollView(activity);
         scroll.setFillViewport(true);
         LinearLayout body = Ui.column(activity);
+        content = new FrameLayout(activity);
         if (comparing) {
-            body.addView(InstrumentPreview.compare(activity, pinned().pageJson, pin.pageJson));
-        } else {
-            body.addView(InstrumentPreview.render(activity, pin.pageJson, rendererHost(pin, activeDocument)));
+            changes = InstrumentPreview.compare(activity, pinned().pageJson, pin.pageJson);
+            InstrumentVersions versions = new InstrumentVersions(activity, side -> {
+                if (!valid(pin, activeDocument)) return;
+                ArtifactDesk.dismiss(activity);
+                display(side == InstrumentVersions.Side.CHANGES ? null
+                        : side == InstrumentVersions.Side.PINNED ? pinned() : pin);
+            });
+            LinearLayout.LayoutParams place = new LinearLayout.LayoutParams(-1, -2);
+            place.setMargins(Ui.dp(activity, 12), Ui.dp(activity, 4), Ui.dp(activity, 12), Ui.dp(activity, 4));
+            body.addView(versions, place);
         }
+        body.addView(content);
+        display(comparing ? null : pin);
         controls = Ui.column(activity);
         Ui.pad(controls, 16, 6);
         body.addView(controls);
         scroll.addView(body);
         surface.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
         sheet = surface;
+    }
+
+    private void display(Pin pin) {
+        content.removeAllViews();
+        visibleForm = null;
+        if (pin == null) {
+            heading.setText(displayed.title);
+            content.addView(changes);
+            return;
+        }
+        Form form = null;
+        for (Form cached : forms) if (pin.sameSource(cached.pin)) form = cached;
+        if (form == null) {
+            form = new Form(pin);
+            form.view = InstrumentPreview.render(activity, pin.pageJson, rendererHost(form));
+        }
+        forms.remove(form);
+        forms.add(form);
+        if (forms.size() > 2) forms.remove(0);
+        if (form.view.getParent() instanceof ViewGroup oldParent) oldParent.removeView(form.view);
+        visibleForm = form;
+        heading.setText(pin.title);
+        content.addView(form.view);
     }
 
     private ImageButton icon(int drawable, int description) {
@@ -215,12 +265,12 @@ final class ThreadInstrumentPanel {
         controls.removeAllViews();
         boolean installed = pin.sameSource(saved);
         if (comparing && saved != null) {
-            scope.setText(t(R.string.instrument_compare_sources));
+            scope.setVisibility(View.GONE);
             primary(R.string.instrument_adopt, () -> mutate(() -> store.pin(expected, pin, workspace.messages())));
             control(R.string.instrument_keep, () -> show(saved, false));
-            control(R.string.instrument_switch, () -> show(pin, false));
             return;
         }
+        scope.setVisibility(View.VISIBLE);
         scope.setText(t(installed ? R.string.instrument_pinned : R.string.instrument_trial));
         if (state == null) {
             control(R.string.instrument_retry, () -> { readState(); updateControls(); });
@@ -290,15 +340,16 @@ final class ThreadInstrumentPanel {
         if (menu != null) menu.dismiss();
         PopupMenu popup = new PopupMenu(activity, anchor);
         menu = popup;
+        Pin source = visibleForm == null ? pin : visibleForm.pin;
         popup.getMenu().add(t(R.string.instrument_source)).setOnMenuItemClickListener(item -> {
             if (valid(pin, activeDocument)) screen.show(new AlertDialog.Builder(activity)
-                    .setTitle(t(R.string.instrument_source_title, pin.title, pin.messageId))
-                    .setView(MessageText.reader(activity, pin.pageJson, false, true))
+                    .setTitle(t(R.string.instrument_source_title, source.title, source.messageId))
+                    .setView(MessageText.reader(activity, source.pageJson, false, true))
                     .setPositiveButton(t(R.string.instrument_close), null));
             return true;
         });
-        if (present(pin)) popup.getMenu().add(t(R.string.instrument_origin)).setOnMenuItemClickListener(item -> {
-            if (valid(pin, activeDocument)) { close(); screen.revealProposal(pin); }
+        if (present(source)) popup.getMenu().add(t(R.string.instrument_origin)).setOnMenuItemClickListener(item -> {
+            if (valid(pin, activeDocument)) { close(); screen.revealProposal(source); }
             return true;
         });
         if (pin.sameSource(pinned())) {
@@ -316,21 +367,25 @@ final class ThreadInstrumentPanel {
                 && (pin.sameSource(pinned()) || present(pin));
     }
 
-    private ArtifactDesk.Host rendererHost(Pin pin, long serial) {
+    private ArtifactDesk.Host rendererHost(Form form) {
         return new ArtifactDesk.Host() {
+            private boolean active() {
+                return current() && visibleForm == form && viewport.open() && viewport.isShown()
+                        && (form.pin.sameSource(pinned()) || present(form.pin));
+            }
             @Override public void onAction(String action) {
-                if (!valid(pin, serial)) return;
+                if (!active()) return;
                 if ("previous".equals(action) || "return".equals(action) || "native_thread".equals(action)) close();
                 else actions.onAction(action);
             }
-            @Override public void openWorkspace(String id) { if (valid(pin, serial)) actions.openWorkspace(id); }
+            @Override public void openWorkspace(String id) { if (active()) actions.openWorkspace(id); }
             @Override public void stageDraft(String text) {
-                if (valid(pin, serial)) { close(); actions.stageDraft(text); }
+                if (active()) { close(); actions.stageDraft(text); }
             }
             @Override public String workspaceValue(String source) {
-                return current() && document == serial ? actions.workspaceValue(source) : "";
+                return current() && (form.pin.sameSource(pinned()) || present(form.pin)) ? actions.workspaceValue(source) : "";
             }
-            @Override public void onLayoutChanged() { if (valid(pin, serial)) actions.onLayoutChanged(); }
+            @Override public void onLayoutChanged() { if (active()) actions.onLayoutChanged(); }
             @Override public void threadSlots(List<String> order) {}
         };
     }
@@ -338,6 +393,7 @@ final class ThreadInstrumentPanel {
     boolean close() {
         if (!viewport.open()) return false;
         if (menu != null) { menu.dismiss(); menu = null; }
+        ArtifactDesk.dismiss(activity);
         viewport.close();
         dock();
         screen.refreshInstrumentRows();
@@ -346,7 +402,15 @@ final class ThreadInstrumentPanel {
 
     void livePrompt() { if (viewport.open() && !viewport.wide()) close(); }
 
-    private void discard() { ++document; displayed = null; sheet = null; }
+    private void discard() {
+        ++document;
+        displayed = null;
+        sheet = null;
+        visibleForm = null;
+        changes = null;
+        content = null;
+        forms.clear();
+    }
 
     void retire() {
         if (viewport.open()) ArtifactDesk.dismiss(activity);

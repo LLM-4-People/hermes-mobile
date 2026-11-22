@@ -17,9 +17,13 @@
     <string name="instrument_pinned">Épinglé à cette discussion</string>
     <string name="instrument_trial">En essai dans cette discussion</string>
     <string name="instrument_trial_replaces">Remplacer l’outil épinglé</string>
-    <string name="instrument_switch">Essayer la version proposée</string>
     <string name="instrument_origin">Revoir le message d’origine</string>
-    <string name="instrument_compare_sources">Version épinglée → Version proposée</string>
+    <string name="instrument_tab_pin">Épinglée</string>
+    <string name="instrument_tab_diff">Écarts</string>
+    <string name="instrument_tab_next">Proposée</string>
+    <string name="instrument_tab_pin_role">Version épinglée</string>
+    <string name="instrument_tab_diff_role">Différences entre les versions</string>
+    <string name="instrument_tab_next_role">Version proposée</string>
     <string name="instrument_no_source">Cette proposition n’est plus disponible dans la discussion.</string>
     <string name="instrument_changed">L’outil épinglé a changé. Vérifiez la version affichée avant de continuer.</string>
     <string name="instrument_unavailable">Impossible de lire ou d’enregistrer l’outil épinglé.</string>
