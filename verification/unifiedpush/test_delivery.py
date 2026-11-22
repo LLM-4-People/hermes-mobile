@@ -2,6 +2,7 @@ import json
 import sqlite3
 import tempfile
 import unittest
+from contextlib import closing
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -49,7 +50,7 @@ class ColdDeliveryTest(unittest.TestCase):
         phone = Mock()
         with tempfile.TemporaryDirectory() as directory:
             db = Path(directory) / "state.db"
-            with sqlite3.connect(db) as connection:
+            with closing(sqlite3.connect(db)) as connection, connection:
                 connection.execute("CREATE TABLE deliveries(device_id, event_id, attempts INTEGER)")
                 connection.execute("INSERT INTO deliveries VALUES ('private-id', 'private-event', 2)")
             for event, attempts in (("private-event", 2), ("another-event", None)):
