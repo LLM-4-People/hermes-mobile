@@ -6,6 +6,7 @@ import android.graphics.Typeface;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
+import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.PopupMenu;
 import android.widget.ScrollView;
@@ -93,7 +94,8 @@ final class ThreadInstrumentPanel {
         if (proposals.isEmpty()) return text;
         Map<Integer, String> bodies = new HashMap<>();
         for (Pin pin : proposals) bodies.put(pin.fenceOrdinal, pin.pageJson);
-        return Fences.without(text, bodies);
+        String prose = Fences.without(text, bodies);
+        return prose.trim().isEmpty() ? "" : prose;
     }
 
     private boolean present(Pin pin) {
@@ -108,15 +110,12 @@ final class ThreadInstrumentPanel {
     }
 
     void proposal(LinearLayout cell, Pin pin) {
-        LinearLayout band = Ui.row(activity);
-        boolean selected = viewport.open() && pin.sameSource(displayed);
-        band.setBackgroundColor(activity.getColor(selected ? R.color.accent_surface : R.color.surface));
-        View edge = new View(activity);
-        edge.setBackgroundColor(activity.getColor(R.color.accent));
-        edge.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-        band.addView(edge, new LinearLayout.LayoutParams(Ui.dp(activity, 3), -1));
         LinearLayout body = Ui.column(activity);
-        Ui.pad(body, 12, 6);
+        boolean selected = viewport.open() && pin.sameSource(displayed);
+        body.setSelected(selected);
+        if (selected) body.setBackgroundColor(activity.getColor(R.color.accent_surface));
+        else body.addView(Ui.divider(activity));
+        Ui.pad(body, 8, 6);
         TextView title = Ui.text(activity, pin.title, 20);
         title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         title.setAccessibilityHeading(true);
@@ -126,8 +125,7 @@ final class ThreadInstrumentPanel {
         action(body, label, () -> {
             if (current() && present(pin)) show(pin, revision(pin));
         });
-        band.addView(body, new LinearLayout.LayoutParams(0, -2, 1));
-        cell.addView(band);
+        cell.addView(body);
     }
 
     private void dock() {
@@ -169,11 +167,13 @@ final class ThreadInstrumentPanel {
         back.setContentDescription(t(R.string.instrument_return));
         back.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
         bar.addView(back, new LinearLayout.LayoutParams(0, -2, 1));
-        Button overflow = Ui.button(activity, "⋮", v -> options(v, pin, activeDocument));
-        overflow.setTextSize(22);
-        overflow.setMinWidth(Ui.dp(activity, 48));
+        ImageButton overflow = new ImageButton(activity, null, android.R.attr.borderlessButtonStyle);
+        overflow.setImageResource(R.drawable.ic_more);
+        Ui.pad(overflow, 12, 12);
         overflow.setContentDescription(t(R.string.instrument_options));
-        bar.addView(overflow);
+        overflow.setOnClickListener(v -> options(v, pin, activeDocument));
+        int target = Ui.dp(activity, 48);
+        bar.addView(overflow, new LinearLayout.LayoutParams(target, target));
         surface.addView(bar);
         surface.addView(Ui.divider(activity));
         ScrollView scroll = new ScrollView(activity);
@@ -208,27 +208,26 @@ final class ThreadInstrumentPanel {
         controls.removeAllViews();
         boolean installed = pin.sameSource(saved);
         if (comparing && saved != null) {
-            scope.setText(t(R.string.instrument_compare_sources,
-                    t(R.string.instrument_current_source, saved.messageId), t(R.string.instrument_candidate_source, pin.messageId)));
-            primary(controls, R.string.instrument_adopt, () -> mutate(() -> store.pin(expected, pin, workspace.messages())));
-            action(controls, R.string.instrument_keep, () -> show(saved, false));
-            action(controls, R.string.instrument_switch, () -> show(pin, false));
+            scope.setText(t(R.string.instrument_compare_sources));
+            primary(R.string.instrument_adopt, () -> mutate(() -> store.pin(expected, pin, workspace.messages())));
+            control(R.string.instrument_keep, () -> show(saved, false));
+            control(R.string.instrument_switch, () -> show(pin, false));
             return;
         }
         scope.setText(t(installed ? R.string.instrument_pinned : R.string.instrument_trial));
         if (state == null) {
-            action(controls, R.string.instrument_retry, () -> { readState(); updateControls(); });
+            control(R.string.instrument_retry, () -> { readState(); updateControls(); });
         } else if (!installed) {
-            if (revision(pin)) primary(controls, R.string.instrument_compare, () -> show(pin, true));
-            else primary(controls, saved == null ? R.string.instrument_pin : R.string.instrument_trial_replaces,
+            if (revision(pin)) primary(R.string.instrument_compare, () -> show(pin, true));
+            else primary(saved == null ? R.string.instrument_pin : R.string.instrument_trial_replaces,
                     () -> mutate(() -> store.pin(expected, pin, workspace.messages())));
         } else {
-            action(controls, R.string.instrument_revise, () -> {
+            control(R.string.instrument_revise, () -> {
                 if (!pin.sameSource(pinned())) return;
                 close();
                 actions.stageDraft(t(R.string.instrument_revision_draft, pin.title));
             });
-            if (state.canUndo) action(controls, R.string.instrument_undo, () -> mutate(() -> store.undo(expected)));
+            if (state.canUndo) control(R.string.instrument_undo, () -> mutate(() -> store.undo(expected)));
         }
     }
 
@@ -240,8 +239,16 @@ final class ThreadInstrumentPanel {
         return b;
     }
 
-    private void primary(LinearLayout parent, int label, Runnable task) {
-        Button b = action(parent, label, task);
+    private Button control(int label, Runnable task) {
+        long serial = document;
+        Pin pin = displayed;
+        return action(controls, label, () -> {
+            if (valid(pin, serial)) task.run();
+        });
+    }
+
+    private void primary(int label, Runnable task) {
+        Button b = control(label, task);
         android.graphics.drawable.GradientDrawable fill = new android.graphics.drawable.GradientDrawable();
         fill.setColor(activity.getColor(R.color.accent));
         fill.setCornerRadius(Ui.dp(activity, 8));
@@ -278,7 +285,7 @@ final class ThreadInstrumentPanel {
         menu = popup;
         popup.getMenu().add(t(R.string.instrument_source)).setOnMenuItemClickListener(item -> {
             if (valid(pin, activeDocument)) screen.show(new AlertDialog.Builder(activity)
-                    .setTitle(t(R.string.instrument_source_title, pin.title))
+                    .setTitle(t(R.string.instrument_source_title, pin.title, pin.messageId))
                     .setView(MessageText.reader(activity, pin.pageJson, false, true))
                     .setPositiveButton(t(R.string.instrument_close), null));
             return true;
