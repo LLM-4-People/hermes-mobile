@@ -9,7 +9,7 @@ import subprocess
 import sys
 from xml.etree import ElementTree
 
-from .shade import show_notice
+from .shade import current_notice, show_notice
 from .stack import eventually
 
 APP = "org.llm4people.hermes"
@@ -21,12 +21,15 @@ class Screen:
         self.device = device
         self.controls = controls
 
+    def snapshot(self):
+        tree = self.controls.send("tree")
+        return ElementTree.fromstring(tree) if tree else None
+
     def hierarchy(self):
         def capture():
-            tree = self.controls.send("tree")
-            if not tree:
+            root = self.snapshot()
+            if root is None:
                 return None
-            root = ElementTree.fromstring(tree)
             # First-boot SystemUI can cover the freshly launched distributor.
             waiting = self.node("android:id/aerr_wait", root)
             if waiting is not None and any("System UI" in node.get("text", "") for node in root.iter("node")):
@@ -286,40 +289,55 @@ def thread_screen(ui, root, title, reply):
     return all(ui.node(label, root) is not None for label in (title, reply, "Envoyer"))
 
 
-def capture_notice(ui, title, directory):
+def masked_notice(frame, notice):
     from PIL import Image
 
-    root = ui.hierarchy()
-    heading = ui.node(title, root)
-    if heading is None:
-        raise AssertionError("The expected notification left the shade before capture")
-    controls = [heading]
-    body = ui.node("Ouvrez votre profil pour voir les détails.", root)
-    if body is not None:
-        controls.append(body)
-    # Only retain pixels within these two generic native label bounds. Other notifications
-    # and the status bar are never written to disk.
-    with Image.open(io.BytesIO(ui.device.run("exec-out", "screencap", "-p"))) as image:
+    with Image.open(io.BytesIO(frame)) as image:
         source = image.convert("RGB")
         redacted = Image.new("RGB", source.size, "black")
-        rects = [tuple(map(int, re.findall(r"-?\d+", control.get("bounds")))) for control in controls]
+        rects = [notice.heading] + ([notice.body] if notice.body else [])
         for box in rects:
+            if box[2] > source.width or box[3] > source.height:
+                raise AssertionError("Native notification label lies outside the captured screen")
             redacted.paste(source.crop(box), box)
         left = min(box[0] for box in rects)
         top = min(box[1] for box in rects)
         right = max(box[2] for box in rects)
         bottom = max(box[3] for box in rects)
-        with (directory / "native-notification-shade.png").open("xb") as output:
-            redacted.save(output, "PNG")
-        with (directory / "native-notification-labels.png").open("xb") as output:
-            redacted.crop((left, top, right, bottom)).save(output, "PNG")
+        return redacted, redacted.crop((left, top, right, bottom))
+
+
+def open_notice(ui, title, directory=None):
+    show_notice(ui, title)
+
+    def attempt():
+        view = current_notice(ui, title)
+        if view is None:
+            return False
+        if directory:
+            frame = ui.device.run("exec-out", "screencap", "-p")
+            # Discard frames if focus, accessibility window or either label moved.
+            if current_notice(ui, title) != view:
+                return False
+            image, labels = masked_notice(frame, view)
+            if current_notice(ui, title) != view:
+                return False
+        # Resolve the current SystemUI title again on the phone before injecting a normal touch.
+        if ui.controls.send("tap-notice", title=title, window=view.accessibility_window, focus=view.focused_window,
+                            bounds=view.heading) != b"tapped":
+            return False
+        if directory:
+            with (directory / "native-notification-shade.png").open("xb") as output:
+                image.save(output, "PNG")
+            with (directory / "native-notification-labels.png").open("xb") as output:
+                labels.save(output, "PNG")
+        return True
+
+    eventually("a stable focused notification and a physical tap on its current title", attempt)
 
 
 def tap_notice(ui, notice_text, owner, phrase, title, reply, evidence=None):
-    target = show_notice(ui, notice_text)
-    if evidence:
-        capture_notice(ui, notice_text, evidence)
-    ui.tap_node(target)
+    open_notice(ui, notice_text, evidence)
     # The OS just transferred focus from SystemUI to a new process for the same app.
     # Reacquire Android's accessibility connection to its newly created secure window.
     ui.controls.reconnect()

@@ -11,6 +11,7 @@ import com.android.uiautomator.core.UiObject;
 import com.android.uiautomator.core.UiSelector;
 import com.android.uiautomator.testrunner.UiAutomatorTestCase;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 import org.xmlpull.v1.XmlSerializer;
 
@@ -45,6 +46,7 @@ public final class FocusedText extends UiAutomatorTestCase {
         xml.attribute(null, "resource-id", string(node.getViewIdResourceName()));
         xml.attribute(null, "class", string(node.getClassName()));
         xml.attribute(null, "package", string(node.getPackageName()));
+        xml.attribute(null, "window-id", String.valueOf(node.getWindowId()));
         xml.attribute(null, "scrollable", String.valueOf(node.isScrollable()));
         xml.attribute(null, "bounds", bounds.toShortString());
         for (int i = 0; i < node.getChildCount(); i++) {
@@ -94,6 +96,39 @@ public final class FocusedText extends UiAutomatorTestCase {
         return editor.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, text);
     }
 
+    private static boolean sameFocusedWindow(String window) throws Exception {
+        Process report = new ProcessBuilder("dumpsys", "window").redirectErrorStream(true).start();
+        String expected = "mCurrentFocus=" + window;
+        boolean focused = false;
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(report.getInputStream(),
+                StandardCharsets.UTF_8))) {
+            for (String line; (line = reader.readLine()) != null;) {
+                if (expected.equals(line.trim())) focused = true;
+            }
+        }
+        return report.waitFor() == 0 && focused;
+    }
+
+    private boolean tapNotice(JSONObject command) throws Exception {
+        if (!sameFocusedWindow(command.getString("focus"))) return false;
+        AccessibilityNodeInfo root = new Control(new UiSelector()).node();
+        if (root == null || !"com.android.systemui".equals(string(root.getPackageName()))
+                || root.getWindowId() != command.getInt("window")) return false;
+        String title = command.getString("title");
+        Rect heading = null;
+        for (AccessibilityNodeInfo candidate : root.findAccessibilityNodeInfosByText(title)) {
+            if (!title.equals(string(candidate.getText())) || !candidate.isVisibleToUser()) continue;
+            if (heading != null || candidate.getWindowId() != root.getWindowId()) return false;
+            heading = new Rect();
+            candidate.getBoundsInScreen(heading);
+        }
+        JSONArray coordinates = command.getJSONArray("bounds");
+        Rect expected = new Rect(coordinates.getInt(0), coordinates.getInt(1),
+                coordinates.getInt(2), coordinates.getInt(3));
+        return heading != null && !heading.isEmpty() && expected.equals(heading)
+                && getUiDevice().click(heading.centerX(), heading.centerY());
+    }
+
     private static void response(String value) {
         String encoded = Base64.encodeToString(value.getBytes(StandardCharsets.UTF_8), Base64.NO_WRAP);
         // The SDK's simple JUnit reporter can leave a progress dot on the current output line.
@@ -118,6 +153,9 @@ public final class FocusedText extends UiAutomatorTestCase {
                     break;
                 case "open-shade":
                     response(getUiDevice().openNotification() ? "opened" : "retry");
+                    break;
+                case "tap-notice":
+                    response(tapNotice(command) ? "tapped" : "retry");
                     break;
                 case "scroll-shade":
                     AccessibilityNodeInfo list = new Control(new UiSelector()

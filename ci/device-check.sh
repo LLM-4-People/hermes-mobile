@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
-# Install the framework-tested APKs once for the live gateway journeys.
+# Exercise the packaged framework suite and the live gateway journeys on one disposable phone.
 set -euo pipefail
-# Release build workers before booting two gateway processes beside the emulator.
-python3 ci/gradle_check.py --no-daemon --max-workers=2 :app:connectedDebugAndroidTest
 device=$(adb get-serialno)
 app_apk=app/build/outputs/apk/debug/app-debug.apk
 test_apk=app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
 adb -s "$device" install -r -t "$app_apk"
 adb -s "$device" install -r -t "$test_apk"
+python3 -B ci/native_tests.py "$device" "$RUNNER_TEMP/android-instrumentation"
+# Remove private test state before the independent two-account journey.
+adb -s "$device" shell pm clear org.llm4people.hermes.test
+adb -s "$device" shell pm clear org.llm4people.hermes
 fixture_python="$RUNNER_TEMP/hermes-env/bin/python"
 source_args=(--source .fixture/hermes)
 phone_args=(--serial "$device" --verify-apks "$app_apk" "$test_apk")

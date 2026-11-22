@@ -68,6 +68,14 @@ jobs:
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           compression-level: 0
+      - name: Upload framework instrumentation APK
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: android-debug-tests
+          path: app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
       - name: Rebuild the unsigned APK from clean outputs
         if: inputs.release == true
         run: |
@@ -90,6 +98,8 @@ jobs:
 
   device:
     name: Android device
+    needs: package
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
@@ -98,8 +108,16 @@ jobs:
           persist-credentials: false
       - id: android
         uses: ./.github/actions/android
+      - name: Download the debug APK from this build
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          gradle: ${{ inputs.release && 'clean' || 'cached' }}
+          name: android-debug
+          path: app/build/outputs/apk/debug
+      - name: Download its framework instrumentation APK
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: android-debug-tests
+          path: app/build/outputs/apk/androidTest/debug
       - uses: ./.github/actions/hermes-fixture
       - name: Install the fork's locked gateway dependencies
         run: |
@@ -125,11 +143,11 @@ jobs:
           arch: x86_64
           script: ci/device-check.sh
       - name: Retain instrumentation reports
-        if: failure()
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: android-device-reports
-          path: app/build/reports/androidTests/
+          path: ${{ runner.temp }}/android-instrumentation/*.txt
           if-no-files-found: ignore
       - name: Retain device journey captures
         if: ${{ !cancelled() }}
