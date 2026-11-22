@@ -372,12 +372,12 @@ final class ThreadInstrumentPanel {
     }
 
     private void confirmRecovery(ThreadInstruments.Damaged expected) {
-        if (!current() || damaged != expected) return;
+        if (!current() || !viewport.isShown() || damaged != expected) return;
         screen.show(new AlertDialog.Builder(activity).setTitle(R.string.instrument_repair_title)
                 .setMessage(R.string.instrument_repair_explain)
                 .setNegativeButton(R.string.instrument_cancel, null)
                 .setPositiveButton(R.string.instrument_repair_confirm, (dialog, which) -> {
-                    if (!current()) return;
+                    if (!current() || !viewport.isShown()) return;
                     try { state = store.recover(expected); }
                     catch (ThreadInstruments.Conflict changed) { recover(R.string.instrument_changed); return; }
                     catch (IllegalStateException unavailable) { recover(R.string.instrument_unavailable); return; }
