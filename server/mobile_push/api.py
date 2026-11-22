@@ -44,6 +44,8 @@ def build_app(settings, store):
     async def device(request):
         credential = bearer(request)
         profile = hmac.compare_digest(credential, settings.profile_key)
+        if not profile and not KEY.fullmatch(credential):
+            raise web.HTTPUnauthorized()
         ident = request.match_info["id"]
         try:
             parsed = uuid.UUID(ident)

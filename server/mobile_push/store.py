@@ -56,12 +56,17 @@ class Store:
 
     def device(self, device_id, credential, *, profile, now, token=None, management_key=None):
         with self.write() as db:
+            if token is None:
+                if profile:
+                    db.execute("DELETE FROM devices WHERE id=?", (device_id,))
+                else:
+                    # A capability revokes only its own binding. Replays have the same
+                    # result after revocation, an abandoned enrollment, or key rotation.
+                    db.execute("DELETE FROM devices WHERE id=? AND key_digest=?", (device_id, digest(credential)))
+                return
             row = db.execute("SELECT key_digest,token FROM devices WHERE id=?", (device_id,)).fetchone()
             if not profile and (not row or not hmac.compare_digest(digest(credential), row["key_digest"])):
                 raise Forbidden
-            if token is None:
-                db.execute("DELETE FROM devices WHERE id=?", (device_id,))
-                return
             if profile and management_key:
                 key_digest = digest(management_key)
             elif row and not management_key:

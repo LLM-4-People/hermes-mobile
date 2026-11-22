@@ -38,12 +38,25 @@ class PushApi(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((await self.req("GET", BASE, self.key)).status, 401)
         self.assertEqual((await self.req("GET", BASE + "/events", self.key)).status, 401)
         other = BASE + "/devices/" + str(uuid.uuid4())
-        self.assertEqual((await self.req("DELETE", other, self.key)).status, 401)
+        self.assertEqual((await self.req("DELETE", other, self.key)).status, 204)
         self.assertEqual((await self.req("PUT", other, self.owner,
                                           {"token":"new-token", "management_key": self.key})).status, 409)
         self.assertEqual((await self.req("DELETE", self.path, self.key)).status, 204)
-        self.assertEqual((await self.req("DELETE", self.path, self.key)).status, 401)
+        self.assertEqual((await self.req("DELETE", self.path, self.key)).status, 204)
         self.assertEqual((await self.req("DELETE", self.path, self.owner)).status, 204)
+
+    async def test_lost_delete_ack_and_unauthorized_device_are_indistinguishable(self):
+        unknown_key = secrets.token_hex(32)
+        unknown_id = BASE + "/devices/" + str(uuid.uuid4())
+        self.assertEqual((await self.req("PUT", self.path, self.owner, self.enrol)).status, 204)
+        for path in (self.path, unknown_id):
+            self.assertEqual((await self.req("DELETE", path, unknown_key)).status, 204)
+            self.assertEqual((await self.req("DELETE", path, "bad-bearer")).status, 401)
+        # Another capability could neither discover nor remove the legitimate binding.
+        self.assertEqual((await self.req("PUT", self.path, self.key, {"token":"new"})).status, 204)
+        self.assertEqual((await self.req("DELETE", self.path, self.key)).status, 204)
+        self.assertEqual((await self.req("DELETE", self.path, self.key)).status, 204)
+        self.assertEqual((await self.req("PUT", self.path, self.key, {"token":"new"})).status, 401)
 
     async def test_rejects_invalid_registration_fields_and_sizes(self):
         for body in [[], {}, {"token": 5}, {"token":"a\nb"}, {"token":"a", "management_key":"wrong"},
