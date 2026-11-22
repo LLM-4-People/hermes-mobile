@@ -185,11 +185,16 @@ def distributor(ui, apk, endpoint):
 
 
 def start_account(ui, label, endpoint, bearer, phrase):
-    root = ui.hierarchy()
-    add = ui.node("Ajouter un profil", root)
-    if add is not None:
-        ui.tap_node(add)
-    ui.wait("Connecter Hermes")
+    def form():
+        root = ui.hierarchy()
+        if ui.node("Connecter Hermes", root) is not None:
+            return True
+        add = ui.node("Ajouter un profil", root)
+        if add is not None:
+            ui.tap_node(add)
+        return False
+
+    eventually("real account creation form", form)
     for name, value in [
         ("Nom du profil", label),
         ("Adresse du serveur", endpoint),
