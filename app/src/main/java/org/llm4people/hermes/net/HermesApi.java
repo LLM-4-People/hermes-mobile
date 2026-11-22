@@ -157,6 +157,33 @@ public final class HermesApi {
         throw new HttpError(status, code, delay);
     }
 
+    /** Stream an authenticated file into a caller-owned sink with a strict byte ceiling. */
+    public long download(String path, OutputStream sink, long maxBytes) throws IOException {
+        if (sink == null || maxBytes < 0) throw new IllegalArgumentException("Invalid download bounds");
+        HttpURLConnection http = connection(path, "GET", "application/octet-stream");
+        try {
+            checkResponse(http);
+            if (http.getContentLengthLong() > maxBytes) throw new IOException("File exceeded the byte limit");
+            long total = 0;
+            try (InputStream source = http.getInputStream()) {
+                byte[] block = new byte[32768];
+                int count;
+                while ((count = source.read(block)) != -1) {
+                    if (Thread.currentThread().isInterrupted()) throw new IOException("Transfer cancelled");
+                    if (count > maxBytes - total) throw new IOException("File exceeded the byte limit");
+                    sink.write(block, 0, count);
+                    total += count;
+                }
+            }
+            return total;
+        } catch (IOException error) {
+            Diagnostics.event("network", "download_failed");
+            throw error;
+        } finally {
+            http.disconnect();
+        }
+    }
+
     /** Retain the handle to cancel a blocking next(). Supply -1 for the first subscription. */
     public RunEvents runEvents(String runId, long lastEventId) {
         if (lastEventId < -1) throw new IllegalArgumentException("Invalid event cursor");
