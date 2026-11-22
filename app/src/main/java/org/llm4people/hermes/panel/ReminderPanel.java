@@ -16,6 +16,8 @@ import java.util.concurrent.Callable;
 
 final class ReminderPanel {
     static final String JOBS = "/api/jobs";
+    private static final DateTimeFormatter DISPLAY_TIME = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM)
+            .withLocale(Locale.FRENCH);
     private final SessionPanel panel;
 
     ReminderPanel(SessionPanel panel) { this.panel = panel; }
@@ -38,7 +40,7 @@ final class ReminderPanel {
                 page.addView(Ui.button(panel.activity, name, v -> details(job)));
                 panel.note(page, panel.t(R.string.panel_job_state, state(job)));
                 if (!PanelData.text(job, "next_run_at").isEmpty()) {
-                    panel.note(page, panel.t(R.string.panel_next, localTime(PanelData.text(job, "next_run_at"))));
+                    panel.note(page, panel.t(R.string.panel_next, localTime(PanelData.text(job, "next_run_at"), ZoneId.systemDefault())));
                 }
             }
         }, this::show);
@@ -73,10 +75,16 @@ final class ReminderPanel {
         }
     }
 
-    static String localTime(String iso) {
+    static String scheduleLabel(JSONObject job, ZoneId zone) {
+        String value = PanelData.schedule(job);
+        JSONObject schedule = job.optJSONObject("schedule");
+        if (value.isEmpty() || (schedule != null && !"once".equals(PanelData.text(schedule, "kind")))) return value;
+        return localTime(value, zone);
+    }
+
+    private static String localTime(String iso, ZoneId zone) {
         try {
-            return OffsetDateTime.parse(iso).atZoneSameInstant(ZoneId.systemDefault())
-                    .format(DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM).withLocale(Locale.FRENCH));
+            return OffsetDateTime.parse(iso).atZoneSameInstant(zone).format(DISPLAY_TIME);
         } catch (java.time.DateTimeException malformed) { return iso; }
     }
 
@@ -89,9 +97,9 @@ final class ReminderPanel {
         panel.note(page, panel.t(R.string.panel_job_state, state(job)));
         String lastError = PanelData.text(job, "last_error");
         if (!lastError.isEmpty()) panel.note(page, panel.t(R.string.panel_last_job_error, lastError));
-        panel.note(page, panel.t(R.string.panel_saved_schedule, PanelData.schedule(job)));
+        panel.note(page, panel.t(R.string.panel_saved_schedule, scheduleLabel(job, ZoneId.systemDefault())));
         String next = PanelData.text(job, "next_run_at");
-        if (!next.isEmpty()) panel.note(page, panel.t(R.string.panel_next, localTime(next)));
+        if (!next.isEmpty()) panel.note(page, panel.t(R.string.panel_next, localTime(next, ZoneId.systemDefault())));
         String path = path(job);
         panel.action(page, R.string.panel_edit, () -> edit(job));
         if (!"completed".equals(PanelData.text(job, "state"))) {

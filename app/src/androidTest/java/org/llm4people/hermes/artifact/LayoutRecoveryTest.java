@@ -90,6 +90,13 @@ public final class LayoutRecoveryTest extends InstrumentationTestCase {
                 restored.undo();
                 assertEquals("replacement", restored.current());
                 assertFalse(restored.canUndo());
+                assertTrue(vault.edit().putInt(slot, 17).commit());
+                try { restored.current(); fail("Wrong-typed layout accepted"); }
+                catch (LayoutHistory.Unreadable expected) { }
+                restored.resetUnreadable();
+                assertFalse(vault.contains(slot));
+                assertEquals("statistics", new LayoutHistory(reopened, "stats").current());
+                assertEquals("private text", reopened.read("draft"));
             }
         }
     }

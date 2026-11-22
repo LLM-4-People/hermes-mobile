@@ -1,5 +1,10 @@
 package org.llm4people.hermes.panel;
 
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.time.format.FormatStyle;
+import java.util.Locale;
 import junit.framework.TestCase;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -74,6 +79,33 @@ public final class PanelDataTest extends TestCase {
         assertEquals("scheduled", PanelData.jobState(row));
         row.put("state", "scheduled");
         assertEquals("scheduled", PanelData.jobState(row));
+    }
+
+    public void testOneTimeDisplayUsesFrenchLocalDateAcrossYearBoundary() throws Exception {
+        ZoneId toronto = ZoneId.of("America/Toronto");
+        String original = "2027-01-01T01:15:07.123456+02:00";
+        DateTimeFormatter french = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM).withLocale(Locale.FRENCH);
+        String expected = LocalDateTime.of(2026, 12, 31, 18, 15, 7).format(french);
+        JSONObject once = new JSONObject().put("kind", "once").put("run_at", original);
+        for (Object wire : new Object[]{once, original}) {
+            JSONObject job = new JSONObject().put("schedule", wire);
+            assertEquals(expected, ReminderPanel.scheduleLabel(job, toronto));
+            assertEquals(original, PanelData.schedule(job));
+        }
+    }
+
+    public void testRecurringAndUnknownScheduleDisplaysPreserveServerValues() throws Exception {
+        ZoneId zone = ZoneId.of("Europe/Paris");
+        JSONObject job = new JSONObject();
+        assertEquals("", ReminderPanel.scheduleLabel(job, zone));
+        job.put("schedule", new JSONObject().put("kind", "cron").put("expr", "0 9 * * 1-5"));
+        assertEquals("0 9 * * 1-5", ReminderPanel.scheduleLabel(job, zone));
+        job.put("schedule", new JSONObject().put("kind", "interval").put("minutes", 45));
+        assertEquals("45m", ReminderPanel.scheduleLabel(job, zone));
+        job.put("schedule", new JSONObject().put("kind", "once").put("run_at", "indéterminé"));
+        assertEquals("indéterminé", ReminderPanel.scheduleLabel(job, zone));
+        job.put("schedule", new JSONObject().put("kind", "new-server-format"));
+        assertEquals("", ReminderPanel.scheduleLabel(job, zone));
     }
 
     public void testScheduleRoundTripsServerShapesWithoutSendingDisplayCopy() throws Exception {

@@ -19,7 +19,8 @@ final class ThreadRun {
     private boolean submitting;
     private long started = -1;
     private long subscription;
-    private String statusPath() { return "/v1/runs/" + HermesApi.segment(runId()); }
+    private boolean canStop;
+    private RunAction owner() { return RunAction.capture(journal, page::token, () -> subscription); }
     private String runId() { return ThreadData.string(journal.pending(), "run_id"); }
 
     ThreadRun(ThreadWorkspace page) {
@@ -48,7 +49,8 @@ final class ThreadRun {
         if (pending == null) return;
         if (!journal.sameOwner()) { uncertain(); return; }
         ui.outgoing(ThreadData.string(pending.optJSONObject("body"), "input"));
-        ui.busy(true, !runId().isEmpty());
+        canStop = !runId().isEmpty();
+        ui.busy(true, canStop);
         if (runId().isEmpty()) submitWithCapabilities(pending.optJSONObject("body"), false);
         else if (journal.reconnectsExhausted()) trackingInterrupted();
         else follow();
@@ -152,18 +154,23 @@ final class ThreadRun {
     }
 
     private void uncertain() {
+        RunAction owner = owner();
+        canStop = false;
         ui.busy(true, false);
         ui.notice("Hermes a peut-être reçu le message. Vérifiez la conversation avant un nouvel envoi.",
-                "Vérifier la conversation", () -> page.loadMessages(false, this::offerDismiss));
+                "Vérifier la conversation", owner.guard(() -> page.loadMessages(false,
+                        owner.guard(() -> offerDismiss(owner)))));
     }
 
-    private void offerDismiss() {
+    private void offerDismiss(RunAction owner) {
         ui.show(new AlertDialog.Builder(page.activity)
                 .setTitle("Clore le suivi de cet envoi ?")
                 .setMessage("L’envoi a un résultat inconnu. Hermes peut encore le traiter. Vous pourrez écrire un nouveau message.")
-                .setNegativeButton("Continuer le suivi", (d, w) -> uncertain())
+                .setNegativeButton("Continuer le suivi", (d, w) -> { if (owner.current()) uncertain(); })
                 .setPositiveButton("Clore le suivi", (d, w) -> {
+                    if (!owner.current()) return;
                     journal.finish();
+                    canStop = false;
                     ui.outgoing("");
                     ui.busy(false, false);
                     ui.notice("", "", null);
@@ -179,6 +186,7 @@ final class ThreadRun {
         String id = runId();
         if (id.isEmpty()) return;
         frame = null;
+        canStop = true;
         ui.busy(true, true);
         ui.live("Hermes travaille…", ThreadData.string(journal.pending(), "preview"), false);
         RunFollower nextFollower = new RunFollower(page.api, id, receipt, started, new RunFollower.Listener() {
@@ -217,57 +225,66 @@ final class ThreadRun {
     }
 
     private void unresolved(JSONObject status) {
+        ++subscription;
+        canStop = false;
         frame = null;
         started = -1;
         ui.busy(true, false);
         ui.live("Traitement interrompu", "", false);
+        RunAction owner = owner();
         JSONObject receipt = ThreadData.unknownReceipt(status);
         if (receipt == null) {
-            ui.notice("La passerelle doit confirmer l’identité du traitement.", "Actualiser", this::follow);
+            ui.notice("La passerelle doit confirmer l’identité du traitement.", "Actualiser", owner.guard(this::follow));
             return;
         }
-        ui.notice("La passerelle attend votre décision pour débloquer la conversation.", "Examiner", () ->
+        ui.notice("La passerelle attend votre décision pour débloquer la conversation.", "Examiner", owner.guard(() ->
             ui.show(new AlertDialog.Builder(page.activity).setTitle("Débloquer la conversation ?")
                     .setMessage("Hermes a perdu le suivi de ce traitement. Le clore permet à la passerelle de "
                             + "poursuivre les messages suivants. Les opérations déjà effectuées restent en place.")
-                    .setNegativeButton("Attendre", (d,w) -> follow())
-                    .setPositiveButton("Clore le traitement", (d,w) -> resolve(receipt))));
+                    .setNegativeButton("Attendre", (d,w) -> { if (owner.current()) follow(); })
+                    .setPositiveButton("Clore le traitement", (d,w) -> { if (owner.current()) resolve(owner, receipt); }))));
     }
 
-    private void resolve(JSONObject receipt) {
-        String path = statusPath();
+    private void resolve(RunAction owner, JSONObject receipt) {
+        String path = owner.path();
         ui.notice("Vérification du traitement…", "", null);
-        page.request(() -> {
-            JSONObject current = ThreadData.unknownReceipt(page.api.get(path));
-            if (current != null && ThreadData.string(current, "admission_id").equals(ThreadData.string(receipt, "admission_id"))
-                    && current.optLong("execution_generation") == receipt.optLong("execution_generation")) {
-                page.api.post(path + "/resolve-unknown", receipt);
+        page.request(() -> page.api.get(path), owner.guard(status -> {
+            JSONObject current = ThreadData.unknownReceipt(status);
+            if (!owner.run.equals(status.opt("run_id")) || current == null
+                    || !current.optString("admission_id").equals(receipt.optString("admission_id"))
+                    || current.optLong("execution_generation") != receipt.optLong("execution_generation")) {
+                follow();
+                return;
             }
-            return true;
-        }, done -> follow(), error -> page.error(error, this::follow));
+            page.request(() -> page.api.post(path + "/resolve-unknown", receipt),
+                    owner.guard(done -> follow()), owner.guard(error -> page.error(error, owner.guard(this::follow))));
+        }), owner.guard(error -> page.error(error, owner.guard(this::follow))));
     }
 
     private void trackingInterrupted() {
+        RunAction owner = owner().when(journal::reconnectsExhausted);
         ui.notice("Suivi interrompu. Vous pouvez consulter la conversation.",
-                "Vérifier la conversation", () -> page.loadMessages(false, this::reviewLost));
+                "Vérifier la conversation", owner.guard(() -> page.loadMessages(false,
+                        owner.guard(() -> reviewLost(owner)))));
     }
 
-    private void reviewLost() {
-        JSONObject receipt = journal.pending();
-        Runnable resume = () -> {
-            if (receipt == null || receipt != journal.pending()) return;
+    private void reviewLost(RunAction owner) {
+        Runnable resume = owner.guard(() -> {
             try { journal.resetReconnects(); }
             catch (IllegalStateException unavailable) { page.storageError(); return; }
             follow();
-        };
+        });
         ui.notice("Le résultat reste inconnu.", "Reprendre le suivi", resume);
         ui.show(new AlertDialog.Builder(page.activity).setTitle("Suivi interrompu")
                 .setMessage("Reprenez le suivi pour retrouver l’état du traitement sur la passerelle.")
-                .setNegativeButton("Clore le suivi…", (d,w) -> offerDismiss())
+                .setNegativeButton("Clore le suivi…", (d,w) -> { if (owner.current()) offerDismiss(owner); })
                 .setPositiveButton("Reprendre", (d,w) -> resume.run()));
     }
 
     private void completed(JSONObject status, long firstText, long elapsed) {
+        ++subscription;
+        canStop = false;
+        RunAction owner = owner();
         String outcome = status.optString("status");
         String output = ThreadData.string(status, "output");
         String label = switch (outcome) {
@@ -287,7 +304,7 @@ final class ThreadRun {
         frame = null;
         ui.busy(true, false);
         ui.live(summary, output, false);
-        page.loadMessages(false, () -> {
+        page.loadMessages(false, owner.guard(() -> {
             journal.finish();
             ui.outgoing("");
             ui.busy(false, false);
@@ -302,19 +319,35 @@ final class ThreadRun {
             ui.live("completed".equals(outcome) && (output.isEmpty() || visible) ? "" : summary,
                     visible ? "" : output, false);
             ui.notice("", "", null);
-        });
+        }));
     }
 
     void stop() {
-        if (runId().isEmpty()) return;
-        control("/stop", new JSONObject(), "Demande d’arrêt envoyée.");
+        RunAction owner = owner().when(() -> canStop && journal.sameOwner());
+        if (owner.current() && !owner.run.isEmpty()) stop(owner, false);
+    }
+
+    private void stop(RunAction owner, boolean retry) {
+        if (retry) {
+            page.request(() -> page.api.get(owner.path()), owner.guard(status -> {
+                if (owner.stoppable(status)) stop(owner, false);
+                else follow();
+            }), owner.guard(error -> page.error(error, owner.guard(() -> stop(owner, true)))));
+            return;
+        }
+        control(owner, "/stop", new JSONObject(), "Demande d’arrêt envoyée.", () -> stop(owner, true));
     }
 
     void approve() {
         JSONObject approval = frame == null ? null : frame.approval;
         if (approval == null) return;
+        RunAction owner = owner().when(() -> journal.sameOwner() && frame != null && RunPrompts.same(approval, frame.approval));
+        if (owner.current()) approve(owner, approval);
+    }
+
+    private void approve(RunAction owner, JSONObject approval) {
         if (RunPrompts.question(approval)) {
-            clarify(approval);
+            clarify(owner, approval);
             return;
         }
         String detail = ThreadData.string(approval, "description");
@@ -322,13 +355,13 @@ final class ThreadRun {
         if (!command.isEmpty()) detail += (detail.isEmpty() ? "" : "\n\n") + command;
         AlertDialog.Builder dialog = new AlertDialog.Builder(page.activity).setTitle("Approbation requise")
                 .setMessage(detail.isEmpty() ? "Hermes demande votre autorisation." : detail)
-                .setNegativeButton("Refuser", (d, w) -> decision(approval, "deny"))
+                .setNegativeButton("Refuser", (d, w) -> decision(owner, approval, "deny"))
                 .setNeutralButton("Plus tard", null);
-        if (!detail.isEmpty()) dialog.setPositiveButton("Autoriser une fois", (d, w) -> decision(approval, "once"));
+        if (!detail.isEmpty()) dialog.setPositiveButton("Autoriser une fois", (d, w) -> decision(owner, approval, "once"));
         ui.show(dialog);
     }
 
-    private void clarify(JSONObject prompt) {
+    private void clarify(RunAction owner, JSONObject prompt) {
         EditText answer = new EditText(page.activity);
         answer.setHint("Votre réponse");
         answer.setSaveEnabled(false);
@@ -341,26 +374,34 @@ final class ThreadRun {
         }
         ui.show(new AlertDialog.Builder(page.activity).setTitle("Question de Hermes")
                 .setMessage(question).setView(answer).setNegativeButton("Plus tard", null)
-                .setNeutralButton("Passer", (d,w) -> decision(prompt, ""))
+                .setNeutralButton("Passer", (d,w) -> decision(owner, prompt, ""))
                 .setPositiveButton("Répondre", (d,w) -> {
                     String reply = answer.getText().toString().trim();
-                    if (!reply.isEmpty()) decision(prompt, reply);
+                    if (!reply.isEmpty()) decision(owner, prompt, reply);
                 }));
     }
 
-    private void decision(JSONObject prompt, String value) {
-        if (frame == null || frame.approval == null
-                || !RunPrompts.id(prompt).equals(RunPrompts.id(frame.approval))
-                || prompt.optLong("execution_generation", -1) != frame.approval.optLong("execution_generation", -1)) return;
-        control(RunPrompts.question(prompt) ? "/clarify" : "/approval",
-                RunPrompts.response(prompt, value), "Décision transmise.");
+    private void decision(RunAction owner, JSONObject prompt, String value) {
+        if (!owner.current()) return;
+        control(owner, RunPrompts.question(prompt) ? "/clarify" : "/approval", RunPrompts.response(prompt, value),
+                "Décision transmise.", () -> reviewDecision(owner, prompt));
     }
 
-    private void control(String route, JSONObject body, String message) {
-        String path = statusPath() + route;
+    private void reviewDecision(RunAction owner, JSONObject prompt) {
+        page.request(() -> page.api.get(owner.path()), owner.guard(status -> {
+            RunPrompts waiting = new RunPrompts();
+            waiting.restore(status);
+            JSONObject current = waiting.match(prompt);
+            if (owner.stoppable(status) && current != null) approve(owner, current);
+            else follow();
+        }), owner.guard(error -> page.error(error, owner.guard(() -> reviewDecision(owner, prompt)))));
+    }
+
+    private void control(RunAction owner, String route, JSONObject body, String message, Runnable retry) {
+        String path = owner.path() + route;
         page.request(() -> page.api.post(path, body),
-                ok -> ui.notice(message, "", null),
-                e -> page.error(e, () -> { if ("/stop".equals(route)) stop(); else approve(); }));
+                owner.guard(ok -> ui.notice(message, "", null)),
+                owner.guard(error -> page.error(error, owner.guard(retry))));
     }
 
     private void checkpoint() {
@@ -369,6 +410,8 @@ final class ThreadRun {
     }
 
     void detach() {
+        ++subscription;
+        canStop = false;
         if (follower != null) follower.close();
         checkpoint();
     }

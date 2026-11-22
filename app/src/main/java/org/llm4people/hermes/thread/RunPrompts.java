@@ -14,6 +14,13 @@ final class RunPrompts {
         return canonical.isEmpty() ? ThreadData.string(prompt, "request_id") : canonical;
     }
 
+    static boolean same(JSONObject expected, JSONObject current) {
+        return expected != null && current != null && !id(expected).isEmpty() && id(expected).equals(id(current))
+                && question(expected) == question(current)
+                && (expected.isNull("execution_generation") && current.isNull("execution_generation")
+                    || ThreadData.generation(expected) >= 0 && ThreadData.generation(expected) == ThreadData.generation(current));
+    }
+
     void restore(JSONObject status) {
         waiting.clear();
         JSONArray entries = status.optJSONArray("pending_controls");
@@ -30,6 +37,11 @@ final class RunPrompts {
     }
 
     void settle(JSONObject event) { waiting.remove(id(event)); }
+
+    JSONObject match(JSONObject expected) {
+        JSONObject current = waiting.get(id(expected));
+        return same(expected, current) ? current : null;
+    }
 
     JSONObject next() { return waiting.isEmpty() ? null : waiting.values().iterator().next(); }
 
