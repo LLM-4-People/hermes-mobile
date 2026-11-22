@@ -1,0 +1,32 @@
+<resources>
+    <string name="instrument_try">Essayer dans la discussion</string>
+    <string name="instrument_open_pin">Ouvrir l’outil épinglé</string>
+    <string name="instrument_open">Ouvrir</string>
+    <string name="instrument_pin">Épingler à cette discussion</string>
+    <string name="instrument_compare">Comparer les versions</string>
+    <string name="instrument_adopt">Adopter cette version</string>
+    <string name="instrument_keep">Garder la version épinglée</string>
+    <string name="instrument_undo">Annuler la modification</string>
+    <string name="instrument_return">Revenir à la discussion</string>
+    <string name="instrument_discussion">Discussion</string>
+    <string name="instrument_options">Actions de l’outil</string>
+    <string name="instrument_source">Voir la source</string>
+    <string name="instrument_source_title">Source de %1$s</string>
+    <string name="instrument_close">Fermer</string>
+    <string name="instrument_unpin">Retirer de cette discussion</string>
+    <string name="instrument_unpinned">Outil retiré</string>
+    <string name="instrument_pinned">Épinglé à cette discussion</string>
+    <string name="instrument_trial">En essai dans cette discussion</string>
+    <string name="instrument_trial_replaces">Remplacer l’outil épinglé</string>
+    <string name="instrument_switch">Essayer la version proposée</string>
+    <string name="instrument_origin">Revoir le message d’origine</string>
+    <string name="instrument_current_source">Épinglée · message %1$s</string>
+    <string name="instrument_candidate_source">Proposée · message %1$s</string>
+    <string name="instrument_compare_sources">%1$s → %2$s</string>
+    <string name="instrument_no_source">Cette proposition n’est plus disponible dans la discussion.</string>
+    <string name="instrument_changed">L’outil épinglé a changé. Vérifiez la version affichée avant de continuer.</string>
+    <string name="instrument_unavailable">Impossible de lire ou d’enregistrer l’outil épinglé.</string>
+    <string name="instrument_retry">Réessayer</string>
+    <string name="instrument_revise">Réviser cet outil</string>
+    <string name="instrument_revision_draft">Je voudrais réviser l’outil « %1$s » épinglé à cette discussion. Voici ce que je souhaite changer :</string>
+</resources>

@@ -17,6 +17,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
+import org.llm4people.hermes.artifact.ThreadInstruments.Pin;
 import org.llm4people.hermes.voice.VoiceDrafts;
 import org.llm4people.hermes.voice.ReplyReader;
 
@@ -51,6 +52,8 @@ final class ThreadViews {
     private BaseAdapter adapter;
     private AlertDialog dialog;
     private boolean transcript;
+    ThreadInstrumentPanel instruments;
+    private InstrumentViewport instrumentSlot;
 
     ThreadViews(Activity activity) { this(activity, new VoiceDrafts(activity)); }
 
@@ -200,10 +203,31 @@ final class ThreadViews {
         input.setSelection(input.length());
     }
 
+    InstrumentViewport attachInstrumentViewport() {
+        int index = root.indexOfChild(list);
+        ViewGroup.LayoutParams size = list.getLayoutParams();
+        root.removeView(list);
+        instrumentSlot = new InstrumentViewport(list);
+        root.addView(instrumentSlot, index, size);
+        return instrumentSlot;
+    }
+
+    void refreshInstrumentRows() { if (adapter != null) adapter.notifyDataSetChanged(); }
+
+    void revealProposal(Pin pin) {
+        for (int i = 0; i < rows.length(); i++) {
+            if (pin.fromMessage(rows.optJSONObject(i))) {
+                int position = list.getHeaderViewsCount() + i;
+                list.post(() -> list.setSelectionFromTop(position, Ui.dp(activity, 8)));
+                return;
+            }
+        }
+    }
+
     private View slot(String name) {
         return switch (name) {
             case "notice" -> noticeSlot;
-            case "transcript" -> list;
+            case "transcript" -> instrumentSlot == null ? list : instrumentSlot;
             case "composer" -> composerSlot;
             default -> throw new IllegalArgumentException("Unknown thread slot");
         };
@@ -247,6 +271,7 @@ final class ThreadViews {
     }
 
     void live(String detail, String text, boolean hasPrompts) {
+        if (hasPrompts && instruments != null) instruments.livePrompt();
         boolean atEnd = list.getLastVisiblePosition() >= list.getCount() - 1;
         progress.setVisibility(detail.isEmpty() ? View.GONE : View.VISIBLE);
         progress.setText(detail);
@@ -299,7 +324,10 @@ final class ThreadViews {
                 case "tool" -> "Outil · " + ThreadData.string(row, "tool_name");
                 default -> role;
             };
+            List<Pin> proposals =
+                    chat && instruments != null ? instruments.forRow(row) : java.util.Collections.emptyList();
             String content = chat ? ThreadData.content(row) : ThreadData.string(row, "preview");
+            if (!proposals.isEmpty()) content = instruments.prose(content, proposals);
             if (chat && content.trim().isEmpty() && row.optJSONArray("tool_calls") != null) {
                 StringBuilder names = new StringBuilder();
                 JSONArray calls = row.optJSONArray("tool_calls");
@@ -346,6 +374,8 @@ final class ThreadViews {
                                 .setView(MessageText.reader(getContext(), full, markdown, role.equals("tool")))
                                 .setPositiveButton("Fermer", null))));
             }
+            for (Pin proposal : proposals)
+                instruments.proposal(this, proposal);
         }
     }
 }

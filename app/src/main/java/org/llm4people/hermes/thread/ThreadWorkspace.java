@@ -12,6 +12,8 @@ import android.widget.FrameLayout;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.llm4people.hermes.Diagnostics;
+import org.llm4people.hermes.artifact.ArtifactDesk;
+import org.llm4people.hermes.artifact.ThreadInstruments;
 import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.profile.Account;
 import org.llm4people.hermes.voice.VoiceDrafts;
@@ -45,6 +47,8 @@ public final class ThreadWorkspace implements AutoCloseable {
     ThreadViews screen;
     ThreadJournal journal;
     private ThreadRun run;
+    private ArtifactDesk.Host instrumentHost;
+    private ThreadInstrumentPanel instruments;
     private ThreadStarters starters;
     private boolean emptyTranscript;
     private JSONArray messages = new JSONArray();
@@ -86,6 +90,16 @@ public final class ThreadWorkspace implements AutoCloseable {
         this.account = account;
         this.host = host;
         container = new FrameLayout(activity);
+    }
+
+    public void setInstrumentHost(ArtifactDesk.Host actions) { instrumentHost = actions; }
+    public boolean closeInstrument() { return instruments != null && instruments.close(); }
+
+    void refreshInstruments() {
+        if (instruments != null) {
+            instruments.proposals(messages);
+            screen.refreshInstrumentRows();
+        }
     }
 
     public View view() { return container; }
@@ -316,6 +330,10 @@ public final class ThreadWorkspace implements AutoCloseable {
             main.removeCallbacks(save);
             main.postDelayed(save, 300);
         }, run::send, run::stop, () -> loadMessages(true, null));
+        if (instrumentHost != null) {
+            instruments = new ThreadInstrumentPanel(this, new ThreadInstruments(account, id), instrumentHost);
+            screen.instruments = instruments;
+        }
         screen.slots(slotOrder);
         host.selected(id, title);
         loadMessages(false, null);
@@ -381,6 +399,7 @@ public final class ThreadWorkspace implements AutoCloseable {
             long total = ThreadContext.visibleTotal(data);
             boolean hasMore = total < 0 ? page.length() == ThreadData.PAGE : messageOffset < total;
             emptyTranscript = messages.length() == 0 && !hasMore;
+            if (instruments != null) instruments.proposals(messages);
             screen.rows(messages, hasMore, !older && !emptyTranscript,
                     older ? messages.length() - oldSize : 0);
             if (journal.pending() == null) screen.notice("", "", null);
@@ -464,6 +483,7 @@ public final class ThreadWorkspace implements AutoCloseable {
             ++generation;
             main.removeCallbacksAndMessages(null);
             if (screen != null) screen.dismiss();
+            if (instruments != null) { instruments.retire(); instruments = null; }
             try {
                 if (run != null) run.detach();
                 if (journal != null) journal.flush();

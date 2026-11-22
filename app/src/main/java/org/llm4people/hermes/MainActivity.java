@@ -101,6 +101,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         panels = new SessionPanel(this, api, account);
         panels.setLayoutHost(activeHost);
         threads = new ThreadWorkspace(this, api, account, this, voice);
+        threads.setInstrumentHost(activeHost);
         setContentView(shell.root);
         displayDiscussion();
         files.unlock(account, api);
@@ -347,6 +348,9 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     private void back() {
         if (threads == null) {
             if (!gate.onBack()) finish();
+        } else if ((WorkspaceNavigation.DISCUSSION.equals(navigation.current())
+                || WorkspaceNavigation.COMPOSER.equals(navigation.current())) && threads.closeInstrument()) {
+            return;
         } else if (navigation.back()) {
             render(false);
         } else if (!threads.back()) {
