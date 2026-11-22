@@ -18,6 +18,8 @@ People use their own protected Hermes profile to chat, write code, and return to
 
 Resume a conversation, see what happened while away, and act on the work in the same thread. Coding sessions need readable code and diffs, visible tool activity, and approval requests. Artifacts belong to their originating conversation.
 
+People describe what they want in everyday language, by typing or speaking. Hermes can ask a follow-up question in the same conversation. A person can choose a suggested answer or give their own. When Hermes needs permission to act, show the proposed action and its consequences, with the exact technical details available for inspection.
+
 ## Capabilities and constraints
 
 The APK speaks to the Hermes API. Sessions, jobs, model inventory and available tools come from the connected runtime. Show the source and scope of each usage metric. An unavailable cost or timing measurement needs an explicit unknown state.
@@ -27,6 +29,8 @@ A user can receive a private alert while the app is closed and unlock the owning
 ## Product principles
 
 - Keep the transcript and composer within reach during ongoing work.
+- Keep each question and its answer together. A tap on an approval applies only to the request it names.
+- Let people edit a dictated message before sending it. Keep the keyboard available when voice input is unavailable.
 - Preserve the user's place across disconnects, incoming events and account switches.
 - Keep the entire French interface usable with the keyboard visible, TalkBack, larger text and light or dark appearance.
 - Make changes to tools, providers, reminders and layouts explicit and observable.
