@@ -67,7 +67,7 @@ final class DiscussionPhotoJourney {
             select();
             ui.see("Retirer");
             // Preserve both parts of an accepted draft across an explicit lock and unlock.
-            ui.tap("Autres actions");
+            ui.tap("Profil et verrouillage");
             ui.tap("Verrouiller le profil");
             ui.see("Choisir un profil");
             unlock.run();

@@ -334,6 +334,12 @@ final class ThreadViews {
     boolean composerVisible() { return input != null && input.isShown(); }
     boolean editing() { return composerVisible() && input.hasFocus(); }
 
+    void triggerDictation() {
+        if (composerVoice != null && composerVoice.button != null && composerVoice.button.isShown()) {
+            composerVoice.button.performClick();
+        }
+    }
+
     void clearDraft() { input.setText(""); }
 
     void importingPhoto(boolean importing) {

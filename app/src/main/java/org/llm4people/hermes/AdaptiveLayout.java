@@ -20,12 +20,25 @@ public final class AdaptiveLayout {
     public static final int PICKER_SPLIT_MAX_HEIGHT_DP = 480;
     public static final int PROFILE_COLUMN_MAX_DP = 520;
     public static final int READING_COLUMN_MAX_DP = 680;
+    public static final int NAV_RAIL_MIN_WIDTH_DP = 720;
+    public static final int NAV_RAIL_WIDTH_DP = 72;
+    public static final int NAV_BAR_MIN_HEIGHT_DP = 60;
 
     private AdaptiveLayout() {}
+
+    public enum NavChrome { BOTTOM_BAR, RAIL, HIDDEN }
 
     public record ConversationGeometry(int railDp, boolean dual, boolean sidebarVisible, boolean detailVisible) {}
 
     public record PanelGeometry(int sheetWidthDp, boolean paired) {}
+
+    /** Choose phone bottom bar (auto-hidden when IME is open) or 72dp tablet navigation rail. */
+    public static NavChrome navigationChrome(float widthDp, float heightDp, boolean imeVisible) {
+        float w = safeDimension(widthDp);
+        safeDimension(heightDp);
+        if (w >= NAV_RAIL_MIN_WIDTH_DP) return NavChrome.RAIL;
+        return imeVisible ? NavChrome.HIDDEN : NavChrome.BOTTOM_BAR;
+    }
 
     public static float safeDimension(float dp) {
         return Float.isFinite(dp) && dp > 0 ? dp : 0;

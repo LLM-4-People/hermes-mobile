@@ -50,11 +50,11 @@ final class ThreadInstrumentJourney {
         ui.capture("20-essai-discussion");
         ui.tap(RETURN);
         ui.absent(OPEN);
-        ui.tap("Autres actions");
+        ui.tap("Atelier");
         ui.tap("Mes écrans");
         ui.contains("Demandez à Hermes de créer un écran");
         ui.absent(title);
-        ui.tap("Revenir à l’écran précédent");
+        ui.tap("Discussions");
         ui.tap(TRY);
         ui.tap(PIN);
         ui.see(form);

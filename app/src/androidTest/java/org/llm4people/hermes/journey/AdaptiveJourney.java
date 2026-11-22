@@ -81,7 +81,8 @@ final class AdaptiveJourney {
             matrix.put("sameComposer", true);
             ui.capture("31-adaptatif-rotation");
 
-            ui.tap("Autres actions");
+            ui.hideKeyboard();
+            ui.tap("Activité");
             ui.tap("Rappels");
             ui.tap("Nouveau rappel");
             String reminderDraft = "Rappel adaptatif " + fixture.optString("run", "test");
@@ -91,6 +92,7 @@ final class AdaptiveJourney {
             }
             ui.tap("Retour");
             ui.tap("Fermer");
+            ui.tap("Discussions");
             assertPreserved(initialComposer, draft, selection);
         } finally {
             automation.setRotation(freezeFor(startingRotation));
@@ -119,7 +121,8 @@ final class AdaptiveJourney {
         JSONObject state = snapshot();
         matrix.put("largeText", state);
         ui.capture("32-adaptatif-grands-caracteres");
-        ui.tap("Autres actions");
+        ui.hideKeyboard();
+        ui.tap("Activité");
         ui.tap("Rappels");
         ui.tap("Nouveau rappel");
         EditText title = ui.field("Titre");
@@ -130,6 +133,7 @@ final class AdaptiveJourney {
         }
         ui.tap("Retour");
         ui.tap("Fermer");
+        ui.tap("Discussions");
     }
 
     JSONObject evidence() { return matrix; }

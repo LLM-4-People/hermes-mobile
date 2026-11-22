@@ -10,6 +10,7 @@ import android.widget.EditText;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
+import org.llm4people.hermes.os.BiometricVault;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
@@ -153,12 +154,33 @@ public final class ProfileGate {
         if (canGoBack) screen.action("Retour aux profils", false, view -> { if (!busy) chooser(null); });
     }
 
+    /** Opt-in hardware-backed biometric enrollment using the currently unlocked account. */
+    public void enrollBiometric(Account unlocked, BiometricVault.EnrollmentCallback callback) {
+        Objects.requireNonNull(callback);
+        if (unlocked == null || unlocked != active) {
+            callback.onError();
+            return;
+        }
+        try {
+            byte[] payload = store.serializeForBiometric(unlocked);
+            BiometricVault.enroll(activity, unlocked.id, unlocked.label, payload, callback);
+        } catch (java.io.IOException | RuntimeException error) {
+            Diagnostics.warning("biometric", "serialize_failed");
+            callback.onError();
+        }
+    }
+
     private void unlock(String id, String label) {
         generation++;
         nested = true;
         ProfileScreen screen = new ProfileScreen(activity, label, "Déverrouillez ce profil pour retrouver vos fils.");
         EditText phrase = screen.field("Phrase secrète du profil", "", SECRET, 512, true);
         screen.action("Déverrouiller", true, view -> authenticate(screen, phrase, (Button) view, id, this::opened));
+        if (BiometricVault.isEnrolled(activity, id)
+                && BiometricVault.availability(activity) != BiometricVault.Availability.UNAVAILABLE) {
+            Button bioButton = screen.action(activity.getString(R.string.security_biometric_button), false, null);
+            bioButton.setOnClickListener(view -> authenticateBiometric(screen, bioButton, id, label));
+        }
         screen.action("Choisir un autre profil", false, view -> { if (!busy) chooser(null); });
         screen.action("Remplacer la clé d’accès", false, view -> { if (!busy) rotate(id, label); });
         screen.action("Retirer ce profil", false, view -> authenticate(screen, phrase, (Button) view, id, account -> {
@@ -168,6 +190,51 @@ public final class ProfileGate {
                     .setNegativeButton("Annuler", null)
                     .setPositiveButton("Retirer", (dialog, which) -> forget(screen, id)));
         }));
+    }
+
+    private void authenticateBiometric(ProfileScreen screen, Button bioButton, String id, String label) {
+        if (busy) return;
+        busy = true;
+        int epoch = generation;
+        bioButton.setEnabled(false);
+        BiometricVault.authenticate(activity, id, label, new BiometricVault.Callback() {
+            @Override public void onSuccess(byte[] payload) {
+                if (epoch != generation || activity.isFinishing() || activity.isDestroyed()) {
+                    Arrays.fill(payload, (byte) 0);
+                    return;
+                }
+                busy = false;
+                bioButton.setEnabled(true);
+                try {
+                    Account unlocked = store.openBiometric(id, payload);
+                    screen.status("", false);
+                    opened(unlocked);
+                } catch (Exception error) {
+                    Diagnostics.warning("biometric", "account_open_failed");
+                    screen.status(activity.getString(R.string.security_biometric_failed), true);
+                }
+            }
+
+            @Override public void onCancelled() {
+                if (epoch != generation) return;
+                busy = false;
+                bioButton.setEnabled(true);
+            }
+
+            @Override public void onInvalidated() {
+                if (epoch != generation) return;
+                busy = false;
+                bioButton.setVisibility(android.view.View.GONE);
+                screen.status(activity.getString(R.string.security_biometric_invalidated), true);
+            }
+
+            @Override public void onError() {
+                if (epoch != generation) return;
+                busy = false;
+                bioButton.setEnabled(true);
+                screen.status(activity.getString(R.string.security_biometric_failed), true);
+            }
+        });
     }
 
     private void rotate(String id, String label) {

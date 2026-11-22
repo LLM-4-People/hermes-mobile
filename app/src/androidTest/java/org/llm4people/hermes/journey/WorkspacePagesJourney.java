@@ -20,7 +20,7 @@ final class WorkspacePagesJourney {
         ui.see("Écriture ciblée");
         ui.see(existing);
         ui.absent("Vous");
-        menu("Mes écrans");
+        pages();
         ui.tap("Diagnostic mobile");
         ui.see(name);
         ui.fill("Fichier", "sample.py");
@@ -35,21 +35,27 @@ final class WorkspacePagesJourney {
         ui.see("sample.py");
         ui.see(name);
         ui.capture("13-ecran-personnel");
+        ui.tap("Discussions");
         menu("Vue de discussion d’origine");
         ui.see(staged);
         ui.tap("Envoyer");
         ui.contains("La conversation est prête.");
         ui.see("Envoyer");
         isolation.verify();
-        menu("Mes écrans");
+        pages();
         ui.tap("Diagnostic mobile");
         ui.see(name);
         menu("Rétablir l’atelier");
         ui.tap("Diagnostic mobile (diagnostic)");
         ui.tap("Supprimer");
-        menu("Mes écrans");
+        pages();
         ui.contains("Demandez à Hermes de créer un écran");
         ui.absent("Diagnostic mobile");
+    }
+
+    private void pages() {
+        ui.tap("Atelier");
+        ui.tap("Mes écrans");
     }
 
     private void apply(String artifact) {

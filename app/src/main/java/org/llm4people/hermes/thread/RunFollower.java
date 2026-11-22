@@ -25,14 +25,16 @@ final class RunFollower implements AutoCloseable {
         final int highSurrogate;
         final String activity;
         final List<JSONObject> prompts;
+        final int toolSteps;
 
-        Frame(long seq, RunPreview preview, String activity, List<JSONObject> prompts) {
+        Frame(long seq, RunPreview preview, String activity, List<JSONObject> prompts, int toolSteps) {
             this.seq = seq;
             text = preview.toString();
             origin = preview.origin();
             highSurrogate = preview.pendingHighSurrogate();
             this.activity = activity;
             this.prompts = prompts;
+            this.toolSteps = toolSteps;
         }
     }
 
@@ -48,6 +50,7 @@ final class RunFollower implements AutoCloseable {
     private long seq;
     private long started;
     private long firstText = -1;
+    private int toolSteps;
     private String activity = "Hermes travaille…";
     private final RunPrompts controls = new RunPrompts();
     private long controlsCheckedAt;
@@ -178,6 +181,7 @@ final class RunFollower implements AutoCloseable {
                 if (!event.optBoolean("already_streamed")) activity = event.optString("text", "Hermes travaille…");
                 break;
             case "tool.started":
+                toolSteps++;
                 activity = "Outil en cours · " + event.optString("tool");
                 break;
             case "tool.completed":
@@ -200,7 +204,7 @@ final class RunFollower implements AutoCloseable {
     private void publish() {
         if (!closed) {
             textAwaitingPaint = false;
-            listener.update(new Frame(seq, preview, activity, controls.snapshot()));
+            listener.update(new Frame(seq, preview, activity, controls.snapshot(), toolSteps));
         }
     }
 
