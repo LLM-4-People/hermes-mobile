@@ -166,6 +166,97 @@ public class ThreadInstrumentsTest extends InstrumentationTestCase {
                 assertNull(durable.previous);
             }
             assertEquals("Après", store.pin(before, proposals.get(1), messages).current.title);
+
+            profile.account.write("thread.instrument.v1.root", "{bad}");
+            ThreadInstruments.Damaged damage = damaged(store);
+            reject.set(true);
+            try { store.recover(damage); fail("Failed recovery reported success"); }
+            catch (IllegalStateException expected) { }
+            assertEquals("{bad}", profile.account.read("thread.instrument.v1.root"));
+            assertNull(store.recover(damage).current);
+        }
+    }
+
+    private static ThreadInstruments.Damaged damaged(ThreadInstruments store) {
+        try { store.state(); fail("Expected damaged state"); }
+        catch (ThreadInstruments.Damaged expected) { return expected; }
+        throw new AssertionError();
+    }
+
+    private static void stale(Runnable confirmation) {
+        try { confirmation.run(); fail("Accepted a stale or foreign confirmation"); }
+        catch (ThreadInstruments.Conflict expected) { }
+    }
+
+    public void testRecoverOnlyOriginalSlotWithoutRevivingOlderApprovals() throws Exception {
+        Context app = context();
+        String key = "thread.instrument.v1.root";
+        try (WorkspaceAccountFixture profile = new WorkspaceAccountFixture(app);
+             WorkspaceAccountFixture neighbor = new WorkspaceAccountFixture(app); Account otherHandle = profile.reopen()) {
+            ThreadInstruments store = new ThreadInstruments(profile.account, "root");
+            ThreadInstruments sibling = new ThreadInstruments(profile.account, "fork");
+            ThreadInstruments otherProfile = new ThreadInstruments(neighbor.account, "root");
+            ThreadInstruments concurrent = new ThreadInstruments(otherHandle, "root");
+            JSONArray rows = new JSONArray().put(message(1, "tip", "assistant", fence(page("Valide"))));
+            ThreadInstruments.State before = store.state();
+            ThreadInstruments.Pin approved = store.proposals(rows).get(0);
+            sibling.pin(sibling.state(), sibling.proposals(rows).get(0), rows);
+            otherProfile.pin(otherProfile.state(), otherProfile.proposals(rows).get(0), rows);
+            profile.account.write("thread:root", "brouillon privé");
+
+            profile.account.write(key, "{broken}");
+            ThreadInstruments.Damaged original = damaged(store);
+            stale(() -> sibling.recover(original));
+            stale(() -> otherProfile.recover(original));
+            stale(() -> concurrent.recover(original));
+            otherHandle.write(key, "{broken}");  // Same invalid text, different committed ciphertext.
+            stale(() -> store.recover(original));
+
+            ThreadInstruments.Damaged outdated = damaged(store);
+            ThreadInstruments.State reset = concurrent.recover(damaged(concurrent));
+            assertNull(reset.current);
+            concurrent.pin(reset, concurrent.proposals(rows).get(0), rows);
+            stale(() -> store.recover(outdated));
+            assertEquals("Valide", store.state().current.title);
+
+            profile.account.write(key, "{\"revision\":\"malformed schema\"}");
+            ThreadInstruments.State recovered = store.recover(damaged(store));
+            assertNull(recovered.current);
+            assertNull(recovered.previous);
+            assertFalse(recovered.canUndo);
+            stale(() -> store.pin(before, approved, rows));
+            assertEquals("Valide", store.pin(recovered, approved, rows).current.title);
+            assertEquals("Valide", sibling.state().current.title);
+            assertEquals("Valide", otherProfile.state().current.title);
+            assertEquals("brouillon privé", profile.account.read("thread:root"));
+        }
+    }
+
+    public void testBadPreferenceTypeAndCiphertextCanBeRecoveredOnlyWhileUnlocked() throws Exception {
+        Context app = context();
+        String key = "thread.instrument.v1.root";
+        try (WorkspaceAccountFixture profile = new WorkspaceAccountFixture(app)) {
+            ThreadInstruments store = new ThreadInstruments(profile.account, "root");
+            profile.account.write(key, "{}");
+            SharedPreferences prefs = app.getSharedPreferences("workspace.test." + profile.account.id, Context.MODE_PRIVATE);
+            String slot = prefs.getAll().keySet().iterator().next();
+            assertTrue(prefs.edit().putInt(slot, 17).commit());
+            ThreadInstruments.Damaged badType = damaged(store);
+            assertTrue(prefs.edit().putString(slot, "bad-ciphertext").commit());
+            stale(() -> store.recover(badType));
+            assertNull(store.recover(damaged(store)).current);
+
+            assertTrue(prefs.edit().putInt(slot, 19).commit());
+            ThreadInstruments.Damaged captured = damaged(store);
+            profile.account.close();
+            try { store.recover(captured); fail("Used a confirmation after lock"); }
+            catch (ThreadInstruments.Damaged unexpected) { throw unexpected; }
+            catch (IllegalStateException expected) { }
+            try (Account reopened = profile.reopen()) {
+                ThreadInstruments fresh = new ThreadInstruments(reopened, "root");
+                stale(() -> fresh.recover(captured));
+                assertNull(fresh.recover(damaged(fresh)).current);
+            }
         }
     }
 

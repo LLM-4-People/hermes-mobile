@@ -81,6 +81,17 @@ public final class ThreadInstruments {
         }
     }
 
+    /** An opaque confirmation bound to this unlock, logical discussion and exact damaged revision. */
+    public static final class Damaged extends IllegalStateException {
+        private final ThreadInstruments owner;
+        private final Account.UnreadableRecord record;
+        private Damaged(ThreadInstruments owner, Account.UnreadableRecord record) {
+            super("Unreadable thread instrument");
+            this.owner = owner;
+            this.record = record;
+        }
+    }
+
     public static final class Conflict extends IllegalStateException {
         private Conflict() { super("Thread instrument changed"); }
     }
@@ -91,7 +102,8 @@ public final class ThreadInstruments {
 
     /** Pass the currently selected logical discussion's server transcript, in chronological order. */
     public List<Pin> proposals(JSONArray serverTranscript) {
-        account.read(key); // A closed account must not project retained transcript data into a new view.
+        try { account.read(key); }
+        catch (Account.UnreadableRecord damage) { throw new Damaged(this, damage); }
         return collect(serverTranscript);
     }
 
@@ -140,8 +152,13 @@ public final class ThreadInstruments {
     }
 
     public State state() {
-        String raw = account.read(key);
-        if (raw == null) return new State(this, "", null, null, false);
+        try {
+            State state = account.read(key, this::decodeState);
+            return state == null ? new State(this, "", null, null, false) : state;
+        } catch (Account.UnreadableRecord damage) { throw new Damaged(this, damage); }
+    }
+
+    private State decodeState(String raw) {
         try {
             JSONObject data = new JSONObject(raw);
             Object revision = data.get("revision");
@@ -152,7 +169,7 @@ public final class ThreadInstruments {
             Pin previous = canUndo ? decode(data.get("previous")) : null;
             return new State(this, token, current, previous, canUndo);
         } catch (IOException | JSONException | IllegalArgumentException invalid) {
-            throw new IllegalStateException("Unreadable thread instrument", invalid);
+            throw new IllegalArgumentException("Invalid thread instrument record", invalid);
         }
     }
 
@@ -193,6 +210,18 @@ public final class ThreadInstruments {
         synchronized (ThreadInstruments.class) {
             State old = check(expected);
             return old.canUndo ? save(old.previous, null, false) : old;
+        }
+    }
+
+    public State recover(Damaged damage) {
+        synchronized (ThreadInstruments.class) {
+            if (damage == null || !owns(damage.owner)) throw new Conflict();
+            String revision = UUID.randomUUID().toString();
+            try {
+                JSONObject empty = new JSONObject().put("revision", revision).put("current", JSONObject.NULL);
+                if (!account.replaceUnreadable(key, damage.record, empty.toString())) throw new Conflict();
+            } catch (JSONException invalid) { throw new IllegalStateException("Cannot encode thread instrument", invalid); }
+            return new State(this, revision, null, null, false);
         }
     }
 
