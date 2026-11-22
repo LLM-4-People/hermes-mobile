@@ -111,6 +111,11 @@ jobs:
         run: |
           UV_PROJECT_ENVIRONMENT="$RUNNER_TEMP/hermes-env" \
             uv sync --project .fixture/hermes --frozen --no-dev --no-install-project --extra sms
+      - name: Verify the notification bridge against real Hermes ledger writers
+        env:
+          HERMES_TEST_CHECKOUT: ${{ github.workspace }}/.fixture/hermes
+        run: |
+          "$RUNNER_TEMP/hermes-env/bin/python" -B -m unittest discover -s server/tests -p test_hermes_contract.py
       - name: Enable KVM
         run: sudo chmod a+rw /dev/kvm
       - name: Run device tests
