@@ -79,16 +79,22 @@ class Emulator:
         print(name + " passed", flush=True)
 
 
-def model_provider(endpoint, key):
+def provider_labels(endpoint, key, model_routes):
     query = urllib.request.Request(endpoint + "/api/model/options?include_unconfigured=false",
                                    headers={"Authorization": "Bearer " + key})
     client = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     with client.open(query, timeout=15) as response:
         catalog = json.load(response)
-    for row in catalog["providers"]:
-        if row.get("authenticated", True) and "fake-model" in row["models"]:
-            return row["slug"]
-    raise RuntimeError("The verified loopback runtime has no selectable fake-model")
+    labels = {}
+    for alias, (slug, model) in model_routes.items():
+        matches = [row for row in catalog["providers"] if row.get("authenticated", True)
+                   and model in row["models"] and (slug is None or row["slug"] == slug)]
+        if len(matches) != 1:
+            raise RuntimeError(f"The loopback runtime has an ambiguous or missing {alias} model route")
+        row = matches[0]
+        name = row.get("name") or row["slug"]
+        labels[alias] = name if name == row["slug"] else f"{name} · {row['slug']}"
+    return labels
 
 
 def run(device, output):
@@ -103,10 +109,14 @@ def run(device, output):
     key = os.environ["HERMES_TEST_BEARER"]
     with device.reverse(primary) as endpoint, device.reverse(secondary) as second, device.appearance():
         number = secrets.token_hex(4)
+        alt_model = os.environ["HERMES_TEST_ALT_MODEL"]
+        labels = provider_labels(primary, key, {"primary": ("custom", "fake-model"),
+                               "alternate": (os.environ["HERMES_TEST_ALT_PROVIDER"], alt_model)})
         fixture = {"endpoint": endpoint, "key": key, "secondEndpoint": second,
                    "secondKey": os.environ["HERMES_TEST_SECOND_BEARER"],
                    "run": number, "phrase": secrets.token_hex(16), "secondPhrase": secrets.token_hex(16),
-                   "draft": "Brouillon privé " + number, "provider": model_provider(primary, key)}
+                   "draft": "Brouillon privé " + number, "provider": labels["primary"],
+                   "alternateProvider": labels["alternate"], "alternateModel": alt_model}
         capture_dir = DEVICE_DIR + "/" + number
         device.shell("run-as", APP, "mkdir", "-p", capture_dir)
         output = output / number

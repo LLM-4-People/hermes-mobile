@@ -107,12 +107,6 @@ final class JourneyUi {
         tap(target, label);
     }
 
-    void tapMatchingText(String fragment) {
-        View target = until(fragment, () -> find(window(), v -> v instanceof TextView text
-                && text.getText().toString().contains(fragment) && v.isEnabled()));
-        tap(target, fragment);
-    }
-
     private void tap(View target, String label) {
         main(() -> {
             Rect bounds = new Rect();

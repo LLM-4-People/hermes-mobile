@@ -127,10 +127,15 @@ public final class DeviceJourney extends Instrumentation {
         ui.see("Ensembles d’outils");
         ui.capture("06-reglages");
         ui.tap("Choisir le modèle");
-        ui.tapMatchingText(fixture.getString("provider"));
+        ui.tap(fixture.getString("provider"));
         ui.tap("fake-model");
         ui.contains("fake-model");
+        ui.tap("Choisir le modèle");
+        ui.tap(fixture.getString("alternateProvider"));
+        ui.tap(fixture.getString("alternateModel"));
+        ui.contains(fixture.getString("alternateModel"));
         ui.tap("Fermer");
+        send("Quel fournisseur de vérification répond ?", "Réponse du fournisseur Atelier.");
         menu("Utilisation");
         ui.see("Cumul de la discussion");
         ui.see("Jetons de sortie");
