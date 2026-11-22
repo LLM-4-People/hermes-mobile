@@ -1,7 +1,7 @@
 import unittest
 import xml.etree.ElementTree as ET
 
-from verification.nearby_location import COARSE, location_access, public_city_fix
+from verification.nearby_location import COARSE, answer_android_location, location_access, public_city_fix
 from verification.nearby_restaurants import enter_discussion
 from verification.unifiedpush.ui import Screen
 
@@ -116,3 +116,70 @@ class NearbyLocationTest(unittest.TestCase):
 
         enter_discussion(StubScreen())
         self.assertEqual(tapped, [("android.widget.Button", "Nouvelle conversation")])
+
+    def test_answer_android_location_matches_google_controller_aosp_resource_id_and_scrolls(self):
+        top_dialog = ET.fromstring(
+            '<node text="" content-desc="" resource-id="" class="android.widget.ScrollView" '
+            'package="com.google.android.permissioncontroller" window-id="2" scrollable="true" bounds="[0,80][320,640]">'
+            '<node text="Allow Hermes Mobile to access this device’s approximate location?" content-desc="" '
+            'resource-id="com.android.permissioncontroller:id/permission_message" class="android.widget.TextView" '
+            'package="com.google.android.permissioncontroller" window-id="2" scrollable="false" bounds="[16,100][304,180]"/>'
+            '</node>'
+        )
+        scrolled_dialog = ET.fromstring(
+            '<node text="" content-desc="" resource-id="" class="android.widget.ScrollView" '
+            'package="com.google.android.permissioncontroller" window-id="2" scrollable="true" bounds="[0,80][320,640]">'
+            '<node text="Don’t allow" content-desc="" '
+            'resource-id="com.android.permissioncontroller:id/permission_deny_button" class="android.widget.Button" '
+            'package="com.google.android.permissioncontroller" window-id="2" scrollable="false" bounds="[16,520][304,580]"/>'
+            '</node>'
+        )
+        trees = iter([top_dialog, scrolled_dialog])
+        actions = []
+
+        class StubDevice:
+            def shell(self, *args):
+                return COARSE + ": granted=false, flags=[ ]"
+
+        class StubScreen(Screen):
+            def __init__(self):
+                self.device = StubDevice()
+
+            def hierarchy(self):
+                return next(trees)
+
+            def scroll(self, root):
+                actions.append("scroll")
+
+            def tap_node(self, node):
+                actions.append(("tap", node.get("resource-id")))
+
+        controller = answer_android_location(StubScreen(), allow=False)
+        self.assertEqual(controller, "com.google.android.permissioncontroller")
+        self.assertEqual(actions, ["scroll", ("tap", "com.android.permissioncontroller:id/permission_deny_button")])
+
+    def test_answer_android_location_rejects_non_location_permission_prompt(self):
+        notification_dialog = ET.fromstring(
+            '<node text="" content-desc="" resource-id="" class="android.widget.FrameLayout" '
+            'package="com.google.android.permissioncontroller" window-id="2" scrollable="false" bounds="[0,80][320,640]">'
+            '<node text="Allow Hermes Mobile to send you notifications?" content-desc="" '
+            'resource-id="com.android.permissioncontroller:id/permission_message" class="android.widget.TextView" '
+            'package="com.google.android.permissioncontroller" window-id="2" scrollable="false" bounds="[16,100][304,180]"/>'
+            '<node text="Don’t allow" content-desc="" '
+            'resource-id="com.android.permissioncontroller:id/permission_deny_button" class="android.widget.Button" '
+            'package="com.google.android.permissioncontroller" window-id="2" scrollable="false" bounds="[16,520][304,580]"/>'
+            '</node>'
+        )
+
+        class StubScreen(Screen):
+            def __init__(self):
+                pass
+
+            def hierarchy(self):
+                return notification_dialog
+
+            def tap_node(self, node):
+                raise AssertionError("Should not tap a non-location permission dialog")
+
+        with self.assertRaisesRegex(AssertionError, "did not ask for location"):
+            answer_android_location(StubScreen(), allow=False)

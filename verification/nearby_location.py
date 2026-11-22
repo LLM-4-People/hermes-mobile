@@ -34,17 +34,30 @@ def _location_grant(device):
 
 def answer_android_location(ui, *, allow):
     resource = "permission_allow_foreground_only_button" if allow else "permission_deny_button"
+    targets = {controller + ":id/" + resource for controller in PERMISSION_CONTROLLERS}
+    saw_location = set()
 
     def find_prompt():
         root = ui.hierarchy()
+        controller = None
         for node in root.iter("node"):
             package = node.get("package")
-            if package in PERMISSION_CONTROLLERS and node.get("resource-id") == package + ":id/" + resource:
-                prompt = " ".join(item.get("text", "") for item in root.iter("node")
-                                  if item.get("package") == package)
-                if "location" not in prompt.casefold():
+            if package in PERMISSION_CONTROLLERS:
+                controller = package
+                break
+        if controller is not None:
+            prompt = " ".join(item.get("text", "") for item in root.iter("node")
+                              if item.get("package") == controller)
+            if "location" in prompt.casefold():
+                saw_location.add(controller)
+        for node in root.iter("node"):
+            package = node.get("package")
+            if package in PERMISSION_CONTROLLERS and node.get("resource-id") in targets:
+                if package not in saw_location:
                     raise AssertionError("The foreground system permission prompt did not ask for location")
                 return node, package
+        if controller is not None:
+            ui.scroll(root)
         return None
 
     node, package = eventually("Android's location permission dialog", find_prompt)
