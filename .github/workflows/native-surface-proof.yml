@@ -1,0 +1,70 @@
+name: PR8 native keyboard proof
+on:
+  push:
+    branches:
+      - verification/pr8-native-ime
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: ./.github/actions/android
+        with:
+          gradle: cached
+      - name: Build the exact PR8 application source and isolated test pair
+        run: |
+          git diff --exit-code e3f74b7e21f8009649ab965060605c251b41b786 HEAD -- app
+          python3 ci/native-surface-proof/prepare.py
+          git diff --exit-code HEAD -- app/src/main
+          python3 ci/gradle_check.py :app:assembleDebug :app:assembleDebugAndroidTest
+          mkdir "$RUNNER_TEMP/native-surface-inputs"
+          cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk "$RUNNER_TEMP/native-surface-inputs/"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: native-surface-inputs
+          path: ${{ runner.temp }}/native-surface-inputs
+          if-no-files-found: error
+          retention-days: 7
+
+  phone:
+    needs: package
+    name: Native keyboard, ${{ matrix.mode }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [paysage, nuit, jour, large]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - id: android
+        uses: ./.github/actions/android
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: native-surface-inputs
+          path: ${{ runner.temp }}/native-surface-inputs
+      - run: sudo setfacl -m "u:$(id -u):rw" /dev/kvm
+      - uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
+        with:
+          api-level: ${{ steps.android.outputs.sdk }}
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          script: python3 -B ci/native-surface-proof/phone.py e3f74b7e21f8009649ab965060605c251b41b786 ${{ matrix.mode }} ${{ matrix.mode == 'jour' && 'storage' || '' }}
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: always()
+        with:
+          name: keyboard-${{ matrix.mode }}
+          path: ${{ runner.temp }}/native-surface-proof
+          if-no-files-found: error
+          retention-days: 14
