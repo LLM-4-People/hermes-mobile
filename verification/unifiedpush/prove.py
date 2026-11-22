@@ -254,7 +254,7 @@ def run(args):
                 raise
             tap_notice(ui, notice_title(adb, notice), owner, phrase, title, reply, args.evidence_dir)
             ui.tap("Atelier")
-            ui.tap("Notifications")
+            ui.tap("Notifications", scroll=True)
             ui.tap("Désactiver")
             eventually("server revocation", lambda: revoked_everywhere(db, device_id))
             _, second_run = trigger(primary, "Après révocation")
