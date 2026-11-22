@@ -15,7 +15,7 @@ import zipfile
 from publish_release import validate_recovered
 
 
-def verify_signing(tools, unsigned):
+def verify_signing(tools, unsigned, device_input=None):
     script = Path(__file__).with_name("sign-apk.sh").resolve()
     with tempfile.TemporaryDirectory() as folder:
         scratch = Path(folder)
@@ -45,6 +45,14 @@ def verify_signing(tools, unsigned):
         result = subprocess.run([script, unsigned, incorrect], env=environment)
         if result.returncode == 0 or any(incorrect.iterdir()):
             raise RuntimeError("A mismatched signing certificate produced release assets.")
+
+        if device_input:
+            # Only the signed APK, its public identity and the original input leave this temporary directory.
+            destination = Path(device_input)
+            destination.mkdir(exist_ok=False)
+            shutil.copy2(output / "Hermes-Mobile.apk", destination)
+            shutil.copy2(output / "release.json", destination)
+            shutil.copy2(unsigned, destination / "app-release-unsigned.apk")
 
 
 def check_ecdsa_retry(scratch, signing_script, unsigned, environment, first):

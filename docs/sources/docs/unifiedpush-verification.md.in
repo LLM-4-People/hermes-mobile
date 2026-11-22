@@ -1,6 +1,6 @@
 # Verify a closed-app UnifiedPush delivery
 
-Use a disposable, fully booted Android 13 or newer emulator with SystemUI and an English system locale. The test installs the supplied Hermes Mobile debug APK and a checksum-verified upstream ntfy APK. Both packages must be absent at the start, and both are uninstalled during cleanup. Automated Test Device images omit the notification shade needed to exercise the tap.
+Use a disposable, fully booted Android 13 or newer emulator with SystemUI and an English system locale. The test installs the supplied signed Hermes Mobile APK and a checksum-verified upstream ntfy APK. Both packages must be absent at the start, and both are uninstalled during cleanup. Automated Test Device images omit the notification shade needed to exercise the tap.
 
 On a Linux x86-64 host, prepare a clean checkout of the Hermes fork and its Python development environment. Install `server/requirements.txt` into a separate Python environment for the relay. Docker supplies the same digest-pinned Caddy binary as the account deployment. With the current directory at the mobile project root, run:
 
@@ -18,4 +18,6 @@ The installed distributor is the F-Droid flavor published by the ntfy project. I
 
 [Official ntfy Android release](https://github.com/binwiederhier/ntfy-android/releases/tag/v1.25.2) · [Official ntfy server release](https://github.com/binwiederhier/ntfy/releases/tag/v2.38.1) · [Android Task Manager testing](https://developer.android.com/develop/background-work/services/fgs/handle-user-stopping)
 
-The **AOSP closed-app delivery** pull-request check starts a fresh full Android phone on a GitHub-hosted runner. It checks the official SDK image revision and archive digest, verifies that Google Play services are absent, and runs the same proof against loopback services. Its downloadable artifact contains the component versions and assertion results. You can rerun the workflow from Actions under **Self-hosted push acceptance**.
+**Phone acceptance / AOSP closed-app delivery** runs for every pull request and can be run manually through **Workspace checks**. It downloads the minified release package compiled by **Android package**, signed for the test with a disposable key. The app uses HTTPS for its private test gateways. A dedicated full AOSP emulator trusts the fixture certificate. The check validates the official SDK image and the absence of Google services.
+
+The receipt compares Android's installed base APK digest with the checked artifact. It records the app version, source and gateway commits, unsigned and signed APK digests, component versions and every required delivery assertion. The production signing job waits for the same check and independently verifies the unsigned APK digest before it can sign.

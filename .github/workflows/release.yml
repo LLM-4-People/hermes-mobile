@@ -14,10 +14,17 @@ jobs:
   verify:
     if: github.ref == 'refs/heads/main'
     uses: ./.github/workflows/checks.yml
+    with:
+      release: true
+
+  aosp:
+    name: Phone acceptance
+    needs: verify
+    uses: ./.github/workflows/unified-push.yml
 
   release:
     name: Sign and publish APK
-    needs: verify
+    needs: [verify, aosp]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     environment: android-release
@@ -35,6 +42,13 @@ jobs:
         with:
           name: android-release-input
           path: ${{ runner.temp }}/android-release-input
+      - name: Check that the AOSP phone exercised this exact unsigned payload
+        env:
+          VERIFIED_UNSIGNED_SHA256: ${{ needs.aosp.outputs.verified_unsigned_sha256 }}
+        run: |
+          [[ "$VERIFIED_UNSIGNED_SHA256" =~ ^[a-f0-9]{64}$ ]]
+          cd "$RUNNER_TEMP/android-release-input"
+          echo "$VERIFIED_UNSIGNED_SHA256  app-release-unsigned.apk" | sha256sum --check
       - name: Sign and verify the package
         env:
           ANDROID_BUILD_TOOLS: ${{ steps.android.outputs.tools }}

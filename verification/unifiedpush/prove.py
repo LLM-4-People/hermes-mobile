@@ -12,6 +12,7 @@ import tempfile
 from urllib.parse import urlsplit
 
 from .assets import APK, SERVER, digest, extract_server
+from verification.device.installed import installed_apk_sha256
 from verification.device.run import Emulator
 from verification.gateway_fixture import Gateway, PINNED_REVISION, check_source
 from .stack import LOCAL_HTTP, bridge, eventually, json_request, ntfy, proxy
@@ -103,7 +104,10 @@ def disposable_app(device, apk):
         raise RuntimeError("Use a fresh emulator without a Hermes Mobile installation")
     device.run("install", str(apk))
     try:
-        yield
+        installed = installed_apk_sha256(device, APP)
+        if installed != digest(apk):
+            raise AssertionError("Installed application differs from the supplied APK")
+        yield installed
     finally:
         device.run("uninstall", APP)
 
@@ -118,7 +122,7 @@ def run(args):
     apk = APK.fetch(args.cache)
     archive = SERVER.fetch(args.cache)
     with tempfile.TemporaryDirectory(prefix="hm-notice-") as tmp, ExitStack() as stack:
-        stack.enter_context(disposable_app(adb, args.apk))
+        installed = stack.enter_context(disposable_app(adb, args.apk))
         root = Path(tmp)
         fake = stack.enter_context(FakeLLMServer(default_text="Vérification terminée."))
         primary = stack.enter_context(Gateway(root / "one", source, fake.base_url))
@@ -176,7 +180,7 @@ def run(args):
                 json.dumps(
                     {
                         "hermes_revision": args.revision,
-                        "apk_sha256": digest(args.apk),
+                        "apk_sha256": installed,
                         "sdk": adb.shell("getprop", "ro.build.version.sdk"),
                         "ntfy_server": SERVER.version,
                         "distributor": APK.version,
@@ -197,7 +201,7 @@ def run(args):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", type=Path, required=True)
-    parser.add_argument("--apk", type=Path, required=True, help="Android debug APK under test")
+    parser.add_argument("--apk", type=Path, required=True, help="Signed Android APK under test")
     parser.add_argument("--revision", default=PINNED_REVISION)
     parser.add_argument("--serial", required=True)
     parser.add_argument("--adb", default=shutil.which("adb") or "adb")

@@ -7,14 +7,11 @@ if grep -Eq '^package:(com\.google\.android\.(gms|gsf)|com\.android\.vending)$' 
   echo "Use the reviewed AOSP phone image for the Google-free delivery test." >&2
   exit 1
 fi
+: "${HERMES_FIXTURE_TLS_CERT:?}" "${HERMES_FIXTURE_TLS_KEY:?}"
+input="$RUNNER_TEMP/android-release-input"
 "$RUNNER_TEMP/hermes-env/bin/python" -B -m verification.unifiedpush.prove \
-  --source .fixture/hermes --serial "$serial" --apk app/build/outputs/apk/debug/app-debug.apk \
+  --source .fixture/hermes --serial "$serial" --apk "$input/Hermes-Mobile.apk" \
+  --tls-cert "$HERMES_FIXTURE_TLS_CERT" --tls-key "$HERMES_FIXTURE_TLS_KEY" \
   --push-python "$RUNNER_TEMP/push-env/bin/python" --cache "$RUNNER_TEMP/ntfy" |
-  jq -Recs '
-    [split("\n")[] | fromjson? | select(type == "object" and .notification_event_matched == true)] |
-    if length == 1 then .[0] |
-      {hermes_revision, sdk, ntfy_server, distributor, absent_before_delivery, webpush_messages,
-       notification_event_matched, owning_profile_unlocked, owning_thread_opened, revoked_delivery_suppressed}
-    else error("Missing unique delivery proof") end
-  ' > "$RUNNER_TEMP/unified-push-result.json"
+  python3 -B ci/aosp_receipt.py "$input" > "$RUNNER_TEMP/unified-push-result.json"
 cat "$RUNNER_TEMP/unified-push-result.json"
