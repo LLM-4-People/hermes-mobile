@@ -61,25 +61,33 @@ final class WorkspaceLayout {
                 ". For code artifacts add a filename after the fence language, e.g. file=src/main.py or file=Dockerfile; use diff for diffs.\n" +
                 "For a reusable discussion or review tool, create a personal surface page/<slug> in replace mode. " +
                 "The slug and field IDs must match " + DraftForm.SLUG.pattern() + ". " +
-                "Give each requested input a field, up to " + DraftForm.MAX_FIELDS + ". Kinds: text, multiline, or choice " +
+                "For a form the person will fill in, give each input a field, up to " + DraftForm.MAX_FIELDS + ". Kinds: text, multiline, or choice " +
                 "with options (an array of French strings). Forms prepare drafts that the person edits and sends. " +
                 "On revision return the whole page, retaining its surface and existing field IDs. Adapt this example " +
                 "to the task; use French labels and the exact opening and closing fence lines:\n```" + FENCE + "\n" +
                 "{\"version\":1,\"surface\":\"page/visite-site\",\"mode\":\"replace\",\"title\":\"Visite\",\"blocks\":[" +
                 "{\"type\":\"form\",\"title\":\"Lieu à visiter\",\"prompt\":\"Prépare cette visite.\",\"fields\":[" +
                 "{\"id\":\"lieu-visite\",\"label\":\"Lieu\",\"kind\":\"text\",\"required\":true}]}]}\n```\n" +
-                "When someone wants to use an Android app, propose a page/<slug> in replace mode. " +
-                "Use a device block for each requested handoff. These examples show the complete allowed shapes:\n" +
-                "{\"type\":\"device\",\"request\":{\"kind\":\"share_text\",\"text\":\"La réunion commence à neuf heures.\"}}\n" +
-                "{\"type\":\"device\",\"request\":{\"kind\":\"map_search\",\"query\":\"Bibliothèque de Québec\"}}\n" +
-                "{\"type\":\"device\",\"request\":{\"kind\":\"calendar_event\",\"title\":\"Visite\",\"start\":\"2027-04-12T09:00:00-04:00\"," +
-                "\"end\":\"2027-04-12T10:00:00-04:00\",\"location\":\"Québec\"}}\n" +
-                "Use the person's details. Keep text to 2000 characters, query and optional location to 200, title to 120. " +
-                "A calendar event needs a start and a later end with seconds and Z or a numeric ±HH:mm offset. " +
-                "Ask about missing or ambiguous dates, times or time zone. Use a place name or address for a map. " +
-                "The phone presents each proposal for review. The person opens the calendar editor, share sheet or maps app. " +
-                "Describe the next tap. Report completion only when you actually have confirmation. " +
-                "Use the server tools available for this run for work on the gateway.";
+                """
+                When the person asks to open a calendar event, share text or show a place on the phone,
+                return a complete page with exactly one device block per requested action. Put the actual
+                details in request. Use calendar_event for an agenda appointment, share_text for a share
+                sheet and map_search for a map. Here is a complete example for a person asking for all three:
+                ```hermes-workspace
+                {"version":1,"surface":"page/visite-musee","mode":"replace","title":"Visite du musée","blocks":[
+                {"type":"device","request":{"kind":"calendar_event","title":"Visite du musée","start":"2027-02-15T09:00:00+01:00","end":"2027-02-15T10:00:00+01:00","location":"Lyon"}},
+                {"type":"device","request":{"kind":"share_text","text":"Retrouvons-nous au musée de Lyon pour la visite."}},
+                {"type":"device","request":{"kind":"map_search","query":"Musée des Confluences, Lyon"}}
+                ]}
+                ```
+                Adapt the example to the requested actions, details, dates and place. A device block has only
+                type and request. The calendar title is at most 120 characters, its optional location and
+                a map query 200, and shared text 2000. Dates need seconds and Z or a signed HH:mm offset.
+                The end must follow the start. Ask for missing or ambiguous dates, times or zone.
+                The person reviews each request before opening the calendar editor, share sheet or maps app.
+                Explain their next tap. Saving or delivery happens in the app they choose.
+                For work on the gateway use the server tools available for this run.
+                """;
     }
 
     /** Only constrained identifiers enter run instructions. The proposed page and form values stay out. */
