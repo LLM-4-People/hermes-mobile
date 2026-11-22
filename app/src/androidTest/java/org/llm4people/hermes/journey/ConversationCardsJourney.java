@@ -9,6 +9,8 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewParent;
 import android.widget.EditText;
+import android.widget.ListView;
+import android.widget.TextView;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -51,7 +53,11 @@ public final class ConversationCardsJourney extends Instrumentation {
             addProfile();
             ui.tap("Nouvelle conversation");
             JSONArray turns = fixture.getJSONArray("turns");
-            for (int i = 0; i < turns.length(); i++) turn(i, turns.getJSONObject(i));
+            for (int i = 0; i < turns.length(); i++) {
+                JSONObject spec = turns.getJSONObject(i);
+                turn(i, spec);
+                if (i == 0) reopenHistory(spec);
+            }
         } catch (Throwable failure) {
             error = failure;
         } finally {
@@ -93,6 +99,65 @@ public final class ConversationCardsJourney extends Instrumentation {
         ui.tap("Retirer");
         ui.see("Choisir un profil");
         ui.absent(name);
+    }
+
+    private void reopenHistory(JSONObject turn) throws Exception {
+        ui.see("Envoyer");
+        ui.tap("Autres actions");
+        ui.tap("Verrouiller le profil");
+        ui.see("Choisir un profil");
+        ui.tap(fixture.getString("profile"));
+        ui.fill("Phrase secrète du profil", fixture.getString("phrase"));
+        ui.tap("Déverrouiller");
+        ui.see("Message à Hermes");
+        ui.contains(turn.getString("reply"));
+        seeTranscriptRow("Hermes", turn.getString("question"));
+        seeTranscriptRow("Vous", turn.getString("answer"));
+        ui.capture("card-restored-history");
+    }
+
+    private void seeTranscriptRow(String role, String content) {
+        AtomicReference<ListView> listRef = new AtomicReference<>();
+        main(() -> listRef.set(transcript(activity.getWindow().getDecorView())));
+        ListView list = listRef.get();
+        if (list == null) throw new AssertionError("Missing reopened transcript");
+        int[] count = {0};
+        main(() -> count[0] = list.getCount());
+        for (int position = 0; position < count[0]; position++) {
+            int index = position;
+            main(() -> list.setSelectionFromTop(index, 0));
+            waitForIdleSync();
+            boolean[] found = {false};
+            main(() -> {
+                for (int i = 0; i < list.getChildCount(); i++) {
+                    View row = list.getChildAt(i);
+                    if (exactText(row, role) && exactText(row, content)) found[0] = true;
+                }
+            });
+            if (found[0]) return;
+        }
+        throw new AssertionError("Missing reopened " + role + " row: " + content);
+    }
+
+    private static ListView transcript(View view) {
+        if (view instanceof ListView list && list.isShown()) return list;
+        if (view instanceof ViewGroup group) {
+            for (int i = 0; i < group.getChildCount(); i++) {
+                ListView list = transcript(group.getChildAt(i));
+                if (list != null) return list;
+            }
+        }
+        return null;
+    }
+
+    private static boolean exactText(View view, String value) {
+        if (view instanceof TextView text && text.isShown() && value.contentEquals(text.getText())) return true;
+        if (view instanceof ViewGroup group) {
+            for (int i = 0; i < group.getChildCount(); i++) {
+                if (exactText(group.getChildAt(i), value)) return true;
+            }
+        }
+        return false;
     }
 
     private void turn(int index, JSONObject turn) throws Exception {

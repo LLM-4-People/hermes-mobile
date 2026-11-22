@@ -9,7 +9,7 @@ from .run import APP, Emulator, cleanup_all
 
 
 DRIVER = f"{APP}.test/{APP}.journey.ConversationCardsJourney"
-CAPTURES = {"card-voice-draft.png", *(f"card-{n}.png" for n in range(1, 7))}
+CAPTURES = {"card-voice-draft.png", "card-restored-history.png", *(f"card-{n}.png" for n in range(1, 7))}
 
 
 class CardPhone:

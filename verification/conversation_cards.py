@@ -186,7 +186,14 @@ def run(primary, secondary, output, revision, phone=None):
                          "execution_generation": body["execution_generation"], "decision": turn["answer"]})
     require(len({item["prompt_id"] for item in receipts}) == len(TURNS), "A settled ID was reused")
     require(admission(primary, len(TURNS)) is None, "A duplicate response admitted another run")
-    rows = primary.request(f"/api/sessions/{session}/messages?order=latest&limit=100")["data"]
+    rows = primary.request(f"/api/sessions/{session}/messages?order=latest&include_compacted=true&limit=100")["data"]
+    archived = [json.loads(row["content"]) for row in rows
+                if row["role"] == "tool" and row.get("tool_name") == "clarify"]
+    pairs = [(entry["question"], entry["user_response"]) for receipt in archived
+             if receipt.get("outcome") == "submitted" for entry in receipt["responses"]
+             if entry.get("status") == "answered"]
+    require(pairs == [(t["question"], t["answer"]) for t in TURNS if t["kind"] == "clarify"],
+            "Canonical transcript lost a submitted question or its answer")
     require([r["content"] for r in rows if r["role"] == "user"] == [t["prompt"] for t in TURNS],
             "The thread contains an unexpected user message")
     require(all(any(r["role"] == "assistant" and r["content"] == t["reply"] for r in rows) for t in TURNS),
