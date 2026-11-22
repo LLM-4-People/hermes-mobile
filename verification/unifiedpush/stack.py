@@ -13,11 +13,13 @@ from urllib.error import URLError
 from urllib.parse import urlsplit
 from urllib.request import HTTPSHandler, ProxyHandler, Request, build_opener
 
+from .processes import close_child
 from deploy.accounts import CADDY_IMAGE
 from verification.gateway_fixture import unused_loopback_port
 
 LOCAL_HTTP = build_opener(ProxyHandler({}))
 NTFY_MANAGER_LOG = "ntfy-manager.jsonl"
+SERVICE_GRACE_SECONDS = 45
 
 
 def eventually(description, check, timeout=90):
@@ -41,13 +43,15 @@ def serve(command, directory, env=None):
             stdout=log,
             stderr=subprocess.STDOUT,
         )
+        def drain():
+            # ntfy, Caddy and aiohttp drain active requests on interrupt.
+            proc.send_signal(signal.SIGINT)
+            proc.wait(timeout=SERVICE_GRACE_SECONDS)
+
         try:
             yield proc
         finally:
-            if proc.poll() is None:
-                # Both official servers and aiohttp handle an interrupt by draining requests.
-                proc.send_signal(signal.SIGINT)
-                proc.wait(timeout=45)
+            close_child(proc, drain)
 
 
 def json_request(url, bearer=None, *, client=LOCAL_HTTP):

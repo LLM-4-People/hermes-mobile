@@ -45,7 +45,7 @@ jobs:
       - run: '"$RUNNER_TEMP/server-env/bin/python" -m unittest server.artifacts.test_files'
       - run: python3 -m unittest discover -s deploy -v
       - run: python3 -B -m unittest discover -s verification/device -v
-      - run: python3 -B -m unittest verification.unifiedpush.test_route verification.unifiedpush.test_delivery
+      - run: python3 -B -m unittest verification.unifiedpush.test_route verification.unifiedpush.test_delivery verification.unifiedpush.test_processes
 
   package:
     name: Android package

@@ -11,6 +11,12 @@ import shutil
 import subprocess
 import time
 
+from verification.device.run import cleanup_all
+from .processes import close_child
+
+
+OBSERVER_GRACE_SECONDS = 30
+
 
 class AndroidControls:
     """Keep the official SDK UI automation connected independently of both application processes."""
@@ -28,13 +34,12 @@ class AndroidControls:
     def close(self):
         if self.process is None:
             return
+        process = self.process
         try:
-            if self.process.poll() is None:
-                self.send("finish")
+            # Timed communicate covers a blocked input pipe and drains the observer's final output.
+            close_child(process, lambda: process.communicate(
+                b'{"action":"finish"}\n', timeout=OBSERVER_GRACE_SECONDS))
         finally:
-            self.process.stdin.close()
-            self.process.wait(timeout=30)
-            self.process.stdout.close()
             self.process = None
 
     def reconnect(self):
@@ -104,4 +109,4 @@ def editor(device, directory):
         finally:
             controls.close()
     finally:
-        device.shell("rm", "-f", remote_jar)
+        cleanup_all(lambda: device.shell("rm", "-f", remote_jar))
