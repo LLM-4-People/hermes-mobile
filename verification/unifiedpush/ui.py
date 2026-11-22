@@ -25,7 +25,13 @@ class Screen:
             if self.device.shell("sh", "-c", f"'test -s {self.tmp} && echo ready || true'") != "ready":
                 return None
             try:
-                return (ElementTree.fromstring(self.device.run("exec-out", "cat", self.tmp)),)
+                root = ElementTree.fromstring(self.device.run("exec-out", "cat", self.tmp))
+                # Freshly rebooted, busy AOSP images can cover the first permission dialog with a SystemUI ANR.
+                waiting = self.node("android:id/aerr_wait", root)
+                if waiting is not None and any("System UI" in node.get("text", "") for node in root.iter("node")):
+                    self.tap_node(waiting)
+                    return None
+                return (root,)
             finally:
                 self.device.shell("rm", "-f", self.tmp)
 
@@ -43,10 +49,12 @@ class Screen:
                 return node
         return None
 
-    def wait(self, label, *, scroll=False):
+    def wait(self, label, *, scroll=False, notification_permission=False):
         def find():
             root = self.hierarchy()
             node = self.node(label, root)
+            if node is None and notification_permission:
+                self.allow_if_prompted(root)
             if node is None and scroll:
                 self.scroll(root)
             return node if node is None else (node,)
@@ -57,10 +65,10 @@ class Screen:
         x1, y1, x2, y2 = map(int, re.findall(r"\d+", node.get("bounds")))
         self.device.shell("input", "tap", str((x1 + x2) // 2), str((y1 + y2) // 2))
 
-    def tap(self, label, *, scroll=False):
+    def tap(self, label, *, scroll=False, notification_permission=False):
         # Labels are static test controls. Never log field contents.
         print("Tap " + label, file=sys.stderr, flush=True)
-        self.tap_node(self.wait(label, scroll=scroll))
+        self.tap_node(self.wait(label, scroll=scroll, notification_permission=notification_permission))
 
     def scroll(self, root):
         for item in root.iter("node"):
@@ -119,8 +127,9 @@ class Screen:
         finally:
             self.device.shell("rm", "-f", path)
 
-    def allow_if_prompted(self):
-        root = self.hierarchy()
+    def allow_if_prompted(self, root=None):
+        if root is None:
+            root = self.hierarchy()
         node = self.node("com.android.permissioncontroller:id/permission_allow_button", root)
         if node is None:
             node = self.node(
@@ -147,7 +156,7 @@ def distributor(ui, apk, endpoint):
     try:
         launch(d, NTFY)
         ui.allow_if_prompted()
-        ui.tap("More options")
+        ui.tap("More options", notification_permission=True)
         ui.tap("Settings")
         ui.tap("Default server")
         url_field = NTFY + ":id/default_server_dialog_url"
@@ -185,7 +194,7 @@ def enroll(ui):
     ui.tap("Notifications", scroll=True)
     ui.tap("Activer")
     ui.allow_if_prompted()
-    ui.tap("Activer avec UnifiedPush")
+    ui.tap("Activer avec UnifiedPush", notification_permission=True)
     ui.wait("Choisir un distributeur")
     ui.tap("ntfy\n" + NTFY)
 
