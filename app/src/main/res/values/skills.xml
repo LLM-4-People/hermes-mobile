@@ -1,4 +1,5 @@
 <resources>
+    <item name="skill_search_field" type="id" />
     <string name="skills_title">Compétences de Hermes</string>
     <string name="skills_search">Rechercher une compétence</string>
     <string name="skills_refresh">Actualiser les compétences</string>

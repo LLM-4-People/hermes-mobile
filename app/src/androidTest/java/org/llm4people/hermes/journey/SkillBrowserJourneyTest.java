@@ -3,11 +3,16 @@ package org.llm4people.hermes.journey;
 import android.content.Context;
 import android.os.Build;
 import android.test.InstrumentationTestCase;
+import android.view.View;
+import android.view.inputmethod.EditorInfo;
+import android.view.inspector.WindowInspector;
+import android.widget.EditText;
 import java.lang.reflect.Method;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import org.json.JSONArray;
 import org.llm4people.hermes.MainActivity;
+import org.llm4people.hermes.R;
 import org.llm4people.hermes.net.Exchange;
 import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.panel.SessionPanel;
@@ -50,6 +55,20 @@ public final class SkillBrowserJourneyTest extends InstrumentationTestCase {
                 ui.see("La passerelle ne liste aucune compétence pour ce profil.");
                 ui.tap("Actualiser les compétences");
                 ui.see("travail/revue");
+                runTestOnUiThread(() -> {
+                    for (View window : WindowInspector.getGlobalWindowViews()) {
+                        EditText search = window.findViewById(R.id.skill_search_field);
+                        if (search == null || !search.isShown()) continue;
+                        EditorInfo editor = new EditorInfo();
+                        assertNotNull(search.onCreateInputConnection(editor));
+                        assertEquals(EditorInfo.IME_ACTION_SEARCH, editor.imeOptions & EditorInfo.IME_MASK_ACTION);
+                        int required = EditorInfo.IME_FLAG_NO_FULLSCREEN | EditorInfo.IME_FLAG_NO_EXTRACT_UI
+                                | EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING;
+                        assertEquals(required, editor.imeOptions & required);
+                        return;
+                    }
+                    fail("No live skills search field");
+                });
                 ui.fill("Rechercher une compétence", "absente");
                 ui.see("Aucune compétence ne correspond à cette recherche.");
                 ui.fill("Rechercher une compétence", "qualite");

@@ -54,6 +54,7 @@ final class SkillBrowser {
         box.requestFocus();
         LinearLayout toolbar = Ui.row(panel.activity);
         search = new EditText(panel.activity);
+        search.setId(R.id.skill_search_field);
         search.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
         search.setSingleLine();
         search.setImeOptions(EditorInfo.IME_ACTION_SEARCH | EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING
