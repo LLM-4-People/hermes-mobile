@@ -89,7 +89,7 @@ public final class SharedTextFlow {
             target = entry == null ? session : entry.confirmedThread();
             imported = workspace.containsShare(target, key);
         } catch (RuntimeException unavailable) {
-            failed("Le texte partagé est illisible ou le stockage est indisponible.");
+            failed("Impossible de vérifier le partage et son brouillon. Réessayez lorsque le stockage sera disponible.");
             return;
         }
         if (imported) {
@@ -174,13 +174,14 @@ public final class SharedTextFlow {
         AlertDialog.Builder alert = new AlertDialog.Builder(activity).setTitle("Partage indisponible").setMessage(message);
         if (ticket == null) alert.setPositiveButton("Fermer", null);
         else alert.setPositiveButton("Réessayer", (d,w) -> { if (owner != null && d == dialog) present(); })
-                .setNegativeButton("Annuler le partage", (d,w) -> { if (owner != null && d == dialog) cancel(); });
+                .setNegativeButton("Fermer", (d,w) -> { if (owner != null && d == dialog) leave(); })
+                .setOnCancelListener(d -> { if (d == dialog) leave(); });
         dialog = Ui.secureDialog(alert);
     }
 
     private void cancel() {
         try { IncomingShare.discard(activity, ticket); }
-        catch (RuntimeException failure) { failed("Le partage n’a pas pu être annulé."); return; }
+        catch (RuntimeException failure) { failed("La copie temporaire du partage n’a pas pu être effacée."); return; }
         ticket = null;
         dismiss();
     }
