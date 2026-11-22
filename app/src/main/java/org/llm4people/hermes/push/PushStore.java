@@ -169,7 +169,13 @@ final class PushStore extends SQLiteOpenHelper {
                 updated.put("established", 0);
                 updated.putNull("subscription");
                 updated.putNull("subscription_version");
-            } else updated.putNull("failure");
+            } else {
+                updated.putNull("failure");
+                if (ACCOUNT_REQUIRED.equals(device.failure)) {
+                    updated.put("established", 0);
+                    updated.put("subscription_version", UUID.randomUUID().toString());
+                }
+            }
             getWritableDatabase().update("devices", updated, "installation=? AND state<>?",
                     new String[]{device.installation, REMOVING});
             return forProfile(profile);
@@ -215,8 +221,8 @@ final class PushStore extends SQLiteOpenHelper {
         if (device.unified()) {
             data.put("established", 1);
             // A late acknowledgement for an older endpoint must leave its replacement queued.
-            where += " AND subscription_version=?";
-            args = new String[]{device.installation, REMOVING, device.subscriptionVersion};
+            where = "installation=? AND state=? AND subscription_version=?";
+            args = new String[]{device.installation, PENDING, device.subscriptionVersion};
         }
         if (getWritableDatabase().update("devices", data, where, args) > 0) changes.notifyChanged();
     }
@@ -249,6 +255,7 @@ final class PushStore extends SQLiteOpenHelper {
         ContentValues data = new ContentValues();
         data.put("state", FAILED);
         data.put("failure", cause);
+        if (ACCOUNT_REQUIRED.equals(cause)) data.put("established", 0);
         if (getWritableDatabase().update("devices", data,
                 "installation=? AND state=? AND subscription_version=?",
                 new String[]{device.installation, PENDING, device.subscriptionVersion}) > 0) changes.notifyChanged();

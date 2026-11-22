@@ -127,6 +127,29 @@ public final class DistributorContractTest extends InstrumentationTestCase {
         }
     }
 
+    public void testGatewayAuthRejectionRequiresSuccessfulRebindBeforeAnyReceipt() throws Exception {
+        try (Exchange bridge = new Exchange("401 Unauthorized", "", "{}")) {
+            prepare(bridge.endpoint());
+            store.updateSubscription(device, "{}");
+            store.enable(store.forProfile(device.profile));
+            store.updateSubscription(store.forProfile(device.profile), "{\"revision\":2}");
+            PushStore.Device sending = store.forProfile(device.profile);
+            DistributorEnrollment.sync(context, sending);
+            assertTrue(bridge.observed().contains("Bearer " + device.managementKey()));
+            PushStore.Device refused = store.forProfile(device.profile);
+            assertEquals(PushStore.ACCOUNT_REQUIRED, refused.failure);
+            store.enable(sending);
+            assertFalse(store.forProfile(device.profile).receives());
+            PushStore.Device confirming = store.prepareUnified(device.profile, device.endpoint, device.distributor, device.vapid);
+            // The owner bearer may fail to reserve here. A stale acknowledgement cannot restore trust.
+            store.enable(sending);
+            assertFalse(store.forProfile(device.profile).receives());
+            assertFalse(store.remember(device.installation, EVENT, "reminder"));
+            store.enable(confirming);
+            assertTrue(store.forProfile(device.profile).receives());
+        }
+    }
+
     public void testEncryptedReceiptMatchesInstanceAndRemovalStopsDelivery() throws Exception {
         if (Build.VERSION.SDK_INT >= 33) {
             getInstrumentation().getUiAutomation().grantRuntimePermission(context.getPackageName(),
