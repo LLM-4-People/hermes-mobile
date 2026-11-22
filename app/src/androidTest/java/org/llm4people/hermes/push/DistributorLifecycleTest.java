@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.ContextWrapper;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.ParcelFileDescriptor;
 import android.test.InstrumentationTestCase;
@@ -123,6 +124,21 @@ public final class DistributorLifecycleTest extends InstrumentationTestCase {
         assertEquals(PushStore.REMOVING, store.forProfile(first.profile).state);
         assertTrue(outgoing.stream().noneMatch(intent -> SUCCESSOR.equals(intent.getPackage())));
         assertEquals(otherToken, register(second));
+    }
+
+    public void testClearingDistributorDataRevokesThePackageEvenWhenStillInstalled() throws Exception {
+        PushStore.Device first = prepare();
+        PushStore.Device second = prepare();
+        register(first);
+        register(second);
+        DistributorPackageReceiver receiver = new DistributorPackageReceiver();
+        Intent cleared = new Intent(Intent.ACTION_PACKAGE_DATA_CLEARED, Uri.fromParts("package", SUCCESSOR, null));
+        receiver.onReceive(context, cleared);
+        assertEquals(PushStore.PENDING, store.forProfile(first.profile).state);
+        cleared.setData(Uri.fromParts("package", fixture.getPackageName(), null));
+        receiver.onReceive(context, cleared);
+        assertEquals(PushStore.REMOVING, store.forProfile(first.profile).state);
+        assertEquals(PushStore.REMOVING, store.forProfile(second.profile).state);
     }
 
     public void testMissingPackageReleasesAllAffectedProfilesAndPicker() throws Exception {
