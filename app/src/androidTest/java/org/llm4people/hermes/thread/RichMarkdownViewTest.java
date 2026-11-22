@@ -74,9 +74,13 @@ public final class RichMarkdownViewTest extends InstrumentationTestCase {
                 findExact(root, activity.getString(R.string.reasoning_hide)).performClick();
                 assertFalse(containsVisible(root, "Vérification étape par étape."));
 
-                // Only safe HTTPS link button is rendered; unsafe schemes are completely absent.
-                assertFalse(containsVisible(root, "Mauvais"));
-                assertFalse(containsVisible(root, "Local"));
+                // Only safe HTTPS link button is rendered; unsafe schemes produce no clickable Button action.
+                assertEquals(1, page.links.size());
+                assertEquals(2, page.rejectedLinks);
+                assertNull(findContains(root, "Mauvais"));
+                assertNull(findContains(root, "Local"));
+                assertNull(findContains(root, "javascript:"));
+                assertNull(findContains(root, "file:"));
                 View safeBtn = findContains(root, "docs.example.org");
                 assertNotNull(safeBtn);
                 safeBtn.performClick();
