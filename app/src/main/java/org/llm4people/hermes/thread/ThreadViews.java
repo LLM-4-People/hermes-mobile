@@ -40,6 +40,7 @@ final class ThreadViews {
     private LinearLayout composerSlot;
     private LinearLayout photoSlot;
     private boolean importingPhoto;
+    private boolean runActive;
     private Button more;
     private EditText input;
     final VoiceDrafts voice;
@@ -152,6 +153,7 @@ final class ThreadViews {
         input.setSelection(input.length());
         composerVoice = voice.bind(input);
         send = Ui.button(activity, "Envoyer", v -> {
+            if (!send.isEnabled()) return;
             composerVoice.cancel();
             if (instruments != null) instruments.revealDiscussionIfCompact();
             onSend.run();
@@ -195,7 +197,7 @@ final class ThreadViews {
             @Override public void afterTextChanged(Editable s) {}
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
                 onDraft.accept(s.toString());
-                send.setEnabled(!importingPhoto && !VisibleText.isBlank(s.toString()));
+                updateSend();
             }
         });
         busy(false, false);
@@ -312,7 +314,7 @@ final class ThreadViews {
 
     void importingPhoto(boolean importing) {
         importingPhoto = importing;
-        send.setEnabled(!importing && !draft().trim().isEmpty());
+        updateSend();
     }
 
     void photo(JSONObject info, Runnable remove) {
@@ -337,9 +339,14 @@ final class ThreadViews {
         photoSlot.addView(removeButton);
     }
 
+    private void updateSend() {
+        send.setEnabled(!runActive && !importingPhoto && !VisibleText.isBlank(draft()));
+    }
+
     void busy(boolean active, boolean canStop) {
+        runActive = active;
         send.setVisibility(active ? View.GONE : View.VISIBLE);
-        send.setEnabled(!active && !importingPhoto && !VisibleText.isBlank(draft()));
+        updateSend();
         stop.setVisibility(active && canStop ? View.VISIBLE : View.GONE);
         stop.setEnabled(canStop);
     }
