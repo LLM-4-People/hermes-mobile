@@ -239,9 +239,11 @@ final class PushStore extends SQLiteOpenHelper {
         data.put("retry_at", 0);
         data.putNull("failure");
         data.put("attempts", 0);
-        return getWritableDatabase().update("devices", data,
+        boolean changed = getWritableDatabase().update("devices", data,
                 "installation=? AND state IN (?,?) AND (retry_at=0 OR repair<>0) AND (failure IS NULL OR failure<>?)",
                 new String[]{device.installation, PENDING, ACTIVE, RENEW}) == 1;
+        if (changed) changes.notifyChanged();
+        return changed;
     }
 
     private Device insert(String profile, String endpoint, ContentValues data)
@@ -296,8 +298,9 @@ final class PushStore extends SQLiteOpenHelper {
                     new String[]{device.installation, device.state, device.subscriptionVersion,
                             Integer.toString(device.repair), Long.toString(device.retryAt)}) == 0) return false;
             db.setTransactionSuccessful();
-            return true;
         } finally { db.endTransaction(); }
+        if (device.repair != WAITING_ENDPOINT) changes.notifyChanged();
+        return true;
     }
 
     private static long repairDelay(int attempts) { return Math.min(MAX_DELAY, 30_000L << Math.min(7, Math.max(0, attempts - 1))); }

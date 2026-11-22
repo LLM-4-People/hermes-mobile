@@ -11,6 +11,7 @@ import android.content.pm.PackageManager;
 import android.os.Build;
 import android.provider.Settings;
 import android.view.View;
+import android.widget.LinearLayout;
 
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.Ui;
@@ -66,30 +67,30 @@ final class PushSettings {
         if (!current()) return;
         DistributorEnrollment.reconcile(activity);
         PushStore.Device device = PushStore.get(activity).forProfile(account.id);
+        if (display(settingsDialog(device, PushNotices.allowed(activity))) != null) observeState(device);
+    }
+
+    AlertDialog.Builder settingsDialog(PushStore.Device device, boolean allowed) {
         AlertDialog.Builder builder = new AlertDialog.Builder(activity).setTitle("Notifications du profil")
                 .setNegativeButton("Fermer", null)
                 .setNeutralButton("Historique", (d,w) -> history(0, new ArrayDeque<>()));
         if (device != null && PushStore.REMOVING.equals(device.state)) {
             builder.setMessage("Les alertes sont coupées sur cet appareil. La désactivation sur le serveur reste à confirmer.")
                     .setPositiveButton("Réessayer", (d,w) -> remove(device));
-        } else if (device != null && (PushStore.ACTIVE.equals(device.state) || PushStore.PENDING.equals(device.state))
-                && device.repair != PushStore.NO_REPAIR && device.failure != null) {
-            builder.setTitle("Connexion au distributeur à rétablir").setMessage(registrationMessage(device))
-                    .setNegativeButton("Désactiver", (d,w) -> remove(device));
-            if (device.repair == PushStore.REPAIR_ACTION)
-                builder.setPositiveButton("Réessayer", (d,w) -> run("Reconnexion au distributeur…",
-                        () -> DistributorEnrollment.repair(activity.getApplicationContext(), device, true)));
-        } else if (device != null && PushStore.ACTIVE.equals(device.state)) {
-            if (PushNotices.allowed(activity)) {
-                builder.setMessage(device.unified()
-                                ? "Le relais a enregistré ce profil. Ouvrez le distributeur pour vérifier sa connexion et terminer la configuration des alertes."
-                                : "Les rappels et l’activité de vos sessions peuvent vous prévenir même après la fermeture de l’application.")
-                        .setPositiveButton("Désactiver", (d,w) -> remove(device));
-            } else {
+        } else if (device != null && (PushStore.ACTIVE.equals(device.state) || pendingRepair(device))) {
+            if (!allowed) {
+                String android = "Autorisez les notifications dans les réglages Android pour recevoir les alertes de ce profil.";
                 builder.setTitle("Alertes bloquées par Android")
-                        .setMessage("Autorisez les notifications dans les réglages Android pour recevoir les alertes de ce profil.")
+                        .setMessage(device.repair == PushStore.NO_REPAIR ? android : android + "\n\n" + activeMessage(device))
                         .setPositiveButton("Réglages Android", (d,w) -> systemSettings())
                         .setNegativeButton("Désactiver", (d,w) -> remove(device));
+            } else if (device.repair != PushStore.NO_REPAIR) {
+                builder.setTitle("Connexion au distributeur").setMessage(activeMessage(device))
+                        .setNegativeButton("Désactiver", (d,w) -> remove(device));
+                if (device.repair == PushStore.REPAIR_ACTION)
+                    builder.setPositiveButton("Réessayer", (d,w) -> retryRepair(device));
+            } else {
+                builder.setMessage(activeMessage(device)).setPositiveButton("Désactiver", (d,w) -> remove(device));
             }
         } else if (device != null) {
             builder.setTitle("Inscription à confirmer")
@@ -101,9 +102,30 @@ final class PushSettings {
                     .setPositiveButton("Activer", (d,w) -> begin());
         }
         if (offersDistributor(device)) {
-            builder.setView(Ui.button(activity, "Ouvrir le distributeur", v -> openDistributor(v, device)));
+            View open = Ui.button(activity, "Ouvrir le distributeur", v -> openDistributor(v, device));
+            if (!allowed && device.repair == PushStore.REPAIR_ACTION) {
+                LinearLayout actions = Ui.column(activity);
+                actions.addView(open);
+                actions.addView(Ui.button(activity, "Réessayer", v -> retryRepair(device)));
+                builder.setView(actions);
+            } else builder.setView(open);
         }
-        if (display(builder) != null) observeState(device);
+        return builder;
+    }
+
+    private void retryRepair(PushStore.Device device) {
+        run("Reconnexion au distributeur…", () -> DistributorEnrollment.repair(activity.getApplicationContext(), device, true));
+    }
+
+    private static String activeMessage(PushStore.Device device) {
+        if (!device.unified()) return "Les rappels et l’activité de vos sessions peuvent vous prévenir même après la fermeture de l’application.";
+        String status = pendingRepair(device) ? "La confirmation du relais est en attente. " : "Le relais a enregistré ce profil. ";
+        return status + switch (device.repair) {
+            case PushStore.WAITING_ENDPOINT -> "Hermes attend la confirmation du distributeur.";
+            case PushStore.RETRY_REPAIR -> "Hermes réessaiera automatiquement de joindre le distributeur.";
+            case PushStore.REPAIR_ACTION -> registrationMessage(device);
+            default -> "Ouvrez le distributeur pour vérifier sa connexion et terminer la configuration des alertes.";
+        };
     }
 
     private static String registrationMessage(PushStore.Device device) {
@@ -114,7 +136,9 @@ final class PushSettings {
             case "VAPID_REQUIRED" -> "Le distributeur demande une clé VAPID. Vérifiez la configuration du relais, puis réessayez.";
             case PushStore.ENDPOINT_REJECTED -> "Le relais refuse cette adresse de notification. Vérifiez le serveur du distributeur, puis réessayez.";
             case PushStore.ACCOUNT_REQUIRED -> "Le relais demande de confirmer l’inscription avec ce profil. Vérifiez sa clé d’accès, puis réessayez.";
-            default -> "Le distributeur n’a pas pu terminer l’inscription. Vérifiez sa configuration, puis réessayez.";
+            default -> device.repair == PushStore.REPAIR_ACTION
+                    ? "La reconnexion au distributeur a échoué. Vérifiez sa configuration, puis réessayez."
+                    : "Le distributeur n’a pas pu terminer l’inscription. Vérifiez sa configuration, puis réessayez.";
         };
     }
 
@@ -130,7 +154,7 @@ final class PushSettings {
                     if (displayed == null || updated == null) {
                         if (displayed != updated) show();
                     } else if (!displayed.installation.equals(updated.installation)
-                            || !displayed.state.equals(updated.state)
+                            || !displayed.state.equals(updated.state) || displayed.repair != updated.repair
                             || !Objects.equals(displayed.failure, updated.failure)
                             || displayed.retryScheduled() != updated.retryScheduled()) show();
                 });
@@ -181,8 +205,12 @@ final class PushSettings {
                 .putExtra(Settings.EXTRA_APP_PACKAGE, activity.getPackageName()));
     }
 
+    private static boolean pendingRepair(PushStore.Device device) {
+        return PushStore.PENDING.equals(device.state) && device.repair != PushStore.NO_REPAIR;
+    }
+
     private static boolean offersDistributor(PushStore.Device device) {
-        return device != null && device.unified() && (PushStore.ACTIVE.equals(device.state)
+        return device != null && device.unified() && (PushStore.ACTIVE.equals(device.state) || pendingRepair(device)
                 || PushStore.FAILED.equals(device.state) && "ACTION_REQUIRED".equals(device.failure));
     }
 
