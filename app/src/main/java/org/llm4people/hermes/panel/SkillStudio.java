@@ -4,6 +4,7 @@ import android.app.AlertDialog;
 import android.graphics.Typeface;
 import android.text.Editable;
 import android.text.TextWatcher;
+import android.text.InputFilter;
 import android.view.View;
 import android.widget.Button;
 import android.widget.CheckBox;
@@ -335,6 +336,7 @@ final class SkillStudio {
         EditText nameField = BrainUi.searchField(panel.activity, 0, R.string.brain_skills_name_hint);
         EditText catField = BrainUi.searchField(panel.activity, 0, R.string.brain_skills_category_hint);
         EditText descField = BrainUi.searchField(panel.activity, 0, R.string.brain_skills_desc_hint);
+        descField.setFilters(new InputFilter[]{new InputFilter.LengthFilter(SkillStudioModel.MAX_DESCRIPTION_CHARS)});
         EditText bodyField = BrainUi.multilineField(panel.activity, R.string.brain_skills_instructions_hint, 6);
         CheckBox rawMode = new CheckBox(panel.activity);
         rawMode.setMinHeight(Ui.dp(panel.activity, 48));

@@ -53,6 +53,8 @@ public final class AmbientIntelligenceTest extends InstrumentationTestCase {
         Activity activity = getInstrumentation().startActivitySync(launch);
         java.util.concurrent.atomic.AtomicReference<HermesNotificationListener.ReplyOutcome> outcome =
                 new java.util.concurrent.atomic.AtomicReference<>();
+        java.util.concurrent.atomic.AtomicReference<HermesNotificationListener.ReplyOutcome> revokedOutcome =
+                new java.util.concurrent.atomic.AtomicReference<>();
         try {
             runTestOnUiThread(() -> {
                 Map<String, String> backing = new HashMap<>();
@@ -85,12 +87,10 @@ public final class AmbientIntelligenceTest extends InstrumentationTestCase {
                 mediaDialog.dismiss();
 
                 // Revoked live opt-in fails closed when confirm is invoked on an open quick-reply dialog.
-                java.util.concurrent.atomic.AtomicReference<HermesNotificationListener.ReplyOutcome> revokedOutcome =
-                        new java.util.concurrent.atomic.AtomicReference<>();
+                // AlertDialog dispatches the positive click through its Handler, so assert after idle sync.
                 AlertDialog revokedDialog = HermesNotificationListener.showQuickReplyConfirmation(
                         activity, sample, "Bonjour", () -> false, revokedOutcome::set);
                 revokedDialog.getButton(AlertDialog.BUTTON_POSITIVE).performClick();
-                assertEquals(HermesNotificationListener.ReplyOutcome.FAILED, revokedOutcome.get());
 
                 panel.dismissDialogs();
                 HermesNotificationListener.clearSession();
@@ -98,6 +98,7 @@ public final class AmbientIntelligenceTest extends InstrumentationTestCase {
             });
             getInstrumentation().waitForIdleSync();
             assertEquals(HermesNotificationListener.ReplyOutcome.CANCELLED, outcome.get());
+            assertEquals(HermesNotificationListener.ReplyOutcome.FAILED, revokedOutcome.get());
         } finally {
             runTestOnUiThread(activity::finish);
         }

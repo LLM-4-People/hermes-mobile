@@ -182,8 +182,9 @@ public final class ThreadActions implements Closeable {
                     int checkedId = group.getCheckedRadioButtonId();
                     int index = checkedId > 0 && checkedId <= turns.size() ? checkedId - 1 : turns.size() - 1;
                     ThreadActionModel.TurnChoice chosen = turns.get(index);
-                    executeFork(chosen.targetSessionId(sessionId), chosen.messageId(),
-                            keepOpen.isChecked(), openForkedThread);
+                    // Fork the active tip: the server resolves compacted lineage from it (Fork PR #20), and
+                    // keep_source_open=false must end the tip, not an already-compacted older segment.
+                    executeFork(sessionId, chosen.messageId(), keepOpen.isChecked(), openForkedThread);
                 }));
     }
 

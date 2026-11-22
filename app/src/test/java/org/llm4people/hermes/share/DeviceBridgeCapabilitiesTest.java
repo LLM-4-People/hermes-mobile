@@ -128,4 +128,14 @@ public final class DeviceBridgeCapabilitiesTest {
         assertEquals(3, DeviceBridgeFlow.resolveCalendarDays(null, 3));
         assertEquals(1, DeviceBridgeFlow.resolveCalendarDays(1, 10));
     }
+
+    @Test
+    public void calendarDraftWithoutEndDefaultsToOneHourOnlyForValidOffsetStarts() {
+        assertEquals("2026-11-23T11:00:00Z", DeviceBridgeFlow.defaultCalendarEnd("2026-11-23T10:00:00Z"));
+        assertEquals("2026-11-24T00:30:00-05:00", DeviceBridgeFlow.defaultCalendarEnd(" 2026-11-23T23:30:00-05:00 "));
+        // No offset, free text, or blank starts stay without an end so DeviceAction fails closed.
+        for (String invalid : new String[]{null, "", "   ", "demain 10h", "2026-11-23T10:00:00", "2026-13-40T10:00:00Z"}) {
+            assertEquals(null, DeviceBridgeFlow.defaultCalendarEnd(invalid));
+        }
+    }
 }

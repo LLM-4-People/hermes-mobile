@@ -42,6 +42,11 @@ public final class NotesModel {
             return isOwner() || UniversalShareModel.PERM_EDIT.equals(permission);
         }
 
+        /** Fork {@code tools/mobile_notes.py} rejects pin/archive from non-owners with HTTP 403 {@code note_owner_required}. */
+        public boolean canPin() {
+            return isOwner();
+        }
+
         public boolean canDelete() {
             return isOwner();
         }

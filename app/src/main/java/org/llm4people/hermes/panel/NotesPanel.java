@@ -36,6 +36,7 @@ final class NotesPanel {
     private final Consumer<String> stageDraft;
     private final Runnable parent;
     private int activeTab = TAB_MINE;
+    private int loadSeq;
     private BrainCapabilities capabilities = BrainCapabilities.empty();
     private List<NotesModel.Note> notes = new ArrayList<>();
     private List<NotesModel.HabitSuggestion> learnedHabits = new ArrayList<>();
@@ -87,11 +88,15 @@ final class NotesPanel {
     private void load() {
         body.removeAllViews();
         habitsBox.removeAllViews();
+        // Each tab switch or reload supersedes any in-flight load: a stale response must never
+        // overwrite the notes of the tab now on screen.
+        int seq = ++loadSeq;
+        boolean sharedTab = activeTab == TAB_SHARED;
         panel.request(body, () -> {
             BrainCapabilities caps = BrainJson.parseCapabilities(panel.api.capabilities());
             if (!caps.smartNotes()) return new Object[]{caps, null, null};
             List<NotesModel.Note> fetched;
-            if (activeTab == TAB_SHARED) {
+            if (sharedTab) {
                 fetched = BrainJson.parseNotes(panel.api.get("/api/notes/shared-with-me"), true);
             } else {
                 fetched = BrainJson.parseNotes(panel.api.get("/api/notes"), false);
@@ -99,6 +104,7 @@ final class NotesPanel {
             List<NotesModel.HabitSuggestion> habits = fetchOptionalHabits(caps);
             return new Object[]{caps, fetched, habits};
         }, payload -> {
+            if (seq != loadSeq) return;
             capabilities = (BrainCapabilities) payload[0];
             @SuppressWarnings("unchecked")
             List<NotesModel.Note> fetched = (List<NotesModel.Note>) payload[1];
@@ -114,6 +120,7 @@ final class NotesPanel {
             renderHabits();
             renderList();
         }, error -> {
+            if (seq != loadSeq) return;
             if (error instanceof HermesApi.HttpError http && (http.status == 404 || http.status == 405 || http.status == 501)) {
                 Diagnostics.warning("notes", "endpoint_absent", "http_" + http.status);
                 BrainUi.showUnavailable(panel, body, R.string.brain_notes_unavailable, this::load);
@@ -257,7 +264,9 @@ final class NotesPanel {
         form.addView(titleField, gap);
         form.addView(bodyField, gap);
         form.addView(tagsField, gap);
-        form.addView(pinBox);
+        // Only the owner may pin; a shared "edit" collaborator never sends "pinned" (Fork answers 403).
+        boolean ownerControls = existing == null || existing.canPin();
+        if (ownerControls) form.addView(pinBox);
         TextView errorView = panel.note(form, "");
         errorView.setTextColor(panel.activity.getColor(R.color.danger));
         errorView.setVisibility(View.GONE);
@@ -287,7 +296,7 @@ final class NotesPanel {
             PanelData.put(payload, "title", validTitle);
             PanelData.put(payload, "content", validBody);
             PanelData.put(payload, "tags", new JSONArray(tags));
-            PanelData.put(payload, "pinned", pinned);
+            if (ownerControls) PanelData.put(payload, "pinned", pinned);
             if (existing != null && !existing.isOwner() && !existing.ownerProfile().isEmpty()) {
                 PanelData.put(payload, "owner_profile", existing.ownerProfile());
             }

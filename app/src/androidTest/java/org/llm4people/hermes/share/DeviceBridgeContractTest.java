@@ -157,6 +157,42 @@ public final class DeviceBridgeContractTest extends InstrumentationTestCase {
         assertEquals("upl_abc123", replayed.getJSONArray("attachments").getString(0));
     }
 
+    private static DeviceAction forkPromptAction(String actionType, JSONObject params) throws Exception {
+        return DeviceBridgeFlow.toDeviceAction(DeviceBridgeFlow.parseRequest(new JSONObject()
+                .put("request_id", "fork_" + actionType).put("action_type", actionType).put("params", params)));
+    }
+
+    /** Exact params taught by Fork agent/mobile_companion_prompt.py must map to reviewed OS handoffs. */
+    public void testForkCompanionPromptAliasesMapToReviewedActions() throws Exception {
+        DeviceAction timer = forkPromptAction("alarm_timer", new JSONObject().put("duration_seconds", 600));
+        assertTrue(timer instanceof DeviceAction.SetTimer);
+        assertEquals(600, ((DeviceAction.SetTimer) timer).seconds());
+
+        DeviceAction dial = forkPromptAction("dial_draft", new JSONObject().put("phone", "+1 514-555-0100"));
+        assertTrue(dial instanceof DeviceAction.DialDraft);
+        assertEquals("+1 514-555-0100", ((DeviceAction.DialDraft) dial).number());
+
+        DeviceAction email = forkPromptAction("email_draft", new JSONObject()
+                .put("to", "a@exemple.fr").put("subject", "Sujet").put("body", "Bonjour"));
+        assertTrue(email instanceof DeviceAction.EmailDraft);
+        assertEquals("a@exemple.fr", ((DeviceAction.EmailDraft) email).recipient());
+
+        DeviceAction calendar = forkPromptAction("calendar_draft", new JSONObject()
+                .put("title", "Réunion").put("start", "2026-11-23T10:00:00Z"));
+        assertTrue(calendar instanceof DeviceAction.CalendarEvent);
+        DeviceAction.CalendarEvent event = (DeviceAction.CalendarEvent) calendar;
+        assertEquals(event.start().plusHours(1), event.end());
+
+        // A canonical key wins over its alias; the alias is dropped instead of tripping the strict parser.
+        DeviceAction both = forkPromptAction("alarm_timer", new JSONObject().put("seconds", 120).put("duration_seconds", 600));
+        assertEquals(120, ((DeviceAction.SetTimer) both).seconds());
+        // Malformed aliases and unparseable starts still fail closed.
+        assertNull(forkPromptAction("dial_draft", new JSONObject().put("phone", "appelle maman")));
+        assertNull(forkPromptAction("email_draft", new JSONObject().put("to", "pas-une-adresse")));
+        assertNull(forkPromptAction("calendar_draft", new JSONObject().put("title", "Réunion").put("start", "demain")));
+        assertNull(forkPromptAction("alarm_timer", new JSONObject().put("duration_seconds", 0)));
+    }
+
     public void testRejectsInvalidBridgeRequests() throws Exception {
         assertNull(DeviceBridgeFlow.parseRequest(null));
         assertNull(DeviceBridgeFlow.parseRequest(new JSONObject()

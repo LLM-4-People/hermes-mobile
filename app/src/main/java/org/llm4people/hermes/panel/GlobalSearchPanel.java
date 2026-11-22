@@ -33,6 +33,8 @@ final class GlobalSearchPanel {
     private String activeQuery = "";
     private int totalMatches;
     private boolean canLoadMore;
+    private int requestSeq;
+    private boolean loadingMore;
     private final List<SearchResultModel.Hit> loadedHits = new ArrayList<>();
     private Boolean supported;
 
@@ -113,6 +115,8 @@ final class GlobalSearchPanel {
         String query = SearchResultModel.normalizeQuery(queryField.getText().toString());
         activeQuery = query;
         if (query.isEmpty()) {
+            requestSeq++;
+            loadingMore = false;
             loadedHits.clear();
             resultsBox.removeAllViews();
             panel.note(resultsBox, panel.t(R.string.brain_search_prompt));
@@ -121,9 +125,16 @@ final class GlobalSearchPanel {
         executeSearch(query, 0, false);
     }
 
+    /**
+     * Every new query, role switch, or page request supersedes the previous one: only the newest
+     * response ({@code seq == requestSeq}) may touch {@link #loadedHits}, so a slow earlier search can
+     * never append stale hits under a newer query, and a double tap cannot fetch the same page twice.
+     */
     private void executeSearch(String query, int offset, boolean append) {
+        if (append && loadingMore) return;
+        int seq = ++requestSeq;
+        loadingMore = append;
         if (!append) {
-            loadedHits.clear();
             totalMatches = 0;
             canLoadMore = false;
             resultsBox.removeAllViews();
@@ -137,12 +148,17 @@ final class GlobalSearchPanel {
         }
         panel.request(resultsBox, () -> BrainJson.parseSearchPage(panel.api.get(path.toString())),
                 result -> {
+                    if (seq != requestSeq) return;
+                    loadingMore = false;
                     Diagnostics.event("search", "completed");
+                    if (!append) loadedHits.clear();
                     loadedHits.addAll(result.hits());
                     totalMatches = Math.max(append ? totalMatches : 0, Math.max(result.total(), loadedHits.size()));
                     canLoadMore = !result.hits().isEmpty() && result.hasMore(loadedHits.size());
                     renderResults();
                 }, error -> {
+                    if (seq != requestSeq) return;
+                    loadingMore = false;
                     if (error instanceof HermesApi.HttpError http && (http.status == 404 || http.status == 405 || http.status == 501)) {
                         Diagnostics.warning("search", "endpoint_absent", "http_" + http.status);
                         BrainUi.showUnavailable(panel, resultsBox, R.string.brain_search_unavailable, this::submitSearch);
