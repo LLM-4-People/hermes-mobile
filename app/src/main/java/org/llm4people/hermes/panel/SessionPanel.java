@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 /** Window owned by the unlocked profile's activity, including its in-flight UI callbacks. */
@@ -35,7 +36,7 @@ public final class SessionPanel implements AutoCloseable {
     private Dialog dialog;
     private Dialog child;
     private ExecutorService worker;
-    private int generation;
+    private volatile int generation;
     private Runnable back;
     private String surface;
     private View nativeContent;
@@ -172,6 +173,11 @@ public final class SessionPanel implements AutoCloseable {
         button.setGravity(android.view.Gravity.START | android.view.Gravity.CENTER_VERTICAL);
         box.addView(button);
         return button;
+    }
+
+    BooleanSupplier currentPage() {
+        int page = generation;
+        return () -> generation == page && !Thread.currentThread().isInterrupted();
     }
 
     <T> void load(LinearLayout box, Callable<T> call, Consumer<T> success, Runnable retry) {
