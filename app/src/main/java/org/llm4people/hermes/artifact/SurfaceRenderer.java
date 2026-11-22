@@ -132,6 +132,8 @@ final class SurfaceRenderer {
             if (history.canUndo()) builder.setNeutralButton("Annuler la modification",
                     (d, w) -> change(activity, host, history::undo));
             return DeskDialogs.open(activity, builder);
+        } catch (PageLayouts.Damaged damaged) {
+            return WorkspacePages.confirmRecovery(activity, damaged, host);
         } catch (LayoutHistory.Unreadable e) {
             Diagnostics.warning("workspace", "read_failed");
             String screen = WorkspaceLayout.SURFACES.get(history.surface);
@@ -151,6 +153,10 @@ final class SurfaceRenderer {
             DeskDialogs.open(activity, new AlertDialog.Builder(activity).setTitle("Bibliothèque pleine")
                     .setMessage("Libérez une place depuis les dispositions des écrans en effaçant une révision supprimée.")
                     .setPositiveButton("Fermer",null));
+            return;
+        }
+        catch (PageLayouts.Damaged damaged) {
+            WorkspacePages.confirmRecovery(activity, damaged, host);
             return;
         }
         catch (LayoutHistory.Unreadable e) {

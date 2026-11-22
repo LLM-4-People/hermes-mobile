@@ -32,11 +32,15 @@ final class LayoutHistory {
             String raw = account.read(key);
             if (raw == null) return new JSONObject();
             JSONObject record = new JSONObject(raw);
-            if (!(record.opt("current") instanceof String)
-                    || (record.has("previous") && !(record.opt("previous") instanceof String)))
+            if (!validRecord(record))
                 throw new JSONException("Invalid layout history");
             return record;
         } catch (Account.UnreadableRecord | JSONException e) { throw new Unreadable(e); }
+    }
+
+    static boolean validRecord(JSONObject record) {
+        return record != null && record.opt("current") instanceof String
+                && (!record.has("previous") || record.opt("previous") instanceof String);
     }
 
     private void update(UnaryOperator<JSONObject> mutation) {

@@ -67,12 +67,25 @@ final class DraftForm {
         for (Field f : form.fields) {
             String answer = inputs.get(f.id);
             answer = answer == null ? "" : answer.trim();
-            if (answer.isEmpty() && !f.required) continue;
-            if (answer.isEmpty() || answer.length() > MAX_INPUT
+            if (blank(answer)) {
+                if (f.required) throw new MissingAnswer(f);
+                continue;
+            }
+            if (answer.length() > MAX_INPUT
                     || ("choice".equals(f.kind) && !f.options.contains(answer))) throw new MissingAnswer(f);
             out.append("\n\n").append(f.label).append("\n").append(answer);
         }
         return out.toString();
+    }
+
+    static boolean blank(String value) {
+        for (int i = 0; i < value.length();) {
+            int cp = value.codePointAt(i);
+            if (!Character.isWhitespace(cp) && !Character.isSpaceChar(cp) && !Character.isISOControl(cp)
+                    && Character.getType(cp) != Character.FORMAT) return false;
+            i += Character.charCount(cp);
+        }
+        return true;
     }
 
     static final class MissingAnswer extends Exception {
