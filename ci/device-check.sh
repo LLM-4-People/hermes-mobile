@@ -2,7 +2,7 @@
 # Install the framework-tested APKs once for both live gateway journeys.
 set -euo pipefail
 # Release build workers before booting two gateway processes beside the emulator.
-./gradlew --no-daemon --max-workers=2 :app:connectedDebugAndroidTest
+python3 ci/gradle_check.py --no-daemon --max-workers=2 :app:connectedDebugAndroidTest
 device=$(adb get-serialno)
 app_apk=app/build/outputs/apk/debug/app-debug.apk
 test_apk=app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk

@@ -7,8 +7,12 @@ public final class PushApplication extends Application {
         super.onCreate();
         DistributorEnrollment.reconcile(this);
         boolean pending = MobilePush.reconcileRemovals(this);
-        for (PushStore.Device device : PushStore.get(this).devices())
-            pending |= device.unified() && PushStore.PENDING.equals(device.state);
+        PushStore store = PushStore.get(this);
+        for (PushStore.Device device : store.devices()) {
+            if (!device.unified()) continue;
+            pending |= PushStore.PENDING.equals(device.state);
+            if (PushStore.ACTIVE.equals(device.state)) store.drain(this, device);
+        }
         PushSyncService.scheduleRetries(this);
         if (pending) PushSyncService.ensureScheduled(this);
         PushConnection.restore(this);

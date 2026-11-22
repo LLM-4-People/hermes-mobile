@@ -27,6 +27,7 @@ from .stack import (
     json_request,
     ntfy,
     proxy,
+    wait_for_ntfy_subscriber,
 )
 from .ui import (
     APP,
@@ -107,6 +108,28 @@ def published_messages(topic):
         return [obj for line in response if line.strip() and (obj := json.loads(line))["event"] == "message"]
 
 
+def new_binary_publication(messages, before):
+    if len(messages) == before:
+        return False
+    if len(messages) != before + 1 or messages[-1].get("encoding") != "base64":
+        raise AssertionError("Expected one new binary Web Push on the registered topic")
+    return True
+
+
+def delivery_state(database, device, device_id, event_id):
+    # Return counters and flags only. Database rows, topic URLs and distributor logs contain credentials.
+    with closing(sqlite3.connect(database.as_uri() + "?mode=ro", uri=True)) as db:
+        row = db.execute("SELECT attempts FROM deliveries WHERE device_id=? AND event_id=?",
+                         (device_id, event_id)).fetchone()
+    permission = device.shell("dumpsys", "package", APP)
+    services = device.shell("dumpsys", "activity", "services", "io.heckel.ntfy")
+    return {
+        "pending_relay_attempts": row[0] if row else None,
+        "phone_notification_permission": "android.permission.POST_NOTIFICATIONS: granted=true" in permission,
+        "distributor_subscriber_service": "SubscriberService" in services,
+    }
+
+
 def app_notice(device, event_id):
     # cmd notification list gives active notification keys; the application uses its event ID in the tag.
     for key in device.shell("cmd", "notification", "list").splitlines():
@@ -148,6 +171,8 @@ def disposable_app(device, apk):
 
 
 def run(args):
+    if args.evidence_dir:
+        args.evidence_dir.mkdir(mode=0o700, parents=True, exist_ok=False)
     source = args.source.resolve()
     check_source(source, args.revision)
     sys.path.insert(0, str(source))
@@ -197,10 +222,13 @@ def run(args):
                 raise AssertionError("Device registered with another push origin")
             before = len(published_messages(topic))
             ui.wait("Désactiver")
-            adb.shell("input", "keyevent", "BACK")
-            ui.tap("Autres actions")
-            ui.tap("Verrouiller le profil")
+            ui.tap("Ouvrir le distributeur")
+            ui.wait("Subscribed topics")
+            wait_for_ntfy_subscriber(root, topic)
+            launch(adb, APP)
             start_account(ui, alt, other_url, other.key, secrets.token_hex(14))
+            # Confirm the same stream stays connected after leaving ntfy, before closing Hermes.
+            wait_for_ntfy_subscriber(root, topic)
             process_absent(ui)
             session, run_id = trigger(primary, title)
             event = eventually(
@@ -209,16 +237,24 @@ def run(args):
             )
             if event["session_id"] != session:
                 raise AssertionError("Event lost its session association")
-            notice = eventually(
-                "Android notification with this exact event",
-                lambda: app_notice(adb, event["event_id"]),
-            )
-            pushed = published_messages(topic)
-            if len(pushed) != before + 1 or pushed[-1].get("encoding") != "base64":
-                raise AssertionError("Expected one encrypted binary Web Push on the registered topic")
-            tap_notice(ui, notice_title(adb, notice), owner, phrase, title, reply)
+            try:
+                eventually("one binary Web Push on the registered ntfy topic",
+                           lambda: new_binary_publication(published_messages(topic), before))
+                print("ntfy received one binary Web Push on the enrolled topic", file=sys.stderr, flush=True)
+                notice = eventually(
+                    "Android notification with this exact event",
+                    lambda: app_notice(adb, event["event_id"]),
+                )
+            except AssertionError as failure:
+                try:
+                    state = delivery_state(db, adb, device_id, event["event_id"])
+                    failure.add_note("Delivery state " + json.dumps(state, sort_keys=True))
+                except Exception as diagnostic:
+                    failure.add_note("Delivery state unavailable (" + type(diagnostic).__name__ + ")")
+                raise
+            tap_notice(ui, notice_title(adb, notice), owner, phrase, title, reply, args.evidence_dir)
             ui.tap("Atelier")
-            ui.tap("Notifications")
+            ui.tap("Notifications", scroll=True)
             ui.tap("Désactiver")
             eventually("server revocation", lambda: revoked_everywhere(db, device_id))
             _, second_run = trigger(primary, "Après révocation")
@@ -229,7 +265,7 @@ def run(args):
             if (
                 not revoked_everywhere(db, device_id, revoked["event_id"])
                 or app_notice(adb, revoked["event_id"])
-                or len(published_messages(topic)) != len(pushed)
+                or len(published_messages(topic)) != before + 1
             ):
                 raise AssertionError("Revoked device received another message")
             print(
@@ -251,7 +287,7 @@ def run(args):
                 )
             )
         finally:
-            adb.shell("rm", "-f", ui.tmp)
+            adb.shell("cmd", "statusbar", "collapse")
 
 
 def main():
@@ -286,6 +322,7 @@ def main():
         default=os.environ.get("HERMES_FIXTURE_TLS_CA"),
         help="PEM fixture CA trusted by the disposable Android phone",
     )
+    parser.add_argument("--evidence-dir", type=Path, help="New directory for the generic shade labels and verified thread controls")
     args = parser.parse_args()
     tls = (args.tls_cert, args.tls_key, args.tls_ca)
     if any(tls) and not all(tls):

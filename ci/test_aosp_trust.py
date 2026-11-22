@@ -19,11 +19,13 @@ class FakePhone:
         self.boot = 1
         self.verity = True
         self.next_verity = True
+        self.writable = False
 
     def run(self, *args, **kwargs):
         if args in [("root",), ("unroot",)]:
             self.uid = "0" if args[0] == "root" else "2000"
         if args == ("remount",):
+            self.writable = not self.verity
             self.next_verity = False
         if args == ("enable-verity",):
             self.next_verity = True
@@ -31,9 +33,10 @@ class FakePhone:
             self.boot += 1
             self.uid = "2000"
             self.verity = self.next_verity
+            self.writable = False
         if args[0] == "push" and args[2].startswith(aosp_trust.CA_DIRECTORY):
-            if self.verity:
-                raise RuntimeError("verified image is read-only")
+            if not self.writable:
+                raise RuntimeError("image is read-only")
             self.anchor = args[2]
         return b""
 
@@ -61,6 +64,8 @@ class FakePhone:
             return "platform-trust-" + state
         if args[0:2] == ("rm", "-f"):
             assert self.uid == "0"
+            if self.anchor and not self.writable:
+                raise RuntimeError("image is read-only")
             self.anchor = None
         if args[0:2] == ("rm", "-r"):
             self.staging = None
@@ -105,6 +110,16 @@ class TestPrivateTrust(unittest.TestCase):
             aosp_trust.require_disposable_phone(phone, "Acceptance")
         self.assertIsNone(phone.staging)
         self.assertEqual(phone.uid, "2000")
+
+    def test_cleanup_after_child_reboots_the_disposable_phone(self):
+        phone = FakePhone()
+        with tempfile.TemporaryDirectory() as tmp, patch.object(aosp_trust, "build_probe", return_value=Path("probe.jar")):
+            with aosp_trust.system_trust(phone, "Acceptance", Path(tmp)):
+                phone.run("reboot")
+                self.assertFalse(phone.writable)
+        self.assertTrue(phone.verity)
+        self.assertIsNone(phone.anchor)
+        self.assertIsNone(phone.staging)
 
     def test_cleanup_on_failed_child_verifies_untrusted_and_restores_adb(self):
         phone = FakePhone()

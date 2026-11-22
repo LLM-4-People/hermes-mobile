@@ -95,7 +95,8 @@ class UnifiedPush(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn(b"after-binding", ciphertext)
         message = http_ece.decrypt(ciphertext, private_key=self.private, auth_secret=self.auth, version="aes128gcm")
         self.assertEqual(json.loads(message), {"event_id": event.event_id, "installation_id": self.ident,
-                                               "kind": "run_completed"})
+                                               "kind": "run_completed",
+                                               "expires_at": int((event.created_at + self.settings.retention) * 1000)})
         token, encoded_key = headers["Authorization"].removeprefix("vapid t=").split(",k=")
         self.assertEqual(encoded_key, self.settings.webpush.public_key)
         header, payload, signature = token.split(".")
@@ -115,7 +116,11 @@ class UnifiedPush(unittest.IsolatedAsyncioTestCase):
         for elapsed in (.02, .999, 1, 1.1):
             with patch("server.mobile_push.webpush.time.time", return_value=event.created_at + elapsed):
                 self.assertTrue(await asyncio.to_thread(senders.send, item))
-        self.assertEqual([headers["TTL"] for headers, _ in self.requests], ["0", "0"])
+        for headers, ciphertext in self.requests:
+            self.assertEqual((headers["TTL"], headers["X-Cache"]), ("0", "no"))
+            plain = http_ece.decrypt(ciphertext, private_key=self.private, auth_secret=self.auth, version="aes128gcm")
+            self.assertEqual(json.loads(plain)["expires_at"], int((event.created_at + 1) * 1000))
+        self.assertEqual(len(self.requests), 2)
 
     async def test_origin_key_and_provider_validation(self):
         for endpoint in (self.origin + "/other?up=1", self.origin + "/up123456789aBc?up=1&extra=1",
@@ -219,6 +224,7 @@ class UnifiedPush(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(loaded.webpush.public_key, self.settings.webpush.public_key)
             self.assertEqual(loaded.discovery()["providers"], ["unifiedpush"])
             self.assertNotIn("firebase", loaded.discovery())
+            self.assertNotIn("provider", loaded.discovery())
             with patch.dict(os.environ, MOBILE_FIREBASE_PROJECT_ID="partial"):
                 with self.assertRaisesRegex(ValueError, "MOBILE_FIREBASE_SENDER_ID"):
                     Settings.load()
@@ -226,4 +232,5 @@ class UnifiedPush(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await response.json(), loaded.discovery())
         populated = replace(loaded, firebase={"projectId": "test"})
         self.assertEqual(populated.discovery()["providers"], ["fcm", "unifiedpush"])
+        self.assertEqual(populated.discovery()["provider"], "fcm")
         self.assertEqual(Path(loaded.state, "vapid.pem").stat().st_mode & 0o077, 0)

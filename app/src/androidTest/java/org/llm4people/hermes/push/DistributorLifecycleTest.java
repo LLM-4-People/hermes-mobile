@@ -64,7 +64,7 @@ public final class DistributorLifecycleTest extends InstrumentationTestCase {
     }
 
     private PushStore.Device prepare() throws Exception {
-        PushStore.Device device = store.prepareUnified(UUID.randomUUID().toString(), SERVER, fixture.getPackageName(), VAPID);
+        PushStore.Device device = store.prepareUnified(UUID.randomUUID().toString(), SERVER, fixture.getPackageName(), DistributorIdentity.current(context, fixture.getPackageName()), VAPID);
         devices.add(device);
         return device;
     }
@@ -125,19 +125,44 @@ public final class DistributorLifecycleTest extends InstrumentationTestCase {
         assertEquals(otherToken, register(second));
     }
 
-    public void testClearingDistributorDataRevokesThePackageEvenWhenStillInstalled() throws Exception {
-        PushStore.Device first = prepare();
-        PushStore.Device second = prepare();
-        register(first);
-        register(second);
-        DistributorPackageReceiver receiver = new DistributorPackageReceiver();
-        Intent cleared = new Intent(Intent.ACTION_PACKAGE_DATA_CLEARED, Uri.fromParts("package", SUCCESSOR, null));
-        receiver.onReceive(context, cleared);
-        assertEquals(PushStore.PENDING, store.forProfile(first.profile).state);
-        cleared.setData(Uri.fromParts("package", fixture.getPackageName(), null));
-        receiver.onReceive(context, cleared);
-        assertEquals(PushStore.REMOVING, store.forProfile(first.profile).state);
-        assertEquals(PushStore.REMOVING, store.forProfile(second.profile).state);
+    public void testResetAndVisibleEntryRepairBothAccountsWithTheirOriginalKeys() throws Exception {
+        PushStore.Device first = prepare(), second = prepare();
+        String a = register(first), b = register(second);
+        for (PushStore.Device device : devices) {
+            store.updateSubscription(device, "{}");
+            store.enable(store.forProfile(device.profile));
+        }
+        Intent cleared = new Intent(Intent.ACTION_PACKAGE_DATA_CLEARED, Uri.fromParts("package", fixture.getPackageName(), null));
+        for (boolean missedBroadcast : new boolean[]{false, true}) {
+            outgoing.clear();
+            if (missedBroadcast) DistributorEnrollment.reconcile(context, true, null);
+            else new DistributorPackageReceiver().onReceive(context, cleared);
+            assertEquals(2, outgoing.stream().filter(intent -> REGISTER.equals(intent.getAction())).count());
+            for (String token : new String[]{a, b})
+                assertTrue(outgoing.stream().anyMatch(intent -> token.equals(intent.getStringExtra("token"))));
+            for (PushStore.Device device : devices) {
+                PushStore.Device recovered = store.forProfile(device.profile);
+                assertEquals(PushStore.ACTIVE, recovered.state);
+                assertEquals(device.managementKey(), recovered.managementKey());
+                assertFalse(store.updateSubscription(recovered, "{}"));
+            }
+        }
+        outgoing.clear();
+        DistributorEnrollment.reconcile(context);
+        assertTrue(outgoing.isEmpty());
+    }
+
+    public void testUnprovenOrChangedSignerReceivesNoOldWireTokenEvenWhenRemoved() throws Exception {
+        for (String pin : new String[]{"different-certificate", null}) {
+            PushStore.Device device = prepare();
+            String token = register(device);
+            store.getWritableDatabase().execSQL("UPDATE devices SET signer=? WHERE installation=?",
+                    new Object[]{pin, device.installation});
+            outgoing.clear();
+            DistributorEnrollment.reconcile(context, true, null);
+            assertEquals(PushStore.REMOVING, store.forProfile(device.profile).state);
+            assertTrue(outgoing.stream().noneMatch(intent -> token.equals(intent.getStringExtra("token"))));
+        }
     }
 
     public void testMissingPackageReleasesAllAffectedProfilesAndPicker() throws Exception {

@@ -13,6 +13,10 @@ public final class DistributorPackageReceiver extends BroadcastReceiver {
         Uri data = intent.getData();
         if (data == null || !"package".equals(data.getScheme()) || intent.getBooleanExtra(Intent.EXTRA_REPLACING, false)) return;
         String name = data.getSchemeSpecificPart();
+        if (Intent.ACTION_PACKAGE_DATA_CLEARED.equals(action)) {
+            DistributorEnrollment.reconcile(context, true, name);
+            return;
+        }
         synchronized (PushConnection.class) {
             for (PushStore.Device device : PushStore.get(context).devices()) {
                 if (name.equals(device.distributor) && !PushStore.REMOVING.equals(device.state))

@@ -11,13 +11,35 @@ MOBILE_UNIFIEDPUSH_ORIGIN=https://push.example.org
 MOBILE_VAPID_SUBJECT=mailto:operator@example.org
 ```
 
-The origin is the exact HTTPS scheme, hostname and optional port of the ntfy instance. Set the same base URL on the phone. Use a valid VAPID subject with the operator's contact address. A loopback-only test can use `http://127.0.0.1:PORT`. Setup with UnifiedPush alone needs these two provider settings. Add the Firebase settings described in the [push guide](push.md) to also offer Firebase.
+The origin is the exact HTTPS scheme, hostname and optional port of the ntfy instance. Both the bridge and the phone must be able to reach this origin. Set the same base URL on the phone. Use a valid VAPID subject with the operator's contact address. A loopback-only test can use `http://127.0.0.1:PORT`. Setup with UnifiedPush alone needs these two provider settings. Add the Firebase settings described in the [push guide](push.md) to also offer Firebase.
 
 On first startup the bridge generates a VAPID signing key in its owner-only state directory. Preserve that volume across updates and include it in private backups. The authenticated discovery endpoint advertises the public key to the phone. Scheme and host case and an explicit default port represent the same origin. When the bridge restarts with a different origin, pending events remain queued until their retention expires. Restore the intended origin to resume those deliveries. To move a phone to a different distributor server or signing key, enroll it again.
 
+For a private ntfy server, enable authentication with a deny-all default and start the server once to initialize its user database. Provision a regular account for the phone with `ntfy user add hermes-phone`, or use an existing non-admin account. [ntfy access control](https://github.com/binwiederhier/ntfy/blob/v2.38.1/docs/config.md#access-control)
+
 ## Set up the phone
 
-Install the ntfy Android distributor and select the matching self-hosted ntfy server as its default server. Enable UnifiedPush distribution in ntfy. Unlock the intended Hermes profile. In **Atelier → Notifications**, choose **Activer**, then **Activer avec UnifiedPush**. Use **Choisir un distributeur** to select ntfy. Allow Android to display notifications. To change distributors, turn off enrollments using the current distributor first. The distributor must be able to reach its server in the background. A user-initiated Android force-stop requires reopening the stopped app.
+1. Install and open the ntfy Android distributor. In **Settings → Default server**, enter the ntfy origin configured by your operator and tap **Save**. For a private server, open **Settings → Manage Users → Add New User** and enter that server URL and the username and password of your ntfy reader account. Use the Hermes profile bearer only with the Hermes gateway and bridge. [UnifiedPush private server login](https://unifiedpush.org/users/distributors/ntfy/#limit-access-to-some-users-acl)
+2. Unlock the intended Hermes profile. In **Atelier → Notifications**, tap **Activer**, allow Hermes to display notifications, then choose **Activer avec UnifiedPush** and select **ntfy**.
+3. When Hermes confirms that the relay registered this profile, tap **Ouvrir le distributeur**. Wait for ntfy’s **Subscribed topics** screen before leaving the app. On Android 13 this foreground visit lets ntfy start listening for the new subscription. You can reopen the same distributor from the profile’s notification settings.
+4. If the ntfy server uses `auth-default-access: deny-all`, tap the Hermes subscription in **Subscribed topics**. Use the generated name under **Topic URL** to grant access as described below, then let ntfy reconnect.
+5. Start a short Hermes run and leave the app. Confirm that Android shows the completion alert and that tapping it opens the owning profile.
+
+If the relay accepted an event and the phone stayed silent, reopen ntfy and check its connection to the configured server. The relay records registration before ntfy opens its listening connection. On a private server, the operator can check whether the enrolled topic has a live subscriber. Treat topic identifiers as private. A user-initiated Android force-stop requires reopening the stopped app. To change distributors, turn off enrollments using the current distributor first.
+
+## Grant access on a private ntfy server
+
+With ntfy v2.38.1 and a deny-all default, two grants are needed for each enrolled topic. The distributor signs in as the phone’s ntfy user to read messages. The bridge signs outgoing messages with VAPID. For topic access, ntfy treats that sender as anonymous.
+
+After enrollment, replace the example topic below with the name from **Topic URL**. Use only the path segment starting with `up`, omitting the host, slash and any `?up=1` suffix. If you created the account under a different name, substitute it for `hermes-phone`.
+
+```sh
+topic='upYzMtZGZiYTY5'
+ntfy access hermes-phone "$topic" read-only
+ntfy access '*' "$topic" write-only
+```
+
+Repeat the grants when a new topic is generated. Keep the topic private since anyone who knows it can publish. The broader rule `ntfy access '*' 'up*' write-only` lets anonymous senders publish to **every** matching topic on this server, including topics generated later. Exact grants keep other subscriptions under their existing policy. [ntfy v2.38.1 UnifiedPush access control](https://github.com/binwiederhier/ntfy/blob/v2.38.1/docs/config.md#example-unifiedpush)
 
 ## Device contract
 
@@ -28,6 +50,6 @@ The bridge responds to authenticated `GET /api/mobile/push` with its enabled `pr
 3. On the distributor callback, bind the same installation with its management bearer and body `{"provider":"unifiedpush","subscription":{"endpoint":"…","keys":{"p256dh":"…","auth":"…"}}}`. Use the same call for endpoint or key rotation.
 4. Revoke it using the usual authenticated device DELETE. A subsequent management update will be refused.
 
-The server accepts ntfy distributor URLs containing a generated topic on the configured origin. It refuses redirects. It encrypts only the event ID, installation ID and kind using RFC 8291, signs the request with VAPID and bounds delivery by the remaining event retention. The phone retrieves the associated private thread or reminder from the authenticated gateway.
+The server accepts ntfy distributor URLs containing a generated topic on the configured origin. It refuses redirects. It encrypts the event ID, installation ID, kind and expiry time using RFC 8291 and signs its request with VAPID. The expiry is an integer UTC Unix timestamp in milliseconds. The bridge requests immediate, uncached delivery when less than one second remains. For longer lifetimes, ntfy uses its configured cache duration. After reconnecting, the phone checks the authenticated expiry against its clock before displaying a cached alert. The phone retrieves the associated private thread or reminder from the authenticated gateway.
 
 <!-- Generated from docs/sources/docs/unifiedpush.md.in by scripts/docs.py. -->

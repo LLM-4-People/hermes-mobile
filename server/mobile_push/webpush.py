@@ -1,6 +1,8 @@
 """Encrypted UnifiedPush delivery to one operator-selected ntfy instance."""
 import base64
 from dataclasses import dataclass
+from email.errors import HeaderParseError
+from email.headerregistry import Address
 from ipaddress import IPv6Address
 import json
 import os
@@ -8,10 +10,12 @@ from pathlib import Path
 import re
 import tempfile
 import time
+from urllib.parse import unquote, urlsplit
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from py_vapid import Vapid
+from py_vapid.jwt import sign as sign_jwt
 from pywebpush import WebPusher
 import requests
 
@@ -22,6 +26,7 @@ TOPIC = re.compile(r"/up[A-Za-z0-9]{12}\?up=1")
 URL_KEY = re.compile(r"[a-zA-Z0-9_-]+={0,2}")
 ORIGIN = re.compile(r"(https?)://(\[[a-f0-9:.]+\]|[a-z0-9.-]+)(?::([0-9]+))?", re.IGNORECASE | re.ASCII)
 DNS_LABEL = re.compile(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?")
+CONTACT_URI = re.compile(r"(?:[a-zA-Z0-9._~:/?#\[\]@!$&'()*+,;=-]|%[a-fA-F0-9]{2})+")
 
 
 class OriginMismatch(ValueError):
@@ -47,6 +52,24 @@ def canonical_origin(value):
     if not 0 < port <= 65535:
         raise ValueError("Invalid UnifiedPush port")
     return f"{scheme}://{host}" + (f":{port}" if port != default_port else "")
+
+
+def validate_contact(subject):
+    if not isinstance(subject, str) or not CONTACT_URI.fullmatch(subject):
+        raise ValueError("Expected a mailto or HTTPS VAPID contact URI")
+    parts = urlsplit(subject)
+    if parts.scheme == "https":
+        canonical_origin("https://" + parts.netloc)
+        return
+    if parts.scheme != "mailto" or parts.netloc or parts.fragment:
+        raise ValueError("Expected a mailto or HTTPS VAPID contact URI")
+    for recipient in parts.path.split(","):
+        try:
+            address = Address(addr_spec=unquote(recipient, errors="strict"))
+        except (ValueError, HeaderParseError) as exc:
+            raise ValueError("Invalid VAPID mailto address") from exc
+        if not address.username or not address.domain:
+            raise ValueError("Invalid VAPID mailto address")
 
 
 def public_bytes(key):
@@ -98,17 +121,22 @@ class WebPushConfig:
     @classmethod
     def load(cls, directory, origin, subject):
         origin = canonical_origin(origin)
+        validate_contact(subject)
         identity = load_identity(Path(directory))
-        config = cls(origin, subject, identity)
-        config.authorization()  # Validate the configured operator contact and audience at startup.
-        return config
+        key = identity.private_key
+        if not isinstance(key, ec.EllipticCurvePrivateKey) or not isinstance(key.curve, ec.SECP256R1):
+            raise ValueError("Expected a P-256 VAPID private key")
+        return cls(origin, subject, identity)
 
     @property
     def public_key(self):
         return base64url(public_bytes(self.identity.public_key))
 
     def authorization(self):
-        return self.identity.sign({"aud": self.origin, "sub": self.subject})
+        # Use the JWT signer directly so IPv6 origins and HTTPS contact paths remain valid.
+        claims = {"aud": self.origin, "sub": self.subject, "exp": int(time.time()) + 86400}
+        token = sign_jwt(claims, self.identity.private_key)
+        return {"Authorization": f"vapid t={token},k={self.public_key}"}
 
     def target(self, subscription):
         if not isinstance(subscription, dict) or subscription.keys() != {"endpoint", "keys"}:
@@ -140,7 +168,8 @@ class WebPushSender:
         self.session.trust_env = False
 
     def send(self, item):
-        remaining = lifetime(item, self.retention, time.time())
+        now = time.time()
+        remaining = lifetime(item, self.retention, now)
         if remaining == 0:
             return True
         # A local policy change can be reversed. Only a response from the accepted
@@ -152,11 +181,16 @@ class WebPushSender:
         except (ValueError, TypeError) as exc:
             raise ProviderError(reason=Failure.SUBSCRIPTION) from exc
         sub = {"endpoint": endpoint, "keys": keys}
-        data = json.dumps(opaque_notice(item), separators=(",", ":")).encode()
+        notice = {**opaque_notice(item), "expires_at": int((now + remaining) * 1000)}
+        data = json.dumps(notice, separators=(",", ":")).encode()
         body = WebPusher(sub).encode(data, content_encoding="aes128gcm")["body"]
         headers = self.config.authorization()
+        ttl = int(remaining)
         headers.update({"Content-Encoding": "aes128gcm", "Content-Type": "application/octet-stream",
-                        "TTL": str(int(remaining)), "Urgency": "high"})
+                        "TTL": str(ttl), "Urgency": "high"})
+        if ttl == 0:
+            # ntfy uses its own cache policy even when the Web Push TTL requests live delivery only.
+            headers["X-Cache"] = "no"
         with self.session.post(sub["endpoint"], data=body, headers=headers, timeout=self.timeout,
                                allow_redirects=False, stream=True) as response:
             if 200 <= response.status_code < 300:

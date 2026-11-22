@@ -3,6 +3,7 @@ package org.llm4people.hermes.push;
 import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.database.DataSetObserver;
 import android.content.pm.PackageManager;
@@ -42,10 +43,21 @@ final class PushSettings {
 
     private boolean current() { return !closed && !activity.isFinishing() && !activity.isDestroyed(); }
 
-    private void display(AlertDialog.Builder builder) {
-        if (!current()) return;
+    private AlertDialog display(AlertDialog.Builder builder) {
+        if (!current()) return null;
         if (dialog != null) dialog.dismiss();
         dialog = Ui.secureDialog(builder);
+        return dialog;
+    }
+
+    private boolean showing(AlertDialog expected) {
+        return current() && dialog == expected && expected.isShowing();
+    }
+
+    private void finishProgress(AlertDialog progress, Runnable update) {
+        activity.runOnUiThread(() -> {
+            if (showing(progress)) update.run();
+        });
     }
 
     void show() {
@@ -60,7 +72,9 @@ final class PushSettings {
                     .setPositiveButton("Réessayer", (d,w) -> remove(device));
         } else if (device != null && PushStore.ACTIVE.equals(device.state)) {
             if (PushNotices.allowed(activity)) {
-                builder.setMessage("Les rappels et l’activité de vos sessions peuvent vous prévenir même après la fermeture de l’application.")
+                builder.setMessage(device.unified()
+                                ? "Le relais a enregistré ce profil. Ouvrez le distributeur pour vérifier sa connexion et terminer la configuration des alertes."
+                                : "Les rappels et l’activité de vos sessions peuvent vous prévenir même après la fermeture de l’application.")
                         .setPositiveButton("Désactiver", (d,w) -> remove(device));
             } else {
                 builder.setTitle("Alertes bloquées par Android")
@@ -77,12 +91,15 @@ final class PushSettings {
             builder.setMessage("Recevez les rappels, les demandes d’autorisation et la fin des sessions. Le contenu de vos échanges reste privé.")
                     .setPositiveButton("Activer", (d,w) -> begin());
         }
-        display(builder);
-        observeState(device);
+        if (device != null && device.unified() && (PushStore.ACTIVE.equals(device.state)
+                || "ACTION_REQUIRED".equals(device.failure))) {
+            builder.setView(Ui.button(activity, "Ouvrir le distributeur", v -> openDistributor(device)));
+        }
+        if (display(builder) != null) observeState(device);
     }
 
     private static String registrationMessage(PushStore.Device device) {
-        if (device.retryAt != 0) return "Hermes réessaiera automatiquement lorsque le réseau sera disponible.";
+        if (device.retryScheduled()) return "Hermes réessaiera automatiquement lorsque le réseau sera disponible.";
         if (!PushStore.FAILED.equals(device.state)) return "L’inscription de cet appareil auprès du serveur reste à confirmer.";
         return switch (device.failure == null ? "" : device.failure) {
             case "ACTION_REQUIRED" -> "Ouvrez le distributeur pour terminer sa configuration, puis réessayez.";
@@ -100,11 +117,14 @@ final class PushSettings {
             @Override public void onChanged() {
                 // Always post. A read or dismissal from inside notifyChanged must not unregister mid-iteration.
                 activity.getMainExecutor().execute(() -> {
-                    if (!current() || dialog != watching || !watching.isShowing()) return;
+                    if (!showing(watching)) return;
                     PushStore.Device updated = store.forProfile(account.id);
                     if (displayed == null || updated == null) {
                         if (displayed != updated) show();
-                    } else if (!displayed.state.equals(updated.state) || !Objects.equals(displayed.failure, updated.failure)) show();
+                    } else if (!displayed.installation.equals(updated.installation)
+                            || !displayed.state.equals(updated.state)
+                            || !Objects.equals(displayed.failure, updated.failure)
+                            || displayed.retryScheduled() != updated.retryScheduled()) show();
                 });
             }
         };
@@ -114,14 +134,14 @@ final class PushSettings {
     }
 
     private void history(long cursor, ArrayDeque<Long> previous) {
-        display(new AlertDialog.Builder(activity).setTitle("Historique du profil").setMessage("Chargement…"));
+        AlertDialog progress = display(new AlertDialog.Builder(activity).setTitle("Historique du profil").setMessage("Chargement…"));
+        if (progress == null) return;
         Locale locale = activity.getResources().getConfiguration().getLocales().get(0);
         PushConnection.WORK.execute(() -> {
             try {
                 if (!current()) return;
                 PushHistory.Page page = PushHistory.load(account, cursor, locale);
-                activity.runOnUiThread(() -> {
-                    if (!current()) return;
+                finishProgress(progress, () -> {
                     AlertDialog.Builder list = new AlertDialog.Builder(activity).setTitle("Historique du profil")
                             .setNegativeButton("Fermer", null);
                     if (page.labels.isEmpty()) list.setMessage("Aucune activité sur cette page.");
@@ -140,7 +160,7 @@ final class PushSettings {
                 });
             } catch (Exception error) {
                 Diagnostics.warning("push", "history_load_failed");
-                activity.runOnUiThread(() -> display(new AlertDialog.Builder(activity)
+                finishProgress(progress, () -> display(new AlertDialog.Builder(activity)
                         .setTitle("Historique indisponible").setMessage(errorMessage(error))
                         .setPositiveButton("Réessayer", (d,w) -> history(cursor, previous))
                         .setNegativeButton("Fermer", null)));
@@ -151,6 +171,21 @@ final class PushSettings {
     private void systemSettings() {
         activity.startActivity(new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
                 .putExtra(Settings.EXTRA_APP_PACKAGE, activity.getPackageName()));
+    }
+
+    private void openDistributor(PushStore.Device device) {
+        Intent launch = activity.getPackageManager().getLaunchIntentForPackage(device.distributor);
+        if (launch != null) {
+            try {
+                activity.startActivity(launch);
+                return;
+            } catch (ActivityNotFoundException | SecurityException gone) {
+                Diagnostics.warning("push", "distributor_launcher_unavailable");
+            }
+        }
+        display(new AlertDialog.Builder(activity).setTitle("Distributeur indisponible")
+                .setMessage("Vérifiez que le distributeur choisi est installé et activé sur ce téléphone.")
+                .setPositiveButton("Retour", (d,w) -> show()));
     }
 
     private void begin() {
@@ -203,15 +238,17 @@ final class PushSettings {
             picker.setMessage("Installez ou configurez un distributeur UnifiedPush, par exemple ntfy, puis réessayez.");
         } else {
             String[] labels = new String[packages.size()];
+            String[] signers = new String[packages.size()];
             for (int i = 0; i < labels.length; i++) {
                 String name = packages.get(i);
+                signers[i] = DistributorIdentity.current(activity, name);
                 try {
                     var manager = activity.getPackageManager();
                     labels[i] = manager.getApplicationLabel(manager.getApplicationInfo(name, 0)) + "\n" + name;
                 } catch (PackageManager.NameNotFoundException gone) { labels[i] = name; }
             }
             picker.setItems(labels, (d,w) -> run("Inscription au distributeur…", () ->
-                    DistributorEnrollment.enroll(activity.getApplicationContext(), account, packages.get(w),
+                    DistributorEnrollment.enroll(activity.getApplicationContext(), account, packages.get(w), signers[w],
                             DistributorEnrollment.vapid(discovery), epoch, this::current)));
         }
         display(picker);
@@ -230,16 +267,17 @@ final class PushSettings {
     }
 
     private <T> void load(String progress, Callable<T> action, Consumer<T> after) {
-        display(new AlertDialog.Builder(activity).setTitle("Notifications du profil").setMessage(progress));
+        AlertDialog waiting = display(new AlertDialog.Builder(activity).setTitle("Notifications du profil").setMessage(progress));
+        if (waiting == null) return;
         PushConnection.WORK.execute(() -> {
             try {
                 if (!current()) return;
                 T result = action.call();
-                activity.runOnUiThread(() -> { if (current()) after.accept(result); });
+                finishProgress(waiting, () -> after.accept(result));
             } catch (Exception error) {
                 Diagnostics.event("push", "enrollment_action_failed");
                 String message = errorMessage(error);
-                activity.runOnUiThread(() -> display(new AlertDialog.Builder(activity)
+                finishProgress(waiting, () -> display(new AlertDialog.Builder(activity)
                         .setTitle("Notifications du profil").setMessage(message)
                         .setPositiveButton("Retour", (d,w) -> show())));
             }
