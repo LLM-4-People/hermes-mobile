@@ -3,6 +3,10 @@ package org.llm4people.hermes.panel;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+import java.util.Collection;
+import java.util.LinkedHashSet;
+import java.util.Map;
+import java.util.Set;
 
 /** Wire values keep a profile default distinct from a deliberately empty tool selection. */
 final class PanelData {
@@ -67,14 +71,39 @@ final class PanelData {
         return Double.isFinite(n) && n >= 0 ? n : Double.NaN;
     }
 
-    static double cacheRatio(JSONObject row) {
-        double read = measure(row, "cache_read_tokens"), input = measure(row, "input_tokens");
-        return input > 0 && read > 0 && read <= input ? read / input : Double.NaN;
+    static double promptTokens(JSONObject session) {
+        // The persisted Hermes counters are disjoint, including after a provider change.
+        return measure(session, "input_tokens") + measure(session, "cache_read_tokens")
+                + measure(session, "cache_write_tokens");
+    }
+
+    static double cacheRatio(JSONObject session) {
+        double prompt = promptTokens(session);
+        return prompt > 0 ? measure(session, "cache_read_tokens") / prompt : Double.NaN;
     }
 
     static double endToEndRate(JSONObject row) {
         double elapsed = measure(row, "elapsed_ms"), tokens = measure(row, "output_tokens");
         return elapsed > 0 ? tokens * 1000d / elapsed : Double.NaN;
+    }
+
+    static Set<String> enabledMembers(Map<String, ? extends Collection<String>> sets, JSONArray allowed) {
+        Set<String> selected = new LinkedHashSet<>();
+        if (allowed != null) for (int i = 0; i < allowed.length(); i++) selected.add(allowed.optString(i));
+        Set<String> union = new LinkedHashSet<>();
+        for (Map.Entry<String, ? extends Collection<String>> entry : sets.entrySet())
+            if (allowed == null || selected.contains(entry.getKey())) union.addAll(entry.getValue());
+        return union;
+    }
+
+    static String jobState(JSONObject job) {
+        String state = text(job, "state");
+        if (state.equals("completed") || state.equals("error")) return state;
+        boolean enabled = job.optBoolean("enabled", true);
+        if (!enabled && (!text(job, "paused_at").isEmpty() || state.isEmpty())) return "paused";
+        if (enabled && (state.equals("paused") || state.isEmpty() || !text(job, "paused_at").isEmpty()))
+            return "scheduled";
+        return state;
     }
 
     static String schedule(JSONObject job) {

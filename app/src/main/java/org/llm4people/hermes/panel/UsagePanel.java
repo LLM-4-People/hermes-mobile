@@ -11,22 +11,26 @@ import java.util.Locale;
 
 final class UsagePanel {
     private final SessionPanel panel;
-    private final String id;
+    private final String stableId;
+    private final String remoteId;
+    private final Runnable parent;
 
-    UsagePanel(SessionPanel panel, String id) { this.panel = panel; this.id = id; }
+    UsagePanel(SessionPanel panel, String stableId, String remoteId, Runnable parent) {
+        this.panel = panel; this.stableId = stableId; this.remoteId = remoteId; this.parent = parent;
+    }
 
     void show() {
-        LinearLayout page = panel.page("stats", R.string.panel_stats, null);
-        if (id == null || id.isEmpty()) { panel.note(page, panel.t(R.string.panel_no_session)); return; }
+        LinearLayout page = panel.page("stats", R.string.panel_stats, parent);
+        if (stableId == null || stableId.isEmpty() || remoteId == null || remoteId.isEmpty()) { panel.note(page, panel.t(R.string.panel_no_session)); return; }
         panel.action(page, R.string.panel_refresh, this::show);
         panel.section(page, R.string.panel_server_totals);
         LinearLayout totals = Ui.column(panel.activity);
         page.addView(totals);
-        panel.load(totals, () -> panel.api.get("/api/sessions/" + HermesApi.segment(id)).getJSONObject("session"),
+        panel.load(totals, () -> panel.api.get("/api/sessions/" + HermesApi.segment(remoteId)).getJSONObject("session"),
                 row -> display(totals, row), this::show);
         panel.section(page, R.string.panel_last_run);
         JSONObject timing;
-        try { timing = PanelData.parse(panel.account.read("panel/timing/" + id)); }
+        try { timing = PanelData.parse(panel.account.read("panel/timing/" + stableId)); }
         catch (IllegalStateException error) { panel.failure(page, error, null); return; }
         if (timing.length() == 0) { panel.note(page, panel.t(R.string.panel_timing_empty)); return; }
         metric(page, R.string.panel_first_text, format(PanelData.measure(timing, "first_ms") / 1000, R.string.panel_seconds));
@@ -45,7 +49,7 @@ final class UsagePanel {
         double cache = PanelData.cacheRatio(row);
         metric(box, R.string.panel_cache, Double.isFinite(cache) ? NumberFormat.getPercentInstance(Locale.FRENCH).format(cache)
                 : panel.t(R.string.panel_unknown));
-        metric(box, R.string.panel_in, format(PanelData.measure(row, "input_tokens"), 0));
+        metric(box, R.string.panel_in, format(PanelData.promptTokens(row), 0));
         metric(box, R.string.panel_out, format(PanelData.measure(row, "output_tokens"), 0));
     }
 

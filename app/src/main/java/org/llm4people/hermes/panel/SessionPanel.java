@@ -4,6 +4,8 @@ import android.app.Activity;
 import android.app.Dialog;
 import android.content.Context;
 import android.graphics.Typeface;
+import android.os.Build;
+import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
@@ -35,6 +37,8 @@ public final class SessionPanel implements AutoCloseable {
     private ExecutorService worker;
     private int generation;
     private Runnable back;
+    private String surface;
+    private View nativeContent;
     private ArtifactDesk.Host layoutHost;
 
     public SessionPanel(Activity activity, HermesApi api, Account account) {
@@ -44,9 +48,30 @@ public final class SessionPanel implements AutoCloseable {
     }
 
     public void setLayoutHost(ArtifactDesk.Host host) { layoutHost = host; }
-    public void show(String sessionId) { new SessionSettings(this, sessionId).show(); }
-    public void showStats(String sessionId) { new UsagePanel(this, sessionId).show(); }
+    public void show(String stableId, String remoteId) { new SessionSettings(this, stableId, remoteId).show(); }
+    public void showStats(String stableId, String remoteId) { new UsagePanel(this, stableId, remoteId, null).show(); }
     public void showReminders() { new ReminderPanel(this).show(); }
+    public void showReminder(String jobId) { new ReminderPanel(this).open(jobId); }
+
+    /** Rebuild only the customized frame, retaining the native form and its in-flight requests. */
+    public boolean refreshLayout() {
+        if (dialog == null || !dialog.isShowing() || nativeContent == null) return false;
+        mountLayout();
+        return true;
+    }
+
+    private void mountLayout() {
+        if (nativeContent.getParent() instanceof ViewGroup)
+            ((ViewGroup) nativeContent.getParent()).removeView(nativeContent);
+        View decorated = layoutHost == null ? nativeContent :
+                ArtifactDesk.decorate(activity, account, surface, nativeContent, layoutHost);
+        dialog.setContentView(decorated);
+    }
+
+    private void goBack() {
+        if (back != null) back.run();
+        else if (dialog != null) dialog.dismiss();
+    }
 
     public static JSONObject runOptions(Context context, Account account, String sessionId) {
         if (sessionId == null || sessionId.isEmpty()) return new JSONObject();
@@ -62,6 +87,8 @@ public final class SessionPanel implements AutoCloseable {
         account.write("panel/timing/" + sessionId, timing.toString());
     }
 
+    void resetOptions(String sessionId) { account.remove("panel/options/" + sessionId); }
+
     void saveOptions(String sessionId, JSONObject options) {
         account.write("panel/options/" + sessionId, options.toString());
     }
@@ -76,11 +103,7 @@ public final class SessionPanel implements AutoCloseable {
         if (dialog != null && !dialog.isShowing()) close();
         if (dialog == null) {
             worker = Executors.newSingleThreadExecutor();
-            dialog = new Dialog(activity, R.style.Theme_Hermes) {
-                @Override public void onBackPressed() {
-                    if (back != null) back.run(); else dismiss();
-                }
-            };
+            dialog = new Dialog(activity, R.style.Theme_Hermes);
             dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
             dialog.setOnDismissListener(closed -> { if (closed == dialog) teardown(); });
             Window window = dialog.getWindow();
@@ -107,11 +130,23 @@ public final class SessionPanel implements AutoCloseable {
         content.addView(heading);
         if (scrollable) scroll.addView(content);
         container.addView(scrollable ? scroll : content, new LinearLayout.LayoutParams(-1, 0, 1));
-        View decorated = layoutHost == null ? container :
-                ArtifactDesk.decorate(activity, account, surface, container, layoutHost);
-        dialog.setContentView(decorated);
+        this.surface = surface;
+        nativeContent = container;
+        mountLayout();
         dialog.setTitle(t(title));
-        if (!dialog.isShowing()) dialog.show();
+        if (!dialog.isShowing()) {
+            dialog.show();
+            if (Build.VERSION.SDK_INT >= 33) {
+                dialog.getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
+                        android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT, this::goBack);
+            } else {
+                dialog.setOnKeyListener((window, key, event) -> {
+                    if (key != KeyEvent.KEYCODE_BACK) return false;
+                    if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) goBack();
+                    return true;
+                });
+            }
+        }
         dialog.getWindow().setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
         return content;
     }
@@ -191,6 +226,8 @@ public final class SessionPanel implements AutoCloseable {
         if (worker != null) worker.shutdownNow();
         worker = null;
         dialog = null;
+        surface = null;
+        nativeContent = null;
         back = null;
     }
 

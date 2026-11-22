@@ -30,12 +30,50 @@ public final class PanelDataTest extends TestCase {
 
     public void testUnknownCountersAreNeverReportedAsMeasuredZero() throws Exception {
         assertTrue(Double.isNaN(PanelData.cacheRatio(new JSONObject())));
-        assertTrue(Double.isNaN(PanelData.cacheRatio(new JSONObject("{\"input_tokens\":0,\"cache_read_tokens\":5}"))));
-        assertTrue(Double.isNaN(PanelData.cacheRatio(new JSONObject("{\"input_tokens\":5,\"cache_read_tokens\":8}"))));
-        assertEquals(.75, PanelData.cacheRatio(new JSONObject("{\"input_tokens\":12,\"cache_read_tokens\":9}")), 0);
+        assertTrue(Double.isNaN(PanelData.cacheRatio(buckets(0, 0, 0))));
+        assertTrue(Double.isNaN(PanelData.cacheRatio(buckets(-1, 4, 0))));
+        assertTrue(Double.isNaN(PanelData.cacheRatio(buckets(4, -1, 0))));
+        assertTrue(Double.isNaN(PanelData.cacheRatio(buckets(4, 1, -1))));
+        JSONObject incomplete = buckets(30, 60, 10);
+        incomplete.remove("cache_write_tokens");
+        assertTrue(Double.isNaN(PanelData.cacheRatio(incomplete)));
+        assertEquals(100, PanelData.promptTokens(buckets(30, 60, 10)), 0);
+        assertEquals(.60, PanelData.cacheRatio(buckets(30, 60, 10)), 0);
+        assertEquals(0, PanelData.cacheRatio(buckets(40, 0, 12)), 0);
+        assertEquals(1, PanelData.cacheRatio(buckets(0, 42, 0)), 0);
         assertTrue(Double.isNaN(PanelData.endToEndRate(new JSONObject("{\"elapsed_ms\":1000}"))));
         assertTrue(Double.isNaN(PanelData.endToEndRate(new JSONObject("{\"elapsed_ms\":0,\"output_tokens\":4}"))));
         assertEquals(2.5, PanelData.endToEndRate(new JSONObject("{\"elapsed_ms\":2000,\"output_tokens\":5}")), 0);
+    }
+
+    private static JSONObject buckets(int input, int read, int write) throws Exception {
+        return new JSONObject().put("input_tokens", input).put("cache_read_tokens", read)
+                .put("cache_write_tokens", write);
+    }
+
+    public void testEffectiveToolsUseTheUnionAcrossEnabledSets() throws Exception {
+        java.util.Map<String, java.util.List<String>> sets = new java.util.LinkedHashMap<>();
+        sets.put("a", java.util.Arrays.asList("shared", "first"));
+        sets.put("b", java.util.Arrays.asList("shared", "second"));
+        assertEquals(3, PanelData.enabledMembers(sets, null).size());
+        assertTrue(PanelData.enabledMembers(sets, new JSONArray()).isEmpty());
+        java.util.Set<String> enabled = PanelData.enabledMembers(sets, new JSONArray().put("b"));
+        assertTrue(enabled.contains("shared"));
+        assertTrue(enabled.contains("second"));
+        assertFalse(enabled.contains("first"));
+    }
+
+    public void testRecurringScheduleErrorSurvivesEnabledFlag() throws Exception {
+        JSONObject row = new JSONObject().put("state", "error").put("enabled", true);
+        assertEquals("error", PanelData.jobState(row));
+        row.put("state", "completed").put("enabled", false);
+        assertEquals("completed", PanelData.jobState(row));
+        row.put("state", "paused");
+        assertEquals("paused", PanelData.jobState(row));
+        row.put("enabled", true);
+        assertEquals("scheduled", PanelData.jobState(row));
+        row.put("state", "scheduled");
+        assertEquals("scheduled", PanelData.jobState(row));
     }
 
     public void testScheduleRoundTripsServerShapesWithoutSendingDisplayCopy() throws Exception {

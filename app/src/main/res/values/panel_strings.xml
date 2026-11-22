@@ -81,4 +81,11 @@
     <string name="panel_excluded">Outils désactivés : %1$s</string>
     <string name="panel_clear_excluded">Effacer les exclusions individuelles</string>
     <string name="panel_check_fields">Vérifiez la consigne et la planification, puis enregistrez à nouveau.</string>
+    <string name="panel_missing_job">Ce rappel n’est plus disponible dans ce profil.</string>
+    <string name="panel_tools_unavailable">Activez un ensemble contenant l’outil pour pouvoir l’utiliser.</string>
+    <string name="panel_job_error">En erreur</string>
+    <string name="panel_last_job_error">Dernière erreur du serveur : %1$s</string>
+    <string name="panel_reset_settings">Réinitialiser les réglages de cette discussion</string>
+    <string name="panel_reset">Réinitialiser</string>
+    <string name="panel_reset_confirm">Les prochains messages utiliseront le modèle et les outils par défaut de ce profil, y compris les outils que vous aviez désactivés ici.</string>
 </resources>

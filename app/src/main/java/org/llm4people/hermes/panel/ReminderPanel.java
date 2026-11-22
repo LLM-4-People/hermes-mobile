@@ -36,16 +36,41 @@ final class ReminderPanel {
                 page.addView(Ui.divider(panel.activity));
                 String name = PanelData.text(job, "name");
                 page.addView(Ui.button(panel.activity, name, v -> details(job)));
+                panel.note(page, panel.t(R.string.panel_job_state, state(job)));
                 if (!PanelData.text(job, "next_run_at").isEmpty()) {
                     panel.note(page, panel.t(R.string.panel_next, localTime(PanelData.text(job, "next_run_at"))));
-                } else panel.note(page, panel.t(R.string.panel_job_state, state(job)));
+                }
             }
         }, this::show);
     }
 
+    void open(String jobId) {
+        LinearLayout page = panel.page("reminders", R.string.panel_reminders, this::show);
+        if (jobId == null || jobId.isEmpty()) {
+            panel.note(page, panel.t(R.string.panel_missing_job));
+            panel.action(page, R.string.panel_view_reminders, this::show);
+            return;
+        }
+        panel.request(page, () -> {
+            JSONObject job = panel.api.get(JOBS + "/" + HermesApi.segment(jobId)).getJSONObject("job");
+            if (!jobId.equals(PanelData.text(job, "id"))) throw new org.json.JSONException("Mismatched job");
+            return job;
+        }, this::details, error -> {
+            if (error instanceof HermesApi.HttpError && ((HermesApi.HttpError) error).status == 404) {
+                panel.note(page, panel.t(R.string.panel_missing_job));
+                panel.action(page, R.string.panel_view_reminders, this::show);
+            } else panel.failure(page, error, () -> open(jobId));
+        });
+    }
+
     private String state(JSONObject job) {
-        if ("completed".equals(PanelData.text(job, "state"))) return panel.t(R.string.panel_completed);
-        return panel.t(job.optBoolean("enabled") ? R.string.panel_scheduled : R.string.panel_paused);
+        switch (PanelData.jobState(job)) {
+            case "completed": return panel.t(R.string.panel_completed);
+            case "error": return panel.t(R.string.panel_job_error);
+            case "scheduled": return panel.t(R.string.panel_scheduled);
+            case "paused": return panel.t(R.string.panel_paused);
+            default: return panel.t(R.string.panel_unknown);
+        }
     }
 
     static String localTime(String iso) {
@@ -62,6 +87,8 @@ final class ReminderPanel {
         String prompt = PanelData.text(job, "prompt");
         if (!prompt.isEmpty()) panel.note(page, prompt);
         panel.note(page, panel.t(R.string.panel_job_state, state(job)));
+        String lastError = PanelData.text(job, "last_error");
+        if (!lastError.isEmpty()) panel.note(page, panel.t(R.string.panel_last_job_error, lastError));
         panel.note(page, panel.t(R.string.panel_saved_schedule, PanelData.schedule(job)));
         String next = PanelData.text(job, "next_run_at");
         if (!next.isEmpty()) panel.note(page, panel.t(R.string.panel_next, localTime(next)));

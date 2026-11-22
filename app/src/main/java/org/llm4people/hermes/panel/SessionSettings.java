@@ -23,6 +23,7 @@ import java.util.function.Consumer;
 final class SessionSettings {
     private final SessionPanel panel;
     private final String id;
+    private final String remoteId;
     private JSONObject saved;
     private boolean individualTools;
     private final Map<String, Provider> providers = new LinkedHashMap<>();
@@ -40,7 +41,9 @@ final class SessionSettings {
         @Override public String toString() { return name.isEmpty() || name.equals(slug) ? slug : name + " · " + slug; }
     }
 
-    SessionSettings(SessionPanel panel, String id) { this.panel = panel; this.id = id; }
+    SessionSettings(SessionPanel panel, String id, String remoteId) {
+        this.panel = panel; this.id = id; this.remoteId = remoteId;
+    }
 
     void show() {
         LinearLayout box = panel.page("settings", R.string.panel_settings, null);
@@ -50,7 +53,18 @@ final class SessionSettings {
             return;
         }
         try { saved = SessionPanel.runOptions(panel.activity, panel.account, id); }
-        catch (IllegalStateException error) { panel.failure(box, error, null); return; }
+        catch (IllegalStateException error) {
+            panel.failure(box, error, null);
+            panel.action(box, R.string.panel_reset_settings, () -> panel.present(
+                    new android.app.AlertDialog.Builder(panel.activity).setTitle(R.string.panel_reset_settings)
+                            .setMessage(R.string.panel_reset_confirm)
+                            .setNegativeButton(R.string.panel_cancel, null)
+                            .setPositiveButton(R.string.panel_reset, (d, which) -> {
+                                try { panel.resetOptions(id); show(); }
+                                catch (IllegalStateException failure) { panel.failure(box, failure, null); }
+                            }).create()));
+            return;
+        }
         panel.note(box, panel.t(R.string.panel_session_scope));
         panel.section(box, R.string.panel_model);
         String model = PanelData.text(saved, "model");
@@ -62,7 +76,7 @@ final class SessionSettings {
         LinearLayout controls = Ui.column(panel.activity);
         box.addView(controls);
         loadTools(controls);
-        panel.action(box, R.string.panel_stats, () -> panel.showStats(id));
+        panel.action(box, R.string.panel_stats, () -> new UsagePanel(panel, id, remoteId, this::show).show());
         panel.action(box, R.string.panel_reminders, panel::showReminders);
     }
 
@@ -204,8 +218,11 @@ final class SessionSettings {
         LinearLayout box = panel.page("settings", R.string.panel_individual_tools, this::show);
         panel.note(box, panel.t(R.string.panel_set_members, set));
         Set<String> excluded = names(saved.optJSONArray("excluded_tools"));
+        Set<String> available = PanelData.enabledMembers(toolsets, saved.optJSONArray("allowed_toolsets"));
+        if (!available.containsAll(toolsets.get(set))) panel.note(box, panel.t(R.string.panel_tools_unavailable));
         for (String name : toolsets.get(set)) {
-            CheckBox toggle = toggle(box, name, !excluded.contains(name), true);
+            boolean present = available.contains(name);
+            CheckBox toggle = toggle(box, name, present && !excluded.contains(name), present);
             toggle.setOnCheckedChangeListener((v, on) -> {
                 Set<String> updated = new LinkedHashSet<>(excluded);
                 if (on) updated.remove(name); else updated.add(name);
