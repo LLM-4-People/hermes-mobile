@@ -156,17 +156,36 @@ def distributor(ui, apk, endpoint):
     d.run("install", str(apk))
     try:
         launch(d, NTFY)
-        ui.allow_if_prompted()
-        ui.tap("More options", notification_permission=True)
-        ui.tap("Settings")
-        ui.tap("Default server")
         url_field = NTFY + ":id/default_server_dialog_url"
-        ui.wait(url_field)
+
+        def open_editor():
+            root = ui.hierarchy()
+            if ui.node(url_field, root) is not None:
+                return True
+            for label in ("Default server", "Settings", "More options"):
+                control = ui.node(label, root)
+                if control is not None:
+                    ui.tap_node(control)
+                    return False
+            ui.allow_if_prompted(root)
+            return False
+
+        eventually("ntfy default server editor", open_editor)
         ui.type(url_field, endpoint)
         if "mInputShown=true" in d.shell("dumpsys", "input_method"):
             d.shell("input", "keyevent", "BACK")
-        ui.tap("Save")
-        ui.wait(endpoint)
+
+        def saved():
+            root = ui.hierarchy()
+            field = ui.node(url_field, root)
+            if field is None and ui.node(endpoint, root) is not None:
+                return True
+            button = ui.node("Save", root)
+            if button is not None:
+                ui.tap_node(button)
+            return False
+
+        eventually("ntfy settings showing the saved loopback server", saved)
         yield
     finally:
         d.run("uninstall", NTFY)
