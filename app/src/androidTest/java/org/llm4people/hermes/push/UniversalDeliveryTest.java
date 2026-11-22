@@ -155,12 +155,93 @@ public final class UniversalDeliveryTest extends InstrumentationTestCase {
             assertTrue(inbox.cached(profileB.account).isEmpty());
             assertEquals(0, inbox.unreadCount(profileB.account));
 
+            // Subsequent sync applies 1-second overlap (since=1700000099) so same-second deliveries are not missed.
+            String secondId = "dlv_fedcba9876543210";
+            JSONObject sameSecondDelivery = new JSONObject()
+                    .put("delivery_id", secondId)
+                    .put("kind", "card")
+                    .put("urgency", "normal")
+                    .put("title", "Carte même seconde")
+                    .put("payload", new JSONObject().put("text", "Détail"))
+                    .put("created_at", 1700000100L);
+            JSONObject overlapResp = new JSONObject()
+                    .put("object", "list")
+                    .put("data", new JSONArray().put(delivery).put(sameSecondDelivery));
+            try (Exchange overlapExchange = new Exchange("200 OK", "", overlapResp.toString())) {
+                HermesApi apiOverlap = new HermesApi(overlapExchange.endpoint(), profileA.account.bearer);
+                List<DeliveryItem> afterOverlap = inbox.sync(profileA.account, apiOverlap);
+                assertEquals(2, afterOverlap.size());
+                assertTrue(overlapExchange.observed().contains("since=1700000099"));
+            }
+
+            // Multi-page has_more pagination fetches beyond the first 50 items via after=<next_cursor>.
+            JSONObject page1 = new JSONObject()
+                    .put("deliveries", new JSONArray().put(new JSONObject()
+                            .put("delivery_id", "dlv_0000000000000001").put("kind", "notice")
+                            .put("title", "Page 1").put("created_at", 1700000105L)))
+                    .put("has_more", true)
+                    .put("next_cursor", 50L);
+            JSONObject page2 = new JSONObject()
+                    .put("deliveries", new JSONArray().put(new JSONObject()
+                            .put("delivery_id", "dlv_0000000000000002").put("kind", "notice")
+                            .put("title", "Page 2").put("created_at", 1700000106L)))
+                    .put("has_more", false)
+                    .put("next_cursor", 51L);
+            try (Exchange paged = new Exchange("200 OK", "", page1.toString(), page2.toString())) {
+                HermesApi apiPaged = new HermesApi(paged.endpoint(), profileA.account.bearer);
+                List<DeliveryItem> afterPaged = inbox.sync(profileA.account, apiPaged);
+                assertEquals(4, afterPaged.size());
+                assertTrue(paged.observed().contains("&after=50"));
+            }
+
             // Acknowledge delivery and verify encrypted persistence.
             HermesApi apiAck = new HermesApi(ackExchange.endpoint(), profileA.account.bearer);
             DeliveryItem acked = inbox.acknowledge(profileA.account, apiAck, deliveryId);
             assertTrue(acked.isAcknowledged());
-            assertEquals(0, inbox.unreadCount(profileA.account));
+            assertEquals(3, inbox.unreadCount(profileA.account));
             assertTrue(ackExchange.observed().contains("POST /p/travail/api/mobile/deliveries/" + deliveryId + "/ack"));
+        }
+    }
+
+    public void testHistorySummaryDetectionAndSingleDeliveryResolutionUseUnifiedPath() throws Exception {
+        String deliveryId = "dlv_1122334455667788";
+        JSONObject historyRow = new JSONObject()
+                .put("event_id", deliveryId)
+                .put("kind", "briefing")
+                .put("created_at", 1700000100L);
+        assertTrue(MobilePush.needsDeliveryFetch(historyRow));
+
+        JSONObject resolvedDelivery = new JSONObject()
+                .put("delivery_id", deliveryId)
+                .put("kind", "briefing")
+                .put("urgency", "normal")
+                .put("title", "Briefing complet")
+                .put("payload", new JSONObject().put("body", "Texte complet"))
+                .put("created_at", 1700000100L);
+        assertFalse(MobilePush.needsDeliveryFetch(resolvedDelivery));
+
+        JSONObject forkEnvelope = new JSONObject()
+                .put("object", "hermes.mobile.delivery")
+                .put("delivery", resolvedDelivery);
+
+        try (Exchange singleExchange = new Exchange("200 OK", "", forkEnvelope.toString());
+             WorkspaceAccountFixture profile = new WorkspaceAccountFixture(context, singleExchange.endpoint())) {
+            PushConfig config = PushConfig.parse(new JSONObject("{\"providers\":[\"fcm\"],\"firebase\":"
+                    + "{\"applicationId\":\"1:654321:android:ddeeff\",\"gcmSenderId\":\"654321\","
+                    + "\"apiKey\":\"public-test-key\",\"projectId\":\"example-delivery-test\"}}"));
+            PushStore.Device dev = store.prepare(profile.account.id, singleExchange.endpoint(), config);
+            try {
+                store.enable(dev);
+                assertTrue(store.remember(dev.installation, deliveryId, "briefing"));
+                MobilePush.Target target = MobilePush.target(context, PushNotices.tapIntent(context, dev.installation, deliveryId));
+                assertNotNull(target);
+                JSONObject resolved = MobilePush.resolve(profile.account, target);
+                assertEquals("Briefing complet", resolved.getString("title"));
+                assertTrue(singleExchange.observed().startsWith("GET /p/travail/api/mobile/deliveries/" + deliveryId + " HTTP/1.1"));
+            } finally {
+                store.deactivate(profile.account.id);
+                store.finishRemoval(dev);
+            }
         }
     }
 

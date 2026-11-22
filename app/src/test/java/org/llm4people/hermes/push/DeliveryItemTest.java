@@ -104,4 +104,16 @@ public final class DeliveryItemTest {
             // ok
         }
     }
+
+    @Test
+    public void syncQueryAppliesOneSecondOverlapAndPaginationAndSingleDeliveryPath() {
+        assertEquals("/api/mobile/deliveries?include_acked=true&limit=50",
+                DeliveryInbox.buildSyncQuery(DeliveryInbox.DELIVERIES_PATH, 0L, 0L));
+        assertEquals("/api/mobile/deliveries?include_acked=true&limit=50&since=1699999999",
+                DeliveryInbox.buildSyncQuery(DeliveryInbox.DELIVERIES_PATH, 1700000000L, 0L));
+        assertEquals("/api/mobile/deliveries?include_acked=true&limit=50&since=1699999999&after=50",
+                DeliveryInbox.buildSyncQuery(DeliveryInbox.DELIVERIES_PATH, 1700000000L, 50L));
+        assertEquals("/api/mobile/deliveries/dlv_0123456789abcdef",
+                MobilePush.deliveryPath("dlv_0123456789abcdef"));
+    }
 }

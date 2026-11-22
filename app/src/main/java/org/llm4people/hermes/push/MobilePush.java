@@ -128,11 +128,27 @@ public final class MobilePush {
         return kind == null ? null : new Target(owner, path.get(1), kind);
     }
 
+    public static boolean needsDeliveryFetch(JSONObject event) {
+        if (event == null) return false;
+        String kind = event.optString("kind", "");
+        if (DeliveryItem.Kind.fromWire(kind) == null) return false;
+        if (!event.optString("title", "").trim().isEmpty()) return false;
+        String id = event.optString("event_id", "");
+        if (id.isEmpty()) id = event.optString("delivery_id", "");
+        return DeliveryItem.isValidId(id);
+    }
+
+    public static String deliveryPath(String deliveryId) {
+        return DeliveryInbox.DELIVERIES_PATH + "/" + HermesApi.segment(deliveryId);
+    }
+
     public static JSONObject resolve(Account account, Target target) throws IOException {
         if (target == null || !target.profileId.equals(account.id)) throw new IOException("profile mismatch");
         HermesApi api = new HermesApi(account.endpoint, account.bearer);
         boolean isDelivery = DeliveryItem.Kind.fromWire(target.kind) != null;
-        String path = PushConnection.BASE + (isDelivery ? "/deliveries/" : "/events/") + target.eventId;
+        String path = isDelivery
+                ? deliveryPath(target.eventId)
+                : PushConnection.BASE + "/events/" + target.eventId;
         JSONObject response = api.get(path);
         JSONObject event = isDelivery && response.optJSONObject("delivery") != null
                 ? response.optJSONObject("delivery") : response;

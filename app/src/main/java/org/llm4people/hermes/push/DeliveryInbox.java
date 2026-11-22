@@ -25,6 +25,7 @@ public final class DeliveryInbox {
     public static final String DELIVERIES_PATH = "/api/mobile/deliveries";
     static final String ACCOUNT_RECORD_KEY = "push/delivery_inbox_v1";
     static final int MAX_CACHED_ITEMS = 100;
+    static final int MAX_SYNC_PAGES = 10;
 
     private static final class Snapshot {
         final long cursor;
@@ -34,6 +35,19 @@ public final class DeliveryInbox {
             this.cursor = Math.max(0L, cursor);
             this.items = items;
         }
+    }
+
+    /** Build bounded sync query with 1-second overlap so same-second deliveries are never skipped. */
+    static String buildSyncQuery(String prefix, long sinceCursor, long afterSeq) {
+        StringBuilder url = new StringBuilder(prefix).append("?include_acked=true&limit=50");
+        if (sinceCursor > 0L) {
+            long overlapSince = Math.max(0L, sinceCursor - 1L);
+            url.append("&since=").append(overlapSince);
+        }
+        if (afterSeq > 0L) {
+            url.append("&after=").append(afterSeq);
+        }
+        return url.toString();
     }
 
     public List<DeliveryItem> cached(Account account) {
@@ -65,36 +79,43 @@ public final class DeliveryInbox {
         Objects.requireNonNull(api, "api");
         String prefix = normalizePath(basePath);
         Snapshot state = readSnapshot(account);
-        long cursor = state.cursor;
+        long sinceCursor = state.cursor;
         LinkedHashMap<String, DeliveryItem> merged = new LinkedHashMap<>(state.items);
-        String query = cursor > 0L
-                ? prefix + "?since=" + cursor + "&include_acked=true&limit=50"
-                : prefix + "?include_acked=true&limit=50";
-        JSONObject response = api.get(query);
-        JSONArray array = response.optJSONArray("deliveries");
-        if (array == null) array = response.optJSONArray("data");
-        long maxCreated = cursor;
-        if (array != null) {
-            for (int i = 0; i < array.length(); i++) {
-                JSONObject row = array.optJSONObject(i);
-                if (row == null) continue;
-                try {
-                    DeliveryItem incoming = DeliveryItem.fromJson(row);
-                    DeliveryItem existing = merged.get(incoming.id);
-                    if (existing != null && existing.isAcknowledged() && !incoming.isAcknowledged()) {
-                        incoming = incoming.withAcknowledged(existing.ackedAtEpochSec);
+        long maxCreated = sinceCursor;
+        long afterSeq = 0L;
+
+        for (int page = 0; page < MAX_SYNC_PAGES; page++) {
+            JSONObject response = api.get(buildSyncQuery(prefix, sinceCursor, afterSeq));
+            JSONArray array = response.optJSONArray("deliveries");
+            if (array == null) array = response.optJSONArray("data");
+            if (array != null) {
+                for (int i = 0; i < array.length(); i++) {
+                    JSONObject row = array.optJSONObject(i);
+                    if (row == null) continue;
+                    try {
+                        DeliveryItem incoming = DeliveryItem.fromJson(row);
+                        DeliveryItem existing = merged.get(incoming.id);
+                        if (existing != null && existing.isAcknowledged() && !incoming.isAcknowledged()) {
+                            incoming = incoming.withAcknowledged(existing.ackedAtEpochSec);
+                        }
+                        merged.put(incoming.id, incoming);
+                        if (incoming.createdAtEpochSec > maxCreated) {
+                            maxCreated = incoming.createdAtEpochSec;
+                        }
+                    } catch (IllegalArgumentException malformed) {
+                        Diagnostics.warning("push", "delivery_malformed");
                     }
-                    merged.put(incoming.id, incoming);
-                    if (incoming.createdAtEpochSec > maxCreated) {
-                        maxCreated = incoming.createdAtEpochSec;
-                    }
-                } catch (IllegalArgumentException malformed) {
-                    Diagnostics.warning("push", "delivery_malformed");
                 }
             }
+            boolean hasMore = response.optBoolean("has_more", false);
+            long nextSeq = response.optLong("next_cursor", 0L);
+            if (!hasMore || nextSeq <= afterSeq) {
+                break;
+            }
+            afterSeq = nextSeq;
         }
-        if (maxCreated > cursor) cursor = maxCreated;
-        writeSnapshot(account, new Snapshot(cursor, trim(merged)));
+
+        writeSnapshot(account, new Snapshot(maxCreated, trim(merged)));
         Diagnostics.event("push", "inbox_synced");
         return sorted(merged);
     }

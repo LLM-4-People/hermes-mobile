@@ -156,11 +156,35 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
 
     @Override public void openPushEvent(Account owner, JSONObject event) {
         if (owner != account || isFinishing()) return;
-        ++noticeRequest;
+        long request = ++noticeRequest;
         String kind = event.optString("kind");
         if (DeliveryItem.Kind.fromWire(kind) != null) {
             threads.cancelNotice();
             dismissOverlays();
+            if (MobilePush.needsDeliveryFetch(event)) {
+                String deliveryId = event.optString("event_id", "");
+                if (deliveryId.isEmpty()) deliveryId = event.optString("delivery_id", "");
+                final String targetId = deliveryId;
+                notifications.execute(() -> {
+                    try {
+                        DeliveryItem fetched = new org.llm4people.hermes.push.DeliveryInbox().fetchOne(
+                                owner, new HermesApi(owner.endpoint, owner.bearer), targetId);
+                        runOnUiThread(() -> {
+                            if (owner == account && request == noticeRequest && !isFinishing()) {
+                                push.openDelivery(owner, fetched, deliveryActions(owner));
+                            }
+                        });
+                    } catch (IOException | RuntimeException failure) {
+                        Diagnostics.warning("push", "delivery_fetch_failed", failure);
+                        runOnUiThread(() -> {
+                            if (owner == account && request == noticeRequest && !isFinishing()) {
+                                push.openInbox(owner, deliveryActions(owner));
+                            }
+                        });
+                    }
+                });
+                return;
+            }
             try {
                 DeliveryItem item = DeliveryItem.fromJson(event);
                 push.openDelivery(owner, item, deliveryActions(owner));

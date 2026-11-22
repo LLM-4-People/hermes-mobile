@@ -315,3 +315,22 @@ class UnifiedPush(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(unacked["deliveries"], [])
         bad_filter = await self.client.get(f"{DELIVERIES_BASE}?include_acked=maybe", headers=owner_hdr)
         self.assertEqual(bad_filter.status, 400)
+
+        # Fork PR #15 dlv_<16hex> IDs must resolve on BOTH /deliveries/{id} AND /events/{id}.
+        dlv_id = "dlv_0123456789abcdef"
+        dlv_resp = await self.client.post(
+            BASE + "/deliveries",
+            json={"delivery_id": dlv_id, "kind": "briefing", "urgency": "urgent", "title": "Briefing fork"},
+            headers=owner_hdr,
+        )
+        self.assertEqual(dlv_resp.status, 201)
+        event_lookup = await self.client.get(f"{BASE}/events/{dlv_id}", headers=owner_hdr)
+        self.assertEqual(event_lookup.status, 200)
+        event_body = await event_lookup.json()
+        self.assertEqual(event_body["event_id"], dlv_id)
+        self.assertEqual(event_body["kind"], "briefing")
+        self.assertEqual(event_body["urgency"], "high")
+        self.assertNotIn("title", event_body)
+        dlv_lookup = await self.client.get(f"{DELIVERIES_BASE}/{dlv_id}", headers=owner_hdr)
+        self.assertEqual(dlv_lookup.status, 200)
+        self.assertEqual((await dlv_lookup.json())["title"], "Briefing fork")

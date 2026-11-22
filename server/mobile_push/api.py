@@ -113,7 +113,7 @@ def build_app(settings, store, changed=None):
         authorize(request)
         ident = request.match_info.get("id")
         if ident is not None:
-            if not EVENT_ID.fullmatch(ident):
+            if not DELIVERY_ID_RE.fullmatch(ident):
                 raise web.HTTPNotFound()
             result = await asyncio.to_thread(store.events, event_id=ident)
             if result is None:
