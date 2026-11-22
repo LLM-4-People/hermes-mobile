@@ -36,6 +36,28 @@ def _location_grant(device):
     return match[1] == "true" if match else None
 
 
+def app_activity_stopped(dump):
+    """Return True once every ActivityRecord for APP in `dumpsys activity activities` is STOPPED/DESTROYED."""
+    in_app = False
+    app_pkg = re.compile(rf"\bpackageName={re.escape(APP)}(?:\s|$)")
+    for line in dump.splitlines():
+        stripped = line.strip()
+        if (
+            stripped.startswith("* Hist")
+            or stripped.startswith("* Task")
+            or stripped.startswith("ActivityRecord{")
+            or (stripped.startswith("packageName=") and not app_pkg.search(stripped))
+        ):
+            in_app = False
+        if app_pkg.search(stripped):
+            in_app = True
+        elif in_app and (match := re.search(r"\bstate=([A-Z_]+)\b", stripped)):
+            if match.group(1) not in ("STOPPED", "DESTROYED"):
+                return False
+            in_app = False
+    return True
+
+
 def _clipped_in_scrollable(target, controller_nodes):
     box = bounds(target)
     if len(box) != 4:
