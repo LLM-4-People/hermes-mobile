@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.function.BooleanSupplier;
 import java.util.Map;
 import java.util.function.Supplier;
 
@@ -440,6 +441,10 @@ final class ThreadInstrumentPanel {
             private boolean active() {
                 return current() && visibleForm == form && viewport.open() && viewport.isShown()
                         && (form.pin.sameSource(pinned()) || present(form.pin));
+            }
+            @Override public BooleanSupplier deviceActionOrigin() {
+                BooleanSupplier origin = actions.deviceActionOrigin();
+                return () -> active() && origin.getAsBoolean();
             }
             @Override public void onAction(String action) {
                 if (!active()) return;

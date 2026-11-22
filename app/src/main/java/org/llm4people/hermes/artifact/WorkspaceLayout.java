@@ -31,6 +31,7 @@ final class WorkspaceLayout {
     static final class Block {
         String type = "section";
         String page, source, prompt;
+        DeviceAction request;
         List<String> slots = Collections.emptyList();
         List<DraftForm.Field> fields;
         boolean nativeContent;

@@ -3,6 +3,7 @@ package org.llm4people.hermes.artifact;
 import java.util.List;
 
 class WorkspaceTestHost implements ArtifactDesk.Host {
+    @Override public java.util.function.BooleanSupplier deviceActionOrigin() { return () -> false; }
     @Override public void onAction(String id) { throw new AssertionError("Unexpected action " + id); }
     @Override public void onLayoutChanged() { throw new AssertionError("Unexpected layout mutation"); }
     @Override public void openWorkspace(String id) { throw new AssertionError("Unexpected page " + id); }

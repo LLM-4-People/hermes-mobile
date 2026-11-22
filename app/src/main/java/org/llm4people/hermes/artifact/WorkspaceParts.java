@@ -32,7 +32,7 @@ final class WorkspaceParts {
             String key = in.nextName();
             require(keys.add(key));
             switch (key) {
-                case "type": b.type = choice(in, Arrays.asList("section","content","link","value","form")); break;
+                case "type": b.type = choice(in, Arrays.asList("section","content","link","value","form","device")); break;
                 case "title": b.title = label(in,64); break;
                 case "note": b.note = label(in,240); break;
                 case "actions": b.actions = strings(in, ACTIONS.keySet(), 8); break;
@@ -40,6 +40,7 @@ final class WorkspaceParts {
                 case "page": b.page = label(in,48); require(custom(b.page)); break;
                 case "source": b.source = choice(in, SOURCES); break;
                 case "prompt": b.prompt = label(in,240); break;
+                case "request": b.request = DeviceAction.read(in); break;
                 case "fields": b.fields = DraftForm.fields(in); break;
                 default: throw invalid();
             }
@@ -56,6 +57,11 @@ final class WorkspaceParts {
                 break;
             case "link": allow(keys,"type","title","page"); require(b.title != null && b.page != null); break;
             case "value": allow(keys,"type","title","source"); require(b.title != null && b.source != null); break;
+            case "device":
+                allow(keys,"type","request");
+                require(b.request != null);
+                b.title = b.request.kind().title;
+                break;
             case "form":
                 allow(keys,"type","title","prompt","fields");
                 require(b.title != null && b.prompt != null && b.fields != null);

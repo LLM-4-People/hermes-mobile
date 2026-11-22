@@ -27,6 +27,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.BooleanSupplier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -260,6 +261,13 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
 
     @Override public void threadSlots(List<String> order) {
         if (threads != null) threads.slots(order);
+    }
+
+    @Override public BooleanSupplier deviceActionOrigin() {
+        if (threads == null || account == null) return () -> false;
+        String route = navigation.current();
+        BooleanSupplier origin = threads.discussionOrigin();
+        return () -> origin.getAsBoolean() && navigation != null && route.equals(navigation.current());
     }
 
     @Override public String workspaceValue(String source) {

@@ -59,6 +59,7 @@ public class WorkspaceNavigationTest {
         AtomicBoolean active = new AtomicBoolean(true);
         List<String> calls = new ArrayList<>();
         WorkspaceHost host = new WorkspaceHost(new ArtifactDesk.Host() {
+            @Override public java.util.function.BooleanSupplier deviceActionOrigin() { return () -> true; }
             @Override public void onAction(String id) { calls.add(id); }
             @Override public void onLayoutChanged() { calls.add("layout"); }
             @Override public void openWorkspace(String id) { calls.add(id); }
@@ -67,7 +68,11 @@ public class WorkspaceNavigationTest {
             @Override public String workspaceValue(String source) { return "private"; }
         }, active::get);
         assertEquals("private", host.workspaceValue("profile.label"));
+        java.util.function.BooleanSupplier review = host.deviceActionOrigin();
+        assertTrue(review.getAsBoolean());
         active.set(false);
+        assertFalse(review.getAsBoolean());
+        assertFalse(host.deviceActionOrigin().getAsBoolean());
         host.stageDraft("new draft");
         host.openWorkspace("page/a");
         host.onAction("profiles");

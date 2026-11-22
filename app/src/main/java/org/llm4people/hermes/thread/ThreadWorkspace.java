@@ -22,6 +22,7 @@ import java.util.UUID;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.BooleanSupplier;
 import java.util.LinkedHashMap;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
@@ -596,6 +597,11 @@ public final class ThreadWorkspace implements AutoCloseable {
                 deliver(generationAtStart, () -> failure.accept(e));
             }
         });
+    }
+
+    public BooleanSupplier discussionOrigin() {
+        int token = generation;
+        return () -> !closed && generation == token;
     }
 
     int token() { return generation; }

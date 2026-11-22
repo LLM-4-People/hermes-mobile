@@ -38,6 +38,16 @@ final class WorkspaceBlocks {
                     if (host != null) value.refresh(host);
                     group.addView(value);
                     break;
+                case "device":
+                    TextView details = Ui.text(c, block.request.preview(), 16);
+                    if (host != null) {
+                        details.setMaxLines(2);
+                        details.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                    }
+                    group.addView(details);
+                    if (host != null) group.addView(Ui.button(c, block.request.kind().review,
+                            v -> DeviceReview.open(activity, host, v, block.request)));
+                    break;
                 case "form":
                     WorkspaceForms.mount(group, block, activity, host);
                     break;

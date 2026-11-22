@@ -15,10 +15,12 @@ import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BooleanSupplier;
 
 /** Native, profile-scoped artifact reader. Construct from the current ordered transcript. */
 public final class ArtifactDesk {
     public interface Host {
+        BooleanSupplier deviceActionOrigin();
         void onAction(String actionId);
         void onLayoutChanged();
         void openWorkspace(String pageId);
@@ -65,7 +67,10 @@ public final class ArtifactDesk {
         return SurfaceRenderer.decorate(activity, account, id, null, host);
     }
 
-    public static void refreshBindings(View root, Host host) { WorkspaceBlocks.refresh(root,host); }
+    public static void refreshBindings(View root, Host host) {
+        DeskDialogs.dismissStale();
+        WorkspaceBlocks.refresh(root,host);
+    }
 
     public static void dismiss(Activity activity) { DeskDialogs.dismiss(activity); }
     public static void dismissReviews(Activity activity, Host owner) {
