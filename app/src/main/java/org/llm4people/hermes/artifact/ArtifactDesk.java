@@ -109,7 +109,7 @@ public final class ArtifactDesk {
                         try {
                             liveUi.rollbackTo(revId);
                             affectedWidgets.addAll(liveUi.widgetIds());
-                            for (String wid : affectedWidgets) HomePinBridge.notifyWidgetUpdated(activity, wid);
+                            HomePinBridge.syncWidgets(activity, liveUi.widgets(), affectedWidgets);
                             syncGatewayRevert(account, revId);
                         } catch (IOException e) {
                             Diagnostics.warning("live_ui", "rollback_failed");

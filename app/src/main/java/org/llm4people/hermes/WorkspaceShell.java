@@ -265,8 +265,12 @@ final class WorkspaceShell {
         section(list, activity.getString(R.string.nav_activity));
         link(list, activity.getString(R.string.activity_reminders_title),
                 activity.getString(R.string.activity_reminders_hint), "reminders");
+        link(list, activity.getString(R.string.activity_deliveries_title),
+                activity.getString(R.string.activity_deliveries_hint), "deliveries");
         link(list, activity.getString(R.string.activity_notifications_title),
                 activity.getString(R.string.activity_notifications_hint), "notifications");
+        link(list, activity.getString(R.string.activity_push_policy_title),
+                activity.getString(R.string.activity_push_policy_hint), "push_policy");
         link(list, activity.getString(R.string.activity_usage_title),
                 activity.getString(R.string.activity_usage_hint), "stats");
         link(list, activity.getString(R.string.activity_security_title), securitySummary, "security");

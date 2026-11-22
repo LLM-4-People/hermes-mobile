@@ -21,11 +21,15 @@
     <string name="brain_create_tool_title">Créer un outil sur mesure</string>
     <string name="brain_create_tool_hint">Demander à Hermes un formulaire ou un tableau adapté à votre besoin.</string>
 
-    <string name="activity_subtitle">Retrouvez vos rappels, vos alertes et le suivi de vos échanges.</string>
+    <string name="activity_subtitle">Retrouvez vos rappels, vos livraisons, vos alertes et le suivi de vos échanges.</string>
     <string name="activity_reminders_title">Rappels</string>
     <string name="activity_reminders_hint">Consulter, créer ou modifier vos rappels automatiques.</string>
+    <string name="activity_deliveries_title">Livraisons de Hermes</string>
+    <string name="activity_deliveries_hint">Briefings, fichiers, mises à jour d’écran et propositions reçues.</string>
     <string name="activity_notifications_title">Notifications</string>
     <string name="activity_notifications_hint">Gérer les alertes sur cet appareil et voir l’historique récent.</string>
+    <string name="activity_push_policy_title">Préférences d’alertes et heures calmes</string>
+    <string name="activity_push_policy_hint">Choisir les catégories d’alertes et programmer vos plages silencieuses.</string>
     <string name="activity_usage_title">Utilisation</string>
     <string name="activity_usage_hint">Consulter le coût estimé et le temps de réponse de la discussion.</string>
     <string name="activity_security_title">Sécurité et verrouillage</string>
@@ -83,4 +87,5 @@
     <string name="widget_pin_unsupported">Votre écran d’accueil ne permet pas l’ajout automatique. Maintenez le doigt sur l’écran d’accueil, ouvrez Widgets, puis choisissez Hermes.</string>
     <string name="widget_pin_invalid">Ce widget ne peut pas être affiché sur l’écran d’accueil.</string>
     <string name="widget_pin_failed">Impossible d’ajouter ce widget pour le moment.</string>
+    <string name="widget_updated_toast">Widget d’accueil mis à jour.</string>
 </resources>

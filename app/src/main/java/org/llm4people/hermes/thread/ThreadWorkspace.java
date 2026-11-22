@@ -760,6 +760,7 @@ public final class ThreadWorkspace implements AutoCloseable {
     private String legacyTitleTip;
     private int metadataRequest;
     private volatile int transcriptRequest;
+    private JSONObject pendingLiveUiPatch;
 
     public void onBackground() {
         nearby.clearTurn();
@@ -819,6 +820,7 @@ public final class ThreadWorkspace implements AutoCloseable {
             inboxRecovery = null;
             openingPrompts.clear();
             namedTitle = firstPrompt = "";
+            pendingLiveUiPatch = null;
         }
     }
 
@@ -889,8 +891,13 @@ public final class ThreadWorkspace implements AutoCloseable {
         }
     }
 
-    void onLiveUiPatch(JSONObject rawPatch) {
-        if (closed || screen == null || screen.liveUiBar == null || rawPatch == null) return;
+    public void onLiveUiPatch(JSONObject rawPatch) {
+        if (closed || rawPatch == null) return;
+        if (screen == null || screen.liveUiBar == null) {
+            pendingLiveUiPatch = rawPatch;
+            return;
+        }
+        pendingLiveUiPatch = null;
         try {
             LiveUiPatch patch = LiveUiPatch.parse(rawPatch, ThemePalette.isNight(activity));
             screen.liveUiBar.present(patch);
@@ -931,9 +938,9 @@ public final class ThreadWorkspace implements AutoCloseable {
                     refreshQuickActions();
                     for (LiveUiPatch.Op op : patch.ops) {
                         if (op instanceof LiveUiPatch.Op.UpsertWidget uw) {
-                            HomePinBridge.notifyWidgetUpdated(activity, uw.widget().widgetId);
+                            HomePinBridge.syncWidget(activity, uw.widget());
                         } else if (op instanceof LiveUiPatch.Op.RemoveWidget rw) {
-                            HomePinBridge.notifyWidgetUpdated(activity, rw.widgetId());
+                            HomePinBridge.removeWidget(activity, rw.widgetId());
                         }
                     }
                     if (instrumentHost != null) instrumentHost.onLayoutChanged();
@@ -953,7 +960,7 @@ public final class ThreadWorkspace implements AutoCloseable {
                     java.util.Set<String> affectedWidgets = new java.util.HashSet<>(manager.widgetIds());
                     manager.rollbackTo(revisionId);
                     affectedWidgets.addAll(manager.widgetIds());
-                    for (String wid : affectedWidgets) HomePinBridge.notifyWidgetUpdated(activity, wid);
+                    HomePinBridge.syncWidgets(activity, manager.widgets(), affectedWidgets);
                     if (screen != null && screen.liveUiBar != null) screen.liveUiBar.showReverted();
                     refreshQuickActions();
                     if (instrumentHost != null) instrumentHost.onLayoutChanged();
@@ -971,6 +978,11 @@ public final class ThreadWorkspace implements AutoCloseable {
             }
         });
         refreshQuickActions();
+        if (pendingLiveUiPatch != null) {
+            JSONObject queued = pendingLiveUiPatch;
+            pendingLiveUiPatch = null;
+            onLiveUiPatch(queued);
+        }
     }
 
     private void refreshQuickActions() {

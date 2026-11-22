@@ -13,14 +13,20 @@ import android.os.SystemClock;
 import android.view.View;
 import android.view.WindowInsets;
 import android.view.WindowManager;
+import android.widget.Toast;
 
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.llm4people.hermes.artifact.ArtifactDesk;
+import org.llm4people.hermes.artifact.HomePinBridge;
+import org.llm4people.hermes.artifact.LiveUiPatch;
+import org.llm4people.hermes.artifact.ThemePalette;
+import org.llm4people.hermes.artifact.WorkspaceLayout;
 import org.llm4people.hermes.camera.ThreadCameraCapture;
 import org.llm4people.hermes.files.PublishedFiles;
 import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.os.HermesShortcuts;
+import org.llm4people.hermes.os.HermesWidgetSpec;
 import org.llm4people.hermes.os.HermesWidgetStore;
 import org.llm4people.hermes.os.LiveRunActionReceiver;
 import org.llm4people.hermes.os.LiveRunNotification;
@@ -76,6 +82,8 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     private MobilePush push;
     private MobilePush.Target delivery;
     private OsEntryIntent.Request pendingOsEntry;
+    private String pendingPinnedSurface;
+    private String pendingPinnedWidget;
     private AlertDialog notice;
     private String handledDelivery;
     private long noticeRequest;
@@ -123,6 +131,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         delivery = MobilePush.target(this, getIntent());
         if (delivery != null && key(delivery).equals(handledDelivery)) delivery = null;
         pendingOsEntry = OsEntryIntent.parseRequest(getIntent());
+        capturePinnedShortcutIntent(getIntent());
         registerBuiltInRoutes();
         registerBuiltInActions();
         unlock();
@@ -286,6 +295,8 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         LiveRunActionReceiver.setStopHandler(liveStopHandler);
         threadActions.unlock(account, api);
         featureRoutes = BrainStudioRoutes.register(new RouteRegistry(), brainHandlers());
+        DeliveryRouter.registerRoutes(featureRoutes,
+                () -> onAction("deliveries"), () -> onAction("push_policy"));
         setContentView(shell.root);
         displayDiscussion();
         files.unlock(account, api);
@@ -306,9 +317,43 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         dispatchPendingOsEntry();
     }
 
+    private void capturePinnedShortcutIntent(Intent intent) {
+        if (intent == null || !Intent.ACTION_VIEW.equals(intent.getAction())) return;
+        String surfaceId = intent.getStringExtra(HomePinBridge.EXTRA_SURFACE_ID);
+        if (surfaceId != null && WorkspaceLayout.custom(surfaceId)) {
+            pendingPinnedSurface = surfaceId;
+            pendingPinnedWidget = null;
+            return;
+        }
+        String widgetId = intent.getStringExtra(HomePinBridge.EXTRA_WIDGET_ID);
+        if (HermesWidgetSpec.validWidgetId(widgetId)) {
+            pendingPinnedWidget = widgetId;
+            pendingPinnedSurface = null;
+        }
+    }
+
     private void dispatchPendingOsEntry() {
+        if (account == null || threads == null) return;
+        if (pendingPinnedSurface != null) {
+            String surface = pendingPinnedSurface;
+            pendingPinnedSurface = null;
+            setIntent(new Intent(this, MainActivity.class));
+            openWorkspace(surface);
+            return;
+        }
+        if (pendingPinnedWidget != null) {
+            String wid = pendingPinnedWidget;
+            pendingPinnedWidget = null;
+            setIntent(new Intent(this, MainActivity.class));
+            String draft = new HermesWidgetStore(this).draftForAction(wid, 0);
+            displayDiscussion();
+            if (draft != null && !draft.isEmpty()) stageDraft(draft);
+            else if (threads.sessionId() != null) threads.focusComposer();
+            else threads.newThread(threads::focusComposer);
+            return;
+        }
         OsEntryIntent.Request request = pendingOsEntry;
-        if (request == null || account == null || threads == null) return;
+        if (request == null) return;
         pendingOsEntry = null;
         setIntent(new Intent(this, MainActivity.class));
         HermesShortcuts.reportUsed(this, request.target());
@@ -439,10 +484,72 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                 else panels.showReminders();
             }
 
+            @Override public void previewUiPatch(DeliveryItem item) {
+                if (owner != account || threads == null || item == null) return;
+                JSONObject payload = item.payloadObject();
+                dismissOverlays();
+                displayDiscussion();
+                if (item.sessionId != null && !item.sessionId.isEmpty()
+                        && !item.sessionId.equals(threads.sessionId())) {
+                    threads.onLiveUiPatch(payload);
+                    threads.open(item.sessionId);
+                } else if (threads.sessionId() != null) {
+                    threads.onLiveUiPatch(payload);
+                } else {
+                    previewStandaloneUiPatch(owner, payload);
+                }
+            }
+
+            @Override public void refreshWidget(DeliveryItem item) {
+                if (owner != account || item == null) return;
+                boolean updated = HomePinBridge.applyDeliveryWidgetUpdate(MainActivity.this, item.payloadObject());
+                Toast.makeText(MainActivity.this,
+                        updated ? R.string.widget_updated_toast : R.string.widget_pin_invalid,
+                        Toast.LENGTH_SHORT).show();
+            }
+
             @Override public void openPushPolicy() {
                 if (owner == account && push != null) push.openPolicy(owner);
             }
         };
+    }
+
+    private void previewStandaloneUiPatch(Account owner, JSONObject payload) {
+        try {
+            LiveUiPatch patch = LiveUiPatch.parse(payload, ThemePalette.isNight(this));
+            StringBuilder details = new StringBuilder(patch.summary);
+            for (String line : patch.frenchHighlights()) {
+                details.append("\n• ").append(line);
+            }
+            if (notice != null) notice.dismiss();
+            notice = Ui.secureDialog(new AlertDialog.Builder(this)
+                    .setTitle("Mise à jour d’écran proposée")
+                    .setMessage(details.toString())
+                    .setNegativeButton("Fermer", null)
+                    .setPositiveButton("Appliquer", (d, w) -> {
+                        if (owner != account) return;
+                        try {
+                            LiveUiPatch.StateManager manager = LiveUiPatch.StateManager.forAccount(
+                                    owner, ThemePalette.isNight(this));
+                            manager.apply(patch);
+                            for (LiveUiPatch.Op op : patch.ops) {
+                                if (op instanceof LiveUiPatch.Op.UpsertWidget uw) {
+                                    HomePinBridge.syncWidget(this, uw.widget());
+                                } else if (op instanceof LiveUiPatch.Op.RemoveWidget rw) {
+                                    HomePinBridge.removeWidget(this, rw.widgetId());
+                                }
+                            }
+                            onLayoutChanged();
+                        } catch (IOException | IllegalStateException e) {
+                            Diagnostics.warning("live_ui", "delivery_apply_failed");
+                            message("Mise à jour impossible",
+                                    "Impossible d’appliquer cette modification d’écran.");
+                        }
+                    }));
+        } catch (IOException rejected) {
+            Diagnostics.warning("live_ui", "delivery_patch_rejected");
+            message("Proposition invalide", "Cette mise à jour d’écran ne peut pas être appliquée.");
+        }
     }
 
     @Override public void noticeThread(boolean sameThread) {
@@ -484,6 +591,14 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         if (entry != null) {
             setIntent(intent);
             pendingOsEntry = entry;
+            pendingPinnedSurface = null;
+            pendingPinnedWidget = null;
+            if (account != null && threads != null) dispatchPendingOsEntry();
+            return;
+        }
+        capturePinnedShortcutIntent(intent);
+        if (pendingPinnedSurface != null || pendingPinnedWidget != null) {
+            setIntent(intent);
             if (account != null && threads != null) dispatchPendingOsEntry();
             return;
         }

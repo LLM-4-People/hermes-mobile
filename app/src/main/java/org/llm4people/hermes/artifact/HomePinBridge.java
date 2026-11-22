@@ -2,24 +2,34 @@ package org.llm4people.hermes.artifact;
 
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.appwidget.AppWidgetManager;
-import android.appwidget.AppWidgetProviderInfo;
-import android.content.ComponentName;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ShortcutInfo;
 import android.content.pm.ShortcutManager;
 import android.graphics.drawable.Icon;
-import android.os.Bundle;
-import java.util.List;
+import android.widget.Toast;
+
+import org.json.JSONObject;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.MainActivity;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
+import org.llm4people.hermes.os.HermesWidgetPinning;
+import org.llm4people.hermes.os.HermesWidgetProvider;
+import org.llm4people.hermes.os.HermesWidgetSpec;
+import org.llm4people.hermes.os.HermesWidgetStore;
+import org.llm4people.hermes.os.OsEntryIntent;
+
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 /**
  * Native Android launcher pinning bridge for Hermes-created surfaces and widgets.
- * Uses only Android platform APIs (ShortcutManager + AppWidgetManager) and passes strictly
- * home-screen-safe titles and opaque IDs — never private transcripts or credentials.
+ * Bridges Live UI Patch v2 widget specs directly into the OS widget engine
+ * ({@link HermesWidgetPinning}, {@link HermesWidgetStore}, {@link HermesWidgetProvider})
+ * and passes strictly home-screen-safe titles and opaque IDs — never private transcripts or credentials.
  */
 public final class HomePinBridge {
     public static final String ACTION_WIDGET_UPDATED = "org.llm4people.hermes.ACTION_WIDGET_SPEC_UPDATED";
@@ -27,6 +37,53 @@ public final class HomePinBridge {
     public static final String EXTRA_SURFACE_ID = "hermes_surface_id";
 
     private HomePinBridge() {}
+
+    /** Converts a validated Live UI WidgetSpec into an OS-level HermesWidgetSpec (fail-closed if unsafe). */
+    public static HermesWidgetSpec toOsWidgetSpec(LiveUiPatch.WidgetSpec spec) {
+        if (spec == null || !spec.homeScreenSafe) return null;
+        HermesWidgetSpec.Template template = HermesWidgetSpec.Template.parse(spec.template);
+        if (template == null) template = HermesWidgetSpec.Template.STATUS;
+        List<HermesWidgetSpec.Item> items = new ArrayList<>();
+        if (spec.items != null) {
+            for (LiveUiPatch.WidgetItem item : spec.items) {
+                if (items.size() >= HermesWidgetSpec.MAX_ITEMS) break;
+                if (item == null) continue;
+                String label = Boolean.TRUE.equals(item.checked) ? "✓ " + item.label : item.label;
+                items.add(new HermesWidgetSpec.Item(
+                        label,
+                        item.value == null ? "" : item.value,
+                        item.actionDraft == null ? "" : item.actionDraft));
+            }
+        }
+        try {
+            return new HermesWidgetSpec(
+                    spec.widgetId,
+                    spec.title,
+                    spec.subtitle,
+                    template,
+                    items,
+                    spec.accentHex,
+                    true);
+        } catch (IllegalArgumentException rejected) {
+            Diagnostics.warning("home_pin", "widget_convert_rejected");
+            return null;
+        }
+    }
+
+    /** Parses a pushed widget_update delivery payload strictly enforcing home_screen_safe: true. */
+    public static HermesWidgetSpec parseDeliveryWidgetSpec(JSONObject payload) {
+        if (payload == null) return null;
+        JSONObject candidate = payload.optJSONObject("widget");
+        if (candidate == null) candidate = payload;
+        if (!candidate.optBoolean("home_screen_safe", false)) return null;
+        try {
+            HermesWidgetSpec spec = HermesWidgetSpec.fromJson(candidate);
+            return spec.homeScreenSafe ? spec : null;
+        } catch (RuntimeException rejected) {
+            Diagnostics.warning("home_pin", "delivery_widget_rejected");
+            return null;
+        }
+    }
 
     /** Prompts the user and opens Android's native Home Screen widget pinning sheet when available. */
     public static void requestPinWidget(Activity activity, LiveUiPatch.WidgetSpec spec) {
@@ -61,6 +118,20 @@ public final class HomePinBridge {
         if (activity == null || shortcutId == null || shortcutId.isEmpty() || label == null || label.isEmpty()) {
             return false;
         }
+        // Widget shortcuts delegate directly to PR #14's native HermesWidgetPinning shortcut engine.
+        if (surfaceId == null && HermesWidgetSpec.validWidgetId(widgetId)
+                && HermesWidgetSpec.validWidgetId(shortcutId)) {
+            HermesWidgetPinning.PinResult result = HermesWidgetPinning.requestPinShortcut(
+                    activity, shortcutId, label, OsEntryIntent.Target.WIDGET_ACTION, widgetId);
+            if (result == HermesWidgetPinning.PinResult.REQUESTED) {
+                Diagnostics.event("home_pin", "shortcut_requested");
+                return true;
+            }
+            Diagnostics.event("home_pin", "shortcut_unsupported");
+            guidance(activity, "Raccourci non pris en charge",
+                    "Votre écran d’accueil actuel ne permet pas d’épingler un raccourci directement.");
+            return false;
+        }
         ShortcutManager manager = activity.getSystemService(ShortcutManager.class);
         if (manager == null || !manager.isRequestPinShortcutSupported()) {
             Diagnostics.event("home_pin", "shortcut_unsupported");
@@ -69,16 +140,19 @@ public final class HomePinBridge {
             return false;
         }
         Intent launch = new Intent(activity, MainActivity.class)
-                .setAction(Intent.ACTION_VIEW);
+                .setAction(Intent.ACTION_VIEW)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         if (surfaceId != null && WorkspaceLayout.custom(surfaceId)) {
             launch.putExtra(EXTRA_SURFACE_ID, surfaceId);
         }
         if (widgetId != null && DraftForm.validId(widgetId)) {
             launch.putExtra(EXTRA_WIDGET_ID, widgetId);
         }
+        String safeLabel = HermesWidgetSpec.sanitizeHomeText(label, 50);
+        if (safeLabel.isEmpty()) return false;
         ShortcutInfo info = new ShortcutInfo.Builder(activity, shortcutId)
-                .setShortLabel(label.length() > 25 ? label.substring(0, 25) : label)
-                .setLongLabel(label.length() > 50 ? label.substring(0, 50) : label)
+                .setShortLabel(safeLabel.length() > 25 ? safeLabel.substring(0, 25) : safeLabel)
+                .setLongLabel(safeLabel)
                 .setIcon(Icon.createWithResource(activity, R.mipmap.ic_launcher))
                 .setIntent(launch)
                 .build();
@@ -88,15 +162,16 @@ public final class HomePinBridge {
     }
 
     private static void launchWidgetPin(Activity activity, LiveUiPatch.WidgetSpec spec) {
-        AppWidgetManager manager = AppWidgetManager.getInstance(activity);
-        ComponentName provider = findPackageWidgetProvider(activity, manager);
-        if (manager != null && provider != null && manager.isRequestPinAppWidgetSupported()) {
-            Bundle extras = new Bundle();
-            extras.putString(EXTRA_WIDGET_ID, spec.widgetId);
-            boolean requested = manager.requestPinAppWidget(provider, extras, null);
-            Diagnostics.event("home_pin", requested ? "widget_requested" : "widget_declined");
-            notifyWidgetUpdated(activity, spec.widgetId);
-            if (requested) return;
+        HermesWidgetSpec osSpec = toOsWidgetSpec(spec);
+        if (osSpec != null) {
+            HermesWidgetPinning.PinResult result = HermesWidgetPinning.requestPinWidget(activity, osSpec);
+            broadcastWidgetUpdated(activity, osSpec.widgetId);
+            if (result == HermesWidgetPinning.PinResult.REQUESTED) {
+                Diagnostics.event("home_pin", "widget_requested");
+                Toast.makeText(activity, HermesWidgetPinning.guidanceMessage(activity, result),
+                        Toast.LENGTH_LONG).show();
+                return;
+            }
         }
         Diagnostics.event("home_pin", "widget_fallback_guidance");
         Ui.secureDialog(new AlertDialog.Builder(activity)
@@ -108,23 +183,86 @@ public final class HomePinBridge {
                         requestPinShortcut(activity, "widget-" + spec.widgetId, spec.title, null, spec.widgetId)));
     }
 
-    private static ComponentName findPackageWidgetProvider(Activity activity, AppWidgetManager manager) {
-        if (manager == null) return null;
-        try {
-            List<AppWidgetProviderInfo> providers = manager.getInstalledProvidersForPackage(activity.getPackageName(), null);
-            if (providers != null && !providers.isEmpty()) return providers.get(0).provider;
-        } catch (RuntimeException unavailable) {
-            Diagnostics.warning("home_pin", "provider_lookup_failed");
+    /** Upserts a validated Live UI widget into HermesWidgetStore and refreshes bound Android widgets. */
+    public static void syncWidget(Context context, LiveUiPatch.WidgetSpec spec) {
+        if (context == null || spec == null) return;
+        HermesWidgetSpec osSpec = toOsWidgetSpec(spec);
+        if (osSpec == null) return;
+        Context app = context.getApplicationContext();
+        new HermesWidgetStore(app).upsertSpec(osSpec);
+        HermesWidgetProvider.refreshWidget(app, osSpec.widgetId);
+        broadcastWidgetUpdated(app, osSpec.widgetId);
+    }
+
+    /** Removes a widget spec from HermesWidgetStore and refreshes Android widgets cleanly. */
+    public static void removeWidget(Context context, String widgetId) {
+        if (context == null || !HermesWidgetSpec.validWidgetId(widgetId)) return;
+        Context app = context.getApplicationContext();
+        new HermesWidgetStore(app).removeSpec(widgetId);
+        HermesWidgetProvider.refresh(app, false);
+        broadcastWidgetUpdated(app, widgetId);
+    }
+
+    /** Reconciles HermesWidgetStore after a Live UI rollback across all affected widget IDs. */
+    public static void syncWidgets(Context context, List<LiveUiPatch.WidgetSpec> activeSpecs, Set<String> affectedIds) {
+        if (context == null) return;
+        Set<String> present = new HashSet<>();
+        if (activeSpecs != null) {
+            for (LiveUiPatch.WidgetSpec spec : activeSpecs) {
+                present.add(spec.widgetId);
+                syncWidget(context, spec);
+            }
         }
-        return null;
+        if (affectedIds != null) {
+            for (String wid : affectedIds) {
+                if (!present.contains(wid)) removeWidget(context, wid);
+            }
+        }
+    }
+
+    /** Applies a Hermes-pushed widget_update delivery into HermesWidgetStore and refreshes the launcher widget. */
+    public static boolean applyDeliveryWidgetUpdate(Context context, JSONObject payload) {
+        if (context == null || payload == null) return false;
+        JSONObject candidate = payload.optJSONObject("widget");
+        if (candidate == null) candidate = payload;
+        if (candidate.has("home_screen_safe") && !candidate.optBoolean("home_screen_safe", false)) {
+            Diagnostics.warning("widget", "delivery_widget_unsafe");
+            return false;
+        }
+        HermesWidgetSpec spec = parseDeliveryWidgetSpec(payload);
+        Context app = context.getApplicationContext();
+        if (spec != null) {
+            new HermesWidgetStore(app).upsertSpec(spec);
+            HermesWidgetProvider.refreshWidget(app, spec.widgetId);
+            broadcastWidgetUpdated(app, spec.widgetId);
+            Diagnostics.event("widget", "delivery_widget_updated");
+            return true;
+        }
+        String widgetId = candidate.optString("widget_id", "").trim();
+        if (HermesWidgetSpec.validWidgetId(widgetId) && !candidate.has("title")) {
+            HermesWidgetProvider.refreshWidget(app, widgetId);
+            broadcastWidgetUpdated(app, widgetId);
+            Diagnostics.event("widget", "delivery_widget_refreshed");
+            return true;
+        }
+        Diagnostics.warning("widget", "delivery_widget_invalid");
+        return false;
     }
 
     public static void notifyWidgetUpdated(Activity activity, String widgetId) {
         if (activity == null || widgetId == null || widgetId.isEmpty()) return;
+        if (HermesWidgetSpec.validWidgetId(widgetId)) {
+            HermesWidgetProvider.refreshWidget(activity.getApplicationContext(), widgetId);
+        }
+        broadcastWidgetUpdated(activity, widgetId);
+    }
+
+    private static void broadcastWidgetUpdated(Context context, String widgetId) {
+        if (context == null || widgetId == null || widgetId.isEmpty()) return;
         Intent update = new Intent(ACTION_WIDGET_UPDATED)
-                .setPackage(activity.getPackageName())
+                .setPackage(context.getPackageName())
                 .putExtra(EXTRA_WIDGET_ID, widgetId);
-        activity.sendBroadcast(update);
+        context.sendBroadcast(update);
     }
 
     private static void guidance(Activity activity, String title, String message) {
