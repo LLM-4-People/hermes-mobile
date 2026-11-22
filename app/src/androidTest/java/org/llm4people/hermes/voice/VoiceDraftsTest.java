@@ -141,7 +141,10 @@ public final class VoiceDraftsTest extends InstrumentationTestCase {
             voice.pause();
             assertTrue(voice.permissionResult(current, microphone, grant));
             assertEquals(0, input.recordings);
+            voice.windowFocusChanged(true);
+            assertEquals(0, input.recordings);
             voice.resume();
+            voice.windowFocusChanged(true);
             assertEquals(1, input.recordings);
             voice.pause();
             assertEquals(1, input.closes);

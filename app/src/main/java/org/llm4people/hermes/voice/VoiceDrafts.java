@@ -144,12 +144,11 @@ public final class VoiceDrafts {
     }
     public void resume() {
         paused = false;
-        startApprovedRecording();
+        if (activity.hasWindowFocus()) startApprovedRecording();
     }
 
     private void startApprovedRecording() {
-        if (!paused && active != null && active.phase == Phase.PERMISSION && active.permissionGranted
-                && active.target.editor.hasWindowFocus()) active.start();
+        if (!paused && active != null && active.phase == Phase.PERMISSION && active.permissionGranted) active.start();
     }
 
     public boolean permissionResult(int code, String[] permissions, int[] results) {
@@ -159,7 +158,7 @@ public final class VoiceDrafts {
                 && Manifest.permission.RECORD_AUDIO.equals(permissions[0])
                 && results[0] == PackageManager.PERMISSION_GRANTED && input.permitted();
         if (!attempt.permissionGranted) attempt.finish(R.string.voice_permission_denied);
-        else startApprovedRecording();
+        else if (activity.hasWindowFocus()) startApprovedRecording();
         return true;
     }
 
