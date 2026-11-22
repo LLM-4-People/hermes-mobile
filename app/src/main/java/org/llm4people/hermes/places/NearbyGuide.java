@@ -208,7 +208,7 @@ public final class NearbyGuide extends LinearLayout {
         final int index;
         final NearbyResult.Place place;
         final LinearLayout group, top, detail;
-        final TextView name, pairNote;
+        final TextView marker, name, pairNote;
         final View divider;
         final GradientDrawable tint = new GradientDrawable();
 
@@ -227,6 +227,13 @@ public final class NearbyGuide extends LinearLayout {
             android.util.TypedValue appearance = new android.util.TypedValue();
             getContext().getTheme().resolveAttribute(android.R.attr.selectableItemBackground, appearance, true);
             top.setForeground(getContext().getDrawable(appearance.resourceId));
+            marker = text(Integer.toString(index + 1), 14, R.color.muted);
+            marker.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+            marker.setFontFeatureSettings("tnum");
+            marker.setMinWidth(dp(24));
+            marker.setPaddingRelative(0, 0, dp(6), 0);
+            marker.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+            top.addView(marker);
             name = text(place.name, 16, R.color.ink);
             TextView dist = text(distance(place.distanceMeters), 15, R.color.accent);
             dist.setPaddingRelative(dp(8), 0, 0, 0);
@@ -278,7 +285,9 @@ public final class NearbyGuide extends LinearLayout {
             }
             divider.setVisibility(visible && !selected ? VISIBLE : GONE);
             top.setSelected(selected);
-            top.setContentDescription(place.name + ", environ " + distance(place.distanceMeters) + " du centre. "
+            marker.setTextColor(getContext().getColor(selected ? R.color.accent
+                    : paired ? R.color.places_compare_ink : R.color.muted));
+            top.setContentDescription("Repère " + (index + 1) + ", " + place.name + ", environ " + distance(place.distanceMeters) + " du centre. "
                     + (paired ? "En comparaison. " : "") + (expanded ? "Replier les détails" : "Afficher les détails"));
             name.setTextSize(selected ? 18 : 16);
             name.setTypeface(Typeface.create(Typeface.DEFAULT, selected ? 650 : 500, false));

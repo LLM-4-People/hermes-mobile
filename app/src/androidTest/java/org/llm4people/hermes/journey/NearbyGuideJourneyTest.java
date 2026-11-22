@@ -69,6 +69,7 @@ public final class NearbyGuideJourneyTest extends InstrumentationTestCase {
                 ui.tap("Cuisine");
                 ui.tap("Asiatique");
                 ui.contains("1 adresse sur 3");
+                ui.see("Repère 2, Mae Sri Thai, environ 214 m du centre. Replier les détails");
                 ui.absent("Écart des distances au centre : 8 m");
                 ui.absent("Modifier la comparaison");
                 String observed = server.observed();
