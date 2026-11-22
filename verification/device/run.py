@@ -67,6 +67,17 @@ class Emulator:
     def shell(self, *args):
         return self.run("shell", *args).decode().strip()
 
+    def ime_shown(self):
+        # Keep window and editor diagnostics inside Android. Read to EOF and preserve
+        # the status of dumpsys, even when it fails after printing a matching field.
+        command = ("set -o pipefail; dumpsys input_method | "
+                   "grep -oE '(^|[[:space:]])mInputShown=(true|false)([[:space:]]|$)' | "
+                   "sed -E 's/.*mInputShown=(true|false).*/\\1/' | sort -u")
+        state = self.shell(command)
+        if state not in ("true", "false"):
+            raise RuntimeError("Android did not report an unambiguous IME visibility")
+        return state == "true"
+
     def setting(self, key, value):
         if value == "null":
             self.shell("settings", "delete", "system", key)

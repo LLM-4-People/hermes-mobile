@@ -105,7 +105,7 @@ class Screen:
 
         eventually("editor for " + label, find)
         self.type(label, value)
-        if "mInputShown=true" in self.device.shell("dumpsys", "input_method"):
+        if self.device.ime_shown():
             self.device.shell("input", "keyevent", "BACK")
 
     def type(self, label, value):
@@ -172,7 +172,7 @@ def distributor(ui, apk, endpoint):
 
         eventually("ntfy default server editor", open_editor)
         ui.type(url_field, endpoint)
-        if "mInputShown=true" in d.shell("dumpsys", "input_method"):
+        if d.ime_shown():
             d.shell("input", "keyevent", "BACK")
 
         def saved():

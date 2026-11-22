@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Terminal handoff journey on the disposable API 36 Google APIs device.
+# Run the handoff journey on its own freshly booted API 36 Google APIs device.
 set -euo pipefail
-serial=${1:?expected the emulator serial}
-app_apk=${2:?expected the packaged Hermes APK}
+serial=$(adb get-serialno)
+app_apk=${1:?expected the packaged Hermes APK}
 device=(adb -s "$serial")
 calendar_apk="$RUNNER_TEMP/calendar-25-foss-release.apk"
 proof="$RUNNER_TEMP/hermes-phone-actions"
@@ -12,6 +12,7 @@ curl --proto '=https' --proto-redir '=https' --fail --location --silent --show-e
   https://github.com/FossifyOrg/Calendar/releases/download/1.12.2/calendar-25-foss-release.apk --output "$calendar_apk"
 echo "2825816d0a972bd85eb289e556221293fadecfd3179a4a2531bde6f89c6f0238  $calendar_apk" | sha256sum --check
 "${device[@]}" install -r "$calendar_apk"
+"${device[@]}" install -r -t "$app_apk"
 
 # Keep the gateway on adb reverse. The external apps must have no default network or signed-in account.
 "${device[@]}" shell cmd connectivity airplane-mode enable
