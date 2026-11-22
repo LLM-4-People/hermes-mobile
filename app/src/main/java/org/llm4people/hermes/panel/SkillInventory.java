@@ -3,6 +3,7 @@ package org.llm4people.hermes.panel;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.llm4people.hermes.VisibleText;
 import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.List;
@@ -34,7 +35,7 @@ final class SkillInventory {
             JSONObject row = rows.optJSONObject(i);
             if (row == null || !(row.opt("name") instanceof String name)) continue;
             // The name is a load identifier. Removing a control character would request a different skill.
-            if (name.trim().isEmpty() || name.codePoints().anyMatch(Character::isISOControl)) continue;
+            if (VisibleText.isBlank(name) || name.codePoints().anyMatch(Character::isISOControl)) continue;
             String description = optionalText(row, "description");
             String category = optionalText(row, "category");
             if (description != null && category != null) skills.add(new SkillInventory(name, description, category));

@@ -29,11 +29,12 @@ public final class SkillInventoryTest extends TestCase {
                   {"name":"editing/review"},
                   {"name":"review\\n","description":"Folded YAML name","category":null},
                   null,{"name":42},{"name":"bad-category","category":[]},
-                  {"name":" team/review ","description":"Exact name","category":"editing"}]}
+                  {"name":"\u200b"},{"name":"\u202f\ufe0f"},
+                  {"name":" team/review ✈️ ","description":"Exact name","category":"editing"}]}
                 """));
         assertEquals(2, skills.size());
         assertEquals("editing/review", skills.get(0).name);
-        assertEquals(" team/review ", skills.get(1).name);
+        assertEquals(" team/review ✈️ ", skills.get(1).name);
         assertEquals(2, SkillInventory.search(skills, "review").size());
     }
 
