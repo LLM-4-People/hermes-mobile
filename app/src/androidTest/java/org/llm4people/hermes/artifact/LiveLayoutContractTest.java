@@ -20,6 +20,26 @@ public class LiveLayoutContractTest extends InstrumentationTestCase {
                 + slots + "}]}";
     }
 
+    public void testPageAndFieldIdentifiersPreserveUnderscoresAndHyphens() throws Exception {
+        String raw = REVIEW.replace("page/revue", "page/revue_code").replace("page/suite", "page/revue-code")
+                .replace("\"file\"", "\"review_point\"").replace("\"why\"", "\"review-point\"");
+        WorkspaceLayout layout = WorkspaceLayout.parse(raw);
+        assertEquals("page/revue_code", layout.surface);
+        assertEquals("page/revue-code", layout.blocks.get(1).page);
+        WorkspaceLayout.Block form = layout.blocks.get(2);
+        Map<String,String> answers = new HashMap<>();
+        answers.put("review_point", "Panier.java");
+        answers.put("review-point", "Fiabilité");
+        assertEquals("Examiner le composant.\n\nFichier\nPanier.java\n\nObjectif\nFiabilité", DraftForm.compose(form, answers));
+        invalid(raw.replace("review-point", "review_point"));
+        String longest = "abcdefghijklmnopqrstuvwxyz0123456789";
+        assertTrue(DraftForm.validId(longest));
+        for (String id : new String[]{"_revue", "Revue", "révision", "a/b", longest + "_"}) {
+            assertFalse(DraftForm.validId(id));
+            assertFalse(WorkspaceLayout.custom("page/" + id));
+        }
+    }
+
     public void testReplacementsAndExplicitNativeSlotSelection() throws Exception {
         for (String s : WorkspaceLayout.SURFACES.keySet())
             assertEquals(s, WorkspaceLayout.parse(REVIEW.replace("page/revue",s)).surface);

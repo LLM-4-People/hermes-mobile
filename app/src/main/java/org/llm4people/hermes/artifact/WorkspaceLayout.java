@@ -59,7 +59,7 @@ final class WorkspaceLayout {
                 String.join(", ", SOURCES) + ". Thread content can order slots from " + String.join(", ", SLOTS) +
                 ". For code artifacts add a filename after the fence language, e.g. file=src/main.py or file=Dockerfile; use diff for diffs.\n" +
                 "For a reusable discussion or review tool, create a personal surface page/<slug> in replace mode. " +
-                "The slug and field IDs must match " + DraftForm.SLUG.pattern() + " (hyphens between words). " +
+                "The slug and field IDs must match " + DraftForm.SLUG.pattern() + ". " +
                 "Give each requested input a field, up to " + DraftForm.MAX_FIELDS + ". Kinds: text, multiline, or choice " +
                 "with options (an array of French strings). Forms prepare drafts that the person edits and sends. " +
                 "On revision return the whole page, retaining its surface and existing field IDs. Adapt this example " +
