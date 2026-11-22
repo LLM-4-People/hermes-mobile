@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from native_tests import RUNNER, run, successful_cases
+from native_tests import RUNNER, crash_summary, packaged_cases, run, successful_cases
 
 
 def status(method, code, count=1):
@@ -21,6 +21,34 @@ def report(method="testLaunch"):
 
 
 class FrameworkSuiteTest(unittest.TestCase):
+    expected = {("app.FrameworkTest", "testLaunch")}
+
+    def test_crash_diagnostic_excludes_external_processes_and_exception_messages(self):
+        crash = """FATAL EXCEPTION: main
+Process: other.app, PID: 1
+java.lang.OutOfMemoryError: other secret
+    at other.app.Secret.run(Secret.java:1)
+FATAL EXCEPTION: instrumentation
+Process: org.llm4people.hermes, PID: 2
+java.lang.NoClassDefFoundError: private content
+    at android.test.Loader.load(Loader.java:2)
+"""
+        self.assertEqual(crash_summary(crash), "java.lang.NoClassDefFoundError\nandroid.test.Loader.load")
+
+    def test_apk_inventory_includes_inheritance_and_excludes_non_tests(self):
+        xml = """<api><package name="app">
+          <class name="Base" extends="junit.framework.TestCase" abstract="true" visibility="public">
+            <method name="testInherited" visibility="public" return="void" static="false"/>
+          </class><class name="FrameworkTest" extends="app.Base" visibility="public">
+            <method name="testLaunch" visibility="public" return="void" static="false"/>
+            <method name="testWithArg" visibility="public" return="void" static="false"><parameter/></method>
+          </class><class name="Helper" extends="java.lang.Object" visibility="public">
+            <method name="testUnrelated" visibility="public" return="void" static="false"/>
+          </class></package></api>"""
+        self.assertEqual(packaged_cases(xml), self.expected | {("app.FrameworkTest", "testInherited")})
+        with self.assertRaises(ValueError):
+            packaged_cases("<api/>")
+
     def test_only_identified_test_completions_count(self):
         self.assertEqual(successful_cases(report()), {("app.FrameworkTest", "testLaunch")})
 
@@ -39,7 +67,7 @@ class FrameworkSuiteTest(unittest.TestCase):
             with self.subTest(output=bad), self.assertRaises(ValueError):
                 successful_cases(bad)
 
-    def test_complete_discovery_and_unfiltered_execution_pass(self):
+    def test_complete_packaged_discovery_and_execution_pass(self):
         with tempfile.TemporaryDirectory() as temporary:
             commands = []
             def adb(command, *, stdout, stderr):
@@ -47,8 +75,8 @@ class FrameworkSuiteTest(unittest.TestCase):
                 stdout.write(report())
                 return subprocess.CompletedProcess(command, 0)
             with patch("native_tests.subprocess.run", adb):
-                run("serial", Path(temporary))
-            base = ["adb", "-s", "serial", "shell", "am", "instrument", "-w", "-r"]
+                run("serial", Path(temporary), self.expected)
+            base = ["adb", "-s", "serial", "shell", "am", "instrument", "-w", "-r", "-e", "class", "app.FrameworkTest"]
             self.assertEqual(commands, [base + ["-e", "log", "true", RUNNER], base + [RUNNER]])
 
     def test_installed_discovery_and_actual_execution_must_match(self):
@@ -58,10 +86,10 @@ class FrameworkSuiteTest(unittest.TestCase):
                 self.assertEqual(command[:7], ["adb", "-s", "serial", "shell", "am", "instrument", "-w"])
                 self.assertEqual(command[-1], RUNNER)
                 self.assertEqual(stderr, subprocess.STDOUT)
-                stdout.write(report("testDiscovery" if "log" in command else "testDifferent"))
+                stdout.write(report("testLaunch" if "log" in command else "testDifferent"))
                 return subprocess.CompletedProcess(command, 0)
-            with patch("native_tests.subprocess.run", adb), self.assertRaisesRegex(ValueError, "Suite changed"):
-                run("serial", directory)
+            with patch("native_tests.subprocess.run", adb), contextlib.redirect_stderr(io.StringIO()), self.assertRaisesRegex(ValueError, "test sets differ"):
+                run("serial", directory, self.expected)
             self.assertEqual({p.name for p in directory.iterdir()}, {"discovery.txt", "execution.txt"})
 
     def test_adb_failure_stops_before_execution_and_retains_diagnostic(self):
@@ -73,6 +101,6 @@ class FrameworkSuiteTest(unittest.TestCase):
             log = io.StringIO()
             with (patch("native_tests.subprocess.run", adb), contextlib.redirect_stderr(log),
                   self.assertRaises(subprocess.CalledProcessError)):
-                run("serial", directory)
+                run("serial", directory, self.expected)
             self.assertEqual(log.getvalue().strip(), "device disconnected")
             self.assertFalse((directory / "execution.txt").exists())
