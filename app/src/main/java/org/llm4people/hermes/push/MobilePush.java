@@ -45,6 +45,7 @@ public final class MobilePush {
     private View decor() { return activity.getWindow().getDecorView(); }
 
     public static boolean isEnabled(Context context, String profileId) {
+        DistributorEnrollment.reconcile(context);
         PushStore.Device device = PushStore.get(context).forProfile(profileId);
         return device != null && device.receives() && PushNotices.allowed(context);
     }
