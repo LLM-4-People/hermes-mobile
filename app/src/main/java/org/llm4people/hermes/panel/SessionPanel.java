@@ -40,6 +40,7 @@ public final class SessionPanel implements AutoCloseable {
     private Runnable back;
     private String surface;
     private LinearLayout nativeContent;
+    private PanelFrame frame;
     private LinearLayout navigation;
     private ArtifactDesk.Host layoutHost;
 
@@ -67,10 +68,9 @@ public final class SessionPanel implements AutoCloseable {
     }
 
     private void mountLayout() {
-        if (nativeContent.getParent() instanceof ViewGroup)
-            ((ViewGroup) nativeContent.getParent()).removeView(nativeContent);
-        View decorated = layoutHost == null ? nativeContent :
-                ArtifactDesk.decorate(activity, account, surface, nativeContent, layoutHost);
+        if (frame.getParent() instanceof ViewGroup parent) parent.removeView(frame);
+        View decorated = layoutHost == null ? frame :
+                ArtifactDesk.decorate(activity, account, surface, frame, layoutHost);
         dialog.setContentView(decorated);
     }
 
@@ -119,8 +119,7 @@ public final class SessionPanel implements AutoCloseable {
         generation++;
         back = parent;
         LinearLayout container = Ui.column(activity);
-        container.setFitsSystemWindows(true);
-        container.setBackgroundColor(activity.getColor(R.color.paper));
+        frame = new PanelFrame(activity, container);
         navigation = Ui.row(activity);
         Ui.pad(navigation, 12, 0);
         navigation.addView(Ui.button(activity, t(parent == null ? R.string.panel_done : R.string.panel_back),
@@ -129,7 +128,7 @@ public final class SessionPanel implements AutoCloseable {
         ScrollView scroll = new ScrollView(activity);
         scroll.setFillViewport(true);
         LinearLayout content = Ui.column(activity);
-        Ui.pad(content, 20, 12);
+        Ui.pad(content, PanelFrame.PAGE_PADDING_DP, 12);
         TextView heading = Ui.text(activity, t(title), 29);
         heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         heading.setAccessibilityHeading(true);
@@ -157,8 +156,11 @@ public final class SessionPanel implements AutoCloseable {
         return content;
     }
 
+    PanelFrame.Sections sections(LinearLayout page) { return frame.sections(page); }
+
     /** The landscape IME can leave just one touch target's height for both search and results. */
     void splitPicker(LinearLayout results, View heading, View search) {
+        if (frame != null) frame.allowWide();
         LinearLayout controls = Ui.column(activity);
         nativeContent.removeView(navigation);
         nativeContent.setOrientation(LinearLayout.HORIZONTAL);
@@ -255,6 +257,7 @@ public final class SessionPanel implements AutoCloseable {
         dialog = null;
         surface = null;
         nativeContent = null;
+        frame = null;
         navigation = null;
         back = null;
     }

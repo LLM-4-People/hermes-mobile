@@ -8,6 +8,10 @@
         android:name="org.llm4people.hermes.journey.ConversationCardsJourney"
         android:targetPackage="${hermesApplicationId}" />
     <application>
+        <activity android:name="org.llm4people.hermes.journey.AdaptivePeerActivity"
+            android:exported="true" android:resizeableActivity="true"
+            android:theme="@android:style/Theme.Material.Light.NoActionBar"
+            android:taskAffinity="org.llm4people.hermes.test.adaptivepeer" />
         <uses-library android:name="android.test.runner" />
     </application>
 </manifest>

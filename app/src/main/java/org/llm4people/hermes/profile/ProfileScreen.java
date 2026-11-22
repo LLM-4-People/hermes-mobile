@@ -13,6 +13,7 @@ import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import org.llm4people.hermes.AdaptiveLayout;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 
@@ -31,8 +32,9 @@ final class ProfileScreen {
         // inside the remaining space, including in split-screen and rotated windows.
         ScrollView scroll = new ScrollView(activity) {
             @Override protected void onMeasure(int widthSpec, int heightSpec) {
-                int width = MeasureSpec.getSize(widthSpec);
-                int gutter = Math.max(Ui.dp(activity, 22), (width - Ui.dp(activity, 520)) / 2);
+                float density = getResources().getDisplayMetrics().density;
+                int gutter = Ui.dp(activity, AdaptiveLayout.centeredGutterDp(
+                        MeasureSpec.getSize(widthSpec) / density, AdaptiveLayout.PROFILE_COLUMN_MAX_DP, 22));
                 if (body.getPaddingStart() != gutter) {
                     body.setPaddingRelative(gutter, Ui.dp(activity, 20), gutter, Ui.dp(activity, 24));
                 }

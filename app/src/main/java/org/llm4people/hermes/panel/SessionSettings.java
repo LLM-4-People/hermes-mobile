@@ -86,18 +86,19 @@ final class SessionSettings {
             return;
         }
         panel.note(box, panel.t(R.string.panel_session_scope));
-        panel.section(box, R.string.panel_model);
-        modelSetting(box);
-        if (stageDraft != null) panel.action(box, R.string.skills_title, () -> {
+        PanelFrame.Sections settings = panel.sections(box);
+        panel.section(settings.first, R.string.panel_model);
+        modelSetting(settings.first);
+        if (stageDraft != null) panel.action(settings.first, R.string.skills_title, () -> {
             if (activeThread.getAsBoolean()) new SkillBrowser(panel, activeThread, stageDraft, this).show();
         });
-        panel.section(box, R.string.panel_tools);
+        panel.section(settings.second, R.string.panel_tools);
         LinearLayout controls = Ui.column(panel.activity);
-        box.addView(controls);
+        settings.second.addView(controls);
         loadTools(controls);
-        box.addView(Ui.divider(panel.activity));
-        panel.action(box, R.string.panel_stats, () -> new UsagePanel(panel, id, remoteId, this::show).show());
-        panel.action(box, R.string.panel_reminders, panel::showReminders);
+        settings.second.addView(Ui.divider(panel.activity));
+        panel.action(settings.second, R.string.panel_stats, () -> new UsagePanel(panel, id, remoteId, this::show).show());
+        panel.action(settings.second, R.string.panel_reminders, panel::showReminders);
     }
 
     private void modelSetting(LinearLayout box) {

@@ -39,7 +39,7 @@ public final class JourneyUi {
         this.evidence = evidence;
     }
 
-    private <T> T main(Supplier<T> task) {
+    <T> T main(Supplier<T> task) {
         AtomicReference<T> result = new AtomicReference<>();
         AtomicReference<Throwable> failure = new AtomicReference<>();
         driver.runOnMainSync(() -> {
@@ -59,7 +59,7 @@ public final class JourneyUi {
         return null;
     }
 
-    private View find(View v, Predicate<View> predicate) {
+    View find(View v, Predicate<View> predicate) {
         if (v == null || !v.isShown()) return null;
         if (predicate.test(v)) return v;
         if (v instanceof ViewGroup group) {
@@ -71,14 +71,14 @@ public final class JourneyUi {
         return null;
     }
 
-    private static boolean named(View v, String name) {
+    static boolean named(View v, String name) {
         if (name.contentEquals(v.getContentDescription() == null ? "" : v.getContentDescription())) return true;
         if (!(v instanceof TextView text)) return false;
         return name.contentEquals(text.getText()) ||
                 (text.getHint() != null && name.contentEquals(text.getHint()));
     }
 
-    private <T> T until(String expectation, Supplier<T> probe) {
+    <T> T until(String expectation, Supplier<T> probe) {
         long deadline = SystemClock.elapsedRealtime() + 60000;
         while (SystemClock.elapsedRealtime() < deadline) {
             T value = main(probe);
@@ -230,7 +230,7 @@ public final class JourneyUi {
         driver.waitForIdleSync();
     }
 
-    private EditText field(String label) {
+    EditText field(String label) {
         return until("field " + label, () -> {
             View root = window();
             View direct = find(root, v -> v instanceof EditText && named(v, label));
@@ -276,7 +276,8 @@ public final class JourneyUi {
         until("visible conversation beside the editable instrument", () -> {
             View root = window();
             if (root == null || activity.getResources().getConfiguration().screenWidthDp < 720) return null;
-            View transcript = find(root, v -> v instanceof android.widget.ListView list && list.getCount() > 1);
+            View transcript = find(root, v -> v instanceof android.widget.ListView list
+                    && v.getId() != org.llm4people.hermes.R.id.discussion_list && list.getCount() > 1);
             View label = find(root, v -> named(v, fieldLabel) && v.getLabelFor() != View.NO_ID);
             if (label == null || transcript == null) return null;
             View editor = root.findViewById(label.getLabelFor());

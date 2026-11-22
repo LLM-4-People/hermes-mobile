@@ -43,17 +43,19 @@ final class ReminderEditor {
     void show() {
         LinearLayout page = panel.page("reminders", job == null ? R.string.panel_new_reminder : R.string.panel_reminder_edit,
                 () -> { if (job == null) owner.show(); else owner.details(job); });
-        title = field(page, R.string.panel_name, true, job == null ? "" : PanelData.text(job, "name"));
-        prompt = field(page, R.string.panel_prompt, false, job == null ? "" : PanelData.text(job, "prompt"));
-        panel.section(page, R.string.panel_schedule);
+        PanelFrame.Sections editor = panel.sections(page);
+        title = field(editor.first, R.string.panel_name, true, job == null ? "" : PanelData.text(job, "name"));
+        prompt = field(editor.first, R.string.panel_prompt, false, job == null ? "" : PanelData.text(job, "prompt"));
+        LinearLayout schedule = editor.second;
+        panel.section(schedule, R.string.panel_schedule);
         scheduleControls = Ui.column(panel.activity);
-        page.addView(scheduleControls);
+        schedule.addView(scheduleControls);
         renderSchedule();
-        error = panel.note(page, "");
+        error = panel.note(schedule, "");
         error.setAccessibilityLiveRegion(android.view.View.ACCESSIBILITY_LIVE_REGION_POLITE);
-        save = panel.action(page, R.string.panel_save, this::save);
+        save = panel.action(schedule, R.string.panel_save, this::save);
         status = Ui.column(panel.activity);
-        page.addView(status);
+        schedule.addView(status);
     }
 
     private EditText field(LinearLayout page, int name, boolean single, String value) {
@@ -63,6 +65,7 @@ final class ReminderEditor {
         label.setLabelFor(field.getId());
         field.setSingleLine(single);
         field.setInputType(InputType.TYPE_CLASS_TEXT | (single ? 0 : InputType.TYPE_TEXT_FLAG_MULTI_LINE));
+        field.setMinHeight(Ui.dp(panel.activity, 48));
         field.setText(value);
         page.addView(field);
         return field;
