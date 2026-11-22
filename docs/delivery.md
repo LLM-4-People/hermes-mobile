@@ -4,7 +4,7 @@
 
 Use a short-lived branch based on current `main`. Open a pull request after completing a milestone. Preserve unique work before deleting merged branches.
 
-Configure the `main` ruleset to require pull requests with at least one independent approving reviewer, resolved review threads and successful **Validate sources**, **Workspace tests**, **Android package** and **Android device** checks. Require the branch to be up to date before merging and block deletion and force-pushes. Restrict Actions' default token to read access and keep self-approval disabled.
+The `main` ruleset requires pull requests, resolved review threads and successful **Validate sources**, **Workspace tests**, **Android package** and **Android device** checks. GitHub requires an up-to-date branch and blocks deletion and force-pushes. Record the independent review, confirmed findings, repairs and verification in the pull request before merging. The repository currently has one maintainer and uses independent project reviewers for this gate. Actions starts with read access and cannot approve pull requests.
 
 The checks validate generated Markdown and workflows, run the backend and Android host tests, lint and build the app, and exercise it on an Android emulator. Download the debug APK from the **android-debug** artifact on a successful package job.
 

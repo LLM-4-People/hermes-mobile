@@ -89,7 +89,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                     if (owner != account || isFinishing()) return;
                     if ("reminder".equals(event.optString("kind"))) {
                         panels.showReminders();
-                    } else if (!event.optString("session_id").isEmpty()) {
+                    } else if (!event.isNull("session_id") && !event.optString("session_id").isEmpty()) {
                         displayDiscussion();
                         threads.open(event.optString("session_id"));
                     }

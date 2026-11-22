@@ -30,3 +30,5 @@ A user can receive a private alert while the app is closed and unlock the owning
 - Preserve the user's place across disconnects, incoming events and account switches.
 - Keep the entire French interface usable with the keyboard visible, TalkBack, larger text and light or dark appearance.
 - Make changes to tools, providers, reminders and layouts explicit and observable.
+
+<!-- Generated from docs/sources/PRODUCT.md.in by scripts/docs.py. -->
