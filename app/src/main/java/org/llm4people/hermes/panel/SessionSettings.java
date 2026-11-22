@@ -6,6 +6,7 @@ import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.View;
 import android.view.accessibility.AccessibilityNodeInfo;
+import android.view.inputmethod.EditorInfo;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.CheckBox;
@@ -13,6 +14,7 @@ import android.widget.CheckedTextView;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ListView;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -126,7 +128,7 @@ final class SessionSettings {
     }
 
     private void pickModel(Provider provider) {
-        LinearLayout box = panel.page("settings", R.string.panel_choose_model, this::pickProvider, false);
+        LinearLayout box = panel.page("settings", R.string.panel_choose_model, this::pickProvider, provider.models.isEmpty());
         panel.note(box, provider.toString());
         if (provider.models.isEmpty()) { panel.note(box, panel.t(R.string.panel_no_model)); return; }
         String current = provider.slug.equals(PanelData.text(saved, "provider")) ? PanelData.text(saved, "model") : null;
@@ -142,6 +144,7 @@ final class SessionSettings {
         EditText search = new EditText(panel.activity);
         search.setSingleLine();
         search.setHint(R.string.panel_search);
+        search.setImeOptions(EditorInfo.IME_ACTION_SEARCH | EditorInfo.IME_FLAG_NO_EXTRACT_UI);
         search.setMinHeight(Ui.dp(panel.activity, 48));
         search.setTextColor(panel.activity.getColor(R.color.ink));
         search.setHintTextColor(panel.activity.getColor(R.color.muted));
@@ -149,6 +152,7 @@ final class SessionSettings {
         Ui.pad(search, 12, 8);
         LinearLayout.LayoutParams field = new LinearLayout.LayoutParams(-1, -2);
         field.setMargins(0, Ui.dp(panel.activity, 8), 0, Ui.dp(panel.activity, 8));
+        reservePickerResults(box, search, field);
         box.addView(search, field);
         TextView empty = panel.note(box, panel.t(R.string.panel_empty_search));
         ListView list = new ListView(panel.activity);
@@ -186,6 +190,30 @@ final class SessionSettings {
             }
             @Override public void afterTextChanged(Editable s) {}
         });
+    }
+
+    /** Keep long provider names scrollable while reserving space for search and a selectable result. */
+    private void reservePickerResults(LinearLayout page, EditText search, LinearLayout.LayoutParams field) {
+        LinearLayout context = Ui.column(panel.activity);
+        while (page.getChildCount() > 0) {
+            View detail = page.getChildAt(0);
+            page.removeViewAt(0);
+            context.addView(detail);
+        }
+        ScrollView header = new ScrollView(panel.activity) {
+            @Override protected void onMeasure(int widthSpec, int heightSpec) {
+                if (MeasureSpec.getMode(heightSpec) != MeasureSpec.UNSPECIFIED) {
+                    int available = MeasureSpec.getSize(heightSpec);
+                    search.measure(widthSpec, MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));
+                    int reserve = search.getMeasuredHeight() + field.topMargin + field.bottomMargin + Ui.dp(getContext(), 48);
+                    int limit = Math.max(0, Math.min(available / 2, available - reserve));
+                    heightSpec = MeasureSpec.makeMeasureSpec(limit, MeasureSpec.AT_MOST);
+                }
+                super.onMeasure(widthSpec, heightSpec);
+            }
+        };
+        header.addView(context);
+        page.addView(header, new LinearLayout.LayoutParams(-1, -2));
     }
 
     private void restoreChoice(ListView list, int committed) {
