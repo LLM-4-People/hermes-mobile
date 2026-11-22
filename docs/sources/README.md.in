@@ -20,7 +20,7 @@ When Hermes has a question, its suggestions appear in the discussion. Tap a sing
 
 Tap **Écouter** on a question or choose **Écouter la dernière réponse** from the discussion menu to listen. Playback uses an installed offline French voice and stops when you leave the discussion, lock the account, or begin dictating.
 
-To ask about a screenshot or photo, open **Autres actions → Joindre une image…** in the discussion. Select one still image, review its preview, write your question, then tap **Envoyer**. **Retirer** keeps the question in the composer. The phone re-encodes the image without its original file metadata. The selected gateway and its configured vision provider receive the pixels when you send. [Hermes vision settings](https://hermes-agent.nousresearch.com/docs/user-guide/features/vision)
+To ask about a screenshot or photo, open **Autres actions → Joindre une image…** in the discussion. Select one still image, review its preview, write your question, then tap **Envoyer**. **Retirer** keeps the question in the composer. The phone re-encodes the image without its original file metadata. The selected gateway and its configured vision provider receive the pixels when you send. [Hermes vision settings](https://hermes-agent.nousresearch.com/docs/user-guide/features/vision) · [What a local vision model saw](docs/local-vision.md)
 
 ## Bring work in from another Android app
 
