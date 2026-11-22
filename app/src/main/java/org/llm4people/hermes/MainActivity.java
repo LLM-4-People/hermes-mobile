@@ -450,6 +450,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
 
     private void clearWorkspace() {
         if (sharedText != null) sharedText.lock();
+        if (photoPicker != null) photoPicker.interruptImport();
         if (shell != null) shell.dismissMenu();
         if (voice != null) voice.reader().stop();
         dismissOverlays();

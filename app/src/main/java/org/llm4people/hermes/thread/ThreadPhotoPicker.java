@@ -20,13 +20,14 @@ public final class ThreadPhotoPicker {
     private String ownerProof;
     private String threadProof;
     private boolean reselect;
+    private boolean importing;
     private Uri selected;
 
     public ThreadPhotoPicker(Activity activity, Bundle state) {
         this.activity = activity;
+        if (state != null) requestCode = state.getInt("photo_request", requestCode);
         if (state != null && state.getString("photo_nonce") != null) {
             nonce = state.getString("photo_nonce");
-            requestCode = state.getInt("photo_request");
             ownerProof = state.getString("photo_owner");
             threadProof = state.getString("photo_thread");
             reselect = state.getBoolean("photo_reselect");
@@ -34,13 +35,14 @@ public final class ThreadPhotoPicker {
     }
 
     public void save(Bundle state) {
+        // The next generation must not accept an older picker's delayed result, even after cancellation.
+        state.putInt("photo_request", requestCode);
         if (nonce == null) return;
         state.putString("photo_nonce", nonce);
-        state.putInt("photo_request", requestCode);
         state.putString("photo_owner", ownerProof);
         state.putString("photo_thread", threadProof);
         // An unimported URI is a temporary grant and never belongs in saved activity state.
-        state.putBoolean("photo_reselect", reselect || selected != null);
+        state.putBoolean("photo_reselect", reselect || importing || selected != null);
     }
 
     public void launch(Account account, ThreadWorkspace workspace) {
@@ -65,7 +67,7 @@ public final class ThreadPhotoPicker {
         nonce = UUID.randomUUID().toString();
         ownerProof = account.selectionBinding(nonce, "");
         threadProof = account.selectionBinding(nonce, session);
-        reselect = false;
+        reselect = importing = false;
         selected = null;
         requestCode = requestCode == 0x6fff ? 0x5000 : requestCode + 1;
     }
@@ -88,15 +90,36 @@ public final class ThreadPhotoPicker {
     }
 
     public boolean deliver(Account account, ThreadWorkspace workspace) {
-        if (account == null || workspace == null || nonce == null || selected == null && !reselect
-                || workspace.sessionId() == null) return false;
-        boolean owns = owns(account, workspace.sessionId());
-        Uri uri = selected;
-        clear();
-        if (owns && uri != null) workspace.importPhoto(uri);
-        else if (owns) Toast.makeText(activity, "Sélection interrompue. Joignez de nouveau l’image.", Toast.LENGTH_LONG).show();
-        return owns;
+        if (account == null || workspace == null || nonce == null || workspace.sessionId() == null) return false;
+        if (!owns(account, workspace.sessionId())) { clear(); return false; }
+        if (importing) return false;
+        if (selected != null) {
+            Uri uri = selected;
+            Runnable completed = startImport();
+            workspace.importPhoto(uri, completed);
+            return true;
+        }
+        if (reselect) {
+            clear();
+            if (!workspace.hasPhotoDraft())
+                Toast.makeText(activity, "Sélection interrompue. Joignez de nouveau l’image.", Toast.LENGTH_LONG).show();
+        }
+        return false;
     }
 
-    private void clear() { nonce = ownerProof = threadProof = null; selected = null; reselect = false; }
+    Runnable startImport() {
+        selected = null;
+        importing = true;
+        String ticket = nonce;
+        return () -> { if (ticket.equals(nonce)) clear(); };
+    }
+
+    public void interruptImport() {
+        if (importing) {
+            importing = false;
+            reselect = true;
+        }
+    }
+
+    private void clear() { nonce = ownerProof = threadProof = null; selected = null; reselect = importing = false; }
 }

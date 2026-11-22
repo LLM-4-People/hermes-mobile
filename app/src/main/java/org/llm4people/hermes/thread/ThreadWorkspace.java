@@ -142,22 +142,27 @@ public final class ThreadWorkspace implements AutoCloseable {
         return false;
     }
 
-    public void importPhoto(android.net.Uri uri) {
-        if (!readyForPhoto()) return;
+    boolean hasPhotoDraft() { return journal != null && journal.photo() != null; }
+
+    void importPhoto(android.net.Uri uri, Runnable completed) {
+        if (!readyForPhoto()) { completed.run(); return; }
         importingPhoto = true;
         screen.importingPhoto(true);
         screen.notice("Préparation de l’image…", "", null);
         request(() -> DiscussionPhoto.read(activity.getContentResolver(), uri), photo -> {
             importingPhoto = false;
             screen.importingPhoto(false);
-            if (journal.pending() != null || journal.photo() != null) return;
-            journal.photo(photo.info, photo.pixels);
-            refreshPhoto();
-            screen.notice("", "", null);
-            screen.focusComposer();
+            try {
+                if (journal.pending() != null || journal.photo() != null) return;
+                journal.photo(photo.info, photo.pixels);
+                refreshPhoto();
+                screen.notice("", "", null);
+                screen.focusComposer();
+            } finally { completed.run(); }
         }, failure -> {
             importingPhoto = false;
             screen.importingPhoto(false);
+            completed.run();
             screen.notice("Image illisible ou trop volumineuse. Choisissez une photo ou une capture fixe de moins de 16 Mio.", "", null);
         });
     }

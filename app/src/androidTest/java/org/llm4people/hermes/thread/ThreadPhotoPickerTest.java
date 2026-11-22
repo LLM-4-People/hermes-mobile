@@ -37,9 +37,23 @@ public final class ThreadPhotoPickerTest extends InstrumentationTestCase {
                 assertFalse(value.contains(reopened.id));
                 assertFalse(value.contains(reopened.bearer));
             }
+            Runnable oldImportCompleted = recreated.startImport();
+            Bundle encoding = new Bundle();
+            recreated.save(encoding);
+            assertTrue(encoding.getBoolean("photo_reselect"));
+            assertTrue(new ThreadPhotoPicker(null, encoding).owns(reopened, thread));
+            recreated.interruptImport();
+            recreated.begin(reopened, "next");
+            oldImportCompleted.run();
+            assertTrue(recreated.owns(reopened, "next"));
             ThreadPhotoPicker wrongAccount = new ThreadPhotoPicker(null, waiting);
             wrongAccount.unlocked(another.account);
             assertFalse(wrongAccount.owns(reopened, thread));
+            Bundle idle = new Bundle();
+            wrongAccount.save(idle);
+            ThreadPhotoPicker afterSwitch = new ThreadPhotoPicker(null, idle);
+            afterSwitch.begin(another.account, "new thread");
+            assertFalse(afterSwitch.result(waiting.getInt("photo_request"), Activity.RESULT_OK, new Intent().setData(uri)));
         }
     }
 }
