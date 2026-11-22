@@ -21,12 +21,15 @@ def enter_message(ui, prompt=PROMPT):
         raise AssertionError("The public Android composer did not accept the French request")
     if ui.device.ime_shown():
         ui.device.shell("input", "keyevent", "BACK")
+        eventually("soft keyboard to hide", lambda: not ui.device.ime_shown(), timeout=15)
 
 
 def open_consent(ui):
-    ui.tap("Envoyer")
-    ui.wait(CONSENT)
-    tree = ui.hierarchy()
+    tree = ui.tap_until(
+        "Envoyer",
+        lambda root: root if ui.node(CONSENT, root) is not None else None,
+        description="visible control " + CONSENT,
+    )
     disclosed = [node.get("text", "") for node in tree.iter("node") if node.get("package") == APP]
     if not any("Hermes" in text and "OpenStreetMap" in text for text in disclosed):
         raise AssertionError("The message did not disclose both location recipients before consent")
@@ -55,15 +58,32 @@ def stage_public_location(ui, fix, *, system_prompt=True, remember=False):
 
 
 def unlock(ui, label, phrase):
-    ui.tap(label)
+    ui.tap_until(
+        label,
+        lambda root: ui.node("Phrase secrète du profil", root) is not None,
+        scroll=True,
+        description="profile unlock form for " + label,
+    )
     ui.field("Phrase secrète du profil", phrase)
-    ui.tap("Déverrouiller", scroll=True)
+    ui.tap_until(
+        "Déverrouiller",
+        lambda root: ui.node("Déverrouiller", root) is None,
+        scroll=True,
+        description="the profile to finish unlocking",
+    )
 
 
 def lock(ui):
-    ui.tap("Autres actions")
-    ui.tap("Verrouiller le profil")
-    ui.wait("Choisir un profil")
+    ui.tap_until(
+        "Autres actions",
+        lambda root: ui.node("Verrouiller le profil", root) is not None,
+        description="overflow menu containing Verrouiller le profil",
+    )
+    ui.tap_until(
+        "Verrouiller le profil",
+        lambda root: ui.node("Choisir un profil", root) is not None,
+        description="visible control Choisir un profil",
+    )
 
 
 def visible_app_node(ui, fragment, *, attribute=None):
@@ -104,6 +124,19 @@ def visible_app_node(ui, fragment, *, attribute=None):
     return eventually("visible restaurant guide element " + fragment, find, timeout=45)[0]
 
 
+def tap_visible_app_until(ui, fragment, ready, *, attribute=None, description=None):
+    """Reveal a rendered app control and tap it until the expected UI transition settles."""
+    def attempt():
+        root = ui.hierarchy()
+        result = ready(root)
+        if result:
+            return (result,)
+        ui.tap_node(visible_app_node(ui, fragment, attribute=attribute))
+        return None
+
+    return eventually(description or ("state after tapping " + fragment), attempt)[0]
+
+
 def verify_guide(ui, names, *, capture=None, distances=None, filter_cuisine=None):
     """Select observed source records and compare the rendered venue and map/source controls."""
     if len(names) < 2:
@@ -120,9 +153,21 @@ def verify_guide(ui, names, *, capture=None, distances=None, filter_cuisine=None
         for name, distance in zip(names[:2], distances[:2], strict=True):
             visible_app_node(ui, f"{name}, environ {distance} m du centre", attribute="content-desc")
     # Compare without re-fetching. Both facts must be observed as rendered text.
-    ui.tap_node(visible_app_node(ui, "Comparer deux restaurants", attribute="content-desc"))
-    ui.wait("Comparer " + names[0] + " avec…")
-    ui.tap_node(visible_app_node(ui, names[1] + " · ", attribute="text"))
+    compare_title = "Comparer " + names[0] + " avec…"
+    tap_visible_app_until(
+        ui,
+        "Comparer deux restaurants",
+        lambda root: ui.node(compare_title, root) is not None,
+        attribute="content-desc",
+        description="visible control " + compare_title,
+    )
+    tap_visible_app_until(
+        ui,
+        names[1] + " · ",
+        lambda root: ui.node(compare_title, root) is None,
+        attribute="text",
+        description="dismissed comparison picker after selecting " + names[1],
+    )
     primary = visible_app_node(ui, names[0] + " · ", attribute="text").get("text")
     paired = visible_app_node(ui, names[1] + " · ", attribute="text").get("text")
     difference = visible_app_node(ui, "Écart des distances au centre", attribute="text").get("text")
@@ -133,14 +178,47 @@ def verify_guide(ui, names, *, capture=None, distances=None, filter_cuisine=None
     if capture:
         capture("comparison")
     if filter_cuisine:
-        ui.tap_node(visible_app_node(ui, "Filtrer par cuisine", attribute="content-desc"))
-        ui.tap(filter_cuisine, scroll=True)
+        tap_visible_app_until(
+            ui,
+            "Filtrer par cuisine",
+            lambda root: ui.node("Choisir une cuisine", root) is not None,
+            attribute="content-desc",
+            description="visible cuisine filter dialog",
+        )
+        ui.tap_until(
+            filter_cuisine,
+            lambda root: ui.node("Choisir une cuisine", root) is None,
+            scroll=True,
+            description="dismissed cuisine filter dialog for " + filter_cuisine,
+        )
         visible_app_node(ui, "1 adresse sur " + str(len(names)), attribute="text")
-        ui.tap_node(visible_app_node(ui, "Filtrer par cuisine", attribute="content-desc"))
-        ui.tap("Toutes les cuisines", scroll=True)
+        tap_visible_app_until(
+            ui,
+            "Filtrer par cuisine",
+            lambda root: ui.node("Choisir une cuisine", root) is not None,
+            attribute="content-desc",
+            description="visible cuisine filter dialog to reset",
+        )
+        ui.tap_until(
+            "Toutes les cuisines",
+            lambda root: ui.node("Choisir une cuisine", root) is None,
+            scroll=True,
+            description="dismissed cuisine filter dialog after reset",
+        )
     second = visible_app_node(ui, names[1] + ", environ ", attribute="content-desc")
     if "Afficher les détails" in second.get("content-desc", ""):
-        ui.tap_node(second)
+        tap_visible_app_until(
+            ui,
+            names[1] + ", environ ",
+            lambda root: not any(
+                node.get("package") == APP
+                and names[1] in node.get("content-desc", "")
+                and "Afficher les détails" in node.get("content-desc", "")
+                for node in root.iter("node")
+            ),
+            attribute="content-desc",
+            description="expanded restaurant details for " + names[1],
+        )
     source = visible_app_node(ui, "Fiche OpenStreetMap de " + names[1], attribute="content-desc")
     if capture:
         capture("detail")

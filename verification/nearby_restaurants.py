@@ -18,7 +18,8 @@ from verification.gateway_fixture import Gateway, PINNED_REVISION, check_source
 from verification.nearby_capture import captures
 from verification.nearby_fixture import overpass, PLACES
 from verification.nearby_journey import (CONSENT, FAILED, PROMPT, STAGED, USE_LOCATION, choose_consent, enter_message,
-                                          lock, open_consent, stage_public_location, unlock, verify_guide, visible_app_node)
+                                          lock, open_consent, stage_public_location, tap_visible_app_until, unlock,
+                                          verify_guide)
 from verification.nearby_location import COARSE, answer_android_location, app_activity_stopped, location_access, public_city_fix
 from verification.phone_actions import MAPS, admissions, assert_offline, focused, visible
 from verification.unifiedpush.editor import editor
@@ -187,11 +188,19 @@ def consent_failures(ui, fix, second, names, phrases, check_idle):
 
 def map_selected(ui, title, point):
     coordinate = ",".join(format(Decimal(str(point[key])).normalize(), "f") for key in ("lat", "lon"))
-    ui.tap_node(visible_app_node(ui, "Voir sur la carte"))
-    ui.wait("Ouvrir la carte")
+    tap_visible_app_until(
+        ui,
+        "Voir sur la carte",
+        lambda root: ui.node("Ouvrir la carte", root) is not None,
+        description="visible map handoff review dialog",
+    )
     if not visible(ui, [title, "Coordonnées du lieu · " + coordinate]) or not focused(ui.device).startswith(APP + "/"):
         raise AssertionError("The app did not review the source venue and coordinates before handoff")
-    ui.tap("Ouvrir la carte")
+    ui.tap_until(
+        "Ouvrir la carte",
+        lambda root: ui.node("Ouvrir la carte", root) is None,
+        description="dismissed map handoff review dialog",
+    )
 
     def received():
         component = focused(ui.device)
@@ -292,8 +301,13 @@ def execute(args):
                              distances=[111, 445, 1001], filter_cuisine="Italienne")
         picked = next(p for p in queries[0][1]["elements"] if p["tags"]["name"] == guide["selected"])
         source_url = "https://www.openstreetmap.org/" + picked["type"] + "/" + str(picked["id"])
-        ui.tap_node(visible_app_node(ui, guide["source_control"], attribute="content-desc"))
-        ui.wait("Ouvrir OpenStreetMap")
+        tap_visible_app_until(
+            ui,
+            guide["source_control"],
+            lambda root: ui.node("Ouvrir OpenStreetMap", root) is not None,
+            attribute="content-desc",
+            description="visible OpenStreetMap source review dialog",
+        )
         if not visible(ui, [guide["selected"], source_url]) or not focused(device).startswith(APP + "/"):
             raise AssertionError("The review did not show the selected source venue and canonical OSM URL")
         ui.tap_until(
