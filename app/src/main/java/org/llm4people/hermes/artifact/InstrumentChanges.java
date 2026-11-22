@@ -18,18 +18,19 @@ final class InstrumentChanges {
         changed(changes, "", "Densité", density(old.density), density(next.density));
 
         int[] previous = InstrumentIdentity.match(old.blocks, next.blocks);
-        List<String> labels = InstrumentIdentity.blockLabels(old.blocks);
+        List<String> oldLabels = InstrumentIdentity.blockLabels(old.blocks);
+        List<String> nextLabels = InstrumentIdentity.blockLabels(next.blocks);
         List<Integer> oldOrder = new ArrayList<>();
         List<String> newTitles = new ArrayList<>();
         for (int i : previous) {
             if (i >= 0) {
                 oldOrder.add(i);
-                newTitles.add(labels.get(i));
+                newTitles.add(oldLabels.get(i));
             }
         }
         Collections.sort(oldOrder);
         List<String> oldTitles = new ArrayList<>();
-        for (int i : oldOrder) oldTitles.add(labels.get(i));
+        for (int i : oldOrder) oldTitles.add(oldLabels.get(i));
         int n = 0;
         for (int i : previous) {
             if (i >= 0 && i != oldOrder.get(n++)) {
@@ -39,20 +40,26 @@ final class InstrumentChanges {
         }
         for (int i = 0; i < next.blocks.size(); i++) {
             WorkspaceLayout.Block block = next.blocks.get(i);
-            if (previous[i] < 0) changes.add(new Change(block.title, "Rubrique ajoutée", null, describe(block)));
-            else blockChanges(changes, old.blocks.get(previous[i]), block);
+            String group = nextLabels.get(i);
+            if (previous[i] < 0) changes.add(new Change(group, "Rubrique ajoutée", null, describe(block)));
+            else {
+                WorkspaceLayout.Block prior = old.blocks.get(previous[i]);
+                String priorGroup = oldLabels.get(previous[i]);
+                if (!priorGroup.equals(prior.title) && !priorGroup.equals(group)) group = priorGroup + " → " + group;
+                blockChanges(changes, group, prior, block);
+            }
         }
         for (int i = 0; i < old.blocks.size(); i++) {
             if (!oldOrder.contains(i)) {
                 WorkspaceLayout.Block block = old.blocks.get(i);
-                changes.add(new Change(block.title, "Rubrique retirée", describe(block), null));
+                changes.add(new Change(oldLabels.get(i), "Rubrique retirée", describe(block), null));
             }
         }
         return changes;
     }
 
-    private static void blockChanges(List<Change> changes, WorkspaceLayout.Block old, WorkspaceLayout.Block next) {
-        String group = next.title;
+    private static void blockChanges(List<Change> changes, String group, WorkspaceLayout.Block old,
+                                     WorkspaceLayout.Block next) {
         changed(changes, group, "Titre de la rubrique", old.title, next.title);
         switch (next.type) {
             case "link" -> changed(changes, group, "Destination", old.page, next.page);

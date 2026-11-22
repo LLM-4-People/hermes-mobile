@@ -69,6 +69,23 @@ public final class InstrumentComparisonTest extends TestCase {
         assertEquals("Rubrique · Poire\nRubrique · Pomme", changes.get(0).after());
     }
 
+    public void testNestedActionsIdentifyTheParticularSectionEvenWithTheSameTitle() throws Exception {
+        String first = "{\"title\":\"Contrôle\",\"note\":\"Avant livraison\"}";
+        String second = first.replace("Avant", "Après");
+        String action = ",\"actions\":[\"artifacts\"]}";
+        WorkspaceLayout old = page(first + "," + second);
+        List<InstrumentChanges.Change> early = InstrumentChanges.between(old, page(first.replace("}", action) + "," + second));
+        List<InstrumentChanges.Change> late = InstrumentChanges.between(old, page(first + "," + second.replace("}", action)));
+        assertEquals(List.of(new InstrumentChanges.Change("Contrôle · Avant livraison", "Action ajoutée",
+                null, "Ouvrir les artefacts")), early);
+        assertEquals(List.of(new InstrumentChanges.Change("Contrôle · Après livraison", "Action ajoutée",
+                null, "Ouvrir les artefacts")), late);
+
+        // The proposed title can become unique while the original title was ambiguous.
+        List<InstrumentChanges.Change> rename = InstrumentChanges.between(old, page(first + "," + second.replace("Contrôle", "Vérification")));
+        assertEquals("Contrôle · Après livraison → Vérification", rename.get(0).section());
+    }
+
     public void testEqualFieldLabelsUseKindThenStableIdToExplainTheirNewOrder() throws Exception {
         String a = FIELD.replace("Fichier", "Même");
         for (String kind : new String[]{"text", "multiline"}) {
