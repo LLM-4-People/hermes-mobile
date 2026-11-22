@@ -1,0 +1,401 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-22T04:39:46Z",
+  "title": "Design System: Hermes Mobile",
+  "extensions": {
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "Deep teal",
+        "tonalRamp": [
+          "oklch(15% 0.0289 177.2)",
+          "oklch(27% 0.0477 177.2)",
+          "oklch(38% 0.0591 177.2)",
+          "oklch(50% 0.0636 177.2)",
+          "oklch(62% 0.0591 177.2)",
+          "oklch(74% 0.0464 177.2)",
+          "oklch(85% 0.0289 177.2)",
+          "oklch(95% 0.0100 177.2)"
+        ]
+      },
+      "on-accent": {
+        "role": "neutral",
+        "displayName": "White on teal",
+        "tonalRamp": [
+          "oklch(15% 0.0000 0.0)",
+          "oklch(27% 0.0000 0.0)",
+          "oklch(38% 0.0000 0.0)",
+          "oklch(50% 0.0000 0.0)",
+          "oklch(62% 0.0000 0.0)",
+          "oklch(74% 0.0000 0.0)",
+          "oklch(85% 0.0000 0.0)",
+          "oklch(95% 0.0000 0.0)"
+        ]
+      },
+      "accent-surface": {
+        "role": "primary",
+        "displayName": "Pale mint",
+        "tonalRamp": [
+          "oklch(15% 0.0102 160.2)",
+          "oklch(27% 0.0168 160.2)",
+          "oklch(38% 0.0208 160.2)",
+          "oklch(50% 0.0224 160.2)",
+          "oklch(62% 0.0208 160.2)",
+          "oklch(74% 0.0163 160.2)",
+          "oklch(85% 0.0102 160.2)",
+          "oklch(95% 0.0035 160.2)"
+        ]
+      },
+      "danger": {
+        "role": "error",
+        "displayName": "Brick red",
+        "tonalRamp": [
+          "oklch(15% 0.0630 27.5)",
+          "oklch(27% 0.1041 27.5)",
+          "oklch(38% 0.1290 27.5)",
+          "oklch(50% 0.1388 27.5)",
+          "oklch(62% 0.1290 27.5)",
+          "oklch(74% 0.1012 27.5)",
+          "oklch(85% 0.0630 27.5)",
+          "oklch(95% 0.0217 27.5)"
+        ]
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "Warm paper",
+        "tonalRamp": [
+          "oklch(15% 0.0037 91.5)",
+          "oklch(27% 0.0062 91.5)",
+          "oklch(38% 0.0077 91.5)",
+          "oklch(50% 0.0082 91.5)",
+          "oklch(62% 0.0077 91.5)",
+          "oklch(74% 0.0060 91.5)",
+          "oklch(85% 0.0037 91.5)",
+          "oklch(95% 0.0013 91.5)"
+        ]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Card paper",
+        "tonalRamp": [
+          "oklch(15% 0.0024 95.1)",
+          "oklch(27% 0.0040 95.1)",
+          "oklch(38% 0.0050 95.1)",
+          "oklch(50% 0.0054 95.1)",
+          "oklch(62% 0.0050 95.1)",
+          "oklch(74% 0.0039 95.1)",
+          "oklch(85% 0.0024 95.1)",
+          "oklch(95% 0.0008 95.1)"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Green-black ink",
+        "tonalRamp": [
+          "oklch(15% 0.0094 174.9)",
+          "oklch(27% 0.0155 174.9)",
+          "oklch(38% 0.0193 174.9)",
+          "oklch(50% 0.0207 174.9)",
+          "oklch(62% 0.0193 174.9)",
+          "oklch(74% 0.0151 174.9)",
+          "oklch(85% 0.0094 174.9)",
+          "oklch(95% 0.0032 174.9)"
+        ]
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Muted grey-green",
+        "tonalRamp": [
+          "oklch(15% 0.0098 165.6)",
+          "oklch(27% 0.0161 165.6)",
+          "oklch(38% 0.0200 165.6)",
+          "oklch(50% 0.0215 165.6)",
+          "oklch(62% 0.0200 165.6)",
+          "oklch(74% 0.0157 165.6)",
+          "oklch(85% 0.0098 165.6)",
+          "oklch(95% 0.0034 165.6)"
+        ]
+      },
+      "line": {
+        "role": "neutral",
+        "displayName": "Grey-green rule",
+        "tonalRamp": [
+          "oklch(15% 0.0063 134.9)",
+          "oklch(27% 0.0104 134.9)",
+          "oklch(38% 0.0129 134.9)",
+          "oklch(50% 0.0138 134.9)",
+          "oklch(62% 0.0129 134.9)",
+          "oklch(74% 0.0101 134.9)",
+          "oklch(85% 0.0063 134.9)",
+          "oklch(95% 0.0022 134.9)"
+        ]
+      },
+      "primary-night": {
+        "role": "primary",
+        "displayName": "Mint",
+        "tonalRamp": [
+          "oklch(15% 0.0310 163.2)",
+          "oklch(27% 0.0512 163.2)",
+          "oklch(38% 0.0635 163.2)",
+          "oklch(50% 0.0683 163.2)",
+          "oklch(62% 0.0635 163.2)",
+          "oklch(74% 0.0498 163.2)",
+          "oklch(85% 0.0310 163.2)",
+          "oklch(95% 0.0107 163.2)"
+        ]
+      },
+      "on-accent-night": {
+        "role": "neutral",
+        "displayName": "Ink on mint",
+        "tonalRamp": [
+          "oklch(15% 0.0197 165.3)",
+          "oklch(27% 0.0326 165.3)",
+          "oklch(38% 0.0404 165.3)",
+          "oklch(50% 0.0434 165.3)",
+          "oklch(62% 0.0404 165.3)",
+          "oklch(74% 0.0317 165.3)",
+          "oklch(85% 0.0197 165.3)",
+          "oklch(95% 0.0068 165.3)"
+        ]
+      },
+      "accent-surface-night": {
+        "role": "primary",
+        "displayName": "Shaded mint",
+        "tonalRamp": [
+          "oklch(15% 0.0171 165.7)",
+          "oklch(27% 0.0283 165.7)",
+          "oklch(38% 0.0350 165.7)",
+          "oklch(50% 0.0377 165.7)",
+          "oklch(62% 0.0350 165.7)",
+          "oklch(74% 0.0275 165.7)",
+          "oklch(85% 0.0171 165.7)",
+          "oklch(95% 0.0059 165.7)"
+        ]
+      },
+      "danger-night": {
+        "role": "error",
+        "displayName": "Soft coral",
+        "tonalRamp": [
+          "oklch(15% 0.0440 27.1)",
+          "oklch(27% 0.0727 27.1)",
+          "oklch(38% 0.0901 27.1)",
+          "oklch(50% 0.0969 27.1)",
+          "oklch(62% 0.0901 27.1)",
+          "oklch(74% 0.0707 27.1)",
+          "oklch(85% 0.0440 27.1)",
+          "oklch(95% 0.0152 27.1)"
+        ]
+      },
+      "paper-night": {
+        "role": "neutral",
+        "displayName": "Dark paper",
+        "tonalRamp": [
+          "oklch(15% 0.0069 166.0)",
+          "oklch(27% 0.0114 166.0)",
+          "oklch(38% 0.0142 166.0)",
+          "oklch(50% 0.0153 166.0)",
+          "oklch(62% 0.0142 166.0)",
+          "oklch(74% 0.0111 166.0)",
+          "oklch(85% 0.0069 166.0)",
+          "oklch(95% 0.0024 166.0)"
+        ]
+      },
+      "surface-night": {
+        "role": "neutral",
+        "displayName": "Dark card",
+        "tonalRamp": [
+          "oklch(15% 0.0087 167.4)",
+          "oklch(27% 0.0143 167.4)",
+          "oklch(38% 0.0177 167.4)",
+          "oklch(50% 0.0191 167.4)",
+          "oklch(62% 0.0177 167.4)",
+          "oklch(74% 0.0139 167.4)",
+          "oklch(85% 0.0087 167.4)",
+          "oklch(95% 0.0030 167.4)"
+        ]
+      },
+      "ink-night": {
+        "role": "neutral",
+        "displayName": "Warm white ink",
+        "tonalRamp": [
+          "oklch(15% 0.0060 102.0)",
+          "oklch(27% 0.0100 102.0)",
+          "oklch(38% 0.0123 102.0)",
+          "oklch(50% 0.0133 102.0)",
+          "oklch(62% 0.0123 102.0)",
+          "oklch(74% 0.0097 102.0)",
+          "oklch(85% 0.0060 102.0)",
+          "oklch(95% 0.0021 102.0)"
+        ]
+      },
+      "muted-night": {
+        "role": "neutral",
+        "displayName": "Pale grey-green",
+        "tonalRamp": [
+          "oklch(15% 0.0095 150.0)",
+          "oklch(27% 0.0157 150.0)",
+          "oklch(38% 0.0195 150.0)",
+          "oklch(50% 0.0210 150.0)",
+          "oklch(62% 0.0195 150.0)",
+          "oklch(74% 0.0153 150.0)",
+          "oklch(85% 0.0095 150.0)",
+          "oklch(95% 0.0033 150.0)"
+        ]
+      },
+      "line-night": {
+        "role": "neutral",
+        "displayName": "Dark grey-green rule",
+        "tonalRamp": [
+          "oklch(15% 0.0110 158.8)",
+          "oklch(27% 0.0182 158.8)",
+          "oklch(38% 0.0226 158.8)",
+          "oklch(50% 0.0243 158.8)",
+          "oklch(62% 0.0226 158.8)",
+          "oklch(74% 0.0177 158.8)",
+          "oklch(85% 0.0110 158.8)",
+          "oklch(95% 0.0038 158.8)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "panel-title": {
+        "displayName": "Panel title",
+        "purpose": "Names a full-screen panel."
+      },
+      "toolbar-title": {
+        "displayName": "Top bar title",
+        "purpose": "Identifies the current discussion or workspace page."
+      },
+      "prompt-title": {
+        "displayName": "Question heading",
+        "purpose": "Introduces a clarification or permission request."
+      },
+      "message": {
+        "displayName": "Message",
+        "purpose": "Carries the words of the person and Hermes."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Describes actions, workspace blocks and metrics."
+      },
+      "speaker": {
+        "displayName": "Speaker",
+        "purpose": "Identifies the author of a turn."
+      },
+      "status": {
+        "displayName": "Status",
+        "purpose": "Gives voice, connection and submission feedback."
+      },
+      "measurement": {
+        "displayName": "Measurement",
+        "purpose": "Presents a usage value or its unavailable state."
+      }
+    }
+  },
+  "components": [
+    {
+      "name": "Profile submission",
+      "kind": "button",
+      "refersTo": "profile-submit",
+      "description": "A filled action submits the profile form.",
+      "html": "<button class=\"ds-profile\" lang=\"fr\">Déverrouiller</button>",
+      "css": ".ds-profile {font:500 14px Roboto, sans-serif;min-height:48px;border:0;cursor:pointer;} .ds-profile:hover {filter:brightness(.96);} .ds-profile:active {filter:brightness(.9);} .ds-profile:focus-visible {outline:2px solid #225C50;outline-offset:2px;} .ds-profile {width:100%;background:#225C50;color:white;padding:8px 16px;border-radius:2px;}"
+    },
+    {
+      "name": "Text action",
+      "kind": "button",
+      "refersTo": "text-action",
+      "description": "The common borderless action, shown here in the statistics panel.",
+      "html": "<button class=\"ds-text\" lang=\"fr\">Actualiser</button>",
+      "css": ".ds-text {font:500 14px Roboto, sans-serif;min-height:48px;border:0;cursor:pointer;} .ds-text:hover {filter:brightness(.96);} .ds-text:active {filter:brightness(.9);} .ds-text:focus-visible {outline:2px solid #225C50;outline-offset:2px;} .ds-text {background:transparent;color:#225C50;padding:0 12px;} .ds-text:hover,.ds-text:active {background:#F7F5EF;}"
+    },
+    {
+      "name": "Suggested answer",
+      "kind": "button",
+      "refersTo": "prompt-option",
+      "description": "A full-width single-choice answer with a visible recommendation when supplied.",
+      "html": "<button class=\"ds-option\" lang=\"fr\">Liste (choix recommandé)</button>",
+      "css": ".ds-option {font:500 14px Roboto, sans-serif;min-height:48px;border:0;cursor:pointer;} .ds-option:hover {filter:brightness(.96);} .ds-option:active {filter:brightness(.9);} .ds-option:focus-visible {outline:2px solid #225C50;outline-offset:2px;} .ds-option {width:100%;text-align:start;padding:8px 12px;border-radius:12px;background:#DCEDE3;color:#225C50;} .ds-option:disabled {color:#53625B;cursor:default;}"
+    },
+    {
+      "name": "Profile field",
+      "kind": "input",
+      "refersTo": "profile-field",
+      "description": "A labelled profile input whose stroke changes on focus.",
+      "html": "<label class=\"ds-profile-label\" lang=\"fr\">Nom du profil<input class=\"ds-field\" type=\"text\"></label>",
+      "css": ".ds-profile-label {display:grid;gap:4px;font:500 14px Roboto,sans-serif;color:#172521;} .ds-field {box-sizing:border-box;width:100%;min-height:48px;padding:9px 12px;border:1px solid #53625B;border-radius:8px;background:#FFFEFA;color:#172521;font:400 17px Roboto,sans-serif;} .ds-field:focus-visible {outline:2px solid #225C50;outline-offset:-2px;}"
+    },
+    {
+      "name": "Workspace destination",
+      "kind": "nav",
+      "refersTo": "workspace-link",
+      "description": "The title and chevron belong to one destination in the atelier.",
+      "html": "<button class=\"ds-link\" lang=\"fr\">Mes écrans<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path fill=\"currentColor\" d=\"M9,5l7,7l-7,7l-1.4,-1.4l5.6,-5.6l-5.6,-5.6z\"/></svg></button>",
+      "css": ".ds-link {font:500 14px Roboto, sans-serif;min-height:48px;border:0;cursor:pointer;} .ds-link:hover {filter:brightness(.96);} .ds-link:active {filter:brightness(.9);} .ds-link:focus-visible {outline:2px solid #225C50;outline-offset:2px;} .ds-link {width:100%;min-height:53px;display:flex;align-items:center;justify-content:space-between;padding:0;background:#F7F5EF;color:#172521;border-bottom:1px solid #CED4CB;font-size:16px;font-weight:400;} .ds-link svg {width:18px;height:18px;}"
+    },
+    {
+      "name": "Dictation control",
+      "kind": "button",
+      "refersTo": "dictate",
+      "description": "A labelled microphone button next to the editable draft.",
+      "html": "<button class=\"ds-mic\" lang=\"fr\" aria-label=\"Dicter\" title=\"Dicter\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path fill=\"currentColor\" d=\"M12,14a3,3 0,0 0,3 -3V5a3,3 0,0 0,-6 0v6a3,3 0,0 0,3 3zM17,11a5,5 0,0 1,-10 0H5a7,7 0,0 0,6 6.93V21h2v-3.07A7,7 0,0 0,19 11z\"/></svg></button>",
+      "css": ".ds-mic {font:500 14px Roboto, sans-serif;min-height:48px;border:0;cursor:pointer;} .ds-mic:hover {filter:brightness(.96);} .ds-mic:active {filter:brightness(.9);} .ds-mic:focus-visible {outline:2px solid #225C50;outline-offset:2px;} .ds-mic {display:inline-grid;place-content:center;width:48px;height:48px;background:transparent;color:#225C50;border-radius:50%;} .ds-mic svg {width:24px;height:24px;} .ds-mic:hover,.ds-mic:active {background:#DCEDE3;}"
+    },
+    {
+      "name": "Question card",
+      "kind": "card",
+      "refersTo": "prompt-card",
+      "description": "An inline question with a playback control, choices and a free-answer alternative.",
+      "html": "<section class=\"ds-card\" lang=\"fr\"><h3>Quel format préférez-vous ?</h3><button aria-label=\"Écouter la question et ses choix\">Écouter</button><button class=\"ds-answer\">Liste (choix recommandé)</button><button class=\"ds-answer\">Paragraphe</button><button>Écrire une réponse</button><button>Passer la question</button></section>",
+      "css": ".ds-card {padding:12px 14px;border:1px solid #CED4CB;border-radius:12px;background:#FFFEFA;color:#172521;display:grid;gap:8px;} .ds-card h3 {margin:0;font:700 18px Roboto,sans-serif;}.ds-card button {font:500 14px Roboto, sans-serif;min-height:48px;border:0;cursor:pointer;} .ds-card button:hover {filter:brightness(.96);} .ds-card button:active {filter:brightness(.9);} .ds-card button:focus-visible {outline:2px solid #225C50;outline-offset:2px;} .ds-card button {padding:8px 12px;background:transparent;color:#225C50;} .ds-card button:hover,.ds-card button:active {background:#F7F5EF;} .ds-card .ds-answer {background:#DCEDE3;border-radius:12px;text-align:start;} .ds-card .ds-answer:hover,.ds-card .ds-answer:active {background:#DCEDE3;}"
+    },
+    {
+      "name": "Usage measurement",
+      "kind": "custom",
+      "refersTo": "usage-value",
+      "description": "A French measurement label stays with its value and unit.",
+      "html": "<dl class=\"ds-usage\" lang=\"fr\"><dt>Part des jetons d’entrée lus en cache</dt><dd>8 %</dd></dl>",
+      "css": ".ds-usage {margin:0;border-bottom:1px solid #CED4CB;background:#F7F5EF;color:#172521;} .ds-usage dt {padding:5px 0;color:#53625B;font:400 16px Roboto,sans-serif;} .ds-usage dd {margin:0;font:400 20px monospace;}"
+    },
+    {
+      "name": "Conversation turn",
+      "kind": "custom",
+      "refersTo": "transcript-turn",
+      "description": "An assistant turn reads directly on paper under its speaker name.",
+      "html": "<article class=\"ds-turn\" lang=\"fr\"><strong>Hermes</strong><p>Quel format préférez-vous ?</p></article>",
+      "css": ".ds-turn {padding:9px 18px;background:#F7F5EF;color:#172521;font:400 17px Roboto,sans-serif;} .ds-turn strong {display:block;color:#225C50;font:700 13px Roboto,sans-serif;} .ds-turn p {margin:0;}"
+    }
+  ],
+  "narrative": {
+    "northStar": "A paper workspace for conversation",
+    "overview": "The conversation reads down one margin. A small speaker name introduces each turn, and a pending question stands out against the paper as a bordered surface. The person can answer where the question appears and still see the message composer below.\n\nThe same paper, ink and teal carry through to the atelier. A person can ask Hermes to build a review form, preview its arrangement, then use its fields to prepare a message. Technical views make their units, scope and available actions legible in French.",
+    "keyCharacteristics": [
+      "One reading column for speakers, messages and decisions.",
+      "A quiet teal action color shared by text buttons, choices and the microphone.",
+      "Native editors for both the next message and the answer to a specific question.",
+      "Human-readable labels paired with measurements and their sources."
+    ],
+    "rules": [
+      {
+        "name": "The Editable Draft Rule",
+        "body": "Dictation inserts or replaces text at the selection in the active editor. Sending takes a separate tap.",
+        "section": "components"
+      },
+      {
+        "name": "The Measurement Label Rule",
+        "body": "Place the French measure name directly above the value. Give the value one accessible description containing both the name and value.",
+        "section": "components"
+      }
+    ],
+    "dos": [
+      "Keep a pending decision in its own conversation, with its choices and answer field together.",
+      "Preserve French action labels when text wraps or the input method is visible.",
+      "Keep code and tool output selectable for inspection."
+    ],
+    "donts": [
+      "Don't send a draft when a person dictates or taps a starter.",
+      "Don't turn an unavailable measurement into a zero.",
+      "Don't treat a recommended answer as permission to act."
+    ]
+  }
+}

@@ -1,0 +1,217 @@
+---
+version: alpha
+name: Hermes Mobile
+description: A native Android work surface for French conversations, decisions and tools.
+colors:
+  primary: "#225C50"
+  on-accent: "#FFFFFF"
+  accent-surface: "#DCEDE3"
+  danger: "#9B342D"
+  paper: "#F7F5EF"
+  surface: "#FFFEFA"
+  ink: "#172521"
+  muted: "#53625B"
+  line: "#CED4CB"
+  primary-night: "#A0D7BC"
+  on-accent-night: "#102F23"
+  accent-surface-night: "#253F34"
+  danger-night: "#FFAEA4"
+  paper-night: "#141D19"
+  surface-night: "#1C2823"
+  ink-night: "#F3F2E8"
+  muted-night: "#B1BEB3"
+  line-night: "#3D4C43"
+typography:
+  panel-title:
+    fontFamily: sans-serif
+    fontSize: 29px
+    fontWeight: 700
+  toolbar-title:
+    fontFamily: sans-serif
+    fontSize: 20px
+    fontWeight: 500
+  prompt-title:
+    fontFamily: sans-serif
+    fontSize: 18px
+    fontWeight: 700
+  message:
+    fontFamily: sans-serif
+    fontSize: 17px
+    fontWeight: 400
+  body:
+    fontFamily: sans-serif
+    fontSize: 16px
+    fontWeight: 400
+  speaker:
+    fontFamily: sans-serif
+    fontSize: 13px
+    fontWeight: 700
+  status:
+    fontFamily: sans-serif
+    fontSize: 14px
+    fontWeight: 400
+  measurement:
+    fontFamily: monospace
+    fontSize: 20px
+    fontWeight: 400
+rounded:
+  profile-field: 8px
+  prompt: 12px
+spacing:
+  rule: 1px
+  action-gap: 8px
+  option-inset: 12px
+  block-inset: 16px
+  transcript-inset: 18px
+  panel-inset: 20px
+components:
+  profile-submit:
+    backgroundColor: "{colors.primary}"
+    textColor: "{colors.on-accent}"
+  text-action:
+    textColor: "{colors.primary}"
+  prompt-option:
+    backgroundColor: "{colors.accent-surface}"
+    textColor: "{colors.primary}"
+    rounded: "{rounded.prompt}"
+    padding: 8px 12px
+  profile-field:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.ink}"
+    rounded: "{rounded.profile-field}"
+    typography: "{typography.message}"
+    padding: 9px 12px
+  workspace-link:
+    backgroundColor: "{colors.paper}"
+    textColor: "{colors.ink}"
+    typography: "{typography.body}"
+  dictate:
+    textColor: "{colors.primary}"
+    size: 48px
+  prompt-card:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.ink}"
+    rounded: "{rounded.prompt}"
+    padding: 12px 14px
+  usage-value:
+    typography: "{typography.measurement}"
+    textColor: "{colors.ink}"
+  transcript-turn:
+    typography: "{typography.message}"
+    textColor: "{colors.ink}"
+    padding: 9px 18px
+  divider:
+    backgroundColor: "{colors.line}"
+    height: "{spacing.rule}"
+  usage-label:
+    textColor: "{colors.muted}"
+    backgroundColor: "{colors.paper}"
+    typography: "{typography.body}"
+  field-error:
+    textColor: "{colors.danger}"
+  profile-submit-night:
+    backgroundColor: "{colors.primary-night}"
+    textColor: "{colors.on-accent-night}"
+  prompt-option-night:
+    backgroundColor: "{colors.accent-surface-night}"
+    textColor: "{colors.primary-night}"
+    rounded: "{rounded.prompt}"
+    padding: 8px 12px
+  prompt-card-night:
+    backgroundColor: "{colors.surface-night}"
+    textColor: "{colors.ink-night}"
+    rounded: "{rounded.prompt}"
+    padding: 12px 14px
+  divider-night:
+    backgroundColor: "{colors.line-night}"
+    height: "{spacing.rule}"
+  usage-label-night:
+    textColor: "{colors.muted-night}"
+    backgroundColor: "{colors.paper-night}"
+    typography: "{typography.body}"
+  field-error-night:
+    textColor: "{colors.danger-night}"
+---
+
+# Hermes Mobile
+
+## Overview
+
+**Creative North Star: "A paper workspace for conversation"**
+
+The conversation reads down one margin. A small speaker name introduces each turn, and a pending question stands out against the paper as a bordered surface. The person can answer where the question appears and still see the message composer below.
+
+The same paper, ink and teal carry through to the atelier. A person can ask Hermes to build a review form, preview its arrangement, then use its fields to prepare a message. Technical views make their units, scope and available actions legible in French.
+
+**Key Characteristics:**
+
+- One reading column for speakers, messages and decisions.
+- A quiet teal action color shared by text buttons, choices and the microphone.
+- Native editors for both the next message and the answer to a specific question.
+- Human-readable labels paired with measurements and their sources.
+
+## Colors
+
+**Primary.** Accent is deep teal by day and pale mint at night. It identifies Hermes as the speaker, actionable labels, microphone icons and added code. Profile submission pairs an accent fill with on-accent text. A prompt choice pairs accent text with the softer accent-surface fill.
+
+**Semantic.** Danger marks field errors and removed code. Keep the error wording or the diff sign visible alongside the color.
+
+**Neutral.** Paper fills the workspace. Surface lifts the question card and frames code spans. Ink carries the message, muted carries supporting labels, and line separates sections and outlines prompts. Night resources give every role a companion color. The primary token maps to Android’s accent resource. Other base names use hyphens for Android’s underscores. Night values come from the matching resources in `values-night`.
+
+## Typography
+
+Use the platform sans-serif for conversation and controls. Speaker names are small and bold (13 sp). Message text is larger and regular (17 sp). An in-thread question is an accessibility heading (18 sp, bold). The busy-state or connection message uses a quieter size (13–14 sp).
+
+The top bar uses medium weight (20 sp). Full-screen panels give the page name (29 sp, bold) more prominence than their section headings (20 sp, bold). Workspace blocks use a heading (18 sp, bold) above their description (16 sp). Code and tool output use monospace. Usage values use monospace at 20 sp under a 16 sp label, including when the value reads “Indisponible”.
+
+Frontmatter and browser previews use CSS pixels at the Android baseline density and default font scale. Use sp for text and dp for layout in the app. Android controls retain their native font metrics.
+
+## Layout
+
+The default discussion stacks a top bar, a flexible transcript and a composer. Its message and question gutters align at 18 dp. Give the editor the remaining width beside the microphone and the send or stop control. The editor grows to four visible lines. The activity reserves space for the system bars, display cutout and keyboard.
+
+Question buttons stack to the available width, wrap their labels and grow with the text. On the top bar, the title can ellipsize while the navigation and overflow controls keep their 48 dp square targets. Panel content scrolls within 20 dp side gutters. Profile forms keep at least 22 dp at either side and center a column of up to 520 dp on wider windows.
+
+Editable workspace sections use 16 dp side insets. Compact density reduces the vertical inset of a block from 12 dp to 5 dp. In a layout that wraps native content, each surrounding scroll region can take up to a third of the available height. The native region receives the remaining space.
+
+The 320 × 640 px phone previews show the reading column, truncated toolbar title and stacked usage labels. The 1080 × 2340 px conversation captures show a long prompt scrolling above the composer and a dictated answer in its own field. These capture sizes illustrate the layouts. The app measures the available window in dp. [Discussion and usage journey](app/src/androidTest/java/org/llm4people/hermes/journey/DeviceJourney.java) · [Question and approval journey](app/src/androidTest/java/org/llm4people/hermes/journey/ConversationCardsJourney.java)
+
+## Elevation & Depth
+
+A thin outline and a change from paper to surface bring a question forward. Ordinary transcript turns sit directly on paper. Use the platform ripple on actionable surfaces and the platform window treatment for menus and dialogs.
+
+## Shapes
+
+Use the same rounded corners for a pending prompt and its tonal options (12 dp). The panel has a 1 dp line around it. Choices have a solid tonal fill. Profile fields have a smaller corner radius (8 dp), with a 1 dp muted stroke that becomes a 2 dp accent stroke on focus. The message composer and free-answer editor use Android’s underlined input.
+
+## Components
+
+**Conversation.** “Vous” and “Hermes” name the speakers. On a confirmed empty thread, “Comprendre du code” and “Planifier mon travail” prepare editable starters. In an active thread, selectable message text can include code, diff signs and tool output. Longer messages offer a paged reader.
+
+**Question.** Put the question first, with “Écouter” for spoken playback. A single-choice button submits its answer immediately. For multiple choices, Android checkboxes collect selections until “Envoyer la réponse”. A person can write or dictate a different answer or choose “Passer la question”. Mark a recommended answer in the label with “(choix recommandé)”. Once answered, the question and reply read as ordinary turns in the restored conversation.
+
+**Approval.** Lead with “Autoriser cette action ?” and describe the proposed effect. “Voir les détails” expands the exact command or edit when available. Show the supported actions on the same card. “Autoriser une fois” and “Refuser” share the tonal treatment. While a response is being sent or checked, disable the submission controls and report progress in text. An unconfirmed response exposes “Vérifier la demande”.
+
+**The Editable Draft Rule.** Dictation inserts or replaces text at the selection in the active editor. Sending takes a separate tap.
+
+**Voice controls.** Pair the native text field with a 24 dp microphone inside a 48 dp icon button labelled “Dicter”. The square stop icon and an updated accessible label identify an active attempt. Announce recording, transcription and recovery messages through a polite live region. Keep the draft available for editing when recognition fails. Spoken playback uses its own “Écouter” and “Arrêter” actions.
+
+**Navigation and workspace tools.** A labelled icon opens the discussion list or returns to the previous page. “Atelier” opens the workspace, where a full-width row combines a title and chevron into one accessible button. A proposed screen can contain native content, links, labelled values, sections and draft forms. Keep preview, apply and undo distinct. In an applied form, text fields and choice lists collect input for “Préparer un brouillon…”.
+
+**The Measurement Label Rule.** Place the French measure name directly above the value. Give the value one accessible description containing both the name and value.
+
+**Usage.** Group cumulative counters under “Cumul de la discussion”. Group device timings under “Dernière réponse mesurée sur cet appareil”. Distinguish known billed and estimated costs, show pricing provenance when available, and display “Indisponible” for a missing measurement.
+
+## Do's and Don'ts
+
+### Do
+
+- Keep a pending decision in its own conversation, with its choices and answer field together.
+- Preserve French action labels when text wraps or the input method is visible.
+- Keep code and tool output selectable for inspection.
+
+### Don't
+
+- Don't send a draft when a person dictates or taps a starter.
+- Don't turn an unavailable measurement into a zero.
+- Don't treat a recommended answer as permission to act.
