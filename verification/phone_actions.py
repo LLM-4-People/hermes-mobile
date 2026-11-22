@@ -207,10 +207,10 @@ def back_to_page(ui, account_name, phrase, label):
 
 
 def leave_receiver(ui, package, kind):
-    if "mInputShown=true" in ui.device.shell("dumpsys", "input_method"):
+    if ui.device.ime_shown():
         ui.device.shell("input", "keyevent", "BACK")
         eventually("the receiving keyboard to close", lambda:
-                   "mInputShown=true" not in ui.device.shell("dumpsys", "input_method"))
+                   not ui.device.ime_shown())
     if not focused(ui.device).startswith(package + "/"):
         return
     ui.device.shell("input", "keyevent", "BACK")
@@ -266,7 +266,7 @@ def review(ui, kind, request, output, full_screen):
                     break
         return False
     component = eventually("visible proposal fields in " + package, ready, timeout=150)
-    if kind == "calendar_event" and "mInputShown=true" in ui.device.shell("dumpsys", "input_method"):
+    if kind == "calendar_event" and ui.device.ime_shown():
         ui.device.shell("input", "keyevent", "BACK")
     matches = [[value] for value in detail]
     if kind == "calendar_event":

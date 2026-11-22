@@ -9,7 +9,7 @@ import secrets
 import sys
 import tempfile
 
-from PIL import Image
+from PIL import Image, ImageChops
 from conversation_cards import admission
 from device.discussion import discussion_device, require_captures
 from gateway_fixture import Gateway, PINNED_REVISION, check_source
@@ -87,19 +87,51 @@ def verify_transcript(gateway, sid):
     if (len(users) != 1 or QUESTION not in users[0] or "[Image attached at:" not in users[0]
             or "data:image/" in users[0]):
         raise AssertionError("Unexpected persisted photo transcript")
+    sessions = gateway.request("/api/sessions?source=api_server")["data"]
+    if next((row.get("preview") for row in sessions if row["id"] == sid), None) != QUESTION:
+        raise AssertionError("Expected only the original photo caption in the conversation preview")
 
+
+def preview_is_visible(path):
+    # The composer uses a scaled JPEG thumbnail. Look for the yellow center surrounded
+    # by the blue field in all four directions across Android densities.
+    with Image.open(path) as capture:
+        frame = capture.convert("RGB")
+    frame.thumbnail((640, 960))
+
+    def mask(color):
+        channels = [band.point([255 if abs(v - target) <= 16 else 0 for v in range(256)])
+                    for band, target in zip(frame.split(), color, strict=True)]
+        return ImageChops.darker(channels[0], ImageChops.darker(channels[1], channels[2]))
+
+    yellow = mask((247, 195, 63))
+    blue = mask((38, 75, 123))
+    for scale in range(2, min(24, frame.width // 6, frame.height // 4)):
+        dx, dy = scale * 3, scale * 2
+        center = yellow
+        for shift in ((dx, 0), (-dx, 0), (0, dy), (0, -dy)):
+            center = ImageChops.darker(center, ImageChops.offset(blue, *shift))
+        if center.crop((dx, dy, frame.width - dx, frame.height - dy)).getbbox():
+            return True
+    return False
 
 
 def phone_proof(args, gateway):
     with discussion_device(args, gateway) as (device, report):
+        if int(device.shell("getprop", "ro.build.version.sdk")) < 33:
+            raise ValueError("The system photo picker journey requires Android API 33 or later")
         device.phase("photo")
     report["captures_sha256"] = require_captures(args.output, CAPTURES)
+    if not preview_is_visible(args.output / CAPTURES[0]):
+        raise AssertionError("Draft screenshot does not show the selected image thumbnail")
+    report["native_thumbnail_verified"] = True
     return report
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", required=True, type=Path)
+    parser.add_argument("--revision", default=PINNED_REVISION)
     parser.add_argument("--serial", help="Dedicated Android 13+ test device with both debug APKs installed")
     parser.add_argument("--adb", default="adb")
     parser.add_argument("--adb-port", type=int, default=5037)
@@ -109,7 +141,7 @@ def main():
     if args.verify_apks and not args.serial:
         parser.error("--verify-apks requires --serial")
     source, output = args.source.resolve(), args.output.resolve()
-    check_source(source, PINNED_REVISION)
+    check_source(source, args.revision)
     sys.path.insert(0, str(source))
     from tests.fakes.fake_llm_provider import FakeLLMServer
     output.mkdir(parents=True, exist_ok=True)
@@ -131,7 +163,7 @@ def main():
         expected = 2 if args.serial else 1
         if len(provider.main_requests()) != expected:
             raise AssertionError("Picker preview, removal, or replay duplicated a submission")
-        receipt = {**phone, "fork": PINNED_REVISION, "model_received_exact_pixels": True, "idempotent": True,
+        receipt = {**phone, "fork": args.revision, "model_received_exact_pixels": True, "idempotent": True,
                    "main_provider_requests": expected, "system_picker_verified": bool(args.serial)}
         (output / "vision-receipt.json").write_text(json.dumps(receipt, indent=2) + "\n")
         print(json.dumps(receipt))
