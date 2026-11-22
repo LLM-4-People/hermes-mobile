@@ -231,4 +231,42 @@ public class ThreadStateTest extends TestCase {
         assertEquals("one\ntwo", ThreadData.content(row));
         assertEquals("Nouvelle conversation", ThreadData.title(new JSONObject().put("title", JSONObject.NULL)));
     }
+
+    public void testTranscriptKeepsConversationAndToolCallsBetweenBookkeepingRows() throws Exception {
+        JSONArray page = new JSONArray("""
+                [{"id":1,"role":"user","content":"Que signifie session_meta ?"},
+                 {"id":2,"role":"assistant","content":"Un enregistrement de session."},
+                 {"id":3,"role":"session_meta","content":null},
+                 {"id":4,"role":"system","content":"La conversation a repris."},
+                 {"id":5,"role":"assistant","content":null,"tool_calls":[{"function":{"name":"lecture"}}]},
+                 {"id":6,"role":"tool","tool_name":"lecture","content":"Résultat"},
+                 {"id":7,"role":"user","display_kind":"hidden","content":""}]
+                """);
+        JSONArray visible = ThreadData.visibleMessages(page);
+        int[] positions = {0, 1, 3, 4, 5};
+        assertEquals(positions.length, visible.length());
+        for (int i = 0; i < positions.length; i++) assertSame(page.get(positions[i]), visible.get(i));
+        assertEquals(7, page.length());
+    }
+
+    public void testFullBookkeepingPageAndOverlappingOlderPageCountOnlyVisibleInsertions() throws Exception {
+        JSONArray page = new JSONArray();
+        for (int id = 1; id <= ThreadData.PAGE; id++) {
+            page.put(new JSONObject().put("id", id).put("role", "session_meta"));
+        }
+        JSONArray visible = ThreadData.visibleMessages(page);
+        assertEquals(ThreadData.PAGE, page.length());
+        assertEquals(0, visible.length());
+
+        JSONArray recent = ThreadData.visibleMessages(new JSONArray("""
+                [{"id":41,"role":"assistant","content":"Reçu"},{"id":42,"role":"session_meta"}]
+                """));
+        page.put(0, new JSONObject().put("id", 1).put("role", "user").put("content", "Bonjour"));
+        page.put(ThreadData.PAGE - 1, recent.get(0));
+        JSONArray joined = ThreadData.visibleMessages(ThreadData.join(page, recent));
+        assertEquals(1, joined.length() - recent.length());
+        assertEquals("Bonjour", ThreadData.content(joined.getJSONObject(0)));
+        assertSame(recent.get(0), joined.get(1));
+        assertEquals(ThreadData.PAGE, page.length());
+    }
 }
