@@ -16,9 +16,11 @@ class FirebaseSender:
 
     def send(self, item):
         now = time.time()
-        ttl = min(28 * 86400, lifetime(item, self.retention, now))
-        if ttl == 0:
+        remaining = lifetime(item, self.retention, now)
+        if remaining == 0:
             return True
+        # With less than one second left, TTL zero requests immediate-only delivery.
+        ttl = min(28 * 86400, int(remaining))
         data = opaque_notice(item)
         message = {"token": item["token"], "data": data, "android": {"priority": "high", "ttl": f"{ttl}s"}}
         with self.session.post(self.url, json={"message": message}, timeout=self.timeout,

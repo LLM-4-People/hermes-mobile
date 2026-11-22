@@ -33,7 +33,7 @@ def retry_seconds(header):
 
 
 def lifetime(item, retention, now):
-    remaining = max(0, int(item["created_at"] + retention - now))
+    remaining = max(0, item["created_at"] + retention - now)
     # Android retains out-of-order dismissal markers longer than a prompt can
     # remain in either transport after its last send attempt.
     return min(remaining, 28 * 86400) if item["kind"] in PROMPT_KINDS else remaining

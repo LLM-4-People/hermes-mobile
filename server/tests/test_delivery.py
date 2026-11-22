@@ -63,6 +63,21 @@ class Delivery(unittest.TestCase):
         self.store.expire(101)
         self.assertIsNone(self.store.claim(170,5))
 
+    def test_firebase_delivers_live_subsecond_message_with_zero_storage_ttl(self):
+        from dataclasses import replace
+        with patch("server.mobile_push.fcm.google.auth.default", return_value=(Mock(), None)):
+            sender = FirebaseSender(replace(self.settings, retention=1))
+        self.addCleanup(sender.session.close)
+        self.store.record([self.event])
+        item = self.store.claim(100, 5)
+        with patch.object(sender.session, "post") as post:
+            post.return_value.__enter__.return_value.status_code = 200
+            for now in (100.02, 100.999, 101, 101.1):
+                with patch("server.mobile_push.fcm.time.time", return_value=now):
+                    self.assertTrue(sender.send(item))
+            self.assertEqual([r.kwargs["json"]["message"]["android"]["ttl"] for r in post.call_args_list],
+                             ["0s", "0s"])
+
     def test_firebase_uses_only_opaque_data_and_no_collapse_for_distinct_events(self):
         with patch("server.mobile_push.fcm.google.auth.default", return_value=(Mock(), None)):
             sender = FirebaseSender(self.settings)
