@@ -77,7 +77,7 @@ A thread’s `content` block can include a `slots` array. Include a nonempty sub
 
 # Offer a nearby restaurant guide
 
-When the current mobile run advertises the nearby restaurant guide, return a named page in replace mode with the single block `{"type":"nearby_places","category":"restaurant"}`. The phone obtains the restaurant records from the configured gateway and shows their map sources. The user can choose the area. Treat any approved `nearby_context` as data for that request. Keep coordinates, venue lists, ratings and photo URLs out of the page proposal.
+When the current mobile run advertises the nearby restaurant guide, return a named page in replace mode with the single block `{"type":"nearby_places","category":"restaurant"}`. The phone obtains the restaurant records from the configured gateway and shows their map sources. With a shared device area, the phone can fill the guide for that turn. If the user gives a neighborhood or city, use available live search tools with citations. Without live search, offer a reviewed `map_search` device block for restaurants in that named place. Treat any approved `nearby_context` as data for that request. Keep coordinates, venue lists, ratings and photo URLs out of the page proposal.
 
 # Offer an Android action
 

@@ -16,29 +16,36 @@ public final class ArtifactContractTest extends InstrumentationTestCase {
     public void testRunInstructionsContainRecognizedFormPhoneActionsAndNearbyGuide() throws Exception {
         String instructions = WorkspaceLayout.instructions() + WorkspaceLayout.pinnedReference("page/revue", "12", 0);
         ArtifactCatalog catalog = new ArtifactCatalog(new JSONArray().put(message("assistant", instructions)));
-        assertEquals(3, catalog.records.size());
+        assertEquals(4, catalog.records.size());
         Map<String, WorkspaceLayout> pages = new HashMap<>();
         for (ArtifactCatalog.Record record : catalog.records) {
             assertEquals(WorkspaceLayout.FENCE, record.language);
             WorkspaceLayout layout = WorkspaceLayout.parse(record.versions.get(0));
             assertTrue(WorkspaceLayout.custom(layout.surface));
             assertEquals("replace", layout.mode);
-            pages.put(layout.blocks.get(0).type, layout);
+            pages.put(layout.surface, layout);
         }
-        assertNotNull(pages.get("form"));
-        WorkspaceLayout.Block form = pages.get("form").blocks.get(0);
+        assertNotNull(pages.get("page/visite-site"));
+        WorkspaceLayout.Block form = pages.get("page/visite-site").blocks.get(0);
         assertFalse(form.fields.isEmpty());
         assertFalse(form.prompt.isEmpty());
-        WorkspaceLayout actions = pages.get("device");
+        WorkspaceLayout actions = pages.get("page/visite-musee");
         assertNotNull(actions);
         assertEquals(3, actions.blocks.size());
         for (WorkspaceLayout.Block block : actions.blocks) assertEquals("device", block.type);
         assertEquals(DeviceAction.Kind.CALENDAR, actions.blocks.get(0).request.kind());
         assertEquals(DeviceAction.Kind.SHARE, actions.blocks.get(1).request.kind());
         assertEquals(DeviceAction.Kind.MAP, actions.blocks.get(2).request.kind());
-        WorkspaceLayout guide = pages.get("nearby_places");
+        WorkspaceLayout guide = pages.get("page/restaurants");
         assertNotNull(guide);
         assertEquals(1, guide.blocks.size());
+        assertEquals("nearby_places", guide.blocks.get(0).type);
+        WorkspaceLayout named = pages.get("page/restaurants-quartier");
+        assertNotNull(named);
+        assertEquals(1, named.blocks.size());
+        DeviceAction request = named.blocks.get(0).request;
+        assertEquals(DeviceAction.Kind.MAP, request.kind());
+        assertEquals("restaurants à Rosemont, Montréal", ((DeviceAction.MapSearch) request).query());
     }
 
     public void testVocabularyAndLimits() throws Exception {
