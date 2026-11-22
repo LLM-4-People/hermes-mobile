@@ -17,7 +17,7 @@ manifest.write_text(manifest.read_text().replace("<application>", entry + "\n   
 gradle = Path("app/build.gradle")
 src = gradle.read_text()
 for field in ["applicationId = ", "manifestPlaceholders = [hermesApplicationId: "]:
-    old = field + "'org.llm4people.hermes'"
+    old = field + "namespace"
     assert src.count(old) == 1
     src = src.replace(old, field + "'org.llm4people.polishprobe'")
 gradle.write_text(src)
