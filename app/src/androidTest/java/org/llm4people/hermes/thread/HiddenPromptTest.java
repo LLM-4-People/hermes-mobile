@@ -2,12 +2,16 @@ package org.llm4people.hermes.thread;
 
 import android.content.Context;
 import android.content.Intent;
+import android.graphics.Rect;
+import android.os.SystemClock;
 import android.test.InstrumentationTestCase;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.TextView;
 
 import org.json.JSONObject;
+import org.json.JSONArray;
 import org.llm4people.hermes.MainActivity;
 import org.llm4people.hermes.profile.Account;
 import org.llm4people.hermes.profile.WorkspaceAccountFixture;
@@ -15,6 +19,8 @@ import org.llm4people.hermes.profile.WorkspaceAccountFixture;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Collections;
+import java.util.concurrent.Callable;
+import java.util.concurrent.atomic.AtomicReference;
 
 /** Exercise the protected shell and both native-content layout modes with a disposable account. */
 @SuppressWarnings("deprecation")
@@ -39,7 +45,79 @@ public class HiddenPromptTest extends InstrumentationTestCase {
         }
     }
 
-    private static void checkSurfaces(MainActivity activity, Account account) throws Exception {
+    public void testReadingHistoryOffersAnInPlaceResponseUntilTheCurrentCardIsVisible() throws Throwable {
+        Context context = getInstrumentation().getTargetContext();
+        Intent launch = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
+        MainActivity activity = (MainActivity) getInstrumentation().startActivitySync(launch);
+        try (WorkspaceAccountFixture profile = new WorkspaceAccountFixture(context)) {
+            ThreadWorkspace page = main(() -> selectThread(activity, profile.account));
+            RunDecisions actions = main(() -> {
+                JSONArray history = new JSONArray();
+                for (int i = 0; i < 60; ++i)
+                    history.put(new JSONObject().put("role", "user").put("content", "Message de lecture " + i));
+                page.screen.rows(history, false, false, 0);
+                page.screen.displayDraft("Mon brouillon");
+                page.journal.observe("pending-approval");
+                RunDecisions decisions = new RunDecisions(page);
+                decisions.observe(RunAction.capture(page.journal, page::token));
+                page.screen.list.setSelectionFromTop(3, 0);
+                return decisions;
+            });
+            Button reveal = main(() -> button(activity.getWindow().getDecorView()));
+            awaitUi(() -> page.screen.list.getFirstVisiblePosition() == 3);
+            int top = main(() -> page.screen.list.getChildAt(0).getTop());
+            JSONObject prompt = new JSONObject().put("prompt_id", "decision").put("kind", "approval")
+                    .put("execution_generation", 1).put("description", "Partager le fichier")
+                    .put("choices", new JSONArray().put("once").put("deny"));
+            runTestOnUiThread(() -> actions.present(Collections.singletonList(prompt)));
+            awaitUi(reveal::isShown);
+            assertEquals(3, (int) main(() -> page.screen.list.getFirstVisiblePosition()));
+            assertEquals(top, (int) main(() -> page.screen.list.getChildAt(0).getTop()));
+            assertTrue(main(reveal::performClick));
+            awaitUi(() -> !reveal.isShown() && visibleText(page.screen.list, "Refuser"));
+            assertEquals("Mon brouillon", main(page.screen::draft));
+            runTestOnUiThread(() -> page.screen.list.setSelectionFromTop(3, 0));
+            awaitUi(reveal::isShown);
+            runTestOnUiThread(() -> actions.present(Collections.emptyList()));
+            awaitUi(() -> !reveal.isShown());
+            runTestOnUiThread(() -> activity.onAction("previous"));
+            assertNull(main(page::sessionId)); // One Back from the original route returns directly to the inbox.
+            runTestOnUiThread(() -> activity.onAction("profiles"));
+        } finally {
+            getInstrumentation().runOnMainSync(activity::finish);
+        }
+    }
+
+    private <T> T main(Callable<T> work) throws Throwable {
+        AtomicReference<T> result = new AtomicReference<>();
+        runTestOnUiThread(() -> {
+            try { result.set(work.call()); }
+            catch (Exception error) { throw new AssertionError(error); }
+        });
+        return result.get();
+    }
+
+    private void awaitUi(Callable<Boolean> ready) throws Throwable {
+        long deadline = SystemClock.uptimeMillis() + 5_000;
+        do {
+            getInstrumentation().waitForIdleSync();
+            if (main(ready)) return;
+            SystemClock.sleep(25);
+        } while (SystemClock.uptimeMillis() < deadline);
+        fail("The expected discussion viewport did not appear");
+    }
+
+    private static boolean visibleText(View view, String label) {
+        if (view instanceof TextView text && label.contentEquals(text.getText()) && view.isShown())
+            return view.getGlobalVisibleRect(new Rect());
+        if (view instanceof ViewGroup group) {
+            for (int i = 0; i < group.getChildCount(); ++i)
+                if (visibleText(group.getChildAt(i), label)) return true;
+        }
+        return false;
+    }
+
+    private static ThreadWorkspace selectThread(MainActivity activity, Account account) throws Exception {
         Method unlock = MainActivity.class.getDeclaredMethod("opened", Account.class);
         unlock.setAccessible(true);
         unlock.invoke(activity, account);
@@ -49,6 +127,11 @@ public class HiddenPromptTest extends InstrumentationTestCase {
         Method select = ThreadWorkspace.class.getDeclaredMethod("open", ThreadIdentity.class, String.class);
         select.setAccessible(true);
         select.invoke(page, new ThreadIdentity("discussion", "discussion"), "Discussion");
+        return page;
+    }
+
+    private static void checkSurfaces(MainActivity activity, Account account) throws Exception {
+        ThreadWorkspace page = selectThread(activity, account);
         page.screen.displayDraft("Texte conservé");
         page.journal.observe("run");
         RunDecisions actions = new RunDecisions(page);
