@@ -294,6 +294,7 @@ final class ThreadViews {
                 case "user" -> "Vous";
                 case "assistant" -> "Hermes";
                 case "prompt_status" -> "Suivi de la question";
+                case "approval_result" -> "Autorisation";
                 case "tool" -> "Outil · " + ThreadData.string(row, "tool_name");
                 default -> role;
             };
@@ -327,7 +328,14 @@ final class ThreadViews {
                     chat ? TranscriptPage.PAGE_CHARS : 300);
             CharSequence rendered = MessageText.styled(getContext(), preview);
             body.setText(preview.hasMore() ? android.text.TextUtils.concat(rendered, "…") : rendered);
-            if (getChildCount() > 2) removeViewAt(2);
+            if (getChildCount() > 2) removeViews(2, getChildCount() - 2);
+            if (chat && "approval_result".equals(role)) {
+                String details = ThreadData.string(row, "receipt_details");
+                addView(Ui.button(getContext(), "Voir les détails", v ->
+                        show(new AlertDialog.Builder(getContext()).setTitle("Détails de l’action")
+                                .setView(MessageText.reader(getContext(), details, false, true))
+                                .setPositiveButton("Fermer", null))));
+            }
             if (chat && preview.hasMore()) {
                 String full = content;
                 addView(Ui.button(getContext(), "Lire le message entier", v ->

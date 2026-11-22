@@ -37,6 +37,26 @@ public class PromptHistoryTest extends AndroidTestCase {
         assertSame(source, PromptHistory.display(source));
     }
 
+    public void testTerminalHistoryUsesExplicitHumanDecisionProvenance() throws Exception {
+        JSONObject result = new JSONObject().put("exit_code", 0).put("output", "fichier prêt");
+        JSONObject row = new JSONObject().put("role", "tool").put("tool_name", "terminal");
+        JSONArray input = new JSONArray().put(row);
+        row.put("content", result.toString());
+        assertSame(input, PromptHistory.display(input));
+        result.put("approval", "Command was flagged (reason) and auto-approved by smart approval.");
+        row.put("content", result.toString());
+        assertSame(input, PromptHistory.display(input));
+        result.put("approval", "Command required approval (reason) and was approved by the user.");
+        row.put("content", result.toString());
+        JSONObject allow = PromptHistory.display(input).getJSONObject(0);
+        assertEquals("Action autorisée.\n\nfichier prêt", allow.getString("content"));
+        assertEquals(result.toString(), allow.getString("receipt_details"));
+        result = new JSONObject().put("status", "blocked").put("user_summary", "You denied this command — it did not run.");
+        row.put("content", result.toString());
+        assertEquals("Action refusée. La commande n’a pas été exécutée.", PromptHistory.display(input)
+                .getJSONObject(0).getString("content"));
+    }
+
     private static JSONObject response(String question, String status, Object answer) throws Exception {
         return new JSONObject().put("question", question).put("status", status).put("user_response", answer);
     }
