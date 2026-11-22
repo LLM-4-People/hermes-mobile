@@ -63,9 +63,9 @@ public class ResolvedNoticeRouteTest extends InstrumentationTestCase {
             ui.tap("Répondre à Hermes");
             ui.see(question ? "Quelle date ?" : "Autoriser cette action ?");
             assertEquals("Demain à midi", ui.fieldText("Message à Hermes"));
-            runTestOnUiThread(() -> activity.onAction("profiles"));
             releaseEvents.countDown();
             String wire = gateway.observed();
+            runTestOnUiThread(() -> activity.onAction("profiles"));
             assertTrue(wire.contains("/intermediate/messages?order=latest&limit=0"));
             assertTrue(wire.contains("/v1/runs/remote "));
             assertTrue(wire.contains("/v1/runs/remote/events"));
