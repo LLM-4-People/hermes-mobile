@@ -19,6 +19,8 @@ python3 -m unittest discover -s ci
 
 Run the last command with an unlocked emulator or USB device connected to ADB.
 
+CI starts Gradle with the project's normal repositories. If Maven Central explicitly responds with HTTP 429, the bounded retry also consults Google's hosted Maven Central mirror. Google Maven remains the first repository for Android dependencies. [Google Cloud's Gradle mirror configuration](https://docs.cloud.google.com/docs/buildpacks/java#google_cloud_hosted_maven_central_mirror)
+
 ## Signed release
 
 Create an Actions environment named `android-release`. Restrict deployment branches to `main`. Store the following environment secrets.

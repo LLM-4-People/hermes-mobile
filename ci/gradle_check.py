@@ -1,5 +1,6 @@
 """Retry a CI build only when Maven Central rate-limits a dependency request."""
 
+import os
 import re
 import subprocess
 import sys
@@ -13,7 +14,8 @@ def build(command, delays=(30, 90)):
     for attempt in range(len(delays) + 1):
         rate_limited = False
         central_request = False
-        with subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        env = dict(os.environ, HERMES_CI_CENTRAL_MIRROR="1" if attempt else "0")
+        with subprocess.Popen(command, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                               text=True, errors="replace") as process:
             for line in process.stdout:
                 print(line, end="", flush=True)
@@ -25,7 +27,7 @@ def build(command, delays=(30, 90)):
         if status == 0 or not rate_limited or attempt == len(delays):
             return status
         pause = delays[attempt]
-        print(f"Maven Central rate-limited dependency resolution. Retrying in {pause}s.", flush=True)
+        print(f"Maven Central rate-limited dependency resolution. Retrying with Google's hosted mirror in {pause}s.", flush=True)
         time.sleep(pause)
 
 
