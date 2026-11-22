@@ -14,7 +14,18 @@ On a Linux x86-64 host, prepare a clean checkout of the Hermes fork and its Pyth
 
 `--adb` and `--adb-port` select the Android SDK client and server. `--cache` selects the downloaded distributor and server archive directory. The fixture verifies each file against its pinned SHA-256 before use. The first fetch requires network access to the public release artifacts. The test creates temporary keys, isolated Hermes homes, a local ntfy service and a private UnifiedPush relay. Android reaches only their loopback ports through ADB reverse mappings.
 
-For a minified release APK, supply the disposable emulator’s test CA, its 127.0.0.1 leaf certificate and the matching private key. Use the `--tls-ca`, `--tls-cert` and `--tls-key` flags or set `HERMES_FIXTURE_TLS_CA`, `HERMES_FIXTURE_TLS_CERT` and `HERMES_FIXTURE_TLS_KEY`. Both account endpoints use HTTPS. The desktop verifier checks the certificate chain and IP SAN. The ntfy service remains on a private loopback port.
+For a minified release APK, create a fresh named AVD from the official Android 13 AOSP `default;x86_64` revision 2 image pinned in `ci/aosp-phone.json`. Start it with `-writable-system -no-snapshot`. The emulator uses a temporary writable copy of the SDK system image. Set `ANDROID_HOME` to the SDK directory and put OpenSSL and the JDK on PATH. Set `avd` to the AVD name, `serial` to its running emulator serial, `fork_python` to the Python executable in the fork’s development environment and `signed_apk` to the signed candidate. [Android emulator command-line options](https://developer.android.com/studio/run/emulator-commandline)
+
+```bash
+python3 -B ci/aosp_trust.py --avd "$avd" --serial "$serial" -- \
+  "$fork_python" -B -m verification.unifiedpush.prove \
+    --source "$fork" --push-python "$relay_env/bin/python" \
+    --apk "$signed_apk" --serial "$serial"
+```
+
+The wrapper checks the named AOSP userdebug phone, creates a one-day private CA and issues a server certificate for `127.0.0.1`. It provisions the public CA in the emulator through Android’s development remount and reboot procedure. Android’s default trust manager must reject the leaf before installation and accept it afterward. The wrapper supplies the child process with `HERMES_FIXTURE_TLS_CA`, `HERMES_FIXTURE_TLS_CERT` and `HERMES_FIXTURE_TLS_KEY`. The clients verify the certificate chain and IP address for both HTTPS account gateways. The ntfy service uses a private loopback port.
+
+On exit, the wrapper removes the test CA, restores verified system boot and the original ADB user, and verifies that Android rejects the leaf again. SELinux stays enforcing throughout. Temporary certificate files and the Android probe are removed. Shut down and discard the dedicated AVD after the run.
 
 The test enrolls one of two protected local accounts through the app’s own controls and opens the other account. It backgrounds Hermes, calls Android’s Task Manager stop operation and checks that the process is absent while the package remains runnable. It starts a new server-side run and matches the resulting event to a binary message in the real ntfy topic and the active Android notification. It taps the system notification and unlocks the owning profile to open the newly created thread. The same visible screen must contain its unique title, its unique assistant reply and the thread composer. It then revokes the subscription and checks that the next completed run is recorded without another topic message or device alert. A successful pass prints a JSON result. The temporary profiles, database and port forwards are removed during teardown.
 
