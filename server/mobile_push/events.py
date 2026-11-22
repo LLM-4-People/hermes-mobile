@@ -3,6 +3,14 @@ import hashlib
 import json
 
 
+APPROVAL = "approval_requested"
+QUESTION = "question_requested"
+DISMISS_QUESTION = "question_settled"
+DISMISS_APPROVAL = "approval_settled"
+PROMPT_KINDS = (APPROVAL, QUESTION)
+WITHDRAWAL_KINDS = (DISMISS_APPROVAL, DISMISS_QUESTION)
+
+
 @dataclass(frozen=True)
 class Event:
     event_id: str
@@ -23,5 +31,5 @@ class Event:
 class Observation:
     updated_at: float
     events: tuple[Event, ...]
-    # When supplied, the observed run owns the complete set of pending approvals.
+    # When supplied, the observed run owns the complete set of pending prompts.
     run_id: str | None = None

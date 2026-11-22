@@ -32,7 +32,8 @@ final class ThreadJournal {
         this.write = write;
         state = ThreadData.object(encoded);
         if ((state.has("draft") && !(state.opt("draft") instanceof String))
-                || (state.has("pending") && !validPending(pending()))) {
+                || (state.has("pending") && !validPending(state.optJSONObject("pending")))
+                || (state.has("observed") && !validObservation(state.optJSONObject("observed")))) {
             throw new IllegalStateException("Invalid thread record");
         }
     }
@@ -40,12 +41,22 @@ final class ThreadJournal {
     private boolean validPending(JSONObject pending) {
         if (pending == null) return false;
         JSONObject body = pending.optJSONObject("body");
-        if (pending.has("disconnects") && !(pending.opt("disconnects") instanceof Integer count
-                && count >= 0 && count <= MAX_RECONNECTS + 1)) return false;
+        if (!validReconnects(pending)) return false;
         return body != null && ThreadData.validId(ThreadData.string(body, "session_id")) && body.opt("input") instanceof String
                 && session.equals(pending.opt("thread"))
                 && !ThreadData.string(pending, "key").isEmpty()
                 && (!pending.has("run_id") || ThreadData.validId(ThreadData.string(pending, "run_id")));
+    }
+
+    private static boolean validReconnects(JSONObject receipt) {
+        return !receipt.has("disconnects") || receipt.opt("disconnects") instanceof Integer count
+                && count >= 0 && count <= MAX_RECONNECTS + 1;
+    }
+
+    private boolean validObservation(JSONObject observed) {
+        return observed != null && validReconnects(observed) && session.equals(observed.opt("thread"))
+                && ThreadData.validId(ThreadData.string(observed, "run_id"))
+                && !ThreadData.string(observed, "owner").isEmpty();
     }
 
     static String scope(String account, String endpoint, String bearer, String session) {
@@ -64,7 +75,34 @@ final class ThreadJournal {
 
     boolean sameOwner() { return owner.equals(ThreadData.string(pending(), "owner")); }
 
-    JSONObject pending() { return state.optJSONObject("pending"); }
+    JSONObject pending() {
+        JSONObject observed = state.optJSONObject("observed");
+        return observed != null ? observed : state.optJSONObject("pending");
+    }
+
+    /** Follow a verified gateway run while preserving the local admission receipt and draft. */
+    void observe(String runId) {
+        if (!ThreadData.validId(runId)) throw new IllegalArgumentException("Invalid run");
+        if (sameOwner() && runId.equals(ThreadData.string(pending(), "run_id"))) return;
+        JSONObject previous = state.optJSONObject("observed");
+        JSONObject local = state.optJSONObject("pending");
+        if (owner.equals(ThreadData.string(local, "owner")) && runId.equals(ThreadData.string(local, "run_id"))) {
+            state.remove("observed");
+        } else {
+            JSONObject observed = new JSONObject();
+            ThreadData.put(observed, "thread", session);
+            ThreadData.put(observed, "owner", owner);
+            ThreadData.put(observed, "run_id", runId);
+            ThreadData.put(state, "observed", observed);
+        }
+        revision++;
+        try { flush(); }
+        catch (RuntimeException failure) {
+            ThreadData.put(state, "observed", previous);
+            revision++;
+            throw failure;
+        }
+    }
 
     String draft() { return ThreadData.string(state, "draft"); }
 
@@ -135,9 +173,13 @@ final class ThreadJournal {
         }
     }
 
-    void checkpoint(long seq, String text) {
+    void checkpoint(long seq, String text) { checkpoint(seq, text, RunPreview.Origin.FIRST, 0); }
+
+    void checkpoint(long seq, String text, RunPreview.Origin origin, int highSurrogate) {
         ThreadData.put(pending(), "seq", seq);
         ThreadData.put(pending(), "preview", text);
+        ThreadData.put(pending(), "preview_origin", origin.json());
+        ThreadData.put(pending(), "preview_high_surrogate", highSurrogate == 0 ? null : highSurrogate);
         revision++;
     }
 
@@ -149,15 +191,16 @@ final class ThreadJournal {
     }
 
     private void clearPending(String newDraft) {
+        String slot = state.has("observed") ? "observed" : "pending";
         JSONObject previous = pending();
         String oldDraft = draft();
-        state.remove("pending");
+        state.remove(slot);
         draft(newDraft);
         revision++;
         try {
             flush();
         } catch (RuntimeException error) {
-            ThreadData.put(state, "pending", previous);
+            ThreadData.put(state, slot, previous);
             draft(oldDraft);
             revision++;
             throw error;

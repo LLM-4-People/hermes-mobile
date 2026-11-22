@@ -2,4 +2,6 @@
     <string name="transcript_page">Page %1$d</string>
     <string name="transcript_previous">Précédente</string>
     <string name="transcript_next">Suivante</string>
+    <string name="transcript_read_excerpt">Lire l’extrait en cours</string>
+    <string name="transcript_read_full">Lire la réponse entière</string>
 </resources>

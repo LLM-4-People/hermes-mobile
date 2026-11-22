@@ -129,6 +129,10 @@ jobs:
           HERMES_TEST_CHECKOUT: ${{ github.workspace }}/.fixture/hermes
         run: |
           "$RUNNER_TEMP/hermes-env/bin/python" -B -m unittest discover -s server/tests
+      - name: Verify the conversational HTTP contract on the selected gateway
+        run: |
+          "$RUNNER_TEMP/hermes-env/bin/python" -B verification/conversation_cards.py --source .fixture/hermes \
+            --output "$RUNNER_TEMP/hermes-conversation-cards/http"
       - name: Enable KVM
         run: sudo chmod a+rw /dev/kvm
       - name: Run device tests
@@ -154,6 +158,17 @@ jobs:
           name: android-device-captures
           path: ${{ runner.temp }}/hermes-device/**/*.png
           if-no-files-found: ignore
+
+      - name: Retain card screenshots and gateway receipts
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: android-conversation-cards
+          path: |
+            ${{ runner.temp }}/hermes-conversation-cards/*/conversation-cards.json
+            ${{ runner.temp }}/hermes-conversation-cards/android/*.png
+          if-no-files-found: ${{ job.status == 'success' && 'error' || 'warn' }}
+          compression-level: 0
 
   aosp:
     name: Phone acceptance

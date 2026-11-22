@@ -1,0 +1,10 @@
+<resources>
+    <string name="read_listen">Écouter</string>
+    <string name="read_stop">Arrêter</string>
+    <string name="read_stop_label">Arrêter la lecture</string>
+    <string name="read_question_label">Écouter la question et ses choix</string>
+    <string name="read_reply_label">Écouter la dernière réponse</string>
+    <string name="read_empty">Cette discussion ne contient pas de texte à lire dans la dernière réponse.</string>
+    <string name="read_unavailable">Aucune voix française hors connexion disponible. Vérifiez les voix installées dans les paramètres de synthèse vocale Android.</string>
+    <string name="read_interrupted">La lecture a été interrompue. Vous pouvez la relancer.</string>
+</resources>

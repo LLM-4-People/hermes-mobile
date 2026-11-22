@@ -7,6 +7,102 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class ThreadStateTest extends TestCase {
+    public void testRemotePromptNoticeChecksKindSessionRunAndCurrentGeneration() throws Exception {
+        String approval = ThreadIdentity.noticePromptKind("approval_requested");
+        String question = ThreadIdentity.noticePromptKind("question_requested");
+        assertEquals("approval", approval);
+        assertEquals("clarify", question);
+        assertNull(ThreadIdentity.noticePromptKind("run_completed"));
+        JSONObject prompt = new JSONObject().put("kind", "approval").put("prompt_id", "a").put("execution_generation", 3);
+        JSONObject status = new JSONObject().put("session_id", "thread").put("run_id", "run")
+                .put("status", "waiting_for_approval").put("execution_generation", 3)
+                .put("pending_controls", new JSONArray().put(prompt));
+        AtomicReference<String> stored = new AtomicReference<>();
+        ThreadJournal secondPhone = new ThreadJournal("thread", "owner", null, stored::set);
+        assertNull(secondPhone.pending());
+        assertTrue(ThreadIdentity.hasPendingPrompt("thread", "run", approval, status));
+        secondPhone.observe("run");
+        assertEquals("run", secondPhone.pending().getString("run_id"));
+        assertFalse(secondPhone.pending().has("key"));
+        assertFalse(secondPhone.pending().has("body"));
+        assertFalse(ThreadIdentity.hasPendingPrompt("thread", "run", question, status));
+        try { ThreadIdentity.hasPendingPrompt("other", "run", approval, status); fail("Wrong session accepted"); }
+        catch (java.io.IOException expected) {}
+        try { ThreadIdentity.hasPendingPrompt("thread", "other", approval, status); fail("Wrong run accepted"); }
+        catch (java.io.IOException expected) {}
+        prompt.put("execution_generation", 4);
+        assertFalse(ThreadIdentity.hasPendingPrompt("thread", "run", approval, status));
+        prompt.put("execution_generation", 3).put("kind", "clarify");
+        assertTrue(ThreadIdentity.hasPendingPrompt("thread", "run", question, status));
+        assertFalse(ThreadIdentity.hasPendingPrompt("thread", "run", approval, status));
+        prompt.put("kind", "approval");
+        status.put("status", "completed");
+        assertFalse(ThreadIdentity.hasPendingPrompt("thread", "run", approval, status));
+        status.put("status", "running").put("pending_controls", new JSONArray());
+        assertFalse(ThreadIdentity.hasPendingPrompt("thread", "run", approval, status));
+    }
+
+    public void testStandaloneApprovalNoticeRequiresCurrentRequestId() throws Exception {
+        JSONObject legacy = new JSONObject().put("session_id", "thread").put("run_id", "run")
+                .put("status", "waiting_for_approval").put("approval", new JSONObject().put("request_id", "legacy"));
+        assertTrue(ThreadIdentity.hasPendingPrompt("thread", "run", "approval", legacy));
+        assertFalse(ThreadIdentity.hasPendingPrompt("thread", "run", "clarify", legacy));
+        legacy.getJSONObject("approval").put("request_id", "");
+        assertFalse(ThreadIdentity.hasPendingPrompt("thread", "run", "approval", legacy));
+    }
+
+    public void testStandaloneApprovalNoticeUsesAuthoritativeArrayBeforeCompatibilityApproval() throws Exception {
+        JSONObject nativePrompt = new JSONObject().put("event", "approval.request").put("request_id", "a")
+                .put("run_id", "run").put("choices", new JSONArray().put("once").put("deny"));
+        JSONArray controls = new JSONArray().put(nativePrompt);
+        JSONObject status = new JSONObject().put("session_id", "thread").put("run_id", "run")
+                .put("status", "waiting_for_approval").put("pending_controls", controls)
+                .put("approval", new JSONObject().put("request_id", "outdated"));
+        assertTrue(ThreadIdentity.hasPendingPrompt("thread", "run", "approval", status));
+        assertFalse(ThreadIdentity.hasPendingPrompt("thread", "run", "clarify", status));
+        nativePrompt.put("run_id", "foreign");
+        assertFalse(ThreadIdentity.hasPendingPrompt("thread", "run", "approval", status));
+        nativePrompt.put("run_id", "run").put("session_id", "foreign");
+        assertFalse(ThreadIdentity.hasPendingPrompt("thread", "run", "approval", status));
+        nativePrompt.remove("session_id");
+        nativePrompt.put("event", "approval.settled");
+        assertFalse(ThreadIdentity.hasPendingPrompt("thread", "run", "approval", status));
+        nativePrompt.put("event", "approval.request").put("type", "clarify");
+        assertFalse(ThreadIdentity.hasPendingPrompt("thread", "run", "approval", status));
+        nativePrompt.remove("type");
+        nativePrompt.put("request_id", "");
+        assertFalse(ThreadIdentity.hasPendingPrompt("thread", "run", "approval", status));
+        nativePrompt.put("request_id", "a").put("execution_generation", 1);
+        assertFalse(ThreadIdentity.hasPendingPrompt("thread", "run", "approval", status));
+        status.put("pending_controls", new JSONArray());
+        assertFalse(ThreadIdentity.hasPendingPrompt("thread", "run", "approval", status));
+        status.put("pending_controls", JSONObject.NULL);
+        assertFalse(ThreadIdentity.hasPendingPrompt("thread", "run", "approval", status));
+    }
+
+    public void testObservedRunSurvivesRestartAndRestoresOriginalAdmissionAndDraft() {
+        AtomicReference<String> saved = new AtomicReference<>();
+        ThreadJournal journal = new ThreadJournal("thread", "scope", null, saved::set);
+        journal.stage(ThreadData.body("tip", "message", null), 100, 2, 60, true);
+        journal.setRunId("mobile-run");
+        assertEquals(1000L, journal.nextReconnectDelayMillis());
+        journal.draft("unfinished draft");
+        journal.observe("remote-run");
+        ThreadJournal resumed = new ThreadJournal("thread", "scope", saved.get(), saved::set);
+        assertTrue(resumed.sameOwner());
+        assertEquals("remote-run", ThreadData.string(resumed.pending(), "run_id"));
+        assertFalse(resumed.pending().has("key"));
+        assertFalse(resumed.pending().has("body"));
+        assertEquals(1000L, resumed.nextReconnectDelayMillis());
+        assertEquals(2000L, resumed.nextReconnectDelayMillis());
+        resumed.finish();
+        assertEquals("mobile-run", ThreadData.string(resumed.pending(), "run_id"));
+        assertEquals("unfinished draft", resumed.draft());
+        assertEquals(2000L, resumed.nextReconnectDelayMillis());
+        resumed.observe("mobile-run");
+        assertTrue(resumed.pending().has("key"));
+    }
+
     public void testUnacknowledgedSendRestoresSameKeyAndExactBodyAcrossRestart() throws Exception {
         AtomicReference<String> stored = new AtomicReference<>();
         ThreadJournal first = new ThreadJournal("abc", "original", null, stored::set);
@@ -203,19 +299,62 @@ public class ThreadStateTest extends TestCase {
         JSONObject question = new JSONObject().put("kind", "clarify").put("prompt_id", "b")
                 .put("execution_generation", 8);
         prompts.restore(new JSONObject().put("pending_controls", new JSONArray().put(request).put(question)));
-        JSONObject consent = RunPrompts.response(prompts.next(), "once");
+        JSONObject consent = RunPrompts.response(prompts.snapshot().get(0), "once");
         assertEquals("a", consent.getString("request_id"));
         assertEquals("once", consent.getString("choice"));
         assertEquals(8, consent.getInt("execution_generation"));
         assertEquals(3, consent.length());
-        prompts.settle(new JSONObject().put("prompt_id", "a"));
-        assertEquals("b", RunPrompts.id(prompts.next()));
-        JSONObject response = RunPrompts.response(prompts.next(), "oui");
+        prompts.settle(new JSONObject().put("prompt_id", "a").put("execution_generation", 8));
+        assertEquals("b", RunPrompts.id(prompts.snapshot().get(0)));
+        JSONObject response = RunPrompts.response(prompts.snapshot().get(0), "oui");
         assertEquals("oui", response.getString("answer"));
         assertEquals(3, response.length());
         JSONObject classic = new JSONObject().put("request_id", "c");
-        prompts.restore(new JSONObject().put("approval", classic));
-        assertEquals(2, RunPrompts.response(prompts.next(), "deny").length());
+        prompts.restore(new JSONObject().put("status", "running"));
+        assertTrue(prompts.needsSnapshot("approval.request", classic));
+        assertNull(prompts.match(classic));
+        prompts.restore(new JSONObject().put("status", "waiting_for_approval").put("approval", classic));
+        assertEquals(2, RunPrompts.response(prompts.snapshot().get(0), "deny").length());
+    }
+
+    public void testPartialStandaloneStatusCannotConfirmAnAmbiguousAnswer() throws Exception {
+        JSONObject prompt = new JSONObject().put("request_id", "a");
+        JSONObject other = new JSONObject().put("request_id", "b");
+        JSONObject status = new JSONObject().put("status", "waiting_for_approval");
+        assertEquals(RunPrompts.Presence.UNCONFIRMED, RunPrompts.presence(status, prompt));
+        status.put("approval", other);
+        assertEquals(RunPrompts.Presence.UNCONFIRMED, RunPrompts.presence(status, prompt));
+        status.put("approval", prompt);
+        assertEquals(RunPrompts.Presence.PENDING, RunPrompts.presence(status, prompt));
+        status.put("pending_controls", new JSONArray().put(other));
+        assertEquals(RunPrompts.Presence.ABSENT, RunPrompts.presence(status, prompt));
+    }
+
+    public void testStaleGenerationOrSettledDifferentKindCannotRemoveAnActiveQuestion() throws Exception {
+        RunPrompts prompts = new RunPrompts();
+        JSONObject question = new JSONObject().put("kind", "clarify").put("prompt_id", "same")
+                .put("execution_generation", 12);
+        prompts.restore(new JSONObject().put("execution_generation", 12)
+                .put("pending_controls", new JSONArray().put(question)));
+        assertTrue(prompts.needsSnapshot("clarify.request",
+                new JSONObject(question.toString()).put("execution_generation", 11)));
+        assertFalse(prompts.needsSnapshot("clarify.request",
+                new JSONObject(question.toString()).put("execution_generation", "12")));
+        assertFalse(prompts.needsSnapshot("clarify.request",
+                new JSONObject(question.toString()).put("prompt_id", JSONObject.NULL)));
+        assertEquals(1, prompts.snapshot().size());
+        prompts.settle(new JSONObject(question.toString()).put("execution_generation", 11));
+        prompts.settle(new JSONObject().put("prompt_id", "same").put("execution_generation", 12)
+                .put("event", "approval.settled"));
+        assertEquals(1, prompts.snapshot().size());
+        prompts.settle(new JSONObject().put("prompt_id", "same").put("execution_generation", 12)
+                .put("event", "clarify.settled"));
+        assertTrue(prompts.snapshot().isEmpty());
+        assertNull(RunPrompts.key(new JSONObject().put("request_id", "q").put("kind", "clarify")));
+        assertNull(RunPrompts.key(new JSONObject().put("prompt_id", "q")));
+        prompts.restore(new JSONObject().put("status", "completed")
+                .put("approval", new JSONObject().put("request_id", "stale")));
+        assertTrue(prompts.snapshot().isEmpty());
     }
 
     public void testPagedLineageOverlapsAndMalformedRows() throws Exception {

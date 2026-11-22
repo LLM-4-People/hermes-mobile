@@ -163,6 +163,53 @@ public final class PushRoutingTest extends InstrumentationTestCase {
         assertEquals(1, count);
     }
 
+    public void testQuestionDismissalSuppressesDelayedDeliveryAndKeepsPromptOffLockscreen() {
+        if (Build.VERSION.SDK_INT >= 33) {
+            getInstrumentation().getUiAutomation().grantRuntimePermission(context.getPackageName(),
+                    Manifest.permission.POST_NOTIFICATIONS);
+        }
+        assertEquals("Hermes a une question", PushNotices.title(PushNotices.QUESTION));
+        PushStore.Device owner = store.forInstallation(device.installation);
+        String late = "00000000000000000000000000000001";
+        PushNotices.post(context, owner, late, PushNotices.DISMISS_QUESTION);
+        PushNotices.post(context, owner, late, PushNotices.QUESTION);
+        assertNull(store.knownKind(device.installation, late));
+        PushNotices.post(context, owner, event, PushNotices.QUESTION);
+        assertEquals(PushNotices.QUESTION, MobilePush.target(context, tapIntent()).kind);
+        waitForQuestion(true);
+        PushNotices.post(context, owner, event, PushNotices.DISMISS_QUESTION);
+        waitForQuestion(false);
+        assertFalse(store.remember(device.installation, event, PushNotices.QUESTION));
+    }
+
+    public void testApprovalWithdrawalBeforeRequestSuppressesOnlyItsInstallationAndId() {
+        PushStore.Device owner = store.forInstallation(device.installation);
+        PushNotices.post(context, owner, event, PushNotices.DISMISS_APPROVAL);
+        assertFalse(store.remember(device.installation, event, PushNotices.APPROVAL));
+        assertTrue(store.remember(device.installation, "00000000000000000000000000000003", PushNotices.APPROVAL));
+        assertTrue(PushNotices.isPrompt(PushNotices.APPROVAL));
+        assertTrue(PushNotices.PROMPT_DISPLAY_MILLIS > 0);
+    }
+
+    private void waitForQuestion(boolean visible) {
+        String tag = device.installation + "/" + event;
+        long deadline = android.os.SystemClock.elapsedRealtime() + 5000;
+        do {
+            boolean present = false;
+            for (StatusBarNotification row : context.getSystemService(NotificationManager.class).getActiveNotifications()) {
+                if (!tag.equals(row.getTag())) continue;
+                present = true;
+                assertEquals("Hermes a une question", row.getNotification().extras.getString("android.title"));
+                assertEquals("Ouvrez votre profil pour voir les détails.", row.getNotification().extras.getString("android.text"));
+                assertEquals(android.app.Notification.VISIBILITY_PRIVATE, row.getNotification().visibility);
+                assertEquals(PushNotices.PROMPT_DISPLAY_MILLIS, row.getNotification().getTimeoutAfter());
+            }
+            if (visible == present) return;
+            android.os.SystemClock.sleep(40);
+        } while (android.os.SystemClock.elapsedRealtime() < deadline);
+        fail("Unexpected Android notification visibility");
+    }
+
     private boolean postedNotice(String tag) {
         for (StatusBarNotification active : context.getSystemService(NotificationManager.class).getActiveNotifications()) {
             if (!tag.equals(active.getTag())) continue;

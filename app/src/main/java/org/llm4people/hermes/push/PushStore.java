@@ -29,7 +29,9 @@ final class PushStore extends SQLiteOpenHelper {
         return instance;
     }
 
-    PushStore(Context context, String database) { super(context, database, null, 5); }
+    private static final int DATABASE_VERSION = 6;
+
+    PushStore(Context context, String database) { super(context, database, null, DATABASE_VERSION); }
 
     @Override public void onConfigure(SQLiteDatabase db) { db.setForeignKeyConstraintsEnabled(true); }
 
@@ -39,6 +41,7 @@ final class PushStore extends SQLiteOpenHelper {
                 + "api_key TEXT NOT NULL, project TEXT NOT NULL, sender TEXT NOT NULL)");
         addDistributorColumns(db);
         addRetryColumns(db);
+        addDismissals(db);
         addRecovery(db);
         addRepair(db);
         db.execSQL("CREATE TABLE seen(installation TEXT NOT NULL REFERENCES devices(installation) ON DELETE CASCADE,"
@@ -46,6 +49,8 @@ final class PushStore extends SQLiteOpenHelper {
     }
 
     @Override public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
+        if (oldVersion < 1 || oldVersion >= newVersion || newVersion != DATABASE_VERSION)
+            throw new IllegalStateException("Unknown push schema");
         if (oldVersion < 2) addDistributorColumns(db);
         if (oldVersion < 3) {
             addRetryColumns(db);
@@ -53,20 +58,29 @@ final class PushStore extends SQLiteOpenHelper {
             db.execSQL("UPDATE devices SET established=1 WHERE distributor IS NOT NULL AND (state='active' "
                     + "OR state='pending' AND EXISTS (SELECT 1 FROM seen WHERE seen.installation=devices.installation))");
         }
-        if (oldVersion < 4) addRecovery(db);
-        if (oldVersion < 5) addRepair(db);
+        // Both v4 and v5 have different historical schemas. Preserve each installed feature.
+        addDismissals(db);
+        addRecovery(db);
+        addRepair(db);
     }
 
     private static void addRepair(SQLiteDatabase db) {
-        db.execSQL("ALTER TABLE devices ADD COLUMN repair INTEGER NOT NULL DEFAULT 0");
+        if (!hasDeviceColumn(db, "repair"))
+            db.execSQL("ALTER TABLE devices ADD COLUMN repair INTEGER NOT NULL DEFAULT 0");
+    }
+
+    private static boolean hasDeviceColumn(SQLiteDatabase db, String name) {
+        try (Cursor columns = db.rawQuery("SELECT * FROM devices LIMIT 0", null)) {
+            return columns.getColumnIndex(name) >= 0;
+        }
     }
 
     private static void addRecovery(SQLiteDatabase db) {
-        db.execSQL("ALTER TABLE devices ADD COLUMN signer TEXT");
-        db.execSQL("CREATE TABLE deferred(installation TEXT NOT NULL REFERENCES devices(installation) ON DELETE CASCADE,"
+        if (!hasDeviceColumn(db, "signer")) db.execSQL("ALTER TABLE devices ADD COLUMN signer TEXT");
+        db.execSQL("CREATE TABLE IF NOT EXISTS deferred(installation TEXT NOT NULL REFERENCES devices(installation) ON DELETE CASCADE,"
                 + "version TEXT NOT NULL,event TEXT NOT NULL,kind TEXT NOT NULL,expires INTEGER NOT NULL,"
                 + "discard_at INTEGER NOT NULL,PRIMARY KEY(installation,version,event))");
-        db.execSQL("CREATE TRIGGER discard_deferred AFTER UPDATE OF state,subscription_version ON devices BEGIN "
+        db.execSQL("CREATE TRIGGER IF NOT EXISTS discard_deferred AFTER UPDATE OF state,subscription_version ON devices BEGIN "
                 + "DELETE FROM deferred WHERE installation=NEW.installation AND "
                 + "(NEW.state IN ('failed','removing') OR version IS NOT NEW.subscription_version); END");
     }
@@ -83,6 +97,28 @@ final class PushStore extends SQLiteOpenHelper {
         db.execSQL("ALTER TABLE devices ADD COLUMN vapid TEXT");
         db.execSQL("ALTER TABLE devices ADD COLUMN subscription BLOB");
         db.execSQL("ALTER TABLE devices ADD COLUMN subscription_version TEXT");
+    }
+
+    private static void addDismissals(SQLiteDatabase db) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS dismissed_questions(installation TEXT NOT NULL REFERENCES devices(installation)"
+                + " ON DELETE CASCADE,event TEXT NOT NULL,received_at INTEGER NOT NULL,PRIMARY KEY(installation,event))");
+        db.execSQL("CREATE INDEX IF NOT EXISTS dismissed_age ON dismissed_questions(received_at)");
+    }
+
+    void dismissPrompt(String installation, String event) {
+        // Earlier requests can arrive for 28 days, after recent notification history rolls over.
+        long now = System.currentTimeMillis() / 1000;
+        SQLiteDatabase db = getWritableDatabase();
+        db.beginTransaction();
+        try {
+            db.execSQL("DELETE FROM dismissed_questions WHERE received_at<?", new Object[]{now - 29L * 86400});
+            Device owner = forInstallation(installation);
+            if (owner != null && owner.receives()) {
+                db.execSQL("INSERT OR REPLACE INTO dismissed_questions(installation,event,received_at) VALUES(?,?,?)",
+                        new Object[]{installation, event, now});
+            }
+            db.setTransactionSuccessful();
+        } finally { db.endTransaction(); }
     }
 
     static final class Device {
@@ -385,6 +421,16 @@ final class PushStore extends SQLiteOpenHelper {
         try {
             Device owner = forInstallation(installation);
             if (owner == null || !owner.receives()) return false;
+            if (PushNotices.isPrompt(kind)) {
+                try (Cursor marker = db.rawQuery("SELECT 1 FROM dismissed_questions WHERE installation=? AND event=?",
+                        new String[]{installation, event})) {
+                    if (marker.moveToFirst()) {
+                        // A suppressed prompt is a successful no-op even inside a deferred drain.
+                        db.setTransactionSuccessful();
+                        return false;
+                    }
+                }
+            }
             ContentValues data = new ContentValues();
             data.put("installation", installation);
             data.put("event", event);
@@ -407,14 +453,28 @@ final class PushStore extends SQLiteOpenHelper {
     void defer(Device owner, String event, String kind, long expires, long now) {
         if (!PENDING.equals(owner.state) || owner.established || owner.subscriptionVersion == null
                 || !PushNotices.validIds(owner.installation, event) || !WebPushExpiry.mayDispatch(kind, expires, now)) return;
+        String request = switch (kind) {
+            case PushNotices.DISMISS_APPROVAL -> "approval_requested";
+            case PushNotices.DISMISS_QUESTION -> "question_requested";
+            default -> null;
+        };
+        if (request == null && PushNotices.title(kind) == null) return;
         SQLiteDatabase db = getWritableDatabase();
         db.beginTransaction();
         try {
+            Device current = forInstallation(owner.installation);
+            if (current == null || !PENDING.equals(current.state) || current.established
+                    || !owner.subscriptionVersion.equals(current.subscriptionVersion)) return;
             db.execSQL("DELETE FROM deferred WHERE discard_at<=?", new Object[]{now});
+            long discardAt = now + 24 * 3_600_000L;
             db.execSQL("INSERT OR IGNORE INTO deferred(installation,version,event,kind,expires,discard_at) "
-                    + "SELECT installation,subscription_version,?,?,?,? FROM devices WHERE installation=? AND "
-                    + "subscription_version=? AND state='pending' AND established=0",
-                    new Object[]{event, kind, expires, now + 24 * 3_600_000L, owner.installation, owner.subscriptionVersion});
+                    + "VALUES(?,?,?,?,?,?)", new Object[]{owner.installation, owner.subscriptionVersion, event, kind, expires, discardAt});
+            if (request != null) {
+                // The settlement uses the original event ID. Preserve it whichever callback arrived first.
+                db.execSQL("UPDATE deferred SET kind=?,expires=?,discard_at=? WHERE installation=? AND version=? "
+                        + "AND event=? AND kind=?", new Object[]{kind, expires, discardAt, owner.installation,
+                                owner.subscriptionVersion, event, request});
+            }
             db.execSQL("DELETE FROM deferred WHERE installation=? AND rowid NOT IN "
                     + "(SELECT rowid FROM deferred WHERE installation=? ORDER BY rowid DESC LIMIT 64)",
                     new Object[]{owner.installation, owner.installation});

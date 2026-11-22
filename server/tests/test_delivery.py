@@ -1,4 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
+import json
 import math
 import sqlite3
 from pathlib import Path
@@ -112,6 +113,94 @@ class Delivery(unittest.TestCase):
             resp.json.return_value["error"]["details"][0]["@type"] = "type.googleapis.com/google.firebase.fcm.v1.FcmError"
             self.assertFalse(sender.send(item))
 
+    def test_prompt_withdrawal_has_fresh_ttl_after_public_history_expires(self):
+        from dataclasses import replace
+        from server.mobile_push.provider import lifetime, opaque_notice
+
+        for request, settled, field in (("question_requested", "question_settled", "pending_questions"),
+                                        ("approval_requested", "approval_settled", "pending_approvals")):
+            for expire_first in (True, False):
+                with self.subTest(request=request, expire_first=expire_first), TemporaryDirectory() as root:
+                    settings, store = fixture(root)
+                    settings = replace(settings, retention=5)
+                    for device in ("accepted", "unattempted"):
+                        store.device(device, settings.profile_key, profile=True, now=90,
+                                     token=device, management_key="a"*64)
+                    runs = create_runs(settings)
+                    self.addCleanup(runs.close)
+                    status = "waiting_for_input" if field == "pending_questions" else "waiting_for_approval"
+                    insert_run(runs, settings.run_scope, "private-run", 100, status,
+                               session_id="private-session", **{field: {"private-prompt": 100}})
+                    ledgers = HermesLedgers(settings)
+                    self.addCleanup(ledgers.close)
+                    ledgers.runs.scan((settings.run_scope, 95), store, 95)
+                    sent = store.claim(101, 60)
+                    self.assertEqual(sent["kind"], request)
+                    # Simulate a provider acceptance whose acknowledgement never reached the worker.
+                    self.assertTrue(store.begin_send(sent))
+                    store = Store(settings.state)
+                    with patch("server.mobile_push.store.time.time", return_value=108):
+                        if expire_first:
+                            store.expire(103)
+                        runs.execute("UPDATE run_idempotency SET status_json=?,updated_at=108",
+                                     (json.dumps({"status": "running", "session_id": "private-session"}),))
+                        runs.commit()
+                        ledgers.runs.scan((settings.run_scope, 103), store, 103)
+                        store.expire(103)
+                    store.settle(sent, unregistered=True)
+                    store = Store(settings.state)
+                    withdrawal = store.claim(108, 1)
+                    self.assertEqual(opaque_notice(withdrawal), {"kind": settled, "event_id": sent["event_id"],
+                                                                 "installation_id": sent["device_id"]})
+                    self.assertIsNone(withdrawal["run_id"])
+                    self.assertEqual(lifetime(withdrawal, settings.retention, 108), 5)
+                    self.assertIsNone(store.events(event_id=sent["event_id"]))
+                    self.assertIsNone(store.events(event_id=withdrawal["storage_id"]))
+                    self.assertEqual(store.events()["events"], [])
+                    with patch("server.mobile_push.fcm.google.auth.default", return_value=(Mock(), None)):
+                        sender = FirebaseSender(settings)
+                    self.addCleanup(sender.session.close)
+                    with patch.object(sender.session, "post") as post, self.assertLogs("hermes.mobile.push"):
+                        response = post.return_value.__enter__.return_value
+                        response.ok = False
+                        response.status_code = 503
+                        response.headers = {}
+                        with patch("server.mobile_push.worker.time.time", return_value=109):
+                            deliver(withdrawal, settings, store, sender)
+                        self.assertIsNone(store.claim(110, 2))
+                        store.expire(105)
+                        retried = Store(settings.state).claim(111, 1)
+                        self.assertEqual((retried["created_at"], retried["attempts"]), (108, 1))
+                        response.ok = True
+                        response.status_code = 200
+                        with patch("server.mobile_push.worker.time.time", return_value=111):
+                            deliver(retried, settings, store, sender)
+                        message = post.call_args.kwargs["json"]["message"]
+                        self.assertEqual(post.call_count, 2)
+                        self.assertEqual(message["android"]["ttl"], "2s")
+                        self.assertEqual(message["data"], opaque_notice(withdrawal))
+                    self.assertEqual(lifetime(retried, settings.retention, 114), 0)
+                    store.expire(109)
+                    self.assertIsNone(store.claim(120, 5))
+
+    def test_previous_outbox_migrates_queued_dismissal_with_fresh_clock(self):
+        event = Event.make(["old"], "question_requested", 100, run_id="private-run")
+        self.store.record([event])
+        with self.store.write() as db:
+            db.execute("DROP INDEX visible_events")
+            db.execute("ALTER TABLE events DROP COLUMN supersedes")
+            db.execute("ALTER TABLE prompt_recipients RENAME TO question_recipients")
+            db.execute("ALTER TABLE deliveries ADD COLUMN dismiss INTEGER NOT NULL DEFAULT 0")
+            db.execute("UPDATE deliveries SET dismiss=1")
+        with patch("server.mobile_push.store.time.time", return_value=110):
+            migrated = Store(self.settings.state)
+        migrated.expire(106)
+        item = Store(self.settings.state).claim(111, 2)
+        self.assertEqual((item["kind"], item["event_id"], item["created_at"]), ("question_settled", event.event_id, 110))
+        migrated.device("d1", self.settings.profile_key, profile=True, now=111)
+        self.assertFalse(migrated.begin_send(item))
+        self.assertIsNone(migrated.claim(120, 2))
+
     def test_reconciles_actual_fields_across_writes_scope_and_restart(self):
         runs = create_runs(self.settings)
         self.addCleanup(runs.close)
@@ -175,7 +264,6 @@ class Delivery(unittest.TestCase):
         self.assertEqual([v["run_id"] for v in self.store.events()["events"]], ["run1", "run2"])
 
     def test_settled_cancelled_and_replaced_approvals_are_retracted_before_delivery(self):
-        import json
         runs = create_runs(self.settings)
         self.addCleanup(runs.close)
         sources = HermesLedgers(self.settings)
@@ -203,6 +291,67 @@ class Delivery(unittest.TestCase):
         self.assertIsNone(self.store.claim(130, 1))
         change("completed")
         self.assertEqual(self.store.claim(130, 1)["kind"], "run_completed")
+
+    def test_answer_retracts_unsent_questions_and_dismisses_only_possible_recipients(self):
+        self.device("other-device", "other-token")
+        scope = self.settings.run_scope
+        runs = create_runs(self.settings)
+        self.addCleanup(runs.close)
+        insert_run(runs, scope, "run", 110, "waiting_for_approval", session_id="s",
+                   pending_questions={"private-question-id": 105}, pending_approvals={"approval-id": 106})
+        insert_run(runs, "other-user", "foreign", 110, "waiting_for_input", pending_questions={"q": 104})
+        ledgers = HermesLedgers(self.settings)
+        self.addCleanup(ledgers.close)
+        ledgers.runs.scan((scope, 0), self.store, 0)
+        first = self.store.claim(110, 30)
+        other = self.store.claim(110, 30)
+        self.assertEqual((first["kind"], other["kind"]), ("question_requested", "question_requested"))
+        # A provider accepted one request without acknowledging it. The other recipient
+        # is only leased. No dismissal is necessary for that unattempted delivery.
+        self.assertTrue(self.store.begin_send(first))
+        changed = {"status": "waiting_for_approval", "session_id": "s", "pending_approvals": {"approval-id": 106}}
+        runs.execute("UPDATE run_idempotency SET status_json=?,updated_at=111 WHERE scope=?",
+                     (json.dumps(changed), scope))
+        runs.commit()
+        sender = Mock(send=Mock(return_value=True))
+        deliver(other, self.settings, self.store, sender)
+        sender.send.assert_not_called()
+        reopened = Store(self.settings.state)
+        ledgers.runs.scan((scope, 0), reopened, 0)
+        dismissal = reopened.claim(112, 1)
+        self.assertEqual((dismissal["kind"], dismissal["event_id"], dismissal["device_id"]),
+                         ("question_settled", first["event_id"], first["device_id"]))
+        reopened.settle(first)
+        ledgers.close()
+        ledgers.runs.scan((scope, 0), reopened, 0)
+        retried = []
+        for _ in range(3):
+            item = reopened.claim(115, 1)
+            retried.append(item["kind"])
+            deliver(item, self.settings, reopened, sender)
+        self.assertCountEqual(retried, ["approval_requested", "approval_requested", "question_settled"])
+        self.assertIsNone(reopened.claim(120, 1))
+        events = reopened.events()["events"]
+        self.assertEqual([event["run_id"] for event in events], ["run", "run"])
+        self.assertNotIn("private-question-id", repr(events))
+
+    def test_restart_with_closed_ledger_retires_previously_dispatched_question(self):
+        runs = create_runs(self.settings)
+        self.addCleanup(runs.close)
+        scope = self.settings.run_scope
+        insert_run(runs, scope, "gone", 101, "waiting_for_input", pending_questions={"q": 101})
+        ledgers = HermesLedgers(self.settings)
+        ledgers.runs.scan((scope, 0), self.store, 0)
+        posted = self.store.claim(102, 1)
+        deliver(posted, self.settings, self.store, Mock(send=Mock(return_value=True)))
+        ledgers.close()
+        runs.execute("DELETE FROM run_idempotency WHERE scope=?", (scope,))
+        runs.commit()
+        recovered = HermesLedgers(self.settings)
+        self.addCleanup(recovered.close)
+        recovered.runs.scan((scope, 0), self.store, 0)
+        retired = self.store.claim(103, 1)
+        self.assertEqual((retired["kind"], retired["event_id"]), ("question_settled", posted["event_id"]))
 
     # At this clock origin, subtracting 600.1 from the 1200.1 deadline rounds below 600.
     @patch("server.mobile_push.ledgers.time.monotonic", return_value=600.1)

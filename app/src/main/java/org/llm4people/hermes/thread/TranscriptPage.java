@@ -26,6 +26,7 @@ final class TranscriptPage {
         int lineEnd = -1;
         Fences.Marker fence;
         Style lineStyle;
+        boolean image;
 
         void extendLine(String source, int oldLength) {
             if (lineEnd != oldLength) return;
@@ -39,6 +40,7 @@ final class TranscriptPage {
             lineEnd = other.lineEnd;
             fence = other.fence;
             lineStyle = other.lineStyle;
+            image = other.image;
         }
     }
 
@@ -61,6 +63,12 @@ final class TranscriptPage {
         this.source = source;
         this.markdown = markdown;
         next = new Cursor(start);
+        if (next.image) {
+            while (next.offset < next.lineEnd && base64(source.charAt(next.offset))) next.offset++;
+            if (next.offset < next.lineEnd && source.charAt(next.offset) == ')') next.offset++;
+            next.image = false;
+            text.append("[Image jointe]");
+        }
         while (next.offset < source.length() && text.length() < limit) {
             if (next.lineEnd < 0 && beginLine()) continue;
             int startOffset = next.offset;
@@ -97,8 +105,7 @@ final class TranscriptPage {
         }
         char lead = source.charAt(start);
         if (next.fence != null) {
-            boolean diff = next.fence.language.equals("diff") || next.fence.language.equals("patch");
-            next.lineStyle = diff && lead == '+' ? Style.INSERTION : diff && lead == '-' ? Style.DELETION : Style.CODE;
+            next.lineStyle = fencedStyle(next.fence, lead);
         } else if (lead == '#') {
             int i = start + 1;
             while (i < next.lineEnd && source.charAt(i) == '#') i++;
@@ -172,6 +179,28 @@ final class TranscriptPage {
 
     private void mark(int start, Style style) {
         if (style != null && start < text.length()) marks.add(new Mark(start, text.length(), style));
+    }
+
+    static Style fencedStyle(Fences.Marker fence, char lead) {
+        boolean diff = fence.language.equals("diff") || fence.language.equals("patch");
+        return diff && lead == '+' ? Style.INSERTION : diff && lead == '-' ? Style.DELETION : Style.CODE;
+    }
+
+    /** Keep the data-URI header available to the renderer when trimming a streaming source. */
+    static int mediaBoundary(String source, int cut) {
+        Matcher header = MEDIA.matcher(source).region(Math.max(0, cut - 384), Math.min(source.length(), cut + 384));
+        while (header.find() && header.start() < cut) if (header.end() > cut) return header.start();
+        return cut;
+    }
+
+    static boolean cutsMedia(String source, int line, int cut, boolean alreadyInImage) {
+        int payload = cut;
+        while (payload > line && base64(source.charAt(payload - 1))) payload--;
+        if (payload == line) return alreadyInImage;
+        if (source.charAt(payload - 1) != ',') return false;
+        Matcher header = MEDIA.matcher(source).region(Math.max(line, payload - 384), payload);
+        while (header.find()) if (header.end() == payload) return true;
+        return false;
     }
 
     private static boolean base64(char c) {

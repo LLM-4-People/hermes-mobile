@@ -20,10 +20,13 @@ final class SseReader {
         this.limit = limit;
     }
 
-    JSONObject next() throws IOException {
+    JSONObject next() throws IOException { return next(false); }
+
+    JSONObject next(boolean includeHeartbeats) throws IOException {
         StringBuilder data = new StringBuilder();
         int frameBytes = 0;
         boolean hasData = false;
+        boolean comment = false;
         ByteArrayOutputStream line = new ByteArrayOutputStream();
         while (true) {
             int b = input.read();
@@ -47,7 +50,11 @@ final class SseReader {
             first = false;
             if (field.isEmpty()) {
                 if (hasData) return Wire.object(data.toString());
+                if (includeHeartbeats && comment) return new JSONObject();
+                comment = false;
                 frameBytes = 0;
+            } else if (field.startsWith(":")) {
+                comment = true;
             } else if (field.equals("data") || field.startsWith("data:")) {
                 if (hasData) data.append('\n');
                 String value = field.length() <= 5 ? "" : field.substring(5);

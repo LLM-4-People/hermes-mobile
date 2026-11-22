@@ -20,4 +20,19 @@ The live-workspace version adds a third phase after the restart check. A fresh a
 
 The additional capture files are `12-formulaire-brouillon.png`, `13-ecran-personnel.png`, and `14-outil-discussion.png`. The same two gateway processes can run the proposal, transcript, tool-policy, and isolation checks without a device by omitting `--device-command` and using `--require-tool-controls`. The JSON report identifies the proposal surfaces, the number of verified turns, and the two tool-dependent replies.
 
+The required Android device check also exercises six conversation turns against the same pinned Hermes source. It runs the HTTP contract before booting the emulator, then drives the installed app through a choice, a typed answer, a dictated answer, a denial, a one-time approval and a second denial for the same action. The app reopens the original question and answer after locking. A synthetic recognizer supplies editable text, and the gateway keeps the question pending until the user taps Send.
+
+The `android-conversation-cards` CI artifact contains the HTTP and Android receipts and eight original screenshots. The Android receipt records the installed app and test APK digests, the image digests and the canonical prompt identities and decisions. Partial screenshots remain available when a device assertion fails.
+
+To run the cards locally with already-built APKs, choose a fresh output directory for each run.
+
+```sh
+python verification/conversation_cards.py --source /path/to/clean/hermes-agent \
+    --output /tmp/hermes-cards-http
+python verification/conversation_cards.py --source /path/to/clean/hermes-agent \
+    --serial emulator-5554 --output /tmp/hermes-cards-android \
+    --verify-apks app/build/outputs/apk/debug/app-debug.apk \
+    app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+```
+
 <!-- Generated from docs/sources/docs/device-checks.md.in by scripts/docs.py. -->

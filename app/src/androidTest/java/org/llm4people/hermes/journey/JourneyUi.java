@@ -17,6 +17,7 @@ import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.inspector.WindowInspector;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ListView;
 import android.widget.TextView;
 
 import java.io.File;
@@ -123,6 +124,40 @@ public final class JourneyUi {
         View target = until("button " + label, () -> find(window(),
                 v -> v instanceof Button && v.isEnabled() && named(v, label)));
         tap(target, label);
+    }
+
+    void showPendingControl(String expected) {
+        String reveal = "Répondre à Hermes";
+        View target = until(expected + " or " + reveal, () -> {
+            View root = window();
+            View prompt = find(root, v -> v instanceof TextView text
+                    && text.getText().toString().contains(expected) && v.getGlobalVisibleRect(new Rect()));
+            return prompt != null ? prompt : find(root, v -> v.isEnabled() && named(v, reveal)
+                    && v.getGlobalVisibleRect(new Rect()));
+        });
+        if (main(() -> named(target, reveal))) tap(target, reveal);
+    }
+
+    void tapInListRow(String anchor, String label) {
+        View target = until(label + " in the row containing " + anchor,
+                () -> findInListRow(anchor, v -> v.isEnabled() && named(v, label)));
+        tap(target, label);
+    }
+
+    void containsInListRow(String anchor, String fragment) {
+        until(fragment + " in the row containing " + anchor, () -> findInListRow(anchor,
+                v -> v instanceof TextView text && text.getText().toString().contains(fragment)));
+    }
+
+    private View findInListRow(String anchor, Predicate<View> target) {
+        View row = find(window(), v -> named(v, anchor));
+        while (row != null && row.getParent() instanceof View parent) {
+            if (parent instanceof ListView) {
+                return find(row, target);
+            }
+            row = parent;
+        }
+        return null;
     }
 
     private void tap(View target, String label) {

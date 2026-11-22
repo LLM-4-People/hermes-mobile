@@ -20,6 +20,7 @@ import org.llm4people.hermes.profile.Account;
 import org.llm4people.hermes.profile.ProfileGate;
 import org.llm4people.hermes.push.MobilePush;
 import org.llm4people.hermes.thread.ThreadWorkspace;
+import org.llm4people.hermes.voice.VoiceDrafts;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -33,6 +34,7 @@ import java.util.concurrent.Executors;
 public final class MainActivity extends Activity implements ThreadWorkspace.Host, ArtifactDesk.Host, MobilePush.EventHost {
     private final ExecutorService notifications = Executors.newSingleThreadExecutor();
     private ProfileGate gate;
+    private VoiceDrafts voice;
     private PublishedFiles files;
     private Account account;
     private SessionPanel panels;
@@ -44,7 +46,6 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     private MobilePush push;
     private MobilePush.Target delivery;
     private AlertDialog notice;
-    private String displayedSurface;
     private String handledDelivery;
 
     @Override protected void onCreate(Bundle state) {
@@ -59,6 +60,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
                     android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT, this::back);
         }
+        voice = new VoiceDrafts(this);
         push = new MobilePush(this);
         files = new PublishedFiles(this);
         gate = new ProfileGate(this);
@@ -95,10 +97,10 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         HermesApi api = new HermesApi(account.endpoint, account.bearer);
         navigation = new WorkspaceNavigation();
         activeHost = new WorkspaceHost(this, () -> account == unlocked);
-        shell = new WorkspaceShell(this, this::onAction);
+        shell = new WorkspaceShell(this, this::onAction, voice.reader()::active);
         panels = new SessionPanel(this, api, account);
         panels.setLayoutHost(activeHost);
-        threads = new ThreadWorkspace(this, api, account, this);
+        threads = new ThreadWorkspace(this, api, account, this, voice);
         setContentView(shell.root);
         displayDiscussion();
         files.unlock(account, api);
@@ -141,7 +143,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             else panels.showReminders();
         } else if (!event.isNull("session_id") && !event.optString("session_id").isEmpty()) {
             displayDiscussion();
-            threads.open(event.optString("session_id"));
+            threads.openNotice(event.optString("session_id"), event.optString("run_id"), event.optString("kind"));
         }
     }
 
@@ -172,6 +174,12 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
 
     @Override public void onAction(String id) {
         if (threads == null) return;
+        if ("read_reply".equals(id)) {
+            threads.readLastReply();
+            return;
+        }
+        voice.reader().stop();
+        if ("stop_reading".equals(id)) return;
         if (!"restore".equals(id)) dismissOverlays();
         switch (id) {
             case "previous": back(); break;
@@ -271,9 +279,8 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                 boolean composer = WorkspaceNavigation.COMPOSER.equals(route);
                 String surface = threads.sessionId() == null ? "threads" : "thread";
                 String key = composer ? route : surface;
-                if (!force && key.equals(displayedSurface)) return;
+                if (!navigation.display(key, voice.reader()::stop) && !force) return;
                 boolean editing = threads.editing();
-                displayedSurface = key;
                 View nativeView = threads.view();
                 if (nativeView.getParent() instanceof android.view.ViewGroup)
                     ((android.view.ViewGroup) nativeView.getParent()).removeView(nativeView);
@@ -286,11 +293,11 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                 if (editing) threads.focusComposer();
                 break;
             case WorkspaceNavigation.HOME:
-                displayedSurface = route;
+                navigation.display(route, voice.reader()::stop);
                 shell.show(ArtifactDesk.decorate(this, account, "home", shell.desk(account.label), activeHost), "Atelier");
                 break;
             case WorkspaceNavigation.GALLERY:
-                displayedSurface = route;
+                navigation.display(route, voice.reader()::stop);
                 shell.show(ArtifactDesk.pages(this, account, activeHost), "Mes écrans");
                 break;
             default:
@@ -300,12 +307,27 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                     navigation.forgetCurrentPage();
                     render(true);
                 } else {
-                    displayedSurface = route;
+                    navigation.display(route, voice.reader()::stop);
                     customPages.put(route, page);
                     shell.show(page, "Écran personnalisé");
                     ArtifactDesk.refreshBindings(page, activeHost);
                 }
         }
+        pendingChanged();
+    }
+
+    @Override public void pendingChanged() {
+        if (shell == null) return;
+        WorkspaceShell owner = shell;
+        Runnable open = null;
+        String route = navigation.current();
+        if (threads != null && (WorkspaceNavigation.DISCUSSION.equals(route) || WorkspaceNavigation.COMPOSER.equals(route))) {
+            Runnable reveal = threads.hiddenPromptAction(() -> navigate(WorkspaceNavigation.COMPOSER));
+            if (reveal != null) open = () -> {
+                if (shell == owner && route.equals(navigation.current())) reveal.run();
+            };
+        }
+        owner.pendingResponse(open);
     }
 
     @Override public void selected(String sessionId, String title) {
@@ -354,10 +376,11 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
 
     @Override public void onRequestPermissionsResult(int code, String[] permissions, int[] results) {
         super.onRequestPermissionsResult(code, permissions, results);
-        push.onPermissionResult(code);
+        if (!voice.permissionResult(code, permissions, results)) push.onPermissionResult(code);
     }
 
     private void clearWorkspace() {
+        if (voice != null) voice.reader().stop();
         dismissOverlays();
         if (files != null) files.lock();
         if (threads != null) {
@@ -375,7 +398,6 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         customPages.clear();
         activeHost = null;
         account = null;
-        displayedSurface = null;
     }
 
     private void lock() {
@@ -384,6 +406,21 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         } finally {
             gate.lock();
         }
+    }
+
+    @Override public void onWindowFocusChanged(boolean focused) {
+        super.onWindowFocusChanged(focused);
+        if (voice != null) voice.windowFocusChanged(focused);
+    }
+
+    @Override protected void onPause() {
+        voice.pause();
+        super.onPause();
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        voice.resume();
     }
 
     @Override protected void onStop() {

@@ -48,6 +48,39 @@ final class ThreadIdentity {
         return new ThreadIdentity(root, tip, ThreadData.string(page, "thread_title").trim(), "", false);
     }
 
+    static String noticePromptKind(String eventKind) {
+        if ("approval_requested".equals(eventKind)) return "approval";
+        if ("question_requested".equals(eventKind)) return "clarify";
+        return null;
+    }
+
+    static boolean hasPendingPrompt(String sessionId, String runId, String kind, JSONObject status) throws IOException {
+        if (!sessionId.equals(ThreadData.string(status, "session_id"))
+                || !runId.equals(ThreadData.string(status, "run_id"))) {
+            throw new IOException("Run does not belong to the selected conversation");
+        }
+        String state = ThreadData.string(status, "status");
+        if (!"running".equals(state) && !"waiting_for_input".equals(state) && !"waiting_for_approval".equals(state))
+            return false;
+        if (status.has("pending_controls") && status.optJSONArray("pending_controls") == null) return false;
+        RunPrompts pending = new RunPrompts();
+        pending.restore(status);
+        for (JSONObject prompt : pending.snapshot()) {
+            if (prompt.has("run_id") && !runId.equals(prompt.opt("run_id"))
+                    || prompt.has("session_id") && !sessionId.equals(prompt.opt("session_id"))) continue;
+            if (prompt.has("prompt_id")) {
+                if (ThreadData.generation(status) >= 0 && kind.equals(ThreadData.string(prompt, "kind"))) return true;
+            } else if ("approval".equals(kind) && "waiting_for_approval".equals(state)
+                    && (!prompt.has("event") || "approval.request".equals(prompt.opt("event")))
+                    && (!prompt.has("type") || "approval.request".equals(prompt.opt("type"))
+                            || "approval".equals(prompt.opt("type")))) {
+                // restore() takes native request IDs from the array when present, otherwise from approval.
+                return true;
+            }
+        }
+        return false;
+    }
+
     static ThreadIdentity resolve(HermesApi api, String id, BooleanSupplier active) throws IOException {
         // A notification may refer to an intermediate generation. Ask the same lineage reader
         // as the transcript. Older gateways classify the root only in the list projection.

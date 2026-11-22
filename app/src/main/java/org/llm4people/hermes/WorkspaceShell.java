@@ -17,6 +17,7 @@ import android.widget.PopupMenu;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 /** Navigation frame shared by discussion and workspace views. */
@@ -24,15 +25,18 @@ final class WorkspaceShell {
     final LinearLayout root;
     private final Activity activity;
     private final Consumer<String> action;
+    private final BooleanSupplier reading;
     private final LinearLayout header;
     private final FrameLayout body;
     private final TextView heading;
+    private final Button pending;
     private final ImageButton leading;
     private final ImageButton desk;
     private String pageTitle;
     private String threadTitle;
 
-    WorkspaceShell(Activity activity, Consumer<String> action) {
+    WorkspaceShell(Activity activity, Consumer<String> action, BooleanSupplier reading) {
+        this.reading = reading;
         this.activity = activity;
         this.action = action;
         root = Ui.column(activity);
@@ -57,6 +61,10 @@ final class WorkspaceShell {
         header.addView(more);
         root.addView(header);
         root.addView(Ui.divider(activity));
+        pending = Ui.button(activity, "Répondre à Hermes", null);
+        pending.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        pending.setVisibility(View.GONE);
+        root.addView(pending);
         body = new FrameLayout(activity);
         root.addView(body, new LinearLayout.LayoutParams(-1, 0, 1));
     }
@@ -72,6 +80,11 @@ final class WorkspaceShell {
         if (page.getParent() instanceof ViewGroup) ((ViewGroup) page.getParent()).removeView(page);
         body.removeAllViews();
         body.addView(page, new FrameLayout.LayoutParams(-1, -1));
+    }
+
+    void pendingResponse(Runnable open) {
+        pending.setVisibility(open == null ? View.GONE : View.VISIBLE);
+        pending.setOnClickListener(open == null ? null : v -> open.run());
     }
 
     View content() { return body; }
@@ -121,6 +134,8 @@ final class WorkspaceShell {
         PopupMenu menu = new PopupMenu(activity, anchor);
         item(menu, "Nouvelle discussion", "new_thread");
         if (threadTitle != null) {
+            if (reading.getAsBoolean()) item(menu, activity.getString(R.string.read_stop_label), "stop_reading");
+            else item(menu, activity.getString(R.string.read_reply_label), "read_reply");
             item(menu, "Vue de discussion d’origine", "native_thread");
             item(menu, "Renommer la discussion", "rename");
             item(menu, "Artefacts", "artifacts");

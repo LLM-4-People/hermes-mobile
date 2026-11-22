@@ -19,6 +19,29 @@ public class WorkspaceNavigationTest {
         assertFalse(route.back());
     }
 
+    @Test public void playbackSurvivesARepaintAndStopsBeforeBackOrDirectPageNavigation() {
+        WorkspaceNavigation route = new WorkspaceNavigation();
+        AtomicBoolean playing = new AtomicBoolean(false);
+        Runnable stop = () -> playing.set(false);
+        route.open(WorkspaceNavigation.HOME);
+        route.display(route.current(), stop);
+        route.open(WorkspaceNavigation.COMPOSER);
+        route.display(route.current(), stop);
+        playing.set(true);
+        assertFalse(route.display(route.current(), stop));
+        assertTrue(playing.get());
+        assertTrue(route.back());
+        assertTrue(route.display(route.current(), stop));
+        assertFalse(playing.get());
+
+        route.open(WorkspaceNavigation.DISCUSSION);
+        route.display("thread", stop);
+        playing.set(true);
+        route.open("page/planning");
+        assertTrue(route.display(route.current(), stop));
+        assertFalse(playing.get());
+    }
+
     @Test public void removingTheCurrentPageReturnsToAnExistingGalleryOnce() {
         WorkspaceNavigation route = new WorkspaceNavigation();
         route.open("pages");

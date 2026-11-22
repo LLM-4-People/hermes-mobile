@@ -5,6 +5,7 @@ import android.app.AlertDialog;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.View;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 
@@ -13,6 +14,7 @@ import org.json.JSONObject;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.profile.Account;
+import org.llm4people.hermes.voice.VoiceDrafts;
 
 import java.util.UUID;
 import java.util.ArrayList;
@@ -28,6 +30,7 @@ import java.util.function.Consumer;
 public final class ThreadWorkspace implements AutoCloseable {
     public interface Host {
         void selected(String sessionId, String title);
+        void pendingChanged();
         JSONObject options(String sessionId);
         void timing(String sessionId, long firstTextMillis, long elapsedMillis, long outputTokens);
     }
@@ -38,10 +41,13 @@ public final class ThreadWorkspace implements AutoCloseable {
     final Handler main = new Handler(Looper.getMainLooper());
     final ExecutorService workers = Executors.newFixedThreadPool(3);
     private final Account account;
+    private final VoiceDrafts voice;
     private final FrameLayout container;
     ThreadViews screen;
     ThreadJournal journal;
     private ThreadRun run;
+    private ThreadStarters starters;
+    private boolean emptyTranscript;
     private JSONArray messages = new JSONArray();
     private JSONArray inbox = new JSONArray();
     private String session;
@@ -74,7 +80,8 @@ public final class ThreadWorkspace implements AutoCloseable {
         });
     }
 
-    public ThreadWorkspace(Activity activity, HermesApi api, Account account, Host host) {
+    public ThreadWorkspace(Activity activity, HermesApi api, Account account, Host host, VoiceDrafts voice) {
+        this.voice = voice;
         this.activity = activity;
         this.api = api;
         this.account = account;
@@ -92,6 +99,11 @@ public final class ThreadWorkspace implements AutoCloseable {
     public void slots(List<String> order) {
         slotOrder = new ArrayList<>(order);
         if (screen != null) screen.slots(slotOrder);
+        updateStarters();
+    }
+
+    public Runnable hiddenPromptAction(Runnable reveal) {
+        return closed || screen == null ? null : screen.promptRows.whenHidden(reveal);
     }
 
     public boolean editing() { return screen != null && screen.editing(); }
@@ -105,7 +117,45 @@ public final class ThreadWorkspace implements AutoCloseable {
         screen.focusComposer();
     }
 
+    private boolean canStartDraft() {
+        return journal != null && ThreadStarters.available(emptyTranscript, journal.draft(), journal.pending() != null, slotOrder);
+    }
+
+    private void updateStarters() {
+        boolean available = canStartDraft();
+        if (available && starters == null) {
+            ThreadViews owner = screen;
+            int opened = generation;
+            starters = new ThreadStarters(owner.list, text -> {
+                if (opened != generation || owner != screen || !canStartDraft()) return;
+                if (text.isEmpty()) owner.focusComposer();
+                else stageDraft(text);
+                View editor = owner.root.findFocus();
+                if (editor instanceof EditText && editor.isShown()) {
+                    activity.getSystemService(InputMethodManager.class).showSoftInput(editor, InputMethodManager.SHOW_IMPLICIT);
+                }
+            });
+        }
+        if (starters != null) starters.show(available);
+    }
+
     public JSONArray messages() { return messages; }
+
+    public void readLastReply() {
+        if (closed || session == null) return;
+        for (int i = messages.length() - 1; i >= 0; i--) {
+            JSONObject row = messages.optJSONObject(i);
+            if (!"assistant".equals(ThreadData.string(row, "role"))
+                    || "hidden".equals(ThreadData.string(row, "display_kind"))) continue;
+            String content = ThreadData.content(row);
+            if (!content.trim().isEmpty()) {
+                voice.reader().readReply(content);
+                return;
+            }
+        }
+        voice.reader().readReply("");
+    }
+
     public void resumeLast() {
         if (closed) return;
         String last;
@@ -210,23 +260,43 @@ public final class ThreadWorkspace implements AutoCloseable {
         });
     }
 
-    public void open(String id) {
+    public void openNotice(String id, String runId, String eventKind) {
+        if (closed) return;
+        String kind = ThreadIdentity.noticePromptKind(eventKind);
+        if (kind == null || !ThreadData.validId(id) || !ThreadData.validId(runId)) {
+            open(id);
+            return;
+        }
+        inbox("Vérification de la demande…", null);
+        Runnable retry = () -> openNotice(id, runId, eventKind);
+        request(() -> ThreadIdentity.hasPendingPrompt(id, runId, kind, api.get("/v1/runs/" + HermesApi.segment(runId))),
+                waiting -> open(id, waiting ? runId : null), failure -> {
+            if (failure instanceof HermesApi.HttpError http && http.status == 404) open(id);
+            else error(failure, retry);
+        });
+    }
+
+    public void open(String id) { open(id, null); }
+
+    private void open(String id, String observedRun) {
         if (closed) return;
         if (!ThreadData.validId(id)) {
             inbox("L’identifiant de cette conversation est invalide. Choisissez une autre conversation.", null);
             return;
         }
         ThreadIdentity listed = ThreadIdentity.find(inbox, id);
-        if (listed != null) { open(listed, listed.label); return; }
+        if (listed != null) { open(listed, listed.label, observedRun); return; }
         inbox("Recherche de la conversation…", null);
         int lookup = generation;
         request(() -> ThreadIdentity.resolve(api, id, () -> lookup == generation), identity -> {
-            if (identity != null) open(identity, identity.label);
+            if (identity != null) open(identity, identity.label, observedRun);
             else inbox("Cette conversation est introuvable dans le profil actif.", null);
-        }, e -> error(e, () -> open(id)));
+        }, e -> error(e, () -> open(id, observedRun)));
     }
 
-    private void open(ThreadIdentity identity, String label) {
+    private void open(ThreadIdentity identity, String label) { open(identity, label, null); }
+
+    private void open(ThreadIdentity identity, String label, String observedRun) {
         if (closed) return;
         reset();
         session = identity.root;
@@ -241,7 +311,10 @@ public final class ThreadWorkspace implements AutoCloseable {
             inbox("Les données locales de cette conversation sont illisibles.", () -> recover(identity, label));
             return;
         }
-        try { account.write("last-thread", id); }
+        try {
+            if (observedRun != null) journal.observe(observedRun);
+            account.write("last-thread", id);
+        }
         catch (RuntimeException unavailable) {
             inbox("Impossible d’enregistrer la sélection. Vérifiez l’espace disponible puis réessayez.", null);
             return;
@@ -249,9 +322,10 @@ public final class ThreadWorkspace implements AutoCloseable {
         run = new ThreadRun(this);
         screen.chat(journal.draft(), text -> {
             journal.draft(text);
+            updateStarters();
             main.removeCallbacks(save);
             main.postDelayed(save, 300);
-        }, run::send, run::stop, run::approve, () -> loadMessages(true, null));
+        }, run::send, run::stop, () -> loadMessages(true, null));
         screen.slots(slotOrder);
         host.selected(id, title);
         loadMessages(false, null);
@@ -292,13 +366,18 @@ public final class ThreadWorkspace implements AutoCloseable {
 
     void loadMessages(boolean older, Runnable loaded) {
         if (older && loading) return;
+        if (!older && emptyTranscript) {
+            emptyTranscript = false;
+            updateStarters();
+        }
         loading = true;
         screen.paging();
         int offset = older ? messageOffset : 0;
         String path = ThreadData.path(session);
         int requestNo = ++transcriptRequest;
         int titleVersion = metadataRequest;
-        request(() -> api.get(path + "/messages?order=latest&include_compacted=true&visible_only=true&limit=" + ThreadData.PAGE + "&offset=" + offset), data -> {
+        String query = "/messages?order=latest&visible_only=true&include_compacted=true&limit=";
+        request(() -> api.get(path + query + ThreadData.PAGE + "&offset=" + offset), data -> {
             if (requestNo != transcriptRequest) return;
             loading = false;
             JSONArray page = data.optJSONArray("data");
@@ -311,10 +390,10 @@ public final class ThreadWorkspace implements AutoCloseable {
             messageOffset = offset + page.length();
             long total = ThreadContext.visibleTotal(data);
             boolean hasMore = total < 0 ? page.length() == ThreadData.PAGE : messageOffset < total;
-            screen.rows(messages, hasMore, !older, older ? messages.length() - oldSize : 0);
-            if (journal.pending() == null) {
-                screen.notice(messages.length() == 0 && !hasMore ? "Écrivez le premier message." : "", "", null);
-            }
+            emptyTranscript = messages.length() == 0 && !hasMore;
+            screen.rows(messages, hasMore, !older && !emptyTranscript,
+                    older ? messages.length() - oldSize : 0);
+            if (journal.pending() == null) screen.notice("", "", null);
             long previousCount = messageCount;
             messageCount = ThreadContext.messageCount(total, page.length(), messages.length());
             boolean receivedTitle = data.has("thread_title");
@@ -330,6 +409,7 @@ public final class ThreadWorkspace implements AutoCloseable {
             if (!older && !receivedTitle && titleVersion == metadataRequest) readLegacyTitle();
             if (hasMore && firstPrompt.isEmpty() && namedTitle.isEmpty() && !openingRequested) readOpening();
             if (loaded != null) loaded.run();
+            updateStarters();
         }, e -> {
             if (requestNo != transcriptRequest) return;
             loading = false;
@@ -389,6 +469,7 @@ public final class ThreadWorkspace implements AutoCloseable {
     private int transcriptRequest;
 
     public void onBackground() {
+        voice.reader().stop();
         if (!closed) {
             ++generation;
             main.removeCallbacksAndMessages(null);
@@ -411,10 +492,12 @@ public final class ThreadWorkspace implements AutoCloseable {
         messages = new JSONArray();
         messageOffset = 0;
         messageCount = -1;
+        emptyTranscript = false;
+        starters = null;
         legacyTitleTip = null;
         openingRequested = false;
         namedTitle = firstPrompt = "";
-        screen = new ThreadViews(activity);
+        screen = new ThreadViews(activity, voice);
         container.removeAllViews();
         container.addView(screen.root);
     }
@@ -429,6 +512,7 @@ public final class ThreadWorkspace implements AutoCloseable {
             drafts.shutdownNow();
             container.removeAllViews();
             screen = null;
+            starters = null;
             run = null;
             journal = null;
             session = remoteSession = null;

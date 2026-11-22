@@ -17,6 +17,8 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
+import org.llm4people.hermes.voice.VoiceDrafts;
+import org.llm4people.hermes.voice.ReplyReader;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -26,7 +28,8 @@ import java.util.function.Consumer;
 final class ThreadViews {
     final LinearLayout root;
     final ListView list;
-    private final Activity activity;
+    final Activity activity;
+    final PromptRows promptRows;
     private final TextView status;
     private final Button remedy;
     private final LinearLayout notice;
@@ -34,6 +37,9 @@ final class ThreadViews {
     private LinearLayout composerSlot;
     private Button more;
     private EditText input;
+    final VoiceDrafts voice;
+    final ReplyReader reader;
+    private VoiceDrafts.Controls composerVoice;
     private Button send;
     private Button stop;
     private TextView progress;
@@ -41,16 +47,20 @@ final class ThreadViews {
     private TextView liveText;
     private Button fullLiveText;
     private final LiveTranscript liveTranscript = new LiveTranscript();
-    private Button approval;
     private JSONArray rows = new JSONArray();
     private BaseAdapter adapter;
     private AlertDialog dialog;
     private boolean transcript;
 
-    ThreadViews(Activity activity) {
+    ThreadViews(Activity activity) { this(activity, new VoiceDrafts(activity)); }
+
+    ThreadViews(Activity activity, VoiceDrafts voice) {
+        this.voice = voice;
+        reader = voice.reader();
         this.activity = activity;
         root = Ui.column(activity);
         list = new ListView(activity);
+        promptRows = new PromptRows(this);
         list.setDivider(null);
         list.setClipToPadding(false);
         notice = Ui.column(activity);
@@ -78,7 +88,7 @@ final class ThreadViews {
     }
 
     void chat(String draft, Consumer<String> onDraft, Runnable onSend, Runnable onStop,
-              Runnable approve, Runnable older) {
+              Runnable older) {
         reset(true);
         more = Ui.button(activity, "Messages précédents", v -> older.run());
         list.addHeaderView(more, null, false);
@@ -88,11 +98,11 @@ final class ThreadViews {
         progress.setTextColor(activity.getColor(R.color.muted));
         liveText = Ui.text(activity, "", 17);
         liveText.setTextIsSelectable(true);
-        fullLiveText = Ui.button(activity, "Lire la réponse entière", v ->
+        fullLiveText = Ui.button(activity, activity.getString(R.string.transcript_read_full), v ->
                 show(new AlertDialog.Builder(activity).setTitle("Réponse de Hermes")
-                        .setView(MessageText.reader(activity, liveTranscript.source(), true, false))
+                        .setView(MessageText.reader(activity, liveTranscript.source(), true, false, liveTranscript.readerStart()))
                         .setPositiveButton("Fermer", null)));
-        approval = Ui.button(activity, "Examiner la demande", v -> approve.run());
+        list.setItemsCanFocus(true);
         outgoing = Ui.text(activity, "", 17);
         outgoing.setTextIsSelectable(true);
         outgoing.setVisibility(View.GONE);
@@ -100,7 +110,6 @@ final class ThreadViews {
         live.addView(progress);
         live.addView(liveText);
         live.addView(fullLiveText);
-        live.addView(approval);
         list.addFooterView(live, null, false);
         bindList();
         list.setOnItemClickListener(null);
@@ -113,20 +122,23 @@ final class ThreadViews {
         input.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS);
         input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
                 | InputType.TYPE_TEXT_FLAG_MULTI_LINE | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
-        input.setImeOptions(EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING);
+        input.setImeOptions(EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING | EditorInfo.IME_FLAG_NO_EXTRACT_UI);
         input.setSingleLine(false);
         input.setMaxLines(4);
         input.setMinHeight(Ui.dp(activity, 48));
         input.setHint("Message à Hermes");
         input.setText(draft);
         input.setSelection(input.length());
-        send = Ui.button(activity, "Envoyer", v -> onSend.run());
+        composerVoice = voice.bind(input);
+        send = Ui.button(activity, "Envoyer", v -> { composerVoice.cancel(); onSend.run(); });
         stop = Ui.button(activity, "Arrêter", v -> onStop.run());
         composer.addView(input, new LinearLayout.LayoutParams(0, -2, 1));
+        composer.addView(composerVoice.button);
         composer.addView(send);
         composer.addView(stop);
         composerSlot = Ui.column(activity);
         composerSlot.addView(Ui.divider(activity));
+        composerSlot.addView(composerVoice.feedback);
         composerSlot.addView(composer);
         root.addView(composerSlot);
         input.addTextChangedListener(new TextWatcher() {
@@ -168,12 +180,13 @@ final class ThreadViews {
     void rows(JSONArray data, boolean hasMore, boolean follow, int prepended) {
         int top = list.getFirstVisiblePosition();
         int y = list.getChildCount() == 0 ? 0 : list.getChildAt(0).getTop();
-        rows = data;
+        int previous = rows.length();
+        rows = transcript ? PromptHistory.display(data) : data;
         more.setVisibility(hasMore ? View.VISIBLE : View.GONE);
         more.setEnabled(true);
         adapter.notifyDataSetChanged();
-        if (follow) list.post(() -> list.setSelection(list.getCount() - 1));
-        else if (prepended > 0) list.setSelectionFromTop(top + prepended, y);
+        if (follow) followTail();
+        else if (prepended > 0) list.setSelectionFromTop(top + rows.length() - previous, y);
     }
 
     void paging() { more.setEnabled(false); }
@@ -200,6 +213,7 @@ final class ThreadViews {
         List<String> all = Arrays.asList("notice", "transcript", "composer");
         List<String> order = requested.isEmpty() ? all : requested;
         for (String name : all) slot(name).setVisibility(order.contains(name) ? View.VISIBLE : View.GONE);
+        if (!order.contains("composer")) composerVoice.cancel();
         List<View> visible = new ArrayList<>();
         for (int i = 0; i < root.getChildCount(); i++) {
             View child = root.getChildAt(i);
@@ -230,15 +244,28 @@ final class ThreadViews {
         outgoing.setVisibility(text.isEmpty() ? View.GONE : View.VISIBLE);
     }
 
-    void live(String detail, String text, boolean needsApproval) {
+    void live(String detail, String text, boolean hasPrompts) {
+        live(detail, text, hasPrompts, RunPreview.Origin.FIRST);
+    }
+
+    void live(String detail, String text, boolean hasPrompts, RunPreview.Origin origin) {
         boolean atEnd = list.getLastVisiblePosition() >= list.getCount() - 1;
         progress.setVisibility(detail.isEmpty() ? View.GONE : View.VISIBLE);
         progress.setText(detail);
         liveText.setVisibility(text.isEmpty() ? View.GONE : View.VISIBLE);
-        MessageText.updateLive(liveText, liveTranscript, text);
-        fullLiveText.setVisibility(liveTranscript.earlier || liveTranscript.later ? View.VISIBLE : View.GONE);
-        approval.setVisibility(needsApproval ? View.VISIBLE : View.GONE);
-        if (atEnd && !text.isEmpty()) list.post(() -> list.setSelection(list.getCount() - 1));
+        boolean wasExcerpt = liveTranscript.excerpt();
+        MessageText.updateLive(liveText, liveTranscript, text, origin);
+        if (wasExcerpt != liveTranscript.excerpt())
+            fullLiveText.setText(liveTranscript.excerpt() ? R.string.transcript_read_excerpt : R.string.transcript_read_full);
+        fullLiveText.setVisibility(!text.isEmpty() && (liveTranscript.earlier || liveTranscript.later) ? View.VISIBLE : View.GONE);
+        if (atEnd && !hasPrompts && !text.isEmpty()) followTail();
+    }
+
+    private void followTail() {
+        // A prompt can arrive between a transcript refresh and its queued scroll.
+        if (!promptRows.visible()) list.post(() -> {
+            if (!promptRows.visible()) list.setSelection(list.getCount() - 1);
+        });
     }
 
     void notice(String message, String label, Runnable action) {
@@ -255,6 +282,7 @@ final class ThreadViews {
     }
 
     void dismiss() {
+        voice.cancel();
         if (dialog != null) dialog.dismiss();
         dialog = null;
     }
@@ -278,6 +306,8 @@ final class ThreadViews {
             String name = switch (role) {
                 case "user" -> "Vous";
                 case "assistant" -> "Hermes";
+                case "prompt_status" -> "Suivi de la question";
+                case "approval_result" -> "Autorisation";
                 case "tool" -> "Outil · " + ThreadData.string(row, "tool_name");
                 default -> role;
             };
@@ -313,7 +343,14 @@ final class ThreadViews {
                     chat ? TranscriptPage.PAGE_CHARS : 300);
             CharSequence rendered = MessageText.styled(getContext(), preview);
             body.setText(preview.hasMore() ? android.text.TextUtils.concat(rendered, "…") : rendered);
-            if (getChildCount() > 2) removeViewAt(2);
+            if (getChildCount() > 2) removeViews(2, getChildCount() - 2);
+            if (chat && "approval_result".equals(role)) {
+                String details = ThreadData.string(row, "receipt_details");
+                addView(Ui.button(getContext(), "Voir les détails", v ->
+                        show(new AlertDialog.Builder(getContext()).setTitle("Détails de l’action")
+                                .setView(MessageText.reader(getContext(), details, false, true))
+                                .setPositiveButton("Fermer", null))));
+            }
             if (chat && preview.hasMore()) {
                 String full = content;
                 addView(Ui.button(getContext(), "Lire le message entier", v ->

@@ -2,8 +2,9 @@ import logging
 import random
 import sqlite3
 import time
+from .events import PROMPT_KINDS, WITHDRAWAL_KINDS
 from .ledgers import HermesLedgers
-from .provider import ProviderError
+from .provider import ProviderError, lifetime
 
 
 log = logging.getLogger("hermes.mobile.push")
@@ -30,26 +31,30 @@ def scan_loop(settings, store, stopped, changed):
 
 
 def deliver(item, settings, store, sender):
-    if not store.owns_delivery(item):
-        return
-    if item["kind"] == "approval_requested":
+    if item["kind"] in PROMPT_KINDS:
         # The sender can recover an outstanding lease before the next (or first) scan.
         # Verify the exact scoped prompt again before its network request begins.
         try:
-            pending = HermesLedgers(settings).approval_pending(item)
+            pending = HermesLedgers(settings).prompt_pending(item)
         except (OSError, sqlite3.Error, ValueError) as exc:
-            log.warning("Cannot confirm pending approval (%s)", type(exc).__name__)
+            log.warning("Cannot confirm pending prompt (%s)", type(exc).__name__)
             store.settle(item, retry_at=time.time() + settings.poll_seconds)
             return
         if not pending:
             store.settle(item)
             return
+    if not store.begin_send(item):
+        return
     try:
         active = sender.send(item)
     except Exception as exc:
         # Credentials, request URLs, payloads and provider error messages stay out of logs.
         cap = min(settings.retry_max, max(60, settings.poll_seconds * 2 ** min(item["attempts"], 20)))
         backoff = random.uniform(max(1, cap / 2), cap)
+        now = time.time()
+        if item["kind"] in WITHDRAWAL_KINDS:
+            # Leave time to retry a withdrawal even on a short-retention deployment.
+            backoff = min(backoff, max(1, lifetime(item, settings.retention, now) / 2))
         provider = item["provider"] if item["provider"] in ("fcm", "unifiedpush") else "unknown"
         reason, status = type(exc).__name__, "local"
         if isinstance(exc, ProviderError):
@@ -59,7 +64,7 @@ def deliver(item, settings, store, sender):
                 status = exc.status
         log.warning("Push deferred provider=%s code=%s status=%s attempt=%d retry_seconds=%.2f",
                     provider, reason, status, item["attempts"] + 1, backoff)
-        store.settle(item, retry_at=time.time() + backoff)
+        store.settle(item, retry_at=now + backoff)
     else:
         store.settle(item, unregistered=not active)
 

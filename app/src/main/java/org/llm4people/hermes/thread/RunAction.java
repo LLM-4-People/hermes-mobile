@@ -15,12 +15,16 @@ final class RunAction {
     private RunAction(String run, BooleanSupplier valid) { this.run = run; this.valid = valid; }
 
     static RunAction capture(ThreadJournal journal, IntSupplier view, LongSupplier observation) {
+        long observed = observation.getAsLong();
+        return capture(journal, view).when(() -> observed == observation.getAsLong());
+    }
+
+    static RunAction capture(ThreadJournal journal, IntSupplier view) {
         JSONObject receipt = journal.pending();
         String run = ThreadData.string(receipt, "run_id");
         int opened = view.getAsInt();
-        long observed = observation.getAsLong();
         return new RunAction(run, () -> receipt != null && receipt == journal.pending()
-                && opened == view.getAsInt() && observed == observation.getAsLong()
+                && opened == view.getAsInt()
                 && run.equals(ThreadData.string(receipt, "run_id")));
     }
 

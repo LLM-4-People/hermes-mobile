@@ -1,6 +1,6 @@
 # Hermes Mobile
 
-An Android client for chatting and coding with your own Hermes Agent. Continue a discussion on your phone, review a command that needs approval, read a diff, or schedule a reminder. The interface is in French.
+An Android client for chatting and coding with your own Hermes Agent. Ask a question, talk through a code change, inspect a diff, or schedule a reminder. When Hermes needs a decision, it offers choices in the discussion. The interface is in French.
 
 ## Get the APK
 
@@ -12,9 +12,17 @@ Pull requests produce an installable development APK. Open a successful **Worksp
 2. In **Connecter Hermes**, enter a name, the HTTPS gateway address and its access key. Set a local passphrase to protect the credentials, saved drafts and settings on this device.
 3. Unlock the profile and choose **Nouvelle conversation**. Messages and coding actions run on its Hermes gateway. Returning to the app requires unlocking the profile again.
 
+## Talk to Hermes
+
+Write a request in your own words or tap **Dicter** and speak. For example, ask « Peux-tu m’expliquer ce changement et me proposer deux façons de le tester ? » Edit the transcript, then tap **Envoyer**. On supported phones, Hermes uses Android’s on-device recognizer. If French is available to download, open **Dictée hors connexion…** and choose **Télécharger le français…**. Once Android finishes the download, tap the microphone to dictate. If recognition needs the system speech service, the app explains that the service may send audio to its provider and lets you choose whether to use it.
+
+When Hermes has a question, its suggestions appear in the discussion. Tap a single choice, select several if the question allows it, or choose **Écrire une réponse** to type or dictate your own answer. A coding approval shows what Hermes proposes and lets you inspect the technical details. You can allow that action once or decline it from the same screen.
+
+Tap **Écouter** on a question or choose **Écouter la dernière réponse** from the discussion menu to listen. Playback uses an installed offline French voice and stops when you leave the discussion, lock the account, or begin dictating.
+
 ## Work in a discussion
 
-- **Chat and code.** Follow a streaming reply, see tool activity, answer approval and clarification requests, and cancel ongoing work. On disconnect, the app uses the saved run identity and server state to reconcile the thread. An uncertain coding action needs an explicit decision before it can run again.
+- **Chat and code.** Follow a streaming reply, inspect tool activity and cancel ongoing work. On disconnect, the app uses the saved run identity and server state to reconcile the thread. An uncertain coding action needs an explicit decision before it can run again.
 - **Model and tools.** Open **Modèle et outils** to choose a model from a configured provider. Per-tool and per-toolset restrictions require a gateway that advertises and enforces those controls. Each discussion keeps its own selection.
 - **Usage.** **Utilisation** shows the server's token and cache counters, available price information, and phone-observed timings. Timing and throughput measurements identify their scope. Missing measurements remain visible as unknown.
 - **Artifacts.** Open **Artefacts** to compare named revisions or read a diff. The optional file extension lets Hermes publish generated images, text, and binary files into a discussion for authenticated preview or export. [File publication](docs/files.md)

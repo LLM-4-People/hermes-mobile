@@ -1,0 +1,8 @@
+<resources>
+    <string name="starter_heading">Quelques idées pour commencer</string>
+    <string name="starter_question">Poser une question</string>
+    <string name="starter_code">Comprendre du code</string>
+    <string name="starter_plan">Planifier mon travail</string>
+    <string name="starter_code_draft">Peux-tu m’expliquer ce code ?</string>
+    <string name="starter_plan_draft">Aide-moi à organiser les tâches suivantes par ordre de priorité.</string>
+</resources>

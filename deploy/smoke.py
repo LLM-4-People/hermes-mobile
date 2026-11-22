@@ -68,6 +68,13 @@ class Probe:
             raise AssertionError(label)
         print("PASS", label, flush=True)
 
+    def clarify_enabled(self, name):
+        status, body = self.request(name, self.keys[name], "GET", "/v1/toolsets")
+        if status != 200:
+            raise RuntimeError(f"Could not read {name}'s tool inventory ({status})")
+        row = next(row for row in json.loads(body)["data"] if row["name"] == "clarify")
+        return row["enabled"] and "clarify" in row["tools"]
+
     def run(self):
         wait_for(self.cert_ready, 45)
         wait_for(self.gateways_ready, 150)
@@ -78,6 +85,14 @@ class Probe:
             self.check(status == 401, f"{other} rejected {name}'s key")
             status, _ = self.request(name, key, "GET", "/p/other/v1/capabilities")
             self.check(status == 404, f"{name} gateway exposed only its unprefixed runtime")
+            status, body = self.request(name, key, "GET", "/v1/capabilities")
+            capabilities = json.loads(body)
+            self.check(status == 200 and capabilities["features"].get("run_clarify_response")
+                       and capabilities["endpoints"].get("run_clarify") == {
+                           "method": "POST", "path": "/v1/runs/{run_id}/clarify",
+                       }, f"{name} advertises the canonical clarification response route")
+            self.check(self.clarify_enabled(name),
+                       f"{name}'s fresh API account enables the clarify toolset")
             thread = "mobile_" + uuid.uuid4().hex
             status, _ = self.request(name, key, "POST", "/api/sessions", {"id": thread, "title": "Private fixture"})
             self.check(status == 201, f"{name} created a private API thread")
@@ -102,6 +117,20 @@ class Probe:
                        f"{other}'s runtime cannot retrieve {name}'s artifact")
             self.command("exec", "-T", "-u", "hermes", "gateway-" + other, "test", "!", "-e", marker)
             self.check(True, f"{name}'s coding workspace is absent from {other}")
+
+        # Exercise the supported operator controls on the disposable homes, then rerun s6 setup.
+        settings = {"north": ("platform_toolsets.api_server", '["file"]'),
+                    "south": ("agent.disabled_toolsets", '["clarify"]')}
+        for name, (setting, value) in settings.items():
+            self.command("exec", "-T", "-u", "hermes", "gateway-" + name, "hermes", "config", "set", setting, value)
+        self.command("restart", *("gateway-" + name for name in settings))
+        wait_for(self.gateways_ready, 150)
+        for name, (setting, _) in settings.items():
+            self.check(not self.clarify_enabled(name), f"{name} retained its {setting} override after restart")
+            status, _ = self.request(name, self.keys[name], "POST", "/v1/runs", {
+                "input": "Operator policy check", "allowed_toolsets": ["clarify"],
+            })
+            self.check(status == 400, f"{name}'s run cannot re-enable its disabled clarification tool")
 
 
 def main():

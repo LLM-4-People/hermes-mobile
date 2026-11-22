@@ -32,6 +32,8 @@ The renderer creates a distinct 256-bit key in each account's `gateway.env` with
 
 Put provider credentials in the corresponding `accounts/north/provider.env` or `accounts/south/provider.env`. These raw Compose files accept literal `NAME=value` lines. Supply only the values intended for that runtime. Provider files are visible only to their own gateway. The container's supervised gateway runs as the image's Hermes user. The home volume holds its workspace at `/opt/data/workspace`. The launcher preserves the fork's s6 entrypoint and disables profile multiplexing.
 
+On first boot, the mobile deployment uses the gateway image's configuration example and sets `platform_toolsets.api_server` to `[hermes-api-server, clarify]`. This lets compatible clients answer the agent’s clarification questions during a run. An existing `config.yaml` or an explicit API toolset in a custom image takes precedence. To opt an existing profile in, add `clarify` to its intended API toolsets and restart its gateway. Profile-level disabled toolsets and per-run tool restrictions still apply. Authenticated `GET /v1/toolsets` reports whether `clarify` is enabled.
+
 Enable the bundled file-artifact plugin in each new Hermes home, then start the stack. The renderer saves a unique Compose identity in the private deployment directory’s `project-id` file. Keep it with the keys when moving the deployment. Each new deployment gets new volumes, even if two directories share a name. Let Compose use the generated project name when starting the stack.
 
 ```sh
@@ -72,6 +74,6 @@ python3 -m unittest discover -s deploy -v
 python3 deploy/smoke.py --image "$image" --push
 ```
 
-The smoke test provisions two disposable homes on a loopback-only HTTPS port, verifies the generated CA, exercises both bearer keys at both hostnames, and checks independent session and workspace storage. It removes only the temporary Compose project and its volumes on exit. The push check provisions a dual-transport account and a UnifiedPush-only account. It verifies the advertised providers, checks that each account retains its own VAPID key across a restart, and reads a real Hermes reminder ledger entry through its owning bridge. It uses disposable credentials and registers zero devices. Neither check requires a model provider.
+The smoke test provisions two disposable homes on a loopback-only HTTPS port, verifies the generated CA, exercises both bearer keys at both hostnames, and checks independent session and workspace storage. It checks clarification discovery on fresh accounts, then restarts the gateways with explicit tool restrictions and verifies that later runs enforce them. It removes only the temporary Compose project and its volumes on exit. The push check provisions a dual-transport account and a UnifiedPush-only account. It verifies the advertised providers, checks that each account retains its own VAPID key across a restart, and reads a real Hermes reminder ledger entry through its owning bridge. It uses disposable credentials and registers zero devices. Neither check requires a model provider.
 
 <!-- Generated from docs/sources/docs/accounts.md.in by scripts/docs.py. -->

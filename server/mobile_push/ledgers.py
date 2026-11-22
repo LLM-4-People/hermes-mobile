@@ -4,22 +4,24 @@ from datetime import datetime
 import json
 import sqlite3
 import time
-from .events import Event, Observation
+from .events import APPROVAL, QUESTION, Event, Observation
 
 
 RUN_QUERY = """
 SELECT run_id, json_extract(status_json,'$.status'), json_extract(status_json,'$.session_id'),
            updated_at, json_extract(status_json,'$.approval.timestamp'),
-           json_extract(status_json,'$.approval.request_id'), json_extract(status_json,'$.pending_approvals')
+           json_extract(status_json,'$.approval.request_id'), json_extract(status_json,'$.pending_approvals'),
+           json_extract(status_json,'$.pending_questions')
       FROM run_idempotency
      WHERE scope=? AND fingerprint!='closed' AND json_valid(status_json)
 """
 
 
 class Ledger:
-    def __init__(self, path, query, convert, settings):
+    def __init__(self, path, query, convert, settings, *, run_snapshot=False):
         self.path = path
         self.query = query
+        self.run_snapshot = run_snapshot
         self.convert = convert
         self.connection = None
         self.version = None
@@ -85,24 +87,26 @@ class Ledger:
         if checkpoint and self._snapshot() != identity:
             self.close()
             return
+        if observations or (self.run_snapshot and full):
+            store.reconcile(observations, cutoff, complete_run_scope=self.run_snapshot and full)
         if observations:
-            store.reconcile(observations, cutoff)
             self.cursor = max(self.cursor, max(item.updated_at for item in observations))
         if full:
             self.next_full_at = now + self.reconcile_seconds
         self.version = version
 
 
-def run_observation(run_id, status, session_id, updated, approval_time, request_id, pending):
+def run_observation(run_id, status, session_id, updated, approval_time, request_id, approvals, questions):
     links = {"run_id": run_id, "session_id": session_id}
     events = []
-    if status == "waiting_for_approval":
-        if pending is not None:
-            for prompt_id, stamp in json.loads(pending).items():
-                events.append(Event.make([run_id, prompt_id], "approval_requested", stamp, **links))
-        elif approval_time is not None:
+    if status in {"waiting_for_approval", "waiting_for_input"}:
+        for hints, kind in ((approvals, APPROVAL), (questions, QUESTION)):
+            if hints:
+                for prompt_id, stamp in json.loads(hints).items():
+                    events.append(Event.make([run_id, prompt_id], kind, stamp, **links))
+        if approvals is None and approval_time is not None and status == "waiting_for_approval":
             # Native gateway approval waiters carry a single timestamped approval object.
-            events.append(Event.make([run_id, request_id or approval_time], "approval_requested",
+            events.append(Event.make([run_id, request_id or approval_time], APPROVAL,
                                      approval_time, **links))
     elif status in {"completed", "failed", "interrupted"}:
         kind = "run_completed" if status == "completed" else "run_failed"
@@ -119,13 +123,13 @@ class HermesLedgers:
     def __init__(self, settings):
         self.scope = settings.run_scope
         self.runs = Ledger(settings.home / "runs_idempotency.db",
-                           RUN_QUERY + " AND updated_at>=?", run_observation, settings)
+                           RUN_QUERY + " AND updated_at>=?", run_observation, settings, run_snapshot=True)
         self.cron = Ledger(settings.home / "cron" / "executions.db", """
             SELECT id,job_id,started_at FROM executions
              WHERE started_at IS NOT NULL AND julianday(started_at)>=julianday(?,'unixepoch')
         """, cron_observation, settings)
 
-    def approval_pending(self, item):
+    def prompt_pending(self, item):
         observation = self.runs.one(RUN_QUERY + " AND run_id=?", (self.scope, item["run_id"]))
         return observation is not None and any(e.event_id == item["event_id"] for e in observation.events)
 

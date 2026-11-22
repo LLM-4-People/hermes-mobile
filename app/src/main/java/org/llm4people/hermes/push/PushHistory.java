@@ -29,7 +29,7 @@ final class PushHistory {
                 JSONObject row = events.optJSONObject(i);
                 if (row == null) continue;
                 String id = row.optString("event_id"), kind = row.optString("kind");
-                String title = PushNotices.title(kind);
+                String title = PushNotices.QUESTION.equals(kind) ? "Question d’Hermes" : PushNotices.title(kind);
                 if (!PushNotices.validEvent(id) || title == null) continue;
                 this.events.add(row);
                 long time = row.optLong("created_at");

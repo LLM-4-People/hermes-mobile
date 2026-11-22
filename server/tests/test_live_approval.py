@@ -19,6 +19,13 @@ from support import fixture
 @unittest.skipUnless(os.environ.get("HERMES_TEST_CHECKOUT"), "requires a matching fork test environment")
 class CanonicalPush(unittest.IsolatedAsyncioTestCase):
     async def test_approval_and_completion_reach_fcm_with_only_opaque_ids(self):
+        await self.exercise_control(False)
+
+    async def test_question_and_its_dismissal_reach_fcm_with_only_opaque_ids(self):
+        await self.exercise_control(True)
+
+    async def exercise_control(self, question):
+        kind = "question_requested" if question else "approval_requested"
         checkout = os.environ["HERMES_TEST_CHECKOUT"]
         with ExitStack() as stack:
             root = stack.enter_context(TemporaryDirectory())
@@ -42,7 +49,23 @@ class CanonicalPush(unittest.IsolatedAsyncioTestCase):
             adapter._api_key = settings.profile_key
             mp.setattr("tools.approval_context._get_approval_timeout", lambda: 15)
             decisions = []
-            authority.runner._handle_message = _canonical_approval_turn(authority, decisions)
+            if question:
+                from gateway.session_results import execution_result
+                from tools import clarify_gateway
+                from tests.gateway.test_chat_completions_approval import session_row
+
+                async def ask(event):
+                    session = event.source.chat_id
+                    generation = session_row(authority.persistence, session)["runtime_generation"]
+                    entry = clarify_gateway.register("test-question", "api", "Private question?", ["Private option"])
+                    authority.register_clarify(session, generation, entry)
+                    await asyncio.to_thread(entry.event.wait, 10)
+                    decisions.append(entry.response)
+                    execution_result.get()["result"] = {"final_response": "done"}
+                    return "done"
+                authority.runner._handle_message = ask
+            else:
+                authority.runner._handle_message = _canonical_approval_turn(authority, decisions)
             ledgers = HermesLedgers(settings)
             stack.callback(ledgers.close)
             with patch("server.mobile_push.fcm.google.auth.default", return_value=(MagicMock(), None)):
@@ -55,30 +78,42 @@ class CanonicalPush(unittest.IsolatedAsyncioTestCase):
                 ledgers.runs.scan((settings.run_scope, 0), store, 0)
                 return next((event for event in store.events()["events"] if event["kind"] == kind), None)
 
-            async with TestClient(TestServer(_create_runs_app(adapter))) as client:
+            app = _create_runs_app(adapter)
+            if question and not any(r.resource.canonical.endswith("/clarify") for r in app.router.routes()):
+                app.router.add_post("/v1/runs/{run_id}/clarify", adapter._handle_run_clarify)
+            async with TestClient(TestServer(app)) as client:
                 headers = {"Authorization":"Bearer " + settings.profile_key, "Idempotency-Key":"push-proof"}
                 created = await client.post("/v1/runs", headers=headers,
                                             json={"input":"request approval", "session_id":"mobile-proof"})
                 self.assertEqual(created.status, 202, await created.text())
                 run_id = (await created.json())["run_id"]
                 endpoint = "/v1/runs/" + run_id
-                approval = await async_wait_until(lambda: find("approval_requested"), what="private approval event")
+                requested = await async_wait_until(lambda: find(kind), what="owned prompt notification")
                 current = await client.get(endpoint, headers=headers)
                 prompt = (await current.json())["pending_controls"][0]
                 authority_task = authority.sessions["mobile-proof"].task
                 deliver(store.claim(time.time(), 30), settings, store, sender)
                 ledgers.close()
-                self.assertEqual(find("approval_requested")["event_id"], approval["event_id"])
+                self.assertEqual(find(kind)["event_id"], requested["event_id"])
                 self.assertIsNone(store.claim(time.time(), 30))
-                denied = await client.post(endpoint + "/approval", headers=headers,
-                                          json={"request_id":prompt["prompt_id"], "choice":"deny",
-                                                "execution_generation":prompt["execution_generation"]})
-                self.assertEqual(denied.status, 200, await denied.text())
+                body = {"request_id": prompt["prompt_id"], "execution_generation": prompt["execution_generation"]}
+                body.update({"answer": "Private answer"} if question else {"choice": "deny"})
+                answered = await client.post(endpoint + ("/clarify" if question else "/approval"),
+                                             headers=headers, json=body)
+                self.assertEqual(answered.status, 200, await answered.text())
                 final = await async_wait_until(lambda: find("run_completed"), what="private completion event")
+                expected_events = [requested]
+                withdrawal_kind = "question_settled" if question else "approval_settled"
+                dismissed = store.claim(time.time(), 30)
+                self.assertEqual((dismissed["kind"], dismissed["event_id"]), (withdrawal_kind, requested["event_id"]))
+                deliver(dismissed, settings, store, sender)
+                expected_events.append({**requested, "kind": withdrawal_kind})
                 deliver(store.claim(time.time(), 30), settings, store, sender)
                 await asyncio.wait_for(authority_task, 10)
-                self.assertEqual(decisions[0]["choice"], "deny")
+                self.assertEqual(decisions[0] if question else decisions[0]["choice"],
+                                 "Private answer" if question else "deny")
+                self.assertEqual([requested["run_id"], final["run_id"]], [run_id, run_id])
+                self.assertEqual(requested["session_id"], "mobile-proof")
                 expected = [{"installation_id":device_id, "event_id":event["event_id"], "kind":event["kind"]}
-                            for event in [approval, final]]
-                self.assertEqual([approval["run_id"], final["run_id"]], [run_id, run_id])
+                            for event in [*expected_events, final]]
                 self.assertEqual([c.kwargs["json"]["message"]["data"] for c in post.call_args_list], expected)

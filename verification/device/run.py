@@ -9,10 +9,12 @@ from pathlib import Path
 import re
 import secrets
 import shutil
+import struct
 import subprocess
 import sys
 import urllib.parse
 import urllib.request
+import zlib
 
 APP = "org.llm4people.hermes"
 DRIVER = f"{APP}.test/{APP}.journey.DeviceJourney"
@@ -160,14 +162,80 @@ def run(device, output):
 
 
 
+PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+
+
+def android_png_size(data, name):
+    """Validate the complete 8-bit RGB/RGBA PNG written by Android Bitmap.compress."""
+    def invalid(reason):
+        return ValueError(f"{name}: invalid Android PNG ({reason})")
+
+    if not data.startswith(PNG_SIGNATURE):
+        raise invalid("signature")
+    offset = len(PNG_SIGNATURE)
+    dimensions = None
+    seen = set()
+    compressed = bytearray()
+    while offset + 12 <= len(data):
+        length, kind = struct.unpack_from(">I4s", data, offset)
+        start = offset + 8
+        end = start + length
+        if end + 4 > len(data):
+            raise invalid("truncated chunk")
+        checksum = struct.unpack_from(">I", data, end)[0]
+        if zlib.crc32(data[offset + 4:end]) != checksum:
+            raise invalid("chunk checksum")
+        payload = data[start:end]
+        offset = end + 4
+        if kind == b"IHDR":
+            if seen or length != 13:
+                raise invalid("header")
+            width, height, depth, color, compression, filtering, interlace = struct.unpack(">IIBBBBB", payload)
+            if not (0 < width <= 4096 and 0 < height <= 4096 and depth == 8 and color in (2, 6)
+                    and compression == filtering == interlace == 0):
+                raise invalid("unsupported bitmap dimensions or format")
+            dimensions = width, height
+            channels = 3 if color == 2 else 4
+        elif dimensions is None:
+            raise invalid("missing header")
+        elif kind == b"IDAT":
+            compressed.extend(payload)
+        elif kind == b"IEND":
+            if length or offset != len(data):
+                raise invalid("trailing data")
+            seen.add(kind)
+            break
+        else:
+            # Canvas screenshots contain pixels and display metadata. Never export text chunks.
+            sizes = {b"sBIT": channels, b"sRGB": 1, b"gAMA": 4, b"cHRM": 32, b"pHYs": 9}
+            if sizes.get(kind) != length or kind in seen or b"IDAT" in seen:
+                raise invalid("unexpected image metadata")
+        seen.add(kind)
+    if b"IEND" not in seen or not compressed:
+        raise invalid("incomplete image")
+
+    # Each non-interlaced scanline starts with its PNG filter byte. Bound expansion by IHDR.
+    stride = 1 + width * channels
+    expected = height * stride
+    decoder = zlib.decompressobj()
+    try:
+        pixels = decoder.decompress(compressed, expected + 1)
+    except zlib.error as exc:
+        raise invalid("compressed pixels") from exc
+    if len(pixels) != expected or not decoder.eof or decoder.unused_data or decoder.unconsumed_tail:
+        raise invalid("incomplete or excess pixel data")
+    if any(filter_type > 4 for filter_type in pixels[::stride]):
+        raise invalid("scanline filter")
+    return dimensions
+
+
 def collect_captures(device, capture_dir, output):
     captures = {}
     for filename in device.shell("run-as", APP, "ls", "-1", capture_dir).splitlines():
         if not re.fullmatch(r"[0-9]{2}-[a-z-]+\.png", filename):
             continue
         image = device.run("exec-out", "run-as", APP, "cat", capture_dir + "/" + filename)
-        if image[:8] != b"\x89PNG\r\n\x1a\n":
-            raise ValueError("Unexpected app capture format")
+        android_png_size(image, filename)
         (output / filename).write_bytes(image)
         captures[filename] = hashlib.sha256(image).hexdigest()
         device.shell("run-as", APP, "rm", "-f", capture_dir + "/" + filename)

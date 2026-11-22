@@ -50,8 +50,12 @@ final class MessageText {
     }
 
     static void updateLive(TextView target, LiveTranscript stream, String source) {
-        int previousStart = stream.windowStart();
-        if (!stream.update(source)) return;
+        updateLive(target, stream, source, RunPreview.Origin.FIRST);
+    }
+
+    static void updateLive(TextView target, LiveTranscript stream, String source, RunPreview.Origin origin) {
+        long previousStart = stream.windowStart();
+        if (!stream.update(source, origin)) return;
         Context context = target.getContext();
         SpannableStringBuilder rendered = new SpannableStringBuilder();
         if (stream.earlier) rendered.append("…\n");
@@ -74,12 +78,16 @@ final class MessageText {
 
     /** One selectable page at a time, even for multi-megabyte tool logs. */
     static View reader(Context context, String source, boolean markdown, boolean tool) {
+        return reader(context, source, markdown, tool, new TranscriptPage.Cursor());
+    }
+
+    static View reader(Context context, String source, boolean markdown, boolean tool, TranscriptPage.Cursor first) {
         LinearLayout root = Ui.column(context);
         Ui.pad(root, 16, 6);
         LinearLayout nav = Ui.row(context);
         nav.setGravity(Gravity.CENTER);
         List<TranscriptPage.Cursor> history = new ArrayList<>();
-        history.add(new TranscriptPage.Cursor());
+        history.add(first);
         TextView text = Ui.text(context, "", 16);
         text.setTypeface(tool ? Typeface.MONOSPACE : Typeface.DEFAULT);
         text.setTextIsSelectable(true);

@@ -7,6 +7,7 @@ import sys
 import tempfile
 import unittest
 
+from seed_account import seed_account
 from accounts import CADDY_IMAGE, account_map, provision, push_transports, stack
 
 IMAGE = "sha256:" + "1" * 64
@@ -26,7 +27,10 @@ class AccountDeploymentTest(unittest.TestCase):
             self.assertNotIn("ports", gateway)
             self.assertNotIn("network_mode", gateway)
             self.assertEqual(["user-" + name], gateway["networks"])
-            home, plugin = gateway["volumes"]
+            home, seed, plugin = gateway["volumes"]
+            self.assertNotIn("entrypoint", gateway)
+            self.assertEqual("/etc/cont-init.d/00-mobile-account", seed["target"])
+            self.assertTrue(seed["read_only"] and os.access(seed["source"], os.X_OK))
             self.assertEqual("home-" + name + ":/opt/data", home)
             self.assertEqual("/opt/data/plugins/mobile_artifacts", plugin["target"])
             self.assertTrue(plugin["read_only"])
@@ -41,6 +45,20 @@ class AccountDeploymentTest(unittest.TestCase):
         self.assertNotIn("provider.env", str(bridge))
         self.assertNotIn("push-one", routes)
         self.assertIn("reverse_proxy push-two:", routes)
+
+    def test_existing_account_config_is_never_rewritten(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            target = home / "config.yaml"
+            target.write_text("platform_toolsets:\n  api_server: []\n# owner policy\n")
+            original = target.read_bytes()
+            seed_account(home, home / "absent-template")
+            self.assertEqual(original, target.read_bytes())
+            target.unlink()
+            target.symlink_to("operator-managed-config")
+            seed_account(home, home / "absent-template")
+            self.assertTrue(target.is_symlink())
+            self.assertFalse((home / "operator-managed-config").exists())
 
     def test_credentials_follow_the_selected_push_provider(self):
         with tempfile.TemporaryDirectory() as directory:
