@@ -120,23 +120,24 @@ class DeviceGateTest(unittest.TestCase):
             saved = self.runner / "android-instrumentation" / f"{phase}.txt"
             self.assertEqual(saved.read_text(), (self.root / f"{phase}.txt").read_text())
         verifiers = [cmd for cmd in calls[8:] if cmd[0] == "python"]
-        self.assertEqual([cmd[:2] for cmd in verifiers], [["python", "-B"]] * 4)
+        self.assertEqual([cmd[:2] for cmd in verifiers], [["python", "-B"]] * 6)
         self.assertEqual([cmd[2] for cmd in verifiers], [
-            "verification/live_api.py", "verification/conversation_cards.py", "verification/thread_instruments.py", "-m"])
+            "verification/live_api.py", "verification/conversation_cards.py", "verification/thread_instruments.py",
+            "verification/discussion_photo.py", "verification/discussion_skills.py", "-m"])
         for cmd in verifiers:
             self.assertEqual(cmd[cmd.index("--source") + 1], ".fixture/hermes")
             self.assertEqual(cmd[cmd.index("--serial") + 1], "emulator-fixture")
         self.assertIn("--require-tool-controls", verifiers[0])
         self.assertIn("verification/device/run.py", verifiers[0])
-        for cmd in verifiers[1:3]:
+        for cmd in verifiers[1:-1]:
             index = cmd.index("--verify-apks")
             self.assertEqual(cmd[index + 1:index + 3], [APP_APK, TEST_APK])
         self.assertEqual([cmd[-1] for cmd in verifiers], [str(self.runner / subdir) for subdir in (
             "hermes-device", "hermes-conversation-cards/android", "hermes-thread-instrument",
-            "hermes-phone-actions/phone-actions.json")])
-        self.assertEqual(verifiers[3][3], "verification.phone_actions")
-        self.assertEqual(verifiers[3][verifiers[3].index("--apk") + 1], APP_APK)
-        self.assertIn("--inbound", verifiers[3])
+            "hermes-discussion-photo", "hermes-discussion-skills", "hermes-phone-actions/phone-actions.json")])
+        self.assertEqual(verifiers[-1][3], "verification.phone_actions")
+        self.assertEqual(verifiers[-1][verifiers[-1].index("--apk") + 1], APP_APK)
+        self.assertIn("--inbound", verifiers[-1])
         self.assertIn([*ADB, "shell", "cmd", "connectivity", "airplane-mode", "enable"], calls)
         self.assertIn([*ADB, "shell", "svc", "wifi", "disable"], calls)
         self.assertIn([*ADB, "shell", "pm", "disable-user", "--user", "0", "com.google.android.calendar"], calls)
@@ -147,7 +148,8 @@ class DeviceGateTest(unittest.TestCase):
 
     def test_each_journey_failure_stops_the_gate_with_its_diagnostic(self):
         journeys = ["verification/live_api.py", "verification/conversation_cards.py",
-                    "verification/thread_instruments.py", "verification.phone_actions"]
+                    "verification/thread_instruments.py", "verification/discussion_photo.py",
+                    "verification/discussion_skills.py", "verification.phone_actions"]
         for index, failed in enumerate(journeys):
             with self.subTest(journey=failed):
                 self.trace.write_text("")

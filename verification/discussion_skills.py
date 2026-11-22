@@ -99,7 +99,7 @@ def main():
         seed(gateway)
         stack.enter_context(gateway)
         verify_catalog(gateway)
-        with discussion_device(args, gateway, skill=LOCATOR, summary=SUMMARY, draft=DRAFT,
+        with discussion_device(args, gateway, skill=LOCATOR, summary=SUMMARY, marker=MARKER, draft=DRAFT,
                                staged=REQUEST, answer=ANSWER) as (device, receipt):
             device.phase("skills-draft")
             if admission(gateway, 0) is not None or provider.main_requests():
@@ -107,7 +107,8 @@ def main():
             device.phase("skills-send")
         verify_sent(gateway, provider)
         receipt.update(gateway_revision=args.revision, selected_skill=LOCATOR, admissions_before_send=0,
-                       completed_runs=1, skill_view_calls=1, captures_sha256=require_captures(args.output, CAPTURES))
+                       completed_runs=1, skill_view_calls=1, result_reader_verified=True,
+                       captures_sha256=require_captures(args.output, CAPTURES))
         (args.output / "skills-receipt.json").write_text(json.dumps(receipt, indent=2) + "\n")
         print(json.dumps(receipt), flush=True)
 

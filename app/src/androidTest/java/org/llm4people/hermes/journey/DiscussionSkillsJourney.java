@@ -36,8 +36,15 @@ final class DiscussionSkillsJourney {
     void send() throws JSONException {
         ui.see(fixture.getString("staged"));
         ui.tap("Envoyer");
-        ui.contains(fixture.getString("answer"));
         ui.see("Envoyer");
+        ui.see("Compétence consultée");
+        ui.see("Voir le résultat");
+        ui.revealText(fixture.getString("answer"));
         ui.capture("04-competence-reponse");
+        ui.tap("Voir le résultat");
+        ui.see("Résultat · skill_view");
+        ui.see("Copier le contenu");
+        ui.selectableText(fixture.getString("skill") + "/SKILL.md", fixture.getString("marker"));
+        ui.tap("Fermer");
     }
 }

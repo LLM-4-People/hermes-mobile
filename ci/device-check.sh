@@ -24,5 +24,10 @@ echo "Verifying thread instruments on compact and wide Android layouts"
   echo "::error title=Android thread instruments::Journey failed (exit $status). See the phase output and any partial screenshots in android-thread-instruments." >&2
   exit "$status"
 }
+"$fixture_python" -B verification/discussion_photo.py "${source_args[@]}" "${phone_args[@]}" \
+  --output "$RUNNER_TEMP/hermes-discussion-photo"
+"$fixture_python" -B verification/discussion_skills.py "${source_args[@]}" "${phone_args[@]}" \
+  --output "$RUNNER_TEMP/hermes-discussion-skills"
+
 echo "Verifying Android text entry, system sharing, calendar and map handoffs"
 bash ci/phone-action-check.sh "$device" "$app_apk"
