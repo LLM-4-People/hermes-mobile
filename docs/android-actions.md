@@ -10,6 +10,28 @@ Ask Hermes in your own words. “Ajoute mon atelier de dessin à mon agenda”, 
 
 The proposal appears in the conversation where you asked for it. Opening, pinning or comparing a page leaves its actions pending. The receiving app and its availability depend on the device. A phone that does not recognize the block can still display the assistant’s explanation and the proposal source. Model output alone does not confirm a save or delivery. [Android common intents](https://developer.android.com/guide/components/intents-common) and [Android Sharesheet](https://developer.android.com/training/sharing/send)
 
+## From the conversation to the calendar
+
+On an Android 16 emulator, Hermes Mobile sent the following request from its conversation composer.
+
+> Je prépare un atelier de dessin à la Maison des arts de Laval le 12 avril 2027 de 14 h à 15 h, heure de Laval (UTC−04:00). Peux-tu me préparer un rendez-vous à ouvrir dans mon agenda, un message à partager avec mon équipe et une recherche pour retrouver ce lieu sur la carte de mon téléphone ?
+
+Local Qwen2.5-Coder-7B-Instruct returned a page called **Atelier de dessin à Laval**. The exact 590-byte reply contained an agenda entry, the text “Retrouvons-nous à l'Atelier de dessin à la Maison des arts de Laval le 12 avril 2027 de 14 h à 15 h.” and a search for “Maison des arts de Laval, Laval”. The model output matched the completed gateway run and assistant message 2 in this conversation. [Original phone request, reply and run identifiers](examples/android-actions/phone-run.json)
+
+The tester chose **Essayer dans la discussion** and **Vérifier l’événement** to inspect the dates and place. **Ouvrir l’agenda** passed those details to the calendar. These two native view captures show the same reply replayed on a later signed build, first in the conversation and then in its confirmation dialog.
+
+<a href="examples/android-actions/proposal.png"><img src="examples/android-actions/proposal.png" width="260" alt="French conversation page offering three separate controls to review the calendar event, share text and map query."></a>
+<a href="examples/android-actions/review.png"><img src="examples/android-actions/review.png" width="290" alt="Native confirmation dialog with both April 12 times in UTC−04:00 and a choice to cancel or open the calendar."></a>
+
+**Calendar.** In the original model run, the tester opened Fossify Calendar. Its editor showed April 12, the workshop title and the place. The emulator used GMT, so 14 h to 15 h in Laval appeared as 6:00 to 7:00 PM. The tester discarded the event. The test calendar contained zero events afterward.
+
+<a href="examples/android-actions/calendar.png"><img src="examples/android-actions/calendar.png" width="300" alt="Fossify Calendar’s New Event editor with Atelier de dessin à Laval, Maison des arts de Laval and the local start and end times."></a>
+
+**Sharing and maps.** In the signed-build replay, the Android Sharesheet displayed the proposed French message. The tester dismissed it before choosing a recipient. Google Maps opened with “Maison des arts de Laval, Laval” in its search bar. The emulator was offline, so the map image shows the query as handed to Maps.
+
+<a href="examples/android-actions/share.png"><img src="examples/android-actions/share.png" width="260" alt="Android Sharesheet with the French workshop invitation, before selecting a receiving app."></a>
+<a href="examples/android-actions/map.png"><img src="examples/android-actions/map.png" width="260" alt="Google Maps on the offline emulator, with Maison des arts de Laval, Laval in its search bar."></a>
+
 ## One request for a workshop
 
 > Prépare un rendez-vous pour l’atelier de dessin du 12 avril 2027, de 14 h à 15 h à Laval (UTC−04:00). J’aimerais aussi partager un rappel avec mon équipe et trouver la Maison des arts de Laval sur la carte.
@@ -48,7 +70,7 @@ A compatible assistant can return this page. The calendar action carries its own
 }
 ```
 
-## A recorded local model run
+## A separate host model run
 
 A local Qwen2.5-Coder-7B-Instruct model received an ordinary French request for a drawing workshop in Laval. It returned a calendar event for 14 h to 15 h with the requested UTC−04:00 offset, a text for the team and a map query for the Maison des arts de Laval. The 554-byte reply matched the provider output, the completed gateway run and assistant message 2 in its conversation. The Android parser accepted all three blocks on the host. This run stopped before opening a phone app. The receipt preserves the model’s original wording, including “Joinez-nous !”. [Exact request, reply and run identifiers](examples/android-actions/model-run.json)
 

@@ -23,6 +23,7 @@ public class DeviceActionContractTest extends TestCase {
 
     public void testCalendarPreviewAndExactEditorPayload() throws Exception {
         DeviceAction action = parse(EVENT);
+        assertEquals("23 novembre 2026 à 09 h 00 (UTC-05:00)", ((DeviceAction.CalendarEvent) action).startSummary());
         assertEquals("Réunion ☕\n\nDébut · 23 novembre 2026 à 09:00:10 (UTC-05:00)"
                 + "\nFin · 23 novembre 2026 à 14:30:00 (UTC+00:00)\nLieu · Bureau Érable", action.preview());
         Intent intent = action.target();

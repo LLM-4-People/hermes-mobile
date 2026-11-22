@@ -42,6 +42,11 @@ sealed interface DeviceAction {
                 .toFormatter(Locale.ROOT).withResolverStyle(ResolverStyle.STRICT);
         private static final DateTimeFormatter FRENCH = DateTimeFormatter.ofPattern(
                 "d MMMM uuuu 'à' HH:mm:ss '(UTC'xxx')'", Locale.FRENCH);
+        private static final DateTimeFormatter SHORT_START = DateTimeFormatter.ofPattern(
+                "d MMMM uuuu 'à' HH 'h' mm '(UTC'xxx')'", Locale.FRENCH);
+
+        String startSummary() { return start.format(SHORT_START); }
+
         @Override public Kind kind() { return Kind.CALENDAR; }
         @Override public String preview() {
             return title + "\n\nDébut · " + start.format(FRENCH) + "\nFin · " + end.format(FRENCH)
