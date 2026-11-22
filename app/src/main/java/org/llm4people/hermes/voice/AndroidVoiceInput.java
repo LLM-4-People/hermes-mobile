@@ -11,6 +11,7 @@ import android.speech.RecognitionListener;
 import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
 
+import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.Diagnostics;
 
 import java.util.ArrayList;
@@ -18,12 +19,12 @@ import java.util.Locale;
 
 final class AndroidVoiceInput implements VoiceInput {
     private final Activity activity;
-    private VoiceLocale selectedLocale = VoiceLocale.FRENCH;
+    private VoiceLocale selectedLocale = VoiceLocale.SYSTEM;
 
     AndroidVoiceInput(Activity activity) { this.activity = activity; }
 
     @Override public void setLocale(VoiceLocale locale) {
-        selectedLocale = locale == null ? VoiceLocale.FRENCH : locale;
+        selectedLocale = locale == null ? VoiceLocale.SYSTEM : locale;
     }
 
     @Override public VoiceLocale locale() { return selectedLocale; }
@@ -107,14 +108,15 @@ final class AndroidVoiceInput implements VoiceInput {
     }
 
     private String language() {
+        if (selectedLocale == VoiceLocale.SYSTEM) {
+            return AppLanguage.resolvedVoiceTag(activity);
+        }
         LocaleList locales = activity.getResources().getConfiguration().getLocales();
         Locale primary = locales.isEmpty() ? Locale.FRANCE : locales.get(0);
-        if (selectedLocale != VoiceLocale.SYSTEM) {
-            String targetLang = selectedLocale.resolveLanguage(primary);
-            for (int i = 0; i < locales.size(); i++) {
-                Locale candidate = locales.get(i);
-                if (targetLang.equalsIgnoreCase(candidate.getLanguage())) return candidate.toLanguageTag();
-            }
+        String targetLang = selectedLocale.resolveLanguage(primary);
+        for (int i = 0; i < locales.size(); i++) {
+            Locale candidate = locales.get(i);
+            if (targetLang.equalsIgnoreCase(candidate.getLanguage())) return candidate.toLanguageTag();
         }
         return selectedLocale.resolveTag(primary);
     }

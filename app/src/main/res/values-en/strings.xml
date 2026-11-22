@@ -1,0 +1,7 @@
+<resources>
+    <string name="ask_hermes">Ask Hermes</string>
+    <string name="app_name">Hermes Mobile</string>
+    <string name="instrument_create">Create a tool for this thread</string>
+    <string name="instrument_create_request">Create a tool I can reuse in this discussion based on our conversation.</string>
+    <string name="places_open_page">Open suggested page</string>
+</resources>

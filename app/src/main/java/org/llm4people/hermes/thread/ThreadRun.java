@@ -6,6 +6,7 @@ import android.provider.Settings;
 
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.HermesConfig;
 import org.llm4people.hermes.VisibleText;
 import org.llm4people.hermes.camera.CapturedMedia;
@@ -240,6 +241,8 @@ final class ThreadRun {
                                        JSONObject area, List<CapturedMedia.Item> stagedAttachments) {
         try {
             NearbyTurn.attach(body, area);
+            AppLanguage.acceptLanguageHeader(page.activity);
+            body.put("user_language", AppLanguage.resolvedTag(page.activity));
             if (features.optBoolean("device_bridge")) {
                 List<String> caps = DeviceBridgeFlow.executableCapabilities(true, true, true);
                 body.put("device_capabilities", DeviceBridgeFlow.capabilitiesJson(caps));

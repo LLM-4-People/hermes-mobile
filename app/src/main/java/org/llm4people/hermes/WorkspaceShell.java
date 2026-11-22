@@ -73,12 +73,11 @@ final class WorkspaceShell {
         contentPane = Ui.column(activity);
         header = Ui.row(activity);
         Ui.pad(header, 6, 2);
-        leading = icon(R.drawable.ic_threads, "Discussions");
+        leading = icon(R.drawable.ic_threads, activity.getString(R.string.ws_discussions));
         leading.setOnClickListener(v -> action.accept(
                 pageTitle != null ? "previous" : canTogglePanes ? "toggle_discussions" : "threads"));
         header.addView(leading);
-
-        heading = Ui.text(activity, "Discussions", 20);
+        heading = Ui.text(activity, activity.getString(R.string.ws_discussions), 20);
         heading.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         heading.setMaxLines(2);
         heading.setEllipsize(TextUtils.TruncateAt.END);
@@ -96,13 +95,13 @@ final class WorkspaceShell {
         lockButton.setOnClickListener(v -> action.accept("security"));
         header.addView(lockButton);
 
-        ImageButton more = icon(R.drawable.ic_more, "Autres actions");
+        ImageButton more = icon(R.drawable.ic_more, activity.getString(R.string.ws_more_actions));
         more.setOnClickListener(this::menu);
         header.addView(more);
 
         contentPane.addView(header);
         contentPane.addView(Ui.divider(activity));
-        pending = Ui.button(activity, "Répondre à Hermes", null);
+        pending = Ui.button(activity, activity.getString(R.string.ws_reply_hermes), null);
         pending.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         pending.setVisibility(View.GONE);
         contentPane.addView(pending);
@@ -222,8 +221,9 @@ final class WorkspaceShell {
         link(list, "Rétablir l’atelier", null, "restore");
         section(list, accountName);
         link(list, activity.getString(R.string.activity_security_title), null, "security");
-        link(list, "Notifications", null, "notifications");
-        link(list, "Verrouiller le profil", null, "profiles");
+        link(list, activity.getString(R.string.ws_notifications), null, "notifications");
+        link(list, activity.getString(R.string.language_action), null, "language");
+        link(list, activity.getString(R.string.ws_lock_profile), null, "profiles");
         return scroll;
     }
 
@@ -296,11 +296,12 @@ final class WorkspaceShell {
     }
 
     private void updateHeading() {
-        heading.setText(pageTitle != null ? pageTitle : threadTitle == null ? "Discussions" : threadTitle);
+        heading.setText(pageTitle != null ? pageTitle
+                : threadTitle == null ? activity.getString(R.string.ws_discussions) : threadTitle);
         leading.setImageResource(pageTitle != null ? R.drawable.ic_back : R.drawable.ic_threads);
-        String description = pageTitle != null ? "Revenir à l’écran précédent"
-                : canTogglePanes ? (listVisible ? "Masquer les discussions" : "Afficher les discussions")
-                : "Toutes les discussions";
+        String description = pageTitle != null ? activity.getString(R.string.ws_back_previous)
+                : canTogglePanes ? activity.getString(listVisible ? R.string.ws_hide_discussions : R.string.ws_show_discussions)
+                : activity.getString(R.string.ws_all_discussions);
         leading.setContentDescription(description);
         leading.setTooltipText(description);
         leading.setActivated(pageTitle == null && canTogglePanes && listVisible);
@@ -326,35 +327,37 @@ final class WorkspaceShell {
         menu.setOnDismissListener(closed -> {
             if (overflow == closed) overflow = null;
         });
-        boolean atelierSurface = "Atelier".equals(pageTitle)
+        boolean atelierSurface = activity.getString(R.string.ws_desk).equals(pageTitle)
+                || activity.getString(R.string.ws_my_screens).equals(pageTitle)
+                || "Atelier".equals(pageTitle)
                 || "Mes écrans".equals(pageTitle)
                 || "Écran personnalisé".equals(pageTitle);
         if (atelierSurface) {
-            item(menu, "Mes écrans", "pages");
-            item(menu, "Rétablir l’atelier", "restore");
+            item(menu, activity.getString(R.string.ws_my_screens), "pages");
+            item(menu, activity.getString(R.string.ws_restore_desk), "restore");
         } else if (threadTitle != null) {
             if (reading.getAsBoolean()) item(menu, activity.getString(R.string.read_stop_label), "stop_reading");
             else item(menu, activity.getString(R.string.read_reply_label), "read_reply");
             item(menu, activity.getString(R.string.instrument_create), "create_instrument");
             if (pageTitle == null) {
-                item(menu, "Joindre une image…", "attach_photo");
+                item(menu, activity.getString(R.string.ws_attach_image), "attach_photo");
                 if (org.llm4people.hermes.camera.ThreadCameraCapture.isAvailable(activity)) {
                     item(menu, "Prendre une photo…", "capture_camera");
                 }
-                item(menu, "Position pour ce message…", "nearby_area");
+                item(menu, activity.getString(R.string.ws_location_for_message), "nearby_area");
             }
-            item(menu, "Renommer la discussion", "rename");
+            item(menu, activity.getString(R.string.ws_rename_discussion), "rename");
             item(menu, "Épingler la discussion", BrainStudioRoutes.ACTION_PIN_THREAD);
             item(menu, "Nouvelle piste à partir d’ici", BrainStudioRoutes.ACTION_FORK_THREAD);
             item(menu, "Exporter la discussion", BrainStudioRoutes.ACTION_EXPORT_THREAD);
             item(menu, "Partager sur ce serveur", BrainStudioRoutes.ACTION_SHARE_THREAD);
             item(menu, "Fichiers du projet", BrainStudioRoutes.ROUTE_WORKSPACE_FILES);
-            item(menu, "Artefacts", "artifacts");
-            item(menu, "Modèle et outils", "models");
-            item(menu, "Utilisation", "stats");
-            item(menu, "Vue de discussion d’origine", "native_thread");
+            item(menu, activity.getString(R.string.ws_artifacts), "artifacts");
+            item(menu, activity.getString(R.string.ws_model_and_tools), "models");
+            item(menu, activity.getString(R.string.ws_usage), "stats");
+            item(menu, activity.getString(R.string.ws_original_discussion_view), "native_thread");
         } else {
-            item(menu, "Nouvelle discussion", "new_thread");
+            item(menu, activity.getString(R.string.ws_new_discussion), "new_thread");
         }
         menu.show();
     }

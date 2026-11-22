@@ -1,0 +1,13 @@
+<resources>
+    <string name="skills_title">Hermes skills</string>
+    <string name="skills_search">Search for a skill</string>
+    <string name="skills_refresh">Refresh skills</string>
+    <string name="skills_empty">The server does not list any skills for this profile.</string>
+    <string name="skills_no_matches">No skill matches this search.</string>
+    <string name="skills_missing">This server does not provide a skills list.</string>
+    <string name="skills_denied">This profile cannot view skills on this server.</string>
+    <string name="skills_no_summary">No summary provided.</string>
+    <string name="skills_category">Category · %1$s</string>
+    <string name="skills_prepare">Prepare draft</string>
+    <string name="skills_request">Use the “%1$s” skill for this request.</string>
+</resources>

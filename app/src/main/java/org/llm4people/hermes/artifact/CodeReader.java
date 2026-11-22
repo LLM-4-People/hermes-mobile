@@ -74,11 +74,10 @@ public final class CodeReader {
         ScrollView scroll = new ScrollView(context);
         scroll.addView(box);
         contents(box, title, language, source);
-        return new AlertDialog.Builder(context).setTitle(title).setView(scroll).setNegativeButton("Fermer", null);
+        return new AlertDialog.Builder(context).setTitle(title).setView(scroll).setNegativeButton(R.string.ws_close, null);
     }
 
     static void contents(LinearLayout box, String title, String language, String source) {
-        Context context = box.getContext();
         CodeReader reader = new CodeReader(source, language);
         reader.mountWithToolbar(box, title);
     }
@@ -94,7 +93,7 @@ public final class CodeReader {
         Context c = box.getContext();
         LinearLayout actions = Ui.row(c);
         actions.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
-        Button copy = Ui.button(c, "Copier le contenu", v -> copy(c, source, title));
+        Button copy = Ui.button(c, c.getString(R.string.code_copy_content), v -> copy(c, source, title));
         actions.addView(copy);
         Button searchToggle = Ui.button(c, c.getString(R.string.code_search), v -> toggleSearch(c));
         actions.addView(searchToggle);
@@ -234,10 +233,10 @@ public final class CodeReader {
         section.removeAllViews();
         int pages = Math.max(1, cuts.size() - 1);
         if (pages > 1) {
-            section.addView(Ui.text(c, "Page " + (currentPage + 1) + " sur " + pages, 14));
+            section.addView(Ui.text(c, c.getString(R.string.code_page_of, currentPage + 1, pages), 14));
             LinearLayout nav = Ui.row(c);
-            if (currentPage > 0) nav.addView(Ui.button(c, "Précédente", v -> render(c, currentPage - 1)));
-            if (currentPage < pages - 1) nav.addView(Ui.button(c, "Suivante", v -> render(c, currentPage + 1)));
+            if (currentPage > 0) nav.addView(Ui.button(c, c.getString(R.string.transcript_previous), v -> render(c, currentPage - 1)));
+            if (currentPage < pages - 1) nav.addView(Ui.button(c, c.getString(R.string.transcript_next), v -> render(c, currentPage + 1)));
             section.addView(nav);
         }
         int start = cuts.get(currentPage);
@@ -275,10 +274,10 @@ public final class CodeReader {
         try {
             clipboard.setPrimaryClip(clip);
             if (android.os.Build.VERSION.SDK_INT < 33)
-                Toast.makeText(activity, "Contenu copié", Toast.LENGTH_SHORT).show();
+                Toast.makeText(activity, R.string.code_copied, Toast.LENGTH_SHORT).show();
         } catch (RuntimeException e) {
             Diagnostics.warning("artifact", "copy_failed");
-            Toast.makeText(activity, "La copie a échoué. Sélectionnez une partie du texte.", Toast.LENGTH_LONG).show();
+            Toast.makeText(activity, R.string.code_copy_failed, Toast.LENGTH_LONG).show();
         }
     }
 }

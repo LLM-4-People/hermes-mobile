@@ -1,6 +1,7 @@
 package org.llm4people.hermes.net;
 
 import org.json.JSONObject;
+import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.HermesConfig;
 import java.io.Closeable;
@@ -205,6 +206,8 @@ public final class HermesApi {
         http.setRequestProperty("Authorization", "Bearer " + bearer);
         http.setRequestProperty("Accept", accept);
         http.setRequestProperty("Cache-Control", "no-store");
+        String acceptLanguage = AppLanguage.currentAcceptLanguage();
+        if (!acceptLanguage.isEmpty()) http.setRequestProperty("Accept-Language", acceptLanguage);
         return http;
     }
 

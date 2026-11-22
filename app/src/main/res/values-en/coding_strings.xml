@@ -1,0 +1,51 @@
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
+    <string name="code_line_numbers">Line numbers</string>
+    <string name="code_line_numbers_hide">Hide line numbers</string>
+    <string name="code_line_numbers_show">Show line numbers</string>
+    <string name="code_scroll_horizontal">Scroll</string>
+    <string name="code_search">Search</string>
+    <string name="code_search_count">%1$d / %2$d</string>
+    <string name="code_search_hint">Search in text</string>
+    <string name="code_search_next">Next</string>
+    <string name="code_search_none">No results</string>
+    <string name="code_search_previous">Previous</string>
+    <string name="code_wrap_lines">Wrap lines</string>
+
+    <string name="diff_open_full">View all changes</string>
+    <string name="diff_truncated">Short preview. Open the full view to inspect everything.</string>
+
+    <string name="markdown_link_choose">Choose a link</string>
+    <string name="markdown_link_confirm_hint">This link will open in your external browser.</string>
+    <string name="markdown_link_confirm_open">Open</string>
+    <string name="markdown_link_confirm_title">Open this external link?</string>
+    <string name="markdown_link_copied">Link copied</string>
+    <string name="markdown_link_copy">Copy link</string>
+    <string name="markdown_link_open">Open · %1$s</string>
+    <string name="markdown_link_open_many">Open a link… (%1$d)</string>
+    <string name="markdown_link_unavailable">No app on this device can open this link.</string>
+    <string name="markdown_table_description">Table with %1$d columns and %2$d rows</string>
+
+    <string name="read_unavailable_locale">No offline voice is available for this language. Check installed voices in Android settings.</string>
+
+    <string name="reasoning_hide">Hide reasoning</string>
+    <string name="reasoning_read_full">Read full reasoning</string>
+    <string name="reasoning_show_label">Show Hermes reasoning</string>
+    <string name="reasoning_streaming">Reasoning in progress…</string>
+    <string name="reasoning_title">Reasoning</string>
+
+    <string name="voice_duplex_barge_in">Interrupt</string>
+    <string name="voice_duplex_barge_in_label">Interrupt Hermes and speak</string>
+    <string name="voice_duplex_hint">Speak, listen to the reply, and interrupt Hermes at any time.</string>
+    <string name="voice_duplex_listening">Voice mode · Listening…</string>
+    <string name="voice_duplex_quit">Exit</string>
+    <string name="voice_duplex_speaking">Voice mode · Hermes is speaking…</string>
+    <string name="voice_duplex_start">Start continuous voice mode</string>
+    <string name="voice_duplex_stop">Exit continuous voice mode</string>
+    <string name="voice_duplex_thinking">Voice mode · Hermes is preparing a reply…</string>
+
+    <string name="voice_locale_english">English</string>
+    <string name="voice_locale_french">French</string>
+    <string name="voice_locale_section">Dictation and reading language</string>
+    <string name="voice_locale_system">Device language</string>
+    <string name="voice_options_title">Voice options</string>
+</resources>

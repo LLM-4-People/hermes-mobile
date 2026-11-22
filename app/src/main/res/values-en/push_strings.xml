@@ -1,0 +1,34 @@
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
+    <string name="push_policy_title">Alert preferences</string>
+    <string name="push_policy_button">Categories and quiet hours</string>
+    <string name="push_policy_categories_heading">Notification types</string>
+    <string name="push_policy_categories_hint">Choose what Hermes can display as banners. Everything remains available in your inbox.</string>
+    <string name="push_policy_quiet_heading">Quiet hours</string>
+    <string name="push_policy_quiet_toggle">Enable quiet hours</string>
+    <string name="push_policy_quiet_hint">Pauses sound and visual alerts during this time window.</string>
+    <string name="push_policy_quiet_start">Start: %1$s</string>
+    <string name="push_policy_quiet_end">End: %1$s</string>
+    <string name="push_policy_quiet_high_toggle">Allow urgent alerts through</string>
+    <string name="push_policy_quiet_high_hint">Allows approval requests and priority messages even during quiet hours.</string>
+    <string name="push_policy_quiet_status_on">Quiet hours: %1$s – %2$s</string>
+    <string name="push_policy_quiet_status_off">Quiet hours: off</string>
+    <string name="push_inbox_title">Activity · Deliveries</string>
+    <string name="push_inbox_button">Hermes deliveries</string>
+    <string name="push_inbox_refresh">Refresh</string>
+    <string name="push_inbox_empty">No deliveries received yet. Briefings, files, and proposals sent by Hermes will appear here.</string>
+    <string name="push_inbox_sync_error">Unable to refresh deliveries. Previously saved items remain available.</string>
+    <string name="push_inbox_unread_badge">New</string>
+    <string name="push_inbox_open_thread">Open discussion</string>
+    <string name="push_inbox_open_file">Open file</string>
+    <string name="push_inbox_read_excerpt">Read excerpt</string>
+    <string name="push_inbox_preview_ui">Review update</string>
+    <string name="push_inbox_refresh_widget">Refresh widget</string>
+    <string name="push_inbox_open_reminder">View reminder</string>
+    <string name="push_inbox_close">Close</string>
+    <string name="push_inbox_ui_patch_prompt">Hermes proposes an improvement to your screen. You can review it before applying.</string>
+    <string name="push_inbox_widget_prompt">Hermes prepared an update for your Home screen widget.</string>
+    <string name="push_inbox_action_confirm_title">Review proposed action</string>
+    <string name="push_inbox_action_cancel">Cancel</string>
+    <string name="push_inbox_action_unavailable">No available app can open this proposal.</string>
+    <string name="push_inbox_action_invalid">This proposed action could not be safely verified.</string>
+</resources>

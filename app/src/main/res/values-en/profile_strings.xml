@@ -1,0 +1,20 @@
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
+    <string name="profile_connect_detail">One Hermes server (LLM-4-People/hermes-agent fork) can host multiple isolated profiles under the same HTTPS address.</string>
+    <string name="profile_server_slug_label">Server profile (optional)</string>
+    <string name="profile_server_slug_hint">e.g. alice (blank = main profile)</string>
+    <string name="profile_server_slug_help">Enter your profile name to automatically build /p/profile on the same server.</string>
+    <string name="profile_endpoint_preview">Address used: %1$s</string>
+    <string name="profile_server_url_invalid">Enter the HTTPS address of your Hermes server.</string>
+    <string name="profile_server_slug_invalid">Use a simple name (letters, digits, hyphens, or underscores, with no path).</string>
+    <string name="profile_server_slug_conflict">The server address already points to another profile.</string>
+    <string name="profile_lock_section">Profile lock</string>
+    <string name="profile_lock_detail">This passphrase encrypts your access details and unlocks the profile on this device.</string>
+    <plurals name="profile_passphrase_hint">
+        <item quantity="one">At least %1$d character</item>
+        <item quantity="other">At least %1$d characters</item>
+    </plurals>
+    <plurals name="profile_passphrase_too_short">
+        <item quantity="one">Use at least %1$d character.</item>
+        <item quantity="other">Use at least %1$d characters.</item>
+    </plurals>
+</resources>

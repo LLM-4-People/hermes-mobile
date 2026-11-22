@@ -10,6 +10,7 @@ import android.view.View;
 import android.view.WindowManager;
 
 import org.json.JSONObject;
+import org.llm4people.hermes.AppLanguage;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
@@ -77,6 +78,7 @@ public final class DeviceJourney extends Instrumentation {
             primary = "Atelier " + fixture.getString("run");
             secondary = "Personnel " + fixture.getString("run");
             String pkg = getTargetContext().getPackageName();
+            AppLanguage.apply(getTargetContext(), AppLanguage.Mode.FRENCH);
             Activity activity = startActivitySync(new Intent().setClassName(pkg, pkg + ".MainActivity")
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK));
             if (instrumentViewport()) activity = instrumentActivity();

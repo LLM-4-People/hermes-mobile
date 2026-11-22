@@ -106,19 +106,19 @@ public final class AdaptiveLifecycleTest extends InstrumentationTestCase {
                 activity.setContentView(shell.root);
                 shell.selected("root", "Discussion");
 
-                ImageButton leading = findLeading(shell.root, "Toutes les discussions");
+                ImageButton leading = findLeading(shell.root, activity.getString(R.string.ws_all_discussions));
                 assertNotNull(leading);
                 assertTrue(leading.performClick());
                 assertEquals("threads", actions.get(actions.size() - 1));
 
                 shell.discussionPanes(true, true);
-                assertEquals("Masquer les discussions", leading.getContentDescription());
+                assertEquals(activity.getString(R.string.ws_hide_discussions), leading.getContentDescription());
                 assertTrue(leading.isActivated());
                 assertTrue(leading.performClick());
                 assertEquals("toggle_discussions", actions.get(actions.size() - 1));
 
                 shell.discussionPanes(true, false);
-                assertEquals("Afficher les discussions", leading.getContentDescription());
+                assertEquals(activity.getString(R.string.ws_show_discussions), leading.getContentDescription());
                 assertFalse(leading.isActivated());
 
                 View desk = shell.desk("Profil test");
@@ -142,7 +142,7 @@ public final class AdaptiveLifecycleTest extends InstrumentationTestCase {
     }
 
     private static EditText findComposer(View root) {
-        if (root instanceof EditText edit && "Message à Hermes".contentEquals(edit.getHint())) return edit;
+        if (root instanceof EditText edit && root.getContext().getString(R.string.thread_message_hint).contentEquals(edit.getHint())) return edit;
         if (root instanceof android.view.ViewGroup group) {
             for (int i = 0; i < group.getChildCount(); i++) {
                 EditText found = findComposer(group.getChildAt(i));

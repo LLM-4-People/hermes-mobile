@@ -106,7 +106,7 @@ final class ThreadViews {
 
     void inbox(Runnable create, Runnable refresh, Consumer<JSONObject> choose, Runnable next) {
         reset(false);
-        Button newThread = Ui.button(activity, "Nouvelle conversation", v -> create.run());
+        Button newThread = Ui.button(activity, activity.getString(R.string.thread_new_conversation), v -> create.run());
         newThread.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
         newThread.setTextSize(16);
         Ui.pad(newThread, 18, 4);
@@ -117,7 +117,7 @@ final class ThreadViews {
         actions.addView(newThread, new LinearLayout.LayoutParams(0, -2, 1));
         ImageButton reload = new ImageButton(activity, null, android.R.attr.borderlessButtonStyle);
         reload.setImageResource(R.drawable.ic_skills_refresh);
-        reload.setContentDescription("Actualiser les discussions");
+        reload.setContentDescription(activity.getString(R.string.thread_refresh_discussions));
         reload.setTooltipText(reload.getContentDescription());
         reload.setOnClickListener(v -> refresh.run());
         actions.addView(reload, Ui.dp(activity, 48), Ui.dp(activity, 48));
@@ -126,7 +126,7 @@ final class ThreadViews {
         list.setId(R.id.discussion_list);
         list.setDivider(new ColorDrawable(activity.getColor(R.color.line)));
         list.setDividerHeight(Ui.dp(activity, 1));
-        more = Ui.button(activity, "Afficher la suite", v -> next.run());
+        more = Ui.button(activity, activity.getString(R.string.thread_show_more), v -> next.run());
         list.addFooterView(pagingSlot(), null, false);
         bindList();
         list.setOnItemClickListener((parent, view, pos, id) -> {
@@ -138,7 +138,7 @@ final class ThreadViews {
               Runnable older) {
         reset(true);
         list.setId(R.id.discussion_transcript);
-        more = Ui.button(activity, "Messages précédents", v -> older.run());
+        more = Ui.button(activity, activity.getString(R.string.thread_previous_messages), v -> older.run());
         list.addHeaderView(pagingSlot(), null, false);
         LinearLayout live = Ui.column(activity);
         Ui.pad(live, 18, 3);
@@ -147,10 +147,10 @@ final class ThreadViews {
         liveText = Ui.text(activity, "", 17);
         liveText.setTextIsSelectable(true);
         fullLiveText = Ui.button(activity, activity.getString(R.string.transcript_read_full), v ->
-                show(new AlertDialog.Builder(activity).setTitle("Réponse de Hermes")
+                show(new AlertDialog.Builder(activity).setTitle(R.string.thread_reply_from_hermes)
                         .setView(MessageText.reader(activity, liveTranscript.source(), true, false,
                                 liveTranscript.readerStart(), null))
-                        .setPositiveButton("Fermer", null)));
+                        .setPositiveButton(R.string.ws_close, null)));
         list.setItemsCanFocus(true);
         outgoing = Ui.text(activity, "", 17);
         outgoing.setTextIsSelectable(true);
@@ -187,7 +187,7 @@ final class ThreadViews {
         input.setTextSize(17);
         input.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
         input.setPaddingRelative(Ui.dp(activity, 10), Ui.dp(activity, 6), 0, Ui.dp(activity, 6));
-        input.setHint("Message à Hermes");
+        input.setHint(R.string.thread_message_hint);
         input.setText(draft);
         input.setSelection(input.length());
         composerVoice = voice.bind(input);
@@ -196,13 +196,13 @@ final class ThreadViews {
             if (instruments != null) instruments.revealDiscussionIfCompact();
             onSend.run();
         });
-        send = Ui.button(activity, "Envoyer", v -> {
+        send = Ui.button(activity, activity.getString(R.string.thread_send), v -> {
             if (!send.isEnabled()) return;
             composerVoice.cancel();
             if (instruments != null) instruments.revealDiscussionIfCompact();
             onSend.run();
         });
-        stop = Ui.button(activity, "Arrêter", v -> onStop.run());
+        stop = Ui.button(activity, activity.getString(R.string.thread_stop), v -> onStop.run());
         LinearLayout writing = Ui.row(activity);
         writing.setGravity(Gravity.BOTTOM);
         writing.setBaselineAligned(false);
@@ -442,7 +442,7 @@ final class ThreadViews {
     void photo(JSONObject info, Runnable remove) {
         photoSlot.removeAllViews();
         photoSlot.setVisibility(info == null ? View.GONE : View.VISIBLE);
-        input.setHint(info == null ? "Message à Hermes" : "Votre question sur l’image");
+        input.setHint(info == null ? R.string.thread_message_hint : R.string.thread_image_question_hint);
         if (info == null) return;
         ImageView preview = new ImageView(activity);
         preview.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
@@ -456,7 +456,7 @@ final class ThreadViews {
         label.setEllipsize(android.text.TextUtils.TruncateAt.END);
         label.setContentDescription("Image jointe : " + name);
         photoSlot.addView(label, new LinearLayout.LayoutParams(0, -2, 1));
-        Button removeButton = Ui.button(activity, "Retirer", v -> remove.run());
+        Button removeButton = Ui.button(activity, activity.getString(R.string.thread_remove), v -> remove.run());
         removeButton.setContentDescription("Retirer l’image " + name);
         photoSlot.addView(removeButton);
     }

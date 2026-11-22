@@ -10,6 +10,7 @@ import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
+import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
@@ -103,9 +104,11 @@ public final class ProfileGate {
     private void chooser(String message) {
         generation++;
         nested = false;
-        ProfileScreen screen = new ProfileScreen(activity, "Choisir un profil", null);
+        ProfileScreen screen = new ProfileScreen(activity, activity.getString(R.string.profile_choose_title), null);
         store.profiles().forEach((id, label) -> screen.action(label, false, view -> unlock(id, label)));
-        screen.action("Ajouter un profil", true, view -> add(true));
+        screen.action(activity.getString(R.string.profile_add_action), true, view -> add(true));
+        screen.action(activity.getString(R.string.language_action), false,
+                view -> { if (!busy) AppLanguage.showPicker(activity, null); });
         if (message != null) screen.status(message, false);
     }
 
@@ -113,22 +116,24 @@ public final class ProfileGate {
         generation++;
         nested = canGoBack;
         ProfileScreen screen = new ProfileScreen(
-                activity, "Connecter Hermes", activity.getString(R.string.profile_connect_detail));
-        EditText name = screen.field("Nom du profil", "Ex. Personnel", TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES, 80, false);
-        EditText server = screen.field("Adresse du serveur", "https://hermes.exemple.fr", TEXT | InputType.TYPE_TEXT_VARIATION_URI, 2048, false);
+                activity, activity.getString(R.string.profile_connect_title), activity.getString(R.string.profile_connect_detail));
+        EditText name = screen.field(activity.getString(R.string.profile_name_label),
+                activity.getString(R.string.profile_name_hint), TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES, 80, false);
+        EditText server = screen.field(activity.getString(R.string.profile_server_label),
+                "https://hermes.exemple.fr", TEXT | InputType.TYPE_TEXT_VARIATION_URI, 2048, false);
         EditText serverProfile = screen.field(
                 activity.getString(R.string.profile_server_slug_label),
                 activity.getString(R.string.profile_server_slug_hint),
                 TEXT | InputType.TYPE_TEXT_VARIATION_URI, 64, false);
         TextView endpointPreview = screen.note(activity.getString(R.string.profile_server_slug_help));
         watchEndpointPreview(server, serverProfile, endpointPreview);
-        EditText key = screen.field("Clé d’accès Hermes", "", SECRET, 8192, true);
+        EditText key = screen.field(activity.getString(R.string.profile_key_label), "", SECRET, 8192, true);
         screen.section(activity.getString(R.string.profile_lock_section), activity.getString(R.string.profile_lock_detail));
-        EditText phrase = screen.field("Phrase secrète du profil",
+        EditText phrase = screen.field(activity.getString(R.string.profile_passphrase_label),
                 activity.getResources().getQuantityString(R.plurals.profile_passphrase_hint, MIN_PASSPHRASE, MIN_PASSPHRASE),
                 SECRET, 512, true);
-        EditText repeat = screen.field("Confirmer la phrase secrète", "", SECRET, 512, true);
-        screen.action("Enregistrer le profil", true, view -> {
+        EditText repeat = screen.field(activity.getString(R.string.profile_passphrase_confirm_label), "", SECRET, 512, true);
+        screen.action(activity.getString(R.string.profile_save_action), true, view -> {
             if (busy) return;
             String label = name.getText().toString().trim();
             if (label.isEmpty() || hasControl(label)) {
@@ -176,7 +181,9 @@ public final class ProfileGate {
             run(screen, (Button) view, pass, () -> store.create(label, endpoint, bearer, pass),
                     this::opened, "Enregistrement impossible. Vérifiez le stockage disponible et réessayez.");
         });
-        if (canGoBack) screen.action("Retour aux profils", false, view -> { if (!busy) chooser(null); });
+        if (canGoBack) screen.action(activity.getString(R.string.profile_back_to_profiles), false, view -> { if (!busy) chooser(null); });
+        else screen.action(activity.getString(R.string.language_action), false,
+                view -> { if (!busy) AppLanguage.showPicker(activity, null); });
     }
 
     /** Opt-in hardware-backed biometric enrollment using the currently unlocked account. */
@@ -220,17 +227,17 @@ public final class ProfileGate {
     private void unlock(String id, String label) {
         generation++;
         nested = true;
-        ProfileScreen screen = new ProfileScreen(activity, label, "Déverrouillez ce profil pour retrouver vos fils.");
-        EditText phrase = screen.field("Phrase secrète du profil", "", SECRET, 512, true);
-        screen.action("Déverrouiller", true, view -> authenticate(screen, phrase, (Button) view, id, this::opened));
+        ProfileScreen screen = new ProfileScreen(activity, label, activity.getString(R.string.profile_unlock_subtitle));
+        EditText phrase = screen.field(activity.getString(R.string.profile_passphrase_label), "", SECRET, 512, true);
+        screen.action(activity.getString(R.string.profile_unlock_action), true, view -> authenticate(screen, phrase, (Button) view, id, this::opened));
         if (BiometricVault.isEnrolled(activity, id)
                 && BiometricVault.availability(activity) != BiometricVault.Availability.UNAVAILABLE) {
             Button bioButton = screen.action(activity.getString(R.string.security_biometric_button), false, null);
             bioButton.setOnClickListener(view -> authenticateBiometric(screen, bioButton, id, label));
         }
-        screen.action("Choisir un autre profil", false, view -> { if (!busy) chooser(null); });
-        screen.action("Remplacer la clé d’accès", false, view -> { if (!busy) rotate(id, label); });
-        screen.action("Retirer ce profil", false, view -> authenticate(screen, phrase, (Button) view, id, account -> {
+        screen.action(activity.getString(R.string.profile_choose_other), false, view -> { if (!busy) chooser(null); });
+        screen.action(activity.getString(R.string.profile_replace_key), false, view -> { if (!busy) rotate(id, label); });
+        screen.action(activity.getString(R.string.profile_remove_action), false, view -> authenticate(screen, phrase, (Button) view, id, account -> {
             account.close();
             confirmation = Ui.secureDialog(new AlertDialog.Builder(activity).setTitle("Retirer « " + label + " » ?")
                     .setMessage("Les données locales de ce profil seront effacées de cet appareil. Vos fils restent sur le serveur Hermes.")

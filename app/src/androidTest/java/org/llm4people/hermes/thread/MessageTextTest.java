@@ -67,18 +67,18 @@ public final class MessageTextTest extends InstrumentationTestCase {
                 MessageText.addCodeAction(entry, preview, source, builder -> reader[0] = Ui.secureDialog(builder));
                 activity.setContentView(entry);
                 Button open = (Button) entry.getChildAt(1);
-                assertEquals("Ouvrir le code · src/carre.py · python", open.getText().toString());
+                assertEquals(activity.getString(R.string.code_open_named, "src/carre.py · python"), open.getText().toString());
                 open.performClick();
             });
             getInstrumentation().waitForIdleSync();
             runTestOnUiThread(() -> {
                 View root = reader[0].getWindow().getDecorView();
-                assertNotNull(find(root, "Page 1 sur 2"));
-                find(root, "Suivante").performClick();
+                assertNotNull(find(root, activity.getString(R.string.code_page_of, 1, 2)));
+                find(root, activity.getString(R.string.transcript_next)).performClick();
                 TextView ending = find(root, "return n");
                 assertTrue(ending.isTextSelectable());
                 assertTrue(ending.getText().toString().endsWith("    return n"));
-                find(root, "Copier le contenu").performClick();
+                find(root, activity.getString(R.string.code_copy_content)).performClick();
                 ClipboardManager clipboard = activity.getSystemService(ClipboardManager.class);
                 ClipData clip = clipboard.getPrimaryClip();
                 assertNotNull(clip);
