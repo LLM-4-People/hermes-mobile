@@ -14,8 +14,9 @@ NTFY = "io.heckel.ntfy"
 
 
 class Screen:
-    def __init__(self, device):
+    def __init__(self, device, editor_jar):
         self.device = device
+        self.editor_jar = editor_jar
         self.tmp = "/data/local/tmp/hm-push-" + secrets.token_hex(8) + ".xml"
 
     def hierarchy(self):
@@ -66,7 +67,15 @@ class Screen:
             if item.get("scrollable") == "true":
                 x1, y1, x2, y2 = map(int, re.findall(r"\d+", item.get("bounds")))
                 x, h = (x1 + x2) // 2, y2 - y1
-                self.device.shell("input", "swipe", str(x), str(y1 + h * 4 // 5), str(x), str(y1 + h // 3), "260")
+                self.device.shell(
+                    "input",
+                    "swipe",
+                    str(x),
+                    str(y1 + h * 4 // 5),
+                    str(x),
+                    str(y1 + h // 3),
+                    "260",
+                )
                 return
 
     def field(self, label, value):
@@ -91,13 +100,33 @@ class Screen:
     def type(self, value):
         if not re.fullmatch(r"[A-Za-z0-9_:/.-]+", value):
             raise ValueError("Unexpected characters in synthetic test input")
-        self.device.shell("input", "text", value)
+        path = self.editor_jar.removesuffix(".jar") + ".txt"
+        try:
+            self.device.run("shell", "sh", "-c", f"'umask 077 && cat > {path}'", data=value.encode())
+            result = self.device.shell(
+                "uiautomator",
+                "runtest",
+                self.editor_jar,
+                "-c",
+                "org.llm4people.hermes.verification.FocusedText",
+                "-e",
+                "valueFile",
+                path,
+                "-s",
+            )
+            if "OK (1 test)" not in result:
+                raise AssertionError("Android accessibility did not set the focused editor: " + result[:1600])
+        finally:
+            self.device.shell("rm", "-f", path)
 
     def allow_if_prompted(self):
         root = self.hierarchy()
         node = self.node("com.android.permissioncontroller:id/permission_allow_button", root)
         if node is None:
-            node = self.node("com.google.android.permissioncontroller:id/permission_allow_button", root)
+            node = self.node(
+                "com.google.android.permissioncontroller:id/permission_allow_button",
+                root,
+            )
         if node is not None:
             self.tap_node(node)
 
@@ -179,11 +208,24 @@ def process_absent(ui):
     eventually("Hermes process to exit", state)
 
 
-def tap_notice(ui, owner, phrase, title):
+def thread_screen(ui, root, title, reply):
+    return all(ui.node(label, root) is not None for label in (title, reply, "Envoyer"))
+
+
+def tap_notice(ui, notice_text, owner, phrase, title, reply):
     device = ui.device
     device.shell("cmd", "statusbar", "expand-notifications")
-    ui.tap("Hermès a terminé")
+    ui.tap(notice_text)
     ui.wait(owner)
     ui.field("Phrase secrète du profil", phrase)
     ui.tap("Déverrouiller")
-    ui.wait(title)
+
+    def opened():
+        root = ui.hierarchy()
+        if not thread_screen(ui, root, title, reply):
+            return False
+        if thread_screen(ui, root, title, "Absent-" + secrets.token_hex(16)):
+            raise AssertionError("A different thread reply matched the opened transcript")
+        return True
+
+    eventually("unique title and reply alongside the thread composer", opened)

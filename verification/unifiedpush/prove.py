@@ -3,8 +3,11 @@
 import argparse
 from contextlib import ExitStack, closing, contextmanager
 import json
+import os
 from pathlib import Path
 import secrets
+import re
+import shlex
 import shutil
 import sqlite3
 import sys
@@ -13,10 +16,28 @@ from urllib.parse import urlsplit
 
 from .assets import APK, SERVER, digest, extract_server
 from verification.device.installed import installed_apk_sha256
+from .editor import editor
 from verification.device.run import Emulator
 from verification.gateway_fixture import Gateway, PINNED_REVISION, check_source
-from .stack import LOCAL_HTTP, bridge, eventually, json_request, ntfy, proxy
-from .ui import APP, Screen, distributor, enroll, launch, process_absent, start_account, tap_notice
+from .stack import (
+    LOCAL_HTTP,
+    bridge,
+    caddy_binary,
+    eventually,
+    json_request,
+    ntfy,
+    proxy,
+)
+from .ui import (
+    APP,
+    Screen,
+    distributor,
+    enroll,
+    launch,
+    process_absent,
+    start_account,
+    tap_notice,
+)
 
 
 PROJECT = Path(__file__).resolve().parents[2]
@@ -50,14 +71,17 @@ def revoked_everywhere(database, device_id, event_id=None):
             return True
         return (
             db.execute(
-                "SELECT 1 FROM deliveries WHERE event_id=? AND device_id=?", (event_id, device_id)
+                "SELECT 1 FROM deliveries WHERE event_id=? AND device_id=?",
+                (event_id, device_id),
             ).fetchone()
             is None
         )
 
 
 def trigger(gateway, title):
-    session = gateway.request("/api/sessions", method="POST", body={"title": title}, expected=201)["session"]["id"]
+    session = gateway.request("/api/sessions", method="POST", body={"title": title}, expected=201)["session"][
+        "id"
+    ]
     result = gateway.request(
         "/v1/runs",
         method="POST",
@@ -71,7 +95,8 @@ def trigger(gateway, title):
 def completed_event(endpoint, key, run):
     page = json_request(endpoint + "/api/mobile/push/events", key)
     return next(
-        (item for item in page["events"] if item["kind"] == "run_completed" and item["run_id"] == run), None
+        (item for item in page["events"] if item["kind"] == "run_completed" and item["run_id"] == run),
+        None,
     )
 
 
@@ -84,9 +109,19 @@ def published_messages(topic):
 
 def app_notice(device, event_id):
     # cmd notification list gives active notification keys; the application uses its event ID in the tag.
-    return any(
-        APP in line and event_id in line for line in device.shell("cmd", "notification", "list").splitlines()
-    )
+    for key in device.shell("cmd", "notification", "list").splitlines():
+        parts = key.split("|")
+        if len(parts) >= 5 and parts[1] == APP and parts[3].endswith("/" + event_id):
+            return key
+    return None
+
+
+def notice_title(device, key):
+    record = device.shell("cmd", "notification", "get", shlex.quote(key))
+    title = re.search(r"^\s*android\.title=String \((.+)\)$", record, re.MULTILINE)
+    if not title:
+        raise AssertionError("Exact posted notification has no display title")
+    return title.group(1)
 
 
 @contextmanager
@@ -124,18 +159,30 @@ def run(args):
     with tempfile.TemporaryDirectory(prefix="hm-notice-") as tmp, ExitStack() as stack:
         installed = stack.enter_context(disposable_app(adb, args.apk))
         root = Path(tmp)
-        fake = stack.enter_context(FakeLLMServer(default_text="Vérification terminée."))
+        unique = secrets.token_hex(4)
+        reply = "Réponse du fil " + unique
+        fake = stack.enter_context(FakeLLMServer(default_text=reply))
         primary = stack.enter_context(Gateway(root / "one", source, fake.base_url))
         other = stack.enter_context(Gateway(root / "two", source, fake.base_url))
         ntfy_url = stack.enter_context(ntfy(root, extract_server(archive, root)))
         push, db = stack.enter_context(bridge(root, primary, ntfy_url, args.push_python, PROJECT))
-        url = stack.enter_context(proxy(root, primary, push))
-        account_url = stack.enter_context(same_port(adb, url))
-        other_url = stack.enter_context(same_port(adb, other.endpoint))
+        options = {
+            "tls_cert": args.tls_cert,
+            "tls_key": args.tls_key,
+            "tls_ca": args.tls_ca,
+            "executable": caddy_binary(root),
+        }
+        account = stack.enter_context(proxy(root, primary, push, **options))
+        secondary = other.endpoint
+        if args.tls_cert:
+            second_proxy = root / "secondary-proxy"
+            second_proxy.mkdir()
+            secondary = stack.enter_context(proxy(second_proxy, other, None, **options))
+        account_url = stack.enter_context(same_port(adb, account))
+        other_url = stack.enter_context(same_port(adb, secondary))
         stack.enter_context(same_port(adb, ntfy_url))
-        ui = Screen(adb)
+        ui = Screen(adb, stack.enter_context(editor(adb, root)))
         stack.enter_context(distributor(ui, apk, ntfy_url))
-        unique = secrets.token_hex(4)
         owner, alt = "Bureau-" + unique, "Autre-" + unique
         phrase = secrets.token_hex(14)
         title = "Discussion-" + unique
@@ -143,7 +190,9 @@ def run(args):
             launch(adb, APP)
             start_account(ui, owner, account_url, primary.key, phrase)
             enroll(ui)
-            device_id, topic = eventually("authenticated device subscription", lambda: active_registration(db))
+            device_id, topic = eventually(
+                "authenticated device subscription", lambda: active_registration(db)
+            )
             if not topic.startswith(ntfy_url + "/up"):
                 raise AssertionError("Device registered with another push origin")
             before = len(published_messages(topic))
@@ -154,21 +203,28 @@ def run(args):
             start_account(ui, alt, other_url, other.key, secrets.token_hex(14))
             process_absent(ui)
             session, run_id = trigger(primary, title)
-            event = eventually("terminal event in relay", lambda: completed_event(push, primary.key, run_id))
+            event = eventually(
+                "terminal event in relay",
+                lambda: completed_event(push, primary.key, run_id),
+            )
             if event["session_id"] != session:
                 raise AssertionError("Event lost its session association")
-            eventually("Android notification with this exact event", lambda: app_notice(adb, event["event_id"]))
+            notice = eventually(
+                "Android notification with this exact event",
+                lambda: app_notice(adb, event["event_id"]),
+            )
             pushed = published_messages(topic)
             if len(pushed) != before + 1 or pushed[-1].get("encoding") != "base64":
                 raise AssertionError("Expected one encrypted binary Web Push on the registered topic")
-            tap_notice(ui, owner, phrase, title)
+            tap_notice(ui, notice_title(adb, notice), owner, phrase, title, reply)
             ui.tap("Atelier")
             ui.tap("Notifications")
             ui.tap("Désactiver")
             eventually("server revocation", lambda: revoked_everywhere(db, device_id))
             _, second_run = trigger(primary, "Après révocation")
             revoked = eventually(
-                "terminal event after revoke", lambda: completed_event(push, primary.key, second_run)
+                "terminal event after revoke",
+                lambda: completed_event(push, primary.key, second_run),
             )
             if (
                 not revoked_everywhere(db, device_id, revoked["event_id"])
@@ -207,10 +263,34 @@ def main():
     parser.add_argument("--adb", default=shutil.which("adb") or "adb")
     parser.add_argument("--adb-port", type=int, default=5037)
     parser.add_argument(
-        "--push-python", default=sys.executable, help="Python with the dependencies from server/requirements.txt"
+        "--push-python",
+        default=sys.executable,
+        help="Python with the dependencies from server/requirements.txt",
     )
     parser.add_argument("--cache", type=Path, default=Path.home() / ".cache/hermes-mobile/ntfy")
-    run(parser.parse_args())
+    parser.add_argument(
+        "--tls-cert",
+        type=Path,
+        default=os.environ.get("HERMES_FIXTURE_TLS_CERT"),
+        help="PEM certificate for 127.0.0.1",
+    )
+    parser.add_argument(
+        "--tls-key",
+        type=Path,
+        default=os.environ.get("HERMES_FIXTURE_TLS_KEY"),
+        help="PEM key for the account certificate",
+    )
+    parser.add_argument(
+        "--tls-ca",
+        type=Path,
+        default=os.environ.get("HERMES_FIXTURE_TLS_CA"),
+        help="PEM fixture CA trusted by the disposable Android phone",
+    )
+    args = parser.parse_args()
+    tls = (args.tls_cert, args.tls_key, args.tls_ca)
+    if any(tls) and not all(tls):
+        parser.error("--tls-cert, --tls-key and --tls-ca must be supplied together")
+    run(args)
 
 
 if __name__ == "__main__":
