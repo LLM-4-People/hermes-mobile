@@ -34,6 +34,7 @@ OTHER = "Prépare ma réunion du lundi."
 TITLE = "Relecture de code"
 FORM = "Vérifier la modification"
 CAPTURES = {
+    "18-creer-outil.png": "Le menu du fil permet de demander un outil à partir de l’échange.",
     "19-demande-outil.png": "La demande de création est modifiable avant son envoi.",
     "20-essai-discussion.png": "Le formulaire proposé est ouvert en essai dans la discussion.",
     "21-brouillon-outil.png": "Le formulaire prépare un brouillon que la personne peut modifier.",

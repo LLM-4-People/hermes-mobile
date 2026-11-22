@@ -29,6 +29,8 @@ final class ThreadInstrumentJourney {
         ui.tap("Nouvelle conversation");
         send(first, "Vérifiez le calcul du total avant l’arrondi.");
         ui.tap("Autres actions");
+        ui.revealText("Créer un outil pour ce fil");
+        ui.capture("18-creer-outil");
         ui.tap("Créer un outil pour ce fil");
         String request = ui.fieldText("Message à Hermes");
         if (!request.equals(template)) throw new AssertionError("The French request did not enter the editable composer");
@@ -65,6 +67,8 @@ final class ThreadInstrumentJourney {
         ui.hideKeyboard();
         ui.capture("21-brouillon-outil");
         if (ui.has(RETURN)) ui.tap(RETURN);
+        ui.tap(OPEN);
+        ui.see(form);
         send(revision, "La priorité est prête à comparer.");
         ui.tap(COMPARE);
         ui.contains("Consigne du brouillon", "Avant", "Relire ce changement.",
