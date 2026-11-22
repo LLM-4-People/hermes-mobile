@@ -1,11 +1,39 @@
-"""Build a shell-only Android UI Automator text helper from the pinned project SDK."""
+"""Use a single external Android SDK UI automation session for the entire release proof."""
 
 from contextlib import contextmanager
+import base64
+import json
 import os
 from pathlib import Path
 import secrets
+import select
 import shutil
 import subprocess
+import time
+
+
+class AndroidControls:
+    """Keep the official SDK UI automation connected independently of both application processes."""
+
+    def __init__(self, process):
+        self.process = process
+
+    def answer(self):
+        limit = time.monotonic() + 35
+        while time.monotonic() < limit:
+            if not select.select([self.process.stdout], [], [], max(0, limit - time.monotonic()))[0]:
+                break
+            line = self.process.stdout.readline()
+            if not line:
+                raise RuntimeError("Android SDK UI session exited before returning a result")
+            if line.startswith(b"HM_UI "):
+                return base64.b64decode(line[6:].strip(), validate=True)
+        raise TimeoutError("Android SDK UI session did not respond within 35 seconds")
+
+    def send(self, action, **fields):
+        self.process.stdin.write((json.dumps(dict(action=action, **fields)) + "\n").encode())
+        self.process.stdin.flush()
+        return self.answer()
 
 
 @contextmanager
@@ -44,6 +72,23 @@ def editor(device, directory):
     try:
         device.run("push", str(jar), remote_jar)
         device.shell("chmod", "444", remote_jar)
-        yield remote_jar
+        command = device.command + ["shell", "-T", "uiautomator", "runtest", remote_jar, "-c",
+                                    "org.llm4people.hermes.verification.FocusedText", "-s"]
+        with subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                              stderr=subprocess.STDOUT, bufsize=0) as process:
+            controls = AndroidControls(process)
+            initialized = False
+            try:
+                if controls.answer() != b"ready":
+                    raise RuntimeError("Android SDK UI session did not initialize")
+                initialized = True
+                yield controls
+            finally:
+                try:
+                    if initialized and process.poll() is None:
+                        controls.send("finish")
+                finally:
+                    process.stdin.close()
+                    process.wait(timeout=30)
     finally:
-        device.shell("rm", "-f", remote_jar, name + ".txt")
+        device.shell("rm", "-f", remote_jar)

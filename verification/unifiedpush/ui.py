@@ -14,26 +14,22 @@ NTFY = "io.heckel.ntfy"
 
 
 class Screen:
-    def __init__(self, device, editor_jar):
+    def __init__(self, device, controls):
         self.device = device
-        self.editor_jar = editor_jar
-        self.tmp = "/data/local/tmp/hm-push-" + secrets.token_hex(8) + ".xml"
+        self.controls = controls
 
     def hierarchy(self):
         def capture():
-            self.device.shell("uiautomator", "dump", self.tmp)
-            if self.device.shell("sh", "-c", f"'test -s {self.tmp} && echo ready || true'") != "ready":
+            tree = self.controls.send("tree")
+            if not tree:
                 return None
-            try:
-                root = ElementTree.fromstring(self.device.run("exec-out", "cat", self.tmp))
-                # Freshly rebooted, busy AOSP images can cover the first permission dialog with a SystemUI ANR.
-                waiting = self.node("android:id/aerr_wait", root)
-                if waiting is not None and any("System UI" in node.get("text", "") for node in root.iter("node")):
-                    self.tap_node(waiting)
-                    return None
-                return (root,)
-            finally:
-                self.device.shell("rm", "-f", self.tmp)
+            root = ElementTree.fromstring(tree)
+            # First-boot SystemUI can cover the freshly launched distributor.
+            waiting = self.node("android:id/aerr_wait", root)
+            if waiting is not None and any("System UI" in node.get("text", "") for node in root.iter("node")):
+                self.tap_node(waiting)
+                return None
+            return (root,)
 
         return eventually("Android accessibility hierarchy", capture, timeout=45)[0]
 
@@ -108,25 +104,11 @@ class Screen:
     def type(self, label, value):
         if not re.fullmatch(r"[A-Za-z0-9_:/.-]+", value):
             raise ValueError("Unexpected characters in synthetic test input")
-        path = self.editor_jar.removesuffix(".jar") + ".txt"
-        try:
-            self.device.run("shell", "sh", "-c", f"'umask 077 && cat > {path}'", data=(label + "\n" + value).encode())
-            def enter():
-                # SystemUI can interrupt between identifying a field and applying the editor action.
-                self.hierarchy()
-                result = self.device.shell(
-                    "uiautomator", "runtest", self.editor_jar, "-c",
-                    "org.llm4people.hermes.verification.FocusedText", "-e", "valueFile", path, "-s",
-                )
-                if "OK (1 test)" in result:
-                    return True
-                if "No editor associated" in result or "editor label is absent" in result:
-                    return False
-                raise AssertionError("Android accessibility text entry failed: " + result[:1600])
+        def enter():
+            self.hierarchy()
+            return self.controls.send("text", label=label, value=value) == b"applied"
 
-            eventually("the named Android editor to accept text", enter)
-        finally:
-            self.device.shell("rm", "-f", path)
+        eventually("the named Android editor to accept text", enter)
 
     def allow_if_prompted(self, root=None):
         if root is None:

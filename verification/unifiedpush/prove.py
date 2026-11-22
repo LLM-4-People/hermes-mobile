@@ -251,7 +251,7 @@ def run(args):
                 )
             )
         finally:
-            adb.shell("rm", "-f", ui.tmp)
+            adb.shell("cmd", "statusbar", "collapse")
 
 
 def main():
