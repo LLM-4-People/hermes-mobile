@@ -80,7 +80,7 @@ public final class FocusedText extends UiAutomatorTestCase {
         } else {
             AccessibilityNodeInfo caption = new Control(new UiSelector().text(label)).node();
             if (caption == null) return false;
-            editor = caption.getLabelFor();
+            editor = "android.widget.EditText".contentEquals(caption.getClassName()) ? caption : caption.getLabelFor();
             if (editor == null) {
                 AccessibilityNodeInfo group = caption.getParent();
                 if (group == null) return false;
