@@ -144,12 +144,23 @@ def distributor(ui, apk, endpoint):
             root = ui.hierarchy()
             if ui.node(url_field, root) is not None:
                 return True
-            for label in ("Default server", "Settings", "More options"):
-                control = ui.node(label, root)
-                if control is not None:
-                    ui.tap_node(control)
-                    return False
-            ui.allow_if_prompted(root)
+            preference = ui.node("Default server", root)
+            if preference is not None:
+                ui.tap_node(preference)
+                return False
+            settings = ui.node("Settings", root)
+            if settings is not None:
+                if ui.node("Read the docs", root) is not None:
+                    ui.tap_node(settings)
+                else:
+                    # On compact phones the General preferences start below the visible notification rows.
+                    ui.scroll(root)
+                return False
+            menu = ui.node("More options", root)
+            if menu is not None:
+                ui.tap_node(menu)
+            else:
+                ui.allow_if_prompted(root)
             return False
 
         eventually("ntfy default server editor", open_editor)
