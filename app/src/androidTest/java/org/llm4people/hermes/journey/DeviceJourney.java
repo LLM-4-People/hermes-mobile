@@ -141,6 +141,7 @@ public final class DeviceJourney extends Instrumentation {
         ui.tap("Message à Hermes");
         ui.imeVisible();
         ui.fill("Message à Hermes", fixture.getString("draft"));
+        ui.usableComposer();
         ui.capture("09-compositeur-clavier");
         ui.back();
         lock();
@@ -179,6 +180,7 @@ public final class DeviceJourney extends Instrumentation {
         ui.absent(fixture.getString("draft"));
         unlock(primary, fixture.getString("phrase"));
         ui.see(fixture.getString("draft"));
+        ui.usableComposer();
         ui.capture("10-discussion-nuit-grands-caracteres");
         ui.tap("Atelier");
         ui.see("Espace de travail");

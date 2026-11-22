@@ -165,6 +165,23 @@ final class JourneyUi {
         });
     }
 
+    void usableComposer() {
+        main(() -> {
+            View root = window();
+            View editor = find(root, v -> v instanceof EditText && named(v, "Message à Hermes"));
+            View send = find(root, v -> named(v, "Envoyer"));
+            int target = Math.round(activity.getResources().getDisplayMetrics().density * 48);
+            for (View control : new View[]{editor, send}) {
+                Rect bounds = new Rect();
+                if (control == null || !control.getGlobalVisibleRect(bounds)
+                        || bounds.width() < target || bounds.height() < target
+                        || bounds.height() < control.getHeight() || bounds.width() < control.getWidth())
+                    throw new AssertionError("Composer action is clipped or under the 48dp touch target");
+            }
+            return null;
+        });
+    }
+
     void capture(String name) {
         Bitmap bitmap = until("laid out app window", () -> {
             View root = window();
