@@ -11,6 +11,21 @@ public final class ArtifactContractTest extends InstrumentationTestCase {
     private static final String EXAMPLE = "{\"version\":1,\"surface\":\"home\",\"title\":\"Atelier\"," +
             "\"blocks\":[{\"title\":\"Code\",\"actions\":[\"artifacts\"]},{\"type\":\"content\"}]}";
 
+    public void testRunInstructionsContainARecognizedPersonalForm() throws Exception {
+        String instructions = WorkspaceLayout.instructions() + WorkspaceLayout.pinnedReference("page/revue", "12", 0);
+        ArtifactCatalog catalog = new ArtifactCatalog(new JSONArray().put(message("assistant", instructions)));
+        assertEquals(1, catalog.records.size());
+        ArtifactCatalog.Record record = catalog.records.get(0);
+        assertEquals(WorkspaceLayout.FENCE, record.language);
+        WorkspaceLayout layout = WorkspaceLayout.parse(record.versions.get(0));
+        assertTrue(WorkspaceLayout.custom(layout.surface));
+        assertEquals("replace", layout.mode);
+        WorkspaceLayout.Block form = layout.blocks.get(0);
+        assertEquals("form", form.type);
+        assertFalse(form.fields.isEmpty());
+        assertFalse(form.prompt.isEmpty());
+    }
+
     public void testVocabularyAndLimits() throws Exception {
         WorkspaceLayout layout = WorkspaceLayout.parse(EXAMPLE);
         assertEquals("home", layout.surface);

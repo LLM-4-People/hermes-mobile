@@ -48,25 +48,24 @@ final class WorkspaceLayout {
     private WorkspaceLayout() {}
 
     static String instructions() {
-        return "You are displayed in Hermes Mobile. When asked to change the app layout, propose a complete " +
-                "JSON document in a fenced " + FENCE + " block. Only an explicitly applied proposal changes a " +
-                "screen. When asked to turn a discussion or review into a reusable tool, propose a named page " +
-                "with mode=replace and fields for the task. Describe its purpose in ordinary language. For a " +
-                "revision keep the same page slug and stable field IDs, and name the change. The person can try " +
-                "a proposal, pin it to this discussion, compare a revision and undo a change. Ask a focused " +
-                "clarification with choices when a decision is needed. Format: {\"version\":1,\"surface\":\"home\",\"title\":\"Atelier\"," +
-                "\"theme\":\"system\",\"density\":\"compact\",\"blocks\":[{\"title\":\"Travail\"," +
-                "\"actions\":[\"threads\",\"new_thread\"]},{\"type\":\"content\"}]}. " +
-                "Surface IDs: " + String.join(", ", SURFACES.keySet()) + ". Action IDs: " +
-                String.join(", ", ACTIONS.keySet()) + ". Theme system/light/dark; density compact/comfortable. " +
-                "Extend existing content with one content block, 1–" + MAX_BLOCKS + " blocks total. Section title, optional note and up to 8 " +
-                "distinct action IDs. With mode=replace, you can omit native content entirely, also on a new " +
-                "surface page/<lowercase-slug>. Blocks: {type:link,title,page}, {type:value,title,source}, " +
-                "{type:form,title,prompt,fields:[{id,label,kind,required}]}; use quoted JSON keys/strings. " +
-                "Form kind text, multiline, or choice with options. Forms stage editable drafts; users send in the " +
-                "native composer. Sources: " + String.join(", ", SOURCES) + ". Thread content can declare slots " +
-                "in desired order from " + String.join(", ", SLOTS) + ". Use French labels. For a versioned code artifact include its filename " +
-                "after the fence language, e.g. file=src/main.py or file=Dockerfile. For diffs use diff.";
+        return "Hermes Mobile renders layout proposals from one complete JSON document in a " + FENCE +
+                " fence. Describe its purpose or change in French. The person can try, pin, compare or undo; " +
+                "changes require their action. Ask a focused question with choices when a decision is needed. " +
+                "For existing screens, surface is one of " + String.join(", ", SURFACES.keySet()) +
+                ". Use version 1, a title and 1–" + MAX_BLOCKS + " blocks. Default mode extend needs exactly one " +
+                "{\"type\":\"content\"}; replace needs none. Optional theme system/light/dark and density compact/comfortable. " +
+                "Sections have a title, optional note and up to 8 distinct actions from " + String.join(", ", ACTIONS.keySet()) +
+                ". Other blocks include {type:link,title,page} and {type:value,title,source}; sources: " +
+                String.join(", ", SOURCES) + ". Thread content can order slots from " + String.join(", ", SLOTS) +
+                ". For code artifacts add a filename after the fence language, e.g. file=src/main.py or file=Dockerfile; use diff for diffs.\n" +
+                "For a reusable discussion or review tool, create a personal surface page/<lowercase-slug> in " +
+                "replace mode. Put each requested input in the form's fields. Kinds: text, multiline, or choice " +
+                "with options (an array of French strings). Forms prepare drafts that the person edits and sends. " +
+                "On revision return the whole page, retaining its surface and existing field IDs. Adapt this example " +
+                "to the task; use French labels and the exact opening and closing fence lines:\n```" + FENCE + "\n" +
+                "{\"version\":1,\"surface\":\"page/visite\",\"mode\":\"replace\",\"title\":\"Visite\",\"blocks\":[" +
+                "{\"type\":\"form\",\"title\":\"Lieu à visiter\",\"prompt\":\"Prépare cette visite.\",\"fields\":[" +
+                "{\"id\":\"lieu\",\"label\":\"Lieu\",\"kind\":\"text\",\"required\":true}]}]}\n```\n";
     }
 
     /** Only constrained identifiers enter run instructions. The proposed page and form values stay out. */

@@ -125,8 +125,11 @@ def verify_history(gateway, provider):
         if last_user_message(body) != receipt["user"]:
             raise AssertionError("Provider request does not match the canonical turn")
         instructions = provider_instructions(body)
-        if not all(token in instructions for token in ("hermes-workspace", "mode=replace", "type:form,title,prompt,fields")):
-            raise AssertionError("The provider did not receive the named-page and form schema")
+        example = re.search(r"^```hermes-workspace\n(.*?)\n```$", instructions, re.MULTILINE | re.DOTALL)
+        page = json.loads(example[1]) if example else {}
+        if not (page.get("surface", "").startswith("page/") and page.get("mode") == "replace" and
+                any(block.get("type") == "form" and block.get("fields") for block in page.get("blocks", []))):
+            raise AssertionError("The provider did not receive a complete named-page form example")
         surfaces = sorted(set(re.findall(r"\bsurface=(page/[a-z0-9_-]+)", instructions)))
         expected_surfaces = ["page/revue-code"] if receipt["user"] == REVISE else []
         if surfaces != expected_surfaces:
