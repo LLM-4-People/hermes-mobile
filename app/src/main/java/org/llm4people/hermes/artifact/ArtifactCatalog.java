@@ -25,7 +25,7 @@ final class ArtifactCatalog {
         Record(String title, String language) { this.title = title; this.language = language; }
     }
 
-    private static final class Block {
+    static final class Block {
         final int messageIndex, ordinal;
         final String language, filename, content;
 
@@ -57,35 +57,47 @@ final class ArtifactCatalog {
         }
     }
 
-    ArtifactCatalog(JSONArray messages) {
-        List<Block> newest = new ArrayList<>();
+    static final class Scan {
+        final List<Block> blocks = new ArrayList<>();
+        boolean limited;
+    }
+
+    static Scan scan(JSONArray messages) {
+        Scan scan = new Scan();
+        List<Block> newest = scan.blocks;
         int remaining = MAX_CHARS;
         int oldest = Math.max(0, messages.length() - MAX_MESSAGES);
-        limited = oldest > 0;
+        scan.limited = oldest > 0;
         for (int i = messages.length() - 1; i >= oldest; i--) {
             JSONObject msg = messages.optJSONObject(i);
             if (msg == null || !"assistant".equals(msg.optString("role"))) continue;
             String text = messageText(msg.opt("content"));
-            if (text == null) { limited = true; continue; }
+            if (text == null) { scan.limited = true; continue; }
             remaining -= text.length();
-            if (remaining < 0) { limited = true; break; }
+            if (remaining < 0) { scan.limited = true; break; }
             final int messageIndex = i;
             int capacity = MAX_FENCES - newest.size();
             ArrayDeque<Block> current = new ArrayDeque<>();
             Fences.scan(text, (language, filename, content, n) -> {
                 if (current.size() == capacity) {
                     current.removeLast();
-                    limited = true;
+                    scan.limited = true;
                 }
                 current.addFirst(new Block(messageIndex, n, language, filename, content));
                 return true;
             });
             newest.addAll(current);
-            if (newest.size() == MAX_FENCES && i > oldest) { limited = true; break; }
+            if (newest.size() == MAX_FENCES && i > oldest) { scan.limited = true; break; }
         }
         Collections.reverse(newest);
+        return scan;
+    }
+
+    ArtifactCatalog(JSONArray messages) {
+        Scan scan = scan(messages);
+        limited = scan.limited;
         LinkedHashMap<String, Record> groups = new LinkedHashMap<>();
-        for (Block b : newest) b.addVersion(groups);
+        for (Block b : scan.blocks) b.addVersion(groups);
         records.addAll(groups.values());
         Collections.reverse(records);
     }
@@ -95,7 +107,7 @@ final class ArtifactCatalog {
         catch (IOException e) { return null; }
     }
 
-    private String messageText(Object value) {
+    private static String messageText(Object value) {
         if (value instanceof String) return ((String) value).length() <= MAX_MESSAGE_CHARS ? (String) value : null;
         if (!(value instanceof JSONArray)) return "";
         JSONArray parts = (JSONArray) value;
