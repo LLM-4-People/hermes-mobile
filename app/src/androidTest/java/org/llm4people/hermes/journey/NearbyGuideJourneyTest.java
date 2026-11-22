@@ -37,6 +37,13 @@ public final class NearbyGuideJourneyTest extends InstrumentationTestCase {
                 """;
         try (Exchange server = new Exchange("200 OK", "Content-Type: application/json\r\n", transcript, data);
              WorkspaceAccountFixture fixture = new WorkspaceAccountFixture(context, server.endpoint())) {
+            String instrumentKey = "thread.instrument.v1.root";
+            android.content.SharedPreferences encrypted = context.getSharedPreferences(
+                    "workspace.test." + fixture.account.id, Context.MODE_PRIVATE);
+            fixture.account.write(instrumentKey, "{}");
+            assertEquals(1, encrypted.getAll().size());
+            String instrumentSlot = encrypted.getAll().keySet().iterator().next();
+            fixture.account.remove(instrumentKey);
             fixture.account.write("last-thread", "root");
             Method open = MainActivity.class.getDeclaredMethod("opened", Account.class);
             open.setAccessible(true);
@@ -72,6 +79,11 @@ public final class NearbyGuideJourneyTest extends InstrumentationTestCase {
                 ui.see("Repère 2, Mae Sri Thai, environ 214 m du centre. Replier les détails");
                 ui.absent("Écart des distances au centre : 8 m");
                 ui.absent("Modifier la comparaison");
+                // The persisted instrument can become unreadable between transcript hydration and run completion.
+                assertTrue(encrypted.edit().putInt(instrumentSlot, 3).commit());
+                runTestOnUiThread(() -> activity.nearbyGuide(origin, "root", "later-run", assistant, area));
+                ui.see("Réinitialiser…");
+                assertEquals(3, encrypted.getInt(instrumentSlot, 0));
                 String observed = server.observed();
                 assertEquals(1, observed.split("POST /p/travail/api/mobile/places/nearby ",-1).length - 1);
                 assertTrue(observed.contains("Authorization: Bearer fixture"));

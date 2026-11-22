@@ -5,7 +5,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.function.Supplier;
 
-/** Captures two app-owned native views while the host drives real permission and location services. */
+/** Captures app-owned native views while the host drives real permission and location services. */
 final class NearbyGuideCapture {
     private NearbyGuideCapture() {}
 
@@ -14,7 +14,7 @@ final class NearbyGuideCapture {
         long expires = SystemClock.elapsedRealtime() + 20 * 60_000L;
         while (SystemClock.elapsedRealtime() < expires) {
             if (new File(folder, "finish").isFile()) return;
-            for (String name : new String[]{"guide", "detail"}) {
+            for (String name : new String[]{"guide", "comparison", "detail"}) {
                 File request = new File(folder, "capture-" + name);
                 if (request.isFile() && request.delete()) {
                     JourneyUi ui = current.get();

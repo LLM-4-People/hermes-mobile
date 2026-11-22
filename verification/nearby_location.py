@@ -12,14 +12,24 @@ COARSE = "android.permission.ACCESS_COARSE_LOCATION"
 PERMISSION_CONTROLLERS = {"com.android.permissioncontroller", "com.google.android.permissioncontroller"}
 
 
-def location_access(device):
+def location_access(device, *, wait_for_install=False):
+    if wait_for_install:
+        def ready():
+            result = _location_grant(device)
+            return (result,) if result is not None else None
+        return eventually("the installed coarse runtime permission", ready, timeout=30)[0]
+    grant = _location_grant(device)
+    if grant is None:
+        raise AssertionError("Android did not report the app's coarse runtime permission")
+    return grant
+
+
+def _location_grant(device):
     dump = device.shell("dumpsys", "package", APP)
     if re.search(r'android\.permission\.ACCESS_(?:FINE|BACKGROUND)_LOCATION\b', dump):
         raise AssertionError("The app declares fine or background location")
     match = re.search(r'android\.permission\.ACCESS_COARSE_LOCATION: granted=(true|false)', dump)
-    if not match:
-        raise AssertionError("Android did not report the app's coarse runtime permission")
-    return match[1] == "true"
+    return match[1] == "true" if match else None
 
 
 def answer_android_location(ui, *, allow):

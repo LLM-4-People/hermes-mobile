@@ -36,7 +36,7 @@ def captures(device, output):
         images = {}
 
         def capture(name):
-            if name not in ("guide", "detail") or name in images:
+            if name not in ("guide", "comparison", "detail") or name in images:
                 raise ValueError("Unexpected or duplicate nearby capture")
             device.shell("run-as", APP, "touch", folder + "/capture-" + name)
             wait_file(name + ".done")

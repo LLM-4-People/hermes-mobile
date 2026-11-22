@@ -107,9 +107,12 @@ final class ThreadInstrumentPanel {
     }
 
     void admittedGuide(String runId, JSONObject verifiedRow, JSONObject approvedArea) {
-        if (!current() || verifiedRow == null) return;
+        if (!current() || forRow(verifiedRow).isEmpty()) return;
         // Reparse the admitted row and match its exact source bytes and segment to the current transcript.
-        for (Pin source : store.proposals(new JSONArray().put(verifiedRow))) {
+        List<Pin> verified;
+        try { verified = store.proposals(new JSONArray().put(verifiedRow)); }
+        catch (IllegalStateException unreadable) { readState(); return; }
+        for (Pin source : verified) {
             if (source.nearbyPlaces && present(source)) { places.admitted(runId, source, approvedArea); return; }
         }
     }

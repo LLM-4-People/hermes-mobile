@@ -55,3 +55,20 @@ class NearbyLocationTest(unittest.TestCase):
         for extra in ("FINE", "BACKGROUND"):
             with self.subTest(extra=extra), self.assertRaisesRegex(AssertionError, "fine or background"):
                 location_access(Package(COARSE + ": granted=true\nandroid.permission.ACCESS_" + extra + "_LOCATION"))
+
+    def test_wait_for_install_retries_until_coarse_permission_is_reported(self):
+        class DelayedPackage:
+            def __init__(self, outputs):
+                self.outputs = iter(outputs)
+                self.calls = 0
+
+            def shell(self, *args):
+                self.calls += 1
+                return next(self.outputs)
+
+        missing = DelayedPackage(["Package not ready yet"])
+        with self.assertRaisesRegex(AssertionError, "coarse runtime permission"):
+            location_access(missing)
+        delayed = DelayedPackage(["", COARSE + ": granted=false, flags=[ ]"])
+        self.assertFalse(location_access(delayed, wait_for_install=True))
+        self.assertEqual(delayed.calls, 2)
