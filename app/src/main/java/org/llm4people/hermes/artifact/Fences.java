@@ -2,6 +2,7 @@ package org.llm4people.hermes.artifact;
 
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.IntFunction;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -39,6 +40,8 @@ public final class Fences {
             if (bodyStart < 0 || bodyStart >= source.length()) return "";
             return commentName(source, bodyStart);
         }
+
+        public boolean workspace() { return WorkspaceLayout.FENCE.equals(language); }
 
         public boolean closes(Marker opening) {
             return bare && opening.symbol == symbol && width >= opening.width;
@@ -78,14 +81,24 @@ public final class Fences {
 
     /** Redact the exact verified bodies. The visible transcript can contain additional typed parts. */
     public static String without(String text, Map<Integer,String> proposals) {
+        return described(text, proposals, ignored -> "");
+    }
+
+    /** Substitute a spoken description at each verified source, preserving the order of the authored reply. */
+    public static String described(String text, Map<Integer,String> proposals, IntFunction<String> description) {
         if (proposals.isEmpty() || text.length() > ArtifactCatalog.MAX_MESSAGE_CHARS) return text;
         StringBuilder copy = new StringBuilder();
         int[] retainedFrom = {0};
         ranges(text, (opening, start, body, contentEnd, end, ordinal) -> {
             String expected = proposals.get(ordinal);
-            if (WorkspaceLayout.FENCE.equals(opening.language) && expected != null
+            if (opening.workspace() && expected != null
                     && expected.length() == contentEnd - body && text.regionMatches(body, expected, 0, expected.length())) {
                 copy.append(text, retainedFrom[0], start);
+                String label = description.apply(ordinal);
+                if (!label.isEmpty()) {
+                    copy.append(label);
+                    if (end > 0 && text.charAt(end - 1) == '\n') copy.append('\n');
+                }
                 retainedFrom[0] = end;
             }
             return true;

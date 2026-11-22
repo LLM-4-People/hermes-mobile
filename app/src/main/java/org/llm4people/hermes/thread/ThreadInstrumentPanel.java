@@ -2,6 +2,7 @@ package org.llm4people.hermes.thread;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.Context;
 import android.graphics.Typeface;
 import android.view.Gravity;
 import android.view.View;
@@ -104,11 +105,23 @@ final class ThreadInstrumentPanel {
         return matches;
     }
 
-    String prose(String text, List<Pin> proposals) {
+    static String spoken(Context context, String text, List<Pin> proposals) {
         if (proposals.isEmpty()) return text;
+        Map<Integer, String> titles = new HashMap<>();
+        for (Pin pin : proposals) titles.put(pin.fenceOrdinal, pin.title);
+        return Fences.described(text, bodies(proposals), ordinal ->
+                context.getString(R.string.instrument_spoken, titles.get(ordinal)));
+    }
+
+    private static Map<Integer, String> bodies(List<Pin> proposals) {
         Map<Integer, String> bodies = new HashMap<>();
         for (Pin pin : proposals) bodies.put(pin.fenceOrdinal, pin.pageJson);
-        String prose = Fences.without(text, bodies);
+        return bodies;
+    }
+
+    String prose(String text, List<Pin> proposals) {
+        if (proposals.isEmpty()) return text;
+        String prose = Fences.without(text, bodies(proposals));
         return prose.trim().isEmpty() ? "" : prose;
     }
 

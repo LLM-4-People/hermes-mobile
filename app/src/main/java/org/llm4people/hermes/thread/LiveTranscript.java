@@ -9,6 +9,7 @@ final class LiveTranscript {
     TranscriptPage preceding;
     TranscriptPage latest;
     boolean earlier;
+    boolean foldedWorkspace;
     boolean later;
 
     String source() { return prior; }

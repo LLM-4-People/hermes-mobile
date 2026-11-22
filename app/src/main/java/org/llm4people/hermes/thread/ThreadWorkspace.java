@@ -159,7 +159,8 @@ public final class ThreadWorkspace implements AutoCloseable {
                     || "hidden".equals(ThreadData.string(row, "display_kind"))) continue;
             String content = ThreadData.content(row);
             if (!content.trim().isEmpty()) {
-                voice.reader().readReply(content);
+                voice.reader().readReply(instruments == null ? content
+                        : ThreadInstrumentPanel.spoken(activity, content, instruments.forRow(row)));
                 return;
             }
         }

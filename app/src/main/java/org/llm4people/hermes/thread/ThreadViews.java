@@ -286,7 +286,8 @@ final class ThreadViews {
         MessageText.updateLive(liveText, liveTranscript, text, origin);
         if (wasExcerpt != liveTranscript.excerpt())
             fullLiveText.setText(liveTranscript.excerpt() ? R.string.transcript_read_excerpt : R.string.transcript_read_full);
-        fullLiveText.setVisibility(!text.isEmpty() && (liveTranscript.earlier || liveTranscript.later) ? View.VISIBLE : View.GONE);
+        boolean readableSource = liveTranscript.earlier || liveTranscript.later || liveTranscript.foldedWorkspace;
+        fullLiveText.setVisibility(!text.isEmpty() && readableSource ? View.VISIBLE : View.GONE);
         if (atEnd && !hasPrompts && !promptRows.visible() && !text.isEmpty()) list.post(() -> list.setSelection(list.getCount() - 1));
     }
 

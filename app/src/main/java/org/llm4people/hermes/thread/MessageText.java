@@ -110,8 +110,10 @@ final class MessageText {
         SpannableStringBuilder rendered = new SpannableStringBuilder();
         if (stream.earlier) rendered.append("…\n");
         // Adjacent live pages can share a paragraph. Avoid stacking paragraph insets there.
-        if (stream.preceding != null) rendered.append(styled(context, stream.preceding, false));
-        rendered.append(styled(context, stream.latest, false));
+        int lastWorkspace = Integer.MIN_VALUE;
+        if (stream.preceding != null) lastWorkspace = appendLive(context, rendered, stream.preceding, lastWorkspace);
+        lastWorkspace = appendLive(context, rendered, stream.latest, lastWorkspace);
+        stream.foldedWorkspace = lastWorkspace != Integer.MIN_VALUE;
         if (stream.later) rendered.append("…");
         // Preserve a selection only while its original passage remains at the same offsets.
         int selectedThrough = Math.max(target.getSelectionStart(), target.getSelectionEnd());
@@ -121,6 +123,27 @@ final class MessageText {
         } else {
             target.setText(rendered);
         }
+    }
+
+    // Collapse only parsed blocks in these two bounded display pages. The paged source reader
+    // keeps the original retained bytes, including unclosed or invalid workspace definitions.
+    private static int appendLive(Context context, SpannableStringBuilder rendered, TranscriptPage page, int lastBody) {
+        CharSequence formatted = styled(context, page, false);
+        int start = 0;
+        for (TranscriptPage.Block block : page.blocks) {
+            if (!block.marker.workspace()) continue;
+            rendered.append(formatted, start, block.displayStart);
+            if (block.bodyStart != lastBody) {
+                rendered.append(context.getString(R.string.instrument_stream_source), new StyleSpan(Typeface.ITALIC),
+                        Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            }
+            if (block.displayEnd > block.displayStart && formatted.charAt(block.displayEnd - 1) == '\n')
+                rendered.append('\n');
+            start = block.displayEnd;
+            lastBody = block.bodyStart;
+        }
+        rendered.append(formatted, start, formatted.length());
+        return lastBody;
     }
 
     private static void span(SpannableStringBuilder content, TranscriptPage.Mark mark, Object style) {
