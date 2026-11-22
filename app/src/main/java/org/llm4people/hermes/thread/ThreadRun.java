@@ -183,6 +183,7 @@ final class ThreadRun {
             started = -1;
             // Only a definitive rejection of the first attempt can return the text to the draft.
             boolean imageUnavailable = image != null && error instanceof DiscussionPhoto.Unavailable;
+            if (!fresh && imageUnavailable) { uncertain(); return; }
             if (fresh && (imageUnavailable || error instanceof HermesApi.HttpError http
                     && (http.status == 400 || http.status == 401 || http.status == 403 || http.status == 413 || http.status == 422))) {
                 journal.reject();

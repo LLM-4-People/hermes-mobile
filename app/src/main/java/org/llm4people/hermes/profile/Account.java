@@ -131,6 +131,12 @@ public final class Account implements AutoCloseable {
         }
     }
 
+    /** Opaque, per-selection comparison token for an Android result restored after relocking. */
+    public synchronized String selectionBinding(String nonce, String thread) {
+        try { return slot("photo-picker" + '\0' + nonce + '\0' + id + '\0' + endpoint + '\0' + bearer + '\0' + thread); }
+        catch (GeneralSecurityException unavailable) { throw new IllegalStateException("Selection binding unavailable", unavailable); }
+    }
+
     private String slot(String key) throws GeneralSecurityException {
         if (keys == null) throw new IllegalStateException("Profile is locked");
         if (key == null || key.isEmpty()) throw new IllegalArgumentException("Missing record key");

@@ -69,7 +69,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         voice = new VoiceDrafts(this);
         push = new MobilePush(this);
         files = new PublishedFiles(this);
-        photoPicker = new ThreadPhotoPicker(this);
+        photoPicker = new ThreadPhotoPicker(this, state);
         sharedText = new SharedTextFlow(this, () -> { displayDiscussion(); threads.inbox(); },
                 () -> navigate(WorkspaceNavigation.COMPOSER));
         sharedText.restore(state, getIntent());
@@ -86,6 +86,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         // The activity has no public view state. Discard framework dialog and view text too.
         outState.clear();
         sharedText.save(outState);
+        photoPicker.save(outState);
         if (handledDelivery != null) outState.putString("handled_delivery", handledDelivery);
     }
 

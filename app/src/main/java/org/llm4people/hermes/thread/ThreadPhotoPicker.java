@@ -5,6 +5,8 @@ import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Build;
+import android.os.Bundle;
+import java.util.UUID;
 import android.provider.MediaStore;
 import android.widget.Toast;
 
@@ -14,20 +16,36 @@ import org.llm4people.hermes.profile.Account;
 public final class ThreadPhotoPicker {
     private final Activity activity;
     private int requestCode = 0x5000;
-    private String profile;
-    private String thread;
-    private String scope;
+    private String nonce;
+    private String ownerProof;
+    private String threadProof;
+    private boolean reselect;
     private Uri selected;
 
-    public ThreadPhotoPicker(Activity activity) { this.activity = activity; }
+    public ThreadPhotoPicker(Activity activity, Bundle state) {
+        this.activity = activity;
+        if (state != null && state.getString("photo_nonce") != null) {
+            nonce = state.getString("photo_nonce");
+            requestCode = state.getInt("photo_request");
+            ownerProof = state.getString("photo_owner");
+            threadProof = state.getString("photo_thread");
+            reselect = state.getBoolean("photo_reselect");
+        }
+    }
+
+    public void save(Bundle state) {
+        if (nonce == null) return;
+        state.putString("photo_nonce", nonce);
+        state.putInt("photo_request", requestCode);
+        state.putString("photo_owner", ownerProof);
+        state.putString("photo_thread", threadProof);
+        // An unimported URI is a temporary grant and never belongs in saved activity state.
+        state.putBoolean("photo_reselect", reselect || selected != null);
+    }
 
     public void launch(Account account, ThreadWorkspace workspace) {
         if (account == null || workspace == null || !workspace.readyForPhoto()) return;
-        thread = workspace.sessionId();
-        profile = account.id;
-        scope = ThreadJournal.scope(profile, account.endpoint, account.bearer, thread);
-        selected = null;
-        requestCode = requestCode == 0x6fff ? 0x5000 : requestCode + 1;
+        begin(account, workspace.sessionId());
         try {
             if (Build.VERSION.SDK_INT >= 33) {
                 try {
@@ -43,8 +61,22 @@ public final class ThreadPhotoPicker {
         }
     }
 
+    void begin(Account account, String session) {
+        nonce = UUID.randomUUID().toString();
+        ownerProof = account.selectionBinding(nonce, "");
+        threadProof = account.selectionBinding(nonce, session);
+        reselect = false;
+        selected = null;
+        requestCode = requestCode == 0x6fff ? 0x5000 : requestCode + 1;
+    }
+
+    boolean owns(Account account, String session) {
+        return nonce != null && account.selectionBinding(nonce, "").equals(ownerProof)
+                && account.selectionBinding(nonce, session).equals(threadProof);
+    }
+
     public boolean result(int code, int result, Intent data) {
-        if (code != requestCode || profile == null) return false;
+        if (code != requestCode || nonce == null) return false;
         Uri uri = result == Activity.RESULT_OK && data != null ? data.getData() : null;
         if (uri == null || !"content".equals(uri.getScheme())) clear();
         else selected = uri;
@@ -52,18 +84,19 @@ public final class ThreadPhotoPicker {
     }
 
     public void unlocked(Account account) {
-        if (profile != null && !scope.equals(ThreadJournal.scope(account.id, account.endpoint, account.bearer, thread))) clear();
+        if (nonce != null && !account.selectionBinding(nonce, "").equals(ownerProof)) clear();
     }
 
     public boolean deliver(Account account, ThreadWorkspace workspace) {
-        if (account == null || workspace == null || selected == null || workspace.sessionId() == null) return false;
-        boolean owns = thread.equals(workspace.sessionId())
-                && scope.equals(ThreadJournal.scope(account.id, account.endpoint, account.bearer, thread));
+        if (account == null || workspace == null || nonce == null || selected == null && !reselect
+                || workspace.sessionId() == null) return false;
+        boolean owns = owns(account, workspace.sessionId());
         Uri uri = selected;
         clear();
-        if (owns) workspace.importPhoto(uri);
+        if (owns && uri != null) workspace.importPhoto(uri);
+        else if (owns) Toast.makeText(activity, "Sélection interrompue. Joignez de nouveau l’image.", Toast.LENGTH_LONG).show();
         return owns;
     }
 
-    private void clear() { profile = thread = scope = null; selected = null; }
+    private void clear() { nonce = ownerProof = threadProof = null; selected = null; reselect = false; }
 }
