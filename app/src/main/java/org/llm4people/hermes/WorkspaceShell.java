@@ -17,6 +17,8 @@ import android.widget.PopupMenu;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
+import org.llm4people.hermes.panel.BrainStudioRoutes;
+
 import java.util.Objects;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
@@ -208,6 +210,7 @@ final class WorkspaceShell {
             section(list, threadTitle);
             link(list, "Reprendre la discussion", null, "return");
             link(list, "Artefacts", null, "artifacts");
+            link(list, "Fichiers du projet", null, BrainStudioRoutes.ROUTE_WORKSPACE_FILES);
             link(list, "Modèle et outils", null, "models");
             link(list, "Utilisation", null, "stats");
         }
@@ -229,14 +232,29 @@ final class WorkspaceShell {
         ScrollView scroll = centeredScroll(list);
         subtitle(list, activity.getString(R.string.brain_subtitle));
         section(list, activity.getString(R.string.nav_brain));
+        link(list, "Ouvrir tout le Cerveau de Hermes",
+                "Mémoire, notes, partages, recherche et réglages vérifiés avec votre serveur.", "brain");
+        link(list, "Mémoire de Hermes",
+                "Ce que Hermes retient et ce qu’il sait à propos de vous.", BrainStudioRoutes.ROUTE_MEMORY);
+        link(list, "Notes intelligentes",
+                "Vos notes structurées et habitudes apprises avec Hermes.", BrainStudioRoutes.ROUTE_NOTES);
+        link(list, "Partagé avec moi",
+                "Notes, savoir-faire et éléments partagés par d’autres utilisateurs sur ce serveur.",
+                BrainStudioRoutes.ROUTE_SHARED_WITH_ME);
+        link(list, "Rechercher dans vos discussions",
+                "Retrouvez un passage dans tout votre historique.", BrainStudioRoutes.ROUTE_SEARCH);
         link(list, activity.getString(R.string.brain_skills_title),
-                activity.getString(R.string.brain_skills_hint), "skills");
+                activity.getString(R.string.brain_skills_hint), BrainStudioRoutes.ROUTE_SKILLS);
+        link(list, "Fichiers du projet",
+                "Parcourez les fichiers et modifications de la discussion en cours.",
+                BrainStudioRoutes.ROUTE_WORKSPACE_FILES);
+        link(list, "Réglages du profil",
+                "Modèle et capacités utilisés par défaut pour ce profil.",
+                BrainStudioRoutes.ROUTE_PROFILE_DEFAULTS);
         link(list, activity.getString(R.string.brain_models_title),
                 activity.getString(R.string.brain_models_hint), "models");
         link(list, activity.getString(R.string.brain_create_tool_title),
                 activity.getString(R.string.brain_create_tool_hint), "create_instrument");
-        section(list, activity.getString(R.string.brain_memory_title));
-        subtitle(list, activity.getString(R.string.brain_memory_hint));
         return scroll;
     }
 
@@ -322,6 +340,11 @@ final class WorkspaceShell {
                 item(menu, "Position pour ce message…", "nearby_area");
             }
             item(menu, "Renommer la discussion", "rename");
+            item(menu, "Épingler la discussion", BrainStudioRoutes.ACTION_PIN_THREAD);
+            item(menu, "Nouvelle piste à partir d’ici", BrainStudioRoutes.ACTION_FORK_THREAD);
+            item(menu, "Exporter la discussion", BrainStudioRoutes.ACTION_EXPORT_THREAD);
+            item(menu, "Partager sur ce serveur", BrainStudioRoutes.ACTION_SHARE_THREAD);
+            item(menu, "Fichiers du projet", BrainStudioRoutes.ROUTE_WORKSPACE_FILES);
             item(menu, "Artefacts", "artifacts");
             item(menu, "Modèle et outils", "models");
             item(menu, "Utilisation", "stats");

@@ -26,7 +26,11 @@ import org.llm4people.hermes.os.LiveRunActionReceiver;
 import org.llm4people.hermes.os.LiveRunNotification;
 import org.llm4people.hermes.os.LockGracePolicy;
 import org.llm4people.hermes.os.OsEntryIntent;
+import org.llm4people.hermes.panel.BrainStudioRoutes;
 import org.llm4people.hermes.panel.SessionPanel;
+import org.llm4people.hermes.panel.ShareWithUserSheet;
+import org.llm4people.hermes.panel.ThreadActions;
+import org.llm4people.hermes.panel.UniversalShareModel;
 import org.llm4people.hermes.profile.Account;
 import org.llm4people.hermes.profile.ProfileGate;
 import org.llm4people.hermes.push.MobilePush;
@@ -49,15 +53,17 @@ import java.util.function.BooleanSupplier;
 public final class MainActivity extends Activity implements ThreadWorkspace.Host, ArtifactDesk.Host, MobilePush.EventHost {
     private final ExecutorService notifications = Executors.newSingleThreadExecutor();
     private final Handler main = new Handler(Looper.getMainLooper());
-    private final ShellRoutes routes = new ShellRoutes();
+    private final ShellRoutes shellRoutes = new ShellRoutes();
     private final ActionRegistry actions = new ActionRegistry();
     private ProfileGate gate;
     private VoiceDrafts voice;
     private PublishedFiles files;
+    private ThreadActions threadActions;
     private ThreadPhotoPicker photoPicker;
     private ThreadCameraCapture cameraCapture;
     private Account account;
     private SessionPanel panels;
+    private RouteRegistry featureRoutes;
     private ThreadWorkspace threads;
     private WorkspaceShell shell;
     private WorkspaceNavigation navigation;
@@ -100,6 +106,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         voice = new VoiceDrafts(this);
         push = new MobilePush(this);
         files = new PublishedFiles(this);
+        threadActions = new ThreadActions(this);
         photoPicker = new ThreadPhotoPicker(this, state);
         cameraCapture = new ThreadCameraCapture(this, state);
         sharedText = new SharedTextFlow(this, () -> { displayDiscussion(); threads.inbox(); },
@@ -120,32 +127,32 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     }
 
     /** Extensibility hook for feature modules registering additional destinations. */
-    public ShellRoutes shellRoutes() { return routes; }
+    public ShellRoutes shellRoutes() { return shellRoutes; }
 
     /** Extensibility hook for feature modules registering additional workspace actions. */
     public ActionRegistry actionRegistry() { return actions; }
 
     private void registerBuiltInRoutes() {
-        routes.register(WorkspaceNavigation.DISCUSSION, (route, force) -> renderDiscussion(false, force));
-        routes.register(WorkspaceNavigation.COMPOSER, (route, force) -> renderDiscussion(true, force));
-        routes.register(WorkspaceNavigation.HOME, (route, force) -> {
+        shellRoutes.register(WorkspaceNavigation.DISCUSSION, (route, force) -> renderDiscussion(false, force));
+        shellRoutes.register(WorkspaceNavigation.COMPOSER, (route, force) -> renderDiscussion(true, force));
+        shellRoutes.register(WorkspaceNavigation.HOME, (route, force) -> {
             navigation.display(route, this::leavingSurface);
             shell.show(ArtifactDesk.decorate(this, account, "home", shell.desk(account.label), activeHost), "Atelier");
         });
-        routes.register(WorkspaceNavigation.BRAIN, (route, force) -> {
+        shellRoutes.register(WorkspaceNavigation.BRAIN, (route, force) -> {
             navigation.display(route, this::leavingSurface);
             shell.show(shell.brain(), getString(R.string.nav_brain));
         });
-        routes.register(WorkspaceNavigation.ACTIVITY, (route, force) -> {
+        shellRoutes.register(WorkspaceNavigation.ACTIVITY, (route, force) -> {
             navigation.display(route, this::leavingSurface);
             shell.show(shell.activitySurface(WorkspaceDialogs.securitySummary(this, account.id)),
                     getString(R.string.nav_activity));
         });
-        routes.register(WorkspaceNavigation.GALLERY, (route, force) -> {
+        shellRoutes.register(WorkspaceNavigation.GALLERY, (route, force) -> {
             navigation.display(route, this::leavingSurface);
             shell.show(ArtifactDesk.pages(this, account, activeHost), "Mes écrans");
         });
-        routes.setFallback((route, force) -> {
+        shellRoutes.setFallback((route, force) -> {
             View page = customPages.get(route);
             if (page == null) page = ArtifactDesk.page(this, account, route, activeHost);
             if (page == null) {
@@ -186,6 +193,9 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             if (threads.remoteSessionId() != null) files.show(threads.remoteSessionId());
         });
         actions.register("workspace", () -> navigate(WorkspaceNavigation.HOME));
+        actions.register("brain", () -> {
+            if (featureRoutes != null) panels.showBrainHub(featureRoutes);
+        });
         actions.register("reminders", () -> panels.showReminders());
         actions.register("notifications", () -> push.settings(account));
         actions.register("restore", () -> ArtifactDesk.manage(this, account, activeHost));
@@ -270,6 +280,8 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         threads = new ThreadWorkspace(this, api, account, this, voice);
         threads.setInstrumentHost(activeHost);
         LiveRunActionReceiver.setStopHandler(liveStopHandler);
+        threadActions.unlock(account, api);
+        featureRoutes = BrainStudioRoutes.register(new RouteRegistry(), brainHandlers());
         setContentView(shell.root);
         displayDiscussion();
         files.unlock(account, api);
@@ -374,6 +386,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         if (notice != null) notice.dismiss();
         notice = null;
         if (files != null) files.dismiss();
+        if (threadActions != null) threadActions.dismiss();
         if (!keepThreadEditor) {
             if (threads != null) threads.dismissDialogs();
             ArtifactDesk.dismiss(this);
@@ -426,7 +439,87 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         voice.reader().stop();
         if ("stop_reading".equals(id)) return;
         if (!"restore".equals(id)) dismissOverlays();
-        actions.dispatch(id);
+        if (actions.contains(id)) actions.dispatch(id);
+        else if (featureRoutes == null || !featureRoutes.dispatch(id)) {
+            Diagnostics.warning("workspace", "unknown_action");
+        }
+    }
+
+    private BrainStudioRoutes.Handlers brainHandlers() {
+        return new BrainStudioRoutes.Handlers() {
+            private Runnable returnToHub() {
+                RouteRegistry current = featureRoutes;
+                return current == null ? null : () -> panels.showBrainHub(current);
+            }
+
+            private BooleanSupplier activeThreadCheck() {
+                ThreadWorkspace origin = threads;
+                String currentSession = origin == null ? null : origin.sessionId();
+                return () -> origin != null && threads == origin && currentSession != null
+                        && currentSession.equals(origin.sessionId());
+            }
+
+            private String activeRemoteSessionId() {
+                if (threads == null) return null;
+                String tip = threads.remoteSessionId();
+                return tip != null && !tip.isEmpty() ? tip : threads.sessionId();
+            }
+
+            @Override public void openMemory() { panels.showMemory(returnToHub()); }
+
+            @Override public void openNotes() {
+                panels.showNotes(activeThreadCheck(), MainActivity.this::stageDraft, returnToHub());
+            }
+
+            @Override public void openSharedWithMe() {
+                panels.showSharedWithMe(MainActivity.this::stageDraft, returnToHub());
+            }
+
+            @Override public void openGlobalSearch() {
+                panels.showGlobalSearch(id -> { displayDiscussion(); threads.open(id); }, returnToHub());
+            }
+
+            @Override public void openSkillStudio() {
+                panels.showSkillStudio(activeThreadCheck(), MainActivity.this::stageDraft, returnToHub());
+            }
+
+            @Override public void openWorkspaceFiles() {
+                String session = activeRemoteSessionId();
+                if (session == null) {
+                    message("Choisir une discussion", "Ouvrez une discussion pour parcourir les fichiers du projet.");
+                    return;
+                }
+                panels.showWorkspaceFiles(session, activeThreadCheck(), MainActivity.this::stageDraft, returnToHub());
+            }
+
+            @Override public void openProfileDefaults() { panels.showProfileDefaults(returnToHub()); }
+
+            @Override public void togglePinThread() {
+                String remote = activeRemoteSessionId();
+                if (remote != null) threadActions.togglePin(remote, null);
+            }
+
+            @Override public void forkThread() {
+                String session = activeRemoteSessionId();
+                if (session != null) {
+                    threadActions.showForkDialog(session, threads.messages(),
+                            forkedId -> { displayDiscussion(); threads.open(forkedId); });
+                }
+            }
+
+            @Override public void exportThread() {
+                String session = activeRemoteSessionId();
+                if (session != null) threadActions.showExportDialog(session, threads.title());
+            }
+
+            @Override public void shareThread() {
+                String session = activeRemoteSessionId();
+                if (session != null) {
+                    ShareWithUserSheet.openShareSheet(panels, UniversalShareModel.KIND_SESSION,
+                            session, threads.title(), null);
+                }
+            }
+        };
     }
 
     private void message(String title, String body) {
@@ -526,7 +619,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         String route = navigation.current();
         customPages.keySet().removeIf(id -> !navigation.contains(id));
         shell.setActiveRoute(route);
-        routes.render(route, force);
+        shellRoutes.render(route, force);
         pendingChanged();
     }
 
@@ -618,6 +711,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             return;
         }
         if (files != null && files.result(code, result, data)) return;
+        if (threadActions != null && threadActions.result(code, result, data)) return;
         super.onActivityResult(code, result, data);
     }
 
@@ -656,6 +750,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         if (voice != null) voice.reader().stop();
         dismissOverlays();
         if (files != null) files.lock();
+        if (threadActions != null) threadActions.lock();
         if (threads != null) {
             try {
                 threads.close();
@@ -665,6 +760,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         }
         notice = null;
         panels = null;
+        featureRoutes = null;
         threads = null;
         shell = null;
         navigation = null;
@@ -749,6 +845,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     @Override protected void onDestroy() {
         clearWorkspace();
         if (files != null) files.close();
+        if (threadActions != null) threadActions.close();
         notifications.shutdownNow();
         super.onDestroy();
     }

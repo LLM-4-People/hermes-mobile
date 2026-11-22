@@ -17,6 +17,7 @@ import android.widget.TextView;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.llm4people.hermes.R;
+import org.llm4people.hermes.RouteRegistry;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.artifact.ArtifactDesk;
 import org.llm4people.hermes.net.HermesApi;
@@ -62,6 +63,25 @@ public final class SessionPanel implements AutoCloseable {
     }
     public void showReminders() { new ReminderPanel(this).show(); }
     public void showReminder(String jobId) { new ReminderPanel(this).open(jobId); }
+    public void showBrainHub(RouteRegistry registry) { new BrainHubPanel(this, registry).show(); }
+    public void showMemory(Runnable parent) { new MemoryPanel(this, parent).show(); }
+    public void showNotes(BooleanSupplier activeThread, Consumer<String> stageDraft, Runnable parent) {
+        new NotesPanel(this, activeThread, stageDraft, parent).show();
+    }
+    public void showSharedWithMe(Consumer<String> stageDraft, Runnable parent) {
+        ShareWithUserSheet.showSharedWithMe(this, stageDraft, parent);
+    }
+    public void showGlobalSearch(Consumer<String> openThread, Runnable parent) {
+        new GlobalSearchPanel(this, openThread, parent).show();
+    }
+    public void showSkillStudio(BooleanSupplier activeThread, Consumer<String> stageDraft, Runnable parent) {
+        new SkillStudio(this, activeThread, stageDraft, parent).show();
+    }
+    public void showWorkspaceFiles(String sessionId, BooleanSupplier activeThread,
+                                   Consumer<String> stageDraft, Runnable parent) {
+        new WorkspaceFilesPanel(this, sessionId, activeThread, stageDraft, parent).show();
+    }
+    public void showProfileDefaults(Runnable parent) { new ProfileDefaultsPanel(this, parent).show(); }
 
     /** Rebuild only the customized frame, retaining the native form and its in-flight requests. */
     public boolean refreshLayout() {
