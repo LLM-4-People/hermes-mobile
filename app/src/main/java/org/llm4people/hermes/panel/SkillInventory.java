@@ -26,23 +26,26 @@ final class SkillInventory {
     }
 
     static List<SkillInventory> parse(JSONObject response) throws JSONException {
+        if (response.has("object") && !"list".equals(response.opt("object")))
+            throw new JSONException("Invalid skill catalog");
         JSONArray rows = response.getJSONArray("data");
         ArrayList<SkillInventory> skills = new ArrayList<>(rows.length());
         for (int i = 0; i < rows.length(); i++) {
-            JSONObject row = rows.getJSONObject(i);
-            String name = text(row, "name");
-            if (name.trim().isEmpty() || name.codePoints().anyMatch(Character::isISOControl))
-                throw new JSONException("Invalid skill name");
-            skills.add(new SkillInventory(name, text(row, "description"), text(row, "category")));
+            JSONObject row = rows.optJSONObject(i);
+            if (row == null || !(row.opt("name") instanceof String name)) continue;
+            // The name is a load identifier. Removing a control character would request a different skill.
+            if (name.trim().isEmpty() || name.codePoints().anyMatch(Character::isISOControl)) continue;
+            String description = optionalText(row, "description");
+            String category = optionalText(row, "category");
+            if (description != null && category != null) skills.add(new SkillInventory(name, description, category));
         }
+        if (rows.length() > 0 && skills.isEmpty()) throw new JSONException("No usable skill entries");
         return skills;
     }
 
-    private static String text(JSONObject row, String key) throws JSONException {
+    private static String optionalText(JSONObject row, String key) {
         if (row.isNull(key)) return "";
-        Object value = row.get(key);
-        if (value instanceof String) return (String) value;
-        throw new JSONException("Invalid skill metadata");
+        return row.opt(key) instanceof String text ? text : null;
     }
 
     private static String fold(String value) {
