@@ -40,7 +40,7 @@
         android:layout_width="20dp"
         android:layout_height="20dp"
         android:layout_marginStart="8dp"
-        android:src="@drawable/ic_go"
+        android:src="@drawable/ic_navigate_forward"
         android:tint="@color/accent"
         android:importantForAccessibility="no" />
 </LinearLayout>

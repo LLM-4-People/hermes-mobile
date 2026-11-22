@@ -246,7 +246,7 @@ final class SessionSettings {
                     Button choose = Ui.button(panel.activity, panel.t(R.string.panel_choose_tools, name), v -> editMembers(name));
                     choose.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
                     choose.setSingleLine(false);
-                    choose.setCompoundDrawablesRelativeWithIntrinsicBounds(0, 0, R.drawable.ic_go, 0);
+                    choose.setCompoundDrawablesRelativeWithIntrinsicBounds(0, 0, R.drawable.ic_navigate_forward, 0);
                     choose.setCompoundDrawableTintList(panel.activity.getColorStateList(R.color.accent));
                     choose.setCompoundDrawablePadding(Ui.dp(panel.activity, 8));
                     choose.setPaddingRelative(Ui.dp(panel.activity, 32), Ui.dp(panel.activity, 6),
