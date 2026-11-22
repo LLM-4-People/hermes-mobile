@@ -158,7 +158,7 @@ public final class DistributorLifecycleTest extends InstrumentationTestCase {
             store.enable(store.forProfile(device.profile));
         }
         setFixture(PackageManager.COMPONENT_ENABLED_STATE_DISABLED);
-        DistributorEnrollment.reconcile(context);
+        assertFalse(MobilePush.isEnabled(context, devices.get(0).profile));
         for (PushStore.Device device : devices) {
             assertEquals(PushStore.REMOVING, store.forProfile(device.profile).state);
             assertFalse(MobilePush.isEnabled(context, device.profile));
