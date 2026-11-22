@@ -65,7 +65,7 @@ public class ThreadSlotsTest extends InstrumentationTestCase {
                 ThreadViews view = new ThreadViews(activity, input.controller(activity));
                 AtomicInteger sends = new AtomicInteger();
                 ArrayList<String> drafts = new ArrayList<>();
-                view.chat("Bonjour", drafts::add, sends::incrementAndGet, () -> {}, () -> {}, () -> {});
+                view.chat("Bonjour", drafts::add, sends::incrementAndGet, () -> {}, () -> {});
                 activity.setContentView(view.root);
                 View mic = find(view.root, activity.getString(R.string.voice_dictate));
                 assertNotNull(mic);
