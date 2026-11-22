@@ -3,7 +3,6 @@ package org.llm4people.hermes;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.graphics.Typeface;
-import android.os.CancellationSignal;
 import android.text.Editable;
 import android.text.InputType;
 import android.text.TextWatcher;
@@ -21,6 +20,7 @@ import android.widget.Toast;
 import org.llm4people.hermes.os.BiometricVault;
 import org.llm4people.hermes.os.HermesWidgetPinning;
 import org.llm4people.hermes.os.HermesWidgetSpec;
+import org.llm4people.hermes.os.HermesWidgetStore;
 import org.llm4people.hermes.os.LockGracePolicy;
 import org.llm4people.hermes.profile.Account;
 import org.llm4people.hermes.profile.ProfileGate;
@@ -189,7 +189,7 @@ final class WorkspaceDialogs {
         refreshBio.run();
 
         final AlertDialog[] dialogHolder = new AlertDialog[1];
-        final CancellationSignal[] activeEnroll = new CancellationSignal[1];
+        final BiometricVault.Session[] activeEnroll = new BiometricVault.Session[1];
         bioAction.setOnClickListener(v -> {
             if (BiometricVault.isEnrolled(activity, account.id)) {
                 BiometricVault.revoke(activity, account.id);
@@ -283,13 +283,11 @@ final class WorkspaceDialogs {
         return dialog;
     }
 
-    static void pinQuickWidget(Activity activity) {
-        pinQuickWidget(activity, null);
-    }
-
+    /** Each profile pins its own quick-actions widget, so profiles never overwrite or purge each other's. */
     static void pinQuickWidget(Activity activity, String ownerProfileId) {
+        if (ownerProfileId == null || ownerProfileId.isEmpty()) return;
         HermesWidgetSpec spec = new HermesWidgetSpec(
-                "hermes_quick_actions",
+                HermesWidgetStore.profileScopedId("hermes_quick_actions", ownerProfileId),
                 activity.getString(R.string.widget_title),
                 activity.getString(R.string.widget_quick_subtitle),
                 HermesWidgetSpec.Template.QUICK_ACTIONS,

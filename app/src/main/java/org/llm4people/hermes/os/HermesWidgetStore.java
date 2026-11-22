@@ -41,15 +41,55 @@ public final class HermesWidgetStore {
         this.backing = Objects.requireNonNull(backing);
     }
 
-    public synchronized void upsertSpec(HermesWidgetSpec spec) {
+    /**
+     * Stores a spec unless another profile already owns this widget ID. An unowned write never
+     * strips an existing owner, so ownership can only be claimed, never silently erased or stolen.
+     */
+    public synchronized boolean upsertSpec(HermesWidgetSpec spec) {
         Objects.requireNonNull(spec);
+        if (!ownerAllows(spec.widgetId, spec.ownerProfileId)) {
+            logWarning("spec_owner_conflict");
+            return false;
+        }
         backing.put(SPEC_PREFIX + spec.widgetId, spec.encode());
         logEvent("spec_upserted");
+        return true;
     }
 
-    public synchronized void upsertSpec(HermesWidgetSpec spec, String ownerProfileId) {
+    public synchronized boolean upsertSpec(HermesWidgetSpec spec, String ownerProfileId) {
         Objects.requireNonNull(spec);
-        upsertSpec(spec.withOwner(ownerProfileId));
+        return upsertSpec(spec.withOwner(ownerProfileId));
+    }
+
+    /** Removes a spec only when it is unowned or owned by {@code ownerProfileId}. */
+    public synchronized boolean removeSpec(String widgetId, String ownerProfileId) {
+        if (!ownerAllows(widgetId, ownerProfileId)) {
+            logWarning("spec_owner_conflict");
+            return false;
+        }
+        return removeSpec(widgetId);
+    }
+
+    private boolean ownerAllows(String widgetId, String requester) {
+        HermesWidgetSpec existing = spec(widgetId);
+        return existing == null || existing.ownerProfileId == null || existing.ownerProfileId.equals(requester);
+    }
+
+    /** Derives a stable per-profile widget ID without exposing the local profile ID in launcher intents. */
+    public static String profileScopedId(String baseId, String ownerProfileId) {
+        if (!HermesWidgetSpec.validWidgetId(baseId)) throw new IllegalArgumentException("Invalid widget id");
+        if (ownerProfileId == null || ownerProfileId.isEmpty()) return baseId;
+        try {
+            byte[] digest = java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(ownerProfileId.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            StringBuilder suffix = new StringBuilder(16);
+            for (int i = 0; i < 8; i++) suffix.append(String.format(java.util.Locale.ROOT, "%02x", digest[i]));
+            String scoped = baseId + "_" + suffix;
+            if (!HermesWidgetSpec.validWidgetId(scoped)) throw new IllegalArgumentException("Widget id too long");
+            return scoped;
+        } catch (java.security.NoSuchAlgorithmException unavailable) {
+            throw new IllegalStateException(unavailable);
+        }
     }
 
     public synchronized String ownerForWidget(String widgetId) {

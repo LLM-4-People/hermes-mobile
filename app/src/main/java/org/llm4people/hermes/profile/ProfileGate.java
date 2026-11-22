@@ -3,7 +3,6 @@ package org.llm4people.hermes.profile;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
-import android.os.CancellationSignal;
 import android.text.Editable;
 import android.text.InputType;
 import android.text.TextWatcher;
@@ -36,7 +35,7 @@ public final class ProfileGate {
     private Consumer<String> onForget = id -> {};
     private Account active;
     private AlertDialog confirmation;
-    private CancellationSignal activeBiometric;
+    private BiometricVault.Session activeBiometric;
     private int generation;
     private boolean nested;
     private boolean busy;
@@ -97,9 +96,9 @@ public final class ProfileGate {
     }
 
     private void cancelBiometric() {
-        CancellationSignal signal = activeBiometric;
+        BiometricVault.Session session = activeBiometric;
         activeBiometric = null;
-        if (signal != null && !signal.isCanceled()) signal.cancel();
+        if (session != null) session.cancel();
     }
 
     private void invalidate() {
@@ -117,6 +116,12 @@ public final class ProfileGate {
         }
     }
 
+    /** Tracked like every gate dialog so lock, switch and close dismiss it. */
+    private void showLanguagePicker() {
+        if (confirmation != null) confirmation.dismiss();
+        confirmation = AppLanguage.showPicker(activity, null);
+    }
+
     private void chooser(String message) {
         generation++;
         nested = false;
@@ -124,7 +129,7 @@ public final class ProfileGate {
         store.profiles().forEach((id, label) -> screen.action(label, false, view -> unlock(id, label)));
         screen.action(activity.getString(R.string.profile_add_action), true, view -> add(true));
         screen.action(activity.getString(R.string.language_action), false,
-                view -> { if (!busy) AppLanguage.showPicker(activity, null); });
+                view -> { if (!busy) showLanguagePicker(); });
         if (message != null) screen.status(message, false);
     }
 
@@ -199,11 +204,11 @@ public final class ProfileGate {
         });
         if (canGoBack) screen.action(activity.getString(R.string.profile_back_to_profiles), false, view -> { if (!busy) chooser(null); });
         else screen.action(activity.getString(R.string.language_action), false,
-                view -> { if (!busy) AppLanguage.showPicker(activity, null); });
+                view -> { if (!busy) showLanguagePicker(); });
     }
 
     /** Opt-in hardware-backed biometric enrollment using the currently unlocked account. */
-    public CancellationSignal enrollBiometric(Account unlocked, BiometricVault.EnrollmentCallback callback) {
+    public BiometricVault.Session enrollBiometric(Account unlocked, BiometricVault.EnrollmentCallback callback) {
         Objects.requireNonNull(callback);
         if (unlocked == null || unlocked != active) {
             callback.onError();
@@ -213,7 +218,7 @@ public final class ProfileGate {
         int epoch = generation;
         try {
             byte[] payload = store.serializeForBiometric(unlocked);
-            CancellationSignal signal = BiometricVault.enroll(activity, unlocked.id, unlocked.label, payload,
+            BiometricVault.Session signal = BiometricVault.enroll(activity, unlocked.id, unlocked.label, payload,
                     new BiometricVault.EnrollmentCallback() {
                         @Override public void onEnrolled() {
                             activeBiometric = null;

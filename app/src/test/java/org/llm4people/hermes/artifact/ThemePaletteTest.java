@@ -153,4 +153,53 @@ public final class ThemePaletteTest {
             // expected
         }
     }
+
+
+    @Test public void singleSurfaceOrInkSystemOverrideSurvivesDayNightSwitch() throws Exception {
+        // surface_hex only, applied in day mode, must reload in night mode (was StateManager corruption).
+        ThemePalette.OverrideSpec surfaceOnly = ThemePalette.OverrideSpec.validated(
+                "system", null, null, "#FAF8F5", null, "comfortable", 0, "paper", false);
+        assertEquals(surfaceOnly, ThemePalette.OverrideSpec.decode(surfaceOnly.encode(), true));
+        assertEquals(surfaceOnly, ThemePalette.OverrideSpec.validated(
+                "system", null, null, "#FAF8F5", null, "comfortable", 0, "paper", true));
+        for (boolean night : new boolean[]{false, true}) {
+            ThemePalette resolved = ThemePalette.resolve(surfaceOnly, night);
+            assertEquals(0xFFFAF8F5, resolved.surface);
+            assertEquals(ThemePalette.DAY_INK, resolved.ink);
+            assertTrue(ThemePalette.contrastRatio(resolved.ink, resolved.surface) >= ThemePalette.WCAG_AA_NORMAL);
+        }
+
+        // ink_hex only: valid in either mode, and resolve never pairs it with an unreadable surface.
+        ThemePalette.OverrideSpec inkOnly = ThemePalette.OverrideSpec.validated(
+                "system", null, null, null, "#1A1917", "comfortable", 0, "paper", true);
+        assertEquals(inkOnly, ThemePalette.OverrideSpec.decode(inkOnly.encode(), false));
+        assertEquals(0xFF1A1917, ThemePalette.resolve(inkOnly, false).ink);
+        ThemePalette inkNight = ThemePalette.resolve(inkOnly, true);
+        assertEquals(ThemePalette.NIGHT_INK, inkNight.ink);
+        assertTrue(ThemePalette.contrastRatio(inkNight.ink, inkNight.surface) >= ThemePalette.WCAG_AA_NORMAL);
+    }
+
+    @Test public void singleColorOverrideStillRejectsUnreadableAndExplicitModeMismatch() {
+        for (boolean night : new boolean[]{false, true}) {
+            // Neither day nor night ink reaches 4.5:1 on mid grey, and grey ink fails on both surfaces.
+            assertContrastRejected(() -> ThemePalette.OverrideSpec.validated(
+                    "system", null, null, "#777777", null, "comfortable", 0, "paper", night));
+            assertContrastRejected(() -> ThemePalette.OverrideSpec.validated(
+                    "system", null, null, null, "#808080", "comfortable", 0, "paper", night));
+        }
+        // An explicit light theme stays strict: its day ink is unreadable on a dark surface.
+        assertContrastRejected(() -> ThemePalette.OverrideSpec.validated(
+                "light", null, null, "#1C2823", null, "comfortable", 0, "paper", true));
+    }
+
+    private static void assertContrastRejected(Action action) {
+        try {
+            action.run();
+            fail("Expected WCAG-AA rejection");
+        } catch (ThemePalette.ContrastException expected) {
+            assertTrue(expected.ratio < ThemePalette.WCAG_AA_NORMAL);
+        } catch (IOException other) {
+            fail("Expected ContrastException, got " + other);
+        }
+    }
 }

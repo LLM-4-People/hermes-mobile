@@ -1004,7 +1004,7 @@ public final class ThreadWorkspace implements AutoCloseable {
                         if (op instanceof LiveUiPatch.Op.UpsertWidget uw) {
                             HomePinBridge.syncWidget(activity, uw.widget(), account.id);
                         } else if (op instanceof LiveUiPatch.Op.RemoveWidget rw) {
-                            HomePinBridge.removeWidget(activity, rw.widgetId());
+                            HomePinBridge.removeWidget(activity, rw.widgetId(), account.id);
                         }
                     }
                     if (instrumentHost != null) instrumentHost.onLayoutChanged();
@@ -1022,15 +1022,25 @@ public final class ThreadWorkspace implements AutoCloseable {
                 try {
                     LiveUiPatch.StateManager manager = LiveUiPatch.StateManager.forAccount(account, ThemePalette.isNight(activity));
                     java.util.Set<String> affectedWidgets = new java.util.HashSet<>(manager.widgetIds());
-                    manager.rollbackAllTo(revisionId);
+                    List<LiveUiPatch.StateManager.AppliedRevision> reverted = manager.rollbackAllTo(revisionId);
                     affectedWidgets.addAll(manager.widgetIds());
                     HomePinBridge.syncWidgets(activity, manager.widgets(), affectedWidgets, account.id);
                     appliedLiveUiRevisionId = null;
                     if (screen != null && screen.liveUiBar != null) screen.liveUiBar.showReverted();
                     refreshQuickActions();
                     if (instrumentHost != null) instrumentHost.onLayoutChanged();
-                    request(() -> api.revertMobileUiRevision(revisionId),
-                            ignored -> Diagnostics.event("live_ui", "server_reverted"),
+                    // The gateway only reverts its active head, so mirror every locally popped revision newest-first.
+                    List<String> revertedIds = new java.util.ArrayList<>();
+                    for (LiveUiPatch.StateManager.AppliedRevision rev : reverted) revertedIds.add(rev.revisionId);
+                    if (revertedIds.isEmpty()) revertedIds.add(revisionId);
+                    request(() -> {
+                        int skipped = 0;
+                        for (String id : revertedIds) {
+                            try { api.revertMobileUiRevision(id); }
+                            catch (java.io.IOException | IllegalArgumentException unavailable) { skipped++; }
+                        }
+                        return skipped;
+                    }, skipped -> Diagnostics.event("live_ui", skipped == 0 ? "server_reverted" : "server_revert_skipped"),
                             ignored -> Diagnostics.event("live_ui", "server_revert_skipped"));
                 } catch (java.io.IOException | IllegalStateException e) {
                     Diagnostics.warning("live_ui", "rollback_failed");
@@ -1041,6 +1051,11 @@ public final class ThreadWorkspace implements AutoCloseable {
             @Override public void onDismiss(LiveUiPatch patch) {
                 appliedLiveUiRevisionId = null;
                 Diagnostics.event("live_ui", "patch_dismissed");
+            }
+
+            @Override public void onPinWidget(LiveUiPatch.WidgetSpec widget) {
+                if (closed || account == null || widget == null) return;
+                HomePinBridge.requestPinWidget(activity, widget, account.id);
             }
         });
         refreshQuickActions();

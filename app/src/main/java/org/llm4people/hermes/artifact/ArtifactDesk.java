@@ -116,7 +116,7 @@ public final class ArtifactDesk {
                                 List<LiveUiPatch.StateManager.AppliedRevision> reverted = liveUi.rollbackAllTo(revId);
                                 if (reverted.isEmpty()) return;
                                 affectedWidgets.addAll(liveUi.widgetIds());
-                                HomePinBridge.syncWidgets(activity, liveUi.widgets(), affectedWidgets);
+                                HomePinBridge.syncWidgets(activity, liveUi.widgets(), affectedWidgets, account.id);
                                 for (LiveUiPatch.StateManager.AppliedRevision rev : reverted) {
                                     revertedIds.add(rev.revisionId);
                                 }

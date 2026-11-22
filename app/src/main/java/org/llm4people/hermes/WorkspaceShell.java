@@ -153,6 +153,15 @@ final class WorkspaceShell {
     private void applyChrome(AdaptiveLayout.NavChrome next) {
         chrome = next;
         navBar.applyChrome(next);
+        boolean rail = next == AdaptiveLayout.NavChrome.RAIL;
+        boolean mounted = root.getChildCount() > 0;
+        boolean mountedRail = root.getOrientation() == LinearLayout.HORIZONTAL;
+        if (mounted && rail == mountedRail) {
+            // BOTTOM_BAR <-> HIDDEN (IME) only toggles visibility: detaching contentPane would drop the
+            // focused composer's InputConnection and bounce the keyboard closed.
+            if (!rail) navDivider.setVisibility(next == AdaptiveLayout.NavChrome.BOTTOM_BAR ? View.VISIBLE : View.GONE);
+            return;
+        }
         int rule = Math.max(1, Ui.dp(activity, 1));
         root.removeAllViews();
         if (next == AdaptiveLayout.NavChrome.RAIL) {

@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BooleanSupplier;
 
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
@@ -67,6 +68,40 @@ public final class BiometricVault {
         void onEnrolled();
         void onCancelled();
         void onError();
+    }
+
+    /**
+     * Owner-side handle for one pending prompt. {@link BiometricPrompt#authenticate} replaces the single
+     * {@link CancellationSignal} OnCancelListener slot, so vault cleanup (wiping staged secrets, deleting the
+     * staging key, settling the attempt) runs here synchronously instead of relying on that listener.
+     */
+    public static final class Session {
+        private final Runnable cancelPrompt;
+        private final BooleanSupplier promptCanceled;
+        private final Runnable cleanup;
+        private final AtomicBoolean cancelled = new AtomicBoolean(false);
+
+        Session(Runnable cancelPrompt, BooleanSupplier promptCanceled, Runnable cleanup) {
+            this.cancelPrompt = Objects.requireNonNull(cancelPrompt);
+            this.promptCanceled = Objects.requireNonNull(promptCanceled);
+            this.cleanup = Objects.requireNonNull(cleanup);
+        }
+
+        static Session of(CancellationSignal signal, Runnable cleanup) {
+            return new Session(signal::cancel, signal::isCanceled, cleanup);
+        }
+
+        /** Idempotent: cancels the OS prompt and always runs cleanup, even if the prompt cancel throws. */
+        public void cancel() {
+            if (!cancelled.compareAndSet(false, true)) return;
+            try {
+                if (!promptCanceled.getAsBoolean()) cancelPrompt.run();
+            } finally {
+                cleanup.run();
+            }
+        }
+
+        public boolean isCanceled() { return cancelled.get() || promptCanceled.getAsBoolean(); }
     }
 
     private BiometricVault() {}
@@ -166,8 +201,8 @@ public final class BiometricVault {
         Diagnostics.event("biometric", "revoked");
     }
 
-    public static CancellationSignal enroll(Activity activity, String profileId, String label, byte[] rawPayload,
-                                            EnrollmentCallback callback) {
+    public static Session enroll(Activity activity, String profileId, String label, byte[] rawPayload,
+                                 EnrollmentCallback callback) {
         Objects.requireNonNull(callback);
         if (activity == null || profileId == null || profileId.isEmpty()
                 || rawPayload == null || rawPayload.length == 0) {
@@ -198,14 +233,17 @@ public final class BiometricVault {
                     activity.getString(R.string.security_biometric_enroll_subtitle),
                     strong, cleanupCancel);
             CancellationSignal signal = new CancellationSignal();
-            signal.setOnCancelListener(() -> {
-                Arrays.fill(payloadCopy, (byte) 0);
-                deleteKeyAlias(stagingAlias);
-                settled.set(true);
+            Session session = Session.of(signal, () -> {
+                if (settled.compareAndSet(false, true)) {
+                    Arrays.fill(payloadCopy, (byte) 0);
+                    deleteKeyAlias(stagingAlias);
+                }
             });
             BiometricPrompt.AuthenticationCallback auth = new BiometricPrompt.AuthenticationCallback() {
                 @Override public void onAuthenticationSucceeded(BiometricPrompt.AuthenticationResult result) {
-                    if (!settled.compareAndSet(false, true)) {
+                    // A success already queued on the executor must not seal secrets after lock/cancel.
+                    if (session.isCanceled() || !settled.compareAndSet(false, true)) {
+                        settled.set(true);
                         Arrays.fill(payloadCopy, (byte) 0);
                         deleteKeyAlias(stagingAlias);
                         return;
@@ -248,7 +286,7 @@ public final class BiometricVault {
             } else {
                 prompt.authenticate(signal, activity.getMainExecutor(), auth);
             }
-            return signal;
+            return session;
         } catch (GeneralSecurityException | IOException | RuntimeException error) {
             Arrays.fill(payloadCopy, (byte) 0);
             deleteKeyAlias(stagingAlias);
@@ -258,7 +296,7 @@ public final class BiometricVault {
         }
     }
 
-    public static CancellationSignal authenticate(Activity activity, String profileId, String label, Callback callback) {
+    public static Session authenticate(Activity activity, String profileId, String label, Callback callback) {
         Objects.requireNonNull(callback);
         if (activity == null || profileId == null || profileId.isEmpty() || !isEnrolled(activity, profileId)) {
             callback.onError();
@@ -299,10 +337,11 @@ public final class BiometricVault {
                     activity.getString(R.string.security_biometric_prompt_subtitle),
                     strong, () -> { if (settled.compareAndSet(false, true)) callback.onCancelled(); });
             CancellationSignal signal = new CancellationSignal();
-            signal.setOnCancelListener(() -> settled.set(true));
+            Session session = Session.of(signal, () -> settled.set(true));
             BiometricPrompt.AuthenticationCallback auth = new BiometricPrompt.AuthenticationCallback() {
                 @Override public void onAuthenticationSucceeded(BiometricPrompt.AuthenticationResult result) {
-                    if (!settled.compareAndSet(false, true)) return;
+                    // Never decrypt key material for a prompt the owner has already cancelled.
+                    if (session.isCanceled() || !settled.compareAndSet(false, true)) return;
                     try {
                         Cipher cipher = strong && result.getCryptoObject() != null
                                 ? result.getCryptoObject().getCipher()
@@ -335,7 +374,7 @@ public final class BiometricVault {
             } else {
                 prompt.authenticate(signal, activity.getMainExecutor(), auth);
             }
-            return signal;
+            return session;
         } catch (KeyPermanentlyInvalidatedException invalidated) {
             Diagnostics.warning("biometric", "key_invalidated");
             revoke(activity, profileId);

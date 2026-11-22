@@ -27,6 +27,8 @@ public final class LiveUiPatchBar extends LinearLayout {
         void onApply(LiveUiPatch patch);
         void onRollback(String revisionId);
         void onDismiss(LiveUiPatch patch);
+        /** The host binds the pinned widget to its unlocked profile; the bar never pins unowned widgets. */
+        void onPinWidget(LiveUiPatch.WidgetSpec widget);
     }
 
     private final Activity activity;
@@ -74,7 +76,7 @@ public final class LiveUiPatchBar extends LinearLayout {
         viewButton = actionButton("Voir", "live-ui-view", v -> openPreview());
         applyButton = actionButton("Appliquer", "live-ui-apply", v -> applyCurrent());
         pinButton = actionButton("Épingler sur l’écran d’accueil", "live-ui-pin-home", v -> {
-            if (pendingWidget != null) HomePinBridge.requestPinWidget(activity, pendingWidget);
+            if (pendingWidget != null) listener.onPinWidget(pendingWidget);
         });
         pinButton.setVisibility(GONE);
         cancelButton = actionButton("Annuler", "live-ui-cancel", v -> cancelOrRollback());

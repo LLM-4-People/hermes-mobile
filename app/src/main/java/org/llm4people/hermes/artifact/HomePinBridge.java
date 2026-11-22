@@ -95,11 +95,6 @@ public final class HomePinBridge {
         }
     }
 
-    /** Prompts the user and opens Android's native Home Screen widget pinning sheet when available. */
-    public static void requestPinWidget(Activity activity, LiveUiPatch.WidgetSpec spec) {
-        requestPinWidget(activity, spec, null);
-    }
-
     /** Prompts the user and opens Android's native Home Screen widget pinning sheet bound to an owner profile. */
     public static void requestPinWidget(Activity activity, LiveUiPatch.WidgetSpec spec, String ownerProfileId) {
         if (activity == null || spec == null || !spec.homeScreenSafe) return;
@@ -197,34 +192,24 @@ public final class HomePinBridge {
                         requestPinShortcut(activity, "widget-" + spec.widgetId, spec.title, null, spec.widgetId)));
     }
 
-    /** Upserts a validated Live UI widget into HermesWidgetStore and refreshes bound Android widgets. */
-    public static void syncWidget(Context context, LiveUiPatch.WidgetSpec spec) {
-        syncWidget(context, spec, null);
-    }
-
     /** Upserts a validated Live UI widget bound to an owner profile into HermesWidgetStore. */
     public static void syncWidget(Context context, LiveUiPatch.WidgetSpec spec, String ownerProfileId) {
         if (context == null || spec == null) return;
         HermesWidgetSpec osSpec = toOsWidgetSpec(spec, ownerProfileId);
         if (osSpec == null) return;
         Context app = context.getApplicationContext();
-        new HermesWidgetStore(app).upsertSpec(osSpec, ownerProfileId);
+        if (!new HermesWidgetStore(app).upsertSpec(osSpec, ownerProfileId)) return;
         HermesWidgetProvider.refreshWidget(app, osSpec.widgetId);
         broadcastWidgetUpdated(app, osSpec.widgetId);
     }
 
-    /** Removes a widget spec from HermesWidgetStore and refreshes Android widgets cleanly. */
-    public static void removeWidget(Context context, String widgetId) {
+    /** Removes a widget spec owned by {@code ownerProfileId} (or unowned) and refreshes Android widgets. */
+    public static void removeWidget(Context context, String widgetId, String ownerProfileId) {
         if (context == null || !HermesWidgetSpec.validWidgetId(widgetId)) return;
         Context app = context.getApplicationContext();
-        new HermesWidgetStore(app).removeSpec(widgetId);
+        if (!new HermesWidgetStore(app).removeSpec(widgetId, ownerProfileId)) return;
         HermesWidgetProvider.refresh(app, false);
         broadcastWidgetUpdated(app, widgetId);
-    }
-
-    /** Reconciles HermesWidgetStore after a Live UI rollback across all affected widget IDs. */
-    public static void syncWidgets(Context context, List<LiveUiPatch.WidgetSpec> activeSpecs, Set<String> affectedIds) {
-        syncWidgets(context, activeSpecs, affectedIds, null);
     }
 
     /** Reconciles HermesWidgetStore for a specific owner profile after a Live UI rollback. */
@@ -240,7 +225,7 @@ public final class HomePinBridge {
         }
         if (affectedIds != null) {
             for (String wid : affectedIds) {
-                if (!present.contains(wid)) removeWidget(context, wid);
+                if (!present.contains(wid)) removeWidget(context, wid, ownerProfileId);
             }
         }
     }
@@ -262,7 +247,7 @@ public final class HomePinBridge {
         HermesWidgetSpec spec = parseDeliveryWidgetSpec(payload);
         Context app = context.getApplicationContext();
         if (spec != null) {
-            new HermesWidgetStore(app).upsertSpec(spec, ownerProfileId);
+            if (!new HermesWidgetStore(app).upsertSpec(spec, ownerProfileId)) return false;
             HermesWidgetProvider.refreshWidget(app, spec.widgetId);
             broadcastWidgetUpdated(app, spec.widgetId);
             Diagnostics.event("widget", "delivery_widget_updated");

@@ -127,7 +127,8 @@ public final class ThemePalette {
                 normalizedInk = formatHex(effInk);
             }
             if (normalizedSurface != null || normalizedInk != null) {
-                double textContrast = contrastRatio(effInk, effSurface);
+                double textContrast = textContrast(normalizedSurface, normalizedInk, effSurface, effInk,
+                        "system".equals(safeTheme));
                 if (textContrast < WCAG_AA_NORMAL) {
                     throw new ContrastException("Text/surface contrast below WCAG AA (4.5:1)", textContrast);
                 }
@@ -399,6 +400,23 @@ public final class ThemePalette {
         }
     }
 
+    /** Higher-contrast design ink (day or night) for a custom surface; keeps surface-only overrides mode-invariant. */
+    static int bestInk(int surfaceArgb) {
+        return contrastRatio(DAY_INK, surfaceArgb) >= contrastRatio(NIGHT_INK, surfaceArgb) ? DAY_INK : NIGHT_INK;
+    }
+
+    /**
+     * Text contrast for a surface/ink override. With theme="system" a single color is paired with the
+     * counterpart that {@link #resolve} will actually use in either mode, so validation never depends on the
+     * mode at apply time and a persisted override cannot become "corrupted" after a day/night switch.
+     */
+    private static double textContrast(String surfaceHex, String inkHex, int effSurface, int effInk, boolean system) {
+        if (surfaceHex != null && inkHex != null) return contrastRatio(effInk, effSurface);
+        if (system && surfaceHex != null) return contrastRatio(bestInk(effSurface), effSurface);
+        if (system) return Math.max(contrastRatio(effInk, DAY_SURFACE), contrastRatio(effInk, NIGHT_SURFACE));
+        return contrastRatio(effInk, effSurface);
+    }
+
     public static ThemePalette resolve(OverrideSpec spec, boolean systemNight) {
         OverrideSpec safe = spec == null ? OverrideSpec.defaults() : spec;
         boolean night = "dark".equals(safe.theme) || (!"light".equals(safe.theme) && systemNight);
@@ -408,7 +426,7 @@ public final class ThemePalette {
         if (safe.surfaceHex != null) {
             try {
                 int customSurf = parseHexColor(safe.surfaceHex);
-                int customInk = safe.inkHex != null ? parseHexColor(safe.inkHex) : ink;
+                int customInk = safe.inkHex != null ? parseHexColor(safe.inkHex) : bestInk(customSurf);
                 if (contrastRatio(customInk, customSurf) >= WCAG_AA_NORMAL) {
                     paper = customSurf;
                     surface = customSurf;

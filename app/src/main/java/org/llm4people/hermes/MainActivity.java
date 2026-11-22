@@ -25,6 +25,7 @@ import org.llm4people.hermes.ambient.HermesNotificationListener;
 import org.llm4people.hermes.ambient.NotificationAllowlist;
 import org.llm4people.hermes.artifact.ArtifactDesk;
 import org.llm4people.hermes.artifact.HomePinBridge;
+import org.llm4people.hermes.artifact.LiveUiDeliveryDefaults;
 import org.llm4people.hermes.artifact.LiveUiPatch;
 import org.llm4people.hermes.artifact.ThemePalette;
 import org.llm4people.hermes.camera.ThreadCameraCapture;
@@ -236,17 +237,23 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         actions.register("deliveries", () -> push.openInbox(account, deliveryActions(account)));
         actions.register("push_policy", () -> push.openPolicy(account));
         actions.register(AmbientAccessPanel.ROUTE_ID, () -> navigate(AmbientAccessPanel.ROUTE_ID));
-        actions.register("language", () -> AppLanguage.showPicker(this, selected -> {
-            if (account != null) {
-                HermesApi syncApi = new HermesApi(account.endpoint, account.bearer,
-                        HermesApi.Limits.from(HermesConfig.load(this)));
-                AppLanguage.syncToServerAsync(syncApi, selected);
-            }
-        }));
+        actions.register("language", () -> {
+            Account owner = account;
+            if (notice != null) notice.dismiss();
+            // Tracked in notice so lock/switch dismisses it; the sync binds the profile that opened it.
+            notice = AppLanguage.showPicker(this, selected -> {
+                if (owner != null && owner == account) {
+                    HermesApi syncApi = new HermesApi(owner.endpoint, owner.bearer,
+                            HermesApi.Limits.from(HermesConfig.load(this)));
+                    AppLanguage.syncToServerAsync(syncApi, selected);
+                }
+            });
+        });
         actions.register("restore", () -> ArtifactDesk.manage(this, account, activeHost));
         actions.register("profiles", this::lock);
-        actions.register("pin_widget", () -> WorkspaceDialogs.pinQuickWidget(this,
-                account == null ? null : account.id));
+        actions.register("pin_widget", () -> {
+            if (account != null) WorkspaceDialogs.pinQuickWidget(this, account.id);
+        });
         actions.register("search", () -> {
             if (notice != null) notice.dismiss();
             notice = WorkspaceDialogs.showSearch(this, threads, this::onAction, () -> notice = null);
@@ -532,7 +539,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
 
             @Override public void previewUiPatch(DeliveryItem item) {
                 if (owner != account || threads == null || item == null) return;
-                JSONObject payload = item.payloadObject();
+                JSONObject payload = LiveUiDeliveryDefaults.apply(item.payloadObject(), item.id, item.title);
                 dismissOverlays();
                 displayDiscussion();
                 if (item.sessionId != null && !item.sessionId.isEmpty()
@@ -582,7 +589,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                                 if (op instanceof LiveUiPatch.Op.UpsertWidget uw) {
                                     HomePinBridge.syncWidget(this, uw.widget(), owner.id);
                                 } else if (op instanceof LiveUiPatch.Op.RemoveWidget rw) {
-                                    HomePinBridge.removeWidget(this, rw.widgetId());
+                                    HomePinBridge.removeWidget(this, rw.widgetId(), owner.id);
                                 }
                             }
                             onLayoutChanged();
@@ -631,6 +638,8 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             setIntent(new Intent(this, MainActivity.class));
             delivery = null;
             pendingOsEntry = null;
+            pendingPinnedSurface = null;
+            pendingPinnedWidget = null;
             clearWorkspace();
             unlock();
             return;
@@ -641,13 +650,13 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             pendingOsEntry = entry;
             pendingPinnedSurface = null;
             pendingPinnedWidget = null;
-            if (account != null && threads != null) dispatchPendingOsEntry();
+            openWarmEntry(entry.target() == OsEntryIntent.Target.WIDGET_ACTION ? entry.widgetId() : null);
             return;
         }
         capturePinnedShortcutIntent(intent);
         if (pendingPinnedSurface != null || pendingPinnedWidget != null) {
             setIntent(intent);
-            if (account != null && threads != null) dispatchPendingOsEntry();
+            openWarmEntry(pendingPinnedWidget);
             return;
         }
         MobilePush.Target incoming = MobilePush.target(this, intent);
@@ -662,6 +671,18 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         } else {
             lock();
             unlock();
+        }
+    }
+
+    /** A warm widget tap owned by another profile switches profiles like a push does, instead of being dropped. */
+    private void openWarmEntry(String widgetId) {
+        if (account == null || threads == null) return;
+        String owner = widgetId == null ? null : new HermesWidgetStore(this).ownerForWidget(widgetId);
+        if (owner != null && !owner.equals(account.id)) {
+            lock();
+            unlock();
+        } else {
+            dispatchPendingOsEntry();
         }
     }
 

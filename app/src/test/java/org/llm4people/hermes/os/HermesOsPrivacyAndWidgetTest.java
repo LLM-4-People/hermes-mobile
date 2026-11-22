@@ -203,4 +203,60 @@ public class HermesOsPrivacyAndWidgetTest {
             fail("Invalid appWidgetId accepted");
         } catch (IllegalArgumentException expected) {}
     }
+
+
+    private static HermesWidgetSpec brief(String widgetId, String title, String draft) {
+        return new HermesWidgetSpec(widgetId, title, "Résumé", HermesWidgetSpec.Template.QUICK_ACTIONS,
+                List.of(new HermesWidgetSpec.Item("Ouvrir", "", draft)), null, true);
+    }
+
+    @Test public void widgetStoreRefusesCrossProfileOverwriteOwnerStripAndRemoval() {
+        HermesWidgetStore store = new HermesWidgetStore(new MemoryBacking());
+        assertTrue(store.upsertSpec(brief("daily_brief", "Alice", "Brouillon Alice"), "profile-alice"));
+        store.bindInstance(301, "daily_brief");
+
+        // Another profile with a colliding ID, or an unowned write, can neither overwrite nor strip ownership.
+        assertFalse(store.upsertSpec(brief("daily_brief", "Bob", "Brouillon Bob"), "profile-bob"));
+        assertFalse(store.upsertSpec(brief("daily_brief", "Sans profil", "Brouillon anonyme")));
+        assertEquals("profile-alice", store.ownerForWidget("daily_brief"));
+        assertEquals("Alice", store.spec("daily_brief").title);
+        assertEquals("Brouillon Alice", store.draftForAction("daily_brief", 0, "profile-alice"));
+        assertNull(store.draftForAction("daily_brief", 0, "profile-bob"));
+
+        // Removal is owner-guarded and keeps the bound launcher instance intact.
+        assertFalse(store.removeSpec("daily_brief", "profile-bob"));
+        assertFalse(store.removeSpec("daily_brief", null));
+        assertNotNull(store.specForInstance(301));
+
+        // The owner keeps full control.
+        assertTrue(store.upsertSpec(brief("daily_brief", "Alice v2", "Brouillon Alice"), "profile-alice"));
+        assertEquals("Alice v2", store.spec("daily_brief").title);
+        assertTrue(store.removeSpec("daily_brief", "profile-alice"));
+        assertNull(store.specForInstance(301));
+
+        // A legacy unowned spec may be claimed (then it is protected like any other).
+        assertTrue(store.upsertSpec(brief("legacy_brief", "Ancien", "")));
+        assertTrue(store.upsertSpec(brief("legacy_brief", "Ancien", ""), "profile-bob"));
+        assertEquals("profile-bob", store.ownerForWidget("legacy_brief"));
+        assertFalse(store.upsertSpec(brief("legacy_brief", "Ancien", ""), "profile-alice"));
+        assertEquals(1, store.purgeProfile("profile-bob"));
+        assertNull(store.spec("legacy_brief"));
+    }
+
+    @Test public void quickActionsWidgetIdIsProfileScopedStableAndOpaque() {
+        String alice = "0f8fad5b-d9cb-469f-a165-70867728950e";
+        String bob = "7c9e6679-7425-40de-944b-e07fc1f90ae7";
+        String aliceId = HermesWidgetStore.profileScopedId("hermes_quick_actions", alice);
+        String bobId = HermesWidgetStore.profileScopedId("hermes_quick_actions", bob);
+        assertNotEquals(aliceId, bobId);
+        assertEquals(aliceId, HermesWidgetStore.profileScopedId("hermes_quick_actions", alice));
+        assertTrue(aliceId.startsWith("hermes_quick_actions_"));
+        assertTrue(HermesWidgetSpec.validWidgetId(aliceId));
+        assertFalse(aliceId.contains(alice));
+        assertEquals("hermes_quick_actions", HermesWidgetStore.profileScopedId("hermes_quick_actions", null));
+        try {
+            HermesWidgetStore.profileScopedId("../escape", alice);
+            fail("Invalid base widget id accepted");
+        } catch (IllegalArgumentException expected) { }
+    }
 }

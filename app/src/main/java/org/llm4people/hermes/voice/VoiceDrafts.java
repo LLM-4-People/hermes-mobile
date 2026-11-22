@@ -318,6 +318,7 @@ public final class VoiceDrafts {
 
     public void cancel() {
         if (activeDuplex != null) activeDuplex.stop();
+        if (optionsDialog != null) { optionsDialog.dismiss(); optionsDialog = null; }
         cancelAttemptAndRecovery();
     }
 

@@ -495,4 +495,33 @@ public final class LiveUiAndSurfacesV2Test extends InstrumentationTestCase {
                 "{\"version\":2,\"surface\":\"page/lieux\",\"mode\":\"replace\",\"title\":\"Lieux\",\"blocks\":[{\"type\":\"nearby_places\",\"category\":\"cafe\",\"radius_m\":3000,\"limit\":20}]}");
         assertFalse(InstrumentChanges.between(nearbyA, nearbyB).isEmpty());
     }
+
+
+    public void testUiPatchDeliveryWithoutRevisionOrSummaryUsesDeliveryEnvelope() throws Exception {
+        JSONArray ops = new JSONArray().put(new JSONObject()
+                .put("op", "upsert_quick_action").put("id", "bilan")
+                .put("label", "Mon bilan").put("draft", "Prépare mon bilan de la semaine."));
+        JSONObject flat = new JSONObject().put("ops", ops);
+        try {
+            LiveUiPatch.parse(flat, false);
+            fail("A delivery payload without revision_id must not parse by itself");
+        } catch (IOException expected) { }
+        LiveUiPatch patch = LiveUiPatch.parse(
+                LiveUiDeliveryDefaults.apply(flat, "dlv_0123456789abcdef", "Nouveau raccourci"), false);
+        assertEquals("dlv_0123456789abcdef", patch.revisionId);
+        assertEquals("Nouveau raccourci", patch.summary);
+        assertFalse(flat.has("revision_id"));
+
+        JSONObject nested = new JSONObject().put("patch", new JSONObject().put("ops", ops).put("summary", "Gardé"));
+        LiveUiPatch fromNested = LiveUiPatch.parse(
+                LiveUiDeliveryDefaults.apply(nested, "dlv_fedcba9876543210", "Titre"), false);
+        assertEquals("dlv_fedcba9876543210", fromNested.revisionId);
+        assertEquals("Gardé", fromNested.summary);
+
+        JSONObject invalid = new JSONObject().put("ops", ops).put("revision_id", "bad id/../x");
+        try {
+            LiveUiPatch.parse(LiveUiDeliveryDefaults.apply(invalid, "dlv_0123456789abcdef", "Titre"), false);
+            fail("An invalid present revision_id must still be rejected");
+        } catch (IOException expected) { }
+    }
 }

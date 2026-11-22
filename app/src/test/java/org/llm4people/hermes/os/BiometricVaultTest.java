@@ -91,4 +91,39 @@ public class BiometricVaultTest {
             fail("Empty profile ID accepted");
         } catch (IllegalArgumentException expected) {}
     }
+
+
+    @Test public void sessionCancelAlwaysRunsCleanupOnceEvenWhenPromptCancelThrows() {
+        int[] prompts = {0};
+        int[] cleanups = {0};
+        boolean[] promptCanceled = {false};
+        BiometricVault.Session session = new BiometricVault.Session(() -> {
+            prompts[0]++;
+            promptCanceled[0] = true;
+            throw new IllegalStateException("prompt service disconnected");
+        }, () -> promptCanceled[0], () -> cleanups[0]++);
+        assertFalse(session.isCanceled());
+        try {
+            session.cancel();
+            fail("Prompt failure should surface");
+        } catch (IllegalStateException expected) { }
+        assertEquals(1, cleanups[0]);
+        assertTrue(session.isCanceled());
+        session.cancel();
+        assertEquals(1, prompts[0]);
+        assertEquals(1, cleanups[0]);
+    }
+
+    @Test public void sessionReportsExternalPromptCancelAndStillCleansUpWithoutRecancelling() {
+        int[] prompts = {0};
+        int[] cleanups = {0};
+        boolean[] promptCanceled = {true};
+        BiometricVault.Session session = new BiometricVault.Session(
+                () -> prompts[0]++, () -> promptCanceled[0], () -> cleanups[0]++);
+        // A success callback checks this before sealing or decrypting anything.
+        assertTrue(session.isCanceled());
+        session.cancel();
+        assertEquals(0, prompts[0]);
+        assertEquals(1, cleanups[0]);
+    }
 }

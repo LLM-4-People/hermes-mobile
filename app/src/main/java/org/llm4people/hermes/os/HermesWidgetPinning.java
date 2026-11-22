@@ -36,7 +36,7 @@ public final class HermesWidgetPinning {
         if (context == null || spec == null || !spec.homeScreenSafe) return PinResult.INVALID_SPEC;
         Context app = context.getApplicationContext();
         HermesWidgetStore store = new HermesWidgetStore(app);
-        store.upsertSpec(spec);
+        if (!store.upsertSpec(spec)) return PinResult.INVALID_SPEC;
         HermesWidgetProvider.refreshWidget(app, spec.widgetId);
 
         AppWidgetManager manager = AppWidgetManager.getInstance(app);
