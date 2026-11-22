@@ -103,12 +103,15 @@ final class ThreadData {
         return body;
     }
 
+    static long generation(JSONObject row) {
+        Object value = row.opt("execution_generation");
+        return value instanceof Integer || value instanceof Long ? ((Number) value).longValue() : -1;
+    }
+
     static JSONObject unknownReceipt(JSONObject status) {
         String admission = string(status, "admission_id");
-        Object generation = status.opt("execution_generation");
-        if (!"unknown".equals(status.optString("status")) || !validId(admission)
-                || (!(generation instanceof Long) && !(generation instanceof Integer))
-                || ((Number) generation).longValue() < 0) return null;
+        long generation = generation(status);
+        if (!"unknown".equals(status.optString("status")) || !validId(admission) || generation < 0) return null;
         return put(put(new JSONObject(), "admission_id", admission), "execution_generation", generation);
     }
 

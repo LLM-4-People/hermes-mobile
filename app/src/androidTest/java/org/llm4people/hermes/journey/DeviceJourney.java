@@ -212,6 +212,7 @@ public final class DeviceJourney extends Instrumentation {
         ui.absent(fixture.getString("draft"));
         unlock(primary, fixture.getString("phrase"));
         ui.see(fixture.getString("draft"));
+        ui.contains("Réponse du fournisseur Atelier.");
         ui.usableComposer();
         ui.capture("10-discussion-nuit-grands-caracteres");
         ui.tap("Atelier");

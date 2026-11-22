@@ -25,12 +25,16 @@ final class AccountStore {
     }
 
     boolean contains(String id) {
-        return id != null && prefs.contains(LABEL + id) && prefs.contains(id);
+        synchronized (prefs) {
+            return id != null && prefs.contains(LABEL + id) && prefs.contains(id);
+        }
     }
 
     Map<String, String> profiles() {
         Map<String, String> result = new LinkedHashMap<>();
-        prefs.getAll().entrySet().stream().filter(entry -> entry.getKey().startsWith(LABEL)
+        Map<String, ?> entries;
+        synchronized (prefs) { entries = prefs.getAll(); }
+        entries.entrySet().stream().filter(entry -> entry.getKey().startsWith(LABEL)
                 && entry.getValue() instanceof String)
                 .sorted(Comparator.comparing(entry -> (String) entry.getValue(), String.CASE_INSENSITIVE_ORDER))
                 .forEach(entry -> result.put(entry.getKey().substring(LABEL.length()), (String) entry.getValue()));
@@ -43,11 +47,10 @@ final class AccountStore {
         byte[] keys = new byte[Account.KEY_BYTES];
         new SecureRandom().nextBytes(keys);
         String stored = encode(id, label, endpoint, bearer, keys, pass, deviceKey(true));
-        synchronized (AccountStore.class) {
+        synchronized (prefs) {
             if (profiles().values().stream().anyMatch(label::equalsIgnoreCase))
                 throw new IllegalArgumentException("Duplicate profile name");
-            if (!prefs.edit().putString(LABEL + id, label).putString(id, stored).commit())
-                throw new IOException("Profile write failed");
+            commitMembership(id, label, stored);
         }
         return new Account(id, label, endpoint, bearer, vault(id), keys);
     }
@@ -78,8 +81,11 @@ final class AccountStore {
     }
 
     private Account restore(String id, char[] pass, String replacement) throws IOException, GeneralSecurityException {
-        String label = prefs.getString(LABEL + id, null);
-        String stored = prefs.getString(id, null);
+        String label, stored;
+        synchronized (prefs) {
+            label = prefs.getString(LABEL + id, null);
+            stored = prefs.getString(id, null);
+        }
         if (label == null || stored == null) throw new GeneralSecurityException("Profile unavailable");
         SecretKey device = deviceKey(false);
         byte[] plain = ProfileEnvelope.open(device, id, label, pass, Base64.decode(stored, Base64.NO_WRAP));
@@ -88,15 +94,15 @@ final class AccountStore {
             String bearer = data.readUTF();
             byte[] keys = new byte[Account.KEY_BYTES];
             data.readFully(keys);
-            if (replacement != null) {
-                String rotated = encode(id, label, endpoint, replacement, keys, pass, device);
-                synchronized (AccountStore.class) {
-                    if (!stored.equals(prefs.getString(id, null)) || !prefs.edit().putString(id, rotated).commit())
-                        throw new IOException("Profile changed during credential update");
+            String rotated = replacement == null ? null : encode(id, label, endpoint, replacement, keys, pass, device);
+            synchronized (prefs) {
+                if (!stored.equals(prefs.getString(id, null))) throw new IOException("Profile changed while opening");
+                if (rotated != null) {
+                    commit(Collections.singletonMap(id, rotated));
+                    bearer = replacement;
                 }
-                bearer = replacement;
+                return new Account(id, label, endpoint, bearer, vault(id), keys);
             }
-            return new Account(id, label, endpoint, bearer, vault(id), keys);
         } finally {
             Arrays.fill(plain, (byte) 0);
         }
@@ -107,10 +113,23 @@ final class AccountStore {
     }
 
     void forget(String id) throws IOException {
-        synchronized (AccountStore.class) {
-            if (!prefs.edit().remove(LABEL + id).remove(id).commit()) throw new IOException("Profile removal failed");
-        }
+        commitMembership(id, null, null);
         context.deleteSharedPreferences("hermes.vault." + id);
+    }
+
+    private void commitMembership(String id, String label, String envelope) throws IOException {
+        Map<String, String> changes = new HashMap<>();
+        changes.put(LABEL + id, label);
+        changes.put(id, envelope);
+        commit(changes);
+    }
+
+    private void commit(Map<String, String> changes) throws IOException {
+        try {
+            PreferenceTransaction.commit(prefs, changes);
+        } catch (IllegalStateException ex) {
+            throw new IOException("Profile index write failed", ex);
+        }
     }
 
     private static synchronized SecretKey deviceKey(boolean allowCreation) throws GeneralSecurityException, IOException {
