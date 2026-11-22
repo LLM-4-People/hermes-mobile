@@ -11,7 +11,7 @@ import sys
 import tempfile
 from urllib.parse import urlsplit
 
-from .assets import APK, SERVER, extract_server
+from .assets import APK, SERVER, digest, extract_server
 from verification.device.run import Emulator
 from verification.gateway_fixture import Gateway, PINNED_REVISION, check_source
 from .stack import LOCAL_HTTP, bridge, eventually, json_request, ntfy, proxy
@@ -176,6 +176,7 @@ def run(args):
                 json.dumps(
                     {
                         "hermes_revision": args.revision,
+                        "apk_sha256": digest(args.apk),
                         "sdk": adb.shell("getprop", "ro.build.version.sdk"),
                         "ntfy_server": SERVER.version,
                         "distributor": APK.version,

@@ -18,11 +18,18 @@ class Screen:
         self.tmp = "/data/local/tmp/hm-push-" + secrets.token_hex(8) + ".xml"
 
     def hierarchy(self):
-        self.device.shell("uiautomator", "dump", self.tmp)
-        try:
-            return ElementTree.fromstring(self.device.run("exec-out", "cat", self.tmp))
-        finally:
-            self.device.shell("rm", "-f", self.tmp)
+        def capture():
+            output = self.device.shell("uiautomator", "dump", self.tmp)
+            if "UI hier" not in output and "UI Hier" not in output:
+                if "idle state" in output or "null root node" in output:
+                    return None
+                raise RuntimeError("Android did not produce an accessibility hierarchy")
+            try:
+                return (ElementTree.fromstring(self.device.run("exec-out", "cat", self.tmp)),)
+            finally:
+                self.device.shell("rm", "-f", self.tmp)
+
+        return eventually("Android accessibility hierarchy", capture, timeout=45)[0]
 
     def node(self, label, root=None):
         if root is None:
