@@ -85,8 +85,8 @@ final class RunFollower implements AutoCloseable {
                     if (eventSeq < 0 || eventSeq <= seq) continue;
                     seq = eventSeq;
                     if (ThreadData.terminal(type.startsWith("run.") ? type.substring(4) : "")) break;
-                    if ("approval.request".equals(type) || "clarify.request".equals(type)) {
-                        if (controls.requestNeedsSnapshot(event) && !refreshControls()) return;
+                    if (controls.needsSnapshot(type, event)) {
+                        if (!refreshControls()) return;
                     } else {
                         apply(type, event);
                     }
