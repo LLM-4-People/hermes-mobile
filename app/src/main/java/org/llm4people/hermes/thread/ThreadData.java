@@ -47,7 +47,15 @@ final class ThreadData {
                 ThreadTitles.emptySession(session));
     }
 
-    static String content(JSONObject message) { return MessageParts.display(message); }
+    private static final java.util.regex.Pattern RETAINED_PHOTO = java.util.regex.Pattern.compile(
+            "(?m)^\\[Image attached at: /[^\\r\\n]*?/native-inputs/([a-f0-9]{32})[a-f0-9]{32}/api_\\1\\.(?:png|jpe?g|webp|gif)\\]$");
+
+    static String content(JSONObject message) {
+        String value = MessageParts.display(message);
+        if ("user".equals(string(message, "role")) && value.contains("[Image attached at: /"))
+            return RETAINED_PHOTO.matcher(value).replaceAll("Image jointe");
+        return value;
+    }
 
     record RowId(String segment, String id) {}
 
@@ -108,7 +116,8 @@ final class ThreadData {
         if (!bearer.isEmpty()) detail = detail.replace(bearer, "•••");
         // Hermes redacts the error before egress. Keep common auth fragments out of the UI
         // even when a custom provider echoed its request headers or included a token in a URL.
-        detail = detail.replaceAll("(?i)(bearer\\s+|(?:api[_-]?key|access_token|token|password|secret)\\s*[=:]\\s*)[^\\s&;,]+", "$1•••")
+        detail = detail.replaceAll("(?i)data:image/[^, ]{1,40},[a-zA-Z0-9+/=_-]+", "[image]")
+                .replaceAll("(?i)(bearer\\s+|(?:api[_-]?key|access_token|token|password|secret)\\s*[=:]\\s*)[^\\s&;,]+", "$1•••")
                 .replaceAll("[\\p{Cntrl}\\p{Cf}]+", " ").trim();
         return detail.length() <= 500 ? detail : detail.substring(0, 500) + "…";
     }

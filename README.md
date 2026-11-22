@@ -20,6 +20,8 @@ When Hermes has a question, its suggestions appear in the discussion. Tap a sing
 
 Tap **Écouter** on a question or choose **Écouter la dernière réponse** from the discussion menu to listen. Playback uses an installed offline French voice and stops when you leave the discussion, lock the account, or begin dictating.
 
+To ask about a screenshot or photo, open **Autres actions → Joindre une image…** in the discussion. Select one still image, review its preview, write your question, then tap **Envoyer**. **Retirer** keeps the question in the composer. The phone re-encodes the image without its original file metadata. The selected gateway and its configured vision provider receive the pixels when you send. [Hermes vision settings](https://hermes-agent.nousresearch.com/docs/user-guide/features/vision)
+
 ## Turn a review into a reusable tool
 
 Ask Hermes « Transforme cette revue de code en un outil pour ce fil. » Try the form in the reply, enter a file and goal, and pin it to the discussion. On a wide display the form sits beside the conversation. Ask « Ajoute un champ de priorité. » You can inspect the pinned form, the proposed form, and the specific changes before adopting a version. Preparing a message from the form leaves its text in your composer until you send it. [Working with generated tools](docs/workspace.md) · [See a code review become a form on Android](docs/local-model-review.md)

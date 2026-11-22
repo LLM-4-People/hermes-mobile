@@ -38,6 +38,8 @@ final class ThreadViews {
     private final LinearLayout notice;
     private final LinearLayout noticeSlot;
     private LinearLayout composerSlot;
+    private LinearLayout photoSlot;
+    private boolean importingPhoto;
     private Button more;
     private EditText input;
     final VoiceDrafts voice;
@@ -180,6 +182,11 @@ final class ThreadViews {
         composer.addView(stop);
         composerSlot = Ui.column(activity);
         composerSlot.addView(Ui.divider(activity));
+        photoSlot = Ui.row(activity);
+        photoSlot.setGravity(Gravity.CENTER_VERTICAL);
+        Ui.pad(photoSlot, 8, 0);
+        photoSlot.setVisibility(View.GONE);
+        composerSlot.addView(photoSlot);
         composerSlot.addView(composerVoice.feedback);
         composerSlot.addView(composer);
         root.addView(composerSlot);
@@ -188,7 +195,7 @@ final class ThreadViews {
             @Override public void afterTextChanged(Editable s) {}
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
                 onDraft.accept(s.toString());
-                send.setEnabled(!VisibleText.isBlank(s.toString()));
+                send.setEnabled(!importingPhoto && !VisibleText.isBlank(s.toString()));
             }
         });
         busy(false, false);
@@ -303,9 +310,36 @@ final class ThreadViews {
 
     void clearDraft() { input.setText(""); }
 
+    void importingPhoto(boolean importing) {
+        importingPhoto = importing;
+        send.setEnabled(!importing && !draft().trim().isEmpty());
+    }
+
+    void photo(JSONObject info, Runnable remove) {
+        photoSlot.removeAllViews();
+        photoSlot.setVisibility(info == null ? View.GONE : View.VISIBLE);
+        input.setHint(info == null ? "Message à Hermes" : "Votre question sur l’image");
+        if (info == null) return;
+        ImageView preview = new ImageView(activity);
+        preview.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        preview.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        preview.setImageBitmap(DiscussionPhoto.thumbnail(info));
+        photoSlot.addView(preview, Ui.dp(activity, 44), Ui.dp(activity, 44));
+        String name = info.optString("name");
+        TextView label = Ui.text(activity, name, 14);
+        Ui.pad(label, 8, 0);
+        label.setMaxLines(2);
+        label.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        label.setContentDescription("Image jointe : " + name);
+        photoSlot.addView(label, new LinearLayout.LayoutParams(0, -2, 1));
+        Button removeButton = Ui.button(activity, "Retirer", v -> remove.run());
+        removeButton.setContentDescription("Retirer l’image " + name);
+        photoSlot.addView(removeButton);
+    }
+
     void busy(boolean active, boolean canStop) {
         send.setVisibility(active ? View.GONE : View.VISIBLE);
-        send.setEnabled(!active && !VisibleText.isBlank(draft()));
+        send.setEnabled(!active && !importingPhoto && !VisibleText.isBlank(draft()));
         stop.setVisibility(active && canStop ? View.VISIBLE : View.GONE);
         stop.setEnabled(canStop);
     }

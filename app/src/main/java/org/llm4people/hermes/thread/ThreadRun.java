@@ -31,9 +31,15 @@ final class ThreadRun {
         ui = page.screen;
     }
 
+    boolean submitting() { return submitting; }
+
     void send() {
         String text = ui.draft();
-        if (submitting || journal.pending() != null || VisibleText.isBlank(text)) return;
+        if (submitting || page.importingPhoto || journal.pending() != null || VisibleText.isBlank(text)) return;
+        if (!journal.photoOwned()) {
+            ui.notice("Le profil a changé. Retirez l’image et sélectionnez-la de nouveau.", "", null);
+            return;
+        }
         JSONObject options;
         try {
             options = page.host.options(page.sessionId());
@@ -50,7 +56,7 @@ final class ThreadRun {
         JSONObject pending = journal.pending();
         if (pending == null) return;
         if (!journal.sameOwner()) { uncertain(); return; }
-        ui.outgoing(ThreadData.string(pending.optJSONObject("body"), "input"));
+        ui.outgoing(outgoing(pending));
         canStop = !runId().isEmpty();
         ui.busy(true, canStop);
         if (runId().isEmpty()) submitWithCapabilities(pending.optJSONObject("body"), false);
@@ -86,6 +92,7 @@ final class ThreadRun {
 
     private void submitWithCapabilities(JSONObject body, boolean fresh) {
         if (submitting) return;
+        JSONObject selectedPhoto = journal.photo();
         submitting = true;
         ui.busy(true, false);
         ui.notice(fresh ? "Préparation de l’envoi…" : "Vérification de l’envoi…", "", null);
@@ -112,7 +119,7 @@ final class ThreadRun {
                 keepCompletionPosition = false;
                 // Edits while capability discovery was in flight must stay in the composer.
                 String snapshot = ThreadData.string(body, "input");
-                if (!snapshot.equals(ui.draft())) {
+                if (!snapshot.equals(ui.draft()) || selectedPhoto != journal.photo()) {
                     admissionFinished();
                     ui.busy(false, false);
                     ui.notice("Le brouillon a changé. Vous pouvez l’envoyer.", "", null);
@@ -128,7 +135,8 @@ final class ThreadRun {
                     return;
                 }
                 ui.clearDraft();
-                ui.outgoing(snapshot);
+                page.refreshPhoto();
+                ui.outgoing(outgoing(journal.pending()));
                 started = SystemClock.elapsedRealtime();
             } else {
                 JSONObject pending = journal.pending();
@@ -149,6 +157,11 @@ final class ThreadRun {
         });
     }
 
+    private static String outgoing(JSONObject receipt) {
+        String caption = ThreadData.string(receipt.optJSONObject("body"), "input");
+        return receipt.has("photo") ? caption + "\nImage jointe" : caption;
+    }
+
     private int bootCount() {
         return Settings.Global.getInt(page.activity.getContentResolver(), Settings.Global.BOOT_COUNT, -1);
     }
@@ -156,7 +169,8 @@ final class ThreadRun {
     private void admit(JSONObject body, boolean fresh) {
         String key = journal.pending().optString("key");
         ui.notice("Envoi à Hermes…", "", null);
-        page.request(() -> page.api.post("/v1/runs", body, key), response -> {
+        JSONObject image = journal.pending().optJSONObject("photo");
+        page.request(() -> page.api.post("/v1/runs", journal.wire(body, image), key), response -> {
             admissionFinished();
             String id = ThreadData.string(response, "run_id");
             if (!ThreadData.validId(id)) { uncertain(); return; }
@@ -168,13 +182,19 @@ final class ThreadRun {
             admissionFinished();
             started = -1;
             // Only a definitive rejection of the first attempt can return the text to the draft.
-            if (fresh && error instanceof HermesApi.HttpError http
-                    && (http.status == 400 || http.status == 401 || http.status == 403 || http.status == 422)) {
+            boolean imageUnavailable = image != null && error instanceof DiscussionPhoto.Unavailable;
+            if (fresh && (imageUnavailable || error instanceof HermesApi.HttpError http
+                    && (http.status == 400 || http.status == 401 || http.status == 403 || http.status == 413 || http.status == 422))) {
                 journal.reject();
                 ui.displayDraft(journal.draft());
+                page.refreshPhoto();
                 ui.outgoing("");
                 ui.busy(false, false);
-                page.error(error, this::send);
+                if (imageUnavailable) ui.notice("L’image enregistrée est illisible. Retirez-la et sélectionnez-la de nouveau.", "", null);
+                else if (image != null && error instanceof HermesApi.HttpError http
+                        && (http.status == 400 || http.status == 413 || http.status == 422))
+                    ui.notice("Hermes a refusé l’image. Vérifiez le modèle ou choisissez une autre image.", "", null);
+                else page.error(error, this::send);
             } else {
                 ui.notice("Accusé de réception manquant. L’envoi garde le même identifiant.",
                         "Vérifier l’envoi", this::restore);
@@ -344,7 +364,9 @@ final class ThreadRun {
             default -> "Le traitement a échoué";
         };
         String detail = "failed".equals(outcome) ? page.failureDetail(status) : "";
-        String summary = detail.isEmpty() ? label : label + "\n" + detail;
+        String visionHint = "failed".equals(outcome) && journal.pending().has("photo")
+                ? "\nVérifiez le modèle ou le service de vision configuré sur la passerelle." : "";
+        String summary = (detail.isEmpty() ? label : label + "\n" + detail) + visionHint;
         if ("completed".equals(outcome) && elapsed >= 0 && firstText >= 0) {
             JSONObject usage = status.optJSONObject("usage");
             long tokens = usage != null && "run".equals(usage.optString("scope"))
