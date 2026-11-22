@@ -126,6 +126,18 @@ public final class JourneyUi {
         tap(target, label);
     }
 
+    void showPendingControl(String expected) {
+        String reveal = "Répondre à Hermes";
+        View target = until(expected + " or " + reveal, () -> {
+            View root = window();
+            View prompt = find(root, v -> v instanceof TextView text
+                    && text.getText().toString().contains(expected) && v.getGlobalVisibleRect(new Rect()));
+            return prompt != null ? prompt : find(root, v -> v.isEnabled() && named(v, reveal)
+                    && v.getGlobalVisibleRect(new Rect()));
+        });
+        if (main(() -> named(target, reveal))) tap(target, reveal);
+    }
+
     void tapInListRow(String anchor, String label) {
         View target = until(label + " in the row containing " + anchor,
                 () -> findInListRow(anchor, v -> v.isEnabled() && named(v, label)));
