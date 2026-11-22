@@ -1,6 +1,9 @@
 import unittest
+import xml.etree.ElementTree as ET
 
 from verification.nearby_location import COARSE, location_access, public_city_fix
+from verification.nearby_restaurants import enter_discussion
+from verification.unifiedpush.ui import Screen
 
 
 class AndroidShell:
@@ -72,3 +75,44 @@ class NearbyLocationTest(unittest.TestCase):
         delayed = DelayedPackage(["", COARSE + ": granted=false, flags=[ ]"])
         self.assertFalse(location_access(delayed, wait_for_install=True))
         self.assertEqual(delayed.calls, 2)
+
+    def test_enter_discussion_taps_focused_text_button_without_clickable_attribute(self):
+        # FocusedText.java omits clickable; Button distinguishes inbox create from the open header TextView.
+        inbox = ET.fromstring(
+            '<node text="" content-desc="" resource-id="" class="android.widget.FrameLayout" '
+            'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[0,0][320,640]">'
+            '<node text="Nouvelle conversation" content-desc="" resource-id="" class="android.widget.Button" '
+            'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[0,80][320,140]"/>'
+            '</node>'
+        )
+        loading_chat = ET.fromstring(
+            '<node text="" content-desc="" resource-id="" class="android.widget.FrameLayout" '
+            'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[0,0][320,640]">'
+            '<node text="Nouvelle conversation" content-desc="" resource-id="" class="android.widget.TextView" '
+            'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[48,0][200,48]"/>'
+            '</node>'
+        )
+        ready_chat = ET.fromstring(
+            '<node text="" content-desc="" resource-id="" class="android.widget.FrameLayout" '
+            'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[0,0][320,640]">'
+            '<node text="Nouvelle conversation" content-desc="" resource-id="" class="android.widget.TextView" '
+            'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[48,0][200,48]"/>'
+            '<node text="Message à Hermes" content-desc="" resource-id="" class="android.widget.EditText" '
+            'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[12,560][240,620]"/>'
+            '</node>'
+        )
+        trees = iter([inbox, loading_chat, ready_chat])
+        tapped = []
+
+        class StubScreen(Screen):
+            def __init__(self):
+                pass
+
+            def hierarchy(self):
+                return next(trees)
+
+            def tap_node(self, node):
+                tapped.append((node.get("class"), node.get("text")))
+
+        enter_discussion(StubScreen())
+        self.assertEqual(tapped, [("android.widget.Button", "Nouvelle conversation")])

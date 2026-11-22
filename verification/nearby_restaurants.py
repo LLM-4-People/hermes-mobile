@@ -105,7 +105,7 @@ def enter_discussion(ui):
         if ui.node("Message à Hermes", tree) is not None:
             return True
         create = ui.node("Nouvelle conversation", tree)
-        if create is not None and create.get("clickable") == "true":
+        if create is not None and create.get("class") == "android.widget.Button":
             ui.tap_node(create)
         return False
     eventually("the unlocked profile's editable conversation", opened)
@@ -262,7 +262,11 @@ def execute(args):
         ui.wait("Ouvrir OpenStreetMap")
         if not visible(ui, [guide["selected"], source_url]) or not focused(device).startswith(APP + "/"):
             raise AssertionError("The review did not show the selected source venue and canonical OSM URL")
-        ui.tap("Annuler")
+        ui.tap_until(
+            "Annuler",
+            lambda root: ui.node("Ouvrir OpenStreetMap", root) is None,
+            description="dismissed OpenStreetMap source review dialog",
+        )
         guide["reviewed_source"] = source_url
         maps = map_selected(ui, guide["selected"], picked["center"])
         launch(device, APP)
