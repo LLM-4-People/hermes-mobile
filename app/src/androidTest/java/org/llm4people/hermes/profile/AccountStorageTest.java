@@ -17,6 +17,8 @@ public final class AccountStorageTest extends InstrumentationTestCase {
         char[] pass = (prefix + "-phrase").toCharArray();
         Account first = store.create(prefix + " A", "https://example.org/p/a", secret, pass);
         try {
+            assertTrue(ProfileGate.contains(context, first.id));
+            assertFalse(ProfileGate.contains(context, null));
             first.write("draft", "message privé");
             SharedPreferences entries = context.getSharedPreferences("hermes.vault." + first.id, Context.MODE_PRIVATE);
             Map<String, ?> encrypted = entries.getAll();
@@ -57,6 +59,7 @@ public final class AccountStorageTest extends InstrumentationTestCase {
             store.forget(first.id);
         }
         assertFalse(store.profiles().containsKey(first.id));
+        assertFalse(ProfileGate.contains(context, first.id));
         try { store.open(first.id, pass); fail("Removed profile opened"); } catch (GeneralSecurityException expected) {}
     }
 }

@@ -24,6 +24,10 @@ final class AccountStore {
         prefs = context.getSharedPreferences("hermes.profiles", Context.MODE_PRIVATE);
     }
 
+    boolean contains(String id) {
+        return id != null && prefs.contains(LABEL + id) && prefs.contains(id);
+    }
+
     Map<String, String> profiles() {
         Map<String, String> result = new LinkedHashMap<>();
         prefs.getAll().entrySet().stream().filter(entry -> entry.getKey().startsWith(LABEL)

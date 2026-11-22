@@ -35,6 +35,11 @@ public final class ProfileGate {
         this.store = new AccountStore(activity);
     }
 
+    /** Membership check available to notification receivers while profile data is locked. */
+    public static boolean contains(Context context, String id) {
+        return new AccountStore(context).contains(id);
+    }
+
     public void setOnForget(Consumer<String> callback) {
         onForget = Objects.requireNonNull(callback);
     }
@@ -204,12 +209,13 @@ public final class ProfileGate {
 
     private void forget(ProfileScreen screen, String id) {
         try {
+            // Persist notification revocation first so process death cannot leave an orphan listener.
+            onForget.accept(id);
             store.forget(id);
-        } catch (java.io.IOException ex) {
+        } catch (java.io.IOException | RuntimeException ex) {
             screen.status("Suppression impossible. Réessayez.", true);
             return;
         }
-        onForget.accept(id);
         chooser("Le profil a été retiré de cet appareil.");
     }
 
