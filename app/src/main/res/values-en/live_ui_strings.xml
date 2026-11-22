@@ -1,0 +1,13 @@
+<resources>
+    <string name="home_pin_dialog_title">Pin to Home Screen?</string>
+    <string name="home_pin_widget_privacy_note">Only this home-screen-safe text will be visible outside the app.</string>
+    <string name="home_pin_cancel">Cancel</string>
+    <string name="home_pin_close">Close</string>
+    <string name="home_pin_widget_action">Pin widget</string>
+    <string name="home_pin_shortcut_action">Create shortcut</string>
+    <string name="home_pin_surface_body">Add “%1$s” to your Home Screen to open it in one tap. Your profile stays locked until you open it.</string>
+    <string name="home_pin_shortcut_unsupported_title">Shortcut not supported</string>
+    <string name="home_pin_shortcut_unsupported_body">Your current Home Screen launcher does not support pinning shortcuts directly.</string>
+    <string name="home_pin_widget_fallback_title">Add from Home Screen</string>
+    <string name="home_pin_widget_fallback_body">Your launcher does not support direct widget pinning. You can create a shortcut or add the Hermes widget by long-pressing the Home Screen.</string>
+</resources>

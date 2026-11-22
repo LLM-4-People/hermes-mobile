@@ -103,7 +103,7 @@ public final class LiveUiStateManagerTest {
                 List.of(new LiveUiPatch.WidgetItem("A", "1", null)), null, true, false));
         assertThrowsIo(() -> new LiveUiPatch.WidgetSpec(
                 "w1", "Titre", "", "metric",
-                List.of(new LiveUiPatch.WidgetItem("A", "1", null)), "#FFFF00", true, false));
+                List.of(new LiveUiPatch.WidgetItem("A", "1", null)), "#808080", true, false));
         assertThrowsIo(() -> new LiveUiPatch.WidgetSpec(
                 "w1", "Bearer abcdefghijklmnopqrstuvwx", "", "status",
                 Collections.emptyList(), null, true, false));
@@ -125,10 +125,12 @@ public final class LiveUiStateManagerTest {
         assertTrue(LiveUiPatch.exceedsByteLimit("a".repeat(LiveUiPatch.MAX_PATCH_BYTES + 1)));
         assertTrue(LiveUiPatch.exceedsByteLimit("é".repeat(LiveUiPatch.MAX_PATCH_BYTES / 2 + 1)));
 
-        // Fork PR #15 QuickAction destination mapping
+        // Fork PR #15 QuickAction destination mapping -> top-level native tabs
         try {
-            LiveUiPatch.QuickAction dest = new LiveUiPatch.QuickAction("qa_act", "Activité", null, null, "activite", "bell");
-            assertEquals("reminders", dest.nativeActionId());
+            assertEquals("nav_discussions", new LiveUiPatch.QuickAction("qa_d", "Discussions", null, null, "discussions", null).nativeActionId());
+            assertEquals("nav_atelier", new LiveUiPatch.QuickAction("qa_a", "Atelier", null, null, "atelier", null).nativeActionId());
+            assertEquals("nav_brain", new LiveUiPatch.QuickAction("qa_c", "Cerveau", null, null, "cerveau", null).nativeActionId());
+            assertEquals("nav_activity", new LiveUiPatch.QuickAction("qa_act", "Activité", null, null, "activite", "bell").nativeActionId());
         } catch (IOException unexpected) {
             fail("Valid destination quick action rejected: " + unexpected);
         }
@@ -183,6 +185,93 @@ public final class LiveUiStateManagerTest {
         assertNull(store.read("workspace.live_ui.v2"));
         manager.apply(patch);
         assertTrue(manager.canRollback());
+    }
+
+    @Test public void persistsAcrossDayNightSwitchesWithoutCorruption() throws Exception {
+        MemoryStore store = new MemoryStore();
+        MemorySurfaces surfaces = new MemorySurfaces();
+        LiveUiPatch.StateManager dayManager = new LiveUiPatch.StateManager(store, surfaces, false);
+
+        ThemePalette.OverrideSpec systemTeal = ThemePalette.OverrideSpec.validated(
+                "system", "#0D6E6E", "comfortable", 0, "paper", false);
+        LiveUiPatch.WidgetSpec widget = new LiveUiPatch.WidgetSpec(
+                "briefing_matin", "Résumé du jour", "", "briefing",
+                Collections.emptyList(), "#0D6E6E", true, false);
+        LiveUiPatch rev1 = new LiveUiPatch("rev-day-1", "", "atelier", "Accent sarcelle",
+                Arrays.asList(
+                        new LiveUiPatch.Op.SetThemeOverride(systemTeal),
+                        new LiveUiPatch.Op.UpsertWidget(widget)),
+                true);
+        dayManager.apply(rev1);
+
+        // Reload in Dark mode -> must NOT become corrupted!
+        LiveUiPatch.StateManager nightManager = new LiveUiPatch.StateManager(store, surfaces, true);
+        assertFalse(nightManager.isCorrupted());
+        assertEquals("#0D6E6E", nightManager.theme().accentHex);
+        assertEquals(1, nightManager.widgets().size());
+        assertTrue(nightManager.canRollback());
+
+        // Apply a dark-authored system accent in Night mode and reload back in Day mode.
+        ThemePalette.OverrideSpec systemMint = ThemePalette.OverrideSpec.validated(
+                "system", "#A0D7BC", "comfortable", 0, "paper", true);
+        LiveUiPatch rev2 = new LiveUiPatch("rev-night-2", "rev-day-1", "atelier", "Accent menthe",
+                List.of(new LiveUiPatch.Op.SetThemeOverride(systemMint)), true);
+        nightManager.apply(rev2);
+
+        LiveUiPatch.StateManager dayAgain = new LiveUiPatch.StateManager(store, surfaces, false);
+        assertFalse(dayAgain.isCorrupted());
+        assertEquals("#A0D7BC", dayAgain.theme().accentHex);
+        List<LiveUiPatch.StateManager.AppliedRevision> popped = dayAgain.rollbackAllTo("rev-day-1");
+        assertEquals(2, popped.size());
+        assertEquals("rev-night-2", popped.get(0).revisionId);
+        assertEquals("rev-day-1", popped.get(1).revisionId);
+        assertTrue(dayAgain.theme().isDefault());
+        assertTrue(dayAgain.widgets().isEmpty());
+    }
+
+    @Test public void applyRollsBackPriorSurfacesAtomicallyWhenSecondSurfaceFails() throws Exception {
+        MemoryStore store = new MemoryStore();
+        Map<String, String> backing = new HashMap<>();
+        backing.put("page/a", "{\"v\":0}");
+        LiveUiPatch.StateManager.SurfaceAdapter flaky = new LiveUiPatch.StateManager.SurfaceAdapter() {
+            @Override public String readCurrent(String surface) { return backing.getOrDefault(surface, ""); }
+            @Override public void replace(String surface, String revisionId, String summary, String nextRaw) {
+                if ("page/b".equals(surface) && !revisionId.startsWith("rollback:")) {
+                    throw new IllegalStateException("Page library full");
+                }
+                if (nextRaw == null || nextRaw.isEmpty()) backing.remove(surface);
+                else backing.put(surface, nextRaw);
+            }
+        };
+        LiveUiPatch.StateManager manager = new LiveUiPatch.StateManager(store, flaky, false);
+        LiveUiPatch patch = new LiveUiPatch("rev-atomic", "", "atelier", "Deux écrans",
+                Arrays.asList(
+                        new LiveUiPatch.Op.UpsertSurface("page/a", "{\"v\":1}", "A"),
+                        new LiveUiPatch.Op.UpsertSurface("page/b", "{\"v\":1}", "B")),
+                true);
+        try {
+            manager.apply(patch);
+            fail("Expected failure on second surface");
+        } catch (IllegalStateException expected) {
+            // Surface A must have been restored to its prior value and history must stay empty.
+            assertEquals("{\"v\":0}", backing.get("page/a"));
+            assertFalse(backing.containsKey("page/b"));
+            assertTrue(manager.history().isEmpty());
+        }
+    }
+
+    @Test public void interactiveControlsPersistPerControlWithoutClobberingSiblings() {
+        MemoryStore kv = new MemoryStore();
+        InstrumentStateStore stateStore = new InstrumentStateStore(kv);
+        InteractiveControlsBlock.persistBoolean(stateStore, "atelier", "page/shared", "toggle_a", true);
+        InteractiveControlsBlock.persistNumber(stateStore, "atelier", "page/shared", "slider_b", 42.0);
+        InteractiveControlsBlock.persistStringList(stateStore, "atelier", "page/shared", "chips_c", List.of("Travail"));
+
+        // Updating one control preserves all sibling keys on the shared surface.
+        InteractiveControlsBlock.persistBoolean(stateStore, "atelier", "page/shared", "toggle_a", false);
+        assertFalse(stateStore.getBoolean("atelier", "page/shared", "toggle_a", true));
+        assertEquals(42.0, stateStore.getNumber("atelier", "page/shared", "slider_b", 0.0), 0.001);
+        assertEquals(List.of("Travail"), stateStore.getStringList("atelier", "page/shared", "chips_c", Collections.emptyList()));
     }
 
     private static void assertThrowsIo(IoRunnable runnable) {

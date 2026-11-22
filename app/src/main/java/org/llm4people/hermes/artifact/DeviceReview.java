@@ -94,7 +94,18 @@ public final class DeviceReview {
                                 ? chooser(activity, target) : target);
                         fireCompleted.run();
                     } catch (ActivityNotFoundException | SecurityException unavailable) {
-                        Diagnostics.warning("device_action", "app_unavailable", unavailable);
+                        Intent fallback = request.fallbackTarget();
+                        if (fallback != null) {
+                            try {
+                                activity.startActivity(fallback);
+                                fireCompleted.run();
+                                return;
+                            } catch (ActivityNotFoundException | SecurityException fallbackUnavailable) {
+                                Diagnostics.warning("device_action", "app_unavailable", fallbackUnavailable);
+                            }
+                        } else {
+                            Diagnostics.warning("device_action", "app_unavailable", unavailable);
+                        }
                         DeskDialogs.open(activity, host, new AlertDialog.Builder(activity)
                                 .setTitle("Application indisponible")
                                 .setMessage("Aucune application disponible ne peut ouvrir cette proposition.")

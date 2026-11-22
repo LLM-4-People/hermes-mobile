@@ -19,6 +19,7 @@ import java.util.function.Consumer;
 import org.json.JSONObject;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.nearby.NearbyFix;
+import org.llm4people.hermes.places.NearbyCategory;
 import org.llm4people.hermes.profile.Account;
 
 /** Foreground consent belongs to the open protected discussion. No device location is read on render. */
@@ -171,7 +172,7 @@ final class NearbyConsent {
         boolean editable = page.journal.pending() == null && !page.admitting();
         LinearLayout items = Ui.column(page.activity);
         Ui.pad(items, 20, 6);
-        String disclosure = "Hermes reçoit la zone avec votre message. Pour un guide de restaurants, votre passerelle peut aussi transmettre la zone approximative au fournisseur de données OpenStreetMap configuré.";
+        String disclosure = "Hermes reçoit la zone avec votre message. Pour un guide de lieux à proximité, votre passerelle peut aussi transmettre la zone approximative au fournisseur de données OpenStreetMap configuré.";
         items.addView(Ui.text(page.activity, disclosure, 15));
         CheckBox remember = new CheckBox(page.activity);
         remember.setText("Utiliser ma position pour mes prochains messages sur ce profil");
@@ -254,12 +255,17 @@ final class NearbyConsent {
     }
 
     void chooseGuide(BooleanSupplier current, Consumer<JSONObject> chosen) {
+        chooseGuide(current, NearbyCategory.RESTAURANT, chosen);
+    }
+
+    void chooseGuide(BooleanSupplier current, NearbyCategory category, Consumer<JSONObject> chosen) {
         if (!current.getAsBoolean() || page.screen == null) return;
+        NearbyCategory activeCat = category == null ? NearbyCategory.RESTAURANT : category;
         generation++;
         cancel();
         long ticket = generation;
         page.screen.show(new AlertDialog.Builder(page.activity).setTitle("Rechercher autour de moi ?")
-                .setMessage("Votre passerelle et son fournisseur de données OpenStreetMap recevront votre position approximative pour rechercher des restaurants.")
+                .setMessage("Votre passerelle et son fournisseur de données OpenStreetMap recevront votre position approximative pour rechercher " + activeCat.draftPlural + ".")
                 .setNegativeButton("Annuler", null).setPositiveButton("Utiliser ma position", (d,w) -> {
                     if (generation == ticket && current.getAsBoolean()) locate(true, current, chosen);
                 }));

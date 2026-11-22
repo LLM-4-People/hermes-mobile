@@ -57,6 +57,7 @@ public sealed interface DeviceAction {
     Kind kind();
     String preview();
     Intent target();
+    default Intent fallbackTarget() { return null; }
 
     record CalendarEvent(String title, OffsetDateTime start, OffsetDateTime end, String location) implements DeviceAction {
         private static final DateTimeFormatter WIRE = new DateTimeFormatterBuilder()
@@ -226,6 +227,9 @@ public sealed interface DeviceAction {
             };
             return new Intent(Intent.ACTION_VIEW,
                     Uri.parse("google.navigation:q=" + Uri.encode(destination) + "&mode=" + code));
+        }
+        @Override public Intent fallbackTarget() {
+            return new Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=" + Uri.encode(destination)));
         }
     }
 

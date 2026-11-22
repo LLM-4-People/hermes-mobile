@@ -58,6 +58,9 @@ public final class UniversalDeviceActionTest extends TestCase {
                 "{\"kind\":\"map_navigation\",\"destination\":\"Gare Centrale, Montréal\",\"mode\":\"walking\"}");
         assertEquals(Intent.ACTION_VIEW, nav.target().getAction());
         assertTrue(nav.target().getDataString().contains("mode=w"));
+        assertNotNull(nav.fallbackTarget());
+        assertEquals(Intent.ACTION_VIEW, nav.fallbackTarget().getAction());
+        assertTrue(nav.fallbackTarget().getDataString().startsWith("geo:0,0?q="));
         assertTrue(nav.preview().contains("À pied"));
 
         DeviceAction clip = DeviceAction.parseJson("{\"kind\":\"copy_sensitive\",\"text\":\"CODE-1234\"}");

@@ -14,10 +14,10 @@ final class NearbyRequest {
         void close();
     }
 
-    private static final int TIMEOUT_MS = HermesConfig.DEFAULT_NEARBY_TIMEOUT_MS;
-    private static final int FUSED_GRACE_MS = HermesConfig.DEFAULT_NEARBY_FUSED_GRACE_MS;
     private final Source source;
     private final Consumer<CoarseArea> result;
+    private final int timeoutMs;
+    private final int fusedGraceMs;
     private boolean closed;
     private boolean fusedPending;
     private boolean networkStarted;
@@ -25,18 +25,27 @@ final class NearbyRequest {
     private long started;
 
     NearbyRequest(Source source, Consumer<CoarseArea> result) {
+        this(source, result, HermesConfig.DEFAULT_NEARBY_TIMEOUT_MS, HermesConfig.DEFAULT_NEARBY_FUSED_GRACE_MS);
+    }
+
+    NearbyRequest(Source source, Consumer<CoarseArea> result, int timeoutMs, int fusedGraceMs) {
+        if (timeoutMs <= 0 || fusedGraceMs <= 0 || fusedGraceMs > timeoutMs) {
+            throw new IllegalArgumentException("Nearby timeouts must be positive and ordered");
+        }
         this.source = source;
         this.result = result;
+        this.timeoutMs = timeoutMs;
+        this.fusedGraceMs = fusedGraceMs;
     }
 
     void start(boolean supportsFused) {
         if (closed) return;
         started = source.elapsedMillis();
         if (!source.available()) { finish(null); return; }
-        source.after(TIMEOUT_MS, () -> finish(null));
+        source.after(timeoutMs, () -> finish(null));
         if (supportsFused) {
             fusedPending = true;
-            source.after(FUSED_GRACE_MS, this::network);
+            source.after(fusedGraceMs, this::network);
             source.read(true, area -> receive(true, area));
         } else {
             network();
@@ -62,7 +71,7 @@ final class NearbyRequest {
     }
 
     private boolean usable() {
-        return source.elapsedMillis() - started < TIMEOUT_MS && source.available();
+        return source.elapsedMillis() - started < timeoutMs && source.available();
     }
 
     void cancel() {

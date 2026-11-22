@@ -114,14 +114,14 @@ public final class LiveUiPatch {
             this.icon = icon == null || icon.isEmpty() ? null : icon;
         }
 
-        /** Maps Fork PR #15 destination names to existing native action IDs. */
+        /** Maps Fork PR #15 destination names to top-level native tab navigation actions. */
         public String nativeActionId() {
             if (destination == null) return null;
             return switch (destination) {
-                case "discussions" -> "threads";
-                case "atelier" -> "workspace";
-                case "cerveau" -> "models";
-                case "activite" -> "reminders";
+                case "discussions" -> "nav_discussions";
+                case "atelier" -> "nav_atelier";
+                case "cerveau" -> "nav_brain";
+                case "activite" -> "nav_activity";
                 default -> null;
             };
         }
@@ -262,7 +262,7 @@ public final class LiveUiPatch {
                     }
                     normalizedAccentInk = ThemePalette.formatHex(inkRgb);
                 } else {
-                    ThemePalette.validateAccentContrast(rgb, nightMode);
+                    ThemePalette.validateSystemAccentContrast(rgb);
                 }
                 normalizedAccent = ThemePalette.formatHex(rgb);
             }
@@ -362,13 +362,19 @@ public final class LiveUiPatch {
 
     public LiveUiPatch(String revisionId, String parentRevisionId, String scope, String summary,
                        List<Op> ops, List<SuggestedAction> suggestedActions, boolean requiresApply) throws IOException {
+        this(revisionId, parentRevisionId, scope, summary, ops, suggestedActions, requiresApply, MAX_OPS);
+    }
+
+    private LiveUiPatch(String revisionId, String parentRevisionId, String scope, String summary,
+                        List<Op> ops, List<SuggestedAction> suggestedActions, boolean requiresApply,
+                        int maxOps) throws IOException {
         if (!validRevisionId(revisionId)) throw new IOException("Invalid revision id");
         if (parentRevisionId != null && !parentRevisionId.isEmpty() && !validRevisionId(parentRevisionId)) {
             throw new IOException("Invalid parent revision id");
         }
         String safeScope = scope == null || scope.isEmpty() ? "thread" : scope;
         if (!SCOPES.contains(safeScope)) throw new IOException("Invalid patch scope");
-        if (ops == null || ops.isEmpty() || ops.size() > MAX_OPS) throw new IOException("Invalid op count");
+        if (ops == null || ops.isEmpty() || ops.size() > maxOps) throw new IOException("Invalid op count");
         if (suggestedActions != null && suggestedActions.size() > MAX_SUGGESTED_ACTIONS) {
             throw new IOException("Too many suggested actions");
         }
@@ -438,8 +444,8 @@ public final class LiveUiPatch {
                 if (opObj == null) throw new IOException("Malformed op entry");
                 parseOp(opObj, nightMode, parsed);
             }
-            List<SuggestedAction> suggestions = parseSuggestedActions(payload.opt("suggested_actions"));
-            return new LiveUiPatch(revId, parentId, scope, summary, parsed, suggestions, requiresApply);
+            List<SuggestedAction> suggestions = parseSuggestedActions(payload.opt("suggested_actions"), parsed);
+            return new LiveUiPatch(revId, parentId, scope, summary, parsed, suggestions, requiresApply, MAX_OPS * 2);
         } catch (IOException | JSONException e) {
             warnRejected();
             throw e instanceof IOException io ? io : new IOException("Malformed ui.patch", e);
@@ -447,10 +453,16 @@ public final class LiveUiPatch {
     }
 
     public static List<SuggestedAction> parseSuggestedActions(Object raw) throws IOException {
+        return parseSuggestedActions(raw, Collections.emptyList());
+    }
+
+    public static List<SuggestedAction> parseSuggestedActions(Object raw, List<Op> ops) throws IOException {
         if (raw == null || JSONObject.NULL.equals(raw)) return Collections.emptyList();
         if (!(raw instanceof JSONArray arr) || arr.length() > MAX_SUGGESTED_ACTIONS) {
             throw new IOException("Invalid suggested_actions");
         }
+        String defaultWidgetId = firstWidgetId(ops);
+        String defaultSurfacePage = firstCustomSurface(ops);
         List<SuggestedAction> out = new ArrayList<>(arr.length());
         for (int i = 0; i < arr.length(); i++) {
             JSONObject obj = arr.optJSONObject(i);
@@ -472,11 +484,15 @@ public final class LiveUiPatch {
                 if (!FORK_SUGGESTED_ACTION_KINDS.contains(kind)) throw new IOException("Unknown suggested action kind");
                 switch (kind) {
                     case "pin_widget" -> {
-                        String wid = widgetId != null && !widgetId.isEmpty() ? widgetId : target;
+                        String wid = widgetId != null && !widgetId.isEmpty() ? widgetId
+                                : (target != null && !target.isEmpty() ? target : defaultWidgetId);
+                        if (wid == null || wid.isEmpty()) continue;
                         out.add(new SuggestedAction(id, label, kind, null, null, null, wid));
                     }
                     case "open_surface" -> {
-                        String pageId = page != null && !page.isEmpty() ? page : normalizePageId(target);
+                        String pageId = page != null && !page.isEmpty() ? page
+                                : (target != null && !target.isEmpty() ? normalizePageId(target) : defaultSurfacePage);
+                        if (pageId == null || pageId.isEmpty()) continue;
                         out.add(new SuggestedAction(id, label, kind, null, pageId, null, null));
                     }
                     case "create_reminder" -> {
@@ -497,6 +513,22 @@ public final class LiveUiPatch {
             }
         }
         return out;
+    }
+
+    private static String firstWidgetId(List<Op> ops) {
+        if (ops == null) return null;
+        for (Op op : ops) {
+            if (op instanceof Op.UpsertWidget uw) return uw.widget().widgetId;
+        }
+        return null;
+    }
+
+    private static String firstCustomSurface(List<Op> ops) {
+        if (ops == null) return null;
+        for (Op op : ops) {
+            if (op instanceof Op.UpsertSurface up && WorkspaceLayout.custom(up.surface())) return up.surface();
+        }
+        return null;
     }
 
     private static void parseOp(JSONObject obj, boolean nightMode, List<Op> out) throws IOException, JSONException {
@@ -997,8 +1029,23 @@ public final class LiveUiPatch {
                     patch.revisionId, patch.summary, priorSurfaces,
                     new ArrayList<>(tabs), new ArrayList<>(quickActions), new ArrayList<>(widgets), theme);
 
-            for (Map.Entry<String, String> write : surfaceWrites.entrySet()) {
-                surfaces.replace(write.getKey(), patch.revisionId, patch.summary, write.getValue());
+            List<String> writtenSurfaces = new ArrayList<>(surfaceWrites.size());
+            try {
+                for (Map.Entry<String, String> write : surfaceWrites.entrySet()) {
+                    surfaces.replace(write.getKey(), patch.revisionId, patch.summary, write.getValue());
+                    writtenSurfaces.add(write.getKey());
+                }
+            } catch (RuntimeException failure) {
+                for (int i = writtenSurfaces.size() - 1; i >= 0; i--) {
+                    String surface = writtenSurfaces.get(i);
+                    try {
+                        surfaces.replace(surface, "rollback:" + patch.revisionId,
+                                "Annulation · " + patch.summary, priorSurfaces.get(surface));
+                    } catch (RuntimeException ignored) {
+                        warnStateUnreadable();
+                    }
+                }
+                throw failure;
             }
             tabs.clear();
             tabs.addAll(nextTabs);
@@ -1022,21 +1069,28 @@ public final class LiveUiPatch {
             return last;
         }
 
-        /** Atomic rollback to the state right before the specified revisionId (reverting it and any later patches). */
-        public synchronized AppliedRevision rollbackTo(String revisionId) throws IOException {
+        /** Atomic rollback to the state right before the specified revisionId, returning all popped revisions newest-first. */
+        public synchronized List<AppliedRevision> rollbackAllTo(String revisionId) throws IOException {
             if (corrupted) throw new IOException("Live UI state is corrupted; explicit reset required");
             int target = -1;
             for (int i = history.size() - 1; i >= 0; i--) {
                 if (history.get(i).revisionId.equals(revisionId)) { target = i; break; }
             }
-            if (target < 0) return null;
-            AppliedRevision reverted = null;
+            if (target < 0) return Collections.emptyList();
+            List<AppliedRevision> popped = new ArrayList<>(history.size() - target);
             while (history.size() > target) {
-                reverted = history.remove(history.size() - 1);
+                AppliedRevision reverted = history.remove(history.size() - 1);
                 restoreSnapshot(reverted);
+                popped.add(reverted);
             }
             persist();
-            return reverted;
+            return Collections.unmodifiableList(popped);
+        }
+
+        /** Atomic rollback to the state right before the specified revisionId (reverting it and any later patches). */
+        public synchronized AppliedRevision rollbackTo(String revisionId) throws IOException {
+            List<AppliedRevision> popped = rollbackAllTo(revisionId);
+            return popped.isEmpty() ? null : popped.get(popped.size() - 1);
         }
 
         /** Collects every widget ID present in current state (helper for broadcasting HomePinBridge refreshes). */

@@ -146,5 +146,12 @@ public final class SyntaxHighlighterTest {
 
         String repeated = "x".repeat(5000);
         assertEquals(SyntaxHighlighter.MAX_SEARCH_MATCHES, SyntaxHighlighter.findMatches(repeated, "x").size());
+
+        // Unicode case-expansion (Turkish dotted İ -> i + combining dot in toLowerCase) must not shift offsets.
+        String unicode = "\u0130stanbul alpha \u0130 ALPHA";
+        var uniMatches = SyntaxHighlighter.findMatches(unicode, "alpha");
+        assertEquals(2, uniMatches.size());
+        assertEquals("alpha", unicode.substring(uniMatches.get(0).start(), uniMatches.get(0).end()));
+        assertEquals("ALPHA", unicode.substring(uniMatches.get(1).start(), uniMatches.get(1).end()));
     }
 }
