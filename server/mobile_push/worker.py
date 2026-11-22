@@ -3,7 +3,7 @@ import random
 import sqlite3
 import time
 from .ledgers import HermesLedgers
-from .fcm import ProviderError
+from .provider import ProviderError
 
 
 log = logging.getLogger("hermes.mobile.push")
@@ -48,7 +48,7 @@ def deliver(item, settings, store, sender):
         active = sender.send(item)
     except Exception as exc:
         # Credentials, request URLs, payloads and provider error messages stay out of logs.
-        log.warning("FCM delivery deferred (%s), attempt %d", type(exc).__name__, item["attempts"] + 1)
+        log.warning("Push delivery deferred (%s), attempt %d", type(exc).__name__, item["attempts"] + 1)
         cap = min(settings.retry_max, max(60, settings.poll_seconds * 2 ** min(item["attempts"], 20)))
         backoff = random.uniform(max(1, cap / 2), cap)
         if isinstance(exc, ProviderError):

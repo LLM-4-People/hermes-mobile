@@ -1,27 +1,9 @@
 """Send privacy-preserving Android data messages using Google's OAuth transport."""
-from email.utils import parsedate_to_datetime
+from .provider import ProviderError, lifetime, opaque_notice, retry_seconds
 import time
 from urllib.parse import quote
 import google.auth
 from google.auth.transport.requests import AuthorizedSession
-
-
-class ProviderError(Exception):
-    def __init__(self, status, retry_after):
-        super().__init__(f"FCM HTTP {status}")
-        self.retry_after = retry_after
-
-
-def retry_seconds(header):
-    if not header:
-        return 0
-    try:
-        return max(0, int(header))
-    except ValueError:
-        try:
-            return max(0, parsedate_to_datetime(header).timestamp() - time.time())
-        except (ValueError, TypeError, OverflowError):
-            return 0
 
 
 class FirebaseSender:
@@ -34,11 +16,10 @@ class FirebaseSender:
 
     def send(self, item):
         now = time.time()
-        remaining = item["created_at"] + self.retention - now
-        if remaining <= 0:
+        ttl = min(28 * 86400, lifetime(item, self.retention, now))
+        if ttl == 0:
             return True
-        ttl = min(28 * 86400, int(remaining))
-        data = {"event_id": item["event_id"], "installation_id": item["device_id"], "kind": item["kind"]}
+        data = opaque_notice(item)
         message = {"token": item["token"], "data": data, "android": {"priority": "high", "ttl": f"{ttl}s"}}
         with self.session.post(self.url, json={"message": message}, timeout=self.timeout,
                                max_allowed_time=self.timeout * 3, allow_redirects=False) as response:
