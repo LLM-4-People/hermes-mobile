@@ -33,6 +33,8 @@ import org.llm4people.hermes.panel.ThreadActions;
 import org.llm4people.hermes.panel.UniversalShareModel;
 import org.llm4people.hermes.profile.Account;
 import org.llm4people.hermes.profile.ProfileGate;
+import org.llm4people.hermes.push.DeliveryItem;
+import org.llm4people.hermes.push.DeliveryRouter;
 import org.llm4people.hermes.push.MobilePush;
 import org.llm4people.hermes.share.SharedMediaFlow;
 import org.llm4people.hermes.share.SharedTextFlow;
@@ -197,7 +199,9 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             if (featureRoutes != null) panels.showBrainHub(featureRoutes);
         });
         actions.register("reminders", () -> panels.showReminders());
-        actions.register("notifications", () -> push.settings(account));
+        actions.register("notifications", () -> push.settings(account, deliveryActions(account)));
+        actions.register("deliveries", () -> push.openInbox(account, deliveryActions(account)));
+        actions.register("push_policy", () -> push.openPolicy(account));
         actions.register("restore", () -> ArtifactDesk.manage(this, account, activeHost));
         actions.register("profiles", this::lock);
         actions.register("pin_widget", () -> WorkspaceDialogs.pinQuickWidget(this));
@@ -361,16 +365,84 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
 
     @Override public void openPushEvent(Account owner, JSONObject event) {
         if (owner != account || isFinishing()) return;
-        ++noticeRequest;
-        if ("reminder".equals(event.optString("kind"))) {
+        long request = ++noticeRequest;
+        String kind = event.optString("kind");
+        if (DeliveryItem.Kind.fromWire(kind) != null) {
+            threads.cancelNotice();
+            dismissOverlays();
+            if (MobilePush.needsDeliveryFetch(event)) {
+                String deliveryId = event.optString("event_id", "");
+                if (deliveryId.isEmpty()) deliveryId = event.optString("delivery_id", "");
+                final String targetId = deliveryId;
+                notifications.execute(() -> {
+                    try {
+                        DeliveryItem fetched = new org.llm4people.hermes.push.DeliveryInbox().fetchOne(
+                                owner, new HermesApi(owner.endpoint, owner.bearer), targetId);
+                        runOnUiThread(() -> {
+                            if (owner == account && request == noticeRequest && !isFinishing()) {
+                                push.openDelivery(owner, fetched, deliveryActions(owner));
+                            }
+                        });
+                    } catch (IOException | RuntimeException failure) {
+                        Diagnostics.warning("push", "delivery_fetch_failed", failure);
+                        runOnUiThread(() -> {
+                            if (owner == account && request == noticeRequest && !isFinishing()) {
+                                push.openInbox(owner, deliveryActions(owner));
+                            }
+                        });
+                    }
+                });
+                return;
+            }
+            try {
+                DeliveryItem item = DeliveryItem.fromJson(event);
+                push.openDelivery(owner, item, deliveryActions(owner));
+            } catch (IllegalArgumentException malformed) {
+                Diagnostics.warning("push", "delivery_open_malformed");
+                push.openInbox(owner, deliveryActions(owner));
+            }
+            return;
+        }
+        if ("reminder".equals(kind)) {
             threads.cancelNotice();
             dismissOverlays();
             if (!event.isNull("job_id") && !event.optString("job_id").isEmpty())
                 panels.showReminder(event.optString("job_id"));
             else panels.showReminders();
         } else if (!event.isNull("session_id") && !event.optString("session_id").isEmpty()) {
-            threads.openNotice(event.optString("session_id"), event.optString("run_id"), event.optString("kind"));
+            threads.openNotice(event.optString("session_id"), event.optString("run_id"), kind);
         }
+    }
+
+    private DeliveryRouter.Actions deliveryActions(Account owner) {
+        return new DeliveryRouter.Actions() {
+            @Override public void openDiscussion(String sessionId, String runId) {
+                if (owner != account || threads == null || sessionId == null || sessionId.isEmpty()) return;
+                dismissOverlays();
+                threads.openNotice(sessionId, runId == null ? "" : runId, "notice");
+            }
+
+            @Override public void openPublishedFile(String sessionId, String fileId, String filename) {
+                if (owner != account || files == null) return;
+                String targetSession = (sessionId != null && !sessionId.isEmpty())
+                        ? sessionId : (threads == null ? null : threads.remoteSessionId());
+                if (targetSession != null) {
+                    dismissOverlays();
+                    files.show(targetSession);
+                }
+            }
+
+            @Override public void openReminder(String jobId, String sessionId) {
+                if (owner != account || panels == null) return;
+                dismissOverlays();
+                if (jobId != null && !jobId.isEmpty()) panels.showReminder(jobId);
+                else panels.showReminders();
+            }
+
+            @Override public void openPushPolicy() {
+                if (owner == account && push != null) push.openPolicy(owner);
+            }
+        };
     }
 
     @Override public void noticeThread(boolean sameThread) {

@@ -2,7 +2,7 @@
 from email.utils import parsedate_to_datetime
 from enum import Enum
 import time
-from .events import PROMPT_KINDS
+from .events import DEFAULT_URGENCY, DELIVERY_KINDS, PROMPT_KINDS, URGENCY_LEVELS
 
 
 class Failure(Enum):
@@ -40,4 +40,34 @@ def lifetime(item, retention, now):
 
 
 def opaque_notice(item):
-    return {"event_id": item["event_id"], "installation_id": item["device_id"], "kind": item["kind"]}
+    """Build the strictly allowlisted, zero-leak wire wakeup payload.
+
+    Titles, snippets, file paths, payloads, and session/run IDs MUST NEVER enter
+    the push wakeup message sent through FCM or UnifiedPush relays.
+    """
+    base = {
+        "event_id": item["event_id"],
+        "installation_id": item["device_id"],
+        "kind": item["kind"],
+    }
+    if item["kind"] in DELIVERY_KINDS:
+        urgency = item.get("urgency")
+        if urgency not in URGENCY_LEVELS:
+            urgency = DEFAULT_URGENCY
+        base["urgency"] = urgency
+        base["profile_hint_opaque"] = item.get("profile_hint_opaque") or ""
+    return base
+
+
+def fcm_priority(item) -> str:
+    urgency = item.get("urgency")
+    return "high" if urgency in (None, "high") else "normal"
+
+
+def webpush_urgency(item) -> str:
+    urgency = item.get("urgency")
+    if urgency == "silent":
+        return "low"
+    if urgency == "normal":
+        return "normal"
+    return "high"

@@ -62,7 +62,8 @@ public final class DistributorReceiver extends MessagingReceiver {
                 PushStore.Device owner = store.forInstallation(instance);
                 if (owner == null || !owner.unified()) return;
                 String event = payload.optString("event_id"), kind = payload.optString("kind");
-                if (owner.receives()) PushNotices.post(context, owner, event, kind);
+                DeliveryItem.Urgency urgency = DeliveryItem.Urgency.fromWireOrDefault(payload.optString("urgency", null));
+                if (owner.receives()) PushNotices.post(context, owner, event, kind, urgency);
                 else store.defer(owner, event, kind, expiresAt, System.currentTimeMillis());
             }
         } catch (JSONException ignored) {

@@ -3,17 +3,25 @@ package org.llm4people.hermes.push;
 import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.app.TimePickerDialog;
 import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
 import android.database.DataSetObserver;
 import android.content.pm.PackageManager;
+import android.graphics.Typeface;
 import android.os.Build;
 import android.provider.Settings;
 import android.view.View;
+import android.view.WindowManager;
+import android.widget.Button;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
+import android.widget.Switch;
+import android.widget.TextView;
 
 import org.llm4people.hermes.Diagnostics;
+import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.profile.Account;
@@ -31,16 +39,26 @@ final class PushSettings {
     static final int PERMISSION = 6801;
     private final Activity activity;
     private final Account account;
+    private final DeliveryRouter.Actions deliveryActions;
     private AlertDialog dialog;
+    private TimePickerDialog timePicker;
+    private DeliveryRouter deliveryRouter;
     private volatile boolean closed;
 
     PushSettings(Activity activity, Account account) {
+        this(activity, account, null);
+    }
+
+    PushSettings(Activity activity, Account account, DeliveryRouter.Actions deliveryActions) {
         this.activity = activity;
         this.account = account;
+        this.deliveryActions = deliveryActions;
     }
 
     void close() {
         closed = true;
+        if (timePicker != null) { timePicker.dismiss(); timePicker = null; }
+        if (deliveryRouter != null) { deliveryRouter.dismiss(); deliveryRouter = null; }
         if (dialog != null) dialog.dismiss();
     }
 
@@ -101,16 +119,187 @@ final class PushSettings {
             builder.setMessage("Recevez les rappels, les demandes d’autorisation et la fin des sessions. Le contenu de vos échanges reste privé.")
                     .setPositiveButton("Activer", (d,w) -> begin());
         }
+        LinearLayout extras = null;
         if (offersDistributor(device)) {
-            View open = Ui.button(activity, "Ouvrir le distributeur", v -> openDistributor(v, device));
+            extras = Ui.column(activity);
+            Ui.pad(extras, 16, 4);
+            extras.addView(Ui.button(activity, "Ouvrir le distributeur", v -> openDistributor(v, device)));
             if (!allowed && device.repair == PushStore.REPAIR_ACTION) {
-                LinearLayout actions = Ui.column(activity);
-                actions.addView(open);
-                actions.addView(Ui.button(activity, "Réessayer", v -> retryRepair(device)));
-                builder.setView(actions);
-            } else builder.setView(open);
+                extras.addView(Ui.button(activity, "Réessayer", v -> retryRepair(device)));
+            }
         }
+        if (account != null) {
+            if (extras == null) {
+                extras = Ui.column(activity);
+                Ui.pad(extras, 16, 4);
+            }
+            PushPolicy currentPolicy = PushPolicy.load(activity, account.id);
+            String quietLine = currentPolicy.quietHoursEnabled
+                    ? activity.getString(R.string.push_policy_quiet_status_on,
+                            PushPolicy.formatMinuteFr(currentPolicy.quietStartMinute),
+                            PushPolicy.formatMinuteFr(currentPolicy.quietEndMinute))
+                    : activity.getString(R.string.push_policy_quiet_status_off);
+            TextView summary = Ui.text(activity, quietLine, 14);
+            summary.setTextColor(activity.getColor(R.color.muted));
+            Ui.pad(summary, 4, 6);
+            extras.addView(summary);
+            extras.addView(Ui.button(activity, activity.getString(R.string.push_policy_button),
+                    v -> showPolicyDialog()));
+            extras.addView(Ui.button(activity, activity.getString(R.string.push_inbox_button),
+                    v -> openDeliveryInbox()));
+        }
+        if (extras != null) builder.setView(extras);
         return builder;
+    }
+
+    void showPolicyDialog() {
+        if (!current() || account == null) return;
+        PushPolicy[] state = {PushPolicy.load(activity, account.id)};
+        LinearLayout content = Ui.column(activity);
+        Ui.pad(content, 20, 12);
+
+        TextView catHeading = Ui.text(activity, activity.getString(R.string.push_policy_categories_heading), 17);
+        catHeading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        content.addView(catHeading);
+        TextView catHint = Ui.text(activity, activity.getString(R.string.push_policy_categories_hint), 13);
+        catHint.setTextColor(activity.getColor(R.color.muted));
+        Ui.pad(catHint, 0, 4);
+        content.addView(catHint);
+
+        for (DeliveryItem.Category category : DeliveryItem.Category.values()) {
+            Switch toggle = new Switch(activity);
+            toggle.setText(category.labelFr);
+            toggle.setChecked(state[0].isCategoryEnabled(category));
+            toggle.setMinHeight(Ui.dp(activity, 48));
+            toggle.setOnCheckedChangeListener((btn, checked) -> {
+                state[0] = state[0].withCategory(category, checked);
+                PushPolicy.save(activity, account.id, state[0]);
+            });
+            content.addView(toggle);
+            TextView sub = Ui.text(activity, category.hintFr, 12);
+            sub.setTextColor(activity.getColor(R.color.muted));
+            Ui.pad(sub, 0, 2);
+            content.addView(sub);
+        }
+
+        content.addView(Ui.divider(activity));
+        TextView quietHeading = Ui.text(activity, activity.getString(R.string.push_policy_quiet_heading), 17);
+        quietHeading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        Ui.pad(quietHeading, 0, 10);
+        content.addView(quietHeading);
+
+        Button startButton = Ui.button(activity, "", null);
+        Button endButton = Ui.button(activity, "", null);
+        Switch highToggle = new Switch(activity);
+
+        Runnable refreshQuietViews = () -> {
+            startButton.setText(activity.getString(R.string.push_policy_quiet_start,
+                    PushPolicy.formatMinuteFr(state[0].quietStartMinute)));
+            endButton.setText(activity.getString(R.string.push_policy_quiet_end,
+                    PushPolicy.formatMinuteFr(state[0].quietEndMinute)));
+            startButton.setEnabled(state[0].quietHoursEnabled);
+            endButton.setEnabled(state[0].quietHoursEnabled);
+            highToggle.setEnabled(state[0].quietHoursEnabled);
+        };
+
+        Switch quietToggle = new Switch(activity);
+        quietToggle.setText(activity.getString(R.string.push_policy_quiet_toggle));
+        quietToggle.setChecked(state[0].quietHoursEnabled);
+        quietToggle.setMinHeight(Ui.dp(activity, 48));
+        quietToggle.setOnCheckedChangeListener((btn, checked) -> {
+            state[0] = state[0].withQuietHours(checked, state[0].quietStartMinute,
+                    state[0].quietEndMinute, state[0].allowHighUrgencyDuringQuietHours);
+            PushPolicy.save(activity, account.id, state[0]);
+            refreshQuietViews.run();
+        });
+        content.addView(quietToggle);
+
+        TextView quietHint = Ui.text(activity, activity.getString(R.string.push_policy_quiet_hint), 12);
+        quietHint.setTextColor(activity.getColor(R.color.muted));
+        content.addView(quietHint);
+
+        startButton.setOnClickListener(v -> openQuietTimePicker(state[0].quietStartMinute, picked -> {
+            state[0] = state[0].withQuietHours(state[0].quietHoursEnabled, picked,
+                    state[0].quietEndMinute, state[0].allowHighUrgencyDuringQuietHours);
+            PushPolicy.save(activity, account.id, state[0]);
+            refreshQuietViews.run();
+        }));
+        endButton.setOnClickListener(v -> openQuietTimePicker(state[0].quietEndMinute, picked -> {
+            state[0] = state[0].withQuietHours(state[0].quietHoursEnabled, state[0].quietStartMinute,
+                    picked, state[0].allowHighUrgencyDuringQuietHours);
+            PushPolicy.save(activity, account.id, state[0]);
+            refreshQuietViews.run();
+        }));
+        content.addView(startButton);
+        content.addView(endButton);
+
+        highToggle.setText(activity.getString(R.string.push_policy_quiet_high_toggle));
+        highToggle.setChecked(state[0].allowHighUrgencyDuringQuietHours);
+        highToggle.setMinHeight(Ui.dp(activity, 48));
+        highToggle.setOnCheckedChangeListener((btn, checked) -> {
+            state[0] = state[0].withQuietHours(state[0].quietHoursEnabled, state[0].quietStartMinute,
+                    state[0].quietEndMinute, checked);
+            PushPolicy.save(activity, account.id, state[0]);
+        });
+        content.addView(highToggle);
+
+        TextView highHint = Ui.text(activity, activity.getString(R.string.push_policy_quiet_high_hint), 12);
+        highHint.setTextColor(activity.getColor(R.color.muted));
+        content.addView(highHint);
+
+        refreshQuietViews.run();
+
+        ScrollView scroll = new ScrollView(activity);
+        scroll.addView(content);
+        display(new AlertDialog.Builder(activity)
+                .setTitle(activity.getString(R.string.push_policy_title))
+                .setView(scroll)
+                .setNegativeButton("Retour", (d, w) -> show())
+                .setPositiveButton("Fermer", null));
+    }
+
+    private void openQuietTimePicker(int initialMinute, java.util.function.IntConsumer onPicked) {
+        if (!current()) return;
+        if (timePicker != null) timePicker.dismiss();
+        timePicker = new TimePickerDialog(activity, (picker, hour, minute) -> {
+            if (current()) onPicked.accept(hour * 60 + minute);
+        }, initialMinute / 60, initialMinute % 60, true);
+        timePicker.getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
+        timePicker.show();
+    }
+
+    private void openDeliveryInbox() {
+        if (!current() || account == null) return;
+        if (dialog != null) dialog.dismiss();
+        HermesApi api = new HermesApi(account.endpoint, account.bearer);
+        DeliveryRouter.Actions wired = new DeliveryRouter.Actions() {
+            @Override public void openDiscussion(String sessionId, String runId) {
+                if (deliveryActions != null) deliveryActions.openDiscussion(sessionId, runId);
+            }
+            @Override public void openPublishedFile(String sessionId, String fileId, String filename) {
+                if (deliveryActions != null) deliveryActions.openPublishedFile(sessionId, fileId, filename);
+            }
+            @Override public void openCodeSnippet(String title, String language, String content) {
+                if (deliveryActions != null) deliveryActions.openCodeSnippet(title, language, content);
+            }
+            @Override public void previewUiPatch(DeliveryItem item) {
+                if (deliveryActions != null) deliveryActions.previewUiPatch(item);
+            }
+            @Override public void refreshWidget(DeliveryItem item) {
+                if (deliveryActions != null) deliveryActions.refreshWidget(item);
+            }
+            @Override public void reviewDeviceAction(DeliveryItem item) {
+                if (deliveryActions != null) deliveryActions.reviewDeviceAction(item);
+            }
+            @Override public void openReminder(String jobId, String sessionId) {
+                if (deliveryActions != null) deliveryActions.openReminder(jobId, sessionId);
+            }
+            @Override public void openPushPolicy() {
+                showPolicyDialog();
+            }
+        };
+        deliveryRouter = new DeliveryRouter(activity, account, api, new DeliveryInbox(), wired);
+        deliveryRouter.showInbox();
     }
 
     private void retryRepair(PushStore.Device device) {
