@@ -85,6 +85,7 @@ final class SkillBrowser {
         empty = panel.note(box, "");
         empty.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         ListView list = new ListView(panel.activity);
+        list.setId(R.id.skill_results);
         adapter = new ArrayAdapter<SkillInventory>(panel.activity, R.layout.skill_list_row, new ArrayList<>()) {
             @Override public View getView(int position, View recycled, ViewGroup container) {
                 View row = recycled != null ? recycled : panel.activity.getLayoutInflater()

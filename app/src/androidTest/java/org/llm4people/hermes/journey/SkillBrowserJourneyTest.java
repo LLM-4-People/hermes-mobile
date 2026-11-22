@@ -7,6 +7,7 @@ import android.view.View;
 import android.view.inputmethod.EditorInfo;
 import android.view.inspector.WindowInspector;
 import android.widget.EditText;
+import android.widget.ListView;
 import java.lang.reflect.Method;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -15,6 +16,7 @@ import org.llm4people.hermes.MainActivity;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.net.Exchange;
 import org.llm4people.hermes.net.HermesApi;
+import org.llm4people.hermes.panel.PickerWindow;
 import org.llm4people.hermes.panel.SessionPanel;
 import org.llm4people.hermes.profile.Account;
 import org.llm4people.hermes.profile.WorkspaceAccountFixture;
@@ -55,20 +57,6 @@ public final class SkillBrowserJourneyTest extends InstrumentationTestCase {
                 ui.see("La passerelle ne liste aucune compétence pour ce profil.");
                 ui.tap("Actualiser les compétences");
                 ui.see("travail/revue");
-                runTestOnUiThread(() -> {
-                    for (View window : WindowInspector.getGlobalWindowViews()) {
-                        EditText search = window.findViewById(R.id.skill_search_field);
-                        if (search == null || !search.isShown()) continue;
-                        EditorInfo editor = new EditorInfo();
-                        assertNotNull(search.onCreateInputConnection(editor));
-                        assertEquals(EditorInfo.IME_ACTION_SEARCH, editor.imeOptions & EditorInfo.IME_MASK_ACTION);
-                        int required = EditorInfo.IME_FLAG_NO_FULLSCREEN | EditorInfo.IME_FLAG_NO_EXTRACT_UI
-                                | EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING;
-                        assertEquals(required, editor.imeOptions & required);
-                        return;
-                    }
-                    fail("No live skills search field");
-                });
                 ui.fill("Rechercher une compétence", "absente");
                 ui.see("Aucune compétence ne correspond à cette recherche.");
                 ui.fill("Rechercher une compétence", "qualite");
@@ -82,6 +70,47 @@ public final class SkillBrowserJourneyTest extends InstrumentationTestCase {
                 assertTrue(gateway.observed().contains("Authorization: Bearer fixture"));
             } finally { runTestOnUiThread(activity::finish); }
         }
+    }
+
+    public void testSkillsSearchAndFirstMatchRemainUsableAboveCompactKeyboards() throws Throwable {
+        if (Build.VERSION.SDK_INT < 29) return;
+        Context app = getInstrumentation().getTargetContext();
+        MainActivity activity = (MainActivity) getInstrumentation().startActivitySync(app.getPackageManager()
+                .getLaunchIntentForPackage(app.getPackageName()));
+        JourneyUi ui = new JourneyUi(getInstrumentation(), activity, app.getCacheDir());
+        try (WorkspaceAccountFixture profile = new WorkspaceAccountFixture(app)) {
+            for (boolean landscape : new boolean[]{false, true}) {
+                try (Exchange gateway = new Exchange("200 OK", JSON, CAPS, EMPTY, CATALOG)) {
+                    SessionPanel panel = new SessionPanel(activity, new HermesApi(gateway.endpoint(), "test"), profile.account);
+                    try {
+                        runTestOnUiThread(() -> PickerWindow.open(panel, landscape, draft -> fail("Unexpected draft")));
+                        ui.tap("Compétences de Hermes");
+                        ui.fill("Rechercher une compétence", "qualite");
+                        ui.see("travail/revue");
+                        runTestOnUiThread(() -> checkSearchWindow(landscape));
+                        ui.see("Préparer le brouillon");
+                    } finally { runTestOnUiThread(panel::close); }
+                }
+            }
+        } finally { runTestOnUiThread(activity::finish); }
+    }
+
+    private void checkSearchWindow(boolean landscape) {
+        for (View window : WindowInspector.getGlobalWindowViews()) {
+            EditText search = window.findViewById(R.id.skill_search_field);
+            if (search == null || !search.isShown()) continue;
+            EditorInfo editor = new EditorInfo();
+            assertNotNull(search.onCreateInputConnection(editor));
+            assertEquals(EditorInfo.IME_ACTION_SEARCH, editor.imeOptions & EditorInfo.IME_MASK_ACTION);
+            int required = EditorInfo.IME_FLAG_NO_FULLSCREEN | EditorInfo.IME_FLAG_NO_EXTRACT_UI
+                    | EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING;
+            assertEquals(required, editor.imeOptions & required);
+            ListView list = window.findViewById(R.id.skill_results);
+            PickerWindow.check(list, search, landscape, row ->
+                    assertTrue(list.performItemClick(row, 0, list.getItemIdAtPosition(0))));
+            return;
+        }
+        fail("No live skills search field");
     }
 
     public void testChangedThreadDiscardsAnOpenSkillAndUnsupportedListingHasRecovery() throws Throwable {
