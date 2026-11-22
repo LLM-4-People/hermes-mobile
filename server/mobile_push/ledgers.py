@@ -27,7 +27,7 @@ class Ledger:
         self.version = None
         self.identity = None
         self.cursor = 0
-        self.last_full = 0
+        self.next_full_at = None
         self.overlap = settings.poll_seconds * 2
         self.reconcile_seconds = settings.reconcile_seconds
 
@@ -68,14 +68,15 @@ class Ledger:
         checkpoint = identity[2] is not None
         if self.identity != identity:
             if not self.identity or self.identity[:2] != identity[:2]:
-                self.cursor = self.last_full = 0
+                self.cursor = 0
+                self.next_full_at = None
             self.close()
             self.connection = sqlite3.connect(self._uri(identity), uri=True)
             self.identity = identity
         db = self.connection
         version = db.execute("PRAGMA data_version").fetchone()[0]
         now = time.monotonic()
-        full = not self.last_full or now - self.last_full >= self.reconcile_seconds
+        full = self.next_full_at is None or now >= self.next_full_at
         if version == self.version and not full:
             return
         lower = cutoff if full else max(cutoff, self.cursor - self.overlap)
@@ -91,7 +92,7 @@ class Ledger:
         if observations:
             self.cursor = max(self.cursor, max(item.updated_at for item in observations))
         if full:
-            self.last_full = now
+            self.next_full_at = now + self.reconcile_seconds
         self.version = version
 
 

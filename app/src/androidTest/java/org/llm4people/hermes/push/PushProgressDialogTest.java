@@ -5,6 +5,7 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
+import android.os.SystemClock;
 import android.test.InstrumentationTestCase;
 import android.view.KeyEvent;
 import android.view.View;
@@ -19,6 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BooleanSupplier;
 
 public final class PushProgressDialogTest extends InstrumentationTestCase {
     public void testBackDuringDiscoveryAndHistorySuppressesSuccessAndFailure() throws Throwable {
@@ -45,8 +47,9 @@ public final class PushProgressDialogTest extends InstrumentationTestCase {
              WorkspaceAccountFixture fixture = new WorkspaceAccountFixture(context, bridge.endpoint())) {
             MobilePush push = new MobilePush(activity);
             CountDownLatch release = new CountDownLatch(1);
-            PushConnection.WORK.submit(() -> release.await(20, TimeUnit.SECONDS));
+            PushConnection.WORK.submit(() -> { release.await(); return null; });
             List<View> initial = new ArrayList<>();
+            View[] progress = new View[1];
             try {
                 getInstrumentation().waitForIdleSync();
                 runTestOnUiThread(() -> {
@@ -56,25 +59,56 @@ public final class PushProgressDialogTest extends InstrumentationTestCase {
                     assertEquals(history ? "Historique" : "Activer", start.getText().toString());
                     start.performClick();
                 });
-                getInstrumentation().waitForIdleSync();
-                runTestOnUiThread(() -> {
-                    TextView message = dialogWindow(initial).findViewById(android.R.id.message);
-                    assertEquals(history ? "Chargement…" : "Recherche des services de notification…",
-                            message.getText().toString());
+                String loading = history ? "Chargement…" : "Recherche des services de notification…";
+                awaitWindows("Loading dialog did not acquire input focus", () -> {
+                    for (View window : WindowInspector.getGlobalWindowViews()) {
+                        if (initial.contains(window) || !window.hasWindowFocus() || !window.isShown() || !window.isLaidOut()) continue;
+                        TextView message = window.findViewById(android.R.id.message);
+                        if (message != null && loading.contentEquals(message.getText())) {
+                            progress[0] = window;
+                            return true;
+                        }
+                    }
+                    return false;
                 });
                 getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_BACK);
-                getInstrumentation().waitForIdleSync();
-                runTestOnUiThread(() -> assertEquals(initial, WindowInspector.getGlobalWindowViews()));
+                awaitWindows("Back did not close " + loading, () -> !progress[0].isAttachedToWindow()
+                        && !WindowInspector.getGlobalWindowViews().contains(progress[0]));
                 release.countDown();
                 PushConnection.WORK.submit(() -> {}).get(10, TimeUnit.SECONDS);
                 assertTrue(bridge.observed().contains(history ? "/api/mobile/push/events?" : "/api/mobile/push "));
                 getInstrumentation().waitForIdleSync();
-                runTestOnUiThread(() -> assertEquals(initial, WindowInspector.getGlobalWindowViews()));
+                runTestOnUiThread(() -> {
+                    for (View window : WindowInspector.getGlobalWindowViews()) {
+                        if (!initial.contains(window)) fail("Late push dialog after Back: " + describe(window));
+                    }
+                });
             } finally {
                 release.countDown();
                 runTestOnUiThread(push::lock);
             }
         }
+    }
+
+    private void awaitWindows(String failure, BooleanSupplier condition) throws Throwable {
+        long deadline = SystemClock.uptimeMillis() + 10_000;
+        boolean[] ready = {false};
+        do {
+            runTestOnUiThread(() -> ready[0] = condition.getAsBoolean());
+            if (ready[0]) return;
+            SystemClock.sleep(30);
+        } while (SystemClock.uptimeMillis() < deadline);
+        runTestOnUiThread(() -> {
+            List<String> windows = new ArrayList<>();
+            for (View window : WindowInspector.getGlobalWindowViews()) windows.add(describe(window));
+            fail(failure + " while the HTTP request was gated. Windows: " + windows);
+        });
+    }
+
+    private static String describe(View window) {
+        TextView message = window.findViewById(android.R.id.message);
+        return window + " focused=" + window.hasWindowFocus() + " attached=" + window.isAttachedToWindow()
+                + " message=" + (message == null ? "" : message.getText());
     }
 
     private static View dialogWindow(List<View> initial) {

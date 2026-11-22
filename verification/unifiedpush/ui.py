@@ -216,14 +216,51 @@ def start_account(ui, label, endpoint, bearer, phrase):
     ui.wait("Nouvelle conversation")
 
 
+def choose_ntfy(ui):
+    attempts = 0
+    flags = {}
+
+    def choose():
+        nonlocal attempts
+        root = ui.hierarchy()
+        transport = ui.node("Service de notification", root) is not None
+        distributor = ui.node("Choisir un distributeur", root) is not None
+        unified = ui.node("Activer avec UnifiedPush", root)
+        ntfy = ui.node("ntfy\n" + NTFY, root)
+        unavailable = (
+            transport and ui.node("Aucun service de notification disponible pour ce profil.", root) is not None
+            or distributor and ui.node(
+                "Installez ou configurez un distributeur UnifiedPush, par exemple ntfy, puis réessayez.", root
+            ) is not None
+        )
+        flags.update(transport_picker=transport, distributor_picker=distributor, unifiedpush_option=unified is not None,
+                     ntfy_option=ntfy is not None, unavailable=unavailable, transport_taps=attempts)
+        if unavailable:
+            raise AssertionError("The application reported no available transport or distributor")
+        if distributor:
+            return (ntfy,) if ntfy is not None else None
+        if transport and unified is not None and attempts < 3:
+            ui.tap_node(unified)
+            attempts += 1
+            flags["transport_taps"] = attempts
+        elif not transport:
+            ui.allow_if_prompted(root)
+        return None
+
+    try:
+        target = eventually("the enrolled ntfy package in the distributor chooser", choose)[0]
+    except (AssertionError, TimeoutError, RuntimeError):
+        print("Android enrollment " + json.dumps(flags, sort_keys=True), file=sys.stderr, flush=True)
+        raise
+    ui.tap_node(target)
+
+
 def enroll(ui):
     ui.tap("Atelier")
     ui.tap("Notifications", scroll=True)
     ui.tap("Activer")
     ui.allow_if_prompted()
-    ui.tap("Activer avec UnifiedPush", notification_permission=True)
-    ui.wait("Choisir un distributeur")
-    ui.tap("ntfy\n" + NTFY)
+    choose_ntfy(ui)
 
 
 def process_absent(ui):

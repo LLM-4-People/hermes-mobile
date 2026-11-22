@@ -216,6 +216,7 @@ final class PushStore extends SQLiteOpenHelper {
         if (device != null) {
             if (!distributor.equals(device.distributor) || !signer.equals(device.signer) || REMOVING.equals(device.state)
                     || !endpoint.equals(device.endpoint)) throw new IOException("enrollment changed");
+            if (device.repair != NO_REPAIR && vapid.equals(device.vapid)) return device;
             ContentValues updated = new ContentValues();
             updated.put("vapid", vapid);
             updated.put("state", PENDING);
@@ -257,7 +258,12 @@ final class PushStore extends SQLiteOpenHelper {
                 done.put("retry_at", 0);
                 done.putNull("failure");
                 if (getWritableDatabase().update("devices", done, "installation=? AND state=? AND subscription_version=?",
-                        new String[]{device.installation, ACTIVE, device.subscriptionVersion}) > 0) changes.notifyChanged();
+                        new String[]{device.installation, device.state, device.subscriptionVersion}) > 0) {
+                    changes.notifyChanged();
+                    // A pre-reset upload response has an obsolete revision. Confirm the unchanged
+                    // endpoint under this repair's version before releasing its held receipts.
+                    return PENDING.equals(device.state);
+                }
             }
             return false;
         }
@@ -269,9 +275,11 @@ final class PushStore extends SQLiteOpenHelper {
         data.put("retry_at", 0);
         data.putNull("failure");
         data.put("attempts", 0);
-        return getWritableDatabase().update("devices", data,
-                "installation=? AND state IN (?,?) AND (retry_at=0 OR state=?) AND (failure IS NULL OR failure<>?)",
-                new String[]{device.installation, PENDING, ACTIVE, ACTIVE, RENEW}) == 1;
+        boolean changed = getWritableDatabase().update("devices", data,
+                "installation=? AND state IN (?,?) AND (retry_at=0 OR repair<>0) AND (failure IS NULL OR failure<>?)",
+                new String[]{device.installation, PENDING, ACTIVE, RENEW}) == 1;
+        if (changed) changes.notifyChanged();
+        return changed;
     }
 
     private Device insert(String profile, String endpoint, ContentValues data)
@@ -294,14 +302,14 @@ final class PushStore extends SQLiteOpenHelper {
         if (device.unified()) {
             data.put("established", 1);
             // A late acknowledgement for an older endpoint must leave its replacement queued.
-            where = "installation=? AND state=? AND subscription_version=?";
+            where = "installation=? AND state=? AND subscription_version=? AND repair=0";
             args = new String[]{device.installation, PENDING, device.subscriptionVersion};
         }
         if (getWritableDatabase().update("devices", data, where, args) > 0) changes.notifyChanged();
     }
 
     boolean beginRepair(Device device, long now, boolean explicit) {
-        if (!ACTIVE.equals(device.state) || device.subscriptionVersion == null) return false;
+        if (!(ACTIVE.equals(device.state) || PENDING.equals(device.state)) || device.subscriptionVersion == null) return false;
         if (!explicit && (device.repair == REPAIR_ACTION || device.retryAt > now && device.retryAt - now <= MAX_DELAY))
             return false;
         int attempts = explicit ? 1 : Math.min(8, device.attempts + 1);
@@ -310,10 +318,25 @@ final class PushStore extends SQLiteOpenHelper {
         data.put("attempts", attempts);
         data.put("retry_at", now + repairDelay(attempts));
         if (explicit) data.putNull("failure");
-        return getWritableDatabase().update("devices", data,
-                "installation=? AND state=? AND subscription_version=? AND repair=? AND retry_at=?",
-                new String[]{device.installation, ACTIVE, device.subscriptionVersion,
-                        Integer.toString(device.repair), Long.toString(device.retryAt)}) > 0;
+        SQLiteDatabase db = getWritableDatabase();
+        db.beginTransaction();
+        try {
+            if (PENDING.equals(device.state) && device.repair == NO_REPAIR) {
+                // Fence the already running bridge PUT. Keep opaque receipts private in this
+                // revision until the distributor confirms the same endpoint and its PUT succeeds.
+                String next = UUID.randomUUID().toString();
+                data.put("subscription_version", next);
+                db.execSQL("UPDATE deferred SET version=? WHERE installation=? AND version=?",
+                        new Object[]{next, device.installation, device.subscriptionVersion});
+            }
+            if (db.update("devices", data,
+                    "installation=? AND state=? AND subscription_version=? AND repair=? AND retry_at=?",
+                    new String[]{device.installation, device.state, device.subscriptionVersion,
+                            Integer.toString(device.repair), Long.toString(device.retryAt)}) == 0) return false;
+            db.setTransactionSuccessful();
+        } finally { db.endTransaction(); }
+        if (device.repair != WAITING_ENDPOINT) changes.notifyChanged();
+        return true;
     }
 
     private static long repairDelay(int attempts) { return Math.min(MAX_DELAY, 30_000L << Math.min(7, Math.max(0, attempts - 1))); }
@@ -329,7 +352,7 @@ final class PushStore extends SQLiteOpenHelper {
         data.put("retry_at", retry ? now + repairDelay(device.attempts) : 0);
         if (getWritableDatabase().update("devices", data,
                 "installation=? AND state=? AND subscription_version=? AND repair=? AND retry_at=?",
-                new String[]{device.installation, ACTIVE, device.subscriptionVersion,
+                new String[]{device.installation, device.state, device.subscriptionVersion,
                         Integer.toString(WAITING_ENDPOINT), Long.toString(device.retryAt)}) == 0) return false;
         changes.notifyChanged();
         return true;
@@ -337,7 +360,7 @@ final class PushStore extends SQLiteOpenHelper {
 
     // Ignore stale failures after NEW_ENDPOINT, including while the server upload is in flight.
     boolean registrationFailed(Device device, FailedReason reason, long now) {
-        if (ACTIVE.equals(device.state)) return repairFailed(device, reason, now);
+        if (device.repair != NO_REPAIR || ACTIVE.equals(device.state)) return repairFailed(device, reason, now);
         int attempts = reason.name().equals(device.failure) ? device.attempts : 0;
         boolean retry = reason == FailedReason.NETWORK || reason == FailedReason.INTERNAL_ERROR && attempts == 0;
         ContentValues data = new ContentValues();

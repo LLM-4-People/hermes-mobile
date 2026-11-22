@@ -2,6 +2,8 @@ package org.llm4people.hermes.push;
 
 import android.app.job.JobInfo;
 import android.app.job.JobScheduler;
+import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.ContextWrapper;
@@ -10,6 +12,9 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.test.InstrumentationTestCase;
+import android.view.View;
+import android.widget.Button;
+import android.widget.TextView;
 
 import org.unifiedpush.android.connector.UnifiedPush;
 import org.unifiedpush.android.connector.FailedReason;
@@ -184,6 +189,43 @@ public final class DistributorLifecycleTest extends InstrumentationTestCase {
         assertNull(restored.failure);
     }
 
+    public void testResetBeforeFirstBindingResponseFencesTheOldPutAndRetainsOnlyMatchingReceipts() throws Exception {
+        for (boolean sameEndpoint : new boolean[]{true, false}) {
+            PushStore.Device owner = prepare();
+            String token = register(owner);
+            assertTrue(store.updateSubscription(owner, "{}"));
+            PushStore.Device uploading = store.forProfile(owner.profile);
+            String event = UUID.randomUUID().toString().replace("-", "");
+            long now = System.currentTimeMillis();
+            store.defer(uploading, event, "reminder", now + 60_000, now);
+            outgoing.clear();
+            new DistributorPackageReceiver().onReceive(context, new Intent(Intent.ACTION_PACKAGE_DATA_CLEARED,
+                    Uri.fromParts("package", fixture.getPackageName(), null)));
+            assertTrue(outgoing.stream().anyMatch(i -> REGISTER.equals(i.getAction()) && token.equals(i.getStringExtra("token"))));
+            PushStore.Device repairing = store.forProfile(owner.profile);
+            assertFalse(uploading.subscriptionVersion.equals(repairing.subscriptionVersion));
+            store.enable(uploading);
+            assertFalse(store.forProfile(owner.profile).receives());
+            assertTrue(store.registrationFailed(repairing, org.unifiedpush.android.connector.FailedReason.NETWORK, now));
+            try (PushStore reopened = new PushStore(context, "push.db")) {
+                assertEquals(PushStore.RETRY_REPAIR, reopened.forProfile(owner.profile).repair);
+                assertEquals(repairing.subscriptionVersion, reopened.forProfile(owner.profile).subscriptionVersion);
+            }
+            assertTrue(store.updateSubscription(store.forProfile(owner.profile), sameEndpoint ? "{}" : "{\"new\":true}"));
+            store.enable(uploading); // Even after NEW_ENDPOINT, a pre-reset ACK remains obsolete.
+            assertFalse(store.forProfile(owner.profile).receives());
+            try (android.database.Cursor staged = store.getReadableDatabase().rawQuery(
+                    "SELECT COUNT(*) FROM deferred WHERE installation=? AND event=?", new String[]{owner.installation, event})) {
+                assertTrue(staged.moveToFirst());
+                assertEquals(sameEndpoint ? 1 : 0, staged.getInt(0));
+            }
+            PushStore.Device confirmed = store.forProfile(owner.profile);
+            store.enable(confirmed);
+            assertTrue(store.forProfile(owner.profile).receives());
+            store.deactivate(owner.profile);
+        }
+    }
+
     public void testUnprovenOrChangedSignerReceivesNoOldWireTokenEvenWhenRemoved() throws Exception {
         for (String pin : new String[]{"different-certificate", null}) {
             PushStore.Device device = prepare();
@@ -225,6 +267,51 @@ public final class DistributorLifecycleTest extends InstrumentationTestCase {
         assertFalse(PushSettings.mayOpenDistributor(context, active.profile, active));
         PushStore.Device untrusted = store.forProfile(active.profile);
         assertFalse(PushSettings.mayOpenDistributor(context, untrusted.profile, untrusted));
+    }
+
+    public void testEstablishedRepairAndAndroidPermissionShowTheirOwnActions() throws Throwable {
+        Intent launch = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
+        Activity activity = getInstrumentation().startActivitySync(launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        try {
+            PushConnection.WORK.submit(() -> {}).get(10, java.util.concurrent.TimeUnit.SECONDS);
+            PushStore.Device enabled = prepare();
+            store.updateSubscription(enabled, "{}");
+            store.enable(store.forProfile(enabled.profile));
+            PushSettings settings = new PushSettings(activity, null);
+            for (int repair : new int[]{PushStore.NO_REPAIR, PushStore.WAITING_ENDPOINT, PushStore.RETRY_REPAIR, PushStore.REPAIR_ACTION}) {
+                String failure = repair == PushStore.RETRY_REPAIR ? "NETWORK" : repair == PushStore.REPAIR_ACTION ? "ACTION_REQUIRED" : null;
+                long retryAt = repair == PushStore.WAITING_ENDPOINT || repair == PushStore.RETRY_REPAIR ? 1000 : 0;
+                store.getWritableDatabase().execSQL("UPDATE devices SET repair=?,failure=?,retry_at=? WHERE installation=?",
+                        new Object[]{repair, failure, retryAt, enabled.installation});
+                PushStore.Device row = store.forProfile(enabled.profile);
+                for (boolean allowed : new boolean[]{false, true}) {
+                    runTestOnUiThread(() -> {
+                        AlertDialog dialog = settings.settingsDialog(row, allowed).show();
+                        try {
+                            assertEquals(!allowed, hasAction(dialog, "Réglages Android"));
+                            assertEquals(repair == PushStore.REPAIR_ACTION, hasAction(dialog, "Réessayer"));
+                            for (String action : new String[]{"Désactiver", "Historique", "Ouvrir le distributeur"})
+                                assertTrue(action, hasAction(dialog, action));
+                            TextView message = dialog.findViewById(android.R.id.message);
+                            String text = message.getText().toString();
+                            assertEquals(!allowed, text.contains("réglages Android"));
+                            if (repair != PushStore.NO_REPAIR) assertTrue(text.contains("enregistré ce profil"));
+                            assertEquals(repair == PushStore.RETRY_REPAIR, text.contains("automatiquement"));
+                            assertEquals(repair == PushStore.WAITING_ENDPOINT, text.contains("attend la confirmation"));
+                        } finally { dialog.dismiss(); }
+                    });
+                }
+            }
+        } finally { runTestOnUiThread(activity::finish); }
+    }
+
+    private static boolean hasAction(AlertDialog dialog, String label) {
+        ArrayList<View> views = new ArrayList<>();
+        dialog.getWindow().getDecorView().findViewsWithText(views, label, View.FIND_VIEWS_WITH_TEXT);
+        for (View view : views)
+            if (view instanceof Button button && button.isShown() && label.contentEquals(button.getText()) && button.hasOnClickListeners())
+                return true;
+        return false;
     }
 
     public void testMissingPackageReleasesAllAffectedProfilesAndPicker() throws Exception {

@@ -3,7 +3,7 @@ import unittest
 from unittest.mock import Mock, patch
 from xml.etree.ElementTree import Element, SubElement
 
-from .shade import APP_LABEL, ROW, STACK, SYSTEM_UI, own_group_expander, presentation, show_notice
+from .shade import APP_LABEL, ROW, STACK, SYSTEM_UI, own_group_expander, presentation, shade_focused, show_notice
 from .ui import Screen
 
 
@@ -16,6 +16,7 @@ def shade():
 class ShadeTest(unittest.TestCase):
     def test_reconnect_and_scroll_until_exact_title_is_rendered(self):
         device, controls = Mock(), Mock()
+        device.shell.return_value = "mCurrentFocus=Window{37af7a7 u0 NotificationShade}"
         ui = Screen(device, controls)
         hidden, _ = shade()
         visible, stack = shade()
@@ -42,21 +43,36 @@ class ShadeTest(unittest.TestCase):
             "empty_shade": False, "app_label": True, "event_title": False, "generic_body": False,
         })
 
-    def test_floating_notification_does_not_count_as_the_open_drawer(self):
+    def test_heads_up_with_or_without_stack_does_not_count_as_open_drawer(self):
+        for stacked in (True, False):
+            with self.subTest(stacked=stacked):
+                focus = iter(("mCurrentFocus=Window{abc u0 com.android.launcher3/.Launcher}",
+                              "mCurrentFocus=Window{37af7a7 u0 NotificationShade}"))
+                device = Mock()
+                device.shell.side_effect = lambda *args: next(focus) if args == ("dumpsys", "window") else ""
+                ui = Screen(device, Mock())
+                heads_up = parent = Element("node", {"package": SYSTEM_UI})
+                if stacked:
+                    heads_up, parent = shade()
+                row = SubElement(parent, "node", {"resource-id": ROW})
+                SubElement(row, "node", {"text": "Hermes a terminé"})
+                visible, stack = shade()
+                title = SubElement(stack, "node", {"text": "Hermes a terminé"})
+                ui.hierarchy = Mock(side_effect=[heads_up, visible])
+                with patch("verification.unifiedpush.stack.time.sleep"):
+                    self.assertIs(show_notice(ui, "Hermes a terminé"), title)
+                self.assertEqual(ui.hierarchy.call_count, 2)
+
+    def test_only_named_native_shade_window_qualifies(self):
         device = Mock()
-        device.shell.return_value = "mCurrentFocus=Window{Launcher}"
-        ui = Screen(device, Mock())
-        heads_up = Element("node", {"package": SYSTEM_UI})
-        SubElement(heads_up, "node", {"text": "Hermes a terminé"})
-        visible, stack = shade()
-        title = SubElement(stack, "node", {"text": "Hermes a terminé"})
-        ui.hierarchy = Mock(side_effect=[heads_up, visible])
-        with patch("verification.unifiedpush.stack.time.sleep"):
-            self.assertIs(show_notice(ui, "Hermes a terminé"), title)
-        device.shell.assert_any_call("dumpsys", "window")
+        device.shell.return_value = "mCurrentFocus=Window{beef u0 com.android.systemui/NotificationShade}"
+        self.assertTrue(shade_focused(device))
+        device.shell.return_value = "mCurrentFocus=Window{beef u0 com.example/NotificationShadePreview}"
+        self.assertFalse(shade_focused(device))
 
     def test_physical_swipe_remains_inside_notification_stack(self):
         device, controls = Mock(), Mock()
+        device.shell.return_value = "mCurrentFocus=Window{37af7a7 u0 NotificationShade}"
         controls.send.return_value = b"edge"
         ui = Screen(device, controls)
         first, _ = shade()
