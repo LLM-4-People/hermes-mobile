@@ -140,6 +140,14 @@ public final class ThreadWorkspace implements AutoCloseable {
         screen.focusComposer();
     }
 
+    public boolean appendShare(String expectedSession, String receipt, String text) {
+        if (closed || journal == null || !expectedSession.equals(session)) return false;
+        journal.appendShare(receipt, text);
+        screen.displayDraft(journal.draft());
+        screen.focusComposer();
+        return true;
+    }
+
     private boolean canStartDraft() {
         return journal != null && ThreadStarters.available(emptyTranscript, journal.draft(), journal.pending() != null, slotOrder);
     }

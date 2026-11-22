@@ -7,6 +7,20 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class ThreadStateTest extends TestCase {
+    public void testShareReceiptSurvivesReopenAndNeverReplacesTheDraft() {
+        AtomicReference<String> saved = new AtomicReference<>();
+        ThreadJournal journal = new ThreadJournal("thread", "owner", null, saved::set);
+        journal.draft("avant");
+        journal.appendShare("receipt", "  code();\n");
+        ThreadJournal recovered = new ThreadJournal("thread", "owner", saved.get(), saved::set);
+        recovered.appendShare("receipt", "  code();\n");
+        assertEquals("avant\n  code();\n", recovered.draft());
+        assertNull(recovered.pending());
+        recovered.draft("modifié");
+        recovered.appendShare("receipt", "ne doit pas réapparaître");
+        assertEquals("modifié", recovered.draft());
+    }
+
     public void testRemotePromptNoticeChecksKindSessionRunAndCurrentGeneration() throws Exception {
         String approval = ThreadIdentity.noticePromptKind("approval_requested");
         String question = ThreadIdentity.noticePromptKind("question_requested");

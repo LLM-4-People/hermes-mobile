@@ -20,6 +20,7 @@ import org.llm4people.hermes.profile.Account;
 import org.llm4people.hermes.profile.ProfileGate;
 import org.llm4people.hermes.push.MobilePush;
 import org.llm4people.hermes.thread.ThreadWorkspace;
+import org.llm4people.hermes.share.SharedTextFlow;
 import org.llm4people.hermes.voice.VoiceDrafts;
 
 import java.io.IOException;
@@ -44,6 +45,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     private WorkspaceNavigation navigation;
     private ArtifactDesk.Host activeHost;
     private final Map<String, View> customPages = new HashMap<>();
+    private SharedTextFlow sharedText;
     private MobilePush push;
     private MobilePush.Target delivery;
     private AlertDialog notice;
@@ -65,6 +67,9 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         voice = new VoiceDrafts(this);
         push = new MobilePush(this);
         files = new PublishedFiles(this);
+        sharedText = new SharedTextFlow(this, () -> { displayDiscussion(); threads.inbox(); },
+                () -> navigate(WorkspaceNavigation.COMPOSER));
+        sharedText.restore(state, getIntent());
         gate = new ProfileGate(this);
         gate.setOnForget(id -> MobilePush.forget(this, id));
         handledDelivery = state == null ? null : state.getString("handled_delivery");
@@ -77,6 +82,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         super.onSaveInstanceState(outState);
         // The activity has no public view state. Discard framework dialog and view text too.
         outState.clear();
+        sharedText.save(outState);
         if (handledDelivery != null) outState.putString("handled_delivery", handledDelivery);
     }
 
@@ -91,7 +97,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     }
 
     private void unlock() {
-        gate.start(delivery == null ? null : delivery.profileId, this::opened);
+        gate.start(delivery == null ? sharedText.requestedProfile() : delivery.profileId, this::opened);
     }
 
     private void opened(Account unlocked) {
@@ -113,6 +119,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             Diagnostics.warning("threads", "resume_failed");
             threads.inbox();
         }
+        sharedText.opened(unlocked, threads);
         MobilePush.Target target = delivery;
         if (target != null) {
             handled(target);
@@ -176,9 +183,17 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
 
     @Override protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
-        setIntent(intent);
+        if (sharedText.receive(intent)) {
+            setIntent(new Intent(this, MainActivity.class));
+            delivery = null;
+            clearWorkspace();
+            unlock();
+            return;
+        }
         MobilePush.Target incoming = MobilePush.target(this, intent);
         if (incoming == null) return;
+        sharedText.leave();
+        setIntent(intent);
         delivery = incoming;
         if (account != null && account.id.equals(incoming.profileId)) {
             handled(incoming);
@@ -367,6 +382,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         if (shell == null) return;
         String threadTitle = sessionId == null ? null : title == null || title.trim().isEmpty() ? "Discussion" : title;
         shell.selected(sessionId, threadTitle);
+        sharedText.selected(sessionId);
         if (WorkspaceNavigation.DISCUSSION.equals(navigation.current())) render(false);
         ArtifactDesk.refreshBindings(shell.content(), activeHost);
     }
@@ -416,6 +432,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     }
 
     private void clearWorkspace() {
+        if (sharedText != null) sharedText.lock();
         if (shell != null) shell.dismissMenu();
         if (voice != null) voice.reader().stop();
         dismissOverlays();
