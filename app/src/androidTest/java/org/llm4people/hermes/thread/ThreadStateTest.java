@@ -4,6 +4,7 @@ import junit.framework.TestCase;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class ThreadStateTest extends TestCase {
     public void testUnacknowledgedSendRestoresSameKeyAndExactBodyAcrossRestart() throws Exception {
@@ -36,6 +37,69 @@ public class ThreadStateTest extends TestCase {
         ThreadJournal done = new ThreadJournal("abc", "original", stored.get(), stored::set);
         assertNull(done.pending());
         assertEquals("autre message", done.draft());
+    }
+
+    public void testConsecutiveRunsReceiveIndependentReconnectBudgets() {
+        AtomicReference<String> saved = new AtomicReference<>();
+        ThreadJournal journal = new ThreadJournal("thread", "owner", null, saved::set);
+        for (int turn = 1; turn <= 6; turn++) {
+            journal.stage(ThreadData.body("thread", "turn " + turn, null), turn, 1, 60, true);
+            journal.setRunId("run-" + turn);
+            assertFalse(journal.reconnectsExhausted());
+            assertEquals(1000L, journal.nextReconnectDelayMillis());
+            journal.finish();
+        }
+    }
+
+    public void testReopenAndReceiptReplayPreserveRetriesUntilExplicitResumeOrFinish() {
+        AtomicReference<String> saved = new AtomicReference<>();
+        ThreadJournal journal = new ThreadJournal("thread", "owner", null, saved::set);
+        journal.stage(ThreadData.body("thread", "first", null), 1, 1, 60, true);
+        journal.setRunId("first-run");
+        long[] expected = {1000, 2000, 4000, 8000, 16000};
+        for (long delay : expected) {
+            assertFalse(journal.reconnectsExhausted());
+            assertEquals(delay, journal.nextReconnectDelayMillis());
+            journal.retire();
+            journal = new ThreadJournal("thread", "owner", saved.get(), saved::set);
+            journal.setRunId("first-run");
+        }
+        assertEquals(-1L, journal.nextReconnectDelayMillis());
+        journal.retire();
+        journal = new ThreadJournal("thread", "owner", saved.get(), saved::set);
+        assertTrue(journal.reconnectsExhausted());
+        assertEquals(-1L, journal.nextReconnectDelayMillis());
+        journal.resetReconnects();
+        journal.retire();
+        journal = new ThreadJournal("thread", "owner", saved.get(), saved::set);
+        assertFalse(journal.reconnectsExhausted());
+        assertEquals(1000L, journal.nextReconnectDelayMillis());
+        journal.finish();
+        journal.stage(ThreadData.body("thread", "next", null), 2, 1, 60, true);
+        journal.setRunId("second-run");
+        assertEquals(1000L, journal.nextReconnectDelayMillis());
+    }
+
+    public void testFailedReconnectCommitPreservesPreviousBudgetAndReceipt() {
+        AtomicReference<String> saved = new AtomicReference<>();
+        AtomicBoolean writable = new AtomicBoolean(true);
+        ThreadJournal journal = new ThreadJournal("thread", "owner", null, value -> {
+            if (!writable.get()) throw new IllegalStateException("Storage unavailable");
+            saved.set(value);
+        });
+        journal.stage(ThreadData.body("thread", "first", null), 1, 1, 60, true);
+        journal.setRunId("run");
+        writable.set(false);
+        try { journal.nextReconnectDelayMillis(); fail("Scheduled a reconnect before recording it"); }
+        catch (IllegalStateException expected) { /* Retry after recovering storage. */ }
+        writable.set(true);
+        assertEquals(1000L, journal.nextReconnectDelayMillis());
+        writable.set(false);
+        try { journal.resetReconnects(); fail("Failed reset appeared to succeed"); }
+        catch (IllegalStateException expected) { /* The admitted run retains its budget. */ }
+        writable.set(true);
+        assertEquals(2000L, journal.nextReconnectDelayMillis());
+        assertEquals("run", journal.pending().optString("run_id"));
     }
 
     public void testFailedOutboxCommitCannotAdmitAndRetainsDraft() {

@@ -111,7 +111,7 @@ final class SurfaceRenderer {
         return String.join(" · ", labels);
     }
 
-    static void controls(Activity activity, LayoutHistory history, ArtifactDesk.Host host) {
+    static AlertDialog controls(Activity activity, LayoutHistory history, ArtifactDesk.Host host) {
         try {
             boolean page = WorkspaceLayout.custom(history.surface);
             boolean removed = page && history.current().isEmpty();
@@ -131,8 +131,18 @@ final class SurfaceRenderer {
             }
             if (history.canUndo()) builder.setNeutralButton("Annuler la modification",
                     (d, w) -> change(activity, host, history::undo));
-            DeskDialogs.open(activity, builder);
-        } catch (IllegalStateException e) { failure(activity); }
+            return DeskDialogs.open(activity, builder);
+        } catch (LayoutHistory.Unreadable e) {
+            Diagnostics.warning("workspace", "read_failed");
+            String screen = WorkspaceLayout.SURFACES.get(history.surface);
+            if (screen == null) return failure(activity);
+            return DeskDialogs.open(activity, new AlertDialog.Builder(activity)
+                    .setTitle("Rétablir l’écran « " + screen + " » ?")
+                    .setMessage("Sa disposition enregistrée est illisible. Rétablir cet écran effacera "
+                            + "définitivement sa disposition et son historique dans ce profil.")
+                    .setNegativeButton("Annuler", null).setPositiveButton("Rétablir", (d, w) ->
+                            change(activity, host, history::resetUnreadable)));
+        } catch (IllegalStateException e) { return failure(activity); }
     }
 
     static void change(Activity activity, ArtifactDesk.Host host, Runnable write) {
@@ -143,15 +153,22 @@ final class SurfaceRenderer {
                     .setPositiveButton("Fermer",null));
             return;
         }
-        catch (IllegalStateException e) { failure(activity); return; }
+        catch (LayoutHistory.Unreadable e) {
+            Diagnostics.warning("workspace", "read_failed");
+            DeskDialogs.open(activity, new AlertDialog.Builder(activity).setTitle("Disposition illisible")
+                    .setMessage("Dans le menu, choisissez « Rétablir l’atelier », puis l’écran concerné "
+                            + "pour retrouver sa disposition d’origine.")
+                    .setPositiveButton("Fermer", null));
+            return;
+        } catch (IllegalStateException e) { failure(activity); return; }
         Diagnostics.event("workspace", "changed");
         DeskDialogs.navigate(activity, host::onLayoutChanged);
     }
 
-    private static void failure(Activity activity) {
+    private static AlertDialog failure(Activity activity) {
         Diagnostics.warning("workspace", "storage_failed");
-        DeskDialogs.open(activity, new AlertDialog.Builder(activity).setTitle("Disposition indisponible")
-                .setMessage("Rouvrez le profil puis réessayez.").setPositiveButton("Fermer", null));
+        return DeskDialogs.open(activity, new AlertDialog.Builder(activity).setTitle("Disposition indisponible")
+                .setMessage("Impossible d’accéder à cette disposition. Vérifiez que le profil est déverrouillé, puis réessayez.").setPositiveButton("Fermer", null));
     }
 
     private static final class SurfaceFrame extends LinearLayout {

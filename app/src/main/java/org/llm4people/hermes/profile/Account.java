@@ -5,6 +5,8 @@ import android.util.Base64;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.util.Arrays;
+import javax.crypto.BadPaddingException;
+import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
@@ -27,6 +29,11 @@ public final class Account implements AutoCloseable {
         this.keys = keys;
     }
 
+    /** The stored bytes are malformed or failed authentication. A locked profile raises a separate error. */
+    public static final class UnreadableRecord extends IllegalStateException {
+        private UnreadableRecord(Throwable cause) { super("Unreadable account record", cause); }
+    }
+
     /** Reads the last committed value, or null for an absent key. Corrupt values fail closed. */
     public synchronized String read(String key) {
         try {
@@ -40,7 +47,9 @@ public final class Account implements AutoCloseable {
             } finally {
                 Arrays.fill(clear, (byte) 0);
             }
-        } catch (GeneralSecurityException | IllegalArgumentException ex) {
+        } catch (BadPaddingException | IllegalBlockSizeException | IllegalArgumentException | ClassCastException ex) {
+            throw new UnreadableRecord(ex);
+        } catch (GeneralSecurityException ex) {
             throw new IllegalStateException("Account record could not be read", ex);
         }
     }
