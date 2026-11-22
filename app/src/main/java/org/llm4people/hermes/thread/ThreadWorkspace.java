@@ -260,11 +260,16 @@ public final class ThreadWorkspace implements AutoCloseable {
         });
     }
 
-    public void openQuestion(String id, String runId) {
-        if (closed || !ThreadData.validId(id) || !ThreadData.validId(runId)) return;
-        inbox("Recherche de la question…", null);
-        Runnable retry = () -> openQuestion(id, runId);
-        request(() -> ThreadIdentity.hasPendingQuestion(id, runId, api.get("/v1/runs/" + HermesApi.segment(runId))),
+    public void openNotice(String id, String runId, String eventKind) {
+        if (closed) return;
+        String kind = ThreadIdentity.noticePromptKind(eventKind);
+        if (kind == null || !ThreadData.validId(id) || !ThreadData.validId(runId)) {
+            open(id);
+            return;
+        }
+        inbox("Vérification de la demande…", null);
+        Runnable retry = () -> openNotice(id, runId, eventKind);
+        request(() -> ThreadIdentity.hasPendingPrompt(id, runId, kind, api.get("/v1/runs/" + HermesApi.segment(runId))),
                 waiting -> open(id, waiting ? runId : null), failure -> {
             if (failure instanceof HermesApi.HttpError http && http.status == 404) open(id);
             else error(failure, retry);

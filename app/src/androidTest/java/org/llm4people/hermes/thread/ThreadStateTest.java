@@ -7,16 +7,48 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class ThreadStateTest extends TestCase {
-    public void testQuestionRouteRequiresExactAuthenticatedSessionAndRun() throws Exception {
+    public void testRemotePromptNoticeChecksKindSessionRunAndCurrentGeneration() throws Exception {
+        String approval = ThreadIdentity.noticePromptKind("approval_requested");
+        String question = ThreadIdentity.noticePromptKind("question_requested");
+        assertEquals("approval", approval);
+        assertEquals("clarify", question);
+        assertNull(ThreadIdentity.noticePromptKind("run_completed"));
+        JSONObject prompt = new JSONObject().put("kind", "approval").put("prompt_id", "a").put("execution_generation", 3);
         JSONObject status = new JSONObject().put("session_id", "thread").put("run_id", "run")
-                .put("pending_controls", new org.json.JSONArray().put(new JSONObject().put("kind", "clarify").put("prompt_id", "q")));
-        assertTrue(ThreadIdentity.hasPendingQuestion("thread", "run", status));
-        try { ThreadIdentity.hasPendingQuestion("other", "run", status); fail("Wrong session accepted"); }
+                .put("status", "waiting_for_approval").put("execution_generation", 3)
+                .put("pending_controls", new JSONArray().put(prompt));
+        AtomicReference<String> stored = new AtomicReference<>();
+        ThreadJournal secondPhone = new ThreadJournal("thread", "owner", null, stored::set);
+        assertNull(secondPhone.pending());
+        assertTrue(ThreadIdentity.hasPendingPrompt("thread", "run", approval, status));
+        secondPhone.observe("run");
+        assertEquals("run", secondPhone.pending().getString("run_id"));
+        assertFalse(secondPhone.pending().has("key"));
+        assertFalse(secondPhone.pending().has("body"));
+        assertFalse(ThreadIdentity.hasPendingPrompt("thread", "run", question, status));
+        try { ThreadIdentity.hasPendingPrompt("other", "run", approval, status); fail("Wrong session accepted"); }
         catch (java.io.IOException expected) {}
-        try { ThreadIdentity.hasPendingQuestion("thread", "other", status); fail("Wrong run accepted"); }
+        try { ThreadIdentity.hasPendingPrompt("thread", "other", approval, status); fail("Wrong run accepted"); }
         catch (java.io.IOException expected) {}
-        status.put("pending_controls", new org.json.JSONArray());
-        assertFalse(ThreadIdentity.hasPendingQuestion("thread", "run", status));
+        prompt.put("execution_generation", 4);
+        assertFalse(ThreadIdentity.hasPendingPrompt("thread", "run", approval, status));
+        prompt.put("execution_generation", 3).put("kind", "clarify");
+        assertTrue(ThreadIdentity.hasPendingPrompt("thread", "run", question, status));
+        assertFalse(ThreadIdentity.hasPendingPrompt("thread", "run", approval, status));
+        prompt.put("kind", "approval");
+        status.put("status", "completed");
+        assertFalse(ThreadIdentity.hasPendingPrompt("thread", "run", approval, status));
+        status.put("status", "running").put("pending_controls", new JSONArray());
+        assertFalse(ThreadIdentity.hasPendingPrompt("thread", "run", approval, status));
+    }
+
+    public void testStandaloneApprovalNoticeRequiresCurrentRequestId() throws Exception {
+        JSONObject legacy = new JSONObject().put("session_id", "thread").put("run_id", "run")
+                .put("status", "waiting_for_approval").put("approval", new JSONObject().put("request_id", "legacy"));
+        assertTrue(ThreadIdentity.hasPendingPrompt("thread", "run", "approval", legacy));
+        assertFalse(ThreadIdentity.hasPendingPrompt("thread", "run", "clarify", legacy));
+        legacy.getJSONObject("approval").put("request_id", "");
+        assertFalse(ThreadIdentity.hasPendingPrompt("thread", "run", "approval", legacy));
     }
 
     public void testObservedRunSurvivesRestartAndRestoresOriginalAdmissionAndDraft() {

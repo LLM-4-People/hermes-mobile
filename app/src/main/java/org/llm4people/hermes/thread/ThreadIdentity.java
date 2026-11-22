@@ -48,15 +48,29 @@ final class ThreadIdentity {
         return new ThreadIdentity(root, tip, ThreadData.string(page, "thread_title").trim(), "", false);
     }
 
-    static boolean hasPendingQuestion(String sessionId, String runId, JSONObject status) throws IOException {
+    static String noticePromptKind(String eventKind) {
+        if ("approval_requested".equals(eventKind)) return "approval";
+        if ("question_requested".equals(eventKind)) return "clarify";
+        return null;
+    }
+
+    static boolean hasPendingPrompt(String sessionId, String runId, String kind, JSONObject status) throws IOException {
         if (!sessionId.equals(ThreadData.string(status, "session_id"))
                 || !runId.equals(ThreadData.string(status, "run_id"))) {
             throw new IOException("Run does not belong to the selected conversation");
         }
-        JSONArray controls = status.optJSONArray("pending_controls");
-        for (int i = 0; controls != null && i < controls.length(); i++) {
-            JSONObject prompt = controls.optJSONObject(i);
-            if (RunPrompts.question(prompt) && !RunPrompts.id(prompt).isEmpty()) return true;
+        String state = ThreadData.string(status, "status");
+        if (!"running".equals(state) && !"waiting_for_input".equals(state) && !"waiting_for_approval".equals(state))
+            return false;
+        RunPrompts pending = new RunPrompts();
+        pending.restore(status);
+        for (JSONObject prompt : pending.snapshot()) {
+            if (prompt.has("prompt_id")) {
+                if (ThreadData.generation(status) >= 0 && kind.equals(ThreadData.string(prompt, "kind"))) return true;
+            } else if ("approval".equals(kind) && "waiting_for_approval".equals(state)
+                    && status.optJSONArray("pending_controls") == null) {
+                return true; // Standalone gateways expose the pending approval by request_id.
+            }
         }
         return false;
     }
