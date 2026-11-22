@@ -148,7 +148,7 @@ final class WorkspaceShell {
             else item(menu, activity.getString(R.string.read_reply_label), "read_reply");
             item(menu, activity.getString(R.string.instrument_create), "create_instrument");
             item(menu, "Vue de discussion d’origine", "native_thread");
-            item(menu, "Joindre une image…", "attach_photo");
+            if (pageTitle == null) item(menu, "Joindre une image…", "attach_photo");
             item(menu, "Renommer la discussion", "rename");
             item(menu, "Artefacts", "artifacts");
             item(menu, "Modèle et outils", "models");

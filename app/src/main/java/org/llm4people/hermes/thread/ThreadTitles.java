@@ -21,6 +21,8 @@ final class ThreadTitles {
             if (Character.isISOControl(point) || Character.getType(point) == Character.FORMAT
                     && point != 0x200c && point != 0x200d) continue;
             // An attachment can be a textual data URL in a legacy message.
+            // Inbox previews may truncate Hermes' stored attachment hint in the middle of a private host path.
+            if (point == '[' && text.regionMatches(pos - 1, "[Image attached at: /", 0, 21)) break;
             if ((point == 'd' || point == 'D') && text.regionMatches(true, pos - 1, "data:image/", 0, 11)) break;
             if (count + (space ? 1 : 0) >= 80) { out.append('…'); break; }
             if (space) { out.append(' '); count++; }

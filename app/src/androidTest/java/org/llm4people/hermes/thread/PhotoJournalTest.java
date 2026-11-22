@@ -89,6 +89,8 @@ public final class PhotoJournalTest extends TestCase {
                 + "/api_" + digest.substring(0, 32) + ".png]";
         JSONObject user = new JSONObject().put("role", "user").put("content", "Question\n\n" + reference);
         assertEquals("Question\n\nImage jointe", ThreadData.content(user));
+        assertEquals("Question", ThreadTitles.firstPrompt(new JSONArray().put(user)));
+        assertEquals("Question", ThreadTitles.inboxPrompt(new JSONObject().put("preview", "Question [Image attached at: /srv/private")));
         user.put("content", "Ouvrir /tmp/work.png");
         assertEquals("Ouvrir /tmp/work.png", ThreadData.content(user));
     }
