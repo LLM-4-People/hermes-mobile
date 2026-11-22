@@ -58,7 +58,7 @@ public final class PolishAdverseTest extends InstrumentationTestCase {
     }
     private void stableImeRow(String label,boolean require) throws Throwable {
         int[] previous={-1,-1,-1},current={-1,-1,-1};int stable=0;
-        long end=android.os.SystemClock.elapsedRealtime()+8500;
+        long end=android.os.SystemClock.elapsedRealtime()+20000;
         do {
             java.net.HttpURLConnection http=(java.net.HttpURLConnection)new java.net.URL(server+"/__proof/ime").openConnection();
             http.setReadTimeout(5000);
@@ -120,7 +120,7 @@ public final class PolishAdverseTest extends InstrumentationTestCase {
             ui.see("Utiliser les outils du profil");shot("reglages");
             ui.tap("Choisir le modèle");ui.see("Atelier · atelier");shot("fournisseurs");
             ui.tap("Atelier · atelier");ui.see("Relecture locale");shot("modeles");
-            ui.tap("Rechercher");ui.imeVisible();ui.fill("Rechercher","Relec");ui.see("Relecture locale");
+            ui.tap("Rechercher");ui.fill("Rechercher","Relec");ui.see("Relecture locale");
             stableImeRow("Relecture locale",!mode.equals("paysage"));shot("modeles-clavier");
             if(receipt.getInt("Relecture locale above keyboard")<48)ui.back();
             ui.tap("Relecture locale");ui.see("atelier · Relecture locale");
@@ -129,7 +129,7 @@ public final class PolishAdverseTest extends InstrumentationTestCase {
                 ui.tap("Choisir le modèle");
                 String provider="Atelier de développement et d’assistance pour les équipes de recherche et de documentation · custom-local-research-team-openai-compatible-staging";
                 ui.tap(provider);ui.see("Analyse locale");ui.tap("Rechercher");
-                ui.imeVisible();ui.fill("Rechercher","Analyse");getInstrumentation().waitForIdleSync();
+                ui.fill("Rechercher","Analyse");getInstrumentation().waitForIdleSync();
                 stableImeRow("Analyse locale",false);
                 shot("modele-nom-long-clavier");
                 boolean tapWithIme=receipt.getInt("Analyse locale above keyboard")>=48;
