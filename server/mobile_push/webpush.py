@@ -140,7 +140,8 @@ class WebPushSender:
         self.session.trust_env = False
 
     def send(self, item):
-        remaining = lifetime(item, self.retention, time.time())
+        now = time.time()
+        remaining = lifetime(item, self.retention, now)
         if remaining == 0:
             return True
         # A local policy change can be reversed. Only a response from the accepted
@@ -152,11 +153,16 @@ class WebPushSender:
         except (ValueError, TypeError) as exc:
             raise ProviderError(reason=Failure.SUBSCRIPTION) from exc
         sub = {"endpoint": endpoint, "keys": keys}
-        data = json.dumps(opaque_notice(item), separators=(",", ":")).encode()
+        notice = {**opaque_notice(item), "expires_at": int((now + remaining) * 1000)}
+        data = json.dumps(notice, separators=(",", ":")).encode()
         body = WebPusher(sub).encode(data, content_encoding="aes128gcm")["body"]
         headers = self.config.authorization()
+        ttl = int(remaining)
         headers.update({"Content-Encoding": "aes128gcm", "Content-Type": "application/octet-stream",
-                        "TTL": str(int(remaining)), "Urgency": "high"})
+                        "TTL": str(ttl), "Urgency": "high"})
+        if ttl == 0:
+            # ntfy uses its own cache policy even when the Web Push TTL requests live delivery only.
+            headers["X-Cache"] = "no"
         with self.session.post(sub["endpoint"], data=body, headers=headers, timeout=self.timeout,
                                allow_redirects=False, stream=True) as response:
             if 200 <= response.status_code < 300:

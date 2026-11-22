@@ -161,8 +161,13 @@ public final class DistributorContractTest extends InstrumentationTestCase {
         store.enable(store.forProfile(device.profile));
         store.updateSubscription(store.forProfile(device.profile), "{\"rotation\":2}");
         assertEquals(PushStore.PENDING, store.forProfile(device.profile).state);
-        byte[] data = new JSONObject().put("event_id", EVENT).put("installation_id", device.installation)
-                .put("kind", "reminder").toString().getBytes(StandardCharsets.UTF_8);
+        JSONObject notice = new JSONObject().put("event_id", EVENT).put("installation_id", device.installation)
+                .put("kind", "reminder");
+        // A distributor can replay cached ciphertext when the app process next receives a broadcast.
+        byte[] expired = notice.put("expires_at", System.currentTimeMillis() - 1).toString().getBytes(StandardCharsets.UTF_8);
+        DistributorReceiver.receive(context, new PushMessage(expired, true), device.installation);
+        assertNull(store.knownKind(device.installation, EVENT));
+        byte[] data = notice.put("expires_at", System.currentTimeMillis() + 60_000).toString().getBytes(StandardCharsets.UTF_8);
         DistributorReceiver.receive(context, new PushMessage(data, false), device.installation);
         DistributorReceiver.receive(context, new PushMessage(data, true), UUID.randomUUID().toString());
         assertNull(store.knownKind(device.installation, EVENT));

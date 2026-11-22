@@ -1,6 +1,6 @@
 # Closed-app notifications and reminders
 
-Hermes Mobile receives Android notifications for completed or failed runs, pending approvals, and reminders. Each registered device gets a generic alert. Opening it requires the appropriate profile before the app can read the associated thread or job. The bridge sends only the event kind and opaque event and installation identifiers through the selected transport. A profile can offer Firebase Cloud Messaging, a self-hosted ntfy distributor, or both. [Set up UnifiedPush](unifiedpush.md)
+Hermes Mobile receives Android notifications for completed or failed runs, pending approvals, and reminders. Each registered device gets a generic alert. Opening it requires the appropriate profile before the app can read the associated thread or job. The bridge sends the event kind and opaque event and installation identifiers. Web Push also encrypts the expiry time so the phone can discard a cached notice after the retention window. A profile can offer Firebase Cloud Messaging, a self-hosted ntfy distributor, or both. [Set up UnifiedPush](unifiedpush.md)
 
 ## Connect a profile
 

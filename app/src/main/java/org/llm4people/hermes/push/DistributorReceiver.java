@@ -52,6 +52,8 @@ public final class DistributorReceiver extends MessagingReceiver {
         try {
             JSONObject payload = new JSONObject(new String(message.getContent(), StandardCharsets.UTF_8));
             if (!instance.equals(payload.optString("installation_id"))) return;
+            long expiresAt = WebPushExpiry.read(payload.opt("expires_at"));
+            if (!WebPushExpiry.mayDispatch(payload.optString("kind"), expiresAt, System.currentTimeMillis())) return;
             PushStore.Device owner = PushStore.get(context).forInstallation(instance);
             if (owner != null && owner.unified()) {
                 PushNotices.post(context, owner, payload.optString("event_id"), payload.optString("kind"));
