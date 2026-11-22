@@ -40,6 +40,30 @@ public final class TranscriptPageTest {
                 first("```md\n![image](data:image/webp;base64,YQ==)\n```").text.toString());
     }
 
+    @Test public void emphasizedImagesStayCollapsedInTheReaderAndLivePreview() {
+        String image = "![croquis](data:image/png;base64,iVBORw0KGgo=)";
+        for (String marker : new String[]{"**", "__", "*", "_"}) {
+            String source = "Avant " + marker + "Voir " + image + " et " + image + marker + " après.";
+            TranscriptPage page = first(source);
+            assertEquals("Avant Voir [Image jointe] et [Image jointe] après.", page.text.toString());
+            TranscriptPage.Style style = marker.length() == 2 ? TranscriptPage.Style.BOLD : TranscriptPage.Style.ITALIC;
+            assertEquals("Voir [Image jointe] et [Image jointe]", marked(page, style));
+            LiveTranscript live = new LiveTranscript();
+            live.update(source);
+            assertEquals(page.text.toString(), live.latest.text.toString());
+        }
+        String crossing = "Préface **" + image + " fin**.";
+        var cursor = new TranscriptPage.Cursor();
+        var rendered = new StringBuilder();
+        do {
+            var page = new TranscriptPage(crossing, cursor, true, 24);
+            rendered.append(page.text);
+            assertTrue(page.next.offset > cursor.offset);
+            cursor = page.next;
+        } while (cursor.offset < crossing.length());
+        assertEquals("Préface **[Image jointe] fin**.", rendered.toString());
+    }
+
     @Test public void regionBoundariesKeepToolOutputAndMalformedMarkupLiteral() {
         String source = "Produit **incomplet; code_snake_case; [fichier](https://exemple.fr/a)\n" +
                 "<table><tr>42</tr></table>\n\\*littéral*\n3. Continuer";
