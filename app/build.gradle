@@ -9,6 +9,7 @@ android {
 
     defaultConfig {
         applicationId = namespace
+        manifestPlaceholders = [hermesApplicationId: namespace]
         minSdk = providers.gradleProperty('hermesMinSdk').get().toInteger()
         targetSdk = providers.gradleProperty('hermesTargetSdk').get().toInteger()
         versionCode = providers.gradleProperty('hermesVersionCode').get().toInteger()

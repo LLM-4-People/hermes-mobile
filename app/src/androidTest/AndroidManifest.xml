@@ -1,4 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <instrumentation android:name="android.test.InstrumentationTestRunner"
+        android:targetPackage="${hermesApplicationId}" />
+    <instrumentation
+        android:name="org.llm4people.hermes.journey.DeviceJourney"
+        android:targetPackage="${hermesApplicationId}" />
     <application>
         <uses-library android:name="android.test.runner" />
     </application>
