@@ -9,6 +9,7 @@ import subprocess
 import sys
 from xml.etree import ElementTree
 
+from .shade import show_notice
 from .stack import eventually
 
 APP = "org.llm4people.hermes"
@@ -278,12 +279,10 @@ def capture_notice(ui, title, directory):
 
 
 def tap_notice(ui, notice_text, owner, phrase, title, reply, evidence=None):
-    device = ui.device
-    device.shell("cmd", "statusbar", "expand-notifications")
-    ui.wait(notice_text)
+    target = show_notice(ui, notice_text)
     if evidence:
         capture_notice(ui, notice_text, evidence)
-    ui.tap(notice_text)
+    ui.tap_node(target)
     # The OS just transferred focus from SystemUI to a new process for the same app.
     # Reacquire Android's accessibility connection to its newly created secure window.
     ui.controls.reconnect()

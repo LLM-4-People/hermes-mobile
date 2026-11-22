@@ -44,6 +44,7 @@ public final class FocusedText extends UiAutomatorTestCase {
         xml.attribute(null, "content-desc", string(node.getContentDescription()));
         xml.attribute(null, "resource-id", string(node.getViewIdResourceName()));
         xml.attribute(null, "class", string(node.getClassName()));
+        xml.attribute(null, "package", string(node.getPackageName()));
         xml.attribute(null, "scrollable", String.valueOf(node.isScrollable()));
         xml.attribute(null, "bounds", bounds.toShortString());
         for (int i = 0; i < node.getChildCount(); i++) {
@@ -114,6 +115,16 @@ public final class FocusedText extends UiAutomatorTestCase {
                     break;
                 case "text":
                     response(replace(command.getString("label"), command.getString("value")) ? "applied" : "retry");
+                    break;
+                case "open-shade":
+                    response(getUiDevice().openNotification() ? "opened" : "retry");
+                    break;
+                case "scroll-shade":
+                    AccessibilityNodeInfo list = new Control(new UiSelector()
+                            .resourceId("com.android.systemui:id/notification_stack_scroller")).node();
+                    int direction = command.getBoolean("forward") ? AccessibilityNodeInfo.ACTION_SCROLL_FORWARD
+                            : AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD;
+                    response(list != null && list.performAction(direction) ? "scrolled" : "edge");
                     break;
                 case "finish":
                     response("finished");
