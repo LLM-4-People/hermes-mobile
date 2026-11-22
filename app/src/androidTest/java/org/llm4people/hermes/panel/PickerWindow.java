@@ -19,8 +19,10 @@ public final class PickerWindow {
         Configuration window = new Configuration(panel.activity.getResources().getConfiguration());
         window.orientation = landscape ? Configuration.ORIENTATION_LANDSCAPE : Configuration.ORIENTATION_PORTRAIT;
         window.screenWidthDp = landscape ? 640 : 320;
-        window.screenHeightDp = landscape ? 320 : 640;
-        new SessionSettings(panel, "thread", "thread", window).show();
+        // Exercise a live multi-window resize between opening settings and choosing a model.
+        window.screenHeightDp = landscape ? 481 : 640;
+        new SessionSettings(panel, "thread", "thread", () -> window).show();
+        if (landscape) window.screenHeightDp = 320;
     }
 
     public static void check(ListView list, EditText search, boolean landscape, Consumer<CheckedTextView> tap) {
