@@ -250,8 +250,8 @@ public class ThreadStateTest extends TestCase {
         assertEquals(3, response.length());
         JSONObject classic = new JSONObject().put("request_id", "c");
         prompts.restore(new JSONObject().put("status", "running"));
-        assertFalse(prompts.requestNeedsSnapshot(classic));
-        assertSame(classic, prompts.match(classic));
+        assertTrue(prompts.requestNeedsSnapshot(classic));
+        assertNull(prompts.match(classic));
         prompts.restore(new JSONObject().put("status", "waiting_for_approval").put("approval", classic));
         assertEquals(2, RunPrompts.response(prompts.snapshot().get(0), "deny").length());
     }

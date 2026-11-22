@@ -48,6 +48,46 @@ public class RunFollowerReplayTest extends TestCase {
         assertEquals("new", RunPrompts.id(last.prompts.get(1)));
     }
 
+    public void testStandaloneSnapshotAuthorizesEveryCurrentWaiterAndNeverReopensAnOldApproval() throws Exception {
+        JSONObject old = new JSONObject().put("request_id", "old");
+        JSONObject first = new JSONObject().put("request_id", "first");
+        JSONObject second = new JSONObject().put("request_id", "second");
+        String events = frame(old, 1, "approval.request") + frame(old, 2, "approval.responded")
+                + frame(first, 3, "approval.request") + frame(second, 4, "approval.request")
+                + frame(first, 5, "approval.responded") + frame(new JSONObject(), 6, "run.completed");
+        Exchange.Reply noWaiters = standalone("running", new JSONArray(), null);
+        try (Exchange gateway = new Exchange("200 OK", noWaiters,
+                new Exchange.Reply("Content-Type: text/event-stream\r\n", events), noWaiters,
+                standalone("waiting_for_approval", null, first),
+                standalone("running", new JSONArray().put(first).put(second), second),
+                standalone("completed", new JSONArray(), null))) {
+            List<List<String>> snapshots = new ArrayList<>();
+            new RunFollower(new HermesApi(gateway.endpoint(), "test"), "run", new JSONObject(), -1,
+                    new RunFollower.Listener() {
+                        public void update(RunFollower.Frame frame) {
+                            List<String> ids = new ArrayList<>();
+                            for (JSONObject p : frame.prompts) ids.add(RunPrompts.id(p));
+                            assertFalse("Settled standalone approval was shown", ids.contains("old"));
+                            snapshots.add(ids);
+                        }
+                        public void complete(JSONObject status, long firstText, long elapsed) {}
+                        public void disconnected() { fail("Unexpected disconnect"); }
+                        public void unknown(JSONObject status) { fail("Unexpected run state"); }
+                    }).follow();
+            assertTrue(snapshots.contains(java.util.Collections.singletonList("first")));
+            assertTrue(snapshots.contains(java.util.Arrays.asList("first", "second")));
+            assertEquals(java.util.Collections.singletonList("second"), snapshots.get(snapshots.size() - 1));
+            gateway.observed();
+        }
+    }
+
+    private static Exchange.Reply standalone(String state, JSONArray controls, JSONObject approval) throws Exception {
+        JSONObject body = new JSONObject().put("run_id", "run").put("status", state);
+        if (controls != null) body.put("pending_controls", controls);
+        if (approval != null) body.put("approval", approval);
+        return new Exchange.Reply("Content-Type: application/json\r\n", body.toString());
+    }
+
     private static JSONObject prompt(String id) throws Exception {
         return new JSONObject().put("prompt_id", id).put("kind", "clarify")
                 .put("question", id).put("execution_generation", 3);
