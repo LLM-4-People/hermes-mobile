@@ -3,7 +3,7 @@ package org.llm4people.hermes.artifact;
 import static org.junit.Assert.*;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
 import org.junit.Test;
 
 public class FencesTest {
@@ -54,9 +54,11 @@ public class FencesTest {
         String incomplete = "```hermes-workspace\nstill typing";
         String source = "Avant\r\n" + code + empty + first + second + "Après\n" + incomplete;
         assertEquals("Avant\r\n" + code + empty + second + "Après\n" + incomplete,
-                Fences.without(source, Set.of(0, 1, 3)));
-        assertSame(source, Fences.without(source, Set.of(4)));
-        assertEquals("", Fences.without(first.stripTrailing(), Set.of(0)));
+                Fences.without(source, Map.of(0, "value = 1", 1, "example", 3, "still typing")));
+        assertSame(source, Fences.without(source, Map.of(4, "unknown")));
+        assertSame(source, Fences.without(source, Map.of(1, "other")));
+        assertSame(source, Fences.without(source, Map.of(1, "examplE")));
+        assertEquals("", Fences.without(first.stripTrailing(), Map.of(0, "example")));
     }
 
     @Test public void readerUsesBoundedFirstLineNamingFromSourceOffset() {

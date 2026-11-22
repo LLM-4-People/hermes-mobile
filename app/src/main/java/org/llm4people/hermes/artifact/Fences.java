@@ -1,7 +1,7 @@
 package org.llm4people.hermes.artifact;
 
 import java.util.Locale;
-import java.util.Set;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -70,13 +70,15 @@ public final class Fences {
         });
     }
 
-    /** Remove only verified proposal ordinals from the exact assistant text that supplied them. */
-    public static String without(String text, Set<Integer> ordinals) {
-        if (ordinals.isEmpty() || text.length() > ArtifactCatalog.MAX_MESSAGE_CHARS) return text;
+    /** Redact the exact verified bodies. The visible transcript can contain additional typed parts. */
+    public static String without(String text, Map<Integer,String> proposals) {
+        if (proposals.isEmpty() || text.length() > ArtifactCatalog.MAX_MESSAGE_CHARS) return text;
         StringBuilder copy = new StringBuilder();
         int[] retainedFrom = {0};
         ranges(text, (opening, start, body, contentEnd, end, ordinal) -> {
-            if (WorkspaceLayout.FENCE.equals(opening.language) && ordinals.contains(ordinal)) {
+            String expected = proposals.get(ordinal);
+            if (WorkspaceLayout.FENCE.equals(opening.language) && expected != null
+                    && expected.length() == contentEnd - body && text.regionMatches(body, expected, 0, expected.length())) {
                 copy.append(text, retainedFrom[0], start);
                 retainedFrom[0] = end;
             }
