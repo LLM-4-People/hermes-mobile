@@ -3,6 +3,8 @@ package org.llm4people.hermes.push;
 import android.content.ContentValues;
 import android.content.Context;
 import android.database.Cursor;
+import android.database.DataSetObservable;
+import android.database.DataSetObserver;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 
@@ -13,7 +15,8 @@ import java.util.List;
 import java.util.UUID;
 
 final class PushStore extends SQLiteOpenHelper {
-    static final String PENDING = "pending", ACTIVE = "active", REMOVING = "removing";
+    static final String PENDING = "pending", ACTIVE = "active", REMOVING = "removing", FAILED = "failed";
+    private final DataSetObservable changes = new DataSetObservable();
     private static PushStore instance;
 
     static synchronized PushStore get(Context context) {
@@ -83,6 +86,9 @@ final class PushStore extends SQLiteOpenHelper {
         return profile + "\n" + installation + "\n" + endpoint;
     }
 
+    void observe(DataSetObserver observer) { changes.registerObserver(observer); }
+    void stopObserving(DataSetObserver observer) { changes.unregisterObserver(observer); }
+
     Device forProfile(String id) { return one("profile=?", id); }
     Device forInstallation(String id) { return one("installation=?", id); }
 
@@ -125,6 +131,11 @@ final class PushStore extends SQLiteOpenHelper {
                     || !endpoint.equals(device.endpoint)) throw new IOException("enrollment changed");
             ContentValues updated = new ContentValues();
             updated.put("vapid", vapid);
+            updated.put("state", PENDING);
+            if (!vapid.equals(device.vapid)) {
+                updated.putNull("subscription");
+                updated.putNull("subscription_version");
+            }
             getWritableDatabase().update("devices", updated, "installation=? AND state<>?",
                     new String[]{device.installation, REMOVING});
             return forProfile(profile);
@@ -169,13 +180,23 @@ final class PushStore extends SQLiteOpenHelper {
             where += " AND subscription_version=?";
             args = new String[]{device.installation, REMOVING, device.subscriptionVersion};
         }
-        getWritableDatabase().update("devices", data, where, args);
+        if (getWritableDatabase().update("devices", data, where, args) > 0) changes.notifyChanged();
+    }
+
+    void distributorFailed(Device device) {
+        ContentValues data = new ContentValues();
+        data.put("state", FAILED);
+        data.putNull("subscription");
+        data.putNull("subscription_version");
+        if (getWritableDatabase().update("devices", data, "installation=? AND state<>?",
+                new String[]{device.installation, REMOVING}) > 0) changes.notifyChanged();
     }
 
     void deactivate(String profile) {
         ContentValues data = new ContentValues();
         data.put("state", REMOVING);
-        getWritableDatabase().update("devices", data, "profile=?", new String[]{profile});
+        if (getWritableDatabase().update("devices", data, "profile=?", new String[]{profile}) > 0)
+            changes.notifyChanged();
     }
 
     void pending(Device device) {
@@ -186,8 +207,8 @@ final class PushStore extends SQLiteOpenHelper {
     }
 
     void finishRemoval(Device device) {
-        getWritableDatabase().delete("devices", "installation=? AND state=?",
-                new String[]{device.installation, REMOVING});
+        if (getWritableDatabase().delete("devices", "installation=? AND state=?",
+                new String[]{device.installation, REMOVING}) > 0) changes.notifyChanged();
     }
 
     boolean remember(String installation, String event, String kind) {

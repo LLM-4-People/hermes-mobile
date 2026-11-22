@@ -43,7 +43,7 @@ public final class DistributorReceiver extends PushService {
         PushStore store = PushStore.get(this);
         PushStore.Device device = store.forInstallation(instance);
         if (device == null || !device.unified()) return;
-        store.pending(device);
+        store.distributorFailed(device);
         Diagnostics.warning("push", "distributor_registration_failed");
     }
 

@@ -9,6 +9,11 @@ public final class PushReceiver extends FirebaseMessagingService {
     }
 
     @Override public void onNewToken(String token) {
-        if (!PushStore.get(this).devices().isEmpty()) PushSyncService.schedule(this);
+        for (PushStore.Device device : PushStore.get(this).devices()) {
+            if (!device.unified()) {
+                PushSyncService.schedule(this);
+                return;
+            }
+        }
     }
 }

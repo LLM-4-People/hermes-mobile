@@ -61,6 +61,20 @@ public final class DistributorContractTest extends InstrumentationTestCase {
         }
     }
 
+    public void testRefusedRegistrationDiscardsOldSubscriptionAndLateAck() throws Exception {
+        prepare("https://example.test");
+        store.updateSubscription(device, new JSONObject().put("endpoint", "https://ntfy.invalid/old").toString());
+        PushStore.Device original = store.forProfile(device.profile);
+        store.enable(original);
+        store.distributorFailed(original);
+        store.enable(original);
+        PushStore.Device rejected = store.forProfile(device.profile);
+        assertEquals(PushStore.FAILED, rejected.state);
+        assertNull(rejected.subscription);
+        store.prepareUnified(device.profile, device.endpoint, device.distributor, device.vapid);
+        assertEquals(PushStore.PENDING, store.forProfile(device.profile).state);
+    }
+
     public void testEncryptedReceiptMatchesInstanceAndRemovalStopsDelivery() throws Exception {
         if (Build.VERSION.SDK_INT >= 33) {
             getInstrumentation().getUiAutomation().grantRuntimePermission(context.getPackageName(),

@@ -4,6 +4,7 @@ import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.database.DataSetObserver;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.provider.Settings;
@@ -15,6 +16,7 @@ import org.llm4people.hermes.profile.Account;
 
 import java.util.ArrayDeque;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
@@ -67,7 +69,9 @@ final class PushSettings {
             }
         } else if (device != null) {
             builder.setTitle("Inscription à confirmer")
-                    .setMessage("L’inscription de cet appareil auprès du serveur reste à confirmer.")
+                    .setMessage(PushStore.FAILED.equals(device.state)
+                            ? "Le distributeur a refusé l’inscription. Vérifiez sa configuration, puis réessayez."
+                            : "L’inscription de cet appareil auprès du serveur reste à confirmer.")
                     .setPositiveButton("Réessayer", (d,w) -> begin())
                     .setNegativeButton("Désactiver", (d,w) -> remove(device));
         } else {
@@ -75,6 +79,25 @@ final class PushSettings {
                     .setPositiveButton("Activer", (d,w) -> begin());
         }
         display(builder);
+        observeState(device == null ? null : device.state);
+    }
+
+    private void observeState(String displayedState) {
+        AlertDialog watching = dialog;
+        PushStore store = PushStore.get(activity);
+        DataSetObserver observer = new DataSetObserver() {
+            @Override public void onChanged() {
+                // Always post. A read or dismissal from inside notifyChanged must not unregister mid-iteration.
+                activity.getMainExecutor().execute(() -> {
+                    if (!current() || dialog != watching || !watching.isShowing()) return;
+                    PushStore.Device updated = store.forProfile(account.id);
+                    if (!Objects.equals(displayedState, updated == null ? null : updated.state)) show();
+                });
+            }
+        };
+        store.observe(observer);
+        watching.setOnDismissListener(d -> store.stopObserving(observer));
+        observer.onChanged();
     }
 
     private void history(long cursor, ArrayDeque<Long> previous) {
