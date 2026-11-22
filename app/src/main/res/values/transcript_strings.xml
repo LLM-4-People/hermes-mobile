@@ -10,4 +10,8 @@
     <string name="code_choose">Choisir un extrait</string>
     <string name="transcript_read_excerpt">Lire l’extrait en cours</string>
     <string name="transcript_read_full">Lire la réponse entière</string>
+    <string name="code_copy_content">Copier le contenu</string>
+    <string name="code_page_of">Page %1$d sur %2$d</string>
+    <string name="code_copied">Contenu copié</string>
+    <string name="code_copy_failed">La copie a échoué. Sélectionnez une partie du texte.</string>
 </resources>

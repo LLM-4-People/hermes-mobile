@@ -19,6 +19,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.function.Consumer;
 
 /**
@@ -30,6 +33,11 @@ public final class AppLanguage {
     public static final String TAG_ENGLISH = "en";
     private static final String PREFS = "hermes.app.locale.v1";
     private static final String KEY_MODE = "mode";
+    private static final ExecutorService SYNC_EXECUTOR = Executors.newSingleThreadExecutor(runnable -> {
+        Thread thread = new Thread(runnable, "hermes-locale-sync");
+        thread.setDaemon(true);
+        return thread;
+    });
     private static volatile String activeAcceptLanguage = "";
 
     public enum Mode {
@@ -246,6 +254,15 @@ public final class AppLanguage {
         if (capabilities == null) return false;
         JSONObject features = capabilities.optJSONObject("features");
         return features != null && features.optBoolean("profile_defaults");
+    }
+
+    /**
+     * Submit capability-gated server profile language sync on an application-scoped daemon thread
+     * so Activity recreation during locale switching never interrupts the HTTP request mid-flight.
+     * Captures only the immutable HermesApi client and Mode (no Activity or Account reference).
+     */
+    public static Future<Boolean> syncToServerAsync(HermesApi api, Mode mode) {
+        return SYNC_EXECUTOR.submit(() -> syncToServer(api, mode));
     }
 
     /** Capability-gated background sync of preferred_language to the server profile defaults. */

@@ -50,12 +50,12 @@ public final class CodeReader {
         ScrollView scroll = new ScrollView(context);
         scroll.addView(box);
         contents(box, title, language, source);
-        return new AlertDialog.Builder(context).setTitle(title).setView(scroll).setNegativeButton("Fermer", null);
+        return new AlertDialog.Builder(context).setTitle(title).setView(scroll).setNegativeButton(R.string.ws_close, null);
     }
 
     static void contents(LinearLayout box, String title, String language, String source) {
         Context context = box.getContext();
-        box.addView(Ui.button(context, "Copier le contenu", v -> copy(context, source, title)));
+        box.addView(Ui.button(context, context.getString(R.string.code_copy_content), v -> copy(context, source, title)));
         new CodeReader(source, language).mount(box, 0);
     }
 
@@ -70,10 +70,10 @@ public final class CodeReader {
         section.removeAllViews();
         int pages = Math.max(1, cuts.size() - 1);
         if (pages > 1) {
-            section.addView(Ui.text(c, "Page " + (page + 1) + " sur " + pages, 14));
+            section.addView(Ui.text(c, c.getString(R.string.code_page_of, page + 1, pages), 14));
             LinearLayout nav = Ui.row(c);
-            if (page > 0) nav.addView(Ui.button(c, "Précédente", v -> render(c, section, page - 1)));
-            if (page < pages - 1) nav.addView(Ui.button(c, "Suivante", v -> render(c, section, page + 1)));
+            if (page > 0) nav.addView(Ui.button(c, c.getString(R.string.transcript_previous), v -> render(c, section, page - 1)));
+            if (page < pages - 1) nav.addView(Ui.button(c, c.getString(R.string.transcript_next), v -> render(c, section, page + 1)));
             section.addView(nav);
         }
         int start = cuts.get(page);
@@ -115,10 +115,10 @@ public final class CodeReader {
         try {
             clipboard.setPrimaryClip(clip);
             if (android.os.Build.VERSION.SDK_INT < 33)
-                Toast.makeText(activity, "Contenu copié", Toast.LENGTH_SHORT).show();
+                Toast.makeText(activity, R.string.code_copied, Toast.LENGTH_SHORT).show();
         } catch (RuntimeException e) {
             Diagnostics.warning("artifact", "copy_failed");
-            Toast.makeText(activity, "La copie a échoué. Sélectionnez une partie du texte.", Toast.LENGTH_LONG).show();
+            Toast.makeText(activity, R.string.code_copy_failed, Toast.LENGTH_LONG).show();
         }
     }
 }

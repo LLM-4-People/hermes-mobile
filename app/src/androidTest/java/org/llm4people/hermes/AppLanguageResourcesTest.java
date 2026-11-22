@@ -59,6 +59,17 @@ public final class AppLanguageResourcesTest extends InstrumentationTestCase {
             assertEquals("en", AppLanguage.resolvedTag(context));
             assertTrue(AppLanguage.currentAcceptLanguage().startsWith("en"));
 
+            try (Exchange asyncGateway = new Exchange("200 OK", "Content-Type: application/json\r\n",
+                    "{\"features\":{\"profile_defaults\":true}}",
+                    "{\"preferred_language\":\"en\"}")) {
+                HermesApi api = new HermesApi(asyncGateway.endpoint(), "bearer-token");
+                assertTrue(AppLanguage.syncToServerAsync(api, AppLanguage.Mode.ENGLISH)
+                        .get(5, java.util.concurrent.TimeUnit.SECONDS));
+                String wire = asyncGateway.observed();
+                assertTrue("Expected English Accept-Language header", wire.contains("Accept-Language: en"));
+                assertTrue("Expected async PATCH preferred_language=en", wire.contains("\"preferred_language\":\"en\""));
+            }
+
             try (Exchange unsupported = new Exchange("200 OK", "Content-Type: application/json\r\n",
                     "{\"features\":{\"profile_defaults\":false}}")) {
                 HermesApi api = new HermesApi(unsupported.endpoint(), "bearer-token");

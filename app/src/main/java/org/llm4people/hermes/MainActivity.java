@@ -250,7 +250,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                 AppLanguage.showPicker(this, selected -> {
                     if (account != null) {
                         HermesApi syncApi = new HermesApi(account.endpoint, account.bearer);
-                        notifications.execute(() -> AppLanguage.syncToServer(syncApi, selected));
+                        AppLanguage.syncToServerAsync(syncApi, selected);
                     }
                 });
                 break;
