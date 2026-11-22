@@ -1,0 +1,72 @@
+{
+  "app_revision": "e680b1358315d79c921e0f86dfb72a87560bf5ba",
+  "apk_sha256": "123269566c086974bd507d69547e083e17b8d84de9bf97cc519582658590381a",
+  "gateway_revision": "3f194698f9cb586d3302129e744ed30e18c3d6ff",
+  "android_api": 36,
+  "device_timezone": "GMT",
+  "model": "OpenVINO/Qwen2.5-Coder-7B-Instruct-int4-ov",
+  "model_weights_sha256": "dac6b4bc81ab5b0c555b3d8abbfb0ebe3740d2b97d2a484c4b6561f2a08fd250",
+  "run_id": "run_979dabfc593d4a5ea0d0200393be451d",
+  "conversation_id": "f5b6d943-8567-48a3-a125-f7bf214fde39",
+  "run_status": "completed",
+  "user_prompt": "Je prépare un atelier de dessin à la Maison des arts de Laval le 12 avril 2027 de 14 h à 15 h, heure de Laval (UTC−04:00). Peux-tu me préparer un rendez-vous à ouvrir dans mon agenda, un message à partager avec mon équipe et une recherche pour retrouver ce lieu sur la carte de mon téléphone ?",
+  "assistant_output": "```hermes-workspace\n{\"version\":1,\"surface\":\"page/dessin-laval\",\"mode\":\"replace\",\"title\":\"Atelier de dessin à Laval\",\"blocks\":[\n{\"type\":\"device\",\"request\":{\"kind\":\"calendar_event\",\"title\":\"Atelier de dessin à Laval\",\"start\":\"2027-04-12T14:00:00-04:00\",\"end\":\"2027-04-12T15:00:00-04:00\",\"location\":\"Maison des arts de Laval\"}},\n{\"type\":\"device\",\"request\":{\"kind\":\"share_text\",\"text\":\"Retrouvons-nous à l'Atelier de dessin à la Maison des arts de Laval le 12 avril 2027 de 14 h à 15 h.\"}},\n{\"type\":\"device\",\"request\":{\"kind\":\"map_search\",\"query\":\"Maison des arts de Laval, Laval\"}}\n]}\n```",
+  "assistant_output_sha256": "a4b352e82932a456ee504b3062540606289d2e7d9d4e24c359b9c25795ab7d4a",
+  "provider_tools_offered": 0,
+  "user_message_id": 1,
+  "source_message_id": 2,
+  "calendar_events_after_discard": 0,
+  "model_generations": 1,
+  "replay": {
+    "app_revision": "d2bbf146b3fefe932c9f20af47c78ac3f71d3276",
+    "apk_sha256": "e0b12b63522503bbb1f887105c67d7a8ee85d67fe1d1f1a614e0ecebc45fdd8d",
+    "gateway_revision": "3f194698f9cb586d3302129e744ed30e18c3d6ff",
+    "run_id": "run_852a932fe20b43de90bb2c966f422081",
+    "conversation_id": "6695f78a-ea0d-40e9-be62-f18117b53d7c",
+    "assistant_output_sha256": "a4b352e82932a456ee504b3062540606289d2e7d9d4e24c359b9c25795ab7d4a",
+    "source_message_id": 2,
+    "model_generations": 0
+  },
+  "captures": {
+    "calendar.png": {
+      "source": "phone_run",
+      "screen": "Fossify Calendar 1.12.2 event editor",
+      "method": "Android screen capture",
+      "width": 1080,
+      "height": 2340,
+      "sha256": "8226cb684e6a054c35bf9844836375b3d4ec27b88e517635b894247b3274c674"
+    },
+    "proposal.png": {
+      "source": "replay",
+      "screen": "Hermes Mobile conversation tool",
+      "method": "Android SDK native activity view capture",
+      "width": 1080,
+      "height": 2340,
+      "sha256": "7d74f7028d6415f32d9e9b5a16074837ee874a22bce4c6dc1e67cf6221fe8d6f"
+    },
+    "review.png": {
+      "source": "replay",
+      "screen": "Hermes Mobile calendar review",
+      "method": "Android SDK native dialog window capture",
+      "width": 1026,
+      "height": 776,
+      "sha256": "d93724c618527b55b7e966c1ed9914542e70076d1d4976c0b99efacecfe58f90"
+    },
+    "share.png": {
+      "source": "replay",
+      "screen": "Android Sharesheet",
+      "method": "Android screen capture",
+      "width": 1080,
+      "height": 2340,
+      "sha256": "610472942f5d77c7fd4a451350b4f643e55ea9500024860fd27a4d0ffa0c5758"
+    },
+    "map.png": {
+      "source": "replay",
+      "screen": "Google Maps",
+      "method": "Android screen capture",
+      "width": 1080,
+      "height": 2340,
+      "sha256": "54edc720e7523440876012053077043511e0230d8a17a7e5da21305efcb59636"
+    }
+  }
+}
