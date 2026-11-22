@@ -293,7 +293,7 @@ final class ThreadRun {
                     int count = next.prompts.size();
                     String activity = count == 0 ? next.activity : count == 1
                             ? "Hermes attend votre réponse" : count + " demandes en attente";
-                    ui.live(activity, next.text, count > 0, next.origin);
+                    ui.live(activity, next.text, count > 0, next.origin, next.reasoning);
                     decisions.present(next.prompts);
                     ui.notice("", "", null);
                 });
@@ -404,6 +404,8 @@ final class ThreadRun {
         frame = null;
         ui.busy(true, false);
         ui.live(summary, output, false);
+        if ("completed".equals(outcome)) ui.duplexReplyComplete(output);
+        else ui.stopDuplex();
         boolean keepPosition = keepCompletionPosition;
         keepCompletionPosition = false;
         page.loadMessages(false, owner.guard(() -> {

@@ -25,25 +25,33 @@ final class RunFollower implements AutoCloseable {
         final int highSurrogate;
         final String activity;
         final List<JSONObject> prompts;
+        final String reasoning;
 
         Frame(long seq, RunPreview preview, String activity, List<JSONObject> prompts) {
+            this(seq, preview, activity, prompts, "");
+        }
+
+        Frame(long seq, RunPreview preview, String activity, List<JSONObject> prompts, String reasoning) {
             this.seq = seq;
             text = preview.toString();
             origin = preview.origin();
             highSurrogate = preview.pendingHighSurrogate();
             this.activity = activity;
             this.prompts = prompts;
+            this.reasoning = reasoning == null ? "" : reasoning;
         }
     }
 
     static final int PREVIEW_LIMIT = RunPreview.LIMIT;
     static final int PAINT_INTERVAL_MS = 80;
+    private static final int REASONING_LIMIT = TranscriptPage.MAX_REASONING_CHARS;
     private static final long CONTROL_CHECK_MS = 5_000;
     private final HermesApi api;
     private final String run;
     private final Listener listener;
     private final LongSupplier uptime;
     private final RunPreview preview;
+    private final StringBuilder reasoning = new StringBuilder();
     private boolean textAwaitingPaint;
     private long seq;
     private long started;
@@ -172,6 +180,16 @@ final class RunFollower implements AutoCloseable {
                     textAwaitingPaint = true;
                 }
                 break;
+            case "reasoning.delta":
+                String thought = event.optString("text", event.optString("delta", ""));
+                if (!thought.isEmpty() && reasoning.length() < REASONING_LIMIT) {
+                    int remaining = REASONING_LIMIT - reasoning.length();
+                    if (thought.length() <= remaining) reasoning.append(thought);
+                    else reasoning.append(thought, 0, remaining);
+                    activity = "Hermes réfléchit…";
+                    textAwaitingPaint = true;
+                }
+                break;
             case "message.interim":
                 if (!event.optBoolean("already_streamed")) activity = event.optString("text", "Hermes travaille…");
                 break;
@@ -198,7 +216,7 @@ final class RunFollower implements AutoCloseable {
     private void publish() {
         if (!closed) {
             textAwaitingPaint = false;
-            listener.update(new Frame(seq, preview, activity, controls.snapshot()));
+            listener.update(new Frame(seq, preview, activity, controls.snapshot(), reasoning.toString()));
         }
     }
 

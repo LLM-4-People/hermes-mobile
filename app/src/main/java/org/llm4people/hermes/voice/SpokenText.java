@@ -3,6 +3,7 @@ package org.llm4people.hermes.voice;
 import org.llm4people.hermes.artifact.Fences;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.regex.Pattern;
 
@@ -80,6 +81,70 @@ final class SpokenText {
             start = end;
         }
         return result;
+    }
+
+    /**
+     * Incrementally extracts completed prose sentences from a streaming reply for low-latency TTS.
+     * Skips private reasoning blocks, code fences, and raw URLs using {@link #prose(String)}.
+     */
+    static final class SentenceStream {
+        private int emittedChars;
+
+        void reset() { emittedChars = 0; }
+
+        List<String> push(String cumulativeRaw) {
+            String clean = prose(cumulativeRaw);
+            if (clean.length() <= emittedChars) return Collections.emptyList();
+            boolean endsWithSpace = cumulativeRaw != null && !cumulativeRaw.isEmpty()
+                    && Character.isWhitespace(cumulativeRaw.charAt(cumulativeRaw.length() - 1));
+            List<String> out = new ArrayList<>();
+            int cursor = emittedChars;
+            while (cursor < clean.length()) {
+                int split = nextSentenceBoundary(clean, cursor, endsWithSpace);
+                if (split < 0) break;
+                String sentence = clean.substring(cursor, split).trim();
+                if (!sentence.isEmpty()) out.add(sentence);
+                cursor = split;
+                while (cursor < clean.length() && Character.isWhitespace(clean.charAt(cursor))) cursor++;
+            }
+            emittedChars = cursor;
+            return out;
+        }
+
+        List<String> flush(String finalRaw) {
+            String clean = prose(finalRaw);
+            if (clean.length() <= emittedChars) return Collections.emptyList();
+            List<String> out = new ArrayList<>(push(finalRaw));
+            if (emittedChars < clean.length()) {
+                String tail = clean.substring(emittedChars).trim();
+                if (!tail.isEmpty()) {
+                    out.addAll(chunks(tail));
+                }
+                emittedChars = clean.length();
+            }
+            return out;
+        }
+
+        private static int nextSentenceBoundary(String text, int start, boolean allowEndBoundary) {
+            for (int i = start; i < text.length(); i++) {
+                char c = text.charAt(i);
+                if (c == '\n') {
+                    return i + 1;
+                }
+                if (c == '.' || c == '!' || c == '?' || c == '…') {
+                    int next = i + 1;
+                    while (next < text.length() && (text.charAt(next) == '.' || text.charAt(next) == '!'
+                            || text.charAt(next) == '?' || text.charAt(next) == '»' || text.charAt(next) == '"')) {
+                        next++;
+                    }
+                    if ((next < text.length() && Character.isWhitespace(text.charAt(next)))
+                            || (next == text.length() && allowEndBoundary)) {
+                        return next;
+                    }
+                }
+            }
+            return -1;
+        }
     }
 
     private SpokenText() {}
