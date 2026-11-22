@@ -5,5 +5,5 @@ set -euo pipefail
 device=$(adb get-serialno)
 adb -s "$device" install -r -t app/build/outputs/apk/debug/app-debug.apk
 adb -s "$device" install -r -t app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
-"$RUNNER_TEMP/hermes-env/bin/python" -B verification/live_api.py --source .fixture/hermes \
+"$RUNNER_TEMP/hermes-env/bin/python" -B verification/live_api.py --source .fixture/hermes --require-tool-controls \
   --device-command python3 -B verification/device/run.py --serial "$device" --output "$RUNNER_TEMP/hermes-device"

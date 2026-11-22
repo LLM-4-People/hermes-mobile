@@ -5,7 +5,7 @@ Use a disposable Android API 30 or later phone emulator. Install the debug app a
 Run the following from the repository root in the fork’s test environment. Replace the checkout and emulator serial with your own.
 
 ```sh
-python verification/live_api.py --source /path/to/clean/hermes-agent \
+python verification/live_api.py --source /path/to/clean/hermes-agent --require-tool-controls \
     --device-command python verification/device/run.py --serial emulator-5554 \
     --output /tmp/hermes-mobile-captures
 ```

@@ -5,12 +5,12 @@ The acceptance check starts the fork's gateway in two new temporary homes. Two r
 Prepare a clean checkout of the fork with its Python development environment. The check verifies the checkout against the revision in `verification/gateway_fixture.py`. Run this from the mobile repository, with `fork` set to that checkout's absolute path.
 
 ```bash
-"$fork/scripts/run-in-hermes-env" python3 -B verification/live_api.py --source "$fork"
+"$fork/scripts/run-in-hermes-env" python3 -B verification/live_api.py --source "$fork" --require-tool-controls
 ```
 
 The final JSON line is the result. A failed assertion or gateway error exits nonzero. Use `--revision FULL_COMMIT` to check an explicitly selected new fork revision. The gateway subprocess gets a fresh environment and a loopback-only Python network guard. The tool writes its example into a temporary workspace. The test uses separate keys, homes and ports under the same OS identity. Use the deployment account isolation guidance when hosting different people.
 
-Add `--require-tool-controls` when verifying a fork with per-run tool selection. Both routed turns request the file toolset. The first excludes `write_file`, and the second restores it. The test inspects the schemas received at the model endpoints and requires `read_file` on both. A gateway that does not advertise tool selection fails this strict check.
+CI requires per-run tool selection from the pinned gateway. Both routed turns request the file toolset. The first excludes `write_file` and the second restores it. The check inspects the schemas received at the model endpoints and requires `read_file` on both. When testing an older fork, omit `--require-tool-controls` to exercise the routes it supports.
 
 ## Run a device check against the fixtures
 
