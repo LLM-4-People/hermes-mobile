@@ -6,6 +6,7 @@ import org.json.JSONObject;
 import org.llm4people.hermes.net.HermesApi;
 
 import java.io.IOException;
+import java.util.List;
 
 /** A subscription is disposable. The remote run and its durable receipt outlive it. */
 final class RunFollower implements AutoCloseable {
@@ -20,13 +21,13 @@ final class RunFollower implements AutoCloseable {
         final long seq;
         final String text;
         final String activity;
-        final JSONObject approval;
+        final List<JSONObject> prompts;
 
-        Frame(long seq, String text, String activity, JSONObject approval) {
+        Frame(long seq, String text, String activity, List<JSONObject> prompts) {
             this.seq = seq;
             this.text = text;
             this.activity = activity;
-            this.approval = approval;
+            this.prompts = prompts;
         }
     }
 
@@ -56,9 +57,10 @@ final class RunFollower implements AutoCloseable {
     void follow() {
         try {
             JSONObject status = api.get(path());
+            if (!run.equals(status.optString("run_id"))) throw new IOException("Incorrect run identity");
             if (finish(status) || closed) return;
             controls.restore(status);
-            if (controls.next() != null) publish();
+            publish();
             try (HermesApi.RunEvents events = api.runEvents(run, seq)) {
                 synchronized (this) {
                     if (closed) return;
@@ -67,6 +69,7 @@ final class RunFollower implements AutoCloseable {
                 long nextPaint = 0;
                 JSONObject event;
                 while (!closed && (event = events.next()) != null) {
+                    if (!run.equals(event.optString("run_id"))) continue;
                     String type = event.optString("event");
                     if ("replay.truncated".equals(type)) {
                         preview.setLength(0);
@@ -94,12 +97,12 @@ final class RunFollower implements AutoCloseable {
         }
         if (!closed) {
             try {
-                if (finish(api.get(path()))) return;
+                JSONObject status = api.get(path());
+                if (run.equals(status.optString("run_id")) && finish(status)) return;
             } catch (IOException ignored) {
                 // The durable receipt is retained for the next connection.
             }
             if (!closed) {
-                publish();
                 listener.disconnected();
             }
         }
@@ -154,9 +157,7 @@ final class RunFollower implements AutoCloseable {
     private String path() { return "/v1/runs/" + HermesApi.segment(run); }
 
     private void publish() {
-        JSONObject control = controls.next();
-        if (!closed) listener.update(new Frame(seq, preview.toString(),
-                control == null ? activity : RunPrompts.activity(control), control));
+        if (!closed) listener.update(new Frame(seq, preview.toString(), activity, controls.snapshot()));
     }
 
     @Override public synchronized void close() {

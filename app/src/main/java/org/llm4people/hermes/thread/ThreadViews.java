@@ -27,7 +27,8 @@ import java.util.function.Consumer;
 final class ThreadViews {
     final LinearLayout root;
     final ListView list;
-    private final Activity activity;
+    final Activity activity;
+    final PromptRows promptRows;
     private final TextView status;
     private final Button remedy;
     private final LinearLayout notice;
@@ -44,7 +45,6 @@ final class ThreadViews {
     private TextView liveText;
     private Button fullLiveText;
     private final LiveTranscript liveTranscript = new LiveTranscript();
-    private Button approval;
     private JSONArray rows = new JSONArray();
     private BaseAdapter adapter;
     private AlertDialog dialog;
@@ -57,6 +57,7 @@ final class ThreadViews {
         this.activity = activity;
         root = Ui.column(activity);
         list = new ListView(activity);
+        promptRows = new PromptRows(this);
         list.setDivider(null);
         list.setClipToPadding(false);
         notice = Ui.column(activity);
@@ -84,7 +85,7 @@ final class ThreadViews {
     }
 
     void chat(String draft, Consumer<String> onDraft, Runnable onSend, Runnable onStop,
-              Runnable approve, Runnable older) {
+              Runnable older) {
         reset(true);
         more = Ui.button(activity, "Messages précédents", v -> older.run());
         list.addHeaderView(more, null, false);
@@ -98,7 +99,7 @@ final class ThreadViews {
                 show(new AlertDialog.Builder(activity).setTitle("Réponse de Hermes")
                         .setView(MessageText.reader(activity, liveTranscript.source(), true, false))
                         .setPositiveButton("Fermer", null)));
-        approval = Ui.button(activity, "Examiner la demande", v -> approve.run());
+        list.setItemsCanFocus(true);
         outgoing = Ui.text(activity, "", 17);
         outgoing.setTextIsSelectable(true);
         outgoing.setVisibility(View.GONE);
@@ -106,7 +107,6 @@ final class ThreadViews {
         live.addView(progress);
         live.addView(liveText);
         live.addView(fullLiveText);
-        live.addView(approval);
         list.addFooterView(live, null, false);
         bindList();
         list.setOnItemClickListener(null);
@@ -180,7 +180,9 @@ final class ThreadViews {
         more.setVisibility(hasMore ? View.VISIBLE : View.GONE);
         more.setEnabled(true);
         adapter.notifyDataSetChanged();
-        if (follow) list.post(() -> list.setSelection(list.getCount() - 1));
+        if (follow) list.post(() -> {
+            if (!promptRows.visible() || !list.hasFocus()) list.setSelection(list.getCount() - 1);
+        });
         else if (prepended > 0) list.setSelectionFromTop(top + prepended, y);
     }
 
@@ -239,15 +241,14 @@ final class ThreadViews {
         outgoing.setVisibility(text.isEmpty() ? View.GONE : View.VISIBLE);
     }
 
-    void live(String detail, String text, boolean needsApproval) {
+    void live(String detail, String text, boolean hasPrompts) {
         boolean atEnd = list.getLastVisiblePosition() >= list.getCount() - 1;
         progress.setVisibility(detail.isEmpty() ? View.GONE : View.VISIBLE);
         progress.setText(detail);
         liveText.setVisibility(text.isEmpty() ? View.GONE : View.VISIBLE);
         MessageText.updateLive(liveText, liveTranscript, text);
         fullLiveText.setVisibility(liveTranscript.earlier || liveTranscript.later ? View.VISIBLE : View.GONE);
-        approval.setVisibility(needsApproval ? View.VISIBLE : View.GONE);
-        if (atEnd && !text.isEmpty()) list.post(() -> list.setSelection(list.getCount() - 1));
+        if (atEnd && !hasPrompts && !promptRows.visible() && !text.isEmpty()) list.post(() -> list.setSelection(list.getCount() - 1));
     }
 
     void notice(String message, String label, Runnable action) {

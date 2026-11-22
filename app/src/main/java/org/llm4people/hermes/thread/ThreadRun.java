@@ -3,8 +3,6 @@ package org.llm4people.hermes.thread;
 import android.app.AlertDialog;
 import android.os.SystemClock;
 import android.provider.Settings;
-import android.widget.EditText;
-import org.json.JSONArray;
 
 import org.json.JSONObject;
 import org.llm4people.hermes.net.HermesApi;
@@ -16,6 +14,7 @@ final class ThreadRun {
     private final ThreadViews ui;
     private RunFollower follower;
     private RunFollower.Frame frame;
+    private RunDecisions decisions;
     private boolean submitting;
     private long started = -1;
     private long subscription;
@@ -178,6 +177,8 @@ final class ThreadRun {
         JSONObject receipt = journal.pending();
         String id = runId();
         if (id.isEmpty()) return;
+        if (decisions == null || !decisions.current()) decisions = new RunDecisions(page, receipt);
+        decisions.disconnected();
         frame = null;
         ui.busy(true, true);
         ui.live("Hermes travaille…", ThreadData.string(journal.pending(), "preview"), false);
@@ -191,7 +192,11 @@ final class ThreadRun {
             @Override public void update(RunFollower.Frame next) {
                 deliver(() -> {
                     frame = next;
-                    ui.live(next.activity, next.text, next.approval != null);
+                    int count = next.prompts.size();
+                    String activity = count == 0 ? next.activity : count == 1
+                            ? "Hermes attend votre réponse" : count + " demandes en attente";
+                    ui.live(activity, next.text, count > 0);
+                    decisions.present(next.prompts);
                     ui.notice("", "", null);
                 });
             }
@@ -204,6 +209,7 @@ final class ThreadRun {
             @Override public void disconnected() {
                 deliver(() -> {
                     checkpoint();
+                    decisions.disconnected();
                     started = -1;
                     long delay = journal.nextReconnectDelayMillis();
                     if (delay < 0) { trackingInterrupted(); return; }
@@ -217,6 +223,7 @@ final class ThreadRun {
     }
 
     private void unresolved(JSONObject status) {
+        decisions.clear();
         frame = null;
         started = -1;
         ui.busy(true, false);
@@ -268,6 +275,7 @@ final class ThreadRun {
     }
 
     private void completed(JSONObject status, long firstText, long elapsed) {
+        decisions.clear();
         String outcome = status.optString("status");
         String output = ThreadData.string(status, "output");
         String label = switch (outcome) {
@@ -307,60 +315,13 @@ final class ThreadRun {
 
     void stop() {
         if (runId().isEmpty()) return;
-        control("/stop", new JSONObject(), "Demande d’arrêt envoyée.");
-    }
-
-    void approve() {
-        JSONObject approval = frame == null ? null : frame.approval;
-        if (approval == null) return;
-        if (RunPrompts.question(approval)) {
-            clarify(approval);
-            return;
-        }
-        String detail = ThreadData.string(approval, "description");
-        String command = ThreadData.string(approval, "command");
-        if (!command.isEmpty()) detail += (detail.isEmpty() ? "" : "\n\n") + command;
-        AlertDialog.Builder dialog = new AlertDialog.Builder(page.activity).setTitle("Approbation requise")
-                .setMessage(detail.isEmpty() ? "Hermes demande votre autorisation." : detail)
-                .setNegativeButton("Refuser", (d, w) -> decision(approval, "deny"))
-                .setNeutralButton("Plus tard", null);
-        if (!detail.isEmpty()) dialog.setPositiveButton("Autoriser une fois", (d, w) -> decision(approval, "once"));
-        ui.show(dialog);
-    }
-
-    private void clarify(JSONObject prompt) {
-        EditText answer = new EditText(page.activity);
-        answer.setHint("Votre réponse");
-        answer.setSaveEnabled(false);
-        JSONArray choices = prompt.optJSONArray("choices");
-        StringBuilder question = new StringBuilder(ThreadData.string(prompt, "question"));
-        if (choices != null) {
-            for (int i = 0; i < choices.length(); i++) {
-                question.append("\n• ").append(choices.optString(i));
-            }
-        }
-        ui.show(new AlertDialog.Builder(page.activity).setTitle("Question de Hermes")
-                .setMessage(question).setView(answer).setNegativeButton("Plus tard", null)
-                .setNeutralButton("Passer", (d,w) -> decision(prompt, ""))
-                .setPositiveButton("Répondre", (d,w) -> {
-                    String reply = answer.getText().toString().trim();
-                    if (!reply.isEmpty()) decision(prompt, reply);
-                }));
-    }
-
-    private void decision(JSONObject prompt, String value) {
-        if (frame == null || frame.approval == null
-                || !RunPrompts.id(prompt).equals(RunPrompts.id(frame.approval))
-                || prompt.optLong("execution_generation", -1) != frame.approval.optLong("execution_generation", -1)) return;
-        control(RunPrompts.question(prompt) ? "/clarify" : "/approval",
-                RunPrompts.response(prompt, value), "Décision transmise.");
-    }
-
-    private void control(String route, JSONObject body, String message) {
-        String path = statusPath() + route;
-        page.request(() -> page.api.post(path, body),
-                ok -> ui.notice(message, "", null),
-                e -> page.error(e, () -> { if ("/stop".equals(route)) stop(); else approve(); }));
+        String path = statusPath() + "/stop";
+        JSONObject receipt = journal.pending();
+        page.request(() -> page.api.post(path, new JSONObject()), ok -> {
+            if (receipt == journal.pending()) ui.notice("Demande d’arrêt envoyée.", "", null);
+        }, e -> {
+            if (receipt == journal.pending()) page.error(e, () -> { if (receipt == journal.pending()) stop(); });
+        });
     }
 
     private void checkpoint() {
@@ -369,6 +330,7 @@ final class ThreadRun {
     }
 
     void detach() {
+        if (decisions != null) decisions.clear();
         if (follower != null) follower.close();
         checkpoint();
     }

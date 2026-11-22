@@ -267,7 +267,7 @@ public final class ThreadWorkspace implements AutoCloseable {
             updateStarters();
             main.removeCallbacks(save);
             main.postDelayed(save, 300);
-        }, run::send, run::stop, run::approve, () -> loadMessages(true, null));
+        }, run::send, run::stop, () -> loadMessages(true, null));
         screen.slots(slotOrder);
         host.selected(id, title);
         loadMessages(false, null);

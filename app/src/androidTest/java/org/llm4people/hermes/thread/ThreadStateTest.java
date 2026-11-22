@@ -203,19 +203,43 @@ public class ThreadStateTest extends TestCase {
         JSONObject question = new JSONObject().put("kind", "clarify").put("prompt_id", "b")
                 .put("execution_generation", 8);
         prompts.restore(new JSONObject().put("pending_controls", new JSONArray().put(request).put(question)));
-        JSONObject consent = RunPrompts.response(prompts.next(), "once");
+        JSONObject consent = RunPrompts.response(prompts.snapshot().get(0), "once");
         assertEquals("a", consent.getString("request_id"));
         assertEquals("once", consent.getString("choice"));
         assertEquals(8, consent.getInt("execution_generation"));
         assertEquals(3, consent.length());
-        prompts.settle(new JSONObject().put("prompt_id", "a"));
-        assertEquals("b", RunPrompts.id(prompts.next()));
-        JSONObject response = RunPrompts.response(prompts.next(), "oui");
+        prompts.settle(new JSONObject().put("prompt_id", "a").put("execution_generation", 8));
+        assertEquals("b", RunPrompts.id(prompts.snapshot().get(0)));
+        JSONObject response = RunPrompts.response(prompts.snapshot().get(0), "oui");
         assertEquals("oui", response.getString("answer"));
         assertEquals(3, response.length());
         JSONObject classic = new JSONObject().put("request_id", "c");
-        prompts.restore(new JSONObject().put("approval", classic));
-        assertEquals(2, RunPrompts.response(prompts.next(), "deny").length());
+        prompts.restore(new JSONObject().put("status", "waiting_for_approval").put("approval", classic));
+        assertEquals(2, RunPrompts.response(prompts.snapshot().get(0), "deny").length());
+    }
+
+    public void testStaleGenerationOrSettledDifferentKindCannotRemoveAnActiveQuestion() throws Exception {
+        RunPrompts prompts = new RunPrompts();
+        JSONObject question = new JSONObject().put("kind", "clarify").put("prompt_id", "same")
+                .put("execution_generation", 12);
+        prompts.restore(new JSONObject().put("execution_generation", 12)
+                .put("pending_controls", new JSONArray().put(question)));
+        prompts.add(new JSONObject(question.toString()).put("execution_generation", 11));
+        prompts.add(new JSONObject(question.toString()).put("execution_generation", "12"));
+        prompts.add(new JSONObject(question.toString()).put("prompt_id", JSONObject.NULL));
+        assertEquals(1, prompts.snapshot().size());
+        prompts.settle(new JSONObject(question.toString()).put("execution_generation", 11));
+        prompts.settle(new JSONObject().put("prompt_id", "same").put("execution_generation", 12)
+                .put("event", "approval.settled"));
+        assertEquals(1, prompts.snapshot().size());
+        prompts.settle(new JSONObject().put("prompt_id", "same").put("execution_generation", 12)
+                .put("event", "clarify.settled"));
+        assertTrue(prompts.snapshot().isEmpty());
+        assertNull(RunPrompts.key(new JSONObject().put("request_id", "q").put("kind", "clarify")));
+        assertNull(RunPrompts.key(new JSONObject().put("prompt_id", "q")));
+        prompts.restore(new JSONObject().put("status", "completed")
+                .put("approval", new JSONObject().put("request_id", "stale")));
+        assertTrue(prompts.snapshot().isEmpty());
     }
 
     public void testPagedLineageOverlapsAndMalformedRows() throws Exception {

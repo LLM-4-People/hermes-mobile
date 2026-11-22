@@ -25,7 +25,7 @@ public class ThreadSlotsTest extends InstrumentationTestCase {
             runTestOnUiThread(() -> {
                 ThreadViews view = new ThreadViews(activity);
                 AtomicInteger sends = new AtomicInteger();
-                view.chat("texte déjà saisi", text -> {}, sends::incrementAndGet, () -> {}, () -> {}, () -> {});
+                view.chat("texte déjà saisi", text -> {}, sends::incrementAndGet, () -> {}, () -> {});
                 activity.setContentView(view.root);
                 EditText editor = editor(view.root);
                 assertNotNull(editor);

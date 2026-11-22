@@ -3,50 +3,83 @@ package org.llm4people.hermes.thread;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 
-/** The canonical session owner fences responses by generation; standalone runs use request ids. */
+/** The authority fences canonical prompts by generation. Standalone approvals use exact request ids. */
 final class RunPrompts {
-    private final LinkedHashMap<String, JSONObject> waiting = new LinkedHashMap<>();
+    record Key(String id, long generation, boolean question) {}
+    private final LinkedHashMap<Key, JSONObject> waiting = new LinkedHashMap<>();
+    private List<JSONObject> snapshot = Collections.emptyList();
+    private Object generation;
 
     static String id(JSONObject prompt) {
-        String canonical = ThreadData.string(prompt, "prompt_id");
-        return canonical.isEmpty() ? ThreadData.string(prompt, "request_id") : canonical;
+        if (prompt == null) return "";
+        Object value = prompt.opt(prompt.has("prompt_id") ? "prompt_id" : "request_id");
+        return value instanceof String ? (String) value : "";
+    }
+
+    static Key key(JSONObject prompt) {
+        if (id(prompt).trim().isEmpty()) return null;
+        boolean canonical = prompt.has("prompt_id");
+        Object generation = prompt.opt("execution_generation");
+        if (canonical && (!(generation instanceof Integer || generation instanceof Long)
+                || ((Number) generation).longValue() < 0)) return null;
+        if (!canonical && (generation != null || question(prompt))) return null;
+        return new Key(id(prompt), canonical ? ((Number) generation).longValue() : -1, question(prompt));
     }
 
     void restore(JSONObject status) {
         waiting.clear();
+        snapshot = Collections.emptyList();
+        generation = status.opt("execution_generation");
         JSONArray entries = status.optJSONArray("pending_controls");
         if (entries != null) {
             for (int i = 0; i < entries.length(); i++) add(entries.optJSONObject(i));
-        } else {
+        } else if ("waiting_for_approval".equals(status.optString("status"))) {
             add(status.optJSONObject("approval"));
         }
     }
 
     void add(JSONObject prompt) {
-        String id = id(prompt);
-        if (!id.isEmpty()) waiting.put(id, prompt);
+        Key key = key(prompt);
+        if (key == null) return;
+        if (generation != null && (!(generation instanceof Long || generation instanceof Integer)
+                || key.generation() != ((Number) generation).longValue())) return;
+        if (prompt.has("kind") && !"approval".equals(prompt.opt("kind")) && !"clarify".equals(prompt.opt("kind"))) return;
+        waiting.put(key, prompt);
+        snapshot = null;
     }
 
-    void settle(JSONObject event) { waiting.remove(id(event)); }
+    void settle(JSONObject event) {
+        Key key = key(event);
+        if (key != null && waiting.remove(key) != null) snapshot = null;
+    }
 
-    JSONObject next() { return waiting.isEmpty() ? null : waiting.values().iterator().next(); }
+    List<JSONObject> snapshot() {
+        if (snapshot == null) snapshot = Collections.unmodifiableList(new ArrayList<>(waiting.values()));
+        return snapshot;
+    }
 
     static boolean question(JSONObject prompt) {
         return "clarify".equals(ThreadData.string(prompt, "kind"))
-                || "clarify.request".equals(ThreadData.string(prompt, "event"));
+                || ThreadData.string(prompt, "event").startsWith("clarify.");
     }
 
-    static String activity(JSONObject prompt) {
-        return question(prompt) ? "Question de Hermes" : "Approbation requise";
+    static boolean permits(JSONObject prompt, String choice) {
+        JSONArray choices = prompt.optJSONArray("choices");
+        if (choices == null) return !prompt.has("choices") && !prompt.has("prompt_id");
+        for (int i = 0; i < choices.length(); i++) if (choice.equals(choices.opt(i))) return true;
+        return false;
     }
 
     static JSONObject response(JSONObject prompt, String value) {
-        if (id(prompt).isEmpty()) throw new IllegalArgumentException("Missing prompt id");
-        JSONObject body = ThreadData.put(new JSONObject(), "request_id", id(prompt));
-        if (!prompt.isNull("execution_generation"))
-            ThreadData.put(body, "execution_generation", prompt.optLong("execution_generation"));
-        return ThreadData.put(body, question(prompt) ? "answer" : "choice", value);
+        Key key = key(prompt);
+        if (key == null) throw new IllegalArgumentException("Missing prompt identity");
+        JSONObject body = ThreadData.put(new JSONObject(), "request_id", key.id());
+        if (key.generation() >= 0) ThreadData.put(body, "execution_generation", key.generation());
+        return ThreadData.put(body, key.question() ? "answer" : "choice", value);
     }
 }
