@@ -271,11 +271,13 @@ public final class ThreadWorkspace implements AutoCloseable {
             String tip = ThreadData.string(data, "session_id");
             if (ThreadData.validId(tip)) remoteSession = tip;
             int oldSize = messages.length();
-            messages = ThreadData.join(page, older ? messages : new JSONArray());
+            messages = ThreadData.visibleMessages(ThreadData.join(page, older ? messages : new JSONArray()));
+            // The server cursor includes bookkeeping rows. The scroll anchor counts displayed rows.
             messageOffset = offset + page.length();
-            screen.rows(messages, page.length() == ThreadData.PAGE, !older, older ? messages.length() - oldSize : 0);
+            boolean hasMore = page.length() == ThreadData.PAGE;
+            screen.rows(messages, hasMore, !older, older ? messages.length() - oldSize : 0);
             if (journal.pending() == null) {
-                screen.notice(messages.length() == 0 ? "Écrivez le premier message." : "", "", null);
+                screen.notice(messages.length() == 0 && !hasMore ? "Écrivez le premier message." : "", "", null);
             }
             if (loaded != null) loaded.run();
         }, e -> {
