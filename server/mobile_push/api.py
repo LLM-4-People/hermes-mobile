@@ -20,6 +20,28 @@ def bearer(request):
     return value
 
 
+def registration(settings, data):
+    if not isinstance(data, dict):
+        raise ValueError("Invalid enrollment")
+    key = data.get("management_key")
+    if key is not None and (not isinstance(key, str) or not KEY.fullmatch(key)):
+        raise ValueError("Invalid management key")
+    provider = data.get("provider", "fcm")
+    fields = data.keys() - {"management_key", "provider"}
+    if provider == "fcm" and settings.firebase:
+        token = data.get("token")
+        if fields != {"token"} or not isinstance(token, str) or not TOKEN.fullmatch(token):
+            raise ValueError("Invalid FCM registration")
+        return {"management_key": key, "token": token}
+    if provider == "unifiedpush" and settings.webpush:
+        if not fields and key:
+            return {"management_key": key, "reserve": True}
+        if fields == {"subscription"}:
+            endpoint, keys = settings.webpush.target(data["subscription"])
+            return {"management_key": key, "token": endpoint, "webpush_keys": keys, "provider": provider}
+    raise ValueError("Unsupported registration")
+
+
 def build_app(settings, store):
     @web.middleware
     async def private_response(request, handler):
@@ -39,7 +61,7 @@ def build_app(settings, store):
 
     async def discover(request):
         authorize(request)
-        return web.json_response({"provider": "fcm", "firebase": settings.firebase})
+        return web.json_response(settings.discovery())
 
     async def device(request):
         credential = bearer(request)
@@ -53,24 +75,16 @@ def build_app(settings, store):
             raise web.HTTPBadRequest() from None
         if parsed.version != 4 or str(parsed) != ident:
             raise web.HTTPBadRequest()
-        token = key = None
+        binding = {}
         if request.method == "PUT":
             if request.content_type != "application/json":
                 raise web.HTTPUnsupportedMediaType()
             try:
-                data = await request.json()
-            except ValueError:
+                binding = registration(settings, await request.json())
+            except (ValueError, TypeError):
                 raise web.HTTPBadRequest() from None
-            if not isinstance(data, dict) or set(data) - {"token", "management_key"}:
-                raise web.HTTPBadRequest()
-            token, key = data.get("token"), data.get("management_key")
-            if not isinstance(token, str) or not TOKEN.fullmatch(token):
-                raise web.HTTPBadRequest()
-            if key is not None and (not isinstance(key, str) or not KEY.fullmatch(key)):
-                raise web.HTTPBadRequest()
         try:
-            await asyncio.to_thread(store.device, ident, credential, profile=profile, now=time.time(),
-                                    token=token, management_key=key)
+            await asyncio.to_thread(store.device, ident, credential, profile=profile, now=time.time(), **binding)
         except Forbidden:
             raise web.HTTPUnauthorized() from None
         except TokenConflict:

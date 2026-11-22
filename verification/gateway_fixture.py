@@ -172,6 +172,8 @@ class Gateway:
             value.add_note(f"Gateway cleanup also failed: {failure}")
 
     def start(self):
+        import psutil
+
         if self.process is not None:
             raise RuntimeError("Fixture gateway already started")
         with (self.root / "gateway.log").open("ab") as log:
@@ -183,13 +185,21 @@ class Gateway:
                 stdout=log,
                 stderr=subprocess.STDOUT,
             )
+        owner = psutil.Process(self.process.pid)
         deadline = time.monotonic() + 90
         while time.monotonic() < deadline:
             if (status := self.process.poll()) is not None:
                 self.process = None
                 raise RuntimeError(f"Gateway exited with status {status}")
+            # An unrelated test may claim the ephemeral port while this gateway boots.
+            # Send the disposable account token only after our process owns its listener.
+            if not any(c.status == psutil.CONN_LISTEN and c.laddr == (LOOPBACK, self.port)
+                       for c in owner.net_connections(kind="tcp")):
+                time.sleep(0.2)
+                continue
             try:
-                self.request("/v1/capabilities")
+                if not self.request("/v1/capabilities").get("features"):
+                    raise RuntimeError("Expected capabilities from this Hermes gateway")
                 return
             except URLError:
                 time.sleep(0.2)

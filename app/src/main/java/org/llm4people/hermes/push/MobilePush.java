@@ -46,7 +46,7 @@ public final class MobilePush {
 
     public static boolean isEnabled(Context context, String profileId) {
         PushStore.Device device = PushStore.get(context).forProfile(profileId);
-        return device != null && PushStore.ACTIVE.equals(device.state) && PushNotices.allowed(context);
+        return device != null && device.receives() && PushNotices.allowed(context);
     }
 
     public static void forget(Context context, String profileId) {
@@ -87,7 +87,7 @@ public final class MobilePush {
         if (path.size() != 2 || !PushNotices.validIds(path.get(0), path.get(1))) return null;
         PushStore store = PushStore.get(context);
         PushStore.Device owner = store.forInstallation(path.get(0));
-        if (owner == null || !PushStore.ACTIVE.equals(owner.state)) return null;
+        if (owner == null || !owner.receives()) return null;
         String kind = store.knownKind(owner.installation, path.get(1));
         return kind == null ? null : new Target(owner, path.get(1), kind);
     }

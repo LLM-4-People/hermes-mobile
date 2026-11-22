@@ -31,7 +31,7 @@ public final class PushRoutingTest extends InstrumentationTestCase {
         super.setUp();
         context = getInstrumentation().getTargetContext();
         store = PushStore.get(context);
-        PushConfig config = PushConfig.parse(new JSONObject("{\"provider\":\"fcm\",\"firebase\":"
+        PushConfig config = PushConfig.parse(new JSONObject("{\"providers\":[\"fcm\"],\"firebase\":"
                 + "{\"applicationId\":\"1:123456:android:aabbcc\",\"gcmSenderId\":\"123456\","
                 + "\"apiKey\":\"public-test-key\",\"projectId\":\"example-test\"}}"));
         device = store.prepare(UUID.randomUUID().toString(), "https://example.test/p/a", config);

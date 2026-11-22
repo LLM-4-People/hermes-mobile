@@ -61,11 +61,19 @@ final class PushNotices {
 
     @SuppressLint("MissingPermission") // allowed() checks the runtime grant before posting.
     static void deliver(Context context, String sender, Map<String,String> data) {
-        String id = data.get("installation_id"), event = data.get("event_id"), kind = data.get("kind");
-        if (!validIds(id,event) || title(kind) == null || !allowed(context)) return;
+        String id = data.get("installation_id"), event = data.get("event_id");
+        if (!validIds(id, event)) return;
+        PushStore.Device owner = PushStore.get(context).forInstallation(id);
+        if (owner != null && !owner.unified() && owner.config.senderId.equals(sender))
+            post(context, owner, event, data.get("kind"));
+    }
+
+    @SuppressLint("MissingPermission") // allowed() checks the current runtime grant.
+    static void post(Context context, PushStore.Device owner, String event, String kind) {
+        String id = owner.installation;
+        if (!owner.receives() || !validIds(id, event)
+                || title(kind) == null || !allowed(context)) return;
         PushStore store = PushStore.get(context);
-        PushStore.Device owner = store.forInstallation(id);
-        if (owner == null || !owner.config.senderId.equals(sender) || !PushStore.ACTIVE.equals(owner.state)) return;
         Intent intent = tapIntent(context, id, event);
         if (intent == null) return;
         PendingIntent tap = PendingIntent.getActivity(context, 0, intent,
