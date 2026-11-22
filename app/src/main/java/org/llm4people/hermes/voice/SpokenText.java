@@ -1,0 +1,86 @@
+package org.llm4people.hermes.voice;
+
+import org.llm4people.hermes.artifact.Fences;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.regex.Pattern;
+
+/** Keeps local playback bounded even when a reply contains an attachment or a generated program. */
+final class SpokenText {
+    private static final int SCAN_LIMIT = 96_000;
+    private static final int SPEECH_LIMIT = 16_000;
+    private static final int CHUNK = 1800;
+    private static final Pattern PRIVATE_BLOCK = Pattern.compile(
+            "(?is)<(think|thinking|analysis|reasoning|tool_call)\\b[^>]*>.*?(?:</\\1\\s*>|\\z)");
+    private static final Pattern DATA = Pattern.compile("(?i)data:[^\\s,]{0,150};base64,[a-z0-9+/=_-]*");
+    private static final Pattern BLOB = Pattern.compile("[A-Za-z0-9+/_=-]{48,}|\\b[A-Za-z0-9+/_-]{2,}={1,2}(?![=\\w])");
+    private static final Pattern LINK = Pattern.compile("!?\\[([^]\\n]{0,240})\\]\\([^\\s)]{1,2048}\\)");
+    private static final Pattern URL = Pattern.compile("(?i)https?://\\S+");
+    private static final Pattern MARKUP = Pattern.compile("[`*_]+|^\\s{0,3}[#>]+\\s*");
+
+    static String prose(String source) {
+        if (source == null || source.isEmpty()) return "";
+        boolean shortened = source.length() > SCAN_LIMIT;
+        String text = source.substring(0, Math.min(source.length(), SCAN_LIMIT));
+        if (shortened) {
+            // Drop the partial token so an attachment cut at the scan limit stays private.
+            int boundary = text.length();
+            while (boundary > 0 && !Character.isWhitespace(text.charAt(boundary - 1))) boundary--;
+            text = text.substring(0, boundary);
+        }
+        text = PRIVATE_BLOCK.matcher(text).replaceAll(" ");
+        StringBuilder spoken = new StringBuilder();
+        Fences.Marker open = null;
+        for (int start = 0; start < text.length();) {
+            int end = text.indexOf('\n', start);
+            if (end < 0) end = text.length();
+            Fences.Marker marker = Fences.marker(text, start, end);
+            if (open != null) {
+                if (marker != null && marker.closes(open)) open = null;
+            } else if (marker != null) {
+                open = marker;
+            } else if (!text.startsWith("    ", start) && !text.startsWith("\t", start)) {
+                String line = text.substring(start, end).trim();
+                if (!line.startsWith("{") && !line.startsWith("[{") && !line.startsWith("diff --git ")) {
+                    line = LINK.matcher(line).replaceAll("$1");
+                    line = DATA.matcher(line).replaceAll(" ");
+                    line = BLOB.matcher(line).replaceAll(" ");
+                    line = URL.matcher(line).replaceAll(" ");
+                    line = MARKUP.matcher(line).replaceAll("").trim();
+                    if (!line.isEmpty()) {
+                        if (spoken.length() > 0) spoken.append('\n');
+                        spoken.append(line);
+                        if (spoken.length() > SPEECH_LIMIT) {
+                            shortened = true;
+                            int cut = spoken.lastIndexOf(" ", SPEECH_LIMIT);
+                            spoken.setLength(cut >= SPEECH_LIMIT - 120 ? cut : SPEECH_LIMIT);
+                            break;
+                        }
+                    }
+                }
+            }
+            start = end + 1;
+        }
+        if (shortened && spoken.length() > 0) spoken.append("\nLa suite est disponible à l’écran.");
+        return spoken.toString();
+    }
+
+    static List<String> chunks(String text) {
+        List<String> result = new ArrayList<>();
+        for (int start = 0; start < text.length();) {
+            int end = Math.min(start + CHUNK, text.length());
+            if (end < text.length()) {
+                int split = end;
+                while (split > start && !Character.isWhitespace(text.charAt(split - 1))) split--;
+                if (split > start) end = split;
+                else if (Character.isHighSurrogate(text.charAt(end - 1))) end--;
+            }
+            result.add(text.substring(start, end));
+            start = end;
+        }
+        return result;
+    }
+
+    private SpokenText() {}
+}

@@ -130,6 +130,22 @@ public final class ThreadWorkspace implements AutoCloseable {
     }
 
     public JSONArray messages() { return messages; }
+
+    public void readLastReply() {
+        if (closed || session == null) return;
+        for (int i = messages.length() - 1; i >= 0; i--) {
+            JSONObject row = messages.optJSONObject(i);
+            if (!"assistant".equals(ThreadData.string(row, "role"))
+                    || "hidden".equals(ThreadData.string(row, "display_kind"))) continue;
+            String content = ThreadData.content(row);
+            if (!content.trim().isEmpty()) {
+                voice.reader().readReply(content);
+                return;
+            }
+        }
+        voice.reader().readReply("");
+    }
+
     public void resumeLast() {
         if (closed) return;
         String last;
@@ -379,6 +395,7 @@ public final class ThreadWorkspace implements AutoCloseable {
     private int transcriptRequest;
 
     public void onBackground() {
+        voice.reader().stop();
         if (!closed) {
             ++generation;
             main.removeCallbacksAndMessages(null);

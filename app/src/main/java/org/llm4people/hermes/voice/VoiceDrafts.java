@@ -27,6 +27,7 @@ public final class VoiceDrafts {
     private static final AtomicInteger permissionIds = new AtomicInteger(20000);
     private final Activity activity;
     private final VoiceInput input;
+    private final ReplyReader reader;
     private final Handler main = new Handler(Looper.getMainLooper());
     private Attempt active;
     private boolean paused;
@@ -35,7 +36,10 @@ public final class VoiceDrafts {
     VoiceDrafts(Activity activity, VoiceInput input) {
         this.activity = activity;
         this.input = input;
+        reader = new ReplyReader(activity, this::cancel);
     }
+
+    public ReplyReader reader() { return reader; }
 
     public Controls bind(EditText editor) { return new Controls(editor); }
 
@@ -114,6 +118,7 @@ public final class VoiceDrafts {
     private void begin(Controls target, VoiceInput.Source source) {
         cancel();
         if (!target.visible() || paused) return;
+        reader.stop();
         if (source == VoiceInput.Source.NONE) {
             target.report(R.string.voice_unavailable, 0, null);
             return;
@@ -127,6 +132,7 @@ public final class VoiceDrafts {
     }
 
     public void pause() {
+        reader.stop();
         paused = true;
         // The system permission sheet pauses the activity. Only its pending grant can survive that pause.
         windowFocusChanged(false);

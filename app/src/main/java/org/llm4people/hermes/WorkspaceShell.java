@@ -17,6 +17,7 @@ import android.widget.PopupMenu;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 /** Navigation frame shared by discussion and workspace views. */
@@ -24,6 +25,7 @@ final class WorkspaceShell {
     final LinearLayout root;
     private final Activity activity;
     private final Consumer<String> action;
+    private final BooleanSupplier reading;
     private final LinearLayout header;
     private final FrameLayout body;
     private final TextView heading;
@@ -32,7 +34,8 @@ final class WorkspaceShell {
     private String pageTitle;
     private String threadTitle;
 
-    WorkspaceShell(Activity activity, Consumer<String> action) {
+    WorkspaceShell(Activity activity, Consumer<String> action, BooleanSupplier reading) {
+        this.reading = reading;
         this.activity = activity;
         this.action = action;
         root = Ui.column(activity);
@@ -121,6 +124,8 @@ final class WorkspaceShell {
         PopupMenu menu = new PopupMenu(activity, anchor);
         item(menu, "Nouvelle discussion", "new_thread");
         if (threadTitle != null) {
+            if (reading.getAsBoolean()) item(menu, activity.getString(R.string.read_stop_label), "stop_reading");
+            else item(menu, activity.getString(R.string.read_reply_label), "read_reply");
             item(menu, "Vue de discussion d’origine", "native_thread");
             item(menu, "Renommer la discussion", "rename");
             item(menu, "Artefacts", "artifacts");

@@ -98,7 +98,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         HermesApi api = new HermesApi(account.endpoint, account.bearer);
         navigation = new WorkspaceNavigation();
         activeHost = new WorkspaceHost(this, () -> account == unlocked);
-        shell = new WorkspaceShell(this, this::onAction);
+        shell = new WorkspaceShell(this, this::onAction, voice.reader()::active);
         panels = new SessionPanel(this, api, account);
         panels.setLayoutHost(activeHost);
         threads = new ThreadWorkspace(this, api, account, this, voice);
@@ -175,6 +175,12 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
 
     @Override public void onAction(String id) {
         if (threads == null) return;
+        if ("read_reply".equals(id)) {
+            threads.readLastReply();
+            return;
+        }
+        voice.reader().stop();
+        if ("stop_reading".equals(id)) return;
         if (!"restore".equals(id)) dismissOverlays();
         switch (id) {
             case "previous": back(); break;
@@ -361,6 +367,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     }
 
     private void clearWorkspace() {
+        if (voice != null) voice.reader().stop();
         dismissOverlays();
         if (files != null) files.lock();
         if (threads != null) {

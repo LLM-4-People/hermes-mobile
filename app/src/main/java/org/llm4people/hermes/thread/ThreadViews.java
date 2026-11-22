@@ -18,6 +18,7 @@ import org.json.JSONObject;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.voice.VoiceDrafts;
+import org.llm4people.hermes.voice.ReplyReader;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -37,6 +38,7 @@ final class ThreadViews {
     private Button more;
     private EditText input;
     final VoiceDrafts voice;
+    final ReplyReader reader;
     private VoiceDrafts.Controls composerVoice;
     private Button send;
     private Button stop;
@@ -54,6 +56,7 @@ final class ThreadViews {
 
     ThreadViews(Activity activity, VoiceDrafts voice) {
         this.voice = voice;
+        reader = voice.reader();
         this.activity = activity;
         root = Ui.column(activity);
         list = new ListView(activity);
