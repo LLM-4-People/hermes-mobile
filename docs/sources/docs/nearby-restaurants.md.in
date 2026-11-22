@@ -6,6 +6,10 @@ The configured gateway and model receive the approved area with the request. A d
 
 If the gateway cannot confine the area to this run, Hermes keeps the draft and offers **Envoyer sans position**. You can continue the conversation with your original message or update the gateway to share an area. The native restaurant list also requires the gateway’s nearby-places plugin and a configured data source. [Gateway setup and source contract](nearby-places.md)
 
+## A neighborhood typed by hand
+
+For “Cherche des restaurants dans ce quartier ou cette ville : Villeray, Montréal”, a local Qwen2.5-Coder-7B model returned a map search for “restaurants à Villeray, Montréal”. The model had no live search tools. The gateway transcript preserved its complete reply, including its French wording error, and the Android parser accepted the map proposal. This test used an HTTP client and did not open a maps app. [Verbatim model reply and native parser result](examples/nearby-restaurants/named-area.json)
+
 ## How the guide is proposed
 
 The model can return a named page with one `nearby_places` block. Android recognizes the block and obtains the results separately. The proposal contains no coordinates or venue list.
