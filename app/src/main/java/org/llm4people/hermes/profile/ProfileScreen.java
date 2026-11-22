@@ -4,60 +4,98 @@ import android.app.Activity;
 import android.content.res.ColorStateList;
 import android.graphics.Typeface;
 import android.text.InputFilter;
-import android.view.*;
+import android.view.KeyEvent;
+import android.view.View;
+import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
-import android.widget.*;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.LinearLayout;
+import android.widget.ScrollView;
+import android.widget.TextView;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 
-/** Native, scrollable profile forms. The IME and larger font settings can move every action into view. */
+/** Native, scrollable profile forms inside the activity's inset-aware content area. */
 final class ProfileScreen {
+    private static final Typeface MEDIUM = Typeface.create("sans-serif-medium", Typeface.NORMAL);
     private final Activity activity;
-    final LinearLayout body;
+    private final LinearLayout body;
+    private EditText lastField;
     private TextView status;
 
     ProfileScreen(Activity activity, String title, String description) {
         this.activity = activity;
-        ScrollView scroll = new ScrollView(activity);
-        scroll.setFillViewport(true);
-        scroll.setFitsSystemWindows(true);
-        scroll.setBackgroundColor(activity.getColor(R.color.paper));
-        FrameLayout frame = new FrameLayout(activity);
-        scroll.addView(frame);
-        int width = activity.getResources().getDisplayMetrics().widthPixels;
-        FrameLayout.LayoutParams measure = new FrameLayout.LayoutParams(
-                Math.min(width, Ui.dp(activity, 568)), ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.CENTER_HORIZONTAL);
         body = Ui.column(activity);
-        Ui.pad(body, 24, 28);
+        // The activity already reserves system bars, cutouts and the IME. Center the form
+        // inside the remaining space, including in split-screen and rotated windows.
+        ScrollView scroll = new ScrollView(activity) {
+            @Override protected void onMeasure(int widthSpec, int heightSpec) {
+                int width = MeasureSpec.getSize(widthSpec);
+                int gutter = Math.max(Ui.dp(activity, 22), (width - Ui.dp(activity, 520)) / 2);
+                if (body.getPaddingStart() != gutter) {
+                    body.setPaddingRelative(gutter, Ui.dp(activity, 20), gutter, Ui.dp(activity, 24));
+                }
+                super.onMeasure(widthSpec, heightSpec);
+            }
+        };
+        scroll.setFillViewport(true);
+        scroll.setBackgroundColor(activity.getColor(R.color.paper));
         body.setFocusableInTouchMode(true);
-        frame.addView(body, measure);
-        TextView heading = Ui.text(activity, title, 30);
-        heading.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
-        body.addView(heading);
-        if (description != null) {
-            TextView detail = Ui.text(activity, description, 16);
-            detail.setTextColor(activity.getColor(R.color.muted));
-            add(detail, 8);
-        }
+        scroll.addView(body, new ScrollView.LayoutParams(-1, -2));
+        heading(title, 30, 0);
+        if (description != null) description(description);
         activity.setContentView(scroll);
     }
 
+    void section(String title, String description) {
+        add(Ui.divider(activity), 22);
+        heading(title, 20, 16);
+        description(description);
+    }
+
+    private void heading(String title, int size, int top) {
+        TextView heading = Ui.text(activity, title, size);
+        heading.setTypeface(MEDIUM);
+        heading.setAccessibilityHeading(true);
+        add(heading, top);
+    }
+
+    private void description(String text) {
+        TextView detail = Ui.text(activity, text, 15);
+        detail.setTextColor(activity.getColor(R.color.muted));
+        add(detail, 4);
+    }
+
     EditText field(String label, String hint, int type, int maxLength, boolean sensitive) {
-        TextView caption = Ui.text(activity, label, 15);
-        add(caption, 16);
+        TextView caption = Ui.text(activity, label, 14);
+        caption.setTypeface(MEDIUM);
+        add(caption, 14);
         EditText edit = new EditText(activity);
         edit.setId(View.generateViewId());
         edit.setSingleLine(true);
         edit.setTextSize(17);
         edit.setInputType(type);
+        edit.setTypeface(Typeface.DEFAULT);
+        edit.setTextColor(activity.getColor(R.color.ink));
+        edit.setHintTextColor(activity.getColor(R.color.muted));
+        edit.setBackgroundResource(R.drawable.profile_input);
+        edit.setBackgroundTintList(null);
+        Ui.pad(edit, 12, 9);
         edit.setHint(hint);
         edit.setMinHeight(Ui.dp(activity, 48));
         edit.setSaveEnabled(false);
         edit.setFilters(new InputFilter[]{new InputFilter.LengthFilter(maxLength)});
-        edit.setImeOptions(EditorInfo.IME_ACTION_NEXT | (sensitive ? EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING : 0));
+        edit.setImeOptions(EditorInfo.IME_ACTION_NEXT | EditorInfo.IME_FLAG_NO_EXTRACT_UI
+                | (sensitive ? EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING : 0));
         edit.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO);
         caption.setLabelFor(edit.getId());
-        add(edit, 0);
+        if (lastField != null) {
+            lastField.setNextFocusForwardId(edit.getId());
+            lastField.setNextFocusDownId(edit.getId());
+        }
+        lastField = edit;
+        add(edit, 4);
         return edit;
     }
 
@@ -69,10 +107,23 @@ final class ProfileScreen {
             button.setOnClickListener(listener);
             button.setBackgroundTintList(ColorStateList.valueOf(activity.getColor(R.color.accent)));
             button.setTextColor(activity.getColor(R.color.on_accent));
+            if (lastField != null) connectSubmission(lastField, button);
         }
         button.setMinHeight(Ui.dp(activity, 48));
-        add(button, primary ? 18 : 8);
+        add(button, primary ? 20 : 8);
         return button;
+    }
+
+    private static void connectSubmission(EditText field, Button submit) {
+        field.setImeOptions((field.getImeOptions() & ~EditorInfo.IME_MASK_ACTION) | EditorInfo.IME_ACTION_DONE);
+        field.setOnEditorActionListener((edit, action, event) -> {
+            boolean enter = event != null && (event.getKeyCode() == KeyEvent.KEYCODE_ENTER
+                    || event.getKeyCode() == KeyEvent.KEYCODE_NUMPAD_ENTER);
+            if (action != EditorInfo.IME_ACTION_DONE && !enter) return false;
+            if (submit.isEnabled() && (event == null || (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0)))
+                submit.performClick();
+            return true;
+        });
     }
 
     void status(String message, boolean error) {
@@ -86,7 +137,8 @@ final class ProfileScreen {
     }
 
     private void add(View view, int top) {
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, -2);
+        ViewGroup.LayoutParams initial = view.getLayoutParams();
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, initial == null ? -2 : initial.height);
         params.topMargin = Ui.dp(activity, top);
         body.addView(view, params);
     }

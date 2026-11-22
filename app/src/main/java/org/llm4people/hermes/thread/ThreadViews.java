@@ -18,6 +18,9 @@ import org.json.JSONObject;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.function.Consumer;
 
 final class ThreadViews {
@@ -27,6 +30,8 @@ final class ThreadViews {
     private final TextView status;
     private final Button remedy;
     private final LinearLayout notice;
+    private final LinearLayout noticeSlot;
+    private LinearLayout composerSlot;
     private Button more;
     private EditText input;
     private Button send;
@@ -34,6 +39,8 @@ final class ThreadViews {
     private TextView progress;
     private TextView outgoing;
     private TextView liveText;
+    private Button fullLiveText;
+    private final LiveTranscript liveTranscript = new LiveTranscript();
     private Button approval;
     private JSONArray rows = new JSONArray();
     private BaseAdapter adapter;
@@ -47,6 +54,8 @@ final class ThreadViews {
         list.setDivider(null);
         list.setClipToPadding(false);
         notice = Ui.column(activity);
+        noticeSlot = Ui.column(activity);
+        noticeSlot.addView(notice);
         Ui.pad(notice, 16, 2);
         status = Ui.text(activity, "", 14);
         status.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
@@ -79,6 +88,10 @@ final class ThreadViews {
         progress.setTextColor(activity.getColor(R.color.muted));
         liveText = Ui.text(activity, "", 17);
         liveText.setTextIsSelectable(true);
+        fullLiveText = Ui.button(activity, "Lire la réponse entière", v ->
+                show(new AlertDialog.Builder(activity).setTitle("Réponse de Hermes")
+                        .setView(MessageText.reader(activity, liveTranscript.source(), true, false))
+                        .setPositiveButton("Fermer", null)));
         approval = Ui.button(activity, "Examiner la demande", v -> approve.run());
         outgoing = Ui.text(activity, "", 17);
         outgoing.setTextIsSelectable(true);
@@ -86,6 +99,7 @@ final class ThreadViews {
         live.addView(outgoing);
         live.addView(progress);
         live.addView(liveText);
+        live.addView(fullLiveText);
         live.addView(approval);
         list.addFooterView(live, null, false);
         bindList();
@@ -111,8 +125,10 @@ final class ThreadViews {
         composer.addView(input, new LinearLayout.LayoutParams(0, -2, 1));
         composer.addView(send);
         composer.addView(stop);
-        root.addView(Ui.divider(activity));
-        root.addView(composer);
+        composerSlot = Ui.column(activity);
+        composerSlot.addView(Ui.divider(activity));
+        composerSlot.addView(composer);
+        root.addView(composerSlot);
         input.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
             @Override public void afterTextChanged(Editable s) {}
@@ -129,7 +145,7 @@ final class ThreadViews {
         transcript = chat;
         root.removeAllViews();
         rows = new JSONArray();
-        root.addView(notice);
+        root.addView(noticeSlot);
         notice("", "", null);
     }
 
@@ -169,6 +185,37 @@ final class ThreadViews {
         input.setSelection(input.length());
     }
 
+    private View slot(String name) {
+        return switch (name) {
+            case "notice" -> noticeSlot;
+            case "transcript" -> list;
+            case "composer" -> composerSlot;
+            default -> throw new IllegalArgumentException("Unknown thread slot");
+        };
+    }
+
+    /** Move attached children in layout order so the editor and message list keep their identity. */
+    void slots(List<String> requested) {
+        if (!transcript || composerSlot == null) return;
+        List<String> all = Arrays.asList("notice", "transcript", "composer");
+        List<String> order = requested.isEmpty() ? all : requested;
+        for (String name : all) slot(name).setVisibility(order.contains(name) ? View.VISIBLE : View.GONE);
+        List<View> visible = new ArrayList<>();
+        for (int i = 0; i < root.getChildCount(); i++) {
+            View child = root.getChildAt(i);
+            if (child.getVisibility() == View.VISIBLE) visible.add(child);
+        }
+        for (int i = 0; i < order.size(); i++) {
+            if (visible.get(i) != slot(order.get(i))) {
+                for (String name : order) root.bringChildToFront(slot(name));
+                break;
+            }
+        }
+    }
+
+    void focusComposer() { if (input != null) input.requestFocus(); }
+    boolean editing() { return input != null && input.hasFocus() && input.isShown(); }
+
     void clearDraft() { input.setText(""); }
 
     void busy(boolean active, boolean canStop) {
@@ -188,7 +235,8 @@ final class ThreadViews {
         progress.setVisibility(detail.isEmpty() ? View.GONE : View.VISIBLE);
         progress.setText(detail);
         liveText.setVisibility(text.isEmpty() ? View.GONE : View.VISIBLE);
-        if (!text.contentEquals(liveText.getText())) liveText.setText(text);
+        MessageText.updateLive(liveText, liveTranscript, text);
+        fullLiveText.setVisibility(liveTranscript.earlier || liveTranscript.later ? View.VISIBLE : View.GONE);
         approval.setVisibility(needsApproval ? View.VISIBLE : View.GONE);
         if (atEnd && !text.isEmpty()) list.post(() -> list.setSelection(list.getCount() - 1));
     }
@@ -247,7 +295,9 @@ final class ThreadViews {
                 }
                 content = names.length() == 0 ? "" : "Outils · " + names;
             }
-            heading.setText(chat ? name : ThreadData.title(row));
+            String label = chat ? name : ThreadData.title(row);
+            if (!chat && label.equals(ThreadTitles.snippet(content))) content = "";
+            heading.setText(label);
             heading.setTextSize(chat ? 13 : 17);
             heading.setMaxLines(chat ? 2 : 3);
             heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
@@ -255,24 +305,21 @@ final class ThreadViews {
             body.setTextColor(getContext().getColor(chat ? R.color.ink : R.color.muted));
             body.setMaxLines(chat ? Integer.MAX_VALUE : 2);
             body.setTextSize(chat ? 17 : 14);
-            body.setTypeface(role.equals("tool") || content.startsWith("```") ? Typeface.MONOSPACE : Typeface.DEFAULT);
+            body.setTypeface(role.equals("tool") ? Typeface.MONOSPACE : Typeface.DEFAULT);
             body.setTextIsSelectable(chat);
             body.setVisibility(content.isEmpty() ? View.GONE : View.VISIBLE);
-            // Large output remains available in full without forcing ListView to lay out a whole log.
-            boolean clipped = chat && content.length() > 6000;
-            body.setText(clipped ? content.substring(0, 6000) + "…" : content);
+            boolean markdown = chat && "assistant".equals(role);
+            TranscriptPage preview = new TranscriptPage(content, new TranscriptPage.Cursor(), markdown,
+                    chat ? TranscriptPage.PAGE_CHARS : 300);
+            CharSequence rendered = MessageText.styled(getContext(), preview);
+            body.setText(preview.hasMore() ? android.text.TextUtils.concat(rendered, "…") : rendered);
             if (getChildCount() > 2) removeViewAt(2);
-            if (clipped) {
+            if (chat && preview.hasMore()) {
                 String full = content;
-                addView(Ui.button(getContext(), "Lire le message entier", v -> {
-                    TextView text = Ui.text(getContext(), full, 16);
-                    text.setTextIsSelectable(true);
-                    Ui.pad(text, 20, 12);
-                    ScrollView scroll = new ScrollView(getContext());
-                    scroll.addView(text);
-                    show(new AlertDialog.Builder(getContext()).setTitle(name).setView(scroll)
-                            .setPositiveButton("Fermer", null));
-                }));
+                addView(Ui.button(getContext(), "Lire le message entier", v ->
+                        show(new AlertDialog.Builder(getContext()).setTitle(name)
+                                .setView(MessageText.reader(getContext(), full, markdown, role.equals("tool")))
+                                .setPositiveButton("Fermer", null))));
             }
         }
     }

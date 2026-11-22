@@ -59,7 +59,7 @@ public final class WorkspacePresentationTest extends InstrumentationTestCase {
             runTestOnUiThread(() -> {
                 AlertDialog[] layers = new AlertDialog[2];
                 boolean[] called = new boolean[3];
-                ArtifactDesk.Host host = new ArtifactDesk.Host() {
+                ArtifactDesk.Host host = new WorkspaceTestHost() {
                     @Override public void onAction(String id) {
                         assertEquals("threads", id);
                         assertFalse(layers[0].isShowing());

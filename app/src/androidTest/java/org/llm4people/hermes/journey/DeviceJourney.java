@@ -43,6 +43,14 @@ public final class DeviceJourney extends Instrumentation {
             switch (phase) {
                 case "work": work(); break;
                 case "restart": restart(); break;
+                case "pages":
+                    String name = "Écrans " + fixture.getString("run");
+                    profile(name, "endpoint", "key", fixture.getString("phrase"));
+                    new ToolSelectionJourney(ui).run();
+                    new WorkspacePagesJourney(ui).run(name, () -> pagesIsolation(name));
+                    lock();
+                    forget(name, fixture.getString("phrase"));
+                    break;
                 default: throw new IllegalArgumentException("Unknown phase");
             }
             result.putString("journey", phase + " passed");
@@ -63,6 +71,21 @@ public final class DeviceJourney extends Instrumentation {
         ui.fill("Confirmer la phrase secrète", phrase);
         ui.tap("Enregistrer le profil");
         ui.see("Nouvelle conversation");
+    }
+
+    private void pagesIsolation(String owner) throws Exception {
+        String other = "Lecture " + fixture.getString("run");
+        String passphrase = fixture.getString("secondPhrase");
+        lock();
+        profile(other, "secondEndpoint", "secondKey", passphrase);
+        ui.see("Aucune conversation pour ce profil.");
+        menu("Mes écrans");
+        ui.contains("Demandez à Hermes de créer un écran");
+        ui.absent("Diagnostic mobile");
+        lock();
+        forget(other, passphrase);
+        unlock(owner, fixture.getString("phrase"));
+        ui.see("Écriture ciblée");
     }
 
     private void lock() {
@@ -101,7 +124,15 @@ public final class DeviceJourney extends Instrumentation {
         ui.see("Message à Hermes");
         send("Bonjour depuis le téléphone", "La conversation est prête.");
         send("Donne une fonction Python pour calculer un carré.", "return n * n");
+        ui.hideKeyboard();
+        ui.heading("Bonjour depuis le téléphone");
         ui.capture("03-discussion-code");
+        ui.tap("Toutes les discussions");
+        ui.see("Bonjour depuis le téléphone");
+        ui.capture("15-discussion-retrouvee");
+        ui.tap("Bonjour depuis le téléphone");
+        ui.heading("Bonjour depuis le téléphone");
+        ui.contains("return n * n");
         menu("Artefacts");
         ui.tap("Extrait python");
         ui.contains("return n * n");

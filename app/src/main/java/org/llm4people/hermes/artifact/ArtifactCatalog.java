@@ -50,7 +50,7 @@ final class ArtifactCatalog {
         }
 
         private String title(boolean layout, String surface) {
-            if (layout) return surface == null ? "Proposition à corriger" : "Disposition · " + WorkspaceLayout.SURFACES.get(surface);
+            if (layout) return surface == null ? "Proposition à corriger" : "Disposition · " + WorkspaceLayout.screenName(surface);
             if (!filename.isEmpty()) return filename;
             if ("diff".equals(language) || "patch".equals(language)) return "Modifications";
             return language.isEmpty() ? "Extrait de code" : "Extrait " + language;
