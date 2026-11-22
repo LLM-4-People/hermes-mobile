@@ -33,31 +33,65 @@ public final class SearchAndSkillStudioModelTest {
 
     @Test
     public void skillStudioValidationDocumentBuilderAndToggleRollback() {
-        assertEquals("travail/relecture", SkillStudioModel.validateNewSkillName("travail/relecture"));
+        assertEquals("travail/relecture", SkillStudioModel.validateNewSkillName("Travail/Relecture"));
         for (String badName : new String[]{null, "", "../escape", "/root", "a/b/c", "bad\\name", "name with spaces"}) {
             try { SkillStudioModel.validateNewSkillName(badName); fail("Accepted bad skill name: " + badName); }
             catch (IllegalArgumentException expected) {}
         }
 
+        // category/slug splits into lowercase single-segment name + category; explicit category overrides prefix.
+        SkillStudioModel.SkillLocation derived = SkillStudioModel.resolveSkillLocation("Travail/Resume", "");
+        assertEquals("resume", derived.name());
+        assertEquals("travail", derived.category());
+        SkillStudioModel.SkillLocation overridden = SkillStudioModel.resolveSkillLocation("Travail/Resume", "Productivité");
+        assertEquals("resume", overridden.name());
+        assertEquals("Productivité", overridden.category());
+
         String doc = SkillStudioModel.buildSkillDocument(
-                "travail/resume", "Résume mes notes \"rapidement\"", "Productivité", "Fais 3 points clés.");
-        assertTrue(doc.startsWith("---\nname: travail/resume\n"));
+                "Travail/Resume", "Résume mes notes \"rapidement\"", "Productivité", "Fais 3 points clés.");
+        assertTrue(doc.startsWith("---\nname: resume\n"));
         assertTrue(doc.contains("description: \"Résume mes notes \\\"rapidement\\\"\""));
         assertTrue(doc.contains("category: \"Productivité\""));
         assertTrue(doc.endsWith("Fais 3 points clés.\n"));
 
+        // Blank description is synthesized from instructions so Fork _validate_frontmatter never rejects it.
+        String autoDescDoc = SkillStudioModel.buildSkillDocument(
+                "travail/bilan", "   ", "", "# Bilan hebdomadaire\nDétails ici.");
+        assertTrue(autoDescDoc.startsWith("---\nname: bilan\n"));
+        assertTrue(autoDescDoc.contains("description: \"Bilan hebdomadaire\""));
+        assertTrue(autoDescDoc.contains("category: \"travail\""));
+
         SkillStudioModel.ToggleState state = new SkillStudioModel.ToggleState();
-        state.sync("travail/resume", true);
-        boolean previous = state.beginToggle("travail/resume", false);
+        state.sync("resume", true);
+        boolean previous = state.beginToggle("resume", false);
         assertTrue(previous);
-        assertFalse(state.isEnabled("travail/resume", true));
+        assertFalse(state.isEnabled("resume", true));
         // Rollback restores exact prior state after server rejection.
-        state.rollback("travail/resume", previous);
-        assertTrue(state.isEnabled("travail/resume", false));
+        state.rollback("resume", previous);
+        assertTrue(state.isEnabled("resume", false));
 
         assertEquals("Personnel", SkillStudioModel.sourceLabel("user", true));
         assertEquals("Intégré", SkillStudioModel.sourceLabel("builtin", false));
         assertEquals("Extension", SkillStudioModel.sourceLabel("plugin", false));
+    }
+
+    @Test
+    public void searchPageHasMoreHandlesExplicitFlagAndLegacyPageProbe() {
+        SearchResultModel.Hit hit = new SearchResultModel.Hit(
+                "s1", "t1", "Titre", "1", "user", SearchResultModel.parseSnippet("Bonjour"), "");
+        // Explicit has_more=true unlocks pagination even when total == hits.size().
+        SearchResultModel.Page explicitMore = new SearchResultModel.Page(java.util.List.of(hit), 1, "q", true, true);
+        assertTrue(explicitMore.hasMore(1));
+        // Explicit has_more=false stops pagination when total == loaded.
+        SearchResultModel.Page explicitDone = new SearchResultModel.Page(java.util.List.of(hit), 1, "q", false, true);
+        assertFalse(explicitDone.hasMore(1));
+        // Legacy server omitting has_more with a full page of DEFAULT_LIMIT hits allows probing next page.
+        java.util.List<SearchResultModel.Hit> fullPage = java.util.Collections.nCopies(SearchResultModel.DEFAULT_LIMIT, hit);
+        SearchResultModel.Page legacyFull = new SearchResultModel.Page(fullPage, fullPage.size(), "q", false, false);
+        assertTrue(legacyFull.hasMore(fullPage.size()));
+        // Empty next-page probe terminates pagination cleanly.
+        SearchResultModel.Page emptyProbe = new SearchResultModel.Page(java.util.List.of(), 0, "q", false, false);
+        assertFalse(emptyProbe.hasMore(fullPage.size()));
     }
 
     @Test

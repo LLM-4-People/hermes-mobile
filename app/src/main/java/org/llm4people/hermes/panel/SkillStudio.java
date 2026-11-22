@@ -353,15 +353,16 @@ final class SkillStudio {
 
         panel.action(page, R.string.panel_save, () -> {
             feedback.removeAllViews();
-            String validName;
+            SkillStudioModel.SkillLocation location;
             String content;
             try {
-                validName = SkillStudioModel.validateNewSkillName(nameField.getText().toString());
+                location = SkillStudioModel.resolveSkillLocation(
+                        nameField.getText().toString(), catField.getText().toString());
                 if (rawMode.isChecked()) {
                     content = SkillStudioModel.validateContent(bodyField.getText().toString());
                 } else {
                     content = SkillStudioModel.buildSkillDocument(
-                            validName, descField.getText().toString(), catField.getText().toString(),
+                            location.name(), descField.getText().toString(), location.category(),
                             bodyField.getText().toString());
                 }
             } catch (IllegalArgumentException invalid) {
@@ -369,9 +370,9 @@ final class SkillStudio {
                 err.setTextColor(panel.activity.getColor(R.color.danger));
                 return;
             }
-            JSONObject payload = PanelData.put(PanelData.put(new JSONObject(), "name", validName), "content", content);
-            String cat = catField.getText().toString().trim();
-            if (!cat.isEmpty()) PanelData.put(payload, "category", cat);
+            JSONObject payload = PanelData.put(
+                    PanelData.put(new JSONObject(), "name", location.name()), "content", content);
+            if (!location.category().isEmpty()) PanelData.put(payload, "category", location.category());
             panel.request(feedback, () -> panel.api.post("/v1/skills", payload),
                     created -> {
                         Diagnostics.event("skills", "skill_created");

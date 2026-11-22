@@ -139,7 +139,10 @@ final class BrainJson {
         }
         int total = response.optInt("total", hits.size());
         String query = PanelData.text(response, "query");
-        return new SearchResultModel.Page(hits, total, query);
+        boolean hasMore = response.has("has_more")
+                ? response.optBoolean("has_more", false)
+                : total > hits.size();
+        return new SearchResultModel.Page(hits, total, query, hasMore, response.has("has_more"));
     }
 
     static SkillStudioModel.SkillDetail parseSkillDetail(JSONObject response) throws JSONException {
@@ -266,13 +269,15 @@ final class BrainJson {
 
     /**
      * Parse models for a provider row from /api/model/options.
-     * Supports BOTH legacy string arrays (`models: ["gpt-4o"]`) and enriched metadata
-     * (`models: [{id, capabilities, pricing}]` or sibling `model_details`/`model_metadata` map).
+     * Supports legacy string arrays (`models: ["gpt-4o"]`), inline objects (`models: [{id, capabilities, pricing}]`),
+     * sibling `model_details`/`model_metadata` maps, and Fork's sibling `capabilities`/`pricing` maps per model ID.
      */
     static List<ModelCapabilityBadges.ModelInfo> parseProviderModels(JSONObject providerRow) {
         if (providerRow == null) return Collections.emptyList();
         JSONObject detailsMap = providerRow.optJSONObject("model_details");
         if (detailsMap == null) detailsMap = providerRow.optJSONObject("model_metadata");
+        JSONObject capsMap = providerRow.optJSONObject("capabilities");
+        JSONObject pricingMap = providerRow.optJSONObject("pricing");
         JSONArray models = providerRow.optJSONArray("models");
         if (models == null) return Collections.emptyList();
 
@@ -284,33 +289,63 @@ final class BrainJson {
                 String clean = id.trim();
                 if (clean.isEmpty() || !seen.add(clean)) continue;
                 JSONObject detail = detailsMap == null ? null : detailsMap.optJSONObject(clean);
-                out.add(parseModelObject(clean, detail));
+                JSONObject siblingCaps = capsMap == null ? null : capsMap.optJSONObject(clean);
+                JSONObject siblingPricing = pricingMap == null ? null : pricingMap.optJSONObject(clean);
+                out.add(parseModelObject(clean, detail, siblingCaps, siblingPricing));
             } else if (entry instanceof JSONObject obj) {
                 String id = PanelData.text(obj, "id");
                 if (id.isEmpty()) id = PanelData.text(obj, "name");
                 if (id.isEmpty() || !seen.add(id)) continue;
-                out.add(parseModelObject(id, obj));
+                JSONObject siblingCaps = capsMap == null ? null : capsMap.optJSONObject(id);
+                JSONObject siblingPricing = pricingMap == null ? null : pricingMap.optJSONObject(id);
+                out.add(parseModelObject(id, obj, siblingCaps, siblingPricing));
             }
         }
         return Collections.unmodifiableList(out);
     }
 
     static ModelCapabilityBadges.ModelInfo parseModelObject(String id, JSONObject obj) {
-        if (obj == null) return ModelCapabilityBadges.ModelInfo.minimal(id);
-        String label = PanelData.text(obj, "label");
-        if (label.isEmpty()) label = PanelData.text(obj, "display_name");
+        return parseModelObject(id, obj, null, null);
+    }
+
+    static ModelCapabilityBadges.ModelInfo parseModelObject(
+            String id, JSONObject obj, JSONObject fallbackCaps, JSONObject fallbackPricing) {
+        if (obj == null && fallbackCaps == null && fallbackPricing == null) {
+            return ModelCapabilityBadges.ModelInfo.minimal(id);
+        }
+        String label = obj == null ? "" : PanelData.text(obj, "label");
+        if (label.isEmpty() && obj != null) label = PanelData.text(obj, "display_name");
         if (label.isEmpty()) label = id;
-        JSONObject caps = obj.optJSONObject("capabilities");
-        JSONObject pricing = obj.optJSONObject("pricing");
-        int contextLength = caps != null ? caps.optInt("context_length", 0) : obj.optInt("context_length", 0);
-        int maxOut = caps != null ? caps.optInt("max_output_tokens", 0) : obj.optInt("max_output_tokens", 0);
-        boolean vision = caps != null ? caps.optBoolean("vision", false) : obj.optBoolean("vision", false);
-        boolean tools = caps != null ? caps.optBoolean("tools", false) : obj.optBoolean("tools", false);
-        boolean reasoning = caps != null ? caps.optBoolean("reasoning", false) : obj.optBoolean("reasoning", false);
+        JSONObject inlineCaps = obj == null ? null : obj.optJSONObject("capabilities");
+        JSONObject caps = inlineCaps != null ? inlineCaps : fallbackCaps;
+        JSONObject inlinePricing = obj == null ? null : obj.optJSONObject("pricing");
+        JSONObject pricing = inlinePricing != null ? inlinePricing : fallbackPricing;
+        int contextLength = optIntWithFallback(caps, obj, "context_length");
+        int maxOut = optIntWithFallback(caps, obj, "max_output_tokens");
+        boolean vision = optBoolWithFallback(caps, obj, "vision");
+        boolean tools = optBoolWithFallback(caps, obj, "tools");
+        boolean reasoning = optBoolWithFallback(caps, obj, "reasoning");
         double inPrice = pricing != null ? PanelData.measure(pricing, "input_per_1m") : Double.NaN;
         double outPrice = pricing != null ? PanelData.measure(pricing, "output_per_1m") : Double.NaN;
+        if (Double.isNaN(inPrice) && Double.isNaN(outPrice) && pricing != null && pricing.optBoolean("free", false)) {
+            inPrice = 0.0;
+            outPrice = 0.0;
+        }
         return new ModelCapabilityBadges.ModelInfo(
                 id, label, contextLength, maxOut, vision, tools, reasoning, inPrice, outPrice);
+    }
+
+    private static int optIntWithFallback(JSONObject primary, JSONObject secondary, String key) {
+        if (primary != null && !primary.isNull(key)) {
+            int val = primary.optInt(key, 0);
+            if (val > 0) return val;
+        }
+        return secondary != null && !secondary.isNull(key) ? secondary.optInt(key, 0) : 0;
+    }
+
+    private static boolean optBoolWithFallback(JSONObject primary, JSONObject secondary, String key) {
+        if (primary != null && !primary.isNull(key)) return primary.optBoolean(key, false);
+        return secondary != null && !secondary.isNull(key) && secondary.optBoolean(key, false);
     }
 
     static ProfileSummary parseProfileSummary(JSONObject response) throws JSONException {
@@ -397,7 +432,8 @@ final class BrainJson {
             String updatedAt = optScalarString(row, "updated_at");
             String owner = PanelData.text(row, "owner_profile");
             String perm = PanelData.text(row, "permission");
-            if (sharedList && perm.isEmpty()) perm = UniversalShareModel.PERM_READ;
+            if (perm.isEmpty()) perm = PanelData.text(row, "access");
+            if (perm.isEmpty()) perm = sharedList ? UniversalShareModel.PERM_READ : "owner";
             list.add(new NotesModel.Note(id, title, body, tags, pinned, updatedAt, owner, perm));
         }
         return Collections.unmodifiableList(list);

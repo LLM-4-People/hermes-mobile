@@ -84,6 +84,15 @@ public final class AmbientIntelligenceTest extends InstrumentationTestCase {
                         & WindowManager.LayoutParams.FLAG_SECURE) != 0);
                 mediaDialog.dismiss();
 
+                // Revoked live opt-in fails closed when confirm is invoked on an open quick-reply dialog.
+                java.util.concurrent.atomic.AtomicReference<HermesNotificationListener.ReplyOutcome> revokedOutcome =
+                        new java.util.concurrent.atomic.AtomicReference<>();
+                AlertDialog revokedDialog = HermesNotificationListener.showQuickReplyConfirmation(
+                        activity, sample, "Bonjour", () -> false, revokedOutcome::set);
+                revokedDialog.getButton(AlertDialog.BUTTON_POSITIVE).performClick();
+                assertEquals(HermesNotificationListener.ReplyOutcome.FAILED, revokedOutcome.get());
+
+                panel.dismissDialogs();
                 HermesNotificationListener.clearSession();
                 assertTrue(HermesNotificationListener.snapshot().isEmpty());
             });

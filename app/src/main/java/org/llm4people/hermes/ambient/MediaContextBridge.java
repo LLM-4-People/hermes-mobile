@@ -184,6 +184,16 @@ public final class MediaContextBridge {
             NowPlaying track,
             ControlAction action,
             Consumer<Boolean> onResult) {
+        return showControlConfirmation(activity, () -> optInEnabled, track, action, onResult);
+    }
+
+    /** Show an explicit FLAG_SECURE confirmation dialog re-verifying live opt-in on confirm. */
+    public static AlertDialog showControlConfirmation(
+            Activity activity,
+            java.util.function.BooleanSupplier optInEnabled,
+            NowPlaying track,
+            ControlAction action,
+            Consumer<Boolean> onResult) {
         return showControlConfirmationOutcome(activity, optInEnabled, track, action, outcome -> {
             if (onResult != null) onResult.accept(outcome == ControlOutcome.APPLIED);
         });
@@ -193,6 +203,16 @@ public final class MediaContextBridge {
     public static AlertDialog showControlConfirmationOutcome(
             Activity activity,
             boolean optInEnabled,
+            NowPlaying track,
+            ControlAction action,
+            Consumer<ControlOutcome> onResult) {
+        return showControlConfirmationOutcome(activity, () -> optInEnabled, track, action, onResult);
+    }
+
+    /** Tri-state variant re-evaluating live opt-in at confirmation time before dispatching. */
+    public static AlertDialog showControlConfirmationOutcome(
+            Activity activity,
+            java.util.function.BooleanSupplier optInEnabled,
             NowPlaying track,
             ControlAction action,
             Consumer<ControlOutcome> onResult) {
@@ -209,7 +229,8 @@ public final class MediaContextBridge {
                     if (onResult != null) onResult.accept(ControlOutcome.CANCELLED);
                 })
                 .setPositiveButton(R.string.ambient_media_confirm_ok, (d, w) -> {
-                    boolean ok = dispatchConfirmedAction(activity, optInEnabled, track.packageName(), action, true);
+                    boolean allowed = optInEnabled != null && optInEnabled.getAsBoolean();
+                    boolean ok = dispatchConfirmedAction(activity, allowed, track.packageName(), action, true);
                     if (onResult != null) onResult.accept(ok ? ControlOutcome.APPLIED : ControlOutcome.FAILED);
                 });
         return Ui.secureDialog(builder);

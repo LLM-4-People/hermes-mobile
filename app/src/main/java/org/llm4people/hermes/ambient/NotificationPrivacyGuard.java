@@ -75,9 +75,6 @@ public final class NotificationPrivacyGuard {
             "ledger.", "trezor", "exodus", "trustwallet", "phantom.app"
     };
 
-    private static final Pattern CODE_TOKEN = Pattern.compile(
-            "(?:^|[^A-Za-z0-9])(?:[Gg]-\\d{5,8}|\\d{4,8}|\\d{3}[-\\s]\\d{3})(?:$|[^A-Za-z0-9])");
-
     private static final Pattern OTP_KEYWORDS = Pattern.compile(
             "(?i)(?:\\botp\\b|\\b2fa\\b|\\bmfa\\b|\\btotp\\b|"
                     + "verification\\s+code|security\\s+code|login\\s+code|sign[-\\s]?in\\s+code|"
@@ -93,7 +90,8 @@ public final class NotificationPrivacyGuard {
 
     private static final Pattern SECRET_LABEL = Pattern.compile(
             "(?i)(?:\\bcvv\\b|\\bcvc\\b|card\\s+pin|nip\\s+de\\s+carte|"
-                    + "private\\s+key|cl[ée]\\s+priv[ée]e|bearer\\s+[A-Za-z0-9._-]{16,})");
+                    + "private\\s+key|cl[ée]\\s+priv[ée]e|bearer\\s+[A-Za-z0-9._-]{16,}|"
+                    + "sk-[A-Za-z0-9]{12,}|ghp_[A-Za-z0-9]{12,}|eyJ[A-Za-z0-9_-]{12,}|-----BEGIN\\s+)");
 
     private NotificationPrivacyGuard() {}
 
@@ -110,32 +108,15 @@ public final class NotificationPrivacyGuard {
         return false;
     }
 
-    /** True when title or text looks like an OTP/2FA code, recovery phrase, or credential secret. */
+    /** True when title or text looks like an OTP/2FA code, recovery phrase, temporary password, or API/JWT secret. */
     public static boolean containsOtpOrSecret(String title, String text) {
         String combined = ((title == null ? "" : title) + "\n" + (text == null ? "" : text)).trim();
         if (combined.isEmpty()) return false;
         if (GOOGLE_OTP.matcher(combined).find()) return true;
         if (SECRET_LABEL.matcher(combined).find()) return true;
-        if (OTP_KEYWORDS.matcher(combined).find()) {
-            // Block immediately when explicit OTP/2FA/recovery phrasing appears, with or without digits.
-            return CODE_TOKEN.matcher(combined).find()
-                    || combined.toLowerCase(Locale.ROOT).contains("otp")
-                    || combined.toLowerCase(Locale.ROOT).contains("2fa")
-                    || combined.toLowerCase(Locale.ROOT).contains("verification code")
-                    || combined.toLowerCase(Locale.ROOT).contains("security code")
-                    || combined.toLowerCase(Locale.ROOT).contains("code de vérification")
-                    || combined.toLowerCase(Locale.ROOT).contains("code de verification")
-                    || combined.toLowerCase(Locale.ROOT).contains("code de sécurité")
-                    || combined.toLowerCase(Locale.ROOT).contains("code de securite")
-                    || combined.toLowerCase(Locale.ROOT).contains("usage unique")
-                    || combined.toLowerCase(Locale.ROOT).contains("one-time")
-                    || combined.toLowerCase(Locale.ROOT).contains("one time")
-                    || combined.toLowerCase(Locale.ROOT).contains("recovery phrase")
-                    || combined.toLowerCase(Locale.ROOT).contains("seed phrase")
-                    || combined.toLowerCase(Locale.ROOT).contains("phrase de récupération")
-                    || combined.toLowerCase(Locale.ROOT).contains("phrase de recuperation");
-        }
-        return false;
+        // Every phrase in OTP_KEYWORDS is an explicit OTP/2FA/temporary-password/do-not-share indicator;
+        // hard-block immediately even when the secret/code is alphanumeric (no numeric CODE_TOKEN required).
+        return OTP_KEYWORDS.matcher(combined).find();
     }
 
     /** Evaluate a notification candidate against hard blocks and the active profile's allowlist. */

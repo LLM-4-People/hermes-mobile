@@ -1,5 +1,7 @@
 package org.llm4people.hermes.panel;
 
+import android.content.Context;
+import org.llm4people.hermes.R;
 import org.llm4people.hermes.RouteRegistry;
 import java.util.Objects;
 
@@ -35,18 +37,34 @@ public final class BrainStudioRoutes {
         void shareThread();
     }
 
+    @FunctionalInterface
+    private interface TextLookup {
+        String get(int resId, String fallback);
+    }
+
     private BrainStudioRoutes() {}
 
-    /** Register all Cerveau Studio destinations and thread power actions into the given registry. */
+    /** Register all Cerveau Studio destinations using localized string resources from {@code context}. */
+    public static RouteRegistry register(RouteRegistry registry, Context context, Handlers handlers) {
+        Objects.requireNonNull(context, "context");
+        return registerInternal(registry, handlers, (resId, fallback) -> context.getString(resId));
+    }
+
+    /** Register all Cerveau Studio destinations (host-JVM / fallback overload using default French strings). */
     public static RouteRegistry register(RouteRegistry registry, Handlers handlers) {
+        return registerInternal(registry, handlers, (resId, fallback) -> fallback);
+    }
+
+    private static RouteRegistry registerInternal(RouteRegistry registry, Handlers handlers, TextLookup text) {
         Objects.requireNonNull(registry, "registry");
         Objects.requireNonNull(handlers, "handlers");
 
         registry.register(new RouteRegistry.Destination(
                 ROUTE_MEMORY,
                 RouteRegistry.Section.CERVEAU,
-                "Mémoire de Hermes",
-                "Ce que Hermes retient et ce qu’il sait à propos de vous.",
+                text.get(R.string.brain_route_memory_label, "Mémoire de Hermes"),
+                text.get(R.string.brain_route_memory_hint,
+                        "Ce que Hermes retient et ce qu’il sait à propos de vous."),
                 0,
                 true,
                 BrainCapabilities.MEMORY_API,
@@ -55,8 +73,9 @@ public final class BrainStudioRoutes {
         registry.register(new RouteRegistry.Destination(
                 ROUTE_NOTES,
                 RouteRegistry.Section.CERVEAU,
-                "Notes intelligentes",
-                "Vos notes structurées et partagées avec Hermes.",
+                text.get(R.string.brain_route_notes_label, "Notes intelligentes"),
+                text.get(R.string.brain_route_notes_hint,
+                        "Vos notes structurées et partagées avec Hermes."),
                 0,
                 true,
                 BrainCapabilities.SMART_NOTES,
@@ -65,8 +84,9 @@ public final class BrainStudioRoutes {
         registry.register(new RouteRegistry.Destination(
                 ROUTE_SHARED_WITH_ME,
                 RouteRegistry.Section.CERVEAU,
-                "Partagé avec moi",
-                "Notes, savoir-faire et éléments partagés par d’autres utilisateurs sur ce serveur.",
+                text.get(R.string.brain_route_shared_label, "Partagé avec moi"),
+                text.get(R.string.brain_route_shared_hint,
+                        "Notes, savoir-faire et éléments partagés par d’autres utilisateurs sur ce serveur."),
                 0,
                 false,
                 BrainCapabilities.UNIVERSAL_SHARING,
@@ -75,8 +95,9 @@ public final class BrainStudioRoutes {
         registry.register(new RouteRegistry.Destination(
                 ROUTE_SEARCH,
                 RouteRegistry.Section.CERVEAU,
-                "Rechercher dans vos discussions",
-                "Retrouvez un passage dans tout votre historique.",
+                text.get(R.string.brain_route_search_label, "Rechercher dans vos discussions"),
+                text.get(R.string.brain_route_search_hint,
+                        "Retrouvez un passage dans tout votre historique."),
                 0,
                 true,
                 BrainCapabilities.SESSION_SEARCH,
@@ -85,8 +106,9 @@ public final class BrainStudioRoutes {
         registry.register(new RouteRegistry.Destination(
                 ROUTE_SKILLS,
                 RouteRegistry.Section.CERVEAU,
-                "Savoir-faire",
-                "Guides et méthodes réutilisables par Hermes.",
+                text.get(R.string.brain_route_skills_label, "Savoir-faire"),
+                text.get(R.string.brain_route_skills_hint,
+                        "Guides et méthodes réutilisables par Hermes."),
                 0,
                 true,
                 null,
@@ -95,8 +117,9 @@ public final class BrainStudioRoutes {
         registry.register(new RouteRegistry.Destination(
                 ROUTE_WORKSPACE_FILES,
                 RouteRegistry.Section.CERVEAU,
-                "Fichiers du projet",
-                "Parcourez les fichiers et modifications de cette discussion.",
+                text.get(R.string.brain_route_files_label, "Fichiers du projet"),
+                text.get(R.string.brain_route_files_hint,
+                        "Parcourez les fichiers et modifications de cette discussion."),
                 0,
                 false,
                 BrainCapabilities.WORKSPACE_FILES,
@@ -105,8 +128,9 @@ public final class BrainStudioRoutes {
         registry.register(new RouteRegistry.Destination(
                 ROUTE_PROFILE_DEFAULTS,
                 RouteRegistry.Section.CERVEAU,
-                "Réglages du profil",
-                "Modèle et capacités utilisés par défaut pour ce profil.",
+                text.get(R.string.brain_route_profile_label, "Réglages du profil"),
+                text.get(R.string.brain_route_profile_hint,
+                        "Modèle et capacités utilisés par défaut pour ce profil."),
                 0,
                 false,
                 BrainCapabilities.PROFILE_DEFAULTS,

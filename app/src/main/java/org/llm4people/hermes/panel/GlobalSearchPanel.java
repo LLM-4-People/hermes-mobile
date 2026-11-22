@@ -32,6 +32,7 @@ final class GlobalSearchPanel {
     private String roleFilter = "";
     private String activeQuery = "";
     private int totalMatches;
+    private boolean canLoadMore;
     private final List<SearchResultModel.Hit> loadedHits = new ArrayList<>();
     private Boolean supported;
 
@@ -123,6 +124,8 @@ final class GlobalSearchPanel {
     private void executeSearch(String query, int offset, boolean append) {
         if (!append) {
             loadedHits.clear();
+            totalMatches = 0;
+            canLoadMore = false;
             resultsBox.removeAllViews();
         }
         StringBuilder path = new StringBuilder("/api/sessions/search?q=")
@@ -135,8 +138,9 @@ final class GlobalSearchPanel {
         panel.request(resultsBox, () -> BrainJson.parseSearchPage(panel.api.get(path.toString())),
                 result -> {
                     Diagnostics.event("search", "completed");
-                    totalMatches = result.total();
                     loadedHits.addAll(result.hits());
+                    totalMatches = Math.max(append ? totalMatches : 0, Math.max(result.total(), loadedHits.size()));
+                    canLoadMore = !result.hits().isEmpty() && result.hasMore(loadedHits.size());
                     renderResults();
                 }, error -> {
                     if (error instanceof HermesApi.HttpError http && (http.status == 404 || http.status == 405 || http.status == 501)) {
@@ -160,7 +164,7 @@ final class GlobalSearchPanel {
         for (SearchResultModel.Hit hit : loadedHits) {
             resultsBox.addView(hitCard(hit, zone));
         }
-        if (totalMatches > loadedHits.size()) {
+        if (canLoadMore) {
             panel.action(resultsBox, R.string.brain_search_more,
                     () -> executeSearch(activeQuery, loadedHits.size(), true));
         }
