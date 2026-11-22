@@ -129,6 +129,7 @@ public final class ConversationCardsJourney extends Instrumentation {
                     dictation.getClass().getMethod("result", String.class).invoke(dictation, answer);
                     if (!answer.contentEquals(editor.getText())) throw new AssertionError("Speech result missed the answer editor");
                 });
+                ui.capture("card-voice-draft");
                 if (!new File(directory, "voice-filled").createNewFile()) throw new AssertionError("Duplicate dictation");
                 await("permit-voice-submit");
             } else {

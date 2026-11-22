@@ -3,13 +3,13 @@
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import ExitStack
 import json
-import re
 import secrets
 
 from .run import APP, Emulator, cleanup_all
 
 
 DRIVER = f"{APP}.test/{APP}.journey.ConversationCardsJourney"
+CAPTURES = {"card-voice-draft.png", *(f"card-{n}.png" for n in range(1, 7))}
 
 
 class CardPhone:
@@ -69,13 +69,17 @@ class CardPhone:
         status = self.task.result().decode(errors="replace")
         if "cards=passed" not in status or "INSTRUMENTATION_CODE: -1" not in status:
             raise AssertionError(status)
+        files = self.device.shell("run-as", APP, "ls", "-1", self.directory).splitlines()
+        missing = CAPTURES.difference(files)
+        if missing:
+            raise AssertionError("Missing Android captures: " + ", ".join(sorted(missing)))
 
     def cleanup(self):
         device = self.device
         def collect():
             names = device.shell("run-as", APP, "ls", "-1", self.directory).splitlines()
             for name in names:
-                if re.fullmatch(r"card-[1-6]\.png", name):
+                if name in CAPTURES:
                     image = device.run("exec-out", "run-as", APP, "cat", self.directory + "/" + name)
                     if not image.startswith(b"\x89PNG\r\n\x1a\n"):
                         raise AssertionError("Invalid capture " + name)
