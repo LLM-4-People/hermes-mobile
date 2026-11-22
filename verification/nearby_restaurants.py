@@ -257,6 +257,13 @@ def execute(args):
         guide = verify_guide(ui, [p[2] for p in PLACES], capture=capture,
                              distances=[111, 445, 1001], filter_cuisine="Italienne")
         picked = next(p for p in queries[0][1]["elements"] if p["tags"]["name"] == guide["selected"])
+        source_url = "https://www.openstreetmap.org/" + picked["type"] + "/" + str(picked["id"])
+        ui.tap_node(visible_app_node(ui, guide["source_control"], attribute="content-desc"))
+        ui.wait("Ouvrir OpenStreetMap")
+        if not visible(ui, [guide["selected"], source_url]) or not focused(device).startswith(APP + "/"):
+            raise AssertionError("The review did not show the selected source venue and canonical OSM URL")
+        ui.tap("Annuler")
+        guide["reviewed_source"] = source_url
         maps = map_selected(ui, guide["selected"], picked["center"])
         launch(device, APP)
         unlock(ui, names[0], phrases[0])
