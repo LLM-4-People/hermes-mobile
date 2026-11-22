@@ -1,4 +1,4 @@
-"""Verify the parallel host test runner's suite selection and failure propagation."""
+"""Verify the parallel host test runner's per-file fan-out and failure propagation."""
 
 from contextlib import redirect_stderr, redirect_stdout
 import io
@@ -7,15 +7,18 @@ import sys
 import unittest
 from unittest.mock import patch
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
 import fast_check
 
 
 class FastCheckTest(unittest.TestCase):
-    def test_workspace_only_covers_all_python_workspace_suites(self):
+    def test_workspace_only_fans_out_every_server_test_file_and_all_suites(self):
         names = [name for name, _ in fast_check.build_suites("/tmp/venv/python", workspace_only=True)]
+        expected_server = [f"server-tests:{p.stem}" for p in sorted((ROOT / "server/tests").glob("test_*.py"))]
+        self.assertTrue(expected_server)
         self.assertEqual(names, [
-            "server-tests",
+            *expected_server,
             "server-artifacts",
             "deploy",
             "verification-device",
@@ -23,9 +26,17 @@ class FastCheckTest(unittest.TestCase):
             "verification-phone-actions",
         ])
 
-    def test_full_mode_adds_docs_ci_and_optional_gradle(self):
+    def test_full_mode_covers_docs_every_ci_test_file_and_optional_gradle(self):
         names = [name for name, _ in fast_check.build_suites(None, workspace_only=False, with_gradle=True)]
-        self.assertEqual(names[:2], ["docs", "ci"])
+        expected_ci = [
+            f"ci:{p.stem}"
+            for p in sorted((ROOT / "ci").glob("test_*.py"))
+            if fast_check._has_unittest_cases(p)
+        ]
+        self.assertTrue(expected_ci)
+        self.assertNotIn("ci:test_signing", names)
+        self.assertEqual(names[0], "docs")
+        self.assertEqual(names[1:1 + len(expected_ci)], expected_ci)
         self.assertEqual(names[-1], "gradle")
 
     def test_failure_in_any_suite_returns_nonzero(self):
