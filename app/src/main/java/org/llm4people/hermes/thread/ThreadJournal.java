@@ -32,12 +32,13 @@ final class ThreadJournal {
         }
     }
 
-    JSONObject stage(JSONObject body, long now, long ttl, boolean durable) {
+    JSONObject stage(JSONObject body, long elapsed, int boot, long ttl, boolean durable) {
         if (pending() != null) throw new IllegalStateException("Pending run");
         JSONObject run = new JSONObject();
         ThreadData.put(run, "key", UUID.randomUUID().toString());
         ThreadData.put(run, "body", body);
-        ThreadData.put(run, "at", now);
+        ThreadData.put(run, "elapsed", elapsed);
+        ThreadData.put(run, "boot", boot);
         ThreadData.put(run, "ttl", ttl);
         ThreadData.put(run, "durable", durable);
         String oldDraft = draft();

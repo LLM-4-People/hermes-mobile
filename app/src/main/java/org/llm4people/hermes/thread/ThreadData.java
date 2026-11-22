@@ -98,8 +98,8 @@ final class ThreadData {
                 || "cancelled".equals(status) || "interrupted".equals(status);
     }
 
-    static boolean canReplay(long now, long sentAt, long retentionSeconds, boolean durable) {
-        return durable && retentionSeconds > 0 && sentAt > 0 && now >= sentAt
+    static boolean canReplay(long now, long sentAt, int bootNow, int bootThen, long retentionSeconds, boolean durable) {
+        return durable && bootThen >= 0 && bootThen == bootNow && retentionSeconds > 0 && sentAt >= 0 && now >= sentAt
                 && (now - sentAt) / 1000 < retentionSeconds;
     }
 

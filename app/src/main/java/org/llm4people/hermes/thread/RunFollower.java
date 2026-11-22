@@ -38,7 +38,7 @@ final class RunFollower implements AutoCloseable {
     private long started;
     private long firstText = -1;
     private String activity = "Hermes travaille…";
-    private JSONObject approval;
+    private final RunPrompts controls = new RunPrompts();
     private volatile boolean closed;
     private HermesApi.RunEvents stream;
 
@@ -55,11 +55,8 @@ final class RunFollower implements AutoCloseable {
         try {
             JSONObject status = api.get(path());
             if (finish(status) || closed) return;
-            if ("waiting_for_approval".equals(status.optString("status"))) {
-                approval = status.optJSONObject("approval");
-                activity = "Approbation requise";
-                publish();
-            }
+            controls.restore(status);
+            if (controls.next() != null) publish();
             try (HermesApi.RunEvents events = api.runEvents(run, seq)) {
                 synchronized (this) {
                     if (closed) return;
@@ -134,11 +131,13 @@ final class RunFollower implements AutoCloseable {
                         + event.optString("tool");
                 break;
             case "approval.request":
-                approval = event;
-                activity = "Approbation requise";
+            case "clarify.request":
+                controls.add(event);
                 break;
             case "approval.responded":
-                approval = null;
+            case "approval.settled":
+            case "clarify.settled":
+                controls.settle(event);
                 activity = "Hermes travaille…";
                 break;
             default:
@@ -149,7 +148,9 @@ final class RunFollower implements AutoCloseable {
     private String path() { return "/v1/runs/" + HermesApi.segment(run); }
 
     private void publish() {
-        if (!closed) listener.update(new Frame(seq, preview.toString(), activity, approval));
+        JSONObject control = controls.next();
+        if (!closed) listener.update(new Frame(seq, preview.toString(),
+                control == null ? activity : RunPrompts.activity(control), control));
     }
 
     @Override public synchronized void close() {

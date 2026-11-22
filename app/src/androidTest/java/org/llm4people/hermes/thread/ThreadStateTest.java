@@ -15,7 +15,7 @@ public class ThreadStateTest extends TestCase {
                 .put("allowed_toolsets", new JSONArray()).put("excluded_tools", new JSONArray().put("shell"))
                 .put("session_id", "untrusted").put("input", "overwritten");
         JSONObject body = ThreadData.body("abc", first.draft(), options);
-        JSONObject sent = first.stage(body, 10_000, 60, true);
+        JSONObject sent = first.stage(body, 10_000, 3, 60, true);
         ThreadJournal resumed = new ThreadJournal(stored.get(), stored::set);
         assertEquals("", resumed.draft());
         assertEquals(sent.getString("key"), resumed.pending().getString("key"));
@@ -41,7 +41,7 @@ public class ThreadStateTest extends TestCase {
         ThreadJournal journal = new ThreadJournal(null, ignored -> { throw new IllegalStateException("full"); });
         journal.draft("bonjour");
         try {
-            journal.stage(ThreadData.body("thread", journal.draft(), null), 100, 3, true);
+            journal.stage(ThreadData.body("thread", journal.draft(), null), 100, 2, 3, true);
             fail("Send without durable record");
         } catch (IllegalStateException expected) {
             assertNull(journal.pending());
@@ -49,12 +49,36 @@ public class ThreadStateTest extends TestCase {
         }
     }
 
-    public void testReplayRequiresContinuingDurableRetentionAndMonotonicWallTime() {
-        assertTrue(ThreadData.canReplay(19_999, 10_000, 10, true));
-        assertFalse(ThreadData.canReplay(20_000, 10_000, 10, true));
-        assertFalse(ThreadData.canReplay(10_001, 10_000, 10, false));
-        assertFalse(ThreadData.canReplay(9_999, 10_000, 10, true));
-        assertFalse(ThreadData.canReplay(10_000, 10_000, 0, true));
+    public void testReplayRequiresContinuingDurableRetentionAndSameBootElapsedTime() {
+        assertFalse(ThreadData.canReplay(20_000, 15_000, 4, 3, 10, true));
+        assertFalse(ThreadData.canReplay(20_000, 15_000, -1, -1, 10, true));
+        assertTrue(ThreadData.canReplay(19_999, 10_000, 3, 3, 10, true));
+        assertFalse(ThreadData.canReplay(20_000, 10_000, 3, 3, 10, true));
+        assertFalse(ThreadData.canReplay(10_001, 10_000, 3, 3, 10, false));
+        assertFalse(ThreadData.canReplay(9_999, 10_000, 3, 3, 10, true));
+        assertFalse(ThreadData.canReplay(10_000, 10_000, 3, 3, 0, true));
+    }
+
+    public void testCanonicalControlsRehydrateAndSettleExactlyOneRequest() throws Exception {
+        RunPrompts prompts = new RunPrompts();
+        JSONObject request = new JSONObject().put("kind", "approval").put("prompt_id", "a")
+                .put("execution_generation", 8);
+        JSONObject question = new JSONObject().put("kind", "clarify").put("prompt_id", "b")
+                .put("execution_generation", 8);
+        prompts.restore(new JSONObject().put("pending_controls", new JSONArray().put(request).put(question)));
+        JSONObject consent = RunPrompts.response(prompts.next(), "once");
+        assertEquals("a", consent.getString("request_id"));
+        assertEquals("once", consent.getString("choice"));
+        assertEquals(8, consent.getInt("execution_generation"));
+        assertEquals(3, consent.length());
+        prompts.settle(new JSONObject().put("prompt_id", "a"));
+        assertEquals("b", RunPrompts.id(prompts.next()));
+        JSONObject response = RunPrompts.response(prompts.next(), "oui");
+        assertEquals("oui", response.getString("answer"));
+        assertEquals(3, response.length());
+        JSONObject classic = new JSONObject().put("request_id", "c");
+        prompts.restore(new JSONObject().put("approval", classic));
+        assertEquals(2, RunPrompts.response(prompts.next(), "deny").length());
     }
 
     public void testPagedLineageOverlapsAndMalformedRows() throws Exception {

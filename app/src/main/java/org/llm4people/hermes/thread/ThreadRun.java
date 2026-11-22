@@ -2,6 +2,9 @@ package org.llm4people.hermes.thread;
 
 import android.app.AlertDialog;
 import android.os.SystemClock;
+import android.provider.Settings;
+import android.widget.EditText;
+import org.json.JSONArray;
 
 import org.json.JSONObject;
 import org.llm4people.hermes.net.HermesApi;
@@ -75,7 +78,7 @@ final class ThreadRun {
                     return;
                 }
                 try {
-                    journal.stage(body, System.currentTimeMillis(), idem.optLong("retention_seconds"),
+                    journal.stage(body, SystemClock.elapsedRealtime(), bootCount(), idem.optLong("retention_seconds"),
                             idem.optBoolean("durable"));
                 } catch (IllegalStateException e) {
                     submitting = false;
@@ -89,7 +92,8 @@ final class ThreadRun {
             } else {
                 JSONObject pending = journal.pending();
                 long ttl = Math.min(pending.optLong("ttl"), idem.optLong("retention_seconds"));
-                if (!ThreadData.canReplay(System.currentTimeMillis(), pending.optLong("at"), ttl,
+                if (!ThreadData.canReplay(SystemClock.elapsedRealtime(), pending.optLong("elapsed", -1),
+                        bootCount(), pending.optInt("boot", -1), ttl,
                         pending.optBoolean("durable") && idem.optBoolean("durable"))) {
                     submitting = false;
                     uncertain();
@@ -102,6 +106,10 @@ final class ThreadRun {
             ui.busy(!fresh, false);
             page.error(error, fresh ? this::send : this::restore);
         });
+    }
+
+    private int bootCount() {
+        return Settings.Global.getInt(page.activity.getContentResolver(), Settings.Global.BOOT_COUNT, -1);
     }
 
     private void admit(JSONObject body, boolean fresh) {
@@ -244,9 +252,8 @@ final class ThreadRun {
     void approve() {
         JSONObject approval = frame == null ? null : frame.approval;
         if (approval == null) return;
-        String request = ThreadData.string(approval, "request_id");
-        if (request.isEmpty()) {
-            ui.notice("Cette demande n’a pas d’identifiant. Examinez-la sur la passerelle.", "", null);
+        if (RunPrompts.question(approval)) {
+            clarify(approval);
             return;
         }
         String detail = ThreadData.string(approval, "description");
@@ -254,23 +261,45 @@ final class ThreadRun {
         if (!command.isEmpty()) detail += (detail.isEmpty() ? "" : "\n\n") + command;
         AlertDialog.Builder dialog = new AlertDialog.Builder(page.activity).setTitle("Approbation requise")
                 .setMessage(detail.isEmpty() ? "Hermes demande votre autorisation." : detail)
-                .setNegativeButton("Refuser", (d, w) -> decision(request, "deny"))
+                .setNegativeButton("Refuser", (d, w) -> decision(approval, "deny"))
                 .setNeutralButton("Plus tard", null);
-        if (!detail.isEmpty()) dialog.setPositiveButton("Autoriser une fois", (d, w) -> decision(request, "once"));
+        if (!detail.isEmpty()) dialog.setPositiveButton("Autoriser une fois", (d, w) -> decision(approval, "once"));
         ui.show(dialog);
     }
 
-    private void decision(String request, String choice) {
-        if (frame == null || frame.approval == null || !request.equals(frame.approval.optString("request_id"))) return;
-        JSONObject body = ThreadData.put(ThreadData.put(new JSONObject(), "request_id", request), "choice", choice);
-        control("/approval", body, "Décision transmise.");
+    private void clarify(JSONObject prompt) {
+        EditText answer = new EditText(page.activity);
+        answer.setHint("Votre réponse");
+        answer.setSaveEnabled(false);
+        JSONArray choices = prompt.optJSONArray("choices");
+        StringBuilder question = new StringBuilder(ThreadData.string(prompt, "question"));
+        if (choices != null) {
+            for (int i = 0; i < choices.length(); i++) {
+                question.append("\n• ").append(choices.optString(i));
+            }
+        }
+        ui.show(new AlertDialog.Builder(page.activity).setTitle("Question de Hermes")
+                .setMessage(question).setView(answer).setNegativeButton("Plus tard", null)
+                .setNeutralButton("Passer", (d,w) -> decision(prompt, ""))
+                .setPositiveButton("Répondre", (d,w) -> {
+                    String reply = answer.getText().toString().trim();
+                    if (!reply.isEmpty()) decision(prompt, reply);
+                }));
+    }
+
+    private void decision(JSONObject prompt, String value) {
+        if (frame == null || frame.approval == null
+                || !RunPrompts.id(prompt).equals(RunPrompts.id(frame.approval))
+                || prompt.optLong("execution_generation", -1) != frame.approval.optLong("execution_generation", -1)) return;
+        control(RunPrompts.question(prompt) ? "/clarify" : "/approval",
+                RunPrompts.response(prompt, value), "Décision transmise.");
     }
 
     private void control(String route, JSONObject body, String message) {
         String path = statusPath() + route;
         page.request(() -> page.api.post(path, body),
                 ok -> ui.notice(message, "", null),
-                e -> page.error(e, () -> { if ("/approval".equals(route)) approve(); else stop(); }));
+                e -> page.error(e, () -> { if ("/stop".equals(route)) stop(); else approve(); }));
     }
 
     private void checkpoint() {
