@@ -103,7 +103,7 @@ final class ThreadViews {
         liveText.setTextIsSelectable(true);
         fullLiveText = Ui.button(activity, "Lire la réponse entière", v ->
                 show(new AlertDialog.Builder(activity).setTitle("Réponse de Hermes")
-                        .setView(MessageText.reader(activity, liveTranscript.source(), true, false))
+                        .setView(MessageText.reader(activity, liveTranscript.source(), true, false, this::show))
                         .setPositiveButton("Fermer", null)));
         list.setItemsCanFocus(true);
         outgoing = Ui.text(activity, "", 17);
@@ -357,9 +357,11 @@ final class ThreadViews {
             boolean markdown = chat && "assistant".equals(role);
             TranscriptPage preview = new TranscriptPage(content, new TranscriptPage.Cursor(), markdown,
                     chat ? TranscriptPage.PAGE_CHARS : 300);
-            CharSequence rendered = MessageText.styled(getContext(), preview);
+            CharSequence rendered = markdown && !preview.blocks.isEmpty() ? MessageText.excerpt(getContext(), preview)
+                    : MessageText.styled(getContext(), preview);
             body.setText(preview.hasMore() ? android.text.TextUtils.concat(rendered, "…") : rendered);
             if (getChildCount() > 2) removeViews(2, getChildCount() - 2);
+            if (markdown) MessageText.addCodeAction(this, preview, content, ThreadViews.this::show);
             if (chat && "approval_result".equals(role)) {
                 String details = ThreadData.string(row, "receipt_details");
                 addView(Ui.button(getContext(), "Voir les détails", v ->
@@ -371,7 +373,7 @@ final class ThreadViews {
                 String full = content;
                 addView(Ui.button(getContext(), "Lire le message entier", v ->
                         show(new AlertDialog.Builder(getContext()).setTitle(name)
-                                .setView(MessageText.reader(getContext(), full, markdown, role.equals("tool")))
+                                .setView(MessageText.reader(getContext(), full, markdown, role.equals("tool"), ThreadViews.this::show))
                                 .setPositiveButton("Fermer", null))));
             }
             for (Pin proposal : proposals)

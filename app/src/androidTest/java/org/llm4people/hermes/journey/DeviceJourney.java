@@ -150,6 +150,10 @@ public final class DeviceJourney extends Instrumentation {
         ui.hideKeyboard();
         ui.heading("Bonjour depuis le téléphone");
         ui.capture("03-discussion-code");
+        ui.tap("Ouvrir le code · python");
+        ui.contains("return n * n");
+        ui.see("Copier le contenu");
+        ui.tap("Fermer");
         ui.tap("Toutes les discussions");
         ui.see("Bonjour depuis le téléphone");
         ui.capture("15-discussion-retrouvee");

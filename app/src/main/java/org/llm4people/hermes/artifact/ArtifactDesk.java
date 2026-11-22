@@ -2,16 +2,11 @@ package org.llm4people.hermes.artifact;
 
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.content.ClipData;
-import android.content.ClipboardManager;
-import android.content.Context;
-import android.os.PersistableBundle;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
-import android.widget.Toast;
 import org.json.JSONArray;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.Ui;
@@ -157,8 +152,7 @@ public final class ArtifactDesk {
                         "Disposition invalide. Demandez à Hermes de corriger la proposition.", 16));
             }
         }
-        box.addView(Ui.button(activity, "Copier le contenu", v -> copy(content, record.title)));
-        new CodeReader(content, record.language).mount(box, 0);
+        CodeReader.contents(box, record.title, record.language, content);
     }
 
     private void confirm(WorkspaceLayout layout, String raw) {
@@ -173,21 +167,5 @@ public final class ArtifactDesk {
         ScrollView scroll = new ScrollView(activity);
         scroll.addView(content);
         return scroll;
-    }
-
-    private void copy(String content, String title) {
-        ClipboardManager clipboard = (ClipboardManager)activity.getSystemService(Context.CLIPBOARD_SERVICE);
-        ClipData clip = ClipData.newPlainText(title, content);
-        PersistableBundle extras = new PersistableBundle();
-        extras.putBoolean("android.content.extra.IS_SENSITIVE", true);
-        clip.getDescription().setExtras(extras);
-        try {
-            clipboard.setPrimaryClip(clip);
-            if (android.os.Build.VERSION.SDK_INT < 33)
-                Toast.makeText(activity, "Contenu copié", Toast.LENGTH_SHORT).show();
-        } catch (RuntimeException e) {
-            Diagnostics.warning("artifact", "copy_failed");
-            Toast.makeText(activity, "La copie a échoué. Sélectionnez une partie du texte.", Toast.LENGTH_LONG).show();
-        }
     }
 }

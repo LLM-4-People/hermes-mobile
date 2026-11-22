@@ -2,4 +2,10 @@
     <string name="transcript_page">Page %1$d</string>
     <string name="transcript_previous">Précédente</string>
     <string name="transcript_next">Suivante</string>
+    <string name="code_open">Ouvrir le code</string>
+    <string name="code_open_named">Ouvrir le code · %1$s</string>
+    <string name="code_open_many">Ouvrir les %1$d extraits</string>
+    <string name="code_excerpt">Extrait de code</string>
+    <string name="code_excerpt_number">Extrait %1$d</string>
+    <string name="code_choose">Choisir un extrait</string>
 </resources>

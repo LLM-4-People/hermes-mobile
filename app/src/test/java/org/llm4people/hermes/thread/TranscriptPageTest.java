@@ -29,6 +29,35 @@ public final class TranscriptPageTest {
         assertEquals("+    return n ** 2", marked(reply, TranscriptPage.Style.INSERTION));
     }
 
+    @Test public void adjacentAndUnclosedExcerptsResolveTheirOwnOriginalSource() {
+        String source = "Avant\n````md file=guide.md\r\n  a\r\n\r\n```\r\n````\r\n"
+                + "~~~python\n# src/carre.py\n  return n * n\n~~~\n" + "```\nen cours";
+        TranscriptPage page = first(source);
+        assertEquals(3, page.blocks.size());
+        assertEquals("guide.md · md", page.blocks.get(0).title(source));
+        assertEquals("  a\r\n\r\n```", page.blocks.get(0).content(source));
+        assertEquals("src/carre.py · python", page.blocks.get(1).title(source));
+        assertEquals("# src/carre.py\n  return n * n", page.blocks.get(1).content(source));
+        assertEquals("", page.blocks.get(2).title(source));
+        assertEquals("en cours", page.blocks.get(2).content(source));
+        assertTrue(first("```\n```").blocks.isEmpty());
+    }
+
+    @Test public void aPageBeginningInsideALongFenceCanReadTheWholeBlock() {
+        String body = "    ligne 🚲\n".repeat(1300);
+        String source = "```txt file=journal.txt\n" + body + "```\nAprès";
+        TranscriptPage page = first(source);
+        int count = 0;
+        while (!page.blocks.isEmpty()) {
+            assertEquals("journal.txt · txt", page.blocks.get(0).title(source));
+            assertEquals(body.substring(0, body.length() - 1), page.blocks.get(0).content(source));
+            count++;
+            if (!page.hasMore()) break;
+            page = new TranscriptPage(source, page.next, true, TranscriptPage.PAGE_CHARS);
+        }
+        assertTrue(count >= 3);
+    }
+
     @Test public void dataUrlsConsumeNoPayloadBudgetAndKeepTheSurroundingProse() {
         String payload = "Qm9uam91".repeat(600000);
         var page = first("Avant\n![image](data:image/webp;base64," + payload + ")\nAprès **ici**.");
