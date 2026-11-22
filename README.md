@@ -22,6 +22,12 @@ Tap **Écouter** on a question or choose **Écouter la dernière réponse** from
 
 To ask about a screenshot or photo, open **Autres actions → Joindre une image…** in the discussion. Select one still image, review its preview, write your question, then tap **Envoyer**. **Retirer** keeps the question in the composer. The phone re-encodes the image without its original file metadata. The selected gateway and its configured vision provider receive the pixels when you send. [Hermes vision settings](https://hermes-agent.nousresearch.com/docs/user-guide/features/vision)
 
+## Bring work in from another Android app
+
+Select a passage of code and choose **Demander à Hermes**, or share text or a link through Android’s share sheet. Unlock the intended profile, check the discussion and choose **Ajouter au brouillon**. Hermes appends the selection to your draft. You can add a question such as « Où ce calcul peut-il perdre de la précision ? » before tapping **Envoyer**.
+
+Hermes can also prepare work for another app. For example, ask « Prépare un rendez-vous dans mon agenda, un message pour mon équipe et une recherche du lieu sur la carte. » Review the event, text or place in the discussion. When you choose an action, Android opens the corresponding editor, share sheet or map. [Android actions and a real model example](docs/android-actions.md)
+
 ## Turn a review into a reusable tool
 
 Ask Hermes « Transforme cette revue de code en un outil pour ce fil. » Try the form in the reply, enter a file and goal, and pin it to the discussion. On a wide display the form sits beside the conversation. Ask « Ajoute un champ de priorité. » You can inspect the pinned form, the proposed form, and the specific changes before adopting a version. Preparing a message from the form leaves its text in your composer until you send it. [Working with generated tools](docs/workspace.md) · [See a code review become a form on Android](docs/local-model-review.md)

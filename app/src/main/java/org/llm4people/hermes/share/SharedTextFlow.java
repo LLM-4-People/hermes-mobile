@@ -7,6 +7,7 @@ import android.content.DialogInterface;
 import android.os.Bundle;
 
 import org.llm4people.hermes.Ui;
+import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.profile.Account;
 import org.llm4people.hermes.profile.IncomingShare;
 import org.llm4people.hermes.thread.ThreadWorkspace;
@@ -92,9 +93,11 @@ public final class SharedTextFlow {
         int end = Math.min(480, text.length());
         if (end < text.length() && Character.isHighSurrogate(text.charAt(end - 1))) end--;
         String preview = end == text.length() ? text : text.substring(0, end) + "…";
+        String destination = session == null ? "" : "\nDiscussion : " + shownTitle
+                + "\nIdentifiant : " + HermesApi.segment(session);
         AlertDialog.Builder builder = new AlertDialog.Builder(activity)
                 .setTitle(session == null ? "Choisir une discussion" : "Ajouter au brouillon ?")
-                .setMessage("Profil : " + account.label + (session == null ? "" : "\nDiscussion : " + workspace.title())
+                .setMessage("Profil : " + account.label + destination
                         + "\n\n" + preview + "\n\nLe texte sera ajouté à la suite du brouillon. Vous pourrez le modifier avant l’envoi.")
                 .setNegativeButton("Annuler", (d,w) -> { if (owns(d, key, account, session)) cancel(); })
                 .setOnCancelListener(d -> { if (d == dialog && key.equals(ticket) && owner == account) cancel(); });
