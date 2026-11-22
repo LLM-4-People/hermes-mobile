@@ -19,7 +19,7 @@ from verification.nearby_capture import captures
 from verification.nearby_fixture import overpass, PLACES
 from verification.nearby_journey import (CONSENT, FAILED, PROMPT, STAGED, USE_LOCATION, choose_consent, enter_message,
                                           lock, open_consent, stage_public_location, unlock, verify_guide, visible_app_node)
-from verification.nearby_location import COARSE, answer_android_location, location_access, public_city_fix
+from verification.nearby_location import COARSE, answer_android_location, app_activity_stopped, location_access, public_city_fix
 from verification.phone_actions import MAPS, admissions, assert_offline, focused, visible
 from verification.unifiedpush.editor import editor
 from verification.unifiedpush.stack import eventually
@@ -159,12 +159,22 @@ def consent_failures(ui, fix, second, names, phrases, check_idle):
     choose_consent(ui, USE_LOCATION)
     wait_status(ui, "Recherche de la position…")
     ui.device.shell("input", "keyevent", "HOME")
-    background = eventually("Android launcher foreground before late fix",
-                            lambda: (active if (active := focused(ui.device)) and
-                                     not active.startswith(APP + "/") else None))
+
+    def launcher_stopped_app():
+        active = focused(ui.device)
+        if not active or active.startswith(APP + "/"):
+            return None
+        if ui.hierarchy().get("package") == APP:
+            return None
+        if not app_activity_stopped(ui.device.shell("dumpsys", "activity", "activities")):
+            return None
+        return active
+
+    background = eventually("Android launcher foreground and stopped Hermes activity before late fix",
+                            launcher_stopped_app)
     fix.publish()
     launch(ui.device, APP)
-    ui.wait("Choisir un profil")
+    wait_status(ui, "Choisir un profil")
     start_account(ui, names[1], second.endpoint, second.key, phrases[1])
     enter_discussion(ui)
     if ui.node(STAGED) is not None:
@@ -293,6 +303,8 @@ def execute(args):
         )
         guide["reviewed_source"] = source_url
         maps = map_selected(ui, guide["selected"], picked["center"])
+        eventually("Hermes activity stopped behind Maps",
+                   lambda: app_activity_stopped(device.shell("dumpsys", "activity", "activities")))
         launch(device, APP)
         unlock(ui, names[0], phrases[0])
         enter_discussion(ui)

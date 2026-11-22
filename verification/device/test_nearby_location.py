@@ -2,7 +2,8 @@ import unittest
 import xml.etree.ElementTree as ET
 
 from verification.nearby_journey import CONSENT, USE_LOCATION, choose_consent
-from verification.nearby_location import COARSE, answer_android_location, location_access, public_city_fix
+from verification.nearby_location import (COARSE, answer_android_location, app_activity_stopped,
+                                          location_access, public_city_fix)
 from verification.nearby_restaurants import enter_discussion
 from verification.unifiedpush.ui import Screen
 
@@ -246,6 +247,29 @@ class NearbyLocationTest(unittest.TestCase):
 
         choose_consent(StubScreen(), USE_LOCATION)
         self.assertEqual(taps, [USE_LOCATION, USE_LOCATION])
+
+    def test_app_activity_stopped_waits_for_stopped_state_and_ignores_test_package(self):
+        paused_dump = (
+            "  * Hist  #0: ActivityRecord{aaa u0 org.llm4people.hermes/.MainActivity t12}\n"
+            "    packageName=org.llm4people.hermes processName=org.llm4people.hermes\n"
+            "    state=PAUSED stopped=false delayedResume=false finishing=false\n"
+            "  * Hist  #1: ActivityRecord{bbb u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t1}\n"
+            "    packageName=com.google.android.apps.nexuslauncher processName=com.google.android.apps.nexuslauncher\n"
+            "    state=RESUMED stopped=false delayedResume=false finishing=false\n"
+        )
+        stopping_dump = paused_dump.replace("state=PAUSED", "state=STOPPING")
+        stopped_dump = (
+            "  * Hist  #0: ActivityRecord{aaa u0 org.llm4people.hermes/.MainActivity t12}\n"
+            "    packageName=org.llm4people.hermes processName=org.llm4people.hermes\n"
+            "    state=STOPPED stopped=true delayedResume=false finishing=false\n"
+            "  * Hist  #1: ActivityRecord{ccc u0 org.llm4people.hermes.test/.HelperActivity t13}\n"
+            "    packageName=org.llm4people.hermes.test processName=org.llm4people.hermes.test\n"
+            "    state=RESUMED stopped=false delayedResume=false finishing=false\n"
+        )
+        self.assertFalse(app_activity_stopped(paused_dump))
+        self.assertFalse(app_activity_stopped(stopping_dump))
+        self.assertTrue(app_activity_stopped(stopped_dump))
+        self.assertTrue(app_activity_stopped(""))
 
     def test_answer_android_location_rejects_non_location_permission_prompt(self):
         notification_dialog = ET.fromstring(
