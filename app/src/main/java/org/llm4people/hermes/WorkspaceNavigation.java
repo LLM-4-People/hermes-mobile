@@ -7,10 +7,20 @@ final class WorkspaceNavigation {
     static final String DISCUSSION = "discussion", HOME = "home", GALLERY = "pages", COMPOSER = "composer";
     private final ArrayDeque<String> routes = new ArrayDeque<>();
 
+    private String displayed;
+
     WorkspaceNavigation() { routes.addLast(DISCUSSION); }
 
     String current() { return routes.getLast(); }
     boolean contains(String route) { return routes.contains(route); }
+
+    /** Report a change before the renderer detaches the outgoing surface, including on system Back. */
+    boolean display(String surface, Runnable beforeDeparture) {
+        if (surface.equals(displayed)) return false;
+        if (displayed != null) beforeDeparture.run();
+        displayed = surface;
+        return true;
+    }
 
     void open(String route) {
         if (!routes.contains(route)) routes.addLast(route);

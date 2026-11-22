@@ -46,7 +46,6 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     private MobilePush push;
     private MobilePush.Target delivery;
     private AlertDialog notice;
-    private String displayedSurface;
     private String handledDelivery;
 
     @Override protected void onCreate(Bundle state) {
@@ -284,9 +283,8 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                 boolean composer = WorkspaceNavigation.COMPOSER.equals(route);
                 String surface = threads.sessionId() == null ? "threads" : "thread";
                 String key = composer ? route : surface;
-                if (!force && key.equals(displayedSurface)) return;
+                if (!navigation.display(key, voice.reader()::stop) && !force) return;
                 boolean editing = threads.editing();
-                displayedSurface = key;
                 View nativeView = threads.view();
                 if (nativeView.getParent() instanceof android.view.ViewGroup)
                     ((android.view.ViewGroup) nativeView.getParent()).removeView(nativeView);
@@ -299,11 +297,11 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                 if (editing) threads.focusComposer();
                 break;
             case WorkspaceNavigation.HOME:
-                displayedSurface = route;
+                navigation.display(route, voice.reader()::stop);
                 shell.show(ArtifactDesk.decorate(this, account, "home", shell.desk(account.label), activeHost), "Atelier");
                 break;
             case WorkspaceNavigation.GALLERY:
-                displayedSurface = route;
+                navigation.display(route, voice.reader()::stop);
                 shell.show(ArtifactDesk.pages(this, account, activeHost), "Mes écrans");
                 break;
             default:
@@ -313,7 +311,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                     navigation.forgetCurrentPage();
                     render(true);
                 } else {
-                    displayedSurface = route;
+                    navigation.display(route, voice.reader()::stop);
                     customPages.put(route, page);
                     shell.show(page, "Écran personnalisé");
                     ArtifactDesk.refreshBindings(page, activeHost);
@@ -389,7 +387,6 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         customPages.clear();
         activeHost = null;
         account = null;
-        displayedSurface = null;
     }
 
     private void lock() {
