@@ -174,6 +174,30 @@ public class PromptCardTest extends InstrumentationTestCase {
         });
     }
 
+    public void testApprovalChoicesStackWhenLabelsNoLongerFitSideBySide() throws Throwable {
+        JSONObject prompt = new JSONObject().put("kind", "approval").put("description", "Modifier la note")
+                .put("choices", new JSONArray().put("once").put("deny"));
+        runTestOnUiThread(() -> {
+            PromptCard card = mount(prompt);
+            TextView allow = (TextView) find(card, "Autoriser une fois");
+            TextView deny = (TextView) find(card, "Refuser");
+            int narrow = Ui.dp(activity, 260);
+            int wide = Ui.dp(activity, 800);
+            for (int width : new int[]{wide, narrow, wide}) {
+                card.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+                        View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+                card.layout(0, 0, width, card.getMeasuredHeight());
+                assertTrue(Math.abs(allow.getWidth() - deny.getWidth()) <= 1);
+                assertTrue(allow.getHeight() >= Ui.dp(activity, 48));
+                assertTrue(deny.getHeight() >= Ui.dp(activity, 48));
+                assertEquals(width == wide, allow.getTop() == deny.getTop());
+                assertEquals(0, allow.getLayout().getEllipsisCount(allow.getLineCount() - 1));
+                assertEquals(allow.length(), allow.getLayout().getLineEnd(allow.getLineCount() - 1));
+            }
+            assertTrue(answers.isEmpty());
+        });
+    }
+
     public void testLongChoiceWrapsAndAllControlsCanScrollIntoAShortViewport() throws Throwable {
         String choice = "Préparer une version détaillée pour les collègues qui participent à la réunion de lundi";
         JSONObject prompt = new JSONObject().put("kind", "clarify").put("prompt_id", "layout")
