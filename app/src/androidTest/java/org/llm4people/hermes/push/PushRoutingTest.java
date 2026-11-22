@@ -161,6 +161,15 @@ public final class PushRoutingTest extends InstrumentationTestCase {
         assertFalse(store.remember(device.installation, event, PushNotices.QUESTION));
     }
 
+    public void testApprovalWithdrawalBeforeRequestSuppressesOnlyItsInstallationAndId() {
+        PushStore.Device owner = store.forInstallation(device.installation);
+        PushNotices.post(context, owner, event, PushNotices.DISMISS_APPROVAL);
+        assertFalse(store.remember(device.installation, event, PushNotices.APPROVAL));
+        assertTrue(store.remember(device.installation, "00000000000000000000000000000003", PushNotices.APPROVAL));
+        assertTrue(PushNotices.isPrompt(PushNotices.APPROVAL));
+        assertTrue(PushNotices.PROMPT_DISPLAY_MILLIS > 0);
+    }
+
     private void waitForQuestion(boolean visible) {
         String tag = device.installation + "/" + event;
         long deadline = android.os.SystemClock.elapsedRealtime() + 5000;
@@ -172,6 +181,7 @@ public final class PushRoutingTest extends InstrumentationTestCase {
                 assertEquals("Hermes a une question", row.getNotification().extras.getString("android.title"));
                 assertEquals("Ouvrez votre profil pour voir les détails.", row.getNotification().extras.getString("android.text"));
                 assertEquals(android.app.Notification.VISIBILITY_PRIVATE, row.getNotification().visibility);
+                assertEquals(PushNotices.PROMPT_DISPLAY_MILLIS, row.getNotification().getTimeoutAfter());
             }
             if (visible == present) return;
             android.os.SystemClock.sleep(40);

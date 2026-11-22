@@ -5,8 +5,9 @@ import hashlib
 import json
 import hmac
 import sqlite3
+import time
 import uuid
-from .events import DISMISS_QUESTION, PROMPT_KINDS, QUESTION, Observation
+from .events import APPROVAL, DISMISS_APPROVAL, DISMISS_QUESTION, PROMPT_KINDS, Observation
 
 
 class Forbidden(Exception):
@@ -44,11 +45,11 @@ class Store:
                     PRIMARY KEY(device_id,event_id));
                 CREATE INDEX IF NOT EXISTS next_delivery ON deliveries(due);
                 CREATE INDEX IF NOT EXISTS event_deliveries ON deliveries(event_id);
-                CREATE TABLE IF NOT EXISTS question_recipients (
+                CREATE TABLE IF NOT EXISTS prompt_recipients (
                     event_id TEXT REFERENCES events(event_id) ON DELETE CASCADE,
                     device_id TEXT REFERENCES devices(id) ON DELETE CASCADE,
                     PRIMARY KEY(event_id, device_id));
-                CREATE INDEX IF NOT EXISTS recipient_device ON question_recipients(device_id);
+                CREATE INDEX IF NOT EXISTS prompt_recipient_device ON prompt_recipients(device_id);
             """)
             # Upgrade pre-Web-Push databases atomically; their existing tokens are FCM registrations.
             with db:
@@ -58,8 +59,16 @@ class Store:
                     db.execute("ALTER TABLE devices ADD COLUMN provider TEXT NOT NULL DEFAULT 'fcm'")
                 if "webpush_keys" not in columns:
                     db.execute("ALTER TABLE devices ADD COLUMN webpush_keys TEXT")
-                if not any(row["name"] == "dismiss" for row in db.execute("PRAGMA table_info(deliveries)")):
-                    db.execute("ALTER TABLE deliveries ADD COLUMN dismiss INTEGER NOT NULL DEFAULT 0")
+                if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='question_recipients'").fetchone():
+                    db.execute("INSERT OR IGNORE INTO prompt_recipients SELECT event_id,device_id FROM question_recipients")
+                    db.execute("DROP TABLE question_recipients")
+                if not any(row["name"] == "supersedes" for row in db.execute("PRAGMA table_info(events)")):
+                    db.execute("ALTER TABLE events ADD COLUMN supersedes TEXT")
+                    if any(row["name"] == "dismiss" for row in db.execute("PRAGMA table_info(deliveries)")):
+                        legacy = db.execute("""DELETE FROM deliveries WHERE dismiss=1
+                                               RETURNING event_id,device_id""").fetchall()
+                        self._queue_withdrawals(db, legacy)
+                db.execute("CREATE INDEX IF NOT EXISTS visible_events ON events(seq) WHERE supersedes IS NULL")
 
     def connect(self):
         db = sqlite3.connect(self.path, timeout=5)
@@ -115,6 +124,7 @@ class Store:
                 raise TokenConflict from exc
             if reserve:
                 db.execute("DELETE FROM deliveries WHERE device_id=?", (device_id,))
+                db.execute("DELETE FROM prompt_recipients WHERE device_id=?", (device_id,))
             elif row and (row["token"] != token or row["webpush_keys"] != keys or row["provider"] != provider):
                 # Release any in-flight lease tied to the previous address.
                 db.execute("UPDATE deliveries SET lease=NULL,due=?,attempts=0 WHERE device_id=?", (now, device_id))
@@ -132,6 +142,29 @@ class Store:
                 SELECT id,?,? FROM devices WHERE enrolled<=? AND provider!='pending'
             """, (event.event_id, event.created_at, event.created_at))
 
+    @staticmethod
+    def _queue_withdrawals(db, recipients):
+        if not recipients:
+            return
+        # A withdrawal has its own clock and no run or session link. Its storage
+        # ID cannot collide with a public (hex) event. Both envelopes use the
+        # original opaque event ID so Android can dismiss out of order.
+        now = time.time()
+        source_ids = {row[0] for row in recipients}
+        db.executemany("""INSERT OR IGNORE INTO events(event_id,kind,created_at,supersedes)
+                          SELECT 'withdraw:' || event_id,
+                                 CASE kind WHEN ? THEN ? ELSE ? END, ?, event_id
+                          FROM events WHERE event_id=?""",
+                       ((APPROVAL, DISMISS_APPROVAL, DISMISS_QUESTION, now, source) for source in source_ids))
+        db.executemany("""INSERT OR IGNORE INTO deliveries(event_id,device_id,due)
+                          VALUES('withdraw:' || ?,?,0)""", recipients)
+
+    def _withdraw(self, db, affected, args):
+        # Only a previous or in-flight send can have posted a notification.
+        recipients = db.execute(f"""DELETE FROM prompt_recipients WHERE event_id IN ({affected})
+                                    RETURNING event_id,device_id""", args).fetchall()
+        self._queue_withdrawals(db, recipients)
+
     def record(self, events):
         with self.write() as db:
             for event in events:
@@ -142,7 +175,7 @@ class Store:
             if complete_run_scope:
                 # A removed/closed ledger row yields no incremental observation. Once a
                 # complete owned snapshot is available, also retire alerts from those runs.
-                watched = db.execute("""SELECT DISTINCT e.run_id FROM question_recipients r
+                watched = db.execute("""SELECT DISTINCT e.run_id FROM prompt_recipients r
                                         JOIN events e ON e.event_id=r.event_id WHERE e.created_at>=?""", (cutoff,))
                 missing = {row[0] for row in watched} - {item.run_id for item in observations}
                 observations = [*observations, *(Observation(cutoff, (), run_id) for run_id in missing)]
@@ -152,13 +185,8 @@ class Store:
                     stale = """SELECT event_id FROM events WHERE run_id=? AND kind IN (?, ?)
                                AND event_id NOT IN (SELECT value FROM json_each(?))"""
                     args = (observation.run_id, *PROMPT_KINDS, json.dumps(pending))
-                    db.execute(f"DELETE FROM deliveries WHERE event_id IN ({stale}) AND dismiss=0", args)
-                    # A send accepted just before settlement can reach Android after the
-                    # dismissal. Both refer to the same ID. Android remembers the dismissal.
-                    recipients = db.execute(f"""DELETE FROM question_recipients WHERE event_id IN ({stale})
-                                                RETURNING event_id,device_id""", args).fetchall()
-                    db.executemany("""INSERT OR IGNORE INTO deliveries(event_id,device_id,due,dismiss)
-                                      VALUES(?,?,0,1)""", recipients)
+                    db.execute(f"DELETE FROM deliveries WHERE event_id IN ({stale})", args)
+                    self._withdraw(db, stale, args)
                 for event in observation.events:
                     if event.created_at >= cutoff:
                         self._record(db, event)
@@ -166,41 +194,43 @@ class Store:
     def events(self, *, event_id=None, after=0, limit=50):
         with closing(self.connect()) as db:
             if event_id is not None:
-                row = db.execute("SELECT * FROM events WHERE event_id=?", (event_id,)).fetchone()
+                row = db.execute("SELECT * FROM events WHERE event_id=? AND supersedes IS NULL", (event_id,)).fetchone()
                 return self._public_event(row) if row else None
-            rows = db.execute("SELECT * FROM events WHERE seq>? ORDER BY seq LIMIT ?", (after, limit + 1)).fetchall()
+            rows = db.execute("SELECT * FROM events WHERE supersedes IS NULL AND seq>? ORDER BY seq LIMIT ?", (after, limit + 1)).fetchall()
         page = rows[:limit]
         return {"events": [self._public_event(r) for r in page],
                 "has_more": len(rows) > limit, "next_cursor": page[-1]["seq"] if page else after}
 
     @staticmethod
     def _public_event(row):
-        return {k: row[k] for k in row.keys() if k != "seq"}
+        return {k: row[k] for k in row.keys() if k not in {"seq", "supersedes"}}
 
     def expire(self, cutoff):
         with self.write() as db:
+            expired = "SELECT event_id FROM events WHERE created_at<?"
+            self._withdraw(db, expired, (cutoff,))
             db.execute("DELETE FROM events WHERE created_at<?", (cutoff,))
 
     def claim(self, now, lease_seconds):
         with self.write() as db:
             row = db.execute("""
-                SELECT d.device_id,d.event_id,d.attempts,v.token,v.provider,v.webpush_keys,
-                       CASE WHEN d.dismiss=1 THEN ? ELSE e.kind END AS kind,e.created_at,e.run_id
+                SELECT d.device_id,COALESCE(e.supersedes,e.event_id) AS event_id,d.event_id AS storage_id,
+                       d.attempts,v.token,v.provider,v.webpush_keys,e.kind,e.created_at,e.run_id
                   FROM deliveries d JOIN devices v ON v.id=d.device_id JOIN events e USING(event_id)
                  WHERE d.due<=? ORDER BY d.due,d.rowid LIMIT 1
-            """, (DISMISS_QUESTION, now)).fetchone()
+            """, (now,)).fetchone()
             if not row:
                 return None
             item = dict(row)
             item["lease"] = uuid.uuid4().hex
             db.execute("UPDATE deliveries SET due=?,lease=? WHERE device_id=? AND event_id=?",
-                       (now + lease_seconds, item["lease"], item["device_id"], item["event_id"]))
+                       (now + lease_seconds, item["lease"], item["device_id"], item["storage_id"]))
             return item
 
     def begin_send(self, item):
-        args = (item["device_id"], item["event_id"], item["lease"])
+        args = (item["device_id"], item["storage_id"], item["lease"])
         current = "SELECT 1 FROM deliveries WHERE device_id=? AND event_id=? AND lease=?"
-        if item["kind"] != QUESTION:
+        if item["kind"] not in PROMPT_KINDS:
             with closing(self.connect()) as db:
                 return db.execute(current, args).fetchone() is not None
         # Record possible sends before the transport call, including those whose
@@ -208,11 +238,11 @@ class Store:
         with self.write() as db:
             if db.execute(current, args).fetchone() is None:
                 return False
-            db.execute("INSERT OR IGNORE INTO question_recipients(device_id,event_id) VALUES(?,?)", args[:2])
+            db.execute("INSERT OR IGNORE INTO prompt_recipients(device_id,event_id) VALUES(?,?)", args[:2])
             return True
 
     def settle(self, item, *, retry_at=None, unregistered=False):
-        args = (item["device_id"], item["event_id"], item["lease"])
+        args = (item["device_id"], item["storage_id"], item["lease"])
         with self.write() as db:
             if retry_at is not None:
                 db.execute("""UPDATE deliveries SET due=?, attempts=attempts+1, lease=NULL
