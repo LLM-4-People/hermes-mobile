@@ -46,7 +46,7 @@ The gateway loads the shared read-only plugin code from `server/artifacts`. Back
 
 ## Enable closed-app notifications
 
-Add the push configuration for each participating account. Place the four client configuration values described in the [push guide](push.md) into `accounts/ID/push.env` and the Firebase service credential into `accounts/ID/firebase.json`. The private deployment directory protects the host files. The service credential needs to be readable by container UID 10000. On a Linux host with regular Docker file mounts, set the credential's group to 10000 and mode to 0640. Rootless Docker may map that ID differently.
+Each participating account can use UnifiedPush, Firebase, or both. Put its configured provider values in `accounts/ID/push.env`. For UnifiedPush, configure `MOBILE_UNIFIEDPUSH_ORIGIN` and `MOBILE_VAPID_SUBJECT`. The bridge keeps its VAPID key in the account outbox volume. For Firebase, include its four client configuration values and install the service credential at `accounts/ID/firebase.json`. Only Firebase-enabled bridges mount that credential. [Push configuration](push.md) The private deployment directory protects the host files. The service credential needs to be readable by container UID 10000. On a Linux host with regular Docker file mounts, set the credential's group to 10000 and mode to 0640. Rootless Docker may map that ID differently.
 
 Repeat the render with the same account declarations and `--push north` for each account with configured push credentials. Then run `docker compose up -d --build` and recreate the HTTPS service. Each push bridge has its own outbox and mounts only its account's Hermes home read-only to observe persisted events. The bridge is trusted with that account's run and reminder metadata. The provider environment file is supplied to the gateway alone. The bridge serves `/api/mobile/push` and its subordinate routes on the same hostname as chat. Firebase delivery verification requires a configured project and a registered Android device.
 
@@ -57,6 +57,6 @@ python3 -m unittest discover -s deploy -v
 python3 deploy/smoke.py --image "$image" --push
 ```
 
-The smoke test provisions two disposable homes on a loopback-only HTTPS port, verifies the generated CA, exercises both bearer keys at both hostnames, and checks independent session and workspace storage. It removes only the temporary Compose project and its volumes on exit. The push check verifies separate Firebase client discovery and reads a real Hermes reminder ledger entry through its owning bridge. It uses disposable credentials and registers zero devices. Neither check requires a model provider.
+The smoke test provisions two disposable homes on a loopback-only HTTPS port, verifies the generated CA, exercises both bearer keys at both hostnames, and checks independent session and workspace storage. It removes only the temporary Compose project and its volumes on exit. The push check provisions a dual-transport account and a UnifiedPush-only account. It verifies the advertised providers, checks that each account retains its own VAPID key across a restart, and reads a real Hermes reminder ledger entry through its owning bridge. It uses disposable credentials and registers zero devices. Neither check requires a model provider.
 
 <!-- Generated from docs/sources/docs/accounts.md.in by scripts/docs.py. -->

@@ -31,7 +31,7 @@ public final class PushRoutingTest extends InstrumentationTestCase {
         super.setUp();
         context = getInstrumentation().getTargetContext();
         store = PushStore.get(context);
-        PushConfig config = PushConfig.parse(new JSONObject("{\"provider\":\"fcm\",\"firebase\":"
+        PushConfig config = PushConfig.parse(new JSONObject("{\"providers\":[\"fcm\"],\"firebase\":"
                 + "{\"applicationId\":\"1:123456:android:aabbcc\",\"gcmSenderId\":\"123456\","
                 + "\"apiKey\":\"public-test-key\",\"projectId\":\"example-test\"}}"));
         device = store.prepare(UUID.randomUUID().toString(), "https://example.test/p/a", config);
@@ -140,6 +140,43 @@ public final class PushRoutingTest extends InstrumentationTestCase {
             else android.os.SystemClock.sleep(40);
         }
         assertEquals(1, count);
+    }
+
+    public void testQuestionDismissalSuppressesDelayedDeliveryAndKeepsPromptOffLockscreen() {
+        if (Build.VERSION.SDK_INT >= 33) {
+            getInstrumentation().getUiAutomation().grantRuntimePermission(context.getPackageName(),
+                    Manifest.permission.POST_NOTIFICATIONS);
+        }
+        assertEquals("Hermes a une question", PushNotices.title(PushNotices.QUESTION));
+        PushStore.Device owner = store.forInstallation(device.installation);
+        String late = "00000000000000000000000000000001";
+        PushNotices.post(context, owner, late, PushNotices.DISMISS_QUESTION);
+        PushNotices.post(context, owner, late, PushNotices.QUESTION);
+        assertNull(store.knownKind(device.installation, late));
+        PushNotices.post(context, owner, event, PushNotices.QUESTION);
+        assertEquals(PushNotices.QUESTION, MobilePush.target(context, tapIntent()).kind);
+        waitForQuestion(true);
+        PushNotices.post(context, owner, event, PushNotices.DISMISS_QUESTION);
+        waitForQuestion(false);
+        assertFalse(store.remember(device.installation, event, PushNotices.QUESTION));
+    }
+
+    private void waitForQuestion(boolean visible) {
+        String tag = device.installation + "/" + event;
+        long deadline = android.os.SystemClock.elapsedRealtime() + 5000;
+        do {
+            boolean present = false;
+            for (StatusBarNotification row : context.getSystemService(NotificationManager.class).getActiveNotifications()) {
+                if (!tag.equals(row.getTag())) continue;
+                present = true;
+                assertEquals("Hermes a une question", row.getNotification().extras.getString("android.title"));
+                assertEquals("Ouvrez votre profil pour voir les détails.", row.getNotification().extras.getString("android.text"));
+                assertEquals(android.app.Notification.VISIBILITY_PRIVATE, row.getNotification().visibility);
+            }
+            if (visible == present) return;
+            android.os.SystemClock.sleep(40);
+        } while (android.os.SystemClock.elapsedRealtime() < deadline);
+        fail("Unexpected Android notification visibility");
     }
 
     private boolean postedNotice(String tag) {

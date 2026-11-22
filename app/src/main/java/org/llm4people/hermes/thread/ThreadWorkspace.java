@@ -243,23 +243,38 @@ public final class ThreadWorkspace implements AutoCloseable {
         });
     }
 
-    public void open(String id) {
+    public void openQuestion(String id, String runId) {
+        if (closed || !ThreadData.validId(id) || !ThreadData.validId(runId)) return;
+        inbox("Recherche de la question…", null);
+        Runnable retry = () -> openQuestion(id, runId);
+        request(() -> ThreadIdentity.hasPendingQuestion(id, runId, api.get("/v1/runs/" + HermesApi.segment(runId))),
+                waiting -> open(id, waiting ? runId : null), failure -> {
+            if (failure instanceof HermesApi.HttpError http && http.status == 404) open(id);
+            else error(failure, retry);
+        });
+    }
+
+    public void open(String id) { open(id, null); }
+
+    private void open(String id, String observedRun) {
         if (closed) return;
         if (!ThreadData.validId(id)) {
             inbox("L’identifiant de cette conversation est invalide. Choisissez une autre conversation.", null);
             return;
         }
         ThreadIdentity listed = ThreadIdentity.find(inbox, id);
-        if (listed != null) { open(listed, listed.label); return; }
+        if (listed != null) { open(listed, listed.label, observedRun); return; }
         inbox("Recherche de la conversation…", null);
         int lookup = generation;
         request(() -> ThreadIdentity.resolve(api, id, () -> lookup == generation), identity -> {
-            if (identity != null) open(identity, identity.label);
+            if (identity != null) open(identity, identity.label, observedRun);
             else inbox("Cette conversation est introuvable dans le profil actif.", null);
-        }, e -> error(e, () -> open(id)));
+        }, e -> error(e, () -> open(id, observedRun)));
     }
 
-    private void open(ThreadIdentity identity, String label) {
+    private void open(ThreadIdentity identity, String label) { open(identity, label, null); }
+
+    private void open(ThreadIdentity identity, String label, String observedRun) {
         if (closed) return;
         reset();
         session = identity.root;
@@ -272,7 +287,10 @@ public final class ThreadWorkspace implements AutoCloseable {
             inbox("Les données locales de cette conversation sont illisibles.", () -> recover(identity, label));
             return;
         }
-        try { account.write("last-thread", id); }
+        try {
+            if (observedRun != null) journal.observe(observedRun);
+            account.write("last-thread", id);
+        }
         catch (RuntimeException unavailable) {
             inbox("Impossible d’enregistrer la sélection. Vérifiez l’espace disponible puis réessayez.", null);
             return;

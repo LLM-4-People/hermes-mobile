@@ -29,7 +29,7 @@ class PushApi(unittest.IsolatedAsyncioTestCase):
     async def test_discovery_and_device_only_rotation_and_removal(self):
         self.assertEqual((await self.req("GET", BASE)).status, 401)
         r = await self.req("GET", BASE, self.owner)
-        self.assertEqual(await r.json(), {"provider": "fcm", "firebase": self.settings.firebase})
+        self.assertEqual(await r.json(), {"providers": ["fcm"], "firebase": self.settings.firebase})
         self.assertEqual(r.headers["Cache-Control"], "no-store")
         for _ in range(2):
             self.assertEqual((await self.req("PUT", self.path, self.owner, self.enrol)).status, 204)

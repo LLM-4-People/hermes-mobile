@@ -4,6 +4,7 @@ import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.database.DataSetObserver;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.provider.Settings;
@@ -15,6 +16,12 @@ import org.llm4people.hermes.profile.Account;
 
 import java.util.ArrayDeque;
 import java.util.Locale;
+import java.util.Objects;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.function.Consumer;
+import org.json.JSONObject;
 
 final class PushSettings {
     static final int PERMISSION = 6801;
@@ -43,6 +50,7 @@ final class PushSettings {
 
     void show() {
         if (!current()) return;
+        DistributorEnrollment.reconcile(activity);
         PushStore.Device device = PushStore.get(activity).forProfile(account.id);
         AlertDialog.Builder builder = new AlertDialog.Builder(activity).setTitle("Notifications du profil")
                 .setNegativeButton("Fermer", null)
@@ -62,14 +70,47 @@ final class PushSettings {
             }
         } else if (device != null) {
             builder.setTitle("Inscription à confirmer")
-                    .setMessage("L’inscription de cet appareil auprès du serveur reste à confirmer.")
+                    .setMessage(registrationMessage(device))
                     .setPositiveButton("Réessayer", (d,w) -> begin())
                     .setNegativeButton("Désactiver", (d,w) -> remove(device));
         } else {
-            builder.setMessage("Recevez les rappels, les demandes d’autorisation et la fin des sessions. Les alertes passent par Google, sans le contenu de vos échanges.")
+            builder.setMessage("Recevez les rappels, les demandes d’autorisation et la fin des sessions. Le contenu de vos échanges reste privé.")
                     .setPositiveButton("Activer", (d,w) -> begin());
         }
         display(builder);
+        observeState(device);
+    }
+
+    private static String registrationMessage(PushStore.Device device) {
+        if (device.retryAt != 0) return "Hermes réessaiera automatiquement lorsque le réseau sera disponible.";
+        if (!PushStore.FAILED.equals(device.state)) return "L’inscription de cet appareil auprès du serveur reste à confirmer.";
+        return switch (device.failure == null ? "" : device.failure) {
+            case "ACTION_REQUIRED" -> "Ouvrez le distributeur pour terminer sa configuration, puis réessayez.";
+            case "VAPID_REQUIRED" -> "Le distributeur demande une clé VAPID. Vérifiez la configuration du relais, puis réessayez.";
+            case PushStore.ENDPOINT_REJECTED -> "Le relais refuse cette adresse de notification. Vérifiez le serveur du distributeur, puis réessayez.";
+            case PushStore.ACCOUNT_REQUIRED -> "Le relais demande de confirmer l’inscription avec ce profil. Vérifiez sa clé d’accès, puis réessayez.";
+            default -> "Le distributeur n’a pas pu terminer l’inscription. Vérifiez sa configuration, puis réessayez.";
+        };
+    }
+
+    private void observeState(PushStore.Device displayed) {
+        AlertDialog watching = dialog;
+        PushStore store = PushStore.get(activity);
+        DataSetObserver observer = new DataSetObserver() {
+            @Override public void onChanged() {
+                // Always post. A read or dismissal from inside notifyChanged must not unregister mid-iteration.
+                activity.getMainExecutor().execute(() -> {
+                    if (!current() || dialog != watching || !watching.isShowing()) return;
+                    PushStore.Device updated = store.forProfile(account.id);
+                    if (displayed == null || updated == null) {
+                        if (displayed != updated) show();
+                    } else if (!displayed.state.equals(updated.state) || !Objects.equals(displayed.failure, updated.failure)) show();
+                });
+            }
+        };
+        store.observe(observer);
+        watching.setOnDismissListener(d -> store.stopObserving(observer));
+        observer.onChanged();
     }
 
     private void history(long cursor, ArrayDeque<Long> previous) {
@@ -129,9 +170,51 @@ final class PushSettings {
                     .setNegativeButton("Fermer", null));
             return;
         }
-        long before = PushConnection.version();
-        run("Inscription en cours…", () ->
-                PushConnection.enroll(activity.getApplicationContext(), account, before, this::current));
+        load("Recherche des services de notification…",
+                () -> new HermesApi(account.endpoint, account.bearer).get(PushConnection.BASE), this::chooseTransport);
+    }
+
+    private void chooseTransport(JSONObject discovery) {
+        PushStore.Device existing = PushStore.get(activity).forProfile(account.id);
+        List<String> labels = new ArrayList<>();
+        List<Runnable> choices = new ArrayList<>();
+        long epoch = PushConnection.version();
+        if (PushConfig.offers(discovery, DistributorEnrollment.PROVIDER) && (existing == null || existing.unified())) {
+            labels.add("Activer avec UnifiedPush");
+            choices.add(() -> chooseDistributor(discovery, epoch));
+        }
+        if (PushConfig.offers(discovery, "fcm") && (existing == null || !existing.unified())) {
+            labels.add("Activer avec Google Play");
+            choices.add(() -> run("Inscription en cours…", () -> PushConnection.enroll(
+                    activity.getApplicationContext(), account, PushConfig.parse(discovery), epoch, this::current)));
+        }
+        AlertDialog.Builder picker = new AlertDialog.Builder(activity).setTitle("Service de notification")
+                .setNegativeButton("Retour", (d,w) -> show());
+        if (choices.isEmpty()) picker.setMessage("Aucun service de notification disponible pour ce profil.");
+        else picker.setItems(labels.toArray(new String[0]), (d,w) -> choices.get(w).run());
+        display(picker);
+    }
+
+    private void chooseDistributor(JSONObject discovery, long epoch) {
+        List<String> packages = DistributorEnrollment.choices(activity);
+        AlertDialog.Builder picker = new AlertDialog.Builder(activity).setTitle("Choisir un distributeur")
+                .setNegativeButton("Retour", (d,w) -> show());
+        if (packages.isEmpty()) {
+            picker.setMessage("Installez ou configurez un distributeur UnifiedPush, par exemple ntfy, puis réessayez.");
+        } else {
+            String[] labels = new String[packages.size()];
+            for (int i = 0; i < labels.length; i++) {
+                String name = packages.get(i);
+                try {
+                    var manager = activity.getPackageManager();
+                    labels[i] = manager.getApplicationLabel(manager.getApplicationInfo(name, 0)) + "\n" + name;
+                } catch (PackageManager.NameNotFoundException gone) { labels[i] = name; }
+            }
+            picker.setItems(labels, (d,w) -> run("Inscription au distributeur…", () ->
+                    DistributorEnrollment.enroll(activity.getApplicationContext(), account, packages.get(w),
+                            DistributorEnrollment.vapid(discovery), epoch, this::current)));
+        }
+        display(picker);
     }
 
     private void remove(PushStore.Device device) {
@@ -143,11 +226,16 @@ final class PushSettings {
     private interface Call { void execute() throws Exception; }
 
     private void run(String progress, Call action) {
+        load(progress, () -> { action.execute(); return null; }, result -> show());
+    }
+
+    private <T> void load(String progress, Callable<T> action, Consumer<T> after) {
         display(new AlertDialog.Builder(activity).setTitle("Notifications du profil").setMessage(progress));
         PushConnection.WORK.execute(() -> {
             try {
-                action.execute();
-                activity.runOnUiThread(this::show);
+                if (!current()) return;
+                T result = action.call();
+                activity.runOnUiThread(() -> { if (current()) after.accept(result); });
             } catch (Exception error) {
                 Diagnostics.event("push", "enrollment_action_failed");
                 String message = errorMessage(error);

@@ -2,10 +2,11 @@
 from contextlib import closing, contextmanager
 from dataclasses import asdict
 import hashlib
-import hmac
 import json
+import hmac
 import sqlite3
 import uuid
+from .events import DISMISS_QUESTION, PROMPT_KINDS, QUESTION, Observation
 
 
 class Forbidden(Exception):
@@ -43,7 +44,22 @@ class Store:
                     PRIMARY KEY(device_id,event_id));
                 CREATE INDEX IF NOT EXISTS next_delivery ON deliveries(due);
                 CREATE INDEX IF NOT EXISTS event_deliveries ON deliveries(event_id);
+                CREATE TABLE IF NOT EXISTS question_recipients (
+                    event_id TEXT REFERENCES events(event_id) ON DELETE CASCADE,
+                    device_id TEXT REFERENCES devices(id) ON DELETE CASCADE,
+                    PRIMARY KEY(event_id, device_id));
+                CREATE INDEX IF NOT EXISTS recipient_device ON question_recipients(device_id);
             """)
+            # Upgrade pre-Web-Push databases atomically; their existing tokens are FCM registrations.
+            with db:
+                db.execute("BEGIN IMMEDIATE")
+                columns = {row["name"] for row in db.execute("PRAGMA table_info(devices)")}
+                if "provider" not in columns:
+                    db.execute("ALTER TABLE devices ADD COLUMN provider TEXT NOT NULL DEFAULT 'fcm'")
+                if "webpush_keys" not in columns:
+                    db.execute("ALTER TABLE devices ADD COLUMN webpush_keys TEXT")
+                if not any(row["name"] == "dismiss" for row in db.execute("PRAGMA table_info(deliveries)")):
+                    db.execute("ALTER TABLE deliveries ADD COLUMN dismiss INTEGER NOT NULL DEFAULT 0")
 
     def connect(self):
         db = sqlite3.connect(self.path, timeout=5)
@@ -57,8 +73,15 @@ class Store:
             db.execute("BEGIN IMMEDIATE")
             yield db
 
-    def device(self, device_id, credential, *, profile, now, token=None, management_key=None):
+    def device(self, device_id, credential, *, profile, now, token=None, management_key=None,
+               provider="fcm", webpush_keys=None, reserve=False):
         with self.write() as db:
+            if reserve:
+                if not profile or not management_key:
+                    raise Forbidden
+                # A pending enrollment has a management capability but no delivery address.
+                # The marker contains a space, which both supported address formats reject.
+                provider, token = "pending", "pending " + device_id
             if token is None:
                 if profile:
                     db.execute("DELETE FROM devices WHERE id=?", (device_id,))
@@ -67,7 +90,7 @@ class Store:
                     # result after revocation, an abandoned enrollment, or key rotation.
                     db.execute("DELETE FROM devices WHERE id=? AND key_digest=?", (device_id, digest(credential)))
                 return
-            row = db.execute("SELECT key_digest,token FROM devices WHERE id=?", (device_id,)).fetchone()
+            row = db.execute("SELECT key_digest,token,provider,webpush_keys FROM devices WHERE id=?", (device_id,)).fetchone()
             if not profile and (not row or not hmac.compare_digest(digest(credential), row["key_digest"])):
                 raise Forbidden
             if profile and management_key:
@@ -76,14 +99,23 @@ class Store:
                 key_digest = row["key_digest"]
             else:
                 raise Forbidden
+            if reserve and row and hmac.compare_digest(key_digest, row["key_digest"]):
+                # A retried reservation may arrive after the initial binding callback.
+                return
+            keys = json.dumps(webpush_keys, sort_keys=True, separators=(",", ":")) if webpush_keys else None
             try:
                 db.execute("""
-                    INSERT INTO devices(id,token,key_digest,enrolled) VALUES(?,?,?,?)
-                    ON CONFLICT(id) DO UPDATE SET token=excluded.token,key_digest=excluded.key_digest
-                """, (device_id, token, key_digest, now))
+                    INSERT INTO devices(id,token,key_digest,enrolled,provider,webpush_keys) VALUES(?,?,?,?,?,?)
+                    ON CONFLICT(id) DO UPDATE SET token=excluded.token,key_digest=excluded.key_digest,
+                        provider=excluded.provider,webpush_keys=excluded.webpush_keys,
+                        enrolled=CASE WHEN devices.provider='pending' OR excluded.provider='pending'
+                                 THEN excluded.enrolled ELSE devices.enrolled END
+                """, (device_id, token, key_digest, now, provider, keys))
             except sqlite3.IntegrityError as exc:
                 raise TokenConflict from exc
-            if row and row["token"] != token:
+            if reserve:
+                db.execute("DELETE FROM deliveries WHERE device_id=?", (device_id,))
+            elif row and (row["token"] != token or row["webpush_keys"] != keys or row["provider"] != provider):
                 # Release any in-flight lease tied to the previous address.
                 db.execute("UPDATE deliveries SET lease=NULL,due=?,attempts=0 WHERE device_id=?", (now, device_id))
 
@@ -97,7 +129,7 @@ class Store:
         if inserted.rowcount:
             db.execute("""
                 INSERT INTO deliveries(device_id,event_id,due)
-                SELECT id,?,? FROM devices WHERE enrolled<=?
+                SELECT id,?,? FROM devices WHERE enrolled<=? AND provider!='pending'
             """, (event.event_id, event.created_at, event.created_at))
 
     def record(self, events):
@@ -105,16 +137,28 @@ class Store:
             for event in events:
                 self._record(db, event)
 
-    def reconcile(self, observations, cutoff):
+    def reconcile(self, observations, cutoff, *, complete_run_scope=False):
         with self.write() as db:
+            if complete_run_scope:
+                # A removed/closed ledger row yields no incremental observation. Once a
+                # complete owned snapshot is available, also retire alerts from those runs.
+                watched = db.execute("""SELECT DISTINCT e.run_id FROM question_recipients r
+                                        JOIN events e ON e.event_id=r.event_id WHERE e.created_at>=?""", (cutoff,))
+                missing = {row[0] for row in watched} - {item.run_id for item in observations}
+                observations = [*observations, *(Observation(cutoff, (), run_id) for run_id in missing)]
             for observation in observations:
                 if observation.run_id is not None:
-                    pending = [e.event_id for e in observation.events if e.kind == "approval_requested"]
-                    db.execute("""
-                        DELETE FROM deliveries WHERE event_id IN (
-                            SELECT event_id FROM events WHERE run_id=? AND kind='approval_requested'
-                            AND event_id NOT IN (SELECT value FROM json_each(?)))
-                    """, (observation.run_id, json.dumps(pending)))
+                    pending = [e.event_id for e in observation.events if e.kind in PROMPT_KINDS]
+                    stale = """SELECT event_id FROM events WHERE run_id=? AND kind IN (?, ?)
+                               AND event_id NOT IN (SELECT value FROM json_each(?))"""
+                    args = (observation.run_id, *PROMPT_KINDS, json.dumps(pending))
+                    db.execute(f"DELETE FROM deliveries WHERE event_id IN ({stale}) AND dismiss=0", args)
+                    # A send accepted just before settlement can reach Android after the
+                    # dismissal. Both refer to the same ID. Android remembers the dismissal.
+                    recipients = db.execute(f"""DELETE FROM question_recipients WHERE event_id IN ({stale})
+                                                RETURNING event_id,device_id""", args).fetchall()
+                    db.executemany("""INSERT OR IGNORE INTO deliveries(event_id,device_id,due,dismiss)
+                                      VALUES(?,?,0,1)""", recipients)
                 for event in observation.events:
                     if event.created_at >= cutoff:
                         self._record(db, event)
@@ -140,10 +184,11 @@ class Store:
     def claim(self, now, lease_seconds):
         with self.write() as db:
             row = db.execute("""
-                SELECT d.device_id,d.event_id,d.attempts,v.token,e.kind,e.created_at,e.run_id
+                SELECT d.device_id,d.event_id,d.attempts,v.token,v.provider,v.webpush_keys,
+                       CASE WHEN d.dismiss=1 THEN ? ELSE e.kind END AS kind,e.created_at,e.run_id
                   FROM deliveries d JOIN devices v ON v.id=d.device_id JOIN events e USING(event_id)
                  WHERE d.due<=? ORDER BY d.due,d.rowid LIMIT 1
-            """, (now,)).fetchone()
+            """, (DISMISS_QUESTION, now)).fetchone()
             if not row:
                 return None
             item = dict(row)
@@ -152,10 +197,19 @@ class Store:
                        (now + lease_seconds, item["lease"], item["device_id"], item["event_id"]))
             return item
 
-    def owns_delivery(self, item):
-        with closing(self.connect()) as db:
-            return db.execute("SELECT 1 FROM deliveries WHERE device_id=? AND event_id=? AND lease=?",
-                              (item["device_id"], item["event_id"], item["lease"])).fetchone() is not None
+    def begin_send(self, item):
+        args = (item["device_id"], item["event_id"], item["lease"])
+        current = "SELECT 1 FROM deliveries WHERE device_id=? AND event_id=? AND lease=?"
+        if item["kind"] != QUESTION:
+            with closing(self.connect()) as db:
+                return db.execute(current, args).fetchone() is not None
+        # Record possible sends before the transport call, including those whose
+        # acknowledgement might be lost. Only these recipients need a dismissal.
+        with self.write() as db:
+            if db.execute(current, args).fetchone() is None:
+                return False
+            db.execute("INSERT OR IGNORE INTO question_recipients(device_id,event_id) VALUES(?,?)", args[:2])
+            return True
 
     def settle(self, item, *, retry_at=None, unregistered=False):
         args = (item["device_id"], item["event_id"], item["lease"])
