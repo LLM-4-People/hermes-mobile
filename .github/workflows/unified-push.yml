@@ -26,6 +26,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Fetch and verify the official distributor and server releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 -B -m verification.unifiedpush.assets "$RUNNER_TEMP/ntfy"
       - id: android
         uses: ./.github/actions/android
       - uses: ./.github/actions/hermes-fixture
@@ -65,5 +69,14 @@ jobs:
         with:
           name: aosp-closed-app-delivery
           path: ${{ runner.temp }}/unified-push-result.json
+          retention-days: 7
+          if-no-files-found: error
+      - name: Retain the generic Android notification and synthetic thread witness
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: aosp-notification-evidence
+          path: |
+            ${{ runner.temp }}/aosp-notification/native-notification-labels.png
+            ${{ runner.temp }}/aosp-notification/secure-thread-visible-controls.json
           retention-days: 7
           if-no-files-found: error
