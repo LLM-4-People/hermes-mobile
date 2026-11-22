@@ -12,7 +12,7 @@ import uuid
 
 import push_probe
 
-from accounts import CADDY_IMAGE, account_map, provision, stack, write_file
+from accounts import CADDY_IMAGE, account_map, provision, push_transports, stack, write_file
 
 
 def wait_for(check, seconds):
@@ -114,11 +114,12 @@ def main():
     with tempfile.TemporaryDirectory(prefix="hermes-mobile-smoke-") as temp:
         root = Path(temp)
         accounts = account_map(["north=north.localhost", "south=south.localhost"])
-        pushes = set(accounts) if args.push else set()
-        config, caddy = stack(accounts, pushes, args.image, args.proxy_image, True, 0, plugin=args.plugin_dir)
-        config["name"] = provision(root, accounts, set())
+        project = provision(root, accounts)
         if args.push:
             push_probe.prepare(root, accounts)
+        pushes = push_transports(root, accounts if args.push else [])
+        config, caddy = stack(accounts, pushes, args.image, args.proxy_image, True, 0, plugin=args.plugin_dir)
+        config["name"] = project
         write_file(root / "Caddyfile", caddy)
         write_file(root / "compose.json", json.dumps(config))
         compose = ["docker", "compose", "-f", str(root / "compose.json")]

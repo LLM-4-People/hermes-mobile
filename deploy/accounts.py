@@ -76,8 +76,24 @@ def gateway(name, image, plugin):
     }
 
 
-def push(name):
-    return {
+def push_transports(root, names):
+    """Find accounts needing a Firebase secret mount. The server validates provider settings."""
+    result = {}
+    for name in names:
+        directory = root / "accounts" / name
+        config = directory / "push.env"
+        if not config.is_file():
+            raise ValueError(f"Configure accounts/{name}/push.env before enabling push")
+        entries = (line.partition("=") for line in config.read_text().splitlines())
+        result[name] = any(key.strip().startswith("MOBILE_FIREBASE_") and bool(value.strip())
+                           for key, _, value in entries)
+        if result[name] and not (directory / "firebase.json").is_file():
+            raise ValueError(f"Firebase requires accounts/{name}/firebase.json")
+    return result
+
+
+def push(name, firebase):
+    service = {
         "build": {"context": str(SERVER)},
         "restart": "unless-stopped",
         "user": "10000:10000",
@@ -89,16 +105,16 @@ def push(name):
         "environment": {
             "MOBILE_PUSH_BIND": "0.0.0.0", "MOBILE_PUSH_PORT": str(PUSH_PORT),
             "HERMES_HOME": "/opt/data", "MOBILE_PUSH_STATE": "/var/lib/hermes-mobile-push",
-            "GOOGLE_APPLICATION_CREDENTIALS": "/run/credentials/firebase.json",
         },
-        "volumes": [
-            f"home-{name}:/opt/data:ro", f"outbox-{name}:/var/lib/hermes-mobile-push",
-            {"type": "bind", "source": f"./accounts/{name}/firebase.json",
-             "target": "/run/credentials/firebase.json", "read_only": True,
-             "bind": {"create_host_path": False}},
-        ],
+        "volumes": [f"home-{name}:/opt/data:ro", f"outbox-{name}:/var/lib/hermes-mobile-push"],
         "networks": [f"user-{name}"],
     }
+    if firebase:
+        path = "/run/credentials/firebase.json"
+        service["environment"]["GOOGLE_APPLICATION_CREDENTIALS"] = path
+        service["volumes"].append({"type": "bind", "source": f"./accounts/{name}/firebase.json",
+                                   "target": path, "read_only": True, "bind": {"create_host_path": False}})
+    return service
 
 
 def account_routes(name, domain, with_push, local):
@@ -125,7 +141,7 @@ def stack(accounts, pushes, image, proxy_image, local, port, *, plugin=None):
     plugin = (plugin or SERVER / "artifacts").resolve()
     if not IMAGE_DIGEST.fullmatch(image) or not IMAGE_DIGEST.fullmatch(proxy_image):
         raise ValueError("Supply immutable registry digests or local sha256 image IDs")
-    if not pushes <= accounts.keys():
+    if not pushes.keys() <= accounts.keys():
         raise ValueError("Each push bridge must belong to a configured account")
     if not 0 <= port <= 65535 or (not local and port != 443):
         raise ValueError("Public ACME requires port 443. Local TLS accepts a chosen port or 0 for an ephemeral port")
@@ -145,13 +161,13 @@ def stack(accounts, pushes, image, proxy_image, local, port, *, plugin=None):
         services["gateway-" + name] = gateway(name, image, plugin)
         volumes["home-" + name] = {}
         if name in pushes:
-            services["push-" + name] = push(name)
+            services["push-" + name] = push(name, pushes[name])
             volumes["outbox-" + name] = {}
         blocks.append(account_routes(name, domain, name in pushes, local))
     return {"services": services, "volumes": volumes, "networks": networks}, "\n\n".join(blocks) + "\n"
 
 
-def provision(root, accounts, pushes):
+def provision(root, accounts):
     root.mkdir(mode=0o700, parents=True, exist_ok=True)
     if root.stat().st_mode & 0o077:
         raise ValueError("Deployment directory must be private (chmod 700)")
@@ -173,9 +189,6 @@ def provision(root, accounts, pushes):
             raise ValueError("Each configured account must have a unique bearer key")
         keys.add(key)
         write_file(directory / "provider.env", "", preserve=True)
-        if name in pushes:
-            if not all((directory / f).is_file() for f in ("push.env", "firebase.json")):
-                raise ValueError(f"Configure accounts/{name}/push.env and firebase.json before enabling push")
     return project
 
 
@@ -191,10 +204,12 @@ def main():
     args = parser.parse_args()
     try:
         accounts = account_map(args.account)
-        pushes = set(args.push)
-        compose, caddy = stack(accounts, pushes, args.image, args.proxy_image, args.local, args.port)
         root = args.directory.resolve()
-        compose["name"] = provision(root, accounts, pushes)
+        if not set(args.push) <= accounts.keys():
+            raise ValueError("Each push bridge must belong to a configured account")
+        pushes = push_transports(root, args.push)
+        compose, caddy = stack(accounts, pushes, args.image, args.proxy_image, args.local, args.port)
+        compose["name"] = provision(root, accounts)
         write_file(root / "Caddyfile", caddy)
         write_file(root / "compose.json", json.dumps(compose, indent=2) + "\n")
     except (ValueError, OSError) as exc:
