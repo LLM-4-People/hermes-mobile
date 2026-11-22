@@ -69,16 +69,19 @@ def require_disposable_phone(device, avd):
 
 def adb_mode(device, mode):
     expected_uid = "0" if mode == "root" else "2000"
-    if device.shell("id", "-u") == expected_uid:
-        return
-    device.run(mode)
-    deadline = time.monotonic() + 30
+    deadline = time.monotonic() + 60
+    last_error = None
     while time.monotonic() < deadline:
-        device.run("wait-for-device", timeout=30)
-        if device.shell("id", "-u") == expected_uid:
-            return
-        time.sleep(0.2)
-    raise RuntimeError("Could not set the emulator ADB mode to " + mode)
+        try:
+            device.run("wait-for-device", timeout=10)
+            if device.shell("id", "-u") == expected_uid:
+                return
+            device.run(mode)
+        except RuntimeError as error:
+            # adbd may close the root/unroot service before reporting its restart.
+            last_error = error
+        time.sleep(0.5)
+    raise RuntimeError("Could not set the emulator ADB mode to " + mode) from last_error
 
 
 def reboot_phone(device):

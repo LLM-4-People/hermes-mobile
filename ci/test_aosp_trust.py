@@ -80,6 +80,22 @@ class TestPrivateTrust(unittest.TestCase):
             self.assertEqual(key.stat().st_mode & 0o077, 0)
             self.assertFalse((root / "ca.key").exists())
 
+    def test_adbd_restart_may_close_the_root_command_before_acknowledging_it(self):
+        phone = FakePhone()
+        original = phone.run
+
+        def restarting(*args, **options):
+            result = original(*args, **options)
+            if args == ("root",):
+                raise RuntimeError("ADB connection closed")
+            return result
+
+        with patch.object(phone, "run", side_effect=restarting), patch("aosp_trust.time.sleep"):
+            aosp_trust.adb_mode(phone, "root")
+            self.assertEqual(phone.uid, "0")
+            aosp_trust.adb_mode(phone, "unroot")
+            self.assertEqual(phone.uid, "2000")
+
     def test_foreign_phone_is_rejected_before_writes(self):
         phone = FakePhone()
         with self.assertRaisesRegex(ValueError, "name differs"):
