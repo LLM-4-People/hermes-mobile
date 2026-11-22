@@ -5,6 +5,9 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
 import android.test.InstrumentationTestCase;
+import android.test.InstrumentationTestRunner;
+import java.io.File;
+import org.llm4people.hermes.journey.JourneyUi;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.inspector.WindowInspector;
@@ -24,7 +27,7 @@ public class LivePageJourneyTest extends InstrumentationTestCase {
         Intent launch = app.getPackageManager().getLaunchIntentForPackage(app.getPackageName());
         assertNotNull(launch);
         Activity activity = getInstrumentation().startActivitySync(launch);
-        String[] source = {"Fil initial"}, staged = {null}, link = {null};
+        String[] source = {"Revue du lecteur de code"}, staged = {null}, link = {null};
         WorkspaceTestHost host = new WorkspaceTestHost() {
             @Override public String workspaceValue(String key) { assertEquals("thread.title",key); return source[0]; }
             @Override public void stageDraft(String text) { staged[0] = text; }
@@ -43,22 +46,28 @@ public class LivePageJourneyTest extends InstrumentationTestCase {
                 button(page,"Suite").performClick();
                 assertEquals("page/suite",link[0]);
                 assertNull(ArtifactDesk.page(activity,account.account,link[0],host));
-                assertTrue(hasText(page,"Fil initial"));
+                assertTrue(hasText(page,"Revue du lecteur de code"));
+            });
+            getInstrumentation().waitForIdleSync();
+            capture(activity, "13-outil-revue");
+            runTestOnUiThread(() -> {
+                View page = activity.findViewById(android.R.id.content);
                 button(page,"Préparer un brouillon…").performClick();
                 assertTrue(hasText(page,"Renseignez le champ « Fichier »."));
                 List<View> edits = views(page,v -> v instanceof EditText);
                 assertEquals(2,edits.size());
                 ((EditText)edits.get(0)).setText("src/Code.java");
                 ((Spinner)views(page,v -> v instanceof Spinner).get(0)).setSelection(2);
-                source[0] = "Fil renommé";
+                source[0] = "Vérifier le parseur";
                 ArtifactDesk.refreshBindings(page,host);
-                assertTrue(hasText(page,"Fil renommé"));
+                assertTrue(hasText(page,"Vérifier le parseur"));
                 assertEquals("src/Code.java",((EditText)edits.get(0)).getText().toString());
                 button(page,"Préparer un brouillon…").performClick();
                 assertNull(staged[0]);
             });
             getInstrumentation().waitForIdleSync();
             if (Build.VERSION.SDK_INT >= 29) {
+                capture(activity, "14-relecture-brouillon");
                 runTestOnUiThread(() -> {
                     for (View root : WindowInspector.getGlobalWindowViews()) {
                         List<View> transfer = views(root,v -> v instanceof Button && "Vers le brouillon".contentEquals(
@@ -78,6 +87,15 @@ public class LivePageJourneyTest extends InstrumentationTestCase {
         } finally {
             runTestOnUiThread(() -> { ArtifactDesk.dismiss(activity); activity.finish(); });
         }
+    }
+
+    private void capture(Activity activity, String name) {
+        if (!(getInstrumentation() instanceof InstrumentationTestRunner runner)
+                || !"true".equals(runner.getArguments().getString("captureLivePage")) || Build.VERSION.SDK_INT < 29)
+            return;
+        File dir = new File(activity.getCacheDir(),"synthetic-live-pages");
+        if (!dir.isDirectory() && !dir.mkdirs()) throw new AssertionError("Cannot create fixture evidence directory");
+        new JourneyUi(runner,activity,dir).capture(name);
     }
 
     private static Button button(View root,String label) {

@@ -24,12 +24,12 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /** Drives visible native widgets using pointer input and Android's editable-text accessibility action. */
-final class JourneyUi {
+public final class JourneyUi {
     private final Instrumentation driver;
     private final Activity activity;
     private final File evidence;
 
-    JourneyUi(Instrumentation driver, Activity activity, File evidence) {
+    public JourneyUi(Instrumentation driver, Activity activity, File evidence) {
         this.driver = driver;
         this.activity = activity;
         this.evidence = evidence;
@@ -176,7 +176,7 @@ final class JourneyUi {
         });
     }
 
-    void capture(String name) {
+    public void capture(String name) {
         Bitmap bitmap = until("laid out app window", () -> {
             View root = window();
             if (root == null || root.getWidth() == 0 || root.getHeight() == 0) return null;

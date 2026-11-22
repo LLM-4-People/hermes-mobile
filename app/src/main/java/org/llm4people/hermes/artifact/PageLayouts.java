@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.function.UnaryOperator;
 
 /** One encrypted index atomically contains named pages, their memberships and undo revisions. */
 final class PageLayouts {
@@ -19,17 +20,20 @@ final class PageLayouts {
         catch (JSONException e) { throw new IllegalStateException("Unreadable page catalog"); }
     }
 
-    static void save(Account account, String page, JSONObject record) {
-        synchronized (account) {
-            JSONObject pages = read(account);
-            if (record == null) pages.remove(page);
-            else {
-                if (!pages.has(page) && pages.length() >= LIMIT) throw new Full();
-                try { pages.put(page, record); } catch (JSONException e) { throw new IllegalStateException(e); }
-            }
-            if (pages.length() == 0) account.remove(KEY);
-            else account.write(KEY, pages.toString());
+    // Called under LayoutHistory's process-wide mutation lock. An account can be unlocked twice.
+    static void update(Account account, String page, UnaryOperator<JSONObject> mutation) {
+        JSONObject pages = read(account);
+        JSONObject old = pages.optJSONObject(page);
+        if (old == null) old = new JSONObject();
+        JSONObject updated = mutation.apply(old);
+        if (updated == old) return;
+        if (updated == null) pages.remove(page);
+        else {
+            if (!pages.has(page) && pages.length() >= LIMIT) throw new Full();
+            try { pages.put(page, updated); } catch (JSONException e) { throw new IllegalStateException(e); }
         }
+        if (pages.length() == 0) account.remove(KEY);
+        else account.write(KEY, pages.toString());
     }
 
     static Map<String,String> titles(Account account, boolean includeRemoved) {

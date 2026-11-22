@@ -1,5 +1,6 @@
 package org.llm4people.hermes.artifact;
 
+import java.util.function.UnaryOperator;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.llm4people.hermes.profile.Account;
@@ -26,37 +27,42 @@ final class LayoutHistory {
         catch (JSONException e) { throw new IllegalStateException("Unreadable workspace record"); }
     }
 
-    private void save(JSONObject record) {
-        if (WorkspaceLayout.custom(surface)) PageLayouts.save(account, surface, record);
-        else if (record == null) account.remove("workspace.v1." + surface);
-        else account.write("workspace.v1." + surface, record.toString());
+    private void update(UnaryOperator<JSONObject> mutation) {
+        synchronized (LayoutHistory.class) {
+            if (WorkspaceLayout.custom(surface)) {
+                PageLayouts.update(account, surface, mutation);
+                return;
+            }
+            JSONObject old = read();
+            JSONObject updated = mutation.apply(old);
+            if (updated == old) return;
+            if (updated == null) account.remove("workspace.v1." + surface);
+            else account.write("workspace.v1." + surface, updated.toString());
+        }
     }
 
     String current() { return read().optString("current", ""); }
     boolean canUndo() { return read().has("previous"); }
 
     void replace(String next) {
-        synchronized (account) {
-            String old = current();
-            if (old.equals(next)) return;
-            try { save(new JSONObject().put("current", next).put("previous", old)); }
+        update(old -> {
+            String previous = old.optString("current", "");
+            if (previous.equals(next)) return old;
+            try { return new JSONObject().put("current", next).put("previous", previous); }
             catch (JSONException e) { throw new IllegalStateException(e); }
-        }
+        });
     }
 
     void undo() {
-        synchronized (account) {
-            JSONObject record = read();
-            if (!record.has("previous")) return;
+        update(record -> {
+            if (!record.has("previous")) return record;
             String previous = record.optString("previous", "");
-            try { save(previous.isEmpty() ? null : new JSONObject().put("current", previous)); }
+            try { return previous.isEmpty() ? null : new JSONObject().put("current", previous); }
             catch (JSONException e) { throw new IllegalStateException(e); }
-        }
+        });
     }
 
     void forgetRemoved() {
-        synchronized (account) {
-            if (WorkspaceLayout.custom(surface) && current().isEmpty()) save(null);
-        }
+        if (WorkspaceLayout.custom(surface)) update(row -> row.optString("current", "").isEmpty() ? null : row);
     }
 }

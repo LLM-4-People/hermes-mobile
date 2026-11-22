@@ -7,21 +7,27 @@ import java.util.UUID;
 /** Distinct disposable unlocked accounts for exercising native features above the credential gate. */
 public final class WorkspaceAccountFixture implements AutoCloseable {
     private final String prefs;
+    private final String id;
+    private final byte[] keys = new byte[Account.KEY_BYTES];
     private final Context context;
     public final Account account;
 
     public WorkspaceAccountFixture(Context context) {
         this.context = context;
-        String id = UUID.randomUUID().toString();
+        id = UUID.randomUUID().toString();
         prefs = "workspace.test." + id;
-        byte[] keys = new byte[Account.KEY_BYTES];
         new SecureRandom().nextBytes(keys);
-        account = new Account(id,"Essai","https://example.invalid","fixture",context.getSharedPreferences(
-                prefs,Context.MODE_PRIVATE),keys);
+        account = reopen();
+    }
+
+    public Account reopen() {
+        return new Account(id,"Essai","https://example.invalid","fixture",context.getSharedPreferences(
+                prefs,Context.MODE_PRIVATE),keys.clone());
     }
 
     @Override public void close() {
         account.close();
+        java.util.Arrays.fill(keys,(byte)0);
         context.deleteSharedPreferences(prefs);
     }
 }
