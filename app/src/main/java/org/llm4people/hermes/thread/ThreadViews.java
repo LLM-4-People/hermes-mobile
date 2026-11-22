@@ -439,7 +439,7 @@ final class ThreadViews {
             List<Pin> proposals =
                     chat && instruments != null ? instruments.forRow(row) : java.util.Collections.emptyList();
             String content;
-            if (!chat) content = ThreadData.string(row, "preview");
+            if (!chat) content = ThreadTitles.previewForRow(row);
             else content = proposals.isEmpty() ? ThreadData.content(row) : instruments.prose(row, proposals);
             if (chat && content.trim().isEmpty() && row.optJSONArray("tool_calls") != null) {
                 StringBuilder names = new StringBuilder();

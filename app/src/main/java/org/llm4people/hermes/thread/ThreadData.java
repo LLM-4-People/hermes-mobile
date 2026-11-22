@@ -47,14 +47,32 @@ final class ThreadData {
                 ThreadTitles.emptySession(session));
     }
 
-    private static final java.util.regex.Pattern RETAINED_PHOTO = java.util.regex.Pattern.compile(
-            "(?m)^\\[Image attached at: /[^\\r\\n]*?/native-inputs/([a-f0-9]{32})[a-f0-9]{32}/api_\\1\\.(?:png|jpe?g|webp|gif)\\]$");
+    private static final String PHOTO_HINT = "[Image attached at: /";
+    private static final String RETAINED_HINT =
+            "\\[Image attached at: /[^\\r\\n\\]]*?/native-inputs/([a-f0-9]{32})[a-f0-9]{32}/api_\\1\\.(?:png|jpe?g|webp|gif)\\]";
+    private static final java.util.regex.Pattern PHOTO_LINE = java.util.regex.Pattern.compile(
+            "(?m)^" + RETAINED_HINT + "(?:\\n\\[screenshot\\])?$");
+    private static final java.util.regex.Pattern PHOTO_PREVIEW = java.util.regex.Pattern.compile(
+            RETAINED_HINT + "(?:\\s+\\[screenshot\\])?");
 
     static String content(JSONObject message) {
         String value = MessageParts.display(message);
-        if ("user".equals(string(message, "role")) && value.contains("[Image attached at: /"))
-            return RETAINED_PHOTO.matcher(value).replaceAll("Image jointe");
+        if ("user".equals(string(message, "role")) && value.contains(PHOTO_HINT))
+            return PHOTO_LINE.matcher(value).replaceAll("Image jointe");
         return value;
+    }
+
+    static String caption(String text) {
+        return text.contains(PHOTO_HINT) ? PHOTO_LINE.matcher(text).replaceAll("").trim() : text;
+    }
+
+    /** A clipped wire preview lacks provenance. Strip only a complete canonical retained-media suffix. */
+    static String inboxPreview(String text) {
+        int marker = text.lastIndexOf(PHOTO_HINT);
+        if (marker < 0 || marker > 0 && !Character.isWhitespace(text.charAt(marker - 1))) return text;
+        String hint = text.substring(marker);
+        if (PHOTO_PREVIEW.matcher(hint).matches()) return text.substring(0, marker).trim();
+        return text;
     }
 
     record RowId(String segment, String id) {}

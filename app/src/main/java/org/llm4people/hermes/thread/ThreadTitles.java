@@ -21,8 +21,6 @@ final class ThreadTitles {
             if (Character.isISOControl(point) || Character.getType(point) == Character.FORMAT
                     && point != 0x200c && point != 0x200d) continue;
             // An attachment can be a textual data URL in a legacy message.
-            // Inbox previews may truncate Hermes' stored attachment hint in the middle of a private host path.
-            if (point == '[' && text.regionMatches(pos - 1, "[Image attached at: /", 0, 21)) break;
             if ((point == 'd' || point == 'D') && text.regionMatches(true, pos - 1, "data:image/", 0, 11)) break;
             if (count + (space ? 1 : 0) >= 80) { out.append('…'); break; }
             if (space) { out.append(' '); count++; }
@@ -38,7 +36,7 @@ final class ThreadTitles {
             JSONObject row = rows.optJSONObject(i);
             if (!"user".equals(ThreadData.string(row, "role")) || "hidden".equals(ThreadData.string(row, "display_kind"))) continue;
             Object content = row.opt("content");
-            if (content instanceof String) return snippet((String) content);
+            if (content instanceof String) return snippet(ThreadData.caption((String) content));
             if (content instanceof JSONArray parts) {
                 for (int j = 0; j < parts.length(); j++) {
                     JSONObject part = parts.optJSONObject(j);
@@ -54,12 +52,17 @@ final class ThreadTitles {
         return "";
     }
 
+    static String previewForRow(JSONObject row) {
+        String known = ThreadData.string(row, FIRST_PROMPT);
+        return known.isEmpty() ? ThreadData.inboxPreview(ThreadData.string(row, "preview")) : known;
+    }
+
     static String inboxPrompt(JSONObject row) {
         String known = ThreadData.string(row, FIRST_PROMPT);
         if (!known.isEmpty()) return known;
         // Older list projections put the first user message of the tip in preview.
         if (compacted(row)) return "";
-        return snippet(ThreadData.string(row, "preview"));
+        return snippet(ThreadData.inboxPreview(ThreadData.string(row, "preview")));
     }
 
     private static boolean compacted(JSONObject row) {

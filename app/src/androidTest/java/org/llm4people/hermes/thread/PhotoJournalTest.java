@@ -90,7 +90,19 @@ public final class PhotoJournalTest extends TestCase {
         JSONObject user = new JSONObject().put("role", "user").put("content", "Question\n\n" + reference);
         assertEquals("Question\n\nImage jointe", ThreadData.content(user));
         assertEquals("Question", ThreadTitles.firstPrompt(new JSONArray().put(user)));
-        assertEquals("Question", ThreadTitles.inboxPrompt(new JSONObject().put("preview", "Question [Image attached at: /srv/private")));
+        String clipped = "Question  [Image attached at: /tmp/he...";
+        JSONObject known = new JSONObject().put("preview", clipped).put(ThreadTitles.FIRST_PROMPT, "Question");
+        assertEquals("Question", ThreadTitles.inboxPrompt(known));
+        assertEquals("Question", ThreadTitles.previewForRow(known.put("title", "Carte")));
+        assertEquals(clipped, ThreadData.inboxPreview(clipped));
+        assertEquals("Question", ThreadData.inboxPreview("Question  " + reference + " [screenshot]"));
+        user.put("content", "Question\n\n" + reference + "\n[screenshot]");
+        assertEquals("Question\n\nImage jointe", ThreadData.content(user));
+        assertEquals("Question", ThreadTitles.firstPrompt(new JSONArray().put(user)));
+        String literal = "Pourquoi [Image attached at: /tmp/chat.png] apparaît-il dans mon journal ?";
+        user.put("content", literal);
+        assertEquals(literal, ThreadTitles.firstPrompt(new JSONArray().put(user)));
+        assertEquals(literal, ThreadData.inboxPreview(literal));
         user.put("content", "Ouvrir /tmp/work.png");
         assertEquals("Ouvrir /tmp/work.png", ThreadData.content(user));
     }
