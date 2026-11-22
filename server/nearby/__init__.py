@@ -45,10 +45,10 @@ def register_routes(app, authorize, provider):
             payload = json.loads(await bounded_bytes(request.content, MAX_REQUEST_BYTES))
             lat, lon, category, radius_m, limit = accepted_request(payload)
         except InvalidCategory:
-            log.warning("nearby_request_rejected status=400 reason=invalid_category")
+            log.warning("nearby.invalid_category status=400")
             return reply({"error": "invalid_category"}, 400)
         except (ValueError, RecursionError) as exc:
-            log.warning("nearby_request_rejected status=400 reason=%s", safe_reason(exc))
+            log.warning("nearby.invalid_area status=400 reason=%s", safe_reason(exc))
             return reply({"error": "invalid_area"}, 400)
         try:
             result = await provider.search(lat, lon, category=category, radius_m=radius_m, limit=limit)

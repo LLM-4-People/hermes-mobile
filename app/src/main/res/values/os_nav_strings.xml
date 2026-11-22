@@ -12,11 +12,9 @@
 
     <string name="atelier_subtitle">Organisez vos écrans, vos outils et les réglages de votre profil.</string>
     <string name="brain_subtitle">Découvrez ce que Hermes sait faire et choisissez ses capacités.</string>
-    <string name="brain_skills_title">Compétences de Hermes</string>
     <string name="brain_skills_hint">Parcourir les savoir-faire prêts à l’emploi de votre assistant.</string>
     <string name="brain_models_title">Modèle et capacités</string>
     <string name="brain_models_hint">Choisir l’assistant et les capacités actives pour la discussion en cours.</string>
-    <string name="brain_memory_title">Mémoire et préférences</string>
     <string name="brain_memory_hint">Vos préférences et outils restent chiffrés sur cet appareil. Votre profil protège vos échanges.</string>
     <string name="brain_create_tool_title">Créer un outil sur mesure</string>
     <string name="brain_create_tool_hint">Demander à Hermes un formulaire ou un tableau adapté à votre besoin.</string>

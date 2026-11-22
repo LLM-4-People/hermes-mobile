@@ -22,7 +22,6 @@ import org.llm4people.hermes.artifact.ArtifactDesk;
 import org.llm4people.hermes.artifact.HomePinBridge;
 import org.llm4people.hermes.artifact.LiveUiPatch;
 import org.llm4people.hermes.artifact.ThemePalette;
-import org.llm4people.hermes.artifact.WorkspaceLayout;
 import org.llm4people.hermes.camera.ThreadCameraCapture;
 import org.llm4people.hermes.files.PublishedFiles;
 import org.llm4people.hermes.net.HermesApi;
@@ -334,7 +333,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     private void capturePinnedShortcutIntent(Intent intent) {
         if (intent == null || !Intent.ACTION_VIEW.equals(intent.getAction())) return;
         String surfaceId = intent.getStringExtra(HomePinBridge.EXTRA_SURFACE_ID);
-        if (surfaceId != null && WorkspaceLayout.custom(surfaceId)) {
+        if (HomePinBridge.isValidSurfaceId(surfaceId)) {
             pendingPinnedSurface = surfaceId;
             pendingPinnedWidget = null;
             return;

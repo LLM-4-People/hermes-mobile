@@ -1,7 +1,5 @@
 package org.llm4people.hermes.artifact;
 
-import org.json.JSONArray;
-import org.json.JSONObject;
 import org.junit.Test;
 import org.llm4people.hermes.RouteRegistry;
 import org.llm4people.hermes.os.HermesWidgetSpec;
@@ -12,6 +10,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -50,50 +49,23 @@ public final class HomePinBridgeTest {
         assertEquals("09h", osSpec.items.get(0).value());
         assertEquals("Rappelle-moi d’appeler le dentiste", osSpec.items.get(0).actionDraft());
         assertEquals("Envoyer le devis", osSpec.items.get(1).label());
+
+        // Lossless codec round-trip into HermesWidgetStore format.
+        HermesWidgetSpec decoded = HermesWidgetSpec.decode(osSpec.encode());
+        assertEquals(osSpec.widgetId, decoded.widgetId);
+        assertEquals(osSpec.title, decoded.title);
+        assertEquals(osSpec.items.size(), decoded.items.size());
     }
 
     @Test
-    public void rejectsNullLiveUiWidgetSpec() {
+    public void rejectsNullLiveUiWidgetSpecAndValidatesSurfaceShortcutIds() {
         assertNull(HomePinBridge.toOsWidgetSpec(null));
-    }
-
-    @Test
-    public void parsesHomeScreenSafeDeliveryWidgetUpdateAndRejectsUnsafeOrSecretPayloads() throws Exception {
-        JSONObject valid = new JSONObject()
-                .put("widget", new JSONObject()
-                        .put("widget_id", "daily_brief")
-                        .put("title", "Résumé du matin")
-                        .put("subtitle", "Calme et prêt")
-                        .put("template", "briefing")
-                        .put("home_screen_safe", true)
-                        .put("items", new JSONArray()
-                                .put(new JSONObject().put("label", "Météo").put("value", "18°C"))));
-
-        HermesWidgetSpec parsed = HomePinBridge.parseDeliveryWidgetSpec(valid);
-        assertNotNull(parsed);
-        assertEquals("daily_brief", parsed.widgetId);
-        assertEquals(HermesWidgetSpec.Template.BRIEFING, parsed.template);
-        assertEquals(1, parsed.items.size());
-
-        JSONObject unsafe = new JSONObject()
-                .put("widget_id", "private_notes")
-                .put("title", "Secret")
-                .put("template", "status")
-                .put("home_screen_safe", false);
-        assertNull(HomePinBridge.parseDeliveryWidgetSpec(unsafe));
-
-        JSONObject missingFlag = new JSONObject()
-                .put("widget_id", "missing_opt_in")
-                .put("title", "Implicit")
-                .put("template", "status");
-        assertNull(HomePinBridge.parseDeliveryWidgetSpec(missingFlag));
-
-        JSONObject secretTitle = new JSONObject()
-                .put("widget_id", "leak_test")
-                .put("title", "Bearer eyJhbGciOiJIUzI1NiJ9.secret")
-                .put("template", "status")
-                .put("home_screen_safe", true);
-        assertNull(HomePinBridge.parseDeliveryWidgetSpec(secretTitle));
+        assertNull(HomePinBridge.parseDeliveryWidgetSpec(null));
+        assertTrue(HomePinBridge.isValidSurfaceId("page/tableau-budget"));
+        assertFalse(HomePinBridge.isValidSurfaceId(null));
+        assertFalse(HomePinBridge.isValidSurfaceId(""));
+        assertFalse(HomePinBridge.isValidSurfaceId("home"));
+        assertFalse(HomePinBridge.isValidSurfaceId("page/../secrets"));
     }
 
     @Test

@@ -12,11 +12,9 @@
 
     <string name="atelier_subtitle">Organize your screens, tools, and profile settings.</string>
     <string name="brain_subtitle">Explore what Hermes knows and choose its capabilities.</string>
-    <string name="brain_skills_title">Hermes skills</string>
     <string name="brain_skills_hint">Browse ready-to-use methods for your assistant.</string>
     <string name="brain_models_title">Model and capabilities</string>
     <string name="brain_models_hint">Choose the assistant and active capabilities for this discussion.</string>
-    <string name="brain_memory_title">Memory and preferences</string>
     <string name="brain_memory_hint">Your preferences and tools stay encrypted on this device. Your profile protects your conversations.</string>
     <string name="brain_create_tool_title">Create a custom tool</string>
     <string name="brain_create_tool_hint">Ask Hermes for a form or table tailored to your need.</string>

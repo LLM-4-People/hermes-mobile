@@ -98,6 +98,22 @@ public final class Android16OsIntegrationTest extends InstrumentationTestCase {
             store.bindInstance(987654, id);
             assertEquals("Tableau Hermes", store.specForInstance(987654).title);
             assertEquals("Crée une note", store.draftForAction(id, 0));
+
+            // Cross-feature delivery widget bridge enforces home_screen_safe: true and persists into HermesWidgetStore.
+            org.json.JSONObject validDelivery = new org.json.JSONObject()
+                    .put("widget", safe.toJson());
+            assertTrue(org.llm4people.hermes.artifact.HomePinBridge.applyDeliveryWidgetUpdate(context, validDelivery));
+            assertEquals("Tableau Hermes", store.spec(id).title);
+
+            org.json.JSONObject unsafeDelivery = new org.json.JSONObject()
+                    .put("widget_id", id)
+                    .put("title", "Secret")
+                    .put("template", "status")
+                    .put("home_screen_safe", false);
+            assertFalse(org.llm4people.hermes.artifact.HomePinBridge.applyDeliveryWidgetUpdate(context, unsafeDelivery));
+            assertNull(org.llm4people.hermes.artifact.HomePinBridge.parseDeliveryWidgetSpec(unsafeDelivery));
+        } catch (org.json.JSONException unexpected) {
+            throw new AssertionError(unexpected);
         } finally {
             store.removeSpec(id);
             store.unbindInstance(987654);

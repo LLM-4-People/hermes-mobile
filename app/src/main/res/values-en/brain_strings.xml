@@ -18,6 +18,7 @@
     <string name="brain_habits_header">Based on your habits</string>
     <string name="brain_hub_subtitle">Access memory, search, skills, and project files for your Hermes space.</string>
     <string name="brain_hub_title">Hermes Brain</string>
+    <string name="brain_memory_title">Hermes memory</string>
     <string name="brain_memory_add_hermes">Add a memory</string>
     <string name="brain_memory_add_title">New memory item</string>
     <string name="brain_memory_add_user">Add personal info</string>
@@ -113,6 +114,7 @@
     <string name="brain_skills_saved">Skill saved.</string>
     <string name="brain_skills_search">Search a skill</string>
     <string name="brain_skills_subtitle">Reusable guides and methods Hermes can apply.</string>
+    <string name="brain_skills_title">Skills</string>
     <string name="brain_skills_supporting_files">Supporting files: %1$s</string>
     <string name="brain_skills_toggle_failed">Unable to change this skill’s state. The previous state was restored.</string>
     <string name="brain_skills_use_in_thread">Use in discussion</string>

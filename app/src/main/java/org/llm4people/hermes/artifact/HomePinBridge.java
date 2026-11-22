@@ -38,6 +38,11 @@ public final class HomePinBridge {
 
     private HomePinBridge() {}
 
+    /** Package-boundary validator for custom surface shortcut targets. */
+    public static boolean isValidSurfaceId(String surfaceId) {
+        return surfaceId != null && WorkspaceLayout.custom(surfaceId);
+    }
+
     /** Converts a validated Live UI WidgetSpec into an OS-level HermesWidgetSpec (fail-closed if unsafe). */
     public static HermesWidgetSpec toOsWidgetSpec(LiveUiPatch.WidgetSpec spec) {
         if (spec == null || !spec.homeScreenSafe) return null;
