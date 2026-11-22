@@ -11,10 +11,16 @@ import unittest
 
 GATE = Path(__file__).with_name("device-check.sh").resolve()
 FRAMEWORK = "org.llm4people.hermes.test/android.test.InstrumentationTestRunner"
+TEST_CLASS = "org.llm4people.hermes.thread.CodeExcerptCapture"
 ADB = ["adb", "-s", "emulator-fixture"]
-INSTRUMENT = [*ADB, "shell", "am", "instrument", "-w", "-r"]
+INSTRUMENT = [*ADB, "shell", "am", "instrument", "-w", "-r", "-e", "class", TEST_CLASS]
 APP_APK = "app/build/outputs/apk/debug/app-debug.apk"
 TEST_APK = "app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk"
+DEX_XML = """<api><package name="org.llm4people.hermes.thread">
+  <class name="CodeExcerptCapture" extends="android.test.AndroidTestCase" visibility="public">
+    <method name="testConversationAndOpenedSource" visibility="public" return="void" static="false"/>
+  </class>
+</package></api>"""
 
 RECORDER = """#!/usr/bin/env python3
 import json, os, sys
@@ -23,8 +29,10 @@ with open(os.environ["GATE_COMMANDS"], "a") as stream:
     print(json.dumps([Path(sys.argv[0]).name, *sys.argv[1:]]), file=stream)
 if sys.argv[1:] == ["get-serialno"]:
     print("emulator-fixture")
+if Path(sys.argv[0]).name == "dexdump":
+    print(Path(sys.argv[3]).read_text())
 if sys.argv[3:6] == ["shell", "am", "instrument"]:
-    discovery = "-e" in sys.argv
+    discovery = sys.argv[-4:-1] == ["-e", "log", "true"]
     print(Path("discovery.txt" if discovery else "execution.txt").read_text(), end="")
     if not discovery:
         sys.exit(int(os.environ["EXECUTION_STATUS"]))
@@ -35,7 +43,7 @@ if os.environ.get("FAIL_VERIFIER") in sys.argv[1:]:
 
 # Framework protocol for one discovered and executed test on the installed test APK.
 def successful_report():
-    fields = ("INSTRUMENTATION_STATUS: class=org.llm4people.hermes.thread.CodeExcerptCapture\n"
+    fields = (f"INSTRUMENTATION_STATUS: class={TEST_CLASS}\n"
               "INSTRUMENTATION_STATUS: id=InstrumentationTestRunner\n"
               "INSTRUMENTATION_STATUS: numtests=1\n"
               "INSTRUMENTATION_STATUS: test=testConversationAndOpenedSource\n")
@@ -54,15 +62,20 @@ class DeviceGateTest(unittest.TestCase):
         ci = self.root / "ci"
         ci.mkdir()
         shutil.copyfile(GATE.with_name("native_tests.py"), ci / "native_tests.py")
+        apk = self.root / TEST_APK
+        apk.parent.mkdir(parents=True)
+        apk.write_text(DEX_XML)
         for phase in ("discovery", "execution"):
             (self.root / f"{phase}.txt").write_text(successful_report())
-        for command in (self.root / "bin/adb", self.runner / "hermes-env/bin/python"):
+        self.build_tools = self.root / "android build tools"
+        for command in (self.root / "bin/adb", self.build_tools / "dexdump", self.runner / "hermes-env/bin/python"):
             command.parent.mkdir(parents=True, exist_ok=True)
             command.write_text(RECORDER)
             command.chmod(0o755)
 
     def gate(self, fail="", execution_status=0):
         env = {**os.environ, "RUNNER_TEMP": str(self.runner), "GATE_COMMANDS": str(self.trace),
+               "ANDROID_BUILD_TOOLS": str(self.build_tools),
                "PATH": str(self.root / "bin") + os.pathsep + os.environ["PATH"],
                "FAIL_VERIFIER": fail, "EXECUTION_STATUS": str(execution_status)}
         result = subprocess.run(["bash", GATE], cwd=self.root, env=env, text=True, capture_output=True)
@@ -71,9 +84,10 @@ class DeviceGateTest(unittest.TestCase):
     def test_all_journeys_use_one_fork_serial_and_installed_apk_pair(self):
         result, calls = self.gate()
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(calls[:7], [
+        self.assertEqual(calls[:8], [
             ["adb", "get-serialno"],
             [*ADB, "install", "-r", "-t", APP_APK], [*ADB, "install", "-r", "-t", TEST_APK],
+            ["dexdump", "-l", "xml", TEST_APK],
             [*INSTRUMENT, "-e", "log", "true", FRAMEWORK], [*INSTRUMENT, FRAMEWORK],
             [*ADB, "shell", "pm", "clear", "org.llm4people.hermes.test"],
             [*ADB, "shell", "pm", "clear", "org.llm4people.hermes"],
@@ -81,7 +95,7 @@ class DeviceGateTest(unittest.TestCase):
         for phase in ("discovery", "execution"):
             saved = self.runner / "android-instrumentation" / f"{phase}.txt"
             self.assertEqual(saved.read_text(), (self.root / f"{phase}.txt").read_text())
-        verifiers = calls[7:]
+        verifiers = calls[8:]
         self.assertEqual([cmd[:2] for cmd in verifiers], [["python", "-B"]] * 3)
         self.assertEqual([cmd[2] for cmd in verifiers], [
             "verification/live_api.py", "verification/conversation_cards.py", "verification/thread_instruments.py"])
@@ -108,6 +122,17 @@ class DeviceGateTest(unittest.TestCase):
                 self.assertEqual([cmd[2] for cmd in calls if cmd[0] == "python"], journeys[:index + 1])
                 if failed == "verification/thread_instruments.py":
                     self.assertIn("partial screenshots in android-thread-instruments", result.stderr)
+
+    def test_incomplete_discovery_stops_before_execution_even_if_both_reports_match(self):
+        apk = self.root / TEST_APK
+        extra = '<method name="testOther" visibility="public" return="void" static="false"/>'
+        apk.write_text(DEX_XML.replace("</class>", extra + "</class>"))
+        result, calls = self.gate()
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("Packaged and discovery test sets differ", result.stderr)
+        self.assertIn("testOther", result.stderr)
+        self.assertEqual(calls[-1], [*INSTRUMENT, "-e", "log", "true", FRAMEWORK])
+        self.assertFalse((self.runner / "android-instrumentation/execution.txt").exists())
 
     def test_native_failures_stop_before_clearing_evidence_or_running_journeys(self):
         failed_case = successful_report().replace("INSTRUMENTATION_STATUS_CODE: 0", "INSTRUMENTATION_STATUS_CODE: -2")
