@@ -18,4 +18,16 @@
     <string name="voice_network">Le service vocal est hors connexion. Réessayez ou écrivez votre texte.</string>
     <string name="voice_failed">La dictée a été interrompue. Réessayez ou écrivez votre texte.</string>
     <string name="voice_other_service">Utiliser le service Android</string>
+    <string name="voice_model_checking">Vérification du français sur cet appareil…</string>
+    <string name="voice_model_options">Dictée hors connexion…</string>
+    <string name="voice_model_progress">Téléchargement en cours…</string>
+    <string name="voice_model_follow">Suivre la demande…</string>
+    <string name="voice_model_retry">Téléchargement interrompu…</string>
+    <string name="voice_model_offer">Android propose de télécharger le français pour dicter hors connexion.</string>
+    <string name="voice_model_download">Télécharger le français…</string>
+    <string name="voice_model_check">Vérifier la disponibilité</string>
+    <string name="voice_model_pending">Android télécharge le français pour la dictée hors connexion.</string>
+    <string name="voice_model_requested">Demande transmise à Android. Vous pouvez continuer à écrire.</string>
+    <string name="voice_model_ready">Le français est prêt. Appuyez sur le micro pour dicter.</string>
+    <string name="voice_model_failed">Android n’a pas pu télécharger le français. Vous pouvez continuer à écrire.</string>
 </resources>

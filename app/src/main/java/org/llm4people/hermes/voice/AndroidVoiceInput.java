@@ -27,6 +27,11 @@ final class AndroidVoiceInput implements VoiceInput {
         return systemAvailable() ? Source.SYSTEM : Source.NONE;
     }
 
+    @Override public VoiceModel localModel() {
+        return Build.VERSION.SDK_INT >= 33 && SpeechRecognizer.isOnDeviceRecognitionAvailable(activity)
+                ? new AndroidVoiceModel(activity, request()) : null;
+    }
+
     @Override public boolean systemAvailable() { return SpeechRecognizer.isRecognitionAvailable(activity); }
     @Override public boolean permitted() {
         return activity.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
@@ -59,11 +64,7 @@ final class AndroidVoiceInput implements VoiceInput {
                     @Override public void onRmsChanged(float rmsdB) {}
                     @Override public void onEvent(int event, Bundle params) {}
                 });
-                Intent request = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
-                        .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                        .putExtra(RecognizerIntent.EXTRA_LANGUAGE, language())
-                        .putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1);
-                recognizer.startListening(request);
+                recognizer.startListening(request());
             }
             @Override public void stop() { recognizer.stopListening(); }
             @Override public void close() {
@@ -75,6 +76,13 @@ final class AndroidVoiceInput implements VoiceInput {
                 }
             }
         };
+    }
+
+    private Intent request() {
+        return new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+                .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                .putExtra(RecognizerIntent.EXTRA_LANGUAGE, language())
+                .putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1);
     }
 
     private String language() {

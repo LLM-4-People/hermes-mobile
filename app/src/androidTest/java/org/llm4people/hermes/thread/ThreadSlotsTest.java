@@ -3,10 +3,14 @@ package org.llm4people.hermes.thread;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
+import android.graphics.Rect;
+import android.util.TypedValue;
 import android.test.InstrumentationTestCase;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
+import android.widget.FrameLayout;
+import android.widget.TextView;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -79,6 +83,40 @@ public class ThreadSlotsTest extends InstrumentationTestCase {
                 find(view.root, "Envoyer").performClick();
                 assertEquals(1, sends.get());
                 assertEquals("Bonjour Hermes !", view.draft());
+            });
+        } finally { runTestOnUiThread(activity::finish); }
+    }
+
+    public void testOfflineLanguageOptionsLeaveAnEditableComposerInAShortViewport() throws Throwable {
+        Context context = getInstrumentation().getTargetContext();
+        Intent launch = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
+        Activity activity = getInstrumentation().startActivitySync(launch);
+        try {
+            runTestOnUiThread(() -> {
+                FakeDictation input = new FakeDictation();
+                ThreadViews thread = new ThreadViews(activity, input.controller(activity));
+                thread.chat("Brouillon", ignored -> {}, () -> fail("Unexpected send"), () -> {}, () -> {});
+                FrameLayout frame = new FrameLayout(activity);
+                int width = Ui.dp(activity, 320), height = Ui.dp(activity, 140);
+                frame.addView(thread.root, new FrameLayout.LayoutParams(width, height));
+                activity.setContentView(frame);
+                find(thread.root, activity.getString(R.string.voice_dictate)).performClick();
+                input.missingFrenchModel();
+                TextView options = (TextView) find(thread.root, activity.getString(R.string.voice_model_options));
+                EditText field = editor(thread.root);
+                View send = find(thread.root, "Envoyer");
+                for (TextView text : new TextView[]{options, field, (TextView) send})
+                    text.setTextSize(TypedValue.COMPLEX_UNIT_PX, text.getTextSize() * 1.5f);
+                frame.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+                        View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY));
+                frame.layout(0, 0, width, height);
+                for (View control : new View[]{options, field, send}) {
+                    Rect visible = new Rect();
+                    assertTrue(control.getGlobalVisibleRect(visible));
+                    assertTrue(visible.height() >= Ui.dp(activity, 48));
+                }
+                field.append(" modifié");
+                assertEquals("Brouillon modifié", thread.draft());
             });
         } finally { runTestOnUiThread(activity::finish); }
     }
