@@ -151,6 +151,9 @@ def run(device, output):
             device.shell("cmd", "uimode", "night", "yes")
             device.setting("font_scale", "1.5")
             device.phase("restart")
+            device.shell("cmd", "uimode", "night", "no")
+            device.setting("font_scale", "1.0")
+            device.phase("pages")
         finally:
             cleanup_all(lambda: device.shell("run-as", APP, "rm", "-f", DEVICE_DIR + "/fixture.json"),
                         lambda: collect_captures(device, capture_dir, output))

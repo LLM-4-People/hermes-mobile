@@ -43,6 +43,13 @@ public final class DeviceJourney extends Instrumentation {
             switch (phase) {
                 case "work": work(); break;
                 case "restart": restart(); break;
+                case "pages":
+                    String name = "Écrans " + fixture.getString("run");
+                    profile(name, "endpoint", "key", fixture.getString("phrase"));
+                    new WorkspacePagesJourney(ui).run(name);
+                    lock();
+                    forget(name, fixture.getString("phrase"));
+                    break;
                 default: throw new IllegalArgumentException("Unknown phase");
             }
             result.putString("journey", phase + " passed");

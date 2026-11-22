@@ -18,6 +18,9 @@ import org.json.JSONObject;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.function.Consumer;
 
 final class ThreadViews {
@@ -27,6 +30,8 @@ final class ThreadViews {
     private final TextView status;
     private final Button remedy;
     private final LinearLayout notice;
+    private final LinearLayout noticeSlot;
+    private LinearLayout composerSlot;
     private Button more;
     private EditText input;
     private Button send;
@@ -47,6 +52,8 @@ final class ThreadViews {
         list.setDivider(null);
         list.setClipToPadding(false);
         notice = Ui.column(activity);
+        noticeSlot = Ui.column(activity);
+        noticeSlot.addView(notice);
         Ui.pad(notice, 16, 2);
         status = Ui.text(activity, "", 14);
         status.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
@@ -110,8 +117,10 @@ final class ThreadViews {
         composer.addView(input, new LinearLayout.LayoutParams(0, -2, 1));
         composer.addView(send);
         composer.addView(stop);
-        root.addView(Ui.divider(activity));
-        root.addView(composer);
+        composerSlot = Ui.column(activity);
+        composerSlot.addView(Ui.divider(activity));
+        composerSlot.addView(composer);
+        root.addView(composerSlot);
         input.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
             @Override public void afterTextChanged(Editable s) {}
@@ -128,7 +137,7 @@ final class ThreadViews {
         transcript = chat;
         root.removeAllViews();
         rows = new JSONArray();
-        root.addView(notice);
+        root.addView(noticeSlot);
         notice("", "", null);
     }
 
@@ -167,6 +176,37 @@ final class ThreadViews {
         input.setText(draft);
         input.setSelection(input.length());
     }
+
+    private View slot(String name) {
+        return switch (name) {
+            case "notice" -> noticeSlot;
+            case "transcript" -> list;
+            case "composer" -> composerSlot;
+            default -> throw new IllegalArgumentException("Unknown thread slot");
+        };
+    }
+
+    /** Move attached children in layout order so the editor and message list keep their identity. */
+    void slots(List<String> requested) {
+        if (!transcript || composerSlot == null) return;
+        List<String> all = Arrays.asList("notice", "transcript", "composer");
+        List<String> order = requested.isEmpty() ? all : requested;
+        for (String name : all) slot(name).setVisibility(order.contains(name) ? View.VISIBLE : View.GONE);
+        List<View> visible = new ArrayList<>();
+        for (int i = 0; i < root.getChildCount(); i++) {
+            View child = root.getChildAt(i);
+            if (child.getVisibility() == View.VISIBLE) visible.add(child);
+        }
+        for (int i = 0; i < order.size(); i++) {
+            if (visible.get(i) != slot(order.get(i))) {
+                for (String name : order) root.bringChildToFront(slot(name));
+                break;
+            }
+        }
+    }
+
+    void focusComposer() { if (input != null) input.requestFocus(); }
+    boolean editing() { return input != null && input.hasFocus() && input.isShown(); }
 
     void clearDraft() { input.setText(""); }
 

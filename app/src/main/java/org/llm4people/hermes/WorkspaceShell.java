@@ -29,7 +29,7 @@ final class WorkspaceShell {
     private final TextView heading;
     private final ImageButton leading;
     private final ImageButton desk;
-    private boolean inDesk;
+    private String pageTitle;
     private String threadTitle;
 
     WorkspaceShell(Activity activity, Consumer<String> action) {
@@ -40,7 +40,7 @@ final class WorkspaceShell {
         header = Ui.row(activity);
         Ui.pad(header, 6, 2);
         leading = icon(R.drawable.ic_threads, "Discussions");
-        leading.setOnClickListener(v -> action.accept(inDesk ? "return" : "threads"));
+        leading.setOnClickListener(v -> action.accept(pageTitle != null ? "previous" : "threads"));
         header.addView(leading);
         heading = Ui.text(activity, "Discussions", 20);
         heading.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
@@ -66,17 +66,15 @@ final class WorkspaceShell {
         updateHeading();
     }
 
-    void show(View page, boolean workspace) {
-        inDesk = workspace;
+    void show(View page, String title) {
+        pageTitle = title;
         updateHeading();
         if (page.getParent() instanceof ViewGroup) ((ViewGroup) page.getParent()).removeView(page);
         body.removeAllViews();
         body.addView(page, new FrameLayout.LayoutParams(-1, -1));
     }
 
-    boolean inDesk() {
-        return inDesk;
-    }
+    View content() { return body; }
 
     View desk(String accountName) {
         ScrollView scroll = new ScrollView(activity);
@@ -91,6 +89,7 @@ final class WorkspaceShell {
             link(list, "Utilisation", "stats");
         }
         section(list, "Espace de travail");
+        link(list, "Mes écrans", "pages");
         link(list, "Nouvelle discussion", "new_thread");
         link(list, "Toutes les discussions", "threads");
         link(list, "Rappels", "reminders");
@@ -101,10 +100,10 @@ final class WorkspaceShell {
     }
 
     private void updateHeading() {
-        heading.setText(inDesk ? "Atelier" : threadTitle == null ? "Discussions" : threadTitle);
-        leading.setImageResource(inDesk ? R.drawable.ic_back : R.drawable.ic_threads);
-        leading.setContentDescription(inDesk ? "Revenir aux discussions" : "Toutes les discussions");
-        desk.setVisibility(inDesk ? View.GONE : View.VISIBLE);
+        heading.setText(pageTitle != null ? pageTitle : threadTitle == null ? "Discussions" : threadTitle);
+        leading.setImageResource(pageTitle != null ? R.drawable.ic_back : R.drawable.ic_threads);
+        leading.setContentDescription(pageTitle != null ? "Revenir à l’écran précédent" : "Toutes les discussions");
+        desk.setVisibility("Atelier".equals(pageTitle) ? View.GONE : View.VISIBLE);
     }
 
     private ImageButton icon(int resource, String name) {
@@ -122,11 +121,13 @@ final class WorkspaceShell {
         PopupMenu menu = new PopupMenu(activity, anchor);
         item(menu, "Nouvelle discussion", "new_thread");
         if (threadTitle != null) {
+            item(menu, "Vue de discussion d’origine", "native_thread");
             item(menu, "Renommer la discussion", "rename");
             item(menu, "Artefacts", "artifacts");
             item(menu, "Modèle et outils", "models");
             item(menu, "Utilisation", "stats");
         }
+        item(menu, "Mes écrans", "pages");
         item(menu, "Rappels", "reminders");
         item(menu, "Rétablir l’atelier", "restore");
         item(menu, "Verrouiller le profil", "profiles");

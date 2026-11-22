@@ -36,6 +36,23 @@ LAYOUT = {
 }
 
 
+# A deterministic model reply drives the Android proposal preview, explicit apply and native editor.
+DEVICE_WORKSPACES = [
+    {
+        "version": 1, "mode": "replace", "surface": "page/diagnostic", "title": "Diagnostic mobile",
+        "blocks": [
+            {"type": "value", "title": "Profil actif", "source": "profile.label"},
+            {"type": "form", "title": "Relecture", "prompt": "Relire ce fichier.",
+             "fields": [{"id": "fichier", "kind": "text", "label": "Fichier"}]},
+        ],
+    },
+    {
+        "version": 1, "surface": "thread", "title": "Écriture ciblée",
+        "blocks": [{"type": "content", "slots": ["composer", "notice"]}],
+    },
+]
+
+
 def check(condition, message):
     if not condition:
         raise AssertionError(message)
@@ -281,7 +298,12 @@ def main():
             )
         ):
             return ToolCall("write_file", {"path": "carre.py", "content": CODE_CONTENT})
-        if "Disposition de vérification" in str(prompt):
+        if "Vérifie mes écrans mobiles." in str(prompt):
+            reply = "Voici les deux dispositions demandées.\n\n" + "\n\n".join(
+                "```hermes-workspace\n" + json.dumps(layout, ensure_ascii=False) + "\n```"
+                for layout in DEVICE_WORKSPACES
+            )
+        elif "Disposition de vérification" in str(prompt):
             reply = (
                 "```hermes-workspace\n"
                 + json.dumps(LAYOUT, ensure_ascii=False)

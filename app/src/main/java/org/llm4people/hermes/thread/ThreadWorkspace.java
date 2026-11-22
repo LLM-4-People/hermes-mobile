@@ -15,6 +15,9 @@ import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.profile.Account;
 
 import java.util.UUID;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -43,6 +46,8 @@ public final class ThreadWorkspace implements AutoCloseable {
     private String session;
     private String remoteSession;
     private String title;
+    private long messageCount = -1;
+    private List<String> slotOrder = Collections.emptyList();
     private volatile int generation;
     private int inboxOffset;
     private int messageOffset;
@@ -76,6 +81,25 @@ public final class ThreadWorkspace implements AutoCloseable {
     public void dismissDialogs() { if (screen != null) screen.dismiss(); }
     public String sessionId() { return session; }
     public String remoteSessionId() { return remoteSession; }
+    public String title() { return session == null ? "" : title; }
+    public String messageCount() { return session == null || messageCount < 0 ? "" : Long.toString(messageCount); }
+
+    public void slots(List<String> order) {
+        slotOrder = new ArrayList<>(order);
+        if (screen != null) screen.slots(slotOrder);
+    }
+
+    public boolean editing() { return screen != null && screen.editing(); }
+    public void focusComposer() { if (screen != null) screen.focusComposer(); }
+
+    public void stageDraft(String text) {
+        if (journal == null || session == null || text == null || text.isEmpty()) return;
+        String current = journal.draft();
+        screen.displayDraft(current.isEmpty() ? text : current + "\n" + text);
+        queueSave();
+        screen.focusComposer();
+    }
+
     public JSONArray messages() { return messages; }
     public void resumeLast() {
         if (closed) return;
@@ -145,12 +169,14 @@ public final class ThreadWorkspace implements AutoCloseable {
                 });
     }
 
-    public void newThread() {
+    public void newThread() { newThread(null); }
+
+    public void newThread(Runnable afterOpen) {
         if (closed || creating) return;
-        create(UUID.randomUUID().toString());
+        create(UUID.randomUUID().toString(), afterOpen);
     }
 
-    private void create(String id) {
+    private void create(String id, Runnable afterOpen) {
         if (creating) return;
         creating = true;
         screen.notice("Création de la conversation…", "", null);
@@ -163,11 +189,12 @@ public final class ThreadWorkspace implements AutoCloseable {
         }, response -> {
             creating = false;
             JSONObject row = response.optJSONObject("session");
-            if (row == null || !id.equals(row.optString("id"))) { invalidReply(() -> create(id)); return; }
+            if (row == null || !id.equals(row.optString("id"))) { invalidReply(() -> create(id, afterOpen)); return; }
             open(new ThreadIdentity(id, id), ThreadData.title(row));
+            if (afterOpen != null && id.equals(session)) afterOpen.run();
         }, e -> {
             creating = false;
-            error(e, () -> create(id));
+            error(e, () -> create(id, afterOpen));
         });
     }
 
@@ -211,15 +238,8 @@ public final class ThreadWorkspace implements AutoCloseable {
             main.removeCallbacks(save);
             main.postDelayed(save, 300);
         }, run::send, run::stop, run::approve, () -> loadMessages(true, null));
+        screen.slots(slotOrder);
         host.selected(id, title);
-        int opened = generation;
-        request(() -> api.get(ThreadData.path(identity.tip)), response -> {
-            JSONObject row = response.optJSONObject("session");
-            if (row != null && opened == generation) {
-                title = ThreadData.title(row);
-                host.selected(session, title);
-            }
-        }, e -> Diagnostics.event("threads", "title_unavailable"));
         loadMessages(false, null);
         run.restore();
     }
@@ -252,7 +272,7 @@ public final class ThreadWorkspace implements AutoCloseable {
                     String value = input.getText().toString().trim();
                     if (value.isEmpty()) { screen.notice("Le titre est vide.", "Renommer", this::rename); return; }
                     request(() -> api.patch(ThreadData.path(target), ThreadData.put(new JSONObject(), "title", value)),
-                            r -> { title = value; host.selected(id, value); }, e -> error(e, this::rename));
+                            r -> { metadataRequest++; title = value; host.selected(id, value); }, e -> error(e, this::rename));
                 }));
     }
 
@@ -277,6 +297,7 @@ public final class ThreadWorkspace implements AutoCloseable {
             if (journal.pending() == null) {
                 screen.notice(messages.length() == 0 ? "Écrivez le premier message." : "", "", null);
             }
+            if (!older) refreshContext();
             if (loaded != null) loaded.run();
         }, e -> {
             if (requestNo != transcriptRequest) return;
@@ -284,6 +305,20 @@ public final class ThreadWorkspace implements AutoCloseable {
             error(e, () -> loadMessages(older, loaded));
         });
     }
+    private void refreshContext() {
+        String path = ThreadData.path(remoteSession);
+        int version = ++metadataRequest;
+        request(() -> api.get(path), response -> {
+            JSONObject row = response.optJSONObject("session");
+            if (row != null && metadataRequest == version) {
+                title = ThreadData.title(row);
+                messageCount = row.optLong("message_count", -1);
+                host.selected(session, title);
+            }
+        }, failure -> Diagnostics.event("threads", "metadata_unavailable"));
+    }
+
+    private int metadataRequest;
     private int transcriptRequest;
 
     public void onBackground() {
@@ -308,6 +343,7 @@ public final class ThreadWorkspace implements AutoCloseable {
         journal = null;
         messages = new JSONArray();
         messageOffset = 0;
+        messageCount = -1;
         screen = new ThreadViews(activity);
         container.removeAllViews();
         container.addView(screen.root);
