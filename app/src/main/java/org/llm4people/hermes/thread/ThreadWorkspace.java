@@ -115,6 +115,7 @@ public final class ThreadWorkspace implements AutoCloseable {
         updateStarters();
     }
 
+    public boolean composerVisible() { return screen != null && screen.composerVisible(); }
     public boolean editing() { return screen != null && screen.editing(); }
     public void focusComposer() { if (screen != null) screen.focusComposer(); }
 

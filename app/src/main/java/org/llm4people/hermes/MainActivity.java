@@ -265,7 +265,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         if (threads == null || text == null || text.trim().isEmpty()) return;
         dismissOverlays();
         Runnable edit = () -> {
-            navigate(WorkspaceNavigation.COMPOSER);
+            if (!threads.composerVisible()) navigate(WorkspaceNavigation.COMPOSER);
             threads.stageDraft(text);
         };
         if (threads.sessionId() != null) { edit.run(); return; }

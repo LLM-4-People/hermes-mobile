@@ -255,7 +255,8 @@ final class ThreadViews {
     }
 
     void focusComposer() { if (input != null) input.requestFocus(); }
-    boolean editing() { return input != null && input.hasFocus() && input.isShown(); }
+    boolean composerVisible() { return input != null && input.isShown(); }
+    boolean editing() { return composerVisible() && input.hasFocus(); }
 
     void clearDraft() { input.setText(""); }
 
