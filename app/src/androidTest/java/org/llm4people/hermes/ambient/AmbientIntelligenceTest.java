@@ -67,11 +67,14 @@ public final class AmbientIntelligenceTest extends InstrumentationTestCase {
                 AmbientNotification sample = new AmbientNotification(
                         "k1", "org.thoughtcrime.securesms", "Signal", "Marie",
                         "Marie", "On déjeune ensemble ?", System.currentTimeMillis(), true, "Répondre");
+                java.util.concurrent.atomic.AtomicReference<HermesNotificationListener.ReplyOutcome> outcome =
+                        new java.util.concurrent.atomic.AtomicReference<>();
                 AlertDialog replyDialog = HermesNotificationListener.showQuickReplyConfirmation(
-                        activity, sample, "Avec plaisir !", null);
+                        activity, sample, "Avec plaisir !", outcome::set);
                 assertTrue((replyDialog.getWindow().getAttributes().flags
                         & WindowManager.LayoutParams.FLAG_SECURE) != 0);
-                replyDialog.dismiss();
+                replyDialog.cancel();
+                assertEquals(HermesNotificationListener.ReplyOutcome.CANCELLED, outcome.get());
 
                 MediaContextBridge.NowPlaying track = new MediaContextBridge.NowPlaying(
                         "com.example.music", "Music", "Clair de Lune", "Debussy", "",

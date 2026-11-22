@@ -41,12 +41,19 @@ import java.util.function.Consumer;
 public final class HermesNotificationListener extends NotificationListenerService {
     private static final int MAX_REPLY_CHARS = 1000;
 
+    public enum ReplyOutcome {
+        SENT,
+        FAILED,
+        CANCELLED
+    }
+
     private record ReplyHandle(PendingIntent actionIntent, RemoteInput remoteInput, String label) {}
 
     private static final Object LOCK = new Object();
     private static final Map<String, AmbientNotification> BUFFER = new LinkedHashMap<>();
     private static final Map<String, ReplyHandle> REPLY_HANDLES = new HashMap<>();
     private static volatile Set<String> activeAllowlist = Collections.emptySet();
+    private static long sessionEpoch = 0L;
     private static volatile HermesNotificationListener connectedInstance;
 
     public static ComponentName componentName(Context context) {
@@ -83,6 +90,7 @@ public final class HermesNotificationListener extends NotificationListenerServic
         Set<String> sanitized = sanitizeAllowlist(allowedPackages);
         HermesNotificationListener service;
         synchronized (LOCK) {
+            sessionEpoch++;
             activeAllowlist = sanitized;
             BUFFER.clear();
             REPLY_HANDLES.clear();
@@ -97,11 +105,33 @@ public final class HermesNotificationListener extends NotificationListenerServic
     /** Clear all in-memory third-party notification content and reply handles on lock or forget. */
     public static void clearSession() {
         synchronized (LOCK) {
+            sessionEpoch++;
             activeAllowlist = Collections.emptySet();
             BUFFER.clear();
             REPLY_HANDLES.clear();
         }
         Diagnostics.event("ambient", "session_cleared");
+    }
+
+    static long currentSessionEpoch() {
+        synchronized (LOCK) {
+            return sessionEpoch;
+        }
+    }
+
+    static boolean commitBufferedIfCurrent(long expectedEpoch, Set<String> expectedAllowlist,
+                                           AmbientNotification item, ReplyHandle reply) {
+        synchronized (LOCK) {
+            if (sessionEpoch != expectedEpoch || activeAllowlist != expectedAllowlist || activeAllowlist.isEmpty()) {
+                return false;
+            }
+            BUFFER.remove(item.key);
+            BUFFER.put(item.key, item);
+            if (reply != null) REPLY_HANDLES.put(item.key, reply);
+            else REPLY_HANDLES.remove(item.key);
+            trimBufferLocked();
+            return true;
+        }
     }
 
     /** Bounded newest-first snapshot of currently buffered sanitized notifications (max 40). */
@@ -176,7 +206,7 @@ public final class HermesNotificationListener extends NotificationListenerServic
             Activity activity,
             AmbientNotification item,
             String initialDraft,
-            Consumer<Boolean> onResult) {
+            Consumer<ReplyOutcome> onResult) {
         LinearLayout content = Ui.column(activity);
         Ui.pad(content, 20, 12);
         TextView target = Ui.text(activity,
@@ -200,11 +230,14 @@ public final class HermesNotificationListener extends NotificationListenerServic
                 .setTitle(R.string.ambient_reply_title)
                 .setView(content)
                 .setNegativeButton(R.string.ambient_reply_cancel, (d, w) -> {
-                    if (onResult != null) onResult.accept(false);
+                    if (onResult != null) onResult.accept(ReplyOutcome.CANCELLED);
+                })
+                .setOnCancelListener(d -> {
+                    if (onResult != null) onResult.accept(ReplyOutcome.CANCELLED);
                 })
                 .setPositiveButton(R.string.ambient_reply_send, (d, w) -> {
                     boolean sent = sendReviewedReply(activity, item.key, editor.getText().toString(), true);
-                    if (onResult != null) onResult.accept(sent);
+                    if (onResult != null) onResult.accept(sent ? ReplyOutcome.SENT : ReplyOutcome.FAILED);
                 });
         return Ui.secureDialog(builder);
     }
@@ -253,7 +286,12 @@ public final class HermesNotificationListener extends NotificationListenerServic
     }
 
     private void ingest(StatusBarNotification sbn) {
-        Set<String> allowlist = activeAllowlist;
+        final Set<String> allowlist;
+        final long epoch;
+        synchronized (LOCK) {
+            allowlist = activeAllowlist;
+            epoch = sessionEpoch;
+        }
         if (allowlist.isEmpty()) return;
         Notification notification = sbn.getNotification();
         if (notification == null) return;
@@ -282,8 +320,10 @@ public final class HermesNotificationListener extends NotificationListenerServic
         if (decision != NotificationPrivacyGuard.Decision.ALLOW) {
             // Never retain previously buffered entry if an updated notification becomes blocked.
             synchronized (LOCK) {
-                BUFFER.remove(sbn.getKey());
-                REPLY_HANDLES.remove(sbn.getKey());
+                if (sessionEpoch == epoch && activeAllowlist == allowlist) {
+                    BUFFER.remove(sbn.getKey());
+                    REPLY_HANDLES.remove(sbn.getKey());
+                }
             }
             return;
         }
@@ -300,14 +340,7 @@ public final class HermesNotificationListener extends NotificationListenerServic
                 reply != null,
                 reply != null ? reply.label() : "");
 
-        synchronized (LOCK) {
-            if (activeAllowlist.isEmpty()) return;
-            BUFFER.remove(item.key);
-            BUFFER.put(item.key, item);
-            if (reply != null) REPLY_HANDLES.put(item.key, reply);
-            else REPLY_HANDLES.remove(item.key);
-            trimBufferLocked();
-        }
+        commitBufferedIfCurrent(epoch, allowlist, item, reply);
     }
 
     private static void trimBufferLocked() {

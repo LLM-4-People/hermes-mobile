@@ -79,5 +79,9 @@ public final class CalendarContextReaderTest {
                 MediaContextBridge.PlaybackKind.PLAYING, 5000, 300000);
         assertEquals(playing, MediaContextBridge.selectPrimarySession(List.of(paused, playing)));
         assertTrue(playing.toSanitizedJson().contains("\"state\":\"playing\""));
+        // Confirmed media control target lookup must fail closed when target package disappeared.
+        assertEquals(paused, MediaContextBridge.selectTargetSession(List.of(paused, playing), "com.example.podcast"));
+        org.junit.Assert.assertNull(
+                MediaContextBridge.selectTargetSession(List.of(paused, playing), "com.spotify.music"));
     }
 }

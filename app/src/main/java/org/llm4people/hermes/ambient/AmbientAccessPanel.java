@@ -383,9 +383,14 @@ public final class AmbientAccessPanel {
                             R.string.ambient_draft_calendar, item.displaySource(), item.displaySender(), item.displayBody()))));
             if (item.replyable) {
                 row2.addView(Ui.button(activity, activity.getString(R.string.ambient_action_reply),
-                        v -> HermesNotificationListener.showQuickReplyConfirmation(activity, item, "", sent -> {
-                            showFeedback(sent ? R.string.ambient_reply_sent : R.string.ambient_reply_failed, !sent);
-                            renderDigest();
+                        v -> HermesNotificationListener.showQuickReplyConfirmation(activity, item, "", outcome -> {
+                            if (outcome == HermesNotificationListener.ReplyOutcome.SENT) {
+                                showFeedback(R.string.ambient_reply_sent, false);
+                                renderDigest();
+                            } else if (outcome == HermesNotificationListener.ReplyOutcome.FAILED) {
+                                showFeedback(R.string.ambient_reply_failed, true);
+                                renderDigest();
+                            }
                         })));
             } else {
                 row2.addView(Ui.button(activity, activity.getString(R.string.ambient_action_reply),

@@ -207,11 +207,32 @@ public final class MediaContextBridge {
         return new NowPlaying(pkg, resolveLabel(context, pkg), title, artist, album, kind, position, duration);
     }
 
-    private static MediaController findController(List<MediaController> controllers, String targetPackage) {
-        if (targetPackage != null && !targetPackage.isEmpty()) {
-            for (MediaController c : controllers) {
-                if (targetPackage.equals(c.getPackageName())) return c;
+    /**
+     * Select the session matching an explicit {@code targetPackage} (fail closed: returns {@code null}
+     * if {@code targetPackage} is specified but not present — never falls through to another app).
+     * When {@code targetPackage} is null/empty, delegates to {@link #selectPrimarySession(List)}.
+     */
+    public static NowPlaying selectTargetSession(List<NowPlaying> sessions, String targetPackage) {
+        if (sessions == null || sessions.isEmpty()) return null;
+        if (targetPackage != null && !targetPackage.trim().isEmpty()) {
+            String wanted = targetPackage.trim();
+            for (NowPlaying item : sessions) {
+                if (wanted.equals(item.packageName())) return item;
             }
+            return null;
+        }
+        return selectPrimarySession(sessions);
+    }
+
+    private static MediaController findController(List<MediaController> controllers, String targetPackage) {
+        if (targetPackage != null && !targetPackage.trim().isEmpty()) {
+            String wanted = targetPackage.trim();
+            for (MediaController c : controllers) {
+                if (wanted.equals(c.getPackageName())) return c;
+            }
+            // Fail closed: never redirect a confirmed control action to a different media app.
+            Diagnostics.warning("ambient", "media_target_missing");
+            return null;
         }
         for (MediaController c : controllers) {
             PlaybackState st = c.getPlaybackState();
