@@ -133,6 +133,49 @@ public class ThreadSlotsTest extends InstrumentationTestCase {
         } finally { runTestOnUiThread(activity::finish); }
     }
 
+    public void testEmptyStartersFollowAvailableHeightAndDraftChangesSendState() throws Throwable {
+        Context context = getInstrumentation().getTargetContext();
+        Intent launch = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
+        Activity activity = getInstrumentation().startActivitySync(launch);
+        try {
+            runTestOnUiThread(() -> {
+                ThreadViews thread = new ThreadViews(activity);
+                thread.chat("", ignored -> {}, () -> fail("Unexpected send"), () -> {}, () -> {});
+                ThreadStarters starters = new ThreadStarters(thread.list, ignored -> {});
+                activity.setContentView(thread.root);
+                starters.show(true);
+                layout(thread.root, 320, 540);
+                assertTrue(thread.list.isStackFromBottom());
+                layout(thread.root, 320, 140);
+                assertFalse(thread.list.isStackFromBottom());
+                layout(thread.root, 320, 540);
+                assertTrue(thread.list.isStackFromBottom());
+                starters.show(false);
+                assertFalse(thread.list.isStackFromBottom());
+
+                TextView send = (TextView) find(thread.root, "Envoyer");
+                assertFalse(send.isEnabled());
+                int disabledInk = send.getCurrentTextColor();
+                thread.displayDraft("Une question");
+                assertTrue(send.isEnabled());
+                assertTrue(disabledInk != send.getCurrentTextColor());
+                thread.busy(true, true);
+                assertEquals(View.GONE, send.getVisibility());
+                assertTrue(find(thread.root, "Arrêter").isShown());
+                thread.busy(false, false);
+                assertTrue(send.isShown());
+                assertEquals("Une question", thread.draft());
+            });
+        } finally { runTestOnUiThread(activity::finish); }
+    }
+
+    private static void layout(View view, int width, int height) {
+        int w = Ui.dp(view.getContext(), width), h = Ui.dp(view.getContext(), height);
+        view.measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(h, View.MeasureSpec.EXACTLY));
+        view.layout(0, 0, w, h);
+    }
+
     private static View find(View view, String label) {
         ArrayList<View> matches = new ArrayList<>();
         view.findViewsWithText(matches, label, View.FIND_VIEWS_WITH_CONTENT_DESCRIPTION | View.FIND_VIEWS_WITH_TEXT);

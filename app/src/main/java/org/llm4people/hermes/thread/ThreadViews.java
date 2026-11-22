@@ -3,6 +3,7 @@ package org.llm4people.hermes.thread;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
+import android.graphics.drawable.ColorDrawable;
 import android.graphics.Typeface;
 import android.text.Editable;
 import android.text.InputType;
@@ -80,9 +81,16 @@ final class ThreadViews {
     void inbox(Runnable create, Consumer<JSONObject> choose, Runnable next) {
         reset(false);
         Button newThread = Ui.button(activity, "Nouvelle conversation", v -> create.run());
+        newThread.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+        newThread.setTextSize(16);
+        Ui.pad(newThread, 18, 4);
+        newThread.setCompoundDrawablesRelativeWithIntrinsicBounds(0, 0, R.drawable.thread_new, 0);
         root.addView(newThread);
+        root.addView(Ui.divider(activity));
+        list.setDivider(new ColorDrawable(activity.getColor(R.color.line)));
+        list.setDividerHeight(Ui.dp(activity, 1));
         more = Ui.button(activity, "Afficher la suite", v -> next.run());
-        list.addFooterView(more, null, false);
+        list.addFooterView(pagingSlot(), null, false);
         bindList();
         list.setOnItemClickListener((parent, view, pos, id) -> {
             JSONObject session = rows.optJSONObject(pos);
@@ -94,7 +102,7 @@ final class ThreadViews {
               Runnable older) {
         reset(true);
         more = Ui.button(activity, "Messages précédents", v -> older.run());
-        list.addHeaderView(more, null, false);
+        list.addHeaderView(pagingSlot(), null, false);
         LinearLayout live = Ui.column(activity);
         Ui.pad(live, 18, 3);
         progress = Ui.text(activity, "", 13);
@@ -130,6 +138,12 @@ final class ThreadViews {
         input.setSingleLine(false);
         input.setMaxLines(4);
         input.setMinHeight(Ui.dp(activity, 48));
+        input.setBackground(null);
+        input.setTextColor(activity.getColor(R.color.ink));
+        input.setHintTextColor(activity.getColor(R.color.muted));
+        input.setTextSize(17);
+        input.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+        input.setPaddingRelative(Ui.dp(activity, 10), Ui.dp(activity, 6), 0, Ui.dp(activity, 6));
         input.setHint("Message à Hermes");
         input.setText(draft);
         input.setSelection(input.length());
@@ -140,8 +154,27 @@ final class ThreadViews {
             onSend.run();
         });
         stop = Ui.button(activity, "Arrêter", v -> onStop.run());
-        composer.addView(input, new LinearLayout.LayoutParams(0, -2, 1));
-        composer.addView(composerVoice.button);
+        LinearLayout writing = Ui.row(activity);
+        writing.setGravity(Gravity.BOTTOM);
+        writing.setBaselineAligned(false);
+        writing.setAddStatesFromChildren(true);
+        writing.setBackgroundResource(R.drawable.profile_input);
+        writing.addView(input, new LinearLayout.LayoutParams(0, -2, 1));
+        writing.addView(composerVoice.button);
+        LinearLayout.LayoutParams writingSize = new LinearLayout.LayoutParams(0, -2, 1);
+        writingSize.setMarginEnd(Ui.dp(activity, 6));
+        composer.addView(writing, writingSize);
+        for (Button action : new Button[]{send, stop}) {
+            action.setMinWidth(Ui.dp(activity, 48));
+            action.setMinimumWidth(Ui.dp(activity, 48));
+            Ui.pad(action, 10, 4);
+        }
+        send.setBackgroundResource(R.drawable.thread_send);
+        send.setBackgroundTintList(null);
+        send.setTextColor(activity.getColorStateList(R.color.thread_send_ink));
+        stop.setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.thread_stop, 0, 0, 0);
+        stop.setCompoundDrawablePadding(Ui.dp(activity, 4));
+        stop.setTextColor(activity.getColor(R.color.ink));
         composer.addView(send);
         composer.addView(stop);
         composerSlot = Ui.column(activity);
@@ -167,6 +200,13 @@ final class ThreadViews {
         rows = new JSONArray();
         root.addView(noticeSlot);
         notice("", "", null);
+    }
+
+    private FrameLayout pagingSlot() {
+        // ListView measures a fixed header/footer even when the view itself is GONE.
+        FrameLayout slot = new FrameLayout(activity);
+        slot.addView(more);
+        return slot;
     }
 
     private void bindList() {
@@ -331,10 +371,15 @@ final class ThreadViews {
         Cell(Context context) {
             super(context);
             setOrientation(VERTICAL);
-            Ui.pad(this, 18, 9);
+            Ui.pad(this, 18, transcript ? 9 : 12);
             setMinimumHeight(Ui.dp(context, 48));
             heading = Ui.text(context, "", 13);
             body = Ui.text(context, "", 17);
+            if (!transcript) {
+                body.setPadding(0, Ui.dp(context, 2), 0, 0);
+                heading.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                body.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            }
             addView(heading);
             addView(body);
         }
