@@ -5,8 +5,12 @@ import android.content.Context;
 import android.graphics.Typeface;
 import android.text.SpannableStringBuilder;
 import android.text.Spanned;
+import android.text.style.BulletSpan;
 import android.text.style.ForegroundColorSpan;
+import android.text.style.LeadingMarginSpan;
+import android.text.style.RelativeSizeSpan;
 import android.text.style.StyleSpan;
+import android.text.style.TabStopSpan;
 import android.view.View;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -34,9 +38,9 @@ public final class InstrumentPreview {
 
     /** Reads only the two declarative definitions. No profile, field answers or storage access is needed. */
     public static View compare(Activity activity, String previousPageJson, String nextPageJson) {
-        List<InstrumentChanges.Change> changes;
+        List<InstrumentChanges.Detail> changes;
         try {
-            changes = InstrumentChanges.between(page(previousPageJson), page(nextPageJson));
+            changes = InstrumentChanges.details(page(previousPageJson), page(nextPageJson));
         } catch (IOException invalid) {
             return status(activity, "Comparaison indisponible. Rouvrez les versions depuis la discussion.");
         }
@@ -46,16 +50,17 @@ public final class InstrumentPreview {
         body.setSaveFromParentEnabled(false);
         Ui.pad(body, 16, 4);
         String prior = "";
-        for (InstrumentChanges.Change change : changes) {
+        for (InstrumentChanges.Detail detail : changes) {
+            InstrumentChanges.Change change = detail.change();
             if (!change.section().equals(prior) && !change.section().isEmpty()) {
-                TextView heading = Ui.text(activity, change.section(), 18);
+                TextView heading = Ui.text(activity, change.section(), 16);
                 heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
                 heading.setAccessibilityHeading(true);
-                Ui.pad(heading, 0, 10);
+                heading.setPadding(0, Ui.dp(activity, 12), 0, Ui.dp(activity, 4));
                 body.addView(heading);
             }
             prior = change.section();
-            body.addView(changeRow(activity, change));
+            body.addView(changeRow(activity, detail));
             body.addView(Ui.divider(activity));
         }
         return body;
@@ -67,26 +72,79 @@ public final class InstrumentPreview {
         return layout;
     }
 
-    private static TextView changeRow(Context context, InstrumentChanges.Change change) {
-        SpannableStringBuilder copy = new SpannableStringBuilder();
-        copy.append(change.label(), new StyleSpan(Typeface.BOLD), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-        boolean pair = change.before() != null && change.after() != null;
-        if (change.before() != null) append(context, copy, pair ? "Avant" : "", change.before(), R.color.muted);
-        if (change.after() != null) append(context, copy, pair ? "Après" : "", change.after(), R.color.ink);
+    private static TextView changeRow(Context context, InstrumentChanges.Detail detail) {
+        InstrumentChanges.Change change = detail.change();
+        InstrumentChanges.FieldDescription field = detail.afterField() == null ? detail.beforeField() : detail.afterField();
         TextView row = Ui.text(context, "", 16);
+        SpannableStringBuilder copy = new SpannableStringBuilder();
+        boolean pair = change.before() != null && change.after() != null;
+        if (field != null && !pair) {
+            copy.append(field.name(), new StyleSpan(Typeface.BOLD), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            span(copy, new RelativeSizeSpan(19f / 16), 0);
+            copy.append('\n');
+            int metadata = copy.length();
+            copy.append(change.label()).append(" · ").append(field.requirement());
+            span(copy, new RelativeSizeSpan(14f / 16), metadata);
+            span(copy, new ForegroundColorSpan(context.getColor(R.color.muted)), metadata);
+            appendOptions(context, copy, field, 0, context.getColor(R.color.muted));
+        } else {
+            copy.append(change.label(), new StyleSpan(Typeface.BOLD), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            if (change.before() != null) appendValue(row, copy, pair ? "Avant" : "",
+                    change.before(), detail.beforeField(), R.color.muted);
+            if (change.after() != null) appendValue(row, copy, pair ? "Après" : "",
+                    change.after(), detail.afterField(), R.color.ink);
+        }
+        row.setLineSpacing(Ui.dp(context, 3), 1);
         row.setText(copy);
-        row.setLineSpacing(Ui.dp(context, 2), 1);
         Ui.pad(row, 0, 10);
         return row;
     }
 
-    private static void append(Context context, SpannableStringBuilder copy, String label, String value, int color) {
+    private static void appendValue(TextView row, SpannableStringBuilder copy, String label, String value,
+                                    InstrumentChanges.FieldDescription field, int color) {
+        Context c = row.getContext();
         copy.append('\n');
         int start = copy.length();
-        if (!label.isEmpty()) copy.append(label + "  ", new StyleSpan(Typeface.BOLD), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-        copy.append(value);
-        copy.setSpan(new ForegroundColorSpan(context.getColor(color)), start, copy.length(),
-                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        if (label.isEmpty()) {
+            copy.append(value);
+        } else {
+            int gutter = (int) Math.ceil(row.getPaint().measureText("Après")) + Ui.dp(c, 12);
+            copy.append(label, new StyleSpan(Typeface.BOLD), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            span(copy, new RelativeSizeSpan(14f / 16), start);
+            copy.append('\t');
+            int valueStart = copy.length();
+            copy.append(field == null ? value : field.name());
+            int newline = value.indexOf('\n');
+            int firstEnd = field != null || newline < 0 ? copy.length() : valueStart + newline + 1;
+            copy.setSpan(new TabStopSpan.Standard(gutter), start, firstEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            copy.setSpan(new LeadingMarginSpan.Standard(0, gutter), start, firstEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            if (firstEnd < copy.length()) span(copy, new LeadingMarginSpan.Standard(gutter), firstEnd);
+            if (field != null) {
+                span(copy, new StyleSpan(Typeface.BOLD), valueStart);
+                copy.append('\n');
+                int requirement = copy.length();
+                copy.append(field.requirement());
+                span(copy, new LeadingMarginSpan.Standard(gutter), requirement);
+                span(copy, new RelativeSizeSpan(14f / 16), requirement);
+                appendOptions(c, copy, field, gutter, c.getColor(color));
+            }
+        }
+        span(copy, new ForegroundColorSpan(c.getColor(color)), start);
+    }
+
+    private static void appendOptions(Context c, SpannableStringBuilder copy,
+                                      InstrumentChanges.FieldDescription field, int gutter, int bulletColor) {
+        for (String option : field.options()) {
+            copy.append('\n');
+            int start = copy.length();
+            copy.append(option);
+            if (gutter > 0) span(copy, new LeadingMarginSpan.Standard(gutter), start);
+            span(copy, new BulletSpan(Ui.dp(c, 8), bulletColor, Ui.dp(c, 2)), start);
+        }
+    }
+
+    private static void span(SpannableStringBuilder copy, Object style, int start) {
+        copy.setSpan(style, start, copy.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
     }
 
     private static View status(Context c, String text) {
