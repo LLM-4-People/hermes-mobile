@@ -151,6 +151,27 @@ final class ThreadJournal {
         }
     }
 
+    JSONObject nearbyDraft() {
+        JSONObject saved = state.optJSONObject("nearby_draft");
+        return saved != null && owner.equals(saved.optString("owner")) ? saved : null;
+    }
+
+    void nearbyDraft(String mode, String area) {
+        if (pending() != null) throw new IllegalStateException("Draft is pending");
+        JSONObject previous = state.optJSONObject("nearby_draft");
+        JSONObject saved = ThreadData.put(new JSONObject(), "owner", owner);
+        ThreadData.put(saved, "mode", mode);
+        ThreadData.put(saved, "area", area);
+        ThreadData.put(state, "nearby_draft", saved);
+        revision++;
+        try { flush(); }
+        catch (RuntimeException failed) {
+            ThreadData.put(state, "nearby_draft", previous);
+            revision++;
+            throw failed;
+        }
+    }
+
     JSONObject photo() { return state.optJSONObject("photo"); }
 
     boolean photoOwned() { return photo() == null || owner.equals(photo().optString("owner")); }
@@ -184,6 +205,10 @@ final class ThreadJournal {
     }
 
     JSONObject stage(JSONObject body, long elapsed, int boot, long ttl, boolean durable) {
+        return stage(body, elapsed, boot, ttl, durable, null);
+    }
+
+    JSONObject stage(JSONObject body, long elapsed, int boot, long ttl, boolean durable, JSONObject guideArea) {
         if (pending() != null || !ThreadData.validId(ThreadData.string(body, "session_id"))) throw new IllegalStateException("Invalid admission");
         JSONObject run = new JSONObject();
         ThreadData.put(run, "key", UUID.randomUUID().toString());
@@ -194,9 +219,13 @@ final class ThreadJournal {
         ThreadData.put(run, "boot", boot);
         ThreadData.put(run, "ttl", ttl);
         ThreadData.put(run, "durable", durable);
+        if (NearbyTurn.validDevice(guideArea)) ThreadData.put(run, "nearby_guide", guideArea);
         String oldDraft = draft();
         JSONObject originalPhoto = photo();
         if (!photoOwned()) throw new IllegalStateException("Image owner changed");
+        JSONObject originalNearby = state.optJSONObject("nearby_draft");
+        ThreadData.put(run, "nearby_draft_retry", nearbyDraft());
+        state.remove("nearby_draft");
         ThreadData.put(run, "photo", originalPhoto);
         state.remove("photo");
         ThreadData.put(state, "pending", run);
@@ -206,6 +235,7 @@ final class ThreadJournal {
             flush();
         } catch (RuntimeException e) {
             state.remove("pending");
+            ThreadData.put(state, "nearby_draft", originalNearby);
             ThreadData.put(state, "photo", originalPhoto);
             draft(oldDraft);
             revision++;
@@ -271,7 +301,9 @@ final class ThreadJournal {
         String oldDraft = draft();
         JSONObject originalPhoto = previous.optJSONObject("photo");
         JSONObject oldPhoto = photo();
+        JSONObject oldNearby = state.optJSONObject("nearby_draft");
         state.remove(slot);
+        if (rejected) ThreadData.put(state, "nearby_draft", previous.optJSONObject("nearby_draft_retry"));
         if (rejected && originalPhoto != null) ThreadData.put(state, "photo", originalPhoto);
         draft(newDraft);
         revision++;
@@ -279,6 +311,7 @@ final class ThreadJournal {
             if (originalPhoto != null && !rejected) commitPhoto(null);
             else flush();
         } catch (RuntimeException error) {
+            ThreadData.put(state, "nearby_draft", oldNearby);
             ThreadData.put(state, "photo", oldPhoto);
             ThreadData.put(state, slot, previous);
             draft(oldDraft);

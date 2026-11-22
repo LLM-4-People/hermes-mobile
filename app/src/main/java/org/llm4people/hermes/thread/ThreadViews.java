@@ -38,6 +38,7 @@ final class ThreadViews {
     private final LinearLayout notice;
     private final LinearLayout noticeSlot;
     private LinearLayout composerSlot;
+    private Button nearbyStatus;
     private LinearLayout photoSlot;
     private boolean importingPhoto;
     private boolean runActive;
@@ -189,6 +190,11 @@ final class ThreadViews {
         Ui.pad(photoSlot, 8, 0);
         photoSlot.setVisibility(View.GONE);
         composerSlot.addView(photoSlot);
+        nearbyStatus = Ui.button(activity, "", null);
+        nearbyStatus.setAllCaps(false);
+        nearbyStatus.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+        nearbyStatus.setVisibility(View.GONE);
+        composerSlot.addView(nearbyStatus);
         composerSlot.addView(composerVoice.feedback);
         composerSlot.addView(composer);
         root.addView(composerSlot);
@@ -315,6 +321,13 @@ final class ThreadViews {
     void importingPhoto(boolean importing) {
         importingPhoto = importing;
         updateSend();
+    }
+
+    void nearbyStatus(String label, Runnable open) {
+        if (nearbyStatus == null) return;
+        nearbyStatus.setText(label);
+        nearbyStatus.setOnClickListener(v -> open.run());
+        nearbyStatus.setVisibility(label.isEmpty() ? View.GONE : View.VISIBLE);
     }
 
     void photo(JSONObject info, Runnable remove) {

@@ -222,6 +222,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             case "previous": back(); break;
             case "return": displayDiscussion(); break;
             case "pages": navigate(WorkspaceNavigation.GALLERY); break;
+            case "nearby_area": if (threads != null) threads.editNearbyArea(); break;
             case "attach_photo": photoPicker.launch(account, threads); break;
             case "native_thread": navigate(WorkspaceNavigation.COMPOSER); break;
             case "threads": displayDiscussion(); threads.inbox(); break;
@@ -445,6 +446,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
 
     @Override public void onRequestPermissionsResult(int code, String[] permissions, int[] results) {
         super.onRequestPermissionsResult(code, permissions, results);
+        if (threads != null && threads.nearbyPermission(code, permissions, results)) return;
         if (!voice.permissionResult(code, permissions, results)) push.onPermissionResult(code);
     }
 
@@ -486,6 +488,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     }
 
     @Override protected void onPause() {
+        if (threads != null) threads.pauseNearbyFix();
         voice.pause();
         super.onPause();
     }

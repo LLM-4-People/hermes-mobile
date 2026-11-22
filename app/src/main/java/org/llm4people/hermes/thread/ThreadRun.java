@@ -40,6 +40,7 @@ final class ThreadRun {
             ui.notice("Le profil a changé. Retirez l’image et sélectionnez-la de nouveau.", "", null);
             return;
         }
+        if (!page.nearby.beforeSend(text, () -> { if (text.equals(ui.draft())) send(); })) return;
         JSONObject options;
         try {
             options = page.host.options(page.sessionId());
@@ -93,6 +94,7 @@ final class ThreadRun {
     private void submitWithCapabilities(JSONObject body, boolean fresh) {
         if (submitting) return;
         JSONObject selectedPhoto = journal.photo();
+        long nearbyVersion = page.nearby.version();
         submitting = true;
         ui.busy(true, false);
         ui.notice(fresh ? "Préparation de l’envoi…" : "Vérification de l’envoi…", "", null);
@@ -119,15 +121,18 @@ final class ThreadRun {
                 keepCompletionPosition = false;
                 // Edits while capability discovery was in flight must stay in the composer.
                 String snapshot = ThreadData.string(body, "input");
-                if (!snapshot.equals(ui.draft()) || selectedPhoto != journal.photo()) {
+                JSONObject area = page.nearby.frozen();
+                if (!snapshot.equals(ui.draft()) || selectedPhoto != journal.photo() || !page.nearby.stillCurrent(nearbyVersion, area)) {
                     admissionFinished();
                     ui.busy(false, false);
                     ui.notice("Le brouillon a changé. Vous pouvez l’envoyer.", "", null);
                     return;
                 }
                 try {
+                    NearbyTurn.attach(body, area);
                     journal.stage(body, SystemClock.elapsedRealtime(), bootCount(), idem.optLong("retention_seconds"),
-                            idem.optBoolean("durable"));
+                            idem.optBoolean("durable"), area);
+                    page.nearby.clearTurn();
                 } catch (IllegalStateException e) {
                     admissionFinished();
                     ui.busy(false, false);
@@ -187,6 +192,7 @@ final class ThreadRun {
             if (fresh && (imageUnavailable || error instanceof HermesApi.HttpError http
                     && (http.status == 400 || http.status == 401 || http.status == 403 || http.status == 413 || http.status == 422))) {
                 journal.reject();
+                page.nearby.restore();
                 ui.displayDraft(journal.draft());
                 page.refreshPhoto();
                 ui.outgoing("");
@@ -380,7 +386,10 @@ final class ThreadRun {
         boolean keepPosition = keepCompletionPosition;
         keepCompletionPosition = false;
         page.loadMessages(false, owner.guard(() -> {
+            JSONObject receipt = journal.pending();
+            JSONObject source = journal.sameOwner() ? NearbyTurn.response(receipt, status, page.messages()) : null;
             if (finishTracking()) return;
+            if (source != null) page.host.nearbyGuide(page.sessionId(), owner.run, source, receipt.optJSONObject("nearby_guide"));
             ui.outgoing("");
             ui.busy(false, false);
             boolean visible = false;
