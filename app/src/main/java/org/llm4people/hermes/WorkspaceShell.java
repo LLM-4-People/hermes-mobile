@@ -48,26 +48,26 @@ final class WorkspaceShell {
         root.setBackgroundColor(activity.getColor(R.color.paper));
         header = Ui.row(activity);
         Ui.pad(header, 6, 2);
-        leading = icon(R.drawable.ic_threads, "Discussions");
+        leading = icon(R.drawable.ic_threads, activity.getString(R.string.ws_discussions));
         leading.setOnClickListener(v -> action.accept(
                 pageTitle != null ? "previous" : canTogglePanes ? "toggle_discussions" : "threads"));
         header.addView(leading);
-        heading = Ui.text(activity, "Discussions", 20);
+        heading = Ui.text(activity, activity.getString(R.string.ws_discussions), 20);
         heading.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         heading.setMaxLines(2);
         heading.setEllipsize(TextUtils.TruncateAt.END);
         Ui.pad(heading, 6, 2);
         heading.setAccessibilityHeading(true);
         header.addView(heading, new LinearLayout.LayoutParams(0, -2, 1));
-        desk = icon(R.drawable.ic_desk, "Atelier");
+        desk = icon(R.drawable.ic_desk, activity.getString(R.string.ws_desk));
         desk.setOnClickListener(v -> action.accept("workspace"));
         header.addView(desk);
-        ImageButton more = icon(R.drawable.ic_more, "Autres actions");
+        ImageButton more = icon(R.drawable.ic_more, activity.getString(R.string.ws_more_actions));
         more.setOnClickListener(this::menu);
         header.addView(more);
         root.addView(header);
         root.addView(Ui.divider(activity));
-        pending = Ui.button(activity, "Répondre à Hermes", null);
+        pending = Ui.button(activity, activity.getString(R.string.ws_reply_hermes), null);
         pending.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         pending.setVisibility(View.GONE);
         root.addView(pending);
@@ -122,32 +122,34 @@ final class WorkspaceShell {
         scroll.addView(list, new ScrollView.LayoutParams(-1, -2));
         if (threadTitle != null) {
             section(list, threadTitle);
-            link(list, "Reprendre la discussion", "return");
-            link(list, "Artefacts", "artifacts");
-            link(list, "Modèle et outils", "models");
-            link(list, "Utilisation", "stats");
+            link(list, activity.getString(R.string.ws_resume_discussion), "return");
+            link(list, activity.getString(R.string.ws_artifacts), "artifacts");
+            link(list, activity.getString(R.string.ws_model_and_tools), "models");
+            link(list, activity.getString(R.string.ws_usage), "stats");
         }
-        section(list, "Espace de travail");
-        link(list, "Mes écrans", "pages");
-        link(list, "Nouvelle discussion", "new_thread");
-        link(list, "Toutes les discussions", "threads");
-        link(list, "Rappels", "reminders");
+        section(list, activity.getString(R.string.ws_workspace));
+        link(list, activity.getString(R.string.ws_my_screens), "pages");
+        link(list, activity.getString(R.string.ws_new_discussion), "new_thread");
+        link(list, activity.getString(R.string.ws_all_discussions), "threads");
+        link(list, activity.getString(R.string.ws_reminders), "reminders");
         section(list, accountName);
-        link(list, "Notifications", "notifications");
-        link(list, "Verrouiller le profil", "profiles");
+        link(list, activity.getString(R.string.ws_notifications), "notifications");
+        link(list, activity.getString(R.string.language_action), "language");
+        link(list, activity.getString(R.string.ws_lock_profile), "profiles");
         return scroll;
     }
 
     private void updateHeading() {
-        heading.setText(pageTitle != null ? pageTitle : threadTitle == null ? "Discussions" : threadTitle);
+        heading.setText(pageTitle != null ? pageTitle
+                : threadTitle == null ? activity.getString(R.string.ws_discussions) : threadTitle);
         leading.setImageResource(pageTitle != null ? R.drawable.ic_back : R.drawable.ic_threads);
-        String description = pageTitle != null ? "Revenir à l’écran précédent"
-                : canTogglePanes ? (listVisible ? "Masquer les discussions" : "Afficher les discussions")
-                : "Toutes les discussions";
+        String description = pageTitle != null ? activity.getString(R.string.ws_back_previous)
+                : canTogglePanes ? activity.getString(listVisible ? R.string.ws_hide_discussions : R.string.ws_show_discussions)
+                : activity.getString(R.string.ws_all_discussions);
         leading.setContentDescription(description);
         leading.setTooltipText(description);
         leading.setActivated(pageTitle == null && canTogglePanes && listVisible);
-        desk.setVisibility("Atelier".equals(pageTitle) ? View.GONE : View.VISIBLE);
+        desk.setVisibility(activity.getString(R.string.ws_desk).equals(pageTitle) ? View.GONE : View.VISIBLE);
     }
 
     private ImageButton icon(int resource, String name) {
@@ -168,25 +170,26 @@ final class WorkspaceShell {
         menu.setOnDismissListener(closed -> {
             if (overflow == closed) overflow = null;
         });
-        item(menu, "Nouvelle discussion", "new_thread");
+        item(menu, activity.getString(R.string.ws_new_discussion), "new_thread");
         if (threadTitle != null) {
             if (reading.getAsBoolean()) item(menu, activity.getString(R.string.read_stop_label), "stop_reading");
             else item(menu, activity.getString(R.string.read_reply_label), "read_reply");
             item(menu, activity.getString(R.string.instrument_create), "create_instrument");
-            item(menu, "Vue de discussion d’origine", "native_thread");
+            item(menu, activity.getString(R.string.ws_original_discussion_view), "native_thread");
             if (pageTitle == null) {
-                item(menu, "Joindre une image…", "attach_photo");
-                item(menu, "Position pour ce message…", "nearby_area");
+                item(menu, activity.getString(R.string.ws_attach_image), "attach_photo");
+                item(menu, activity.getString(R.string.ws_location_for_message), "nearby_area");
             }
-            item(menu, "Renommer la discussion", "rename");
-            item(menu, "Artefacts", "artifacts");
-            item(menu, "Modèle et outils", "models");
-            item(menu, "Utilisation", "stats");
+            item(menu, activity.getString(R.string.ws_rename_discussion), "rename");
+            item(menu, activity.getString(R.string.ws_artifacts), "artifacts");
+            item(menu, activity.getString(R.string.ws_model_and_tools), "models");
+            item(menu, activity.getString(R.string.ws_usage), "stats");
         }
-        item(menu, "Mes écrans", "pages");
-        item(menu, "Rappels", "reminders");
-        item(menu, "Rétablir l’atelier", "restore");
-        item(menu, "Verrouiller le profil", "profiles");
+        item(menu, activity.getString(R.string.ws_my_screens), "pages");
+        item(menu, activity.getString(R.string.ws_reminders), "reminders");
+        item(menu, activity.getString(R.string.ws_restore_desk), "restore");
+        item(menu, activity.getString(R.string.language_action), "language");
+        item(menu, activity.getString(R.string.ws_lock_profile), "profiles");
         menu.show();
     }
 

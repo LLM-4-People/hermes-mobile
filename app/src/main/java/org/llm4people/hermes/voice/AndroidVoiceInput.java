@@ -11,6 +11,7 @@ import android.speech.RecognitionListener;
 import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
 
+import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.Diagnostics;
 
 import java.util.ArrayList;
@@ -86,11 +87,6 @@ final class AndroidVoiceInput implements VoiceInput {
     }
 
     private String language() {
-        LocaleList locales = activity.getResources().getConfiguration().getLocales();
-        for (int i = 0; i < locales.size(); i++) {
-            Locale locale = locales.get(i);
-            if ("fr".equals(locale.getLanguage())) return locale.toLanguageTag();
-        }
-        return "fr-FR";
+        return AppLanguage.resolvedVoiceTag(activity);
     }
 }
