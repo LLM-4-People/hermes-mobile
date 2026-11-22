@@ -19,8 +19,8 @@ public final class Fences {
 
     /** A Markdown fence delimiter. Chat rendering and artifact extraction share its grammar. */
     public static final class Marker {
-        private final char symbol;
-        private final int width;
+        public final char symbol;
+        public final int width;
         private final boolean bare;
         public final String language;
         private final String filename;
@@ -43,6 +43,12 @@ public final class Fences {
         public boolean closes(Marker opening) {
             return bare && opening.symbol == symbol && width >= opening.width;
         }
+    }
+
+    /** Restore only the delimiter and language required to render an already open fence. */
+    public static Marker continuation(String delimiter, int width, String language) {
+        if (!("`".equals(delimiter) || "~".equals(delimiter)) || width < 3) return null;
+        return new Marker(delimiter.charAt(0), width, true, language.length() <= 40 ? language : "", "");
     }
 
     public static Marker marker(String text, int start, int end) {

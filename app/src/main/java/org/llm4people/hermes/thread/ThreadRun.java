@@ -198,7 +198,8 @@ final class ThreadRun {
         frame = null;
         canStop = true;
         ui.busy(true, true);
-        ui.live("Hermes travaille…", ThreadData.string(journal.pending(), "preview"), false);
+        RunPreview saved = new RunPreview(receipt);
+        ui.live("Hermes travaille…", saved.toString(), false, saved.origin());
         RunFollower nextFollower = new RunFollower(page.api, id, receipt, started, new RunFollower.Listener() {
             private boolean current() { return serial == subscription && receipt == journal.pending(); }
 
@@ -212,7 +213,7 @@ final class ThreadRun {
                     int count = next.prompts.size();
                     String activity = count == 0 ? next.activity : count == 1
                             ? "Hermes attend votre réponse" : count + " demandes en attente";
-                    ui.live(activity, next.text, count > 0);
+                    ui.live(activity, next.text, count > 0, next.origin);
                     decisions.present(next.prompts);
                     ui.notice("", "", null);
                 });
@@ -361,7 +362,7 @@ final class ThreadRun {
 
     private void checkpoint() {
         if (frame == null || journal.pending() == null) return;
-        journal.checkpoint(frame.seq, frame.text);
+        journal.checkpoint(frame.seq, frame.text, frame.origin, frame.highSurrogate);
     }
 
     void detach() {

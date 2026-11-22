@@ -173,9 +173,13 @@ final class ThreadJournal {
         }
     }
 
-    void checkpoint(long seq, String text) {
+    void checkpoint(long seq, String text) { checkpoint(seq, text, RunPreview.Origin.FIRST, 0); }
+
+    void checkpoint(long seq, String text, RunPreview.Origin origin, int highSurrogate) {
         ThreadData.put(pending(), "seq", seq);
         ThreadData.put(pending(), "preview", text);
+        ThreadData.put(pending(), "preview_origin", origin.json());
+        ThreadData.put(pending(), "preview_high_surrogate", highSurrogate == 0 ? null : highSurrogate);
         revision++;
     }
 

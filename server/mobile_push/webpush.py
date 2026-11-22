@@ -140,8 +140,8 @@ class WebPushSender:
         self.session.trust_env = False
 
     def send(self, item):
-        ttl = lifetime(item, self.retention, time.time())
-        if ttl == 0:
+        remaining = lifetime(item, self.retention, time.time())
+        if remaining == 0:
             return True
         # A local policy change can be reversed. Only a response from the accepted
         # distributor can invalidate a registration and discard all its deliveries.
@@ -156,7 +156,7 @@ class WebPushSender:
         body = WebPusher(sub).encode(data, content_encoding="aes128gcm")["body"]
         headers = self.config.authorization()
         headers.update({"Content-Encoding": "aes128gcm", "Content-Type": "application/octet-stream",
-                        "TTL": str(ttl), "Urgency": "high"})
+                        "TTL": str(int(remaining)), "Urgency": "high"})
         with self.session.post(sub["endpoint"], data=body, headers=headers, timeout=self.timeout,
                                allow_redirects=False, stream=True) as response:
             if 200 <= response.status_code < 300:

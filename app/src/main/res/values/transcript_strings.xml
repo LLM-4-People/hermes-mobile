@@ -8,4 +8,6 @@
     <string name="code_excerpt">Extrait de code</string>
     <string name="code_excerpt_number">Extrait %1$d</string>
     <string name="code_choose">Choisir un extrait</string>
+    <string name="transcript_read_excerpt">Lire l’extrait en cours</string>
+    <string name="transcript_read_full">Lire la réponse entière</string>
 </resources>

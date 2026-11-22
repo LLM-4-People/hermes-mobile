@@ -114,7 +114,7 @@ final class WorkspaceForms {
                 .setView(wrap).setNegativeButton("Annuler",null).setPositiveButton("Vers le brouillon",null));
         if (dialog != null) dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
             String text = edit.getText().toString();
-            if (text.trim().isEmpty()) { edit.setError("Saisissez un message."); return; }
+            if (DraftForm.blank(text)) { edit.setError("Saisissez un message."); return; }
             DeskDialogs.navigate(a, () -> host.stageDraft(text));
         });
     }
