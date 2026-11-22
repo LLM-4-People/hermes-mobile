@@ -57,7 +57,7 @@ public final class RunActionTest extends TestCase {
     public void testRetryRequiresCurrentRemoteRunAndActiveStatus() throws Exception {
         admit("A");
         RunAction action = action();
-        for (String state : new String[]{"running", "queued", "waiting_for_approval"}) {
+        for (String state : new String[]{"running", "queued", "waiting_for_approval", "waiting_for_input"}) {
             JSONObject row = new JSONObject().put("run_id", "A").put("status", state);
             assertTrue(action.stoppable(row));
             row.put("run_id", "B");

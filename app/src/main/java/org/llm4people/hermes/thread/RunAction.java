@@ -33,7 +33,7 @@ final class RunAction {
     boolean stoppable(JSONObject status) {
         if (status == null || !run.equals(status.opt("run_id"))) return false;
         return switch (ThreadData.string(status, "status")) {
-            case "queued", "running", "waiting_for_approval" -> true;
+            case "queued", "running", "waiting_for_approval", "waiting_for_input" -> true;
             default -> false;
         };
     }
