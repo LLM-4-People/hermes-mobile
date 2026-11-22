@@ -157,10 +157,10 @@ public final class ThreadWorkspace implements AutoCloseable {
             JSONObject row = messages.optJSONObject(i);
             if (!"assistant".equals(ThreadData.string(row, "role"))
                     || "hidden".equals(ThreadData.string(row, "display_kind"))) continue;
-            String content = ThreadData.content(row);
+            String content = instruments == null ? ThreadData.content(row)
+                    : ThreadInstrumentPanel.spoken(activity, row, instruments.forRow(row));
             if (!content.trim().isEmpty()) {
-                voice.reader().readReply(instruments == null ? content
-                        : ThreadInstrumentPanel.spoken(activity, content, instruments.forRow(row)));
+                voice.reader().readReply(content);
                 return;
             }
         }

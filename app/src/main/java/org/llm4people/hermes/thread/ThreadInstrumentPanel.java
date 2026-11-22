@@ -19,7 +19,7 @@ import org.json.JSONObject;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.artifact.ArtifactDesk;
-import org.llm4people.hermes.artifact.Fences;
+import org.llm4people.hermes.artifact.MessageParts;
 import org.llm4people.hermes.artifact.InstrumentPreview;
 import org.llm4people.hermes.artifact.ThreadInstruments;
 import org.llm4people.hermes.artifact.ThreadInstruments.Pin;
@@ -109,11 +109,11 @@ final class ThreadInstrumentPanel {
         return matches;
     }
 
-    static String spoken(Context context, String text, List<Pin> proposals) {
-        if (proposals.isEmpty()) return text;
+    static String spoken(Context context, JSONObject row, List<Pin> proposals) {
+        if (proposals.isEmpty()) return ThreadData.content(row);
         Map<Integer, String> titles = new HashMap<>();
         for (Pin pin : proposals) titles.put(pin.fenceOrdinal, pin.title);
-        return Fences.described(text, bodies(proposals), ordinal ->
+        return MessageParts.project(row, bodies(proposals), ordinal ->
                 context.getString(R.string.instrument_spoken, titles.get(ordinal)));
     }
 
@@ -123,9 +123,8 @@ final class ThreadInstrumentPanel {
         return bodies;
     }
 
-    String prose(String text, List<Pin> proposals) {
-        if (proposals.isEmpty()) return text;
-        String prose = Fences.without(text, bodies(proposals));
+    String prose(JSONObject row, List<Pin> proposals) {
+        String prose = MessageParts.project(row, bodies(proposals), ignored -> "");
         return prose.trim().isEmpty() ? "" : prose;
     }
 

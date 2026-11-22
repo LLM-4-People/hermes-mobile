@@ -57,12 +57,22 @@ public final class ThreadInstrumentPresentationTest extends InstrumentationTestC
             List<ThreadInstruments.Pin> proposals = store.proposals(new JSONArray().put(row));
             assertEquals(1, proposals.size());
             assertEquals(prefix + "Hermes propose l’outil « Carnet de voyage ».\nÀ vous de choisir.",
-                    ThreadInstrumentPanel.spoken(context, original, proposals));
+                    ThreadInstrumentPanel.spoken(context, row, proposals));
 
             String malformed = original.replace(page, "{non valide}");
-            assertEquals(malformed, ThreadInstrumentPanel.spoken(context, malformed, proposals));
-            row.put("role", "user");
-            assertEquals(original, ThreadInstrumentPanel.spoken(context, original, store.proposals(new JSONArray().put(row))));
+            row.put("content", malformed);
+            assertEquals(malformed, ThreadInstrumentPanel.spoken(context, row, proposals));
+            row.put("role", "user").put("content", original);
+            assertEquals(original, ThreadInstrumentPanel.spoken(context, row, store.proposals(new JSONArray().put(row))));
+
+            String fence = "```hermes-workspace\n" + page + "\n```";
+            row.put("role", "assistant").put("content", new JSONArray()
+                    .put(new JSONObject().put("type", "input_text").put("text", fence))
+                    .put(new JSONObject().put("type", "output_text").put("text", fence)));
+            proposals = store.proposals(new JSONArray().put(row));
+            assertEquals(1, proposals.size());
+            assertEquals(fence + "\nHermes propose l’outil « Carnet de voyage ».",
+                    ThreadInstrumentPanel.spoken(context, row, proposals));
         }
     }
 }
