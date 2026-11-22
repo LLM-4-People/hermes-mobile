@@ -37,6 +37,24 @@ final class DistributorEnrollment {
         return choices;
     }
 
+    // The SDK tracks one distributor for the application. Recover every affected profile
+    // even if the uninstall happened while Hermes was stopped and no broadcast was delivered.
+    static void reconcile(Context context) {
+        synchronized (PushConnection.class) {
+            List<PushStore.Device> devices = PushStore.get(context).devices();
+            if (devices.stream().noneMatch(device -> device.unified() && !PushStore.REMOVING.equals(device.state))) return;
+            List<String> installed = UnifiedPush.getDistributors(context);
+            String saved = UnifiedPush.getSavedDistributor(context);
+            for (PushStore.Device device : devices) {
+                if (!device.unified() || PushStore.REMOVING.equals(device.state)) continue;
+                if (!installed.contains(device.distributor) || saved != null && !saved.equals(device.distributor)
+                        || saved == null && device.subscription != null) {
+                    MobilePush.forget(context, device.profile);
+                }
+            }
+        }
+    }
+
     static void enroll(Context context, Account account, String distributor, String vapid,
                        long before, BooleanSupplier current) throws Exception {
         PushStore.Device device;
@@ -51,13 +69,37 @@ final class DistributorEnrollment {
         synchronized (PushConnection.class) {
             PushStore.Device stored = PushStore.get(context).forInstallation(device.installation);
             if (stored == null || PushStore.REMOVING.equals(stored.state)) return;
-            UnifiedPush.saveDistributor(context, distributor);
-            register(context, stored);
+            if (stored.subscription == null) requestEndpoint(context, stored);
+            else PushSyncService.schedule(context);
         }
     }
 
-    private static void register(Context context, PushStore.Device device) {
-        UnifiedPush.register(context, device.installation, "Hermes Mobile", device.vapid);
+    private static void requestEndpoint(Context context, PushStore.Device device) {
+        synchronized (PushConnection.class) {
+            PushStore store = PushStore.get(context);
+            device = store.forInstallation(device.installation);
+            if (device == null || !PushStore.PENDING.equals(device.state) || device.subscription != null) return;
+            long remaining = device.retryAt - System.currentTimeMillis();
+            if (remaining > 0 && remaining <= PushStore.MAX_DELAY) return;
+            String saved = UnifiedPush.getSavedDistributor(context);
+            if (!UnifiedPush.getDistributors(context).contains(device.distributor)
+                    || saved != null && !saved.equals(device.distributor)) {
+                MobilePush.forget(context, device.profile);
+                return;
+            }
+            // A rejected connector wire token must never be reused. Hermes' server ID stays stable.
+            if (device.retryAt != 0 || PushStore.RENEW.equals(device.failure)) unregister(context, device);
+            UnifiedPush.saveDistributor(context, device.distributor);
+            UnifiedPush.register(context, device.installation, "Hermes Mobile", device.vapid);
+            store.registered(device);
+        }
+    }
+
+    static void retryDue(Context context) {
+        for (PushStore.Device device : PushStore.get(context).devices()) {
+            if (device.unified() && PushStore.PENDING.equals(device.state) && device.retryAt != 0)
+                requestEndpoint(context, device);
+        }
     }
 
     static void unregister(Context context, PushStore.Device device) {
@@ -93,13 +135,22 @@ final class DistributorEnrollment {
     static void sync(Context context, PushStore.Device device) throws Exception {
         if (!PushStore.PENDING.equals(device.state)) return;
         if (device.subscription == null) {
-            // Re-request after an interrupted callback. Trigger again only for a still-owned distributor.
-            if (device.distributor.equals(UnifiedPush.getSavedDistributor(context))) register(context, device);
+            requestEndpoint(context, device);
             return;
         }
         String json = DeviceSecret.open(device.subscription, device.subscriptionBinding());
-        new HermesApi(device.endpoint, device.managementKey()).put(device.path(),
-                new JSONObject().put("provider", PROVIDER).put("subscription", new JSONObject(json)));
-        PushStore.get(context).enable(device);
+        try {
+            new HermesApi(device.endpoint, device.managementKey()).put(device.path(),
+                    new JSONObject().put("provider", PROVIDER).put("subscription", new JSONObject(json)));
+            PushStore.get(context).enable(device);
+        } catch (HermesApi.HttpError failure) {
+            String reason = switch (failure.status) {
+                case 400, 422 -> PushStore.ENDPOINT_REJECTED;
+                case 401, 403, 404, 409 -> PushStore.ACCOUNT_REQUIRED;
+                default -> null;
+            };
+            if (reason == null) throw failure;
+            PushStore.get(context).uploadRejected(device, reason);
+        }
     }
 }

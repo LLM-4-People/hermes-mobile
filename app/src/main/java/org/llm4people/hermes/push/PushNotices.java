@@ -71,7 +71,7 @@ final class PushNotices {
     @SuppressLint("MissingPermission") // allowed() checks the current runtime grant.
     static void post(Context context, PushStore.Device owner, String event, String kind) {
         String id = owner.installation;
-        if (!PushStore.ACTIVE.equals(owner.state) || !validIds(id, event)
+        if (!owner.receives() || !validIds(id, event)
                 || title(kind) == null || !allowed(context)) return;
         PushStore store = PushStore.get(context);
         Intent intent = tapIntent(context, id, event);

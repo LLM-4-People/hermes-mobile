@@ -50,6 +50,7 @@ final class PushSettings {
 
     void show() {
         if (!current()) return;
+        DistributorEnrollment.reconcile(activity);
         PushStore.Device device = PushStore.get(activity).forProfile(account.id);
         AlertDialog.Builder builder = new AlertDialog.Builder(activity).setTitle("Notifications du profil")
                 .setNegativeButton("Fermer", null)
@@ -69,9 +70,7 @@ final class PushSettings {
             }
         } else if (device != null) {
             builder.setTitle("Inscription à confirmer")
-                    .setMessage(PushStore.FAILED.equals(device.state)
-                            ? "Le distributeur a refusé l’inscription. Vérifiez sa configuration, puis réessayez."
-                            : "L’inscription de cet appareil auprès du serveur reste à confirmer.")
+                    .setMessage(registrationMessage(device))
                     .setPositiveButton("Réessayer", (d,w) -> begin())
                     .setNegativeButton("Désactiver", (d,w) -> remove(device));
         } else {
@@ -79,10 +78,22 @@ final class PushSettings {
                     .setPositiveButton("Activer", (d,w) -> begin());
         }
         display(builder);
-        observeState(device == null ? null : device.state);
+        observeState(device);
     }
 
-    private void observeState(String displayedState) {
+    private static String registrationMessage(PushStore.Device device) {
+        if (device.retryAt != 0) return "Hermes réessaiera automatiquement lorsque le réseau sera disponible.";
+        if (!PushStore.FAILED.equals(device.state)) return "L’inscription de cet appareil auprès du serveur reste à confirmer.";
+        return switch (device.failure == null ? "" : device.failure) {
+            case "ACTION_REQUIRED" -> "Ouvrez le distributeur pour terminer sa configuration, puis réessayez.";
+            case "VAPID_REQUIRED" -> "Le distributeur demande une clé VAPID. Vérifiez la configuration du relais, puis réessayez.";
+            case PushStore.ENDPOINT_REJECTED -> "Le relais refuse cette adresse de notification. Vérifiez le serveur du distributeur, puis réessayez.";
+            case PushStore.ACCOUNT_REQUIRED -> "Le relais demande de confirmer l’inscription avec ce profil. Vérifiez sa clé d’accès, puis réessayez.";
+            default -> "Le distributeur n’a pas pu terminer l’inscription. Vérifiez sa configuration, puis réessayez.";
+        };
+    }
+
+    private void observeState(PushStore.Device displayed) {
         AlertDialog watching = dialog;
         PushStore store = PushStore.get(activity);
         DataSetObserver observer = new DataSetObserver() {
@@ -91,7 +102,9 @@ final class PushSettings {
                 activity.getMainExecutor().execute(() -> {
                     if (!current() || dialog != watching || !watching.isShowing()) return;
                     PushStore.Device updated = store.forProfile(account.id);
-                    if (!Objects.equals(displayedState, updated == null ? null : updated.state)) show();
+                    if (displayed == null || updated == null) {
+                        if (displayed != updated) show();
+                    } else if (!displayed.state.equals(updated.state) || !Objects.equals(displayed.failure, updated.failure)) show();
                 });
             }
         };

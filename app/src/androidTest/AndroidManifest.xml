@@ -5,6 +5,10 @@
         android:name="org.llm4people.hermes.journey.DeviceJourney"
         android:targetPackage="${hermesApplicationId}" />
     <application>
+        <receiver android:name="org.llm4people.hermes.push.DistributorFixture"
+            android:enabled="false" android:exported="true">
+            <intent-filter><action android:name="org.unifiedpush.android.distributor.REGISTER" /></intent-filter>
+        </receiver>
         <uses-library android:name="android.test.runner" />
     </application>
 </manifest>

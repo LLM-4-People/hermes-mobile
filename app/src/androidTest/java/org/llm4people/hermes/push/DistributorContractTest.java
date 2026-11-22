@@ -7,6 +7,7 @@ import android.test.InstrumentationTestCase;
 
 import org.json.JSONObject;
 import org.llm4people.hermes.net.Exchange;
+import org.unifiedpush.android.connector.FailedReason;
 import org.unifiedpush.android.connector.data.PushMessage;
 
 import java.nio.charset.StandardCharsets;
@@ -61,18 +62,69 @@ public final class DistributorContractTest extends InstrumentationTestCase {
         }
     }
 
-    public void testRefusedRegistrationDiscardsOldSubscriptionAndLateAck() throws Exception {
+    public void testRegistrationFailureCannotUndoNewEndpointBeforeOrAfterUpload() throws Exception {
         prepare("https://example.test");
-        store.updateSubscription(device, new JSONObject().put("endpoint", "https://ntfy.invalid/old").toString());
-        PushStore.Device original = store.forProfile(device.profile);
-        store.enable(original);
-        store.distributorFailed(original);
-        store.enable(original);
-        PushStore.Device rejected = store.forProfile(device.profile);
-        assertEquals(PushStore.FAILED, rejected.state);
-        assertNull(rejected.subscription);
-        store.prepareUnified(device.profile, device.endpoint, device.distributor, device.vapid);
-        assertEquals(PushStore.PENDING, store.forProfile(device.profile).state);
+        store.updateSubscription(device, "{}");
+        PushStore.Device uploading = store.forProfile(device.profile);
+        for (FailedReason reason : FailedReason.values()) assertFalse(store.registrationFailed(device, reason, 10));
+        assertEquals(uploading.subscriptionVersion, store.forProfile(device.profile).subscriptionVersion);
+        store.enable(uploading);
+        for (FailedReason reason : FailedReason.values()) assertFalse(store.registrationFailed(device, reason, 10));
+        assertEquals(PushStore.ACTIVE, store.forProfile(device.profile).state);
+    }
+
+    public void testNetworkBackoffSurvivesReopenCapsAndDisableWins() throws Exception {
+        prepare("https://example.test");
+        for (int i = 0; i < 10; i++) {
+            assertTrue(store.registrationFailed(device, FailedReason.NETWORK, 1000));
+            assertFalse(store.registrationFailed(device, FailedReason.NETWORK, 2000));
+            try (PushStore reopened = new PushStore(context, "push.db")) {
+                device = reopened.forProfile(device.profile);
+                assertEquals(PushStore.PENDING, device.state);
+                assertEquals(1000L + Math.min(30_000L << i, PushStore.MAX_DELAY), device.retryAt);
+            }
+            store.registered(device);
+            device = store.forProfile(device.profile);
+        }
+        store.deactivate(device.profile);
+        assertFalse(store.registrationFailed(device, FailedReason.NETWORK, 1000));
+        assertFalse(store.updateSubscription(device, "{}"));
+        assertEquals(PushStore.REMOVING, store.forProfile(device.profile).state);
+    }
+
+    public void testActionableFailuresAndSingleInternalRetry() throws Exception {
+        prepare("https://example.test");
+        assertTrue(store.registrationFailed(device, FailedReason.INTERNAL_ERROR, 1000));
+        device = store.forProfile(device.profile);
+        assertTrue(device.retryAt > 1000);
+        store.registered(device);
+        for (FailedReason reason : new FailedReason[] {FailedReason.INTERNAL_ERROR, FailedReason.ACTION_REQUIRED,
+                FailedReason.VAPID_REQUIRED}) {
+            assertTrue(store.registrationFailed(store.forProfile(device.profile), reason, 1000));
+            device = store.forProfile(device.profile);
+            assertEquals(PushStore.FAILED, device.state);
+            assertEquals(0L, device.retryAt);
+            assertFalse(store.updateSubscription(device, "{}"));
+            device = store.prepareUnified(device.profile, device.endpoint, device.distributor, device.vapid);
+            assertEquals(PushStore.RENEW, device.failure);
+            store.registered(device);
+        }
+    }
+
+    public void testRejectedServerEndpointDeliberatelyRenewsBinding() throws Exception {
+        try (Exchange bridge = new Exchange("400 Bad Request", "", "{}")) {
+            prepare(bridge.endpoint());
+            store.updateSubscription(device, "{\"endpoint\":\"https://ntfy.invalid/old\"}");
+            DistributorEnrollment.sync(context, store.forProfile(device.profile));
+            assertTrue(bridge.observed().contains("Bearer " + device.managementKey()));
+            PushStore.Device rejected = store.forProfile(device.profile);
+            assertEquals(PushStore.ENDPOINT_REJECTED, rejected.failure);
+            PushStore.Device retry = store.prepareUnified(device.profile, device.endpoint, device.distributor, device.vapid);
+            assertEquals(device.installation, retry.installation);
+            assertEquals(device.managementKey(), retry.managementKey());
+            assertEquals(PushStore.RENEW, retry.failure);
+            assertNull(retry.subscription);
+        }
     }
 
     public void testEncryptedReceiptMatchesInstanceAndRemovalStopsDelivery() throws Exception {
@@ -82,7 +134,10 @@ public final class DistributorContractTest extends InstrumentationTestCase {
         }
         prepare("https://example.test");
         store.updateSubscription(device, "{}");
+        assertFalse(store.forProfile(device.profile).receives());
         store.enable(store.forProfile(device.profile));
+        store.updateSubscription(store.forProfile(device.profile), "{\"rotation\":2}");
+        assertEquals(PushStore.PENDING, store.forProfile(device.profile).state);
         byte[] data = new JSONObject().put("event_id", EVENT).put("installation_id", device.installation)
                 .put("kind", "reminder").toString().getBytes(StandardCharsets.UTF_8);
         DistributorReceiver.receive(context, new PushMessage(data, false), device.installation);
@@ -90,6 +145,7 @@ public final class DistributorContractTest extends InstrumentationTestCase {
         assertNull(store.knownKind(device.installation, EVENT));
         DistributorReceiver.receive(context, new PushMessage(data, true), device.installation);
         assertEquals("reminder", store.knownKind(device.installation, EVENT));
+        assertEquals(device.profile, MobilePush.target(context, PushNotices.tapIntent(context, device.installation, EVENT)).profileId);
         store.deactivate(device.profile);
         assertNull(MobilePush.target(context, PushNotices.tapIntent(context, device.installation, EVENT)));
     }

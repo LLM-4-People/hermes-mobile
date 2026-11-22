@@ -117,6 +117,7 @@ final class PushConnection {
     static boolean synchronize(Context context, BooleanSupplier stopped) {
         PushStore store = PushStore.get(context);
         boolean retry = false;
+        DistributorEnrollment.reconcile(context);
         for (PushStore.Device device : store.devices()) {
             if (stopped.getAsBoolean()) return true;
             try {
