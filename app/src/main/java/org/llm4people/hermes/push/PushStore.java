@@ -28,7 +28,7 @@ final class PushStore extends SQLiteOpenHelper {
         return instance;
     }
 
-    PushStore(Context context, String database) { super(context, database, null, 3); }
+    PushStore(Context context, String database) { super(context, database, null, 4); }
 
     @Override public void onConfigure(SQLiteDatabase db) { db.setForeignKeyConstraintsEnabled(true); }
 
@@ -38,11 +38,13 @@ final class PushStore extends SQLiteOpenHelper {
                 + "api_key TEXT NOT NULL, project TEXT NOT NULL, sender TEXT NOT NULL)");
         addDistributorColumns(db);
         addRetryColumns(db);
+        addDismissals(db);
         db.execSQL("CREATE TABLE seen(installation TEXT NOT NULL REFERENCES devices(installation) ON DELETE CASCADE,"
                 + "event TEXT NOT NULL, kind TEXT NOT NULL, PRIMARY KEY(installation,event))");
     }
 
     @Override public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
+        if (oldVersion < 1 || newVersion != 4) throw new IllegalStateException("Unknown push schema");
         if (oldVersion < 2) addDistributorColumns(db);
         if (oldVersion < 3) {
             addRetryColumns(db);
@@ -50,6 +52,7 @@ final class PushStore extends SQLiteOpenHelper {
             db.execSQL("UPDATE devices SET established=1 WHERE distributor IS NOT NULL AND (state='active' "
                     + "OR state='pending' AND EXISTS (SELECT 1 FROM seen WHERE seen.installation=devices.installation))");
         }
+        if (oldVersion < 4) addDismissals(db);
     }
 
     private static void addRetryColumns(SQLiteDatabase db) {
@@ -64,6 +67,28 @@ final class PushStore extends SQLiteOpenHelper {
         db.execSQL("ALTER TABLE devices ADD COLUMN vapid TEXT");
         db.execSQL("ALTER TABLE devices ADD COLUMN subscription BLOB");
         db.execSQL("ALTER TABLE devices ADD COLUMN subscription_version TEXT");
+    }
+
+    private static void addDismissals(SQLiteDatabase db) {
+        db.execSQL("CREATE TABLE dismissed_questions(installation TEXT NOT NULL REFERENCES devices(installation)"
+                + " ON DELETE CASCADE,event TEXT NOT NULL,received_at INTEGER NOT NULL,PRIMARY KEY(installation,event))");
+        db.execSQL("CREATE INDEX dismissed_age ON dismissed_questions(received_at)");
+    }
+
+    void dismissQuestion(String installation, String event) {
+        // Earlier requests can arrive for 28 days, after recent notification history rolls over.
+        long now = System.currentTimeMillis() / 1000;
+        SQLiteDatabase db = getWritableDatabase();
+        db.beginTransaction();
+        try {
+            db.execSQL("DELETE FROM dismissed_questions WHERE received_at<?", new Object[]{now - 29L * 86400});
+            Device owner = forInstallation(installation);
+            if (owner != null && owner.receives()) {
+                db.execSQL("INSERT OR REPLACE INTO dismissed_questions(installation,event,received_at) VALUES(?,?,?)",
+                        new Object[]{installation, event, now});
+            }
+            db.setTransactionSuccessful();
+        } finally { db.endTransaction(); }
     }
 
     static final class Device {
@@ -279,6 +304,12 @@ final class PushStore extends SQLiteOpenHelper {
         try {
             Device owner = forInstallation(installation);
             if (owner == null || !owner.receives()) return false;
+            if (PushNotices.QUESTION.equals(kind)) {
+                try (Cursor marker = db.rawQuery("SELECT 1 FROM dismissed_questions WHERE installation=? AND event=?",
+                        new String[]{installation, event})) {
+                    if (marker.moveToFirst()) return false;
+                }
+            }
             ContentValues data = new ContentValues();
             data.put("installation", installation);
             data.put("event", event);

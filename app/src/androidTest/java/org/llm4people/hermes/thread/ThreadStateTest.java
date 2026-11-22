@@ -7,6 +7,41 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class ThreadStateTest extends TestCase {
+    public void testQuestionRouteRequiresExactAuthenticatedSessionAndRun() throws Exception {
+        JSONObject status = new JSONObject().put("session_id", "thread").put("run_id", "run")
+                .put("pending_controls", new org.json.JSONArray().put(new JSONObject().put("kind", "clarify").put("prompt_id", "q")));
+        assertTrue(ThreadIdentity.hasPendingQuestion("thread", "run", status));
+        try { ThreadIdentity.hasPendingQuestion("other", "run", status); fail("Wrong session accepted"); }
+        catch (java.io.IOException expected) {}
+        try { ThreadIdentity.hasPendingQuestion("thread", "other", status); fail("Wrong run accepted"); }
+        catch (java.io.IOException expected) {}
+        status.put("pending_controls", new org.json.JSONArray());
+        assertFalse(ThreadIdentity.hasPendingQuestion("thread", "run", status));
+    }
+
+    public void testObservedRunSurvivesRestartAndRestoresOriginalAdmissionAndDraft() {
+        AtomicReference<String> saved = new AtomicReference<>();
+        ThreadJournal journal = new ThreadJournal("thread", "scope", null, saved::set);
+        journal.stage(ThreadData.body("tip", "message", null), 100, 2, 60, true);
+        journal.setRunId("mobile-run");
+        assertEquals(1000L, journal.nextReconnectDelayMillis());
+        journal.draft("unfinished draft");
+        journal.observe("remote-run");
+        ThreadJournal resumed = new ThreadJournal("thread", "scope", saved.get(), saved::set);
+        assertTrue(resumed.sameOwner());
+        assertEquals("remote-run", ThreadData.string(resumed.pending(), "run_id"));
+        assertFalse(resumed.pending().has("key"));
+        assertFalse(resumed.pending().has("body"));
+        assertEquals(1000L, resumed.nextReconnectDelayMillis());
+        assertEquals(2000L, resumed.nextReconnectDelayMillis());
+        resumed.finish();
+        assertEquals("mobile-run", ThreadData.string(resumed.pending(), "run_id"));
+        assertEquals("unfinished draft", resumed.draft());
+        assertEquals(2000L, resumed.nextReconnectDelayMillis());
+        resumed.observe("mobile-run");
+        assertTrue(resumed.pending().has("key"));
+    }
+
     public void testUnacknowledgedSendRestoresSameKeyAndExactBodyAcrossRestart() throws Exception {
         AtomicReference<String> stored = new AtomicReference<>();
         ThreadJournal first = new ThreadJournal("abc", "original", null, stored::set);

@@ -2,6 +2,7 @@ import logging
 import random
 import sqlite3
 import time
+from .events import PROMPT_KINDS
 from .ledgers import HermesLedgers
 from .provider import ProviderError
 
@@ -30,20 +31,20 @@ def scan_loop(settings, store, stopped, changed):
 
 
 def deliver(item, settings, store, sender):
-    if not store.owns_delivery(item):
-        return
-    if item["kind"] == "approval_requested":
+    if item["kind"] in PROMPT_KINDS:
         # The sender can recover an outstanding lease before the next (or first) scan.
         # Verify the exact scoped prompt again before its network request begins.
         try:
-            pending = HermesLedgers(settings).approval_pending(item)
+            pending = HermesLedgers(settings).prompt_pending(item)
         except (OSError, sqlite3.Error, ValueError) as exc:
-            log.warning("Cannot confirm pending approval (%s)", type(exc).__name__)
+            log.warning("Cannot confirm pending prompt (%s)", type(exc).__name__)
             store.settle(item, retry_at=time.time() + settings.poll_seconds)
             return
         if not pending:
             store.settle(item)
             return
+    if not store.begin_send(item):
+        return
     try:
         active = sender.send(item)
     except Exception as exc:

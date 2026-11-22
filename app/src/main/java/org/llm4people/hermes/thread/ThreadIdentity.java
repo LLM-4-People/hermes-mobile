@@ -43,6 +43,19 @@ final class ThreadIdentity {
         return new ThreadIdentity(root, tip, ThreadContext.title(page, "thread_title", "Conversation"));
     }
 
+    static boolean hasPendingQuestion(String sessionId, String runId, JSONObject status) throws IOException {
+        if (!sessionId.equals(ThreadData.string(status, "session_id"))
+                || !runId.equals(ThreadData.string(status, "run_id"))) {
+            throw new IOException("Run does not belong to the selected conversation");
+        }
+        JSONArray controls = status.optJSONArray("pending_controls");
+        for (int i = 0; controls != null && i < controls.length(); i++) {
+            JSONObject prompt = controls.optJSONObject(i);
+            if (RunPrompts.question(prompt) && !RunPrompts.id(prompt).isEmpty()) return true;
+        }
+        return false;
+    }
+
     static ThreadIdentity resolve(HermesApi api, String id, BooleanSupplier active) throws IOException {
         // A notification may refer to an intermediate generation. Ask the same lineage reader
         // as the transcript. Older gateways classify the root only in the list projection.

@@ -162,12 +162,21 @@ final class ThreadRun {
                 .setMessage("L’envoi a un résultat inconnu. Hermes peut encore le traiter. Vous pourrez écrire un nouveau message.")
                 .setNegativeButton("Continuer le suivi", (d, w) -> uncertain())
                 .setPositiveButton("Clore le suivi", (d, w) -> {
-                    journal.finish();
+                    if (finishTracking()) return;
                     ui.outgoing("");
                     ui.busy(false, false);
                     ui.notice("", "", null);
                     ui.live("", "", false);
                 }));
+    }
+
+    private boolean finishTracking() {
+        journal.finish();
+        if (journal.pending() == null) return false;
+        // Resume the preserved local receipt with its own cursor and retry state.
+        frame = null;
+        page.open(page.sessionId());
+        return true;
     }
 
     private void follow() {
@@ -296,7 +305,7 @@ final class ThreadRun {
         ui.busy(true, false);
         ui.live(summary, output, false);
         page.loadMessages(false, () -> {
-            journal.finish();
+            if (finishTracking()) return;
             ui.outgoing("");
             ui.busy(false, false);
             boolean visible = false;

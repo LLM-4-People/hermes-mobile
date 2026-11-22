@@ -2,6 +2,7 @@
 from email.utils import parsedate_to_datetime
 from enum import Enum
 import time
+from .events import QUESTION
 
 
 class Failure(Enum):
@@ -32,7 +33,10 @@ def retry_seconds(header):
 
 
 def lifetime(item, retention, now):
-    return max(0, int(item["created_at"] + retention - now))
+    remaining = max(0, int(item["created_at"] + retention - now))
+    # Android retains out-of-order dismissal markers longer than a question can
+    # remain in either transport after its last send attempt.
+    return min(remaining, 28 * 86400) if item["kind"] == QUESTION else remaining
 
 
 def opaque_notice(item):

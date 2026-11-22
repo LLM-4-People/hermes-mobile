@@ -18,6 +18,8 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 final class PushNotices {
+    static final String QUESTION = "question_requested";
+    static final String DISMISS_QUESTION = "question_settled";
     static final String CHANNEL = "hermes_activity";
     static final String ACTION = "org.llm4people.hermes.OPEN_EVENT";
     private static final Pattern EVENT = Pattern.compile("[0-9a-f]{32}");
@@ -37,6 +39,7 @@ final class PushNotices {
         return switch (kind) {
             case "run_completed" -> "Hermes a terminé";
             case "run_failed" -> "Vérifiez votre session";
+            case QUESTION -> "Hermes a une question";
             case "approval_requested" -> "Autorisation requise";
             case "reminder" -> "Un rappel vous attend";
             default -> null;
@@ -71,9 +74,17 @@ final class PushNotices {
     @SuppressLint("MissingPermission") // allowed() checks the current runtime grant.
     static void post(Context context, PushStore.Device owner, String event, String kind) {
         String id = owner.installation;
-        if (!owner.receives() || !validIds(id, event)
-                || title(kind) == null || !allowed(context)) return;
+        if (!owner.receives() || !validIds(id, event)) return;
         PushStore store = PushStore.get(context);
+        if (DISMISS_QUESTION.equals(kind)) {
+            // A transport may deliver the dismissal before the original notice.
+            synchronized (PushNotices.class) {
+                store.dismissQuestion(id, event);
+                context.getSystemService(NotificationManager.class).cancel(id + "/" + event, 1);
+            }
+            return;
+        }
+        if (title(kind) == null || !allowed(context)) return;
         Intent intent = tapIntent(context, id, event);
         if (intent == null) return;
         PendingIntent tap = PendingIntent.getActivity(context, 0, intent,

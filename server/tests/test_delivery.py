@@ -1,4 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
+import json
 import sqlite3
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -159,7 +160,6 @@ class Delivery(unittest.TestCase):
         self.assertEqual([v["run_id"] for v in self.store.events()["events"]], ["run1", "run2"])
 
     def test_settled_cancelled_and_replaced_approvals_are_retracted_before_delivery(self):
-        import json
         runs = create_runs(self.settings)
         self.addCleanup(runs.close)
         sources = HermesLedgers(self.settings)
@@ -187,6 +187,67 @@ class Delivery(unittest.TestCase):
         self.assertIsNone(self.store.claim(130, 1))
         change("completed")
         self.assertEqual(self.store.claim(130, 1)["kind"], "run_completed")
+
+    def test_answer_retracts_unsent_questions_and_dismisses_only_possible_recipients(self):
+        self.device("other-device", "other-token")
+        scope = self.settings.run_scope
+        runs = create_runs(self.settings)
+        self.addCleanup(runs.close)
+        insert_run(runs, scope, "run", 110, "waiting_for_approval", session_id="s",
+                   pending_questions={"private-question-id": 105}, pending_approvals={"approval-id": 106})
+        insert_run(runs, "other-user", "foreign", 110, "waiting_for_input", pending_questions={"q": 104})
+        ledgers = HermesLedgers(self.settings)
+        self.addCleanup(ledgers.close)
+        ledgers.runs.scan((scope, 0), self.store, 0)
+        first = self.store.claim(110, 30)
+        other = self.store.claim(110, 30)
+        self.assertEqual((first["kind"], other["kind"]), ("question_requested", "question_requested"))
+        # A provider accepted one request without acknowledging it. The other recipient
+        # is only leased. No dismissal is necessary for that unattempted delivery.
+        self.assertTrue(self.store.begin_send(first))
+        changed = {"status": "waiting_for_approval", "session_id": "s", "pending_approvals": {"approval-id": 106}}
+        runs.execute("UPDATE run_idempotency SET status_json=?,updated_at=111 WHERE scope=?",
+                     (json.dumps(changed), scope))
+        runs.commit()
+        sender = Mock(send=Mock(return_value=True))
+        deliver(other, self.settings, self.store, sender)
+        sender.send.assert_not_called()
+        reopened = Store(self.settings.state)
+        ledgers.runs.scan((scope, 0), reopened, 0)
+        dismissal = reopened.claim(112, 1)
+        self.assertEqual((dismissal["kind"], dismissal["event_id"], dismissal["device_id"]),
+                         ("question_settled", first["event_id"], first["device_id"]))
+        reopened.settle(first)
+        ledgers.close()
+        ledgers.runs.scan((scope, 0), reopened, 0)
+        retried = []
+        for _ in range(3):
+            item = reopened.claim(115, 1)
+            retried.append(item["kind"])
+            deliver(item, self.settings, reopened, sender)
+        self.assertCountEqual(retried, ["approval_requested", "approval_requested", "question_settled"])
+        self.assertIsNone(reopened.claim(120, 1))
+        events = reopened.events()["events"]
+        self.assertEqual([event["run_id"] for event in events], ["run", "run"])
+        self.assertNotIn("private-question-id", repr(events))
+
+    def test_restart_with_closed_ledger_retires_previously_dispatched_question(self):
+        runs = create_runs(self.settings)
+        self.addCleanup(runs.close)
+        scope = self.settings.run_scope
+        insert_run(runs, scope, "gone", 101, "waiting_for_input", pending_questions={"q": 101})
+        ledgers = HermesLedgers(self.settings)
+        ledgers.runs.scan((scope, 0), self.store, 0)
+        posted = self.store.claim(102, 1)
+        deliver(posted, self.settings, self.store, Mock(send=Mock(return_value=True)))
+        ledgers.close()
+        runs.execute("DELETE FROM run_idempotency WHERE scope=?", (scope,))
+        runs.commit()
+        recovered = HermesLedgers(self.settings)
+        self.addCleanup(recovered.close)
+        recovered.runs.scan((scope, 0), self.store, 0)
+        retired = self.store.claim(103, 1)
+        self.assertEqual((retired["kind"], retired["event_id"]), ("question_settled", posted["event_id"]))
 
     def test_incremental_scan_retries_atomic_batch_and_catches_backdated_commits(self):
         runs = create_runs(self.settings)
