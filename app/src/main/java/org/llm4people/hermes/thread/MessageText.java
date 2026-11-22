@@ -66,11 +66,11 @@ final class MessageText {
         ScrollView scroll = new ScrollView(context);
         scroll.addView(text);
         TextView position = Ui.text(context, "", 14);
-        Button previous = Ui.button(context, "Précédente", null);
-        Button next = Ui.button(context, "Suivante", null);
-        nav.addView(previous);
+        Button previous = Ui.button(context, context.getString(R.string.transcript_previous), null);
+        Button next = Ui.button(context, context.getString(R.string.transcript_next), null);
+        nav.addView(previous, new LinearLayout.LayoutParams(0, -2, 1));
         nav.addView(position);
-        nav.addView(next);
+        nav.addView(next, new LinearLayout.LayoutParams(0, -2, 1));
         root.addView(nav);
         root.addView(scroll);
         class Pages {
@@ -78,7 +78,7 @@ final class MessageText {
                 TranscriptPage page = new TranscriptPage(source, history.get(index), markdown, TranscriptPage.PAGE_CHARS);
                 if (page.hasMore() && history.size() == index + 1) history.add(page.next);
                 text.setText(styled(context, page));
-                position.setText("Page " + (index + 1));
+                position.setText(context.getString(R.string.transcript_page, index + 1));
                 previous.setEnabled(index > 0);
                 next.setEnabled(page.hasMore());
                 previous.setOnClickListener(v -> show(index - 1));
