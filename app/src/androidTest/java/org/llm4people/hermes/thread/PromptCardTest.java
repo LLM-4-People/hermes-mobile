@@ -134,6 +134,23 @@ public class PromptCardTest extends InstrumentationTestCase {
         });
     }
 
+    public void testMultipleChoiceWithNoVisibleOptionsStillEncodesACustomAnswer() throws Throwable {
+        JSONObject prompt = new JSONObject().put("kind", "clarify").put("prompt_id", "no-valid-options")
+                .put("execution_generation", 2).put("question", "Que proposez-vous ?")
+                .put("multi_select", true).put("choices", new JSONArray().put("\u00a0").put("(Recommended)"));
+        runTestOnUiThread(() -> {
+            PromptCard card = mount(prompt);
+            EditText input = (EditText) find(card, "Votre réponse");
+            View submit = find(card, "Envoyer la réponse");
+            input.setText("\u200b");
+            assertFalse(submit.isEnabled());
+            String visible = "Une réponse libre";
+            input.setText(visible);
+            submit.performClick();
+            assertEquals(new JSONArray().put(visible).toString(), answers.get(0));
+        });
+    }
+
     public void testAuthorizationRequiresAnOfferedOneTimeChoiceAndDetails() throws Throwable {
         JSONObject prompt = new JSONObject().put("kind", "approval").put("prompt_id", "a")
                 .put("execution_generation", 1).put("choices", new JSONArray().put("once").put("deny").put("always"));

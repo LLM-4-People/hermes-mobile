@@ -26,6 +26,7 @@ final class PromptQuestion {
     private static final String RECOMMENDED = "(Recommended)";
     private final PromptCard card;
     private final EditText input;
+    private final boolean multiple;
     private Button submit;
     private final VoiceDrafts.Controls voice;
     private final List<CheckBox> checks = new ArrayList<>();
@@ -33,7 +34,7 @@ final class PromptQuestion {
     PromptQuestion(PromptCard card, LinearLayout actions, JSONObject prompt, Button listen, Consumer<String> answer) {
         this.card = card;
         JSONArray choices = prompt.optJSONArray("choices");
-        boolean multiple = prompt.optBoolean("multi_select");
+        multiple = prompt.optBoolean("multi_select");
         input = new EditText(card.getContext());
         List<String> displayed = new ArrayList<>();
         for (int i = 0; choices != null && i < choices.length(); i++) {
@@ -102,7 +103,7 @@ final class PromptQuestion {
     private String selectedAnswer() {
         String draft = input.getText().toString();
         if (VisibleText.isBlank(draft)) draft = "";
-        if (checks.isEmpty()) return draft;
+        if (!multiple) return draft;
         JSONArray selected = new JSONArray();
         for (CheckBox check : checks) if (check.isChecked()) selected.put(check.getTag());
         if (!draft.isEmpty()) selected.put(draft);
