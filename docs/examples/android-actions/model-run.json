@@ -11,5 +11,21 @@
   "assistant_output": "```hermes-workspace\n{\"version\":1,\"surface\":\"page/atelier-dessin\",\"mode\":\"replace\",\"title\":\"Atelier de dessin\",\"blocks\":[\n{\"type\":\"device\",\"request\":{\"kind\":\"calendar_event\",\"title\":\"Atelier de dessin à Laval\",\"start\":\"2027-04-12T14:00:00-04:00\",\"end\":\"2027-04-12T15:00:00-04:00\",\"location\":\"Maison des arts de Laval\"}},\n{\"type\":\"device\",\"request\":{\"kind\":\"share_text\",\"text\":\"Atelier de dessin à Laval le 12 avril 2027 de 14 h à 15 h. Joinez-nous !\"}},\n{\"type\":\"device\",\"request\":{\"kind\":\"map_search\",\"query\":\"Maison des arts de Laval, Laval\"}}\n]}\n```",
   "assistant_output_sha256": "4ec3c984fd5b38c9c8d787cbcb0d2eea967457bb311fa9e5289438956f7e901a",
   "provider_tools_offered": 0,
-  "phone_actions_launched": 0
+  "phone_actions_launched": 0,
+  "gateway_request": {
+    "method": "POST",
+    "path": "/v1/runs",
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "provider": "custom",
+    "model": "Qwen2.5-Coder-7B-Instruct-int4-ov",
+    "allowed_toolsets": [],
+    "android_instructions_sha256": "47ae43ac6fc19d4d78f2eefd6ce36321016366eca05fe7a0d97fcc3a2678ef6d"
+  },
+  "provider_request": {
+    "method": "POST",
+    "path": "/v1/chat/completions",
+    "android_instructions_sha256_after_gateway_trailing_lf_removal": "99ff7d9bf5d5b4151ba99768084cb6c0e8dbeec3f2e1139bee50f4dd63c70d06"
+  }
 }
