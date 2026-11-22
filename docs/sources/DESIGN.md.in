@@ -26,6 +26,10 @@ typography:
     fontFamily: sans-serif
     fontSize: 29px
     fontWeight: 700
+  starter-title:
+    fontFamily: sans-serif
+    fontSize: 26px
+    fontWeight: 600
   toolbar-title:
     fontFamily: sans-serif
     fontSize: 20px
@@ -192,7 +196,7 @@ Frontmatter and browser previews use CSS pixels at the Android baseline density 
 
 The default discussion stacks a top bar, a flexible transcript and a composer. Its message and question gutters align at 18 dp. Give the editor the remaining width beside the microphone and the send or stop control. The editor grows to four visible lines. The activity reserves space for the system bars, display cutout and keyboard.
 
-Question buttons stack to the available width, wrap their labels and grow with the text. On the top bar, the title can ellipsize while the navigation and overflow controls keep their 48 dp square targets. Panel content scrolls within 20 dp side gutters. Profile forms keep at least 22 dp at either side and center a column of up to 520 dp on wider windows.
+Suggested answers stack to the available width and grow with their labels. On the top bar, the title can ellipsize while the navigation and overflow controls keep their 48 dp square targets. Panel content scrolls within 20 dp side gutters. Profile forms keep at least 22 dp at either side and center a column of up to 520 dp on wider windows.
 
 Editable workspace sections use 16 dp side insets. Compact density reduces the vertical inset of a block from 12 dp to 5 dp. In a layout that wraps native content, each surrounding scroll region can take up to a third of the available height. The native region receives the remaining space.
 
@@ -206,17 +210,19 @@ A thin outline and a change from paper to surface bring a question forward. Ordi
 
 ## Shapes
 
-Use the same rounded corners for a pending prompt and its tonal options (12 dp). The panel has a 1 dp line around it. Choices have a solid tonal fill. Profile fields have a smaller corner radius (8 dp), with a 1 dp muted stroke that becomes a 2 dp accent stroke on focus. The message composer and free-answer editor use Android’s underlined input.
+Use 12 dp corners on the pending prompt and its suggested answers. A 1 dp line outlines the panel. Profile fields, the message composer and the question’s free-answer editor use an 8 dp radius with a 1 dp muted outline that becomes a 2 dp accent outline on focus. In each conversation editor, the outline encloses the text field and its microphone.
 
 ## Components
 
-**Conversation.** “Vous” and “Hermes” name the speakers. On a confirmed empty thread, “Comprendre du code” and “Planifier mon travail” prepare editable starters. In an active thread, selectable message text can include code, diff signs and tool output. Longer messages offer a paged reader.
+**Starting a conversation.** In the inbox, “Nouvelle conversation” and the saved thread titles share an 18 dp margin. When a discussion is confirmed empty and has no draft or pending request, “Quelques idées pour commencer” introduces three rows separated by fine rules. “Poser une question” focuses the composer. “Comprendre du code” and “Planifier mon travail” fill it with editable text. The suggestions sit just above the composer when they fit. When the available height is too short, the list scrolls from the heading. [Conversation starters](app/src/main/java/org/llm4people/hermes/thread/ThreadStarters.java)
+
+**Conversation.** “Vous” and “Hermes” name the speakers. Selectable messages can include code, diff signs and tool output. Longer messages offer a paged reader. Beside the draft, “Envoyer” has an outline while disabled and an accent fill when enabled. An active run that can be stopped shows a square beside “Arrêter”.
 
 **Code excerpt.** Put fenced code on one light or dark surface across the full text column, preserving line breaks, indentation and selectable text. A settled turn previews up to four lines or 200 characters per block. A trailing code block shares its surface with “Ouvrir le code”. Use a supplied filename or language in the action label. Several blocks in the same display page use “Ouvrir un extrait…” to select one. The native reader pages through the complete source block and offers “Copier le contenu”. [Transcript formatter](app/src/main/java/org/llm4people/hermes/thread/MessageText.java) · [Source reader](app/src/main/java/org/llm4people/hermes/artifact/CodeReader.java)
 
-**Question.** Put the question first, with “Écouter” for spoken playback. A single-choice button submits its answer immediately. For multiple choices, Android checkboxes collect selections until “Envoyer la réponse”. A person can write or dictate a different answer or choose “Passer la question”. Mark a recommended answer in the label with “(choix recommandé)”. Once answered, the question and reply read as ordinary turns in the restored conversation.
+**Question.** Put “Écouter” with its speaker icon below the question. A single-choice button submits immediately. Set “(choix recommandé)” in smaller type after its answer. Checkboxes allow multiple selections, and the person can write or dictate a custom answer. “Envoyer la réponse” gains an accent fill when an answer is ready. “Passer la question” is a muted text action at the trailing edge. Once answered, the question and reply read as ordinary turns in the restored conversation.
 
-**Approval.** Lead with “Autoriser cette action ?” and describe the proposed effect. “Voir les détails” expands the exact command or edit when available. Show the supported actions on the same card. “Autoriser une fois” and “Refuser” share the tonal treatment. While a response is being sent or checked, disable the submission controls and report progress in text. An unconfirmed response exposes “Vérifier la demande”.
+**Approval.** Lead with “Autoriser cette action ?” and describe the proposed effect. “Voir les détails” expands the exact command or edit when available. “Autoriser une fois” carries a check mark and “Refuser” a cross. Both use ink text and the same neutral outline. Give them equal width side by side when both labels and icons fit. Otherwise, stack them in full-width rows. While a response is being sent or checked, disable the submission controls and report progress in text. An unconfirmed response exposes “Vérifier la demande”.
 
 **The Editable Draft Rule.** Dictation inserts or replaces text at the selection in the active editor. Sending takes a separate tap.
 
@@ -226,11 +232,13 @@ Use the same rounded corners for a pending prompt and its tonal options (12 dp).
 
 **Thread tool.** “Créer un outil pour ce fil” starts an editable request. The reply places the proposed tool’s own title and “Essayer dans la discussion” beneath the message. The selected proposal gains an accent-surface background. In the tool pane, put its return arrow, bold title and overflow in one header. A short teal status under the title identifies a trial or a pin. “Épingler à cette discussion” keeps the tool with that thread. When the tool is closed, its title and “Ouvrir” share a tinted row above the transcript.
 
-**Form answers.** In the review tool, “Relecture de code” names the tool, “Vérifier la modification” names the form and “Fichier” labels the input. Mark optional fields “(facultatif)”. A missing required answer focuses the field and names it in the error message. “Préparer un brouillon…” opens “Relire le brouillon”. “Vers le brouillon” places the reviewed text in the discussion composer, where the person can still edit it before choosing “Envoyer”.
+**Form answers.** In the review tool, “Relecture de code” names the tool, “Vérifier la modification” names the form and “Fichier” labels the input. Use muted text for the form instruction and 15 sp medium labels for the fields. Mark optional fields “(facultatif)”. A missing required answer focuses the field and names it in the error message. The tonal button “Préparer un brouillon…” sits on the leading edge and opens “Relire le brouillon”. “Vers le brouillon” places the reviewed text in the discussion composer, where the person can still edit it before choosing “Envoyer”.
 
-**Version comparison.** “Comparer les versions” opens on “Écarts”. Arrange “Épinglée”, “Écarts” and “Proposée” in one native radio group. Use ink for the selected pinned or differences view and accent for the selected proposal. In either form view, the header shows that version’s title. While switching between versions, keep each form’s unsent answers with its version.
+**Version comparison.** “Comparer les versions” opens on “Écarts”. Arrange “Épinglée”, “Écarts” and “Proposée” in one outlined native radio group. Inactive labels use muted ink. Use an ink fill for the selected pinned or differences view and an accent fill for the selected proposal. In either form view, the header shows that version’s title. While switching between versions, keep each form’s unsent answers with its version.
 
-Group differences by the affected section. For a changed value, “Avant” introduces the earlier value in muted ink and “Après” introduces its replacement in ink. Single-sided changes use a label such as “Champ ajouté” followed by the affected field and its declared type. The comparison uses the two tool definitions, including field types, requirements and choice lists. Keep the decision actions below the comparison. “Garder la version épinglée” returns to the saved version. “Adopter cette version” replaces the pin and “Annuler la modification” restores the previous state. [Native comparison](app/src/main/java/org/llm4people/hermes/artifact/InstrumentPreview.java) · [Thread tool journey](app/src/androidTest/java/org/llm4people/hermes/journey/ThreadInstrumentJourney.java)
+Group differences by section. An added or removed field leads with its name in bold, followed by a muted line such as “Champ ajouté · Choix obligatoire”. Declared options appear as bullets. For a changed value, align the earlier and proposed values beside “Avant” and “Après”. Use muted ink for the earlier value and ink for the proposal. Below the comparison, “Adopter cette version” replaces the pin. “Garder la version épinglée” returns to the saved version. After adoption, “Annuler la modification” restores the previous state. [Native comparison](app/src/main/java/org/llm4people/hermes/artifact/InstrumentPreview.java) · [Thread tool journey](app/src/androidTest/java/org/llm4people/hermes/journey/ThreadInstrumentJourney.java)
+
+**Discussion settings.** Under “Modèle et fournisseur”, one tinted row combines the current provider and model or “Suivre le profil” with the action “Choisir le modèle”. The searchable provider and model lists mark the saved choice with a radio indicator. Under “Ensembles d’outils”, inherited sets show their checkmarks with muted names. Where the server supports selection, clearing “Utiliser les outils du profil” enables the set checkboxes. Indent the individual tool chooser or member names under their set. [Discussion settings](app/src/main/java/org/llm4people/hermes/panel/SessionSettings.java)
 
 **The Measurement Label Rule.** Place the French measure name directly above the value. Give the value one accessible description containing both the name and value.
 
