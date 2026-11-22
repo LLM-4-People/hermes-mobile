@@ -9,9 +9,9 @@ import os
 from pathlib import Path
 import re
 import stat
-import struct
 import tempfile
-import zlib
+
+from device.run import android_png_size
 
 
 # A numbered journey stage can have additional verified views. Its first declared capture is the overview.
@@ -20,7 +20,6 @@ STEP_NAMES = (
     "Adopter la version", "Annuler la révision", "Ouvrir les deux panneaux",
 )
 TEMPLATE = Path(__file__).with_name("instrument_walkthrough.html")
-PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
 
 def read_evidence(path, limit):
@@ -37,37 +36,7 @@ def read_evidence(path, limit):
     return data
 
 
-def native_png(data, name, entry):
-    # Android's Bitmap encoder writes the image plus display information. Text, unknown chunks
-    # and bytes following IEND would carry unrelated data into the otherwise public HTML file.
-    if not data.startswith(PNG_SIGNATURE):
-        raise ValueError(f"Invalid PNG signature: {name}")
-    offset = len(PNG_SIGNATURE)
-    chunks = []
-    size = None
-    while offset + 12 <= len(data):
-        length, kind = struct.unpack_from(">I4s", data, offset)
-        end = offset + length + 12
-        if end > len(data) or kind not in {b"IHDR", b"IDAT", b"IEND", b"sRGB", b"sBIT", b"gAMA", b"cHRM", b"pHYs"}:
-            raise ValueError(f"Unexpected PNG chunk: {name}")
-        if zlib.crc32(data[offset + 4:end - 4]) != struct.unpack_from(">I", data, end - 4)[0]:
-            raise ValueError(f"Invalid PNG checksum: {name}")
-        if kind == b"IHDR":
-            if chunks or length != 13:
-                raise ValueError(f"Invalid PNG header: {name}")
-            size = struct.unpack_from(">II", data, offset + 8)
-        if kind == b"IEND" and (length != 0 or end != len(data)):
-            raise ValueError(f"Unexpected bytes after PNG: {name}")
-        chunks.append(kind)
-        offset = end
-    if (chunks[:1] != [b"IHDR"] or chunks[-1:] != [b"IEND"] or b"IDAT" not in chunks
-            or size != (entry.get("width"), entry.get("height")) or not all(0 < dim <= 4096 for dim in size)):
-        raise ValueError(f"Invalid PNG size or incomplete image: {name}")
-    return size
-
-
-def render(directory, expected):
-    report = json.loads(read_evidence(directory / "thread-instrument.json", 1024 * 1024))
+def render(directory, expected, report):
     records = report.get("captures")
     if not isinstance(records, dict) or records.keys() != expected.keys():
         raise ValueError("Capture names differ from the phone journey")
@@ -86,7 +55,9 @@ def render(directory, expected):
         data = read_evidence(directory / name, 8 * 1024 * 1024)
         if hashlib.sha256(data).hexdigest() != entry.get("sha256"):
             raise ValueError(f"Capture SHA-256 differs from the receipt: {name}")
-        width, height = native_png(data, name, entry)
+        width, height = android_png_size(data, name)
+        if (width, height) != (entry.get("width"), entry.get("height")):
+            raise ValueError(f"Capture dimensions differ from the receipt: {name}")
         if stage not in stages:
             stages[stage] = (caption, width, height, data)
 
@@ -109,8 +80,10 @@ def render(directory, expected):
         "<!-- SCREENS -->", "\n".join(figures))
 
 
-def write_walkthrough(directory, expected):
-    page = render(directory, expected)
+def write_walkthrough(directory, expected, report=None):
+    if report is None:
+        report = json.loads(read_evidence(directory / "thread-instrument.json", 1024 * 1024))
+    page = render(directory, expected, report)
     with tempfile.NamedTemporaryFile("w", dir=directory, encoding="utf-8", delete=False) as temporary:
         try:
             temporary.write(page)

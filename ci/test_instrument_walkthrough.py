@@ -13,7 +13,8 @@ import unittest
 import zlib
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "verification"))
-from instrument_walkthrough import PNG_SIGNATURE, STEP_NAMES, write_walkthrough
+from device.run import PNG_SIGNATURE
+from instrument_walkthrough import STEP_NAMES, write_walkthrough
 from thread_instruments import CAPTURES
 
 
@@ -124,7 +125,7 @@ class InstrumentWalkthroughTest(unittest.TestCase):
     def test_checks_image_dimensions_metadata_and_trailing_bytes_even_with_matching_hash(self):
         name, original = next(iter(self.images.items()))
         for data in (original + b"hidden", original[:-12] + chunk(b"tEXt", b"unrelated data") + chunk(b"IEND"),
-                     png(5, 8, 0), original[:-4]):
+                     png(5, 8, 0), original[:24], original[:-4]):
             with self.subTest(data=data[-18:]):
                 (self.directory / name).write_bytes(data)
                 self.report["captures"][name]["sha256"] = hashlib.sha256(data).hexdigest()

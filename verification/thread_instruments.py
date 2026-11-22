@@ -13,14 +13,13 @@ import json
 from pathlib import Path
 import re
 import secrets
-import struct
 import sys
 import tempfile
 import time
 
 from conversation_cards import admission
 from device.installed import installed_apk_sha256
-from device.run import APP, DEVICE_DIR, DRIVER, Emulator, cleanup_all, collect_captures
+from device.run import APP, DEVICE_DIR, DRIVER, Emulator, android_png_size, cleanup_all, collect_captures
 from gateway_fixture import Gateway, PINNED_REVISION, check_source
 from live_api import transcript
 from instrument_walkthrough import write_walkthrough
@@ -181,15 +180,13 @@ def journey(args, gateway):
         raise AssertionError("Missing native captures: " + ", ".join(sorted(missing)))
     captures = {}
     for name in sorted(CAPTURES):
-        with (args.output / name).open("rb") as capture:
-            header = capture.read(24)
-            size = struct.unpack(">II", header[16:24])
-            expected = (1200, 720) if name == "25-outil-grand-ecran.png" else (320, 640)
-            if size != expected:
-                raise AssertionError(f"{name} rendered at {size}, expected {expected}")
-            capture.seek(0)
-            captures[name] = {"caption": CAPTURES[name], "width": size[0], "height": size[1],
-                              "sha256": hashlib.file_digest(capture, "sha256").hexdigest()}
+        image = (args.output / name).read_bytes()
+        size = android_png_size(image, name)
+        expected = (1200, 720) if name == "25-outil-grand-ecran.png" else (320, 640)
+        if size != expected:
+            raise AssertionError(f"{name} rendered at {size}, expected {expected}")
+        captures[name] = {"caption": CAPTURES[name], "width": size[0], "height": size[1],
+                          "sha256": hashlib.sha256(image).hexdigest()}
     return {"apk_sha256": hashes[0], "test_apk_sha256": hashes[1], "captures": captures}
 
 
@@ -218,8 +215,11 @@ def main():
         report["canonical_receipts"] = verify_history(gateway, provider)
     report.update({"gateway_revision": args.revision, "canonical_review_turns": 3,
                    "unrelated_thread_turns": 1, "automatically_submitted_turns": 0})
-    (args.output / "thread-instrument.json").write_text(json.dumps(report, indent=2) + "\n")
-    write_walkthrough(args.output, CAPTURES)
+    write_walkthrough(args.output, CAPTURES, report)
+    receipt = args.output / "thread-instrument.json"
+    temporary = receipt.with_suffix(".tmp")
+    temporary.write_text(json.dumps(report, indent=2) + "\n")
+    temporary.replace(receipt)
     print(json.dumps(report), flush=True)
 
 

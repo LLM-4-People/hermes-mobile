@@ -7,7 +7,7 @@ import json
 import secrets
 
 from .installed import installed_apk_sha256
-from .run import APP, Emulator, cleanup_all
+from .run import APP, Emulator, android_png_size, cleanup_all
 
 
 DRIVER = f"{APP}.test/{APP}.journey.ConversationCardsJourney"
@@ -98,8 +98,9 @@ class CardPhone:
     def evidence(self):
         captures = {}
         for name in sorted(CAPTURES):
-            with (self.output / name).open("rb") as capture:
-                captures[name] = hashlib.file_digest(capture, "sha256").hexdigest()
+            image = (self.output / name).read_bytes()
+            android_png_size(image, name)
+            captures[name] = hashlib.sha256(image).hexdigest()
         return {
             "apk_sha256": self.apk_hash,
             "test_apk_sha256": self.test_apk_hash,
@@ -113,8 +114,6 @@ class CardPhone:
             for name in names:
                 if name in CAPTURES:
                     image = device.run("exec-out", "run-as", APP, "cat", self.directory + "/" + name)
-                    if not (image.startswith(b"\x89PNG\r\n\x1a\n")
-                            and image.endswith(b"\0\0\0\0IEND\xae\x42\x60\x82")):
-                        raise AssertionError("Invalid capture " + name)
+                    android_png_size(image, name)
                     (self.output / name).write_bytes(image)
         cleanup_all(collect, lambda: device.shell("run-as", APP, "rm", "-r", self.directory))
