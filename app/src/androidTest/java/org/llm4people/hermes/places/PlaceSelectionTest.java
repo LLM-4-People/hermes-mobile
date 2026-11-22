@@ -51,6 +51,8 @@ public final class PlaceSelectionTest extends TestCase {
         assertEquals(4, choice.visible().size());
         choice.all(true);
         assertTrue(choice.all());
+        choice.filter("");
+        assertTrue(choice.all());
         choice.filter("Asiatique");
         assertFalse(choice.all());
         assertEquals(1, choice.visible().size());

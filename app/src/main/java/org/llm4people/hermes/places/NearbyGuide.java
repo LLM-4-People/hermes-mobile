@@ -112,7 +112,7 @@ public final class NearbyGuide extends LinearLayout {
             empty.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
             addView(empty);
             addView(text(scope, 14, R.color.muted));
-            provenance(s);
+            provenance(this, s);
             alternatives();
             return;
         }
@@ -141,6 +141,7 @@ public final class NearbyGuide extends LinearLayout {
         TextView caption = text("Distances approximatives à vol d’oiseau depuis le centre", 13, R.color.muted);
         Ui.pad(caption, 0, 3);
         overview.addView(caption);
+        provenance(overview, s);
         LinearLayout filters = new LinearLayout(getContext());
         boolean inline = getResources().getConfiguration().fontScale <= 1.2f;
         filters.setOrientation(inline ? HORIZONTAL : VERTICAL);
@@ -168,7 +169,6 @@ public final class NearbyGuide extends LinearLayout {
             rows.addView(more);
         }
         updateVenues();
-        provenance(s);
     }
 
     private void updateVenues() {
@@ -286,13 +286,13 @@ public final class NearbyGuide extends LinearLayout {
         }
     }
 
-    private void provenance(State s) {
+    private void provenance(LinearLayout parent, State s) {
         String precision = "Centre de la zone approximative";
         if (Double.isFinite(s.accuracy) && s.accuracy > 0) precision += " · incertitude annoncée ± " + distance((int)Math.ceil(s.accuracy));
         TextView note = text(precision + "\n" + s.result.attribution + " · données du "
                 + DATE.format(Instant.parse(s.result.sourceDate)), 13, R.color.muted);
         note.setPaddingRelative(0, dp(6), 0, dp(4));
-        addView(note);
+        parent.addView(note);
     }
     private void alternatives() {
         addView(action("Utiliser ma zone approximative", "places-locate", v -> actions.locate()));

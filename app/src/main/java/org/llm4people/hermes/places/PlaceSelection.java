@@ -32,7 +32,7 @@ public final class PlaceSelection {
     public void all(boolean value) { all = value; }
 
     public void filter(String value) {
-        if (!value.isEmpty() && !cuisines.contains(value)) return;
+        if (visible != null && value.equals(cuisine) || !value.isEmpty() && !cuisines.contains(value)) return;
         cuisine = value;
         Set<Integer> indexes = new LinkedHashSet<>();
         for (int i = 0; i < result.places.size(); i++)
