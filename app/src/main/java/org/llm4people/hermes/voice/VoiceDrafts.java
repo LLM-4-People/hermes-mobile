@@ -105,6 +105,8 @@ public final class VoiceDrafts {
                     : new LinearLayout.LayoutParams(0, -2, 1));
             feedback.setVisibility(message == 0 ? View.GONE : View.VISIBLE);
             status.setText(message == 0 ? "" : activity.getString(message));
+            action.setAccessibilityLiveRegion(message == 0 && click != null
+                    ? View.ACCESSIBILITY_LIVE_REGION_POLITE : View.ACCESSIBILITY_LIVE_REGION_NONE);
             action.setVisibility(click == null ? View.GONE : View.VISIBLE);
             action.setText(click == null ? "" : activity.getString(actionLabel));
             action.setOnClickListener(click == null ? null : v -> click.run());
