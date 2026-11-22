@@ -4,6 +4,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.IOException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -44,9 +45,13 @@ final class ArtifactCatalog {
             remaining -= text.length();
             if (remaining < 0) { limited = true; break; }
             final int messageIndex = i;
-            List<Block> current = new ArrayList<>();
+            int capacity = MAX_FENCES - newest.size();
+            ArrayDeque<Block> current = new ArrayDeque<>();
             Fences.scan(text, (language, filename, content, n) -> {
-                if (current.size() + newest.size() >= MAX_FENCES) { limited = true; return false; }
+                if (current.size() == capacity) {
+                    current.removeLast();
+                    limited = true;
+                }
                 boolean layout = WorkspaceLayout.FENCE.equals(language);
                 String surface = layout ? surfaceOf(content) : null;
                 String key = surface != null ? "workspace:" + surface : filename.isEmpty() || layout ? "block:" + messageIndex + ":" + n
@@ -55,10 +60,9 @@ final class ArtifactCatalog {
                         : !filename.isEmpty() ? filename
                         : ("diff".equals(language) || "patch".equals(language)) ? "Modifications"
                         : language.isEmpty() ? "Extrait de code" : "Extrait " + language;
-                current.add(new Block(key, title, language, content));
+                current.addFirst(new Block(key, title, language, content));
                 return true;
             });
-            Collections.reverse(current);
             newest.addAll(current);
             if (newest.size() == MAX_FENCES && i > oldest) { limited = true; break; }
         }
@@ -94,8 +98,9 @@ final class ArtifactCatalog {
             Object v = part.opt("text");
             if (!(v instanceof String)) continue;
             String text = (String) v;
-            if (text.length() > MAX_MESSAGE_CHARS - result.length() - 1) return null;
-            if (result.length() > 0) result.append('\n');
+            int separatorLength = result.length() == 0 ? 0 : 1;
+            if (text.length() > MAX_MESSAGE_CHARS - result.length() - separatorLength) return null;
+            if (separatorLength != 0) result.append('\n');
             result.append(text);
         }
         return result.toString();
