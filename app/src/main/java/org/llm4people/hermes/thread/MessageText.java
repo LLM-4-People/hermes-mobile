@@ -31,6 +31,10 @@ final class MessageText {
     private MessageText() {}
 
     static CharSequence styled(Context context, TranscriptPage page) {
+        return styled(context, page, true);
+    }
+
+    private static CharSequence styled(Context context, TranscriptPage page, boolean indentBlocks) {
         SpannableStringBuilder content = new SpannableStringBuilder(page.text);
         for (TranscriptPage.Mark mark : page.marks) {
             switch (mark.style) {
@@ -63,8 +67,8 @@ final class MessageText {
                 paint.setColor(original);
             };
             content.setSpan(surface, block.displayStart, block.displayEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-            content.setSpan(new LeadingMarginSpan.Standard(inset), block.displayStart, block.displayEnd,
-                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            if (indentBlocks) content.setSpan(new LeadingMarginSpan.Standard(inset), block.displayStart,
+                    block.displayEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         }
         return content;
     }
@@ -99,8 +103,9 @@ final class MessageText {
         Context context = target.getContext();
         SpannableStringBuilder rendered = new SpannableStringBuilder();
         if (stream.earlier) rendered.append("…\n");
-        if (stream.preceding != null) rendered.append(styled(context, stream.preceding));
-        rendered.append(styled(context, stream.latest));
+        // Adjacent live pages can share a paragraph. Avoid stacking paragraph insets there.
+        if (stream.preceding != null) rendered.append(styled(context, stream.preceding, false));
+        rendered.append(styled(context, stream.latest, false));
         if (stream.later) rendered.append("…");
         // Preserve a selection only while its original passage remains at the same offsets.
         int selectedThrough = Math.max(target.getSelectionStart(), target.getSelectionEnd());
@@ -124,7 +129,7 @@ final class MessageText {
         int count = page.blocks.size();
         TranscriptPage.Block first = page.blocks.get(0);
         String title = first.title(source);
-        String label = count > 1 ? context.getString(R.string.code_open_many, count)
+        String label = count > 1 ? context.getString(R.string.code_open_many)
                 : title.isEmpty() ? context.getString(R.string.code_open)
                 : context.getString(R.string.code_open_named, title);
         Button action = Ui.button(context, label, v -> {
