@@ -17,3 +17,5 @@ The test enrolls one of two protected local accounts through the app’s own con
 The installed distributor is the F-Droid flavor published by the ntfy project. It uses a persistent connection to the explicitly selected private server. This lane can run without a cloud account. Firebase delivery has a separate infrastructure requirement.
 
 [Official ntfy Android release](https://github.com/binwiederhier/ntfy-android/releases/tag/v1.25.2) · [Official ntfy server release](https://github.com/binwiederhier/ntfy/releases/tag/v2.38.1) · [Android Task Manager testing](https://developer.android.com/develop/background-work/services/fgs/handle-user-stopping)
+
+The **AOSP closed-app delivery** pull-request check starts a fresh full Android phone on a GitHub-hosted runner. It checks the official SDK image revision and archive digest, verifies that Google Play services are absent, and runs the same proof against loopback services. Its downloadable artifact contains the component versions and assertion results. You can rerun the workflow from Actions under **Self-hosted push acceptance**.

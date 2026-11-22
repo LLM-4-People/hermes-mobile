@@ -1,0 +1,67 @@
+name: Self-hosted push acceptance
+
+on:
+  pull_request:
+    paths:
+      - '.github/actions/**'
+      - '.github/workflows/unified-push.yml'
+      - 'app/**'
+      - 'ci/aosp*'
+      - 'ci/unified-push-check.sh'
+      - 'deploy/**'
+      - 'gradle/**'
+      - 'gradle.properties'
+      - 'gradlew'
+      - 'server/**'
+      - 'settings.gradle'
+      - 'verification/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: self-hosted-push-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  phone:
+    name: AOSP closed-app delivery
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/android
+      - uses: ./.github/actions/hermes-fixture
+      - name: Install isolated gateway and relay environments
+        run: |
+          UV_PROJECT_ENVIRONMENT="$RUNNER_TEMP/hermes-env" \
+            uv sync --project .fixture/hermes --frozen --no-dev --no-install-project --extra sms
+          python3 -m venv "$RUNNER_TEMP/push-env"
+          "$RUNNER_TEMP/push-env/bin/python" -m pip install -r server/requirements.txt
+      - name: Build the app to install on the clean phone
+        run: ./gradlew :app:assembleDebug
+      - id: image
+        name: Check the official AOSP package and archive digest
+        run: python3 -B ci/aosp_phone.py >> "$GITHUB_OUTPUT"
+      - name: Allow the runner user to use KVM
+        run: sudo setfacl -m "u:$(id -u):rw" /dev/kvm
+      - name: Verify delivery after process death
+        uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: ${{ steps.image.outputs.sdk }}
+          target: ${{ steps.image.outputs.target }}
+          arch: ${{ steps.image.outputs.arch }}
+          profile: pixel_6
+          disable-linux-hw-accel: false
+          pre-emulator-launch-script: python3 -B ci/aosp_phone.py --installed
+          script: ci/unified-push-check.sh
+      - name: Retain anonymous verification results
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: aosp-closed-app-delivery
+          path: ${{ runner.temp }}/unified-push-result.json
+          retention-days: 7
+          if-no-files-found: error
