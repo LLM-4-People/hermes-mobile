@@ -58,14 +58,15 @@ final class WorkspaceLayout {
                 ". Other blocks include {type:link,title,page} and {type:value,title,source}; sources: " +
                 String.join(", ", SOURCES) + ". Thread content can order slots from " + String.join(", ", SLOTS) +
                 ". For code artifacts add a filename after the fence language, e.g. file=src/main.py or file=Dockerfile; use diff for diffs.\n" +
-                "For a reusable discussion or review tool, create a personal surface page/<lowercase-slug> in " +
-                "replace mode. Put each requested input in the form's fields. Kinds: text, multiline, or choice " +
+                "For a reusable discussion or review tool, create a personal surface page/<slug> in replace mode. " +
+                "The slug and field IDs must match " + DraftForm.SLUG.pattern() + " (hyphens between words). " +
+                "Give each requested input a field, up to " + DraftForm.MAX_FIELDS + ". Kinds: text, multiline, or choice " +
                 "with options (an array of French strings). Forms prepare drafts that the person edits and sends. " +
                 "On revision return the whole page, retaining its surface and existing field IDs. Adapt this example " +
                 "to the task; use French labels and the exact opening and closing fence lines:\n```" + FENCE + "\n" +
-                "{\"version\":1,\"surface\":\"page/visite\",\"mode\":\"replace\",\"title\":\"Visite\",\"blocks\":[" +
+                "{\"version\":1,\"surface\":\"page/visite-site\",\"mode\":\"replace\",\"title\":\"Visite\",\"blocks\":[" +
                 "{\"type\":\"form\",\"title\":\"Lieu à visiter\",\"prompt\":\"Prépare cette visite.\",\"fields\":[" +
-                "{\"id\":\"lieu\",\"label\":\"Lieu\",\"kind\":\"text\",\"required\":true}]}]}\n```\n";
+                "{\"id\":\"lieu-visite\",\"label\":\"Lieu\",\"kind\":\"text\",\"required\":true}]}]}\n```\n";
     }
 
     /** Only constrained identifiers enter run instructions. The proposed page and form values stay out. */
