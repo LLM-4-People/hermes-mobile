@@ -46,7 +46,7 @@ final class WorkspacePagesJourney {
         ui.see(name);
         menu("Rétablir l’atelier");
         ui.tap("Diagnostic mobile (diagnostic)");
-        ui.tap("Rétablir");
+        ui.tap("Supprimer");
         menu("Mes écrans");
         ui.contains("Demandez à Hermes de créer un écran");
         ui.absent("Diagnostic mobile");
