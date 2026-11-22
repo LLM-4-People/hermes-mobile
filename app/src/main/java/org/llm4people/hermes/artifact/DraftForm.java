@@ -1,5 +1,7 @@
 package org.llm4people.hermes.artifact;
 
+import android.icu.lang.UCharacter;
+import android.icu.lang.UProperty;
 import android.util.JsonReader;
 import android.util.JsonToken;
 import java.io.IOException;
@@ -82,7 +84,8 @@ final class DraftForm {
         for (int i = 0; i < value.length();) {
             int cp = value.codePointAt(i);
             if (!Character.isWhitespace(cp) && !Character.isSpaceChar(cp) && !Character.isISOControl(cp)
-                    && Character.getType(cp) != Character.FORMAT) return false;
+                    && Character.getType(cp) != Character.FORMAT
+                    && !UCharacter.hasBinaryProperty(cp, UProperty.VARIATION_SELECTOR)) return false;
             i += Character.charCount(cp);
         }
         return true;

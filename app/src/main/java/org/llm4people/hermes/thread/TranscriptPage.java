@@ -134,26 +134,47 @@ final class TranscriptPage {
         Matcher tokens = (markdown ? INLINE : MEDIA).matcher(source).region(next.offset, end + lookahead);
         while (tokens.find() && tokens.start() < end) {
             boolean image = tokens.start(1) >= 0 || tokens.start(2) >= 0;
-            if (!image && tokens.end() > end) break;
+            if (!image && tokens.end() > end) {
+                // Formatting that continues on another page is literal here. Its images still collapse.
+                textWithImages(end, end + lookahead);
+                return;
+            }
             literal(tokens.start());
             if (image) {
-                int after = tokens.end();
-                while (after < next.lineEnd && base64(source.charAt(after))) after++;
-                if (tokens.start(1) >= 0 && after < next.lineEnd && source.charAt(after) == ')') after++;
-                text.append("[Image jointe]");
-                next.offset = after;
-                if (after >= end) return;
-                tokens.region(after, end + lookahead);
+                appendImage(tokens);
+                if (next.offset >= end) return;
+                tokens.region(next.offset, end + lookahead);
             } else {
                 int field = 3;
                 while (tokens.start(field) < 0) field++;
                 int spanStart = text.length();
-                text.append(source, tokens.start(field), tokens.end(field));
+                next.offset = tokens.start(field);
+                if (field == 3) literal(tokens.end(field));
+                else textWithImages(tokens.end(field), tokens.end(field));
                 mark(spanStart, field == 3 ? Style.INLINE_CODE : field <= 5 ? Style.BOLD : Style.ITALIC);
                 next.offset = tokens.end();
             }
         }
         literal(end);
+    }
+
+    private void textWithImages(int end, int searchEnd) {
+        Matcher images = MEDIA.matcher(source).region(next.offset, searchEnd);
+        while (images.find() && images.start() < end) {
+            literal(images.start());
+            appendImage(images);
+            if (next.offset >= end) return;
+            images.region(next.offset, searchEnd);
+        }
+        literal(end);
+    }
+
+    private void appendImage(Matcher image) {
+        int after = image.end();
+        while (after < next.lineEnd && base64(source.charAt(after))) after++;
+        if (image.start(1) >= 0 && after < next.lineEnd && source.charAt(after) == ')') after++;
+        text.append("[Image jointe]");
+        next.offset = after;
     }
 
     private void mark(int start, Style style) {
