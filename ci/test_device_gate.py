@@ -3,6 +3,7 @@
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -16,6 +17,9 @@ with open(os.environ["GATE_COMMANDS"], "a") as stream:
     print(json.dumps([Path(sys.argv[0]).name, *sys.argv[1:]]), file=stream)
 if sys.argv[1:] == ["get-serialno"]:
     print("emulator-fixture")
+if Path(sys.argv[0]).name == "gradlew" and os.environ.get("FAIL_GRADLE") == "1":
+    print("Native Android tests failed", file=sys.stderr)
+    sys.exit(17)
 if os.environ.get("FAIL_VERIFIER") in sys.argv[1:]:
     print("instrument-wide failed to show the pinned form", file=sys.stderr)
     sys.exit(31)
@@ -29,14 +33,19 @@ class DeviceGateTest(unittest.TestCase):
         self.root = Path(temporary.name)
         self.runner = self.root / "runner temp"
         self.trace = self.root / "calls.jsonl"
+        self.trace.touch()
+        ci = self.root / "ci"
+        ci.mkdir()
+        shutil.copyfile(GATE.with_name("gradle_check.py"), ci / "gradle_check.py")
         for command in (self.root / "gradlew", self.root / "bin/adb", self.runner / "hermes-env/bin/python"):
             command.parent.mkdir(parents=True, exist_ok=True)
             command.write_text(RECORDER)
             command.chmod(0o755)
 
-    def gate(self, fail=""):
+    def gate(self, fail="", fail_gradle=False):
         env = {**os.environ, "RUNNER_TEMP": str(self.runner), "GATE_COMMANDS": str(self.trace),
-               "PATH": str(self.root / "bin") + os.pathsep + os.environ["PATH"], "FAIL_VERIFIER": fail}
+               "PATH": str(self.root / "bin") + os.pathsep + os.environ["PATH"],
+               "FAIL_VERIFIER": fail, "FAIL_GRADLE": "1" if fail_gradle else "0"}
         result = subprocess.run(["bash", GATE], cwd=self.root, env=env, text=True, capture_output=True)
         return result, [json.loads(line) for line in self.trace.read_text().splitlines()]
 
@@ -70,3 +79,9 @@ class DeviceGateTest(unittest.TestCase):
         self.assertEqual(result.returncode, 31)
         self.assertIn("instrument-wide failed", result.stderr)
         self.assertIn("partial screenshots in android-thread-instruments", result.stderr)
+
+    def test_native_test_failure_stops_before_device_setup(self):
+        result, calls = self.gate(fail_gradle=True)
+        self.assertEqual(result.returncode, 17)
+        self.assertIn("Native Android tests failed", result.stdout)
+        self.assertEqual(calls, [["gradlew", "--no-daemon", "--max-workers=2", ":app:connectedDebugAndroidTest"]])
