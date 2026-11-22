@@ -68,8 +68,9 @@ class NoticeView:
 
 
 def current_notice(ui, title):
-    root = ui.hierarchy()
-    if root.get("package") != SYSTEM_UI or not root.get("window-id", "").isdigit():
+    # Evidence must observe the immediately visible window without dismissing SystemUI dialogs.
+    root = ui.snapshot()
+    if root is None or root.get("package") != SYSTEM_UI or not root.get("window-id", "").isdigit():
         return None
     headings = [n for n in root.iter("node") if n.get("text") == title]
     if len(headings) != 1:

@@ -38,11 +38,23 @@ class CaptureTest(unittest.TestCase):
         self.enterContext(patch("verification.unifiedpush.ui.eventually", side_effect=attempt_once))
 
     def test_foreign_focused_root_with_same_label_cannot_supply_pixels(self):
-        self.ui.hierarchy = Mock(return_value=snapshot(package="private.fixture"))
+        self.ui.snapshot = Mock(return_value=snapshot(package="private.fixture"))
         with self.assertRaisesRegex(AssertionError, "stable focused"):
             open_notice(self.ui, TITLE, self.directory)
         self.ui.device.run.assert_not_called()
         self.ui.controls.send.assert_not_called()
+        self.assertEqual(list(self.directory.iterdir()), [])
+
+    def test_passive_capture_check_never_dismisses_a_covering_system_dialog(self):
+        self.ui.controls.send.return_value = (
+            b'<node package="android"><node text="System UI is not responding"/>'
+            b'<node resource-id="android:id/aerr_wait" bounds="[1,1][9,5]"/></node>'
+        )
+        with self.assertRaisesRegex(AssertionError, "stable focused"):
+            open_notice(self.ui, TITLE, self.directory)
+        self.ui.controls.send.assert_called_once_with("tree")
+        self.ui.device.shell.assert_not_called()
+        self.ui.device.run.assert_not_called()
         self.assertEqual(list(self.directory.iterdir()), [])
 
     def test_screencap_is_discarded_on_window_focus_or_either_label_change(self):
@@ -55,7 +67,7 @@ class CaptureTest(unittest.TestCase):
             (snapshot(body="[3,5][9,7]"), FOCUS),
         ):
             with self.subTest(changed=changed, focus=focus):
-                self.ui.hierarchy = Mock(side_effect=[snapshot(), changed])
+                self.ui.snapshot = Mock(side_effect=[snapshot(), changed])
                 self.ui.device.shell.side_effect = [FOCUS, focus]
                 with self.assertRaisesRegex(AssertionError, "stable focused"):
                     open_notice(self.ui, TITLE, self.directory)
@@ -63,7 +75,7 @@ class CaptureTest(unittest.TestCase):
                 self.assertEqual(list(self.directory.iterdir()), [])
 
     def test_window_replaced_between_screencap_and_physical_tap(self):
-        self.ui.hierarchy = Mock(side_effect=[snapshot(), snapshot(), snapshot(package="private.fixture")])
+        self.ui.snapshot = Mock(side_effect=[snapshot(), snapshot(), snapshot(package="private.fixture")])
         images = (Mock(), Mock())
         with patch("verification.unifiedpush.ui.masked_notice", return_value=images):
             with self.assertRaisesRegex(AssertionError, "stable focused"):
@@ -72,7 +84,7 @@ class CaptureTest(unittest.TestCase):
         self.assertEqual(list(self.directory.iterdir()), [])
 
     def test_native_last_moment_rejection_discards_staged_evidence(self):
-        self.ui.hierarchy = Mock(side_effect=[snapshot(), snapshot(), snapshot()])
+        self.ui.snapshot = Mock(side_effect=[snapshot(), snapshot(), snapshot()])
         self.ui.controls.send.return_value = b"retry"
         with patch("verification.unifiedpush.ui.masked_notice", return_value=(Mock(), Mock())):
             with self.assertRaisesRegex(AssertionError, "stable focused"):
@@ -81,7 +93,7 @@ class CaptureTest(unittest.TestCase):
         self.assertEqual(list(self.directory.iterdir()), [])
 
     def test_without_capture_tap_uses_fresh_current_window_and_bounds(self):
-        self.ui.hierarchy = Mock(return_value=snapshot(window="75", heading="[20,21][40,45]"))
+        self.ui.snapshot = Mock(return_value=snapshot(window="75", heading="[20,21][40,45]"))
         open_notice(self.ui, TITLE)
         self.ui.controls.send.assert_called_once_with("tap-notice", title=TITLE, window=75, focus=WINDOW, bounds=(20, 21, 40, 45))
 
@@ -89,7 +101,7 @@ class CaptureTest(unittest.TestCase):
     def test_stable_capture_writes_only_pixels_in_known_label_rectangles(self):
         from PIL import Image
 
-        self.ui.hierarchy = Mock(side_effect=[snapshot(), snapshot(), snapshot()])
+        self.ui.snapshot = Mock(side_effect=[snapshot(), snapshot(), snapshot()])
         source = Image.new("RGB", (12, 9), "red")
         source.paste("white", (1, 1, 6, 3))
         source.paste("yellow", (2, 4, 8, 6))

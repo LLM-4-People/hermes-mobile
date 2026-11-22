@@ -21,12 +21,15 @@ class Screen:
         self.device = device
         self.controls = controls
 
+    def snapshot(self):
+        tree = self.controls.send("tree")
+        return ElementTree.fromstring(tree) if tree else None
+
     def hierarchy(self):
         def capture():
-            tree = self.controls.send("tree")
-            if not tree:
+            root = self.snapshot()
+            if root is None:
                 return None
-            root = ElementTree.fromstring(tree)
             # First-boot SystemUI can cover the freshly launched distributor.
             waiting = self.node("android:id/aerr_wait", root)
             if waiting is not None and any("System UI" in node.get("text", "") for node in root.iter("node")):
