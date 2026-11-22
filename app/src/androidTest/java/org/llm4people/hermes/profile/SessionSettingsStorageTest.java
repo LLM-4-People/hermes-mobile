@@ -21,6 +21,9 @@ import java.util.UUID;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.net.Exchange;
 import org.llm4people.hermes.net.HermesApi;
+import org.json.JSONArray;
+import org.json.JSONObject;
+import org.llm4people.hermes.panel.PickerWindow;
 import org.llm4people.hermes.panel.SessionPanel;
 
 @SuppressWarnings("deprecation")
@@ -96,12 +99,26 @@ public final class SessionSettingsStorageTest extends InstrumentationTestCase {
     }
 
     public void testRejectedModelChoiceRestoresTheRadioAndCanBeRetriedThroughSearch() throws Throwable {
+        if (Build.VERSION.SDK_INT >= 29) exerciseModelPicker(null);
+    }
+
+    public void testSearchAndFilteredModelRemainReachableInBothCompactKeyboardViewports() throws Throwable {
         if (Build.VERSION.SDK_INT < 29) return;
+        exerciseModelPicker(false);
+        exerciseModelPicker(true);
+    }
+
+    private void exerciseModelPicker(Boolean landscape) throws Throwable {
         Context context = getInstrumentation().getTargetContext();
         AccountIndexCommitTest.IndexContext storage = new AccountIndexCommitTest.IndexContext(context);
         String features = "{\"features\":{}}";
         String catalog = "{\"data\":[]}";
-        String routes = "{\"providers\":[{\"slug\":\"vendor\",\"models\":[\"Alpha\",\"Beta\"]}]}";
+        String name = landscape == null ? "vendor"
+                : String.join("\n", java.util.Collections.nCopies(20, "Atelier de recherche et de documentation"));
+        String providerLabel = name.equals("vendor") ? name : name + " · vendor";
+        JSONObject provider = new JSONObject().put("name", name).put("slug", "vendor")
+                .put("models", new JSONArray().put("Alpha").put("Beta"));
+        String routes = new JSONObject().put("providers", new JSONArray().put(provider)).toString();
         try (Exchange server = new Exchange("200 OK", "", features, catalog, routes, features, catalog);
              Account owner = new Account("model-test", "Profil", server.endpoint(), "test", storage.index,
                      new byte[Account.KEY_BYTES])) {
@@ -111,27 +128,25 @@ public final class SessionSettingsStorageTest extends InstrumentationTestCase {
             SessionPanel panel = new SessionPanel(activity, new HermesApi(server.endpoint(), "test"), owner);
             try {
                 runTestOnUiThread(() -> {
-                    panel.show("thread", "thread");
+                    if (landscape == null) panel.show("thread", "thread");
+                    else PickerWindow.open(panel, landscape);
                     View choice = matching(activity.getString(R.string.panel_route)).get(0);
                     while (!choice.isClickable()) choice = (View) choice.getParent();
                     assertTrue(choice.performClick());
                 });
-                CheckedTextView vendor = awaitChoice("vendor", 1);
+                CheckedTextView vendor = awaitChoice(providerLabel, 1);
                 runTestOnUiThread(() -> tapChoice(vendor));
                 CheckedTextView beta = awaitChoice("Beta", 2);
                 runTestOnUiThread(() -> {
                     ListView list = (ListView) beta.getParent();
+                    if (landscape != null) PickerWindow.check(list, searchField(list), landscape, null);
                     storage.failNext = true;
-                    tapChoice(beta);
+                    tapChoice((CheckedTextView) list.getChildAt(1));
                     assertEquals(0, list.getCheckedItemPosition());
                     assertRadio((CheckedTextView) list.getChildAt(0), true);
-                    assertRadio(beta, false);
+                    assertRadio((CheckedTextView) list.getChildAt(1), false);
                     assertEquals(1, matching(activity.getString(R.string.panel_storage_error)).size());
-                    EditText filter = null;
-                    for (View view : list.getRootView().getFocusables(View.FOCUS_FORWARD))
-                        if (view instanceof EditText field) filter = field;
-                    assertNotNull(filter);
-                    filter.setText("Bet");
+                    searchField(list).setText("Bet");
                 });
                 CheckedTextView filtered = awaitChoice("Beta", 1);
                 runTestOnUiThread(() -> {
@@ -141,7 +156,8 @@ public final class SessionSettingsStorageTest extends InstrumentationTestCase {
                     assertEquals(ListView.INVALID_POSITION, list.getCheckedItemPosition());
                     assertRadio(filtered, false);
                     assertEquals("Alpha", SessionPanel.runOptions(context, owner, "thread").optString("model"));
-                    tapChoice(filtered);
+                    if (landscape == null) tapChoice((CheckedTextView) list.getChildAt(0));
+                    else PickerWindow.check(list, searchField(list), landscape, SessionSettingsStorageTest::tapChoice);
                     assertEquals("Beta", SessionPanel.runOptions(context, owner, "thread").optString("model"));
                 });
                 assertTrue(server.observed().contains("/api/model/options?include_unconfigured=false"));
@@ -149,6 +165,12 @@ public final class SessionSettingsStorageTest extends InstrumentationTestCase {
                 runTestOnUiThread(() -> { panel.close(); activity.finish(); });
             }
         }
+    }
+
+    private static EditText searchField(ListView list) {
+        for (View view : list.getRootView().getFocusables(View.FOCUS_FORWARD))
+            if (view instanceof EditText field) return field;
+        throw new AssertionError("Missing model search field");
     }
 
     private CheckedTextView awaitChoice(String label, int count) throws Throwable {
