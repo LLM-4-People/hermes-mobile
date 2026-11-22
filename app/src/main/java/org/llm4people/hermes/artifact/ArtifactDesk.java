@@ -46,7 +46,16 @@ public final class ArtifactDesk {
         catalog = new ArtifactCatalog(messages == null ? new JSONArray() : messages);
     }
 
-    public static String proposalInstructions() { return WorkspaceLayout.instructions(); }
+    public static String proposalInstructions(Account account, String threadId) {
+        String instructions = WorkspaceLayout.instructions();
+        try {
+            ThreadInstruments.Pin pin = new ThreadInstruments(account, threadId).state().current;
+            if (pin != null) instructions += WorkspaceLayout.pinnedReference(pin.pageId, pin.messageId, pin.fenceOrdinal);
+        } catch (IllegalStateException unreadable) {
+            Diagnostics.warning("workspace", "instrument_reference_unavailable");
+        }
+        return instructions;
+    }
 
     public static View decorate(Activity activity, Account account, String surface, View nativeContent, Host host) {
         return SurfaceRenderer.decorate(activity, account, surface, nativeContent, host);

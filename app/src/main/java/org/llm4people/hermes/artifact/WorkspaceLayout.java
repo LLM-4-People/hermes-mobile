@@ -69,6 +69,15 @@ final class WorkspaceLayout {
                 "after the fence language, e.g. file=src/main.py or file=Dockerfile. For diffs use diff.";
     }
 
+    /** Only constrained identifiers enter run instructions. The proposed page and form values stay out. */
+    static String pinnedReference(String pageId, String messageId, int fence) {
+        if (!custom(pageId) || fence < 0) return "";
+        String origin = messageId != null && messageId.matches("[1-9][0-9]{0,18}")
+                ? ", sourceMessage=" + messageId + ", fenceIndex=" + fence : "";
+        return " The person has pinned this tool in the current discussion: surface=" + pageId + origin
+                + ". When they refer to their current tool, use this version as the starting point.";
+    }
+
     static WorkspaceLayout parse(String raw) throws IOException {
         require(raw != null && raw.length() <= MAX_CHARS);
         validateJsonStrings(raw);

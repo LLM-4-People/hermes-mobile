@@ -333,7 +333,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     @Override public JSONObject options(String sessionId) {
         JSONObject options = SessionPanel.runOptions(this, account, sessionId);
         try {
-            options.put("instructions", ArtifactDesk.proposalInstructions());
+            options.put("instructions", ArtifactDesk.proposalInstructions(account, sessionId));
         } catch (JSONException invalid) {
             throw new IllegalStateException(invalid);
         }
