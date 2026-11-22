@@ -2,19 +2,12 @@ package org.llm4people.hermes.files;
 
 import android.test.AndroidTestCase;
 import org.json.JSONObject;
+import org.llm4people.hermes.net.Exchange;
 import org.llm4people.hermes.net.HermesApi;
-import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
-import java.net.InetAddress;
-import java.net.ServerSocket;
-import java.net.Socket;
-import java.nio.charset.StandardCharsets;
-import java.util.concurrent.FutureTask;
-import java.util.concurrent.TimeUnit;
 
+@SuppressWarnings("deprecation")
 public class VerifiedFileTest extends AndroidTestCase {
     private static final String HASH = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
 
@@ -25,26 +18,8 @@ public class VerifiedFileTest extends AndroidTestCase {
     }
 
     private void transfer(String digest, boolean success) throws Exception {
-        try (ServerSocket listener = new ServerSocket(0, 1, InetAddress.getByName("127.0.0.1"))) {
-            FutureTask<Void> response = new FutureTask<>(() -> {
-                try (Socket peer = listener.accept()) {
-                    peer.setSoTimeout(3000);
-                    BufferedReader input = new BufferedReader(new InputStreamReader(peer.getInputStream(),
-                            StandardCharsets.US_ASCII));
-                    assertEquals("GET " + item(digest).path + " HTTP/1.1", input.readLine());
-                    String header;
-                    while ((header = input.readLine()) != null && !header.isEmpty()) { }
-                    OutputStream out = peer.getOutputStream();
-                    out.write("HTTP/1.1 200 OK\r\nContent-Length: 3\r\nConnection: close\r\n\r\nabc"
-                            .getBytes(StandardCharsets.US_ASCII));
-                    out.flush();
-                }
-                return null;
-            });
-            Thread server = new Thread(response, "file-test-server");
-            server.setDaemon(true);
-            server.start();
-            HermesApi api = new HermesApi("http://127.0.0.1:" + listener.getLocalPort(), "fixture");
+        try (Exchange server = new Exchange("200 OK", "Content-Type: application/octet-stream\r\n", "abc")) {
+            HermesApi api = new HermesApi(server.endpoint(), "fixture");
             try (VerifiedFile file = VerifiedFile.fetch(getContext().getCacheDir(), api, item(digest))) {
                 assertTrue("Corrupt content was accepted", success);
                 ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -54,7 +29,7 @@ public class VerifiedFileTest extends AndroidTestCase {
                 assertFalse(ex.toString(), success);
                 assertEquals("File integrity check failed", ex.getMessage());
             }
-            response.get(4, TimeUnit.SECONDS);
+            assertTrue(server.observed().startsWith("GET /p/travail" + item(digest).path + " HTTP/1.1"));
         }
     }
 

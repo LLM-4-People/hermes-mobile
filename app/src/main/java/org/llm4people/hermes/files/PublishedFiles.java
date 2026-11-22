@@ -15,6 +15,7 @@ import android.widget.Toast;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.llm4people.hermes.Diagnostics;
+import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.profile.Account;
 import java.io.Closeable;
@@ -50,7 +51,10 @@ public final class PublishedFiles implements Closeable {
     public void unlock(Account account, HermesApi client) {
         owner = account.id;
         api = client;
-        if (selection != null && !selection.owner.equals(owner)) selection = null;
+        if (selection != null && !selection.owner.equals(owner)) {
+            selection = null;
+            toast("Exportation annulée après le changement de profil.");
+        }
         finishSelection();
     }
 
@@ -117,6 +121,8 @@ public final class PublishedFiles implements Closeable {
         } else if (selection != null) {
             selection.destination = uri;
             finishSelection();
+        } else {
+            toast("L’exportation a expiré. Sélectionnez de nouveau le fichier.");
         }
         return true;
     }
@@ -177,13 +183,10 @@ public final class PublishedFiles implements Closeable {
         if (worker != null) worker.cancel(true);
         int token = ++generation;
         HermesApi client = api;
-        AlertDialog progress = new AlertDialog.Builder(activity)
+        AlertDialog progress = present(new AlertDialog.Builder(activity)
                 .setTitle(discovery ? "Chargement des fichiers…" : "Transfert du fichier…")
-                .setView(new ProgressBar(activity)).setNegativeButton("Annuler", (d, w) -> cancel(token)).create();
-        progress.setOnCancelListener(d -> cancel(token));
-        if (dialog != null) dialog.dismiss();
-        dialog = progress;
-        progress.show();
+                .setView(new ProgressBar(activity)).setNegativeButton("Annuler", (d, w) -> cancel(token))
+                .setOnCancelListener(d -> cancel(token)));
         worker = io.submit(() -> {
             Runnable update;
             try { update = operation.execute(client); }
@@ -208,9 +211,10 @@ public final class PublishedFiles implements Closeable {
         if (worker != null) worker.cancel(true);
     }
 
-    private void present(AlertDialog.Builder sheet) {
+    AlertDialog present(AlertDialog.Builder sheet) {
         if (dialog != null) dialog.dismiss();
-        dialog = sheet.show();
+        dialog = Ui.secureDialog(sheet);
+        return dialog;
     }
 
     private void toast(String text) { Toast.makeText(activity, text, Toast.LENGTH_LONG).show(); }
