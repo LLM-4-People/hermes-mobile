@@ -28,7 +28,7 @@ final class PushStore extends SQLiteOpenHelper {
         return instance;
     }
 
-    PushStore(Context context, String database) { super(context, database, null, 3); }
+    PushStore(Context context, String database) { super(context, database, null, 4); }
 
     @Override public void onConfigure(SQLiteDatabase db) { db.setForeignKeyConstraintsEnabled(true); }
 
@@ -38,6 +38,7 @@ final class PushStore extends SQLiteOpenHelper {
                 + "api_key TEXT NOT NULL, project TEXT NOT NULL, sender TEXT NOT NULL)");
         addDistributorColumns(db);
         addRetryColumns(db);
+        addRecovery(db);
         db.execSQL("CREATE TABLE seen(installation TEXT NOT NULL REFERENCES devices(installation) ON DELETE CASCADE,"
                 + "event TEXT NOT NULL, kind TEXT NOT NULL, PRIMARY KEY(installation,event))");
     }
@@ -50,6 +51,17 @@ final class PushStore extends SQLiteOpenHelper {
             db.execSQL("UPDATE devices SET established=1 WHERE distributor IS NOT NULL AND (state='active' "
                     + "OR state='pending' AND EXISTS (SELECT 1 FROM seen WHERE seen.installation=devices.installation))");
         }
+        if (oldVersion < 4) addRecovery(db);
+    }
+
+    private static void addRecovery(SQLiteDatabase db) {
+        db.execSQL("ALTER TABLE devices ADD COLUMN signer TEXT");
+        db.execSQL("CREATE TABLE deferred(installation TEXT NOT NULL REFERENCES devices(installation) ON DELETE CASCADE,"
+                + "version TEXT NOT NULL,event TEXT NOT NULL,kind TEXT NOT NULL,expires INTEGER NOT NULL,"
+                + "discard_at INTEGER NOT NULL,PRIMARY KEY(installation,version,event))");
+        db.execSQL("CREATE TRIGGER discard_deferred AFTER UPDATE OF state,subscription_version ON devices BEGIN "
+                + "DELETE FROM deferred WHERE installation=NEW.installation AND "
+                + "(NEW.state IN ('failed','removing') OR version IS NOT NEW.subscription_version); END");
     }
 
     private static void addRetryColumns(SQLiteDatabase db) {
@@ -69,7 +81,7 @@ final class PushStore extends SQLiteOpenHelper {
     static final class Device {
         final String profile, installation, endpoint, state;
         final byte[] secret, subscription;
-        final String distributor, vapid, subscriptionVersion, failure;
+        final String distributor, signer, vapid, subscriptionVersion, failure;
         final int attempts;
         final long retryAt;
         final boolean established;
@@ -82,6 +94,7 @@ final class PushStore extends SQLiteOpenHelper {
             state = row.getString(row.getColumnIndexOrThrow("state"));
             secret = row.getBlob(row.getColumnIndexOrThrow("secret"));
             distributor = row.getString(row.getColumnIndexOrThrow("distributor"));
+            signer = row.getString(row.getColumnIndexOrThrow("signer"));
             vapid = row.getString(row.getColumnIndexOrThrow("vapid"));
             subscription = row.getBlob(row.getColumnIndexOrThrow("subscription"));
             subscriptionVersion = row.getString(row.getColumnIndexOrThrow("subscription_version"));
@@ -153,11 +166,11 @@ final class PushStore extends SQLiteOpenHelper {
         return insert(profile, endpoint, data);
     }
 
-    Device prepareUnified(String profile, String endpoint, String distributor, String vapid)
+    Device prepareUnified(String profile, String endpoint, String distributor, String signer, String vapid)
             throws GeneralSecurityException, IOException {
         Device device = forProfile(profile);
         if (device != null) {
-            if (!distributor.equals(device.distributor) || REMOVING.equals(device.state)
+            if (!distributor.equals(device.distributor) || !signer.equals(device.signer) || REMOVING.equals(device.state)
                     || !endpoint.equals(device.endpoint)) throw new IOException("enrollment changed");
             ContentValues updated = new ContentValues();
             updated.put("vapid", vapid);
@@ -183,13 +196,14 @@ final class PushStore extends SQLiteOpenHelper {
         }
         ContentValues data = new ContentValues();
         data.put("distributor", distributor);
+        data.put("signer", signer);
         data.put("vapid", vapid);
         for (String column : new String[]{"app", "api_key", "project", "sender"}) data.put(column, "");
         return insert(profile, endpoint, data);
     }
 
     boolean updateSubscription(Device device, String json) throws GeneralSecurityException, IOException {
-        if (device.subscription != null && ACTIVE.equals(device.state)
+        if (device.subscription != null && (ACTIVE.equals(device.state) || PENDING.equals(device.state))
                 && json.equals(DeviceSecret.open(device.subscription, device.subscriptionBinding()))) return false;
         ContentValues data = new ContentValues();
         data.put("state", PENDING);
@@ -294,7 +308,10 @@ final class PushStore extends SQLiteOpenHelper {
             data.put("installation", installation);
             data.put("event", event);
             data.put("kind", kind);
-            if (db.insertWithOnConflict("seen", null, data, SQLiteDatabase.CONFLICT_IGNORE) < 0) return false;
+            if (db.insertWithOnConflict("seen", null, data, SQLiteDatabase.CONFLICT_IGNORE) < 0) {
+                db.setTransactionSuccessful();
+                return false;
+            }
             db.execSQL("DELETE FROM seen WHERE installation=? AND rowid NOT IN "
                     + "(SELECT rowid FROM seen WHERE installation=? ORDER BY rowid DESC LIMIT 512)",
                     new Object[]{installation, installation});
@@ -303,6 +320,52 @@ final class PushStore extends SQLiteOpenHelper {
         } finally {
             db.endTransaction();
         }
+    }
+
+    // Only opaque receipts for a known, unconfirmed binding enter this queue.
+    void defer(Device owner, String event, String kind, long expires, long now) {
+        if (!PENDING.equals(owner.state) || owner.established || owner.subscriptionVersion == null
+                || !PushNotices.validIds(owner.installation, event) || !WebPushExpiry.mayDispatch(kind, expires, now)) return;
+        SQLiteDatabase db = getWritableDatabase();
+        db.beginTransaction();
+        try {
+            db.execSQL("DELETE FROM deferred WHERE discard_at<=?", new Object[]{now});
+            db.execSQL("INSERT OR IGNORE INTO deferred(installation,version,event,kind,expires,discard_at) "
+                    + "SELECT installation,subscription_version,?,?,?,? FROM devices WHERE installation=? AND "
+                    + "subscription_version=? AND state='pending' AND established=0",
+                    new Object[]{event, kind, expires, now + 24 * 3_600_000L, owner.installation, owner.subscriptionVersion});
+            db.execSQL("DELETE FROM deferred WHERE installation=? AND rowid NOT IN "
+                    + "(SELECT rowid FROM deferred WHERE installation=? ORDER BY rowid DESC LIMIT 64)",
+                    new Object[]{owner.installation, owner.installation});
+            db.setTransactionSuccessful();
+        } finally { db.endTransaction(); }
+    }
+
+    // A crash between confirmation and presentation leaves the receipt available at next startup.
+    // remember() participates in this SQLite transaction; notification tags are stable on replay.
+    void drain(Context context, Device device) {
+        synchronized (PushNotices.class) { drainLocked(context, device); }
+    }
+
+    private void drainLocked(Context context, Device device) {
+        SQLiteDatabase db = getWritableDatabase();
+        db.beginTransaction();
+        try {
+            Device owner = forInstallation(device.installation);
+            if (owner == null || !ACTIVE.equals(owner.state) || owner.subscriptionVersion == null) return;
+            String[] binding = {owner.installation, owner.subscriptionVersion};
+            try (Cursor rows = db.rawQuery("SELECT event,kind,expires,discard_at FROM deferred "
+                    + "WHERE installation=? AND version=? ORDER BY rowid", binding)) {
+                while (rows.moveToNext()) {
+                    long now = System.currentTimeMillis();
+                    String kind = rows.getString(1);
+                    if (rows.getLong(3) > now && WebPushExpiry.mayDispatch(kind, rows.getLong(2), now))
+                        PushNotices.post(context, owner, rows.getString(0), kind);
+                }
+            }
+            db.delete("deferred", "installation=? AND version=?", binding);
+            db.setTransactionSuccessful();
+        } finally { db.endTransaction(); }
     }
 
     String knownKind(String installation, String event) {

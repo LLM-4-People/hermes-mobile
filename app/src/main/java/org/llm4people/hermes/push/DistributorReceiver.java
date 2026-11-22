@@ -32,7 +32,10 @@ public final class DistributorReceiver extends MessagingReceiver {
         // registrations, including on temporary fallback. Require a fresh choice in Settings.
         Intent consented = new Intent(intent);
         consented.removeExtra("newDistributor");
-        synchronized (PushConnection.class) { super.onReceive(context, consented); }
+        synchronized (PushConnection.class) {
+            DistributorEnrollment.reconcile(context);
+            super.onReceive(context, consented);
+        }
     }
 
     @Override public void onNewEndpoint(Context context, PushEndpoint endpoint, String instance) {
@@ -54,9 +57,13 @@ public final class DistributorReceiver extends MessagingReceiver {
             if (!instance.equals(payload.optString("installation_id"))) return;
             long expiresAt = WebPushExpiry.read(payload.opt("expires_at"));
             if (!WebPushExpiry.mayDispatch(payload.optString("kind"), expiresAt, System.currentTimeMillis())) return;
-            PushStore.Device owner = PushStore.get(context).forInstallation(instance);
-            if (owner != null && owner.unified()) {
-                PushNotices.post(context, owner, payload.optString("event_id"), payload.optString("kind"));
+            synchronized (PushConnection.class) {
+                PushStore store = PushStore.get(context);
+                PushStore.Device owner = store.forInstallation(instance);
+                if (owner == null || !owner.unified()) return;
+                String event = payload.optString("event_id"), kind = payload.optString("kind");
+                if (owner.receives()) PushNotices.post(context, owner, event, kind);
+                else store.defer(owner, event, kind, expiresAt, System.currentTimeMillis());
             }
         } catch (JSONException ignored) {
             Diagnostics.warning("push", "invalid_message");

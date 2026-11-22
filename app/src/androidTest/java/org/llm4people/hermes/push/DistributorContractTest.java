@@ -37,7 +37,7 @@ public final class DistributorContractTest extends InstrumentationTestCase {
     }
 
     private void prepare(String endpoint) throws Exception {
-        device = store.prepareUnified(UUID.randomUUID().toString(), endpoint, "example.ntfy", "test-vapid");
+        device = store.prepareUnified(UUID.randomUUID().toString(), endpoint, "example.ntfy", "test-signer", "test-vapid");
     }
 
     public void testRotationRejectsStaleAckAndUsesOnlyDeviceCredential() throws Exception {
@@ -106,7 +106,7 @@ public final class DistributorContractTest extends InstrumentationTestCase {
             assertEquals(PushStore.FAILED, device.state);
             assertEquals(0L, device.retryAt);
             assertFalse(store.updateSubscription(device, "{}"));
-            device = store.prepareUnified(device.profile, device.endpoint, device.distributor, device.vapid);
+            device = store.prepareUnified(device.profile, device.endpoint, device.distributor, device.signer, device.vapid);
             assertEquals(PushStore.RENEW, device.failure);
             store.registered(device);
         }
@@ -146,7 +146,7 @@ public final class DistributorContractTest extends InstrumentationTestCase {
             assertTrue(bridge.observed().contains("Bearer " + device.managementKey()));
             PushStore.Device rejected = store.forProfile(device.profile);
             assertEquals(PushStore.ENDPOINT_REJECTED, rejected.failure);
-            PushStore.Device retry = store.prepareUnified(device.profile, device.endpoint, device.distributor, device.vapid);
+            PushStore.Device retry = store.prepareUnified(device.profile, device.endpoint, device.distributor, device.signer, device.vapid);
             assertEquals(device.installation, retry.installation);
             assertEquals(device.managementKey(), retry.managementKey());
             assertEquals(PushStore.RENEW, retry.failure);
@@ -167,7 +167,7 @@ public final class DistributorContractTest extends InstrumentationTestCase {
             assertEquals(PushStore.ACCOUNT_REQUIRED, refused.failure);
             store.enable(sending);
             assertFalse(store.forProfile(device.profile).receives());
-            PushStore.Device confirming = store.prepareUnified(device.profile, device.endpoint, device.distributor, device.vapid);
+            PushStore.Device confirming = store.prepareUnified(device.profile, device.endpoint, device.distributor, device.signer, device.vapid);
             // The owner bearer may fail to reserve here. A stale acknowledgement cannot restore trust.
             store.enable(sending);
             assertFalse(store.forProfile(device.profile).receives());
@@ -175,6 +175,61 @@ public final class DistributorContractTest extends InstrumentationTestCase {
             store.enable(confirming);
             assertTrue(store.forProfile(device.profile).receives());
         }
+    }
+
+    public void testFirstReceiptBeforeBindingResponseIsReleasedOnlyOnConfirmedBinding() throws Exception {
+        if (Build.VERSION.SDK_INT >= 33)
+            getInstrumentation().getUiAutomation().grantRuntimePermission(context.getPackageName(), Manifest.permission.POST_NOTIFICATIONS);
+        for (String status : new String[]{"403 Forbidden", "204 No Content"}) {
+            Runnable deliverBeforeResponse = () -> {
+                PushStore.Device pending = store.forProfile(device.profile);
+                assertFalse(pending.receives());
+                try {
+                    byte[] wire = new JSONObject().put("event_id", EVENT).put("installation_id", pending.installation)
+                            .put("kind", "reminder").put("expires_at", System.currentTimeMillis() + 60_000)
+                            .toString().getBytes(StandardCharsets.UTF_8);
+                    for (int i = 0; i < 2; i++)
+                        DistributorReceiver.receive(context, new PushMessage(wire, true), pending.installation);
+                } catch (org.json.JSONException impossible) { throw new AssertionError(impossible); }
+                assertNull(store.knownKind(pending.installation, EVENT));
+                assertNull(MobilePush.target(context, PushNotices.tapIntent(context, pending.installation, EVENT)));
+                try { assertFalse(store.updateSubscription(pending, "{}")); }
+                catch (Exception failure) { throw new AssertionError(failure); }
+            };
+            try (Exchange bridge = new Exchange(status, "", deliverBeforeResponse, "")) {
+                prepare(bridge.endpoint());
+                store.updateSubscription(device, "{}");
+                DistributorEnrollment.sync(context, store.forProfile(device.profile));
+                assertTrue(bridge.observed().contains("PUT "));
+                assertEquals(status.startsWith("204") ? "reminder" : null, store.knownKind(device.installation, EVENT));
+            }
+            store.deactivate(device.profile);
+            PushNotices.cancel(context, device.installation);
+            store.finishRemoval(device);
+            device = null;
+        }
+    }
+
+    public void testObsoleteExpiredOrRemovedPendingReceiptsCannotBeReleased() throws Exception {
+        prepare("https://example.test");
+        store.updateSubscription(device, "{}");
+        PushStore.Device first = store.forProfile(device.profile);
+        long now = System.currentTimeMillis();
+        store.defer(first, EVENT, "reminder", now + 60_000, now);
+        store.updateSubscription(first, "{\"v\":2}");
+        PushStore.Device next = store.forProfile(device.profile);
+        store.enable(first);
+        store.drain(context, first);
+        assertNull(store.knownKind(device.installation, EVENT));
+        store.defer(next, EVENT, "reminder", now - 1, now - 2000);
+        store.enable(next);
+        try (PushStore reopened = new PushStore(context, "push.db")) {
+            reopened.drain(context, next);
+            assertNull(reopened.knownKind(device.installation, EVENT));
+        }
+        store.deactivate(device.profile);
+        store.drain(context, next);
+        assertNull(MobilePush.target(context, PushNotices.tapIntent(context, device.installation, EVENT)));
     }
 
     public void testEncryptedReceiptMatchesInstanceAndRemovalStopsDelivery() throws Exception {

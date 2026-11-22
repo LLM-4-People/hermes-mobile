@@ -238,15 +238,17 @@ final class PushSettings {
             picker.setMessage("Installez ou configurez un distributeur UnifiedPush, par exemple ntfy, puis réessayez.");
         } else {
             String[] labels = new String[packages.size()];
+            String[] signers = new String[packages.size()];
             for (int i = 0; i < labels.length; i++) {
                 String name = packages.get(i);
+                signers[i] = DistributorIdentity.current(activity, name);
                 try {
                     var manager = activity.getPackageManager();
                     labels[i] = manager.getApplicationLabel(manager.getApplicationInfo(name, 0)) + "\n" + name;
                 } catch (PackageManager.NameNotFoundException gone) { labels[i] = name; }
             }
             picker.setItems(labels, (d,w) -> run("Inscription au distributeur…", () ->
-                    DistributorEnrollment.enroll(activity.getApplicationContext(), account, packages.get(w),
+                    DistributorEnrollment.enroll(activity.getApplicationContext(), account, packages.get(w), signers[w],
                             DistributorEnrollment.vapid(discovery), epoch, this::current)));
         }
         display(picker);
