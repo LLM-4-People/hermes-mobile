@@ -47,7 +47,7 @@ public final class DeviceJourney extends Instrumentation {
                     String name = "Écrans " + fixture.getString("run");
                     profile(name, "endpoint", "key", fixture.getString("phrase"));
                     new ToolSelectionJourney(ui).run();
-                    new WorkspacePagesJourney(ui).run(name);
+                    new WorkspacePagesJourney(ui).run(name, () -> pagesIsolation(name));
                     lock();
                     forget(name, fixture.getString("phrase"));
                     break;
@@ -71,6 +71,21 @@ public final class DeviceJourney extends Instrumentation {
         ui.fill("Confirmer la phrase secrète", phrase);
         ui.tap("Enregistrer le profil");
         ui.see("Nouvelle conversation");
+    }
+
+    private void pagesIsolation(String owner) throws Exception {
+        String other = "Lecture " + fixture.getString("run");
+        String passphrase = fixture.getString("secondPhrase");
+        lock();
+        profile(other, "secondEndpoint", "secondKey", passphrase);
+        ui.see("Aucune conversation pour ce profil.");
+        menu("Mes écrans");
+        ui.contains("Demandez à Hermes de créer un écran");
+        ui.absent("Diagnostic mobile");
+        lock();
+        forget(other, passphrase);
+        unlock(owner, fixture.getString("phrase"));
+        ui.see("Écriture ciblée");
     }
 
     private void lock() {

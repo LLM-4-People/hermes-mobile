@@ -11,6 +11,7 @@ import tempfile
 import time
 
 from gateway_fixture import Gateway, PINNED_REVISION, check_source
+from workspace_checks import workspace_reply, verify_workspace_turns
 from route_checks import (
     ALTERNATE_MODEL,
     ALTERNATE_REPLY,
@@ -36,30 +37,15 @@ LAYOUT = {
 }
 
 
-# A deterministic model reply drives the Android proposal preview, explicit apply and native editor.
-DEVICE_WORKSPACES = [
-    {
-        "version": 1, "mode": "replace", "surface": "page/diagnostic", "title": "Diagnostic mobile",
-        "blocks": [
-            {"type": "value", "title": "Profil actif", "source": "profile.label"},
-            {"type": "form", "title": "Relecture", "prompt": "Relire ce fichier.",
-             "fields": [{"id": "fichier", "kind": "text", "label": "Fichier"}]},
-        ],
-    },
-    {
-        "version": 1, "surface": "thread", "title": "Écriture ciblée",
-        "blocks": [{"type": "content", "slots": ["composer", "notice"]}],
-    },
-]
-
-
 def check(condition, message):
     if not condition:
         raise AssertionError(message)
 
 
-def transcript(gateway, session_id):
-    page = gateway.request(f"/api/sessions/{session_id}/messages?order=latest&limit=10")
+def transcript(gateway, session_id, *, limit=10):
+    page = gateway.request(
+        f"/api/sessions/{session_id}/messages?order=latest&limit={limit}"
+    )
     return [(row["role"], row["content"]) for row in page["data"]]
 
 
@@ -244,9 +230,6 @@ def verify(gateway, provider, alternate, require_controls):
         "model": options["model"],
         "provider": options["provider"],
         "reminder_crud": True,
-        "threads": 2,
-        "provider_calls": len(provider.main_requests())
-        + len(alternate.main_requests()),
         "restart_replays": 2,
         "idempotency_conflict_status": 409,
         "cache_read_tokens_per_turn": 10,
@@ -298,12 +281,10 @@ def main():
             )
         ):
             return ToolCall("write_file", {"path": "carre.py", "content": CODE_CONTENT})
-        if "Vérifie mes écrans mobiles." in str(prompt):
-            reply = "Voici les deux dispositions demandées.\n\n" + "\n\n".join(
-                "```hermes-workspace\n" + json.dumps(layout, ensure_ascii=False) + "\n```"
-                for layout in DEVICE_WORKSPACES
-            )
-        elif "Disposition de vérification" in str(prompt):
+        reply = workspace_reply(prompt, record["body"].get("tools", []))
+        if reply is not None:
+            return Text(reply, cached_tokens=10)
+        if "Disposition de vérification" in str(prompt):
             reply = (
                 "```hermes-workspace\n"
                 + json.dumps(LAYOUT, ensure_ascii=False)
@@ -342,6 +323,23 @@ def main():
                 check(
                     secondary.request("/api/sessions")["data"] == [],
                     "Secondary runtime inherited primary history",
+                )
+                report.update(
+                    verify_workspace_turns(
+                        primary,
+                        secondary,
+                        provider,
+                        await_completion,
+                        transcript,
+                        CHAT_REPLY,
+                        controls=report["tool_exclusions_verified"],
+                    )
+                )
+                report["threads"] = len(
+                    primary.request("/api/sessions?source=api_server")["data"]
+                )
+                report["provider_calls"] = len(provider.main_requests()) + len(
+                    alternate.main_requests()
                 )
                 if args.device_command:
                     subprocess.run(

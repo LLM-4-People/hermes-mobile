@@ -5,7 +5,9 @@ final class WorkspacePagesJourney {
     private final JourneyUi ui;
     WorkspacePagesJourney(JourneyUi ui) { this.ui = ui; }
 
-    void run(String name) {
+    interface AccountSwitch { void verify() throws Exception; }
+
+    void run(String name, AccountSwitch isolation) throws Exception {
         ui.tap("Nouvelle conversation");
         ui.fill("Message à Hermes", "Vérifie mes écrans mobiles.");
         ui.tap("Envoyer");
@@ -38,6 +40,10 @@ final class WorkspacePagesJourney {
         ui.tap("Envoyer");
         ui.contains("La conversation est prête.");
         ui.see("Envoyer");
+        isolation.verify();
+        menu("Mes écrans");
+        ui.tap("Diagnostic mobile");
+        ui.see(name);
         menu("Rétablir l’atelier");
         ui.tap("Diagnostic mobile (diagnostic)");
         ui.tap("Rétablir");
