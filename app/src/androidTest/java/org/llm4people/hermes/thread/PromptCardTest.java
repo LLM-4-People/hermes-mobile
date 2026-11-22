@@ -33,10 +33,10 @@ public class PromptCardTest extends InstrumentationTestCase {
     }
 
     public void testNativeChoicesAndCustomTextPreserveTheDraftAcrossDisconnects() throws Throwable {
+        JSONObject prompt = new JSONObject().put("kind", "clarify").put("prompt_id", "q")
+                .put("execution_generation", 2).put("question", "Quel format ?")
+                .put("choices", new JSONArray().put("Liste (Recommended)").put("Texte"));
         runTestOnUiThread(() -> {
-            JSONObject prompt = new JSONObject().put("kind", "clarify").put("prompt_id", "q")
-                    .put("execution_generation", 2).put("question", "Quel format ?")
-                    .put("choices", new JSONArray().put("Liste (Recommended)").put("Texte"));
             PromptCard card = mount(prompt);
             find(card, "Liste (choix recommandé)").performClick();
             assertEquals("Liste", answers.get(0));
@@ -60,10 +60,10 @@ public class PromptCardTest extends InstrumentationTestCase {
     }
 
     public void testMultipleSelectionEncodesOriginalLabelsAndOptionalWordsTogether() throws Throwable {
+        JSONObject prompt = new JSONObject().put("kind", "clarify").put("prompt_id", "q")
+                .put("execution_generation", 4).put("multi_select", true)
+                .put("choices", new JSONArray().put("Un, deux").put("Trois (Recommended)"));
         runTestOnUiThread(() -> {
-            JSONObject prompt = new JSONObject().put("kind", "clarify").put("prompt_id", "q")
-                    .put("execution_generation", 4).put("multi_select", true)
-                    .put("choices", new JSONArray().put("Un, deux").put("Trois (Recommended)"));
             PromptCard card = mount(prompt);
             assertFalse(find(card, "Envoyer la réponse").isEnabled());
             find(card, "Un, deux").performClick();
@@ -77,14 +77,14 @@ public class PromptCardTest extends InstrumentationTestCase {
     }
 
     public void testAuthorizationRequiresAnOfferedOneTimeChoiceAndDetails() throws Throwable {
+        JSONObject prompt = new JSONObject().put("kind", "approval").put("prompt_id", "a")
+                .put("execution_generation", 1).put("choices", new JSONArray().put("once").put("deny").put("always"));
         runTestOnUiThread(() -> {
-            JSONObject prompt = new JSONObject().put("kind", "approval").put("prompt_id", "a")
-                    .put("execution_generation", 1).put("choices", new JSONArray().put("once").put("deny").put("always"));
             PromptCard unnamed = mount(prompt);
             assertNull(find(unnamed, "Autoriser une fois"));
             assertNotNull(find(unnamed, "Refuser"));
-            prompt.put("description", "Modifier la note");
-            prompt.put("edit", new JSONObject().put("path", "note.txt").put("new_text", "Ligne ajoutée"));
+            ThreadData.put(prompt, "description", "Modifier la note");
+            ThreadData.put(prompt, "edit", ThreadData.object("{\"path\":\"note.txt\",\"new_text\":\"Ligne ajoutée\"}"));
             PromptCard edit = mount(prompt);
             find(edit, "Voir les détails").performClick();
             assertTrue(textContains(edit, "Ligne ajoutée"));
@@ -94,7 +94,7 @@ public class PromptCardTest extends InstrumentationTestCase {
             find(edit, "Refuser").performClick();
             assertEquals("once", answers.get(0));
             assertEquals("deny", answers.get(1));
-            prompt.put("choices", new JSONArray().put("deny"));
+            ThreadData.put(prompt, "choices", new JSONArray().put("deny"));
             assertNull(find(mount(prompt), "Autoriser une fois"));
         });
     }
