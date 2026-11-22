@@ -248,7 +248,7 @@ class NearbyLocationTest(unittest.TestCase):
         choose_consent(StubScreen(), USE_LOCATION)
         self.assertEqual(taps, [USE_LOCATION, USE_LOCATION])
 
-    def test_open_consent_retries_send_tap_until_disclosure_dialog_appears(self):
+    def test_open_consent_dismisses_ime_and_retries_send_tap_until_disclosure_dialog_appears(self):
         composer = ET.fromstring(
             '<node text="" content-desc="" resource-id="" class="android.widget.FrameLayout" '
             'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[0,0][320,640]">'
@@ -265,21 +265,36 @@ class NearbyLocationTest(unittest.TestCase):
             'class="android.widget.TextView" package="org.llm4people.hermes" window-id="3" scrollable="false" bounds="[16,170][304,260]"/>'
             '</node>'
         )
-        trees = iter([composer, composer, consent_dialog])
-        taps = []
+        # First poll: IME reopened after PermissionController -> dismiss BACK;
+        # second & third polls: tap Envoyer until consent dialog opens.
+        trees = iter([composer, composer, composer, consent_dialog])
+        ime_states = iter([False, True, False, False, False])
+        actions = []
+
+        class StubDevice:
+            def ime_shown(self):
+                return next(ime_states)
+
+            def shell(self, *args):
+                actions.append(("shell", args))
+                return ""
 
         class StubScreen(Screen):
             def __init__(self):
-                pass
+                self.device = StubDevice()
 
             def hierarchy(self):
                 return next(trees)
 
             def tap_node(self, node):
-                taps.append(node.get("text"))
+                actions.append(("tap", node.get("text")))
 
         open_consent(StubScreen())
-        self.assertEqual(taps, ["Envoyer", "Envoyer"])
+        self.assertEqual(actions, [
+            ("shell", ("input", "keyevent", "BACK")),
+            ("tap", "Envoyer"),
+            ("tap", "Envoyer"),
+        ])
 
     def test_app_activity_stopped_waits_for_stopped_state_and_ignores_test_package(self):
         paused_dump = (

@@ -17,9 +17,9 @@ from verification.device.run import Emulator
 from verification.gateway_fixture import Gateway, PINNED_REVISION, check_source
 from verification.nearby_capture import captures
 from verification.nearby_fixture import overpass, PLACES
-from verification.nearby_journey import (CONSENT, FAILED, PROMPT, STAGED, USE_LOCATION, choose_consent, enter_message,
-                                          lock, open_consent, stage_public_location, tap_visible_app_until, unlock,
-                                          verify_guide)
+from verification.nearby_journey import (CONSENT, FAILED, PROMPT, STAGED, USE_LOCATION, choose_consent, dismiss_ime,
+                                          enter_message, lock, open_consent, stage_public_location,
+                                          tap_visible_app_until, unlock, verify_guide)
 from verification.nearby_location import COARSE, answer_android_location, app_activity_stopped, location_access, public_city_fix
 from verification.phone_actions import MAPS, admissions, assert_offline, focused, visible
 from verification.unifiedpush.editor import editor
@@ -292,6 +292,7 @@ def execute(args):
         stage_public_location(ui, fix, system_prompt=False, remember=True)
         if admissions(first) or a_model.main_requests() or queries:
             raise AssertionError("Staging the first fix submitted or queried without Send")
+        dismiss_ime(ui)
         ui.tap("Envoyer")
         area = verified_turn(first, a_model, PROMPT, 0, location=True)
         eventually("one lookup through the authenticated real nearby plugin", lambda: len(queries) == 1)
