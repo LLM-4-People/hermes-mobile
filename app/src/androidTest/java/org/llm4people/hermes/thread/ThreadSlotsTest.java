@@ -10,6 +10,10 @@ import android.widget.EditText;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.llm4people.hermes.R;
+import org.llm4people.hermes.Ui;
+import org.llm4people.hermes.voice.FakeDictation;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -49,6 +53,41 @@ public class ThreadSlotsTest extends InstrumentationTestCase {
         } finally {
             runTestOnUiThread(activity::finish);
         }
+    }
+
+    public void testComposerMicUsesTheSameEditableDraftAndExplicitSendButton() throws Throwable {
+        Context context = getInstrumentation().getTargetContext();
+        Intent launch = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
+        Activity activity = getInstrumentation().startActivitySync(launch);
+        try {
+            runTestOnUiThread(() -> {
+                FakeDictation input = new FakeDictation();
+                ThreadViews view = new ThreadViews(activity, input.controller(activity));
+                AtomicInteger sends = new AtomicInteger();
+                ArrayList<String> drafts = new ArrayList<>();
+                view.chat("Bonjour", drafts::add, sends::incrementAndGet, () -> {}, () -> {}, () -> {});
+                activity.setContentView(view.root);
+                View mic = find(view.root, activity.getString(R.string.voice_dictate));
+                assertNotNull(mic);
+                assertEquals(Ui.dp(activity, 48), mic.getLayoutParams().width);
+                mic.performClick();
+                input.result("Hermes");
+                assertEquals("Bonjour Hermes", view.draft());
+                assertEquals(view.draft(), drafts.get(drafts.size() - 1));
+                assertEquals(0, sends.get());
+                editor(view.root).append(" !");
+                find(view.root, "Envoyer").performClick();
+                assertEquals(1, sends.get());
+                assertEquals("Bonjour Hermes !", view.draft());
+            });
+        } finally { runTestOnUiThread(activity::finish); }
+    }
+
+    private static View find(View view, String label) {
+        ArrayList<View> matches = new ArrayList<>();
+        view.findViewsWithText(matches, label, View.FIND_VIEWS_WITH_CONTENT_DESCRIPTION | View.FIND_VIEWS_WITH_TEXT);
+        assertEquals(1, matches.size());
+        return matches.get(0);
     }
 
     private static EditText editor(View view) {

@@ -8,6 +8,7 @@ import android.os.Looper;
 import android.speech.SpeechRecognizer;
 import android.text.Editable;
 import android.util.TypedValue;
+import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
@@ -90,6 +91,11 @@ public final class VoiceDrafts {
         }
 
         private void report(int message, int actionLabel, Runnable click) {
+            boolean stacked = click != null && actionLabel != R.string.voice_cancel_short;
+            feedback.setOrientation(stacked ? LinearLayout.VERTICAL : LinearLayout.HORIZONTAL);
+            feedback.setGravity(stacked ? Gravity.START : Gravity.CENTER_VERTICAL);
+            status.setLayoutParams(stacked ? new LinearLayout.LayoutParams(-1, -2)
+                    : new LinearLayout.LayoutParams(0, -2, 1));
             feedback.setVisibility(message == 0 ? View.GONE : View.VISIBLE);
             status.setText(message == 0 ? "" : activity.getString(message));
             action.setVisibility(click == null ? View.GONE : View.VISIBLE);
@@ -123,11 +129,21 @@ public final class VoiceDrafts {
     public void pause() {
         paused = true;
         // The system permission sheet pauses the activity. Only its pending grant can survive that pause.
-        if (active != null && active.phase != Phase.PERMISSION) cancel();
+        windowFocusChanged(false);
+    }
+
+    public void windowFocusChanged(boolean focused) {
+        if (focused) startApprovedRecording();
+        else if (active != null && active.phase != Phase.PERMISSION) cancel();
     }
     public void resume() {
         paused = false;
-        if (active != null && active.phase == Phase.PERMISSION && active.permissionGranted) active.start();
+        startApprovedRecording();
+    }
+
+    private void startApprovedRecording() {
+        if (!paused && active != null && active.phase == Phase.PERMISSION && active.permissionGranted
+                && active.target.editor.hasWindowFocus()) active.start();
     }
 
     public boolean permissionResult(int code, String[] permissions, int[] results) {
@@ -137,7 +153,7 @@ public final class VoiceDrafts {
                 && Manifest.permission.RECORD_AUDIO.equals(permissions[0])
                 && results[0] == PackageManager.PERMISSION_GRANTED && input.permitted();
         if (!attempt.permissionGranted) attempt.finish(R.string.voice_permission_denied);
-        else if (!paused) attempt.start();
+        else startApprovedRecording();
         return true;
     }
 

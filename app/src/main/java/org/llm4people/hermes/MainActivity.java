@@ -389,6 +389,11 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         }
     }
 
+    @Override public void onWindowFocusChanged(boolean focused) {
+        super.onWindowFocusChanged(focused);
+        if (voice != null) voice.windowFocusChanged(focused);
+    }
+
     @Override protected void onPause() {
         voice.pause();
         super.onPause();

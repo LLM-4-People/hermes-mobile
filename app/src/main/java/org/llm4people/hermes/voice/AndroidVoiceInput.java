@@ -11,6 +11,8 @@ import android.speech.RecognitionListener;
 import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
 
+import org.llm4people.hermes.Diagnostics;
+
 import java.util.ArrayList;
 import java.util.Locale;
 
@@ -65,8 +67,12 @@ final class AndroidVoiceInput implements VoiceInput {
             }
             @Override public void stop() { recognizer.stopListening(); }
             @Override public void close() {
-                try { recognizer.cancel(); }
-                finally { recognizer.destroy(); }
+                try {
+                    try { recognizer.cancel(); }
+                    finally { recognizer.destroy(); }
+                } catch (RuntimeException disconnected) {
+                    Diagnostics.warning("voice", "service_disconnected");
+                }
             }
         };
     }
