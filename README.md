@@ -2,15 +2,17 @@
 
 An Android client for chatting and coding with your own Hermes Agent. Ask a question, talk through a code change, inspect a diff, or schedule a reminder. When Hermes needs a decision, it offers choices in the discussion. The interface is in French.
 
+> **Server requirement:** Hermes Mobile requires our own Hermes Agent fork at [LLM-4-People/hermes-agent](https://github.com/LLM-4-People/hermes-agent). It relies on our fork’s single-host multi-profile routing (`/p/{profile}`), run-scoped instructions, live UI editing, universal push notifications, universal sharing, Smart Notes, visual approval diffs, and Brain Studio.
+
 ## Get the APK
 
 Pull requests produce an installable development APK. Open a successful **Workspace checks** run, download **android-debug** under **Artifacts**, extract the APK and install it on your phone. The release workflow also produces `Hermes-Mobile.apk` with a certificate, checksum and build provenance when the project owner publishes a version. Android checks the signing identity on updates. [Builds](https://github.com/LLM-4-People/hermes-mobile/actions/workflows/checks.yml) · [Releases](https://github.com/LLM-4-People/hermes-mobile/releases) · [Verify an APK](docs/delivery.md#verify-a-release)
 
 ## Connect a profile
 
-1. Start a Hermes gateway with the API server enabled. For different people, give each person a separate runtime, private workspace, HTTPS address and API key. [Provision isolated accounts](docs/accounts.md)
-2. In **Connecter Hermes**, enter a name, the HTTPS gateway address and its access key. Set a local passphrase to protect the credentials, saved drafts and settings on this device.
-3. Unlock the profile and choose **Nouvelle conversation**. Messages and coding actions run on its Hermes gateway. Returning to the app requires unlocking the profile again.
+1. Start our Hermes Agent fork ([LLM-4-People/hermes-agent](https://github.com/LLM-4-People/hermes-agent)) with the API server enabled. **One single HTTPS server hostname** (for example `https://hermes.example.com`) serves all users and profiles under `/p/<profile>`. Each person gets an isolated profile directory, workspace, credentials, and unique access key—no separate HTTPS hostname per user—and users on the same server can share notes, tools, widgets, and discussions with one another. [Provision multi-profile accounts on one host](docs/accounts.md)
+2. In **Connecter Hermes**, enter a profile name, the shared server HTTPS address (`https://hermes.example.com`), the optional **Profil serveur** name (the app composes `/p/<profile>` automatically), and the profile’s access key. Set a local passphrase to protect the credentials, saved drafts and settings on this device.
+3. Unlock the profile and choose **Nouvelle conversation**. Messages and coding actions run on its isolated Hermes profile. Returning to the app requires unlocking the profile again.
 
 ## Talk to Hermes
 
