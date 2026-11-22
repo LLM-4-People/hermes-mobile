@@ -49,8 +49,8 @@
     <string name="panel_check_mutation">Vérifiez la liste avant de recommencer.</string>
     <string name="panel_unknown">Indisponible</string>
     <string name="panel_server_totals">Cumul de la discussion</string>
-    <string name="panel_cost">Coût facturé</string>
-    <string name="panel_estimate">Coût estimé</string>
+    <string name="panel_cost">Coût facturé connu</string>
+    <string name="panel_estimate">Coût estimé connu</string>
     <string name="panel_included">Dernier appel compris dans le forfait</string>
     <string name="panel_cache">Part des jetons d’entrée lus en cache</string>
     <string name="panel_in">Jetons d’entrée</string>
@@ -88,4 +88,13 @@
     <string name="panel_reset_settings">Réinitialiser les réglages de cette discussion</string>
     <string name="panel_reset">Réinitialiser</string>
     <string name="panel_reset_confirm">Les prochains messages utiliseront le modèle et les outils par défaut de ce profil, y compris les outils que vous aviez désactivés ici.</string>
+    <string name="panel_usage_incomplete">Cumul indisponible. Hermes n’a pas pu réunir tout l’historique de cette discussion.</string>
+    <string name="panel_unpriced">Le coût de certains appels est inconnu.</string>
+    <string name="panel_last_cost_source">Dernière source de tarification renseignée : %1$s</string>
+    <string name="panel_source_billing">facturation du fournisseur</string>
+    <string name="panel_source_generation">relevé de génération du fournisseur</string>
+    <string name="panel_source_models">catalogue de modèles du fournisseur</string>
+    <string name="panel_source_docs">documentation tarifaire officielle</string>
+    <string name="panel_source_override">tarif défini par l’utilisateur</string>
+    <string name="panel_source_contract">contrat personnalisé</string>
 </resources>
