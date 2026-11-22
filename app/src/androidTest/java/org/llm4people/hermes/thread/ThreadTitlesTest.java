@@ -29,6 +29,10 @@ public class ThreadTitlesTest extends TestCase {
     public void testCompactedTipPreviewCannotClaimToBeTheOpening() throws Exception {
         JSONObject row = new JSONObject("{id:'tip',_lineage_root_id:'root',title:null,preview:'Dernière demande',message_count:4}");
         assertEquals("Conversation", ThreadData.title(row));
+        row.put("message_count", 0);  // A freshly rotated tip can be empty even though its root has history.
+        assertEquals("Conversation", ThreadData.title(row));
+        assertEquals("Conversation", ThreadIdentity.of(row).label);
+        assertEquals("Nouvelle conversation", ThreadData.title(null));
         row.put(ThreadTitles.FIRST_PROMPT, "Vérifier le plan");
         assertEquals("Vérifier le plan", ThreadData.title(row));
         assertEquals("Conversation", ThreadTitles.display("", "", false));

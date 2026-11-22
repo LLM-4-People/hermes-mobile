@@ -43,7 +43,7 @@ final class ThreadData {
 
     static String title(JSONObject session) {
         return ThreadTitles.display(string(session, "title").trim(), ThreadTitles.inboxPrompt(session),
-                session.optLong("message_count", 0) == 0);
+                ThreadTitles.emptySession(session));
     }
 
     static String content(JSONObject message) {

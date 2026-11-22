@@ -29,7 +29,7 @@ final class ThreadIdentity {
         String tip = ThreadData.string(row, "id");
         String root = ThreadData.string(row, "_lineage_root_id");
         return new ThreadIdentity(root.isEmpty() ? tip : root, tip, ThreadData.string(row, "title").trim(),
-                ThreadTitles.inboxPrompt(row), row.optLong("message_count", 0) == 0);
+                ThreadTitles.inboxPrompt(row), ThreadTitles.emptySession(row));
     }
 
     static ThreadIdentity find(JSONArray page, String id) {

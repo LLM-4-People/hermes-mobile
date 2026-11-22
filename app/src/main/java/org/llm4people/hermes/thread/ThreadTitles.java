@@ -56,9 +56,17 @@ final class ThreadTitles {
         String known = ThreadData.string(row, FIRST_PROMPT);
         if (!known.isEmpty()) return known;
         // Older list projections put the first user message of the tip in preview.
-        String root = ThreadData.string(row, "_lineage_root_id");
-        if (!root.isEmpty() && !root.equals(ThreadData.string(row, "id"))) return "";
+        if (compacted(row)) return "";
         return snippet(ThreadData.string(row, "preview"));
+    }
+
+    private static boolean compacted(JSONObject row) {
+        String root = ThreadData.string(row, "_lineage_root_id");
+        return !root.isEmpty() && !root.equals(ThreadData.string(row, "id"));
+    }
+
+    static boolean emptySession(JSONObject row) {
+        return !compacted(row) && (row == null || row.optLong("message_count", 0) == 0);
     }
 
     static String display(String name, String prompt, boolean empty) {
