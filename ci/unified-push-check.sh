@@ -9,9 +9,12 @@ if grep -Eq '^package:(com\.google\.android\.(gms|gsf)|com\.android\.vending)$' 
 fi
 : "${HERMES_FIXTURE_TLS_CERT:?}" "${HERMES_FIXTURE_TLS_KEY:?}"
 input="$RUNNER_TEMP/android-release-input"
+umask 077
+proof=$(mktemp "$RUNNER_TEMP/aosp-result.XXXXXX")
+trap 'rm -f -- "$proof"' EXIT
 "$RUNNER_TEMP/hermes-env/bin/python" -B -m verification.unifiedpush.prove \
   --source .fixture/hermes --serial "$serial" --apk "$input/Hermes-Mobile.apk" \
   --tls-cert "$HERMES_FIXTURE_TLS_CERT" --tls-key "$HERMES_FIXTURE_TLS_KEY" \
-  --push-python "$RUNNER_TEMP/push-env/bin/python" --cache "$RUNNER_TEMP/ntfy" |
-  python3 -B ci/aosp_receipt.py "$input" > "$RUNNER_TEMP/unified-push-result.json"
+  --push-python "$RUNNER_TEMP/push-env/bin/python" --cache "$RUNNER_TEMP/ntfy" > "$proof"
+python3 -B ci/aosp_receipt.py "$input" < "$proof" > "$RUNNER_TEMP/unified-push-result.json"
 cat "$RUNNER_TEMP/unified-push-result.json"

@@ -107,6 +107,28 @@ def published_messages(topic):
         return [obj for line in response if line.strip() and (obj := json.loads(line))["event"] == "message"]
 
 
+def new_binary_publication(messages, before):
+    if len(messages) == before:
+        return False
+    if len(messages) != before + 1 or messages[-1].get("encoding") != "base64":
+        raise AssertionError("Expected one new binary Web Push on the registered topic")
+    return True
+
+
+def delivery_state(database, device, device_id, event_id):
+    # Return counters and flags only. Database rows, topic URLs and distributor logs contain credentials.
+    with closing(sqlite3.connect(database.as_uri() + "?mode=ro", uri=True)) as db:
+        row = db.execute("SELECT attempts FROM deliveries WHERE device_id=? AND event_id=?",
+                         (device_id, event_id)).fetchone()
+    permission = device.shell("dumpsys", "package", APP)
+    services = device.shell("dumpsys", "activity", "services", "io.heckel.ntfy")
+    return {
+        "pending_relay_attempts": row[0] if row else None,
+        "phone_notification_permission": "android.permission.POST_NOTIFICATIONS: granted=true" in permission,
+        "distributor_subscriber_service": "SubscriberService" in services,
+    }
+
+
 def app_notice(device, event_id):
     # cmd notification list gives active notification keys; the application uses its event ID in the tag.
     for key in device.shell("cmd", "notification", "list").splitlines():
@@ -209,13 +231,21 @@ def run(args):
             )
             if event["session_id"] != session:
                 raise AssertionError("Event lost its session association")
-            notice = eventually(
-                "Android notification with this exact event",
-                lambda: app_notice(adb, event["event_id"]),
-            )
-            pushed = published_messages(topic)
-            if len(pushed) != before + 1 or pushed[-1].get("encoding") != "base64":
-                raise AssertionError("Expected one encrypted binary Web Push on the registered topic")
+            try:
+                eventually("one binary Web Push on the registered ntfy topic",
+                           lambda: new_binary_publication(published_messages(topic), before))
+                print("ntfy received one binary Web Push on the enrolled topic", file=sys.stderr, flush=True)
+                notice = eventually(
+                    "Android notification with this exact event",
+                    lambda: app_notice(adb, event["event_id"]),
+                )
+            except AssertionError as failure:
+                try:
+                    state = delivery_state(db, adb, device_id, event["event_id"])
+                    failure.add_note("Delivery state " + json.dumps(state, sort_keys=True))
+                except Exception as diagnostic:
+                    failure.add_note("Delivery state unavailable (" + type(diagnostic).__name__ + ")")
+                raise
             tap_notice(ui, notice_title(adb, notice), owner, phrase, title, reply)
             ui.tap("Atelier")
             ui.tap("Notifications")
@@ -229,7 +259,7 @@ def run(args):
             if (
                 not revoked_everywhere(db, device_id, revoked["event_id"])
                 or app_notice(adb, revoked["event_id"])
-                or len(published_messages(topic)) != len(pushed)
+                or len(published_messages(topic)) != before + 1
             ):
                 raise AssertionError("Revoked device received another message")
             print(

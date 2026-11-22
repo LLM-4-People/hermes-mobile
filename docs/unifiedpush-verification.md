@@ -2,7 +2,7 @@
 
 Use a disposable, fully booted Android 13 or newer emulator with SystemUI and an English system locale. The test installs the supplied signed Hermes Mobile APK and a checksum-verified upstream ntfy APK. Both packages must be absent at the start, and both are uninstalled during cleanup. Automated Test Device images omit the notification shade needed to exercise the tap.
 
-Use the Android SDK platform and build tools from gradle.properties and a JDK on PATH. The driver compiles a small SDK UI Automator helper for atomic entry into focused fields.
+Use the Android SDK platform and build tools from gradle.properties and a JDK on PATH. The driver compiles an external SDK UI Automator helper. One shell process reads visible controls and enters values through their Android accessibility labels across both apps.
 
 On a Linux x86-64 host, prepare a clean checkout of the Hermes fork and its Python development environment. Install `server/requirements.txt` into a separate Python environment for the relay. Docker supplies the same digest-pinned Caddy binary as the account deployment. With the current directory at the mobile project root, run:
 
