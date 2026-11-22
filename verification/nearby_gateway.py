@@ -22,12 +22,13 @@ async def verify(home):
     from gateway.platforms.api_server import APIServerAdapter
     from hermes_cli.plugins import discover_plugins
 
-    capture = (ROOT / "server/tests/fixtures/montreal-restaurants.json").read_bytes()
+    capture = json.loads((ROOT / "server/tests/fixtures/montreal-restaurants.json").read_text())
+    dataset = capture
     queries = []
 
     async def interpreter(request):
         queries.append((request.path_qs, (await request.post())["data"]))
-        return web.Response(body=capture, content_type="application/json")
+        return web.json_response(dataset)
 
     source = web.Application()
     source.router.add_post("/interpreter", interpreter)
@@ -58,6 +59,14 @@ async def verify(home):
                             records = await reply.json()
                 assert len(queries) == 1 and queries[0][0] == "/interpreter"
                 assert [p["osm_id"] for p in records["places"][:2]] == [11280151110, 6732094290]
+                for change in ({"elements": [None]},
+                               {"osm3s": {**capture["osm3s"], "copyright": "OpenHistoricalMap contributors, CC0."}}):
+                    dataset = {**capture, **change}
+                    async with client.post(url, headers={"Authorization": "Bearer " + key},
+                                           json={"latitude": 45.51, "longitude": -73.57}) as reply:
+                        assert reply.status == 503, reply.status
+                        assert reply.headers["Cache-Control"] == "no-store"
+                        assert await reply.json() == {"error": "places_unavailable"}
                 print(
                     json.dumps(
                         {

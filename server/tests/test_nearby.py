@@ -125,6 +125,42 @@ class NearbyHTTP(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((await self.lookup()).status, 503)
         self.assertEqual(len(self.sent), count)
 
+    async def test_source_must_identify_osm_even_for_an_empty_result(self):
+        self.dataset["elements"] = []
+        source = self.dataset["osm3s"]
+        del source["copyright"]
+        for credit in (None, "", "OpenHistoricalMap contributors, CC0.",
+                      "© OpenStreetMap contributors, CC0.", "OpenStreetMap contributors and another dataset"):
+            with self.subTest(credit=credit):
+                if credit is not None:
+                    source["copyright"] = credit
+                response = await self.lookup()
+                self.assertEqual(response.status, 503)
+                self.assertEqual(await response.json(), {"error": "places_unavailable"})
+        source["copyright"] = "© OpenStreetMap contributors, ODbL"
+        response = await self.lookup()
+        self.assertEqual(response.status, 200)
+        self.assertEqual((await response.json())["places"], [])
+
+    async def test_unreadable_elements_are_distinct_from_ordinary_omissions(self):
+        known = self.dataset["elements"][0]
+        malformed = [None, {}, {**known, "id": True}, {**known, "lat": "unknown"}, {**known, "tags": []}]
+        self.dataset["elements"] = malformed
+        response = await self.lookup()
+        self.assertEqual(response.status, 503)
+        self.assertEqual(await response.json(), {"error": "places_unavailable"})
+        excluded = [{**known, "tags": {"amenity": "restaurant"}}, {"type": "way", "id": 9, "tags": known["tags"]},
+                    {**known, "lat": 0, "lon": 0}]
+        for elements in (excluded, malformed + excluded, []):
+            self.dataset["elements"] = elements
+            response = await self.lookup()
+            self.assertEqual(response.status, 200)
+            self.assertEqual((await response.json())["places"], [])
+        self.dataset["elements"] = malformed + excluded + [known]
+        response = await self.lookup()
+        self.assertEqual(response.status, 200)
+        self.assertEqual([r["osm_id"] for r in (await response.json())["places"]], [known["id"]])
+
     async def test_unreachable_interpreter_returns_unavailable(self):
         await self.upstream.close()
         response = await self.lookup()

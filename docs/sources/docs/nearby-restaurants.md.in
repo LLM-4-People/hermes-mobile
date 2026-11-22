@@ -15,3 +15,5 @@ The model can return a named page with one `nearby_places` block. Android recogn
 ```
 
 The map data is © OpenStreetMap contributors, available under the Open Database License. Contributors supply restaurant names and may supply a `cuisine` tag. A source link identifies the node, way or relation behind a row. [OpenStreetMap attribution and license](https://www.openstreetmap.org/copyright), [restaurant tagging](https://wiki.openstreetmap.org/wiki/Tag:amenity%3Drestaurant) and [cuisine tagging](https://wiki.openstreetmap.org/wiki/Key:cuisine)
+
+The gateway accepts the standard Overpass OpenStreetMap/ODbL copyright notice and the short “OpenStreetMap contributors” credit, optionally prefixed with © or followed by “, ODbL”. A missing or unrecognized notice makes the lookup unavailable. A valid response can contain zero nearby named restaurants. A response containing only malformed map objects makes the lookup unavailable.
