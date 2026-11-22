@@ -23,6 +23,7 @@ class Settings:
     def discovery(self):
         result = {"providers": []}
         if self.firebase:
+            result["provider"] = "fcm"
             result["providers"].append("fcm")
             result["firebase"] = self.firebase
         if self.webpush:

@@ -1,3 +1,4 @@
+from contextlib import closing
 import secrets
 import tempfile
 import unittest
@@ -26,10 +27,20 @@ class PushApi(unittest.IsolatedAsyncioTestCase):
         return await self.client.request(method, path, json=body,
                                          headers={"Authorization": "Bearer " + key} if key else {})
 
+    async def test_fcm_enrollment_and_rotation_accept_both_wire_forms(self):
+        for fields in ({}, {"provider": "fcm"}):
+            with self.subTest(fields=fields):
+                self.assertEqual((await self.req("PUT", self.path, self.owner, {**self.enrol, **fields})).status, 204)
+                self.assertEqual((await self.req("PUT", self.path, self.key, {"token": "rotated", **fields})).status, 204)
+                with closing(self.store.connect()) as db:
+                    row = db.execute("SELECT token,provider FROM devices WHERE id=?", (self.ident,)).fetchone()
+                    self.assertEqual(tuple(row), ("rotated", "fcm"))
+                self.assertEqual((await self.req("DELETE", self.path, self.key)).status, 204)
+
     async def test_discovery_and_device_only_rotation_and_removal(self):
         self.assertEqual((await self.req("GET", BASE)).status, 401)
         r = await self.req("GET", BASE, self.owner)
-        self.assertEqual(await r.json(), {"providers": ["fcm"], "firebase": self.settings.firebase})
+        self.assertEqual(await r.json(), {"provider": "fcm", "providers": ["fcm"], "firebase": self.settings.firebase})
         self.assertEqual(r.headers["Cache-Control"], "no-store")
         for _ in range(2):
             self.assertEqual((await self.req("PUT", self.path, self.owner, self.enrol)).status, 204)

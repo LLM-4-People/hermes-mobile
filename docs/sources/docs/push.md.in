@@ -42,7 +42,7 @@ All responses are private and carry `Cache-Control: no-store`. Discovery and eve
 
 | Request | Contract |
 | --- | --- |
-| `GET /api/mobile/push` | Lists enabled `providers`. With FCM enabled it returns public `firebase` fields `applicationId`, `gcmSenderId`, `projectId`, `apiKey`. |
+| `GET /api/mobile/push` | Lists enabled `providers`. With FCM enabled it also returns `provider: "fcm"` for earlier clients and public `firebase` fields `applicationId`, `gcmSenderId`, `projectId`, `apiKey`. |
 | `PUT /api/mobile/push/devices/{id}` | Enroll with the profile bearer and a JSON body containing `token` and `management_key`. The token is the registration token supplied by the app's Firebase Messaging version. A 204 confirms persistence. |
 | `PUT /api/mobile/push/devices/{id}` with device bearer | Rotate the destination with the management key as bearer and a JSON body containing only `token`. A 409 means the token belongs to another installation in this runtime. |
 | `DELETE /api/mobile/push/devices/{id}` | Revoke the device and its queued deliveries. The profile bearer receives 204 even for an absent device. A well-formed device bearer receives 204 after removing its own matching binding, including on retry when the binding is already gone. Other devices’ enrollments stay private. |

@@ -219,6 +219,7 @@ class UnifiedPush(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(loaded.webpush.public_key, self.settings.webpush.public_key)
             self.assertEqual(loaded.discovery()["providers"], ["unifiedpush"])
             self.assertNotIn("firebase", loaded.discovery())
+            self.assertNotIn("provider", loaded.discovery())
             with patch.dict(os.environ, MOBILE_FIREBASE_PROJECT_ID="partial"):
                 with self.assertRaisesRegex(ValueError, "MOBILE_FIREBASE_SENDER_ID"):
                     Settings.load()
@@ -226,4 +227,5 @@ class UnifiedPush(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await response.json(), loaded.discovery())
         populated = replace(loaded, firebase={"projectId": "test"})
         self.assertEqual(populated.discovery()["providers"], ["fcm", "unifiedpush"])
+        self.assertEqual(populated.discovery()["provider"], "fcm")
         self.assertEqual(Path(loaded.state, "vapid.pem").stat().st_mode & 0o077, 0)
