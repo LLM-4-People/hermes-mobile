@@ -1,5 +1,6 @@
 """Interact with the real apps and the Android notification shade through accessibility."""
 
+from collections import Counter
 from contextlib import contextmanager
 import io
 import json
@@ -309,22 +310,42 @@ def masked_notice(frame, notice):
 
 def open_notice(ui, title, directory=None):
     show_notice(ui, title)
+    attempts = Counter()
+
+    def stable(before, stage):
+        observed = current_notice(ui, title, attempts)
+        if observed == before:
+            return True
+        if observed is None:
+            reason = "unavailable"
+        elif observed.focused_window != before.focused_window or observed.accessibility_window != before.accessibility_window:
+            reason = "window_changed"
+        else:
+            reason = "label_moved"
+        attempts[stage + "_" + reason] += 1
+        return False
 
     def attempt():
-        view = current_notice(ui, title)
+        attempts["attempts"] += 1
+        view = current_notice(ui, title, attempts)
         if view is None:
             return False
         if directory:
             frame = ui.device.run("exec-out", "screencap", "-p")
             # Discard frames if focus, accessibility window or either label moved.
-            if current_notice(ui, title) != view:
+            if not stable(view, "after_capture"):
                 return False
             image, labels = masked_notice(frame, view)
-            if current_notice(ui, title) != view:
+            if not stable(view, "after_mask"):
                 return False
         # Resolve the current SystemUI title again on the phone before injecting a normal touch.
-        if ui.controls.send("tap-notice", title=title, window=view.accessibility_window, focus=view.focused_window,
-                            bounds=view.heading) != b"tapped":
+        result = ui.controls.send("tap-notice", title=title, window=view.accessibility_window,
+                                  focus=view.focused_window, bounds=view.heading)
+        if result != b"tapped":
+            # Only bounded, fixed observer statuses may leave the private shell session.
+            allowed = {b"focus", b"window_report", b"root", b"package", b"window_id", b"no_title",
+                       b"multiple_titles", b"title_window", b"bounds", b"touch"}
+            attempts["native_" + (result.decode("ascii") if result in allowed else "unexpected")] += 1
             return False
         if directory:
             with (directory / "native-notification-shade.png").open("xb") as output:
@@ -333,7 +354,11 @@ def open_notice(ui, title, directory=None):
                 labels.save(output, "PNG")
         return True
 
-    eventually("a stable focused notification and a physical tap on its current title", attempt)
+    try:
+        eventually("a stable focused notification and a physical tap on its current title", attempt)
+    except (AssertionError, TimeoutError, RuntimeError):
+        print("Android notification tap " + json.dumps(attempts, sort_keys=True), file=sys.stderr, flush=True)
+        raise
 
 
 def tap_notice(ui, notice_text, owner, phrase, title, reply, evidence=None):
