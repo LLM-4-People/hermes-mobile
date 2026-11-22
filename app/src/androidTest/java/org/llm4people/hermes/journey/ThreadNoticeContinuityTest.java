@@ -19,7 +19,7 @@ import java.util.concurrent.TimeUnit;
 
 @SuppressWarnings("deprecation")
 public final class ThreadNoticeContinuityTest extends InstrumentationTestCase {
-    private static JSONObject proposal(int id, String instruction) throws Exception {
+    static JSONObject proposal(int id, String instruction) throws Exception {
         String page = """
                 {"version":1,"surface":"page/revue","mode":"replace","title":"Revue","blocks":[
                 {"type":"form","title":"Relecture","prompt":"%s","fields":[{"id":"file","label":"Fichier","kind":"text"}]}]}""";
@@ -27,7 +27,7 @@ public final class ThreadNoticeContinuityTest extends InstrumentationTestCase {
                 .put("content","Outil proposé.\n```hermes-workspace\n" + String.format(java.util.Locale.ROOT, page, instruction) + "\n```");
     }
 
-    private static String transcript(String root, String tip, String title, JSONArray rows) throws Exception {
+    static String transcript(String root, String tip, String title, JSONArray rows) throws Exception {
         return new JSONObject().put("thread_id",root).put("session_id",tip).put("thread_title",title)
                 .put("pagination",new JSONObject().put("visible_only",true).put("total",rows.length()))
                 .put("data",rows).toString();
