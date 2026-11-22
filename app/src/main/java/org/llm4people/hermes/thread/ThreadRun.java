@@ -9,7 +9,6 @@ import org.json.JSONObject;
 import org.llm4people.hermes.HermesConfig;
 import org.llm4people.hermes.VisibleText;
 import org.llm4people.hermes.camera.CapturedMedia;
-import org.llm4people.hermes.camera.ThreadCameraCapture;
 import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.share.AttachmentUploader;
 import org.llm4people.hermes.share.DeviceBridgeFlow;
@@ -165,29 +164,37 @@ final class ThreadRun {
                     });
                     return;
                 }
-                try {
-                    NearbyTurn.attach(body, area);
-                    if (features.optBoolean("device_bridge")) {
-                        List<String> caps = DeviceBridgeFlow.advertisedCapabilities(
-                                ThreadCameraCapture.isAvailable(page.activity),
-                                page.nearby.granted(),
-                                true,
-                                true);
-                        body.put("device_capabilities", DeviceBridgeFlow.capabilitiesJson(caps));
+                if (!stagedAttachments.isEmpty()) {
+                    String remoteSession = page.remoteSessionId();
+                    if (remoteSession == null || remoteSession.trim().isEmpty()) {
+                        admissionFinished();
+                        ui.busy(false, false);
+                        ui.notice("La discussion n’est pas encore prête pour recevoir des fichiers. Réessayez.", "", null);
+                        return;
                     }
-                    journal.stage(body, SystemClock.elapsedRealtime(), bootCount(), idem.optLong("retention_seconds"),
-                            idem.optBoolean("durable"), area);
-                    page.nearby.clearTurn();
-                } catch (IllegalStateException | JSONException e) {
-                    admissionFinished();
-                    ui.busy(false, false);
-                    page.storageError();
+                    long maxUploadBytes = HermesConfig.load(page.activity).artifactDefaultMaxBytes;
+                    ui.notice("Envoi des fichiers joints…", "", null);
+                    page.request(() -> AttachmentUploader.uploadAll(
+                            page.api::postMultipart, remoteSession, stagedAttachments, maxUploadBytes), receipts -> {
+                        if (!snapshot.equals(ui.draft()) || selectedPhoto != journal.photo()
+                                || !page.nearby.stillCurrent(nearbyVersion, area)
+                                || !stagedAttachments.equals(ui.stagedAttachments())) {
+                            admissionFinished();
+                            ui.busy(false, false);
+                            ui.notice("Le brouillon a changé. Vous pouvez l’envoyer.", "", null);
+                            return;
+                        }
+                        AttachmentUploader.attachToRunBody(body, receipts);
+                        finalizeStageAndAdmit(body, features, idem, area, stagedAttachments);
+                    }, error -> {
+                        admissionFinished();
+                        ui.busy(false, false);
+                        page.error(error, this::send);
+                    });
                     return;
                 }
-                ui.clearDraft();
-                page.refreshPhoto();
-                ui.outgoing(outgoing(journal.pending()));
-                started = SystemClock.elapsedRealtime();
+                finalizeStageAndAdmit(body, features, idem, area, Collections.emptyList());
+                return;
             } else {
                 JSONObject pending = journal.pending();
                 long ttl = Math.min(pending.optLong("ttl"), idem.optLong("retention_seconds"));
@@ -199,12 +206,37 @@ final class ThreadRun {
                     return;
                 }
             }
-            admit(body, fresh, stagedAttachments);
+            admit(body, false, Collections.emptyList());
         }, error -> {
             admissionFinished();
             ui.busy(!fresh, false);
             page.error(error, fresh ? this::send : this::restore);
         });
+    }
+
+    private void finalizeStageAndAdmit(JSONObject body, JSONObject features, JSONObject idem,
+                                       JSONObject area, List<CapturedMedia.Item> stagedAttachments) {
+        try {
+            NearbyTurn.attach(body, area);
+            if (features.optBoolean("device_bridge")) {
+                List<String> caps = DeviceBridgeFlow.executableCapabilities(true, true, true);
+                body.put("device_capabilities", DeviceBridgeFlow.capabilitiesJson(caps));
+            }
+            journal.stage(body, SystemClock.elapsedRealtime(), bootCount(), idem.optLong("retention_seconds"),
+                    idem.optBoolean("durable"), area);
+            page.nearby.clearTurn();
+        } catch (IllegalStateException | JSONException e) {
+            admissionFinished();
+            ui.busy(false, false);
+            page.storageError();
+            return;
+        }
+        ui.clearDraft();
+        if (!stagedAttachments.isEmpty()) ui.clearAttachments();
+        page.refreshPhoto();
+        ui.outgoing(outgoing(journal.pending()));
+        started = SystemClock.elapsedRealtime();
+        admit(body, true, stagedAttachments);
     }
 
     private static String outgoing(JSONObject receipt) {
@@ -220,21 +252,10 @@ final class ThreadRun {
         String key = journal.pending().optString("key");
         ui.notice("Envoi à Hermes…", "", null);
         JSONObject image = journal.pending().optJSONObject("photo");
-        long maxUploadBytes = HermesConfig.load(page.activity).artifactDefaultMaxBytes;
-        String remoteSession = page.remoteSessionId();
-        page.request(() -> {
-            JSONObject wire = journal.wire(body, image);
-            if (stagedAttachments != null && !stagedAttachments.isEmpty()) {
-                List<AttachmentUploader.UploadReceipt> receipts = AttachmentUploader.uploadAll(
-                        page.api::postMultipart, remoteSession, stagedAttachments, maxUploadBytes);
-                AttachmentUploader.attachToRunBody(wire, receipts);
-            }
-            return page.api.post("/v1/runs", wire, key);
-        }, response -> {
+        page.request(() -> page.api.post("/v1/runs", journal.wire(body, image), key), response -> {
             admissionFinished();
             String id = ThreadData.string(response, "run_id");
             if (!ThreadData.validId(id)) { uncertain(); return; }
-            if (stagedAttachments != null && !stagedAttachments.isEmpty()) ui.clearAttachments();
             journal.setRunId(id);
             ui.notice("", "", null);
             ui.busy(true, true);
@@ -250,6 +271,7 @@ final class ThreadRun {
                 journal.reject();
                 page.nearby.restore();
                 ui.displayDraft(journal.draft());
+                if (stagedAttachments != null && !stagedAttachments.isEmpty()) page.attachMedia(stagedAttachments);
                 page.refreshPhoto();
                 ui.outgoing("");
                 ui.busy(false, false);

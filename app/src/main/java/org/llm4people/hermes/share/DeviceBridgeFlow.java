@@ -91,6 +91,44 @@ public final class DeviceBridgeFlow {
         return Collections.unmodifiableList(caps);
     }
 
+    /**
+     * Exact subset of Fork PR #15 capabilities backed by a real DeviceReview handoff or wired Executor
+     * in ThreadWorkspace — never advertises a capability that would unconditionally return UNAVAILABLE.
+     */
+    public static List<String> executableCapabilities(
+            boolean mapsAvailable, boolean alarmAvailable, boolean clipboardReadSupported) {
+        List<String> caps = new ArrayList<>();
+        caps.add("calendar_draft");
+        if (alarmAvailable) caps.add("alarm_timer");
+        if (mapsAvailable) caps.add("maps_handoff");
+        caps.add("share_sheet");
+        if (clipboardReadSupported) caps.add("clipboard_read");
+        caps.add("dial_draft");
+        caps.add("email_draft");
+        return Collections.unmodifiableList(caps);
+    }
+
+    /** Executor for explicit user-approved clipboard_read requests (only invoked after "Autoriser une fois"). */
+    public static Executor clipboardExecutor(ClipboardPastePill pill) {
+        return (request, callback) -> {
+            if (request == null || callback == null) return;
+            if (!"clipboard_read".equals(request.actionType()) || pill == null) {
+                callback.finish(Status.UNAVAILABLE, null);
+                return;
+            }
+            String text = pill.consumeOnUserTap();
+            if (text == null || text.isEmpty()) {
+                callback.finish(Status.UNAVAILABLE, null);
+                return;
+            }
+            try {
+                callback.finish(Status.COMPLETED, new JSONObject().put("text", text));
+            } catch (JSONException invalid) {
+                callback.finish(Status.UNAVAILABLE, null);
+            }
+        };
+    }
+
     public static JSONArray capabilitiesJson(List<String> capabilities) {
         JSONArray array = new JSONArray();
         if (capabilities != null) {

@@ -17,6 +17,7 @@ import org.llm4people.hermes.camera.CapturedMedia;
 import org.llm4people.hermes.camera.ThreadCameraCapture;
 import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.profile.Account;
+import org.llm4people.hermes.share.ClipboardPastePill;
 import org.llm4people.hermes.share.DeviceBridgeFlow;
 import org.llm4people.hermes.voice.VoiceDrafts;
 
@@ -242,8 +243,9 @@ public final class ThreadWorkspace implements AutoCloseable {
 
     void handleDeviceRequests(String runId, List<DeviceBridgeFlow.BridgeRequest> requests) {
         if (closed || screen == null || requests == null || requests.isEmpty()) return;
+        DeviceBridgeFlow.Executor executor = DeviceBridgeFlow.clipboardExecutor(new ClipboardPastePill(activity));
         for (DeviceBridgeFlow.BridgeRequest req : requests) {
-            deviceBridge.promptUser(activity, instrumentHost, screen.root, req, null, (status, data) ->
+            deviceBridge.promptUser(activity, instrumentHost, screen.root, req, executor, (status, data) ->
                     workers.execute(() -> {
                         try {
                             DeviceBridgeFlow.submitResult(api, runId, req.requestId(), status, data);

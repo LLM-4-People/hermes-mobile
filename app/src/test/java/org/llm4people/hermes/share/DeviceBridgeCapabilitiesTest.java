@@ -45,6 +45,30 @@ public final class DeviceBridgeCapabilitiesTest {
         assertFalse(minimal.contains("nearby_osm"));
         assertFalse(minimal.contains("alarm_timer"));
         assertFalse(minimal.contains("maps_handoff"));
+
+        List<String> executable = DeviceBridgeFlow.executableCapabilities(true, true, true);
+        for (String cap : executable) {
+            assertTrue("Executable capability must be in Fork PR #15 allowlist: " + cap,
+                    FORK_PR15_ALLOWLIST.contains(cap));
+        }
+        assertTrue(executable.contains("calendar_draft"));
+        assertTrue(executable.contains("alarm_timer"));
+        assertTrue(executable.contains("maps_handoff"));
+        assertTrue(executable.contains("share_sheet"));
+        assertTrue(executable.contains("clipboard_read"));
+        assertTrue(executable.contains("dial_draft"));
+        assertTrue(executable.contains("email_draft"));
+        // Unbacked capabilities must NOT be advertised until backed by a real executor.
+        assertFalse(executable.contains("camera"));
+        assertFalse(executable.contains("location_coarse"));
+        assertFalse(executable.contains("nearby_osm"));
+        assertFalse(executable.contains("contacts_pick"));
+        assertFalse(executable.contains("ui_surfaces_v2"));
+
+        List<String> restricted = DeviceBridgeFlow.executableCapabilities(false, false, false);
+        assertFalse(restricted.contains("maps_handoff"));
+        assertFalse(restricted.contains("alarm_timer"));
+        assertFalse(restricted.contains("clipboard_read"));
     }
 
     @Test

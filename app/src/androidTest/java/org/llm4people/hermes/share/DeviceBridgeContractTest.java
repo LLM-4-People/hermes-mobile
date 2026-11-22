@@ -112,6 +112,51 @@ public final class DeviceBridgeContractTest extends InstrumentationTestCase {
         assertTrue((intent.getFlags() & Intent.FLAG_GRANT_READ_URI_PERMISSION) != 0);
     }
 
+    public void testEveryExecutableCapabilityIsBackedByActionOrClipboardExecutor() throws Exception {
+        ClipboardPastePill pill = new ClipboardPastePill(new ClipboardPastePill.ClipboardSource() {
+            @Override public boolean hasPlainTextClip() { return true; }
+            @Override public long clipTimestamp() { return 100L; }
+            @Override public CharSequence readPrimaryText() { return "Notes importantes"; }
+        });
+        DeviceBridgeFlow.Executor executor = DeviceBridgeFlow.clipboardExecutor(pill);
+        List<String> caps = DeviceBridgeFlow.executableCapabilities(true, true, true);
+        for (String cap : caps) {
+            JSONObject params = switch (cap) {
+                case "calendar_draft" -> new JSONObject()
+                        .put("title", "Réunion").put("start", "2026-11-23T10:00:00Z").put("end", "2026-11-23T11:00:00Z");
+                case "alarm_timer" -> new JSONObject().put("seconds", 120);
+                case "maps_handoff" -> new JSONObject().put("query", "Montréal");
+                case "share_sheet" -> new JSONObject().put("text", "Bonjour");
+                case "dial_draft" -> new JSONObject().put("number", "+1 514-555-0100");
+                case "email_draft" -> new JSONObject().put("recipient", "a@exemple.fr").put("subject", "Sujet");
+                default -> new JSONObject();
+            };
+            DeviceBridgeFlow.BridgeRequest req = DeviceBridgeFlow.parseRequest(new JSONObject()
+                    .put("request_id", "cap_" + cap).put("action_type", cap).put("params", params));
+            assertNotNull("Capability must parse cleanly: " + cap, req);
+            DeviceAction action = DeviceBridgeFlow.toDeviceAction(req);
+            if (action == null) {
+                AtomicReference<DeviceBridgeFlow.Status> status = new AtomicReference<>();
+                AtomicReference<JSONObject> payload = new AtomicReference<>();
+                executor.execute(req, (s, d) -> { status.set(s); payload.set(d); });
+                assertEquals("Non-DeviceAction executable capability must complete: " + cap,
+                        DeviceBridgeFlow.Status.COMPLETED, status.get());
+                assertEquals("Notes importantes", payload.get().getString("text"));
+            }
+        }
+    }
+
+    public void testStagedBodyPreservesAttachmentsAcrossReplaySerialization() throws Exception {
+        JSONObject body = new JSONObject().put("session_id", "s1").put("input", "Résume ce fichier");
+        List<AttachmentUploader.UploadReceipt> receipts = List.of(
+                new AttachmentUploader.UploadReceipt("upl_abc123", "doc.pdf", "application/pdf", 1024, "deadbeef"));
+        AttachmentUploader.attachToRunBody(body, receipts);
+        // Simulates durable journal.stage(body) -> reload -> replay on retry.
+        JSONObject replayed = new JSONObject(body.toString());
+        assertEquals(1, replayed.getJSONArray("attachments").length());
+        assertEquals("upl_abc123", replayed.getJSONArray("attachments").getString(0));
+    }
+
     public void testRejectsInvalidBridgeRequests() throws Exception {
         assertNull(DeviceBridgeFlow.parseRequest(null));
         assertNull(DeviceBridgeFlow.parseRequest(new JSONObject()
