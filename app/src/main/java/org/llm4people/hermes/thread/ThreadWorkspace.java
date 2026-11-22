@@ -327,8 +327,9 @@ public final class ThreadWorkspace implements AutoCloseable {
             int oldSize = messages.length();
             messages = ThreadData.join(page, older ? messages : new JSONArray());
             messageOffset = offset + page.length();
-            emptyTranscript = messages.length() == 0 && page.length() == 0;
-            screen.rows(messages, page.length() == ThreadData.PAGE, !older && !emptyTranscript,
+            boolean hasMore = page.length() == ThreadData.PAGE;
+            emptyTranscript = messages.length() == 0 && !hasMore;
+            screen.rows(messages, hasMore, !older && !emptyTranscript,
                     older ? messages.length() - oldSize : 0);
             if (journal.pending() == null) screen.notice("", "", null);
             if (!older) refreshContext();
