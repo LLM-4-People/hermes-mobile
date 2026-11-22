@@ -401,7 +401,11 @@ final class PushStore extends SQLiteOpenHelper {
             if (PushNotices.isPrompt(kind)) {
                 try (Cursor marker = db.rawQuery("SELECT 1 FROM dismissed_questions WHERE installation=? AND event=?",
                         new String[]{installation, event})) {
-                    if (marker.moveToFirst()) return false;
+                    if (marker.moveToFirst()) {
+                        // A suppressed prompt is a successful no-op even inside a deferred drain.
+                        db.setTransactionSuccessful();
+                        return false;
+                    }
                 }
             }
             ContentValues data = new ContentValues();
@@ -426,14 +430,28 @@ final class PushStore extends SQLiteOpenHelper {
     void defer(Device owner, String event, String kind, long expires, long now) {
         if (!PENDING.equals(owner.state) || owner.established || owner.subscriptionVersion == null
                 || !PushNotices.validIds(owner.installation, event) || !WebPushExpiry.mayDispatch(kind, expires, now)) return;
+        String request = switch (kind) {
+            case PushNotices.DISMISS_APPROVAL -> "approval_requested";
+            case PushNotices.DISMISS_QUESTION -> "question_requested";
+            default -> null;
+        };
+        if (request == null && PushNotices.title(kind) == null) return;
         SQLiteDatabase db = getWritableDatabase();
         db.beginTransaction();
         try {
+            Device current = forInstallation(owner.installation);
+            if (current == null || !PENDING.equals(current.state) || current.established
+                    || !owner.subscriptionVersion.equals(current.subscriptionVersion)) return;
             db.execSQL("DELETE FROM deferred WHERE discard_at<=?", new Object[]{now});
+            long discardAt = now + 24 * 3_600_000L;
             db.execSQL("INSERT OR IGNORE INTO deferred(installation,version,event,kind,expires,discard_at) "
-                    + "SELECT installation,subscription_version,?,?,?,? FROM devices WHERE installation=? AND "
-                    + "subscription_version=? AND state='pending' AND established=0",
-                    new Object[]{event, kind, expires, now + 24 * 3_600_000L, owner.installation, owner.subscriptionVersion});
+                    + "VALUES(?,?,?,?,?,?)", new Object[]{owner.installation, owner.subscriptionVersion, event, kind, expires, discardAt});
+            if (request != null) {
+                // The settlement uses the original event ID. Preserve it whichever callback arrived first.
+                db.execSQL("UPDATE deferred SET kind=?,expires=?,discard_at=? WHERE installation=? AND version=? "
+                        + "AND event=? AND kind=?", new Object[]{kind, expires, discardAt, owner.installation,
+                                owner.subscriptionVersion, event, request});
+            }
             db.execSQL("DELETE FROM deferred WHERE installation=? AND rowid NOT IN "
                     + "(SELECT rowid FROM deferred WHERE installation=? ORDER BY rowid DESC LIMIT 64)",
                     new Object[]{owner.installation, owner.installation});
