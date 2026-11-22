@@ -119,7 +119,23 @@ public final class JourneyUi {
     }
 
     void tap(String label) {
-        View target = until(label, () -> find(window(), v -> named(v, label) && v.isEnabled()));
+        View target = until(label, () -> {
+            View root = window();
+            View match = find(root, v -> named(v, label) && v.isEnabled());
+            if (match == null) {
+                View list = find(root, v -> v instanceof android.widget.ListView);
+                if (list instanceof android.widget.ListView menu) {
+                    for (int i = 0; i < menu.getCount(); i++) {
+                        Object item = menu.getItemAtPosition(i);
+                        if (item instanceof android.view.MenuItem entry && label.contentEquals(entry.getTitle())) {
+                            menu.setSelection(i);
+                            break;
+                        }
+                    }
+                }
+            }
+            return match;
+        });
         tap(target, label);
     }
 

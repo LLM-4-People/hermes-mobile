@@ -34,6 +34,7 @@ final class ThreadInstrumentJourney {
         if (!request.equals(template)) throw new AssertionError("The French request did not enter the editable composer");
         ui.fill("Message à Hermes", request + "\n\n" + goal);
         ui.hideKeyboard();
+        ui.heading(first);
         ui.capture("19-demande-outil");
         ui.tap("Envoyer");
         ui.contains("Voici votre outil de relecture.");
@@ -59,6 +60,7 @@ final class ThreadInstrumentJourney {
         ui.see("Relire le brouillon");
         ui.tap("Vers le brouillon");
         ui.see(STAGED);
+        ui.heading(first);
         ui.hideKeyboard();
         ui.capture("21-brouillon-outil");
         if (ui.has(RETURN)) ui.tap(RETURN);

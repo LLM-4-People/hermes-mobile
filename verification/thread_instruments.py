@@ -13,8 +13,10 @@ import json
 from pathlib import Path
 import re
 import secrets
+import struct
 import sys
 import tempfile
+import time
 
 from conversation_cards import admission
 from device.installed import installed_apk_sha256
@@ -102,6 +104,22 @@ def verify_history(gateway, provider):
     return receipts
 
 
+def set_viewport(device, *, wide):
+    rotation = "1" if wide else "0"
+    width, height = (1200, 720) if wide else (320, 640)
+    device.shell("wm", "size", f"{min(width, height)}x{max(width, height)}")
+    device.shell("wm", "density", "160")
+    device.shell("settings", "put", "system", "user_rotation", rotation)
+    device.shell("wm", "user-rotation", "lock", rotation)
+    target = f"-w{width}dp-h{height}dp-"
+    deadline = time.monotonic() + 20
+    while time.monotonic() < deadline:
+        if target in device.shell("am", "get-config") and device.shell("wm", "user-rotation") == "lock " + rotation:
+            return
+        time.sleep(0.2)
+    raise AssertionError(f"The emulator did not apply the requested {width}×{height} viewport")
+
+
 @contextmanager
 def viewport(device):
     overrides = {}
@@ -110,16 +128,16 @@ def viewport(device):
         override = re.search(r"^Override (?:size|density): ([\dx]+)$", old, re.MULTILINE)
         overrides[setting] = override.group(1) if override else "reset"
     rotation = device.shell("wm", "user-rotation").split()
+    saved_rotation = device.shell("settings", "get", "system", "user_rotation")
     if not re.fullmatch(r"free|lock [0-3]", " ".join(rotation)):
         raise ValueError("Unrecognized current Android display rotation")
     try:
-        device.shell("wm", "user-rotation", "lock", "0")
-        device.shell("wm", "size", "320x640")
-        device.shell("wm", "density", "160")
+        set_viewport(device, wide=False)
         yield
     finally:
         cleanup_all(lambda: device.shell("wm", "size", overrides["size"]),
                     lambda: device.shell("wm", "density", overrides["density"]),
+                    lambda: device.setting("user_rotation", saved_rotation),
                     lambda: device.shell("wm", "user-rotation", *rotation))
 
 
@@ -145,8 +163,7 @@ def journey(args, gateway):
         try:
             device.phase("instrument")
             device.shell("am", "force-stop", APP)
-            device.shell("wm", "size", "720x1200")
-            device.shell("wm", "user-rotation", "lock", "1")
+            set_viewport(device, wide=True)
             device.phase("instrument-wide")
         finally:
             cleanup_all(lambda: device.shell("run-as", APP, "rm", "-f", DEVICE_DIR + "/fixture.json"),
@@ -157,7 +174,14 @@ def journey(args, gateway):
     captures = {}
     for name in sorted(CAPTURES):
         with (args.output / name).open("rb") as capture:
-            captures[name] = {"caption": CAPTURES[name], "sha256": hashlib.file_digest(capture, "sha256").hexdigest()}
+            header = capture.read(24)
+            size = struct.unpack(">II", header[16:24])
+            expected = (1200, 720) if name == "25-outil-grand-ecran.png" else (320, 640)
+            if size != expected:
+                raise AssertionError(f"{name} rendered at {size}, expected {expected}")
+            capture.seek(0)
+            captures[name] = {"caption": CAPTURES[name], "width": size[0], "height": size[1],
+                              "sha256": hashlib.file_digest(capture, "sha256").hexdigest()}
     return {"apk_sha256": hashes[0], "test_apk_sha256": hashes[1], "captures": captures}
 
 
