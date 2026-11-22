@@ -219,11 +219,14 @@ public final class HermesApi {
         }
 
         /** Returns one JSON event, or null after the stream closes. Reconnect using the last committed seq. */
-        public synchronized JSONObject next() throws IOException {
+        public JSONObject next() throws IOException { return next(false); }
+
+        /** Include empty objects for SSE comment heartbeats so an idle follower can reconcile status. */
+        public synchronized JSONObject next(boolean includeHeartbeats) throws IOException {
             if (closed) return null;
             try {
                 if (reader == null) reader = open();
-                JSONObject item = reader.next();
+                JSONObject item = reader.next(includeHeartbeats);
                 if (item == null) close();
                 return closed ? null : item;
             } catch (IOException error) {

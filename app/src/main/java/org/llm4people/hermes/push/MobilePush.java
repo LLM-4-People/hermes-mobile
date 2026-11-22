@@ -22,7 +22,11 @@ public final class MobilePush {
 
     private final Activity activity;
 
-    public MobilePush(Activity activity) { this.activity = activity; }
+    public MobilePush(Activity activity) {
+        this.activity = activity;
+        Context app = activity.getApplicationContext();
+        PushConnection.WORK.execute(() -> DistributorEnrollment.reconcile(app, true, null));
+    }
 
     public void settings(Account account) {
         lock();

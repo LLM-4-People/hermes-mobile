@@ -1,6 +1,8 @@
 """Interact with the real apps and the Android notification shade through accessibility."""
 
 from contextlib import contextmanager
+import io
+import json
 import re
 import secrets
 import subprocess
@@ -14,26 +16,22 @@ NTFY = "io.heckel.ntfy"
 
 
 class Screen:
-    def __init__(self, device, editor_jar):
+    def __init__(self, device, controls):
         self.device = device
-        self.editor_jar = editor_jar
-        self.tmp = "/data/local/tmp/hm-push-" + secrets.token_hex(8) + ".xml"
+        self.controls = controls
 
     def hierarchy(self):
         def capture():
-            self.device.shell("uiautomator", "dump", self.tmp)
-            if self.device.shell("sh", "-c", f"'test -s {self.tmp} && echo ready || true'") != "ready":
+            tree = self.controls.send("tree")
+            if not tree:
                 return None
-            try:
-                root = ElementTree.fromstring(self.device.run("exec-out", "cat", self.tmp))
-                # Freshly rebooted, busy AOSP images can cover the first permission dialog with a SystemUI ANR.
-                waiting = self.node("android:id/aerr_wait", root)
-                if waiting is not None and any("System UI" in node.get("text", "") for node in root.iter("node")):
-                    self.tap_node(waiting)
-                    return None
-                return (root,)
-            finally:
-                self.device.shell("rm", "-f", self.tmp)
+            root = ElementTree.fromstring(tree)
+            # First-boot SystemUI can cover the freshly launched distributor.
+            waiting = self.node("android:id/aerr_wait", root)
+            if waiting is not None and any("System UI" in node.get("text", "") for node in root.iter("node")):
+                self.tap_node(waiting)
+                return None
+            return (root,)
 
         return eventually("Android accessibility hierarchy", capture, timeout=45)[0]
 
@@ -108,25 +106,11 @@ class Screen:
     def type(self, label, value):
         if not re.fullmatch(r"[A-Za-z0-9_:/.-]+", value):
             raise ValueError("Unexpected characters in synthetic test input")
-        path = self.editor_jar.removesuffix(".jar") + ".txt"
-        try:
-            self.device.run("shell", "sh", "-c", f"'umask 077 && cat > {path}'", data=(label + "\n" + value).encode())
-            def enter():
-                # SystemUI can interrupt between identifying a field and applying the editor action.
-                self.hierarchy()
-                result = self.device.shell(
-                    "uiautomator", "runtest", self.editor_jar, "-c",
-                    "org.llm4people.hermes.verification.FocusedText", "-e", "valueFile", path, "-s",
-                )
-                if "OK (1 test)" in result:
-                    return True
-                if "No editor associated" in result or "editor label is absent" in result:
-                    return False
-                raise AssertionError("Android accessibility text entry failed: " + result[:1600])
+        def enter():
+            self.hierarchy()
+            return self.controls.send("text", label=label, value=value) == b"applied"
 
-            eventually("the named Android editor to accept text", enter)
-        finally:
-            self.device.shell("rm", "-f", path)
+        eventually("the named Android editor to accept text", enter)
 
     def allow_if_prompted(self, root=None):
         if root is None:
@@ -156,28 +140,69 @@ def distributor(ui, apk, endpoint):
     d.run("install", str(apk))
     try:
         launch(d, NTFY)
-        ui.allow_if_prompted()
-        ui.tap("More options", notification_permission=True)
-        ui.tap("Settings")
-        ui.tap("Default server")
         url_field = NTFY + ":id/default_server_dialog_url"
-        ui.wait(url_field)
+
+        def open_editor():
+            root = ui.hierarchy()
+            if ui.node(url_field, root) is not None:
+                return True
+            preference = ui.node("Default server", root)
+            if preference is not None:
+                ui.tap_node(preference)
+                return False
+            settings = ui.node("Settings", root)
+            if settings is not None:
+                if ui.node("Read the docs", root) is not None:
+                    ui.tap_node(settings)
+                else:
+                    # On compact phones the General preferences start below the visible notification rows.
+                    ui.scroll(root)
+                return False
+            menu = ui.node("More options", root)
+            if menu is not None:
+                ui.tap_node(menu)
+            else:
+                ui.allow_if_prompted(root)
+            return False
+
+        eventually("ntfy default server editor", open_editor)
         ui.type(url_field, endpoint)
         if "mInputShown=true" in d.shell("dumpsys", "input_method"):
             d.shell("input", "keyevent", "BACK")
-        ui.tap("Save")
-        ui.wait(endpoint)
+
+        def saved():
+            root = ui.hierarchy()
+            field = ui.node(url_field, root)
+            if field is None and ui.node(endpoint, root) is not None:
+                return True
+            button = ui.node("Save", root)
+            if button is not None:
+                ui.tap_node(button)
+            return False
+
+        eventually("ntfy settings showing the saved loopback server", saved)
+        d.shell("input", "keyevent", "BACK")
+        ui.wait("Subscribed topics")
         yield
     finally:
         d.run("uninstall", NTFY)
 
 
 def start_account(ui, label, endpoint, bearer, phrase):
-    root = ui.hierarchy()
-    add = ui.node("Ajouter un profil", root)
-    if add is not None:
-        ui.tap_node(add)
-    ui.wait("Connecter Hermes")
+    def form():
+        root = ui.hierarchy()
+        if ui.node("Connecter Hermes", root) is not None:
+            return True
+        add = ui.node("Ajouter un profil", root)
+        if add is not None:
+            ui.tap_node(add)
+        else:
+            choose = ui.node("Choisir un autre profil", root)
+            if choose is not None:
+                ui.tap_node(choose)
+        return False
+
+    eventually("real account creation form", form)
     for name, value in [
         ("Nom du profil", label),
         ("Adresse du serveur", endpoint),
@@ -223,11 +248,46 @@ def thread_screen(ui, root, title, reply):
     return all(ui.node(label, root) is not None for label in (title, reply, "Envoyer"))
 
 
-def tap_notice(ui, notice_text, owner, phrase, title, reply):
+def capture_notice(ui, title, directory):
+    from PIL import Image
+
+    root = ui.hierarchy()
+    heading = ui.node(title, root)
+    if heading is None:
+        raise AssertionError("The expected notification left the shade before capture")
+    controls = [heading]
+    body = ui.node("Ouvrez votre profil pour voir les détails.", root)
+    if body is not None:
+        controls.append(body)
+    # Only retain pixels within these two generic native label bounds. Other notifications
+    # and the status bar are never written to disk.
+    with Image.open(io.BytesIO(ui.device.run("exec-out", "screencap", "-p"))) as image:
+        source = image.convert("RGB")
+        redacted = Image.new("RGB", source.size, "black")
+        rects = [tuple(map(int, re.findall(r"-?\d+", control.get("bounds")))) for control in controls]
+        for box in rects:
+            redacted.paste(source.crop(box), box)
+        left = min(box[0] for box in rects)
+        top = min(box[1] for box in rects)
+        right = max(box[2] for box in rects)
+        bottom = max(box[3] for box in rects)
+        with (directory / "native-notification-shade.png").open("xb") as output:
+            redacted.save(output, "PNG")
+        with (directory / "native-notification-labels.png").open("xb") as output:
+            redacted.crop((left, top, right, bottom)).save(output, "PNG")
+
+
+def tap_notice(ui, notice_text, owner, phrase, title, reply, evidence=None):
     device = ui.device
     device.shell("cmd", "statusbar", "expand-notifications")
+    ui.wait(notice_text)
+    if evidence:
+        capture_notice(ui, notice_text, evidence)
     ui.tap(notice_text)
-    ui.wait(owner)
+    # The OS just transferred focus from SystemUI to a new process for the same app.
+    # Reacquire Android's accessibility connection to its newly created secure window.
+    ui.controls.reconnect()
+    profile_label = ui.wait(owner).get("text")
     ui.field("Phrase secrète du profil", phrase)
     ui.tap("Déverrouiller")
 
@@ -237,6 +297,11 @@ def tap_notice(ui, notice_text, owner, phrase, title, reply):
             return False
         if thread_screen(ui, root, title, "Absent-" + secrets.token_hex(16)):
             raise AssertionError("A different thread reply matched the opened transcript")
+        if evidence:
+            visible = [ui.node(label, root).get("text") for label in (title, reply, "Envoyer")]
+            with (evidence / "secure-thread-visible-controls.json").open("x") as output:
+                json.dump({"unlocked_profile": profile_label, "visible_thread_controls": visible}, output, ensure_ascii=False, indent=2)
+                output.write("\n")
         return True
 
     eventually("unique title and reply alongside the thread composer", opened)

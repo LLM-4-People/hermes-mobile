@@ -144,11 +144,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             else panels.showReminders();
         } else if (!event.isNull("session_id") && !event.optString("session_id").isEmpty()) {
             displayDiscussion();
-            if ("question_requested".equals(event.optString("kind"))) {
-                threads.openQuestion(event.optString("session_id"), event.optString("run_id"));
-            } else {
-                threads.open(event.optString("session_id"));
-            }
+            threads.openNotice(event.optString("session_id"), event.optString("run_id"), event.optString("kind"));
         }
     }
 

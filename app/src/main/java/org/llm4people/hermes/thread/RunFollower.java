@@ -7,6 +7,7 @@ import org.llm4people.hermes.net.HermesApi;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.function.LongSupplier;
 
 /** A subscription is disposable. The remote run and its durable receipt outlive it. */
 final class RunFollower implements AutoCloseable {
@@ -37,9 +38,11 @@ final class RunFollower implements AutoCloseable {
 
     static final int PREVIEW_LIMIT = RunPreview.LIMIT;
     static final int PAINT_INTERVAL_MS = 80;
+    private static final long CONTROL_CHECK_MS = 5_000;
     private final HermesApi api;
     private final String run;
     private final Listener listener;
+    private final LongSupplier uptime;
     private final RunPreview preview;
     private boolean textAwaitingPaint;
     private long seq;
@@ -47,10 +50,16 @@ final class RunFollower implements AutoCloseable {
     private long firstText = -1;
     private String activity = "Hermes travaille…";
     private final RunPrompts controls = new RunPrompts();
+    private long controlsCheckedAt;
     private volatile boolean closed;
     private HermesApi.RunEvents stream;
 
     RunFollower(HermesApi api, String run, JSONObject pending, long started, Listener listener) {
+        this(api, run, pending, started, listener, SystemClock::elapsedRealtime);
+    }
+
+    RunFollower(HermesApi api, String run, JSONObject pending, long started, Listener listener, LongSupplier uptime) {
+        this.uptime = uptime;
         this.api = api;
         this.run = run;
         this.listener = listener;
@@ -70,7 +79,14 @@ final class RunFollower implements AutoCloseable {
                 }
                 long nextPaint = 0;
                 JSONObject event;
-                while (!closed && (event = events.next()) != null) {
+                while (!closed && (event = events.next(true)) != null) {
+                    if (event.length() == 0) {
+                        if (controlCheckDue("")) {
+                            if (!refreshControls()) return;
+                            publish();
+                        }
+                        continue;
+                    }
                     if (!run.equals(event.optString("run_id"))) continue;
                     String type = event.optString("event");
                     if ("replay.truncated".equals(type)) {
@@ -83,14 +99,11 @@ final class RunFollower implements AutoCloseable {
                     }
                     long eventSeq = event.optLong("seq", -1);
                     if (eventSeq < 0 || eventSeq <= seq) continue;
-                    seq = eventSeq;
                     if (ThreadData.terminal(type.startsWith("run.") ? type.substring(4) : "")) break;
-                    if (controls.needsSnapshot(type, event)) {
-                        if (!refreshControls()) return;
-                    } else {
-                        apply(type, event);
-                    }
-                    long now = SystemClock.elapsedRealtime();
+                    if ((controls.needsSnapshot(type, event) || controlCheckDue(type)) && !refreshControls()) return;
+                    apply(type, event);
+                    seq = eventSeq;
+                    long now = uptime.getAsLong();
                     if (!"message.delta".equals(type) || now >= nextPaint) {
                         publish();
                         nextPaint = now + PAINT_INTERVAL_MS;
@@ -117,22 +130,35 @@ final class RunFollower implements AutoCloseable {
         }
     }
 
+    private boolean controlCheckDue(String event) {
+        // Native waiters may expire silently. Recheck promptly when work resumes, and on idle heartbeats.
+        if (controls.snapshot().isEmpty()) return false;
+        long interval = "message.interim".equals(event) || "tool.completed".equals(event) ? 1_000 : CONTROL_CHECK_MS;
+        return uptime.getAsLong() - controlsCheckedAt >= interval && controls.hasStandaloneApproval();
+    }
+
     private boolean refreshControls() throws IOException {
         JSONObject status = api.get(path());
         if (!run.equals(status.opt("run_id"))) throw new IOException("Incorrect run identity");
         if (closed || finish(status)) return false;
         controls.restore(status);
+        controlsCheckedAt = uptime.getAsLong();
         return true;
     }
 
     private boolean finish(JSONObject status) {
-        if ("unknown".equals(status.optString("status"))) {
-            if (!closed) listener.unknown(status);
-            return true;
+        String state = status.optString("status");
+        boolean unknown = "unknown".equals(state);
+        if (!unknown && !ThreadData.terminal(state)) return false;
+        if (!closed) {
+            if (textAwaitingPaint) {
+                controls.clear();
+                publish();
+            }
+            if (unknown) listener.unknown(status);
+            else listener.complete(status, started < 0 ? -1 : firstText,
+                    started < 0 ? -1 : uptime.getAsLong() - started);
         }
-        if (!ThreadData.terminal(status.optString("status"))) return false;
-        if (!closed) listener.complete(status, started < 0 ? -1 : firstText,
-                started < 0 ? -1 : SystemClock.elapsedRealtime() - started);
         return true;
     }
 
@@ -141,7 +167,7 @@ final class RunFollower implements AutoCloseable {
             case "message.delta":
                 String delta = event.optString("delta");
                 if (!delta.isEmpty()) {
-                    if (started >= 0 && firstText < 0) firstText = SystemClock.elapsedRealtime() - started;
+                    if (started >= 0 && firstText < 0) firstText = uptime.getAsLong() - started;
                     preview.append(delta);
                     textAwaitingPaint = true;
                 }

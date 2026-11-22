@@ -31,9 +31,14 @@ final class RunPrompts {
         return new Key(id(prompt), generation, question(prompt));
     }
 
-    void restore(JSONObject status) {
+    void clear() {
         waiting.clear();
         snapshot = Collections.emptyList();
+        generation = null;
+    }
+
+    void restore(JSONObject status) {
+        clear();
         generation = status.opt("execution_generation");
         JSONArray entries = status.optJSONArray("pending_controls");
         if (entries != null) {
@@ -83,6 +88,11 @@ final class RunPrompts {
         Key identity = key(expected);
         JSONObject found = waiting.get(identity);
         return identity != null && identity.equals(key(found)) ? found : null;
+    }
+
+    boolean hasStandaloneApproval() {
+        for (Key key : waiting.keySet()) if (key.generation() < 0) return true;
+        return false;
     }
 
     List<JSONObject> snapshot() {

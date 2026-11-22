@@ -4,6 +4,8 @@ from dataclasses import dataclass
 import hashlib
 from pathlib import Path
 import shutil
+import subprocess
+import sys
 import tarfile
 import tempfile
 from urllib.request import Request, urlopen
@@ -16,18 +18,25 @@ class Release:
     name: str
     checksum: str
 
-    def fetch(self, cache):
+    def fetch(self, cache, *, github_cli=False):
         cache.mkdir(mode=0o700, parents=True, exist_ok=True)
         target = cache / self.name
         if target.is_file() and digest(target) == self.checksum:
             return target
-        url = f"https://github.com/binwiederhier/{self.project}/releases/download/v{self.version}/{self.name}"
+        repository = f"binwiederhier/{self.project}"
+        tag = f"v{self.version}"
         with tempfile.NamedTemporaryFile(dir=cache, delete=False) as temp:
             part = Path(temp.name)
         try:
-            request = Request(url, headers={"User-Agent": "hermes-mobile-verification"})
-            with urlopen(request, timeout=60) as response, part.open("wb") as out:
-                shutil.copyfileobj(response, out)
+            if github_cli:
+                subprocess.run(["gh", "release", "download", tag, "--repo", repository,
+                                "--pattern", self.name, "--output", str(part), "--clobber"],
+                               check=True, timeout=120)
+            else:
+                url = f"https://github.com/{repository}/releases/download/{tag}/{self.name}"
+                request = Request(url, headers={"User-Agent": "hermes-mobile-verification"})
+                with urlopen(request, timeout=60) as response, part.open("wb") as out:
+                    shutil.copyfileobj(response, out)
             if digest(part) != self.checksum:
                 raise RuntimeError(f"Checksum mismatch for {self.name}")
             part.replace(target)
@@ -63,3 +72,9 @@ def extract_server(archive, directory):
             shutil.copyfileobj(src, dst)
     binary.chmod(0o700)
     return binary
+
+
+if __name__ == "__main__":
+    cache = Path(sys.argv[1])
+    for release in (APK, SERVER):
+        release.fetch(cache, github_cli=True)

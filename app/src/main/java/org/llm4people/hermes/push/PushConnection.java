@@ -95,7 +95,7 @@ final class PushConnection {
             if (before != forgetVersion || !current.getAsBoolean()) return;
             device = store.prepare(account.id, account.endpoint, config);
         }
-        api.put(device.path(), payload(token).put("management_key", device.managementKey()));
+        api.put(device.path(), fcmRegistration(token).put("management_key", device.managementKey()));
         store.enable(device);
         if (PushStore.ACTIVE.equals(store.forProfile(account.id).state)) {
             FirebaseMessaging.getInstance().setAutoInitEnabled(true);
@@ -110,8 +110,8 @@ final class PushConnection {
         releaseIfEmpty(context);
     }
 
-    private static JSONObject payload(String token) throws JSONException {
-        return new JSONObject().put("provider", "fcm").put("token", token);
+    static JSONObject fcmRegistration(String token) throws JSONException {
+        return new JSONObject().put("token", token);
     }
 
     static boolean synchronize(Context context, BooleanSupplier stopped) {
@@ -127,7 +127,7 @@ final class PushConnection {
                     DistributorEnrollment.sync(context, device);
                 } else {
                     String token = token(context, device.config);
-                    new HermesApi(device.endpoint, device.managementKey()).put(device.path(), payload(token));
+                    new HermesApi(device.endpoint, device.managementKey()).put(device.path(), fcmRegistration(token));
                     store.enable(device);
                 }
             } catch (HermesApi.HttpError failure) {
