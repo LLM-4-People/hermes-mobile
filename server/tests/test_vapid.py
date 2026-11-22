@@ -23,6 +23,7 @@ class VapidTests(unittest.TestCase):
             ("https://[::1]:443", "https://[::1]", "https://[2001:db8::2]:9443/support/"),
             ("https://[::1]:8443", "https://[::1]:8443", "mailto:ops@example.org"),
             ("https://push.example.org", "https://push.example.org", "https://support.example.org/contact/"),
+            ("https://push.example.org", "https://push.example.org", "mailto:ops@example.org,help@example.org"),
             ("https://Push.Example.org:443", "https://push.example.org", "mailto:ops+push@example.org"),
         )
         with tempfile.TemporaryDirectory() as directory:
@@ -54,6 +55,8 @@ class VapidTests(unittest.TestCase):
     def test_configuration_rejects_invalid_contacts_and_audiences(self):
         with tempfile.TemporaryDirectory() as directory:
             for subject in ("", "operator", "mailto:", "mailto:ops", "mailto:ops@@example.org",
+                            "mailto:,ops@example.org", "mailto:ops@example.org,",
+                            "mailto:ops@example.org,,help@example.org", "mailto:ops@", "mailto:ops%40",
                             "http://support.example.org", "https:///contact", "https://host:65536/contact",
                             "https://name@host/contact", "https://host/bad path", "https://host/%GG",
                             "https://host/x\ny"):
