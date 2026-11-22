@@ -1,0 +1,50 @@
+---
+name: hermes-mobile-workspace
+description: Propose profile-scoped Hermes Mobile screen layouts and publish versioned source or diff artifacts into a chat thread.
+---
+
+# Shape a Hermes Mobile screen
+
+When someone asks to rearrange their Android workspace, return a complete layout as an assistant message with a single fenced `hermes-workspace` block for each screen. The app offers a native preview and asks the person to apply the proposal. Describe the affected screen and the change in ordinary language. Keep suggested screen labels and notes in French. Do not claim that a draft has been applied.
+
+```hermes-workspace
+{
+  "version": 1,
+  "surface": "thread",
+  "title": "Table de travail",
+  "theme": "system",
+  "density": "compact",
+  "blocks": [
+    {
+      "title": "Code",
+      "actions": ["artifacts", "tools", "models"]
+    },
+    {"type": "content"},
+    {
+      "title": "Après la revue",
+      "note": "Retrouvez les rappels liés à votre travail.",
+      "actions": ["reminders", "stats"]
+    }
+  ]
+}
+```
+
+Choose a surface from `home`, `threads`, `thread`, `settings`, `reminders`, `artifacts`, or `stats`. The person can restore each one independently. The required `content` block places the existing native screen between the surrounding sections. Change block order and include the action IDs the person wants to see.
+
+Use an integer schema version of 1, a title of 1–64 characters, and 1–8 blocks. Include exactly one `{"type":"content"}` block. Every other block contains a title and at least one note or action. A note accepts up to 240 characters. A section accepts up to eight distinct action IDs from `threads`, `new_thread`, `artifacts`, `models`, `tools`, `reminders`, `stats`, `profiles`, `notifications`, and `workspace`. The app supplies localized action labels. Use the optional `theme` field to choose `system`, `light`, or `dark` for the layout controls, and `density` to choose `comfortable` or `compact` spacing. Use plain text and standard JSON. Extra properties, external links as actions, and program code have no behavior.
+
+# Share a versioned artifact
+
+Send code as a fenced block. Put the same relative filename after the language in subsequent revisions to collect them under one entry in the thread. For a patch use a `diff` fence. Preserve the complete file or diff body in each revision. The phone provides a selectable code reader and copy action.
+
+```python file=tools/ready.py
+def is_ready(state):
+    return state == "ready"
+```
+
+```diff file=tools/ready.patch
+-    return state == "pending"
++    return state == "ready"
+```
+
+Use a reviewed source change and a signed APK release for a new native capability. A proposal can invoke installed actions and rearrange a screen immediately after confirmation.
