@@ -99,10 +99,10 @@ final class RunFollower implements AutoCloseable {
                     }
                     long eventSeq = event.optLong("seq", -1);
                     if (eventSeq < 0 || eventSeq <= seq) continue;
-                    seq = eventSeq;
                     if (ThreadData.terminal(type.startsWith("run.") ? type.substring(4) : "")) break;
                     if ((controls.needsSnapshot(type, event) || controlCheckDue(type)) && !refreshControls()) return;
                     apply(type, event);
+                    seq = eventSeq;
                     long now = uptime.getAsLong();
                     if (!"message.delta".equals(type) || now >= nextPaint) {
                         publish();
@@ -147,13 +147,18 @@ final class RunFollower implements AutoCloseable {
     }
 
     private boolean finish(JSONObject status) {
-        if ("unknown".equals(status.optString("status"))) {
-            if (!closed) listener.unknown(status);
-            return true;
+        String state = status.optString("status");
+        boolean unknown = "unknown".equals(state);
+        if (!unknown && !ThreadData.terminal(state)) return false;
+        if (!closed) {
+            if (textAwaitingPaint) {
+                controls.clear();
+                publish();
+            }
+            if (unknown) listener.unknown(status);
+            else listener.complete(status, started < 0 ? -1 : firstText,
+                    started < 0 ? -1 : uptime.getAsLong() - started);
         }
-        if (!ThreadData.terminal(status.optString("status"))) return false;
-        if (!closed) listener.complete(status, started < 0 ? -1 : firstText,
-                started < 0 ? -1 : uptime.getAsLong() - started);
         return true;
     }
 

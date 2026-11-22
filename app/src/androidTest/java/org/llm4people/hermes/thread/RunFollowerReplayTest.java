@@ -111,6 +111,45 @@ public class RunFollowerReplayTest extends TestCase {
         }
     }
 
+    public void testFailedControlCheckLeavesTheUnappliedDeltaAvailableForReplay() throws Exception {
+        JSONObject active = new JSONObject().put("request_id", "approval");
+        Exchange.Reply waiting = standalone("waiting_for_approval", new JSONArray().put(active), active);
+        String a = frame(new JSONObject().put("delta", "A"), 1, "message.delta");
+        String b = frame(new JSONObject().put("delta", "B"), 2, "message.delta");
+        String c = frame(new JSONObject().put("delta", "C"), 3, "message.delta");
+        String d = frame(new JSONObject().put("delta", "D"), 4, "message.delta");
+        String end = frame(new JSONObject(), 5, "run.completed");
+        Exchange.Reply interrupted = new Exchange.Reply("Content-Type: application/json\r\n", "");
+        try (Exchange gateway = new Exchange("200 OK", waiting,
+                new Exchange.Reply("Content-Type: text/event-stream\r\n", a + b + c), interrupted, waiting, waiting,
+                new Exchange.Reply("Content-Type: text/event-stream\r\n", c + d + end), standalone("completed", new JSONArray(), null))) {
+            List<RunFollower.Frame> frames = new ArrayList<>();
+            int[] disconnects = {0};
+            RunFollower.Listener listener = new RunFollower.Listener() {
+                public void update(RunFollower.Frame frame) { frames.add(frame); }
+                public void complete(JSONObject status, long firstText, long elapsed) {}
+                public void disconnected() { disconnects[0]++; }
+                public void unknown(JSONObject status) { fail("Unexpected run state"); }
+            };
+            // Let B be buffered, then reach the check deadline while handling C.
+            int[] reads = {0};
+            HermesApi api = new HermesApi(gateway.endpoint(), "test");
+            new RunFollower(api, "run", new JSONObject(), -1, listener,
+                    () -> ++reads[0] >= 6 ? 20_000 : 0).follow();
+            RunFollower.Frame checkpoint = frames.get(frames.size() - 1);
+            assertEquals("AB", checkpoint.text);
+            assertEquals(2L, checkpoint.seq);
+            JSONObject pending = new JSONObject().put("preview", checkpoint.text).put("seq", checkpoint.seq);
+            new RunFollower(api, "run", pending, -1, listener, () -> 0).follow();
+            assertEquals(1, disconnects[0]);
+            RunFollower.Frame finalFrame = frames.get(frames.size() - 1);
+            assertEquals("ABCD", finalFrame.text);
+            assertEquals(4L, finalFrame.seq);
+            assertTrue(finalFrame.prompts.isEmpty());
+            assertTrue(gateway.observed().contains("Last-Event-ID: 2"));
+        }
+    }
+
     private static Exchange.Reply standalone(String state, JSONArray controls, JSONObject approval) throws Exception {
         JSONObject body = new JSONObject().put("run_id", "run").put("status", state);
         if (controls != null) body.put("pending_controls", controls);

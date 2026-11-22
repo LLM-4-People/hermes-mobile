@@ -31,9 +31,14 @@ final class RunPrompts {
         return new Key(id(prompt), generation, question(prompt));
     }
 
-    void restore(JSONObject status) {
+    void clear() {
         waiting.clear();
         snapshot = Collections.emptyList();
+        generation = null;
+    }
+
+    void restore(JSONObject status) {
+        clear();
         generation = status.opt("execution_generation");
         JSONArray entries = status.optJSONArray("pending_controls");
         if (entries != null) {
