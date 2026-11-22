@@ -83,5 +83,11 @@ public final class DiscussionPhotoJourneyTest extends TestCase {
         assertTrue(DiscussionPhotoJourney.isSystemPicker("com.google.android.photopicker"));
         assertFalse(DiscussionPhotoJourney.isSystemPicker("org.llm4people.hermes"));
         assertFalse(DiscussionPhotoJourney.isSystemPicker(null));
+        assertTrue(DiscussionPhotoJourney.isSheetHandleLabel("Drag handle"));
+        assertTrue(DiscussionPhotoJourney.isSheetHandleLabel("Poignée de glissement"));
+        assertFalse(DiscussionPhotoJourney.isSheetHandleLabel("Photos"));
+        assertTrue(DiscussionPhotoJourney.isMediaTileLabel("Photo taken on Nov 22, 2026 7:23 PM"));
+        assertTrue(DiscussionPhotoJourney.isMediaTileLabel("Photo prise le 22 nov. 2026"));
+        assertFalse(DiscussionPhotoJourney.isMediaTileLabel("Albums"));
     }
 }

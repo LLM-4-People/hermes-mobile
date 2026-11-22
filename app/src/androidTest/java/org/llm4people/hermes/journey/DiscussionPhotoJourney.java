@@ -35,7 +35,7 @@ final class DiscussionPhotoJourney {
     private static final int COLOR_TOLERANCE = 25;
     private static final long TOTAL_PICKER_TIMEOUT_MS = 60_000L;
     private static final long PICKER_ATTEMPT_TIMEOUT_MS = 18_000L;
-    private static final long EXPAND_AFTER_MS = 1_500L;
+    private static final long EXPAND_AFTER_MS = 1_200L;
     private static final long EMPTY_PICKER_RETRY_MS = 2_500L;
     private static final int MAX_PICKER_ATTEMPTS = 3;
 
@@ -184,7 +184,9 @@ final class DiscussionPhotoJourney {
     }
 
     private boolean trySelectInOpenPicker(UiAutomation automation, long deadline, PickerDiagnostics diagnostics) {
+        boolean bannerDismissed = false;
         boolean expanded = false;
+        boolean scrolled = false;
         long pickerSeenSince = 0L;
         long emptySince = 0L;
         while (SystemClock.elapsedRealtime() < deadline) {
@@ -203,9 +205,22 @@ final class DiscussionPhotoJourney {
                     try {
                         diagnostics.observePicker(root, pixels);
                         if (clickSyntheticTile(root, pixels)) return true;
+                        if (!bannerDismissed && dismissPrivacyBanner(root)) {
+                            bannerDismissed = true;
+                            diagnostics.bannerDismissed = true;
+                            SystemClock.sleep(300);
+                            continue;
+                        }
                         if (!expanded && shouldExpandBottomSheet(root, pixels, now - pickerSeenSince)) {
                             expanded = true;
                             diagnostics.expanded |= expandBottomSheet(automation, root, pixels.getHeight());
+                            continue;
+                        }
+                        if (!scrolled && expanded && scrollClippedPhotoGrid(root, pixels)) {
+                            scrolled = true;
+                            diagnostics.scrolled = true;
+                            SystemClock.sleep(300);
+                            continue;
                         }
                         if (isPickerEmpty(root)) {
                             if (emptySince == 0L) emptySince = now;
@@ -233,21 +248,43 @@ final class DiscussionPhotoJourney {
         return false;
     }
 
+    private static boolean dismissPrivacyBanner(AccessibilityNodeInfo root) {
+        boolean hasPrivacyNotice = find(root, node -> {
+            String label = nodeLabel(node).toLowerCase(Locale.ROOT);
+            return label.contains("only have access") || label.contains("only access the photos")
+                    || label.contains("accès uniquement") || label.contains("accès qu");
+        }) != null;
+        if (!hasPrivacyNotice) return false;
+        AccessibilityNodeInfo dismiss = find(root, node -> {
+            String label = nodeLabel(node).toLowerCase(Locale.ROOT);
+            return node.isClickable() && ("dismiss".equals(label) || "ignorer".equals(label));
+        });
+        return dismiss != null && dismiss.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+    }
+
     private static boolean shouldExpandBottomSheet(AccessibilityNodeInfo root, Bitmap pixels, long pickerAgeMs) {
-        AccessibilityNodeInfo sheet = findSheetHandle(root);
-        if (sheet == null) return false;
+        AccessibilityNodeInfo handle = findSheetHandle(root);
+        if (handle == null) return false;
         Rect bounds = new Rect();
-        sheet.getBoundsInScreen(bounds);
-        return bounds.top > pixels.getHeight() / 4 || pickerAgeMs >= EXPAND_AFTER_MS;
+        handle.getBoundsInScreen(bounds);
+        return bounds.top > pixels.getHeight() / 6 || pickerAgeMs >= EXPAND_AFTER_MS;
     }
 
     private static AccessibilityNodeInfo findSheetHandle(AccessibilityNodeInfo root) {
-        AccessibilityNodeInfo handle = find(root, node -> {
+        return find(root, node -> {
             String id = node.getViewIdResourceName();
-            return id != null && (id.endsWith("/drag_bar") || id.endsWith("/privacy_text")
-                    || id.endsWith("/bottom_sheet"));
+            if (id != null && (id.endsWith("/drag_bar") || id.endsWith("/privacy_text")
+                    || id.endsWith("/bottom_sheet"))) {
+                return true;
+            }
+            return isSheetHandleLabel(nodeLabel(node));
         });
-        return handle;
+    }
+
+    static boolean isSheetHandleLabel(String label) {
+        if (label == null) return false;
+        String normalized = label.trim().toLowerCase(Locale.ROOT);
+        return "drag handle".equals(normalized) || normalized.contains("poignée");
     }
 
     private static boolean expandBottomSheet(UiAutomation automation, AccessibilityNodeInfo root, int screenHeight) {
@@ -258,7 +295,7 @@ final class DiscussionPhotoJourney {
         if (bounds.isEmpty()) return false;
         float x = bounds.centerX();
         float startY = Math.min(screenHeight - 8f, Math.max(bounds.top + 4f, bounds.centerY()));
-        float endY = Math.max(16f, screenHeight * 0.08f);
+        float endY = Math.max(16f, screenHeight * 0.06f);
         if (startY - endY < 24f) return false;
         long downTime = SystemClock.uptimeMillis();
         injectTouch(automation, downTime, downTime, MotionEvent.ACTION_DOWN, x, startY);
@@ -272,6 +309,25 @@ final class DiscussionPhotoJourney {
         injectTouch(automation, downTime, downTime + (steps + 1) * 20L, MotionEvent.ACTION_UP, x, endY);
         SystemClock.sleep(300);
         return true;
+    }
+
+    private static boolean scrollClippedPhotoGrid(AccessibilityNodeInfo root, Bitmap pixels) {
+        AccessibilityNodeInfo clippedPhoto = find(root, node -> {
+            if (!isMediaTileNode(node)) return false;
+            Rect bounds = new Rect();
+            node.getBoundsInScreen(bounds);
+            return bounds.bottom > pixels.getHeight() || bounds.top < 0;
+        });
+        if (clippedPhoto == null) return false;
+        AccessibilityNodeInfo scroller = clippedPhoto;
+        while (scroller != null) {
+            if (scroller.isScrollable()
+                    && scroller.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)) {
+                return true;
+            }
+            scroller = scroller.getParent();
+        }
+        return false;
     }
 
     private static void injectTouch(UiAutomation automation, long downTime, long eventTime,
@@ -313,6 +369,19 @@ final class DiscussionPhotoJourney {
         return pkg != null && (pkg.contains("providers.media") || pkg.contains("photopicker"));
     }
 
+    static boolean isMediaTileLabel(String label) {
+        if (label == null) return false;
+        String normalized = label.trim().toLowerCase(Locale.ROOT);
+        return normalized.startsWith("photo taken") || normalized.startsWith("photo prise")
+                || normalized.startsWith("image taken") || normalized.startsWith("image prise");
+    }
+
+    private static boolean isMediaTileNode(AccessibilityNodeInfo node) {
+        String id = node.getViewIdResourceName();
+        if (id != null && (id.endsWith("/icon_thumbnail") || id.endsWith("/photo_thumbnail"))) return true;
+        return isMediaTileLabel(nodeLabel(node));
+    }
+
     private static boolean isPickerEmpty(AccessibilityNodeInfo root) {
         return find(root, node -> {
             String id = node.getViewIdResourceName();
@@ -333,11 +402,11 @@ final class DiscussionPhotoJourney {
         if (bounds.width() < 24 || bounds.height() < 24 || bounds.width() > 2 * bounds.height()
                 || bounds.height() > 2 * bounds.width() || bounds.left < 0 || bounds.top < 0
                 || bounds.right > screenshot.getWidth() || bounds.bottom > screenshot.getHeight()) return false;
-        // Match the image, never the first or newest gallery item. The system may center-crop the edges.
+        // Match the image, never the first or newest gallery item. The system may center-crop or round corners.
         return colorAt(screenshot, bounds, .5, .5, CENTER_GOLD) && colorAt(screenshot, bounds, .41, .43, CENTER_GOLD)
-                && colorAt(screenshot, bounds, .59, .57, CENTER_GOLD) && colorAt(screenshot, bounds, .5, .13, BACKGROUND_BLUE)
-                && colorAt(screenshot, bounds, .5, .87, BACKGROUND_BLUE) && colorAt(screenshot, bounds, .17, .13, BACKGROUND_BLUE)
-                && colorAt(screenshot, bounds, .83, .87, BACKGROUND_BLUE);
+                && colorAt(screenshot, bounds, .59, .57, CENTER_GOLD) && colorAt(screenshot, bounds, .5, .14, BACKGROUND_BLUE)
+                && colorAt(screenshot, bounds, .5, .86, BACKGROUND_BLUE) && colorAt(screenshot, bounds, .22, .14, BACKGROUND_BLUE)
+                && colorAt(screenshot, bounds, .78, .86, BACKGROUND_BLUE);
     }
 
     static boolean isBlackFrame(Bitmap bitmap) {
@@ -386,7 +455,9 @@ final class DiscussionPhotoJourney {
 
     private static final class PickerDiagnostics {
         int attempts;
+        boolean bannerDismissed;
         boolean expanded;
+        boolean scrolled;
         String lastPkg;
         String shotState = "none";
         List<String> pickerTexts = List.of();
@@ -396,14 +467,16 @@ final class DiscussionPhotoJourney {
             String size = pixels.getWidth() + "x" + pixels.getHeight();
             shotState = isBlackFrame(pixels) ? "black(" + size + ")" : size;
             List<String> texts = new ArrayList<>();
-            List<String> tiles = new ArrayList<>();
-            collectPickerSnapshot(root, pixels, texts, tiles);
+            List<String> mediaTiles = new ArrayList<>();
+            List<String> fallbackTiles = new ArrayList<>();
+            collectPickerSnapshot(root, pixels, texts, mediaTiles, fallbackTiles);
             pickerTexts = texts;
-            candidates = tiles;
+            candidates = mediaTiles.isEmpty() ? fallbackTiles : mediaTiles;
         }
 
         private static void collectPickerSnapshot(AccessibilityNodeInfo node, Bitmap pixels,
-                                                  List<String> texts, List<String> tiles) {
+                                                  List<String> texts, List<String> mediaTiles,
+                                                  List<String> fallbackTiles) {
             if (node == null || !node.isVisibleToUser()) return;
             if (texts.size() < 8) {
                 String label = nodeLabel(node);
@@ -412,32 +485,37 @@ final class DiscussionPhotoJourney {
                     if (!texts.contains(clipped)) texts.add(clipped);
                 }
             }
-            if (tiles.size() < 3) {
-                String id = node.getViewIdResourceName();
-                Rect b = new Rect();
-                node.getBoundsInScreen(b);
-                boolean namedTile = id != null && (id.endsWith("/icon_thumbnail") || id.endsWith("/photo_thumbnail"));
-                boolean squareCandidate = node.isClickable() && b.width() >= 24 && b.height() >= 24
-                        && b.width() <= 2 * b.height() && b.height() <= 2 * b.width()
-                        && b.width() < pixels.getWidth();
-                if (namedTile || squareCandidate) {
-                    String sample = "out-of-bounds";
-                    if (b.left >= 0 && b.top >= 0 && b.right <= pixels.getWidth() && b.bottom <= pixels.getHeight()) {
-                        int center = pixels.getPixel(b.left + b.width() / 2, b.top + b.height() / 2);
-                        int top = pixels.getPixel(b.left + b.width() / 2, b.top + (int) (b.height() * 0.13));
-                        sample = "center=" + describePixel(center) + " top=" + describePixel(top);
-                    }
-                    tiles.add(b.toShortString() + " " + sample);
-                }
+            Rect b = new Rect();
+            node.getBoundsInScreen(b);
+            if (isMediaTileNode(node) && mediaTiles.size() < 4) {
+                mediaTiles.add(describeCandidate(b, pixels));
+            } else if (fallbackTiles.size() < 3 && node.isClickable()
+                    && b.width() >= 24 && b.height() >= 24
+                    && b.width() <= 2 * b.height() && b.height() <= 2 * b.width()
+                    && b.width() < pixels.getWidth()) {
+                fallbackTiles.add(describeCandidate(b, pixels));
             }
             for (int i = 0; i < node.getChildCount(); i++) {
-                collectPickerSnapshot(node.getChild(i), pixels, texts, tiles);
+                collectPickerSnapshot(node.getChild(i), pixels, texts, mediaTiles, fallbackTiles);
             }
+        }
+
+        private static String describeCandidate(Rect b, Bitmap pixels) {
+            if (b.left >= 0 && b.top >= 0 && b.right <= pixels.getWidth() && b.bottom <= pixels.getHeight()) {
+                int center = pixels.getPixel(b.left + b.width() / 2, b.top + b.height() / 2);
+                int top = pixels.getPixel(b.left + b.width() / 2, b.top + (int) (b.height() * 0.14));
+                int corner = pixels.getPixel(b.left + (int) (b.width() * 0.22), b.top + (int) (b.height() * 0.14));
+                return b.toShortString() + " center=" + describePixel(center)
+                        + " top=" + describePixel(top) + " corner=" + describePixel(corner);
+            }
+            return b.toShortString() + " out-of-bounds(" + pixels.getWidth() + "x" + pixels.getHeight() + ")";
         }
 
         String describe() {
             return "attempts=" + attempts
+                    + ", bannerDismissed=" + bannerDismissed
                     + ", expanded=" + expanded
+                    + ", scrolled=" + scrolled
                     + ", pkg=" + (lastPkg == null ? "<null>" : lastPkg)
                     + ", shot=" + shotState
                     + ", texts=" + pickerTexts
