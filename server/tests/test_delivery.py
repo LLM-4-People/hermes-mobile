@@ -432,3 +432,117 @@ class Delivery(unittest.TestCase):
 
         small, large = measure(100), measure(10000)
         self.assertLessEqual(large, small + 20, (small,large))
+
+    def test_typed_deliveries_enforce_zero_leak_fcm_wire_and_priority(self):
+        from server.mobile_push.events import DELIVERY_KINDS, opaque_profile_hint
+        from server.mobile_push.provider import opaque_notice
+
+        hint = opaque_profile_hint(self.settings.run_scope)
+        secret_title = "Confidentiel: bilan financier Q4"
+        secret_path = "/srv/secrets/clients/dossier-confidentiel.pdf"
+        with patch("server.mobile_push.fcm.google.auth.default", return_value=(Mock(), None)):
+            sender = FirebaseSender(self.settings)
+        self.addCleanup(sender.session.close)
+        resp = MagicMock()
+        resp.__enter__.return_value = resp
+        resp.status_code = 200
+        resp.ok = True
+
+        with patch.object(sender.session, "post", return_value=resp) as post, \
+             patch("server.mobile_push.fcm.time.time", return_value=201), \
+             self.assertLogs("hermes.mobile.push", level="INFO") as logs:
+            for idx, (kind, urgency, expected_prio) in enumerate([
+                ("notice", "normal", "normal"),
+                ("card", "normal", "normal"),
+                ("file", "high", "high"),
+                ("ui_patch", "silent", "normal"),
+                ("widget_update", "silent", "normal"),
+                ("device_action", "high", "high"),
+                ("reminder_result", "normal", "normal"),
+                ("briefing", "normal", "normal"),
+            ]):
+                self.assertIn(kind, DELIVERY_KINDS)
+                created, is_new = self.store.create_delivery(
+                    {
+                        "kind": kind,
+                        "urgency": urgency,
+                        "title": secret_title,
+                        "payload": {"path": secret_path, "snippet": "ne jamais fuiter"},
+                        "session_id": "sess-priv-99",
+                    },
+                    profile_hint_opaque=hint,
+                    now=200 + idx,
+                )
+                self.assertTrue(is_new)
+                item = self.store.claim(200 + idx, 5)
+                self.assertIsNotNone(item)
+                self.assertEqual(
+                    opaque_notice(item),
+                    {
+                        "event_id": created["delivery_id"],
+                        "installation_id": "d1",
+                        "kind": kind,
+                        "urgency": urgency,
+                        "profile_hint_opaque": hint,
+                    },
+                )
+                deliver(item, self.settings, self.store, sender)
+                msg = post.call_args.kwargs["json"]["message"]
+                self.assertEqual(msg["android"]["priority"], expected_prio)
+                self.assertEqual(set(msg["data"].keys()),
+                                 {"event_id", "installation_id", "kind", "urgency", "profile_hint_opaque"})
+                wire_dump = json.dumps(msg)
+                for forbidden in (secret_title, secret_path, "ne jamais fuiter", "sess-priv-99"):
+                    self.assertNotIn(forbidden, wire_dump)
+
+        joined_logs = "\n".join(logs.output)
+        for forbidden in (secret_title, secret_path, "ne jamais fuiter", "sess-priv-99", self.settings.profile_key):
+            self.assertNotIn(forbidden, joined_logs)
+        self.assertIn("delivery_queued kind=briefing urgency=normal recipients=1", joined_logs)
+        self.assertIn("push_delivered provider=fcm kind=briefing active=True", joined_logs)
+
+    def test_delivery_validation_dedup_ack_and_expiry(self):
+        from server.mobile_push.events import opaque_profile_hint, validate_delivery_input
+
+        hint = opaque_profile_hint(self.settings.run_scope)
+        for bad in (
+            "not-a-dict",
+            {"kind": "unknown", "title": "ok"},
+            {"kind": "notice", "title": "ok", "urgency": "critical"},
+            {"kind": "notice", "title": "   "},
+            {"kind": "notice", "title": "x" * 241},
+            {"kind": "notice", "title": "line1\nline2"},
+            {"kind": "notice", "title": "ok", "payload": ["not-an-object"]},
+            {"kind": "notice", "title": "ok", "payload": {"blob": "a" * 140000}},
+            {"kind": "notice", "title": "ok", "extra": 1},
+            {"kind": "notice", "title": "ok", "delivery_id": "not-32-hex"},
+            {"kind": "notice", "title": "ok", "session_id": "bad\nid"},
+        ):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                validate_delivery_input(bad)
+
+        fixed_id = "a" * 32
+        first, created1 = self.store.create_delivery(
+            {"delivery_id": fixed_id, "kind": "briefing", "title": "Point du matin", "payload": {"lines": ["ok"]}},
+            profile_hint_opaque=hint,
+            now=150,
+        )
+        second, created2 = self.store.create_delivery(
+            {"delivery_id": fixed_id, "kind": "briefing", "title": "Point du matin", "payload": {"lines": ["ok"]}},
+            profile_hint_opaque=hint,
+            now=155,
+        )
+        self.assertTrue(created1)
+        self.assertFalse(created2)
+        self.assertEqual(first["delivery_id"], second["delivery_id"])
+        self.assertIsNone(first["acked_at"])
+
+        acked = self.store.ack_delivery(fixed_id, now=160)
+        self.assertEqual(acked["acked_at"], 160.0)
+        acked_again = self.store.ack_delivery(fixed_id, now=170)
+        self.assertEqual(acked_again["acked_at"], 160.0)
+        self.assertEqual(self.store.list_deliveries(include_acked=False)["deliveries"], [])
+        self.assertEqual(len(self.store.list_deliveries(include_acked=True)["deliveries"]), 1)
+
+        self.store.expire(200)
+        self.assertIsNone(self.store.get_delivery(fixed_id))

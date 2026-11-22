@@ -20,10 +20,10 @@ def main():
     settings = Settings.load()
     store = Store(settings.state)
     sender = Transports(settings)
-    app = build_app(settings, store)
+    stopped, changed = Event(), Event()
+    app = build_app(settings, store, changed=changed)
 
     async def workers(app):
-        stopped, changed = Event(), Event()
         threads = [Thread(target=scan_loop, args=(settings, store, stopped, changed), name="hermes-events"),
                    Thread(target=send_loop, args=(settings, store, sender, stopped, changed), name="push-delivery")]
         for thread in threads:

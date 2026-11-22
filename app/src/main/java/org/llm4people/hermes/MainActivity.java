@@ -19,6 +19,8 @@ import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.panel.SessionPanel;
 import org.llm4people.hermes.profile.Account;
 import org.llm4people.hermes.profile.ProfileGate;
+import org.llm4people.hermes.push.DeliveryItem;
+import org.llm4people.hermes.push.DeliveryRouter;
 import org.llm4people.hermes.push.MobilePush;
 import org.llm4people.hermes.thread.ThreadWorkspace;
 import org.llm4people.hermes.share.SharedTextFlow;
@@ -155,15 +157,59 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     @Override public void openPushEvent(Account owner, JSONObject event) {
         if (owner != account || isFinishing()) return;
         ++noticeRequest;
-        if ("reminder".equals(event.optString("kind"))) {
+        String kind = event.optString("kind");
+        if (DeliveryItem.Kind.fromWire(kind) != null) {
+            threads.cancelNotice();
+            dismissOverlays();
+            try {
+                DeliveryItem item = DeliveryItem.fromJson(event);
+                push.openDelivery(owner, item, deliveryActions(owner));
+            } catch (IllegalArgumentException malformed) {
+                Diagnostics.warning("push", "delivery_open_malformed");
+                push.openInbox(owner, deliveryActions(owner));
+            }
+            return;
+        }
+        if ("reminder".equals(kind)) {
             threads.cancelNotice();
             dismissOverlays();
             if (!event.isNull("job_id") && !event.optString("job_id").isEmpty())
                 panels.showReminder(event.optString("job_id"));
             else panels.showReminders();
         } else if (!event.isNull("session_id") && !event.optString("session_id").isEmpty()) {
-            threads.openNotice(event.optString("session_id"), event.optString("run_id"), event.optString("kind"));
+            threads.openNotice(event.optString("session_id"), event.optString("run_id"), kind);
         }
+    }
+
+    private DeliveryRouter.Actions deliveryActions(Account owner) {
+        return new DeliveryRouter.Actions() {
+            @Override public void openDiscussion(String sessionId, String runId) {
+                if (owner != account || threads == null || sessionId == null || sessionId.isEmpty()) return;
+                dismissOverlays();
+                threads.openNotice(sessionId, runId == null ? "" : runId, "notice");
+            }
+
+            @Override public void openPublishedFile(String sessionId, String fileId, String filename) {
+                if (owner != account || files == null) return;
+                String targetSession = (sessionId != null && !sessionId.isEmpty())
+                        ? sessionId : (threads == null ? null : threads.remoteSessionId());
+                if (targetSession != null) {
+                    dismissOverlays();
+                    files.show(targetSession);
+                }
+            }
+
+            @Override public void openReminder(String jobId, String sessionId) {
+                if (owner != account || panels == null) return;
+                dismissOverlays();
+                if (jobId != null && !jobId.isEmpty()) panels.showReminder(jobId);
+                else panels.showReminders();
+            }
+
+            @Override public void openPushPolicy() {
+                if (owner == account && push != null) push.openPolicy(owner);
+            }
+        };
     }
 
     @Override public void noticeThread(boolean sameThread) {
@@ -238,7 +284,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                 break;
             case "workspace": navigate(WorkspaceNavigation.HOME); break;
             case "reminders": panels.showReminders(); break;
-            case "notifications": push.settings(account); break;
+            case "notifications": push.settings(account, deliveryActions(account)); break;
             case "restore": ArtifactDesk.manage(this, account, activeHost); break;
             case "profiles": lock(); break;
             case "stats": case "tools": case "models": case "artifacts":

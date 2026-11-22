@@ -19,7 +19,7 @@ from py_vapid.jwt import sign as sign_jwt
 from pywebpush import WebPusher
 import requests
 
-from .provider import Failure, ProviderError, lifetime, opaque_notice, retry_seconds
+from .provider import Failure, ProviderError, lifetime, opaque_notice, retry_seconds, webpush_urgency
 
 # ntfy Android's distributor chooses "up" followed by 12 random alphanumeric characters.
 TOPIC = re.compile(r"/up[A-Za-z0-9]{12}\?up=1")
@@ -194,7 +194,7 @@ class WebPushSender:
         headers = self.config.authorization()
         ttl = int(remaining)
         headers.update({"Content-Encoding": "aes128gcm", "Content-Type": "application/octet-stream",
-                        "TTL": str(ttl), "Urgency": "high"})
+                        "TTL": str(ttl), "Urgency": webpush_urgency(item)})
         if ttl == 0:
             # ntfy uses its own cache policy even when the Web Push TTL requests live delivery only.
             headers["X-Cache"] = "no"

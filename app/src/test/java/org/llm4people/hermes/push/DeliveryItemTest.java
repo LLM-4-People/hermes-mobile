@@ -1,0 +1,107 @@
+package org.llm4people.hermes.push;
+
+import org.junit.Test;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
+public final class DeliveryItemTest {
+    private static final String VALID_ID = "0123456789abcdef0123456789abcdef";
+
+    @Test
+    public void supportsAllEightTypedKindsWithPlainFrenchLabelsAndCategories() {
+        String[] wireKinds = {
+                "notice", "card", "file", "ui_patch",
+                "widget_update", "device_action", "reminder_result", "briefing"
+        };
+        assertEquals(wireKinds.length, DeliveryItem.Kind.values().length);
+        for (String wire : wireKinds) {
+            DeliveryItem.Kind kind = DeliveryItem.Kind.fromWire(wire);
+            assertNotNull("Missing kind " + wire, kind);
+            assertNotNull(kind.category);
+            assertFalse(kind.labelFr.isEmpty());
+            assertFalse(kind.lockscreenNoticeTitleFr.isEmpty());
+            assertFalse(kind.primaryActionFr.isEmpty());
+            assertEquals(kind.category, DeliveryItem.Category.forWireKind(wire));
+        }
+        assertNull(DeliveryItem.Kind.fromWire("unknown_kind"));
+        assertNull(DeliveryItem.Kind.fromWire(null));
+    }
+
+    @Test
+    public void urgencyParsingAndAcknowledgmentImmutability() {
+        assertEquals(DeliveryItem.Urgency.NORMAL, DeliveryItem.Urgency.fromWire("normal"));
+        assertEquals(DeliveryItem.Urgency.HIGH, DeliveryItem.Urgency.fromWire("HIGH"));
+        assertEquals(DeliveryItem.Urgency.HIGH, DeliveryItem.Urgency.fromWire("urgent"));
+        assertEquals(DeliveryItem.Urgency.SILENT, DeliveryItem.Urgency.fromWire("silent"));
+        assertNull(DeliveryItem.Urgency.fromWire("bogus"));
+        assertEquals(DeliveryItem.Urgency.NORMAL, DeliveryItem.Urgency.fromWireOrDefault("bogus"));
+        assertTrue(DeliveryItem.isValidId("dlv_0123456789abcdef"));
+
+        DeliveryItem item = new DeliveryItem(
+                VALID_ID,
+                DeliveryItem.Kind.BRIEFING,
+                DeliveryItem.Urgency.NORMAL,
+                "Résumé du matin",
+                "3 points clés prêts",
+                "{\"body\":\"Détails\"}",
+                1700000000L,
+                "sess-1",
+                "run-1",
+                null,
+                0L);
+        assertFalse(item.isAcknowledged());
+        assertEquals("Lire le briefing", item.primaryActionLabel());
+
+        DeliveryItem acked = item.withAcknowledged(1700000099L);
+        assertFalse(item.isAcknowledged());
+        assertTrue(acked.isAcknowledged());
+        assertEquals(1700000099L, acked.ackedAtEpochSec);
+        // Second ack preserves first timestamp idempotently.
+        assertEquals(1700000099L, acked.withAcknowledged(1700000500L).ackedAtEpochSec);
+    }
+
+    @Test
+    public void rejectsMalformedIdsTitlesPayloadsAndControlCharacters() {
+        for (String badId : new String[]{null, "", "../escape", "a/b", "has space", "a".repeat(65)}) {
+            assertFalse("Accepted bad id " + badId, DeliveryItem.isValidId(badId));
+            try {
+                new DeliveryItem(badId, DeliveryItem.Kind.NOTICE, DeliveryItem.Urgency.NORMAL,
+                        "Titre", "", "{}", 1L, null, null, null, 0L);
+                fail("Expected rejection for id=" + badId);
+            } catch (IllegalArgumentException expected) {
+                // ok
+            }
+        }
+
+        for (String badTitle : new String[]{null, "   ", "Line1\nLine2", "a".repeat(DeliveryItem.MAX_TITLE_CHARS + 1)}) {
+            try {
+                new DeliveryItem(VALID_ID, DeliveryItem.Kind.NOTICE, DeliveryItem.Urgency.NORMAL,
+                        badTitle, "", "{}", 1L, null, null, null, 0L);
+                fail("Expected rejection for title");
+            } catch (IllegalArgumentException expected) {
+                // ok
+            }
+        }
+
+        try {
+            new DeliveryItem(VALID_ID, DeliveryItem.Kind.CARD, DeliveryItem.Urgency.NORMAL,
+                    "Titre", "", "x".repeat(DeliveryItem.MAX_PAYLOAD_CHARS + 1), 1L, null, null, null, 0L);
+            fail("Expected rejection for oversized payload");
+        } catch (IllegalArgumentException expected) {
+            // ok
+        }
+
+        try {
+            new DeliveryItem(VALID_ID, DeliveryItem.Kind.NOTICE, DeliveryItem.Urgency.NORMAL,
+                    "Titre", "", "{}", 1L, "bad\nsession", null, null, 0L);
+            fail("Expected rejection for control char in sessionId");
+        } catch (IllegalArgumentException expected) {
+            // ok
+        }
+    }
+}

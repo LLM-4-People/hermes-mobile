@@ -21,6 +21,7 @@ public final class MobilePush {
     }
 
     private final Activity activity;
+    private DeliveryRouter activeRouter;
 
     public MobilePush(Activity activity) {
         this.activity = activity;
@@ -29,10 +30,35 @@ public final class MobilePush {
     }
 
     public void settings(Account account) {
+        settings(account, null);
+    }
+
+    public void settings(Account account, DeliveryRouter.Actions actions) {
+        lock();
+        PushSettings flow = new PushSettings(activity, account, actions);
+        decor().setTag(R.id.push_settings_flow, flow);
+        flow.show();
+    }
+
+    public void openPolicy(Account account) {
         lock();
         PushSettings flow = new PushSettings(activity, account);
         decor().setTag(R.id.push_settings_flow, flow);
-        flow.show();
+        flow.showPolicyDialog();
+    }
+
+    public void openInbox(Account account, DeliveryRouter.Actions actions) {
+        lock();
+        activeRouter = new DeliveryRouter(activity, account,
+                new HermesApi(account.endpoint, account.bearer), new DeliveryInbox(), actions);
+        activeRouter.showInbox();
+    }
+
+    public void openDelivery(Account account, DeliveryItem item, DeliveryRouter.Actions actions) {
+        lock();
+        activeRouter = new DeliveryRouter(activity, account,
+                new HermesApi(account.endpoint, account.bearer), new DeliveryInbox(), actions);
+        activeRouter.openDelivery(item);
     }
 
     public void onPermissionResult(int requestCode) {
@@ -44,6 +70,10 @@ public final class MobilePush {
         PushSettings flow = (PushSettings) decor().getTag(R.id.push_settings_flow);
         decor().setTag(R.id.push_settings_flow, null);
         if (flow != null) flow.close();
+        if (activeRouter != null) {
+            activeRouter.dismiss();
+            activeRouter = null;
+        }
     }
 
     private View decor() { return activity.getWindow().getDecorView(); }
@@ -55,6 +85,7 @@ public final class MobilePush {
     }
 
     public static void forget(Context context, String profileId) {
+        PushPolicy.clear(context, profileId);
         PushStore.Device device = PushConnection.forget(context, profileId);
         if (device == null) return;
         PushNotices.cancel(context, device.installation);
@@ -99,9 +130,15 @@ public final class MobilePush {
 
     public static JSONObject resolve(Account account, Target target) throws IOException {
         if (target == null || !target.profileId.equals(account.id)) throw new IOException("profile mismatch");
-        JSONObject event = new HermesApi(account.endpoint,account.bearer)
-                .get(PushConnection.BASE + "/events/" + target.eventId);
-        if (!target.eventId.equals(event.optString("event_id")) || !target.kind.equals(event.optString("kind"))) {
+        HermesApi api = new HermesApi(account.endpoint, account.bearer);
+        boolean isDelivery = DeliveryItem.Kind.fromWire(target.kind) != null;
+        String path = PushConnection.BASE + (isDelivery ? "/deliveries/" : "/events/") + target.eventId;
+        JSONObject response = api.get(path);
+        JSONObject event = isDelivery && response.optJSONObject("delivery") != null
+                ? response.optJSONObject("delivery") : response;
+        String resolvedId = event.optString("event_id", "");
+        if (resolvedId.isEmpty()) resolvedId = event.optString("delivery_id", "");
+        if (!target.eventId.equals(resolvedId) || !target.kind.equals(event.optString("kind"))) {
             throw new IOException("event mismatch");
         }
         return event;
