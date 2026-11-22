@@ -124,6 +124,7 @@ public final class DeviceJourney extends Instrumentation {
         ui.see("Message à Hermes");
         send("Bonjour depuis le téléphone", "La conversation est prête.");
         send("Donne une fonction Python pour calculer un carré.", "return n * n");
+        ui.hideKeyboard();
         ui.heading("Bonjour depuis le téléphone");
         ui.capture("03-discussion-code");
         ui.tap("Toutes les discussions");
