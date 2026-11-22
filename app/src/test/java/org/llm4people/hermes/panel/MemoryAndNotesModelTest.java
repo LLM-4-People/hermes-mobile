@@ -67,6 +67,10 @@ public final class MemoryAndNotesModelTest {
         assertTrue(sharedEdit.canEdit());
         assertFalse(sharedEdit.canDelete());
         assertFalse(sharedEdit.canShare());
+        // Fork answers HTTP 403 note_owner_required when a non-owner sends "pinned": only owners may pin.
+        assertTrue(owned.canPin());
+        assertFalse(sharedEdit.canPin());
+        assertFalse(sharedRead.canPin());
 
         assertEquals(List.of("travail", "urgent"), NotesModel.parseTagsInput(" travail, urgent, , travail "));
 

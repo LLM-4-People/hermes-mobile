@@ -43,15 +43,23 @@ public final class SearchAndSkillStudioModelTest {
         SkillStudioModel.SkillLocation derived = SkillStudioModel.resolveSkillLocation("Travail/Resume", "");
         assertEquals("resume", derived.name());
         assertEquals("travail", derived.category());
-        SkillStudioModel.SkillLocation overridden = SkillStudioModel.resolveSkillLocation("Travail/Resume", "Productivité");
+        SkillStudioModel.SkillLocation overridden = SkillStudioModel.resolveSkillLocation("Travail/Resume", " Productivite ");
         assertEquals("resume", overridden.name());
-        assertEquals("Productivité", overridden.category());
+        assertEquals("productivite", overridden.category());
+        // Fork _validate_category(): one lowercase directory name, never accents, spaces, or separators.
+        assertEquals("travail", SkillStudioModel.validateCategory("Travail"));
+        assertEquals("", SkillStudioModel.validateCategory("   "));
+        for (String badCategory : new String[]{"Productivité", "Mes outils", "dev/mobile", "a\\b", ".", "..", "-x",
+                "a".repeat(65)}) {
+            try { SkillStudioModel.resolveSkillLocation("resume", badCategory); fail("Accepted bad category: " + badCategory); }
+            catch (IllegalArgumentException expected) {}
+        }
 
         String doc = SkillStudioModel.buildSkillDocument(
-                "Travail/Resume", "Résume mes notes \"rapidement\"", "Productivité", "Fais 3 points clés.");
+                "Travail/Resume", "Résume mes notes \"rapidement\"", "Productivite", "Fais 3 points clés.");
         assertTrue(doc.startsWith("---\nname: resume\n"));
         assertTrue(doc.contains("description: \"Résume mes notes \\\"rapidement\\\"\""));
-        assertTrue(doc.contains("category: \"Productivité\""));
+        assertTrue(doc.contains("category: \"productivite\""));
         assertTrue(doc.endsWith("Fais 3 points clés.\n"));
 
         // Blank description is synthesized from instructions so Fork _validate_frontmatter never rejects it.
@@ -73,6 +81,34 @@ public final class SearchAndSkillStudioModelTest {
         assertEquals("Personnel", SkillStudioModel.sourceLabel("user", true));
         assertEquals("Intégré", SkillStudioModel.sourceLabel("builtin", false));
         assertEquals("Extension", SkillStudioModel.sourceLabel("plugin", false));
+    }
+
+    @Test
+    public void skillDescriptionsFitTheForkSixtyCharacterSkillIndex() {
+        String sixty = "a".repeat(SkillStudioModel.MAX_DESCRIPTION_CHARS);
+        assertEquals(sixty, SkillStudioModel.validateDescription(sixty));
+        assertEquals("", SkillStudioModel.validateDescription(null));
+        // Fork measures Python code points: 59 letters + one emoji is 60, not 61.
+        String emoji = "a".repeat(59) + "\uD83D\uDE00";
+        assertEquals(emoji, SkillStudioModel.validateDescription(emoji));
+        try {
+            SkillStudioModel.buildSkillDocument("resume", sixty + "b", "", "Fais 3 points clés.");
+            fail("Accepted a 61-character description the Fork rejects with HTTP 400");
+        } catch (IllegalArgumentException expected) {
+            assertTrue(expected.getMessage().contains("61"));
+        }
+
+        // A long first instruction line is clipped at a word boundary to <= 60 code points.
+        String longLine = "Prépare un résumé hebdomadaire clair de toutes mes réunions, décisions et prochaines étapes importantes";
+        String doc = SkillStudioModel.buildSkillDocument("bilan", "", "", longLine + "\nDétails.");
+        String description = doc.substring(doc.indexOf("description: \"") + 14, doc.indexOf("\"\n", doc.indexOf("description:")));
+        assertTrue(description.codePointCount(0, description.length()) <= SkillStudioModel.MAX_DESCRIPTION_CHARS);
+        assertTrue(longLine.startsWith(description));
+        assertTrue(longLine.charAt(description.length()) == ' ' || longLine.charAt(description.length()) == ',');
+        // A single unbroken word is hard-cut; surrogate pairs are never split.
+        String clipped = SkillStudioModel.clipDescription("\uD83D\uDE00".repeat(70));
+        assertEquals(SkillStudioModel.MAX_DESCRIPTION_CHARS, clipped.codePointCount(0, clipped.length()));
+        assertFalse(Character.isHighSurrogate(clipped.charAt(clipped.length() - 1)));
     }
 
     @Test

@@ -47,6 +47,13 @@ def opaque_profile_hint(scope: str) -> str:
     return hashlib.sha256(("profile-hint-v1\0" + scope).encode("utf-8")).hexdigest()[:16]
 
 
+def normalize_urgency(value) -> str | None:
+    """Map a bridge or Fork urgency (``urgent`` -> ``high``) onto URGENCY_LEVELS, or None when unsupported."""
+    if isinstance(value, str):
+        value = _URGENCY_ALIASES.get(value, value)
+    return value if isinstance(value, str) and value in URGENCY_LEVELS else None
+
+
 def _has_control_chars(text: str, *, allow_newline: bool = False) -> bool:
     for ch in text:
         code = ord(ch)
@@ -78,10 +85,8 @@ def validate_delivery_input(data) -> dict:
     kind = data.get("kind")
     if not isinstance(kind, str) or kind not in DELIVERY_KINDS:
         raise ValueError("Unsupported delivery kind")
-    urgency = data.get("urgency", DEFAULT_URGENCY)
-    if isinstance(urgency, str):
-        urgency = _URGENCY_ALIASES.get(urgency, urgency)
-    if not isinstance(urgency, str) or urgency not in URGENCY_LEVELS:
+    urgency = normalize_urgency(data.get("urgency", DEFAULT_URGENCY))
+    if urgency is None:
         raise ValueError("Unsupported delivery urgency")
     title = data.get("title")
     if not isinstance(title, str):

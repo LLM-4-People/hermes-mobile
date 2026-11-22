@@ -28,6 +28,9 @@ import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.profile.Account;
 
 import java.io.IOException;
+import java.time.DateTimeException;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -584,25 +587,67 @@ public final class DeviceBridgeFlow {
     /** Convert a bridge request into a reviewed DeviceAction when it maps to a standard OS handoff. */
     public static DeviceAction toDeviceAction(BridgeRequest request) {
         if (request == null) return null;
-        JSONObject params = request.params();
-        String mappedKind = switch (request.actionType()) {
-            case "calendar_draft" -> "calendar_event";
-            case "maps_handoff" -> params.has("destination") ? "map_navigation" : "map_search";
-            case "share_sheet" -> "share_text";
-            case "dial_draft" -> "dial_draft";
-            case "email_draft" -> "email_draft";
-            case "contacts_pick" -> (params.has("name") || params.has("phone") || params.has("email"))
-                    ? "insert_contact" : null;
-            case "alarm_timer" -> params.has("seconds") ? "set_timer" : "set_alarm";
-            default -> null;
-        };
-        if (mappedKind == null) return null;
         try {
-            JSONObject normalized = new JSONObject(params.toString());
-            normalized.put("kind", mappedKind);
-            return DeviceAction.parseJson(normalized.toString());
+            JSONObject params = normalizeForkAliases(request.actionType(), request.params());
+            String mappedKind = switch (request.actionType()) {
+                case "calendar_draft" -> "calendar_event";
+                case "maps_handoff" -> params.has("destination") ? "map_navigation" : "map_search";
+                case "share_sheet" -> "share_text";
+                case "dial_draft" -> "dial_draft";
+                case "email_draft" -> "email_draft";
+                case "contacts_pick" -> (params.has("name") || params.has("phone") || params.has("email"))
+                        ? "insert_contact" : null;
+                case "alarm_timer" -> params.has("seconds") ? "set_timer" : "set_alarm";
+                default -> null;
+            };
+            if (mappedKind == null) return null;
+            params.put("kind", mappedKind);
+            return DeviceAction.parseJson(params.toString());
         } catch (JSONException | IOException invalid) {
             Diagnostics.warning("device_bridge", "action_parse_failed", invalid);
+            return null;
+        }
+    }
+
+    /**
+     * Maps the parameter names Fork's {@code agent/mobile_companion_prompt.py} teaches the model
+     * ({@code duration_seconds}, {@code phone}, {@code to}, {@code start} without {@code end}) onto the
+     * reviewed {@link DeviceAction} schema. A canonical key always wins over its alias; DeviceAction
+     * still validates every value, so a malformed alias fails closed exactly like a malformed canonical key.
+     */
+    static JSONObject normalizeForkAliases(String actionType, JSONObject params) throws JSONException {
+        JSONObject out = new JSONObject(params == null ? "{}" : params.toString());
+        switch (actionType == null ? "" : actionType) {
+            case "alarm_timer" -> renameAlias(out, "duration_seconds", "seconds");
+            case "dial_draft" -> renameAlias(out, "phone", "number");
+            case "email_draft" -> renameAlias(out, "to", "recipient");
+            case "calendar_draft" -> {
+                if (!out.has("end")) {
+                    String end = defaultCalendarEnd(out.optString("start", null));
+                    if (end != null) out.put("end", end);
+                }
+            }
+            default -> { }
+        }
+        return out;
+    }
+
+    private static void renameAlias(JSONObject params, String alias, String canonical) throws JSONException {
+        if (!params.has(alias)) return;
+        Object value = params.remove(alias);
+        if (!params.has(canonical)) params.put(canonical, value);
+    }
+
+    private static final DateTimeFormatter CALENDAR_WIRE = DateTimeFormatter.ofPattern(
+            "uuuu-MM-dd'T'HH:mm:ssXXX", Locale.ROOT);
+
+    /** One-hour default end for a calendar draft whose start is a valid ISO offset date-time; otherwise null. */
+    static String defaultCalendarEnd(String start) {
+        if (start == null || start.trim().isEmpty()) return null;
+        try {
+            return OffsetDateTime.parse(start.trim(), DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+                    .plusHours(1).format(CALENDAR_WIRE);
+        } catch (DateTimeException invalid) {
             return null;
         }
     }

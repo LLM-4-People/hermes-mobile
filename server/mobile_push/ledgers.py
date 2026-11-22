@@ -1,10 +1,12 @@
-"""Read the fork's persisted, authenticated run and cron records without loading message bodies."""
+"""Read the fork's persisted, authenticated run, cron, and delivery records without loading message bodies."""
 from contextlib import closing
 from datetime import datetime
+from functools import partial
 import json
 import sqlite3
 import time
-from .events import APPROVAL, QUESTION, Event, Observation
+from .events import (APPROVAL, DEFAULT_URGENCY, DELIVERY_ID_RE, DELIVERY_KINDS, QUESTION,
+                     Event, Observation, _optional_link, normalize_urgency, opaque_profile_hint)
 
 
 RUN_QUERY = """
@@ -119,6 +121,32 @@ def cron_observation(execution_id, job_id, started_at):
     return Observation(stamp, (Event.make([execution_id], "reminder", stamp, job_id=job_id),))
 
 
+# Fork tools/mobile_deliver.py persists mobile_deliver() items in <HERMES_HOME>/mobile_state.db.
+# Only routing metadata is selected: title and payload_json never leave the gateway volume.
+DELIVERY_QUERY = """
+SELECT delivery_id, kind, urgency, session_id, created_at FROM mobile_deliveries
+ WHERE acked_at IS NULL AND created_at>=?
+"""
+
+
+def _opaque_link(value):
+    try:
+        return _optional_link(value, "session_id")
+    except ValueError:
+        return None
+
+
+def delivery_observation(profile_hint, delivery_id, kind, urgency, session_id, created_at):
+    """Wake phones for an unacknowledged Fork delivery; Android fetches the content itself by delivery_id."""
+    stamp = float(created_at) if isinstance(created_at, (int, float)) else 0.0
+    if (not isinstance(delivery_id, str) or not DELIVERY_ID_RE.fullmatch(delivery_id)
+            or kind not in DELIVERY_KINDS or stamp <= 0):
+        return Observation(stamp, ())
+    return Observation(stamp, (Event(delivery_id, kind, stamp, session_id=_opaque_link(session_id),
+                                     urgency=normalize_urgency(urgency) or DEFAULT_URGENCY,
+                                     profile_hint_opaque=profile_hint),))
+
+
 class HermesLedgers:
     def __init__(self, settings):
         self.scope = settings.run_scope
@@ -128,14 +156,17 @@ class HermesLedgers:
             SELECT id,job_id,started_at FROM executions
              WHERE started_at IS NOT NULL AND julianday(started_at)>=julianday(?,'unixepoch')
         """, cron_observation, settings)
+        self.deliveries = Ledger(settings.home / "mobile_state.db", DELIVERY_QUERY,
+                                 partial(delivery_observation, opaque_profile_hint(self.scope)), settings)
 
     def prompt_pending(self, item):
         observation = self.runs.one(RUN_QUERY + " AND run_id=?", (self.scope, item["run_id"]))
         return observation is not None and any(e.event_id == item["event_id"] for e in observation.events)
 
     def sources(self, cutoff):
-        return ((self.runs, (self.scope, cutoff)), (self.cron, (cutoff,)))
+        return ((self.runs, (self.scope, cutoff)), (self.cron, (cutoff,)), (self.deliveries, (cutoff,)))
 
     def close(self):
         self.runs.close()
         self.cron.close()
+        self.deliveries.close()
