@@ -179,6 +179,8 @@ def distributor(ui, apk, endpoint):
             return False
 
         eventually("ntfy settings showing the saved loopback server", saved)
+        d.shell("input", "keyevent", "BACK")
+        ui.wait("Subscribed topics")
         yield
     finally:
         d.run("uninstall", NTFY)
@@ -192,6 +194,10 @@ def start_account(ui, label, endpoint, bearer, phrase):
         add = ui.node("Ajouter un profil", root)
         if add is not None:
             ui.tap_node(add)
+        else:
+            choose = ui.node("Choisir un autre profil", root)
+            if choose is not None:
+                ui.tap_node(choose)
         return False
 
     eventually("real account creation form", form)

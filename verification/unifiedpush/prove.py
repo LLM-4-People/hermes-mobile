@@ -30,6 +30,7 @@ from .stack import (
 )
 from .ui import (
     APP,
+    NTFY,
     Screen,
     distributor,
     enroll,
@@ -219,9 +220,11 @@ def run(args):
                 raise AssertionError("Device registered with another push origin")
             before = len(published_messages(topic))
             ui.wait("Désactiver")
-            adb.shell("input", "keyevent", "BACK")
-            ui.tap("Autres actions")
-            ui.tap("Verrouiller le profil")
+            # On Android 13+, the official distributor can begin its first foreground service
+            # only while it has the system's foreground-start privilege. Open its normal launcher.
+            launch(adb, NTFY)
+            ui.wait("Subscribed topics")
+            launch(adb, APP)
             start_account(ui, alt, other_url, other.key, secrets.token_hex(14))
             process_absent(ui)
             session, run_id = trigger(primary, title)
