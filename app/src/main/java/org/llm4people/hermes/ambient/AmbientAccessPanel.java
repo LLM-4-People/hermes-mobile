@@ -2,6 +2,7 @@ package org.llm4people.hermes.ambient;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -75,6 +76,7 @@ public final class AmbientAccessPanel {
     private LinearLayout mediaContainer;
     private TextView statusBadge;
     private TextView feedback;
+    private AlertDialog activeDialog;
     private String searchFilter = "";
 
     public AmbientAccessPanel(Activity activity, NotificationAllowlist allowlist, DraftSink draftSink) {
@@ -140,7 +142,30 @@ public final class AmbientAccessPanel {
         buildDigestSection(body);
 
         refreshAll();
+        scroll.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
+            @Override public void onViewAttachedToWindow(View v) {}
+            @Override public void onViewDetachedFromWindow(View v) { dismissDialogs(); }
+        });
         return scroll;
+    }
+
+    /** Dismiss any active quick-reply or media confirmation dialog (e.g. on lock or profile switch). */
+    public void dismissDialogs() {
+        AlertDialog dialog = activeDialog;
+        activeDialog = null;
+        if (dialog != null && dialog.isShowing()) {
+            dialog.dismiss();
+        }
+    }
+
+    private void trackDialog(AlertDialog dialog) {
+        dismissDialogs();
+        activeDialog = dialog;
+        if (dialog != null) {
+            dialog.setOnDismissListener(d -> {
+                if (activeDialog == dialog) activeDialog = null;
+            });
+        }
     }
 
     /** Refresh status badge, media card, and live notification digest (e.g. on Activity resume). */
@@ -200,6 +225,7 @@ public final class AmbientAccessPanel {
         NotificationAllowlist.Settings initial = allowlist.settings();
 
         addSwitch(body, R.string.ambient_toggle_notifications, initial.notificationsEnabled(), checked -> {
+            if (!checked) dismissDialogs();
             NotificationAllowlist.Settings cur = allowlist.settings();
             allowlist.saveSettings(new NotificationAllowlist.Settings(
                     checked, cur.mediaEnabled(), cur.calendarEnabled(),
@@ -207,6 +233,7 @@ public final class AmbientAccessPanel {
             refreshAll();
         });
         addSwitch(body, R.string.ambient_toggle_media, initial.mediaEnabled(), checked -> {
+            if (!checked) dismissDialogs();
             NotificationAllowlist.Settings cur = allowlist.settings();
             allowlist.saveSettings(new NotificationAllowlist.Settings(
                     cur.notificationsEnabled(), checked, cur.calendarEnabled(),
@@ -347,17 +374,11 @@ public final class AmbientAccessPanel {
                 ? R.string.ambient_media_pause
                 : R.string.ambient_media_play;
         actions.addView(Ui.button(activity, activity.getString(R.string.ambient_media_previous),
-                v -> MediaContextBridge.showControlConfirmation(
-                        activity, settings.mediaEnabled(), current, MediaContextBridge.ControlAction.PREVIOUS,
-                        ok -> refreshAll())));
+                v -> confirmMediaControl(current, MediaContextBridge.ControlAction.PREVIOUS)));
         actions.addView(Ui.button(activity, activity.getString(toggleLabel),
-                v -> MediaContextBridge.showControlConfirmation(
-                        activity, settings.mediaEnabled(), current, toggleAction,
-                        ok -> refreshAll())));
+                v -> confirmMediaControl(current, toggleAction)));
         actions.addView(Ui.button(activity, activity.getString(R.string.ambient_media_next),
-                v -> MediaContextBridge.showControlConfirmation(
-                        activity, settings.mediaEnabled(), current, MediaContextBridge.ControlAction.NEXT,
-                        ok -> refreshAll())));
+                v -> confirmMediaControl(current, MediaContextBridge.ControlAction.NEXT)));
         mediaContainer.addView(actions);
         mediaContainer.addView(Ui.button(activity, activity.getString(R.string.ambient_media_add_to_thread),
                 v -> callbacks.stageDraft(activity.getString(
@@ -406,15 +427,7 @@ public final class AmbientAccessPanel {
                                     R.string.ambient_draft_calendar, item.displaySource(), item.displaySender(), item.displayBody()))));
             if (item.replyable) {
                 row2.addView(Ui.button(activity, activity.getString(R.string.ambient_action_reply),
-                        v -> HermesNotificationListener.showQuickReplyConfirmation(activity, item, "", outcome -> {
-                            if (outcome == HermesNotificationListener.ReplyOutcome.SENT) {
-                                showFeedback(R.string.ambient_reply_sent, false);
-                                renderDigest();
-                            } else if (outcome == HermesNotificationListener.ReplyOutcome.FAILED) {
-                                showFeedback(R.string.ambient_reply_failed, true);
-                                renderDigest();
-                            }
-                        })));
+                        v -> confirmQuickReply(item)));
             } else {
                 row2.addView(Ui.button(activity, activity.getString(R.string.ambient_action_reply),
                         v -> callbacks.stageDraft(activity.getString(
@@ -428,6 +441,42 @@ public final class AmbientAccessPanel {
 
             addTop(digestContainer, card, 8);
         }
+    }
+
+    private void confirmMediaControl(MediaContextBridge.NowPlaying current, MediaContextBridge.ControlAction action) {
+        if (!allowlist.settings().mediaEnabled()) return;
+        dismissDialogs();
+        trackDialog(MediaContextBridge.showControlConfirmation(
+                activity,
+                () -> allowlist.settings().mediaEnabled(),
+                current,
+                action,
+                ok -> refreshAll()));
+    }
+
+    private void confirmQuickReply(AmbientNotification item) {
+        if (!isReplyStillAllowed(item)) return;
+        dismissDialogs();
+        trackDialog(HermesNotificationListener.showQuickReplyConfirmation(
+                activity,
+                item,
+                "",
+                () -> isReplyStillAllowed(item),
+                outcome -> {
+                    if (outcome == HermesNotificationListener.ReplyOutcome.SENT) {
+                        showFeedback(R.string.ambient_reply_sent, false);
+                        renderDigest();
+                    } else if (outcome == HermesNotificationListener.ReplyOutcome.FAILED) {
+                        showFeedback(R.string.ambient_reply_failed, true);
+                        renderDigest();
+                    }
+                }));
+    }
+
+    private boolean isReplyStillAllowed(AmbientNotification item) {
+        return item != null
+                && allowlist.settings().notificationsEnabled()
+                && allowlist.effectiveAllowedPackages().contains(item.packageName);
     }
 
     private List<AppEntry> loadLaunchableApps() {

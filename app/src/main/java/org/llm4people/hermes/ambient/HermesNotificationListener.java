@@ -217,6 +217,19 @@ public final class HermesNotificationListener extends NotificationListenerServic
             AmbientNotification item,
             String initialDraft,
             Consumer<ReplyOutcome> onResult) {
+        return showQuickReplyConfirmation(activity, item, initialDraft, () -> true, onResult);
+    }
+
+    /**
+     * Present an explicit, FLAG_SECURE confirmation dialog that re-verifies {@code stillAllowed}
+     * at confirmation time before sending the quick reply.
+     */
+    public static AlertDialog showQuickReplyConfirmation(
+            Activity activity,
+            AmbientNotification item,
+            String initialDraft,
+            java.util.function.BooleanSupplier stillAllowed,
+            Consumer<ReplyOutcome> onResult) {
         LinearLayout content = Ui.column(activity);
         Ui.pad(content, 20, 12);
         TextView target = Ui.text(activity,
@@ -246,6 +259,11 @@ public final class HermesNotificationListener extends NotificationListenerServic
                     if (onResult != null) onResult.accept(ReplyOutcome.CANCELLED);
                 })
                 .setPositiveButton(R.string.ambient_reply_send, (d, w) -> {
+                    if (stillAllowed != null && !stillAllowed.getAsBoolean()) {
+                        Diagnostics.warning("ambient", "quick_reply_revoked");
+                        if (onResult != null) onResult.accept(ReplyOutcome.FAILED);
+                        return;
+                    }
                     boolean sent = sendReviewedReply(activity, item.key, editor.getText().toString(), true);
                     if (onResult != null) onResult.accept(sent ? ReplyOutcome.SENT : ReplyOutcome.FAILED);
                 });

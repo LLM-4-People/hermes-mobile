@@ -64,12 +64,47 @@ public final class BrainJsonAndApiContractTest extends TestCase {
         assertEquals("share:save_note", habits.get(0).id());
         assertEquals("Enregistrer en note", habits.get(0).label());
 
-        // Universal share content unwraps nested content objects cleanly without raw JSON dumps.
+        // Universal share content unwraps nested content objects, text_preview, binary metadata, and spec JSON.
         String sharedNoteText = ShareWithUserSheet.extractReadableContent(new JSONObject("""
                 {"object":"hermes.share.content","share":{"share_id":"sh1"},
                  "content":{"id":"n1","title":"Courses","content":"Pain et café"}}
                 """));
         assertEquals("Pain et café", sharedNoteText);
+
+        String artifactPreview = ShareWithUserSheet.extractReadableContent(new JSONObject("""
+                {"object":"hermes.share.content","content":{"filename":"notes.txt","text_preview":"Ligne 1\\nLigne 2"}}
+                """));
+        assertEquals("Ligne 1\nLigne 2", artifactPreview);
+
+        String binaryArtifact = ShareWithUserSheet.extractReadableContent(new JSONObject("""
+                {"object":"hermes.share.content","content":{"filename":"rapport.pdf","mime_type":"application/pdf","size":4096,"is_binary":true}}
+                """));
+        assertEquals("rapport.pdf · application/pdf · 4096 octets", binaryArtifact);
+
+        String surfaceSpec = ShareWithUserSheet.extractReadableContent(new JSONObject("""
+                {"object":"hermes.share.content","content":{"title":"Tableau météo","spec":{"kind":"widget","metric":"22°C"}}}
+                """));
+        assertTrue(surfaceSpec.startsWith("Tableau météo\n\n"));
+        assertTrue(surfaceSpec.contains("\"metric\": \"22°C\""));
+
+        // Notes parser maps Fork's `access` field when `permission` is absent.
+        List<NotesModel.Note> sharedNotes = BrainJson.parseNotes(new JSONObject("""
+                {"data":[
+                  {"id":"n1","title":"Partagée modifiable","body":"Texte","owner_profile":"julie","access":"edit"},
+                  {"id":"n2","title":"Partagée lecture","body":"Texte","owner_profile":"julie","access":"read"}]}
+                """), true);
+        assertEquals(2, sharedNotes.size());
+        assertTrue(sharedNotes.get(0).canEdit());
+        assertFalse(sharedNotes.get(0).canDelete());
+        assertFalse(sharedNotes.get(1).canEdit());
+
+        // Search pagination respects explicit has_more even when total == page size.
+        SearchResultModel.Page paged = BrainJson.parseSearchPage(new JSONObject("""
+                {"query":"montreal","total":1,"has_more":true,"data":[
+                  {"session_id":"s1","thread_id":"t1","thread_title":"Voyage","message_id":9,"role":"user",
+                   "snippet":"<mark>Montréal</mark>","timestamp":"2026-11-22T14:00:00Z"}]}
+                """));
+        assertTrue(paged.hasMore(1));
     }
 
     public void testAnalyticsSummaryParsesForkBrainTotalsAndPeriodDays() throws Exception {
@@ -128,6 +163,29 @@ public final class BrainJsonAndApiContractTest extends TestCase {
         assertTrue(rich.get(0).badges().contains("Vision"));
         assertTrue(rich.get(0).badges().contains("Outils"));
         assertTrue(rich.get(0).badges().contains("Long contexte (200 k)"));
+
+        // Fork /api/model/options emits sibling `capabilities` and `pricing` maps keyed by model ID.
+        List<ModelCapabilityBadges.ModelInfo> forkShape = BrainJson.parseProviderModels(new JSONObject("""
+                {"slug":"anthropic",
+                 "models":["claude-sonnet","local-free","unknown-price"],
+                 "capabilities":{
+                   "claude-sonnet":{"context_length":200000,"max_output_tokens":8192,"vision":true,"tools":true,"reasoning":true},
+                   "local-free":{"context_length":32000,"vision":false,"tools":true,"reasoning":false}},
+                 "pricing":{
+                   "claude-sonnet":{"input_per_1m":3.0,"output_per_1m":15.0,"free":false},
+                   "local-free":{"free":true},
+                   "unknown-price":{"input":"","output":"","free":false}}}
+                """));
+        assertEquals(3, forkShape.size());
+        assertTrue(forkShape.get(0).badges().contains("Vision"));
+        assertTrue(forkShape.get(0).badges().contains("Outils"));
+        assertTrue(forkShape.get(0).badges().contains("Long contexte (200 k)"));
+        assertTrue(forkShape.get(0).badges().contains("Réflexion"));
+        assertEquals(3.0, forkShape.get(0).inputPer1mUsd(), 1e-6);
+        assertEquals(15.0, forkShape.get(0).outputPer1mUsd(), 1e-6);
+        assertTrue(forkShape.get(1).badges().contains("Tarif · Inclus"));
+        assertTrue(Double.isNaN(forkShape.get(2).inputPer1mUsd()));
+        assertTrue(Double.isNaN(forkShape.get(2).outputPer1mUsd()));
     }
 
     public void testHermesApiThreadActionsAndRelativePathEncoding() throws Exception {
@@ -162,11 +220,13 @@ public final class BrainJsonAndApiContractTest extends TestCase {
         }
 
         List<ThreadActionModel.TurnChoice> turns = ThreadActions.extractTurnChoices(new JSONArray("""
-                [{"id":10,"role":"user","content":"Question initiale"},
+                [{"id":10,"session_id":"seg-older","role":"user","content":"Question initiale"},
                  {"id":11,"role":"assistant","content":"Réponse détaillée"}]
                 """));
         assertEquals(2, turns.size());
         assertEquals(10L, turns.get(0).messageId());
+        assertEquals("seg-older", turns.get(0).targetSessionId("seg-current"));
+        assertEquals("seg-current", turns.get(1).targetSessionId("seg-current"));
         assertEquals("Vous · Question initiale", turns.get(0).displayLabel());
     }
 }

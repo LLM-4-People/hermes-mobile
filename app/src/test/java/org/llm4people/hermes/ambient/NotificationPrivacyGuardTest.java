@@ -52,7 +52,21 @@ public final class NotificationPrivacyGuardTest {
                 {"2FA", "Your 2FA security code is 123456"},
                 {"Wallet", "Never share your seed phrase with anyone"},
                 {"Card", "CVV: 904"},
-                {"Auth", "Authorization: Bearer abcdef1234567890abcd"}
+                {"Auth", "Authorization: Bearer abcdef1234567890abcd"},
+                // Alphanumeric secrets / temporary passwords / API tokens without numeric CODE_TOKEN
+                {"IT Helpdesk", "Your temporary password is xK9#pQ2m"},
+                {"Support", "Votre mot de passe temporaire : AxR9-KmZ"},
+                {"Account", "Passcode: K9X-MQZ"},
+                {"SSO", "Login code: AB4X-PQ9"},
+                {"Connexion", "Code de connexion : Z9K4M2"},
+                {"Sécurité", "Code d’authentification : Q8M-X2P"},
+                {"Confirm", "Confirmation code: XZQ-LMP"},
+                {"Alert", "Do not share this token with anyone"},
+                {"Alerte", "Ne partagez pas ce lien privé"},
+                {"API", "Rotated key sk-AbCdEf1234567890"},
+                {"GitHub", "PAT ghp_AbCdEf1234567890"},
+                {"Token", "eyJhbGciOiJIUzI1NiJ9.payload.sig"},
+                {"Cert", "-----BEGIN PRIVATE KEY-----"}
         };
         for (String[] pair : sensitiveSamples) {
             assertTrue("Expected OTP/secret detection for: " + pair[1],
@@ -99,6 +113,7 @@ public final class NotificationPrivacyGuardTest {
     @Test
     public void allowsOrdinaryAllowlistedMessageAndSanitizesControlCharsAndLength() {
         assertFalse(NotificationPrivacyGuard.containsOtpOrSecret("Marie", "On se retrouve à 18 h devant le café ?"));
+        assertFalse(NotificationPrivacyGuard.containsOtpOrSecret("Paul", "Réunion à 14h30 salle 402 pour le bilan"));
         assertEquals(NotificationPrivacyGuard.Decision.ALLOW,
                 NotificationPrivacyGuard.evaluate(
                         candidate(SIGNAL, "Marie", "On se retrouve à 18 h devant le café ?"), ALLOWLIST));

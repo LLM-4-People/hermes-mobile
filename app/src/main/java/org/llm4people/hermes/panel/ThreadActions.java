@@ -181,8 +181,9 @@ public final class ThreadActions implements Closeable {
                 .setPositiveButton(R.string.brain_thread_fork_create, (d, w) -> {
                     int checkedId = group.getCheckedRadioButtonId();
                     int index = checkedId > 0 && checkedId <= turns.size() ? checkedId - 1 : turns.size() - 1;
-                    Long messageId = turns.get(index).messageId();
-                    executeFork(sessionId, messageId, keepOpen.isChecked(), openForkedThread);
+                    ThreadActionModel.TurnChoice chosen = turns.get(index);
+                    executeFork(chosen.targetSessionId(sessionId), chosen.messageId(),
+                            keepOpen.isChecked(), openForkedThread);
                 }));
     }
 
@@ -208,7 +209,10 @@ public final class ThreadActions implements Closeable {
                 Diagnostics.warning("thread_actions", "fork_failed", error);
                 activity.runOnUiThread(() -> {
                     if (!sameOwner(owner)) return;
-                    if (error instanceof HermesApi.HttpError http && (http.status == 404 || http.status == 501)) {
+                    if (error instanceof HermesApi.HttpError http && http.status == 404
+                            && "message_not_found".equals(http.code)) {
+                        presentNotice(R.string.brain_thread_fork, R.string.brain_thread_fork_message_not_found);
+                    } else if (error instanceof HermesApi.HttpError http && (http.status == 404 || http.status == 501)) {
                         presentNotice(R.string.brain_thread_fork, R.string.brain_thread_fork_unavailable);
                     } else {
                         toast(activity.getString(R.string.panel_network_error));
@@ -340,7 +344,8 @@ public final class ThreadActions implements Closeable {
             String content = PanelData.text(row, "content");
             if (content.isEmpty()) content = PanelData.text(row, "text");
             if (content.isEmpty()) continue;
-            turns.add(new ThreadActionModel.TurnChoice(id, speaker, content.replace('\n', ' ')));
+            String turnSessionId = PanelData.text(row, "session_id");
+            turns.add(new ThreadActionModel.TurnChoice(id, speaker, content.replace('\n', ' '), turnSessionId));
         }
         return turns;
     }

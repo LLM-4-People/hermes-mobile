@@ -8,16 +8,24 @@ import java.util.regex.Pattern;
 public final class ThreadActionModel {
     public static final String FORMAT_MARKDOWN = "markdown";
     public static final String FORMAT_JSON = "json";
-    public static final long DEFAULT_EXPORT_MAX_BYTES = 16L * 1024 * 1024;
 
     private static final Pattern MARKS = Pattern.compile("\\p{M}+");
     private static final Pattern NON_SLUG = Pattern.compile("[^a-z0-9]+");
 
-    public record TurnChoice(long messageId, String speakerLabel, String preview) {
+    public record TurnChoice(long messageId, String speakerLabel, String preview, String sessionId) {
         public TurnChoice {
             if (messageId <= 0) throw new IllegalArgumentException("Identifiant de message invalide");
             speakerLabel = speakerLabel == null ? "" : speakerLabel.trim();
             preview = preview == null ? "" : preview.trim();
+            sessionId = sessionId == null ? "" : sessionId.trim();
+        }
+
+        public TurnChoice(long messageId, String speakerLabel, String preview) {
+            this(messageId, speakerLabel, preview, "");
+        }
+
+        public String targetSessionId(String fallbackSessionId) {
+            return !sessionId.isEmpty() ? sessionId : (fallbackSessionId == null ? "" : fallbackSessionId);
         }
 
         public String displayLabel() {

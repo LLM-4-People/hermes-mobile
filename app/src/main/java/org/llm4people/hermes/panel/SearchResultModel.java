@@ -59,15 +59,21 @@ public final class SearchResultModel {
         }
     }
 
-    public record Page(List<Hit> hits, int total, String query) {
+    public record Page(List<Hit> hits, int total, String query, boolean hasMoreFlag, boolean hasExplicitMore) {
         public Page {
             hits = hits == null ? Collections.emptyList() : Collections.unmodifiableList(new ArrayList<>(hits));
             total = Math.max(hits.size(), total);
             query = safe(query);
         }
 
+        public Page(List<Hit> hits, int total, String query) {
+            this(hits, total, query, total > (hits == null ? 0 : hits.size()), false);
+        }
+
         public boolean hasMore(int loadedCount) {
-            return total > loadedCount && !hits.isEmpty();
+            if (hits.isEmpty()) return false;
+            if (hasExplicitMore) return hasMoreFlag || total > loadedCount;
+            return hasMoreFlag || total > loadedCount || hits.size() >= DEFAULT_LIMIT;
         }
     }
 

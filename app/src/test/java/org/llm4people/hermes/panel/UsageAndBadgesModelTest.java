@@ -77,5 +77,10 @@ public final class UsageAndBadgesModelTest {
         assertEquals(Long.valueOf(42L), ThreadActionModel.validateForkMessageId(42L));
         try { ThreadActionModel.validateForkMessageId(0L); fail("Accepted 0 message id"); }
         catch (IllegalArgumentException expected) {}
+
+        ThreadActionModel.TurnChoice compactedTurn = new ThreadActionModel.TurnChoice(7L, "Vous", "Avant compaction", "seg-1");
+        assertEquals("seg-1", compactedTurn.targetSessionId("seg-2"));
+        ThreadActionModel.TurnChoice plainTurn = new ThreadActionModel.TurnChoice(8L, "Hermes", "Réponse");
+        assertEquals("seg-2", plainTurn.targetSessionId("seg-2"));
     }
 }

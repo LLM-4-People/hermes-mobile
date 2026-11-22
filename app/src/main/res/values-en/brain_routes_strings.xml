@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Cerveau Studio RouteRegistry labels & hints (EN) -->
+    <string name="brain_route_memory_label">Hermes memory</string>
+    <string name="brain_route_memory_hint">What Hermes remembers and what it knows about you.</string>
+    <string name="brain_route_notes_label">Smart notes</string>
+    <string name="brain_route_notes_hint">Your structured notes shared with Hermes.</string>
+    <string name="brain_route_shared_label">Shared with me</string>
+    <string name="brain_route_shared_hint">Notes, skills, and items shared by other profiles on this server.</string>
+    <string name="brain_route_search_label">Search your discussions</string>
+    <string name="brain_route_search_hint">Find any passage across all your past discussions.</string>
+    <string name="brain_route_skills_label">Skills</string>
+    <string name="brain_route_skills_hint">Reusable guides and methods Hermes can apply.</string>
+    <string name="brain_route_files_label">Project files</string>
+    <string name="brain_route_files_hint">Browse the files and changes in this discussion.</string>
+    <string name="brain_route_profile_label">Profile defaults</string>
+    <string name="brain_route_profile_hint">Default model and capabilities used for this profile.</string>
+
+    <!-- Thread fork turn-not-found error (distinct from server upgrade notice) -->
+    <string name="brain_thread_fork_message_not_found">That message is no longer available in this discussion. Refresh the thread or pick a more recent message.</string>
+</resources>

@@ -47,11 +47,21 @@ public final class ShareWithUserSheet {
 
     static String extractReadableContent(JSONObject reply) {
         if (reply == null) return "";
-        for (String key : new String[]{"raw", "body", "content", "text", "markdown"}) {
+        for (String key : new String[]{"raw", "body", "content", "text", "text_preview", "markdown"}) {
             Object val = reply.opt(key);
             if (val instanceof String s && !s.trim().isEmpty()) {
                 return WorkspacePathGuard.boundContent(s);
             }
+        }
+        if (reply.optBoolean("is_binary", false)) {
+            return formatBinarySummary(reply);
+        }
+        Object spec = reply.opt("spec");
+        if (spec instanceof JSONObject || spec instanceof org.json.JSONArray) {
+            String pretty = prettyPrintSpec(spec);
+            String title = PanelData.text(reply, "title");
+            String combined = title.isEmpty() ? pretty : title + "\n\n" + pretty;
+            return WorkspacePathGuard.boundContent(combined);
         }
         JSONObject nestedContent = reply.optJSONObject("content");
         if (nestedContent != null) {
@@ -80,6 +90,35 @@ public final class ShareWithUserSheet {
         }
         String title = PanelData.text(reply, "title");
         return title.isEmpty() ? "" : title;
+    }
+
+    private static String formatBinarySummary(JSONObject reply) {
+        String filename = PanelData.text(reply, "filename");
+        if (filename.isEmpty()) filename = PanelData.text(reply, "name");
+        if (filename.isEmpty()) filename = PanelData.text(reply, "title");
+        String mime = PanelData.text(reply, "mime_type");
+        long size = reply.has("size") ? reply.optLong("size", -1L) : reply.optLong("size_bytes", -1L);
+        StringBuilder out = new StringBuilder();
+        if (!filename.isEmpty()) out.append(filename);
+        if (!mime.isEmpty()) {
+            if (out.length() > 0) out.append(" · ");
+            out.append(mime);
+        }
+        if (size >= 0) {
+            if (out.length() > 0) out.append(" · ");
+            out.append(size).append(" octets");
+        }
+        return out.length() > 0 ? out.toString() : "Fichier binaire";
+    }
+
+    private static String prettyPrintSpec(Object spec) {
+        try {
+            if (spec instanceof JSONObject obj) return obj.toString(2);
+            if (spec instanceof org.json.JSONArray arr) return arr.toString(2);
+        } catch (org.json.JSONException ex) {
+            Diagnostics.warning("share", "spec_format_failed", ex);
+        }
+        return spec.toString();
     }
 
     private static final class OutgoingController {

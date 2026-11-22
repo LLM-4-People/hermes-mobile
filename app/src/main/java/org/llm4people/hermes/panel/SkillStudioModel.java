@@ -11,7 +11,16 @@ import java.util.regex.Pattern;
 /** Pure domain rules, SKILL.md composer, and optimistic toggle rollback state for Skill Studio. */
 public final class SkillStudioModel {
     public static final int MAX_SKILL_CONTENT_CHARS = 128 * 1024;
-    private static final Pattern VALID_SEGMENT = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._-]{0,63}");
+    private static final int MAX_FALLBACK_DESC_CHARS = 120;
+    private static final Pattern VALID_SEGMENT = Pattern.compile("[a-z0-9][a-z0-9._-]{0,63}");
+
+    /** Normalized lowercase single-segment skill name plus optional category for Fork POST /v1/skills. */
+    public record SkillLocation(String name, String category) {
+        public SkillLocation {
+            name = safe(name);
+            category = safe(category);
+        }
+    }
 
     public record SkillDetail(
             String name,
@@ -67,16 +76,16 @@ public final class SkillStudioModel {
 
     private SkillStudioModel() {}
 
-    /** Validate a new user skill name (single slug or category/slug), rejecting traversal or control chars. */
+    /** Validate and lowercase a new user skill name (single slug or category/slug), rejecting traversal or control chars. */
     public static String validateNewSkillName(String rawName) {
         if (rawName == null || rawName.trim().isEmpty()) {
             throw new IllegalArgumentException("Choisissez un nom pour ce savoir-faire.");
         }
-        String trimmed = rawName.trim();
-        if (trimmed.startsWith("/") || trimmed.endsWith("/") || trimmed.contains("//") || trimmed.contains("\\")) {
+        String normalized = rawName.trim().toLowerCase(Locale.ROOT);
+        if (normalized.startsWith("/") || normalized.endsWith("/") || normalized.contains("//") || normalized.contains("\\")) {
             throw new IllegalArgumentException("Le nom contient un séparateur invalide.");
         }
-        String[] parts = trimmed.split("/", -1);
+        String[] parts = normalized.split("/", -1);
         if (parts.length > 2) {
             throw new IllegalArgumentException("Utilisez au plus un dossier (ex. travail/relecture).");
         }
@@ -85,7 +94,23 @@ public final class SkillStudioModel {
                 throw new IllegalArgumentException("Utilisez uniquement des lettres, chiffres, tirets ou points.");
             }
         }
-        return trimmed;
+        return normalized;
+    }
+
+    /**
+     * Resolve user-entered name (`slug` or `category/slug`) and optional explicit category into a
+     * lowercase single-segment `name` + `category` compatible with Fork `_validate_name()`.
+     */
+    public static SkillLocation resolveSkillLocation(String rawName, String rawCategory) {
+        String normalized = validateNewSkillName(rawName);
+        String explicitCat = sanitizeFrontmatterValue(rawCategory);
+        int slash = normalized.indexOf('/');
+        if (slash > 0) {
+            String derivedCat = normalized.substring(0, slash);
+            String slug = normalized.substring(slash + 1);
+            return new SkillLocation(slug, explicitCat.isEmpty() ? derivedCat : explicitCat);
+        }
+        return new SkillLocation(normalized, explicitCat);
     }
 
     /** Validate raw SKILL.md content before creating or saving. */
@@ -99,21 +124,38 @@ public final class SkillStudioModel {
         return content;
     }
 
-    /** Compose a clean SKILL.md document from friendly non-technical fields (no manual YAML needed). */
+    /**
+     * Compose a clean SKILL.md document from friendly non-technical fields (no manual YAML needed).
+     * Always emits a lowercase single-segment `name:` and non-empty `description:` required by Fork frontmatter validation.
+     */
     public static String buildSkillDocument(String name, String description, String category, String instructions) {
-        String validName = validateNewSkillName(name);
+        SkillLocation loc = resolveSkillLocation(name, category);
         String body = validateContent(instructions).trim();
         String cleanDesc = sanitizeFrontmatterValue(description);
-        String cleanCat = sanitizeFrontmatterValue(category);
+        if (cleanDesc.isEmpty()) {
+            cleanDesc = deriveDescription(body, loc.name());
+        }
 
         StringBuilder doc = new StringBuilder();
         doc.append("---\n");
-        doc.append("name: ").append(validName).append('\n');
-        if (!cleanDesc.isEmpty()) doc.append("description: ").append(quoteYaml(cleanDesc)).append('\n');
-        if (!cleanCat.isEmpty()) doc.append("category: ").append(quoteYaml(cleanCat)).append('\n');
+        doc.append("name: ").append(loc.name()).append('\n');
+        doc.append("description: ").append(quoteYaml(cleanDesc)).append('\n');
+        if (!loc.category().isEmpty()) doc.append("category: ").append(quoteYaml(loc.category())).append('\n');
         doc.append("---\n\n");
         doc.append(body).append('\n');
         return doc.toString();
+    }
+
+    private static String deriveDescription(String body, String fallbackName) {
+        for (String line : body.split("\\r?\\n")) {
+            String cleaned = line.trim().replaceFirst("^[#*\\->\\s]+", "").trim();
+            if (!cleaned.isEmpty()) {
+                return cleaned.length() > MAX_FALLBACK_DESC_CHARS
+                        ? cleaned.substring(0, MAX_FALLBACK_DESC_CHARS).trim()
+                        : cleaned;
+            }
+        }
+        return fallbackName;
     }
 
     public static String draftPromptForSkill(String skillName) {
