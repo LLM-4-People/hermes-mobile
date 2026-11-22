@@ -1,0 +1,43 @@
+{
+  "app_revision": "260b9d021f6ae2789fd5cda51fde283aebf94f97",
+  "gateway_revision": "e6fb58c38a9de17f257d597703066f90149d3bc9",
+  "apk_sha256": "be55b43369e5685a351de62ae471487faae62e41ab1e8467e6d96e3e445d841b",
+  "model": "OpenVINO/Qwen2.5-Coder-7B-Instruct-int4-ov",
+  "model_sha256": "dac6b4bc81ab5b0c555b3d8abbfb0ebe3740d2b97d2a484c4b6561f2a08fd250",
+  "runtime": "OpenVINO GenAI 2026.4.1, two CPU threads, greedy decoding, 4× YaRN",
+  "turns": [
+    {
+      "source_message_id": "2",
+      "assistant_output": "```hermes-workspace\n{\"version\":1,\"surface\":\"page/revue-remises\",\"mode\":\"replace\",\"title\":\"Revue des remises\",\"blocks\":[{\"type\":\"form\",\"title\":\"Remise de code\",\"prompt\":\"Prépare cette demande de revue de code.\",\"fields\":[{\"id\":\"nom-fichier\",\"label\":\"Nom du fichier\",\"kind\":\"text\",\"required\":true},{\"id\":\"point-revise\",\"label\":\"Point de revue\",\"kind\":\"text\",\"required\":true}]}]}\n```",
+      "assistant_output_sha256": "5b19cee481555b8aa5589d0e406779c57742a0675df2de4e44d4b83ea52bc647"
+    },
+    {
+      "source_message_id": "5",
+      "assistant_output": "```hermes-workspace\n{\"version\":1,\"surface\":\"page/revue-remises\",\"mode\":\"replace\",\"title\":\"Revue des remises\",\"blocks\":[{\"type\":\"form\",\"title\":\"Remise de code\",\"prompt\":\"Prépare cette demande de revue de code.\",\"fields\":[{\"id\":\"nom-fichier\",\"label\":\"Nom du fichier\",\"kind\":\"text\",\"required\":true},{\"id\":\"point-revise\",\"label\":\"Point de revue\",\"kind\":\"text\",\"required\":true},{\"id\":\"priorite\",\"label\":\"Priorité\",\"kind\":\"choice\",\"options\":[\"Aujourd'hui\",\"À traiter plus tard\"],\"required\":true}]}]}\n```",
+      "assistant_output_sha256": "20ce0ed5c3bea981ca678b33c566e2ac7d2ef9d6a569cb4ee35ecf82d3b4caa9"
+    }
+  ],
+  "app_submitted_turns": 0,
+  "captures": {
+    "30-formulaire-modele-local.png": {
+      "width": 780,
+      "height": 1560,
+      "sha256": "0e9fc7dbbd7a4f0f714e3732d5c087df3d61b45600f5eab5eab70f5385e8ab63"
+    },
+    "31-discussion-modele-local.png": {
+      "width": 780,
+      "height": 1560,
+      "sha256": "05e129cf26d108fca97784112f9df8b105f5805d5b7b0dd0099efda71d532a1b"
+    },
+    "32-revision-modele-local.png": {
+      "width": 780,
+      "height": 1560,
+      "sha256": "fc7c2e5d11f63d3e9186dda2f41a474f8f91043a97806a74a678e22978a7e27e"
+    },
+    "33-priorite-modele-local.png": {
+      "width": 780,
+      "height": 1560,
+      "sha256": "982b72a4be9ce83fc7ed7026b0cbcafa1856668ddfb7c9b21de8bdfdb691b7a7"
+    }
+  }
+}

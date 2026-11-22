@@ -22,7 +22,7 @@ Tap **Écouter** on a question or choose **Écouter la dernière réponse** from
 
 ## Turn a review into a reusable tool
 
-Ask Hermes « Transforme cette revue de code en un outil pour ce fil. » Try the form in the reply, enter a file and goal, and pin it to the discussion. On a wide display the form sits beside the conversation. Ask « Ajoute un champ de priorité. » You can inspect the pinned form, the proposed form, and the specific changes before adopting a version. Preparing a message from the form leaves its text in your composer until you send it. [Working with generated tools](docs/workspace.md)
+Ask Hermes « Transforme cette revue de code en un outil pour ce fil. » Try the form in the reply, enter a file and goal, and pin it to the discussion. On a wide display the form sits beside the conversation. Ask « Ajoute un champ de priorité. » You can inspect the pinned form, the proposed form, and the specific changes before adopting a version. Preparing a message from the form leaves its text in your composer until you send it. [Working with generated tools](docs/workspace.md) · [See a code review become a form on Android](docs/local-model-review.md)
 
 ## Work in a discussion
 

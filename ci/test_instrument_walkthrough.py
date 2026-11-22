@@ -13,7 +13,7 @@ import unittest
 import zlib
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "verification"))
-from device.run import PNG_SIGNATURE
+from device.run import PNG_SIGNATURE, android_png_size
 from instrument_walkthrough import STEPS, write_walkthrough
 from thread_instruments import CAPTURES
 
@@ -136,3 +136,20 @@ class InstrumentWalkthroughTest(unittest.TestCase):
                 self.save()
                 with self.assertRaises(ValueError):
                     self.export()
+
+
+class PublishedModelExampleTest(unittest.TestCase):
+    def test_recorded_replies_and_images_match_the_receipt(self):
+        directory = Path(__file__).resolve().parents[1] / "docs/examples/revue-des-remises"
+        receipt = json.loads((directory / "receipt.json").read_text(encoding="utf-8"))
+        self.assertEqual(2, len(receipt["turns"]))
+        for turn in receipt["turns"]:
+            digest = hashlib.sha256(turn["assistant_output"].encode("utf-8")).hexdigest()
+            self.assertEqual(turn["assistant_output_sha256"], digest)
+        captures = receipt["captures"]
+        self.assertEqual(4, len(captures))
+        self.assertEqual(set(captures), {p.name for p in directory.glob("*.png")})
+        for name, capture in captures.items():
+            image = (directory / name).read_bytes()
+            self.assertEqual(capture["sha256"], hashlib.sha256(image).hexdigest())
+            self.assertEqual((capture["width"], capture["height"]), android_png_size(image, name))
