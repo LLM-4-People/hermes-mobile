@@ -51,6 +51,35 @@ public class ThreadStateTest extends TestCase {
         assertFalse(ThreadIdentity.hasPendingPrompt("thread", "run", "approval", legacy));
     }
 
+    public void testStandaloneApprovalNoticeUsesAuthoritativeArrayBeforeCompatibilityApproval() throws Exception {
+        JSONObject nativePrompt = new JSONObject().put("event", "approval.request").put("request_id", "a")
+                .put("run_id", "run").put("choices", new JSONArray().put("once").put("deny"));
+        JSONArray controls = new JSONArray().put(nativePrompt);
+        JSONObject status = new JSONObject().put("session_id", "thread").put("run_id", "run")
+                .put("status", "waiting_for_approval").put("pending_controls", controls)
+                .put("approval", new JSONObject().put("request_id", "outdated"));
+        assertTrue(ThreadIdentity.hasPendingPrompt("thread", "run", "approval", status));
+        assertFalse(ThreadIdentity.hasPendingPrompt("thread", "run", "clarify", status));
+        nativePrompt.put("run_id", "foreign");
+        assertFalse(ThreadIdentity.hasPendingPrompt("thread", "run", "approval", status));
+        nativePrompt.put("run_id", "run").put("session_id", "foreign");
+        assertFalse(ThreadIdentity.hasPendingPrompt("thread", "run", "approval", status));
+        nativePrompt.remove("session_id");
+        nativePrompt.put("event", "approval.settled");
+        assertFalse(ThreadIdentity.hasPendingPrompt("thread", "run", "approval", status));
+        nativePrompt.put("event", "approval.request").put("type", "clarify");
+        assertFalse(ThreadIdentity.hasPendingPrompt("thread", "run", "approval", status));
+        nativePrompt.remove("type");
+        nativePrompt.put("request_id", "");
+        assertFalse(ThreadIdentity.hasPendingPrompt("thread", "run", "approval", status));
+        nativePrompt.put("request_id", "a").put("execution_generation", 1);
+        assertFalse(ThreadIdentity.hasPendingPrompt("thread", "run", "approval", status));
+        status.put("pending_controls", new JSONArray());
+        assertFalse(ThreadIdentity.hasPendingPrompt("thread", "run", "approval", status));
+        status.put("pending_controls", JSONObject.NULL);
+        assertFalse(ThreadIdentity.hasPendingPrompt("thread", "run", "approval", status));
+    }
+
     public void testObservedRunSurvivesRestartAndRestoresOriginalAdmissionAndDraft() {
         AtomicReference<String> saved = new AtomicReference<>();
         ThreadJournal journal = new ThreadJournal("thread", "scope", null, saved::set);
