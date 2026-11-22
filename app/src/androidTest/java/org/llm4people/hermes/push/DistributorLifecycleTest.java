@@ -1,5 +1,7 @@
 package org.llm4people.hermes.push;
 
+import android.app.job.JobInfo;
+import android.app.job.JobScheduler;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.ContextWrapper;
@@ -10,7 +12,6 @@ import android.os.Bundle;
 import android.os.ParcelFileDescriptor;
 import android.test.InstrumentationTestCase;
 
-import org.unifiedpush.android.connector.FailedReason;
 import org.unifiedpush.android.connector.UnifiedPush;
 
 import java.io.IOException;
@@ -101,7 +102,15 @@ public final class DistributorLifecycleTest extends InstrumentationTestCase {
         PushStore.Device other = prepare();
         String second = register(other);
         assertFalse(initial.equals(second));
-        assertTrue(store.registrationFailed(owner, FailedReason.NETWORK, 1L));
+        new DistributorReceiver().process(context, new Intent(CONNECTOR + "REGISTRATION_FAILED")
+                .putExtra("token", initial).putExtra("reason", "NETWORK"));
+        PushStore.Device waiting = store.forProfile(owner.profile);
+        assertTrue(waiting.retryAt > System.currentTimeMillis());
+        assertTrue(context.getSystemService(JobScheduler.class).getAllPendingJobs().stream().anyMatch(job ->
+                job.isPersisted() && job.getNetworkType() == JobInfo.NETWORK_TYPE_ANY
+                        && job.getExtras().getLong("due") == waiting.retryAt));
+        // Make the stored retry due immediately without sleeping or changing connectivity.
+        store.getWritableDatabase().execSQL("UPDATE devices SET retry_at=1 WHERE installation=?", new Object[]{owner.installation});
         String renewed = register(store.forInstallation(owner.installation));
         assertFalse(initial.equals(renewed));
         assertEquals(second, register(other));
