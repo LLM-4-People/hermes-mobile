@@ -148,6 +148,9 @@ final class PromptCard extends LinearLayout {
     }
 
     private static void enabled(View view, boolean enabled) {
+        // Disabling an Android text editor moves its selection and dismisses the keyboard.
+        // The answer travels only through the separate, fenced submission action.
+        if (view instanceof android.widget.EditText) return;
         view.setEnabled(enabled);
         if (view instanceof android.view.ViewGroup group) {
             for (int i = 0; i < group.getChildCount(); i++) enabled(group.getChildAt(i), enabled);
