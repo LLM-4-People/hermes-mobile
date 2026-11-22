@@ -3,9 +3,13 @@ package org.llm4people.hermes.thread;
 import android.os.SystemClock;
 
 import org.json.JSONObject;
+import org.llm4people.hermes.Diagnostics;
+import org.llm4people.hermes.artifact.LiveUiPatch;
 import org.llm4people.hermes.net.HermesApi;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.LongSupplier;
 
@@ -25,20 +29,27 @@ final class RunFollower implements AutoCloseable {
         final int highSurrogate;
         final String activity;
         final List<JSONObject> prompts;
+        final List<JSONObject> uiPatches;
 
         Frame(long seq, RunPreview preview, String activity, List<JSONObject> prompts) {
+            this(seq, preview, activity, prompts, Collections.emptyList());
+        }
+
+        Frame(long seq, RunPreview preview, String activity, List<JSONObject> prompts, List<JSONObject> uiPatches) {
             this.seq = seq;
             text = preview.toString();
             origin = preview.origin();
             highSurrogate = preview.pendingHighSurrogate();
             this.activity = activity;
             this.prompts = prompts;
+            this.uiPatches = uiPatches == null ? Collections.emptyList() : uiPatches;
         }
     }
 
     static final int PREVIEW_LIMIT = RunPreview.LIMIT;
     static final int PAINT_INTERVAL_MS = 80;
     private static final long CONTROL_CHECK_MS = 5_000;
+    private static final int MAX_PENDING_PATCHES = 8;
     private final HermesApi api;
     private final String run;
     private final Listener listener;
@@ -50,6 +61,7 @@ final class RunFollower implements AutoCloseable {
     private long firstText = -1;
     private String activity = "Hermes travaille…";
     private final RunPrompts controls = new RunPrompts();
+    private final List<JSONObject> pendingUiPatches = new ArrayList<>();
     private long controlsCheckedAt;
     private volatile boolean closed;
     private HermesApi.RunEvents stream;
@@ -188,6 +200,16 @@ final class RunFollower implements AutoCloseable {
                 controls.settle(event);
                 activity = "Hermes travaille…";
                 break;
+            case "ui.patch":
+            case "surface.update":
+                if (event.toString().length() > LiveUiPatch.MAX_PATCH_BYTES) {
+                    Diagnostics.warning("live_ui", "sse_patch_oversized");
+                } else {
+                    if (pendingUiPatches.size() >= MAX_PENDING_PATCHES) pendingUiPatches.remove(0);
+                    pendingUiPatches.add(event);
+                    activity = "Hermes propose une amélioration d’écran";
+                }
+                break;
             default:
                 break;
         }
@@ -198,7 +220,11 @@ final class RunFollower implements AutoCloseable {
     private void publish() {
         if (!closed) {
             textAwaitingPaint = false;
-            listener.update(new Frame(seq, preview, activity, controls.snapshot()));
+            List<JSONObject> patches = pendingUiPatches.isEmpty()
+                    ? Collections.emptyList()
+                    : Collections.unmodifiableList(new ArrayList<>(pendingUiPatches));
+            pendingUiPatches.clear();
+            listener.update(new Frame(seq, preview, activity, controls.snapshot(), patches));
         }
     }
 

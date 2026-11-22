@@ -93,6 +93,14 @@ public final class ArtifactDesk {
         }
         String[] surfaces = all.keySet().toArray(new String[0]);
         String[] labels = all.values().toArray(new String[0]);
+        LiveUiPatch.StateManager liveUi = LiveUiPatch.StateManager.forAccount(account, ThemePalette.isNight(activity));
+        if (liveUi.canRollback()) {
+            controls.setNeutralButton("Historique des modifications", (d, w) ->
+                    LiveUiPatchBar.showHistoryDialog(activity, liveUi, revId -> SurfaceRenderer.change(activity, host, () -> {
+                        try { liveUi.rollbackTo(revId); }
+                        catch (IOException e) { Diagnostics.warning("live_ui", "rollback_failed"); }
+                    })));
+        }
         DeskDialogs.open(activity, controls.setItems(labels, (d, which) -> SurfaceRenderer.controls(activity,
                         new LayoutHistory(account, surfaces[which]), host))
                 .setNegativeButton("Fermer", null));

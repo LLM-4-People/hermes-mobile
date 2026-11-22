@@ -295,6 +295,9 @@ final class ThreadRun {
                             ? "Hermes attend votre réponse" : count + " demandes en attente";
                     ui.live(activity, next.text, count > 0, next.origin);
                     decisions.present(next.prompts);
+                    if (!next.uiPatches.isEmpty()) {
+                        for (JSONObject rawPatch : next.uiPatches) page.onLiveUiPatch(rawPatch);
+                    }
                     ui.notice("", "", null);
                 });
             }
@@ -426,6 +429,7 @@ final class ThreadRun {
             }
             ui.live("completed".equals(outcome) && (output.isEmpty() || visible) ? "" : summary,
                     visible ? "" : output, false);
+            if (status.has("suggested_actions")) page.onSuggestedActions(status.opt("suggested_actions"));
             ui.notice("", "", null);
         }), keepPosition);
     }

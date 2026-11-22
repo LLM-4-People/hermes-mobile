@@ -122,15 +122,19 @@ final class WorkspaceForms {
     }
 
     private static void review(Activity a, ArtifactDesk.Host host, String draft) {
+        reviewDraft(a, host, draft);
+    }
+
+    static void reviewDraft(Activity a, ArtifactDesk.Host host, String draft) {
         LinearLayout wrap = Ui.column(a);
-        Ui.pad(wrap,20,6);
-        EditText edit = editor(a,true,12000);
+        Ui.pad(wrap, 20, 6);
+        EditText edit = editor(a, true, 12000);
         edit.setText(draft);
         edit.setSelection(edit.length());
         wrap.addView(edit);
-        AlertDialog dialog = DeskDialogs.open(a,host,new AlertDialog.Builder(a)
+        AlertDialog dialog = DeskDialogs.open(a, host, new AlertDialog.Builder(a)
                 .setTitle("Relire le brouillon").setMessage("Vous pourrez le modifier et l’envoyer depuis la conversation.")
-                .setView(wrap).setNegativeButton("Annuler",null).setPositiveButton("Vers le brouillon",null));
+                .setView(wrap).setNegativeButton("Annuler", null).setPositiveButton("Vers le brouillon", null));
         if (dialog != null) dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
             if (!dialog.isShowing()) return;
             String text = edit.getText().toString();

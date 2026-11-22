@@ -60,7 +60,15 @@ final class InstrumentIdentity {
     private static boolean identical(WorkspaceLayout.Block a, WorkspaceLayout.Block b) {
         if (!matches(a, b, true) || !a.note.equals(b.note) || !a.actions.equals(b.actions)
                 || !Objects.equals(a.page, b.page) || !Objects.equals(a.source, b.source)
-                || !Objects.equals(a.request, b.request) || !Objects.equals(a.prompt, b.prompt)) return false;
+                || !Objects.equals(a.request, b.request) || !Objects.equals(a.prompt, b.prompt)
+                || !Objects.equals(a.category, b.category) || a.radiusMeters != b.radiusMeters || a.limit != b.limit
+                || !Objects.equals(a.metrics, b.metrics) || !Objects.equals(a.table, b.table)
+                || !Objects.equals(a.controls, b.controls) || !Objects.equals(a.stateKey, b.stateKey)) return false;
+        if ((a.sparkline == null) != (b.sparkline == null)) return false;
+        if (a.sparkline != null && (!a.sparkline.values.equals(b.sparkline.values)
+                || !a.sparkline.style.equals(b.sparkline.style) || !a.sparkline.caption.equals(b.sparkline.caption))) {
+            return false;
+        }
         if (a.fields == null) return b.fields == null;
         if (a.fields.size() != b.fields.size()) return false;
         for (int i = 0; i < a.fields.size(); i++) {

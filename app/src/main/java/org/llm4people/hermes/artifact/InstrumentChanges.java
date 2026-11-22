@@ -148,10 +148,28 @@ final class InstrumentChanges {
                 if (!block.note.isEmpty()) items.add(block.note);
                 for (String id : block.actions) items.add(WorkspaceLayout.ACTIONS.get(id));
             }
-            case "nearby_places" -> items.add("Guide des restaurants de la zone choisie, selon OpenStreetMap.");
+            case "nearby_places" -> items.add(block.title + ", selon OpenStreetMap.");
             case "device" -> items.add(block.request.preview());
             case "link" -> items.add("Ouvrir " + block.page);
             case "value" -> items.add(WorkspaceBlocks.sourceLabel(block.source));
+            case "metric_grid" -> {
+                if (block.metrics != null) {
+                    for (MetricGridBlock.Item m : block.metrics) items.add(m.label + " : " + m.formattedValue(""));
+                }
+            }
+            case "sparkline" -> {
+                if (block.sparkline != null) items.add(block.sparkline.accessibilitySummary());
+            }
+            case "table" -> {
+                if (block.table != null) {
+                    items.add(block.table.columns.size() + " colonnes · " + block.table.rows.size() + " lignes");
+                }
+            }
+            case "controls" -> {
+                if (block.controls != null) {
+                    for (InteractiveControlsBlock.Control ctrl : block.controls) items.add(ctrl.label);
+                }
+            }
         }
         return String.join("\n\n", items);
     }
@@ -162,7 +180,13 @@ final class InstrumentChanges {
     }
 
     private static String lines(List<String> values) { return String.join("\n", values); }
-    private static String density(String value) { return "compact".equals(value) ? "Compacte" : "Confortable"; }
+    private static String density(String value) {
+        return switch (value) {
+            case "compact" -> "Compacte";
+            case "spacious" -> "Aérée";
+            default -> "Confortable";
+        };
+    }
     private static String appearance(String theme) {
         return switch (theme) { case "light" -> "Claire"; case "dark" -> "Sombre"; default -> "Système"; };
     }

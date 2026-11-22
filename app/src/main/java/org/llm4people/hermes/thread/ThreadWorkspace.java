@@ -12,6 +12,10 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.artifact.ArtifactDesk;
+import org.llm4people.hermes.artifact.HomePinBridge;
+import org.llm4people.hermes.artifact.LiveUiPatch;
+import org.llm4people.hermes.artifact.LiveUiPatchBar;
+import org.llm4people.hermes.artifact.ThemePalette;
 import org.llm4people.hermes.artifact.ThreadInstruments;
 import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.profile.Account;
@@ -131,6 +135,7 @@ public final class ThreadWorkspace implements AutoCloseable {
     public void dismissDialogs() { if (screen != null) screen.dismiss(); }
     public String sessionId() { return session; }
     public String remoteSessionId() { return remoteSession; }
+    Account account() { return account; }
     public String title() { return session == null ? "" : title; }
     public String messageCount() { return session == null || messageCount < 0 ? "" : Long.toString(messageCount); }
 
@@ -496,6 +501,7 @@ public final class ThreadWorkspace implements AutoCloseable {
                 () -> { if (owner == journal && !closed) loadMessages(true, null); });
         refreshPhoto();
         nearby.restore();
+        attachLiveUiControls();
         if (instrumentHost != null) {
             instruments = new ThreadInstrumentPanel(this, new ThreadInstruments(account, id), instrumentHost);
             screen.instruments = instruments;
@@ -783,6 +789,96 @@ public final class ThreadWorkspace implements AutoCloseable {
     }
 
     String failureDetail(JSONObject status) { return ThreadData.failureDetail(status, account.bearer); }
+
+    void onSuggestedActions(Object rawSuggestedActions) {
+        if (closed || screen == null) return;
+        try {
+            List<LiveUiPatch.SuggestedAction> actions = LiveUiPatch.parseSuggestedActions(rawSuggestedActions);
+            ThemePalette palette = ThemePalette.active(activity, account);
+            screen.suggestedActions(actions, palette,
+                    this::stageDraft,
+                    page -> { if (instrumentHost != null) instrumentHost.openWorkspace(page); },
+                    action -> { if (instrumentHost != null) instrumentHost.onAction(action); });
+        } catch (java.io.IOException rejected) {
+            Diagnostics.warning("live_ui", "suggested_actions_rejected");
+        }
+    }
+
+    void onLiveUiPatch(JSONObject rawPatch) {
+        if (closed || screen == null || screen.liveUiBar == null || rawPatch == null) return;
+        try {
+            LiveUiPatch patch = LiveUiPatch.parse(rawPatch, ThemePalette.isNight(activity));
+            screen.liveUiBar.present(patch);
+            if (!patch.suggestedActions.isEmpty()) {
+                ThemePalette palette = ThemePalette.active(activity, account);
+                screen.suggestedActions(patch.suggestedActions, palette,
+                        this::stageDraft,
+                        page -> { if (instrumentHost != null) instrumentHost.openWorkspace(page); },
+                        action -> { if (instrumentHost != null) instrumentHost.onAction(action); });
+            }
+            Diagnostics.event("live_ui", "patch_presented");
+        } catch (java.io.IOException rejected) {
+            Diagnostics.warning("live_ui", "patch_rejected");
+        }
+    }
+
+    private void attachLiveUiControls() {
+        if (screen == null || account == null) return;
+        screen.attachLiveUiBar(new LiveUiPatchBar.Listener() {
+            @Override public void onApply(LiveUiPatch patch) {
+                if (closed) return;
+                try {
+                    LiveUiPatch.StateManager manager = LiveUiPatch.StateManager.forAccount(account, ThemePalette.isNight(activity));
+                    manager.apply(patch);
+                    if (screen != null && screen.liveUiBar != null) screen.liveUiBar.showApplied(patch);
+                    refreshQuickActions();
+                    for (LiveUiPatch.Op op : patch.ops) {
+                        if (op instanceof LiveUiPatch.Op.UpsertWidget uw) {
+                            HomePinBridge.notifyWidgetUpdated(activity, uw.widget().widgetId);
+                        }
+                    }
+                    if (instrumentHost != null) instrumentHost.onLayoutChanged();
+                    request(() -> api.applyMobileUiRevision(patch.revisionId),
+                            ignored -> Diagnostics.event("live_ui", "server_applied"),
+                            ignored -> Diagnostics.event("live_ui", "server_apply_skipped"));
+                } catch (java.io.IOException | IllegalStateException e) {
+                    Diagnostics.warning("live_ui", "apply_failed");
+                    if (screen != null) screen.notice("Impossible d’appliquer cette modification d’écran.", "", null);
+                }
+            }
+
+            @Override public void onRollback(String revisionId) {
+                if (closed) return;
+                try {
+                    LiveUiPatch.StateManager manager = LiveUiPatch.StateManager.forAccount(account, ThemePalette.isNight(activity));
+                    manager.rollbackTo(revisionId);
+                    if (screen != null && screen.liveUiBar != null) screen.liveUiBar.showReverted();
+                    refreshQuickActions();
+                    if (instrumentHost != null) instrumentHost.onLayoutChanged();
+                    request(() -> api.revertMobileUiRevision(revisionId),
+                            ignored -> Diagnostics.event("live_ui", "server_reverted"),
+                            ignored -> Diagnostics.event("live_ui", "server_revert_skipped"));
+                } catch (java.io.IOException | IllegalStateException e) {
+                    Diagnostics.warning("live_ui", "rollback_failed");
+                    if (screen != null) screen.notice("Impossible d’annuler cette modification.", "", null);
+                }
+            }
+
+            @Override public void onDismiss(LiveUiPatch patch) {
+                Diagnostics.event("live_ui", "patch_dismissed");
+            }
+        });
+        refreshQuickActions();
+    }
+
+    private void refreshQuickActions() {
+        if (closed || screen == null || account == null) return;
+        ThemePalette palette = ThemePalette.active(activity, account);
+        LiveUiPatch.StateManager manager = LiveUiPatch.StateManager.forAccount(account, palette.night);
+        screen.quickActions(manager.quickActions(), palette,
+                this::stageDraft,
+                page -> { if (instrumentHost != null) instrumentHost.openWorkspace(page); });
+    }
 
     void storageError() {
         Diagnostics.event("threads", "storage_failed");

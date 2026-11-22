@@ -27,10 +27,19 @@ public final class InstrumentPreview {
 
     /** Builds a transient, editable page with the same native controls and draft review as an installed page. */
     public static View render(Activity activity, String pageJson, ArtifactDesk.Host host) {
+        return render(activity, pageJson, host, null, "thread");
+    }
+
+    /** Builds a transient, editable page with profile-scoped theme and encrypted local tool state. */
+    public static View render(Activity activity, String pageJson, ArtifactDesk.Host host,
+                              org.llm4people.hermes.profile.Account account, String stateScope) {
         Objects.requireNonNull(host);
         try {
             WorkspaceLayout page = page(pageJson);
-            return SurfaceRenderer.pageContent(SurfaceRenderer.palette(activity, page), activity, page, host, false);
+            Context ctx = SurfaceRenderer.palette(activity, page);
+            ThemePalette palette = SurfaceRenderer.resolvePalette(ctx, account, page);
+            InstrumentStateStore store = account == null ? null : InstrumentStateStore.forAccount(account);
+            return SurfaceRenderer.pageContent(ctx, activity, page, host, palette, store, stateScope, false);
         } catch (IOException invalid) {
             return status(activity, "Aperçu indisponible. Rouvrez la proposition depuis la discussion.");
         }

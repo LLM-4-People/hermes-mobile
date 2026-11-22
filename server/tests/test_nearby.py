@@ -76,7 +76,9 @@ class NearbyHTTP(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(result["attribution"], "© OpenStreetMap contributors")
         self.assertEqual(result["source_date"], "2026-11-22T07:27:46Z")
+        self.assertEqual(result["category"], "restaurant")
         self.assertEqual(result["radius_m"], 1500)
+        self.assertEqual(result["limit"], 12)
         self.assertEqual(len(result["places"]), 12)
         first, second = result["places"][:2]
         self.assertEqual(
@@ -218,6 +220,158 @@ class NearbyHTTP(unittest.IsolatedAsyncioTestCase):
             "https://example.org/path?a=1",
         ):
             self.assertIsNone(endpoint(value))
+
+    async def test_generalized_osm_categories_radius_limit_and_tags(self):
+        from server.nearby.config import CATEGORIES
+
+        expected_categories = {
+            "restaurant",
+            "cafe",
+            "bakery",
+            "pharmacy",
+            "transit",
+            "park",
+            "grocery",
+            "bookshop",
+            "coworking",
+        }
+        self.assertEqual(set(CATEGORIES), expected_categories)
+
+        self.dataset["elements"] = [
+            {
+                "type": "node",
+                "id": 101,
+                "lat": 45.511,
+                "lon": -73.571,
+                "tags": {
+                    "amenity": "cafe",
+                    "name": "Café Olimpico",
+                    "wheelchair": "yes",
+                    "internet_access": "wlan",
+                    "takeaway": "yes",
+                    "outdoor_seating": "yes",
+                    "opening_hours": "24/7",
+                },
+            },
+            {
+                "type": "node",
+                "id": 102,
+                "lat": 45.535,
+                "lon": -73.571,
+                "tags": {"amenity": "cafe", "name": "Café Lointain"},
+            },
+            {
+                "type": "node",
+                "id": 103,
+                "lat": 45.511,
+                "lon": -73.571,
+                "tags": {"amenity": "pharmacy", "name": "Pharmacie du Parc"},
+            },
+            {
+                "type": "way",
+                "id": 104,
+                "center": {"lat": 45.512, "lon": -73.572},
+                "tags": {"railway": "subway_entrance", "name": "Métro Place-des-Arts"},
+            },
+            {
+                "type": "node",
+                "id": 105,
+                "lat": 45.512,
+                "lon": -73.571,
+                "tags": {"shop": "supermarket", "name": "Épicerie Locale"},
+            },
+            {
+                "type": "node",
+                "id": 106,
+                "lat": 45.512,
+                "lon": -73.571,
+                "tags": {"shop": "books", "name": "Librairie Saint-Denis"},
+            },
+            {
+                "type": "node",
+                "id": 107,
+                "lat": 45.512,
+                "lon": -73.571,
+                "tags": {"amenity": "coworking_space", "name": "Atelier Partagé"},
+            },
+            {
+                "type": "node",
+                "id": 108,
+                "lat": 45.512,
+                "lon": -73.571,
+                "tags": {"shop": "bakery", "name": "Boulangerie Automne"},
+            },
+            {
+                "type": "way",
+                "id": 109,
+                "center": {"lat": 45.512, "lon": -73.571},
+                "tags": {"leisure": "park", "name": "Parc Jeanne-Mance"},
+            },
+        ]
+
+        # Narrow radius (500m) excludes Café Lointain (~2.7km away); wider radius (3500m) includes it.
+        resp_narrow = await self.lookup({**AREA, "category": "cafe", "radius_m": 500, "limit": 6})
+        self.assertEqual(resp_narrow.status, 200)
+        body_narrow = await resp_narrow.json()
+        self.assertEqual(body_narrow["category"], "cafe")
+        self.assertEqual(body_narrow["radius_m"], 500)
+        self.assertEqual(body_narrow["limit"], 6)
+        self.assertEqual([p["name"] for p in body_narrow["places"]], ["Café Olimpico"])
+        self.assertEqual(
+            body_narrow["places"][0]["tags"],
+            ["wheelchair", "takeaway", "wifi", "24/7", "outdoor_seating"],
+        )
+
+        resp_wide = await self.lookup({**AREA, "category": "cafe", "radius_m": 3500, "limit": 24})
+        self.assertEqual(resp_wide.status, 200)
+        body_wide = await resp_wide.json()
+        self.assertEqual(body_wide["radius_m"], 3500)
+        self.assertEqual(body_wide["limit"], 24)
+        self.assertEqual([p["name"] for p in body_wide["places"]], ["Café Olimpico", "Café Lointain"])
+
+        # Multi-selector union query categories (transit, grocery) and single-selector categories.
+        for category, expected_name in (
+            ("pharmacy", "Pharmacie du Parc"),
+            ("transit", "Métro Place-des-Arts"),
+            ("grocery", "Épicerie Locale"),
+            ("bookshop", "Librairie Saint-Denis"),
+            ("coworking", "Atelier Partagé"),
+            ("bakery", "Boulangerie Automne"),
+            ("park", "Parc Jeanne-Mance"),
+        ):
+            with self.subTest(category=category):
+                resp = await self.lookup({**AREA, "category": category, "radius_m": 1500, "limit": 10})
+                self.assertEqual(resp.status, 200)
+                data = await resp.json()
+                self.assertEqual(data["category"], category)
+                self.assertEqual([p["name"] for p in data["places"]], [expected_name])
+
+    async def test_invalid_category_and_bounds_return_400_before_network(self):
+        with self.assertLogs("hermes.mobile.nearby", logging.WARNING) as logs:
+            for bad_category in ("", "bar", "nuclear_plant", "restaurant;drop", 123, None):
+                with self.subTest(bad_category=bad_category):
+                    resp = await self.lookup({**AREA, "category": bad_category})
+                    self.assertEqual(resp.status, 400)
+                    self.assertEqual(await resp.json(), {"error": "invalid_category"})
+            for bad_payload in (
+                {**AREA, "radius_m": 499},
+                {**AREA, "radius_m": 5001},
+                {**AREA, "radius_m": True},
+                {**AREA, "radius_m": "1500"},
+                {**AREA, "limit": 5},
+                {**AREA, "limit": 25},
+                {**AREA, "limit": False},
+                {**AREA, "limit": 12.5},
+            ):
+                with self.subTest(bad_payload=bad_payload):
+                    resp = await self.lookup(bad_payload)
+                    self.assertEqual(resp.status, 400)
+                    self.assertEqual(await resp.json(), {"error": "invalid_area"})
+        self.assertFalse(self.sent)
+        self.assertTrue(any("nearby.invalid_category" in line for line in logs.output))
+        self.assertTrue(any("nearby.invalid_area" in line for line in logs.output))
+        self.assertNotIn("45.51", "\n".join(logs.output))
+        self.assertNotIn("-73.57", "\n".join(logs.output))
 
 
 class NearbyFork(unittest.TestCase):
