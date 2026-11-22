@@ -1,4 +1,3 @@
-import logging
 import random
 import sqlite3
 import time
@@ -6,8 +5,12 @@ from .events import PROMPT_KINDS, WITHDRAWAL_KINDS
 from .ledgers import HermesLedgers
 from .provider import ProviderError, lifetime
 
+try:
+    from server.logging_util import get_logger
+except ImportError:
+    from logging_util import get_logger
 
-log = logging.getLogger("hermes.mobile.push")
+log = get_logger("push")
 
 
 def scan_loop(settings, store, stopped, changed):

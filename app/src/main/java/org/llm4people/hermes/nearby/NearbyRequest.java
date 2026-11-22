@@ -1,5 +1,7 @@
 package org.llm4people.hermes.nearby;
 
+import org.llm4people.hermes.HermesConfig;
+
 import java.util.function.Consumer;
 
 /** A single foreground operation. All commands and provider callbacks run on the UI thread. */
@@ -12,7 +14,8 @@ final class NearbyRequest {
         void close();
     }
 
-    private static final int TIMEOUT_MS = 12_000;
+    private static final int TIMEOUT_MS = HermesConfig.DEFAULT_NEARBY_TIMEOUT_MS;
+    private static final int FUSED_GRACE_MS = HermesConfig.DEFAULT_NEARBY_FUSED_GRACE_MS;
     private final Source source;
     private final Consumer<CoarseArea> result;
     private boolean closed;
@@ -33,7 +36,7 @@ final class NearbyRequest {
         source.after(TIMEOUT_MS, () -> finish(null));
         if (supportsFused) {
             fusedPending = true;
-            source.after(4_000, this::network);
+            source.after(FUSED_GRACE_MS, this::network);
             source.read(true, area -> receive(true, area));
         } else {
             network();

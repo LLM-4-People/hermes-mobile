@@ -1,4 +1,5 @@
 import hashlib
+import logging
 import os
 from pathlib import Path
 import tempfile
@@ -37,6 +38,7 @@ class FileRoutesTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(anonymous.status, 401)
         self.assertEqual((await self.client.get('/api/mobile/files/s1/' + self.ident)).status, 401)
         listing = await (await self.get('s1')).json()
+        self.assertEqual(listing['max_artifact_bytes'], store.DEFAULT_LIMIT)
         self.assertEqual(listing['data'][0]['sha256'], hashlib.sha256(self.body).hexdigest())
         self.assertEqual(listing['data'][0]['name'], 'résultat.bin')
         self.assertIsNone(listing['next'])
@@ -73,6 +75,18 @@ class FileRoutesTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await (await self.get('s1/' + empty)).read(), b'')
         other = self.home / 'other-profile'
         other.mkdir()
+        with self.assertLogs('hermes.mobile.artifacts', logging.WARNING) as logs:
+            self.assertEqual((await self.client.get('/api/mobile/files/s1')).status, 401)
+            self.assertEqual((await self.get('s1?limit=0')).status, 400)
+            self.assertEqual((await self.get('s2/' + self.ident)).status, 404)
+        joined = '\n'.join(logs.output)
+        self.assertIn('artifacts_request_rejected', joined)
+        self.assertIn('artifacts_listing_rejected', joined)
+        self.assertIn('artifacts_download_rejected', joined)
+        self.assertNotIn('Bearer fixture', joined)
+        with patch.dict(os.environ, {'MOBILE_ARTIFACT_MAX_BYTES': '1024'}):
+            bounded = await (await self.get('s1')).json()
+            self.assertEqual(bounded['max_artifact_bytes'], 1024)
         self.assertEqual(store.inventory(other, ('s1',), store.decode_cursor(None), 10)['data'], [])
         with self.assertRaises(FileNotFoundError):
             store.download(other, ('s1',), empty)

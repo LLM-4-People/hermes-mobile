@@ -6,6 +6,7 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.view.WindowManager;
 
+import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.MainActivity;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.VisibleText;
@@ -36,8 +37,13 @@ public final class ShareTextActivity extends Activity {
             if (receipt != null) { review(receipt); return; }
             busy(IncomingShare.pending(this));
             return;
-        } catch (IllegalArgumentException rejected) { message = "Partagez du texte brut, un lien ou un extrait de code de 32 768 caractères au maximum."; }
-        catch (RuntimeException unavailable) { message = "Le partage n’a pas pu être ouvert. Réessayez depuis l’application d’origine."; }
+        } catch (IllegalArgumentException rejected) {
+            Diagnostics.warning("share", "incoming_rejected", rejected);
+            message = "Partagez du texte brut, un lien ou un extrait de code de 32 768 caractères au maximum.";
+        } catch (RuntimeException unavailable) {
+            Diagnostics.warning("share", "incoming_unavailable", unavailable);
+            message = "Le partage n’a pas pu être ouvert. Réessayez depuis l’application d’origine.";
+        }
         unavailable(message);
     }
 

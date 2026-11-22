@@ -17,6 +17,7 @@ import android.os.SystemClock;
 import android.view.View;
 
 import org.json.JSONObject;
+import org.llm4people.hermes.Diagnostics;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -67,6 +68,7 @@ public final class NearbyFix {
             try {
                 return manager.isLocationEnabled();
             } catch (RuntimeException serviceUnavailable) {
+                Diagnostics.warning("nearby", "location_status_unavailable", serviceUnavailable);
                 return false;
             }
         }
@@ -102,6 +104,7 @@ public final class NearbyFix {
                 }
             } catch (RuntimeException serviceUnavailable) {
                 // Providers and permissions can disappear between the check and the binder call.
+                Diagnostics.warning("nearby", "location_provider_unavailable", serviceUnavailable);
             }
             received.accept(cached);
         }
@@ -115,7 +118,9 @@ public final class NearbyFix {
             activity.getApplication().unregisterActivityLifecycleCallbacks(this);
             for (Runnable stop : subscriptions) {
                 try { stop.run(); }
-                catch (RuntimeException serviceUnavailable) { /* The provider may already be gone. */ }
+                catch (RuntimeException serviceUnavailable) {
+                    Diagnostics.debug("nearby", "location_close_failed", serviceUnavailable);
+                }
             }
             subscriptions.clear();
         }

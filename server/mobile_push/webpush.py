@@ -109,7 +109,11 @@ def load_identity(directory):
             try:
                 os.link(handle.name, target)
             except FileExistsError:
-                pass
+                try:
+                    from server.logging_util import get_logger
+                except ImportError:
+                    from logging_util import get_logger
+                get_logger("push").debug("vapid_identity_race_resolved")
     if target.is_symlink() or not target.is_file() or target.stat().st_mode & 0o077:
         raise ValueError("Expected an owner-only VAPID private key")
     return Vapid.from_pem(target.read_bytes())

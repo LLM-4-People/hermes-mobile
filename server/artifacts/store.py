@@ -131,7 +131,7 @@ def inventory(home, segments, before, limit):
             # Retain at most one page across the verified compression generations.
             rows = heapq.nlargest(limit + 1, [*rows, *map(dict, batch)], key=lambda row: (row['created'], row['id']))
     cursor = f"{rows[limit-1]['created']}:{rows[limit-1]['id']}" if len(rows) > limit else None
-    return {'data': rows[:limit], 'next': cursor}
+    return {'data': rows[:limit], 'next': cursor, 'max_artifact_bytes': byte_limit()}
 
 
 def download(home, segments, ident):

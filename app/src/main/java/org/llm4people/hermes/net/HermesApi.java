@@ -2,6 +2,7 @@ package org.llm4people.hermes.net;
 
 import org.json.JSONObject;
 import org.llm4people.hermes.Diagnostics;
+import org.llm4people.hermes.HermesConfig;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
@@ -24,7 +25,8 @@ public final class HermesApi {
             this.eventBytes = eventBytes;
         }
         public static Limits defaults() {
-            return new Limits(15_000, 45_000, 8 * 1024 * 1024, 1024 * 1024);
+            HermesConfig cfg = HermesConfig.defaults();
+            return new Limits(cfg.httpConnectTimeoutMs, cfg.httpReadTimeoutMs, cfg.httpJsonMaxBytes, cfg.httpEventMaxBytes);
         }
     }
 
@@ -150,6 +152,7 @@ public final class HermesApi {
             }
         } catch (IOException ignored) {
             // A malformed, truncated or oversized error body still has an authoritative HTTP status.
+            Diagnostics.debug("network", "error_body_unreadable", ignored);
         }
         long delay = -1;
         String retry = http.getHeaderField("Retry-After");

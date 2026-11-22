@@ -90,10 +90,17 @@ class NearbyHTTP(unittest.IsolatedAsyncioTestCase):
 
     async def test_auth_input_and_profile_isolation_before_network(self):
         other = await self.profile("two", Overpass(None))
-        for token in ("", "two"):
-            self.assertEqual((await self.lookup(token=token)).status, 401)
-        self.assertEqual((await self.lookup(client=other)).status, 401)
-        self.assertEqual((await self.lookup(token="two", client=other)).status, 503)
+        with self.assertLogs("hermes.mobile.nearby", logging.WARNING) as logs:
+            for token in ("", "two"):
+                self.assertEqual((await self.lookup(token=token)).status, 401)
+            self.assertEqual((await self.lookup(client=other)).status, 401)
+            self.assertEqual((await self.lookup(token="two", client=other)).status, 503)
+        joined = "\n".join(logs.output)
+        self.assertIn("nearby_request_rejected", joined)
+        self.assertIn("nearby_provider_unconfigured", joined)
+        self.assertNotIn("45.51", joined)
+        self.assertNotIn("-73.57", joined)
+        self.assertNotIn("Bearer", joined)
         for data in (
             {**AREA, "latitude": 45.511},
             {**AREA, "longitude": True},

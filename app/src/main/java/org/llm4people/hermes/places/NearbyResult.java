@@ -3,6 +3,7 @@ package org.llm4people.hermes.places;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.VisibleText;
 
 import java.math.BigDecimal;
@@ -66,18 +67,28 @@ public final class NearbyResult {
                 || !CREDIT.equals(response.opt("attribution")) || integer(response.opt("radius_m")) != RADIUS_METERS
                 || !(response.opt("source_date") instanceof String date) || !UTC.matcher(date).matches()
                 || !(response.opt("places") instanceof JSONArray rows) || rows.length() > MAX_PLACES) {
+            Diagnostics.warning("places", "invalid_response");
             throw new JSONException("Invalid nearby restaurant response");
         }
         try {
-            if (!Instant.parse(date).toString().equals(date)) throw new JSONException("Invalid source date");
-        } catch (DateTimeException invalid) { throw new JSONException("Invalid source date"); }
+            if (!Instant.parse(date).toString().equals(date)) {
+                Diagnostics.warning("places", "invalid_source_date");
+                throw new JSONException("Invalid source date");
+            }
+        } catch (DateTimeException invalid) {
+            Diagnostics.warning("places", "invalid_source_date", invalid);
+            throw new JSONException("Invalid source date");
+        }
 
         List<Place> places = new ArrayList<>();
         for (int i = 0; i < rows.length(); i++) {
             Place place = readPlace(rows.optJSONObject(i));
             if (place != null) places.add(place);
         }
-        if (rows.length() > 0 && places.isEmpty()) throw new JSONException("No usable restaurant records");
+        if (rows.length() > 0 && places.isEmpty()) {
+            Diagnostics.warning("places", "no_usable_records");
+            throw new JSONException("No usable restaurant records");
+        }
         places.sort(Comparator.comparingInt(place -> place.distanceMeters));
         Set<String> seen = new HashSet<>();
         places.removeIf(place -> !seen.add(place.id));

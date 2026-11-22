@@ -6,6 +6,13 @@ import uuid
 from aiohttp import web
 from .store import Forbidden, TokenConflict
 
+try:
+    from server.logging_util import get_logger, safe_reason
+except ImportError:
+    from logging_util import get_logger, safe_reason
+
+log = get_logger("push")
+
 
 BASE = "/api/mobile/push"
 KEY = re.compile("[a-f0-9]{64}")
@@ -48,6 +55,8 @@ def build_app(settings, store):
         try:
             response = await handler(request)
         except web.HTTPException as exc:
+            if exc.status >= 400:
+                log.warning("push_http_rejected status=%d reason=%s", exc.status, safe_reason(exc))
             exc.headers["Cache-Control"] = "no-store"
             raise
         response.headers["Cache-Control"] = "no-store"

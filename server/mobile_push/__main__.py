@@ -1,5 +1,4 @@
 import asyncio
-import logging
 import os
 from threading import Event, Thread
 from aiohttp import web
@@ -9,12 +8,15 @@ from .store import Store
 from .worker import scan_loop, send_loop
 from .transports import Transports
 
+try:
+    from server.logging_util import configure_logging
+except ImportError:
+    from logging_util import configure_logging
+
 
 def main():
     os.umask(0o077)
-    logging.basicConfig(level=logging.WARNING,
-                        format="%(asctime)s %(levelname)s %(name)s %(message)s")
-    logging.getLogger("hermes.mobile.push").setLevel(os.environ.get("MOBILE_PUSH_LOG_LEVEL", "INFO"))
+    configure_logging("push", env_var="MOBILE_PUSH_LOG_LEVEL", fallback_env="HERMES_MOBILE_LOG_LEVEL")
     settings = Settings.load()
     store = Store(settings.state)
     sender = Transports(settings)

@@ -7,6 +7,7 @@ import android.text.InputType;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.EditText;
+import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 import java.util.Arrays;
@@ -232,6 +233,7 @@ public final class ProfileGate {
                 account = work.get();
             } catch (Exception ignored) {
                 // The gate reports a single failure without exposing credentials or ciphertext.
+                Diagnostics.warning("profile", "unlock_failed", ignored);
             } finally {
                 Arrays.fill(pass, '\0');
             }

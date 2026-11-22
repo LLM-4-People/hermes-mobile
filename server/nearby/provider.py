@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import logging
 import math
 import time
 from datetime import datetime, timezone
@@ -11,6 +12,16 @@ from urllib.parse import urlsplit
 from aiohttp import ClientError, ClientSession, ClientTimeout, DummyCookieJar
 
 from .records import RADIUS_M, places
+
+try:
+    from server.logging_util import get_logger, safe_reason
+except ImportError:
+    def get_logger(component):
+        return logging.getLogger(f"hermes.mobile.{component}")
+    def safe_reason(exc):
+        return type(exc).__name__
+
+log = get_logger("nearby")
 
 
 MAX_BYTES = 4 * 1024 * 1024
@@ -72,9 +83,11 @@ class Overpass:
 
     async def search(self, lat, lon):
         if not self.url:
+            log.warning("nearby_provider_unconfigured")
             raise Unavailable()
         remaining = self.resume_at - time.monotonic()
         if remaining > 0 or self.busy.locked():
+            log.warning("nearby_provider_throttled retry_after=%d", max(1, math.ceil(remaining)))
             raise Unavailable(max(1, math.ceil(remaining)))
         query = (
             f'[out:json][timeout:12][maxsize:12582912];nwr["amenity"="restaurant"]["name"]'
@@ -95,8 +108,10 @@ class Overpass:
                                 else 0
                             )
                             self.resume_at = time.monotonic() + delay
+                            log.warning("nearby_upstream_status status=%d retry_after=%d", response.status, delay)
                             raise Unavailable(delay or None)
                         raw = await bounded_bytes(response.content, MAX_BYTES)
                 return places(json.loads(raw), lat, lon)
             except (ClientError, TimeoutError, ValueError, RecursionError) as exc:
+                log.warning("nearby_upstream_failed reason=%s", safe_reason(exc))
                 raise Unavailable() from exc

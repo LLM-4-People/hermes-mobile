@@ -114,6 +114,7 @@ final class RunFollower implements AutoCloseable {
             }
         } catch (IOException | IllegalArgumentException ignored) {
             // The status resource can survive a gateway restart after its event stream vanishes.
+            org.llm4people.hermes.Diagnostics.debug("threads", "stream_interrupted", ignored);
         }
         if (!closed) {
             try {
@@ -121,6 +122,7 @@ final class RunFollower implements AutoCloseable {
                 if (run.equals(status.optString("run_id")) && finish(status)) return;
             } catch (IOException ignored) {
                 // The durable receipt is retained for the next connection.
+                org.llm4people.hermes.Diagnostics.warning("threads", "status_reconcile_deferred", ignored);
             }
             if (!closed) {
                 // Deliver any throttled final delta and its matching cursor before checkpointing.

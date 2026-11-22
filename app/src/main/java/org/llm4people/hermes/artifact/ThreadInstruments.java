@@ -129,6 +129,7 @@ public final class ThreadInstruments {
                 result.add(next);
             } catch (IOException invalid) {
                 // Invalid and built-in proposals still belong to the artifact reader.
+                org.llm4people.hermes.Diagnostics.debug("workspace", "proposal_skipped", invalid);
             }
         }
         return Collections.unmodifiableList(result);

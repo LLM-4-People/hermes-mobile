@@ -1,5 +1,5 @@
 plugins {
-    id 'com.android.application' version '9.1.0'
+    alias(libs.plugins.android.application)
 }
 
 android {
@@ -37,8 +37,8 @@ def frameworkTestLibraries = androidComponents.sdkComponents.sdkDirectory.map { 
 }
 
 dependencies {
-    implementation 'com.google.firebase:firebase-messaging:26.0.2'
-    implementation 'org.unifiedpush.android:connector:3.3.6'
+    implementation libs.firebase.messaging
+    implementation libs.unifiedpush.connector
     androidTestCompileOnly files(frameworkTestLibraries)
-    testImplementation 'junit:junit:4.13.2'
+    testImplementation libs.junit
 }

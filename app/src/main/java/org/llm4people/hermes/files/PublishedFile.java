@@ -2,17 +2,23 @@ package org.llm4people.hermes.files;
 
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.llm4people.hermes.HermesConfig;
 import org.llm4people.hermes.net.HermesApi;
 import java.io.IOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
 final class PublishedFile {
-    static final long MAX_BYTES = 64L * 1024 * 1024;
+    static final long MAX_BYTES = HermesConfig.DEFAULT_ARTIFACT_MAX_BYTES;
     final String name, mime, path, hash;
     final long size;
 
     PublishedFile(String threadPath, JSONObject row) throws JSONException, IOException {
+        this(threadPath, row, HermesConfig.defaults().artifactDefaultMaxBytes);
+    }
+
+    PublishedFile(String threadPath, JSONObject row, long maxBytes) throws JSONException, IOException {
+        long bound = HermesConfig.defaults().resolveArtifactLimit(maxBytes);
         String id = row.getString("id");
         name = row.getString("name");
         mime = row.getString("mime");
@@ -22,7 +28,7 @@ final class PublishedFile {
                 name.isEmpty() || name.length() > 240 || name.indexOf('/') >= 0 || name.indexOf('\\') >= 0 ||
                 name.codePoints().anyMatch(c -> Character.isISOControl(c) || Character.getType(c) == Character.FORMAT) ||
                 !mime.matches("[A-Za-z0-9!#$&^_.+-]+/[A-Za-z0-9!#$&^_.+-]+") ||
-                size < 0 || size > MAX_BYTES) throw new IOException("Invalid file metadata");
+                size < 0 || size > bound) throw new IOException("Invalid file metadata");
         path = threadPath + "/" + HermesApi.segment(id);
     }
 
