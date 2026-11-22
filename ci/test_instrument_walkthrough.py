@@ -141,15 +141,32 @@ class InstrumentWalkthroughTest(unittest.TestCase):
 class PublishedModelExampleTest(unittest.TestCase):
     def test_recorded_android_actions_match_the_completed_model_reply(self):
         directory = Path(__file__).resolve().parents[1] / "docs/examples/android-actions"
-        receipt = json.loads((directory / "model-run.json").read_text(encoding="utf-8"))
-        reply = receipt["assistant_output"]
-        self.assertEqual("completed", receipt["run_status"])
-        self.assertEqual(receipt["assistant_output_sha256"], hashlib.sha256(reply.encode("utf-8")).hexdigest())
-        fences = re.findall(r"^```hermes-workspace\n(.*?)\n```$", reply, re.MULTILINE | re.DOTALL)
-        self.assertEqual(1, len(fences))
-        blocks = json.loads(fences[0])["blocks"]
-        self.assertEqual(["device"] * 3, [block["type"] for block in blocks])
-        self.assertEqual({"calendar_event", "share_text", "map_search"}, {block["request"]["kind"] for block in blocks})
+        for filename in ("model-run.json", "phone-run.json"):
+            with self.subTest(filename=filename):
+                receipt = json.loads((directory / filename).read_text(encoding="utf-8"))
+                reply = receipt["assistant_output"]
+                self.assertEqual("completed", receipt["run_status"])
+                self.assertEqual(receipt["assistant_output_sha256"], hashlib.sha256(reply.encode("utf-8")).hexdigest())
+                fences = re.findall(r"^```hermes-workspace\n(.*?)\n```$", reply, re.MULTILINE | re.DOTALL)
+                self.assertEqual(1, len(fences))
+                blocks = json.loads(fences[0])["blocks"]
+                self.assertEqual(["device"] * 3, [block["type"] for block in blocks])
+                self.assertEqual({"calendar_event", "share_text", "map_search"}, {block["request"]["kind"] for block in blocks})
+
+    def test_phone_handoff_captures_match_their_original_and_replay(self):
+        directory = Path(__file__).resolve().parents[1] / "docs/examples/android-actions"
+        receipt = json.loads((directory / "phone-run.json").read_text(encoding="utf-8"))
+        self.assertEqual(receipt["assistant_output_sha256"], receipt["replay"]["assistant_output_sha256"])
+        self.assertNotEqual(receipt["run_id"], receipt["replay"]["run_id"])
+        captures = receipt["captures"]
+        self.assertEqual({"proposal.png", "review.png", "calendar.png", "share.png", "map.png"}, set(captures))
+        self.assertEqual(set(captures), {p.name for p in directory.glob("*.png")})
+        for name, capture in captures.items():
+            with self.subTest(name=name):
+                image = (directory / name).read_bytes()
+                self.assertEqual(capture["sha256"], hashlib.sha256(image).hexdigest())
+                self.assertEqual((capture["width"], capture["height"]), android_png_size(image, name))
+                self.assertEqual("phone_run" if name == "calendar.png" else "replay", capture["source"])
 
     def test_recorded_replies_and_images_match_the_receipt(self):
         directory = Path(__file__).resolve().parents[1] / "docs/examples/revue-des-remises"

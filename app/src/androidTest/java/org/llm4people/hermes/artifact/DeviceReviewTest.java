@@ -10,6 +10,7 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.TextView;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import org.llm4people.hermes.Ui;
@@ -19,6 +20,31 @@ import org.llm4people.hermes.journey.JourneyUi;
 public class DeviceReviewTest extends InstrumentationTestCase {
     private static final String QUERY = "Café A & B, Montréal";
     private static final String REQUEST = "{\"kind\":\"map_search\",\"query\":\"" + QUERY + "\"}";
+
+    public void testCalendarStartRemainsVisibleBelowShortAndWrappingTitles() throws Throwable {
+        android.content.Context context = getInstrumentation().getTargetContext();
+        for (String title : new String[]{"Atelier", "Atelier de dessin pour les personnes qui visitent la Maison des arts de Laval"}) {
+            WorkspaceLayout layout = WorkspaceLayout.parse(DeviceActionContractTest.page(
+                    DeviceActionContractTest.EVENT.replace("Réunion ☕", title)));
+            runTestOnUiThread(() -> {
+                LinearLayout page = Ui.column(context);
+                WorkspaceBlocks.add(page, layout, layout.blocks.get(0), null, new WorkspaceTestHost());
+                int width = Ui.dp(context, 230);
+                page.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+                        View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+                page.layout(0, 0, width, page.getMeasuredHeight());
+                LinearLayout row = (LinearLayout) page.getChildAt(0);
+                TextView name = (TextView) row.getChildAt(1);
+                TextView time = (TextView) row.getChildAt(2);
+                assertEquals(title, name.getText().toString());
+                assertEquals(title.equals("Atelier") ? 1 : 2, name.getLineCount());
+                assertEquals("23 novembre 2026 à 09 h 00 (UTC-05:00)", time.getText().toString());
+                assertTrue(time.getTop() >= name.getBottom());
+                for (int line = 0; line < time.getLineCount(); line++) assertEquals(0, time.getLayout().getEllipsisCount(line));
+                assertTrue(row.getChildAt(3) instanceof Button);
+            });
+        }
+    }
 
     public void testRenderedPageOpensOnlyTheReviewedRequestAndPreservesDraft() throws Throwable {
         if (Build.VERSION.SDK_INT < 29) return; // WindowInspector was introduced in API 29.
