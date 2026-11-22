@@ -2,9 +2,11 @@
 
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import ExitStack
+import hashlib
 import json
 import secrets
 
+from .installed import installed_apk_sha256
 from .run import APP, Emulator, cleanup_all
 
 
@@ -18,6 +20,7 @@ class CardPhone:
         self.gateway = gateway
         self.turns = turns
         self.output = args.output
+        self.verify_apks = args.verify_apks
         self.tag = secrets.token_hex(8)
         self.directory = "cache/cards-" + self.tag
         self.stack = ExitStack()
@@ -28,6 +31,13 @@ class CardPhone:
             raise ValueError("This journey creates an account on a dedicated emulator")
         if DRIVER not in device.shell("pm", "list", "instrumentation"):
             raise RuntimeError("Install the conversation milestone's debug APK and androidTest APK")
+        self.apk_hash = installed_apk_sha256(device, APP)
+        self.test_apk_hash = installed_apk_sha256(device, APP + ".test")
+        if self.verify_apks:
+            for path, installed in zip(self.verify_apks, (self.apk_hash, self.test_apk_hash), strict=True):
+                with path.open("rb") as apk:
+                    if hashlib.file_digest(apk, "sha256").hexdigest() != installed:
+                        raise ValueError(f"Installed APK differs from {path.name}")
         try:
             endpoint = self.stack.enter_context(device.reverse(self.gateway.endpoint))
             self.stack.enter_context(device.appearance())
@@ -74,6 +84,17 @@ class CardPhone:
         if missing:
             raise AssertionError("Missing Android captures: " + ", ".join(sorted(missing)))
 
+    def evidence(self):
+        captures = {}
+        for name in sorted(CAPTURES):
+            with (self.output / name).open("rb") as capture:
+                captures[name] = hashlib.file_digest(capture, "sha256").hexdigest()
+        return {
+            "apk_sha256": self.apk_hash,
+            "test_apk_sha256": self.test_apk_hash,
+            "captures_sha256": captures,
+        }
+
     def cleanup(self):
         device = self.device
         def collect():
@@ -81,7 +102,8 @@ class CardPhone:
             for name in names:
                 if name in CAPTURES:
                     image = device.run("exec-out", "run-as", APP, "cat", self.directory + "/" + name)
-                    if not image.startswith(b"\x89PNG\r\n\x1a\n"):
+                    if not (image.startswith(b"\x89PNG\r\n\x1a\n")
+                            and image.endswith(b"\0\0\0\0IEND\xae\x42\x60\x82")):
                         raise AssertionError("Invalid capture " + name)
                     (self.output / name).write_bytes(image)
         cleanup_all(collect, lambda: device.shell("run-as", APP, "rm", "-r", self.directory))

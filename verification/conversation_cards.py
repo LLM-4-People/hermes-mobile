@@ -120,7 +120,7 @@ def configure(gateway):
     return marker
 
 
-def run(primary, secondary, output, revision, phone=None):
+def run(primary, secondary, revision, phone=None):
     session = None
     if not phone:
         session = primary.request("/api/sessions", method="POST", body={"title": "Notes"}, expected=201)["session"]["id"]
@@ -200,12 +200,14 @@ def run(primary, secondary, output, revision, phone=None):
             "Continuation missing from stored transcript")
     if phone:
         phone.finish()
-    report = {"mode": "android" if phone else "http", "gateway_revision": revision,
-              "authority": "canonical", "turns": receipts,
-              "voice_input": "synthetic_recognizer_result" if phone else "http_text",
-              "hardware_microphone_tested": False}
-    output.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n")
-    print(json.dumps(report, ensure_ascii=False), flush=True)
+    return {
+        "mode": "android" if phone else "http",
+        "gateway_revision": revision,
+        "authority": "canonical",
+        "turns": receipts,
+        "voice_input": "synthetic_recognizer_result" if phone else "http_text",
+        "hardware_microphone_tested": False,
+    }
 
 
 def main():
@@ -216,7 +218,11 @@ def main():
     parser.add_argument("--serial", help="Dedicated emulator with matching app and test APKs installed")
     parser.add_argument("--adb", default="adb")
     parser.add_argument("--adb-port", type=int, default=5037)
+    parser.add_argument("--verify-apks", nargs=2, type=Path, metavar=("APP_APK", "TEST_APK"),
+                        help="Match the installed app and instrumentation APKs against these files")
     args = parser.parse_args()
+    if args.verify_apks and not args.serial:
+        parser.error("--verify-apks requires --serial")
     source = args.source.resolve()
     check_source(source, args.revision)
     sys.path.insert(0, str(source))
@@ -234,7 +240,11 @@ def main():
         if args.serial:
             from device.card_journey import CardPhone
             phone = stack.enter_context(CardPhone(args, primary, TURNS))
-        run(primary, secondary, args.output / "conversation-cards.json", args.revision, phone)
+        report = run(primary, secondary, args.revision, phone)
+    if phone:
+        report.update(phone.evidence())
+    (args.output / "conversation-cards.json").write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n")
+    print(json.dumps(report, ensure_ascii=False), flush=True)
 
 
 if __name__ == "__main__":
