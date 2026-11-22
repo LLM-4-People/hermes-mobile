@@ -69,6 +69,9 @@ def gateway(name, image, plugin):
         "security_opt": ["no-new-privileges:true"],
         "volumes": [
             f"home-{name}:/opt/data",
+            {"type": "bind", "source": str(Path(__file__).resolve().with_name("seed_account.py")),
+             "target": "/etc/cont-init.d/00-mobile-account", "read_only": True,
+             "bind": {"create_host_path": False}},
             {"type": "bind", "source": str(plugin), "target": "/opt/data/plugins/mobile_artifacts",
              "read_only": True, "bind": {"create_host_path": False}},
         ],
