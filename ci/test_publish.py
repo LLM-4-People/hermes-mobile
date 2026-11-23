@@ -51,11 +51,20 @@ class PublishTest(unittest.TestCase):
         self.assertEqual(self.state.read_text(), published)
 
     def test_stale_revision_and_conflicting_tag(self):
-        for main, ref in (("b" * 40, None), (SHA, "b" * 40)):
-            state = {"main": main, "ref": ref, "releases": []}
+        for main, ref, annotated in (("b" * 40, None, False), (SHA, "b" * 40, False), (SHA, "b" * 40, True)):
+            state = {"main": main, "ref": ref, "annotated": annotated, "releases": []}
             self.state.write_text(json.dumps(state))
             self.assertNotEqual(self.run_publisher().returncode, 0)
             self.assertEqual(json.loads(self.state.read_text()), state)
+
+    def test_preexisting_annotated_tag_matching_main_publishes_cleanly(self):
+        state = {"main": SHA, "ref": SHA, "annotated": True, "releases": []}
+        self.state.write_text(json.dumps(state))
+        result = self.run_publisher()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        published = json.loads(self.state.read_text())["releases"]
+        self.assertEqual(len(published), 1)
+        self.assertFalse(published[0]["draft"])
 
     def test_unknown_assets_in_draft_or_added_during_upload_remain_unpublished(self):
         self.env["EXTRA_ON_UPLOAD"] = "1"
