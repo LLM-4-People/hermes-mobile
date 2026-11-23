@@ -31,6 +31,7 @@ public final class ProfileGate {
     private static final ExecutorService IO = Executors.newSingleThreadExecutor();
     private final Activity activity;
     private final AccountStore store;
+    private final UnlockBackoff backoff;
     private Consumer<Account> onOpen;
     private Consumer<String> onForget = id -> {};
     private Account active;
@@ -43,6 +44,7 @@ public final class ProfileGate {
     public ProfileGate(Activity activity) {
         this.activity = activity;
         this.store = new AccountStore(activity);
+        this.backoff = UnlockBackoff.forContext(activity);
     }
 
     /** Membership check available to notification receivers while profile data is locked. */
@@ -305,6 +307,7 @@ public final class ProfileGate {
                 bioButton.setEnabled(true);
                 try {
                     Account unlocked = store.openBiometric(id, payload);
+                    backoff.reset(id);
                     screen.status("", false);
                     opened(unlocked);
                 } catch (Exception error) {
@@ -347,12 +350,19 @@ public final class ProfileGate {
         EditText phrase = screen.field("Phrase secrète du profil", "", SECRET, 512, true);
         screen.action("Enregistrer la nouvelle clé", true, view -> {
             if (busy) return;
+            long waitMs = backoff.remainingMs(id);
+            if (waitMs > 0L) {
+                Diagnostics.warning("profile", "unlock_throttled");
+                screen.status(activity.getString(R.string.profile_unlock_cooldown,
+                        UnlockBackoff.formatRemaining(waitMs)), true);
+                return;
+            }
             String bearer = checkedBearer(key);
             if (bearer == null) return;
             char[] pass = password(phrase);
             if (pass.length == 0) { invalid(phrase, "Saisissez la phrase secrète du profil."); return; }
             phrase.getText().clear();
-            run(screen, (Button) view, pass, () -> store.replaceBearer(id, pass, bearer), this::opened,
+            run(screen, (Button) view, id, pass, () -> store.replaceBearer(id, pass, bearer), this::opened,
                     "Mise à jour impossible. Vérifiez votre phrase secrète et réessayez.");
         });
         screen.action("Annuler", false, view -> { if (!busy) unlock(id, label); });
@@ -367,18 +377,31 @@ public final class ProfileGate {
 
     private void authenticate(ProfileScreen screen, EditText phrase, Button action, String id, Consumer<Account> success) {
         if (busy) return;
+        long waitMs = backoff.remainingMs(id);
+        if (waitMs > 0L) {
+            Diagnostics.warning("profile", "unlock_throttled");
+            screen.status(activity.getString(R.string.profile_unlock_cooldown,
+                    UnlockBackoff.formatRemaining(waitMs)), true);
+            return;
+        }
         char[] pass = password(phrase);
         if (pass.length == 0) { invalid(phrase, "Saisissez la phrase secrète du profil."); return; }
         phrase.getText().clear();
-        run(screen, action, pass, () -> store.open(id, pass), success,
+        run(screen, action, id, pass, () -> store.open(id, pass), success,
                 "Impossible de déverrouiller ce profil. Vérifiez votre phrase secrète.");
     }
 
     private void forget(ProfileScreen screen, String id) {
         try {
-            // Persist notification revocation and wipe ambient allowlist/session before forgetting profile.
+            // Persist notification revocation, close active account keys, and wipe all profile stores atomically.
             onForget.accept(id);
-            NotificationAllowlist.wipe(active != null && id.equals(active.id) ? active : null);
+            if (active != null && id.equals(active.id)) {
+                NotificationAllowlist.wipe(active);
+                active.close();
+                active = null;
+            } else {
+                NotificationAllowlist.wipe(null);
+            }
             store.forget(id);
         } catch (java.io.IOException | RuntimeException ex) {
             screen.status("Suppression impossible. Réessayez.", true);
@@ -390,6 +413,11 @@ public final class ProfileGate {
     private interface Opening { Account get() throws Exception; }
 
     private void run(ProfileScreen screen, Button action, char[] pass, Opening work, Consumer<Account> success, String error) {
+        run(screen, action, null, pass, work, success, error);
+    }
+
+    private void run(ProfileScreen screen, Button action, String throttleProfileId, char[] pass,
+                     Opening work, Consumer<Account> success, String error) {
         busy = true;
         int epoch = generation;
         action.setEnabled(false);
@@ -406,7 +434,13 @@ public final class ProfileGate {
             } finally {
                 Arrays.fill(pass, '\0');
             }
+            long cooldownMs = 0L;
+            if (throttleProfileId != null) {
+                if (account != null) backoff.reset(throttleProfileId);
+                else cooldownMs = backoff.recordFailure(throttleProfileId);
+            }
             Account result = account;
+            long appliedCooldown = cooldownMs;
             activity.runOnUiThread(() -> {
                 if (epoch != generation || activity.isFinishing() || activity.isDestroyed()) {
                     if (result != null) result.close();
@@ -414,8 +448,13 @@ public final class ProfileGate {
                 }
                 busy = false;
                 action.setEnabled(true);
-                if (result == null) screen.status(error, true);
-                else {
+                if (result == null) {
+                    String msg = appliedCooldown > 0L
+                            ? error + " " + activity.getString(R.string.profile_unlock_cooldown,
+                                    UnlockBackoff.formatRemaining(appliedCooldown))
+                            : error;
+                    screen.status(msg, true);
+                } else {
                     screen.status("", false);
                     success.accept(result);
                 }

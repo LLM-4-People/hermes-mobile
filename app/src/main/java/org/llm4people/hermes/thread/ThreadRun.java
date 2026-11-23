@@ -8,6 +8,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.HermesConfig;
+import org.llm4people.hermes.R;
 import org.llm4people.hermes.VisibleText;
 import org.llm4people.hermes.ambient.CalendarContextReader;
 import org.llm4people.hermes.ambient.HermesNotificationListener;
@@ -41,10 +42,12 @@ final class ThreadRun {
 
     private void reportProgress(LiveRunNotification.Snapshot next) {
         LiveRunNotification.Snapshot safe = next == null ? LiveRunNotification.Snapshot.idle() : next;
-        if (!LiveRunNotification.shouldEmit(lastProgress, safe)) return;
         lastProgress = safe;
-        page.host.runProgress(safe);
+        page.activeRuns.updateForeground(page.sessionId(), runId(), safe);
+        page.publishRunProgress();
     }
+
+    boolean canStop() { return canStop && !runId().isEmpty(); }
 
     ThreadRun(ThreadWorkspace page) {
         this.page = page;
@@ -58,6 +61,11 @@ final class ThreadRun {
         String text = ui.draft();
         if (submitting || page.importingPhoto || journal.pending() != null || VisibleText.isBlank(text)) {
             ui.stopDuplex();
+            return;
+        }
+        if (!page.activeRuns.canStart(page.sessionId())) {
+            ui.stopDuplex();
+            ui.notice(page.activity.getString(R.string.thread_concurrent_limit_reached), "", null);
             return;
         }
         if (!journal.photoOwned()) {
@@ -88,12 +96,24 @@ final class ThreadRun {
     }
 
     void restore() {
+        restore(null);
+    }
+
+    void restore(ActiveRunTracker.ReclaimedState reclaimed) {
         JSONObject pending = journal.pending();
         if (pending == null) return;
         if (!journal.sameOwner()) { uncertain(); return; }
         ui.outgoing(outgoing(pending));
         canStop = !runId().isEmpty();
         ui.busy(true, canStop);
+        if (reclaimed != null && reclaimed.latestFrame != null) {
+            frame = reclaimed.latestFrame;
+            int count = reclaimed.latestFrame.prompts.size();
+            String label = count == 0 ? reclaimed.latestFrame.activity : count == 1
+                    ? "Hermes attend votre réponse" : count + " demandes en attente";
+            ui.live(label, reclaimed.latestFrame.text, count > 0, reclaimed.latestFrame.origin,
+                    reclaimed.latestFrame.reasoning);
+        }
         if (runId().isEmpty()) submitWithCapabilities(pending.optJSONObject("body"), false);
         else if (journal.reconnectsExhausted()) trackingInterrupted();
         else follow();
@@ -445,7 +465,7 @@ final class ThreadRun {
             }
         });
         follower = nextFollower;
-        page.workers.execute(nextFollower::follow);
+        page.runStreams.execute(nextFollower::follow);
     }
 
     private void unresolved(JSONObject status) {
@@ -581,8 +601,7 @@ final class ThreadRun {
             }), owner.guard(error -> page.error(error, check)));
             return;
         }
-        String path = owner.path() + "/stop";
-        page.request(() -> page.api.post(path, new JSONObject()),
+        page.request(() -> page.api.stopRun(owner.run),
                 owner.guard(ok -> ui.notice("Demande d’arrêt envoyée.", "", null)),
                 owner.guard(error -> page.error(error, check)));
     }
@@ -592,13 +611,54 @@ final class ThreadRun {
         journal.checkpoint(frame.seq, frame.text, frame.origin, frame.highSurrogate);
     }
 
+    /**
+     * Hands off an active admitted run into {@link ActiveRunTracker} when switching discussions inside
+     * the same profile, so SSE streaming continues live without losing deltas or locking the user out.
+     * Returns true when {@link ActiveRunTracker} took ownership of {@link ThreadJournal}.
+     */
+    boolean detachForThreadSwitch() {
+        ++subscription;
+        canStop = false;
+        ui.stopDuplex();
+        if (decisions != null) decisions.clear();
+        if (follower != null) {
+            follower.close();
+            follower = null;
+        }
+        checkpoint();
+        String activeRunId = runId();
+        if (!activeRunId.isEmpty() && journal.pending() != null && journal.sameOwner() && !page.api.isRevoked()) {
+            boolean handedOff = page.activeRuns.moveToBackground(
+                    page.sessionId(),
+                    activeRunId,
+                    journal,
+                    frame,
+                    lastProgress,
+                    page.api,
+                    page.runStreams,
+                    page.main,
+                    page::profileEpoch,
+                    page.profileEpoch(),
+                    page::publishRunProgress);
+            if (handedOff) {
+                page.publishRunProgress();
+                return true;
+            }
+        }
+        reportProgress(LiveRunNotification.Snapshot.idle());
+        return false;
+    }
+
     void detach() {
         ++subscription;
         canStop = false;
         reportProgress(LiveRunNotification.Snapshot.idle());
         ui.stopDuplex();
         if (decisions != null) decisions.clear();
-        if (follower != null) follower.close();
+        if (follower != null) {
+            follower.close();
+            follower = null;
+        }
         checkpoint();
     }
 }

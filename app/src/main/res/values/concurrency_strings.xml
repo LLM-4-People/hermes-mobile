@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Concurrent multi-task Live Updates & Discussions badges (FR) -->
+    <plurals name="live_run_multi_title">
+        <item quantity="one">%1$d tâche en cours</item>
+        <item quantity="other">%1$d tâches en cours</item>
+    </plurals>
+    <string name="live_run_multi_decision_title">%1$d tâches · action requise</string>
+    <string name="live_run_multi_body">Ouvrez l’application pour suivre vos tâches en cours.</string>
+    <plurals name="live_run_multi_chip">
+        <item quantity="one">%1$d tâche</item>
+        <item quantity="other">%1$d tâches</item>
+    </plurals>
+    <string name="live_run_multi_chip_action">Action (%1$d/%2$d)</string>
+
+    <string name="thread_badge_running">En cours</string>
+    <string name="thread_badge_action_needed">Action requise</string>
+    <string name="thread_badge_stop">Arrêter</string>
+    <string name="thread_concurrent_limit_reached">Trop de tâches actives en même temps. Patientez qu’une tâche se termine avant d’en lancer une autre.</string>
+
+    <!-- Profile unlock exponential backoff (FR) -->
+    <string name="profile_unlock_cooldown">Trop de tentatives. Réessayez dans %1$s.</string>
+</resources>

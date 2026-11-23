@@ -87,6 +87,18 @@ public final class IncomingShare {
         write(prefs, null, null, null);
     }
 
+    /** Discard any pending shared text envelope claimed by {@code profileId} when that profile is forgotten. */
+    public static synchronized void forgetProfile(Context context, String profileId) {
+        if (context == null || profileId == null || profileId.isEmpty()) return;
+        String id = pending(context);
+        if (id == null) return;
+        try {
+            if (profileId.equals(owner(context, id))) discard(context, id);
+        } catch (IllegalStateException unreadable) {
+            org.llm4people.hermes.Diagnostics.warning("share", "text_forget_read_failed", unreadable);
+        }
+    }
+
     private static long expiry(SharedPreferences prefs) {
         try { return Long.parseLong(prefs.getString("expires", "0")); }
         catch (NumberFormatException invalid) { return 0; }

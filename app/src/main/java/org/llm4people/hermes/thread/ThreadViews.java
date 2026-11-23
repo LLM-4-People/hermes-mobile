@@ -36,6 +36,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 
 final class ThreadViews {
@@ -79,6 +80,8 @@ final class ThreadViews {
     private AlertDialog dialog;
     private boolean transcript;
     private String selectedRoot;
+    private Map<String, ActiveRunTracker.TaskBadge> activeBadges = Collections.emptyMap();
+    private Consumer<String> onStopTask;
     ThreadInstrumentPanel instruments;
     private InstrumentViewport instrumentSlot;
 
@@ -315,7 +318,14 @@ final class ThreadViews {
     }
 
     void indexRows(JSONArray data, String selected, boolean hasMore) {
+        indexRows(data, selected, hasMore, Collections.emptyMap(), null);
+    }
+
+    void indexRows(JSONArray data, String selected, boolean hasMore,
+                   Map<String, ActiveRunTracker.TaskBadge> badges, Consumer<String> onStop) {
         selectedRoot = selected;
+        activeBadges = badges == null ? Collections.emptyMap() : badges;
+        onStopTask = onStop;
         rows(data, hasMore, false, 0);
     }
 
@@ -722,6 +732,36 @@ final class ThreadViews {
             }
             for (Pin proposal : proposals)
                 instruments.proposal(this, proposal);
+            if (!chat) {
+                String rootId = ThreadIdentity.rootId(row);
+                ActiveRunTracker.TaskBadge badge = activeBadges.get(rootId);
+                if (badge != null && badge.active()) {
+                    addView(activeTaskRow(getContext(), rootId, badge));
+                }
+            }
+        }
+
+        private View activeTaskRow(Context context, String rootId, ActiveRunTracker.TaskBadge badge) {
+            LinearLayout strip = Ui.row(context);
+            strip.setGravity(Gravity.CENTER_VERTICAL);
+            strip.setPadding(0, Ui.dp(context, 4), 0, 0);
+            int labelRes = badge.awaitingDecision()
+                    ? R.string.thread_badge_action_needed
+                    : R.string.thread_badge_running;
+            TextView pill = Ui.text(context, "● " + context.getString(labelRes), 13);
+            pill.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+            pill.setTextColor(context.getColor(badge.awaitingDecision() ? R.color.danger : R.color.accent));
+            strip.addView(pill, new LinearLayout.LayoutParams(0, -2, 1));
+            if (badge.canStop() && onStopTask != null) {
+                Button stopBtn = Ui.button(context, context.getString(R.string.thread_badge_stop),
+                        v -> onStopTask.accept(rootId));
+                stopBtn.setFocusable(false);
+                stopBtn.setFocusableInTouchMode(false);
+                stopBtn.setMinHeight(Ui.dp(context, 48));
+                stopBtn.setMinimumHeight(Ui.dp(context, 48));
+                strip.addView(stopBtn);
+            }
+            return strip;
         }
 
         private void bindTool(JSONObject row) {
