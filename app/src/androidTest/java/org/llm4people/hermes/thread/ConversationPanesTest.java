@@ -169,6 +169,7 @@ public final class ConversationPanesTest extends InstrumentationTestCase {
                 @Override public JSONObject options(String sessionId) { return new JSONObject(); }
                 @Override public void timing(String id, long firstTextMs, long elapsedMs, long outputTokens) {}
                 @Override public void noticeThread(boolean sameThread) {}
+                @Override public void pendingChanged() {}
             };
             ThreadWorkspace[] holder = new ThreadWorkspace[1];
             try {
