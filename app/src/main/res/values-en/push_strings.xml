@@ -26,7 +26,7 @@
     <string name="push_inbox_open_reminder">View reminder</string>
     <string name="push_inbox_close">Close</string>
     <string name="push_inbox_ui_patch_prompt">Hermes proposes an improvement to your screen. You can review it before applying.</string>
-    <string name="push_inbox_widget_prompt">Hermes prepared an update for your Home screen widget.</string>
+    <string name="push_inbox_widget_prompt">Hermes prepared an update for your home screen widget.</string>
     <string name="push_inbox_action_confirm_title">Review proposed action</string>
     <string name="push_inbox_action_cancel">Cancel</string>
     <string name="push_inbox_action_unavailable">No available app can open this proposal.</string>

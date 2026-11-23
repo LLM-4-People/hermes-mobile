@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="ambient_listener_label">Hermes Notification Access</string>
+    <string name="ambient_listener_label">Hermes notification access</string>
     <string name="ambient_route_label">Phone context</string>
     <string name="ambient_route_hint">Selected notifications, now playing, calendar agenda, and device status</string>
     <string name="ambient_panel_title">Phone context</string>
@@ -10,7 +10,7 @@
     <string name="ambient_status_off">Off for this profile</string>
     <string name="ambient_onboarding_title">Enable on Android 13 to 16</string>
     <string name="ambient_onboarding_detail">For an app installed outside a store, Android protects this access in two quick steps:</string>
-    <string name="ambient_step_restricted">1. Open App info (⋮ → Allow restricted settings)</string>
+    <string name="ambient_step_restricted">1. Open app info (⋮ → Allow restricted settings)</string>
     <string name="ambient_step_listener">2. Open Android notification access</string>
     <string name="ambient_settings_unavailable">Unable to open this settings screen on this device.</string>
     <string name="ambient_section_toggles">Permissions for this profile</string>

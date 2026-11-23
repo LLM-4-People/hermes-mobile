@@ -1,6 +1,6 @@
-# Security Policy
+# Security policy
 
-## Reporting a Vulnerability
+## Reporting a vulnerability
 
 Please **do not** open a public GitHub issue for security vulnerabilities. Report suspected vulnerabilities privately through [GitHub Security Advisories](https://github.com/LLM-4-People/hermes-mobile/security/advisories/new).
 
@@ -9,7 +9,7 @@ Include:
 - Exact reproduction steps or proof-of-concept
 - Expected vs. observed security boundary behavior
 
-## Security Architecture & Boundaries
+## Security architecture and boundaries
 
 Hermes Mobile is designed **fail-closed by default** across four boundaries:
 
@@ -27,7 +27,7 @@ Hermes Mobile is designed **fail-closed by default** across four boundaries:
    - `NotificationPrivacyGuard` runs at the lowest choking point before any notification text enters memory, hard-blocking Hermes itself, OTP/2FA codes, alphanumeric tokens, password managers, authenticators, banking/finance/crypto apps, `VISIBILITY_SECRET` notices, and ongoing system notifications.
    - Still images attached from gallery or camera are decoded and re-encoded into fresh sRGB opaque pixels, discarding all EXIF, GPS, and ICC metadata before upload.
 
-## Verifying Official Releases
+## Verifying official releases
 
 Signed release APKs are built from clean outputs on `main` with reproducible unsigned comparison, AOSP device verification, and GitHub build provenance attestations. Always verify the checksum, APK signer certificate fingerprint, and attestation before installing or upgrading. [Verify a release](docs/delivery.md#verify-a-release)
 

@@ -2,7 +2,7 @@
     <string name="templates_route_label">Everyday workflows</string>
     <string name="templates_route_hint">Ready-to-use starters and personal templates</string>
     <string name="templates_panel_title">Everyday workflows</string>
-    <string name="templates_panel_subtitle">Every workflow stages an editable draft in Discussions. Nothing is sent until you tap Send.</string>
+    <string name="templates_panel_subtitle">Every workflow stages an editable draft in discussions. Nothing is sent until you tap send.</string>
     <string name="templates_section_everyday">Ready-to-use workflows</string>
     <string name="templates_section_custom">My personal templates</string>
     <string name="templates_custom_empty">No personal templates saved in this profile yet.</string>
