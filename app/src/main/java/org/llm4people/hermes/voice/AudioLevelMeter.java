@@ -21,6 +21,8 @@ public final class AudioLevelMeter extends View {
     private final float[] levels = new float[BARS];
     private final int activeColor;
     private final int idleColor;
+    private final int defaultWidthPx;
+    private final int defaultHeightPx;
     private boolean active;
     private float smoothed;
     private int phase;
@@ -29,6 +31,8 @@ public final class AudioLevelMeter extends View {
         super(context);
         activeColor = context.getColor(R.color.accent);
         idleColor = context.getColor(R.color.line);
+        defaultWidthPx = Ui.dp(context, 54);
+        defaultHeightPx = Ui.dp(context, 24);
         paint.setStyle(Paint.Style.FILL);
         setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
     }
@@ -70,9 +74,8 @@ public final class AudioLevelMeter extends View {
     float currentLevel() { return smoothed; }
 
     @Override protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-        int defaultW = Ui.dp(getContext(), 54);
-        int defaultH = Ui.dp(getContext(), 24);
-        setMeasuredDimension(resolveSize(defaultW, widthMeasureSpec), resolveSize(defaultH, heightMeasureSpec));
+        setMeasuredDimension(resolveSize(defaultWidthPx, widthMeasureSpec),
+                resolveSize(defaultHeightPx, heightMeasureSpec));
     }
 
     @Override protected void onDraw(Canvas canvas) {

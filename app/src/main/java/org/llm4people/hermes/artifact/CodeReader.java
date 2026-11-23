@@ -34,6 +34,7 @@ public final class CodeReader {
     private final String source;
     private final SyntaxHighlighter.Language language;
     private final List<Integer> cuts = new ArrayList<>();
+    private final int[] pageFirstLines;
     private boolean showLineNumbers = true;
     private boolean horizontalScroll;
     private boolean searchVisible;
@@ -64,6 +65,17 @@ public final class CodeReader {
             }
             cuts.add(target);
             at = target;
+        }
+        int pages = Math.max(1, cuts.size() - 1);
+        pageFirstLines = new int[pages];
+        int runningLine = 1;
+        for (int p = 0; p < pages; p++) {
+            pageFirstLines[p] = runningLine;
+            int from = cuts.get(p);
+            int to = cuts.size() > 1 ? cuts.get(p + 1) : 0;
+            for (int i = from; i < to; i++) {
+                if (this.source.charAt(i) == '\n') runningLine++;
+            }
         }
     }
 
@@ -252,7 +264,7 @@ public final class CodeReader {
         code.setLineSpacing(0, 1.14f);
         code.setBackgroundColor(c.getColor(R.color.surface));
         Ui.pad(code, 10, 8);
-        int firstLine = SyntaxHighlighter.lineNumberAt(source, start);
+        int firstLine = pageFirstLines[currentPage];
         code.setText(SyntaxHighlighter.render(c, text, language, start, showLineNumbers, firstLine, matches, activeMatch));
         if (horizontalScroll) {
             HorizontalScrollView hScroll = new HorizontalScrollView(c);

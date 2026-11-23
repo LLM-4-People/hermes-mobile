@@ -3,6 +3,8 @@ package org.llm4people.hermes;
 import android.content.Context;
 import android.content.res.Resources;
 
+import java.util.function.Supplier;
+
 /** Single source of truth for bounded runtime timeouts, payload limits, and diagnostic settings. */
 public final class HermesConfig {
     public static final int DEFAULT_HTTP_CONNECT_TIMEOUT_MS = 15_000;
@@ -106,30 +108,59 @@ public final class HermesConfig {
         this.updateCheckIntervalMs = updateCheckIntervalMs;
     }
 
+    private static volatile Object cachedKey;
+    private static volatile HermesConfig cachedConfig;
+
     public static HermesConfig defaults() {
         return DEFAULTS;
     }
 
+    /** Clears the memoized config snapshot (intended for tests or configuration reload). */
+    public static void clearCacheForTest() {
+        synchronized (HermesConfig.class) {
+            cachedKey = null;
+            cachedConfig = null;
+        }
+    }
+
+    static HermesConfig loadCached(Object key, Supplier<HermesConfig> loader) {
+        if (key == null || loader == null) return DEFAULTS;
+        HermesConfig local = cachedConfig;
+        if (local != null && cachedKey == key) return local;
+        synchronized (HermesConfig.class) {
+            if (cachedConfig != null && cachedKey == key) return cachedConfig;
+            HermesConfig loaded = loader.get();
+            if (loaded == null) return DEFAULTS;
+            cachedKey = key;
+            cachedConfig = loaded;
+            return loaded;
+        }
+    }
+
     public static HermesConfig load(Context context) {
         if (context == null) return DEFAULTS;
-        Resources res = context.getResources();
-        if (res == null) return DEFAULTS;
-        return new HermesConfig(
-                res.getInteger(R.integer.hermes_http_connect_timeout_ms),
-                res.getInteger(R.integer.hermes_http_read_timeout_ms),
-                res.getInteger(R.integer.hermes_http_json_max_bytes),
-                res.getInteger(R.integer.hermes_http_event_max_bytes),
-                res.getInteger(R.integer.hermes_nearby_timeout_ms),
-                res.getInteger(R.integer.hermes_nearby_fused_grace_ms),
-                res.getInteger(R.integer.hermes_artifact_default_max_bytes),
-                res.getInteger(R.integer.hermes_artifact_hard_max_bytes),
-                res.getInteger(R.integer.hermes_diagnostics_ring_capacity),
-                res.getInteger(R.integer.hermes_thread_page_size),
-                res.getInteger(R.integer.hermes_max_reconnects),
-                res.getString(R.string.hermes_update_repo),
-                res.getString(R.string.hermes_update_api_base),
-                res.getInteger(R.integer.hermes_update_max_apk_bytes),
-                res.getInteger(R.integer.hermes_update_check_interval_ms));
+        Context app = context.getApplicationContext();
+        Context key = app != null ? app : context;
+        return loadCached(key, () -> {
+            Resources res = key.getResources();
+            if (res == null) return DEFAULTS;
+            return new HermesConfig(
+                    res.getInteger(R.integer.hermes_http_connect_timeout_ms),
+                    res.getInteger(R.integer.hermes_http_read_timeout_ms),
+                    res.getInteger(R.integer.hermes_http_json_max_bytes),
+                    res.getInteger(R.integer.hermes_http_event_max_bytes),
+                    res.getInteger(R.integer.hermes_nearby_timeout_ms),
+                    res.getInteger(R.integer.hermes_nearby_fused_grace_ms),
+                    res.getInteger(R.integer.hermes_artifact_default_max_bytes),
+                    res.getInteger(R.integer.hermes_artifact_hard_max_bytes),
+                    res.getInteger(R.integer.hermes_diagnostics_ring_capacity),
+                    res.getInteger(R.integer.hermes_thread_page_size),
+                    res.getInteger(R.integer.hermes_max_reconnects),
+                    res.getString(R.string.hermes_update_repo),
+                    res.getString(R.string.hermes_update_api_base),
+                    res.getInteger(R.integer.hermes_update_max_apk_bytes),
+                    res.getInteger(R.integer.hermes_update_check_interval_ms));
+        });
     }
 
     /** Resolve the effective artifact byte limit from a gateway-advertised value without exceeding the hard ceiling. */

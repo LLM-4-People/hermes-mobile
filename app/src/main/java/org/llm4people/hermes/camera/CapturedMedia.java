@@ -12,6 +12,7 @@ import android.provider.OpenableColumns;
 
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.HermesConfig;
+import org.llm4people.hermes.perf.BitmapSampling;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -116,14 +117,12 @@ public final class CapturedMedia {
         }
         Bitmap image = ImageDecoder.decodeBitmap(ImageDecoder.createSource(ByteBuffer.wrap(source)), (decoder, details, src) -> {
             int width = details.getSize().getWidth(), height = details.getSize().getHeight();
-            if (details.isAnimated() || width <= 0 || height <= 0 || (long) width * height > 128_000_000L) {
+            if (details.isAnimated() || !BitmapSampling.validDimensions(width, height)) {
                 throw new IllegalArgumentException("Unsupported still image");
             }
-            int longEdge = Math.max(width, height);
-            if (longEdge > IMAGE_MAX_EDGE) {
-                decoder.setTargetSize(
-                        Math.max(1, (int) ((long) IMAGE_MAX_EDGE * width / longEdge)),
-                        Math.max(1, (int) ((long) IMAGE_MAX_EDGE * height / longEdge)));
+            int[] target = BitmapSampling.targetDimensions(width, height, IMAGE_MAX_EDGE);
+            if (target[0] != width || target[1] != height) {
+                decoder.setTargetSize(target[0], target[1]);
             }
             decoder.setAllocator(ImageDecoder.ALLOCATOR_SOFTWARE);
             decoder.setTargetColorSpace(ColorSpace.get(ColorSpace.Named.SRGB));
