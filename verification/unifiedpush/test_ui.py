@@ -111,18 +111,19 @@ class ScreenUiTest(unittest.TestCase):
             with self.subTest(lang=lang):
                 ui = Screen(Mock(), Mock(), lang=lang)
                 s = ui.strings
+                push_dialog = tree({"text": "Fermer", "bounds": "[20,260][120,310]"})
                 workspace = tree({"content-desc": s["top_profile_lock"], "bounds": "[200,10][260,70]"})
                 security = tree({"text": s["security_lock_now"], "bounds": "[20,100][280,150]"})
                 chooser = tree({"text": s["profile_add_action"], "bounds": "[20,200][280,250]"})
                 connect = tree({"text": s["profile_connect_title"], "bounds": "[20,40][280,90]"})
-                ui.hierarchy = Mock(side_effect=[workspace, security, chooser, connect])
+                ui.hierarchy = Mock(side_effect=[push_dialog, workspace, security, chooser, connect])
                 ui.tap_node = Mock()
                 ui.field = Mock()
                 ui.tap = Mock()
                 ui.wait = Mock()
                 with patch("verification.unifiedpush.stack.time.sleep"):
                     start_account(ui, "Alt", "https://example.test", "secret-key", "correct-horse-battery")
-                self.assertEqual(ui.tap_node.call_count, 3)
+                self.assertEqual(ui.tap_node.call_count, 4)
                 self.assertEqual(ui.field.call_count, 5)
                 ui.tap.assert_called_once_with(s["profile_save_action"], scroll=True)
                 ui.wait.assert_called_once_with(s["thread_new_conversation"])
