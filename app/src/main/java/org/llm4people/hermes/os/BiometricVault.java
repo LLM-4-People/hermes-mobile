@@ -46,6 +46,7 @@ public final class BiometricVault {
     private static final String KEY_PREFIX = "hermes.bio.v1.";
     private static final String MODE_STRONG = "strong";
     private static final String MODE_CREDENTIAL = "credential";
+    private static final String MODE_COMBINED = "combined";
     private static final byte VERSION = 1;
     private static final int IV_BYTES = 12;
     private static final int TAG_BYTES = 16;
@@ -226,12 +227,16 @@ public final class BiometricVault {
             if (settled.compareAndSet(false, true)) callback.onCancelled();
         };
         try {
-            boolean strong = mode == Availability.STRONG;
-            SecretKey key = generateKey(stagingAlias, strong);
+            boolean combined = Build.VERSION.SDK_INT >= 30
+                    && mode == Availability.STRONG
+                    && supportsDeviceCredential(activity);
+            boolean strongCrypto = mode == Availability.STRONG && !combined;
+            String modeKey = combined ? MODE_COMBINED : (strongCrypto ? MODE_STRONG : MODE_CREDENTIAL);
+            SecretKey key = generateKey(stagingAlias, modeKey);
             BiometricPrompt prompt = buildPrompt(activity,
                     activity.getString(R.string.security_biometric_enroll_title),
                     activity.getString(R.string.security_biometric_enroll_subtitle),
-                    strong, cleanupCancel);
+                    modeKey, cleanupCancel);
             CancellationSignal signal = new CancellationSignal();
             Session session = Session.of(signal, () -> {
                 if (settled.compareAndSet(false, true)) {
@@ -249,12 +254,12 @@ public final class BiometricVault {
                         return;
                     }
                     try {
-                        Cipher cipher = strong && result.getCryptoObject() != null
+                        Cipher cipher = strongCrypto && result.getCryptoObject() != null
                                 ? result.getCryptoObject().getCipher()
                                 : initEncryptCipher(key);
                         byte[] sealed = sealWithCipher(cipher, profileId, label, payloadCopy);
                         String previousAlias = storeEnvelope(activity, profileId,
-                                strong ? MODE_STRONG : MODE_CREDENTIAL, stagingAlias, sealed);
+                                modeKey, stagingAlias, sealed);
                         if (previousAlias != null && !previousAlias.equals(stagingAlias)) {
                             deleteKeyAlias(previousAlias);
                         }
@@ -280,7 +285,7 @@ public final class BiometricVault {
                     }
                 }
             };
-            if (strong) {
+            if (strongCrypto) {
                 Cipher cipher = initEncryptCipher(key);
                 prompt.authenticate(new BiometricPrompt.CryptoObject(cipher), signal, activity.getMainExecutor(), auth);
             } else {
@@ -323,7 +328,7 @@ public final class BiometricVault {
             callback.onInvalidated();
             return null;
         }
-        boolean strong = MODE_STRONG.equals(storedMode);
+        boolean strongCrypto = MODE_STRONG.equals(storedMode);
         AtomicBoolean settled = new AtomicBoolean(false);
         try {
             SecretKey key = loadKey(alias);
@@ -335,7 +340,7 @@ public final class BiometricVault {
             BiometricPrompt prompt = buildPrompt(activity,
                     activity.getString(R.string.security_biometric_prompt_title, label),
                     activity.getString(R.string.security_biometric_prompt_subtitle),
-                    strong, () -> { if (settled.compareAndSet(false, true)) callback.onCancelled(); });
+                    storedMode, () -> { if (settled.compareAndSet(false, true)) callback.onCancelled(); });
             CancellationSignal signal = new CancellationSignal();
             Session session = Session.of(signal, () -> settled.set(true));
             BiometricPrompt.AuthenticationCallback auth = new BiometricPrompt.AuthenticationCallback() {
@@ -343,7 +348,7 @@ public final class BiometricVault {
                     // Never decrypt key material for a prompt the owner has already cancelled.
                     if (session.isCanceled() || !settled.compareAndSet(false, true)) return;
                     try {
-                        Cipher cipher = strong && result.getCryptoObject() != null
+                        Cipher cipher = strongCrypto && result.getCryptoObject() != null
                                 ? result.getCryptoObject().getCipher()
                                 : initDecryptCipher(key, extractIv(stored));
                         byte[] plain = openWithCipher(cipher, profileId, label, stored);
@@ -368,7 +373,7 @@ public final class BiometricVault {
                     }
                 }
             };
-            if (strong) {
+            if (strongCrypto) {
                 Cipher cipher = initDecryptCipher(key, extractIv(stored));
                 prompt.authenticate(new BiometricPrompt.CryptoObject(cipher), signal, activity.getMainExecutor(), auth);
             } else {
@@ -387,13 +392,25 @@ public final class BiometricVault {
         }
     }
 
+    private static boolean supportsDeviceCredential(Context context) {
+        if (context == null || Build.VERSION.SDK_INT < 30) return false;
+        BiometricManager manager = context.getSystemService(BiometricManager.class);
+        return manager != null
+                && manager.canAuthenticate(BiometricManager.Authenticators.DEVICE_CREDENTIAL)
+                == BiometricManager.BIOMETRIC_SUCCESS;
+    }
+
     private static BiometricPrompt buildPrompt(Activity activity, String title, String subtitle,
-                                               boolean strong, Runnable onCancel) {
+                                               String modeKey, Runnable onCancel) {
         BiometricPrompt.Builder builder = new BiometricPrompt.Builder(activity)
                 .setTitle(title)
                 .setSubtitle(subtitle);
         if (Build.VERSION.SDK_INT >= 30) {
-            if (strong) {
+            if (MODE_COMBINED.equals(modeKey)) {
+                builder.setAllowedAuthenticators(
+                        BiometricManager.Authenticators.BIOMETRIC_STRONG
+                                | BiometricManager.Authenticators.DEVICE_CREDENTIAL);
+            } else if (MODE_STRONG.equals(modeKey)) {
                 builder.setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
                         .setNegativeButton(activity.getString(R.string.security_biometric_use_passphrase),
                                 activity.getMainExecutor(), (dialog, which) -> onCancel.run());
@@ -407,7 +424,9 @@ public final class BiometricVault {
         return builder.build();
     }
 
-    private static SecretKey generateKey(String alias, boolean strong) throws GeneralSecurityException, IOException {
+    private static SecretKey generateKey(String alias, String modeKey) throws GeneralSecurityException, IOException {
+        boolean strongOnly = MODE_STRONG.equals(modeKey);
+        boolean combined = MODE_COMBINED.equals(modeKey);
         KeyGenerator generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore");
         KeyGenParameterSpec.Builder spec = new KeyGenParameterSpec.Builder(
                 alias,
@@ -416,11 +435,14 @@ public final class BiometricVault {
                 .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
                 .setKeySize(256)
                 .setUserAuthenticationRequired(true);
-        if (strong) {
+        if (strongOnly) {
             spec.setInvalidatedByBiometricEnrollment(true);
         }
         if (Build.VERSION.SDK_INT >= 30) {
-            if (strong) {
+            if (combined) {
+                spec.setUserAuthenticationParameters(CREDENTIAL_VALIDITY_SECONDS,
+                        KeyProperties.AUTH_BIOMETRIC_STRONG | KeyProperties.AUTH_DEVICE_CREDENTIAL);
+            } else if (strongOnly) {
                 spec.setUserAuthenticationParameters(0, KeyProperties.AUTH_BIOMETRIC_STRONG);
             } else {
                 spec.setUserAuthenticationParameters(CREDENTIAL_VALIDITY_SECONDS,
@@ -429,7 +451,7 @@ public final class BiometricVault {
         } else {
             @SuppressWarnings("deprecation")
             KeyGenParameterSpec.Builder ignored = spec.setUserAuthenticationValidityDurationSeconds(
-                    strong ? -1 : CREDENTIAL_VALIDITY_SECONDS);
+                    strongOnly ? -1 : CREDENTIAL_VALIDITY_SECONDS);
         }
         generator.init(spec.build());
         return generator.generateKey();

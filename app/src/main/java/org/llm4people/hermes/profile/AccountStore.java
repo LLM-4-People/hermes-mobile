@@ -127,6 +127,25 @@ final class AccountStore {
         return updated;
     }
 
+    /** Re-seals an already unlocked account under a new PIN, passphrase, or generated biometric secret. */
+    void changeLockSecret(Account unlocked, char[] newSecret) throws IOException, GeneralSecurityException {
+        Objects.requireNonNull(unlocked, "unlocked");
+        Objects.requireNonNull(newSecret, "newSecret");
+        byte[] keys = unlocked.copyKeys();
+        try {
+            SecretKey device = deviceKey(true);
+            String resealed = encode(unlocked.id, unlocked.label, unlocked.endpoint, unlocked.bearer, keys, newSecret, device);
+            synchronized (prefs) {
+                if (!unlocked.label.equals(prefs.getString(LABEL + unlocked.id, null)) || !prefs.contains(unlocked.id)) {
+                    throw new IOException("Profile unavailable");
+                }
+                commit(Collections.singletonMap(unlocked.id, resealed));
+            }
+        } finally {
+            Arrays.fill(keys, (byte) 0);
+        }
+    }
+
     private Account restore(String id, char[] pass, String replacement) throws IOException, GeneralSecurityException {
         String label, stored;
         synchronized (prefs) {
@@ -162,6 +181,7 @@ final class AccountStore {
     void forget(String id) throws IOException {
         BiometricVault.revoke(context, id);
         LockGracePolicy.forget(context, id);
+        ProfileLockPolicy.forget(context, id);
         UnlockBackoff.forget(context, id);
         org.llm4people.hermes.os.HermesWidgetStore.forgetProfile(context, id);
         IncomingShare.forgetProfile(context, id);

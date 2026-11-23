@@ -260,6 +260,11 @@ def start_account(ui, label, endpoint, bearer, phrase):
     connect_title = s["profile_connect_title"]
     add_action = s["profile_add_action"]
     choose_other = s["profile_choose_other"]
+    profile_lock_btn = s["top_profile_lock"]
+    lock_now = s["security_lock_now"]
+    close_labels = tuple(dict.fromkeys(
+        candidate for candidate in (s.get("ws_close"), "Fermer", "Close") if candidate
+    ))
 
     def form():
         root = ui.hierarchy()
@@ -268,10 +273,24 @@ def start_account(ui, label, endpoint, bearer, phrase):
         add = ui.node(add_action, root)
         if add is not None:
             ui.tap_node(add)
-        else:
-            choose = ui.node(choose_other, root)
-            if choose is not None:
-                ui.tap_node(choose)
+            return False
+        choose = ui.node(choose_other, root)
+        if choose is not None:
+            ui.tap_node(choose)
+            return False
+        lock_action = ui.node(lock_now, root)
+        if lock_action is not None:
+            ui.tap_node(lock_action)
+            return False
+        lock_btn = ui.node(profile_lock_btn, root)
+        if lock_btn is not None:
+            ui.tap_node(lock_btn)
+            return False
+        for close_label in close_labels:
+            dismiss = ui.node(close_label, root)
+            if dismiss is not None:
+                ui.tap_node(dismiss)
+                return False
         return False
 
     eventually("real account creation form", form)
