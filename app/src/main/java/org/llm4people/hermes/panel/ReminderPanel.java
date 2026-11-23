@@ -351,7 +351,7 @@ final class ReminderPanel {
     }
 
     static String scheduleLabel(JSONObject job, ZoneId zone) {
-        return scheduleLabel(job, zone, Locale.FRENCH);
+        return scheduleLabel(job, zone, Locale.getDefault());
     }
 
     static String scheduleLabel(JSONObject job, ZoneId zone, Locale locale) {

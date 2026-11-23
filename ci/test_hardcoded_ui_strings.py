@@ -73,6 +73,9 @@ class HardcodedUiStringsGuardTest(unittest.TestCase):
                         Toast.makeText(ctx, "Saved successfully", Toast.LENGTH_SHORT).show();
                         Ui.button(ctx, "Retry now", null);
                         screen.note("Nothing to show yet.");
+                        if (ready) setText("Primary label");
+                        else setText("Bypassed after else");
+                        return setTitle("Bypassed after return");
                     }
                 }
                 """,
@@ -89,6 +92,9 @@ class HardcodedUiStringsGuardTest(unittest.TestCase):
                 "Saved successfully",
                 "Retry now",
                 "Nothing to show yet.",
+                "Primary label",
+                "Bypassed after else",
+                "Bypassed after return",
             ]
             for snippet in expected_snippets:
                 self.assertTrue(any(snippet in i for i in issues), f"Missing finding for {snippet!r}: {issues}")
@@ -127,9 +133,19 @@ class HardcodedUiStringsGuardTest(unittest.TestCase):
                 "app/src/main/res/values/a.xml",
                 """<resources>
                     <string name="keep">Garder</string>
+                    <string name="fmt_ok">100%% %1$s (%2$d)</string>
+                    <string name="fmt_bad">Valeur %1$s sur %2$d</string>
                     <string name="only_fr">Uniquement en français</string>
                     <string name="cfg" translatable="false">https://example.test</string>
                     <plurals name="items"><item quantity="one">1 élément</item></plurals>
+                    <plurals name="days">
+                        <item quantity="one">%1$d jour</item>
+                        <item quantity="other">%1$d jours</item>
+                    </plurals>
+                    <plurals name="files">
+                        <item quantity="one">%1$s fichier</item>
+                        <item quantity="other">%1$d fichiers</item>
+                    </plurals>
                     <string-array name="modes"><item>A</item><item>B</item></string-array>
                 </resources>""",
             )
@@ -143,9 +159,18 @@ class HardcodedUiStringsGuardTest(unittest.TestCase):
                 "app/src/main/res/values-en/a.xml",
                 """<resources>
                     <string name="keep">Keep</string>
+                    <string name="fmt_ok">(%2$d) %1$s 100%%</string>
+                    <string name="fmt_bad">Value %1$d</string>
                     <string name="only_en">English only</string>
                     <string name="padded"> Leading space</string>
                     <string name="cfg">Should not translate</string>
+                    <plurals name="days">
+                        <item quantity="one">%1$d day</item>
+                    </plurals>
+                    <plurals name="files">
+                        <item quantity="one">%1$d file</item>
+                        <item quantity="other">%1$d files</item>
+                    </plurals>
                     <string-array name="modes"><item>A</item></string-array>
                 </resources>""",
             )
@@ -157,6 +182,10 @@ class HardcodedUiStringsGuardTest(unittest.TestCase):
             self.assertTrue(any("translatable=\"false\"" in i and "cfg" in i for i in issues), issues)
             self.assertTrue(any("missing <plurals name='items'>" in i for i in issues), issues)
             self.assertTrue(any("string-array name='modes'" in i for i in issues), issues)
+            self.assertTrue(any("<string name='fmt_bad'> placeholder mismatch" in i for i in issues), issues)
+            self.assertFalse(any("fmt_ok" in i for i in issues), issues)
+            self.assertTrue(any("<plurals name='days'> quantities" in i for i in issues), issues)
+            self.assertTrue(any("<plurals name='files' quantity='one'> placeholder mismatch" in i for i in issues), issues)
 
     def test_allowlist_ratchet_fails_when_allowlisted_file_is_clean_or_missing(self):
         with tempfile.TemporaryDirectory() as tmp:

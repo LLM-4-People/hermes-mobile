@@ -223,7 +223,7 @@ final class InstrumentChanges {
                 if (!block.note.isEmpty()) items.add(block.note);
                 for (String id : block.actions) items.add(WorkspaceLayout.actionLabel(c, id));
             }
-            case "nearby_places" -> items.add(c.getString(R.string.ws_diff_osm_attribution, block.title));
+            case "nearby_places" -> items.add(c.getString(R.string.ws_diff_osm_attribution, block.displayTitle(c)));
             case "device" -> items.add(block.request.preview(c));
             case "link" -> items.add(c.getString(R.string.ws_diff_open_page, block.page));
             case "value" -> items.add(WorkspaceBlocks.sourceLabel(c, block.source));

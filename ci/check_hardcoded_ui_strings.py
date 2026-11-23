@@ -156,8 +156,13 @@ QUALIFIED_UI_SINK_ARGS: dict[tuple[str, str], tuple[int, ...]] = {
     ("this", "toast"): (0,),
 }
 
+# Control-flow keywords that can precede a direct method call (e.g. `else setText("...")`).
+CONTROL_FLOW_KEYWORDS = {"else", "return", "yield", "do", "case", "throw"}
+
 # Printf / Android format specifiers stripped before checking if a UI literal has human letters.
 FORMAT_TOKEN_RE = re.compile(r"%(?:\d+\$)?[-+# 0,(]*\d*(?:\.\d+)?[a-zA-Z%]")
+ESCAPED_PERCENT_RE = re.compile(r"%%")
+PLACEHOLDER_SPEC_RE = re.compile(r"%(?:\d+\$)?[-+# 0,(]*\d*(?:\.\d+)?[a-zA-Z]")
 WORD_RE = re.compile(r"[A-Za-zÀ-ÿ]{2,}")
 
 # Neutral technical / brand-only literals allowed even inside UI sinks (exact match after strip).
@@ -478,8 +483,9 @@ def check_java_file(path: Path, root: Path) -> list[str]:
             continue
         if i + 1 >= n or tokens[i + 1].kind != "PUNCT" or tokens[i + 1].value != "(":
             continue
-        # Skip method declarations like `void setText(String s)` or `public String setTitle(...)`.
-        if i >= 1 and tokens[i - 1].kind == "IDENT":
+        # Skip method declarations like `void setText(String s)` or `public String setTitle(...)`,
+        # while still checking calls immediately following control-flow keywords (`else setText(...)`).
+        if i >= 1 and tokens[i - 1].kind == "IDENT" and tokens[i - 1].value not in CONTROL_FLOW_KEYWORDS:
             continue
 
         method = tok.value
@@ -523,15 +529,33 @@ def _preview(text: str, limit: int = 60) -> str:
     return single if len(single) <= limit else single[:limit - 1] + "…"
 
 
-def _collect_xml_resources(res_dir: Path, root: Path) -> tuple[dict[str, set[str]], dict[str, set[str]], dict[str, int], list[str]]:
-    """Collect translatable and non-translatable keys across one Android values directory."""
+def _extract_placeholders(text: str) -> list[str]:
+    """Return sorted Android/printf format specifiers in text, ignoring escaped ``%%``."""
+    return sorted(PLACEHOLDER_SPEC_RE.findall(ESCAPED_PERCENT_RE.sub("", text)))
+
+
+@dataclass
+class _XmlResources:
+    translatable: dict[str, set[str]]
+    non_translatable: dict[str, set[str]]
+    strings: dict[str, str]
+    plurals: dict[str, dict[str, str]]
+    array_lengths: dict[str, int]
+    issues: list[str]
+
+
+def _collect_xml_resources(res_dir: Path, root: Path) -> _XmlResources:
+    """Collect translatable and non-translatable keys, strings, plurals, and array lengths."""
     translatable: dict[str, set[str]] = {"string": set(), "plurals": set(), "string-array": set()}
     non_translatable: dict[str, set[str]] = {"string": set(), "plurals": set(), "string-array": set()}
+    strings: dict[str, str] = {}
+    plurals: dict[str, dict[str, str]] = {}
     array_lengths: dict[str, int] = {}
     issues: list[str] = []
 
     if not res_dir.is_dir():
-        return translatable, non_translatable, array_lengths, [f"{res_dir.relative_to(root).as_posix()}: missing resource directory"]
+        issues.append(f"{res_dir.relative_to(root).as_posix()}: missing resource directory")
+        return _XmlResources(translatable, non_translatable, strings, plurals, array_lengths, issues)
 
     seen_origin: dict[tuple[str, str], str] = {}
     for xml_path in sorted(res_dir.glob("*.xml")):
@@ -559,41 +583,74 @@ def _collect_xml_resources(res_dir: Path, root: Path) -> tuple[dict[str, set[str
                     translatable[tag].add(name)
                     if tag == "string":
                         raw_text = "".join(el.itertext())
+                        strings[name] = raw_text
                         if raw_text != raw_text.strip() and not (raw_text.startswith('"') and raw_text.endswith('"')):
                             if (rel, name) not in PREEXISTING_WHITESPACE_STRINGS:
                                 issues.append(
                                     f"{rel}: <string name={name!r}> has unquoted leading/trailing whitespace that AAPT2 strips"
                                 )
+                    elif tag == "plurals":
+                        qty_map: dict[str, str] = {}
+                        for item in el.findall("item"):
+                            qty = item.attrib.get("quantity", "").strip()
+                            if not qty:
+                                issues.append(f"{rel}: <plurals name={name!r}> has <item> missing quantity attribute")
+                                continue
+                            qty_map[qty] = "".join(item.itertext())
+                        plurals[name] = qty_map
                     elif tag == "string-array":
                         array_lengths[name] = len(el.findall("item"))
 
-    return translatable, non_translatable, array_lengths, issues
+    return _XmlResources(translatable, non_translatable, strings, plurals, array_lengths, issues)
 
 
 def check_xml_parity(root: Path) -> list[str]:
-    """Verify exact 1:1 key parity between res/values/ (FR default) and res/values-en/ (EN)."""
+    """Verify exact 1:1 key, placeholder, plurals quantity, and array-length parity between values/ and values-en/."""
     res_root = root / "app/src/main/res"
-    fr_trans, fr_nontrans, fr_arrays, fr_issues = _collect_xml_resources(res_root / "values", root)
-    en_trans, en_nontrans, en_arrays, en_issues = _collect_xml_resources(res_root / "values-en", root)
-    issues = [*fr_issues, *en_issues]
+    fr = _collect_xml_resources(res_root / "values", root)
+    en = _collect_xml_resources(res_root / "values-en", root)
+    issues = [*fr.issues, *en.issues]
 
     for tag in ("string", "plurals", "string-array"):
-        missing_in_en = sorted(fr_trans[tag] - en_trans[tag])
-        extra_in_en = sorted(en_trans[tag] - fr_trans[tag])
+        missing_in_en = sorted(fr.translatable[tag] - en.translatable[tag])
+        extra_in_en = sorted(en.translatable[tag] - fr.translatable[tag])
         for name in missing_in_en:
             issues.append(f"app/src/main/res/values-en: missing <{tag} name={name!r}> (present in values/)")
         for name in extra_in_en:
-            if name in fr_nontrans[tag]:
+            if name in fr.non_translatable[tag]:
                 issues.append(f"app/src/main/res/values-en: <{tag} name={name!r}> is translatable=\"false\" in values/")
             else:
                 issues.append(f"app/src/main/res/values: missing <{tag} name={name!r}> (present in values-en/)")
-        for name in sorted(en_nontrans[tag]):
+        for name in sorted(en.non_translatable[tag]):
             issues.append(f"app/src/main/res/values-en: unexpected translatable=\"false\" <{tag} name={name!r}> (keep non-translatable keys in values/ only)")
 
-    for name in sorted(set(fr_arrays) & set(en_arrays)):
-        if fr_arrays[name] != en_arrays[name]:
+    for name in sorted(set(fr.strings) & set(en.strings)):
+        fr_ph = _extract_placeholders(fr.strings[name])
+        en_ph = _extract_placeholders(en.strings[name])
+        if fr_ph != en_ph:
             issues.append(
-                f"app/src/main/res/values-en: <string-array name={name!r}> has {en_arrays[name]} items vs {fr_arrays[name]} in values/"
+                f"app/src/main/res/values-en: <string name={name!r}> placeholder mismatch {en_ph} vs {fr_ph} in values/"
+            )
+
+    for name in sorted(set(fr.plurals) & set(en.plurals)):
+        fr_qty = fr.plurals[name]
+        en_qty = en.plurals[name]
+        if set(fr_qty) != set(en_qty):
+            issues.append(
+                f"app/src/main/res/values-en: <plurals name={name!r}> quantities {sorted(en_qty)} vs {sorted(fr_qty)} in values/"
+            )
+        for qty in sorted(set(fr_qty) & set(en_qty)):
+            fr_ph = _extract_placeholders(fr_qty[qty])
+            en_ph = _extract_placeholders(en_qty[qty])
+            if fr_ph != en_ph:
+                issues.append(
+                    f"app/src/main/res/values-en: <plurals name={name!r} quantity={qty!r}> placeholder mismatch {en_ph} vs {fr_ph} in values/"
+                )
+
+    for name in sorted(set(fr.array_lengths) & set(en.array_lengths)):
+        if fr.array_lengths[name] != en.array_lengths[name]:
+            issues.append(
+                f"app/src/main/res/values-en: <string-array name={name!r}> has {en.array_lengths[name]} items vs {fr.array_lengths[name]} in values/"
             )
 
     return issues

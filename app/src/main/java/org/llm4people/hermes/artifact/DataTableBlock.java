@@ -109,19 +109,29 @@ public final class DataTableBlock {
         }
 
         public void setFilter(String query) {
+            setFilter(query, Locale.getDefault());
+        }
+
+        public void setFilter(String query, Locale locale) {
             if (!filterable) return;
-            filterQuery = query == null ? "" : query.trim().toLowerCase(Locale.FRANCE);
+            Locale effective = locale == null ? Locale.getDefault() : locale;
+            filterQuery = query == null ? "" : query.trim().toLowerCase(effective);
         }
 
         public List<List<String>> visibleRows() {
+            return visibleRows(Locale.getDefault());
+        }
+
+        public List<List<String>> visibleRows(Locale locale) {
+            Locale effective = locale == null ? Locale.getDefault() : locale;
             List<List<String>> result = new ArrayList<>();
             for (List<String> row : rows) {
-                if (filterQuery.isEmpty() || matches(row, filterQuery)) result.add(row);
+                if (filterQuery.isEmpty() || matches(row, filterQuery, effective)) result.add(row);
             }
             if (sortColumn >= 0 && sortColumn < columns.size()) {
                 int col = sortColumn;
                 boolean numeric = columns.get(col).numeric;
-                Collator collator = Collator.getInstance(Locale.FRANCE);
+                Collator collator = Collator.getInstance(effective);
                 collator.setStrength(Collator.PRIMARY);
                 Comparator<List<String>> cmp = (a, b) -> compareCells(a.get(col), b.get(col), numeric, collator);
                 result.sort(ascending ? cmp : cmp.reversed());
@@ -139,9 +149,9 @@ public final class DataTableBlock {
             return sb.toString();
         }
 
-        private static boolean matches(List<String> row, String query) {
+        private static boolean matches(List<String> row, String query, Locale locale) {
             for (String cell : row) {
-                if (cell.toLowerCase(Locale.FRANCE).contains(query)) return true;
+                if (cell.toLowerCase(locale).contains(query)) return true;
             }
             return false;
         }
@@ -258,6 +268,12 @@ public final class DataTableBlock {
         }
     }
 
+    private static Locale activeLocale(Context context) {
+        return context != null && context.getResources() != null
+                && !context.getResources().getConfiguration().getLocales().isEmpty()
+                ? context.getResources().getConfiguration().getLocales().get(0) : Locale.getDefault();
+    }
+
     static View build(Context context, Model model, ThemePalette palette, ArtifactDesk.Host host) {
         ThemePalette colors = palette == null
                 ? ThemePalette.resolve(ThemePalette.OverrideSpec.defaults(), ThemePalette.isNight(context))
@@ -276,7 +292,7 @@ public final class DataTableBlock {
                 @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
                 @Override public void afterTextChanged(Editable s) {}
                 @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
-                    model.setFilter(s.toString());
+                    model.setFilter(s.toString(), activeLocale(context));
                     renderTable(context, tableBody, model, colors, host);
                 }
             });
@@ -332,7 +348,7 @@ public final class DataTableBlock {
         tableBody.addView(headerRow);
         tableBody.addView(Ui.divider(c));
 
-        List<List<String>> rows = model.visibleRows();
+        List<List<String>> rows = model.visibleRows(activeLocale(c));
         if (rows.isEmpty()) {
             TextView empty = Ui.text(c, c.getString(org.llm4people.hermes.R.string.ws_table_empty), colors.scaledSp(14));
             empty.setTextColor(colors.muted);

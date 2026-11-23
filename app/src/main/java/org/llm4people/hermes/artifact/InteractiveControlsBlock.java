@@ -326,7 +326,7 @@ public final class InteractiveControlsBlock {
         TextView labelView = Ui.text(c, ctrl.label, colors.scaledSp(15));
         labelView.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         labelView.setTextColor(colors.ink);
-        TextView valueView = Ui.text(c, formatSliderValue(current, ctrl.unit), colors.scaledSp(15));
+        TextView valueView = Ui.text(c, formatSliderValue(c, current, ctrl.unit), colors.scaledSp(15));
         valueView.setTypeface(Typeface.MONOSPACE);
         valueView.setTextColor(colors.accent);
         header.addView(labelView, new LinearLayout.LayoutParams(0, -2, 1f));
@@ -338,14 +338,14 @@ public final class InteractiveControlsBlock {
         seek.setProgress(initialProgress);
         seek.setEnabled(interactive);
         seek.setSaveEnabled(false);
-        seek.setContentDescription(ctrl.label + ", " + formatSliderValue(current, ctrl.unit));
+        seek.setContentDescription(ctrl.label + ", " + formatSliderValue(c, current, ctrl.unit));
         if (interactive) {
             seek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
                 private boolean dragging;
 
                 @Override public void onProgressChanged(SeekBar bar, int progress, boolean fromUser) {
                     double value = Math.min(ctrl.max, ctrl.min + progress * ctrl.step);
-                    String formatted = formatSliderValue(value, ctrl.unit);
+                    String formatted = formatSliderValue(c, value, ctrl.unit);
                     valueView.setText(formatted);
                     bar.setContentDescription(ctrl.label + ", " + formatted);
                     state.put(ctrl.id, value);
@@ -450,8 +450,14 @@ public final class InteractiveControlsBlock {
         group.addView(hint);
     }
 
-    private static String formatSliderValue(double value, String unit) {
-        NumberFormat fmt = NumberFormat.getNumberInstance(Locale.FRANCE);
+    private static Locale activeLocale(Context context) {
+        return context != null && context.getResources() != null
+                && !context.getResources().getConfiguration().getLocales().isEmpty()
+                ? context.getResources().getConfiguration().getLocales().get(0) : Locale.getDefault();
+    }
+
+    private static String formatSliderValue(Context context, double value, String unit) {
+        NumberFormat fmt = NumberFormat.getNumberInstance(activeLocale(context));
         fmt.setMaximumFractionDigits(2);
         return fmt.format(value) + (unit.isEmpty() ? "" : " " + unit);
     }
