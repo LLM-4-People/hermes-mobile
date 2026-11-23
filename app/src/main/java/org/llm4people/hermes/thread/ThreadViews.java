@@ -80,6 +80,7 @@ public final class ThreadViews {
     private TextView progress;
     private TextView outgoing;
     private LinearLayout liveReasoningSlot;
+    private LiveReasoningCard liveReasoningCard;
     private String lastLiveReasoning = "";
     private TextView liveText;
     private Button fullLiveText;
@@ -182,6 +183,8 @@ public final class ThreadViews {
         live.addView(progress);
         liveReasoningSlot = Ui.column(activity);
         liveReasoningSlot.setVisibility(View.GONE);
+        liveReasoningCard = null;
+        lastLiveReasoning = "";
         live.addView(liveReasoningSlot);
         live.addView(liveText);
         live.addView(fullLiveText);
@@ -644,16 +647,23 @@ public final class ThreadViews {
         String visibleText = split.visible();
         if (liveReasoningSlot != null) {
             if (split.reasoning().isEmpty()) {
-                if (!lastLiveReasoning.isEmpty()) {
+                if (!lastLiveReasoning.isEmpty() || liveReasoningCard != null) {
                     lastLiveReasoning = "";
+                    liveReasoningCard = null;
                     liveReasoningSlot.removeAllViews();
                     liveReasoningSlot.setVisibility(View.GONE);
                 }
-            } else if (!split.reasoning().equals(lastLiveReasoning)) {
-                lastLiveReasoning = split.reasoning();
-                liveReasoningSlot.removeAllViews();
-                liveReasoningSlot.addView(MessageText.reasoningCard(activity, lastLiveReasoning,
-                        split.open() || visibleText.isEmpty(), this::show));
+            } else {
+                boolean streamingReasoning = split.open() || visibleText.isEmpty();
+                if (liveReasoningCard == null) {
+                    liveReasoningCard = new LiveReasoningCard(activity, this::show);
+                    liveReasoningSlot.removeAllViews();
+                    liveReasoningSlot.addView(liveReasoningCard.root);
+                }
+                if (!split.reasoning().equals(lastLiveReasoning) || liveReasoningCard.streaming != streamingReasoning) {
+                    lastLiveReasoning = split.reasoning();
+                    liveReasoningCard.update(lastLiveReasoning, streamingReasoning);
+                }
                 liveReasoningSlot.setVisibility(View.VISIBLE);
             }
         }
@@ -687,6 +697,91 @@ public final class ThreadViews {
         if (!promptRows.visible()) list.post(() -> {
             if (!promptRows.visible()) list.setSelection(list.getCount() - 1);
         });
+    }
+
+    /** In-place live reasoning disclosure card preserving user expanded/collapsed state across token updates. */
+    private static final class LiveReasoningCard {
+        final LinearLayout root;
+        private final Context context;
+        private final Consumer<AlertDialog.Builder> openDialog;
+        private final Button toggle;
+        private final LinearLayout contentBox;
+        private final TextView detail;
+        private final Button fullButton;
+        private boolean expanded;
+        boolean streaming;
+        private String currentReasoning = "";
+
+        LiveReasoningCard(Context context, Consumer<AlertDialog.Builder> openDialog) {
+            this.context = context;
+            this.openDialog = openDialog;
+            root = Ui.column(context);
+            Ui.pad(root, 12, 6);
+            android.graphics.drawable.GradientDrawable border = new android.graphics.drawable.GradientDrawable();
+            border.setCornerRadius(Ui.dp(context, 10));
+            border.setColor(context.getColor(R.color.surface));
+            border.setStroke(Ui.dp(context, 1), context.getColor(R.color.line));
+            root.setBackground(border);
+
+            contentBox = Ui.column(context);
+            contentBox.setVisibility(View.GONE);
+
+            detail = Ui.text(context, "", 14);
+            detail.setTextColor(context.getColor(R.color.muted));
+            detail.setTextIsSelectable(true);
+            Ui.pad(detail, 4, 4);
+            contentBox.addView(detail);
+
+            fullButton = Ui.button(context, context.getString(R.string.reasoning_read_full), b -> {
+                if (this.openDialog != null) {
+                    this.openDialog.accept(new AlertDialog.Builder(context)
+                            .setTitle(R.string.reasoning_title)
+                            .setView(MessageText.reader(context, currentReasoning, false, false))
+                            .setPositiveButton("Fermer", null));
+                }
+            });
+            fullButton.setVisibility(View.GONE);
+            contentBox.addView(fullButton);
+
+            toggle = Ui.button(context, context.getString(R.string.reasoning_streaming), null);
+            toggle.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+            toggle.setTextSize(14);
+            toggle.setContentDescription(context.getString(R.string.reasoning_show_label));
+            PromptButtons.icon(toggle, R.drawable.ic_prompt_disclosure);
+            toggle.setOnClickListener(v -> {
+                expanded = !expanded;
+                if (expanded) bindDetail();
+                contentBox.setVisibility(expanded ? View.VISIBLE : View.GONE);
+                syncToggleLabel();
+            });
+
+            root.addView(toggle);
+            root.addView(contentBox);
+        }
+
+        void update(String reasoning, boolean isStreaming) {
+            this.currentReasoning = reasoning == null ? "" : reasoning;
+            this.streaming = isStreaming;
+            syncToggleLabel();
+            if (expanded) bindDetail();
+        }
+
+        private void syncToggleLabel() {
+            int labelRes = expanded
+                    ? R.string.reasoning_hide
+                    : (streaming ? R.string.reasoning_streaming : R.string.reasoning_title);
+            toggle.setText(context.getString(labelRes));
+            toggle.setContentDescription(context.getString(
+                    expanded ? R.string.reasoning_hide_label : R.string.reasoning_show_label));
+        }
+
+        private void bindDetail() {
+            boolean over = currentReasoning.length() > TranscriptPage.PAGE_CHARS;
+            detail.setText(over
+                    ? currentReasoning.substring(0, TranscriptPage.PAGE_CHARS) + "…"
+                    : currentReasoning);
+            fullButton.setVisibility(over && openDialog != null ? View.VISIBLE : View.GONE);
+        }
     }
 
     void notice(String message, String label, Runnable action) {

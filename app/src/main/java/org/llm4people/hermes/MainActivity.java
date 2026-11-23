@@ -170,6 +170,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         sharedMedia.restore(state, getIntent());
         gate = new ProfileGate(this);
         gate.setOnForget(id -> {
+            nudgeRateLimiter.reset();
             MobilePush.forget(this, id);
             HermesWidgetStore.forgetProfile(this, id);
             HermesNotificationListener.clearSession();
@@ -1189,14 +1190,15 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         if (owner == null || custom == null) return;
         try {
             boolean night = ThemePalette.isNight(this);
+            ThemePalette.OverrideSpec existing = ThemePalette.load(owner, night);
             String accentHex = (custom.palette == AppCustomization.PalettePreset.FOREST
                     && custom.customAccentHex == null)
                     ? null
                     : ThemePalette.formatHex(night ? custom.darkAccentArgb() : custom.lightAccentArgb());
             int fontStep = Math.max(ThemePalette.MIN_FONT_SCALE_STEP,
-                    Math.min(ThemePalette.MAX_FONT_SCALE_STEP, Math.round(custom.fontScaleDelta * 10f)));
+                    Math.min(ThemePalette.MAX_FONT_SCALE_STEP, Math.round(custom.fontScaleDelta * 20f)));
             ThemePalette.OverrideSpec spec = ThemePalette.OverrideSpec.validated(
-                    "system", accentHex, custom.density.wire, fontStep, "paper", night);
+                    existing.theme, accentHex, custom.density.wire, fontStep, existing.surfaceStyle, night);
             ThemePalette.save(owner, spec);
             if (refreshLayout && account == owner) {
                 onLayoutChanged();
@@ -1206,16 +1208,51 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         }
     }
 
+    private boolean applyThemeModeOverride(Account owner, String themeMode) {
+        if (owner == null || account != owner || themeMode == null) return false;
+        String safeMode = themeMode.trim().toLowerCase(java.util.Locale.ROOT);
+        if (!ThemePalette.THEMES.contains(safeMode)) return false;
+        try {
+            boolean night = ThemePalette.isNight(this);
+            ThemePalette.OverrideSpec current = ThemePalette.load(owner, night);
+            ThemePalette.OverrideSpec updated = ThemePalette.OverrideSpec.validated(
+                    safeMode, current.accentHex, current.accentInkHex, current.surfaceHex, current.inkHex,
+                    current.density, current.fontScaleStep, current.surfaceStyle, night);
+            ThemePalette.save(owner, updated);
+            onLayoutChanged();
+            return true;
+        } catch (IOException | RuntimeException failed) {
+            Diagnostics.warning("customization", "theme_mode_sync_failed");
+            return false;
+        }
+    }
+
     private boolean navigateFromDeepAction(Account owner, String targetKind, String targetId) {
         if (account != owner || isFinishing() || isDestroyed()) return false;
         String kind = targetKind == null ? "" : targetKind.trim().toLowerCase(java.util.Locale.ROOT);
         String id = targetId == null ? "" : targetId.trim();
         switch (kind) {
+            case "discussions", "discussion" -> {
+                switchTab(WorkspaceNavigation.DISCUSSION);
+                return true;
+            }
+            case "atelier", "home", "workspace" -> {
+                switchTab(WorkspaceNavigation.HOME);
+                return true;
+            }
+            case "cerveau", "brain" -> {
+                switchTab(WorkspaceNavigation.BRAIN);
+                return true;
+            }
+            case "activite", "activity" -> {
+                switchTab(WorkspaceNavigation.ACTIVITY);
+                return true;
+            }
             case "command_palette" -> {
                 openCommandPalette();
                 return true;
             }
-            case "template", "templates" -> {
+            case "template", "templates", TemplatesPanel.ROUTE_ID -> {
                 navigate(TemplatesPanel.ROUTE_ID);
                 return true;
             }
@@ -1225,30 +1262,62 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                 if (!id.isEmpty()) threads.open(id);
                 return true;
             }
-            case "tab" -> {
-                String route = switch (id) {
-                    case "discussions", "discussion" -> WorkspaceNavigation.DISCUSSION;
-                    case "atelier", "home", "workspace" -> WorkspaceNavigation.HOME;
-                    case "brain", "cerveau" -> WorkspaceNavigation.BRAIN;
-                    case "activity", "activite" -> WorkspaceNavigation.ACTIVITY;
-                    default -> "";
-                };
-                if (route.isEmpty()) return false;
-                switchTab(route);
+            case "ambient", AmbientAccessPanel.ROUTE_ID -> {
+                navigate(AmbientAccessPanel.ROUTE_ID);
                 return true;
             }
-            case "panel" -> {
-                String route = switch (id) {
-                    case PresenceSettingsPanel.ROUTE_ID, "presence" -> PresenceSettingsPanel.ROUTE_ID;
-                    case ConnectionDoctorPanel.ROUTE_ID, "doctor" -> ConnectionDoctorPanel.ROUTE_ID;
-                    case TemplatesPanel.ROUTE_ID, "templates" -> TemplatesPanel.ROUTE_ID;
-                    case AmbientAccessPanel.ROUTE_ID, "ambient" -> AmbientAccessPanel.ROUTE_ID;
-                    case UpdatePanel.ROUTE_ID, "updates" -> UpdatePanel.ROUTE_ID;
-                    default -> "";
-                };
-                if (route.isEmpty()) return false;
-                navigate(route);
+            case "doctor", ConnectionDoctorPanel.ROUTE_ID -> {
+                navigate(ConnectionDoctorPanel.ROUTE_ID);
                 return true;
+            }
+            case "presence", PresenceSettingsPanel.ROUTE_ID -> {
+                navigate(PresenceSettingsPanel.ROUTE_ID);
+                return true;
+            }
+            case "updates", UpdatePanel.ROUTE_ID -> {
+                navigate(UpdatePanel.ROUTE_ID);
+                return true;
+            }
+            case "memory" -> {
+                if (panels == null) return false;
+                brainHandlers().openMemory();
+                return true;
+            }
+            case "notes" -> {
+                if (panels == null) return false;
+                brainHandlers().openNotes();
+                return true;
+            }
+            case "shared_with_me" -> {
+                if (panels == null) return false;
+                brainHandlers().openSharedWithMe();
+                return true;
+            }
+            case "search" -> {
+                if (panels == null) return false;
+                brainHandlers().openGlobalSearch();
+                return true;
+            }
+            case "skills" -> {
+                if (panels == null) return false;
+                brainHandlers().openSkillStudio();
+                return true;
+            }
+            case "workspace_files" -> {
+                if (panels == null) return false;
+                brainHandlers().openWorkspaceFiles();
+                return true;
+            }
+            case "profile_defaults" -> {
+                if (panels == null) return false;
+                brainHandlers().openProfileDefaults();
+                return true;
+            }
+            case "tab" -> {
+                return !id.isEmpty() && navigateFromDeepAction(owner, id, "");
+            }
+            case "panel" -> {
+                return !id.isEmpty() && navigateFromDeepAction(owner, id, "");
             }
             default -> {
                 return false;
@@ -1381,6 +1450,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     private void clearWorkspace() {
         clearGraceTimer();
         MemoryPressure.clearAll();
+        nudgeRateLimiter.reset();
         presenceTracker.clearOnLock();
         locationTracker.stopAndWipe();
         HermesNotificationListener.clearSession();

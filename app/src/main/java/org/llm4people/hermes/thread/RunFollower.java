@@ -130,7 +130,8 @@ final class RunFollower implements AutoCloseable {
                     apply(type, event);
                     seq = eventSeq;
                     long now = uptime.getAsLong();
-                    if (!"message.delta".equals(type) || now >= nextPaint) {
+                    boolean throttledDelta = "message.delta".equals(type) || "reasoning.delta".equals(type);
+                    if (!throttledDelta || now >= nextPaint) {
                         publish();
                         nextPaint = now + PAINT_INTERVAL_MS;
                     }

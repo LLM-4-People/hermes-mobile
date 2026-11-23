@@ -1183,7 +1183,11 @@ public final class ThreadWorkspace implements AutoCloseable {
         try {
             LiveUiPatch patch = LiveUiPatch.parse(rawPatch, ThemePalette.isNight(activity));
             appliedLiveUiRevisionId = null;
-            screen.liveUiBar.present(patch);
+            if (!patch.ops.isEmpty()) {
+                screen.liveUiBar.present(patch);
+            } else {
+                screen.liveUiBar.clear();
+            }
             if (!patch.suggestedActions.isEmpty()) {
                 ThemePalette palette = ThemePalette.active(activity, account);
                 screen.suggestedActions(patch.suggestedActions, palette,
@@ -1192,9 +1196,8 @@ public final class ThreadWorkspace implements AutoCloseable {
                         action -> { if (instrumentHost != null) instrumentHost.onAction(action); },
                         this::pinWidgetById);
             }
-            if (!patch.interactiveCards.isEmpty()) {
-                screen.interactiveCards(patch.interactiveCards, interactiveCardCallbacks());
-            }
+            screen.interactiveCards(patch.interactiveCards,
+                    patch.interactiveCards.isEmpty() ? null : interactiveCardCallbacks());
             Diagnostics.event("live_ui", "patch_presented");
         } catch (java.io.IOException rejected) {
             Diagnostics.warning("live_ui", "patch_rejected");

@@ -444,9 +444,10 @@ final class ThreadRun {
         ui.live("Hermes travaille…", saved.toString(), false, saved.origin());
         reportProgress(new LiveRunNotification.Snapshot(
                 LiveRunNotification.Phase.WORKING, 0, 0, false, true));
-        StreamCoalescer coalescer = new StreamCoalescer(StreamCoalescer.DEFAULT_FRAME_BUDGET_MS, rendered -> {
+        StreamCoalescer coalescer = new StreamCoalescer(StreamCoalescer.DEFAULT_FRAME_BUDGET_MS, ignored -> {
             if (coalescedFrame != null) {
-                ui.live(coalescedActivity, rendered, coalescedHasPrompts, coalescedFrame.origin, coalescedFrame.reasoning);
+                ui.live(coalescedActivity, coalescedFrame.text, coalescedHasPrompts,
+                        coalescedFrame.origin, coalescedFrame.reasoning);
             }
         });
         liveCoalescer = coalescer;
@@ -464,27 +465,34 @@ final class ThreadRun {
                     String activity = count == 0 ? next.activity : count == 1
                             ? "Hermes attend votre réponse" : count + " demandes en attente";
                     boolean hasPrompts = count > 0;
+                    boolean reasoningVisibilityChanged = coalescedFrame == null
+                            || next.reasoning.isEmpty() != coalescedFrame.reasoning.isEmpty();
+                    boolean firstVisibleReply = !next.text.isEmpty()
+                            && (coalescedFrame == null || coalescedFrame.text.isEmpty());
                     boolean urgent = hasPrompts
                             || !next.deviceRequests.isEmpty()
                             || !next.uiPatches.isEmpty()
                             || coalescedFrame == null
                             || !activity.equals(coalescedActivity)
-                            || !next.reasoning.equals(coalescedFrame.reasoning)
+                            || reasoningVisibilityChanged
+                            || firstVisibleReply
                             || next.origin != coalescedFrame.origin;
                     coalescedFrame = next;
                     coalescedActivity = activity;
                     coalescedHasPrompts = hasPrompts;
+                    String coalesceKey = next.reasoning.isEmpty()
+                            ? next.text : (next.text + "\u0000" + next.reasoning);
                     long now = SystemClock.elapsedRealtime();
                     if (urgent) {
                         if (pendingCoalesceFlush != null) {
                             page.main.removeCallbacks(pendingCoalesceFlush);
                             pendingCoalesceFlush = null;
                         }
-                        boolean emitted = coalescer.offer(next.text, now);
+                        boolean emitted = coalescer.offer(coalesceKey, now);
                         if (!emitted && coalescer.hasPending()) emitted = coalescer.flush(now);
                         if (!emitted) ui.live(activity, next.text, hasPrompts, next.origin, next.reasoning);
                     } else {
-                        boolean emitted = coalescer.offer(next.text, now);
+                        boolean emitted = coalescer.offer(coalesceKey, now);
                         if (emitted && pendingCoalesceFlush != null) {
                             page.main.removeCallbacks(pendingCoalesceFlush);
                             pendingCoalesceFlush = null;
