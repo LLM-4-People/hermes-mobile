@@ -1,6 +1,6 @@
 # Releases & In-App GitHub Auto-Update
 
-Hermes Mobile publishes reproducible, signed Android releases on GitHub and includes built-in, fail-closed update detection, checksum/signature verification, and native Android installation directly from **Activity → App Updates** (**Activité → Mises à jour**).
+Hermes Mobile publishes reproducible, signed Android releases on GitHub and includes built-in, fail-closed update detection, checksum/signature verification, and native Android installation directly from **Activity → App Updates**.
 
 ## How Signed Releases Are Generated
 
@@ -18,7 +18,7 @@ Every pull request and `main` build in **Workspace checks** (`.github/workflows/
 
 ## Built-In In-App Update Detection & Verified Install
 
-Open **Activity → App Updates** (**Activité → Mises à jour**) on Android (a lightweight 24-hour throttled check also surfaces a subtle update badge in **Activity** when a newer signed release is published):
+Open **Activity → App Updates** on Android (a lightweight 24-hour throttled check also surfaces a subtle update badge in **Activity** when a newer signed release is published):
 
 1. **Zero-credential GitHub lookup:** Queries `https://api.github.com/repos/LLM-4-People/hermes-mobile/releases/latest` over HTTPS without ever sending Hermes profile credentials, bearer keys, or device identifiers.
 2. **Strict asset & host validation:** Compares the remote SemVer tag against the installed version, requires both a signed `.apk` asset (rejecting `*-unsigned.apk`) and its matching `SHA256SUMS` / `.sha256` file, and allowlists only official HTTPS GitHub release hosts (`github.com`, `objects.githubusercontent.com`, `release-assets.githubusercontent.com`, `api.github.com`).

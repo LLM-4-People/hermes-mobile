@@ -20,8 +20,8 @@ For a private ntfy server, enable authentication with a deny-all default and sta
 ## Set up the phone
 
 1. Install and open the ntfy Android distributor. In **Settings → Default server**, enter the ntfy origin configured by your operator and tap **Save**. For a private server, open **Settings → Manage Users → Add New User** and enter that server URL and the username and password of your ntfy reader account. Use the Hermes profile bearer only with the Hermes gateway and bridge. [UnifiedPush private server login](https://unifiedpush.org/users/distributors/ntfy/#limit-access-to-some-users-acl)
-2. Unlock the intended Hermes profile. In **Atelier → Notifications**, tap **Activer**, allow Hermes to display notifications, then choose **Activer avec UnifiedPush** and select **ntfy**.
-3. When Hermes confirms that the relay registered this profile, tap **Ouvrir le distributeur**. Wait for ntfy’s **Subscribed topics** screen before leaving the app. On Android 13 this foreground visit lets ntfy start listening for the new subscription. You can reopen the same distributor from the profile’s notification settings.
+2. Unlock the intended Hermes profile. In **Activity → Notifications**, tap **Enable**, allow Hermes to display notifications, then choose **Enable with UnifiedPush** and select **ntfy**.
+3. When Hermes confirms that the relay registered this profile, tap **Open distributor**. Wait for ntfy’s **Subscribed topics** screen before leaving the app. On Android 13 this foreground visit lets ntfy start listening for the new subscription. You can reopen the same distributor from the profile’s notification settings.
 4. If the ntfy server uses `auth-default-access: deny-all`, tap the Hermes subscription in **Subscribed topics**. Use the generated name under **Topic URL** to grant access as described below, then let ntfy reconnect.
 5. Start a short Hermes run and leave the app. Confirm that Android shows the completion alert and that tapping it opens the owning profile.
 

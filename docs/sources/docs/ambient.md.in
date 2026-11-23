@@ -1,6 +1,6 @@
 # Zero-Root Ambient Intelligence
 
-{{ project }} includes an optional, zero-root **Ambient Intelligence** panel under **Activity** (**Activité**) that lets Hermes help with selected third-party notifications, media playback, and opt-in device context—while staying **fail-closed and completely OFF by default**.
+{{ project }} includes an optional, zero-root **Ambient Intelligence** panel under **Activity** that lets Hermes help with selected third-party notifications, media playback, and opt-in device context—while staying **fail-closed and completely OFF by default**.
 
 ## Opt-In & Privacy Boundaries
 

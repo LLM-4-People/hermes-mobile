@@ -1,0 +1,58 @@
+# Hermes Mobile — Documentation en français
+
+*[English README](../../README.md) · [Portail français en ligne](https://llm-4-people.github.io/hermes-mobile/fr/) · [Télécharger la dernière version signée](https://github.com/LLM-4-People/hermes-mobile/releases/latest)*
+
+<p align="center">
+  <img src="../assets/hero-studio.png" alt="Hermes Mobile sur un téléphone Android moderne posé sur du noyer chaleureux et de la pierre claire" width="100%">
+</p>
+
+**Hermes Mobile** est un client Android natif (API 28 à 36, Java, zéro WebView, APK signé d’environ 1,83 Mo) conçu pour discuter, programmer, valider des actions, lancer plusieurs tâches simultanées et personnaliser votre espace avec votre propre serveur Hermes. L’application suit automatiquement la langue de votre téléphone (**français** ou **anglais**), offre un changement en un geste et synchronise cette préférence avec votre serveur.
+
+> **Serveur compagnon requis :** Hermes Mobile fonctionne avec notre branche compagnon **[LLM-4-People/hermes-agent](https://github.com/LLM-4-People/hermes-agent)**, qui fournit l’hébergement multi-profils sur un seul nom de domaine (`/p/{profil}`), l’exécution simultanée de plusieurs tâches par utilisateur, les modifications d’interface en direct, les notifications privées, l’espace Cerveau, les aperçus visuels de modifications et le pont d’actions Android.
+
+## Aperçu sur appareil réel
+
+<p align="center">
+  <a href="../../site/assets/screens/phone-transcript.png"><img src="../../site/assets/screens/phone-transcript.png" width="24%" alt="Fil de discussion lisible sur téléphone dans Hermes Mobile"></a>
+  <a href="../../site/assets/screens/phone-approval.png"><img src="../../site/assets/screens/phone-approval.png" width="24%" alt="Carte de validation visuelle d’une action dans Hermes Mobile"></a>
+  <a href="../../site/assets/screens/phone-photo-draft.png"><img src="../../site/assets/screens/phone-photo-draft.png" width="24%" alt="Photo jointe préparée dans un brouillon modifiable"></a>
+  <a href="../../site/assets/screens/tablet-dual-pane.png"><img src="../../site/assets/screens/tablet-dual-pane.png" width="24%" alt="Affichage double volet sur tablette avec barre latérale"></a>
+</p>
+
+## Ce que fait Hermes Mobile
+
+| Domaine | Capacités principales |
+| --- | --- |
+| **Interface adaptative téléphone et tablette** | Quatre espaces principaux (**Discussions**, **Atelier**, **Cerveau**, **Activité**) : barre inférieure sensible au clavier sur téléphone, barre latérale de **92 dp** et volet de discussions repliable (`232–360 dp`) sur tablette, en préservant vos brouillons lors des rotations et du mode écran partagé. |
+| **Palette de commandes rapide (`Ctrl+K`) et modèles quotidiens** | Recherche instantanée tolérante aux accents pour ouvrir n’importe quelle action, discussion récente ou modèle en un geste. Inclut 6 modèles quotidiens prêts à l’emploi et vos propres modèles chiffrés par profil, toujours placés en brouillon modifiable avant l’envoi. |
+| **Tâches simultanées et isolation multi-utilisateurs** | Lancez plusieurs tâches en parallèle dans différentes discussions sans interrompre les flux en cours ni mélanger les réponses, tout en hébergeant plusieurs utilisateurs sur **un seul domaine HTTPS** (`/p/<profil>`) avec des dossiers, espaces et clés strictement isolés. |
+| **Discussions instantanées et performances optimisées** | Changement de discussion instantané avec chargement progressif de l’historique, affichage fluide des réponses en continu, vues personnalisées sans allocation superflue, caches mémoire purgés au verrouillage et APK signé allégé d’environ **1,83 Mo** (**-19 %**). |
+| **Diagnostic de connexion en direct** | Sous **Activité → Diagnostic de connexion**, six contrôles parallèles vérifient la joignabilité et la latence du serveur, les 51 fonctions du serveur compagnon, les notifications, les mises à jour, l’accès ambiant et la langue, avec boutons de correction directe et copie d’un rapport expurgé sans aucune clé ni donnée privée. |
+| **Code, comparaisons visuelles et voix mains libres** | Réponses en continu avec mise en forme enrichie, lecteur de code coloré, cartes d’approbation visuelles, dictée locale ou système, lecture vocale hors ligne et mode vocal mains libres avec interruption instantanée. |
+| **Personnalisation en direct et widgets d’accueil** | Demandez à Hermes d’adapter un écran, d’ajuster les couleurs (contraste WCAG-AA `4.5:1` garanti jour et nuit) ou de créer un outil interactif avec aperçu, historique d’annulation complet et widgets d’écran d’accueil liés à votre profil. |
+| **Coffre chiffré et intégration Android 16** | Stockage local chiffré par profil, déverrouillage biométrique fort, temporisation persistante contre les essais de phrase secrète, effacement atomique de profil, notifications en direct Android 16 affichant vos tâches actives, tuile de paramètres rapides et raccourcis d’application. |
+| **Espace Cerveau et partage sur le même serveur** | Consultez et modifiez la mémoire de Hermes, gérez vos notes intelligentes, validez des habitudes suggérées après au moins trois répétitions, recherchez dans tout l’historique, gérez vos savoir-faire, parcourez vos fichiers et partagez sept types d’éléments entre utilisateurs du même serveur. |
+| **Accès ambiant privé par défaut** | Entièrement désactivé par défaut pour chaque profil. Liste blanche d’applications filtrée par un garde-fou qui bloque systématiquement les codes à usage unique, gestionnaires de mots de passe, banques et notifications masquées. |
+| **Notifications privées sans fuite** | Fonctionne avec Firebase ou avec un relais auto-hébergé UnifiedPush (ntfy chiffré). Aucune notification ne transporte le texte de vos messages : tout reste sur votre serveur jusqu’au déverrouillage du profil. |
+
+## Démarrage rapide
+
+### 1. Installer l’application signée et rester à jour
+
+1. Téléchargez `Hermes-Mobile.apk`, `SHA256SUMS` et `release.json` depuis la [dernière version publiée sur GitHub](https://github.com/LLM-4-People/hermes-mobile/releases/latest).
+2. Une fois installée, ouvrez **Activité → Mises à jour** dans l’application : les nouvelles versions sont vérifiées par empreinte SHA-256 et certificat de signature correspondant avant l’installation Android native.
+
+### 2. Connecter un profil sur un serveur HTTPS partagé
+
+1. Déployez le serveur compagnon ([LLM-4-People/hermes-agent](https://github.com/LLM-4-People/hermes-agent)) derrière **une seule adresse HTTPS** (par exemple `https://hermes.example.com`) où chaque personne dispose de son chemin isolé `/p/<profil>` et de sa propre clé d’accès.
+2. Dans **Connecter Hermes**, saisissez un nom de profil, l’adresse HTTPS du serveur, votre identifiant **Profil serveur** et votre clé d’accès.
+3. Protégez le coffre local par une phrase secrète, puis activez si souhaité la biométrie dans **Activité → Sécurité**.
+
+## Liens utiles
+
+- [Portail de présentation français](https://llm-4-people.github.io/hermes-mobile/fr/)
+- [Documentation interactive en français](https://llm-4-people.github.io/hermes-mobile/fr/docs/)
+- [Galerie des écrans réels en français](https://llm-4-people.github.io/hermes-mobile/fr/walkthrough/)
+- [Documentation technique complète en anglais](../../README.md)
+
+<!-- Generated from docs/sources/docs/fr/README.md.in by scripts/docs.py. -->
