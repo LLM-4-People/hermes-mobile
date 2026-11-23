@@ -604,4 +604,7 @@
     <string name="thread_live_ui_apply_failed">Could not apply this screen change.</string>
     <string name="thread_live_ui_rollback_failed">Could not undo this change.</string>
     <string name="thread_storage_failed">Could not save locally. Check available storage.</string>
+    <string name="camera_unavailable">The camera is not available on this device.</string>
+    <string name="voice_spoken_continued_on_screen">The rest is available on screen.</string>
+    <string name="share_default_file_name">File</string>
 </resources>

@@ -18,11 +18,12 @@ def _write(root: Path, rel: str, content: str) -> Path:
 
 
 class HardcodedUiStringsGuardTest(unittest.TestCase):
-    def test_repo_passes_and_owned_packages_are_not_allowlisted(self):
-        for rel in guard.MIGRATION_ALLOWLIST:
-            self.assertNotIn("/artifact/", rel)
-            self.assertNotIn("/panel/", rel)
-            self.assertNotIn("/palette/", rel)
+    def test_repo_passes_with_zero_allowlists_and_accurate_ui_sinks(self):
+        self.assertFalse(hasattr(guard, "MIGRATION_ALLOWLIST"))
+        self.assertFalse(hasattr(guard, "PREEXISTING_WHITESPACE_STRINGS"))
+        self.assertIn(("Ui", "pill"), guard.QUALIFIED_UI_SINK_ARGS)
+        for dead_method in ("chip", "heading", "sectionTitle", "caption", "badge", "banner", "emptyState"):
+            self.assertNotIn(("Ui", dead_method), guard.QUALIFIED_UI_SINK_ARGS)
         self.assertEqual(guard.check_repo(ROOT), [])
 
     def test_rejects_hardcoded_french_literals_both_accented_and_unaccented(self):
@@ -45,7 +46,7 @@ class HardcodedUiStringsGuardTest(unittest.TestCase):
                 }
                 """,
             )
-            issues = guard.check_repo(root, allowlist={})
+            issues = guard.check_repo(root)
             self.assertEqual(len(issues), 3, issues)
             self.assertTrue(any("Paramètres avancés" in i for i in issues))
             self.assertTrue(any("Fermer" in i for i in issues))
@@ -72,6 +73,7 @@ class HardcodedUiStringsGuardTest(unittest.TestCase):
                             .setNegativeButton("Cancel", null);
                         Toast.makeText(ctx, "Saved successfully", Toast.LENGTH_SHORT).show();
                         Ui.button(ctx, "Retry now", null);
+                        Ui.pill(ctx, "Active badge", R.color.accent_surface, R.color.accent);
                         screen.note("Nothing to show yet.");
                         if (ready) setText("Primary label");
                         else setText("Bypassed after else");
@@ -80,7 +82,7 @@ class HardcodedUiStringsGuardTest(unittest.TestCase):
                 }
                 """,
             )
-            issues = guard.check_repo(root, allowlist={})
+            issues = guard.check_repo(root)
             expected_snippets = [
                 "Save changes",
                 "Type a message",
@@ -91,6 +93,7 @@ class HardcodedUiStringsGuardTest(unittest.TestCase):
                 "Delete",
                 "Saved successfully",
                 "Retry now",
+                "Active badge",
                 "Nothing to show yet.",
                 "Primary label",
                 "Bypassed after else",
@@ -123,7 +126,7 @@ class HardcodedUiStringsGuardTest(unittest.TestCase):
                 }
                 """,
             )
-            self.assertEqual(guard.check_repo(root, allowlist={}), [])
+            self.assertEqual(guard.check_repo(root), [])
 
     def test_xml_parity_catches_missing_extra_duplicate_and_array_length_drift(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -186,23 +189,6 @@ class HardcodedUiStringsGuardTest(unittest.TestCase):
             self.assertFalse(any("fmt_ok" in i for i in issues), issues)
             self.assertTrue(any("<plurals name='days'> quantities" in i for i in issues), issues)
             self.assertTrue(any("<plurals name='files' quantity='one'> placeholder mismatch" in i for i in issues), issues)
-
-    def test_allowlist_ratchet_fails_when_allowlisted_file_is_clean_or_missing(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            _write(root, "app/src/main/res/values/strings.xml", "<resources><string name='ok'>OK</string></resources>")
-            _write(root, "app/src/main/res/values-en/strings.xml", "<resources><string name='ok'>OK</string></resources>")
-            _write(root, "app/src/main/java/org/example/Clean.java", "class Clean { int x = 1; }")
-            issues = guard.check_repo(
-                root,
-                allowlist={
-                    "app/src/main/java/org/example/Clean.java": "Migrated",
-                    "app/src/main/java/org/example/Deleted.java": "Gone",
-                },
-            )
-            self.assertEqual(len(issues), 2, issues)
-            self.assertTrue(any("has 0 violations" in i for i in issues))
-            self.assertTrue(any("no longer exists" in i for i in issues))
 
 
 if __name__ == "__main__":

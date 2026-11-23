@@ -51,6 +51,6 @@
     <string name="ambient_draft_note">Crée une note claire à partir de cette notification de %1$s (%2$s) :\n%3$s</string>
     <string name="ambient_draft_calendar">Prépare un rendez-vous dans mon agenda à partir de ce message de %1$s (%2$s) :\n%3$s</string>
     <string name="ambient_draft_reply">Propose-moi une réponse courte et polie à ce message de %1$s (%2$s) :\n%3$s</string>
-    <string name="ambient_draft_media">À propos de ce que j’écoute (%1$s — %2$s) : </string>
+    <string name="ambient_draft_media">"À propos de ce que j’écoute (%1$s — %2$s) : "</string>
     <string name="ambient_permission_needed">Autorisation Android nécessaire pour lire cette information.</string>
 </resources>

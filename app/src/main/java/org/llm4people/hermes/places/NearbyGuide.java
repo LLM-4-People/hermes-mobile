@@ -10,6 +10,7 @@ import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import org.llm4people.hermes.AdaptiveLayout;
+import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 import java.text.NumberFormat;
@@ -58,8 +59,8 @@ public final class NearbyGuide extends LinearLayout {
     }
 
     private DateTimeFormatter dateFormatter() {
-        Locale locale = getResources().getConfiguration().getLocales().get(0);
-        return DateTimeFormatter.ofPattern("d MMM yyyy, HH:mm 'UTC'", locale == null ? Locale.getDefault() : locale)
+        Locale locale = AppLanguage.resolvedLocale(getContext());
+        return DateTimeFormatter.ofPattern("d MMM yyyy, HH:mm 'UTC'", locale)
                 .withZone(ZoneOffset.UTC);
     }
     private final Actions actions;
@@ -448,8 +449,7 @@ public final class NearbyGuide extends LinearLayout {
     public static String distance(Context context, int meters) {
         Locale locale = context == null
                 ? Locale.getDefault()
-                : context.getResources().getConfiguration().getLocales().get(0);
-        if (locale == null) locale = Locale.getDefault();
+                : AppLanguage.resolvedLocale(context);
         if (meters < 1000) {
             String value = Integer.toString(meters);
             return context == null ? value + " m" : context.getString(R.string.places_distance_meters, value);

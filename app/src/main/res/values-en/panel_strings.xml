@@ -53,7 +53,6 @@
     <string name="panel_cost">Known billed cost</string>
     <string name="panel_estimate">Known estimated cost</string>
     <string name="panel_included">Last reply included in plan</string>
-    <string name="panel_cache">Cached input share</string>
     <string name="panel_in">Input usage</string>
     <string name="panel_out">Output usage</string>
     <string name="panel_last_run">Last reply measured on this device</string>
@@ -61,9 +60,6 @@
     <string name="panel_first_text">Time to first text</string>
     <string name="panel_rate">End-to-end output speed</string>
     <string name="panel_duration">Total duration</string>
-    <string name="panel_seconds">%1$s s</string>
-    <string name="panel_tps">%1$s/s</string>
-    <string name="panel_usd">%1$s USD</string>
     <string name="panel_push">Notifications on this device</string>
     <string name="panel_push_on">Notifications enabled on this device</string>
     <string name="panel_push_off">Enable notifications to receive reminders on this device.</string>

@@ -136,17 +136,22 @@ public final class Ui {
 
     /** Circular 36dp initials monogram badge for profile cards and hubs. */
     public static TextView avatarBadge(Context context, String name) {
+        return avatarBadge(context, initials(name), 36, false);
+    }
+
+    /** Circular initials monogram badge with configurable size and accent polarity. */
+    public static TextView avatarBadge(Context context, String initials, int sizeDp, boolean accent) {
         TextView badge = new TextView(context);
-        badge.setText(initials(name));
+        badge.setText(initials);
         badge.setTextSize(14);
         badge.setTypeface(mediumTypeface());
         badge.setGravity(Gravity.CENTER);
-        badge.setTextColor(context.getColor(R.color.accent));
+        badge.setTextColor(context.getColor(accent ? R.color.on_accent : R.color.accent));
         GradientDrawable circle = new GradientDrawable();
         circle.setShape(GradientDrawable.OVAL);
-        circle.setColor(context.getColor(R.color.accent_surface));
+        circle.setColor(context.getColor(accent ? R.color.accent : R.color.accent_surface));
         badge.setBackground(circle);
-        int size = dp(context, 36);
+        int size = dp(context, sizeDp);
         badge.setLayoutParams(new LinearLayout.LayoutParams(size, size));
         badge.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         return badge;
@@ -154,10 +159,16 @@ public final class Ui {
 
     /** Derive 1-2 uppercase initials from a display name for crisp typographic avatars. */
     public static String initials(String name) {
-        if (name == null) return "H";
-        String trimmed = name.trim();
-        if (trimmed.isEmpty()) return "H";
-        String[] parts = trimmed.split("\\s+");
+        return initials(name, null);
+    }
+
+    /** Derive 1-2 uppercase initials from {@code name} (falling back to {@code fallback} when blank). */
+    public static String initials(String name, String fallback) {
+        String source = (name != null && !name.trim().isEmpty())
+                ? name.trim()
+                : (fallback == null ? "" : fallback.trim());
+        if (source.isEmpty()) return "H";
+        String[] parts = source.split("[\\s_-]+");
         StringBuilder out = new StringBuilder(2);
         for (String part : parts) {
             if (part.isEmpty()) continue;

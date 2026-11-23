@@ -107,18 +107,7 @@ public final class ProfileHubSheet implements AutoCloseable {
 
     /** Crisp 1-2 character avatar initials for profile cards (host-JVM testable). */
     public static String avatarInitials(String label) {
-        if (label == null || label.trim().isEmpty()) return "H";
-        String[] parts = label.trim().split("[\\s_-]+");
-        StringBuilder sb = new StringBuilder(2);
-        for (String part : parts) {
-            if (part.isEmpty()) continue;
-            int cp = part.codePointAt(0);
-            if (Character.isLetterOrDigit(cp)) {
-                sb.appendCodePoint(Character.toUpperCase(cp));
-                if (sb.length() >= 2) break;
-            }
-        }
-        return sb.length() == 0 ? "H" : sb.toString();
+        return Ui.initials(label);
     }
 
     /** Validates a newly created server profile slug (2..32 lowercase ASCII letters, digits, hyphens). */
@@ -200,14 +189,12 @@ public final class ProfileHubSheet implements AutoCloseable {
             close();
             callbacks.onScanQrCode();
         });
-        enforceTouchTarget(scanQrBtn);
         body.addView(scanQrBtn, topMargin(10));
 
         Button addLocalBtn = Ui.button(activity, activity.getString(R.string.profile_add_action), v -> {
             close();
             callbacks.onAddProfile();
         });
-        enforceTouchTarget(addLocalBtn);
         body.addView(addLocalBtn, topMargin(8));
 
         // Server profiles & remote status section
@@ -297,12 +284,10 @@ public final class ProfileHubSheet implements AutoCloseable {
 
         Button pairBtn = Ui.button(activity, activity.getString(R.string.profile_hub_pair_device_action),
                 v -> triggerPairDevice());
-        enforceTouchTarget(pairBtn);
         card.addView(pairBtn, topMargin(12));
 
         inviteButton = Ui.button(activity, activity.getString(R.string.profile_hub_invite_action),
                 v -> showInviteDialog(isAdmin));
-        enforceTouchTarget(inviteButton);
         inviteButton.setVisibility(isAdmin ? View.VISIBLE : View.GONE);
         card.addView(inviteButton, topMargin(6));
 
@@ -310,7 +295,6 @@ public final class ProfileHubSheet implements AutoCloseable {
             close();
             callbacks.onOpenAdminConsole();
         });
-        enforceTouchTarget(adminButton);
         adminButton.setVisibility(isAdmin ? View.VISIBLE : View.GONE);
         card.addView(adminButton, topMargin(6));
 
@@ -352,7 +336,6 @@ public final class ProfileHubSheet implements AutoCloseable {
             close();
             callbacks.onSwitchProfile(profileId);
         });
-        enforceTouchTarget(switchBtn);
         row.addView(switchBtn);
         return row;
     }
@@ -441,12 +424,10 @@ public final class ProfileHubSheet implements AutoCloseable {
         LinearLayout actions = Ui.row(activity);
         Button editBtn = Ui.button(activity, activity.getString(R.string.profile_hub_edit_action),
                 v -> showEditDialog(profile));
-        enforceTouchTarget(editBtn);
         actions.addView(editBtn);
 
         Button pairBtn = Ui.button(activity, activity.getString(R.string.profile_hub_pair_device_action),
                 v -> inviteExistingProfile(profile.slug()));
-        enforceTouchTarget(pairBtn);
         LinearLayout.LayoutParams pairLp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         pairLp.setMarginStart(Ui.dp(activity, 8));
@@ -519,7 +500,6 @@ public final class ProfileHubSheet implements AutoCloseable {
                 lang[0] = code;
                 paint.run();
             });
-            enforceTouchTarget(b);
             btns[i] = b;
             langRow.addView(b, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         }
@@ -644,26 +624,7 @@ public final class ProfileHubSheet implements AutoCloseable {
     }
 
     static TextView avatarBadge(Activity activity, String initials, boolean accent) {
-        TextView avatar = new TextView(activity);
-        avatar.setText(initials);
-        avatar.setGravity(Gravity.CENTER);
-        avatar.setTextSize(14);
-        avatar.setTypeface(mediumTypeface());
-        avatar.setTextColor(activity.getColor(accent ? R.color.on_accent : R.color.accent));
-        GradientDrawable circle = new GradientDrawable();
-        circle.setShape(GradientDrawable.OVAL);
-        circle.setColor(activity.getColor(accent ? R.color.accent : R.color.accent_surface));
-        avatar.setBackground(circle);
-        int size = Ui.dp(activity, 40);
-        avatar.setLayoutParams(new LinearLayout.LayoutParams(size, size));
-        avatar.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-        return avatar;
-    }
-
-    private void enforceTouchTarget(Button button) {
-        int touchMin = Ui.dp(activity, 48);
-        button.setMinHeight(touchMin);
-        button.setMinimumHeight(touchMin);
+        return Ui.avatarBadge(activity, initials, 40, accent);
     }
 
     private LinearLayout.LayoutParams topMargin(int dp) {

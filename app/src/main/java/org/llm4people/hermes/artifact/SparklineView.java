@@ -16,6 +16,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.Ui;
 
 import static org.llm4people.hermes.artifact.WorkspaceLayout.invalid;
@@ -98,9 +99,7 @@ public final class SparklineView extends View {
         }
 
         public String accessibilitySummary(Context context) {
-            Locale locale = context != null && context.getResources() != null
-                    && !context.getResources().getConfiguration().getLocales().isEmpty()
-                    ? context.getResources().getConfiguration().getLocales().get(0) : Locale.getDefault();
+            Locale locale = context == null ? Locale.getDefault() : AppLanguage.resolvedLocale(context);
             NumberFormat fmt = NumberFormat.getNumberInstance(locale);
             fmt.setMaximumFractionDigits(2);
             String suffix = unit.isEmpty() ? "" : " " + unit;

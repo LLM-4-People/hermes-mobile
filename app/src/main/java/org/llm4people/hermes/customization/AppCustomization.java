@@ -21,11 +21,11 @@ import java.util.regex.Pattern;
  * Pure Java so every invariant runs directly on the host JVM.
  */
 public final class AppCustomization {
-    public static final double WCAG_AA_MIN_CONTRAST = 4.5;
-    public static final int LIGHT_SURFACE_RGB = 0xFFFEFA;
-    public static final int DARK_SURFACE_RGB = 0x1C2823;
-    public static final int LIGHT_INK_RGB = 0x172521;
-    public static final int WHITE_RGB = 0xFFFFFF;
+    public static final double WCAG_AA_MIN_CONTRAST = ThemePalette.WCAG_AA_NORMAL;
+    public static final int LIGHT_SURFACE_RGB = ThemePalette.DAY_SURFACE & 0xFFFFFF;
+    public static final int DARK_SURFACE_RGB = ThemePalette.NIGHT_SURFACE & 0xFFFFFF;
+    public static final int LIGHT_INK_RGB = ThemePalette.DAY_INK & 0xFFFFFF;
+    public static final int WHITE_RGB = ThemePalette.DAY_ON_ACCENT & 0xFFFFFF;
 
     public static final float MIN_FONT_SCALE_DELTA = -0.15f;
     public static final float MAX_FONT_SCALE_DELTA = 0.30f;
@@ -38,12 +38,12 @@ public final class AppCustomization {
     private static final Pattern SHORTCUT_ID = Pattern.compile("[a-z0-9_-]{1,32}");
 
     public enum PalettePreset {
-        FOREST("forest", "#225C50", "#A0D7BC"),
+        FOREST("forest", ThemePalette.formatHex(ThemePalette.DAY_ACCENT), ThemePalette.formatHex(ThemePalette.NIGHT_ACCENT)),
         SLATE("slate", "#264B73", "#9CC2EB"),
         TERRACOTTA("terracotta", "#8E3B2E", "#F0A89B"),
         INDIGO("indigo", "#3C3A85", "#B9B7F5"),
         PLUM("plum", "#6D305A", "#E5A9D3"),
-        CUSTOM("custom", "#225C50", "#A0D7BC");
+        CUSTOM("custom", ThemePalette.formatHex(ThemePalette.DAY_ACCENT), ThemePalette.formatHex(ThemePalette.NIGHT_ACCENT));
 
         public final String wire;
         public final String lightAccentHex;

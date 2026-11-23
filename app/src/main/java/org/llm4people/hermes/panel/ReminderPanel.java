@@ -14,6 +14,7 @@ import android.widget.Toast;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
@@ -40,16 +41,9 @@ final class ReminderPanel {
 
     ReminderPanel(SessionPanel panel) { this.panel = panel; }
 
-    /** Active UI locale from the localized Activity context (never hardcoded to a single language). */
+    /** Active UI locale from the app language SSoT (never hardcoded to a single language). */
     static Locale activeLocale(Context context) {
-        if (context != null && context.getResources() != null
-                && context.getResources().getConfiguration() != null) {
-            android.os.LocaleList locales = context.getResources().getConfiguration().getLocales();
-            if (locales != null && !locales.isEmpty() && locales.get(0) != null) {
-                return locales.get(0);
-            }
-        }
-        return Locale.getDefault();
+        return context == null ? Locale.getDefault() : AppLanguage.resolvedLocale(context);
     }
 
     void show() {

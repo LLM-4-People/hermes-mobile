@@ -12,6 +12,9 @@
     <string name="update_downloading_indeterminate">Downloading…</string>
     <string name="update_published_date">Published %1$s</string>
     <string name="update_package_size">Package size: %1$s</string>
+    <string name="update_size_bytes">%1$s B</string>
+    <string name="update_size_kb">%1$s KB</string>
+    <string name="update_size_mb">%1$s MB</string>
     <string name="update_checksum_badge">Fingerprint verified before install</string>
     <string name="update_notes_heading">What’s new</string>
     <string name="update_notes_empty">No release notes provided.</string>

@@ -1,19 +1,15 @@
 <resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
     <!-- First-run setup wizard -->
-    <string name="onboarding_step1_title">Connect your Hermes</string>
-    <string name="onboarding_step1_subtitle">Paste a pairing or invite link to configure everything in one tap, or enter your credentials manually.</string>
     <string name="onboarding_paste_card_title">Instant setup</string>
     <string name="onboarding_paste_card_hint">Scan a pairing QR code, or paste a hermes://pair link, HTTPS invite, or copied credentials</string>
     <string name="onboarding_scan_qr_action">Scan QR code</string>
     <string name="onboarding_paste_action">Paste pairing link</string>
     <string name="onboarding_paste_clipboard_detected">Pairing link detected in clipboard</string>
     <string name="onboarding_paste_clipboard_use">Use detected link</string>
-    <string name="onboarding_paste_empty">Clipboard is empty or does not contain a valid link.</string>
     <string name="onboarding_paste_invalid">Link or code not recognized. Paste a valid pairing link or use manual setup.</string>
     <string name="onboarding_paste_checking">Checking pairing link…</string>
     <string name="onboarding_paste_claiming">Pairing with your Hermes server…</string>
     <string name="onboarding_paste_staged">Ready to connect to %1$s (%2$s). Choose a passphrase below, then save.</string>
-    <string name="onboarding_paste_claimed">Connected to %1$s · profile “%2$s” ready</string>
     <string name="onboarding_paste_claim_failed">Could not claim this link. It may have expired or already been used.</string>
     <string name="onboarding_default_profile_label">Default</string>
     <string name="onboarding_key_paired_auto_hint">Paired automatically when you connect</string>
@@ -24,8 +20,6 @@
     <string name="onboarding_paste_confirm_action">Continue</string>
     <string name="onboarding_direct_applied">Server address and key detected automatically. Add your passphrase and save.</string>
     <string name="onboarding_endpoint_applied">Server address detected. Enter your access key and passphrase.</string>
-    <string name="onboarding_manual_toggle_show">Show manual setup</string>
-    <string name="onboarding_manual_toggle_hide">Hide manual setup</string>
 
     <!-- Step 2: Personalize -->
     <string name="onboarding_step2_title">Make it yours</string>
@@ -41,7 +35,6 @@
     <string name="onboarding_theme_dark">Dark</string>
     <string name="onboarding_lock_label">Quick lock</string>
     <string name="onboarding_lock_immediate">Immediate in background</string>
-    <string name="onboarding_lock_grace">Grace period (2 min)</string>
     <string name="onboarding_starters_heading">Start with one tap</string>
     <string name="onboarding_starters_loading">Loading your starters…</string>
     <string name="onboarding_starters_empty">Your Hermes space is ready.</string>
@@ -89,9 +82,7 @@
     <string name="profile_hub_edit_failed">Could not update the profile.</string>
     <string name="profile_hub_invite_title">Invite someone</string>
     <string name="profile_hub_invite_detail">Creates an isolated profile with its own key and a single-use invite link valid for 5 minutes.</string>
-    <string name="profile_hub_invite_slug_label">Short identifier</string>
     <string name="profile_hub_invite_slug_hint">alex</string>
-    <string name="profile_hub_invite_name_label">Display name</string>
     <string name="profile_hub_invite_name_hint">Alex</string>
     <string name="profile_hub_invite_create_action">Create and generate link</string>
     <string name="profile_hub_invite_invalid_slug">Use 2 to 32 lowercase letters, digits, or hyphens.</string>

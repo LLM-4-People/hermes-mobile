@@ -12,6 +12,9 @@
     <string name="update_downloading_indeterminate">Téléchargement en cours…</string>
     <string name="update_published_date">Publiée le %1$s</string>
     <string name="update_package_size">Taille du fichier : %1$s</string>
+    <string name="update_size_bytes">%1$s o</string>
+    <string name="update_size_kb">%1$s ko</string>
+    <string name="update_size_mb">%1$s Mo</string>
     <string name="update_checksum_badge">Empreinte vérifiée avant installation</string>
     <string name="update_notes_heading">Nouveautés</string>
     <string name="update_notes_empty">Aucune note de version fournie.</string>

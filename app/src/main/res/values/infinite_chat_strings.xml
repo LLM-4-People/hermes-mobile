@@ -4,6 +4,4 @@
     <string name="infinite_jump_latest_unread">↓ %1$d nouveaux</string>
     <string name="infinite_jump_latest_cd">Revenir aux messages les plus récents</string>
     <string name="infinite_jump_latest_unread_cd">Revenir aux messages les plus récents (%1$d nouveaux)</string>
-    <string name="infinite_loading_older">Chargement des messages précédents…</string>
-    <string name="infinite_loading_newer">Chargement des messages suivants…</string>
 </resources>

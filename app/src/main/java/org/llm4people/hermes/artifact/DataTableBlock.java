@@ -23,6 +23,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import org.llm4people.hermes.AppLanguage;
 import java.util.Set;
 import org.llm4people.hermes.Ui;
 
@@ -268,12 +269,6 @@ public final class DataTableBlock {
         }
     }
 
-    private static Locale activeLocale(Context context) {
-        return context != null && context.getResources() != null
-                && !context.getResources().getConfiguration().getLocales().isEmpty()
-                ? context.getResources().getConfiguration().getLocales().get(0) : Locale.getDefault();
-    }
-
     static View build(Context context, Model model, ThemePalette palette, ArtifactDesk.Host host) {
         ThemePalette colors = palette == null
                 ? ThemePalette.resolve(ThemePalette.OverrideSpec.defaults(), ThemePalette.isNight(context))
@@ -292,7 +287,7 @@ public final class DataTableBlock {
                 @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
                 @Override public void afterTextChanged(Editable s) {}
                 @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
-                    model.setFilter(s.toString(), activeLocale(context));
+                    model.setFilter(s.toString(), AppLanguage.resolvedLocale(context));
                     renderTable(context, tableBody, model, colors, host);
                 }
             });
@@ -348,7 +343,7 @@ public final class DataTableBlock {
         tableBody.addView(headerRow);
         tableBody.addView(Ui.divider(c));
 
-        List<List<String>> rows = model.visibleRows(activeLocale(c));
+        List<List<String>> rows = model.visibleRows(AppLanguage.resolvedLocale(c));
         if (rows.isEmpty()) {
             TextView empty = Ui.text(c, c.getString(org.llm4people.hermes.R.string.ws_table_empty), colors.scaledSp(14));
             empty.setTextColor(colors.muted);

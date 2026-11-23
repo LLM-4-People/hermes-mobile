@@ -71,10 +71,25 @@ public final class SpeechPlaybackTest {
     }
 
     @Test public void longSingleParagraphKeepsItsOpeningAndSkipsRawBase64() {
-        String prose = SpokenText.prose("Premier point. " + "Prenez le train. ".repeat(10_000));
+        String longInput = "Premier point. " + "Prenez le train. ".repeat(10_000);
+        String prose = SpokenText.prose(longInput);
         assertTrue(prose.startsWith("Premier point. Prenez le train."));
-        assertTrue(prose.endsWith("La suite est disponible à l’écran."));
+        assertFalse("1-arg prose must not append hardcoded French", prose.contains("La suite"));
+        assertFalse("1-arg prose must not append hardcoded English", prose.contains("available on screen"));
         assertTrue(prose.length() < 16_100);
+
+        String enSuffix = "The rest is available on screen.";
+        String enProse = SpokenText.prose(longInput, enSuffix);
+        assertTrue(enProse.endsWith("\n" + enSuffix));
+
+        String frSuffix = "La suite est disponible à l’écran.";
+        String frProse = SpokenText.prose(longInput, frSuffix);
+        assertTrue(frProse.endsWith("\n" + frSuffix));
+
+        // Short replies must never append the continuation suffix.
+        assertEquals("Short reply.", SpokenText.prose("Short reply.", enSuffix));
+        assertEquals(prose, SpokenText.prose(longInput, "   "));
+
         assertEquals("", SpokenText.prose("YQ=="));
         assertEquals("", SpokenText.prose("data:application/pdf;base64,YQ=="));
     }

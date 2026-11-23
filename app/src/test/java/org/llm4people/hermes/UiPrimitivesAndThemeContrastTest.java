@@ -122,10 +122,71 @@ public final class UiPrimitivesAndThemeContrastTest {
         assertEquals("JD", Ui.initials("Jacob Dorais"));
         assertEquals("ÉG", Ui.initials("Élodie Gagnon"));
         assertEquals("AB", Ui.initials("  alice   bob   charlie  "));
+        assertEquals("JL", Ui.initials("jean-luc"));
+        assertEquals("OA", Ui.initials("ops_admin"));
+        assertEquals("TA", Ui.initials("   ", "team-alpha"));
+        assertEquals("JD", Ui.initials("Jacob Dorais", "ignored-slug"));
         assertEquals("H", Ui.initials(null));
         assertEquals("H", Ui.initials(""));
         assertEquals("H", Ui.initials("   "));
+        assertEquals("H", Ui.initials(null, "   "));
         assertEquals("H", Ui.initials("!!! ---"));
+
+        // SSoT parity: OnboardingModels.RemoteProfile and ProfileHubSheet delegate to Ui.initials.
+        org.llm4people.hermes.onboarding.OnboardingModels.RemoteProfile remote =
+                new org.llm4people.hermes.onboarding.OnboardingModels.RemoteProfile(
+                        "team-alpha", "", "fr", "", "#1B5E50", 0, 0, 0L, false, true);
+        assertEquals("TA", remote.initials());
+        assertEquals("JL", org.llm4people.hermes.profile.ProfileHubSheet.avatarInitials("jean-luc"));
+    }
+
+    @Test
+    public void appCustomizationSyncsWithThemePaletteAndMeetsWcagAa() {
+        assertEquals(org.llm4people.hermes.artifact.ThemePalette.WCAG_AA_NORMAL,
+                org.llm4people.hermes.customization.AppCustomization.WCAG_AA_MIN_CONTRAST, 1e-9);
+        assertEquals(org.llm4people.hermes.artifact.ThemePalette.DAY_SURFACE & 0xFFFFFF,
+                org.llm4people.hermes.customization.AppCustomization.LIGHT_SURFACE_RGB);
+        assertEquals(org.llm4people.hermes.artifact.ThemePalette.NIGHT_SURFACE & 0xFFFFFF,
+                org.llm4people.hermes.customization.AppCustomization.DARK_SURFACE_RGB);
+        assertEquals(org.llm4people.hermes.artifact.ThemePalette.DAY_INK & 0xFFFFFF,
+                org.llm4people.hermes.customization.AppCustomization.LIGHT_INK_RGB);
+        assertEquals(org.llm4people.hermes.artifact.ThemePalette.DAY_ON_ACCENT & 0xFFFFFF,
+                org.llm4people.hermes.customization.AppCustomization.WHITE_RGB);
+
+        String expectedDayAccent = org.llm4people.hermes.artifact.ThemePalette.formatHex(
+                org.llm4people.hermes.artifact.ThemePalette.DAY_ACCENT);
+        String expectedNightAccent = org.llm4people.hermes.artifact.ThemePalette.formatHex(
+                org.llm4people.hermes.artifact.ThemePalette.NIGHT_ACCENT);
+        assertEquals(expectedDayAccent,
+                org.llm4people.hermes.customization.AppCustomization.PalettePreset.FOREST.lightAccentHex);
+        assertEquals(expectedNightAccent,
+                org.llm4people.hermes.customization.AppCustomization.PalettePreset.FOREST.darkAccentHex);
+        assertEquals(expectedDayAccent,
+                org.llm4people.hermes.customization.AppCustomization.PalettePreset.CUSTOM.lightAccentHex);
+        assertEquals(expectedNightAccent,
+                org.llm4people.hermes.customization.AppCustomization.PalettePreset.CUSTOM.darkAccentHex);
+
+        for (org.llm4people.hermes.customization.AppCustomization.PalettePreset preset
+                : org.llm4people.hermes.customization.AppCustomization.PalettePreset.values()) {
+            assertTrue(preset.name() + " light accent contrast < 4.5",
+                    org.llm4people.hermes.customization.AppCustomization.meetsWcagAa(
+                            org.llm4people.hermes.customization.AppCustomization.parseRgb(preset.lightAccentHex),
+                            org.llm4people.hermes.customization.AppCustomization.LIGHT_SURFACE_RGB));
+            assertTrue(preset.name() + " dark accent contrast < 4.5",
+                    org.llm4people.hermes.customization.AppCustomization.meetsWcagAa(
+                            org.llm4people.hermes.customization.AppCustomization.parseRgb(preset.darkAccentHex),
+                            org.llm4people.hermes.customization.AppCustomization.DARK_SURFACE_RGB));
+        }
+    }
+
+    @Test
+    public void threadViewsActiveTaskUsesUiPillInsteadOfRawBullet() throws Exception {
+        String threadViews = readUtf8(
+                repoRoot().resolve("app/src/main/java/org/llm4people/hermes/thread/ThreadViews.java"));
+        assertFalse("ThreadViews must not hardcode raw bullet prefix in activeTaskRow",
+                threadViews.contains("\"● \""));
+        assertTrue("ThreadViews activeTaskRow must use Ui.pill",
+                threadViews.contains("Ui.pill(context, context.getString(labelRes)"));
     }
 
     private static void assertWcagPairs(String theme, Map<String, String> palette) {

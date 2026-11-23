@@ -39,6 +39,35 @@ public final class UsageAndBadgesModelTest {
     }
 
     @Test
+    public void primaryCostSpecUnifiesEstimatedAndBilledUsdFormatting() {
+        // Estimated cost wraps usdSpec directly so localized currency formatting stays in one place.
+        UsageFormatter.FormattedSpec estEn = UsageFormatter.primaryCostSpec(Double.NaN, 0.0125, "estimated", Locale.US);
+        assertEquals(R.string.ws_usage_cost_estimated, estEn.resId());
+        assertEquals(1, estEn.args().length);
+        assertTrue(estEn.args()[0] instanceof UsageFormatter.FormattedSpec);
+        UsageFormatter.FormattedSpec nestedEn = (UsageFormatter.FormattedSpec) estEn.args()[0];
+        assertEquals(R.string.ws_usage_usd, nestedEn.resId());
+        assertEquals(UsageFormatter.usdSpec(0.0125, Locale.US).args()[0], nestedEn.args()[0]);
+
+        UsageFormatter.FormattedSpec estFr = UsageFormatter.primaryCostSpec(
+                Double.NaN, 0.0125, "estimated", Locale.CANADA_FRENCH);
+        assertEquals(R.string.ws_usage_cost_estimated, estFr.resId());
+        UsageFormatter.FormattedSpec nestedFr = (UsageFormatter.FormattedSpec) estFr.args()[0];
+        assertEquals(R.string.ws_usage_usd, nestedFr.resId());
+        assertEquals(UsageFormatter.usdSpec(0.0125, Locale.CANADA_FRENCH).args()[0], nestedFr.args()[0]);
+
+        // Billed cost takes precedence over estimated cost and "included" status.
+        UsageFormatter.FormattedSpec billed = UsageFormatter.primaryCostSpec(0.25, 0.12, "included", Locale.US);
+        assertEquals(R.string.ws_usage_usd, billed.resId());
+        assertEquals(UsageFormatter.usdSpec(0.25, Locale.US).args()[0], billed.args()[0]);
+
+        // Negative values must never resolve to $0.
+        assertEquals(R.string.ws_unavailable,
+                UsageFormatter.primaryCostSpec(-0.01, -0.02, "estimated", Locale.US).resId());
+        assertEquals(R.string.ws_unavailable, UsageFormatter.usdSpec(-1.0, Locale.US).resId());
+    }
+
+    @Test
     public void modelCapabilityBadgesPreserveUnknownPricingAndFormatFriendlyLabels() {
         ModelCapabilityBadges.ModelInfo rich = new ModelCapabilityBadges.ModelInfo(
                 "claude-sonnet", "Claude Sonnet", 200_000, 8_192, true, true, true, 3.0, 15.0);
