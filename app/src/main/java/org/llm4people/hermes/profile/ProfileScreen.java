@@ -3,7 +3,9 @@ package org.llm4people.hermes.profile;
 import android.app.Activity;
 import android.content.res.ColorStateList;
 import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
 import android.text.InputFilter;
+import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
@@ -19,6 +21,8 @@ import org.llm4people.hermes.Ui;
 
 /** Native, scrollable profile forms inside the activity's inset-aware content area. */
 final class ProfileScreen {
+    enum BadgeTone { NEUTRAL, BIOMETRIC, COOLDOWN }
+
     private static final Typeface MEDIUM = Typeface.create("sans-serif-medium", Typeface.NORMAL);
     private final Activity activity;
     private final LinearLayout body;
@@ -76,6 +80,18 @@ final class ProfileScreen {
         return caption;
     }
 
+    TextView liveNote(String text) {
+        TextView caption = note(text);
+        caption.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        return caption;
+    }
+
+    void setNote(TextView target, String text, int colorRes) {
+        if (target == null) return;
+        target.setTextColor(activity.getColor(colorRes));
+        target.setText(text == null ? "" : text);
+    }
+
     EditText field(String label, String hint, int type, int maxLength, boolean sensitive) {
         TextView caption = Ui.text(activity, label, 14);
         caption.setTypeface(MEDIUM);
@@ -106,6 +122,69 @@ final class ProfileScreen {
         lastField = edit;
         add(edit, 4);
         return edit;
+    }
+
+    /**
+     * Profile chooser row preserving the exact profile {@code label} on the clickable {@link Button}
+     * while rendering a subtle WCAG-AA status pill beside it.
+     */
+    Button profileRow(String label, String badgeText, BadgeTone tone, View.OnClickListener listener) {
+        LinearLayout row = new LinearLayout(activity);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setMinimumHeight(Ui.dp(activity, 52));
+        row.setPaddingRelative(Ui.dp(activity, 14), Ui.dp(activity, 4), Ui.dp(activity, 12), Ui.dp(activity, 4));
+        GradientDrawable card = new GradientDrawable();
+        card.setCornerRadius(Ui.dp(activity, 12));
+        card.setColor(activity.getColor(R.color.surface));
+        card.setStroke(Ui.dp(activity, 1), activity.getColor(R.color.line));
+        row.setBackground(card);
+
+        Button button = new Button(activity);
+        button.setText(label);
+        button.setAllCaps(false);
+        button.setBackground(null);
+        button.setPaddingRelative(0, Ui.dp(activity, 8), Ui.dp(activity, 10), Ui.dp(activity, 8));
+        button.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+        button.setMinHeight(Ui.dp(activity, 48));
+        button.setMinimumHeight(Ui.dp(activity, 48));
+        button.setTextSize(16);
+        button.setTypeface(MEDIUM);
+        button.setTextColor(activity.getColor(R.color.ink));
+        button.setOnClickListener(listener);
+        LinearLayout.LayoutParams btnParams = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        row.addView(button, btnParams);
+
+        if (badgeText != null && !badgeText.isEmpty()) {
+            TextView pill = Ui.text(activity, badgeText, 12);
+            pill.setTypeface(MEDIUM);
+            pill.setSingleLine(true);
+            pill.setPaddingRelative(Ui.dp(activity, 10), Ui.dp(activity, 4), Ui.dp(activity, 10), Ui.dp(activity, 4));
+            GradientDrawable pillBg = new GradientDrawable();
+            pillBg.setCornerRadius(Ui.dp(activity, 999));
+            if (tone == BadgeTone.BIOMETRIC) {
+                pill.setTextColor(activity.getColor(R.color.accent));
+                pillBg.setColor(activity.getColor(R.color.accent_surface));
+            } else if (tone == BadgeTone.COOLDOWN) {
+                pill.setTextColor(activity.getColor(R.color.warning));
+                pillBg.setColor(activity.getColor(R.color.warning_surface));
+            } else {
+                pill.setTextColor(activity.getColor(R.color.muted));
+                pillBg.setColor(activity.getColor(R.color.paper));
+                pillBg.setStroke(Ui.dp(activity, 1), activity.getColor(R.color.line));
+            }
+            pill.setBackground(pillBg);
+            LinearLayout.LayoutParams pillParams = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            pillParams.setMarginStart(Ui.dp(activity, 8));
+            row.addView(pill, pillParams);
+        }
+
+        row.setOnClickListener(v -> {
+            if (button.isEnabled()) button.performClick();
+        });
+        add(row, 8);
+        return button;
     }
 
     Button action(String label, boolean primary, View.OnClickListener listener) {
