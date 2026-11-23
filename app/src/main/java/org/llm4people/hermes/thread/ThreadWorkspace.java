@@ -241,7 +241,7 @@ public final class ThreadWorkspace implements AutoCloseable {
 
     void publishRunProgress() {
         if (closed) return;
-        host.runProgress(activeRuns.aggregateSnapshot());
+        if (host != null) host.runProgress(activeRuns.aggregateSnapshot());
         if (inboxLoaded || inbox.length() > 0 || session != null) {
             paintIndex();
         }
@@ -351,7 +351,7 @@ public final class ThreadWorkspace implements AutoCloseable {
     void handleDeviceRequests(String runId, List<DeviceBridgeFlow.BridgeRequest> requests) {
         if (closed || screen == null || requests == null || requests.isEmpty()) return;
         DeviceBridgeFlow.Executor executor = DeviceBridgeFlow.deepAwareExecutor(
-                activity, account, new ClipboardPastePill(activity), host.deepAndroidActions());
+                activity, account, new ClipboardPastePill(activity), host == null ? null : host.deepAndroidActions());
         for (DeviceBridgeFlow.BridgeRequest req : requests) {
             deviceBridge.promptUser(activity, instrumentHost, screen.root, req, executor, (status, data) ->
                     workers.execute(() -> {
@@ -953,8 +953,8 @@ public final class ThreadWorkspace implements AutoCloseable {
     private String appliedLiveUiRevisionId;
 
     public void onBackground() {
-        nearby.clearTurn();
-        voice.reader().stop();
+        if (nearby != null) nearby.clearTurn();
+        if (voice != null && voice.reader() != null) voice.reader().stop();
         deviceBridge.dismissDialogs();
         if (!closed) {
             ++generation;
@@ -968,7 +968,7 @@ public final class ThreadWorkspace implements AutoCloseable {
             } catch (RuntimeException unavailable) {
                 storageError();
             }
-            host.runProgress(LiveRunNotification.Snapshot.idle());
+            notifyIdleSafely(host);
         }
     }
 
@@ -1009,10 +1009,18 @@ public final class ThreadWorkspace implements AutoCloseable {
         screen = next;
     }
 
+    static void revokeApiSafely(HermesApi client) {
+        if (client != null) client.revoke();
+    }
+
+    static void notifyIdleSafely(Host target) {
+        if (target != null) target.runProgress(LiveRunNotification.Snapshot.idle());
+    }
+
     @Override public void close() {
         if (closed) return;
         ++profileEpoch;
-        api.revoke();
+        revokeApiSafely(api);
         try { onBackground(); }
         finally {
             closed = true;
@@ -1224,16 +1232,18 @@ public final class ThreadWorkspace implements AutoCloseable {
                 AppCustomizationStore store = AppCustomizationStore.forAccount(account);
                 AppCustomization merged = matched != null ? matched.mergeOnto(store.current()) : proposed;
                 AppCustomization applied = store.apply(merged);
-                if (matched != null && matched.customizationDelta != null
-                        && matched.customizationDelta.themeMode() != null) {
-                    host.onThemeModeChanged(matched.customizationDelta.themeMode());
+                if (host != null) {
+                    if (matched != null && matched.customizationDelta != null
+                            && matched.customizationDelta.themeMode() != null) {
+                        host.onThemeModeChanged(matched.customizationDelta.themeMode());
+                    }
+                    host.onCustomizationChanged(applied);
                 }
-                host.onCustomizationChanged(applied);
             }
             @Override public void onUndoCustomization(String cardId) {
                 if (closed || account == null) return;
                 AppCustomization restored = AppCustomizationStore.forAccount(account).undo();
-                host.onCustomizationChanged(restored);
+                if (host != null) host.onCustomizationChanged(restored);
             }
         };
     }

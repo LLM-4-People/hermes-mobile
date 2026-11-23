@@ -1,12 +1,14 @@
 package org.llm4people.hermes.thread;
 
 import org.junit.Test;
+import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.os.LiveRunNotification;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -125,5 +127,31 @@ public final class ActiveRunTrackerTest {
         assertEquals(1, clearCalls.get());
         assertTrue("stopAllWatchers must clear queued background callbacks", trackerQueue.isEmpty());
         assertEquals(1, executed.get());
+    }
+
+    @Test
+    public void workspaceTeardownHelpersHandleNullApiNullHostAndIdempotentRevocation() {
+        // Null client and null host must never throw during ThreadWorkspace.close() / onBackground().
+        ThreadWorkspace.revokeApiSafely(null);
+        ThreadWorkspace.notifyIdleSafely(null);
+
+        HermesApi client = new HermesApi("http://127.0.0.1:9", "secret");
+        assertFalse(client.isRevoked());
+        ThreadWorkspace.revokeApiSafely(client);
+        assertTrue(client.isRevoked());
+        // Calling revoke a second time must remain idempotent.
+        ThreadWorkspace.revokeApiSafely(client);
+        assertTrue(client.isRevoked());
+
+        AtomicReference<LiveRunNotification.Snapshot> delivered = new AtomicReference<>();
+        ThreadWorkspace.Host host = new ThreadWorkspace.Host() {
+            @Override public void selected(String id, String title) {}
+            @Override public void pendingChanged() {}
+            @Override public org.json.JSONObject options(String sessionId) { return new org.json.JSONObject(); }
+            @Override public void timing(String sessionId, long firstTextMillis, long elapsedMillis, long outputTokens) {}
+            @Override public void runProgress(LiveRunNotification.Snapshot snapshot) { delivered.set(snapshot); }
+        };
+        ThreadWorkspace.notifyIdleSafely(host);
+        assertTrue(delivered.get() != null && !delivered.get().active());
     }
 }
