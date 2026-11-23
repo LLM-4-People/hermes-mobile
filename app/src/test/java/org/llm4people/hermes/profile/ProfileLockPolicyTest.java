@@ -1,0 +1,131 @@
+package org.llm4people.hermes.profile;
+
+import org.junit.Test;
+import org.llm4people.hermes.os.BiometricVault;
+
+import java.util.Arrays;
+import java.util.List;
+
+import static org.junit.Assert.*;
+
+/** Pure-JVM verification suite for Track 31 multi-mode lock policy and setup form save guard. */
+public final class ProfileLockPolicyTest {
+
+    @Test
+    public void defaultLockModeAndKeyParsingStayFailClosed() {
+        assertEquals(ProfileLockPolicy.Mode.BIOMETRIC,
+                ProfileLockPolicy.defaultModeForSetup(BiometricVault.Availability.STRONG));
+        assertEquals(ProfileLockPolicy.Mode.BIOMETRIC,
+                ProfileLockPolicy.defaultModeForSetup(BiometricVault.Availability.DEVICE_CREDENTIAL));
+        assertEquals(ProfileLockPolicy.Mode.PASSPHRASE,
+                ProfileLockPolicy.defaultModeForSetup(BiometricVault.Availability.UNAVAILABLE));
+        assertEquals(ProfileLockPolicy.Mode.PASSPHRASE,
+                ProfileLockPolicy.defaultModeForSetup(null));
+
+        assertEquals(ProfileLockPolicy.Mode.BIOMETRIC, ProfileLockPolicy.Mode.fromKey("biometric"));
+        assertEquals(ProfileLockPolicy.Mode.PIN, ProfileLockPolicy.Mode.fromKey("pin"));
+        assertEquals(ProfileLockPolicy.Mode.PASSPHRASE, ProfileLockPolicy.Mode.fromKey("passphrase"));
+        assertEquals(ProfileLockPolicy.Mode.PASSPHRASE, ProfileLockPolicy.Mode.fromKey(""));
+        assertEquals(ProfileLockPolicy.Mode.PASSPHRASE, ProfileLockPolicy.Mode.fromKey(null));
+        assertEquals(ProfileLockPolicy.Mode.PASSPHRASE, ProfileLockPolicy.Mode.fromKey("unknown_mode"));
+    }
+
+    @Test
+    public void pinAndPassphraseValidatorsCoverBoundariesAndNegativeCases() {
+        // PIN: 6..12 ASCII digits only
+        assertEquals(ProfileLockPolicy.CredentialState.EMPTY, ProfileLockPolicy.evaluatePin("", ""));
+        assertEquals(ProfileLockPolicy.CredentialState.INVALID_FORMAT, ProfileLockPolicy.evaluatePin("12345a", "12345a"));
+        assertEquals(ProfileLockPolicy.CredentialState.INVALID_FORMAT, ProfileLockPolicy.evaluatePin("1234567890123", "1234567890123"));
+        assertEquals(ProfileLockPolicy.CredentialState.TOO_SHORT, ProfileLockPolicy.evaluatePin("12345", ""));
+        assertEquals(ProfileLockPolicy.CredentialState.AWAITING_CONFIRM, ProfileLockPolicy.evaluatePin("123456", ""));
+        assertEquals(ProfileLockPolicy.CredentialState.MISMATCH, ProfileLockPolicy.evaluatePin("123456", "123457"));
+        assertEquals(ProfileLockPolicy.CredentialState.READY, ProfileLockPolicy.evaluatePin("123456", "123456"));
+        assertEquals(ProfileLockPolicy.CredentialState.READY, ProfileLockPolicy.evaluatePin("012345678901", "012345678901"));
+
+        // Passphrase: 12+ characters
+        assertEquals(ProfileLockPolicy.CredentialState.EMPTY, ProfileLockPolicy.evaluatePassphrase("", ""));
+        assertEquals(ProfileLockPolicy.CredentialState.TOO_SHORT, ProfileLockPolicy.evaluatePassphrase("short-pass!", "short-pass!"));
+        assertEquals(ProfileLockPolicy.CredentialState.AWAITING_CONFIRM, ProfileLockPolicy.evaluatePassphrase("twelve-chars", ""));
+        assertEquals(ProfileLockPolicy.CredentialState.MISMATCH, ProfileLockPolicy.evaluatePassphrase("twelve-chars", "twelve-charS"));
+        assertEquals(ProfileLockPolicy.CredentialState.READY, ProfileLockPolicy.evaluatePassphrase("twelve-chars", "twelve-chars"));
+    }
+
+    @Test
+    public void setupFormGuardBlocksIncompleteFieldsAndUnlocksOnlyWhenValidAcrossAllThreeLockModes() {
+        List<String> existing = List.of("Personal");
+
+        // Name validation
+        assertEquals(ProfileLockPolicy.SetupBlocker.NAME_MISSING,
+                ProfileLockPolicy.evaluateSetupForm("  ", existing, "https://hermes.example.com", "", "sk-valid-key",
+                        false, ProfileLockPolicy.Mode.BIOMETRIC, true, "", "", "", ""));
+        assertEquals(ProfileLockPolicy.SetupBlocker.NAME_CONTROL,
+                ProfileLockPolicy.evaluateSetupForm("Bad\nName", existing, "https://hermes.example.com", "", "sk-valid-key",
+                        false, ProfileLockPolicy.Mode.BIOMETRIC, true, "", "", "", ""));
+        assertEquals(ProfileLockPolicy.SetupBlocker.NAME_DUPLICATE,
+                ProfileLockPolicy.evaluateSetupForm("personal", existing, "https://hermes.example.com", "", "sk-valid-key",
+                        false, ProfileLockPolicy.Mode.BIOMETRIC, true, "", "", "", ""));
+
+        // Server + slug validation
+        assertEquals(ProfileLockPolicy.SetupBlocker.SERVER_MISSING,
+                ProfileLockPolicy.evaluateSetupForm("Work", existing, "", "", "sk-valid-key",
+                        false, ProfileLockPolicy.Mode.BIOMETRIC, true, "", "", "", ""));
+        assertEquals(ProfileLockPolicy.SetupBlocker.SERVER_INVALID,
+                ProfileLockPolicy.evaluateSetupForm("Work", existing, "http://remote.example.com", "", "sk-valid-key",
+                        false, ProfileLockPolicy.Mode.BIOMETRIC, true, "", "", "", ""));
+        assertEquals(ProfileLockPolicy.SetupBlocker.SLUG_INVALID,
+                ProfileLockPolicy.evaluateSetupForm("Work", existing, "https://hermes.example.com", "../bad", "sk-valid-key",
+                        false, ProfileLockPolicy.Mode.BIOMETRIC, true, "", "", "", ""));
+        assertEquals(ProfileLockPolicy.SetupBlocker.SLUG_CONFLICT,
+                ProfileLockPolicy.evaluateSetupForm("Work", existing, "https://hermes.example.com/p/alice", "bob", "sk-valid-key",
+                        false, ProfileLockPolicy.Mode.BIOMETRIC, true, "", "", "", ""));
+
+        // Key vs staged pairing validation
+        assertEquals(ProfileLockPolicy.SetupBlocker.KEY_MISSING,
+                ProfileLockPolicy.evaluateSetupForm("Work", existing, "https://hermes.example.com", "", "",
+                        false, ProfileLockPolicy.Mode.BIOMETRIC, true, "", "", "", ""));
+        assertEquals(ProfileLockPolicy.SetupBlocker.KEY_INVALID,
+                ProfileLockPolicy.evaluateSetupForm("Work", existing, "https://hermes.example.com", "", "bad key with spaces",
+                        false, ProfileLockPolicy.Mode.BIOMETRIC, true, "", "", "", ""));
+
+        // Biometric mode: READY with staged pairing (no manual key needed!) when biometric available; blocked if unavailable
+        assertEquals(ProfileLockPolicy.SetupBlocker.READY,
+                ProfileLockPolicy.evaluateSetupForm("Work", existing, "https://hermes.example.com", "", "",
+                        true, ProfileLockPolicy.Mode.BIOMETRIC, true, "", "", "", ""));
+        assertEquals(ProfileLockPolicy.SetupBlocker.BIOMETRIC_UNAVAILABLE,
+                ProfileLockPolicy.evaluateSetupForm("Work", existing, "https://hermes.example.com", "", "",
+                        true, ProfileLockPolicy.Mode.BIOMETRIC, false, "", "", "", ""));
+
+        // PIN mode
+        assertEquals(ProfileLockPolicy.SetupBlocker.PIN_TOO_SHORT,
+                ProfileLockPolicy.evaluateSetupForm("Work", existing, "https://hermes.example.com", "", "sk-valid-key",
+                        false, ProfileLockPolicy.Mode.PIN, false, "1234", "1234", "", ""));
+        assertEquals(ProfileLockPolicy.SetupBlocker.PIN_MISMATCH,
+                ProfileLockPolicy.evaluateSetupForm("Work", existing, "https://hermes.example.com", "", "sk-valid-key",
+                        false, ProfileLockPolicy.Mode.PIN, false, "123456", "654321", "", ""));
+        assertEquals(ProfileLockPolicy.SetupBlocker.READY,
+                ProfileLockPolicy.evaluateSetupForm("Work", existing, "https://hermes.example.com", "", "sk-valid-key",
+                        false, ProfileLockPolicy.Mode.PIN, false, "123456", "123456", "", ""));
+
+        // Passphrase mode
+        assertEquals(ProfileLockPolicy.SetupBlocker.PASSPHRASE_TOO_SHORT,
+                ProfileLockPolicy.evaluateSetupForm("Work", existing, "https://hermes.example.com", "", "sk-valid-key",
+                        false, ProfileLockPolicy.Mode.PASSPHRASE, false, "", "", "too-short", "too-short"));
+        assertEquals(ProfileLockPolicy.SetupBlocker.READY,
+                ProfileLockPolicy.evaluateSetupForm("Work", existing, "https://hermes.example.com", "", "sk-valid-key",
+                        false, ProfileLockPolicy.Mode.PASSPHRASE, false, "", "", "correct-horse-battery", "correct-horse-battery"));
+    }
+
+    @Test
+    public void generatedVaultSecretIsHighEntropyAndUnique() {
+        char[] s1 = ProfileLockPolicy.generateVaultSecret();
+        char[] s2 = ProfileLockPolicy.generateVaultSecret();
+        assertTrue("256-bit Base64 secret must be >= 43 chars", s1.length >= 43);
+        assertEquals(s1.length, s2.length);
+        assertFalse("Successive secrets must not collide", Arrays.equals(s1, s2));
+        for (char c : s1) {
+            assertTrue("Must be visible ASCII", c >= 33 && c <= 126);
+        }
+        Arrays.fill(s1, '\0');
+        Arrays.fill(s2, '\0');
+    }
+}

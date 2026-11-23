@@ -1,0 +1,48 @@
+<resources>
+    <!-- Modes de verrouillage et délais intelligents -->
+    <string name="lock_mode_section_label">Méthode de verrouillage</string>
+    <string name="lock_mode_biometric">Biométrie / téléphone</string>
+    <string name="lock_mode_pin">Code PIN (6+)</string>
+    <string name="lock_mode_passphrase">Phrase secrète (12+)</string>
+    <string name="lock_mode_biometric_detail">Utilise votre empreinte, visage ou verrouillage du téléphone pour protéger ce profil sur cet appareil.</string>
+    <string name="lock_mode_biometric_unavailable">Activez un verrouillage d’écran ou la biométrie dans Android pour utiliser cette option.</string>
+    <string name="lock_mode_biometric_enroll_failed">Confirmation biométrique annulée ou indisponible. Réessayez ou choisissez un code PIN ou une phrase secrète.</string>
+    <string name="lock_mode_biometric_invalidated_recovery">Le verrouillage matériel Android a changé. Supprimez ce profil sur cet appareil et associez-le à nouveau.</string>
+
+    <string name="lock_pin_label">Code PIN du profil</string>
+    <string name="lock_pin_hint">6 à 12 chiffres</string>
+    <string name="lock_pin_confirm_label">Confirmer le code PIN</string>
+    <string name="lock_pin_required">Saisissez votre code PIN.</string>
+    <string name="lock_pin_digits_only">Utilisez uniquement des chiffres (6 à 12 chiffres).</string>
+    <string name="lock_pin_progress">%1$d / %2$d chiffres minimum</string>
+    <string name="lock_pin_confirm_needed">Confirmez votre code PIN ci-dessous.</string>
+    <string name="lock_pin_mismatch">Les deux codes PIN ne correspondent pas.</string>
+    <string name="lock_pin_ready">Code PIN prêt.</string>
+
+    <string name="lock_setup_missing_name">Indiquez un nom de profil pour continuer.</string>
+    <string name="lock_setup_invalid_name">Le nom du profil contient un caractère invalide.</string>
+    <string name="lock_setup_duplicate_name">Un profil porte déjà ce nom sur cet appareil.</string>
+    <string name="lock_setup_missing_server">Indiquez l’adresse de votre serveur Hermes.</string>
+    <string name="lock_setup_invalid_server">Vérifiez l’adresse HTTPS de votre serveur Hermes.</string>
+    <string name="lock_setup_invalid_slug">Vérifiez le nom du profil serveur optionnel.</string>
+    <string name="lock_setup_conflict_slug">L’adresse serveur et le profil serveur ne correspondent pas.</string>
+    <string name="lock_setup_missing_key">Ajoutez votre clé d’accès ou scannez un code QR d’association.</string>
+    <string name="lock_setup_invalid_key">La clé d’accès contient des caractères non pris en charge.</string>
+    <string name="lock_setup_missing_pin">Choisissez et confirmez un code PIN de 6 à 12 chiffres.</string>
+    <string name="lock_setup_missing_passphrase">Choisissez et confirmez une phrase secrète d’au moins 12 caractères.</string>
+    <string name="lock_setup_ready">Tout est prêt. Enregistrez ce profil pour vous connecter.</string>
+
+    <string name="lock_grace_1m">1 minute</string>
+    <string name="lock_grace_15m">15 minutes</string>
+    <string name="lock_grace_30m">30 minutes</string>
+    <string name="lock_grace_screen_lock">Au verrouillage de l’écran</string>
+    <string name="onboarding_lock_5m">5 min</string>
+    <string name="onboarding_lock_screen">À l’écran verrouillé</string>
+
+    <string name="security_lock_mode_title">Verrouillage du profil</string>
+    <string name="security_lock_mode_change">Changer la méthode de verrouillage</string>
+    <string name="security_lock_mode_updated">Méthode de verrouillage mise à jour.</string>
+    <string name="security_lock_mode_update_failed">Impossible de mettre à jour la méthode de verrouillage.</string>
+    <string name="security_lock_mode_biometric_primary_note">Ce profil se déverrouille avec la biométrie ou le verrouillage du téléphone. Passez au code PIN ou à la phrase secrète pour la désactiver.</string>
+    <string name="security_lock_mode_save">Appliquer</string>
+</resources>

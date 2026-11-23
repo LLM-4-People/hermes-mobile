@@ -17,11 +17,17 @@ public final class LockGracePolicy {
     private static final String PREFS = "hermes.os.lock_policy";
     private static final String PREFIX = "grace.";
 
+    public static final Window DEFAULT_FOR_NEW_PROFILE = Window.MINUTES_5;
+
     public enum Window {
         IMMEDIATE("0s", 0L, R.string.security_grace_0s),
         SECONDS_30("30s", 30_000L, R.string.security_grace_30s),
+        MINUTES_1("1m", 60_000L, R.string.lock_grace_1m),
         MINUTES_2("2m", 120_000L, R.string.security_grace_2m),
-        MINUTES_5("5m", 300_000L, R.string.security_grace_5m);
+        MINUTES_5("5m", 300_000L, R.string.security_grace_5m),
+        MINUTES_15("15m", 900_000L, R.string.lock_grace_15m),
+        MINUTES_30("30m", 1_800_000L, R.string.lock_grace_30m),
+        SCREEN_LOCK("screen_lock", -1L, R.string.lock_grace_screen_lock);
 
         public final String key;
         public final long millis;
@@ -33,6 +39,10 @@ public final class LockGracePolicy {
             this.labelRes = labelRes;
         }
 
+        public boolean locksOnScreenOffOnly() {
+            return this == SCREEN_LOCK;
+        }
+
         public static Window fromKey(String raw) {
             if (raw == null || raw.isEmpty()) return IMMEDIATE;
             for (Window value : values()) {
@@ -40,6 +50,18 @@ public final class LockGracePolicy {
             }
             return IMMEDIATE;
         }
+    }
+
+    /** User-facing timeout options shown in Security Settings. */
+    public static Window[] selectableWindows() {
+        return new Window[]{
+                Window.IMMEDIATE,
+                Window.MINUTES_1,
+                Window.MINUTES_5,
+                Window.MINUTES_15,
+                Window.MINUTES_30,
+                Window.SCREEN_LOCK
+        };
     }
 
     private LockGracePolicy() {}
@@ -51,6 +73,25 @@ public final class LockGracePolicy {
         if (graceMillis <= 0L) return true;
         if (backgroundedAtElapsedMs < 0L || nowElapsedMs < backgroundedAtElapsedMs) return true;
         return (nowElapsedMs - backgroundedAtElapsedMs) >= graceMillis;
+    }
+
+    /**
+     * Full intelligent auto-lock evaluation combining timeout window, screen-lock state, and
+     * internal child-activity transitions (QR scanner, camera capture, photo/file pickers).
+     * Manual lock and screen-off/device-lock ALWAYS fail closed (lock immediately).
+     */
+    public static boolean shouldLockOnReturn(
+            Window window,
+            long backgroundedAtElapsedMs,
+            long nowElapsedMs,
+            boolean manualLockRequested,
+            boolean screenLockedOrOff,
+            boolean internalTransition) {
+        if (manualLockRequested || screenLockedOrOff) return true;
+        if (internalTransition) return false;
+        if (window == null || window == Window.IMMEDIATE) return true;
+        if (window == Window.SCREEN_LOCK) return false;
+        return shouldLockOnReturn(backgroundedAtElapsedMs, nowElapsedMs, window.millis, false);
     }
 
     public static long remainingMillis(long backgroundedAtElapsedMs, long nowElapsedMs, long graceMillis) {

@@ -615,16 +615,23 @@ public final class FirstRunWizard {
 
         // Quick lock selector
         LockGracePolicy.Window[] selectedLock = {LockGracePolicy.window(activity, account.id)};
+        String currentLockChoice = selectedLock[0] == LockGracePolicy.Window.IMMEDIATE
+                ? "immediate"
+                : (selectedLock[0] == LockGracePolicy.Window.SCREEN_LOCK ? "screen_lock" : "grace_5m");
         body.addView(sectionLabel(activity, R.string.onboarding_lock_label), topMargin(activity, 14));
         body.addView(choiceRow(activity,
                 new String[]{
                         activity.getString(R.string.onboarding_lock_immediate),
-                        activity.getString(R.string.onboarding_lock_grace)
+                        activity.getString(R.string.onboarding_lock_5m),
+                        activity.getString(R.string.onboarding_lock_screen)
                 },
-                new String[]{"immediate", "grace_2m"},
-                selectedLock[0] == LockGracePolicy.Window.IMMEDIATE ? "immediate" : "grace_2m",
-                val -> selectedLock[0] = "grace_2m".equals(val)
-                        ? LockGracePolicy.Window.MINUTES_2 : LockGracePolicy.Window.IMMEDIATE));
+                new String[]{"immediate", "grace_5m", "screen_lock"},
+                currentLockChoice,
+                val -> {
+                    if ("immediate".equals(val)) selectedLock[0] = LockGracePolicy.Window.IMMEDIATE;
+                    else if ("screen_lock".equals(val)) selectedLock[0] = LockGracePolicy.Window.SCREEN_LOCK;
+                    else selectedLock[0] = LockGracePolicy.Window.MINUTES_5;
+                }));
 
         // Live starter prompts from GET /api/mobile/onboarding
         body.addView(sectionLabel(activity, R.string.onboarding_starters_heading), topMargin(activity, 16));

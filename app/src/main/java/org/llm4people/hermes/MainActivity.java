@@ -143,6 +143,23 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     private long noticeRequest;
     private long backgroundedAtElapsedMs = -1L;
     private long activeGraceMillis;
+    private LockGracePolicy.Window activeGraceWindow = LockGracePolicy.Window.IMMEDIATE;
+    private boolean internalActivityTransition;
+    private long internalTransitionAtMs = -1L;
+    private boolean screenLockedWhileBackgrounded;
+    private static final long MAX_INTERNAL_TRANSITION_MS = 300_000L;
+    private final android.content.BroadcastReceiver screenOffReceiver = new android.content.BroadcastReceiver() {
+        @Override public void onReceive(Context context, Intent intent) {
+            if (Intent.ACTION_SCREEN_OFF.equals(intent.getAction())) {
+                screenLockedWhileBackgrounded = true;
+                internalActivityTransition = false;
+                if (account != null) {
+                    Diagnostics.event("security", "screen_off_locked");
+                    lock();
+                }
+            }
+        }
+    };
     private boolean imeVisible;
     private final Runnable graceExpiry = () -> {
         if (account != null && backgroundedAtElapsedMs >= 0L) {
@@ -170,6 +187,10 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         if (Build.VERSION.SDK_INT >= 33) {
             getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
                     android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT, this::back);
+            registerReceiver(screenOffReceiver, new android.content.IntentFilter(Intent.ACTION_SCREEN_OFF),
+                    Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            registerReceiver(screenOffReceiver, new android.content.IntentFilter(Intent.ACTION_SCREEN_OFF));
         }
         notifications.execute(() -> HermesShortcuts.publish(getApplicationContext()));
         voice = new VoiceDrafts(this);
@@ -1804,10 +1825,48 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         if (threads != null) threads.onTrimMemory();
     }
 
+    @Override public void startActivityForResult(Intent intent, int requestCode, Bundle options) {
+        markInternalTransition();
+        super.startActivityForResult(intent, requestCode, options);
+    }
+
+    @Override public void startActivity(Intent intent, Bundle options) {
+        if (intent != null && Intent.ACTION_CHOOSER.equals(intent.getAction())) {
+            markInternalTransition();
+        }
+        super.startActivity(intent, options);
+    }
+
+    private void markInternalTransition() {
+        internalActivityTransition = true;
+        internalTransitionAtMs = SystemClock.elapsedRealtime();
+    }
+
+    private boolean isDeviceLockedNow() {
+        android.app.KeyguardManager km = getSystemService(android.app.KeyguardManager.class);
+        return screenLockedWhileBackgrounded || (km != null && km.isDeviceLocked());
+    }
+
     private void checkGraceOnReturn() {
-        if (account == null || backgroundedAtElapsedMs < 0L) return;
+        boolean deviceLocked = isDeviceLockedNow();
+        screenLockedWhileBackgrounded = false;
         long now = SystemClock.elapsedRealtime();
-        if (LockGracePolicy.shouldLockOnReturn(backgroundedAtElapsedMs, now, activeGraceMillis, false)) {
+        if (internalActivityTransition) {
+            long startedAt = internalTransitionAtMs;
+            internalActivityTransition = false;
+            internalTransitionAtMs = -1L;
+            boolean expired = startedAt < 0L || now < startedAt || (now - startedAt) >= MAX_INTERNAL_TRANSITION_MS;
+            if (account != null && (deviceLocked || expired)) {
+                Diagnostics.event("security", "internal_transition_locked");
+                lock();
+            } else {
+                clearGraceTimer();
+            }
+            return;
+        }
+        if (account == null || backgroundedAtElapsedMs < 0L) return;
+        if (LockGracePolicy.shouldLockOnReturn(
+                activeGraceWindow, backgroundedAtElapsedMs, now, false, deviceLocked, false)) {
             Diagnostics.event("security", "grace_expired_on_return");
             lock();
         } else {
@@ -1819,23 +1878,38 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     @Override protected void onStop() {
         super.onStop();
         if (gate == null) return;
-        if (account == null || isFinishing() || isChangingConfigurations()) {
-            if (!isChangingConfigurations()) lock();
+        if (isChangingConfigurations()) return;
+        if (isFinishing()) {
+            lock();
+            return;
+        }
+        boolean deviceLocked = isDeviceLockedNow();
+        if (internalActivityTransition && !deviceLocked) {
+            return;
+        }
+        if (account == null) {
+            lock();
             return;
         }
         LockGracePolicy.Window window = LockGracePolicy.window(this, account.id);
-        if (window.millis <= 0L) {
+        if (deviceLocked || window == LockGracePolicy.Window.IMMEDIATE) {
             lock();
             return;
         }
         backgroundedAtElapsedMs = SystemClock.elapsedRealtime();
+        activeGraceWindow = window;
         activeGraceMillis = window.millis;
         main.removeCallbacks(graceExpiry);
-        main.postDelayed(graceExpiry, window.millis);
+        if (!window.locksOnScreenOffOnly() && window.millis > 0L) {
+            main.postDelayed(graceExpiry, window.millis);
+        }
         Diagnostics.event("security", "grace_started");
     }
 
     @Override protected void onDestroy() {
+        try {
+            unregisterReceiver(screenOffReceiver);
+        } catch (IllegalArgumentException ignored) {}
         pendingPairing = null;
         pairingLinkHandler = null;
         clearWorkspace();

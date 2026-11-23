@@ -1,0 +1,48 @@
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
+    <!-- Multi-mode app lock and intelligent timeouts -->
+    <string name="lock_mode_section_label">Lock method</string>
+    <string name="lock_mode_biometric">Biometric / phone lock</string>
+    <string name="lock_mode_pin">PIN (6+ digits)</string>
+    <string name="lock_mode_passphrase">Passphrase (12+)</string>
+    <string name="lock_mode_biometric_detail">Uses your fingerprint, face, or phone screen lock to protect this profile on this device.</string>
+    <string name="lock_mode_biometric_unavailable">Set up a screen lock or biometrics in Android settings to use this option.</string>
+    <string name="lock_mode_biometric_enroll_failed">Biometric confirmation was canceled or unavailable. Try again or choose a PIN or passphrase.</string>
+    <string name="lock_mode_biometric_invalidated_recovery">Android hardware lock changed. Remove this profile on this device and pair it again.</string>
+
+    <string name="lock_pin_label">Profile PIN</string>
+    <string name="lock_pin_hint">6 to 12 digits</string>
+    <string name="lock_pin_confirm_label">Confirm PIN</string>
+    <string name="lock_pin_required">Enter your PIN.</string>
+    <string name="lock_pin_digits_only">Use digits only (6 to 12 digits).</string>
+    <string name="lock_pin_progress">%1$d / %2$d digits minimum</string>
+    <string name="lock_pin_confirm_needed">Confirm your PIN below.</string>
+    <string name="lock_pin_mismatch">PIN entries do not match.</string>
+    <string name="lock_pin_ready">PIN ready.</string>
+
+    <string name="lock_setup_missing_name">Enter a profile name to continue.</string>
+    <string name="lock_setup_invalid_name">Profile name contains an invalid character.</string>
+    <string name="lock_setup_duplicate_name">A profile with this name already exists on this device.</string>
+    <string name="lock_setup_missing_server">Enter your Hermes server address.</string>
+    <string name="lock_setup_invalid_server">Check your Hermes HTTPS server address.</string>
+    <string name="lock_setup_invalid_slug">Check the optional server profile name.</string>
+    <string name="lock_setup_conflict_slug">Server address and server profile do not match.</string>
+    <string name="lock_setup_missing_key">Add your access key or scan a pairing QR code.</string>
+    <string name="lock_setup_invalid_key">Access key contains unsupported characters.</string>
+    <string name="lock_setup_missing_pin">Choose and confirm a 6 to 12 digit PIN.</string>
+    <string name="lock_setup_missing_passphrase">Choose and confirm a passphrase of at least 12 characters.</string>
+    <string name="lock_setup_ready">Ready to save and connect this profile.</string>
+
+    <string name="lock_grace_1m">1 minute</string>
+    <string name="lock_grace_15m">15 minutes</string>
+    <string name="lock_grace_30m">30 minutes</string>
+    <string name="lock_grace_screen_lock">When screen locks</string>
+    <string name="onboarding_lock_5m">5 min</string>
+    <string name="onboarding_lock_screen">When screen locks</string>
+
+    <string name="security_lock_mode_title">Profile lock method</string>
+    <string name="security_lock_mode_change">Change lock method</string>
+    <string name="security_lock_mode_updated">Lock method updated.</string>
+    <string name="security_lock_mode_update_failed">Could not update the lock method.</string>
+    <string name="security_lock_mode_biometric_primary_note">This profile unlocks with biometrics or your phone lock. Switch to a PIN or passphrase to turn it off.</string>
+    <string name="security_lock_mode_save">Apply</string>
+</resources>

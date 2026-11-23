@@ -24,9 +24,11 @@ import org.llm4people.hermes.os.HermesWidgetStore;
 import org.llm4people.hermes.os.LockGracePolicy;
 import org.llm4people.hermes.profile.Account;
 import org.llm4people.hermes.profile.ProfileGate;
+import org.llm4people.hermes.profile.ProfileLockPolicy;
 import org.llm4people.hermes.thread.ThreadWorkspace;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Consumer;
@@ -38,8 +40,8 @@ final class WorkspaceDialogs {
     static String securitySummary(Activity activity, String profileId) {
         LockGracePolicy.Window window = LockGracePolicy.window(activity, profileId);
         String grace = activity.getString(window.labelRes);
-        boolean bio = BiometricVault.isEnrolled(activity, profileId);
-        return bio ? grace + " · " + activity.getString(R.string.security_biometric_title) : grace;
+        ProfileLockPolicy.Mode lockMode = ProfileLockPolicy.mode(activity, profileId);
+        return activity.getString(lockMode.labelRes) + " · " + grace;
     }
 
     static AlertDialog showSearch(Activity activity, ThreadWorkspace threads,
@@ -169,6 +171,20 @@ final class WorkspaceDialogs {
         content.addView(lockNow, new LinearLayout.LayoutParams(-1, -2));
         content.addView(Ui.divider(activity));
 
+        TextView modeHeading = Ui.text(activity, activity.getString(R.string.security_lock_mode_title), 16);
+        modeHeading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        modeHeading.setPaddingRelative(0, Ui.dp(activity, 12), 0, Ui.dp(activity, 4));
+        content.addView(modeHeading);
+
+        TextView modeStatus = Ui.text(activity, "", 14);
+        modeStatus.setTextColor(activity.getColor(R.color.muted));
+        content.addView(modeStatus);
+
+        Button changeModeBtn = Ui.button(activity, activity.getString(R.string.security_lock_mode_change), null);
+        changeModeBtn.setGravity(android.view.Gravity.START | android.view.Gravity.CENTER_VERTICAL);
+        content.addView(changeModeBtn, new LinearLayout.LayoutParams(-1, -2));
+        content.addView(Ui.divider(activity));
+
         TextView bioHeading = Ui.text(activity, activity.getString(R.string.security_biometric_title), 16);
         bioHeading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         bioHeading.setPaddingRelative(0, Ui.dp(activity, 12), 0, Ui.dp(activity, 4));
@@ -183,9 +199,14 @@ final class WorkspaceDialogs {
         content.addView(bioAction, new LinearLayout.LayoutParams(-1, -2));
 
         Runnable refreshBio = () -> {
+            ProfileLockPolicy.Mode currentMode = ProfileLockPolicy.mode(activity, account.id);
+            modeStatus.setText(currentMode.labelRes);
             BiometricVault.Availability available = BiometricVault.availability(activity);
             boolean enrolled = BiometricVault.isEnrolled(activity, account.id);
-            if (available == BiometricVault.Availability.UNAVAILABLE) {
+            if (currentMode == ProfileLockPolicy.Mode.BIOMETRIC) {
+                bioStatus.setText(R.string.security_lock_mode_biometric_primary_note);
+                bioAction.setVisibility(View.GONE);
+            } else if (available == BiometricVault.Availability.UNAVAILABLE) {
                 bioStatus.setText(R.string.security_biometric_unavailable_note);
                 bioAction.setVisibility(View.GONE);
             } else if (enrolled) {
@@ -202,6 +223,11 @@ final class WorkspaceDialogs {
 
         final AlertDialog[] dialogHolder = new AlertDialog[1];
         final BiometricVault.Session[] activeEnroll = new BiometricVault.Session[1];
+        changeModeBtn.setOnClickListener(v -> showChangeLockModeDialog(
+                activity, account, gate, activeEnroll, () -> {
+                    refreshBio.run();
+                    if (onPolicyChanged != null) onPolicyChanged.run();
+                }));
         bioAction.setOnClickListener(v -> {
             if (BiometricVault.isEnrolled(activity, account.id)) {
                 BiometricVault.revoke(activity, account.id);
@@ -254,7 +280,9 @@ final class WorkspaceDialogs {
         RadioGroup group = new RadioGroup(activity);
         group.setOrientation(RadioGroup.VERTICAL);
         LockGracePolicy.Window current = LockGracePolicy.window(activity, account.id);
-        for (LockGracePolicy.Window option : LockGracePolicy.Window.values()) {
+        List<LockGracePolicy.Window> options = new ArrayList<>(Arrays.asList(LockGracePolicy.selectableWindows()));
+        if (!options.contains(current)) options.add(current);
+        for (LockGracePolicy.Window option : options) {
             RadioButton button = new RadioButton(activity);
             button.setId(View.generateViewId());
             button.setText(option.labelRes);
@@ -293,6 +321,137 @@ final class WorkspaceDialogs {
             if (onDismissed != null) onDismissed.run();
         });
         return dialog;
+    }
+
+    private static void showChangeLockModeDialog(
+            Activity activity,
+            Account account,
+            ProfileGate gate,
+            BiometricVault.Session[] activeEnroll,
+            Runnable onUpdated) {
+        LinearLayout form = Ui.column(activity);
+        Ui.pad(form, 18, 12);
+
+        boolean bioAvailable = BiometricVault.availability(activity) != BiometricVault.Availability.UNAVAILABLE;
+        ProfileLockPolicy.Mode current = ProfileLockPolicy.mode(activity, account.id);
+        ProfileLockPolicy.Mode[] chosen = {current};
+
+        RadioGroup modeGroup = new RadioGroup(activity);
+        modeGroup.setOrientation(RadioGroup.VERTICAL);
+        for (ProfileLockPolicy.Mode m : ProfileLockPolicy.Mode.values()) {
+            RadioButton rb = new RadioButton(activity);
+            rb.setId(View.generateViewId());
+            rb.setText(m.labelRes);
+            rb.setTextColor(activity.getColor(R.color.ink));
+            rb.setMinHeight(Ui.dp(activity, 48));
+            rb.setTag(m);
+            if (m == ProfileLockPolicy.Mode.BIOMETRIC && !bioAvailable) rb.setEnabled(false);
+            modeGroup.addView(rb);
+            if (m == current) modeGroup.check(rb.getId());
+        }
+        form.addView(modeGroup);
+
+        EditText first = new EditText(activity);
+        first.setSingleLine(true);
+        first.setSaveEnabled(false);
+        first.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO);
+        first.setMinHeight(Ui.dp(activity, 48));
+        first.setBackgroundResource(R.drawable.profile_input);
+        Ui.pad(first, 12, 9);
+        LinearLayout.LayoutParams fLp = new LinearLayout.LayoutParams(-1, -2);
+        fLp.topMargin = Ui.dp(activity, 10);
+        form.addView(first, fLp);
+
+        EditText confirm = new EditText(activity);
+        confirm.setSingleLine(true);
+        confirm.setSaveEnabled(false);
+        confirm.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO);
+        confirm.setMinHeight(Ui.dp(activity, 48));
+        confirm.setBackgroundResource(R.drawable.profile_input);
+        Ui.pad(confirm, 12, 9);
+        LinearLayout.LayoutParams cLp = new LinearLayout.LayoutParams(-1, -2);
+        cLp.topMargin = Ui.dp(activity, 8);
+        form.addView(confirm, cLp);
+
+        TextView note = Ui.text(activity, "", 13);
+        note.setTextColor(activity.getColor(R.color.muted));
+        LinearLayout.LayoutParams nLp = new LinearLayout.LayoutParams(-1, -2);
+        nLp.topMargin = Ui.dp(activity, 8);
+        form.addView(note, nLp);
+
+        Runnable syncInputs = () -> {
+            first.setText("");
+            confirm.setText("");
+            if (chosen[0] == ProfileLockPolicy.Mode.BIOMETRIC) {
+                first.setVisibility(View.GONE);
+                confirm.setVisibility(View.GONE);
+                note.setText(bioAvailable ? R.string.lock_mode_biometric_detail : R.string.lock_mode_biometric_unavailable);
+            } else if (chosen[0] == ProfileLockPolicy.Mode.PIN) {
+                first.setVisibility(View.VISIBLE);
+                confirm.setVisibility(View.VISIBLE);
+                int pinType = InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_VARIATION_PASSWORD;
+                first.setInputType(pinType);
+                confirm.setInputType(pinType);
+                first.setHint(R.string.lock_pin_hint);
+                confirm.setHint(R.string.lock_pin_confirm_label);
+                note.setText(R.string.lock_setup_missing_pin);
+            } else {
+                first.setVisibility(View.VISIBLE);
+                confirm.setVisibility(View.VISIBLE);
+                int passType = InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD;
+                first.setInputType(passType);
+                confirm.setInputType(passType);
+                first.setHint(R.string.profile_passphrase_label);
+                confirm.setHint(R.string.profile_passphrase_confirm_label);
+                note.setText(R.string.lock_setup_missing_passphrase);
+            }
+        };
+        modeGroup.setOnCheckedChangeListener((g, id) -> {
+            View v = g.findViewById(id);
+            if (v != null && v.getTag() instanceof ProfileLockPolicy.Mode m) {
+                chosen[0] = m;
+                syncInputs.run();
+            }
+        });
+        syncInputs.run();
+
+        Ui.secureDialog(new AlertDialog.Builder(activity)
+                .setTitle(R.string.security_lock_mode_title)
+                .setView(form)
+                .setNegativeButton(R.string.profile_setup_cancel, null)
+                .setPositiveButton(R.string.security_lock_mode_save, (d, w) -> {
+                    ProfileLockPolicy.Mode target = chosen[0];
+                    char[] secret = null;
+                    if (target == ProfileLockPolicy.Mode.PIN) {
+                        if (ProfileLockPolicy.evaluatePin(first.getText(), confirm.getText())
+                                != ProfileLockPolicy.CredentialState.READY) {
+                            Toast.makeText(activity, R.string.lock_setup_missing_pin, Toast.LENGTH_LONG).show();
+                            return;
+                        }
+                        secret = new char[first.length()];
+                        first.getText().getChars(0, secret.length, secret, 0);
+                    } else if (target == ProfileLockPolicy.Mode.PASSPHRASE) {
+                        if (ProfileLockPolicy.evaluatePassphrase(first.getText(), confirm.getText())
+                                != ProfileLockPolicy.CredentialState.READY) {
+                            Toast.makeText(activity, R.string.lock_setup_missing_passphrase, Toast.LENGTH_LONG).show();
+                            return;
+                        }
+                        secret = new char[first.length()];
+                        first.getText().getChars(0, secret.length, secret, 0);
+                    } else if (!bioAvailable) {
+                        Toast.makeText(activity, R.string.lock_mode_biometric_unavailable, Toast.LENGTH_LONG).show();
+                        return;
+                    }
+                    if (activeEnroll[0] != null) activeEnroll[0].cancel();
+                    activeEnroll[0] = gate.updateLockMode(account, target, secret, ok -> {
+                        activeEnroll[0] = null;
+                        if (activity.isFinishing() || activity.isDestroyed()) return;
+                        Toast.makeText(activity,
+                                ok ? R.string.security_lock_mode_updated : R.string.security_lock_mode_update_failed,
+                                Toast.LENGTH_SHORT).show();
+                        if (ok && onUpdated != null) onUpdated.run();
+                    });
+                }));
     }
 
     /** Each profile pins its own quick-actions widget, so profiles never overwrite or purge each other's. */
