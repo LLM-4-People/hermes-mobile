@@ -40,6 +40,7 @@ import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.onboarding.OnboardingModels;
 import org.llm4people.hermes.onboarding.PairingIntent;
 import org.llm4people.hermes.onboarding.PairingLinkParser;
+import org.llm4people.hermes.onboarding.QrScannerActivity;
 import org.llm4people.hermes.os.HermesShortcuts;
 import org.llm4people.hermes.os.HermesWidgetSpec;
 import org.llm4people.hermes.os.HermesWidgetStore;
@@ -1065,8 +1066,12 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                     }
                     @Override public void onAddProfile() {
                         if (account != owner) return;
-                        clearWorkspace();
+                        lock();
                         gate.openAddWithPairing(null);
+                    }
+                    @Override public void onScanQrCode() {
+                        if (account != owner) return;
+                        QrScannerActivity.launch(MainActivity.this);
                     }
                     @Override public void onOpenAdminConsole() {
                         if (account == owner) openAdminConsole();
@@ -1565,6 +1570,14 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     }
 
     @Override protected void onActivityResult(int code, int result, Intent data) {
+        if (code == QrScannerActivity.REQUEST_CODE) {
+            PairingLinkParser.ParsedInput scanned = QrScannerActivity.extractScannedPairing(result, data);
+            if (scanned != null && gate != null) {
+                if (account != null) lock();
+                gate.openAddWithPairing(scanned);
+            }
+            return;
+        }
         if (cameraCapture != null && cameraCapture.onActivityResult(code, result)) {
             deliverCapturedPhoto();
             return;

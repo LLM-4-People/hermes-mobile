@@ -81,6 +81,7 @@ public final class FirstRunWizard {
         void showInstantStatus(String message, int colorRes);
         void onClaimedMetadata(OnboardingModels.PairingClaim claim);
         void trackDialog(AlertDialog dialog);
+        void onScanQrRequested();
     }
 
     public interface Step2Callbacks {
@@ -266,6 +267,15 @@ public final class FirstRunWizard {
             card.addView(banner, bLp);
         }
 
+        Button scanQrBtn = Ui.button(activity, activity.getString(R.string.onboarding_scan_qr_action),
+                v -> targets.onScanQrRequested());
+        scanQrBtn.setMinHeight(touchMin);
+        scanQrBtn.setMinimumHeight(touchMin);
+        LinearLayout.LayoutParams scanLp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        scanLp.topMargin = Ui.dp(activity, 10);
+        card.addView(scanQrBtn, scanLp);
+
         Button pasteBtn = Ui.button(activity, activity.getString(R.string.onboarding_paste_action), v -> {
             PairingLinkParser.ParsedInput fromClip = detectClipboardLink(activity);
             if (fromClip != null) {
@@ -278,7 +288,7 @@ public final class FirstRunWizard {
         pasteBtn.setMinimumHeight(touchMin);
         LinearLayout.LayoutParams btnLp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        btnLp.topMargin = Ui.dp(activity, 10);
+        btnLp.topMargin = Ui.dp(activity, 8);
         card.addView(pasteBtn, btnLp);
 
         LinearLayout.LayoutParams statusLp = new LinearLayout.LayoutParams(

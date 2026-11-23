@@ -3,7 +3,8 @@
     <string name="onboarding_step1_title">Connect your Hermes</string>
     <string name="onboarding_step1_subtitle">Paste a pairing or invite link to configure everything in one tap, or enter your credentials manually.</string>
     <string name="onboarding_paste_card_title">Instant setup</string>
-    <string name="onboarding_paste_card_hint">Paste a hermes://pair link, HTTPS invite, or copied credentials</string>
+    <string name="onboarding_paste_card_hint">Scan a pairing QR code, or paste a hermes://pair link, HTTPS invite, or copied credentials</string>
+    <string name="onboarding_scan_qr_action">Scan QR code</string>
     <string name="onboarding_paste_action">Paste pairing link</string>
     <string name="onboarding_paste_clipboard_detected">Pairing link detected in clipboard</string>
     <string name="onboarding_paste_clipboard_use">Use detected link</string>
@@ -51,6 +52,7 @@
     <string name="profile_hub_switch_action">Switch</string>
     <string name="profile_hub_edit_action">Edit</string>
     <string name="profile_hub_pair_device_action">Add another device</string>
+    <string name="profile_hub_scan_qr_action">Scan QR code</string>
     <string name="profile_hub_invite_action">Invite someone</string>
     <string name="profile_hub_rotate_key_action">Rotate key</string>
     <string name="profile_hub_remove_action">Remove</string>
@@ -151,4 +153,18 @@
     <string name="admin_settings_saved">Server settings saved.</string>
     <string name="admin_settings_save_failed">Could not save server settings.</string>
     <string name="admin_settings_invalid_number">Check that all numbers are within allowed limits.</string>
+    <!-- In-app camera QR scanner -->
+    <string name="qr_scanner_title">Scan QR code</string>
+    <string name="qr_scanner_close">Close</string>
+    <string name="qr_scanner_torch_on">Flashlight</string>
+    <string name="qr_scanner_torch_off">Turn off flash</string>
+    <string name="qr_scanner_hint">Point your camera at a Hermes pairing QR code.</string>
+    <string name="qr_scanner_choose_image">Choose QR image</string>
+    <string name="qr_scanner_reading_image">Reading QR image…</string>
+    <string name="qr_scanner_not_hermes">That QR code is not a Hermes pairing link.</string>
+    <string name="qr_scanner_image_no_qr">No QR code found in this image.</string>
+    <string name="qr_scanner_permission_title">Camera access is off</string>
+    <string name="qr_scanner_permission_detail">Allow camera access to scan a pairing QR code, or choose a QR image saved on this device.</string>
+    <string name="qr_scanner_unavailable_title">Camera unavailable</string>
+    <string name="qr_scanner_unavailable_detail">No usable camera was found on this device. You can still choose a QR image from your files.</string>
 </resources>
