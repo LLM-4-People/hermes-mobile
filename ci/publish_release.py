@@ -10,12 +10,23 @@ import subprocess
 import tempfile
 import zipfile
 
-from release_metadata import apk_certificate, digest, version_code
+from release_metadata import apk_certificate, digest, release_apk_name, version_code
 
-APK = "Hermes-Mobile.apk"
 METADATA = "release.json"
 CHECKSUMS = "SHA256SUMS"
-ASSETS = (APK, CHECKSUMS, METADATA)
+
+
+def expected_apk_name(metadata):
+    version_name = metadata.get("versionName")
+    if not isinstance(version_name, str) or not version_name:
+        raise ValueError("Missing versionName in release metadata")
+    expected = release_apk_name(version_name)
+    if metadata.get("tag") != f"v{version_name}":
+        raise ValueError("Release tag disagrees with versionName in release metadata")
+    apk = metadata.get("apk")
+    if apk != expected:
+        raise ValueError(f"Release metadata apk {apk!r} disagrees with expected {expected!r}")
+    return expected
 
 
 def gh(*args):
@@ -34,6 +45,8 @@ class Releases:
         if self.metadata["sourceCommit"] != self.sha:
             raise ValueError("The build metadata identifies a different commit")
         self.code = version_code(self.metadata["versionCode"])
+        self.apk = expected_apk_name(self.metadata)
+        self.assets = (self.apk, CHECKSUMS, METADATA)
 
     def api(self, resource, *options):
         return gh("api", *options, f"repos/{self.repo}/{resource}")
@@ -77,7 +90,7 @@ class Releases:
     def snapshot(self):
         view = json.loads(self.release("view", "--json", "isDraft,assets"))
         assets = {entry["name"]: entry["digest"] for entry in view["assets"]}
-        if len(assets) != len(view["assets"]) or set(assets) - set(ASSETS):
+        if len(assets) != len(view["assets"]) or set(assets) - set(self.assets):
             raise ValueError("The release contains duplicate or unverified extra assets")
         return view["isDraft"], assets
 
@@ -92,12 +105,12 @@ class Releases:
             self.release("create", "--draft", "--target", self.sha, "--title",
                          f"Hermes Mobile {self.tag}", "--generate-notes", *flags)
         draft, remote = self.snapshot()
-        expected = {name: "sha256:" + digest(self.directory / name) for name in ASSETS}
+        expected = {name: "sha256:" + digest(self.directory / name) for name in self.assets}
         for name, checksum in expected.items():
             if name in remote and remote[name] != checksum:
                 raise ValueError(f"Existing release asset {name} differs from the verified bytes")
         if draft:
-            for name in ASSETS:
+            for name in self.assets:
                 if name not in remote:
                     self.release("upload", str(self.directory / name))
             self.validate_ref()
@@ -113,20 +126,20 @@ class Releases:
         if not self.existing(self.history()):
             return
         _, assets = self.snapshot()
-        if APK not in assets or assets[APK] == "sha256:" + digest(self.directory / APK):
+        if self.apk not in assets or assets[self.apk] == "sha256:" + digest(self.directory / self.apk):
             return
         with tempfile.TemporaryDirectory(dir=self.directory.parent) as scratch:
-            recovered = Path(scratch) / APK
-            self.release("download", "--pattern", APK, "--dir", scratch)
-            if "sha256:" + digest(recovered) != assets[APK]:
+            recovered = Path(scratch) / self.apk
+            self.release("download", "--pattern", self.apk, "--dir", scratch)
+            if "sha256:" + digest(recovered) != assets[self.apk]:
                 raise ValueError("Downloaded APK digest differs from the release")
             gh("attestation", "verify", str(recovered), "--repo", self.repo,
                "--source-digest", self.sha, "--signer-workflow", f"{self.repo}/.github/workflows/release.yml")
             validate_recovered(unsigned, recovered, self.metadata, os.environ["ANDROID_BUILD_TOOLS"])
-            recovered.replace(self.directory / APK)
-        self.metadata["signedSha256"] = digest(self.directory / APK)
+            recovered.replace(self.directory / self.apk)
+        self.metadata["signedSha256"] = digest(self.directory / self.apk)
         (self.directory / METADATA).write_text(json.dumps(self.metadata, indent=2) + "\n")
-        (self.directory / CHECKSUMS).write_text(f"{self.metadata['signedSha256']}  {APK}\n")
+        (self.directory / CHECKSUMS).write_text(f"{self.metadata['signedSha256']}  {self.apk}\n")
 
 
 def validate_recovered(unsigned, recovered, metadata, tools):

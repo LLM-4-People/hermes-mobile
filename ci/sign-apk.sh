@@ -7,7 +7,13 @@ umask 077
 : "${GITHUB_SHA:?}"
 unsigned=${1:?Expected unsigned APK path}
 out=${2:?Expected output directory}
-name=Hermes-Mobile.apk
+repo_root=$(cd "$(dirname "$0")/.." && pwd)
+version_name=$(sed -n 's/^hermesVersionName=//p' "$repo_root/gradle.properties" | head -n 1 | tr -d '\r')
+if [[ ! "$version_name" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+  echo "Invalid or missing hermesVersionName in gradle.properties." >&2
+  exit 1
+fi
+name="hermes-mobile-v${version_name}.apk"
 private=$(mktemp -d)
 trap 'rm -rf "$private"' EXIT
 mkdir -p "$out"

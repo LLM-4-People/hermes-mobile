@@ -29,15 +29,23 @@ def apk_certificate(tools, apk):
     return fingerprints[0].lower()
 
 
+SEMVER_PATTERN = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?")
+
+
+def release_apk_name(version_name):
+    if not isinstance(version_name, str) or not SEMVER_PATTERN.fullmatch(version_name):
+        raise ValueError("Use a semantic release version for the Android versionName.")
+    return f"hermes-mobile-v{version_name}.apk"
+
+
 def describe(badging, unsigned, signed, certificate, commit):
     pattern = r"^package: name='([^']+)' versionCode='([0-9]+)' versionName='([^']+)'"
     package = re.search(pattern, badging, re.MULTILINE)
     if not package:
         raise ValueError("The APK has no readable package and version.")
     package_name, code, version = package.groups()
-    # Tag names come only from a release build's application version.
-    if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?", version):
-        raise ValueError("Use a semantic release version for the Android versionName.")
+    # Tag and APK names come only from a release build's semantic application version.
+    apk_name = release_apk_name(version)
     if not re.fullmatch(r"[0-9a-f]{40}", commit):
         raise ValueError("The source revision must be a full Git commit SHA.")
     return {
@@ -45,6 +53,7 @@ def describe(badging, unsigned, signed, certificate, commit):
         "versionName": version,
         "versionCode": version_code(int(code)),
         "tag": f"v{version}",
+        "apk": apk_name,
         "sourceCommit": commit,
         "certificateSha256": certificate.lower(),
         "unsignedSha256": digest(unsigned),
@@ -57,5 +66,10 @@ if __name__ == "__main__":
     signer = apk_certificate(tools, signed_apk)
     if signer != expected.replace(":", "").lower():
         sys.exit("The APK signing certificate differs from the configured SHA-256 fingerprint.")
-    print(json.dumps(describe(Path(manifest).read_text(), Path(unsigned_apk),
-                              Path(signed_apk), signer, sha), indent=2))
+    metadata = describe(Path(manifest).read_text(), Path(unsigned_apk),
+                        Path(signed_apk), signer, sha)
+    if Path(signed_apk).name != metadata["apk"]:
+        sys.exit(
+            f"Signed APK filename {Path(signed_apk).name!r} differs from expected {metadata['apk']!r}."
+        )
+    print(json.dumps(metadata, indent=2))

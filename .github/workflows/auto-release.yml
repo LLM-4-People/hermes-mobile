@@ -150,7 +150,7 @@ jobs:
           - **\`hermesVersionName\`**: \`$VERSION_NAME\`
           - **\`hermesVersionCode\`**: \`$VERSION_CODE\`
 
-          Merging this PR into \`main\` automatically creates annotated tag \`$TAG\` and dispatches **Signed Android release** (\`.github/workflows/release.yml\`) to build, sign, attest, and publish \`Hermes-Mobile.apk\`, \`SHA256SUMS\`, and \`release.json\`.
+          Merging this PR into \`main\` automatically creates annotated tag \`$TAG\` and dispatches **Signed Android release** (\`.github/workflows/release.yml\`) to build, sign, attest, and publish \`hermes-mobile-v$VERSION_NAME.apk\`, \`SHA256SUMS\`, and \`release.json\`.
           EOF
           )
           if [[ -n "$existing" ]]; then

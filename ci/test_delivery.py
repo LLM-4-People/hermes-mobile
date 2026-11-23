@@ -62,6 +62,7 @@ class MetadataTest(unittest.TestCase):
             manifest = "package: name='org.example' versionCode='3' versionName='1.2.0-rc.1'"
             metadata = describe(manifest, one, one, "b" * 64, "a" * 40)
             self.assertEqual(metadata["tag"], "v1.2.0-rc.1")
+            self.assertEqual(metadata["apk"], "hermes-mobile-v1.2.0-rc.1.apk")
             self.assertEqual(metadata["versionCode"], 3)
             self.assertEqual(metadata["signedSha256"], metadata["unsignedSha256"])
             self.assertEqual(len(metadata["signedSha256"]), 64)

@@ -12,6 +12,8 @@ import unittest
 
 PUBLISH = Path(__file__).with_name("publish_release.py").resolve()
 SHA = "a" * 40
+VERSION = "1.2.3"
+APK = f"hermes-mobile-v{VERSION}.apk"
 
 
 class PublishTest(unittest.TestCase):
@@ -24,9 +26,15 @@ class PublishTest(unittest.TestCase):
         self.stub = self.root / "gh"
         shutil.copyfile(Path(__file__).with_name("fixtures") / "release_cli.py", self.stub)
         self.stub.chmod(0o755)
-        (self.root / "Hermes-Mobile.apk").write_bytes(b"APK bytes")
+        (self.root / APK).write_bytes(b"APK bytes")
         (self.root / "SHA256SUMS").write_text("checksum")
-        (self.root / "release.json").write_text(json.dumps({"tag": "v1.2.3", "versionCode": 3, "sourceCommit": SHA}))
+        (self.root / "release.json").write_text(json.dumps({
+            "tag": f"v{VERSION}",
+            "versionName": VERSION,
+            "versionCode": 3,
+            "apk": APK,
+            "sourceCommit": SHA,
+        }))
         self.env = dict(os.environ, PATH=f"{self.root}:{os.environ['PATH']}",
                         GITHUB_SHA=SHA, GITHUB_REPOSITORY="owner/app", TEST_STATE=str(self.state))
 
@@ -38,7 +46,7 @@ class PublishTest(unittest.TestCase):
         self.assertNotEqual(self.run_publisher().returncode, 0)
         partial = json.loads(self.state.read_text())["releases"][0]
         self.assertTrue(partial["draft"])
-        self.assertEqual([a["name"] for a in partial["assets"]], ["Hermes-Mobile.apk"])
+        self.assertEqual([a["name"] for a in partial["assets"]], [APK])
         self.env.pop("FAIL_UPLOAD")
         result = self.run_publisher()
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -46,9 +54,34 @@ class PublishTest(unittest.TestCase):
         self.assertFalse(json.loads(published)["releases"][0]["draft"])
         self.assertEqual(self.run_publisher().returncode, 0)
         self.assertEqual(self.state.read_text(), published)
-        (self.root / "Hermes-Mobile.apk").write_bytes(b"different bytes")
+        (self.root / APK).write_bytes(b"different bytes")
         self.assertNotEqual(self.run_publisher().returncode, 0)
         self.assertEqual(self.state.read_text(), published)
+
+    def test_mismatched_or_missing_versioned_apk_name_fails_closed(self):
+        manifest = self.root / "release.json"
+        for bad_update, expected_err in (
+            ({"apk": "Hermes-Mobile.apk"}, "disagrees with expected"),
+            ({"apk": "hermes-mobile-v9.9.9.apk"}, "disagrees with expected"),
+            ({"apk": None}, "disagrees with expected"),
+            ({"tag": "v9.9.9"}, "tag disagrees with versionName"),
+            ({"versionName": ""}, "Missing versionName"),
+        ):
+            with self.subTest(bad_update=bad_update):
+                data = json.loads(manifest.read_text())
+                data.update(bad_update)
+                manifest.write_text(json.dumps(data))
+                result = self.run_publisher()
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(expected_err, result.stderr)
+                self.assertEqual(json.loads(self.state.read_text())["releases"], [])
+                manifest.write_text(json.dumps({
+                    "tag": f"v{VERSION}",
+                    "versionName": VERSION,
+                    "versionCode": 3,
+                    "apk": APK,
+                    "sourceCommit": SHA,
+                }))
 
     def test_stale_revision_and_conflicting_tag(self):
         for main, ref, annotated in (("b" * 40, None, False), (SHA, "b" * 40, False), (SHA, "b" * 40, True)):

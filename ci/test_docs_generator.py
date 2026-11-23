@@ -25,6 +25,7 @@ class MechanicalDocsGeneratorTest(unittest.TestCase):
         self.assertEqual(facts["target_android"], "16")
         self.assertEqual(facts["compile_sdk"], "36")
         self.assertTrue(facts["build_tools"].startswith("36."))
+        self.assertEqual(facts["release_apk"], f"hermes-mobile-v{facts['version_name']}.apk")
         self.assertEqual(len(facts["pinned_revision"]), 40)
         self.assertEqual(facts["pinned_revision_short"], facts["pinned_revision"][:8])
         self.assertTrue(int(facts["expected_fork_capabilities"]) >= 51)

@@ -37,14 +37,14 @@ The publisher checks that the manifest version code exceeds every previous publi
 
 ## Verify a release
 
-Download `Hermes-Mobile.apk`, `SHA256SUMS` and `release.json` from the same release. Use the Android SDK build tools and GitHub CLI to check all three.
+Download `hermes-mobile-v0.2.1.apk`, `SHA256SUMS` and `release.json` from the same release. Use the Android SDK build tools and GitHub CLI to check all three.
 
 ```sh
 sha256sum --check SHA256SUMS
-apksigner verify --verbose --print-certs Hermes-Mobile.apk
-gh attestation verify Hermes-Mobile.apk --repo LLM-4-People/hermes-mobile --signer-workflow LLM-4-People/hermes-mobile/.github/workflows/release.yml
+apksigner verify --verbose --print-certs hermes-mobile-v0.2.1.apk
+gh attestation verify hermes-mobile-v0.2.1.apk --repo LLM-4-People/hermes-mobile --signer-workflow LLM-4-People/hermes-mobile/.github/workflows/release.yml
 ```
 
-Compare the printed signer fingerprint with your trusted release fingerprint. The metadata records the package name, embedded Android version, source commit, unsigned and signed package digests, and signing certificate. To upgrade an existing install made with the same key, run `adb install -r Hermes-Mobile.apk`.
+Compare the printed signer fingerprint with your trusted release fingerprint. The metadata records the package name, embedded Android version, source commit, unsigned and signed package digests, and signing certificate. To upgrade an existing install made with the same key, run `adb install -r hermes-mobile-v0.2.1.apk`.
 
 <!-- Generated from docs/sources/docs/delivery.md.in by scripts/docs.py. -->

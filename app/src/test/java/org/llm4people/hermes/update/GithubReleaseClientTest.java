@@ -55,13 +55,14 @@ public final class GithubReleaseClientTest {
         byte[] fakeApkBytes = "PK\003\004signed-hermes-mobile-apk-bytes".getBytes(StandardCharsets.UTF_8);
         String expectedHex = sha256(fakeApkBytes);
         String releaseUrl = "https://api.github.com/repos/LLM-4-People/hermes-mobile/releases/latest";
-        String apkUrl = "https://github.com/LLM-4-People/hermes-mobile/releases/download/v1.2.0/Hermes-Mobile.apk";
-        String cdnUrl = "https://objects.githubusercontent.com/github-production-release-asset/Hermes-Mobile.apk";
+        String apkName = "hermes-mobile-v1.2.0.apk";
+        String apkUrl = "https://github.com/LLM-4-People/hermes-mobile/releases/download/v1.2.0/" + apkName;
+        String cdnUrl = "https://objects.githubusercontent.com/github-production-release-asset/" + apkName;
         String sumsUrl = "https://github.com/LLM-4-People/hermes-mobile/releases/download/v1.2.0/SHA256SUMS";
 
-        String json = validReleaseJson("v1.2.0", "Hermes-Mobile.apk", apkUrl, fakeApkBytes.length,
+        String json = validReleaseJson("v1.2.0", apkName, apkUrl, fakeApkBytes.length,
                 expectedHex, "SHA256SUMS", sumsUrl);
-        String sumsBody = expectedHex + "  Hermes-Mobile.apk\n";
+        String sumsBody = expectedHex + "  " + apkName + "\n";
 
         Map<String, GithubReleaseClient.Response> responses = new LinkedHashMap<>();
         responses.put(releaseUrl, new GithubReleaseClient.Response(200, null, json.getBytes(StandardCharsets.UTF_8)));
@@ -73,7 +74,7 @@ public final class GithubReleaseClientTest {
         GithubReleaseClient.ReleaseInfo release = client.fetchLatestRelease();
 
         assertEquals("v1.2.0", release.tagName());
-        assertEquals("Hermes-Mobile.apk", release.apkAssetName());
+        assertEquals(apkName, release.apkAssetName());
         assertEquals("SHA256SUMS", release.checksumAssetName());
         assertTrue(release.isNewerThan("0.1.0"));
         assertFalse(release.isNewerThan("1.2.0"));
@@ -113,14 +114,43 @@ public final class GithubReleaseClientTest {
     }
 
     @Test
+    public void prefersExactVersionedApkOverGenericAndRejectsUnsignedVariants() throws Exception {
+        assertEquals("hermes-mobile-v0.3.0.apk", GithubReleaseClient.preferredApkName("v0.3.0"));
+        assertEquals("hermes-mobile-v0.3.0-rc.1.apk", GithubReleaseClient.preferredApkName("0.3.0-rc.1"));
+        assertEquals("", GithubReleaseClient.preferredApkName("invalid"));
+
+        String h1 = "0123456789abcdef".repeat(4);
+        String base = "https://github.com/LLM-4-People/hermes-mobile/releases/download/v0.3.0/";
+        String multiAssetJson = "{"
+                + "\"tag_name\":\"v0.3.0\","
+                + "\"name\":\"Hermes Mobile v0.3.0\","
+                + "\"draft\":false,"
+                + "\"html_url\":\"https://github.com/LLM-4-People/hermes-mobile/releases/tag/v0.3.0\","
+                + "\"published_at\":\"2026-11-23T15:00:00Z\","
+                + "\"body\":\"Release notes\","
+                + "\"assets\":["
+                + "{\"name\":\"other.apk\",\"size\":1024,\"browser_download_url\":\"" + base + "other.apk\"},"
+                + "{\"name\":\"hermes-mobile-legacy.apk\",\"size\":1024,\"browser_download_url\":\"" + base + "hermes-mobile-legacy.apk\"},"
+                + "{\"name\":\"hermes-mobile-v0.3.0-unsigned.apk\",\"size\":1024,\"browser_download_url\":\"" + base + "hermes-mobile-v0.3.0-unsigned.apk\"},"
+                + "{\"name\":\"hermes-mobile-v0.3.0.apk\",\"size\":2048,\"browser_download_url\":\"" + base + "hermes-mobile-v0.3.0.apk\",\"digest\":\"sha256:" + h1 + "\"},"
+                + "{\"name\":\"SHA256SUMS\",\"size\":128,\"browser_download_url\":\"" + base + "SHA256SUMS\"}"
+                + "]}";
+        GithubReleaseClient.ReleaseInfo info = GithubReleaseClient.parseLatestRelease(multiAssetJson, 50_000_000L);
+        assertEquals("hermes-mobile-v0.3.0.apk", info.apkAssetName());
+        assertEquals(h1, info.assetDigestSha256());
+        assertEquals(h1, GithubReleaseClient.parseSha256ForAsset(
+                h1 + "  hermes-mobile-v0.3.0.apk\n", info.apkAssetName()));
+    }
+
+    @Test
     public void rejectsUnsignedOnlyMissingChecksumDraftAndMalformedReleases() {
-        String apkUrl = "https://github.com/LLM-4-People/hermes-mobile/releases/download/v1.2.0/Hermes-Mobile-unsigned.apk";
+        String apkUrl = "https://github.com/LLM-4-People/hermes-mobile/releases/download/v1.2.0/hermes-mobile-v1.2.0-unsigned.apk";
         String sumsUrl = "https://github.com/LLM-4-People/hermes-mobile/releases/download/v1.2.0/SHA256SUMS";
 
         // Unsigned-only APK must fail closed.
         try {
             GithubReleaseClient.parseLatestRelease(
-                    validReleaseJson("v1.2.0", "Hermes-Mobile-unsigned.apk", apkUrl, 1024, null, "SHA256SUMS", sumsUrl),
+                    validReleaseJson("v1.2.0", "hermes-mobile-v1.2.0-unsigned.apk", apkUrl, 1024, null, "SHA256SUMS", sumsUrl),
                     50_000_000L);
             fail("Accepted unsigned-only release");
         } catch (IOException expected) {
@@ -128,10 +158,10 @@ public final class GithubReleaseClientTest {
         }
 
         // Missing checksum asset must fail closed.
-        String signedUrl = "https://github.com/LLM-4-People/hermes-mobile/releases/download/v1.2.0/Hermes-Mobile.apk";
+        String signedUrl = "https://github.com/LLM-4-People/hermes-mobile/releases/download/v1.2.0/hermes-mobile-v1.2.0.apk";
         try {
             GithubReleaseClient.parseLatestRelease(
-                    validReleaseJson("v1.2.0", "Hermes-Mobile.apk", signedUrl, 1024, null, null, null),
+                    validReleaseJson("v1.2.0", "hermes-mobile-v1.2.0.apk", signedUrl, 1024, null, null, null),
                     50_000_000L);
             fail("Accepted release without SHA256SUMS / .sha256");
         } catch (IOException expected) {
@@ -139,7 +169,7 @@ public final class GithubReleaseClientTest {
         }
 
         // Draft release must fail closed.
-        String draftJson = validReleaseJson("v1.2.0", "Hermes-Mobile.apk", signedUrl, 1024, null, "SHA256SUMS", sumsUrl)
+        String draftJson = validReleaseJson("v1.2.0", "hermes-mobile-v1.2.0.apk", signedUrl, 1024, null, "SHA256SUMS", sumsUrl)
                 .replace("\"draft\":false", "\"draft\":true");
         try {
             GithubReleaseClient.parseLatestRelease(draftJson, 50_000_000L);
@@ -167,9 +197,9 @@ public final class GithubReleaseClientTest {
         assertTrue(GithubReleaseClient.isAllowedDownloadUrl("https://api.github.com/repos/LLM-4-People/hermes-mobile/releases/latest"));
 
         String[] badUrls = {
-                null, "", "http://github.com/a/b", "https://evil.example/Hermes-Mobile.apk",
-                "https://github.com.evil.example/Hermes-Mobile.apk",
-                "https://user:pass@github.com/Hermes-Mobile.apk",
+                null, "", "http://github.com/a/b", "https://evil.example/hermes-mobile-v1.2.0.apk",
+                "https://github.com.evil.example/hermes-mobile-v1.2.0.apk",
+                "https://user:pass@github.com/hermes-mobile-v1.2.0.apk",
                 "javascript:alert(1)", "file:///data/local/tmp/a.apk"
         };
         for (String bad : badUrls) {
@@ -179,7 +209,7 @@ public final class GithubReleaseClientTest {
         // Release JSON pointing APK to spoofed host must fail closed.
         try {
             GithubReleaseClient.parseLatestRelease(
-                    validReleaseJson("v1.2.0", "Hermes-Mobile.apk", "https://evil.example/Hermes-Mobile.apk",
+                    validReleaseJson("v1.2.0", "hermes-mobile-v1.2.0.apk", "https://evil.example/hermes-mobile-v1.2.0.apk",
                             1024, null, "SHA256SUMS",
                             "https://github.com/LLM-4-People/hermes-mobile/releases/download/v1.2.0/SHA256SUMS"),
                     50_000_000L);
@@ -189,7 +219,7 @@ public final class GithubReleaseClientTest {
         }
 
         // Redirect from github.com to evil host must fail closed.
-        String apkUrl = "https://github.com/LLM-4-People/hermes-mobile/releases/download/v1.2.0/Hermes-Mobile.apk";
+        String apkUrl = "https://github.com/LLM-4-People/hermes-mobile/releases/download/v1.2.0/hermes-mobile-v1.2.0.apk";
         ApkUpdateInstaller.StreamSource evilRedirect = url ->
                 new ApkUpdateInstaller.StreamResponse(302, "https://evil.example/hijack.apk", -1L, null);
         File updatesDir = tmp.newFolder("redirect_updates");
@@ -207,7 +237,7 @@ public final class GithubReleaseClientTest {
     public void checksumMismatchOversizeAndCancelImmediatelyDeleteDownloadedFiles() throws Exception {
         byte[] tamperedBytes = "tampered-apk-payload".getBytes(StandardCharsets.UTF_8);
         String wrongHex = sha256("original-apk-payload".getBytes(StandardCharsets.UTF_8));
-        String apkUrl = "https://objects.githubusercontent.com/Hermes-Mobile.apk";
+        String apkUrl = "https://objects.githubusercontent.com/hermes-mobile-v1.2.0.apk";
         File dir = tmp.newFolder("mismatch_dir");
 
         // 1. Checksum mismatch must delete partial and final file.
@@ -256,13 +286,13 @@ public final class GithubReleaseClientTest {
     public void checksumParserAndSignatureCompatibilityAndFilenameValidationEnforceBounds() {
         String h1 = "0123456789abcdef".repeat(4);
         String h2 = "fedcba9876543210".repeat(4);
-        assertEquals(h1, GithubReleaseClient.parseSha256ForAsset(h1 + "  Hermes-Mobile.apk\n", "Hermes-Mobile.apk"));
-        assertEquals(h1, GithubReleaseClient.parseSha256ForAsset(h1 + " *./dist/Hermes-Mobile.apk\n", "Hermes-Mobile.apk"));
-        assertEquals(h1, GithubReleaseClient.parseSha256ForAsset(h1 + "\n", "Hermes-Mobile.apk"));
+        assertEquals(h1, GithubReleaseClient.parseSha256ForAsset(h1 + "  hermes-mobile-v1.2.0.apk\n", "hermes-mobile-v1.2.0.apk"));
+        assertEquals(h1, GithubReleaseClient.parseSha256ForAsset(h1 + " *./dist/hermes-mobile-v1.2.0.apk\n", "hermes-mobile-v1.2.0.apk"));
+        assertEquals(h1, GithubReleaseClient.parseSha256ForAsset(h1 + "\n", "hermes-mobile-v1.2.0.apk"));
         // Conflicting duplicate hashes for the same asset fail closed.
         assertNull(GithubReleaseClient.parseSha256ForAsset(
-                h1 + "  Hermes-Mobile.apk\n" + h2 + "  Hermes-Mobile.apk\n", "Hermes-Mobile.apk"));
-        assertNull(GithubReleaseClient.parseSha256ForAsset(h1 + "  other.apk\n", "Hermes-Mobile.apk"));
+                h1 + "  hermes-mobile-v1.2.0.apk\n" + h2 + "  hermes-mobile-v1.2.0.apk\n", "hermes-mobile-v1.2.0.apk"));
+        assertNull(GithubReleaseClient.parseSha256ForAsset(h1 + "  other.apk\n", "hermes-mobile-v1.2.0.apk"));
 
         assertTrue(ApkUpdateInstaller.signaturesCompatible(Set.of(h1), Set.of(h1.toUpperCase())));
         assertFalse(ApkUpdateInstaller.signaturesCompatible(Set.of(h1), Set.of(h2)));
@@ -280,8 +310,8 @@ public final class GithubReleaseClientTest {
     public void coordinatorThrottlesSilentChecksAndDegradesSilentlyOffline() throws Exception {
         byte[] apk = "apk".getBytes(StandardCharsets.UTF_8);
         String hex = sha256(apk);
-        String releaseJson = validReleaseJson("v1.5.0", "Hermes-Mobile.apk",
-                "https://github.com/LLM-4-People/hermes-mobile/releases/download/v1.5.0/Hermes-Mobile.apk",
+        String releaseJson = validReleaseJson("v1.5.0", "hermes-mobile-v1.5.0.apk",
+                "https://github.com/LLM-4-People/hermes-mobile/releases/download/v1.5.0/hermes-mobile-v1.5.0.apk",
                 apk.length, hex, "SHA256SUMS",
                 "https://github.com/LLM-4-People/hermes-mobile/releases/download/v1.5.0/SHA256SUMS");
 

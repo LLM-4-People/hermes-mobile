@@ -6,7 +6,7 @@ from pathlib import Path
 import subprocess
 import sys
 
-from publish_release import APK as CANDIDATE, METADATA, validate_recovered
+from publish_release import METADATA, expected_apk_name, validate_recovered
 from release_metadata import describe
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -18,9 +18,9 @@ from verification.unifiedpush.assets import APK, SERVER
 
 
 def release_identity(directory, tools, commit):
-    candidate = directory / CANDIDATE
-    unsigned = directory / "app-release-unsigned.apk"
     manifest = json.loads((directory / METADATA).read_bytes())
+    candidate = directory / expected_apk_name(manifest)
+    unsigned = directory / "app-release-unsigned.apk"
     validate_recovered(unsigned, candidate, manifest, tools)
     badging = subprocess.check_output([str(Path(tools) / "aapt"), "dump", "badging", candidate], text=True)
     identity = describe(badging, unsigned, candidate, manifest["certificateSha256"], commit)

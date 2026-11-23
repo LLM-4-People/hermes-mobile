@@ -6,7 +6,7 @@
   "fork_url": "https://github.com/LLM-4-People/hermes-agent",
   "build_debug": "./gradlew :app:assembleDebug",
   "debug_apk": "app/build/outputs/apk/debug/app-debug.apk",
-  "release_apk": "Hermes-Mobile.apk",
+  "release_apk": "hermes-mobile-vX.Y.Z.apk",
   "release_apk_size_en": "~1.9 MiB",
   "release_apk_size_fr": "1,9 Mo",
   "checksum_file": "SHA256SUMS",

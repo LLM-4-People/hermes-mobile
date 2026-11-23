@@ -49,7 +49,7 @@
 
 ### 1. Get the signed APK and stay up to date
 
-- **Official signed releases (recommended):** Download `Hermes-Mobile.apk`, `SHA256SUMS`, and `release.json` from [Latest GitHub Release](https://github.com/LLM-4-People/hermes-mobile/releases/latest), then verify checksum, APK signature, and GitHub build provenance. [Releases and in-app auto-update](docs/release.md) · [Verify a release](docs/delivery.md#verify-a-release)
+- **Official signed releases (recommended):** Download `hermes-mobile-v0.2.1.apk`, `SHA256SUMS`, and `release.json` from [Latest GitHub Release](https://github.com/LLM-4-People/hermes-mobile/releases/latest), then verify checksum, APK signature, and GitHub build provenance. [Releases and in-app auto-update](docs/release.md) · [Verify a release](docs/delivery.md#verify-a-release)
 - **Built-in verified in-app updates:** Open **Activity → App updates** to check GitHub Releases directly from your phone. Downloads are fail-closed: the app verifies HTTPS GitHub release hosts, constant-time `SHA256SUMS` match, and matching APK signing certificate before handing off to Android’s native installer.
 - **Development builds:** Open a passing [Workspace checks](https://github.com/LLM-4-People/hermes-mobile/actions/workflows/checks.yml) run and download the **android-debug** artifact (includes `app-debug.apk` and `SHA256SUMS`).
 
