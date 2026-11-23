@@ -530,3 +530,32 @@ jobs:
     needs: [changes, package]
     if: ${{ !cancelled() && inputs.release != true && needs.changes.outputs.run_push_acceptance == 'true' }}
     uses: ./.github/workflows/unified-push.yml
+
+  ci-gate:
+    name: CI Gate
+    needs:
+      - changes
+      - validate
+      - pages-check
+      - workspace
+      - package-debug
+      - package
+      - device
+      - device-native-1
+      - device-live-core
+      - device-journeys
+      - phone-handoffs
+      - nearby-guide
+      - aosp
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Enforce fail-closed CI gate
+        env:
+          NEEDS_JSON: ${{ toJson(needs) }}
+          RELEASE_MODE: ${{ inputs.release == true && '1' || '0' }}
+        run: python3 -B ci/ci_gate.py --step-summary "$GITHUB_STEP_SUMMARY"
