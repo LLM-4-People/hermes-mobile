@@ -18,7 +18,7 @@
 ## Real device preview
 
 <p align="center">
-  <a href="docs/assets/app-preview-en.png"><img src="docs/assets/app-preview-en.png" width="100%" alt="Four real Android 16 screens of Hermes Mobile in English: command palette, everyday workflows, connection doctor, and presence and appearance controls"></a>
+  <a href="docs/assets/dual-theme-showcase-en.png"><img src="docs/assets/dual-theme-showcase-en.png" width="100%" alt="Light and dark themes of Hermes Mobile side by side on Android 16: connection doctor, everyday workflows, command palette, and presence and appearance controls"></a>
 </p>
 
 <p align="center">

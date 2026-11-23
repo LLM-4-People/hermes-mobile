@@ -13,7 +13,7 @@
 ## Aperçu sur appareil réel
 
 <p align="center">
-  <a href="../assets/app-preview-fr.png"><img src="../assets/app-preview-fr.png" width="100%" alt="Quatre écrans réels de Hermes Mobile en français sur Android 16 : palette de commandes, modèles du quotidien, diagnostic de connexion et présence et apparence"></a>
+  <a href="../assets/dual-theme-showcase-fr.png"><img src="../assets/dual-theme-showcase-fr.png" width="100%" alt="Thèmes clair et sombre de Hermes Mobile côte à côte sur Android 16 : diagnostic de connexion, modèles du quotidien, palette de commandes et présence et apparence"></a>
 </p>
 
 <p align="center">
