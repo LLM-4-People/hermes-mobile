@@ -1,4 +1,4 @@
-"""Render isolated Hermes account services and a hostname-routed HTTPS ingress."""
+"""Render isolated Hermes profile services behind one single-hostname HTTPS ingress (/p/<profile>)."""
 import argparse
 import json
 import os
@@ -10,24 +10,48 @@ import tempfile
 CADDY_IMAGE = "caddy@sha256:003a97808e781aa9f7e75cc2f43d34d461099031faf5e20faefb9f61126836f0"
 IMAGE_DIGEST = re.compile(r"(?:[a-z0-9./_:-]+@)?sha256:[0-9a-f]{64}")
 DNS_LABEL = re.compile(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?")
+PROFILE_ID = re.compile(r"[a-z0-9](?:[a-z0-9_-]{0,30}[a-z0-9])?")
 SERVER = Path(__file__).resolve().parents[1] / "server"
 API_PORT = 8642
 PUSH_PORT = 8766
 
 
-def account_map(items):
-    accounts = {}
+def validate_hostname(host):
+    """Validate and normalize the single HTTPS server hostname shared by all profiles."""
+    if not isinstance(host, str):
+        raise ValueError("Supply a single fully qualified HTTPS hostname")
+    domain = host.strip().lower()
+    if (
+        not domain
+        or len(domain) > 253
+        or "." not in domain
+        or not all(DNS_LABEL.fullmatch(part) for part in domain.split("."))
+    ):
+        raise ValueError("Supply a single fully qualified DNS hostname (without scheme, port, or path)")
+    return domain
+
+
+def validate_profiles(items):
+    """Validate unique lowercase profile slugs routed at /p/<profile> on the shared host."""
+    profiles = []
+    seen = set()
     for item in items:
-        name, separator, domain = item.partition("=")
-        domain = domain.lower()
-        if not separator or not DNS_LABEL.fullmatch(name) or len(name) > 32:
-            raise ValueError("Use a short lowercase account ID followed by = and its hostname")
-        if len(domain) > 253 or "." not in domain or not all(DNS_LABEL.fullmatch(p) for p in domain.split(".")):
-            raise ValueError("Each account needs a fully qualified DNS hostname")
-        if name in accounts or domain in accounts.values():
-            raise ValueError("Each account needs its own ID and hostname")
-        accounts[name] = domain
-    return accounts
+        if not isinstance(item, str) or not PROFILE_ID.fullmatch(item):
+            raise ValueError(
+                "Use a short lowercase profile ID (1-32 letters, digits, hyphens, or underscores)"
+            )
+        if item in seen:
+            raise ValueError(f"Duplicate profile ID: {item}")
+        seen.add(item)
+        profiles.append(item)
+    if not profiles:
+        raise ValueError("Configure at least one profile")
+    return profiles
+
+
+def profile_endpoint(host, profile):
+    """Canonical HTTPS base URL for one profile behind the shared server hostname."""
+    return f"https://{validate_hostname(host)}/p/{validate_profiles([profile])[0]}"
 
 
 def write_file(path, data, *, preserve=False):
@@ -82,7 +106,7 @@ def gateway(name, image, plugin):
 
 
 def push_transports(root, names):
-    """Find accounts needing a Firebase secret mount. The server validates provider settings."""
+    """Find profiles needing a Firebase secret mount. The server validates provider settings."""
     result = {}
     for name in names:
         directory = root / "accounts" / name
@@ -122,39 +146,56 @@ def push(name, firebase):
     return service
 
 
-def account_routes(name, domain, with_push, local, *, gateway_upstream=None, push_upstream=None):
-    gateway_upstream = gateway_upstream or f"gateway-{name}:{API_PORT}"
-    push_upstream = push_upstream or f"push-{name}:{PUSH_PORT}"
+def single_host_routes(host, profiles, pushes, local, *, gateway_upstreams=None, push_upstreams=None):
+    """Render one Caddy site block routing /p/<profile>/* to each isolated profile runtime."""
+    domain = validate_hostname(host)
+    names = validate_profiles(profiles)
+    gateway_upstreams = gateway_upstreams or {}
+    push_upstreams = push_upstreams or {}
     lines = [domain + " {"]
     if local:
         lines.append("    tls internal")
+    for name in names:
+        gateway_upstream = gateway_upstreams.get(name) or f"gateway-{name}:{API_PORT}"
+        push_upstream = push_upstreams.get(name) or f"push-{name}:{PUSH_PORT}"
+        with_push = name in pushes
+        lines += [
+            f"    handle_path /p/{name}/* {{",
+            "        @nested_profiles path /p /p/*",
+            "        handle @nested_profiles {",
+            "            respond 404",
+            "        }",
+            "        @push path /api/mobile/push /api/mobile/push/*",
+            "        handle @push {",
+            f"            reverse_proxy {push_upstream}" if with_push else "            respond 404",
+            "        }",
+            "        handle {",
+            f"            reverse_proxy {gateway_upstream}",
+            "        }",
+            "    }",
+        ]
     lines += [
-        "    @profiles path /p /p/*",
-        "    handle @profiles {",
+        "    handle {",
         "        respond 404",
         "    }",
-        "    @push path /api/mobile/push /api/mobile/push/*",
-        "    handle @push {",
-        f"        reverse_proxy {push_upstream}" if with_push else "        respond 404",
-        "    }",
-        "    handle {",
-        f"        reverse_proxy {gateway_upstream}",
-        "    }", "}",
+        "}",
     ]
     return "\n".join(lines)
 
 
-def stack(accounts, pushes, image, proxy_image, local, port, *, plugin=None):
+def stack(host, profiles, pushes, image, proxy_image, local, port, *, plugin=None):
+    domain = validate_hostname(host)
+    names = validate_profiles(profiles)
     plugin = (plugin or SERVER / "artifacts").resolve()
     if not IMAGE_DIGEST.fullmatch(image) or not IMAGE_DIGEST.fullmatch(proxy_image):
         raise ValueError("Supply immutable registry digests or local sha256 image IDs")
-    if not pushes.keys() <= accounts.keys():
-        raise ValueError("Each push bridge must belong to a configured account")
+    if not set(pushes) <= set(names):
+        raise ValueError("Each push bridge must belong to a configured profile")
     if not 0 <= port <= 65535 or (not local and port != 443):
         raise ValueError("Public ACME requires port 443. Local TLS accepts a chosen port or 0 for an ephemeral port")
     ports = [f"127.0.0.1:{port}:443"] if local else ["80:80", "443:443"]
     volumes = {"proxy-data": {}}
-    networks = {f"user-{name}": {} for name in accounts}
+    networks = {f"user-{name}": {} for name in names}
     services = {"https": {
         "image": proxy_image, "ports": ports, "restart": "unless-stopped",
         "networks": list(networks), "volumes": [
@@ -163,18 +204,18 @@ def stack(accounts, pushes, image, proxy_image, local, port, *, plugin=None):
             "proxy-data:/data",
         ],
     }}
-    blocks = ["{\n    admin off\n}"]
-    for name, domain in accounts.items():
+    for name in names:
         services["gateway-" + name] = gateway(name, image, plugin)
         volumes["home-" + name] = {}
         if name in pushes:
             services["push-" + name] = push(name, pushes[name])
             volumes["outbox-" + name] = {}
-        blocks.append(account_routes(name, domain, name in pushes, local))
+    blocks = ["{\n    admin off\n}", single_host_routes(domain, names, pushes, local)]
     return {"services": services, "volumes": volumes, "networks": networks}, "\n\n".join(blocks) + "\n"
 
 
-def provision(root, accounts):
+def provision(root, profiles):
+    names = validate_profiles(profiles)
     root.mkdir(mode=0o700, parents=True, exist_ok=True)
     if root.stat().st_mode & 0o077:
         raise ValueError("Deployment directory must be private (chmod 700)")
@@ -184,7 +225,7 @@ def provision(root, accounts):
     if not re.fullmatch(r"hermes-mobile-[0-9a-f]{32}", project):
         raise ValueError("Invalid deployment project-id. Restore its backed-up value")
     keys = set()
-    for name in accounts:
+    for name in names:
         directory = root / "accounts" / name
         directory.mkdir(mode=0o700, parents=True, exist_ok=True)
         write_file(directory / "gateway.env", f"API_SERVER_KEY={secrets.token_hex(32)}\n", preserve=True)
@@ -193,7 +234,7 @@ def provision(root, accounts):
         if key_path.stat().st_mode & 0o077 or not re.fullmatch(r"API_SERVER_KEY=[0-9a-f]{64}", key):
             raise ValueError(f"Expected a private gateway.env with a 256-bit hex API key for {name}")
         if key in keys:
-            raise ValueError("Each configured account must have a unique bearer key")
+            raise ValueError("Each configured profile must have a unique bearer key")
         keys.add(key)
         write_file(directory / "provider.env", "", preserve=True)
     return project
@@ -202,26 +243,31 @@ def provision(root, accounts):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("directory", type=Path, help="Private deployment directory outside your source tree")
-    parser.add_argument("--account", required=True, action="append", metavar="ID=HOSTNAME")
+    parser.add_argument("--host", required=True, metavar="HOSTNAME",
+                        help="Single HTTPS hostname serving all profiles under /p/<profile>")
+    parser.add_argument("--profile", required=True, action="append", metavar="ID",
+                        help="Profile slug routed at https://<host>/p/<id>")
     parser.add_argument("--push", default=[], action="append", metavar="ID")
-    parser.add_argument("--image", required=True, help="Immutable Hermes runtime image")
+    parser.add_argument("--image", required=True, help="Immutable LLM-4-People/hermes-agent runtime image")
     parser.add_argument("--proxy-image", default=CADDY_IMAGE)
     parser.add_argument("--local", action="store_true", help="Loopback TLS using an internal CA")
     parser.add_argument("--port", type=int, default=443)
     args = parser.parse_args()
     try:
-        accounts = account_map(args.account)
+        host = validate_hostname(args.host)
+        profiles = validate_profiles(args.profile)
         root = args.directory.resolve()
-        if not set(args.push) <= accounts.keys():
-            raise ValueError("Each push bridge must belong to a configured account")
+        if not set(args.push) <= set(profiles):
+            raise ValueError("Each push bridge must belong to a configured profile")
         pushes = push_transports(root, args.push)
-        compose, caddy = stack(accounts, pushes, args.image, args.proxy_image, args.local, args.port)
-        compose["name"] = provision(root, accounts)
+        compose, caddy = stack(host, profiles, pushes, args.image, args.proxy_image, args.local, args.port)
+        compose["name"] = provision(root, profiles)
         write_file(root / "Caddyfile", caddy)
         write_file(root / "compose.json", json.dumps(compose, indent=2) + "\n")
     except (ValueError, OSError) as exc:
         parser.exit(1, f"Deployment configuration error: {exc}\n")
-    print(f"Rendered {root / 'compose.json'} for {len(accounts)} account(s).")
+    endpoints = ", ".join(profile_endpoint(host, name) for name in profiles)
+    print(f"Rendered {root / 'compose.json'} for {len(profiles)} profile(s) on https://{host} ({endpoints}).")
 
 
 if __name__ == "__main__":

@@ -14,7 +14,7 @@ from live_api import await_completion, transcript
 LOCATOR = "qualite/synthese"
 SUMMARY = "Relecture des références et de la conclusion."
 DRAFT = "Vérifie mon compte rendu."
-REQUEST = DRAFT + "\nUtilise la compétence « " + LOCATOR + " » pour cette demande."
+REQUEST = DRAFT + "\nUtilise le savoir-faire « " + LOCATOR + " » pour cette demande."
 MARKER = "Les étapes sont classées du constat vers la recommandation."
 ANSWER = "La fiche de relecture est ouverte."
 CAPTURES = ("01-competence-recherche.png", "02-competence-resume.png",
@@ -55,7 +55,10 @@ def verify_catalog(gateway):
     if catalog.get("object") != "list":
         raise AssertionError("The authenticated skills endpoint did not return a list")
     rows = {r["name"]: r for r in catalog["data"]}
-    if (rows.get(LOCATOR) != {"name": LOCATOR, "description": SUMMARY, "category": "qualite"}
+    target = rows.get(LOCATOR)
+    if (not isinstance(target, dict)
+            or {k: target.get(k) for k in ("name", "description", "category")}
+            != {"name": LOCATOR, "description": SUMMARY, "category": "qualite"}
             or "support/synthese" not in rows or "synthese" in rows):
         raise AssertionError("The gateway did not offer the exact loadable skill locators")
 

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Single source of truth for Android runtime bounds and timeouts. -->
+    <integer name="hermes_http_connect_timeout_ms">15000</integer>
+    <integer name="hermes_http_read_timeout_ms">45000</integer>
+    <integer name="hermes_http_json_max_bytes">8388608</integer>
+    <integer name="hermes_http_event_max_bytes">1048576</integer>
+    <integer name="hermes_nearby_timeout_ms">12000</integer>
+    <integer name="hermes_nearby_fused_grace_ms">4000</integer>
+    <integer name="hermes_artifact_default_max_bytes">16777216</integer>
+    <integer name="hermes_artifact_hard_max_bytes">67108864</integer>
+    <integer name="hermes_diagnostics_ring_capacity">200</integer>
+    <integer name="hermes_thread_page_size">40</integer>
+    <integer name="hermes_max_reconnects">5</integer>
+    <string name="hermes_update_repo" translatable="false">LLM-4-People/hermes-mobile</string>
+    <string name="hermes_update_api_base" translatable="false">https://api.github.com</string>
+    <integer name="hermes_update_max_apk_bytes">52428800</integer>
+    <integer name="hermes_update_check_interval_ms">86400000</integer>
+</resources>

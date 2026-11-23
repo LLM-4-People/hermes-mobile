@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="update_route_label">App updates</string>
+    <string name="update_route_hint">Check for and install a signed release from GitHub</string>
+    <string name="update_panel_title">Updates</string>
+    <string name="update_panel_subtitle">Only signed and integrity-checked releases from GitHub are installed.</string>
+    <string name="update_installed_version">Installed version: %1$s</string>
+    <string name="update_version_unavailable">Unavailable</string>
+    <string name="update_status_unchecked">Check GitHub for signed releases</string>
+    <string name="update_available_title">New version available: %1$s</string>
+    <string name="update_up_to_date_title">You are up to date (%1$s)</string>
+    <string name="update_downloading_indeterminate">Downloading…</string>
+    <string name="update_published_date">Published %1$s</string>
+    <string name="update_package_size">Package size: %1$s</string>
+    <string name="update_checksum_badge">Fingerprint verified before install</string>
+    <string name="update_notes_heading">What’s new</string>
+    <string name="update_notes_empty">No release notes provided.</string>
+    <string name="update_check_action">Check now</string>
+    <string name="update_checking">Checking GitHub…</string>
+    <string name="update_download_install_action">Download &amp; install</string>
+    <string name="update_install_ready_action">Install now</string>
+    <string name="update_cancel_action">Cancel</string>
+    <string name="update_open_github_action">Open on GitHub</string>
+    <string name="update_downloading">Downloading… %1$d%%</string>
+    <string name="update_verifying">Verifying integrity and signature…</string>
+    <string name="update_verified_ready">Package verified. Opening installer…</string>
+    <string name="update_cancelled">Download cancelled.</string>
+    <string name="update_error_network">Could not reach GitHub right now. Try again later.</string>
+    <string name="update_error_invalid_release">No complete, verifiable release was found on GitHub.</string>
+    <string name="update_error_checksum">The downloaded file did not match the expected fingerprint and was deleted.</string>
+    <string name="update_error_signature">This update’s signature differs from the installed app. The file was deleted for safety.</string>
+    <string name="update_error_package">The downloaded package is incompatible with this app and was deleted.</string>
+    <string name="update_error_too_large">The package exceeds the maximum allowed size and was rejected.</string>
+    <string name="update_error_install_launch">Could not open the Android installer.</string>
+    <string name="update_permission_title">Allow app installs</string>
+    <string name="update_permission_body">To install this verified release, allow Hermes Mobile to install unknown apps in Android Settings, then return here.</string>
+    <string name="update_permission_open_settings">Open settings</string>
+    <string name="update_badge_available">Update %1$s available</string>
+</resources>

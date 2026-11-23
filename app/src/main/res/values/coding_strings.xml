@@ -1,0 +1,52 @@
+<resources>
+    <!-- CodeReader controls -->
+    <string name="code_line_numbers">Numéros</string>
+    <string name="code_line_numbers_show">Afficher les numéros de ligne</string>
+    <string name="code_line_numbers_hide">Masquer les numéros de ligne</string>
+    <string name="code_scroll_horizontal">Défilement</string>
+    <string name="code_wrap_lines">Retour à la ligne</string>
+    <string name="code_search">Rechercher</string>
+    <string name="code_search_hint">Rechercher dans le texte</string>
+    <string name="code_search_previous">Précédent</string>
+    <string name="code_search_next">Suivant</string>
+    <string name="code_search_none">Aucun résultat</string>
+    <string name="code_search_count">%1$d / %2$d</string>
+
+    <!-- Visual Diff Approval -->
+    <string name="diff_open_full">Voir toutes les modifications</string>
+    <string name="diff_truncated">Aperçu abrégé. Ouvrez le détail complet pour tout inspecter.</string>
+
+    <!-- Rich Markdown & Reasoning -->
+    <string name="markdown_table_description">Tableau de %1$d colonnes et %2$d lignes</string>
+    <string name="markdown_link_open">Ouvrir · %1$s</string>
+    <string name="markdown_link_open_many">Ouvrir un lien… (%1$d)</string>
+    <string name="markdown_link_choose">Choisir un lien</string>
+    <string name="markdown_link_confirm_title">Ouvrir ce lien externe ?</string>
+    <string name="markdown_link_confirm_hint">Ce lien s’ouvrira dans votre navigateur externe.</string>
+    <string name="markdown_link_confirm_open">Ouvrir</string>
+    <string name="markdown_link_copy">Copier le lien</string>
+    <string name="markdown_link_copied">Lien copié</string>
+    <string name="markdown_link_unavailable">Aucune application ne peut ouvrir ce lien.</string>
+    <string name="reasoning_title">Raisonnement</string>
+    <string name="reasoning_streaming">Raisonnement en cours…</string>
+    <string name="reasoning_hide">Masquer le raisonnement</string>
+    <string name="reasoning_show_label">Afficher le raisonnement de Hermes</string>
+    <string name="reasoning_read_full">Lire le raisonnement entier</string>
+
+    <!-- Voice Locale & Hands-Free Duplex -->
+    <string name="voice_options_title">Options vocales</string>
+    <string name="voice_locale_section">Langue de dictée et de lecture</string>
+    <string name="voice_locale_french">Français</string>
+    <string name="voice_locale_english">Anglais</string>
+    <string name="voice_locale_system">Langue de l’appareil</string>
+    <string name="voice_duplex_start">Activer le mode vocal continu</string>
+    <string name="voice_duplex_stop">Quitter le mode vocal continu</string>
+    <string name="voice_duplex_hint">Parlez, écoutez la réponse et interrompez Hermes à tout moment.</string>
+    <string name="voice_duplex_listening">Mode vocal · À l’écoute…</string>
+    <string name="voice_duplex_thinking">Mode vocal · Hermes prépare sa réponse…</string>
+    <string name="voice_duplex_speaking">Mode vocal · Hermes parle…</string>
+    <string name="voice_duplex_barge_in">Interrompre</string>
+    <string name="voice_duplex_barge_in_label">Interrompre Hermes et parler</string>
+    <string name="voice_duplex_quit">Quitter</string>
+    <string name="read_unavailable_locale">Aucune voix hors connexion disponible pour cette langue. Vérifiez les voix installées dans les paramètres Android.</string>
+</resources>

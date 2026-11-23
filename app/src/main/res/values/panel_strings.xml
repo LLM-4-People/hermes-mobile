@@ -58,7 +58,7 @@
     <string name="panel_out">Jetons de sortie</string>
     <string name="panel_last_run">Dernière réponse mesurée sur cet appareil</string>
     <string name="panel_timing_empty">Aucune réponse mesurée dans cette discussion.</string>
-    <string name="panel_first_text">Délai avant le premier texte (TTFT)</string>
+    <string name="panel_first_text">Délai avant le premier texte</string>
     <string name="panel_rate">Débit de sortie de bout en bout</string>
     <string name="panel_duration">Durée totale</string>
     <string name="panel_seconds">%1$s s</string>
@@ -73,8 +73,6 @@
     <string name="panel_choose_tools">Choisir les outils de %1$s</string>
     <string name="panel_individual_tools">Outils autorisés</string>
     <string name="panel_set_members">Ensemble %1$s. Décochez un outil pour le désactiver dans toute la discussion.</string>
-    <string name="panel_recurrence">Utiliser une expression récurrente</string>
-    <string name="panel_once">Choisir une date et une heure</string>
     <string name="panel_expression_hint">Par exemple : 0 9 * * 1,3,5</string>
     <string name="panel_saved_schedule">Planification actuelle : %1$s</string>
     <string name="panel_push_status">Cette liste comprend les rappels et les autres tâches planifiées sur le serveur de ce profil.</string>
@@ -98,4 +96,22 @@
     <string name="panel_source_docs">documentation tarifaire officielle</string>
     <string name="panel_source_override">tarif défini par l’utilisateur</string>
     <string name="panel_source_contract">contrat personnalisé</string>
+    <string name="panel_preset_heading">Fréquence</string>
+    <string name="panel_preset_once">Une seule fois</string>
+    <string name="panel_preset_daily">Chaque jour</string>
+    <string name="panel_preset_weekdays">Jours de semaine</string>
+    <string name="panel_preset_weekly">Chaque semaine</string>
+    <string name="panel_preset_custom">Personnalisé</string>
+    <string name="panel_custom_days">Jours de la semaine</string>
+    <string name="panel_custom_mode_days">À heure fixe</string>
+    <string name="panel_custom_mode_interval">À intervalle régulier</string>
+    <string name="panel_custom_interval_label">Répéter toutes les (minutes)</string>
+    <string name="panel_custom_interval_hint">Par exemple : 30</string>
+    <string name="panel_custom_days_required">Choisissez au moins un jour de la semaine.</string>
+    <string name="panel_custom_interval_invalid">Indiquez un intervalle entre 1 et 10 080 minutes.</string>
+    <string name="panel_advanced_toggle_show">Expression avancée</string>
+    <string name="panel_advanced_toggle_hide">Masquer l’expression avancée</string>
+    <string name="panel_advanced_hint">Mode avancé : saisissez directement une planification (ex. 0 9 * * 1,3,5 ou 30m).</string>
+    <string name="panel_schedule_preview">Résumé : %1$s</string>
+    <string name="panel_expression_invalid">Vérifiez le format de l’expression horaire.</string>
 </resources>

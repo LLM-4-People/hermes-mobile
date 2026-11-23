@@ -19,6 +19,7 @@ import org.json.JSONObject;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.artifact.ArtifactDesk;
+import org.llm4people.hermes.artifact.HomePinBridge;
 import org.llm4people.hermes.artifact.MessageParts;
 import org.llm4people.hermes.artifact.InstrumentPreview;
 import org.llm4people.hermes.artifact.ThreadInstruments;
@@ -285,7 +286,9 @@ final class ThreadInstrumentPanel {
             form = new Form(pin);
             visibleForm = form;
             form.host = rendererHost(form);
-            form.view = InstrumentPreview.render(activity, pin.pageJson, form.host);
+            String scopeId = workspace.sessionId() == null ? "thread" : "thread_" + workspace.sessionId().replaceAll("[^A-Za-z0-9_-]", "_");
+            if (scopeId.length() > 64) scopeId = scopeId.substring(0, 64);
+            form.view = InstrumentPreview.render(activity, pin.pageJson, form.host, workspace.account(), scopeId);
         } else {
             visibleForm = form;
             refreshValues();
@@ -438,6 +441,10 @@ final class ThreadInstrumentPanel {
         });
         if (present(source)) popup.getMenu().add(t(R.string.instrument_origin)).setOnMenuItemClickListener(item -> {
             if (valid(pin, activeDocument)) { close(); screen.revealProposal(source); }
+            return true;
+        });
+        popup.getMenu().add("Épingler sur l’écran d’accueil").setOnMenuItemClickListener(item -> {
+            if (valid(pin, activeDocument)) HomePinBridge.offerPinSurface(activity, source.pageId, source.title);
             return true;
         });
         if (pin.sameSource(pinned())) {

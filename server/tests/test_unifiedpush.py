@@ -234,3 +234,103 @@ class UnifiedPush(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(populated.discovery()["providers"], ["fcm", "unifiedpush"])
         self.assertEqual(populated.discovery()["provider"], "fcm")
         self.assertEqual(Path(loaded.state, "vapid.pem").stat().st_mode & 0o077, 0)
+
+    async def test_http_deliveries_and_zero_leak_encrypted_unifiedpush_wakeup(self):
+        from server.mobile_push.api import DELIVERIES_BASE
+        from server.mobile_push.events import opaque_profile_hint
+
+        self.assertEqual(await self.put(self.owner, dict(self.body, management_key=self.cap)), 204)
+        owner_hdr = {"Authorization": "Bearer " + self.owner}
+        cap_hdr = {"Authorization": "Bearer " + self.cap}
+
+        # Unauthorized & device capability key must be rejected fail-closed.
+        for hdr in ({}, cap_hdr):
+            r = await self.client.post(BASE + "/deliveries", json={"kind": "briefing", "title": "t"}, headers=hdr)
+            self.assertEqual(r.status, 401)
+            self.assertEqual(r.headers["Cache-Control"], "no-store")
+
+        # Invalid body / content type / unknown id rejected cleanly.
+        bad_ct = await self.client.post(BASE + "/deliveries", data="{}", headers={**owner_hdr, "Content-Type": "text/plain"})
+        self.assertEqual(bad_ct.status, 415)
+        bad_kind = await self.client.post(BASE + "/deliveries", json={"kind": "bogus", "title": "x"}, headers=owner_hdr)
+        self.assertEqual(bad_kind.status, 400)
+        missing = await self.client.get(BASE + "/deliveries/" + ("f" * 32), headers=owner_hdr)
+        self.assertEqual(missing.status, 404)
+        bad_id = await self.client.get(BASE + "/deliveries/not-valid", headers=owner_hdr)
+        self.assertEqual(bad_id.status, 404)
+
+        secret_title = "Rapport médical privé"
+        secret_snippet = "Ne jamais envoyer via UnifiedPush"
+        created_resp = await self.client.post(
+            BASE + "/deliveries",
+            json={
+                "kind": "card",
+                "urgency": "silent",
+                "title": secret_title,
+                "payload": {"summary": secret_snippet, "path": "/private/doc.md"},
+                "session_id": "session-secret-1",
+            },
+            headers=owner_hdr,
+        )
+        self.assertEqual(created_resp.status, 201)
+        self.assertEqual(created_resp.headers["Cache-Control"], "no-store")
+        created = await created_resp.json()
+        did = created["delivery_id"]
+        expected_hint = opaque_profile_hint(self.settings.run_scope)
+        self.assertEqual(created["profile_hint_opaque"], expected_hint)
+
+        # Retrieve via both /api/mobile/push/deliveries/{id} and /api/mobile/deliveries/{id}.
+        for prefix in (BASE + "/deliveries", DELIVERIES_BASE):
+            fetched = await self.client.get(f"{prefix}/{did}", headers=owner_hdr)
+            self.assertEqual(fetched.status, 200)
+            self.assertEqual((await fetched.json())["title"], secret_title)
+
+        # Claim and dispatch via encrypted UnifiedPush; verify 100% zero-leak plaintext & ciphertext!
+        item = self.store.claim(time.time() + 1, 10)
+        self.assertIsNotNone(item)
+        self.assertTrue(await asyncio.to_thread(self.senders.send, item))
+        headers, ciphertext = self.requests.pop()
+        self.assertEqual(headers["Urgency"], "low")
+        for forbidden in (secret_title.encode(), secret_snippet.encode(), b"session-secret-1", b"/private/doc.md"):
+            self.assertNotIn(forbidden, ciphertext)
+        decrypted = json.loads(
+            http_ece.decrypt(ciphertext, private_key=self.private, auth_secret=self.auth, version="aes128gcm")
+        )
+        self.assertEqual(
+            set(decrypted.keys()),
+            {"event_id", "installation_id", "kind", "urgency", "profile_hint_opaque", "expires_at"},
+        )
+        self.assertEqual(decrypted["event_id"], did)
+        self.assertEqual(decrypted["kind"], "card")
+        self.assertEqual(decrypted["urgency"], "silent")
+        self.assertEqual(decrypted["profile_hint_opaque"], expected_hint)
+        self.assertNotIn(secret_title, json.dumps(decrypted))
+        self.assertNotIn(secret_snippet, json.dumps(decrypted))
+
+        # Acknowledge via /api/mobile/deliveries/{id}/ack and verify list filter.
+        ack_resp = await self.client.post(f"{DELIVERIES_BASE}/{did}/ack", headers=owner_hdr)
+        self.assertEqual(ack_resp.status, 200)
+        self.assertIsNotNone((await ack_resp.json())["acked_at"])
+        unacked = await (await self.client.get(f"{DELIVERIES_BASE}?include_acked=false", headers=owner_hdr)).json()
+        self.assertEqual(unacked["deliveries"], [])
+        bad_filter = await self.client.get(f"{DELIVERIES_BASE}?include_acked=maybe", headers=owner_hdr)
+        self.assertEqual(bad_filter.status, 400)
+
+        # Fork PR #15 dlv_<16hex> IDs must resolve on BOTH /deliveries/{id} AND /events/{id}.
+        dlv_id = "dlv_0123456789abcdef"
+        dlv_resp = await self.client.post(
+            BASE + "/deliveries",
+            json={"delivery_id": dlv_id, "kind": "briefing", "urgency": "urgent", "title": "Briefing fork"},
+            headers=owner_hdr,
+        )
+        self.assertEqual(dlv_resp.status, 201)
+        event_lookup = await self.client.get(f"{BASE}/events/{dlv_id}", headers=owner_hdr)
+        self.assertEqual(event_lookup.status, 200)
+        event_body = await event_lookup.json()
+        self.assertEqual(event_body["event_id"], dlv_id)
+        self.assertEqual(event_body["kind"], "briefing")
+        self.assertEqual(event_body["urgency"], "high")
+        self.assertNotIn("title", event_body)
+        dlv_lookup = await self.client.get(f"{DELIVERIES_BASE}/{dlv_id}", headers=owner_hdr)
+        self.assertEqual(dlv_lookup.status, 200)
+        self.assertEqual((await dlv_lookup.json())["title"], "Briefing fork")

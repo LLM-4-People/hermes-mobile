@@ -20,12 +20,21 @@ import org.llm4people.hermes.VisibleText;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.artifact.CodeReader;
+import org.llm4people.hermes.artifact.LiveUiPatch;
+import org.llm4people.hermes.artifact.LiveUiPatchBar;
+import org.llm4people.hermes.artifact.ThemePalette;
 import org.llm4people.hermes.artifact.ThreadInstruments.Pin;
+import org.llm4people.hermes.camera.CapturedMedia;
+import org.llm4people.hermes.profile.IncomingMediaShare;
+import org.llm4people.hermes.share.ClipboardPastePill;
+import org.llm4people.hermes.share.ShareDraftTray;
+import org.llm4people.hermes.share.SmartIntake;
 import org.llm4people.hermes.voice.VoiceDrafts;
 import org.llm4people.hermes.voice.ReplyReader;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -38,9 +47,16 @@ final class ThreadViews {
     private final Button remedy;
     private final LinearLayout notice;
     private final LinearLayout noticeSlot;
+    LiveUiPatchBar liveUiBar;
     private LinearLayout composerSlot;
+    private LinearLayout quickActionSlot;
+    private LinearLayout suggestedActionSlot;
     private Button nearbyStatus;
     private LinearLayout photoSlot;
+    private ShareDraftTray attachmentTray;
+    private LinearLayout smartIntakeSlot;
+    private ClipboardPastePill clipboardPill;
+    private Button clipboardPillButton;
     private boolean importingPhoto;
     private boolean runActive;
     private Button more;
@@ -48,10 +64,13 @@ final class ThreadViews {
     final VoiceDrafts voice;
     final ReplyReader reader;
     private VoiceDrafts.Controls composerVoice;
+    private VoiceDrafts.DuplexHandle duplex;
     private Button send;
     private Button stop;
     private TextView progress;
     private TextView outgoing;
+    private LinearLayout liveReasoningSlot;
+    private String lastLiveReasoning = "";
     private TextView liveText;
     private Button fullLiveText;
     private final LiveTranscript liveTranscript = new LiveTranscript();
@@ -87,7 +106,7 @@ final class ThreadViews {
 
     void inbox(Runnable create, Runnable refresh, Consumer<JSONObject> choose, Runnable next) {
         reset(false);
-        Button newThread = Ui.button(activity, "Nouvelle conversation", v -> create.run());
+        Button newThread = Ui.button(activity, activity.getString(R.string.thread_new_conversation), v -> create.run());
         newThread.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
         newThread.setTextSize(16);
         Ui.pad(newThread, 18, 4);
@@ -98,7 +117,7 @@ final class ThreadViews {
         actions.addView(newThread, new LinearLayout.LayoutParams(0, -2, 1));
         ImageButton reload = new ImageButton(activity, null, android.R.attr.borderlessButtonStyle);
         reload.setImageResource(R.drawable.ic_skills_refresh);
-        reload.setContentDescription("Actualiser les discussions");
+        reload.setContentDescription(activity.getString(R.string.thread_refresh_discussions));
         reload.setTooltipText(reload.getContentDescription());
         reload.setOnClickListener(v -> refresh.run());
         actions.addView(reload, Ui.dp(activity, 48), Ui.dp(activity, 48));
@@ -107,7 +126,7 @@ final class ThreadViews {
         list.setId(R.id.discussion_list);
         list.setDivider(new ColorDrawable(activity.getColor(R.color.line)));
         list.setDividerHeight(Ui.dp(activity, 1));
-        more = Ui.button(activity, "Afficher la suite", v -> next.run());
+        more = Ui.button(activity, activity.getString(R.string.thread_show_more), v -> next.run());
         list.addFooterView(pagingSlot(), null, false);
         bindList();
         list.setOnItemClickListener((parent, view, pos, id) -> {
@@ -119,7 +138,7 @@ final class ThreadViews {
               Runnable older) {
         reset(true);
         list.setId(R.id.discussion_transcript);
-        more = Ui.button(activity, "Messages précédents", v -> older.run());
+        more = Ui.button(activity, activity.getString(R.string.thread_previous_messages), v -> older.run());
         list.addHeaderView(pagingSlot(), null, false);
         LinearLayout live = Ui.column(activity);
         Ui.pad(live, 18, 3);
@@ -128,18 +147,24 @@ final class ThreadViews {
         liveText = Ui.text(activity, "", 17);
         liveText.setTextIsSelectable(true);
         fullLiveText = Ui.button(activity, activity.getString(R.string.transcript_read_full), v ->
-                show(new AlertDialog.Builder(activity).setTitle("Réponse de Hermes")
+                show(new AlertDialog.Builder(activity).setTitle(R.string.thread_reply_from_hermes)
                         .setView(MessageText.reader(activity, liveTranscript.source(), true, false,
                                 liveTranscript.readerStart(), null))
-                        .setPositiveButton("Fermer", null)));
+                        .setPositiveButton(R.string.ws_close, null)));
         list.setItemsCanFocus(true);
         outgoing = Ui.text(activity, "", 17);
         outgoing.setTextIsSelectable(true);
         outgoing.setVisibility(View.GONE);
         live.addView(outgoing);
         live.addView(progress);
+        liveReasoningSlot = Ui.column(activity);
+        liveReasoningSlot.setVisibility(View.GONE);
+        live.addView(liveReasoningSlot);
         live.addView(liveText);
         live.addView(fullLiveText);
+        suggestedActionSlot = Ui.column(activity);
+        suggestedActionSlot.setVisibility(View.GONE);
+        live.addView(suggestedActionSlot);
         list.addFooterView(live, null, false);
         bindList();
         list.setOnItemClickListener(null);
@@ -162,17 +187,22 @@ final class ThreadViews {
         input.setTextSize(17);
         input.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
         input.setPaddingRelative(Ui.dp(activity, 10), Ui.dp(activity, 6), 0, Ui.dp(activity, 6));
-        input.setHint("Message à Hermes");
+        input.setHint(R.string.thread_message_hint);
         input.setText(draft);
         input.setSelection(input.length());
         composerVoice = voice.bind(input);
-        send = Ui.button(activity, "Envoyer", v -> {
+        duplex = voice.bindDuplex(composerVoice, utterance -> {
+            displayDraft(utterance);
+            if (instruments != null) instruments.revealDiscussionIfCompact();
+            onSend.run();
+        });
+        send = Ui.button(activity, activity.getString(R.string.thread_send), v -> {
             if (!send.isEnabled()) return;
             composerVoice.cancel();
             if (instruments != null) instruments.revealDiscussionIfCompact();
             onSend.run();
         });
-        stop = Ui.button(activity, "Arrêter", v -> onStop.run());
+        stop = Ui.button(activity, activity.getString(R.string.thread_stop), v -> onStop.run());
         LinearLayout writing = Ui.row(activity);
         writing.setGravity(Gravity.BOTTOM);
         writing.setBaselineAligned(false);
@@ -203,11 +233,28 @@ final class ThreadViews {
         Ui.pad(photoSlot, 8, 0);
         photoSlot.setVisibility(View.GONE);
         composerSlot.addView(photoSlot);
+        attachmentTray = new ShareDraftTray(activity, items -> {
+            if (items.isEmpty()) clearSmartIntake();
+            updateSend();
+        });
+        composerSlot.addView(attachmentTray.view());
+        smartIntakeSlot = Ui.column(activity);
+        smartIntakeSlot.setVisibility(View.GONE);
+        composerSlot.addView(smartIntakeSlot);
+        clipboardPill = new ClipboardPastePill(activity);
+        clipboardPillButton = clipboardPill.createView(activity, input);
+        clipboardPillButton.setVisibility(View.GONE);
+        composerSlot.addView(clipboardPillButton);
+        input.setOnFocusChangeListener((v, hasFocus) -> refreshClipboardPill());
         nearbyStatus = Ui.button(activity, "", null);
         nearbyStatus.setAllCaps(false);
         nearbyStatus.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
         nearbyStatus.setVisibility(View.GONE);
         composerSlot.addView(nearbyStatus);
+        composerSlot.addView(duplex.bar());
+        quickActionSlot = Ui.column(activity);
+        quickActionSlot.setVisibility(View.GONE);
+        composerSlot.addView(quickActionSlot);
         composerSlot.addView(composerVoice.feedback);
         composerSlot.addView(composer);
         root.addView(composerSlot);
@@ -217,6 +264,7 @@ final class ThreadViews {
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
                 onDraft.accept(s.toString());
                 updateSend();
+                refreshClipboardPill();
             }
         });
         busy(false, false);
@@ -334,6 +382,12 @@ final class ThreadViews {
     boolean composerVisible() { return input != null && input.isShown(); }
     boolean editing() { return composerVisible() && input.hasFocus(); }
 
+    void triggerDictation() {
+        if (composerVoice != null && composerVoice.button != null && composerVoice.button.isShown()) {
+            composerVoice.button.performClick();
+        }
+    }
+
     void clearDraft() { input.setText(""); }
 
     void importingPhoto(boolean importing) {
@@ -348,10 +402,47 @@ final class ThreadViews {
         nearbyStatus.setVisibility(label.isEmpty() ? View.GONE : View.VISIBLE);
     }
 
+    void attachLiveUiBar(LiveUiPatchBar.Listener listener) {
+        if (liveUiBar != null) noticeSlot.removeView(liveUiBar);
+        liveUiBar = new LiveUiPatchBar(activity, listener);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+        int margin = Ui.dp(activity, 8);
+        lp.setMargins(margin, Ui.dp(activity, 4), margin, Ui.dp(activity, 4));
+        noticeSlot.addView(liveUiBar, lp);
+    }
+
+    void quickActions(List<LiveUiPatch.QuickAction> actions, ThemePalette palette,
+                      Consumer<String> stageDraft, Consumer<String> openSurface,
+                      Consumer<String> openAction) {
+        if (quickActionSlot == null) return;
+        quickActionSlot.removeAllViews();
+        if (actions == null || actions.isEmpty()) {
+            quickActionSlot.setVisibility(View.GONE);
+            return;
+        }
+        quickActionSlot.addView(LiveUiPatchBar.quickActionStrip(
+                activity, actions, palette, stageDraft, openSurface, openAction));
+        quickActionSlot.setVisibility(View.VISIBLE);
+    }
+
+    void suggestedActions(List<LiveUiPatch.SuggestedAction> suggestions, ThemePalette palette,
+                          Consumer<String> stageDraft, Consumer<String> openSurface,
+                          Consumer<String> openAction, Consumer<String> pinWidget) {
+        if (suggestedActionSlot == null) return;
+        suggestedActionSlot.removeAllViews();
+        if (suggestions == null || suggestions.isEmpty()) {
+            suggestedActionSlot.setVisibility(View.GONE);
+            return;
+        }
+        suggestedActionSlot.addView(LiveUiPatchBar.suggestedActionsStrip(
+                activity, suggestions, palette, stageDraft, openSurface, openAction, pinWidget));
+        suggestedActionSlot.setVisibility(View.VISIBLE);
+    }
+
     void photo(JSONObject info, Runnable remove) {
         photoSlot.removeAllViews();
         photoSlot.setVisibility(info == null ? View.GONE : View.VISIBLE);
-        input.setHint(info == null ? "Message à Hermes" : "Votre question sur l’image");
+        input.setHint(info == null ? R.string.thread_message_hint : R.string.thread_image_question_hint);
         if (info == null) return;
         ImageView preview = new ImageView(activity);
         preview.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
@@ -365,9 +456,50 @@ final class ThreadViews {
         label.setEllipsize(android.text.TextUtils.TruncateAt.END);
         label.setContentDescription("Image jointe : " + name);
         photoSlot.addView(label, new LinearLayout.LayoutParams(0, -2, 1));
-        Button removeButton = Ui.button(activity, "Retirer", v -> remove.run());
+        Button removeButton = Ui.button(activity, activity.getString(R.string.thread_remove), v -> remove.run());
         removeButton.setContentDescription("Retirer l’image " + name);
         photoSlot.addView(removeButton);
+    }
+
+    void attachMedia(List<CapturedMedia.Item> items, Consumer<SmartIntake.Suggestion> onPick) {
+        if (attachmentTray == null || items == null || items.isEmpty()) return;
+        for (CapturedMedia.Item item : items) {
+            attachmentTray.add(item, IncomingMediaShare.MAX_ITEMS);
+        }
+        List<CapturedMedia.Item> current = attachmentTray.items();
+        if (!current.isEmpty() && smartIntakeSlot != null) {
+            smartIntakeSlot.removeAllViews();
+            List<SmartIntake.Suggestion> suggestions = SmartIntake.suggest(draft(), current, null);
+            smartIntakeSlot.addView(SmartIntake.createChipRow(activity, suggestions, suggestion -> {
+                if (onPick != null) onPick.accept(suggestion);
+                clearSmartIntake();
+            }));
+            smartIntakeSlot.setVisibility(suggestions.isEmpty() ? View.GONE : View.VISIBLE);
+        }
+        updateSend();
+    }
+
+    List<CapturedMedia.Item> stagedAttachments() {
+        return attachmentTray == null ? Collections.emptyList() : attachmentTray.items();
+    }
+
+    void clearAttachments() {
+        if (attachmentTray != null) attachmentTray.clear();
+        clearSmartIntake();
+    }
+
+    private void clearSmartIntake() {
+        if (smartIntakeSlot != null) {
+            smartIntakeSlot.removeAllViews();
+            smartIntakeSlot.setVisibility(View.GONE);
+        }
+    }
+
+    void refreshClipboardPill() {
+        if (clipboardPill != null && clipboardPillButton != null && input != null) {
+            boolean offer = input.hasFocus() && input.length() == 0 && clipboardPill.shouldOffer();
+            clipboardPillButton.setVisibility(offer ? View.VISIBLE : View.GONE);
+        }
     }
 
     private void updateSend() {
@@ -388,21 +520,56 @@ final class ThreadViews {
     }
 
     void live(String detail, String text, boolean hasPrompts) {
-        live(detail, text, hasPrompts, RunPreview.Origin.FIRST);
+        live(detail, text, hasPrompts, RunPreview.Origin.FIRST, "");
     }
 
     void live(String detail, String text, boolean hasPrompts, RunPreview.Origin origin) {
+        live(detail, text, hasPrompts, origin, "");
+    }
+
+    void live(String detail, String text, boolean hasPrompts, RunPreview.Origin origin, String sseReasoning) {
         boolean atEnd = list.getLastVisiblePosition() >= list.getCount() - 1;
         progress.setVisibility(detail.isEmpty() ? View.GONE : View.VISIBLE);
         progress.setText(detail);
-        liveText.setVisibility(text.isEmpty() ? View.GONE : View.VISIBLE);
+        TranscriptPage.ReasoningSplit split = TranscriptPage.splitReasoning(text, sseReasoning);
+        String visibleText = split.visible();
+        if (liveReasoningSlot != null) {
+            if (split.reasoning().isEmpty()) {
+                if (!lastLiveReasoning.isEmpty()) {
+                    lastLiveReasoning = "";
+                    liveReasoningSlot.removeAllViews();
+                    liveReasoningSlot.setVisibility(View.GONE);
+                }
+            } else if (!split.reasoning().equals(lastLiveReasoning)) {
+                lastLiveReasoning = split.reasoning();
+                liveReasoningSlot.removeAllViews();
+                liveReasoningSlot.addView(MessageText.reasoningCard(activity, lastLiveReasoning,
+                        split.open() || visibleText.isEmpty(), this::show));
+                liveReasoningSlot.setVisibility(View.VISIBLE);
+            }
+        }
+        liveText.setVisibility(visibleText.isEmpty() ? View.GONE : View.VISIBLE);
         boolean wasExcerpt = liveTranscript.excerpt();
-        MessageText.updateLive(liveText, liveTranscript, text, origin);
+        MessageText.updateLive(liveText, liveTranscript, visibleText, origin);
         if (wasExcerpt != liveTranscript.excerpt())
             fullLiveText.setText(liveTranscript.excerpt() ? R.string.transcript_read_excerpt : R.string.transcript_read_full);
         boolean readableSource = liveTranscript.earlier || liveTranscript.later || liveTranscript.foldedWorkspace;
-        fullLiveText.setVisibility(!text.isEmpty() && readableSource ? View.VISIBLE : View.GONE);
-        if (atEnd && !hasPrompts && !text.isEmpty()) followTail();
+        fullLiveText.setVisibility(!visibleText.isEmpty() && readableSource ? View.VISIBLE : View.GONE);
+        if (duplex != null && duplex.active() && !visibleText.isEmpty()) {
+            duplex.onReplyDelta(visibleText);
+        }
+        if (atEnd && !hasPrompts && !visibleText.isEmpty()) followTail();
+    }
+
+    void duplexReplyComplete(String output) {
+        if (duplex != null && duplex.active()) {
+            TranscriptPage.ReasoningSplit split = TranscriptPage.splitReasoning(output, "");
+            duplex.onReplyComplete(split.visible());
+        }
+    }
+
+    void stopDuplex() {
+        if (duplex != null && duplex.active()) duplex.stop();
     }
 
     private void followTail() {
@@ -513,14 +680,31 @@ final class ThreadViews {
             body.setTextSize(chat ? 17 : 14);
             body.setTypeface(Typeface.DEFAULT);
             body.setTextIsSelectable(chat);
-            body.setVisibility(content.isEmpty() ? View.GONE : View.VISIBLE);
             boolean markdown = chat && "assistant".equals(role);
-            TranscriptPage preview = new TranscriptPage(content, new TranscriptPage.Cursor(), markdown,
+            String visibleContent = content;
+            String reasoningContent = "";
+            if (markdown) {
+                TranscriptPage.ReasoningSplit split = TranscriptPage.splitReasoning(content, ThreadData.string(row, "reasoning"));
+                visibleContent = split.visible();
+                reasoningContent = split.reasoning();
+            }
+            body.setVisibility(visibleContent.isEmpty() ? View.GONE : View.VISIBLE);
+            TranscriptPage preview = new TranscriptPage(visibleContent, new TranscriptPage.Cursor(), markdown,
                     chat ? TranscriptPage.PAGE_CHARS : 300);
-            CharSequence rendered = markdown && !preview.blocks.isEmpty() ? MessageText.excerpt(getContext(), preview)
+            CharSequence rendered = markdown && (!preview.blocks.isEmpty() || !preview.tables.isEmpty())
+                    ? MessageText.excerpt(getContext(), preview)
                     : MessageText.styled(getContext(), preview);
             body.setText(preview.hasMore() ? android.text.TextUtils.concat(rendered, "…") : rendered);
-            if (markdown) MessageText.addCodeAction(this, preview, content, ThreadViews.this::show);
+            if (markdown && !reasoningContent.isEmpty()) {
+                LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, -2);
+                params.topMargin = Ui.dp(getContext(), 6);
+                addView(MessageText.reasoningCard(getContext(), reasoningContent, false, ThreadViews.this::show), params);
+            }
+            if (markdown) {
+                MessageText.addTables(this, preview);
+                MessageText.addLinkActions(this, preview, ThreadViews.this::show);
+                MessageText.addCodeAction(this, preview, visibleContent, ThreadViews.this::show);
+            }
             if (chat && "approval_result".equals(role)) {
                 String details = ThreadData.string(row, "receipt_details");
                 addView(Ui.button(getContext(), "Voir les détails", v ->

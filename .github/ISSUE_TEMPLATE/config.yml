@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation & Showcase Portal
+    url: https://llm-4-people.github.io/hermes-mobile/docs/
+    about: Setup guides, single-host multi-profile deployment, Live UI, Brain Studio, Ambient Intelligence, and verification.
+  - name: Report a Security Vulnerability (Private)
+    url: https://github.com/LLM-4-People/hermes-mobile/security/advisories/new
+    about: Privately disclose security or privacy issues through GitHub Security Advisories.
+  - name: Companion Server Fork (LLM-4-People/hermes-agent)
+    url: https://github.com/LLM-4-People/hermes-agent
+    about: Server-side gateway, /p/{profile} routing, Brain Studio APIs, Live UI revisions, and mobile delivery ledger.

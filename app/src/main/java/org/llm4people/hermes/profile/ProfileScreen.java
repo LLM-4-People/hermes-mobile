@@ -69,6 +69,13 @@ final class ProfileScreen {
         add(detail, 4);
     }
 
+    TextView note(String text) {
+        TextView caption = Ui.text(activity, text, 13);
+        caption.setTextColor(activity.getColor(R.color.muted));
+        add(caption, 4);
+        return caption;
+    }
+
     EditText field(String label, String hint, int type, int maxLength, boolean sensitive) {
         TextView caption = Ui.text(activity, label, 14);
         caption.setTypeface(MEDIUM);

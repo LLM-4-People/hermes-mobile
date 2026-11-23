@@ -17,6 +17,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import org.llm4people.hermes.MainActivity;
+import org.llm4people.hermes.R;
 import org.llm4people.hermes.share.ShareTextActivity;
 import org.llm4people.hermes.net.Exchange;
 import org.llm4people.hermes.profile.IncomingShare;
@@ -53,11 +54,13 @@ public final class SharedTextEntryTest extends InstrumentationTestCase {
                         .putExtra("org.llm4people.hermes.SHARE_RECEIPT", receipt).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                 activity = driver.startActivitySync(resume);
                 JourneyUi ui = new JourneyUi(driver, activity, context.getCacheDir());
-                ui.see("Déverrouiller");
-                ui.fill("Phrase secrète du profil", profile.passphrase);
-                ui.tap("Déverrouiller");
-                ui.see("Envoyer");
-                assertEquals("ma version modifiée", ui.fieldText("Message à Hermes"));
+                String unlock = activity.getString(R.string.profile_unlock_action);
+                String passphrase = activity.getString(R.string.profile_passphrase_label);
+                ui.see(unlock);
+                ui.fill(passphrase, profile.passphrase);
+                ui.tap(unlock);
+                ui.see(activity.getString(R.string.thread_send));
+                assertEquals("ma version modifiée", ui.fieldText(activity.getString(R.string.thread_message_hint)));
                 assertNull(IncomingShare.pending(context));
                 assertFalse(gateway.observed().contains("POST "));
             } finally {
@@ -107,9 +110,11 @@ public final class SharedTextEntryTest extends InstrumentationTestCase {
                 } while (!focused[0] && SystemClock.uptimeMillis() < focusDeadline);
                 assertTrue("The receiving profile chooser did not acquire input focus", focused[0]);
                 JourneyUi ui = new JourneyUi(driver, current[0], context.getCacheDir());
+                String unlock = current[0].getString(R.string.profile_unlock_action);
+                String passphrase = current[0].getString(R.string.profile_passphrase_label);
                 ui.tap(profile.label);
-                ui.fill("Phrase secrète du profil", profile.passphrase);
-                ui.tap("Déverrouiller");
+                ui.fill(passphrase, profile.passphrase);
+                ui.tap(unlock);
                 ui.see("Ajouter au brouillon ?");
                 ui.contains(profile.label, "Identifiant : " + thread);
                 if (recreate) {
@@ -121,18 +126,18 @@ public final class SharedTextEntryTest extends InstrumentationTestCase {
                         current[0] = restored;
                     } finally { driver.removeMonitor(monitor); }
                     ui = new JourneyUi(driver, current[0], context.getCacheDir());
-                    ui.see("Déverrouiller");
+                    ui.see(unlock);
                     assertFalse(ui.has("Ajouter au brouillon ?"));
-                    ui.fill("Phrase secrète du profil", profile.passphrase);
-                    ui.tap("Déverrouiller");
+                    ui.fill(passphrase, profile.passphrase);
+                    ui.tap(unlock);
                     ui.see("Ajouter au brouillon ?");
                     ui.contains(profile.label, "Identifiant : " + thread);
                 }
                 assertEquals("Mon texte initial", new JSONObject(profile.account.read("thread:" + thread)).getString("draft"));
                 ui.tap("Ajouter au brouillon");
-                ui.see("Envoyer");
+                ui.see(current[0].getString(R.string.thread_send));
                 String expected = "Mon texte initial\n" + text;
-                assertEquals(expected, ui.fieldText("Message à Hermes"));
+                assertEquals(expected, ui.fieldText(current[0].getString(R.string.thread_message_hint)));
                 JSONObject saved = new JSONObject(profile.account.read("thread:" + thread));
                 assertEquals(expected, saved.getString("draft"));
                 assertFalse(saved.has("pending"));

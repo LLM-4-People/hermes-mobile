@@ -39,6 +39,16 @@ public final class JourneyUi {
         this.evidence = evidence;
     }
 
+    /** Resolve an app string resource in the Activity's active locale (en-US, fr-*, etc.). */
+    public String str(int resId) {
+        return activity.getString(resId);
+    }
+
+    /** Resolve a formatted app string resource in the Activity's active locale. */
+    public String str(int resId, Object... args) {
+        return activity.getString(resId, args);
+    }
+
     <T> T main(Supplier<T> task) {
         AtomicReference<T> result = new AtomicReference<>();
         AtomicReference<Throwable> failure = new AtomicReference<>();
@@ -174,7 +184,7 @@ public final class JourneyUi {
     }
 
     void showPendingControl(String expected) {
-        String reveal = "Répondre à Hermes";
+        String reveal = activity.getString(org.llm4people.hermes.R.string.ws_reply_hermes);
         View target = until(expected + " or " + reveal, () -> {
             View root = window();
             View prompt = find(root, v -> v instanceof TextView text
@@ -302,8 +312,10 @@ public final class JourneyUi {
         try {
             until("fully visible 48dp composer actions", () -> {
                 View root = window();
-                View editor = find(root, v -> v instanceof EditText && named(v, "Message à Hermes"));
-                View send = find(root, v -> v instanceof Button && named(v, "Envoyer"));
+                String hint = activity.getString(org.llm4people.hermes.R.string.thread_message_hint);
+                String sendLabel = activity.getString(org.llm4people.hermes.R.string.thread_send);
+                View editor = find(root, v -> v instanceof EditText && named(v, hint));
+                View send = find(root, v -> v instanceof Button && named(v, sendLabel));
                 int target = Math.round(activity.getResources().getDisplayMetrics().density * 48);
                 for (View control : new View[]{editor, send}) {
                     Rect bounds = new Rect();

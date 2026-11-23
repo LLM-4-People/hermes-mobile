@@ -12,8 +12,10 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 
+import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.R;
 
+import java.time.LocalTime;
 import java.util.Map;
 import java.util.regex.Pattern;
 
@@ -25,7 +27,7 @@ final class PushNotices {
     static final String DISMISS_QUESTION = "question_settled";
     static final String CHANNEL = "hermes_activity";
     static final String ACTION = "org.llm4people.hermes.OPEN_EVENT";
-    private static final Pattern EVENT = Pattern.compile("[0-9a-f]{32}");
+    private static final Pattern EVENT = Pattern.compile("[0-9a-f]{32}|dlv_[0-9a-f]{16}");
     private static final Pattern INSTALLATION = Pattern.compile(
             "[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}");
 
@@ -39,6 +41,8 @@ final class PushNotices {
 
     static String title(String kind) {
         if (kind == null) return null;
+        DeliveryItem.Kind typed = DeliveryItem.Kind.fromWire(kind);
+        if (typed != null) return typed.lockscreenNoticeTitleFr;
         return switch (kind) {
             case "run_completed" -> "Hermes a terminé";
             case "run_failed" -> "Vérifiez votre session";
@@ -74,12 +78,25 @@ final class PushNotices {
         String id = data.get("installation_id"), event = data.get("event_id");
         if (!validIds(id, event)) return;
         PushStore.Device owner = PushStore.get(context).forInstallation(id);
-        if (owner != null && !owner.unified() && owner.config.senderId.equals(sender))
-            post(context, owner, event, data.get("kind"));
+        if (owner != null && !owner.unified() && owner.config.senderId.equals(sender)) {
+            DeliveryItem.Urgency urgency = DeliveryItem.Urgency.fromWireOrDefault(data.get("urgency"));
+            post(context, owner, event, data.get("kind"), urgency);
+        }
+    }
+
+    static void post(Context context, PushStore.Device owner, String event, String kind) {
+        post(context, owner, event, kind, DeliveryItem.Urgency.NORMAL);
+    }
+
+    static void post(Context context, PushStore.Device owner, String event, String kind,
+                     DeliveryItem.Urgency urgency) {
+        LocalTime now = LocalTime.now();
+        postAt(context, owner, event, kind, urgency, now.getHour() * 60 + now.getMinute());
     }
 
     @SuppressLint("MissingPermission") // allowed() checks the current runtime grant.
-    static void post(Context context, PushStore.Device owner, String event, String kind) {
+    static void postAt(Context context, PushStore.Device owner, String event, String kind,
+                       DeliveryItem.Urgency urgency, int minuteOfDay) {
         String id = owner.installation;
         if (!owner.receives() || !validIds(id, event)) return;
         PushStore store = PushStore.get(context);
@@ -91,7 +108,14 @@ final class PushNotices {
             }
             return;
         }
-        if (title(kind) == null || !allowed(context)) return;
+        String noticeTitle = title(kind);
+        if (noticeTitle == null || !allowed(context)) return;
+        PushPolicy policy = PushPolicy.load(context, owner.profile);
+        PushPolicy.Decision decision = policy.evaluate(kind, urgency, minuteOfDay);
+        if (decision != PushPolicy.Decision.NOTIFY) {
+            Diagnostics.event("push", "notice_suppressed", decision.reasonCode);
+            return;
+        }
         Intent intent = tapIntent(context, id, event);
         if (intent == null) return;
         PendingIntent tap = PendingIntent.getActivity(context, 0, intent,
@@ -99,14 +123,14 @@ final class PushNotices {
         channel(context);
         Notification notice = new Notification.Builder(context, CHANNEL)
                 .setSmallIcon(R.drawable.ic_push_notification)
-                .setContentTitle(title(kind))
+                .setContentTitle(noticeTitle)
                 .setContentText("Ouvrez votre profil pour voir les détails.")
                 .setVisibility(Notification.VISIBILITY_PRIVATE).setContentIntent(tap)
                 .setOnlyAlertOnce(true).setAutoCancel(true)
                 .setTimeoutAfter(isPrompt(kind) ? PROMPT_DISPLAY_MILLIS : 0).build();
 
         synchronized (PushNotices.class) {
-            if (store.remember(id,event,kind)) {
+            if (store.remember(id, event, kind)) {
                 context.getSystemService(NotificationManager.class).notify(id + "/" + event, 1, notice);
             }
         }

@@ -3,9 +3,14 @@ package org.llm4people.hermes.thread;
 import android.os.SystemClock;
 
 import org.json.JSONObject;
+import org.llm4people.hermes.Diagnostics;
+import org.llm4people.hermes.artifact.LiveUiPatch;
 import org.llm4people.hermes.net.HermesApi;
+import org.llm4people.hermes.share.DeviceBridgeFlow;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.LongSupplier;
 
@@ -25,31 +30,51 @@ final class RunFollower implements AutoCloseable {
         final int highSurrogate;
         final String activity;
         final List<JSONObject> prompts;
+        final int toolSteps;
+        final List<DeviceBridgeFlow.BridgeRequest> deviceRequests;
+        final String reasoning;
+        final List<JSONObject> uiPatches;
 
         Frame(long seq, RunPreview preview, String activity, List<JSONObject> prompts) {
+            this(seq, preview, activity, prompts, 0, Collections.emptyList(), "", Collections.emptyList());
+        }
+
+        Frame(long seq, RunPreview preview, String activity, List<JSONObject> prompts,
+              int toolSteps, List<DeviceBridgeFlow.BridgeRequest> deviceRequests,
+              String reasoning, List<JSONObject> uiPatches) {
             this.seq = seq;
             text = preview.toString();
             origin = preview.origin();
             highSurrogate = preview.pendingHighSurrogate();
             this.activity = activity;
             this.prompts = prompts;
+            this.toolSteps = toolSteps;
+            this.deviceRequests = deviceRequests == null ? Collections.emptyList() : deviceRequests;
+            this.reasoning = reasoning == null ? "" : reasoning;
+            this.uiPatches = uiPatches == null ? Collections.emptyList() : uiPatches;
         }
     }
 
     static final int PREVIEW_LIMIT = RunPreview.LIMIT;
     static final int PAINT_INTERVAL_MS = 80;
+    private static final int REASONING_LIMIT = TranscriptPage.MAX_REASONING_CHARS;
     private static final long CONTROL_CHECK_MS = 5_000;
+    private static final int MAX_PENDING_PATCHES = 8;
     private final HermesApi api;
     private final String run;
     private final Listener listener;
     private final LongSupplier uptime;
     private final RunPreview preview;
+    private final StringBuilder reasoning = new StringBuilder();
     private boolean textAwaitingPaint;
     private long seq;
     private long started;
     private long firstText = -1;
+    private int toolSteps;
     private String activity = "Hermes travaille…";
     private final RunPrompts controls = new RunPrompts();
+    private List<DeviceBridgeFlow.BridgeRequest> deviceRequests = Collections.emptyList();
+    private final List<JSONObject> pendingUiPatches = new ArrayList<>();
     private long controlsCheckedAt;
     private volatile boolean closed;
     private HermesApi.RunEvents stream;
@@ -100,7 +125,8 @@ final class RunFollower implements AutoCloseable {
                     long eventSeq = event.optLong("seq", -1);
                     if (eventSeq < 0 || eventSeq <= seq) continue;
                     if (ThreadData.terminal(type.startsWith("run.") ? type.substring(4) : "")) break;
-                    if ((controls.needsSnapshot(type, event) || controlCheckDue(type)) && !refreshControls()) return;
+                    if ((controls.needsSnapshot(type, event) || "device.requested".equals(type)
+                            || "device.settled".equals(type) || controlCheckDue(type)) && !refreshControls()) return;
                     apply(type, event);
                     seq = eventSeq;
                     long now = uptime.getAsLong();
@@ -114,6 +140,7 @@ final class RunFollower implements AutoCloseable {
             }
         } catch (IOException | IllegalArgumentException ignored) {
             // The status resource can survive a gateway restart after its event stream vanishes.
+            org.llm4people.hermes.Diagnostics.debug("threads", "stream_interrupted", ignored);
         }
         if (!closed) {
             try {
@@ -121,6 +148,7 @@ final class RunFollower implements AutoCloseable {
                 if (run.equals(status.optString("run_id")) && finish(status)) return;
             } catch (IOException ignored) {
                 // The durable receipt is retained for the next connection.
+                org.llm4people.hermes.Diagnostics.warning("threads", "status_reconcile_deferred", ignored);
             }
             if (!closed) {
                 // Deliver any throttled final delta and its matching cursor before checkpointing.
@@ -142,6 +170,7 @@ final class RunFollower implements AutoCloseable {
         if (!run.equals(status.opt("run_id"))) throw new IOException("Incorrect run identity");
         if (closed || finish(status)) return false;
         controls.restore(status);
+        deviceRequests = DeviceBridgeFlow.parsePending(status);
         controlsCheckedAt = uptime.getAsLong();
         return true;
     }
@@ -172,10 +201,21 @@ final class RunFollower implements AutoCloseable {
                     textAwaitingPaint = true;
                 }
                 break;
+            case "reasoning.delta":
+                String thought = event.optString("text", event.optString("delta", ""));
+                if (!thought.isEmpty() && reasoning.length() < REASONING_LIMIT) {
+                    int remaining = REASONING_LIMIT - reasoning.length();
+                    if (thought.length() <= remaining) reasoning.append(thought);
+                    else reasoning.append(thought, 0, remaining);
+                    activity = "Hermes réfléchit…";
+                    textAwaitingPaint = true;
+                }
+                break;
             case "message.interim":
                 if (!event.optBoolean("already_streamed")) activity = event.optString("text", "Hermes travaille…");
                 break;
             case "tool.started":
+                toolSteps++;
                 activity = "Outil en cours · " + event.optString("tool");
                 break;
             case "tool.completed":
@@ -188,6 +228,16 @@ final class RunFollower implements AutoCloseable {
                 controls.settle(event);
                 activity = "Hermes travaille…";
                 break;
+            case "ui.patch":
+            case "surface.update":
+                if (LiveUiPatch.exceedsByteLimit(event.toString())) {
+                    Diagnostics.warning("live_ui", "sse_patch_oversized");
+                } else {
+                    if (pendingUiPatches.size() >= MAX_PENDING_PATCHES) pendingUiPatches.remove(0);
+                    pendingUiPatches.add(event);
+                    activity = "Hermes propose une amélioration d’écran";
+                }
+                break;
             default:
                 break;
         }
@@ -198,7 +248,12 @@ final class RunFollower implements AutoCloseable {
     private void publish() {
         if (!closed) {
             textAwaitingPaint = false;
-            listener.update(new Frame(seq, preview, activity, controls.snapshot()));
+            List<JSONObject> patches = pendingUiPatches.isEmpty()
+                    ? Collections.emptyList()
+                    : Collections.unmodifiableList(new ArrayList<>(pendingUiPatches));
+            pendingUiPatches.clear();
+            listener.update(new Frame(seq, preview, activity, controls.snapshot(),
+                    toolSteps, deviceRequests, reasoning.toString(), patches));
         }
     }
 

@@ -7,15 +7,31 @@ import android.os.Looper;
 import android.view.View;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
+import android.widget.Toast;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.llm4people.hermes.Diagnostics;
+import org.llm4people.hermes.HermesConfig;
 import org.llm4people.hermes.artifact.ArtifactDesk;
+import org.llm4people.hermes.artifact.HomePinBridge;
+import org.llm4people.hermes.artifact.LiveUiPatch;
+import org.llm4people.hermes.artifact.LiveUiPatchBar;
+import org.llm4people.hermes.artifact.ThemePalette;
 import org.llm4people.hermes.artifact.ThreadInstruments;
+import org.llm4people.hermes.camera.CapturedMedia;
+import org.llm4people.hermes.camera.ThreadCameraCapture;
 import org.llm4people.hermes.net.HermesApi;
+import org.llm4people.hermes.os.HermesWidgetPinning;
+import org.llm4people.hermes.os.HermesWidgetSpec;
+import org.llm4people.hermes.os.HermesWidgetStore;
+import org.llm4people.hermes.os.LiveRunNotification;
 import org.llm4people.hermes.profile.Account;
+import org.llm4people.hermes.share.ClipboardPastePill;
+import org.llm4people.hermes.share.DeviceBridgeFlow;
 import org.llm4people.hermes.voice.VoiceDrafts;
+
+import java.io.IOException;
 
 import java.util.UUID;
 import java.util.ArrayList;
@@ -30,12 +46,15 @@ import java.util.function.Consumer;
 
 /** Profile-scoped native workspace. Call its public methods on the Android main thread. */
 public final class ThreadWorkspace implements AutoCloseable {
+    public record ThreadSummary(String id, String title) {}
+
     public interface Host {
         void selected(String sessionId, String title);
         void pendingChanged();
         default void discussionPanes(boolean canToggle, boolean listVisible) {}
         default void noticeThread(boolean sameThread) {}
         default void nearbyGuide(ThreadWorkspace origin, String threadId, String runId, JSONObject assistantRow, JSONObject area) {}
+        default void runProgress(LiveRunNotification.Snapshot snapshot) {}
         JSONObject options(String sessionId);
         void timing(String sessionId, long firstTextMillis, long elapsedMillis, long outputTokens);
     }
@@ -52,8 +71,9 @@ public final class ThreadWorkspace implements AutoCloseable {
     ThreadViews screen;
     ThreadJournal journal;
     final NearbyConsent nearby;
+    final DeviceBridgeFlow deviceBridge = new DeviceBridgeFlow();
     private ThreadRun run;
-    private ArtifactDesk.Host instrumentHost;
+    ArtifactDesk.Host instrumentHost;
     private ThreadInstrumentPanel instruments;
     private ThreadStarters starters;
     private boolean emptyTranscript;
@@ -128,9 +148,13 @@ public final class ThreadWorkspace implements AutoCloseable {
     boolean admitting() { return run != null && run.submitting(); }
 
     public View view() { return container; }
-    public void dismissDialogs() { if (screen != null) screen.dismiss(); }
+    public void dismissDialogs() {
+        deviceBridge.dismissDialogs();
+        if (screen != null) screen.dismiss();
+    }
     public String sessionId() { return session; }
     public String remoteSessionId() { return remoteSession; }
+    Account account() { return account; }
     public String title() { return session == null ? "" : title; }
     public String messageCount() { return session == null || messageCount < 0 ? "" : Long.toString(messageCount); }
 
@@ -154,6 +178,38 @@ public final class ThreadWorkspace implements AutoCloseable {
     public boolean editing() { return screen != null && screen.editing(); }
     public void focusComposer() { if (screen != null) screen.focusComposer(); }
 
+    public void startDictation() {
+        if (closed || screen == null) return;
+        screen.focusComposer();
+        main.post(() -> {
+            if (!closed && screen != null) screen.triggerDictation();
+        });
+    }
+
+    public void stopActiveRun() {
+        if (!closed && run != null) run.stop();
+    }
+
+    public List<ThreadSummary> recentThreads() {
+        List<ThreadSummary> result = new ArrayList<>();
+        for (int i = 0; i < inbox.length(); i++) {
+            JSONObject row = inbox.optJSONObject(i);
+            if (row == null) continue;
+            String id = ThreadIdentity.rootId(row);
+            String label = ThreadData.title(row);
+            if (ThreadData.validId(id) && !label.isEmpty()) {
+                result.add(new ThreadSummary(id, label));
+            }
+        }
+        return result;
+    }
+
+    public void openSummary(String rootId, String label) {
+        if (closed || !ThreadData.validId(rootId)) return;
+        if (!rootId.equals(session)) open(new ThreadIdentity(rootId, rootId),
+                label == null || label.trim().isEmpty() ? "Conversation" : label);
+    }
+
     boolean importingPhoto;
     public boolean readyForPhoto() {
         if (closed || journal == null || run == null) return false;
@@ -171,7 +227,8 @@ public final class ThreadWorkspace implements AutoCloseable {
         importingPhoto = true;
         screen.importingPhoto(true);
         screen.notice("Préparation de l’image…", "", null);
-        request(() -> DiscussionPhoto.read(activity.getContentResolver(), uri), photo -> {
+        long maxSourceBytes = HermesConfig.load(activity).artifactDefaultMaxBytes;
+        request(() -> DiscussionPhoto.read(activity.getContentResolver(), uri, maxSourceBytes), photo -> {
             importingPhoto = false;
             screen.importingPhoto(false);
             try {
@@ -206,6 +263,48 @@ public final class ThreadWorkspace implements AutoCloseable {
         screen.displayDraft(current.isEmpty() ? text : current + "\n" + text);
         queueSave();
         screen.focusComposer();
+    }
+
+    public void attachMedia(List<CapturedMedia.Item> items) {
+        if (closed || screen == null || session == null || items == null || items.isEmpty()) return;
+        screen.attachMedia(items, suggestion -> stageDraft(suggestion.draftText()));
+        screen.focusComposer();
+    }
+
+    public boolean importCapturedPhoto(ThreadCameraCapture capture, Account owner) {
+        if (closed || capture == null || !capture.isReady() || owner == null || session == null) return false;
+        String targetSession = session;
+        request(() -> capture.consumeIfReady(owner, targetSession), item -> {
+            if (item != null && targetSession.equals(session)) {
+                attachMedia(Collections.singletonList(item));
+            }
+        }, failure -> {
+            Diagnostics.warning("camera", "import_failed", failure);
+            if (screen != null) {
+                screen.notice("La photo capturée n’a pas pu être lue. Réessayez.", "", null);
+            }
+        });
+        return true;
+    }
+
+    public void refreshClipboardPill() {
+        if (!closed && screen != null && session != null) screen.refreshClipboardPill();
+    }
+
+    void handleDeviceRequests(String runId, List<DeviceBridgeFlow.BridgeRequest> requests) {
+        if (closed || screen == null || requests == null || requests.isEmpty()) return;
+        DeviceBridgeFlow.Executor executor = DeviceBridgeFlow.ambientAwareExecutor(
+                activity, account, new ClipboardPastePill(activity));
+        for (DeviceBridgeFlow.BridgeRequest req : requests) {
+            deviceBridge.promptUser(activity, instrumentHost, screen.root, req, executor, (status, data) ->
+                    workers.execute(() -> {
+                        try {
+                            DeviceBridgeFlow.submitResult(api, runId, req.requestId(), status, data);
+                        } catch (IOException failed) {
+                            Diagnostics.warning("device_bridge", "result_submit_failed", failed);
+                        }
+                    }));
+        }
     }
 
     /** Checks the durable receipt even if a different discussion was restored after process death. */
@@ -303,6 +402,9 @@ public final class ThreadWorkspace implements AutoCloseable {
             Diagnostics.warning("threads", "last_selection_clear_failed");
             if (inboxWarning.isEmpty()) inboxWarning = "Impossible d’enregistrer la sélection. Vérifiez l’espace disponible.";
         }
+        inboxOffset = 0;
+        inbox = new JSONArray();
+        inboxLoaded = false;
         container.select(null);
         selectionChanged();
         loadThreads(true);
@@ -496,6 +598,7 @@ public final class ThreadWorkspace implements AutoCloseable {
                 () -> { if (owner == journal && !closed) loadMessages(true, null); });
         refreshPhoto();
         nearby.restore();
+        attachLiveUiControls();
         if (instrumentHost != null) {
             instruments = new ThreadInstrumentPanel(this, new ThreadInstruments(account, id), instrumentHost);
             screen.instruments = instruments;
@@ -670,10 +773,13 @@ public final class ThreadWorkspace implements AutoCloseable {
     private String legacyTitleTip;
     private int metadataRequest;
     private volatile int transcriptRequest;
+    private JSONObject pendingLiveUiPatch;
+    private String appliedLiveUiRevisionId;
 
     public void onBackground() {
         nearby.clearTurn();
         voice.reader().stop();
+        deviceBridge.dismissDialogs();
         if (!closed) {
             ++generation;
             main.removeCallbacksAndMessages(null);
@@ -703,6 +809,7 @@ public final class ThreadWorkspace implements AutoCloseable {
         legacyTitleTip = null;
         openingRequested = false;
         namedTitle = firstPrompt = "";
+        appliedLiveUiRevisionId = null;
         screen = next;
     }
 
@@ -729,6 +836,8 @@ public final class ThreadWorkspace implements AutoCloseable {
             inboxRecovery = null;
             openingPrompts.clear();
             namedTitle = firstPrompt = "";
+            pendingLiveUiPatch = null;
+            appliedLiveUiRevisionId = null;
         }
     }
 
@@ -783,6 +892,192 @@ public final class ThreadWorkspace implements AutoCloseable {
     }
 
     String failureDetail(JSONObject status) { return ThreadData.failureDetail(status, account.bearer); }
+
+    void clearSuggestedActions() {
+        if (closed || screen == null) return;
+        screen.suggestedActions(Collections.emptyList(), null, null, null, null, null);
+    }
+
+    /** Reconciles composer quick actions and LiveUiPatchBar after external layout/rollback changes. */
+    public void onLayoutChanged() {
+        if (closed || screen == null || account == null) return;
+        refreshQuickActions();
+        if (appliedLiveUiRevisionId != null && screen.liveUiBar != null) {
+            LiveUiPatch.StateManager manager = LiveUiPatch.StateManager.forAccount(
+                    account, ThemePalette.isNight(activity));
+            boolean stillApplied = false;
+            for (LiveUiPatch.StateManager.AppliedRevision rev : manager.history()) {
+                if (appliedLiveUiRevisionId.equals(rev.revisionId)) {
+                    stillApplied = true;
+                    break;
+                }
+            }
+            if (!stillApplied) {
+                appliedLiveUiRevisionId = null;
+                screen.liveUiBar.showReverted();
+            }
+        }
+    }
+
+    void onSuggestedActions(Object rawSuggestedActions) {
+        if (closed || screen == null) return;
+        try {
+            List<LiveUiPatch.SuggestedAction> actions = LiveUiPatch.parseSuggestedActions(rawSuggestedActions);
+            ThemePalette palette = ThemePalette.active(activity, account);
+            screen.suggestedActions(actions, palette,
+                    this::stageDraft,
+                    page -> { if (instrumentHost != null) instrumentHost.openWorkspace(page); },
+                    action -> { if (instrumentHost != null) instrumentHost.onAction(action); },
+                    this::pinWidgetById);
+        } catch (java.io.IOException rejected) {
+            Diagnostics.warning("live_ui", "suggested_actions_rejected");
+        }
+    }
+
+    public void openWithLiveUiPatch(String id, JSONObject rawPatch) {
+        if (closed || rawPatch == null) return;
+        pendingLiveUiPatch = rawPatch;
+        open(id);
+    }
+
+    public void onLiveUiPatch(JSONObject rawPatch) {
+        if (closed || rawPatch == null) return;
+        if (screen == null || screen.liveUiBar == null) {
+            pendingLiveUiPatch = rawPatch;
+            return;
+        }
+        pendingLiveUiPatch = null;
+        try {
+            LiveUiPatch patch = LiveUiPatch.parse(rawPatch, ThemePalette.isNight(activity));
+            appliedLiveUiRevisionId = null;
+            screen.liveUiBar.present(patch);
+            if (!patch.suggestedActions.isEmpty()) {
+                ThemePalette palette = ThemePalette.active(activity, account);
+                screen.suggestedActions(patch.suggestedActions, palette,
+                        this::stageDraft,
+                        page -> { if (instrumentHost != null) instrumentHost.openWorkspace(page); },
+                        action -> { if (instrumentHost != null) instrumentHost.onAction(action); },
+                        this::pinWidgetById);
+            }
+            Diagnostics.event("live_ui", "patch_presented");
+        } catch (java.io.IOException rejected) {
+            Diagnostics.warning("live_ui", "patch_rejected");
+        }
+    }
+
+    private void pinWidgetById(String widgetId) {
+        if (closed || account == null || widgetId == null || widgetId.isEmpty()) return;
+        LiveUiPatch.StateManager manager = LiveUiPatch.StateManager.forAccount(account, ThemePalette.isNight(activity));
+        for (LiveUiPatch.WidgetSpec spec : manager.widgets()) {
+            if (widgetId.equals(spec.widgetId)) {
+                HomePinBridge.requestPinWidget(activity, spec, account.id);
+                return;
+            }
+        }
+        LiveUiPatch pending = screen != null && screen.liveUiBar != null ? screen.liveUiBar.pendingPatch() : null;
+        if (pending != null) {
+            for (LiveUiPatch.Op op : pending.ops) {
+                if (op instanceof LiveUiPatch.Op.UpsertWidget uw && widgetId.equals(uw.widget().widgetId)) {
+                    HomePinBridge.requestPinWidget(activity, uw.widget(), account.id);
+                    return;
+                }
+            }
+        }
+        HermesWidgetSpec osSpec = new HermesWidgetStore(activity).spec(widgetId);
+        if (osSpec != null && osSpec.homeScreenSafe
+                && (osSpec.ownerProfileId == null || account.id.equals(osSpec.ownerProfileId))) {
+            HermesWidgetPinning.PinResult result = HermesWidgetPinning.requestPinWidget(
+                    activity, osSpec.withOwner(account.id));
+            Toast.makeText(activity, HermesWidgetPinning.guidanceMessage(activity, result), Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void attachLiveUiControls() {
+        if (screen == null || account == null) return;
+        screen.attachLiveUiBar(new LiveUiPatchBar.Listener() {
+            @Override public void onApply(LiveUiPatch patch) {
+                if (closed) return;
+                try {
+                    LiveUiPatch.StateManager manager = LiveUiPatch.StateManager.forAccount(account, ThemePalette.isNight(activity));
+                    manager.apply(patch);
+                    appliedLiveUiRevisionId = patch.revisionId;
+                    if (screen != null && screen.liveUiBar != null) screen.liveUiBar.showApplied(patch);
+                    refreshQuickActions();
+                    for (LiveUiPatch.Op op : patch.ops) {
+                        if (op instanceof LiveUiPatch.Op.UpsertWidget uw) {
+                            HomePinBridge.syncWidget(activity, uw.widget(), account.id);
+                        } else if (op instanceof LiveUiPatch.Op.RemoveWidget rw) {
+                            HomePinBridge.removeWidget(activity, rw.widgetId(), account.id);
+                        }
+                    }
+                    if (instrumentHost != null) instrumentHost.onLayoutChanged();
+                    request(() -> api.applyMobileUiRevision(patch.revisionId),
+                            ignored -> Diagnostics.event("live_ui", "server_applied"),
+                            ignored -> Diagnostics.event("live_ui", "server_apply_skipped"));
+                } catch (java.io.IOException | IllegalStateException e) {
+                    Diagnostics.warning("live_ui", "apply_failed");
+                    if (screen != null) screen.notice("Impossible d’appliquer cette modification d’écran.", "", null);
+                }
+            }
+
+            @Override public void onRollback(String revisionId) {
+                if (closed) return;
+                try {
+                    LiveUiPatch.StateManager manager = LiveUiPatch.StateManager.forAccount(account, ThemePalette.isNight(activity));
+                    java.util.Set<String> affectedWidgets = new java.util.HashSet<>(manager.widgetIds());
+                    List<LiveUiPatch.StateManager.AppliedRevision> reverted = manager.rollbackAllTo(revisionId);
+                    affectedWidgets.addAll(manager.widgetIds());
+                    HomePinBridge.syncWidgets(activity, manager.widgets(), affectedWidgets, account.id);
+                    appliedLiveUiRevisionId = null;
+                    if (screen != null && screen.liveUiBar != null) screen.liveUiBar.showReverted();
+                    refreshQuickActions();
+                    if (instrumentHost != null) instrumentHost.onLayoutChanged();
+                    // The gateway only reverts its active head, so mirror every locally popped revision newest-first.
+                    List<String> revertedIds = new java.util.ArrayList<>();
+                    for (LiveUiPatch.StateManager.AppliedRevision rev : reverted) revertedIds.add(rev.revisionId);
+                    if (revertedIds.isEmpty()) revertedIds.add(revisionId);
+                    request(() -> {
+                        int skipped = 0;
+                        for (String id : revertedIds) {
+                            try { api.revertMobileUiRevision(id); }
+                            catch (java.io.IOException | IllegalArgumentException unavailable) { skipped++; }
+                        }
+                        return skipped;
+                    }, skipped -> Diagnostics.event("live_ui", skipped == 0 ? "server_reverted" : "server_revert_skipped"),
+                            ignored -> Diagnostics.event("live_ui", "server_revert_skipped"));
+                } catch (java.io.IOException | IllegalStateException e) {
+                    Diagnostics.warning("live_ui", "rollback_failed");
+                    if (screen != null) screen.notice("Impossible d’annuler cette modification.", "", null);
+                }
+            }
+
+            @Override public void onDismiss(LiveUiPatch patch) {
+                appliedLiveUiRevisionId = null;
+                Diagnostics.event("live_ui", "patch_dismissed");
+            }
+
+            @Override public void onPinWidget(LiveUiPatch.WidgetSpec widget) {
+                if (closed || account == null || widget == null) return;
+                HomePinBridge.requestPinWidget(activity, widget, account.id);
+            }
+        });
+        refreshQuickActions();
+        if (pendingLiveUiPatch != null) {
+            JSONObject queued = pendingLiveUiPatch;
+            pendingLiveUiPatch = null;
+            onLiveUiPatch(queued);
+        }
+    }
+
+    private void refreshQuickActions() {
+        if (closed || screen == null || account == null) return;
+        ThemePalette palette = ThemePalette.active(activity, account);
+        LiveUiPatch.StateManager manager = LiveUiPatch.StateManager.forAccount(account, palette.night);
+        screen.quickActions(manager.quickActions(), palette,
+                this::stageDraft,
+                page -> { if (instrumentHost != null) instrumentHost.openWorkspace(page); },
+                action -> { if (instrumentHost != null) instrumentHost.onAction(action); });
+    }
 
     void storageError() {
         Diagnostics.event("threads", "storage_failed");

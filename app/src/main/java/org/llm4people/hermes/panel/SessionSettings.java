@@ -41,17 +41,27 @@ final class SessionSettings {
     private JSONObject saved;
     private TextView saveError;
     private boolean individualTools;
+    private boolean skillStudioSupported;
+    private boolean capabilitiesLoaded;
+    private boolean pendingOpenSkills;
     private final Map<String, Provider> providers = new LinkedHashMap<>();
     private final Map<String, Set<String>> toolsets = new LinkedHashMap<>();
 
     private static final class Provider {
         final String slug;
         final String name;
-        final Set<String> models;
+        final java.util.List<ModelCapabilityBadges.ModelInfo> models;
         Provider(JSONObject row) {
             slug = PanelData.text(row, "slug");
             name = PanelData.text(row, "name");
-            models = names(row.optJSONArray("models"));
+            models = BrainJson.parseProviderModels(row);
+        }
+        ModelCapabilityBadges.ModelInfo findModel(String id) {
+            if (id == null || id.isEmpty()) return null;
+            for (ModelCapabilityBadges.ModelInfo info : models) {
+                if (info.id().equals(id)) return info;
+            }
+            return null;
         }
         @Override public String toString() { return name.isEmpty() || name.equals(slug) ? slug : name + " · " + slug; }
     }
@@ -86,12 +96,19 @@ final class SessionSettings {
                             }).create()));
             return;
         }
+        capabilitiesLoaded = false;
+        pendingOpenSkills = false;
         panel.note(box, panel.t(R.string.panel_session_scope));
         PanelFrame.Sections settings = panel.sections(box);
         panel.section(settings.first, R.string.panel_model);
         modelSetting(settings.first);
         if (stageDraft != null) panel.action(settings.first, R.string.skills_title, () -> {
-            if (activeThread.getAsBoolean()) new SkillBrowser(panel, activeThread, stageDraft, this).show();
+            if (!activeThread.getAsBoolean()) return;
+            if (!capabilitiesLoaded) {
+                pendingOpenSkills = true;
+                return;
+            }
+            openSkills();
         });
         panel.section(settings.second, R.string.panel_tools);
         LinearLayout controls = Ui.column(panel.activity);
@@ -149,8 +166,10 @@ final class SessionSettings {
         if (provider.models.isEmpty()) { panel.note(box, panel.t(R.string.panel_no_model)); return; }
         LinearLayout feedback = Ui.column(panel.activity);
         box.addView(feedback, 0);
-        String current = provider.slug.equals(PanelData.text(saved, "provider")) ? PanelData.text(saved, "model") : null;
-        picker(box, new ArrayList<>(provider.models), current, model -> selectModel(feedback, provider.slug, model));
+        ModelCapabilityBadges.ModelInfo current = provider.slug.equals(PanelData.text(saved, "provider"))
+                ? provider.findModel(PanelData.text(saved, "model")) : null;
+        picker(box, new ArrayList<>(provider.models), current,
+                model -> selectModel(feedback, provider.slug, model.id()));
     }
 
     private void selectModel(View anchor, String provider, String model) {
@@ -175,7 +194,14 @@ final class SessionSettings {
         ListView list = new ListView(panel.activity);
         list.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
         ArrayAdapter<T> adapter = new ArrayAdapter<>(panel.activity, R.layout.discussion_setting_choice,
-                new ArrayList<>(choices));
+                new ArrayList<>(choices)) {
+            @Override public View getView(int position, View convertView, android.view.ViewGroup parent) {
+                View row = super.getView(position, convertView, parent);
+                T item = getItem(position);
+                row.setContentDescription(item instanceof ModelCapabilityBadges.ModelInfo info ? info.id() : null);
+                return row;
+            }
+        };
         list.setAdapter(adapter);
         restoreChoice(list, adapter.getPosition(current));
         list.setEmptyView(empty);
@@ -254,7 +280,7 @@ final class SessionSettings {
 
     private void loadTools(LinearLayout box) {
         box.removeAllViews();
-        panel.load(box, () -> {
+        panel.request(box, () -> {
             JSONObject capabilities = panel.api.get("/v1/capabilities").getJSONObject("features");
             return new Object[]{capabilities,
                     panel.api.get("/v1/toolsets").getJSONArray("data")};
@@ -269,8 +295,38 @@ final class SessionSettings {
             }
             JSONObject features = (JSONObject) payload[0];
             individualTools = features.optBoolean("run_tool_exclusions");
+            skillStudioSupported = features.optBoolean(BrainCapabilities.SKILL_STUDIO);
+            capabilitiesLoaded = true;
+            if (pendingOpenSkills) {
+                pendingOpenSkills = false;
+                if (activeThread.getAsBoolean()) {
+                    openSkills();
+                    return;
+                }
+            }
             renderTools(box, features.optBoolean("run_toolset_selection"));
-        }, () -> loadTools(box));
+            if (features.optBoolean(BrainCapabilities.PROFILE_DEFAULTS)) {
+                box.addView(Ui.divider(panel.activity));
+                panel.action(box, R.string.brain_profile_defaults_title,
+                        () -> new ProfileDefaultsPanel(panel, this::show).show());
+            }
+        }, error -> {
+            skillStudioSupported = false;
+            capabilitiesLoaded = true;
+            if (pendingOpenSkills) {
+                pendingOpenSkills = false;
+                if (activeThread.getAsBoolean()) {
+                    openSkills();
+                    return;
+                }
+            }
+            panel.failure(box, error, () -> loadTools(box));
+        });
+    }
+
+    private void openSkills() {
+        if (skillStudioSupported) new SkillStudio(panel, activeThread, stageDraft, this::show).show();
+        else new SkillBrowser(panel, activeThread, stageDraft, this).show();
     }
 
     private void renderTools(LinearLayout box, boolean editable) {

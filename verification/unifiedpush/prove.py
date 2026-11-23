@@ -212,6 +212,9 @@ def run(args):
         phrase = secrets.token_hex(14)
         title = "Discussion-" + unique
         try:
+            s = ui.strings
+            disable_push = s.get("push_disable_action", "Désactiver")
+            open_distributor = s.get("push_open_distributor", "Ouvrir le distributeur")
             launch(adb, APP)
             start_account(ui, owner, account_url, primary.key, phrase)
             enroll(ui)
@@ -221,8 +224,8 @@ def run(args):
             if not topic.startswith(ntfy_url + "/up"):
                 raise AssertionError("Device registered with another push origin")
             before = len(published_messages(topic))
-            ui.wait("Désactiver")
-            ui.tap("Ouvrir le distributeur")
+            ui.wait(disable_push)
+            ui.tap(open_distributor)
             ui.wait("Subscribed topics")
             wait_for_ntfy_subscriber(root, topic)
             launch(adb, APP)
@@ -253,9 +256,9 @@ def run(args):
                     failure.add_note("Delivery state unavailable (" + type(diagnostic).__name__ + ")")
                 raise
             tap_notice(ui, notice_title(adb, notice), owner, phrase, title, reply, args.evidence_dir)
-            ui.tap("Atelier")
-            ui.tap("Notifications", scroll=True)
-            ui.tap("Désactiver")
+            ui.tap(s["nav_atelier"])
+            ui.tap(s["ws_notifications"], scroll=True)
+            ui.tap(disable_push)
             eventually("server revocation", lambda: revoked_everywhere(db, device_id))
             _, second_run = trigger(primary, "Après révocation")
             revoked = eventually(

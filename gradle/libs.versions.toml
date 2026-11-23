@@ -1,0 +1,13 @@
+[versions]
+agp = "9.1.0"
+firebaseMessaging = "26.0.2"
+unifiedPushConnector = "3.3.6"
+junit = "4.13.2"
+
+[libraries]
+firebase-messaging = { module = "com.google.firebase:firebase-messaging", version.ref = "firebaseMessaging" }
+unifiedpush-connector = { module = "org.unifiedpush.android:connector", version.ref = "unifiedPushConnector" }
+junit = { module = "junit:junit", version.ref = "junit" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }

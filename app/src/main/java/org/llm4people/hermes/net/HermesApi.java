@@ -1,7 +1,9 @@
 package org.llm4people.hermes.net;
 
 import org.json.JSONObject;
+import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.Diagnostics;
+import org.llm4people.hermes.HermesConfig;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
@@ -24,7 +26,12 @@ public final class HermesApi {
             this.eventBytes = eventBytes;
         }
         public static Limits defaults() {
-            return new Limits(15_000, 45_000, 8 * 1024 * 1024, 1024 * 1024);
+            return from(HermesConfig.defaults());
+        }
+
+        public static Limits from(HermesConfig config) {
+            HermesConfig cfg = config == null ? HermesConfig.defaults() : config;
+            return new Limits(cfg.httpConnectTimeoutMs, cfg.httpReadTimeoutMs, cfg.httpJsonMaxBytes, cfg.httpEventMaxBytes);
         }
     }
 
@@ -62,6 +69,14 @@ public final class HermesApi {
         return Endpoint.segment(raw);
     }
 
+    public static String relativePath(String raw) {
+        return Endpoint.relativePath(raw);
+    }
+
+    public static String queryValue(String raw) {
+        return Endpoint.queryValue(raw);
+    }
+
     public JSONObject get(String path) throws IOException {
         return request("GET", path, null, null);
     }
@@ -86,7 +101,95 @@ public final class HermesApi {
     }
 
     public void delete(String path) throws IOException {
-        request("DELETE", path, null, null);
+        deleteJson(path);
+    }
+
+    public JSONObject deleteJson(String path) throws IOException {
+        return request("DELETE", path, null, null);
+    }
+
+    public JSONObject capabilities() throws IOException {
+        return get("/v1/capabilities");
+    }
+
+    public JSONObject setSessionPinned(String sessionId, boolean pinned) throws IOException {
+        JSONObject body = new JSONObject();
+        try { body.put("pinned", pinned); }
+        catch (org.json.JSONException invalid) { throw new IllegalArgumentException(invalid); }
+        return patch("/api/sessions/" + segment(sessionId), body);
+    }
+
+    public JSONObject forkSession(String sessionId, Long upToMessageId, boolean keepSourceOpen) throws IOException {
+        if (upToMessageId != null && upToMessageId <= 0) {
+            throw new IllegalArgumentException("Invalid fork message id");
+        }
+        JSONObject body = new JSONObject();
+        try {
+            body.put("keep_source_open", keepSourceOpen);
+            if (upToMessageId != null) body.put("up_to_message_id", upToMessageId.longValue());
+        } catch (org.json.JSONException invalid) {
+            throw new IllegalArgumentException(invalid);
+        }
+        return post("/api/sessions/" + segment(sessionId) + "/fork", body);
+    }
+
+    public long exportSession(String sessionId, String format, OutputStream sink, long maxBytes) throws IOException {
+        if (!"markdown".equals(format) && !"json".equals(format)) {
+            throw new IllegalArgumentException("Unsupported export format");
+        }
+        String accept = "json".equals(format) ? "application/json" : "text/markdown, text/plain;q=0.9";
+        return download("/api/sessions/" + segment(sessionId) + "/export?format=" + queryValue(format),
+                accept, sink, maxBytes);
+    }
+
+    /** Send a bounded multipart/form-data upload and decode the JSON response. */
+    public JSONObject postMultipart(String path, String boundary, byte[] body) throws IOException {
+        if (boundary == null || !visibleAscii(boundary) || body == null || body.length == 0) {
+            throw new IllegalArgumentException("Invalid multipart payload");
+        }
+        long maxUpload = Math.max(limits.jsonBytes, HermesConfig.defaults().artifactDefaultMaxBytes + 4096L);
+        if (body.length > maxUpload) throw new IOException("Upload exceeded the byte limit");
+        HttpURLConnection http = connection(path, "POST", "application/json");
+        try {
+            http.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
+            http.setDoOutput(true);
+            http.setFixedLengthStreamingMode(body.length);
+            try (OutputStream out = http.getOutputStream()) { out.write(body); }
+            int status = checkResponse(http);
+            if (status == 204 || status == 205) return new JSONObject();
+            try (InputStream in = http.getInputStream()) {
+                return Wire.object(Wire.read(in, limits.jsonBytes));
+            }
+        } catch (IOException error) {
+            Diagnostics.event("network", "multipart_upload_failed");
+            throw error;
+        } finally {
+            http.disconnect();
+        }
+    }
+
+    /** Reads the active profile's live UI state (custom tabs, quick actions, theme overrides). */
+    public JSONObject mobileUiState(String sessionId) throws IOException {
+        String path = sessionId == null || sessionId.isEmpty()
+                ? "/api/mobile/ui/state"
+                : "/api/mobile/ui/state?session_id=" + segment(sessionId);
+        return get(path);
+    }
+
+    /** Reads ordered live UI revision history for the active profile. */
+    public JSONObject mobileUiHistory(int limit) throws IOException {
+        int bounded = Math.max(1, Math.min(50, limit));
+        return get("/api/mobile/ui/history?limit=" + bounded);
+    }
+
+    /** Confirms application of a previewed live UI revision on the gateway. */
+    public JSONObject applyMobileUiRevision(String revisionId) throws IOException {
+        return post("/api/mobile/ui/revisions/" + segment(revisionId) + "/apply", new JSONObject());
+    }
+
+    /** Atomically reverts a live UI revision on the gateway. */
+    public JSONObject revertMobileUiRevision(String revisionId) throws IOException {
+        return post("/api/mobile/ui/revisions/" + segment(revisionId) + "/revert", new JSONObject());
     }
 
     private static boolean visibleAscii(String text) {
@@ -107,6 +210,8 @@ public final class HermesApi {
         http.setRequestProperty("Authorization", "Bearer " + bearer);
         http.setRequestProperty("Accept", accept);
         http.setRequestProperty("Cache-Control", "no-store");
+        String acceptLanguage = AppLanguage.currentAcceptLanguage();
+        if (!acceptLanguage.isEmpty()) http.setRequestProperty("Accept-Language", acceptLanguage);
         return http;
     }
 
@@ -150,6 +255,7 @@ public final class HermesApi {
             }
         } catch (IOException ignored) {
             // A malformed, truncated or oversized error body still has an authoritative HTTP status.
+            Diagnostics.debug("network", "error_body_unreadable", ignored);
         }
         long delay = -1;
         String retry = http.getHeaderField("Retry-After");
@@ -159,8 +265,14 @@ public final class HermesApi {
 
     /** Stream an authenticated file into a caller-owned sink with a strict byte ceiling. */
     public long download(String path, OutputStream sink, long maxBytes) throws IOException {
+        return download(path, "application/octet-stream", sink, maxBytes);
+    }
+
+    /** Stream an authenticated response with a custom Accept header and strict byte ceiling. */
+    public long download(String path, String accept, OutputStream sink, long maxBytes) throws IOException {
         if (sink == null || maxBytes < 0) throw new IllegalArgumentException("Invalid download bounds");
-        HttpURLConnection http = connection(path, "GET", "application/octet-stream");
+        String header = accept == null || accept.trim().isEmpty() ? "application/octet-stream" : accept.trim();
+        HttpURLConnection http = connection(path, "GET", header);
         try {
             checkResponse(http);
             if (http.getContentLengthLong() > maxBytes) throw new IOException("File exceeded the byte limit");

@@ -1,7 +1,7 @@
 ---
 version: alpha
 name: Hermes Mobile
-description: A native Android work surface for French conversations, decisions and tools.
+description: A native Android work surface for bilingual English and French conversations, decisions and tools.
 colors:
   primary: "#225C50"
   on-accent: "#FFFFFF"
@@ -167,7 +167,7 @@ components:
 
 The conversation reads down one margin. A small speaker name introduces each turn, and a pending question stands out against the paper as a bordered surface. The person can answer where the question appears and still see the message composer below.
 
-The same paper, ink and teal carry through to the atelier. A person can ask Hermes for a review form, try it in the conversation that produced it and pin it there for later. Its fields prepare an editable message. Technical views make their units, scope and available actions legible in French.
+The same paper, ink and teal carry through to the atelier. A person can ask Hermes for a review form, try it in the conversation that produced it and pin it there for later. Its fields prepare an editable message. Technical views make their units, scope and available actions legible in the user's language (English or French).
 
 **Key Characteristics:**
 
@@ -242,7 +242,7 @@ Group differences by section. An added or removed field leads with its name in b
 
 **Discussion settings.** Under “Modèle et fournisseur”, one tinted row combines the current provider and model or “Suivre le profil” with the action “Choisir le modèle”. The searchable provider and model lists mark the saved choice with a radio indicator. Under “Ensembles d’outils”, inherited sets show their checkmarks with muted names. Where the server supports selection, clearing “Utiliser les outils du profil” enables the set checkboxes. Indent the individual tool chooser or member names under their set. [Discussion settings](app/src/main/java/org/llm4people/hermes/panel/SessionSettings.java)
 
-**The Measurement Label Rule.** Place the French measure name directly above the value. Give the value one accessible description containing both the name and value.
+**The Measurement Label Rule.** Place the localized measure name directly above the value. Give the value one accessible description containing both the name and value.
 
 **Usage.** Group cumulative counters under “Cumul de la discussion”. Group device timings under “Dernière réponse mesurée sur cet appareil”. Distinguish known billed and estimated costs, show pricing provenance when available, and display “Indisponible” for a missing measurement.
 
@@ -251,7 +251,7 @@ Group differences by section. An added or removed field leads with its name in b
 ### Do
 
 - Keep a pending decision in its own conversation, with its choices and answer field together.
-- Preserve French action labels when text wraps or the input method is visible.
+- Preserve localized action labels when text wraps or the input method is visible.
 - Keep code and tool output selectable for inspection.
 
 ### Don't

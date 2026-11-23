@@ -1,11 +1,22 @@
 """Plugin entry point for the Hermes API-server adapter on a dedicated profile endpoint."""
 import asyncio
 from contextlib import closing
+import logging
 from pathlib import Path
 from aiohttp import web
 
 from . import store
 from .lineage import session_segments
+
+try:
+    from server.logging_util import get_logger, safe_reason
+except ImportError:
+    def get_logger(component):
+        return logging.getLogger(f"hermes.mobile.{component}")
+    def safe_reason(exc):
+        return type(exc).__name__
+
+log = get_logger("artifacts")
 
 
 def mount(app, adapter):
@@ -23,6 +34,7 @@ def register_routes(app, authorize, profile_home, resolve=session_segments):
     def scope(request):
         refusal = authorize(request)
         if refusal is not None:
+            log.warning("artifacts_request_rejected status=401 reason=unauthorized")
             raise web.HTTPUnauthorized(headers={'Cache-Control': 'no-store'})
         return profile_home(), request.match_info['session']
 
@@ -35,7 +47,8 @@ def register_routes(app, authorize, profile_home, resolve=session_segments):
                 raise ValueError
             segments = await asyncio.to_thread(resolve, home, session)
             data = await asyncio.to_thread(store.inventory, home, segments, before, limit)
-        except ValueError:
+        except ValueError as exc:
+            log.warning("artifacts_listing_rejected status=400 reason=%s", safe_reason(exc))
             raise web.HTTPBadRequest() from None
         return web.json_response(data, headers={'Cache-Control': 'no-store'})
 
@@ -44,7 +57,8 @@ def register_routes(app, authorize, profile_home, resolve=session_segments):
         try:
             segments = await asyncio.to_thread(resolve, home, session)
             conn, blob, row = await asyncio.to_thread(store.download, home, segments, request.match_info['id'])
-        except (ValueError, FileNotFoundError):
+        except (ValueError, FileNotFoundError) as exc:
+            log.warning("artifacts_download_rejected status=404 reason=%s", safe_reason(exc))
             raise web.HTTPNotFound() from None
         with closing(conn), closing(blob):
             reply = web.StreamResponse(headers={

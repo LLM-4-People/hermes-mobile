@@ -76,4 +76,28 @@ public final class SharedTextContractTest extends InstrumentationTestCase {
             assertNull(IncomingShare.open(context, id, second.account));
         }
     }
+
+
+    public void testPlainTextSendHasExactlyOneHermesTargetAndDocumentsReachMediaShare() {
+        Context context = getInstrumentation().getTargetContext();
+        android.content.pm.PackageManager pm = context.getPackageManager();
+        String pkg = context.getPackageName();
+        java.util.List<android.content.pm.ResolveInfo> text = pm.queryIntentActivities(
+                new Intent(Intent.ACTION_SEND).setType("text/plain").setPackage(pkg), 0);
+        assertEquals(1, text.size());
+        assertEquals(ShareTextActivity.class.getName(), text.get(0).activityInfo.name);
+        for (String mime : new String[]{"text/markdown", "text/csv", "text/x-python", "application/json",
+                "application/pdf", "image/jpeg"}) {
+            java.util.List<android.content.pm.ResolveInfo> media = pm.queryIntentActivities(
+                    new Intent(Intent.ACTION_SEND).setType(mime).setPackage(pkg), 0);
+            assertEquals(mime, 1, media.size());
+            assertEquals(mime, ShareMediaActivity.class.getName(), media.get(0).activityInfo.name);
+        }
+        for (String mime : new String[]{"application/json", "application/yaml", "text/plain"}) {
+            java.util.List<android.content.pm.ResolveInfo> many = pm.queryIntentActivities(
+                    new Intent(Intent.ACTION_SEND_MULTIPLE).setType(mime).setPackage(pkg), 0);
+            assertEquals(mime, 1, many.size());
+            assertEquals(mime, ShareMediaActivity.class.getName(), many.get(0).activityInfo.name);
+        }
+    }
 }

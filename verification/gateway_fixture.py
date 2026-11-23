@@ -12,7 +12,7 @@ from urllib.error import HTTPError, URLError
 from urllib.request import ProxyHandler, Request, build_opener
 
 
-PINNED_REVISION = "07efe6a26aed516116c6241c44c0e0db42e7e004"
+PINNED_REVISION = "0ae4511b126efb5cba5bb75a7d354cf1c4406a8d"
 LOOPBACK = "127.0.0.1"
 
 
@@ -205,14 +205,14 @@ class Gateway:
             # Send the disposable account token only after our process owns its listener.
             if not any(c.status == psutil.CONN_LISTEN and c.laddr == (LOOPBACK, self.port)
                        for c in owner.net_connections(kind="tcp")):
-                time.sleep(0.2)
+                time.sleep(0.05)
                 continue
             try:
                 if self._capabilities_ready():
                     return
             except URLError:
                 pass
-            time.sleep(0.2)
+            time.sleep(0.05)
         raise TimeoutError("Gateway did not accept requests within 90 seconds")
 
     def stop(self):

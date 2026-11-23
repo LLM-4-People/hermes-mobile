@@ -74,6 +74,7 @@ final class PushConnection {
             current.delete();
         } catch (IllegalStateException absent) {
             // There may be no Firebase app when removing a registration after process death.
+            Diagnostics.debug("push", "firebase_already_absent");
         }
     }
 

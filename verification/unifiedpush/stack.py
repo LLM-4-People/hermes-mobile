@@ -28,7 +28,7 @@ def eventually(description, check, timeout=90):
         result = check()
         if result:
             return result
-        time.sleep(0.4)
+        time.sleep(0.1)
     raise AssertionError(f"Timed out waiting for {description}")
 
 
@@ -165,18 +165,21 @@ def proxy(
     tls_ca=None,
     executable=None,
 ):
-    from deploy.accounts import account_routes
+    from deploy.accounts import single_host_routes
 
     scheme = "https" if tls_cert else "http"
-    url = f"{scheme}://127.0.0.1:{unused_loopback_port()}"
-    routes = account_routes(
-        "fixture",
-        url,
-        bool(bridge_endpoint),
+    origin = f"{scheme}://127.0.0.1:{unused_loopback_port()}"
+    routes = single_host_routes(
+        "fixture.invalid",
+        ["fixture"],
+        {"fixture"} if bridge_endpoint else set(),
         False,
-        gateway_upstream=urlsplit(gateway.endpoint).netloc,
-        push_upstream=urlsplit(bridge_endpoint).netloc if bridge_endpoint else None,
+        gateway_upstreams={"fixture": urlsplit(gateway.endpoint).netloc},
+        push_upstreams={"fixture": urlsplit(bridge_endpoint).netloc} if bridge_endpoint else None,
     )
+    _, rest = routes.split("\n", 1)
+    routes = origin + " {\n" + rest
+    url = origin + "/p/fixture"
     client = LOCAL_HTTP
     if tls_cert:
         context = ssl.create_default_context(cafile=tls_ca)

@@ -1,5 +1,7 @@
 package org.llm4people.hermes.journey;
 
+import org.llm4people.hermes.R;
+
 /** An authenticated agent proposes two changes; only explicit user actions change the app or submit a turn. */
 final class WorkspacePagesJourney {
     private final JourneyUi ui;
@@ -8,19 +10,21 @@ final class WorkspacePagesJourney {
     interface AccountSwitch { void verify() throws Exception; }
 
     void run(String name, AccountSwitch isolation) throws Exception {
-        ui.tap("Nouvelle conversation");
-        ui.fill("Message à Hermes", "Vérifie mes écrans mobiles.");
-        ui.tap("Envoyer");
+        String composerHint = ui.str(R.string.thread_message_hint);
+        String sendLabel = ui.str(R.string.thread_send);
+        ui.tap(ui.str(R.string.thread_new_conversation));
+        ui.fill(composerHint, "Vérifie mes écrans mobiles.");
+        ui.tap(sendLabel);
         ui.contains("Voici les deux dispositions demandées.");
-        ui.see("Envoyer");
+        ui.see(sendLabel);
         apply("Disposition · Écran personnel · diagnostic");
         String existing = "Garder la trace.";
-        ui.fill("Message à Hermes", existing);
+        ui.fill(composerHint, existing);
         apply("Disposition · Conversation");
         ui.see("Écriture ciblée");
         ui.see(existing);
         ui.absent("Vous");
-        menu("Mes écrans");
+        pages();
         ui.tap("Diagnostic mobile");
         ui.see(name);
         ui.fill("Fichier", "sample.py");
@@ -29,38 +33,44 @@ final class WorkspacePagesJourney {
         ui.tap("Vers le brouillon");
         String staged = existing + "\nRelire ce fichier.\n\nFichier\nsample.py";
         ui.see(staged);
-        ui.see("Envoyer");
+        ui.see(sendLabel);
         ui.capture("12-formulaire-brouillon");
-        ui.tap("Revenir à l’écran précédent");
+        ui.tap(ui.str(R.string.ws_back_previous));
         ui.see("sample.py");
         ui.see(name);
         ui.capture("13-ecran-personnel");
-        menu("Vue de discussion d’origine");
+        ui.tap(ui.str(R.string.nav_discussions));
+        menu(ui.str(R.string.ws_original_discussion_view));
         ui.see(staged);
-        ui.tap("Envoyer");
+        ui.tap(sendLabel);
         ui.contains("La conversation est prête.");
-        ui.see("Envoyer");
+        ui.see(sendLabel);
         isolation.verify();
-        menu("Mes écrans");
+        pages();
         ui.tap("Diagnostic mobile");
         ui.see(name);
-        menu("Rétablir l’atelier");
+        menu(ui.str(R.string.ws_restore_desk));
         ui.tap("Diagnostic mobile (diagnostic)");
         ui.tap("Supprimer");
-        menu("Mes écrans");
+        pages();
         ui.contains("Demandez à Hermes de créer un écran");
         ui.absent("Diagnostic mobile");
     }
 
+    private void pages() {
+        ui.tap(ui.str(R.string.nav_atelier));
+        ui.tap(ui.str(R.string.ws_my_screens));
+    }
+
     private void apply(String artifact) {
-        menu("Artefacts");
+        menu(ui.str(R.string.ws_artifacts));
         ui.tap(artifact);
         ui.tap("Appliquer la disposition…");
         ui.tap("Appliquer");
     }
 
     private void menu(String action) {
-        ui.tap("Autres actions");
+        ui.tap(ui.str(R.string.ws_more_actions));
         ui.tap(action);
     }
 }

@@ -1,6 +1,7 @@
 import unittest
 import xml.etree.ElementTree as ET
 
+from verification.device.app_strings import AppStrings
 from verification.nearby_journey import CONSENT, PROMPT, USE_LOCATION, choose_consent, enter_message, lock, open_consent
 from verification.nearby_location import (COARSE, answer_android_location, app_activity_stopped,
                                           location_access, public_city_fix)
@@ -80,84 +81,96 @@ class NearbyLocationTest(unittest.TestCase):
 
     def test_enter_discussion_taps_focused_text_button_without_clickable_attribute(self):
         # FocusedText.java omits clickable; Button distinguishes inbox create from the open header TextView.
-        inbox = ET.fromstring(
-            '<node text="" content-desc="" resource-id="" class="android.widget.FrameLayout" '
-            'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[0,0][320,640]">'
-            '<node text="Nouvelle conversation" content-desc="" resource-id="" class="android.widget.Button" '
-            'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[0,80][320,140]"/>'
-            '</node>'
-        )
-        loading_chat = ET.fromstring(
-            '<node text="" content-desc="" resource-id="" class="android.widget.FrameLayout" '
-            'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[0,0][320,640]">'
-            '<node text="Nouvelle conversation" content-desc="" resource-id="" class="android.widget.TextView" '
-            'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[48,0][200,48]"/>'
-            '</node>'
-        )
-        ready_chat = ET.fromstring(
-            '<node text="" content-desc="" resource-id="" class="android.widget.FrameLayout" '
-            'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[0,0][320,640]">'
-            '<node text="Nouvelle conversation" content-desc="" resource-id="" class="android.widget.TextView" '
-            'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[48,0][200,48]"/>'
-            '<node text="Message à Hermes" content-desc="" resource-id="" class="android.widget.EditText" '
-            'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[12,560][210,620]"/>'
-            '<node text="Envoyer" content-desc="" resource-id="" class="android.widget.Button" '
-            'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[220,560][310,620]"/>'
-            '</node>'
-        )
-        trees = iter([inbox, loading_chat, ready_chat])
-        tapped = []
+        for lang in ("en", "fr"):
+            with self.subTest(lang=lang):
+                s = AppStrings.for_lang(lang)
+                new_conv = s["thread_new_conversation"]
+                hint = s["thread_message_hint"]
+                send = s["thread_send"]
+                inbox = ET.fromstring(
+                    '<node text="" content-desc="" resource-id="" class="android.widget.FrameLayout" '
+                    'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[0,0][320,640]">'
+                    f'<node text="{new_conv}" content-desc="" resource-id="" class="android.widget.Button" '
+                    'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[0,80][320,140]"/>'
+                    '</node>'
+                )
+                loading_chat = ET.fromstring(
+                    '<node text="" content-desc="" resource-id="" class="android.widget.FrameLayout" '
+                    'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[0,0][320,640]">'
+                    f'<node text="{new_conv}" content-desc="" resource-id="" class="android.widget.TextView" '
+                    'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[48,0][200,48]"/>'
+                    '</node>'
+                )
+                ready_chat = ET.fromstring(
+                    '<node text="" content-desc="" resource-id="" class="android.widget.FrameLayout" '
+                    'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[0,0][320,640]">'
+                    f'<node text="{new_conv}" content-desc="" resource-id="" class="android.widget.TextView" '
+                    'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[48,0][200,48]"/>'
+                    f'<node text="{hint}" content-desc="" resource-id="" class="android.widget.EditText" '
+                    'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[12,560][210,620]"/>'
+                    f'<node text="{send}" content-desc="" resource-id="" class="android.widget.Button" '
+                    'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[220,560][310,620]"/>'
+                    '</node>'
+                )
+                trees = iter([inbox, loading_chat, ready_chat])
+                tapped = []
 
-        class StubScreen(Screen):
-            def __init__(self):
-                pass
+                class StubScreen(Screen):
+                    def __init__(self):
+                        self._strings = s
 
-            def hierarchy(self):
-                return next(trees)
+                    def hierarchy(self):
+                        return next(trees)
 
-            def tap_node(self, node):
-                tapped.append((node.get("class"), node.get("text")))
+                    def tap_node(self, node):
+                        tapped.append((node.get("class"), node.get("text")))
 
-        enter_discussion(StubScreen())
-        self.assertEqual(tapped, [("android.widget.Button", "Nouvelle conversation")])
+                enter_discussion(StubScreen())
+                self.assertEqual(tapped, [("android.widget.Button", new_conv)])
 
     def test_enter_discussion_and_enter_message_accept_restored_non_empty_draft(self):
-        restored_chat = ET.fromstring(
-            '<node text="" content-desc="" resource-id="" class="android.widget.FrameLayout" '
-            'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[0,0][320,640]">'
-            '<node text="Nouvelle conversation" content-desc="" resource-id="" class="android.widget.TextView" '
-            'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[48,0][200,48]"/>'
-            f'<node text="{PROMPT}" content-desc="" resource-id="" class="android.widget.EditText" '
-            'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[12,560][210,620]"/>'
-            '<node text="Envoyer" content-desc="" resource-id="" class="android.widget.Button" '
-            'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[220,560][310,620]"/>'
-            '</node>'
-        )
-        sent = []
+        for lang in ("en", "fr"):
+            with self.subTest(lang=lang):
+                s = AppStrings.for_lang(lang)
+                new_conv = s["thread_new_conversation"]
+                send = s["thread_send"]
+                restored_chat = ET.fromstring(
+                    '<node text="" content-desc="" resource-id="" class="android.widget.FrameLayout" '
+                    'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[0,0][320,640]">'
+                    f'<node text="{new_conv}" content-desc="" resource-id="" class="android.widget.TextView" '
+                    'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[48,0][200,48]"/>'
+                    f'<node text="{PROMPT}" content-desc="" resource-id="" class="android.widget.EditText" '
+                    'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[12,560][210,620]"/>'
+                    f'<node text="{send}" content-desc="" resource-id="" class="android.widget.Button" '
+                    'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[220,560][310,620]"/>'
+                    '</node>'
+                )
+                sent = []
 
-        class StubControls:
-            def send(self, *args, **kwargs):
-                sent.append((args, kwargs))
-                return b"applied"
+                class StubControls:
+                    def send(self, *args, **kwargs):
+                        sent.append((args, kwargs))
+                        return b"applied"
 
-        class StubDevice:
-            def ime_shown(self):
-                return False
+                class StubDevice:
+                    def ime_shown(self):
+                        return False
 
-        class StubScreen(Screen):
-            def __init__(self):
-                self.device = StubDevice()
-                self.controls = StubControls()
+                class StubScreen(Screen):
+                    def __init__(self):
+                        self.device = StubDevice()
+                        self.controls = StubControls()
+                        self._strings = s
 
-            def hierarchy(self):
-                return restored_chat
+                    def hierarchy(self):
+                        return restored_chat
 
-        ui = StubScreen()
-        enter_discussion(ui)
-        enter_message(ui, PROMPT)
-        self.assertEqual(sent, [])
-        enter_message(ui, "Autre question")
-        self.assertEqual(sent, [(("text",), {"label": PROMPT, "value": "Autre question"})])
+                ui = StubScreen()
+                enter_discussion(ui)
+                enter_message(ui, PROMPT)
+                self.assertEqual(sent, [])
+                enter_message(ui, "Autre question")
+                self.assertEqual(sent, [(("text",), {"label": PROMPT, "value": "Autre question"})])
 
     def test_answer_android_location_matches_google_controller_aosp_resource_id_and_scrolls(self):
         top_dialog = ET.fromstring(
@@ -289,104 +302,113 @@ class NearbyLocationTest(unittest.TestCase):
         self.assertEqual(taps, [USE_LOCATION, USE_LOCATION])
 
     def test_open_consent_dismisses_ime_and_retries_send_tap_until_disclosure_dialog_appears(self):
-        composer = ET.fromstring(
-            '<node text="" content-desc="" resource-id="" class="android.widget.FrameLayout" '
-            'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[0,0][320,640]">'
-            '<node text="Envoyer" content-desc="" resource-id="" class="android.widget.Button" '
-            'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[220,560][310,620]"/>'
-            '</node>'
-        )
-        consent_dialog = ET.fromstring(
-            '<node text="" content-desc="" resource-id="" class="android.widget.FrameLayout" '
-            'package="org.llm4people.hermes" window-id="3" scrollable="false" bounds="[0,80][320,600]">'
-            f'<node text="{CONSENT}" content-desc="" resource-id="" class="android.widget.TextView" '
-            'package="org.llm4people.hermes" window-id="3" scrollable="false" bounds="[16,100][304,160]"/>'
-            '<node text="Hermes reçoit la zone et peut la transmettre à OpenStreetMap." content-desc="" resource-id="" '
-            'class="android.widget.TextView" package="org.llm4people.hermes" window-id="3" scrollable="false" bounds="[16,170][304,260]"/>'
-            '</node>'
-        )
-        # First poll: IME reopened after PermissionController -> dismiss BACK;
-        # second & third polls: tap Envoyer until consent dialog opens.
-        trees = iter([composer, composer, composer, consent_dialog])
-        ime_states = iter([False, True, False, False, False])
-        actions = []
+        for lang in ("en", "fr"):
+            with self.subTest(lang=lang):
+                s = AppStrings.for_lang(lang)
+                send = s["thread_send"]
+                composer = ET.fromstring(
+                    '<node text="" content-desc="" resource-id="" class="android.widget.FrameLayout" '
+                    'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[0,0][320,640]">'
+                    f'<node text="{send}" content-desc="" resource-id="" class="android.widget.Button" '
+                    'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[220,560][310,620]"/>'
+                    '</node>'
+                )
+                consent_dialog = ET.fromstring(
+                    '<node text="" content-desc="" resource-id="" class="android.widget.FrameLayout" '
+                    'package="org.llm4people.hermes" window-id="3" scrollable="false" bounds="[0,80][320,600]">'
+                    f'<node text="{CONSENT}" content-desc="" resource-id="" class="android.widget.TextView" '
+                    'package="org.llm4people.hermes" window-id="3" scrollable="false" bounds="[16,100][304,160]"/>'
+                    '<node text="Hermes reçoit la zone et peut la transmettre à OpenStreetMap." content-desc="" resource-id="" '
+                    'class="android.widget.TextView" package="org.llm4people.hermes" window-id="3" scrollable="false" bounds="[16,170][304,260]"/>'
+                    '</node>'
+                )
+                trees = iter([composer, composer, composer, consent_dialog])
+                ime_states = iter([False, True, False, False, False])
+                actions = []
 
-        class StubDevice:
-            def ime_shown(self):
-                return next(ime_states)
+                class StubDevice:
+                    def ime_shown(self):
+                        return next(ime_states)
 
-            def shell(self, *args):
-                actions.append(("shell", args))
-                return ""
+                    def shell(self, *args):
+                        actions.append(("shell", args))
+                        return ""
 
-        class StubScreen(Screen):
-            def __init__(self):
-                self.device = StubDevice()
+                class StubScreen(Screen):
+                    def __init__(self):
+                        self.device = StubDevice()
+                        self._strings = s
 
-            def hierarchy(self):
-                return next(trees)
+                    def hierarchy(self):
+                        return next(trees)
 
-            def tap_node(self, node):
-                actions.append(("tap", node.get("text")))
+                    def tap_node(self, node):
+                        actions.append(("tap", node.get("text")))
 
-        open_consent(StubScreen())
-        self.assertEqual(actions, [
-            ("shell", ("input", "keyevent", "BACK")),
-            ("tap", "Envoyer"),
-            ("tap", "Envoyer"),
-        ])
+                open_consent(StubScreen())
+                self.assertEqual(actions, [
+                    ("shell", ("input", "keyevent", "BACK")),
+                    ("tap", send),
+                    ("tap", send),
+                ])
 
-    def test_lock_scrolls_compact_overflow_menu_to_verrouiller_le_profil(self):
-        thread_screen = ET.fromstring(
-            '<node text="" content-desc="" resource-id="" class="android.widget.FrameLayout" '
-            'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[0,0][320,640]">'
-            '<node text="" content-desc="Autres actions" resource-id="" class="android.widget.ImageButton" '
-            'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[260,24][316,72]"/>'
-            '</node>'
-        )
-        menu_top = ET.fromstring(
-            '<node text="" content-desc="" resource-id="" class="android.widget.ListView" '
-            'package="org.llm4people.hermes" window-id="4" scrollable="true" bounds="[80,48][316,580]">'
-            '<node text="Joindre une image…" content-desc="" resource-id="" class="android.widget.TextView" '
-            'package="org.llm4people.hermes" window-id="4" scrollable="false" bounds="[88,60][308,108]"/>'
-            '</node>'
-        )
-        menu_bottom = ET.fromstring(
-            '<node text="" content-desc="" resource-id="" class="android.widget.ListView" '
-            'package="org.llm4people.hermes" window-id="4" scrollable="true" bounds="[80,48][316,580]">'
-            '<node text="Verrouiller le profil" content-desc="" resource-id="" class="android.widget.TextView" '
-            'package="org.llm4people.hermes" window-id="4" scrollable="false" bounds="[88,500][308,548]"/>'
-            '</node>'
-        )
-        profile_chooser = ET.fromstring(
-            '<node text="" content-desc="" resource-id="" class="android.widget.FrameLayout" '
-            'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[0,0][320,640]">'
-            '<node text="Choisir un profil" content-desc="" resource-id="" class="android.widget.TextView" '
-            'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[16,40][304,96]"/>'
-            '</node>'
-        )
-        trees = iter([thread_screen, menu_top, menu_top, menu_bottom, profile_chooser])
-        actions = []
+    def test_lock_scrolls_compact_overflow_menu_to_lock_profile(self):
+        for lang in ("en", "fr"):
+            with self.subTest(lang=lang):
+                s = AppStrings.for_lang(lang)
+                profile_lock = s["top_profile_lock"]
+                lock_now = s["security_lock_now"]
+                choose_profile = s["profile_choose_title"]
+                thread_screen = ET.fromstring(
+                    '<node text="" content-desc="" resource-id="" class="android.widget.FrameLayout" '
+                    'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[0,0][320,640]">'
+                    f'<node text="" content-desc="{profile_lock}" resource-id="" class="android.widget.ImageButton" '
+                    'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[260,24][316,72]"/>'
+                    '</node>'
+                )
+                menu_top = ET.fromstring(
+                    '<node text="" content-desc="" resource-id="" class="android.widget.ListView" '
+                    'package="org.llm4people.hermes" window-id="4" scrollable="true" bounds="[80,48][316,580]">'
+                    '<node text="Attach image" content-desc="" resource-id="" class="android.widget.TextView" '
+                    'package="org.llm4people.hermes" window-id="4" scrollable="false" bounds="[88,60][308,108]"/>'
+                    '</node>'
+                )
+                menu_bottom = ET.fromstring(
+                    '<node text="" content-desc="" resource-id="" class="android.widget.ListView" '
+                    'package="org.llm4people.hermes" window-id="4" scrollable="true" bounds="[80,48][316,580]">'
+                    f'<node text="{lock_now}" content-desc="" resource-id="" class="android.widget.TextView" '
+                    'package="org.llm4people.hermes" window-id="4" scrollable="false" bounds="[88,500][308,548]"/>'
+                    '</node>'
+                )
+                profile_chooser = ET.fromstring(
+                    '<node text="" content-desc="" resource-id="" class="android.widget.FrameLayout" '
+                    'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[0,0][320,640]">'
+                    f'<node text="{choose_profile}" content-desc="" resource-id="" class="android.widget.TextView" '
+                    'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[16,40][304,96]"/>'
+                    '</node>'
+                )
+                trees = iter([thread_screen, menu_top, menu_top, menu_bottom, profile_chooser])
+                actions = []
 
-        class StubScreen(Screen):
-            def __init__(self):
-                pass
+                class StubScreen(Screen):
+                    def __init__(self):
+                        self._strings = s
 
-            def hierarchy(self):
-                return next(trees)
+                    def hierarchy(self):
+                        return next(trees)
 
-            def scroll(self, root):
-                actions.append("scroll")
+                    def scroll(self, root):
+                        actions.append("scroll")
 
-            def tap_node(self, node):
-                actions.append(("tap", node.get("text") or node.get("content-desc")))
+                    def tap_node(self, node):
+                        actions.append(("tap", node.get("text") or node.get("content-desc")))
 
-        lock(StubScreen())
-        self.assertEqual(actions, [
-            ("tap", "Autres actions"),
-            "scroll",
-            ("tap", "Verrouiller le profil"),
-        ])
+                lock(StubScreen())
+                self.assertEqual(actions, [
+                    ("tap", profile_lock),
+                    "scroll",
+                    ("tap", lock_now),
+                ])
 
     def test_matches_map_coordinate_handles_padded_decimals_and_dms_and_rejects_other_venues(self):
         self.assertTrue(matches_map_coordinate("45.506,-73.57", 45.506, -73.57))

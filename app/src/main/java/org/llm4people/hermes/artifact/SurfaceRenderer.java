@@ -6,6 +6,7 @@ import android.content.Context;
 import android.content.res.Configuration;
 import android.graphics.Typeface;
 import android.view.View;
+import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -16,6 +17,7 @@ import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.profile.Account;
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 
 final class SurfaceRenderer {
     static View decorate(Activity activity, Account account, String surface, View nativeContent, ArtifactDesk.Host host) {
@@ -24,12 +26,18 @@ final class SurfaceRenderer {
             String current = history.current();
             if (current.isEmpty()) {
                 if ("thread".equals(surface)) host.threadSlots(Collections.emptyList());
+                if ("home".equals(surface) && nativeContent != null) {
+                    return decorateHomeWithCustomTabs(activity, account, nativeContent, host);
+                }
                 return nativeContent;
             }
             WorkspaceLayout layout = WorkspaceLayout.parse(current);
             if (!surface.equals(layout.surface)) throw new IOException("Mismatched surface");
             if ("thread".equals(surface)) host.threadSlots(layout.slots());
-            return render(activity, layout, nativeContent, host, () -> controls(activity, history, host));
+            InstrumentStateStore store = account == null ? null : InstrumentStateStore.forAccount(account);
+            ThemePalette palette = resolvePalette(activity, account, layout);
+            return render(activity, layout, nativeContent, host, palette, store, "atelier",
+                    () -> controls(activity, history, host));
         } catch (IOException | IllegalStateException e) {
             Diagnostics.warning("workspace", "read_failed");
             if ("thread".equals(surface)) host.threadSlots(Collections.emptyList());
@@ -37,42 +45,93 @@ final class SurfaceRenderer {
         }
     }
 
+    private static View decorateHomeWithCustomTabs(Activity activity, Account account, View nativeContent, ArtifactDesk.Host host) {
+        if (account == null || host == null) return nativeContent;
+        ThemePalette palette = ThemePalette.active(activity, account);
+        LiveUiPatch.StateManager manager = LiveUiPatch.StateManager.forAccount(account, palette.night);
+        if (manager.tabs().isEmpty()) return nativeContent;
+        LinearLayout wrap = Ui.column(activity);
+        wrap.setBackgroundColor(palette.paper);
+        LinearLayout tabHeader = Ui.column(activity);
+        Ui.pad(tabHeader, 16, 8);
+        WorkspacePages.mountCustomTabs(tabHeader, activity, account, host, palette);
+        wrap.addView(tabHeader);
+        wrap.addView(nativeContent, new LinearLayout.LayoutParams(-1, 0, 1f));
+        return wrap;
+    }
+
+    static ThemePalette resolvePalette(Context context, Account account, WorkspaceLayout layout) {
+        boolean sysNight = ThemePalette.isNight(context);
+        ThemePalette.OverrideSpec base = account == null
+                ? ThemePalette.OverrideSpec.defaults() : ThemePalette.load(account, sysNight);
+        String theme = !"system".equals(layout.theme) ? layout.theme : base.theme;
+        String accent = layout.accent != null ? layout.accent : base.accentHex;
+        String density = !"comfortable".equals(layout.density) ? layout.density : base.density;
+        String style = !"paper".equals(layout.surfaceStyle) ? layout.surfaceStyle : base.surfaceStyle;
+        boolean validateNight = "dark".equals(theme) || (layout.accent == null && sysNight);
+        try {
+            ThemePalette.OverrideSpec merged = ThemePalette.OverrideSpec.validated(
+                    theme, accent, base.accentInkHex, base.surfaceHex, base.inkHex,
+                    density, base.fontScaleStep, style, validateNight);
+            return ThemePalette.resolve(merged, sysNight);
+        } catch (IOException fallback) {
+            return ThemePalette.resolve(base, sysNight);
+        }
+    }
+
     static View preview(Context context, WorkspaceLayout layout) {
         Context c = palette(context, layout);
+        ThemePalette colors = resolvePalette(c, null, layout);
         TextView sample = Ui.text(c, WorkspaceLayout.screenName(layout.surface) + " · Contenu de l’écran", 16);
         Ui.pad(sample, 20, 20);
-        sample.setBackgroundColor(c.getColor(R.color.accent_surface));
+        sample.setBackgroundColor(colors.accentSurface);
         LinearLayout column = Ui.column(c);
-        column.setBackgroundColor(c.getColor(R.color.paper));
-        title(column, layout);
+        column.setBackgroundColor(colors.paper);
+        title(column, layout, colors);
         for (WorkspaceLayout.Block block : layout.blocks) {
             if (block.nativeContent) {
                 if (!block.slots.isEmpty()) sample.setText(slotSummary(block));
                 column.addView(sample);
-            } else WorkspaceBlocks.add(column, layout, block, null, null);
+            } else WorkspaceBlocks.add(column, layout, block, colors, null, "", null, null);
         }
         return column;
     }
 
     static View render(Activity activity, WorkspaceLayout layout, View nativeContent,
                        ArtifactDesk.Host host, Runnable manage) {
+        return render(activity, layout, nativeContent, host, resolvePalette(activity, null, layout), null, "atelier", manage);
+    }
+
+    static View render(Activity activity, WorkspaceLayout layout, View nativeContent,
+                       ArtifactDesk.Host host, ThemePalette colors, InstrumentStateStore store,
+                       String stateScope, Runnable manage) {
         Context c = palette(activity, layout);
         if ("replace".equals(layout.mode)) {
             ScrollView page = new ScrollView(c);
-            page.setBackgroundColor(c.getColor(R.color.paper));
+            page.setBackgroundColor(colors.paper);
             page.setFillViewport(true);
-            page.addView(pageContent(c, activity, layout, host, true));
+            LinearLayout content = pageContent(c, activity, layout, host, colors, store, stateScope, true);
+            if (WorkspaceLayout.custom(layout.surface) && activity != null) {
+                Button pinHome = Ui.button(c, "Épingler sur l’écran d’accueil",
+                        v -> HomePinBridge.offerPinSurface(activity, layout.surface, layout.title));
+                pinHome.setTextColor(colors.accent);
+                Ui.pad(pinHome, 16, 8);
+                content.addView(pinHome);
+            }
+            page.addView(content);
             return page;
         }
         // Preserve chat/editor space and let each collection of controls scroll independently.
         SurfaceFrame frame = new SurfaceFrame(c);
         LinearLayout before = Ui.column(c), after = Ui.column(c);
-        title(before, layout);
-        before.addView(Ui.button(c, "Modifier la disposition", v -> manage.run()));
+        title(before, layout, colors);
+        Button editBtn = Ui.button(c, "Modifier la disposition", v -> manage.run());
+        editBtn.setTextColor(colors.accent);
+        before.addView(editBtn);
         LinearLayout zone = before;
         for (WorkspaceLayout.Block block : layout.blocks) {
             if (block.nativeContent) zone = after;
-            else WorkspaceBlocks.add(zone, layout, block, activity, host);
+            else WorkspaceBlocks.add(zone, layout, block, colors, store, stateScope, activity, host);
         }
         frame.addRegion(before);
         frame.addView(nativeContent, new LinearLayout.LayoutParams(-1, 0, 1));
@@ -82,11 +141,19 @@ final class SurfaceRenderer {
 
     static LinearLayout pageContent(Context c, Activity activity, WorkspaceLayout layout,
                                     ArtifactDesk.Host host, boolean showTitle) {
+        return pageContent(c, activity, layout, host, resolvePalette(c, null, layout), null, "thread", showTitle);
+    }
+
+    static LinearLayout pageContent(Context c, Activity activity, WorkspaceLayout layout,
+                                    ArtifactDesk.Host host, ThemePalette colors,
+                                    InstrumentStateStore store, String stateScope, boolean showTitle) {
         LinearLayout body = Ui.column(c);
-        body.setBackgroundColor(c.getColor(R.color.paper));
+        body.setBackgroundColor(colors.paper);
         body.setSaveFromParentEnabled(false);
-        if (showTitle) title(body, layout);
-        for (WorkspaceLayout.Block block : layout.blocks) WorkspaceBlocks.add(body, layout, block, activity, host);
+        if (showTitle) title(body, layout, colors);
+        for (WorkspaceLayout.Block block : layout.blocks) {
+            WorkspaceBlocks.add(body, layout, block, colors, store, stateScope, activity, host);
+        }
         return body;
     }
 
@@ -100,16 +167,19 @@ final class SurfaceRenderer {
                         : android.R.style.Theme_Material_Light_NoActionBar);
     }
 
-    private static void title(LinearLayout zone, WorkspaceLayout layout) {
+    private static void title(LinearLayout zone, WorkspaceLayout layout, ThemePalette colors) {
         Context c = zone.getContext();
-        TextView title = Ui.text(c, layout.title, 22);
+        TextView title = Ui.text(c, layout.title, colors.scaledSp(22));
         title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        title.setTextColor(colors.ink);
         title.setAccessibilityHeading(true);
         Ui.pad(title, 16, gap(layout));
         zone.addView(title);
     }
 
-    private static int gap(WorkspaceLayout layout) { return "compact".equals(layout.density) ? 4 : 12; }
+    private static int gap(WorkspaceLayout layout) {
+        return "compact".equals(layout.density) ? 4 : "spacious".equals(layout.density) ? 18 : 12;
+    }
 
     private static String slotSummary(WorkspaceLayout.Block block) {
         java.util.List<String> labels = new java.util.ArrayList<>();
@@ -127,17 +197,19 @@ final class SurfaceRenderer {
             boolean removed = page && history.current().isEmpty();
             AlertDialog.Builder builder = new AlertDialog.Builder(activity)
                     .setTitle(WorkspaceLayout.screenName(history.surface)).setNegativeButton("Fermer", null);
+            List<LayoutHistory.Revision> revs = history.revisions();
+            String revNote = revs.isEmpty() ? "" : "\n\n" + revs.size() + " révision" + (revs.size() > 1 ? "s" : "") + " enregistrée" + (revs.size() > 1 ? "s" : "") + ".";
             if (removed) {
-                builder.setMessage("Cet écran a été supprimé. Vous pouvez annuler sa suppression ou effacer sa révision.")
-                        .setPositiveButton("Effacer la révision…", (d,w) -> DeskDialogs.open(activity,
+                builder.setMessage("Cet écran a été supprimé. Vous pouvez annuler sa suppression ou effacer sa révision." + revNote)
+                        .setPositiveButton("Effacer la révision…", (d, w) -> DeskDialogs.open(activity,
                                 new AlertDialog.Builder(activity).setTitle("Effacer définitivement la révision ?")
-                                .setNegativeButton("Annuler",null).setPositiveButton("Effacer",(dialog,n) ->
-                                        change(activity,host,history::forgetRemoved))));
+                                        .setNegativeButton("Annuler", null).setPositiveButton("Effacer", (dialog, n) ->
+                                                change(activity, host, history::forgetRemoved))));
             } else {
-                builder.setMessage(page ? "Supprimer cet écran de votre atelier ? Vous pourrez annuler cette opération."
-                        : "Vous pouvez rétablir la disposition d’origine.")
-                        .setPositiveButton(page ? "Supprimer" : "Rétablir", (d,w) ->
-                                change(activity,host,() -> history.replace("")));
+                builder.setMessage((page ? "Supprimer cet écran de votre atelier ? Vous pourrez annuler cette opération."
+                                : "Vous pouvez rétablir la disposition d’origine.") + revNote)
+                        .setPositiveButton(page ? "Supprimer" : "Rétablir", (d, w) ->
+                                change(activity, host, () -> history.replace("")));
             }
             if (history.canUndo()) builder.setNeutralButton("Annuler la modification",
                     (d, w) -> change(activity, host, history::undo));
@@ -162,7 +234,7 @@ final class SurfaceRenderer {
         catch (PageLayouts.Full full) {
             DeskDialogs.open(activity, new AlertDialog.Builder(activity).setTitle("Bibliothèque pleine")
                     .setMessage("Libérez une place depuis les dispositions des écrans en effaçant une révision supprimée.")
-                    .setPositiveButton("Fermer",null));
+                    .setPositiveButton("Fermer", null));
             return;
         }
         catch (PageLayouts.Damaged damaged) {
@@ -201,7 +273,7 @@ final class SurfaceRenderer {
                 available = getResources().getDisplayMetrics().heightPixels;
             for (int i = 0; i < getChildCount(); i++) {
                 View v = getChildAt(i);
-                if (!(v instanceof ScrollView) || ((LayoutParams)v.getLayoutParams()).weight != 0) continue;
+                if (!(v instanceof ScrollView) || ((LayoutParams) v.getLayoutParams()).weight != 0) continue;
                 v.measure(getChildMeasureSpec(w, 0, -1), MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));
                 v.getLayoutParams().height = Math.min(available / 3, v.getMeasuredHeight());
             }

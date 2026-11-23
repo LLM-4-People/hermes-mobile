@@ -14,6 +14,7 @@ import android.widget.TextView;
 import org.json.JSONObject;
 import org.json.JSONArray;
 import org.llm4people.hermes.MainActivity;
+import org.llm4people.hermes.R;
 import org.llm4people.hermes.net.Exchange;
 import org.llm4people.hermes.profile.Account;
 import org.llm4people.hermes.profile.WorkspaceAccountFixture;
@@ -27,7 +28,6 @@ import java.util.concurrent.atomic.AtomicReference;
 /** Exercise the protected shell and both native-content layout modes with a disposable account. */
 @SuppressWarnings("deprecation")
 public class HiddenPromptTest extends InstrumentationTestCase {
-    private static final String LABEL = "Répondre à Hermes";
     private static final String ARRANGED = "{\"version\":1,\"surface\":\"thread\",\"title\":\"Fil\","
             + "\"blocks\":[{\"type\":\"content\",\"slots\":[\"notice\",\"composer\"]}]}";
     private static final String REPLACED = "{\"version\":1,\"surface\":\"thread\",\"mode\":\"replace\",\"title\":\"Fil\","
@@ -72,7 +72,7 @@ public class HiddenPromptTest extends InstrumentationTestCase {
                 decisions.observe(RunAction.capture(page.journal, page::token));
                 return decisions;
             });
-            Button reveal = main(() -> button(activity.getWindow().getDecorView()));
+            Button reveal = main(() -> button(activity, activity.getWindow().getDecorView()));
             JSONObject anchor = history.getJSONObject(6);
             String label = anchor.getString("content");
             int position = main(() -> {
@@ -164,7 +164,7 @@ public class HiddenPromptTest extends InstrumentationTestCase {
         actions.observe(RunAction.capture(page.journal, page::token));
         JSONObject prompt = new JSONObject().put("prompt_id", "q").put("kind", "clarify")
                 .put("execution_generation", 1).put("question", "Quel jour ?");
-        Button reveal = button(activity.getWindow().getDecorView());
+        Button reveal = button(activity, activity.getWindow().getDecorView());
         assertNotNull(reveal);
         for (String layout : new String[]{ARRANGED, REPLACED}) {
             String record = new JSONObject().put("current", layout).toString();
@@ -202,11 +202,12 @@ public class HiddenPromptTest extends InstrumentationTestCase {
         obsolete.run();
     }
 
-    private static Button button(View view) {
-        if (view instanceof Button item && LABEL.contentEquals(item.getText())) return item;
+    private static Button button(Context context, View view) {
+        String label = context.getString(R.string.ws_reply_hermes);
+        if (view instanceof Button item && label.contentEquals(item.getText())) return item;
         if (view instanceof ViewGroup children) {
             for (int i = 0; i < children.getChildCount(); ++i) {
-                Button found = button(children.getChildAt(i));
+                Button found = button(context, children.getChildAt(i));
                 if (found != null) return found;
             }
         }

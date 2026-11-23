@@ -3,6 +3,7 @@ package org.llm4people.hermes.net;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.json.JSONTokener;
+import org.llm4people.hermes.Diagnostics;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -29,6 +30,7 @@ final class Wire {
             if (result instanceof JSONObject && parser.nextClean() == 0) return (JSONObject) result;
         } catch (JSONException ignored) {
             // Android JSON exceptions may contain portions of the input body.
+            Diagnostics.warning("network", "json_malformed");
         }
         throw new IOException("Malformed JSON response");
     }

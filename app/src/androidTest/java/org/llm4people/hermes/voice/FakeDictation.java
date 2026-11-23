@@ -14,9 +14,14 @@ public final class FakeDictation implements VoiceInput {
     int closes;
     Source opened;
     Listener listener;
+    VoiceLocale selectedLocale = VoiceLocale.FRENCH;
 
     public VoiceDrafts controller(Activity activity) { return new VoiceDrafts(activity, this); }
     public void result(String text) { listener.result(text); }
+    public void partial(String text) { listener.partial(text); }
+    public void rms(float rmsdB) { listener.rms(rmsdB); }
+    @Override public void setLocale(VoiceLocale locale) { selectedLocale = locale; }
+    @Override public VoiceLocale locale() { return selectedLocale; }
 
     static final class FakeModel implements VoiceModel {
         State availability = State.OFFERED;

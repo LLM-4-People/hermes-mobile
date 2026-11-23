@@ -22,6 +22,7 @@ import java.util.function.IntConsumer;
 final class PlaceCompass extends View {
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final List<NearbyResult.Place> places;
+    private final NearbyCategory category;
     private static final String[] DIRECTIONS = {"au nord", "au nord-est", "à l’est", "au sud-est",
             "au sud", "au sud-ouest", "à l’ouest", "au nord-ouest"};
     private final double[] bearings;
@@ -42,6 +43,7 @@ final class PlaceCompass extends View {
     PlaceCompass(Context c, NearbyResult result, double lat, double lon, int selected, IntConsumer choose) {
         super(c);
         this.places = result.places;
+        this.category = result.category == null ? NearbyCategory.RESTAURANT : result.category;
         this.choose = choose;
         dp = c.getResources().getDisplayMetrics().density;
         ground = c.getColor(R.color.places_chart);
@@ -80,7 +82,7 @@ final class PlaceCompass extends View {
         selected = visible.contains(primary) ? primary : visible.isEmpty() ? -1 : visible.get(0);
         comparison = second != selected && visible.contains(second) ? second : -1;
         setClickable(visible.size() > 1);
-        String description = "Repères des restaurants, nord en haut.";
+        String description = category.compassDescription;
         if (selected >= 0) description += " " + describe(selected) + ".";
         if (comparison >= 0) description += " En comparaison, " + describe(comparison) + ".";
         setContentDescription(description);
@@ -326,9 +328,9 @@ final class PlaceCompass extends View {
                 1, visible.size(), rank + 1));
         info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SET_PROGRESS);
         if (rank + 1 < visible.size()) info.addAction(new AccessibilityNodeInfo.AccessibilityAction(
-                AccessibilityNodeInfo.ACTION_SCROLL_FORWARD, "Restaurant suivant"));
+                AccessibilityNodeInfo.ACTION_SCROLL_FORWARD, category.nextItemLabel));
         if (rank > 0) info.addAction(new AccessibilityNodeInfo.AccessibilityAction(
-                AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD, "Restaurant précédent"));
+                AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD, category.previousItemLabel));
     }
     @Override public boolean performAccessibilityAction(int action, Bundle args) {
         if (action == AccessibilityNodeInfo.AccessibilityAction.ACTION_SET_PROGRESS.getId()) {

@@ -81,7 +81,7 @@ public class ThreadSlotsTest extends InstrumentationTestCase {
                 assertEquals(view.draft(), drafts.get(drafts.size() - 1));
                 assertEquals(0, sends.get());
                 editor(view.root).append(" !");
-                find(view.root, "Envoyer").performClick();
+                find(view.root, activity.getString(R.string.thread_send)).performClick();
                 assertEquals(1, sends.get());
                 assertEquals("Bonjour Hermes !", view.draft());
             });
@@ -107,7 +107,7 @@ public class ThreadSlotsTest extends InstrumentationTestCase {
                 input.missingFrenchModel();
                 TextView options = (TextView) find(thread.root, activity.getString(R.string.voice_model_options));
                 EditText field = editor(thread.root);
-                View send = find(thread.root, "Envoyer");
+                View send = find(thread.root, activity.getString(R.string.thread_send));
                 for (TextView text : new TextView[]{options, field, (TextView) send})
                     text.setTextSize(TypedValue.COMPLEX_UNIT_PX, text.getTextSize() * 1.5f);
             });
@@ -117,7 +117,7 @@ public class ThreadSlotsTest extends InstrumentationTestCase {
                 int width = Ui.dp(activity, 320), height = Ui.dp(activity, 140);
                 TextView options = (TextView) find(thread.root, activity.getString(R.string.voice_model_options));
                 EditText field = editor(thread.root);
-                View send = find(thread.root, "Envoyer");
+                View send = find(thread.root, activity.getString(R.string.thread_send));
                 thread.root.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
                         View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY));
                 thread.root.layout(0, 0, width, height);
@@ -154,7 +154,7 @@ public class ThreadSlotsTest extends InstrumentationTestCase {
                 starters.show(false);
                 assertFalse(thread.list.isStackFromBottom());
 
-                TextView send = (TextView) find(thread.root, "Envoyer");
+                TextView send = (TextView) find(thread.root, activity.getString(R.string.thread_send));
                 assertFalse(send.isEnabled());
                 int disabledInk = send.getCurrentTextColor();
                 thread.displayDraft("Une question");
@@ -162,7 +162,7 @@ public class ThreadSlotsTest extends InstrumentationTestCase {
                 assertTrue(disabledInk != send.getCurrentTextColor());
                 thread.busy(true, true);
                 assertEquals(View.GONE, send.getVisibility());
-                assertTrue(find(thread.root, "Arrêter").isShown());
+                assertTrue(find(thread.root, activity.getString(R.string.thread_stop)).isShown());
                 thread.busy(false, false);
                 assertTrue(send.isShown());
                 assertEquals("Une question", thread.draft());
@@ -194,7 +194,7 @@ public class ThreadSlotsTest extends InstrumentationTestCase {
                     ThreadRun run = new ThreadRun(page);
                     view.chat("", page.journal::draft, run::send, () -> {}, () -> {});
                     activity.setContentView(view.root);
-                    View send = find(view.root, "Envoyer");
+                    View send = find(view.root, activity.getString(R.string.thread_send));
                     for (String blank : new String[]{"", " ", "\u00a0", "\u202f", "\u200b\ufe0f"}) {
                         view.displayDraft(blank);
                         assertFalse(send.isEnabled());

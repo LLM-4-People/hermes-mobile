@@ -1,0 +1,33 @@
+<resources>
+    <string name="voice_dictate">Dictate</string>
+    <string name="voice_finish">Finish dictation</string>
+    <string name="voice_cancel">Cancel dictation</string>
+    <string name="voice_cancel_short">Cancel</string>
+    <string name="voice_system_notice">Android’s voice service may send your voice to its provider for transcription.</string>
+    <string name="voice_use_system">Dictate with Android</string>
+    <string name="voice_permission_wait">Allow microphone access to dictate.</string>
+    <string name="voice_permission_denied">Microphone access denied. You can type or allow the microphone in app settings.</string>
+    <string name="voice_starting">Opening microphone…</string>
+    <string name="voice_listening">Speak now.</string>
+    <string name="voice_processing">Transcribing…</string>
+    <string name="voice_added">Dictation added. Review your text.</string>
+    <string name="voice_empty">No speech recognized. Try again or type your message.</string>
+    <string name="voice_unavailable">Dictation is unavailable on this phone. You can type your message.</string>
+    <string name="voice_language">English dictation is unavailable. Check Android speech languages or type your message.</string>
+    <string name="voice_local_language">On-device English dictation is unavailable. You can type or use Android’s voice service.</string>
+    <string name="voice_network">Voice service is offline. Try again or type your message.</string>
+    <string name="voice_failed">Dictation was interrupted. Try again or type your message.</string>
+    <string name="voice_other_service">Use Android service</string>
+    <string name="voice_model_checking">Checking English on this device…</string>
+    <string name="voice_model_options">Offline dictation…</string>
+    <string name="voice_model_progress">Downloading…</string>
+    <string name="voice_model_follow">Track request…</string>
+    <string name="voice_model_retry">Download interrupted…</string>
+    <string name="voice_model_offer">Android can download English for offline dictation.</string>
+    <string name="voice_model_download">Download English…</string>
+    <string name="voice_model_check">Check availability</string>
+    <string name="voice_model_pending">Android is downloading English for offline dictation.</string>
+    <string name="voice_model_requested">Request sent to Android. You can keep typing.</string>
+    <string name="voice_model_ready">English is ready. Tap the microphone to dictate.</string>
+    <string name="voice_model_failed">Android could not download English. You can keep typing.</string>
+</resources>

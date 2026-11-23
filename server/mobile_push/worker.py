@@ -1,4 +1,3 @@
-import logging
 import random
 import sqlite3
 import time
@@ -6,8 +5,12 @@ from .events import PROMPT_KINDS, WITHDRAWAL_KINDS
 from .ledgers import HermesLedgers
 from .provider import ProviderError, lifetime
 
+try:
+    from server.logging_util import get_logger
+except ImportError:
+    from logging_util import get_logger
 
-log = logging.getLogger("hermes.mobile.push")
+log = get_logger("push")
 
 
 def scan_loop(settings, store, stopped, changed):
@@ -41,10 +44,13 @@ def deliver(item, settings, store, sender):
             store.settle(item, retry_at=time.time() + settings.poll_seconds)
             return
         if not pending:
+            log.info("push_retracted kind=%s", item["kind"])
             store.settle(item)
             return
     if not store.begin_send(item):
+        log.debug("push_lease_skipped kind=%s", item["kind"])
         return
+    provider = item["provider"] if item["provider"] in ("fcm", "unifiedpush") else "unknown"
     try:
         active = sender.send(item)
     except Exception as exc:
@@ -55,7 +61,6 @@ def deliver(item, settings, store, sender):
         if item["kind"] in WITHDRAWAL_KINDS:
             # Leave time to retry a withdrawal even on a short-retention deployment.
             backoff = min(backoff, max(1, lifetime(item, settings.retention, now) / 2))
-        provider = item["provider"] if item["provider"] in ("fcm", "unifiedpush") else "unknown"
         reason, status = type(exc).__name__, "local"
         if isinstance(exc, ProviderError):
             backoff = max(min(exc.retry_after, settings.retention), backoff)
@@ -66,6 +71,7 @@ def deliver(item, settings, store, sender):
                     provider, reason, status, item["attempts"] + 1, backoff)
         store.settle(item, retry_at=now + backoff)
     else:
+        log.info("push_delivered provider=%s kind=%s active=%s", provider, item["kind"], active)
         store.settle(item, unregistered=not active)
 
 

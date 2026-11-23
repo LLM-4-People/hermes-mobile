@@ -34,10 +34,10 @@ public final class WorkspaceOverflowTest extends InstrumentationTestCase {
                 assertSame(original, currentMenu(shell));
                 shell.selected("B", "Même titre");
                 assertNull(currentMenu(shell));
-                assertFalse(selectModels(original));
+                assertFalse(selectModels(context, original));
                 assertTrue(actions.isEmpty());
                 Menu replacement = open(shell);
-                assertTrue(selectModels(replacement));
+                assertTrue(selectModels(context, replacement));
                 assertEquals(java.util.Collections.singletonList("models"), actions);
                 shell.dismissMenu();
             });
@@ -48,7 +48,8 @@ public final class WorkspaceOverflowTest extends InstrumentationTestCase {
 
     private static Menu open(WorkspaceShell shell) {
         ArrayList<View> controls = new ArrayList<>();
-        shell.root.findViewsWithText(controls, "Autres actions", View.FIND_VIEWS_WITH_CONTENT_DESCRIPTION);
+        shell.root.findViewsWithText(controls, shell.root.getContext().getString(R.string.ws_more_actions),
+                View.FIND_VIEWS_WITH_CONTENT_DESCRIPTION);
         assertEquals(1, controls.size());
         assertTrue(controls.get(0).performClick());
         Menu menu = currentMenu(shell);
@@ -67,11 +68,13 @@ public final class WorkspaceOverflowTest extends InstrumentationTestCase {
         }
     }
 
-    private static boolean selectModels(Menu menu) {
+    private static boolean selectModels(Context context, Menu menu) {
+        String label = context.getString(R.string.ws_model_and_tools);
         menu.setQwertyMode(true);
         for (int i = 0; i < menu.size(); i++) {
             MenuItem item = menu.getItem(i);
-            if ("Modèle et outils".contentEquals(item.getTitle())) {
+            CharSequence title = item.getTitle();
+            if (label.contentEquals(title)) {
                 item.setAlphabeticShortcut('m', 0);
                 return menu.performShortcut(KeyEvent.KEYCODE_M,
                         new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_M), 0);

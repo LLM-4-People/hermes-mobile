@@ -50,20 +50,20 @@ public final class SkillBrowserJourneyTest extends InstrumentationTestCase {
                     catch (ReflectiveOperationException error) { throw new AssertionError(error); }
                 });
                 JourneyUi ui = new JourneyUi(getInstrumentation(), activity, app.getCacheDir());
-                ui.see("Quelques idées pour commencer");
-                ui.fill("Message à Hermes", "Mon brouillon");
+                ui.see(activity.getString(R.string.starter_heading));
+                ui.fill(activity.getString(R.string.thread_message_hint), "Mon brouillon");
                 runTestOnUiThread(() -> activity.onAction("models"));
-                ui.tap("Compétences de Hermes");
-                ui.see("La passerelle ne liste aucune compétence pour ce profil.");
-                ui.tap("Actualiser les compétences");
+                ui.tap(activity.getString(R.string.skills_title));
+                ui.see(activity.getString(R.string.skills_empty));
+                ui.tap(activity.getString(R.string.skills_refresh));
                 ui.see("travail/revue");
-                ui.fill("Rechercher une compétence", "absente");
-                ui.see("Aucune compétence ne correspond à cette recherche.");
-                ui.fill("Rechercher une compétence", "qualite");
+                ui.fill(activity.getString(R.string.skills_search), "absente");
+                ui.see(activity.getString(R.string.skills_no_matches));
+                ui.fill(activity.getString(R.string.skills_search), "qualite");
                 ui.tap("travail/revue");
-                ui.contains("Catégorie · Qualité", "Vérifier les changements.");
-                ui.tap("Préparer le brouillon");
-                ui.see("Mon brouillon\nUtilise la compétence « travail/revue » pour cette demande.");
+                ui.contains(activity.getString(R.string.skills_category, "Qualité"), "Vérifier les changements.");
+                ui.tap(activity.getString(R.string.skills_prepare));
+                ui.see("Mon brouillon\n" + activity.getString(R.string.skills_request, "travail/revue"));
                 assertEquals(policy, profile.account.read("panel/options/discussion"));
                 assertEquals(2, gateway.observed().split("GET /p/travail/v1/skills HTTP/", -1).length - 1);
                 assertFalse(gateway.observed().contains("POST "));
@@ -84,11 +84,11 @@ public final class SkillBrowserJourneyTest extends InstrumentationTestCase {
                     SessionPanel panel = new SessionPanel(activity, new HermesApi(gateway.endpoint(), "test"), profile.account);
                     try {
                         runTestOnUiThread(() -> PickerWindow.open(panel, landscape, draft -> fail("Unexpected draft")));
-                        ui.tap("Compétences de Hermes");
-                        ui.fill("Rechercher une compétence", "qualite");
+                        ui.tap(activity.getString(R.string.skills_title));
+                        ui.fill(activity.getString(R.string.skills_search), "qualite");
                         ui.see("travail/revue");
                         runTestOnUiThread(() -> checkSearchWindow(landscape));
-                        ui.see("Préparer le brouillon");
+                        ui.see(activity.getString(R.string.skills_prepare));
                     } finally { runTestOnUiThread(panel::close); }
                 }
             }
@@ -128,16 +128,16 @@ public final class SkillBrowserJourneyTest extends InstrumentationTestCase {
             SessionPanel second = new SessionPanel(activity, new HermesApi(missing.endpoint(), "test"), profile.account);
             try {
                 runTestOnUiThread(() -> first.show("one", "one", active::get, staged::set));
-                ui.tap("Compétences de Hermes");
+                ui.tap(activity.getString(R.string.skills_title));
                 ui.tap("travail/revue");
-                ui.see("Préparer le brouillon");
+                ui.see(activity.getString(R.string.skills_prepare));
                 active.set(false);
-                ui.tap("Préparer le brouillon");
+                ui.tap(activity.getString(R.string.skills_prepare));
                 assertNull(staged.get());
                 runTestOnUiThread(() -> second.show("two", "two", () -> true, staged::set));
-                ui.tap("Compétences de Hermes");
-                ui.see("Cette passerelle ne propose pas la liste des compétences.");
-                ui.see("Actualiser les compétences");
+                ui.tap(activity.getString(R.string.skills_title));
+                ui.see(activity.getString(R.string.skills_missing));
+                ui.see(activity.getString(R.string.skills_refresh));
                 assertNull(staged.get());
             } finally { runTestOnUiThread(() -> { first.close(); second.close(); activity.finish(); }); }
         }

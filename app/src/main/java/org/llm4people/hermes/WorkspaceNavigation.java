@@ -5,6 +5,7 @@ import java.util.ArrayDeque;
 /** The unlocked account's live navigation stack. Returning to a route unwinds to its first entry. */
 final class WorkspaceNavigation {
     static final String DISCUSSION = "discussion", HOME = "home", GALLERY = "pages", COMPOSER = "composer";
+    static final String BRAIN = "brain", ACTIVITY = "activity";
     private final ArrayDeque<String> routes = new ArrayDeque<>();
 
     private String displayed;
@@ -13,6 +14,30 @@ final class WorkspaceNavigation {
 
     String current() { return routes.getLast(); }
     boolean contains(String route) { return routes.contains(route); }
+
+    /** Maps any active route to one of the four primary shell destinations. */
+    static String topDestination(String route) {
+        if (route == null || DISCUSSION.equals(route) || COMPOSER.equals(route)) return DISCUSSION;
+        if (BRAIN.equals(route)) return BRAIN;
+        if (ACTIVITY.equals(route)
+                || org.llm4people.hermes.ambient.AmbientAccessPanel.ROUTE_ID.equals(route)
+                || org.llm4people.hermes.update.UpdatePanel.ROUTE_ID.equals(route)) {
+            return ACTIVITY;
+        }
+        return HOME;
+    }
+
+    /** Switches cleanly between primary destinations while keeping Discussions as the Back root. */
+    void selectTab(String destination) {
+        if (destination == null || DISCUSSION.equals(destination)) {
+            open(DISCUSSION);
+            return;
+        }
+        if (destination.equals(current())) return;
+        routes.clear();
+        routes.addLast(DISCUSSION);
+        routes.addLast(destination);
+    }
 
     /** Report a change before the renderer detaches the outgoing surface, including on system Back. */
     boolean display(String surface, Runnable beforeDeparture) {

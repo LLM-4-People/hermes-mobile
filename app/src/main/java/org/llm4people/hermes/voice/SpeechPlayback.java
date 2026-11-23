@@ -16,6 +16,7 @@ final class SpeechPlayback {
     private final Supplier<Driver> factory;
     private final Consumer<Failure> finished;
     private Driver active;
+    private Consumer<Failure> activeCallback;
 
     SpeechPlayback(Supplier<Driver> factory, Consumer<Failure> finished) {
         this.factory = factory;
@@ -25,12 +26,20 @@ final class SpeechPlayback {
     boolean active() { return active != null; }
 
     void play(String text) {
+        play(text, null);
+    }
+
+    void play(String text, Consumer<Failure> perCallDone) {
         stop();
         List<String> chunks = SpokenText.chunks(text);
-        if (chunks.isEmpty()) { finished.accept(Failure.EMPTY); return; }
+        if (chunks.isEmpty()) {
+            notifyDone(perCallDone, Failure.EMPTY);
+            return;
+        }
         try {
             Driver owner = factory.get();
             active = owner;
+            activeCallback = perCallDone;
             owner.prepare(ready -> {
                 if (owner != active) return;
                 if (ready) next(owner, chunks, 0);
@@ -60,11 +69,18 @@ final class SpeechPlayback {
 
     private void finish(Failure failure) {
         Driver owner = active;
+        Consumer<Failure> callback = activeCallback;
         active = null;
+        activeCallback = null;
         try {
             if (owner != null) owner.close();
         } finally {
-            finished.accept(failure);
+            notifyDone(callback, failure);
         }
+    }
+
+    private void notifyDone(Consumer<Failure> callback, Failure failure) {
+        if (callback != null) callback.accept(failure);
+        else finished.accept(failure);
     }
 }

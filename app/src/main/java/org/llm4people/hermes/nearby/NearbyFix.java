@@ -17,6 +17,8 @@ import android.os.SystemClock;
 import android.view.View;
 
 import org.json.JSONObject;
+import org.llm4people.hermes.Diagnostics;
+import org.llm4people.hermes.HermesConfig;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -36,8 +38,10 @@ public final class NearbyFix {
     public static Runnable request(Activity activity, Callback callback) {
         if (Looper.myLooper() != Looper.getMainLooper()) throw new IllegalStateException("UI thread required");
         Objects.requireNonNull(callback);
+        HermesConfig config = HermesConfig.load(activity);
         Platform source = new Platform(activity);
-        NearbyRequest request = new NearbyRequest(source, area -> callback.done(area == null ? null : area.json()));
+        NearbyRequest request = new NearbyRequest(source, area -> callback.done(area == null ? null : area.json()),
+                config.nearbyTimeoutMs, config.nearbyFusedGraceMs);
         source.onLeave = request::cancel;
         activity.getApplication().registerActivityLifecycleCallbacks(source);
         source.after(0, () -> request.start(Build.VERSION.SDK_INT >= 31));
@@ -67,6 +71,7 @@ public final class NearbyFix {
             try {
                 return manager.isLocationEnabled();
             } catch (RuntimeException serviceUnavailable) {
+                Diagnostics.warning("nearby", "location_status_unavailable", serviceUnavailable);
                 return false;
             }
         }
@@ -102,6 +107,7 @@ public final class NearbyFix {
                 }
             } catch (RuntimeException serviceUnavailable) {
                 // Providers and permissions can disappear between the check and the binder call.
+                Diagnostics.warning("nearby", "location_provider_unavailable", serviceUnavailable);
             }
             received.accept(cached);
         }
@@ -115,7 +121,9 @@ public final class NearbyFix {
             activity.getApplication().unregisterActivityLifecycleCallbacks(this);
             for (Runnable stop : subscriptions) {
                 try { stop.run(); }
-                catch (RuntimeException serviceUnavailable) { /* The provider may already be gone. */ }
+                catch (RuntimeException serviceUnavailable) {
+                    Diagnostics.debug("nearby", "location_close_failed", serviceUnavailable);
+                }
             }
             subscriptions.clear();
         }

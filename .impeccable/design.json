@@ -382,7 +382,7 @@
   ],
   "narrative": {
     "northStar": "A paper workspace for conversation",
-    "overview": "The conversation reads down one margin. A small speaker name introduces each turn, and a pending question stands out against the paper as a bordered surface. The person can answer where the question appears and still see the message composer below.\n\nThe same paper, ink and teal carry through to the atelier. A person can ask Hermes for a review form, try it in the conversation that produced it and pin it there for later. Its fields prepare an editable message. Technical views make their units, scope and available actions legible in French.",
+    "overview": "The conversation reads down one margin. A small speaker name introduces each turn, and a pending question stands out against the paper as a bordered surface. The person can answer where the question appears and still see the message composer below.\n\nThe same paper, ink and teal carry through to the atelier. A person can ask Hermes for a review form, try it in the conversation that produced it and pin it there for later. Its fields prepare an editable message. Technical views make their units, scope and available actions legible in the user's language (English or French).",
     "keyCharacteristics": [
       "One reading column for speakers, messages and decisions.",
       "A quiet teal action color shared by text buttons, choices and the microphone.",
@@ -397,13 +397,13 @@
       },
       {
         "name": "The Measurement Label Rule",
-        "body": "Place the French measure name directly above the value. Give the value one accessible description containing both the name and value.",
+        "body": "Place the localized measure name directly above the value. Give the value one accessible description containing both the name and value.",
         "section": "components"
       }
     ],
     "dos": [
       "Keep a pending decision in its own conversation, with its choices and answer field together.",
-      "Preserve French action labels when text wraps or the input method is visible.",
+      "Preserve localized action labels when text wraps or the input method is visible.",
       "Keep code and tool output selectable for inspection."
     ],
     "donts": [

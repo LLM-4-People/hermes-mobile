@@ -1,0 +1,58 @@
+# Contributing to {{ project }}
+
+Thank you for contributing to {{ project }}. Every change should keep the app native, private by default, deterministic to verify, and effortless to use in both English and French.
+
+## Prerequisites
+
+- **JDK 21**
+- **Android SDK** with `compileSdk` and `buildToolsVersion` matching `gradle.properties` (currently API 36 / Build Tools 36.0.0)
+- **Python 3.11+** (`uv` recommended for fast isolated server test environments)
+- Optional for workflow linting: **Go** (for `actionlint`) and **shellcheck**
+- Companion server checkout from **[{{ fork_repository }}]({{ fork_url }})** at the revision pinned in `verification/gateway_fixture.py` when running live gateway journeys
+
+## Architecture & Coding Standards
+
+- **Native Android only:** Use Android Views and the Android SDK in Java 17. Do not introduce `WebView`, JavaScript runtimes, or unnecessary third-party Android dependencies (all dependencies live in `gradle/libs.versions.toml`).
+- **Single Source of Truth (SSoT):**
+  - Runtime timeouts, byte bounds, and ring buffer sizes belong in `app/src/main/res/values/config.xml` and `HermesConfig`.
+  - Feature destinations register through `RouteRegistry` / `ShellRoutes` / `ActionRegistry` instead of monolithic switch tables.
+  - Visual design tokens and Day/Night color ramps follow the Impeccable Design System Single Source of Truth in `.impeccable/design.json` and `DESIGN.md` (*"A paper workspace for conversation"*).
+  - Documentation is generated from `docs/sources/*.md.in` + `docs/sources/facts.json` via `scripts/docs.py`.
+- **Centralized, privacy-safe logging:**
+  - On Android, log exclusively through `Diagnostics` (`android.util.Log` is forbidden outside `Diagnostics.java`). Never log credentials, URLs, coordinates, or user content.
+  - On Python server modules, log exclusively through `server/logging_util.py` (`get_logger`, `safe_reason`).
+- **Bilingual FR / EN parity & everyday copy:**
+  - Every user-visible string belongs in `app/src/main/res/values/` (French default) **and** `app/src/main/res/values-en/` (English) with exact 1:1 key and format-specifier parity. Avoid hardcoded string literals in Java UI code and keep everyday copy free of internal jargon.
+- **Fail-closed security & profile isolation:**
+  - Every new feature, permission, or ambient integration must be opt-in and scoped to its owning profile ID. Deleting or locking a profile must immediately clear its active memory, open dialogs, widgets, and cached entries.
+
+## Local Verification Workflow
+
+Run host checks before opening a pull request:
+
+```sh
+# 1. Docs, CI scripts, server, deploy, and verification suites in parallel (~15–30 s)
+{{ fast_check }}
+
+# 2. Android lint, JVM unit tests, debug + release builds, and test APK
+./gradlew :app:lintDebug :app:testDebugUnitTest :app:assembleDebug :app:assembleRelease :app:assembleDebugAndroidTest
+
+# 3. Workflow and shell script linting (same gate as CI)
+go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+shellcheck ci/*.sh
+```
+
+When changing Android UI, lifecycle, permissions, or storage, also run instrumentation tests on an API 30–36 emulator or device:
+
+```sh
+./gradlew :app:connectedDebugAndroidTest
+```
+
+Write deterministic unit and instrumentation tests covering both **expected paths** and **negative/adversarial inputs** (without `Thread.sleep`).
+
+## Pull Request Process
+
+1. Branch from current `main` with a focused, descriptive branch name.
+2. If you edited Markdown documentation, edit the templates under `docs/sources/` and run `python3 scripts/docs.py` so `python3 scripts/docs.py --check` passes.
+3. Fill out `.github/PULL_REQUEST_TEMPLATE.md` with exact verification commands and results.
+4. Wait for all required CI checks and independent review before merging. Never push directly to `main`.

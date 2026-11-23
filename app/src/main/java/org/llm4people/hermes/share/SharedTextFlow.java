@@ -6,6 +6,7 @@ import android.content.Intent;
 import android.content.DialogInterface;
 import android.os.Bundle;
 
+import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.profile.Account;
@@ -44,7 +45,10 @@ public final class SharedTextFlow {
             cleanupTicket = null;
             ticket = key;
             return true;
-        } catch (RuntimeException unavailable) { return false; }
+        } catch (RuntimeException unavailable) {
+            Diagnostics.warning("share", "receive_failed", unavailable);
+            return false;
+        }
     }
 
     public void save(Bundle state) {
@@ -54,7 +58,10 @@ public final class SharedTextFlow {
 
     public String requestedProfile() {
         try { return IncomingShare.owner(activity, ticket != null ? ticket : cleanupTicket); }
-        catch (RuntimeException unavailable) { return null; }
+        catch (RuntimeException unavailable) {
+            Diagnostics.warning("share", "owner_lookup_failed", unavailable);
+            return null;
+        }
     }
 
     public void opened(Account account, ThreadWorkspace threads) {

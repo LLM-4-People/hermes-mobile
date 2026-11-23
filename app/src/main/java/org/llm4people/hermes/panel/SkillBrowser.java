@@ -46,7 +46,7 @@ final class SkillBrowser {
     }
 
     void show() {
-        LinearLayout box = panel.page("settings", R.string.skills_title, () -> {
+        LinearLayout box = panel.page("settings", R.string.skills_title, parent == null ? null : () -> {
             if (current()) parent.show();
         }, false);
         activePage = panel.currentPage();
@@ -79,7 +79,13 @@ final class SkillBrowser {
         refresh.setOnClickListener(v -> load());
         int target = Ui.dp(panel.activity, 48);
         toolbar.addView(refresh, new LinearLayout.LayoutParams(target, target));
-        parent.attachPickerControls(box, toolbar, new LinearLayout.LayoutParams(-1, -2));
+        if (parent != null) {
+            parent.attachPickerControls(box, toolbar, new LinearLayout.LayoutParams(-1, -2));
+        } else {
+            LinearLayout.LayoutParams barParams = new LinearLayout.LayoutParams(-1, -2);
+            barParams.topMargin = Ui.dp(panel.activity, 8);
+            box.addView(toolbar, barParams);
+        }
         status = Ui.column(panel.activity);
         box.addView(status);
         empty = panel.note(box, "");

@@ -1,56 +1,65 @@
 # {{ project }}
 
-An Android client for chatting and coding with your own Hermes Agent. Ask a question, talk through a code change, inspect a diff, or schedule a reminder. When Hermes needs a decision, it offers choices in the discussion. The interface is in French.
+[![Workspace checks](https://github.com/{{ repository }}/actions/workflows/checks.yml/badge.svg)](https://github.com/{{ repository }}/actions/workflows/checks.yml)
+[![Docs & Showcase](https://github.com/{{ repository }}/actions/workflows/pages.yml/badge.svg)]({{ pages_url }})
 
-## Get the APK
+A native Android client (API 28–36, Java, zero WebView) for chatting, coding, approving actions, and customizing your workspace with your own Hermes Agent. Automatically follows your device language (**English** and **French**) with a 1-tap override and syncs your language preference to Hermes.
 
-Pull requests produce an installable development APK. Open a successful **Workspace checks** run, download **android-debug** under **Artifacts**, extract the APK and install it on your phone. The release workflow also produces `{{ release_apk }}` with a certificate, checksum and build provenance when the project owner publishes a version. Android checks the signing identity on updates. [Builds](https://github.com/{{ repository }}/actions/workflows/checks.yml) · [Releases](https://github.com/{{ repository }}/releases) · [Verify an APK](docs/delivery.md#verify-a-release)
+**[Explore the Showcase & Docs Portal →]({{ pages_url }})** · [Documentation]({{ pages_url }}docs/) · [Live Device Gallery]({{ pages_url }}walkthrough/) · [Releases](https://github.com/{{ repository }}/releases)
 
-## Connect a profile
+> **Companion server requirement:** {{ project }} requires our Hermes Agent fork at **[{{ fork_repository }}]({{ fork_url }})**. It depends on the fork’s single-host multi-profile routing (`/p/{profile}`), run-scoped instructions, Live UI modding (`ui.patch`), universal push deliveries (`mobile_deliver`), Brain Studio (memory, Smart Notes, pattern-gated habits, universal sharing, FTS5 search, skill studio, workspace files), visual approval diffs, and approved device bridge.
 
-1. Start a Hermes gateway with the API server enabled. For different people, give each person a separate runtime, private workspace, HTTPS address and API key. [Provision isolated accounts](docs/accounts.md)
-2. In **Connecter Hermes**, enter a name, the HTTPS gateway address and its access key. Set a local passphrase to protect the credentials, saved drafts and settings on this device.
-3. Unlock the profile and choose **Nouvelle conversation**. Messages and coding actions run on its Hermes gateway. Returning to the app requires unlocking the profile again.
+## What {{ project }} Does
 
-## Talk to Hermes
+| Pillar | Capabilities |
+| --- | --- |
+| **Adaptive Phone & Tablet Shell** | 4 top-level workspaces (**Discussions**, **Atelier**, **Brain / Cerveau**, **Activity / Activité**): IME-aware bottom bar on phones, **92 dp** navigation rail and dual-pane discussion sidebar (`232–360 dp`) on tablets, preserving drafts across rotation and split-screen. |
+| **Coding, Diffs & Duplex Voice** | Streaming replies with rich Markdown, paged syntax-highlighted `CodeReader`, visual hunk-level approval diffs, hands-free **Duplex Voice** plus offline/system dictation and offline speech playback. |
+| **Live UI Modding & On-the-Fly Widgets** | Ask Hermes to adapt a screen, tune colors (WCAG-AA `4.5:1` Day/Night invariant), or build an interactive tool (`ui.patch` + Surfaces v2). Preview diffs, apply atomically, roll back any revision, or pin profile-scoped Home Screen Widgets. [Live UI & Widgets](docs/live-ui-and-widgets.md) |
+| **Android 16 OS Integration** | Live Updates notifications for active runs, Quick Settings Tile, App Shortcuts, Class-3 Biometric Vault (`BIOMETRIC_STRONG` / `DEVICE_CREDENTIAL`), and configurable lock grace periods. |
+| **Brain Studio & Universal Sharing** | Edit Hermes’s Memory (`MEMORY.md` / `USER.md`), capture AI Smart Notes, review pattern-gated habit suggestions (`>= 3` occurrences), search all history via FTS5, manage Skills, browse Workspace Files & Git diffs, pin/fork/export threads, and share **7 resource kinds** (`note`, `skill`, `surface`, `widget`, `tool`, `artifact`, `session`) with other users on the same server. [Brain Studio & Sharing](docs/brain-and-sharing.md) |
+| **Zero-Root Ambient Intelligence** | Strictly opt-in per profile (all OFF by default). Searchable per-app notification allowlist guarded by a fail-closed privacy filter that hard-blocks OTP/2FA codes, password managers, banking apps, and secret lockscreen notices. 1-tap Summarize, Save to Note, Calendar, Reviewed Quick-Reply, plus Now Playing media controls. [Ambient Intelligence](docs/ambient.md) |
+| **Universal Push & Closed-App Delivery** | Zero-leak notifications via Firebase Cloud Messaging or self-hosted UnifiedPush (ntfy + Web Push encryption). Polls run, cron, and `mobile_state.db` delivery metadata only—titles and bodies stay on your gateway until you unlock the owning profile. Supports urgency tiers (`normal`, `high`, `silent`) and Quiet Hours. [Push & Reminders](docs/push.md) |
+| **Universal Capture & 10 OS Actions** | Share text, photos (EXIF/GPS/ICC stripped into fresh sRGB pixels), documents, or camera captures into any thread. Review and launch 10 native Android actions: calendar, share sheet, map search, turn-by-turn navigation, alarm, timer, dialer, SMS, email, and contact editor. [Android Actions](docs/android-actions.md) |
+| **Bilingual FR / EN Auto-Detect** | Follows Android’s system language automatically (`fr` / `en`, App Bundle language splits disabled, 1:1 XML parity) with an in-app picker that updates `Accept-Language`, `user_language`, and `PATCH /api/profile/defaults`. |
+| **Single HTTPS Hostname Multi-Profile** | **One single HTTPS server hostname** (for example `https://hermes.example.com`) serves every user under `/p/<profile>` with isolated profile homes, workspaces, credentials, and 256-bit access keys—no per-user subdomains required. [Multi-Profile Deploy](docs/accounts.md) |
 
-Write a request in your own words or tap **Dicter** and speak. For example, ask « Peux-tu m’expliquer ce changement et me proposer deux façons de le tester ? » Edit the transcript, then tap **Envoyer**. On supported phones, Hermes uses Android’s on-device recognizer. If French is available to download, open **Dictée hors connexion…** and choose **Télécharger le français…**. Once Android finishes the download, tap the microphone to dictate. If recognition needs the system speech service, the app explains that the service may send audio to its provider and lets you choose whether to use it.
+## Quickstart
 
-When Hermes has a question, its suggestions appear in the discussion. Tap a single choice, select several if the question allows it, or choose **Écrire une réponse** to type or dictate your own answer. A coding approval shows what Hermes proposes and lets you inspect the technical details. You can allow that action once or decline it from the same screen.
+### 1. Get the APK & Stay Up to Date
 
-Tap **Écouter** on a question or choose **Écouter la dernière réponse** from the discussion menu to listen. Playback uses an installed offline French voice and stops when you leave the discussion, lock the account, or begin dictating.
+- **Signed releases (recommended):** Download `{{ release_apk }}`, `{{ checksum_file }}`, and `release.json` from [Latest GitHub Release](https://github.com/{{ repository }}/releases/latest), then verify checksum, APK signature, and GitHub build provenance. [Releases & In-App Auto-Update](docs/release.md) · [Verify a release](docs/delivery.md#verify-a-release)
+- **Built-in verified in-app updates:** Open **Activity → App Updates** (**Activité → Mises à jour**) to check GitHub Releases directly from the phone. Downloads are fail-closed: the app verifies HTTPS GitHub release hosts, constant-time `SHA256SUMS` match, and matching APK signing certificate before handing off to Android’s native installer.
+- **Development builds:** Open a passing [Workspace checks](https://github.com/{{ repository }}/actions/workflows/checks.yml) run and download the **android-debug** artifact (includes `app-debug.apk` and `SHA256SUMS`).
 
-To ask about a screenshot or photo, open **Autres actions → Joindre une image…** in the discussion. Select one still image, review its preview, write your question, then tap **Envoyer**. **Retirer** keeps the question in the composer. The phone re-encodes the image without its original file metadata. The selected gateway and its configured vision provider receive the pixels when you send. [Hermes vision settings](https://hermes-agent.nousresearch.com/docs/user-guide/features/vision) · [What a local vision model saw](docs/local-vision.md)
+### 2. Connect a Profile on One HTTPS Host
 
-## Bring work in from another Android app
+1. Deploy our Hermes Agent fork ([{{ fork_repository }}]({{ fork_url }})) behind **one single HTTPS hostname** (`https://hermes.example.com`), routing each person to `/p/<profile>` with their own isolated home and access key. [Deploy multi-profile accounts](docs/accounts.md)
+2. Open **Connect Hermes** (**Connecter Hermes**), enter a profile label, your shared HTTPS server address, your **Server profile** (**Profil serveur**) slug (the app composes `/p/<profile>` automatically), and your access key.
+3. Protect the local device vault with a passphrase (and optionally enroll Class-3 Biometrics in **Activity → Security**).
 
-Select a passage of code and choose **Demander à Hermes**, or share text or a link through Android’s share sheet. Unlock the intended profile, check the discussion and choose **Ajouter au brouillon**. Hermes appends the selection to your draft. You can add a question such as « Où ce calcul peut-il perdre de la précision ? » before tapping **Envoyer**.
+## Build & Verify Locally
 
-Hermes can also prepare work for another app. For example, ask « Prépare un rendez-vous dans mon agenda, un message pour mon équipe et une recherche du lieu sur la carte. » Review the event, text or place in the discussion. When you choose an action, Android opens the corresponding editor, share sheet or map. [Android actions and a real model example](docs/android-actions.md)
-
-## Turn a review into a reusable tool
-
-Ask Hermes « Transforme cette revue de code en un outil pour ce fil. » Try the form in the reply, enter a file and goal, and pin it to the discussion. On a wide display the form sits beside the conversation. Ask « Ajoute un champ de priorité. » You can inspect the pinned form, the proposed form, and the specific changes before adopting a version. Preparing a message from the form leaves its text in your composer until you send it. [Working with generated tools](docs/workspace.md) · [See a code review become a form on Android](docs/local-model-review.md)
-
-## Work in a discussion
-
-- **Chat and code.** Follow a streaming reply, inspect tool activity and cancel ongoing work. On disconnect, the app uses the saved run identity and server state to reconcile the thread. An uncertain coding action needs an explicit decision before it can run again.
-- **Model and tools.** Open **Modèle et outils** to choose a model from a configured provider. Per-tool and per-toolset restrictions require a gateway that advertises and enforces those controls. Each discussion keeps its own selection.
-- **Skills.** In **Modèle et outils**, open **Compétences de Hermes** to search the skills installed on this profile’s gateway. Tap a result to read its summary, then **Préparer le brouillon** to add it to the discussion draft. Add the task you want it to perform and tap **Envoyer**. Some skills require configuration on the gateway. [Use a photo or an installed skill in a discussion](docs/discussion-context.md)
-- **Usage.** **Utilisation** shows the server's token and cache counters, available price information, and phone-observed timings. Timing and throughput measurements identify their scope. Missing measurements remain visible as unknown.
-- **Artifacts.** Open **Artefacts** to compare named revisions or read a diff. The optional file extension lets Hermes publish generated images, text, and binary files into a discussion for authenticated preview or export. [File publication](docs/files.md)
-- **Workspace changes.** Ask Hermes to adapt a screen. Inspect its proposal, apply it to this profile, and undo it from **Atelier**. Changes to native capabilities go through a signed application update. [Layout contract and examples](docs/workspace.md)
-- **Reminders and alerts.** **Rappels** manages jobs on the gateway. Enable the notification bridge and enroll a device to receive private alerts outside the app. Tapping an alert opens the owning profile before retrieving its content. [Notification setup](docs/push.md)
-
-## Build locally
-
-Use JDK 21, set `ANDROID_HOME` to your Android SDK, and install the platform and Build Tools versions in `gradle.properties`.
+Requires **JDK 21**, **Android SDK** (`compileSdk` and `buildToolsVersion` in `gradle.properties`), and **Python 3.11+** (with `uv` or `pip`).
 
 ```sh
-{{ build_debug }}
+# 1. Fast host verification (docs check, CI scripts, server, deploy & verification suites in parallel)
+{{ fast_check }}
+
+# 2. Build, lint, and run Android JVM unit tests
+./gradlew :app:lintDebug :app:testDebugUnitTest :app:assembleDebug :app:assembleRelease
+
+# 3. Install on a connected device or emulator
 adb install -r {{ debug_apk }}
 ```
 
-Host and device tests cover the Android client, real Hermes sessions, profile isolation, notifications, and release signing. The live fixture uses real gateway processes and a local model provider. [API verification](docs/api-verification.md) · [Device checks](docs/device-checks.md) · [Release workflow](docs/delivery.md)
+Run `./gradlew :app:connectedDebugAndroidTest` against a connected Android emulator or handset to execute the full instrumentation suite.
 
-Edit documentation in `docs/sources/`. Run `python3 scripts/docs.py` to render it and `python3 scripts/docs.py --check` to verify the result.
+## Documentation Index
+
+- **Setup & Deployment:** [Multi-Profile Single-Host Deploy](docs/accounts.md) · [Closed-App Push & Reminders](docs/push.md) · [Self-Hosted UnifiedPush (ntfy)](docs/unifiedpush.md) · [File Publication](docs/files.md)
+- **Features & Workflows:** [Live UI Modding & On-the-Fly Widgets](docs/live-ui-and-widgets.md) · [Brain Studio & Universal Sharing](docs/brain-and-sharing.md) · [Zero-Root Ambient Intelligence](docs/ambient.md) · [Android Actions & Examples](docs/android-actions.md) · [Mobile Layouts & Artifacts](docs/workspace.md) · [Photos & Skills in Discussions](docs/discussion-context.md) · [Nearby Restaurants & Location](docs/nearby-restaurants.md) · [Nearby Place Data](docs/nearby-places.md)
+- **Design & Examples:** [Product Specification](PRODUCT.md) · [Design System](DESIGN.md) · [Impeccable Design Tokens (SSoT)](.impeccable/design.json) · [Local Model Tool Review](docs/local-model-review.md) · [Local Vision Example](docs/local-vision.md)
+- **Verification & Governance:** [Releases & In-App Auto-Update](docs/release.md) · [Verification & Signed Delivery](docs/delivery.md) · [API Verification](docs/api-verification.md) · [Device Checks](docs/device-checks.md) · [UnifiedPush Verification](docs/unifiedpush-verification.md) · [Contributing](CONTRIBUTING.md) · [Security Policy](SECURITY.md)
+
+Edit documentation in `docs/sources/`. Run `python3 scripts/docs.py` to render all Markdown files and `python3 scripts/docs.py --check` to verify zero drift.

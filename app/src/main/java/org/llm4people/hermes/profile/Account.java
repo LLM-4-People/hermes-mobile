@@ -151,6 +151,11 @@ public final class Account implements AutoCloseable {
 
     synchronized boolean unlocked() { return keys != null; }
 
+    synchronized byte[] copyKeys() {
+        if (keys == null) throw new IllegalStateException("Profile is locked");
+        return Arrays.copyOf(keys, keys.length);
+    }
+
     @Override public synchronized void close() {
         if (keys != null) Arrays.fill(keys, (byte) 0);
         keys = null;

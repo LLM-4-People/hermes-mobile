@@ -1,5 +1,5 @@
 """Send privacy-preserving Android data messages using Google's OAuth transport."""
-from .provider import ProviderError, lifetime, opaque_notice, retry_seconds
+from .provider import ProviderError, fcm_priority, lifetime, opaque_notice, retry_seconds
 import time
 from urllib.parse import quote
 import google.auth
@@ -22,7 +22,8 @@ class FirebaseSender:
         # With less than one second left, TTL zero requests immediate-only delivery.
         ttl = min(28 * 86400, int(remaining))
         data = opaque_notice(item)
-        message = {"token": item["token"], "data": data, "android": {"priority": "high", "ttl": f"{ttl}s"}}
+        message = {"token": item["token"], "data": data,
+                   "android": {"priority": fcm_priority(item), "ttl": f"{ttl}s"}}
         with self.session.post(self.url, json={"message": message}, timeout=self.timeout,
                                max_allowed_time=self.timeout * 3, allow_redirects=False) as response:
             if response.ok and response.status_code == 200:

@@ -56,6 +56,10 @@ public final class ArtifactDesk {
         return instructions;
     }
 
+    public static boolean supportsSurface(String surface) {
+        return surface != null && (WorkspaceLayout.SURFACES.containsKey(surface) || WorkspaceLayout.custom(surface));
+    }
+
     public static View decorate(Activity activity, Account account, String surface, View nativeContent, Host host) {
         return SurfaceRenderer.decorate(activity, account, surface, nativeContent, host);
     }
@@ -93,9 +97,77 @@ public final class ArtifactDesk {
         }
         String[] surfaces = all.keySet().toArray(new String[0]);
         String[] labels = all.values().toArray(new String[0]);
-        DeskDialogs.open(activity, controls.setItems(labels, (d, which) -> SurfaceRenderer.controls(activity,
+        LiveUiPatch.StateManager liveUi = LiveUiPatch.StateManager.forAccount(account, ThemePalette.isNight(activity));
+        if (liveUi.isCorrupted()) {
+            controls.setNeutralButton("Réinitialiser l’historique…", (d, w) ->
+                    DeskDialogs.open(activity, host, new AlertDialog.Builder(activity)
+                            .setTitle("Réinitialiser l’historique des modifications ?")
+                            .setMessage("L’historique des modifications d’écran est illisible dans ce profil. Réinitialiser cet historique permettra d’appliquer de nouvelles propositions.")
+                            .setNegativeButton("Annuler", null)
+                            .setPositiveButton("Réinitialiser", (dlg, which) -> {
+                                if (!isOpen(activity, account)) return;
+                                SurfaceRenderer.change(activity, host, liveUi::resetCorrupted);
+                            })));
+        } else if (liveUi.canRollback()) {
+            controls.setNeutralButton("Historique des modifications", (d, w) ->
+                    LiveUiPatchBar.showHistoryDialog(activity, liveUi, revId -> {
+                        if (!isOpen(activity, account)) return;
+                        List<String> revertedIds = new java.util.ArrayList<>();
+                        SurfaceRenderer.change(activity, host, () -> {
+                            if (!isOpen(activity, account)) return;
+                            java.util.Set<String> affectedWidgets = new java.util.HashSet<>(liveUi.widgetIds());
+                            try {
+                                List<LiveUiPatch.StateManager.AppliedRevision> reverted = liveUi.rollbackAllTo(revId);
+                                if (reverted.isEmpty()) return;
+                                affectedWidgets.addAll(liveUi.widgetIds());
+                                HomePinBridge.syncWidgets(activity, liveUi.widgets(), affectedWidgets, account.id);
+                                for (LiveUiPatch.StateManager.AppliedRevision rev : reverted) {
+                                    revertedIds.add(rev.revisionId);
+                                }
+                            } catch (IOException e) {
+                                Diagnostics.warning("live_ui", "rollback_failed");
+                            }
+                        });
+                        if (!revertedIds.isEmpty() && isOpen(activity, account)) {
+                            syncGatewayReverts(account, revertedIds);
+                        }
+                    }));
+        }
+        DeskDialogs.open(activity, host, controls.setItems(labels, (d, which) -> SurfaceRenderer.controls(activity,
                         new LayoutHistory(account, surfaces[which]), host))
                 .setNegativeButton("Fermer", null));
+    }
+
+    private static boolean isOpen(Activity activity, Account account) {
+        if (activity == null || activity.isFinishing() || activity.isDestroyed() || account == null) return false;
+        try {
+            account.read("workspace.live_ui.v2");
+            return true;
+        } catch (IllegalStateException lockedOrClosed) {
+            return false;
+        }
+    }
+
+    private static void syncGatewayReverts(Account account, List<String> revisionIds) {
+        if (account == null || revisionIds == null || revisionIds.isEmpty()) return;
+        String endpoint = account.endpoint;
+        String bearer = account.bearer;
+        List<String> ordered = List.copyOf(revisionIds);
+        Thread worker = new Thread(() -> {
+            org.llm4people.hermes.net.HermesApi api = new org.llm4people.hermes.net.HermesApi(endpoint, bearer);
+            for (String revisionId : ordered) {
+                if (revisionId == null || revisionId.isEmpty()) continue;
+                try {
+                    api.revertMobileUiRevision(revisionId);
+                    Diagnostics.event("live_ui", "server_reverted");
+                } catch (IOException | IllegalArgumentException e) {
+                    Diagnostics.event("live_ui", "server_revert_skipped");
+                    break;
+                }
+            }
+        }, "hermes-ui-revert");
+        worker.setDaemon(true);
+        worker.start();
     }
 
     public void show() {

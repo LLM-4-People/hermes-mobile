@@ -10,22 +10,30 @@ import java.util.Set;
 public final class PlaceSelection {
     private final NearbyResult result;
     public final List<String> cuisines;
+    public final List<String> tags;
     private Set<Integer> visible;
     private int selected, comparison = -1;
     private String cuisine = "";
+    private String tag = "";
     private boolean details = true, all;
 
     public PlaceSelection(NearbyResult result) {
         this.result = result;
         Set<String> types = new LinkedHashSet<>();
-        for (NearbyResult.Place p : result.places) types.addAll(p.cuisines);
+        Set<String> extra = new LinkedHashSet<>();
+        for (NearbyResult.Place p : result.places) {
+            types.addAll(p.cuisines);
+            extra.addAll(p.tags);
+        }
         cuisines = Collections.unmodifiableList(new ArrayList<>(types));
-        filter("");
+        tags = Collections.unmodifiableList(new ArrayList<>(extra));
+        recompute();
     }
 
     public int selected() { return selected; }
     public int comparison() { return comparison; }
     public String cuisine() { return cuisine; }
+    public String tag() { return tag; }
     public boolean details() { return details; }
     public boolean all() { return all; }
     public Set<Integer> visible() { return visible; }
@@ -34,9 +42,23 @@ public final class PlaceSelection {
     public void filter(String value) {
         if (visible != null && value.equals(cuisine) || !value.isEmpty() && !cuisines.contains(value)) return;
         cuisine = value;
+        recompute();
+    }
+
+    public void filterTag(String value) {
+        if (visible != null && value.equals(tag) || !value.isEmpty() && !tags.contains(value)) return;
+        tag = value;
+        recompute();
+    }
+
+    private void recompute() {
         Set<Integer> indexes = new LinkedHashSet<>();
-        for (int i = 0; i < result.places.size(); i++)
-            if (value.isEmpty() || result.places.get(i).cuisines.contains(value)) indexes.add(i);
+        for (int i = 0; i < result.places.size(); i++) {
+            NearbyResult.Place place = result.places.get(i);
+            boolean cuisineMatch = cuisine.isEmpty() || place.cuisines.contains(cuisine);
+            boolean tagMatch = tag.isEmpty() || place.tags.contains(tag);
+            if (cuisineMatch && tagMatch) indexes.add(i);
+        }
         visible = Collections.unmodifiableSet(indexes);
         if (!visible.isEmpty() && !visible.contains(selected)) {
             selected = visible.iterator().next();
@@ -52,6 +74,7 @@ public final class PlaceSelection {
         details = !(toggle && index == selected && details);
         selected = index;
     }
+
     public void compare(int index) {
         if (index == -1 || index != selected && visible.contains(index)) comparison = index;
     }

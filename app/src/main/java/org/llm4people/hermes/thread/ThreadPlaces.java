@@ -1,16 +1,21 @@
 package org.llm4people.hermes.thread;
 
 import android.app.AlertDialog;
+import android.content.ActivityNotFoundException;
+import android.content.Intent;
+import android.net.Uri;
 import android.text.InputType;
 import android.view.View;
 import android.view.inputmethod.EditorInfo;
 import android.widget.EditText;
 import org.json.JSONObject;
+import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.VisibleText;
 import org.llm4people.hermes.artifact.ArtifactDesk;
 import org.llm4people.hermes.artifact.DeviceReview;
 import org.llm4people.hermes.artifact.ThreadInstruments.Pin;
+import org.llm4people.hermes.places.NearbyCategory;
 import org.llm4people.hermes.places.NearbyGuide;
 import org.llm4people.hermes.places.NearbyResult;
 import org.llm4people.hermes.places.PlaceSelection;
@@ -34,21 +39,40 @@ final class ThreadPlaces {
 
     private static final class Entry {
         final Pin pin;
-        final WeakHashMap<NearbyGuide,Boolean> views = new WeakHashMap<>();
+        final WeakHashMap<NearbyGuide, Boolean> views = new WeakHashMap<>();
         NearbyGuide.Phase phase = NearbyGuide.Phase.OFFER;
+        NearbyCategory category;
+        int radiusMeters;
+        int limit;
+        JSONObject lastArea;
         NearbyResult result;
         double lat, lon, accuracy;
         PlaceSelection selection;
         volatile boolean retired;
-        Entry(Pin pin) { this.pin = pin; }
+        long requestSerial;
+
+        Entry(Pin pin) {
+            this.pin = pin;
+            NearbyCategory initial = NearbyCategory.fromId(pin.nearbyCategory);
+            this.category = initial == null ? NearbyCategory.RESTAURANT : initial;
+            this.radiusMeters = NearbyCategory.validRadius(pin.nearbyRadiusMeters)
+                    ? pin.nearbyRadiusMeters : NearbyCategory.DEFAULT_RADIUS_M;
+            this.limit = NearbyCategory.validLimit(pin.nearbyLimit)
+                    ? pin.nearbyLimit : NearbyCategory.DEFAULT_LIMIT;
+        }
+
         void update() {
-            NearbyGuide.State state = new NearbyGuide.State(phase, result, lat, lon, accuracy, selection);
+            NearbyGuide.State state = new NearbyGuide.State(
+                    phase, result, lat, lon, accuracy, selection, category, radiusMeters);
             for (NearbyGuide view : new ArrayList<>(views.keySet())) if (view != null) view.bind(state);
         }
+
         void retire() {
             retired = true;
+            ++requestSerial;
             result = null;
             selection = null;
+            lastArea = null;
             lat = lon = accuracy = 0;
             phase = NearbyGuide.Phase.OFFER;
             update();
@@ -98,15 +122,31 @@ final class ThreadPlaces {
         NearbyGuide guide = new NearbyGuide(thread.activity, new NearbyGuide.Actions() {
             public void locate() {
                 if (active.getAsBoolean() && e.phase != NearbyGuide.Phase.LOADING)
-                    thread.chooseGuideArea(active, area -> { if (active.getAsBoolean()) load(e, area); });
+                    thread.nearby.chooseGuide(active, e.category, area -> { if (active.getAsBoolean()) load(e, area); });
             }
-            public void manual() { if (active.getAsBoolean()) neighborhood(active); }
+
+            public void manual() { if (active.getAsBoolean()) neighborhood(active, e.category); }
+
+            public void explore(NearbyCategory nextCategory, int nextRadius) {
+                if (!active.getAsBoolean() || nextCategory == null || !NearbyCategory.validRadius(nextRadius)) return;
+                if (e.category == nextCategory && e.radiusMeters == nextRadius && e.phase == NearbyGuide.Phase.READY) return;
+                e.category = nextCategory;
+                e.radiusMeters = nextRadius;
+                if (e.lastArea != null) {
+                    load(e, e.lastArea);
+                } else {
+                    e.update();
+                }
+            }
+
             public void select(int i, boolean toggle) {
                 if (!active.getAsBoolean() || e.result == null || i < 0 || i >= e.result.places.size()) return;
                 e.selection.choose(i, toggle);
                 e.update();
             }
+
             public void list(boolean all) { if (active.getAsBoolean()) { e.selection.all(all); e.update(); } }
+
             public void cuisine() {
                 if (!active.getAsBoolean() || e.selection == null) return;
                 List<String> terms = new ArrayList<>(e.selection.cuisines);
@@ -116,6 +156,17 @@ final class ThreadPlaces {
                 choose("Choisir une cuisine", labels, terms.indexOf(e.selection.cuisine()), active,
                         i -> { e.selection.filter(terms.get(i)); e.update(); });
             }
+
+            public void tagFilter() {
+                if (!active.getAsBoolean() || e.selection == null || e.selection.tags.isEmpty()) return;
+                List<String> terms = new ArrayList<>(e.selection.tags);
+                terms.add(0, "");
+                List<String> labels = new ArrayList<>(terms);
+                labels.set(0, "Tous les lieux");
+                choose("Filtrer par attribut", labels, terms.indexOf(e.selection.tag()), active,
+                        i -> { e.selection.filterTag(terms.get(i)); e.update(); });
+            }
+
             public void compare() {
                 if (!active.getAsBoolean() || e.selection == null) return;
                 List<Integer> ids = new ArrayList<>(e.selection.visible());
@@ -134,46 +185,90 @@ final class ThreadPlaces {
                 choose("Comparer " + name + " avec…", labels, ids.indexOf(e.selection.comparison()), active,
                         i -> { e.selection.compare(ids.get(i)); e.update(); });
             }
+
             public void map(View clicked, NearbyResult.Place place) {
                 if (selected(place)) DeviceReview.placeMap(thread.activity, host, clicked, place);
             }
+
             public void source(View clicked, NearbyResult.Place place) {
                 if (selected(place)) DeviceReview.placeSource(thread.activity, host, clicked, place);
             }
+
+            public void route(View clicked, NearbyResult.Place place, NearbyCategory.RouteMode mode) {
+                if (!selected(place) || mode == null) return;
+                reviewRoute(active, place, mode);
+            }
+
             private boolean selected(NearbyResult.Place place) {
-                return active.getAsBoolean() && e.result != null && e.result.places.get(e.selection.selected()) == place && e.selection.details();
+                return active.getAsBoolean() && e.result != null
+                        && e.result.places.get(e.selection.selected()) == place && e.selection.details();
             }
         });
         mounted[0] = guide;
         e.views.put(guide, true);
-        guide.bind(new NearbyGuide.State(e.phase, e.result, e.lat, e.lon, e.accuracy, e.selection));
+        guide.bind(new NearbyGuide.State(e.phase, e.result, e.lat, e.lon, e.accuracy, e.selection, e.category, e.radiusMeters));
         return guide;
     }
 
     private void load(Entry e, JSONObject area) {
-        if (!NearbyTurn.validDevice(area) || !"device".equals(area.opt("source")) || e.retired
-                || e.phase == NearbyGuide.Phase.LOADING) return;
+        if (!NearbyTurn.validDevice(area) || !"device".equals(area.opt("source")) || e.retired) return;
+        e.lastArea = area;
         e.lat = area.optDouble("latitude");
         e.lon = area.optDouble("longitude");
         e.accuracy = area.opt("accuracy_m") instanceof Number n ? n.doubleValue() : Double.NaN;
         e.phase = NearbyGuide.Phase.LOADING;
         e.result = null;
+        long serial = ++e.requestSerial;
+        NearbyCategory category = e.category;
+        int radius = e.radiusMeters;
+        int limit = e.limit;
         e.update();
         JSONObject query = ThreadData.put(ThreadData.put(new JSONObject(), "latitude", e.lat), "longitude", e.lon);
+        ThreadData.put(query, "category", category.id);
+        ThreadData.put(query, "radius_m", radius);
+        ThreadData.put(query, "limit", limit);
         thread.request(() -> {
-            if (!owner.getAsBoolean() || e.retired) throw new CancellationException();
+            if (!owner.getAsBoolean() || e.retired || e.requestSerial != serial) throw new CancellationException();
             return NearbyResult.parse(thread.api.post("/api/mobile/places/nearby", query));
         }, result -> {
-            if (e.retired || !valid.test(e.pin)) return;
+            if (e.retired || e.requestSerial != serial || !valid.test(e.pin)) return;
             e.result = result;
             e.phase = NearbyGuide.Phase.READY;
             e.selection = new PlaceSelection(result);
             e.update();
-        }, ignored -> {
-            if (e.retired || !valid.test(e.pin)) return;
+        }, failure -> {
+            if (e.retired || e.requestSerial != serial || !valid.test(e.pin)) return;
+            Diagnostics.warning("places", "nearby_lookup_failed");
             e.phase = NearbyGuide.Phase.UNAVAILABLE;
             e.update();
         });
+    }
+
+    private void reviewRoute(BooleanSupplier active, NearbyResult.Place place, NearbyCategory.RouteMode mode) {
+        String preview = place.name + "\n\nMode · " + mode.chipLabel + "\nCoordonnées · " + place.coordinates();
+        thread.screen.show(new AlertDialog.Builder(thread.activity)
+                .setTitle(mode.title)
+                .setMessage(preview)
+                .setNegativeButton("Annuler", null)
+                .setPositiveButton(mode.openLabel, (dialog, which) -> {
+                    if (!active.getAsBoolean()) return;
+                    Intent nav = new Intent(Intent.ACTION_VIEW, Uri.parse(mode.navigationUri(place.latitude, place.longitude)));
+                    try {
+                        thread.activity.startActivity(nav);
+                    } catch (ActivityNotFoundException | SecurityException firstFailure) {
+                        try {
+                            Intent fallback = new Intent(Intent.ACTION_VIEW,
+                                    Uri.parse(mode.fallbackGeoUri(place.latitude, place.longitude)));
+                            thread.activity.startActivity(fallback);
+                        } catch (ActivityNotFoundException | SecurityException secondFailure) {
+                            Diagnostics.warning("places", "maps_unavailable");
+                            thread.screen.show(new AlertDialog.Builder(thread.activity)
+                                    .setTitle("Application de carte indisponible")
+                                    .setMessage("Aucune application de navigation disponible ne peut ouvrir cet itinéraire.")
+                                    .setPositiveButton("Fermer", null));
+                        }
+                    }
+                }));
     }
 
     private void choose(String title, List<String> labels, int selected, BooleanSupplier active, java.util.function.IntConsumer action) {
@@ -184,7 +279,7 @@ final class ThreadPlaces {
                 }).setNegativeButton("Annuler", null));
     }
 
-    private void neighborhood(BooleanSupplier active) {
+    private void neighborhood(BooleanSupplier active, NearbyCategory category) {
         EditText field = new EditText(thread.activity);
         field.setSingleLine(true);
         field.setSaveEnabled(false);
@@ -193,7 +288,8 @@ final class ThreadPlaces {
         field.setImeOptions(EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING | EditorInfo.IME_FLAG_NO_EXTRACT_UI);
         field.setHint("Quartier ou ville");
         android.widget.LinearLayout form = Ui.column(thread.activity);
-        Ui.pad(form, 20, 4); form.addView(field);
+        Ui.pad(form, 20, 4);
+        form.addView(field);
         AlertDialog dialog = thread.screen.show(new AlertDialog.Builder(thread.activity).setTitle("Préciser un quartier")
                 .setView(form).setNegativeButton("Annuler", null).setPositiveButton("Préparer le brouillon", null));
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
@@ -201,7 +297,8 @@ final class ThreadPlaces {
             String area = field.getText().toString();
             if (VisibleText.isBlank(area)) { field.setError("Indiquez un quartier ou une ville."); return; }
             dialog.dismiss();
-            host.stageDraft("Cherche des restaurants dans ce quartier ou cette ville : " + area);
+            NearbyCategory activeCat = category == null ? NearbyCategory.RESTAURANT : category;
+            host.stageDraft("Cherche " + activeCat.draftPlural + " dans ce quartier ou cette ville : " + area);
         });
     }
 }

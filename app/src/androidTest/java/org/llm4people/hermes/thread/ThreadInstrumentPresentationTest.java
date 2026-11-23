@@ -56,7 +56,8 @@ public final class ThreadInstrumentPresentationTest extends InstrumentationTestC
             ThreadInstruments store = new ThreadInstruments(profile.account, "root");
             List<ThreadInstruments.Pin> proposals = store.proposals(new JSONArray().put(row));
             assertEquals(1, proposals.size());
-            assertEquals(prefix + "Hermes propose l’outil « Carnet de voyage ».\nÀ vous de choisir.",
+            String spoken = context.getString(R.string.instrument_spoken, "Carnet de voyage");
+            assertEquals(prefix + spoken + "\nÀ vous de choisir.",
                     ThreadInstrumentPanel.spoken(context, row, proposals));
 
             String malformed = original.replace(page, "{non valide}");
@@ -71,7 +72,7 @@ public final class ThreadInstrumentPresentationTest extends InstrumentationTestC
                     .put(new JSONObject().put("type", "output_text").put("text", fence)));
             proposals = store.proposals(new JSONArray().put(row));
             assertEquals(1, proposals.size());
-            assertEquals(fence + "\nHermes propose l’outil « Carnet de voyage ».",
+            assertEquals(fence + "\n" + spoken,
                     ThreadInstrumentPanel.spoken(context, row, proposals));
         }
     }

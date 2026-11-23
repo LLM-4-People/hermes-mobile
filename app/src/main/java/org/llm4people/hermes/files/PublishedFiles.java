@@ -15,6 +15,7 @@ import android.widget.Toast;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.llm4people.hermes.Diagnostics;
+import org.llm4people.hermes.HermesConfig;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.profile.Account;
@@ -86,11 +87,12 @@ public final class PublishedFiles implements Closeable {
     private void page(String path, String before) {
         perform(client -> {
             JSONObject result = client.get(path + (before == null ? "" : "?before=" + Uri.encode(before)));
+            long limit = HermesConfig.load(activity).resolveArtifactLimit(result.opt("max_artifact_bytes"));
             JSONArray rows = result.getJSONArray("data");
             List<PublishedFile> files = new ArrayList<>();
             List<String> labels = new ArrayList<>();
             for (int i = 0; i < rows.length(); i++) {
-                PublishedFile file = new PublishedFile(path, rows.getJSONObject(i));
+                PublishedFile file = new PublishedFile(path, rows.getJSONObject(i), limit);
                 files.add(file);
                 labels.add(file.name + "\n" + Formatter.formatShortFileSize(activity, file.size));
             }

@@ -9,6 +9,7 @@ import android.widget.EditText;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.llm4people.hermes.MainActivity;
+import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.artifact.ThreadInstruments;
 import org.llm4people.hermes.profile.Account;
@@ -19,7 +20,6 @@ import java.util.Collections;
 
 @SuppressWarnings("deprecation")
 public class InstrumentPromptTest extends InstrumentationTestCase {
-    private static final String RESPOND = "Répondre à Hermes", OPEN = "Ouvrir l’outil épinglé";
     private static final String ARRANGED = "{\"version\":1,\"surface\":\"thread\",\"title\":\"Fil\","
             + "\"blocks\":[{\"type\":\"content\",\"slots\":[\"notice\",\"composer\"]}]}";
     private ThreadWorkspace page;
@@ -32,6 +32,8 @@ public class InstrumentPromptTest extends InstrumentationTestCase {
         Context context = getInstrumentation().getTargetContext();
         activity = (MainActivity)getInstrumentation().startActivitySync(
                 context.getPackageManager().getLaunchIntentForPackage(context.getPackageName()));
+        String respond = activity.getString(R.string.ws_reply_hermes);
+        String openLabel = activity.getString(R.string.instrument_open_pin);
         try (WorkspaceAccountFixture profile = new WorkspaceAccountFixture(context)) {
             runTestOnUiThread(() -> {
                 try { open(profile.account); }
@@ -41,7 +43,7 @@ public class InstrumentPromptTest extends InstrumentationTestCase {
             });
             idle();
             runTestOnUiThread(() -> {
-                click(OPEN);
+                click(openLabel);
                 form = visibleField(page.screen.instruments.viewport);
                 assertNotNull(form);
                 form.setText("facture.py");
@@ -49,38 +51,38 @@ public class InstrumentPromptTest extends InstrumentationTestCase {
                 page.screen.live("Question", "", true);
                 assertTrue(page.screen.instruments.viewport.open());
                 assertFalse(page.screen.list.isShown());
-                assertTrue(button(RESPOND).isShown());
+                assertTrue(button(respond).isShown());
                 width(720);
             });
             idle();
             runTestOnUiThread(() -> {
                 assertTrue(page.screen.instruments.viewport.wide());
                 assertTrue(page.screen.list.isShown());
-                assertFalse(button(RESPOND).isShown());
+                assertFalse(button(respond).isShown());
                 assertTrue(form.isShown());
                 width(320);
             });
             idle();
             runTestOnUiThread(() -> {
-                assertTrue(button(RESPOND).isShown());
-                click(RESPOND);
+                assertTrue(button(respond).isShown());
+                click(respond);
                 assertTrue(page.screen.list.isShown());
-                assertFalse(button(RESPOND).isShown());
+                assertFalse(button(respond).isShown());
                 assertEquals("Demain matin", page.screen.draft());
-                click(OPEN);
+                click(openLabel);
                 assertSame(form, visibleField(page.screen.instruments.viewport));
                 assertEquals("facture.py", form.getText().toString());
                 actions.present(Collections.emptyList());
-                assertFalse(button(RESPOND).isShown());
+                assertFalse(button(respond).isShown());
                 // A layout omitting the entire native transcript requires the normal native-route fallback.
                 profile.account.write("workspace.v1.thread", ThreadData.put(new JSONObject(), "current", ARRANGED).toString());
                 activity.onAction("return");
                 activity.onLayoutChanged();
                 actions.present(Collections.singletonList(prompt));
-                assertTrue(button(RESPOND).isShown());
-                click(RESPOND);
+                assertTrue(button(respond).isShown());
+                click(respond);
                 assertTrue(page.screen.list.isShown());
-                assertFalse(button(RESPOND).isShown());
+                assertFalse(button(respond).isShown());
                 assertTrue(page.screen.promptRows.visible());
                 assertEquals("Demain matin", page.screen.draft());
             });

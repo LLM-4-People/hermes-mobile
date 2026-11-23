@@ -4,9 +4,22 @@ import android.app.AlertDialog;
 import android.os.SystemClock;
 import android.provider.Settings;
 
+import org.json.JSONException;
 import org.json.JSONObject;
+import org.llm4people.hermes.AppLanguage;
+import org.llm4people.hermes.HermesConfig;
 import org.llm4people.hermes.VisibleText;
+import org.llm4people.hermes.ambient.CalendarContextReader;
+import org.llm4people.hermes.ambient.HermesNotificationListener;
+import org.llm4people.hermes.ambient.NotificationAllowlist;
+import org.llm4people.hermes.camera.CapturedMedia;
 import org.llm4people.hermes.net.HermesApi;
+import org.llm4people.hermes.os.LiveRunNotification;
+import org.llm4people.hermes.share.AttachmentUploader;
+import org.llm4people.hermes.share.DeviceBridgeFlow;
+
+import java.util.Collections;
+import java.util.List;
 
 /** Manages exactly one mobile-originated run in the selected thread. */
 final class ThreadRun {
@@ -22,8 +35,16 @@ final class ThreadRun {
     private long started = -1;
     private long subscription;
     private boolean canStop;
+    private LiveRunNotification.Snapshot lastProgress = LiveRunNotification.Snapshot.idle();
     private RunAction owner() { return RunAction.capture(journal, page::token, () -> subscription); }
     private String runId() { return ThreadData.string(journal.pending(), "run_id"); }
+
+    private void reportProgress(LiveRunNotification.Snapshot next) {
+        LiveRunNotification.Snapshot safe = next == null ? LiveRunNotification.Snapshot.idle() : next;
+        if (!LiveRunNotification.shouldEmit(lastProgress, safe)) return;
+        lastProgress = safe;
+        page.host.runProgress(safe);
+    }
 
     ThreadRun(ThreadWorkspace page) {
         this.page = page;
@@ -35,8 +56,12 @@ final class ThreadRun {
 
     void send() {
         String text = ui.draft();
-        if (submitting || page.importingPhoto || journal.pending() != null || VisibleText.isBlank(text)) return;
+        if (submitting || page.importingPhoto || journal.pending() != null || VisibleText.isBlank(text)) {
+            ui.stopDuplex();
+            return;
+        }
         if (!journal.photoOwned()) {
+            ui.stopDuplex();
             ui.notice("Le profil a changé. Retirez l’image et sélectionnez-la de nouveau.", "", null);
             return;
         }
@@ -45,13 +70,17 @@ final class ThreadRun {
         if (!page.nearby.beforeSend(text, () -> {
             if (page.token() == token && page.journal == journal && !page.importingPhoto && original.getAsBoolean()
                     && ui.root.isShown() && text.equals(ui.draft())) send();
-        })) return;
+        })) {
+            ui.stopDuplex();
+            return;
+        }
         JSONObject options;
         try {
             options = page.host.options(page.sessionId());
             if (options == null) throw new IllegalStateException("Missing session settings");
         }
         catch (RuntimeException unreadable) {
+            ui.stopDuplex();
             ui.notice("Réglages illisibles. Vérifiez le modèle et les outils avant l’envoi.", "", null);
             return;
         }
@@ -103,11 +132,15 @@ final class ThreadRun {
         submitting = true;
         ui.busy(true, false);
         ui.notice(fresh ? "Préparation de l’envoi…" : "Vérification de l’envoi…", "", null);
+        reportProgress(new LiveRunNotification.Snapshot(
+                LiveRunNotification.Phase.STARTING, 0, 0, false, false));
         page.request(() -> page.api.get("/v1/capabilities"), capabilities -> {
             JSONObject features = capabilities.optJSONObject("features");
             JSONObject idem = features == null ? null : features.optJSONObject("runs_idempotency");
             if (body == null || idem == null || !idem.optBoolean("supported")) {
                 admissionFinished();
+                reportProgress(LiveRunNotification.Snapshot.idle());
+                ui.stopDuplex();
                 if (!fresh) { uncertain(); return; }
                 ui.busy(false, false);
                 ui.notice("Cette passerelle doit prendre en charge les envois identifiables. Mettez Hermes à jour.", "", null);
@@ -115,6 +148,8 @@ final class ThreadRun {
             }
             if (!fresh && !NearbyTurn.canReplay(journal.pending(), features)) {
                 admissionFinished();
+                reportProgress(LiveRunNotification.Snapshot.idle());
+                ui.stopDuplex();
                 uncertain();
                 return;
             }
@@ -122,11 +157,14 @@ final class ThreadRun {
             boolean ignoresExclusions = body.has("excluded_tools") && !features.optBoolean("run_tool_exclusions");
             if (ignoresToolsets || ignoresExclusions) {
                 admissionFinished();
+                reportProgress(LiveRunNotification.Snapshot.idle());
+                ui.stopDuplex();
                 if (!fresh) { uncertain(); return; }
                 ui.busy(false, false);
                 ui.notice("Cette passerelle ne peut pas appliquer la sélection d’outils. Vérifiez les réglages de la conversation.", "", null);
                 return;
             }
+            List<CapturedMedia.Item> stagedAttachments = fresh ? ui.stagedAttachments() : Collections.emptyList();
             if (fresh) {
                 keepCompletionPosition = false;
                 // Edits while capability discovery was in flight must stay in the composer.
@@ -134,12 +172,24 @@ final class ThreadRun {
                 JSONObject area = page.nearby.frozen();
                 if (!snapshot.equals(ui.draft()) || selectedPhoto != journal.photo() || !page.nearby.stillCurrent(nearbyVersion, area)) {
                     admissionFinished();
+                    reportProgress(LiveRunNotification.Snapshot.idle());
+                    ui.stopDuplex();
                     ui.busy(false, false);
                     ui.notice("Le brouillon a changé. Vous pouvez l’envoyer.", "", null);
                     return;
                 }
+                if (!stagedAttachments.isEmpty() && !AttachmentUploader.supportsUploads(features)) {
+                    admissionFinished();
+                    reportProgress(LiveRunNotification.Snapshot.idle());
+                    ui.stopDuplex();
+                    ui.busy(false, false);
+                    ui.notice("Mettez Hermes à jour pour envoyer des fichiers joints.", "", null);
+                    return;
+                }
                 if (area != null && !NearbyTurn.supportsScope(features)) {
                     admissionFinished();
+                    reportProgress(LiveRunNotification.Snapshot.idle());
+                    ui.stopDuplex();
                     ui.busy(false, false);
                     int token = page.token();
                     java.util.function.BooleanSupplier unchanged = journal.unchangedDraft(snapshot);
@@ -149,21 +199,43 @@ final class ThreadRun {
                     });
                     return;
                 }
-                try {
-                    NearbyTurn.attach(body, area);
-                    journal.stage(body, SystemClock.elapsedRealtime(), bootCount(), idem.optLong("retention_seconds"),
-                            idem.optBoolean("durable"), area);
-                    page.nearby.clearTurn();
-                } catch (IllegalStateException e) {
-                    admissionFinished();
-                    ui.busy(false, false);
-                    page.storageError();
+                if (!stagedAttachments.isEmpty()) {
+                    String remoteSession = page.remoteSessionId();
+                    if (remoteSession == null || remoteSession.trim().isEmpty()) {
+                        admissionFinished();
+                        reportProgress(LiveRunNotification.Snapshot.idle());
+                        ui.stopDuplex();
+                        ui.busy(false, false);
+                        ui.notice("La discussion n’est pas encore prête pour recevoir des fichiers. Réessayez.", "", null);
+                        return;
+                    }
+                    long maxUploadBytes = HermesConfig.load(page.activity).artifactDefaultMaxBytes;
+                    ui.notice("Envoi des fichiers joints…", "", null);
+                    page.request(() -> AttachmentUploader.uploadAll(
+                            page.api::postMultipart, remoteSession, stagedAttachments, maxUploadBytes), receipts -> {
+                        if (!snapshot.equals(ui.draft()) || selectedPhoto != journal.photo()
+                                || !page.nearby.stillCurrent(nearbyVersion, area)
+                                || !stagedAttachments.equals(ui.stagedAttachments())) {
+                            admissionFinished();
+                            reportProgress(LiveRunNotification.Snapshot.idle());
+                            ui.stopDuplex();
+                            ui.busy(false, false);
+                            ui.notice("Le brouillon a changé. Vous pouvez l’envoyer.", "", null);
+                            return;
+                        }
+                        AttachmentUploader.attachToRunBody(body, receipts);
+                        finalizeStageAndAdmit(body, features, idem, area, stagedAttachments);
+                    }, error -> {
+                        admissionFinished();
+                        reportProgress(LiveRunNotification.Snapshot.idle());
+                        ui.stopDuplex();
+                        ui.busy(false, false);
+                        page.error(error, this::send);
+                    });
                     return;
                 }
-                ui.clearDraft();
-                page.refreshPhoto();
-                ui.outgoing(outgoing(journal.pending()));
-                started = SystemClock.elapsedRealtime();
+                finalizeStageAndAdmit(body, features, idem, area, Collections.emptyList());
+                return;
             } else {
                 JSONObject pending = journal.pending();
                 long ttl = Math.min(pending.optLong("ttl"), idem.optLong("retention_seconds"));
@@ -171,16 +243,56 @@ final class ThreadRun {
                         bootCount(), pending.optInt("boot", -1), ttl,
                         pending.optBoolean("durable") && idem.optBoolean("durable"))) {
                     admissionFinished();
+                    reportProgress(LiveRunNotification.Snapshot.idle());
+                    ui.stopDuplex();
                     uncertain();
                     return;
                 }
             }
-            admit(body, fresh);
+            admit(body, false, Collections.emptyList());
         }, error -> {
             admissionFinished();
             ui.busy(!fresh, false);
+            reportProgress(LiveRunNotification.Snapshot.idle());
+            ui.stopDuplex();
             page.error(error, fresh ? this::send : this::restore);
         });
+    }
+
+    private void finalizeStageAndAdmit(JSONObject body, JSONObject features, JSONObject idem,
+                                       JSONObject area, List<CapturedMedia.Item> stagedAttachments) {
+        try {
+            NearbyTurn.attach(body, area);
+            AppLanguage.acceptLanguageHeader(page.activity);
+            body.put("user_language", AppLanguage.resolvedTag(page.activity));
+            if (features.optBoolean("device_bridge")) {
+                NotificationAllowlist allowlist = NotificationAllowlist.forAccount(page.account());
+                NotificationAllowlist.Settings ambient = allowlist.settings();
+                boolean listenerOn = HermesNotificationListener.isListenerEnabled(page.activity);
+                boolean hasApps = !allowlist.effectiveAllowedPackages().isEmpty();
+                boolean calendarGranted = CalendarContextReader.hasPermission(page.activity);
+                List<String> caps = DeviceBridgeFlow.executableCapabilities(
+                        true, true, true, ambient, listenerOn, calendarGranted, hasApps);
+                body.put("device_capabilities", DeviceBridgeFlow.capabilitiesJson(caps));
+            }
+            journal.stage(body, SystemClock.elapsedRealtime(), bootCount(), idem.optLong("retention_seconds"),
+                    idem.optBoolean("durable"), area);
+            page.nearby.clearTurn();
+        } catch (IllegalStateException | JSONException e) {
+            admissionFinished();
+            reportProgress(LiveRunNotification.Snapshot.idle());
+            ui.stopDuplex();
+            ui.busy(false, false);
+            page.storageError();
+            return;
+        }
+        page.clearSuggestedActions();
+        ui.clearDraft();
+        if (!stagedAttachments.isEmpty()) ui.clearAttachments();
+        page.refreshPhoto();
+        ui.outgoing(outgoing(journal.pending()));
+        started = SystemClock.elapsedRealtime();
+        admit(body, true, stagedAttachments);
     }
 
     private static String outgoing(JSONObject receipt) {
@@ -192,7 +304,7 @@ final class ThreadRun {
         return Settings.Global.getInt(page.activity.getContentResolver(), Settings.Global.BOOT_COUNT, -1);
     }
 
-    private void admit(JSONObject body, boolean fresh) {
+    private void admit(JSONObject body, boolean fresh, List<CapturedMedia.Item> stagedAttachments) {
         String key = journal.pending().optString("key");
         ui.notice("Envoi à Hermes…", "", null);
         JSONObject image = journal.pending().optJSONObject("photo");
@@ -206,6 +318,8 @@ final class ThreadRun {
             follow();
         }, error -> {
             admissionFinished();
+            reportProgress(LiveRunNotification.Snapshot.idle());
+            ui.stopDuplex();
             started = -1;
             // Only a definitive rejection of the first attempt can return the text to the draft.
             boolean imageUnavailable = image != null && error instanceof DiscussionPhoto.Unavailable;
@@ -215,6 +329,7 @@ final class ThreadRun {
                 journal.reject();
                 page.nearby.restore();
                 ui.displayDraft(journal.draft());
+                if (stagedAttachments != null && !stagedAttachments.isEmpty()) page.attachMedia(stagedAttachments);
                 page.refreshPhoto();
                 ui.outgoing("");
                 ui.busy(false, false);
@@ -231,6 +346,8 @@ final class ThreadRun {
     }
 
     private void uncertain() {
+        reportProgress(LiveRunNotification.Snapshot.idle());
+        ui.stopDuplex();
         RunAction owner = owner();
         canStop = false;
         ui.busy(true, false);
@@ -280,6 +397,8 @@ final class ThreadRun {
         ui.busy(true, true);
         RunPreview saved = new RunPreview(receipt);
         ui.live("Hermes travaille…", saved.toString(), false, saved.origin());
+        reportProgress(new LiveRunNotification.Snapshot(
+                LiveRunNotification.Phase.WORKING, 0, 0, false, true));
         RunFollower nextFollower = new RunFollower(page.api, id, receipt, started, new RunFollower.Listener() {
             private boolean current() { return serial == subscription && receipt == journal.pending(); }
 
@@ -293,9 +412,18 @@ final class ThreadRun {
                     int count = next.prompts.size();
                     String activity = count == 0 ? next.activity : count == 1
                             ? "Hermes attend votre réponse" : count + " demandes en attente";
-                    ui.live(activity, next.text, count > 0, next.origin);
+                    ui.live(activity, next.text, count > 0, next.origin, next.reasoning);
                     decisions.present(next.prompts);
+                    if (!next.deviceRequests.isEmpty()) page.handleDeviceRequests(id, next.deviceRequests);
+                    if (!next.uiPatches.isEmpty()) {
+                        for (JSONObject rawPatch : next.uiPatches) page.onLiveUiPatch(rawPatch);
+                    }
                     ui.notice("", "", null);
+                    reportProgress(new LiveRunNotification.Snapshot(
+                            count > 0 ? LiveRunNotification.Phase.AWAITING_DECISION
+                                    : next.toolSteps > 0 ? LiveRunNotification.Phase.TOOL_RUNNING
+                                    : LiveRunNotification.Phase.WORKING,
+                            next.toolSteps, 0, count > 0, canStop));
                 });
             }
             @Override public void complete(JSONObject status, long firstText, long elapsed) {
@@ -323,6 +451,8 @@ final class ThreadRun {
     private void unresolved(JSONObject status) {
         ++subscription;
         canStop = false;
+        reportProgress(LiveRunNotification.Snapshot.idle());
+        ui.stopDuplex();
         decisions.clear();
         frame = null;
         started = -1;
@@ -359,6 +489,8 @@ final class ThreadRun {
     }
 
     private void trackingInterrupted() {
+        reportProgress(LiveRunNotification.Snapshot.idle());
+        ui.stopDuplex();
         RunAction owner = owner().when(journal::reconnectsExhausted);
         ui.notice("Suivi interrompu. Vous pouvez consulter la conversation.",
                 "Vérifier la conversation", owner.guard(() -> page.loadMessages(false,
@@ -381,6 +513,7 @@ final class ThreadRun {
     private void completed(JSONObject status, long firstText, long elapsed) {
         ++subscription;
         canStop = false;
+        reportProgress(LiveRunNotification.Snapshot.idle());
         decisions.clear();
         RunAction owner = owner();
         String outcome = status.optString("status");
@@ -404,6 +537,8 @@ final class ThreadRun {
         frame = null;
         ui.busy(true, false);
         ui.live(summary, output, false);
+        if ("completed".equals(outcome)) ui.duplexReplyComplete(output);
+        else ui.stopDuplex();
         boolean keepPosition = keepCompletionPosition;
         keepCompletionPosition = false;
         page.loadMessages(false, owner.guard(() -> {
@@ -426,6 +561,8 @@ final class ThreadRun {
             }
             ui.live("completed".equals(outcome) && (output.isEmpty() || visible) ? "" : summary,
                     visible ? "" : output, false);
+            if (status.has("suggested_actions")) page.onSuggestedActions(status.opt("suggested_actions"));
+            else page.clearSuggestedActions();
             ui.notice("", "", null);
         }), keepPosition);
     }
@@ -458,6 +595,8 @@ final class ThreadRun {
     void detach() {
         ++subscription;
         canStop = false;
+        reportProgress(LiveRunNotification.Snapshot.idle());
+        ui.stopDuplex();
         if (decisions != null) decisions.clear();
         if (follower != null) follower.close();
         checkpoint();

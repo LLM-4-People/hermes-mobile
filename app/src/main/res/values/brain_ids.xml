@@ -1,0 +1,10 @@
+<resources>
+    <item name="brain_memory_filter" type="id" />
+    <item name="brain_notes_filter" type="id" />
+    <item name="brain_search_field" type="id" />
+    <item name="brain_search_results" type="id" />
+    <item name="brain_skills_search" type="id" />
+    <item name="brain_files_list" type="id" />
+    <item name="brain_usage_technical_toggle" type="id" />
+    <item name="brain_usage_technical_box" type="id" />
+</resources>
