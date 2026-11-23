@@ -34,6 +34,16 @@ def _discover_files(directory, prefix, python_exe, extra_args=()):
     ]
 
 
+def _discover_modules(directory, prefix, python_exe):
+    folder = ROOT / directory
+    package = directory.replace("/", ".")
+    files = [path for path in sorted(folder.glob("test_*.py")) if _has_unittest_cases(path)]
+    return [
+        (f"{prefix}:{path.stem}", [python_exe, "-B", "-m", "unittest", f"{package}.{path.stem}"])
+        for path in files
+    ]
+
+
 def build_suites(server_python, workspace_only=False, ci_only=False, with_gradle=False):
     py = sys.executable
     if ci_only:
@@ -49,7 +59,7 @@ def build_suites(server_python, workspace_only=False, ci_only=False, with_gradle
         ("deploy", [py, "-B", "-m", "unittest", "discover", "-s", "deploy"]),
         ("verification-device", [py, "-B", "-m", "unittest", "discover", "-s", "verification/device"]),
         ("verification-unifiedpush", [py, "-B", "-m", "unittest", "discover", "-s", "verification/unifiedpush", "-t", "."]),
-        ("verification-phone-actions", [py, "-B", "-m", "unittest", "verification.test_phone_actions"]),
+        *_discover_modules("verification", "verification", py),
     ]
     if not workspace_only:
         suites = [

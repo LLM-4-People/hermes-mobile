@@ -16,6 +16,7 @@ USE_LOCATION = "Utiliser ma position approximative"
 STAGED = "Position approximative jointe"
 FAILED = "Position indisponible · choisir un quartier ou continuer sans position"
 HEADING = "Restaurants dans la zone"
+GMS_PACKAGE = "com.google.android.gms"
 
 
 def dismiss_ime(ui):
@@ -58,13 +59,19 @@ def open_consent(ui):
     dismiss_ime(ui)
     taps = 0
     ime_dismissals = 0
+    gms_dismissals = 0
     last_send_bounds = None
 
     def opened():
-        nonlocal taps, ime_dismissals, last_send_bounds
+        nonlocal taps, ime_dismissals, gms_dismissals, last_send_bounds
         root = ui.hierarchy()
         if ui.node(consent_title, root) is not None:
             return (root,)
+        packages = {node.get("package", "") for node in root.iter("node") if node.get("package")}
+        if APP not in packages and GMS_PACKAGE in packages:
+            ui.device.shell("input", "keyevent", "BACK")
+            gms_dismissals += 1
+            return None
         if ui.device.ime_shown():
             ui.device.shell("input", "keyevent", "BACK")
             ime_dismissals += 1
@@ -88,6 +95,7 @@ def open_consent(ui):
             "ime_shown": ui.device.ime_shown(),
             "taps": taps,
             "ime_dismissals": ime_dismissals,
+            "gms_dismissals": gms_dismissals,
             "send_bounds": last_send_bounds,
             "has_send": ui.node(send_btn, root) is not None,
             "has_failed": ui.node(failed_status, root) is not None,
