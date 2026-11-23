@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Documentation — Hermes Mobile</title>
+  <meta name="description" content="Complete documentation for Hermes Mobile: single-host /p/profile deployment, LLM-4-People/hermes-agent fork, Live UI modding, Brain Studio, Ambient Intelligence, zero-leak push, security, and CI.">
+  <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
+  <link rel="stylesheet" href="../assets/style.css">
+</head>
+<body data-title-fr="Documentation — Hermes Mobile"
+      data-title-en="Documentation — Hermes Mobile">
+  <a class="skip-link" href="#main" data-fr="Aller au contenu principal" data-en="Skip to main content">Aller au contenu principal</a>
+
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="../">
+        <img class="brand-mark" src="../assets/favicon.svg" alt="" width="30" height="30">
+        <span>Hermes Mobile</span>
+      </a>
+      <nav class="nav-links" aria-label="Navigation principale" data-fr-aria="Navigation principale" data-en-aria="Primary navigation">
+        <a href="../" data-fr="Aperçu" data-en="Overview">Aperçu</a>
+        <a href="./" aria-current="page" data-fr="Documentation" data-en="Docs">Documentation</a>
+        <a href="../walkthrough/" data-fr="Vérification" data-en="Walkthrough">Vérification</a>
+        <a href="https://github.com/LLM-4-People/hermes-mobile" rel="noopener noreferrer">GitHub</a>
+        <a href="https://github.com/LLM-4-People/hermes-agent" rel="noopener noreferrer" data-fr="Serveur (fork)" data-en="Server (fork)">Serveur (fork)</a>
+      </nav>
+      <div class="topbar-controls">
+        <button class="pill-btn" type="button" data-lang-toggle>EN</button>
+        <button class="pill-btn" type="button" data-theme-toggle aria-pressed="false">☾ Sombre</button>
+      </div>
+    </div>
+  </header>
+
+  <main id="main" class="docs-layout">
+    <aside class="docs-sidebar" aria-label="Navigation de la documentation" data-fr-aria="Navigation de la documentation" data-en-aria="Documentation navigation">
+      <label class="skip-link" for="docs-search" data-fr="Rechercher dans la documentation" data-en="Search documentation">Rechercher dans la documentation</label>
+      <input id="docs-search" class="search-input" type="search"
+             placeholder="Rechercher un sujet…"
+             data-fr-placeholder="Rechercher un sujet…"
+             data-en-placeholder="Search documentation…">
+      <p id="docs-search-status" class="search-status" aria-live="polite"></p>
+      <ul class="docs-nav">
+        <li><a href="#quickstart" class="is-active" data-fr="1. Démarrage &amp; hôte unique" data-en="1. Quickstart &amp; Single-Host">1. Démarrage &amp; hôte unique</a></li>
+        <li><a href="#companion-fork" data-fr="2. Fork serveur compagnon" data-en="2. Companion Server Fork">2. Fork serveur compagnon</a></li>
+        <li><a href="#live-ui" data-fr="3. Live UI &amp; Widgets" data-en="3. Live UI &amp; Widgets">3. Live UI &amp; Widgets</a></li>
+        <li><a href="#brain-studio" data-fr="4. Cerveau &amp; Partage" data-en="4. Brain Studio &amp; Sharing">4. Cerveau &amp; Partage</a></li>
+        <li><a href="#ambient" data-fr="5. Intelligence ambiante" data-en="5. Ambient Intelligence">5. Intelligence ambiante</a></li>
+        <li><a href="#push" data-fr="6. Push zéro-fuite" data-en="6. Zero-Leak Push">6. Push zéro-fuite</a></li>
+        <li><a href="#security" data-fr="7. Sécurité &amp; Isolation" data-en="7. Security &amp; Isolation">7. Sécurité &amp; Isolation</a></li>
+        <li><a href="#design-system" data-fr="8. Système de design" data-en="8. Design System">8. Système de design</a></li>
+        <li><a href="#testing" data-fr="9. Tests rapides &amp; CI" data-en="9. Fast Testing &amp; CI">9. Tests rapides &amp; CI</a></li>
+      </ul>
+    </aside>
+
+    <div class="docs-content">
+      <header style="margin-bottom: 4px;">
+        <span class="eyebrow" data-fr="Portail de documentation" data-en="Documentation Portal">Portail de documentation</span>
+        <h1 style="font-size: clamp(1.85rem, 3.2vw, 2.55rem); margin-bottom: 8px;" data-fr="Documentation Hermes Mobile" data-en="Hermes Mobile Documentation">Documentation Hermes Mobile</h1>
+        <p class="lead" style="margin-bottom: 0;"
+           data-fr="Référence technique alignée sur le client Android API 28–36 et le fork serveur LLM-4-People/hermes-agent (révision 0ae4511b)."
+           data-en="Technical reference aligned with the Android API 28–36 client and the pinned LLM-4-People/hermes-agent server fork (commit 0ae4511b).">Référence technique alignée sur le client Android API 28–36 et le fork serveur LLM-4-People/hermes-agent (révision 0ae4511b).</p>
+      </header>
+
+      <!-- 1. Quickstart & Single-Host Deploy -->
+      <section class="doc-section" id="quickstart">
+        <h2 data-fr="1. Démarrage rapide &amp; déploiement sur un seul hôte HTTPS" data-en="1. Quickstart &amp; Single-Host HTTPS Deploy">1. Démarrage rapide &amp; déploiement sur un seul hôte HTTPS</h2>
+        <p data-fr="Hermes Mobile est conçu pour servir plusieurs personnes sur une unique adresse HTTPS (par exemple https://hermes.example.com) via des préfixes /p/&lt;profil&gt;. Aucun sous-domaine individuel n’est nécessaire."
+           data-en="Hermes Mobile serves multiple users behind a single HTTPS hostname (such as https://hermes.example.com) using /p/&lt;profile&gt; prefixes. No per-user subdomains are required.">Hermes Mobile est conçu pour servir plusieurs personnes sur une unique adresse HTTPS (par exemple https://hermes.example.com) via des préfixes /p/&lt;profil&gt;. Aucun sous-domaine individuel n’est nécessaire.</p>
+
+        <h3 data-fr="Construire l’image serveur épinglée" data-en="Build the pinned gateway image">Construire l’image serveur épinglée</h3>
+        <pre class="code-block"><code>revision=$(python3 -c 'import runpy; print(runpy.run_path("verification/gateway_fixture.py")["PINNED_REVISION"])')
+checkout=$(mktemp -d)
+git -C "$checkout" init -q
+git -C "$checkout" fetch --depth=1 --no-tags https://github.com/LLM-4-People/hermes-agent.git "$revision"
+git -C "$checkout" archive "$revision" | \
+  docker build -t "hermes-mobile-gateway:$revision" -
+image=$(docker image inspect --format '{{.Id}}' "hermes-mobile-gateway:$revision")</code></pre>
+
+        <h3 data-fr="Générer une pile multi-profils avec Caddy TLS" data-en="Render a multi-profile stack with Caddy TLS">Générer une pile multi-profils avec Caddy TLS</h3>
+        <pre class="code-block"><code>deployment="$HOME/.local/share/hermes-mobile-deployment"
+python3 deploy/accounts.py "$deployment" --image "$image" \
+  --host hermes.example.com \
+  --profile alice --profile bob \
+  --push alice
+docker compose -f "$deployment/compose.json" config --quiet
+docker compose -f "$deployment/compose.json" up -d --build</code></pre>
+
+        <ul>
+          <li data-fr-html="<strong>Clés 256 bits distinctes :</strong> chaque profil reçoit sa propre clé API dans <code>accounts/&amp;lt;profil&amp;gt;/gateway.env</code> et ses propres identifiants fournisseur dans <code>provider.env</code>."
+              data-en-html="<strong>Distinct 256-bit keys:</strong> each profile receives its own API key in <code>accounts/&amp;lt;profile&amp;gt;/gateway.env</code> and isolated provider credentials in <code>provider.env</code>."><strong>Clés 256 bits distinctes :</strong> chaque profil reçoit sa propre clé API dans <code>accounts/&lt;profil&gt;/gateway.env</code> et ses propres identifiants fournisseur dans <code>provider.env</code>.</li>
+          <li data-fr-html="<strong>Connexion sur Android :</strong> dans <strong>Connecter Hermes</strong>, saisissez <code>https://hermes.example.com</code> et le nom <strong>Profil serveur</strong> (ex. <code>alice</code>). L’application compose <code>/p/alice</code> automatiquement."
+              data-en-html="<strong>Connect on Android:</strong> in <strong>Connect Hermes</strong>, enter <code>https://hermes.example.com</code> and the optional <strong>Server profile</strong> slug (e.g. <code>alice</code>). The app composes <code>/p/alice</code> automatically."><strong>Connexion sur Android :</strong> dans <strong>Connecter Hermes</strong>, saisissez <code>https://hermes.example.com</code> et le nom <strong>Profil serveur</strong> (ex. <code>alice</code>). L’application compose <code>/p/alice</code> automatiquement.</li>
+          <li data-fr-html="<strong>APK signé &amp; mises à jour GitHub intégrées :</strong> téléchargez la <a href='https://github.com/LLM-4-People/hermes-mobile/releases/latest' rel='noopener noreferrer' data-latest-apk>dernière version APK</a> depuis GitHub Releases. Dans l’application, le vérificateur de mises à jour contrôle les sorties GitHub, vérifie l’empreinte <code>SHA-256</code> de l’APK téléchargé (fail-closed) et ne lance l’installeur Android qu’après confirmation explicite."
+              data-en-html="<strong>Signed APK &amp; built-in GitHub updates:</strong> download the <a href='https://github.com/LLM-4-People/hermes-mobile/releases/latest' rel='noopener noreferrer' data-latest-apk>latest APK release</a> from GitHub Releases. Inside the app, the built-in GitHub updater detects new releases, verifies the downloaded APK’s <code>SHA-256</code> digest (fail-closed), and launches the Android package installer only after explicit user confirmation."><strong>APK signé &amp; mises à jour GitHub intégrées :</strong> téléchargez la <a href="https://github.com/LLM-4-People/hermes-mobile/releases/latest" rel="noopener noreferrer" data-latest-apk>dernière version APK</a> depuis GitHub Releases. Dans l’application, le vérificateur de mises à jour contrôle les sorties GitHub, vérifie l’empreinte <code>SHA-256</code> de l’APK téléchargé (fail-closed) et ne lance l’installeur Android qu’après confirmation explicite.</li>
+          <li data-fr-html="<strong>Compilation APK locale :</strong> JDK 21 + Android SDK 36, puis <code>./gradlew :app:assembleDebug</code> et <code>adb install -r app/build/outputs/apk/debug/app-debug.apk</code>."
+              data-en-html="<strong>Local APK build:</strong> JDK 21 + Android SDK 36, then <code>./gradlew :app:assembleDebug</code> and <code>adb install -r app/build/outputs/apk/debug/app-debug.apk</code>."><strong>Compilation APK locale :</strong> JDK 21 + Android SDK 36, puis <code>./gradlew :app:assembleDebug</code> et <code>adb install -r app/build/outputs/apk/debug/app-debug.apk</code>.</li>
+        </ul>
+      </section>
+
+      <!-- 2. Companion Fork -->
+      <section class="doc-section" id="companion-fork">
+        <h2 data-fr="2. Fork serveur compagnon (LLM-4-People/hermes-agent)" data-en="2. Companion Server Fork (LLM-4-People/hermes-agent)">2. Fork serveur compagnon (LLM-4-People/hermes-agent)</h2>
+        <p data-fr-html="Hermes Mobile <strong>nécessite</strong> le fork <a href='https://github.com/LLM-4-People/hermes-agent' rel='noopener noreferrer'>LLM-4-People/hermes-agent</a> (révision vérifiée <code>0ae4511b126efb5cba5bb75a7d354cf1c4406a8d</code>). Les fonctionnalités sont découvertes dynamiquement via <code>GET /v1/capabilities</code> afin que le client échoue de façon sûre si une capacité manque."
+           data-en-html="Hermes Mobile <strong>requires</strong> the <a href='https://github.com/LLM-4-People/hermes-agent' rel='noopener noreferrer'>LLM-4-People/hermes-agent</a> fork (pinned commit <code>0ae4511b126efb5cba5bb75a7d354cf1c4406a8d</code>). Features are negotiated via <code>GET /v1/capabilities</code> so the client degrades fail-closed when a capability is unavailable.">Hermes Mobile <strong>nécessite</strong> le fork <a href="https://github.com/LLM-4-People/hermes-agent" rel="noopener noreferrer">LLM-4-People/hermes-agent</a> (révision vérifiée <code>0ae4511b126efb5cba5bb75a7d354cf1c4406a8d</code>). Les fonctionnalités sont découvertes dynamiquement via <code>GET /v1/capabilities</code> afin que le client échoue de façon sûre si une capacité manque.</p>
+
+        <div class="doc-table-wrap">
+          <table class="doc-table">
+            <thead>
+              <tr>
+                <th data-fr="Domaine" data-en="Surface">Domaine</th>
+                <th data-fr="Routes / Événements du fork" data-en="Fork Routes / Events">Routes / Événements du fork</th>
+                <th data-fr="Comportement client" data-en="Client Behavior">Comportement client</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Multi-profils</strong></td>
+                <td><code>/p/{profile}/*</code></td>
+                <td data-fr="Clé API par profil fail-closed (HTTP 401), zéro sous-domaine." data-en="Fail-closed per-profile API_SERVER_KEY (HTTP 401), zero subdomains.">Clé API par profil fail-closed (HTTP 401), zéro sous-domaine.</td>
+              </tr>
+              <tr>
+                <td><strong>Live UI v2</strong></td>
+                <td><code>SSE ui.patch</code>, <code>/api/mobile/ui/*</code></td>
+                <td data-fr="Validation locale, aperçu non bloquant, rollback multi-révisions." data-en="Local schema &amp; WCAG validation, non-blocking preview, multi-revision rollback.">Validation locale, aperçu non bloquant, rollback multi-révisions.</td>
+              </tr>
+              <tr>
+                <td><strong>Livraisons Push</strong></td>
+                <td><code>mobile_deliver</code>, <code>/api/mobile/deliveries</code>, <code>mobile_state.db</code></td>
+                <td data-fr="Boîte de réception Activité + réveils opaques sans fuite." data-en="Activity inbox + zero-leak opaque wakeups when closed.">Boîte de réception Activité + réveils opaques sans fuite.</td>
+              </tr>
+              <tr>
+                <td><strong>Brain Studio</strong></td>
+                <td><code>/api/memory</code>, <code>/api/notes</code>, <code>/api/habits</code>, <code>/api/shares</code>, <code>/api/search</code>, <code>/api/workspace</code></td>
+                <td data-fr="Édition optimiste 409, FTS5, habitudes >= 3, partage ACL 7 types." data-en="Optimistic 409 reloads, FTS5 search, >= 3 habit gating, 7-kind ACL sharing.">Édition optimiste 409, FTS5, habitudes >= 3, partage ACL 7 types.</td>
+              </tr>
+              <tr>
+                <td><strong>Diffs &amp; Uploads</strong></td>
+                <td><code>POST /api/sessions/{id}/uploads</code>, <code>/fork</code>, diffs structurés</td>
+                <td data-fr="Téléversement multipart borné + SHA-256, lignage complet sur fork." data-en="Bounded multipart uploads with SHA-256 check, full compacted lineage fork.">Téléversement multipart borné + SHA-256, lignage complet sur fork.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 3. Live UI & Widgets -->
+      <section class="doc-section" id="live-ui">
+        <h2 data-fr="3. Édition d’interface en direct (ui.patch), Surfaces v2 &amp; Widgets" data-en="3. Live UI Modding (ui.patch), Surfaces v2 &amp; Widgets">3. Édition d’interface en direct (ui.patch), Surfaces v2 &amp; Widgets</h2>
+        <p data-fr="Hermes peut proposer des améliorations déclaratives et réversibles de votre espace de travail en temps réel (SSE ui.patch ou livraison Activité). Aucune exécution de code arbitraire et aucune WebView : chaque opération passe par un parseur déclaratif strict."
+           data-en="Hermes can propose declarative, reversible workspace improvements in real time (via ui.patch SSE events or Activity deliveries). Zero arbitrary code execution and zero WebViews: every operation goes through a strict declarative parser.">Hermes peut proposer des améliorations déclaratives et réversibles de votre espace de travail en temps réel (SSE ui.patch ou livraison Activité). Aucune exécution de code arbitraire et aucune WebView : chaque opération passe par un parseur déclaratif strict.</p>
+        <ul>
+          <li data-fr-html="<strong>Bannière non bloquante (<code>LiveUiPatchBar</code>) :</strong> propose <em>Voir · Appliquer · Annuler</em>, historique complet des révisions et retour arrière atomique synchronisé avec la passerelle."
+              data-en-html="<strong>Non-blocking banner (<code>LiveUiPatchBar</code>):</strong> offers <em>Preview · Apply · Undo</em>, full revision history, and atomic rollback synchronized newest-first with the gateway."><strong>Bannière non bloquante (<code>LiveUiPatchBar</code>) :</strong> propose <em>Voir · Appliquer · Annuler</em>, historique complet des révisions et retour arrière atomique synchronisé avec la passerelle.</li>
+          <li data-fr-html="<strong>Blocs Surfaces v2 :</strong> grilles KPI (<code>MetricGridBlock</code>), sparklines et barres de progression dessinées sur Canvas (<code>SparklineView</code>), tableaux triables (<code>DataTableBlock</code>), interrupteurs/curseurs/filtres persistés par profil dans le stockage chiffré <code>InstrumentStateStore</code>."
+              data-en-html="<strong>Surfaces v2 blocks:</strong> KPI tiles (<code>MetricGridBlock</code>), native Canvas sparklines &amp; progress bars (<code>SparklineView</code>), sortable tables (<code>DataTableBlock</code>), and interactive toggles/sliders/chips persisted per profile in encrypted <code>InstrumentStateStore</code>."><strong>Blocs Surfaces v2 :</strong> grilles KPI (<code>MetricGridBlock</code>), sparklines et barres de progression dessinées sur Canvas (<code>SparklineView</code>), tableaux triables (<code>DataTableBlock</code>), interrupteurs/curseurs/filtres persistés par profil dans le stockage chiffré <code>InstrumentStateStore</code>.</li>
+          <li data-fr-html="<strong>Thèmes vérifiés WCAG-AA (<code>ThemePalette</code>) :</strong> les couleurs d’accent, surface ou texte dont le contraste est inférieur à <code>4.5:1</code> sont rejetées. Les surcharges mono-couleur en mode <code>system</code> survivent aux bascules Jour ↔ Nuit."
+              data-en-html="<strong>WCAG-AA checked themes (<code>ThemePalette</code>):</strong> accent, surface, or ink overrides below <code>4.5:1</code> contrast are rejected. Single-color <code>system</code> overrides survive Day ↔ Night switches without state corruption."><strong>Thèmes vérifiés WCAG-AA (<code>ThemePalette</code>) :</strong> les couleurs d’accent, surface ou texte dont le contraste est inférieur à <code>4.5:1</code> sont rejetées. Les surcharges mono-couleur en mode <code>system</code> survivent aux bascules Jour ↔ Nuit.</li>
+          <li data-fr-html="<strong>Widgets d’écran d’accueil isolés :</strong> <code>HermesWidgetStore</code> exige <code>home_screen_safe: true</code>, lie chaque widget à son <code>ownerProfileId</code>, refuse tout écrasement/suppression inter-profils, et purge automatiquement les widgets lors de l’oubli d’un profil."
+              data-en-html="<strong>Profile-isolated Home Screen widgets:</strong> <code>HermesWidgetStore</code> requires <code>home_screen_safe: true</code>, binds every widget to its <code>ownerProfileId</code>, blocks cross-profile overwrite/removal/draft injection, and purges widgets when a profile is forgotten."><strong>Widgets d’écran d’accueil isolés :</strong> <code>HermesWidgetStore</code> exige <code>home_screen_safe: true</code>, lie chaque widget à son <code>ownerProfileId</code>, refuse tout écrasement/suppression inter-profils, et purge automatiquement les widgets lors de l’oubli d’un profil.</li>
+        </ul>
+      </section>
+
+      <!-- 4. Brain Studio & Sharing -->
+      <section class="doc-section" id="brain-studio">
+        <h2 data-fr="4. Cerveau (Brain Studio) &amp; Partage universel même-serveur" data-en="4. Brain Studio &amp; Universal Same-Server Sharing">4. Cerveau (Brain Studio) &amp; Partage universel même-serveur</h2>
+        <p data-fr="L’onglet Cerveau rassemble la mémoire de votre agent, vos notes, vos habitudes, vos compétences et vos fichiers d’espace de travail dans une interface calme sans jargon technique."
+           data-en="The Brain tab brings together your agent’s memory, Smart Notes, pattern-gated habits, skills, workspace files, and same-server sharing in a calm interface free of technical jargon.">L’onglet Cerveau rassemble la mémoire de votre agent, vos notes, vos habitudes, vos compétences et vos fichiers d’espace de travail dans une interface calme sans jargon technique.</p>
+        <ul>
+          <li data-fr-html="<strong>Mémoire &amp; SOUL.md :</strong> gestion CRUD des souvenirs avec détection de conflit 409, annulation après suppression et édition du comportement par défaut du profil."
+              data-en-html="<strong>Memory &amp; SOUL.md:</strong> full memory CRUD with HTTP 409 conflict reload, delete-undo, and profile defaults / persona editing."><strong>Mémoire &amp; SOUL.md :</strong> gestion CRUD des souvenirs avec détection de conflit 409, annulation après suppression et édition du comportement par défaut du profil.</li>
+          <li data-fr-html="<strong>Notes intelligentes &amp; Habitudes :</strong> prise de notes épinglables, et suggestions d’habitudes proposées <strong>uniquement après 3 répétitions observées</strong> (jamais d’automatisation silencieuse)."
+              data-en-html="<strong>Smart Notes &amp; Habits:</strong> pinnable notes (owner-gated pinning on shared notes), and habit suggestions surfaced <strong>only after 3 observed repetitions</strong> (never silent automation)."><strong>Notes intelligentes &amp; Habitudes :</strong> prise de notes épinglables, et suggestions d’habitudes proposées <strong>uniquement après 3 répétitions observées</strong> (jamais d’automatisation silencieuse).</li>
+          <li data-fr-html="<strong>Partage universel (7 types) :</strong> partagez <em>notes, compétences, surfaces, widgets, discussions, fichiers et briefings</em> avec d’autres profils du même serveur (droits lecture / édition et révocation instantanée)."
+              data-en-html="<strong>Universal same-server sharing (7 kinds):</strong> share <em>notes, skills, surfaces, widgets, threads, files, and briefings</em> with other profiles on the same server (view/edit ACLs and instant revoke)."><strong>Partage universel (7 types) :</strong> partagez <em>notes, compétences, surfaces, widgets, discussions, fichiers et briefings</em> avec d’autres profils du même serveur (droits lecture / édition et révocation instantanée).</li>
+          <li data-fr-html="<strong>Recherche globale FTS5, Studio de compétences &amp; Fichiers :</strong> recherche plein texte paginée, création de compétences alignée sur le budget 60 caractères du serveur, arbre de fichiers + diffs Git protégés contre la traversée de chemins, et bifurcation (fork) de fils avec lignage complet."
+              data-en-html="<strong>FTS5 Global Search, Skill Studio &amp; Workspace Files:</strong> paginated full-text search, skill creation respecting the gateway’s 60-char index budget and category slug rules, path-guarded workspace tree &amp; Git diffs, and full-lineage thread forking."><strong>Recherche globale FTS5, Studio de compétences &amp; Fichiers :</strong> recherche plein texte paginée, création de compétences alignée sur le budget 60 caractères du serveur, arbre de fichiers + diffs Git protégés contre la traversée de chemins, et bifurcation (fork) de fils avec lignage complet.</li>
+        </ul>
+      </section>
+
+      <!-- 5. Ambient Intelligence -->
+      <section class="doc-section" id="ambient">
+        <h2 data-fr="5. Intelligence ambiante sans root &amp; Garde de confidentialité" data-en="5. Zero-Root Ambient Intelligence &amp; Privacy Guard">5. Intelligence ambiante sans root &amp; Garde de confidentialité</h2>
+        <p data-fr="Tout accès ambiant est désactivé par défaut (fail-closed) et s’active par profil depuis l’écran dédié. Aucun privilège root ni service d’accessibilité invasif n’est requis."
+           data-en="Every ambient capability is disabled by default (fail-closed) and opted in per profile from the dedicated settings panel. No root access or invasive AccessibilityService is required.">Tout accès ambiant est désactivé par défaut (fail-closed) et s’active par profil depuis l’écran dédié. Aucun privilège root ni service d’accessibilité invasif n’est requis.</p>
+        <ul>
+          <li data-fr-html="<strong>Pont de notifications (<code>HermesNotificationListener</code>) :</strong> ne lit que les applications explicitement autorisées, et est immédiatement suspendu lorsque le profil est verrouillé."
+              data-en-html="<strong>Notification bridge (<code>HermesNotificationListener</code>):</strong> reads only explicitly allowlisted apps and clears its in-memory session immediately when the profile locks."><strong>Pont de notifications (<code>HermesNotificationListener</code>) :</strong> ne lit que les applications explicitement autorisées, et est immédiatement suspendu lorsque le profil est verrouillé.</li>
+          <li data-fr-html="<strong>Garde anti-fuite (<code>NotificationPrivacyGuard</code>) :</strong> bloque systématiquement les codes OTP numériques ou alphanumériques, mots de passe temporaires, jetons API (<code>sk-</code>, <code>ghp_</code>, <code>eyJ</code>, blocs PEM) et notifications bancaires/authentificateurs."
+              data-en-html="<strong>Hard privacy guard (<code>NotificationPrivacyGuard</code>):</strong> blocks numeric and alphanumeric OTPs, temporary passwords, API tokens (<code>sk-</code>, <code>ghp_</code>, <code>eyJ</code>, PEM blocks), and banking/authenticator alerts before they ever reach Hermes."><strong>Garde anti-fuite (<code>NotificationPrivacyGuard</code>) :</strong> bloque systématiquement les codes OTP numériques ou alphanumériques, mots de passe temporaires, jetons API (<code>sk-</code>, <code>ghp_</code>, <code>eyJ</code>, blocs PEM) et notifications bancaires/authentificateurs.</li>
+          <li data-fr-html="<strong>Réponse rapide révisée :</strong> un brouillon de réponse proposé par Hermes ouvre toujours un dialogue de confirmation vérifiant l’état déverrouillé du profil et la liste d’autorisation au moment exact du clic."
+              data-en-html="<strong>Reviewed Quick-Reply:</strong> any reply drafted by Hermes requires an explicit confirmation dialog that re-verifies the unlocked profile and live allowlist at click time."><strong>Réponse rapide révisée :</strong> un brouillon de réponse proposé par Hermes ouvre toujours un dialogue de confirmation vérifiant l’état déverrouillé du profil et la liste d’autorisation au moment exact du clic.</li>
+          <li data-fr-html="<strong>Média, Calendrier, Contacts &amp; État appareil :</strong> lecture strictement opt-in (<code>CalendarContextReader</code>, <code>ContactsContextReader</code>, <code>DeviceContextSnapshot</code>, <code>MediaContextBridge</code>)."
+              data-en-html="<strong>Media, Calendar, Contacts &amp; Device snapshot:</strong> strictly opt-in readers (<code>CalendarContextReader</code>, <code>ContactsContextReader</code>, <code>DeviceContextSnapshot</code>, <code>MediaContextBridge</code>)."><strong>Média, Calendrier, Contacts &amp; État appareil :</strong> lecture strictement opt-in (<code>CalendarContextReader</code>, <code>ContactsContextReader</code>, <code>DeviceContextSnapshot</code>, <code>MediaContextBridge</code>).</li>
+        </ul>
+      </section>
+
+      <!-- 6. Zero-Leak Push -->
+      <section class="doc-section" id="push">
+        <h2 data-fr="6. Push zéro-fuite &amp; Livraisons application fermée" data-en="6. Zero-Leak Push &amp; Closed-App Delivery">6. Push zéro-fuite &amp; Livraisons application fermée</h2>
+        <p data-fr="Hermes Mobile prend en charge UnifiedPush (sans Google) et Firebase Cloud Messaging (FCM) avec une règle invariante : le message push ne transporte jamais de texte privé, de titre de discussion ni de contenu de livraison."
+           data-en="Hermes Mobile supports UnifiedPush (Google-free) and Firebase Cloud Messaging (FCM) under one strict invariant: push payloads never carry private text, thread titles, or delivery content.">Hermes Mobile prend en charge UnifiedPush (sans Google) et Firebase Cloud Messaging (FCM) avec une règle invariante : le message push ne transporte jamais de texte privé, de titre de discussion ni de contenu de livraison.</p>
+        <ul>
+          <li data-fr-html="<strong>Réveil opaque :</strong> le pont <code>server/mobile_push</code> surveille en lecture seule <code>runs_idempotency.db</code>, <code>cron/executions.db</code> et <code>mobile_state.db</code> (<code>mobile_deliveries</code>) sans jamais lire <code>title</code> ni <code>payload_json</code>."
+              data-en-html="<strong>Opaque wakeups:</strong> the <code>server/mobile_push</code> bridge polls <code>runs_idempotency.db</code>, <code>cron/executions.db</code>, and <code>mobile_state.db</code> (<code>mobile_deliveries</code>) read-only without ever reading <code>title</code> or <code>payload_json</code>."><strong>Réveil opaque :</strong> le pont <code>server/mobile_push</code> surveille en lecture seule <code>runs_idempotency.db</code>, <code>cron/executions.db</code> et <code>mobile_state.db</code> (<code>mobile_deliveries</code>) sans jamais lire <code>title</code> ni <code>payload_json</code>.</li>
+          <li data-fr-html="<strong>Déverrouillage avant récupération :</strong> toucher une notification ouvre le profil propriétaire, puis l’application récupère le contenu authentifié directement depuis votre passerelle."
+              data-en-html="<strong>Unlock before fetch:</strong> tapping a notification opens the owning profile first; only after unlock does the app fetch the authenticated payload directly from your gateway."><strong>Déverrouillage avant récupération :</strong> toucher une notification ouvre le profil propriétaire, puis l’application récupère le contenu authentifié directement depuis votre passerelle.</li>
+          <li data-fr-html="<strong>Heures calmes &amp; Urgence :</strong> les niveaux <code>silent</code>, <code>normal</code> et <code>urgent</code> respectent la politique locale <code>PushPolicy</code> et la file différée SQLite (v7)."
+              data-en-html="<strong>Quiet Hours &amp; Urgency:</strong> <code>silent</code>, <code>normal</code>, and <code>urgent</code> levels honor local <code>PushPolicy</code> Quiet Hours and deferred delivery queuing in SQLite (v7)."><strong>Heures calmes &amp; Urgence :</strong> les niveaux <code>silent</code>, <code>normal</code> et <code>urgent</code> respectent la politique locale <code>PushPolicy</code> et la file différée SQLite (v7).</li>
+        </ul>
+      </section>
+
+      <!-- 7. Security & Profile Isolation -->
+      <section class="doc-section" id="security">
+        <h2 data-fr="7. Sécurité &amp; Isolation des profils" data-en="7. Security Architecture &amp; Profile Isolation">7. Sécurité &amp; Isolation des profils</h2>
+        <ul>
+          <li data-fr-html="<strong>Chiffrement local par profil :</strong> les clés API, brouillons, historiques de mise en page et états d’outils sont scellés dans des coffres chiffrés AES-GCM distincts par profil. Les sauvegardes cloud Android (<code>allowBackup=false</code>) et le trafic en clair (<code>usesCleartextTraffic=false</code>) sont désactivés."
+              data-en-html="<strong>Per-profile local encryption:</strong> API keys, drafts, layout history, and tool states are sealed in separate AES-GCM vaults per profile. Android cloud backups (<code>allowBackup=false</code>) and cleartext traffic (<code>usesCleartextTraffic=false</code>) are disabled."><strong>Chiffrement local par profil :</strong> les clés API, brouillons, historiques de mise en page et états d’outils sont scellés dans des coffres chiffrés AES-GCM distincts par profil. Les sauvegardes cloud Android (<code>allowBackup=false</code>) et le trafic en clair (<code>usesCleartextTraffic=false</code>) sont désactivés.</li>
+          <li data-fr-html="<strong>Biométrie sûre :</strong> <code>BiometricVault</code> n’accepte que <code>BIOMETRIC_STRONG</code> ou <code>DEVICE_CREDENTIAL</code> (jamais Class-2 weak), lie l’AAD au couple <code>(profileId, label)</code>, et efface immédiatement les tampons en mémoire si le dialogue est annulé ou l’activité verrouillée."
+              data-en-html="<strong>Safe biometrics:</strong> <code>BiometricVault</code> accepts only <code>BIOMETRIC_STRONG</code> or <code>DEVICE_CREDENTIAL</code> (never Class-2 weak), binds AAD to <code>(profileId, label)</code>, and wipes staged secrets synchronously on cancel or lock."><strong>Biométrie sûre :</strong> <code>BiometricVault</code> n’accepte que <code>BIOMETRIC_STRONG</code> ou <code>DEVICE_CREDENTIAL</code> (jamais Class-2 weak), lie l’AAD au couple <code>(profileId, label)</code>, et efface immédiatement les tampons en mémoire si le dialogue est annulé ou l’activité verrouillée.</li>
+          <li data-fr-html="<strong>Zéro WebView &amp; EXIF supprimé :</strong> le rendu Markdown, code et tableaux est 100 % natif. Les photos importées ou capturées (via <code>PrivateCaptureProvider</code> non exporté) sont décodées puis ré-encodées sans métadonnées EXIF/GPS."
+              data-en-html="<strong>Zero WebView &amp; EXIF stripping:</strong> Markdown, code, and table rendering is 100% native. Imported or camera-captured photos (via unexported <code>PrivateCaptureProvider</code>) are decoded and re-encoded without EXIF/GPS metadata."><strong>Zéro WebView &amp; EXIF supprimé :</strong> le rendu Markdown, code et tableaux est 100 % natif. Les photos importées ou capturées (via <code>PrivateCaptureProvider</code> non exporté) sont décodées puis ré-encodées sans métadonnées EXIF/GPS.</li>
+          <li data-fr-html="<strong>Validation en deux gestes :</strong> aucune action Android externe (agenda, alarme, SMS, courriel, navigation, partage, presse-papiers sensible) ne s’exécute sans aperçu complet et clic explicite dans <code>DeviceReview</code>."
+              data-en-html="<strong>Two-gesture handoff:</strong> no external Android action (Calendar, Alarm, SMS, Email, Navigation, Share, sensitive clipboard copy) fires without full preview and explicit user confirmation in <code>DeviceReview</code>."><strong>Validation en deux gestes :</strong> aucune action Android externe (agenda, alarme, SMS, courriel, navigation, partage, presse-papiers sensible) ne s’exécute sans aperçu complet et clic explicite dans <code>DeviceReview</code>.</li>
+        </ul>
+      </section>
+
+      <!-- 8. Impeccable Design System -->
+      <section class="doc-section" id="design-system">
+        <h2 data-fr="8. Système de design (« Un espace de papier pour la conversation »)" data-en="8. Design System (“A paper workspace for conversation”)">8. Système de design (« Un espace de papier pour la conversation »)</h2>
+        <p data-fr-html="L’interface Android et ce site partagent une source unique de vérité définie dans <code>.impeccable/design.json</code> et <code>DESIGN.md</code> : une colonne de lecture calme sur papier chaud, une couleur d’action vert sarcelle réservée aux actions réelles, des filets <code>1px</code> et des cibles tactiles minimales de <code>48dp</code>."
+           data-en-html="Both the Android client and this site share a single source of truth defined in <code>.impeccable/design.json</code> and <code>DESIGN.md</code>: one calm reading column on warm paper, a quiet deep-teal action color, crisp <code>1px</code> hairline dividers, and minimum <code>48dp</code> touch targets.">L’interface Android et ce site partagent une source unique de vérité définie dans <code>.impeccable/design.json</code> et <code>DESIGN.md</code> : une colonne de lecture calme sur papier chaud, une couleur d’action vert sarcelle réservée aux actions réelles, des filets <code>1px</code> et des cibles tactiles minimales de <code>48dp</code>.</p>
+
+        <div class="swatch-grid">
+          <div class="swatch"><div class="swatch-chip" style="background:#F7F5EF"></div><strong>Warm paper</strong><span>#F7F5EF</span></div>
+          <div class="swatch"><div class="swatch-chip" style="background:#FFFEFA"></div><strong>Card paper</strong><span>#FFFEFA</span></div>
+          <div class="swatch"><div class="swatch-chip" style="background:#225C50"></div><strong>Deep teal</strong><span>#225C50</span></div>
+          <div class="swatch"><div class="swatch-chip" style="background:#DCEDE3"></div><strong>Pale mint</strong><span>#DCEDE3</span></div>
+          <div class="swatch"><div class="swatch-chip" style="background:#172521"></div><strong>Green-black ink</strong><span>#172521</span></div>
+          <div class="swatch"><div class="swatch-chip" style="background:#141D19"></div><strong>Dark paper</strong><span>#141D19</span></div>
+          <div class="swatch"><div class="swatch-chip" style="background:#1C2823"></div><strong>Dark card</strong><span>#1C2823</span></div>
+          <div class="swatch"><div class="swatch-chip" style="background:#A0D7BC"></div><strong>Night mint</strong><span>#A0D7BC</span></div>
+        </div>
+
+        <ul>
+          <li data-fr-html="<strong>Règle du brouillon éditable :</strong> la dictée, les formulaires générés et les puces rapides préparent toujours un brouillon modifiable ; l’envoi exige toujours un geste séparé."
+              data-en-html="<strong>The Editable Draft Rule:</strong> dictation, generated tools, and quick-action chips always stage an editable draft; sending always requires a separate explicit tap."><strong>Règle du brouillon éditable :</strong> la dictée, les formulaires générés et les puces rapides préparent toujours un brouillon modifiable ; l’envoi exige toujours un geste séparé.</li>
+          <li data-fr-html="<strong>Règle des mesures honnêtes :</strong> chaque métrique (jetons, cache, latence) affiche son libellé clair au-dessus de sa valeur et ne remplace jamais une donnée indisponible par <code>0</code>."
+              data-en-html="<strong>The Measurement Label Rule:</strong> every usage metric pairs a clear label with its unit and scope, and never turns an unavailable measurement into <code>0</code>."><strong>Règle des mesures honnêtes :</strong> chaque métrique (jetons, cache, latence) affiche son libellé clair au-dessus de sa valeur et ne remplace jamais une donnée indisponible par <code>0</code>.</li>
+        </ul>
+      </section>
+
+      <!-- 9. Fast Testing & CI -->
+      <section class="doc-section" id="testing">
+        <h2 data-fr="9. Vérification rapide &amp; CI" data-en="9. Fast Verification &amp; CI">9. Vérification rapide &amp; CI</h2>
+        <p data-fr="Le dépôt fournit un lanceur hôte unifié (scripts/fast_check.py) exécutant en parallèle la vérification de la documentation, les tests du serveur push/nearby, les tests de déploiement et l’hygiène du code en ~12–20 secondes."
+           data-en="The repository ships a parallel host runner (scripts/fast_check.py) that validates docs, push/nearby server tests, deploy isolation tests, and code hygiene in ~12–20 seconds.">Le dépôt fournit un lanceur hôte unifié (scripts/fast_check.py) exécutant en parallèle la vérification de la documentation, les tests du serveur push/nearby, les tests de déploiement et l’hygiène du code en ~12–20 secondes.</p>
+
+        <pre class="code-block"><code># 1. Parallel host checks (docs, server, deploy, verification scripts)
+python3 scripts/fast_check.py
+
+# 2. Android build, Lint, JVM unit tests &amp; androidTest APK
+./gradlew :app:assembleDebug :app:lintDebug :app:testDebugUnitTest :app:assembleDebugAndroidTest --no-daemon
+
+# 3. Verify generated documentation matches docs/sources/
+python3 scripts/docs.py --check</code></pre>
+
+        <p data-fr-html="Consultez la <a href='../walkthrough/'>galerie de vérification API 36</a> pour voir les captures réelles sur téléphone et tablette issues des parcours automatisés."
+           data-en-html="See the <a href='../walkthrough/'>API 36 verification gallery</a> for real phone and tablet screenshots captured by the automated device journeys.">Consultez la <a href="../walkthrough/">galerie de vérification API 36</a> pour voir les captures réelles sur téléphone et tablette issues des parcours automatisés.</p>
+      </section>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <div data-fr="Hermes Mobile — Documentation officielle." data-en="Hermes Mobile — Official Documentation.">Hermes Mobile — Documentation officielle.</div>
+      <div class="footer-links">
+        <a href="../" data-fr="Aperçu" data-en="Overview">Aperçu</a>
+        <a href="../walkthrough/" data-fr="Galerie API 36" data-en="API 36 Gallery">Galerie API 36</a>
+        <a href="https://github.com/LLM-4-People/hermes-mobile" rel="noopener noreferrer">hermes-mobile</a>
+        <a href="https://github.com/LLM-4-People/hermes-agent" rel="noopener noreferrer">hermes-agent</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="../assets/app.js"></script>
+</body>
+</html>
