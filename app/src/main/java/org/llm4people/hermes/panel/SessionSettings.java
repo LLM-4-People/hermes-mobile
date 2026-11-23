@@ -280,7 +280,7 @@ final class SessionSettings {
 
     private void loadTools(LinearLayout box) {
         box.removeAllViews();
-        panel.load(box, () -> {
+        panel.request(box, () -> {
             JSONObject capabilities = panel.api.get("/v1/capabilities").getJSONObject("features");
             return new Object[]{capabilities,
                     panel.api.get("/v1/toolsets").getJSONArray("data")};
@@ -310,7 +310,18 @@ final class SessionSettings {
                 panel.action(box, R.string.brain_profile_defaults_title,
                         () -> new ProfileDefaultsPanel(panel, this::show).show());
             }
-        }, () -> loadTools(box));
+        }, error -> {
+            skillStudioSupported = false;
+            capabilitiesLoaded = true;
+            if (pendingOpenSkills) {
+                pendingOpenSkills = false;
+                if (activeThread.getAsBoolean()) {
+                    openSkills();
+                    return;
+                }
+            }
+            panel.failure(box, error, () -> loadTools(box));
+        });
     }
 
     private void openSkills() {
