@@ -146,6 +146,7 @@ public final class ProfileGate {
     private final ProbeController probe = new ProbeController();
     private PairingLinkParser.ParsedInput pendingPairing;
     private OnboardingModels.PairingClaim lastPairingClaim;
+    private FirstRunWizard.StagedPairing stagedPairing;
     private int generation;
     private boolean nested;
     private boolean busy;
@@ -335,6 +336,7 @@ public final class ProfileGate {
         generation++;
         busy = false;
         nested = false;
+        stagedPairing = null;
         cancelBiometric();
         cancelProbe();
         if (confirmation != null) {
@@ -387,6 +389,7 @@ public final class ProfileGate {
         cancelProbe();
         nested = canGoBack;
         lastPairingClaim = null;
+        stagedPairing = null;
         PairingLinkParser.ParsedInput incomingLink = pendingPairing;
         pendingPairing = null;
         ProfileScreen screen = new ProfileScreen(
@@ -394,32 +397,87 @@ public final class ProfileGate {
         final EditText[] fields = new EditText[5];
         final Button[] testBtnRef = new Button[1];
         final TextView[] probeStatusRef = new TextView[1];
-        FirstRunWizard.attachInstantSetupCard(
+        final TextView[] stagedSummaryRef = new TextView[1];
+        final boolean[] programmaticUpdate = {false};
+
+        Consumer<PairingLinkParser.ParsedInput> instantHandler = FirstRunWizard.attachInstantSetupCard(
                 activity,
                 screen,
-                incomingLink,
+                incomingLink != null,
                 PROBE_IO,
                 () -> screenEpoch == generation && !busy,
                 new FirstRunWizard.Step1Targets() {
                     @Override public void fillFields(String suggestedName, String serverUrl, String profileSlug,
                                                      String apiKey, boolean focusPassphrase) {
-                        if (fields[0] != null && fields[0].getText().toString().trim().isEmpty()
-                                && suggestedName != null && !suggestedName.isEmpty()) {
-                            fields[0].setText(suggestedName);
-                        }
-                        if (fields[1] != null && serverUrl != null && !serverUrl.isEmpty()) {
-                            fields[1].setText(serverUrl);
-                        }
-                        if (fields[2] != null && profileSlug != null) {
-                            fields[2].setText(profileSlug);
-                        }
-                        if (fields[3] != null && apiKey != null && !apiKey.isEmpty()) {
-                            fields[3].setText(apiKey);
+                        programmaticUpdate[0] = true;
+                        try {
+                            stagedPairing = null;
+                            if (fields[3] != null) fields[3].setHint("");
+                            if (stagedSummaryRef[0] != null) {
+                                stagedSummaryRef[0].setText("");
+                                stagedSummaryRef[0].setVisibility(android.view.View.GONE);
+                            }
+                            if (fields[0] != null && fields[0].getText().toString().trim().isEmpty()
+                                    && suggestedName != null && !suggestedName.isEmpty()) {
+                                fields[0].setText(suggestedName);
+                            }
+                            if (fields[1] != null && serverUrl != null && !serverUrl.isEmpty()) {
+                                fields[1].setText(serverUrl);
+                                fields[1].setError(null);
+                            }
+                            if (fields[2] != null && profileSlug != null) {
+                                fields[2].setText(profileSlug);
+                                fields[2].setError(null);
+                            }
+                            if (fields[3] != null && apiKey != null && !apiKey.isEmpty()) {
+                                fields[3].setText(apiKey);
+                                fields[3].setError(null);
+                            }
+                        } finally {
+                            programmaticUpdate[0] = false;
                         }
                         if (focusPassphrase && fields[4] != null) {
                             fields[4].requestFocus();
-                        } else if (!focusPassphrase && fields[3] != null) {
-                            fields[3].requestFocus();
+                        }
+                    }
+
+                    @Override public void stagePairing(FirstRunWizard.StagedPairing staged) {
+                        stagedPairing = staged;
+                        String defaultLabel = activity.getString(R.string.onboarding_default_profile_label);
+                        String profileName = FirstRunWizard.formProfileName(
+                                staged.displayName(), staged.profileSlug(), defaultLabel);
+                        String profileLabel = FirstRunWizard.confirmProfileLabel(
+                                staged.displayName(), staged.profileSlug(), defaultLabel);
+                        programmaticUpdate[0] = true;
+                        try {
+                            if (fields[0] != null && fields[0].getText().toString().trim().isEmpty()) {
+                                fields[0].setText(profileName);
+                                fields[0].setError(null);
+                            }
+                            if (fields[1] != null) {
+                                fields[1].setText(staged.serverUrl());
+                                fields[1].setError(null);
+                            }
+                            if (fields[2] != null) {
+                                fields[2].setText(staged.formProfileSlug());
+                                fields[2].setError(null);
+                            }
+                            if (fields[3] != null) {
+                                fields[3].setText("");
+                                fields[3].setError(null);
+                                fields[3].setHint(R.string.onboarding_key_paired_auto_hint);
+                            }
+                        } finally {
+                            programmaticUpdate[0] = false;
+                        }
+                        String stagedSummary = activity.getString(R.string.onboarding_paste_staged,
+                                staged.serverUrl(), profileLabel);
+                        if (probeStatusRef[0] != null) {
+                            screen.setNote(probeStatusRef[0], stagedSummary, R.color.accent);
+                        }
+                        if (stagedSummaryRef[0] != null) {
+                            screen.setNote(stagedSummaryRef[0], stagedSummary, R.color.accent);
+                            stagedSummaryRef[0].setVisibility(android.view.View.VISIBLE);
                         }
                     }
 
@@ -460,6 +518,38 @@ public final class ProfileGate {
         TextView endpointPreview = screen.liveNote(activity.getString(R.string.profile_server_slug_help));
         watchEndpointPreview(screen, server, serverProfile, endpointPreview);
         EditText key = screen.field(activity.getString(R.string.profile_key_label), "", SECRET, 8192, true);
+        Runnable clearStaged = () -> {
+            if (stagedPairing != null) {
+                stagedPairing = null;
+                key.setHint("");
+            }
+            if (stagedSummaryRef[0] != null) {
+                stagedSummaryRef[0].setText("");
+                stagedSummaryRef[0].setVisibility(android.view.View.GONE);
+            }
+        };
+        key.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {}
+            @Override public void afterTextChanged(Editable s) {
+                if (!programmaticUpdate[0] && stagedPairing != null && s.length() > 0) {
+                    clearStaged.run();
+                }
+            }
+        });
+        TextWatcher targetDriftWatcher = new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {}
+            @Override public void afterTextChanged(Editable s) {
+                if (!programmaticUpdate[0] && stagedPairing != null
+                        && !stagedPairing.matchesTarget(server.getText().toString(), serverProfile.getText().toString())) {
+                    clearStaged.run();
+                }
+            }
+        };
+        server.addTextChangedListener(targetDriftWatcher);
+        serverProfile.addTextChangedListener(targetDriftWatcher);
+
         Button testButton = screen.action(activity.getString(R.string.profile_setup_test_action), false, null);
         TextView probeStatus = screen.liveNote("");
         testBtnRef[0] = testButton;
@@ -468,11 +558,20 @@ public final class ProfileGate {
             if (busy) return;
             String endpoint = validatedEndpoint(server, serverProfile);
             if (endpoint == null) return;
+            FirstRunWizard.StagedPairing activeStaged = stagedPairing;
+            if (activeStaged != null
+                    && activeStaged.matchesTarget(server.getText().toString(), serverProfile.getText().toString())) {
+                runStagedPairingProbe(screen, testButton, probeStatus, activeStaged, clearStaged);
+                return;
+            }
             String bearer = checkedBearer(key);
             if (bearer == null) return;
             runConnectionProbe(screen, testButton, probeStatus, endpoint, bearer);
         });
         screen.section(activity.getString(R.string.profile_lock_section), activity.getString(R.string.profile_lock_detail));
+        TextView stagedSummary = screen.liveNote("");
+        stagedSummary.setVisibility(android.view.View.GONE);
+        stagedSummaryRef[0] = stagedSummary;
         EditText phrase = screen.field(activity.getString(R.string.profile_passphrase_label),
                 activity.getResources().getQuantityString(R.plurals.profile_passphrase_hint, MIN_PASSPHRASE, MIN_PASSPHRASE),
                 SECRET, 512, true);
@@ -495,8 +594,11 @@ public final class ProfileGate {
             }
             String endpoint = validatedEndpoint(server, serverProfile);
             if (endpoint == null) return;
-            String bearer = checkedBearer(key);
-            if (bearer == null) return;
+            FirstRunWizard.StagedPairing activeStaged = stagedPairing;
+            boolean useStaged = activeStaged != null
+                    && activeStaged.matchesTarget(server.getText().toString(), serverProfile.getText().toString());
+            String bearer = useStaged ? "" : checkedBearer(key);
+            if (!useStaged && bearer == null) return;
             char[] pass = password(phrase);
             char[] check = password(repeat);
             boolean matches = Arrays.equals(pass, check);
@@ -511,12 +613,21 @@ public final class ProfileGate {
                 return;
             }
             cancelProbe(true);
-            run(screen, (Button) view, pass, () -> store.create(label, endpoint, bearer, pass),
-                    this::opened, activity.getString(R.string.profile_setup_save_failed));
+            if (useStaged) {
+                claimAndCreate(screen, (Button) view, label, activeStaged, pass, clearStaged);
+            } else {
+                run(screen, (Button) view, pass, () -> store.create(label, endpoint, bearer, pass),
+                        this::opened, activity.getString(R.string.profile_setup_save_failed));
+            }
         });
         if (canGoBack) screen.action(activity.getString(R.string.profile_back_to_profiles), false, view -> { if (!busy) chooser(null); });
         else screen.action(activity.getString(R.string.language_action), false,
                 view -> { if (!busy) showLanguagePicker(); });
+
+        // All EditText fields and refs are now initialized — safe to process any scanned/deep-linked pairing input.
+        if (incomingLink != null) {
+            instantHandler.accept(incomingLink);
+        }
     }
 
     private String validatedEndpoint(EditText server, EditText serverProfile) {
@@ -623,6 +734,10 @@ public final class ProfileGate {
                     screen.setNote(preview, text, R.color.muted);
                     return;
                 }
+                screen.setNote(preview,
+                        activity.getString(R.string.profile_endpoint_preview, split.composedEndpoint()),
+                        R.color.muted);
+                return;
             } catch (IllegalArgumentException ignored) {
                 // Fall back to neutral guidance while the user is still typing the URL or profile name.
             }
@@ -678,6 +793,120 @@ public final class ProfileGate {
         };
         phrase.addTextChangedListener(watcher);
         repeat.addTextChangedListener(watcher);
+    }
+
+    /** Non-consuming connection probe for a staged pairing ticket via {@code POST /api/mobile/pairing/inspect}. */
+    private void runStagedPairingProbe(
+            ProfileScreen screen,
+            Button testButton,
+            TextView statusView,
+            FirstRunWizard.StagedPairing staged,
+            Runnable clearStaged) {
+        int screenEpoch = generation;
+        int probeEpoch = probe.begin(() -> {
+            testButton.setEnabled(true);
+            screen.setNote(statusView, "", R.color.muted);
+        });
+        testButton.setEnabled(false);
+        screen.setNote(statusView, activity.getString(R.string.profile_setup_testing), R.color.muted);
+        HermesConfig cfg = HermesConfig.load(activity);
+        HermesApi.Limits probeLimits = new HermesApi.Limits(
+                PROBE_TIMEOUT_MS, PROBE_TIMEOUT_MS, cfg.httpJsonMaxBytes, cfg.httpEventMaxBytes);
+        PROBE_IO.execute(() -> {
+            long startMs = SystemClock.elapsedRealtime();
+            int outcome = 0; // 0=ok, 1=expired(410), 2=legacy(404), 3=unreachable
+            try {
+                JSONObject raw = HermesApi.inspectPairing(staged.serverUrl(), staged.pairingCode(), probeLimits);
+                OnboardingModels.parsePairingInspect(raw);
+            } catch (HermesApi.HttpError http) {
+                if (http.status == 410) outcome = 1;
+                else if (http.status == 404) outcome = 2;
+                else outcome = 3;
+            } catch (Exception err) {
+                Diagnostics.warning("profile", "staged_pairing_probe_failed");
+                outcome = 3;
+            }
+            long elapsedMs = Math.max(0L, SystemClock.elapsedRealtime() - startMs);
+            int finalOutcome = outcome;
+            activity.runOnUiThread(() -> {
+                if (screenEpoch != generation || activity.isFinishing() || activity.isDestroyed()) return;
+                if (!probe.finishUi(probeEpoch)) return;
+                testButton.setEnabled(true);
+                if (finalOutcome == 0) {
+                    screen.setNote(statusView,
+                            activity.getString(R.string.onboarding_pairing_probe_ok, elapsedMs), R.color.accent);
+                } else if (finalOutcome == 1) {
+                    clearStaged.run();
+                    screen.setNote(statusView,
+                            activity.getString(R.string.onboarding_paste_claim_failed), R.color.danger);
+                } else if (finalOutcome == 2) {
+                    screen.setNote(statusView,
+                            activity.getString(R.string.onboarding_pairing_probe_legacy), R.color.accent);
+                } else {
+                    screen.setNote(statusView,
+                            activity.getString(R.string.profile_setup_test_unreachable), R.color.danger);
+                }
+            });
+        });
+    }
+
+    /** Atomically claims a staged pairing ticket and creates the encrypted local profile only after Save. */
+    private void claimAndCreate(
+            ProfileScreen screen,
+            Button action,
+            String label,
+            FirstRunWizard.StagedPairing staged,
+            char[] pass,
+            Runnable clearStaged) {
+        busy = true;
+        int epoch = generation;
+        action.setEnabled(false);
+        InputMethodManager ime = (InputMethodManager) activity.getSystemService(Context.INPUT_METHOD_SERVICE);
+        if (ime != null) ime.hideSoftInputFromWindow(action.getWindowToken(), 0);
+        screen.status(activity.getString(R.string.onboarding_paste_claiming), false);
+        HermesConfig cfg = HermesConfig.load(activity);
+        HermesApi.Limits claimLimits = new HermesApi.Limits(
+                PROBE_TIMEOUT_MS, PROBE_TIMEOUT_MS, cfg.httpJsonMaxBytes, cfg.httpEventMaxBytes);
+        IO.execute(() -> {
+            Account account = null;
+            OnboardingModels.PairingClaim claimed = null;
+            boolean expiredOrUsed = false;
+            try {
+                JSONObject raw = HermesApi.claimPairing(staged.serverUrl(), staged.pairingCode(), claimLimits);
+                claimed = OnboardingModels.parsePairingClaim(raw);
+                account = store.create(label, claimed.resolvedEndpoint(), claimed.apiKey(), pass);
+                Diagnostics.event("onboarding", "pairing_claimed");
+            } catch (HermesApi.HttpError http) {
+                if (http.status == 410 || http.status == 404) expiredOrUsed = true;
+                Diagnostics.warning("onboarding", "pairing_claim_http_" + http.status);
+            } catch (Exception err) {
+                Diagnostics.warning("onboarding", "pairing_claim_save_failed");
+            } finally {
+                Arrays.fill(pass, '\0');
+            }
+            Account result = account;
+            OnboardingModels.PairingClaim finalClaim = claimed;
+            boolean finalExpired = expiredOrUsed;
+            activity.runOnUiThread(() -> {
+                if (epoch != generation || activity.isFinishing() || activity.isDestroyed()) {
+                    if (result != null) result.close();
+                    return;
+                }
+                busy = false;
+                action.setEnabled(true);
+                if (result == null) {
+                    if (finalExpired) clearStaged.run();
+                    screen.status(activity.getString(finalExpired
+                            ? R.string.onboarding_paste_claim_failed
+                            : R.string.profile_setup_save_failed), true);
+                } else {
+                    stagedPairing = null;
+                    lastPairingClaim = finalClaim;
+                    screen.status("", false);
+                    opened(result);
+                }
+            });
+        });
     }
 
     private void runConnectionProbe(ProfileScreen screen, Button testButton, TextView statusView,

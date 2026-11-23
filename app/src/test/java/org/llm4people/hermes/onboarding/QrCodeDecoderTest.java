@@ -325,6 +325,50 @@ public final class QrCodeDecoderTest {
         assertEquals("hm_live_key_1234567890", directPlan.apiKey());
     }
 
+    @Test
+    public void cameraPreviewSelectionAndCenterCropPreserveExactAspectRatioAcrossOrientations() {
+        // Sensor orientation vs display rotation axis swap table
+        assertTrue(QrScannerActivity.shouldSwapAxes(90, 0));
+        assertFalse(QrScannerActivity.shouldSwapAxes(90, 90));
+        assertTrue(QrScannerActivity.shouldSwapAxes(90, 180));
+        assertFalse(QrScannerActivity.shouldSwapAxes(90, 270));
+        assertFalse(QrScannerActivity.shouldSwapAxes(0, 0));
+        assertTrue(QrScannerActivity.shouldSwapAxes(270, 0));
+
+        // 1. Tall portrait 20:9 screen (1080x2400) with 4:3 (1440x1080) and 16:9 (1920x1080) buffers (swapped)
+        int[][] viewports = {{1080, 2400}, {2400, 1080}, {1080, 1920}, {720, 1600}};
+        int[][] buffers = {{1920, 1080}, {1440, 1080}, {1280, 720}, {640, 480}};
+        for (int[] vp : viewports) {
+            boolean portrait = vp[1] > vp[0];
+            for (int[] buf : buffers) {
+                boolean swap = portrait; // landscape camera sensor on portrait display
+                QrScannerActivity.PreviewLayout layout = QrScannerActivity.computeCenterCropLayout(
+                        vp[0], vp[1], buf[0], buf[1], swap);
+                assertTrue("Layout width must cover container", layout.width() >= vp[0]);
+                assertTrue("Layout height must cover container", layout.height() >= vp[1]);
+                double expectedAspect = swap ? (double) buf[1] / buf[0] : (double) buf[0] / buf[1];
+                double actualAspect = (double) layout.width() / layout.height();
+                assertEquals("Aspect ratio distortion exceeded 0.01", expectedAspect, actualAspect, 0.01);
+            }
+        }
+
+        // 2. chooseBestSize picks 16:9 over 4:3 on tall portrait 20:9 phone, and respects maxLongEdge <= 1920
+        int[][] candidates = {
+                {4032, 3024}, // > 1920
+                {1440, 1080}, // 4:3
+                {1920, 1080}, // 16:9 (closest to 20:9 when swapped!)
+                {1280, 720},  // 16:9 smaller
+                {640, 480}    // 4:3 small
+        };
+        int[] chosenPortrait = QrScannerActivity.chooseBestSize(candidates, 1920, 1080.0 / 2400.0, true);
+        assertArrayEquals(new int[]{1920, 1080}, chosenPortrait);
+
+        int[] chosenAnalysis = QrScannerActivity.chooseBestSize(
+                new int[][]{{1920, 1080}, {1280, 720}, {960, 540}, {640, 480}},
+                960, 1080.0 / 1920.0, true);
+        assertArrayEquals(new int[]{960, 540}, chosenAnalysis);
+    }
+
     // -------------------------------------------------------------------------
     // Synthetic image renderers & ISO encoders for tests
     // -------------------------------------------------------------------------

@@ -248,6 +248,18 @@ public final class HermesApi {
     }
 
     /**
+     * Unauthenticated non-consuming pairing ticket inspection ({@code POST /api/mobile/pairing/inspect}).
+     * Verifies ticket validity and returns safe metadata without burning the ticket or returning any API key.
+     */
+    public static JSONObject inspectPairing(String baseUrl, String code) throws IOException {
+        return inspectPairing(baseUrl, code, Limits.defaults());
+    }
+
+    public static JSONObject inspectPairing(String baseUrl, String code, Limits limits) throws IOException {
+        return postPairingCode(baseUrl, "/api/mobile/pairing/inspect", code, limits, "pairing_inspect_failed");
+    }
+
+    /**
      * Unauthenticated single-use pairing ticket claim ({@code POST /api/mobile/pairing/claim}).
      * Enforces HTTPS/loopback via {@link Endpoint}, {@code Cache-Control: no-store}, and active
      * {@code Accept-Language} / {@code X-Hermes-Lang} headers without sending any bearer token.
@@ -257,6 +269,11 @@ public final class HermesApi {
     }
 
     public static JSONObject claimPairing(String baseUrl, String code, Limits limits) throws IOException {
+        return postPairingCode(baseUrl, "/api/mobile/pairing/claim", code, limits, "pairing_claim_failed");
+    }
+
+    private static JSONObject postPairingCode(
+            String baseUrl, String path, String code, Limits limits, String failEvent) throws IOException {
         String cleanCode = code == null ? "" : code.trim();
         if (!cleanCode.matches("[A-Za-z0-9._-]{8,160}")) {
             throw new IllegalArgumentException("Invalid pairing code");
@@ -267,7 +284,7 @@ public final class HermesApi {
         if (encoded.length > safeLimits.jsonBytes) {
             throw new IOException("Request exceeded the byte limit");
         }
-        HttpURLConnection http = (HttpURLConnection) target.url("/api/mobile/pairing/claim").openConnection();
+        HttpURLConnection http = (HttpURLConnection) target.url(path).openConnection();
         applyCommonHeaders(http, "POST", "application/json", safeLimits);
         try {
             http.setRequestProperty("Content-Type", "application/json; charset=utf-8");
@@ -279,7 +296,7 @@ public final class HermesApi {
                 return Wire.object(Wire.read(in, safeLimits.jsonBytes));
             }
         } catch (IOException error) {
-            Diagnostics.event("network", "pairing_claim_failed");
+            Diagnostics.event("network", failEvent);
             throw error;
         } finally {
             disconnectSafely(http);

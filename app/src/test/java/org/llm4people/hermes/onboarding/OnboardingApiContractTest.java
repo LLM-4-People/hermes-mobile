@@ -209,6 +209,36 @@ public final class OnboardingApiContractTest {
                 "api_key", "hm_live_key_1234567890"
         ));
         assertEquals("https://hermes.example.com/p/alex", namedClaim.resolvedEndpoint());
+
+        // Non-consuming POST /api/mobile/pairing/inspect envelope (never contains api_key)
+        OnboardingModels.PairingInspect inspect = OnboardingModels.parsePairingInspectMap(Map.of(
+                "object", "hermes.mobile.pairing.inspect",
+                "valid", true,
+                "server_url", "https://chat.ai.localserver.ca/mobile",
+                "base_host", "https://chat.ai.localserver.ca/mobile",
+                "profile_slug", "default",
+                "display_name", "Jacob",
+                "mode", "device",
+                "expires_at", 1_800_000_300L,
+                "ttl_remaining_seconds", 295
+        ));
+        assertTrue(inspect.valid());
+        assertEquals("https://chat.ai.localserver.ca/mobile", inspect.resolvedEndpoint());
+        assertEquals("default", inspect.profileSlug());
+        assertEquals("Jacob", inspect.displayName());
+        assertEquals(295, inspect.ttlRemainingSeconds());
+
+        // Reject valid=false or cleartext remote inspect responses fail-closed
+        try {
+            OnboardingModels.parsePairingInspectMap(Map.of(
+                    "valid", false, "server_url", "https://chat.ai.localserver.ca/mobile"));
+            fail("Expected valid=false inspect rejection");
+        } catch (IllegalArgumentException expected) {}
+        try {
+            OnboardingModels.parsePairingInspectMap(Map.of(
+                    "valid", true, "server_url", "http://remote.example.com/mobile"));
+            fail("Expected cleartext inspect rejection");
+        } catch (IllegalArgumentException expected) {}
     }
 
     @Test
@@ -220,7 +250,22 @@ public final class OnboardingApiContractTest {
             String base = "http://127.0.0.1:" + server.getLocalPort();
             AppLanguage.setActiveAcceptLanguageForTest("fr-CA, fr;q=0.9");
 
-            // 1. Unauthenticated POST /api/mobile/pairing/claim -> 410 Gone with Retry-After
+            // 1. Unauthenticated POST /api/mobile/pairing/inspect -> 410 Gone (no Authorization, no-store)
+            Thread t0 = serveSingle(server, 410, "Gone", "", "", observedRequestLine, observedHeaders);
+            try {
+                HermesApi.inspectPairing(base, "pair_AbCdEf1234567890");
+                fail("Expected HttpError 410");
+            } catch (HermesApi.HttpError err) {
+                assertEquals(410, err.status);
+            }
+            t0.join(3000);
+            assertEquals("POST /api/mobile/pairing/inspect HTTP/1.1", observedRequestLine.get());
+            assertNull("Unauthenticated pairing inspect must NEVER send Authorization header",
+                    observedHeaders.get().get("authorization"));
+            assertEquals("no-store", observedHeaders.get().get("cache-control"));
+            assertEquals("fr", observedHeaders.get().get("x-hermes-lang"));
+
+            // 1b. Unauthenticated POST /api/mobile/pairing/claim -> 410 Gone with Retry-After
             Thread t1 = serveSingle(server, 410, "Gone", "Retry-After: 45\r\n", "", observedRequestLine, observedHeaders);
             try {
                 HermesApi.claimPairing(base, "pair_AbCdEf1234567890");

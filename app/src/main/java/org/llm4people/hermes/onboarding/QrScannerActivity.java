@@ -74,6 +74,7 @@ public final class QrScannerActivity extends Activity {
 
     private static final int REQ_CAMERA_PERMISSION = 4211;
     private static final int REQ_PICK_IMAGE = 4212;
+    private static final int MAX_PREVIEW_EDGE = 1920;
     private static final int MAX_ANALYSIS_EDGE = 960;
     private static final int MAX_PICKED_IMAGE_EDGE = 1280;
     private static final long MIN_FRAME_INTERVAL_MS = 120L;
@@ -90,6 +91,63 @@ public final class QrScannerActivity extends Activity {
             ScanVerdict verdict,
             String rawText,
             PairingLinkParser.ParsedInput parsed) {}
+
+    /** Pure-Java aspect-preserving center-crop surface dimensions (host-JVM testable). */
+    public record PreviewLayout(int width, int height) {}
+
+    /** Returns true when camera buffer axes must be swapped relative to display orientation. */
+    public static boolean shouldSwapAxes(int sensorOrientationDeg, int displayRotationDeg) {
+        int relative = Math.floorMod(sensorOrientationDeg - displayRotationDeg, 360);
+        return relative == 90 || relative == 270;
+    }
+
+    /**
+     * Pure-Java center-crop layout solver guaranteeing zero preview distortion and full viewport coverage:
+     * {@code width >= containerW && height >= containerH} with aspect ratio matching the oriented buffer.
+     */
+    public static PreviewLayout computeCenterCropLayout(
+            int containerW, int containerH, int bufferW, int bufferH, boolean swapAxes) {
+        if (containerW <= 0 || containerH <= 0 || bufferW <= 0 || bufferH <= 0) {
+            return new PreviewLayout(Math.max(1, containerW), Math.max(1, containerH));
+        }
+        double orientedW = swapAxes ? bufferH : bufferW;
+        double orientedH = swapAxes ? bufferW : bufferH;
+        double scale = Math.max((double) containerW / orientedW, (double) containerH / orientedH);
+        int layoutW = Math.max(containerW, (int) Math.round(orientedW * scale));
+        int layoutH = Math.max(containerH, (int) Math.round(orientedH * scale));
+        return new PreviewLayout(layoutW, layoutH);
+    }
+
+    /**
+     * Pure-Java camera stream size selector prioritizing closest oriented aspect ratio to
+     * {@code targetOrientedAspect} within {@code maxLongEdge}, then preferring sharper resolution.
+     */
+    public static int[] chooseBestSize(
+            int[][] candidates, int maxLongEdge, double targetOrientedAspect, boolean swapAxes) {
+        if (candidates == null || candidates.length == 0) return null;
+        double safeAspect = (Double.isFinite(targetOrientedAspect) && targetOrientedAspect > 0.0)
+                ? targetOrientedAspect : (9.0 / 16.0);
+        int[] best = null;
+        double bestScore = Double.POSITIVE_INFINITY;
+        for (int[] c : candidates) {
+            if (c == null || c.length < 2 || c[0] <= 0 || c[1] <= 0) continue;
+            int minDim = Math.min(c[0], c[1]);
+            int maxDim = Math.max(c[0], c[1]);
+            if (minDim < 240) continue;
+            double orientedW = swapAxes ? c[1] : c[0];
+            double orientedH = swapAxes ? c[0] : c[1];
+            double aspectDiff = Math.abs((orientedW / orientedH) - safeAspect);
+            double edgePenalty = maxDim > maxLongEdge
+                    ? 10.0 + (maxDim - maxLongEdge) / 1000.0
+                    : (double) (maxLongEdge - maxDim) / (maxLongEdge * 20.0);
+            double score = aspectDiff * 100.0 + edgePenalty;
+            if (score < bestScore) {
+                bestScore = score;
+                best = c;
+            }
+        }
+        return best != null ? new int[]{best[0], best[1]} : new int[]{candidates[0][0], candidates[0][1]};
+    }
 
     /** Launch the native QR scanner for result from {@code activity}. */
     public static void launch(Activity activity) {
@@ -127,6 +185,7 @@ public final class QrScannerActivity extends Activity {
         return t;
     });
 
+    private FrameLayout previewContainer;
     private SurfaceView previewView;
     private ViewfinderOverlay overlayView;
     private LinearLayout fallbackCard;
@@ -144,7 +203,9 @@ public final class QrScannerActivity extends Activity {
     private ImageReader imageReader;
     private CaptureRequest.Builder previewRequestBuilder;
 
+    private Size previewSize;
     private Size analysisSize;
+    private int sensorOrientationDeg = 90;
     private boolean surfaceReady;
     private boolean cameraOpening;
     private boolean permissionRequested;
@@ -185,6 +246,15 @@ public final class QrScannerActivity extends Activity {
         FrameLayout root = new FrameLayout(this);
         root.setBackgroundColor(0xFF0E1112);
 
+        previewContainer = new FrameLayout(this);
+        previewContainer.setClipChildren(true);
+        previewContainer.setClipToPadding(true);
+        previewContainer.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> {
+            if ((r - l) != (or - ol) || (b - t) != (ob - ot)) {
+                applyPreviewLayout();
+            }
+        });
+
         previewView = new SurfaceView(this);
         previewView.getHolder().addCallback(new SurfaceHolder.Callback() {
             @Override
@@ -204,7 +274,9 @@ public final class QrScannerActivity extends Activity {
                 closeCamera();
             }
         });
-        root.addView(previewView, new FrameLayout.LayoutParams(
+        previewContainer.addView(previewView, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT, Gravity.CENTER));
+        root.addView(previewContainer, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
 
         overlayView = new ViewfinderOverlay(this, getColor(R.color.accent));
@@ -556,21 +628,35 @@ public final class QrScannerActivity extends Activity {
 
         try {
             CameraCharacteristics chars = manager.getCameraCharacteristics(camId);
+            Integer sensorOri = chars.get(CameraCharacteristics.SENSOR_ORIENTATION);
+            sensorOrientationDeg = sensorOri != null ? sensorOri : 90;
             Boolean hasFlash = chars.get(CameraCharacteristics.FLASH_INFO_AVAILABLE);
             flashAvailable = Boolean.TRUE.equals(hasFlash);
-            mainHandler.post(() -> {
-                if (!isFinishing() && !isDestroyed()) {
-                    torchButton.setVisibility(flashAvailable ? View.VISIBLE : View.GONE);
-                }
-            });
 
             StreamConfigurationMap map = chars.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
-            analysisSize = chooseAnalysisSize(map);
+            boolean swapAxes = shouldSwapAxes(sensorOrientationDeg, currentDisplayRotationDeg());
+            double viewportAspect = currentViewportAspect();
+            previewSize = choosePreviewSize(map, viewportAspect, swapAxes);
+            double previewOrientedAspect = previewSize != null
+                    ? (swapAxes
+                            ? (double) previewSize.getHeight() / previewSize.getWidth()
+                            : (double) previewSize.getWidth() / previewSize.getHeight())
+                    : viewportAspect;
+            analysisSize = chooseAnalysisSize(map, previewOrientedAspect, swapAxes);
             if (analysisSize == null) {
                 clearCameraOpening();
                 showFallback(R.string.qr_scanner_unavailable_title, R.string.qr_scanner_unavailable_detail);
                 return;
             }
+            Size chosenPreview = previewSize != null ? previewSize : analysisSize;
+            previewSize = chosenPreview;
+            mainHandler.post(() -> {
+                if (!isFinishing() && !isDestroyed()) {
+                    torchButton.setVisibility(flashAvailable ? View.VISIBLE : View.GONE);
+                    previewView.getHolder().setFixedSize(chosenPreview.getWidth(), chosenPreview.getHeight());
+                    applyPreviewLayout();
+                }
+            });
 
             manager.openCamera(camId, new CameraDevice.StateCallback() {
                 @Override
@@ -814,23 +900,69 @@ public final class QrScannerActivity extends Activity {
         }
     }
 
-    private static Size chooseAnalysisSize(StreamConfigurationMap map) {
-        if (map == null) return null;
-        Size[] sizes = map.getOutputSizes(android.graphics.ImageFormat.YUV_420_888);
-        if (sizes == null || sizes.length == 0) return null;
-        Size best = null;
-        int bestScore = Integer.MAX_VALUE;
-        for (Size s : sizes) {
-            int maxDim = Math.max(s.getWidth(), s.getHeight());
-            int minDim = Math.min(s.getWidth(), s.getHeight());
-            if (minDim < 240) continue;
-            int score = Math.abs(maxDim - MAX_ANALYSIS_EDGE) + (maxDim > 1280 ? 2000 : 0);
-            if (score < bestScore) {
-                bestScore = score;
-                best = s;
-            }
+    private int currentDisplayRotationDeg() {
+        try {
+            int rot = getWindowManager().getDefaultDisplay().getRotation();
+            return switch (rot) {
+                case Surface.ROTATION_90 -> 90;
+                case Surface.ROTATION_180 -> 180;
+                case Surface.ROTATION_270 -> 270;
+                default -> 0;
+            };
+        } catch (RuntimeException ignored) {
+            return 0;
         }
-        return best != null ? best : sizes[0];
+    }
+
+    private double currentViewportAspect() {
+        int cw = previewContainer != null ? previewContainer.getWidth() : 0;
+        int ch = previewContainer != null ? previewContainer.getHeight() : 0;
+        if (cw > 0 && ch > 0) return (double) cw / ch;
+        android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
+        return (dm != null && dm.widthPixels > 0 && dm.heightPixels > 0)
+                ? (double) dm.widthPixels / dm.heightPixels : (9.0 / 16.0);
+    }
+
+    private void applyPreviewLayout() {
+        if (previewContainer == null || previewView == null || previewSize == null) return;
+        int cw = previewContainer.getWidth();
+        int ch = previewContainer.getHeight();
+        if (cw <= 0 || ch <= 0) return;
+        boolean swapAxes = shouldSwapAxes(sensorOrientationDeg, currentDisplayRotationDeg());
+        PreviewLayout target = computeCenterCropLayout(
+                cw, ch, previewSize.getWidth(), previewSize.getHeight(), swapAxes);
+        FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) previewView.getLayoutParams();
+        if (lp == null || lp.width != target.width() || lp.height != target.height()
+                || lp.gravity != Gravity.CENTER) {
+            previewView.setLayoutParams(new FrameLayout.LayoutParams(
+                    target.width(), target.height(), Gravity.CENTER));
+        }
+    }
+
+    private static Size choosePreviewSize(
+            StreamConfigurationMap map, double targetOrientedAspect, boolean swapAxes) {
+        if (map == null) return null;
+        return pickMatchingSize(map.getOutputSizes(SurfaceHolder.class), MAX_PREVIEW_EDGE, targetOrientedAspect, swapAxes);
+    }
+
+    private static Size chooseAnalysisSize(
+            StreamConfigurationMap map, double targetOrientedAspect, boolean swapAxes) {
+        if (map == null) return null;
+        return pickMatchingSize(
+                map.getOutputSizes(android.graphics.ImageFormat.YUV_420_888),
+                MAX_ANALYSIS_EDGE, targetOrientedAspect, swapAxes);
+    }
+
+    private static Size pickMatchingSize(
+            Size[] sizes, int maxLongEdge, double targetOrientedAspect, boolean swapAxes) {
+        if (sizes == null || sizes.length == 0) return null;
+        int[][] raw = new int[sizes.length][2];
+        for (int i = 0; i < sizes.length; i++) {
+            raw[i][0] = sizes[i].getWidth();
+            raw[i][1] = sizes[i].getHeight();
+        }
+        int[] best = chooseBestSize(raw, maxLongEdge, targetOrientedAspect, swapAxes);
+        return best != null ? new Size(best[0], best[1]) : sizes[0];
     }
 
     private void deliverSuccess(String validatedRawLink, String diagEvent) {

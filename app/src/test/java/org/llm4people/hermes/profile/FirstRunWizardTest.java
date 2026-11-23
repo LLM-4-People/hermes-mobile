@@ -50,4 +50,37 @@ public final class FirstRunWizardTest {
         assertEquals("hermes.example.com", FirstRunWizard.suggestedName("", "", "https://hermes.example.com"));
         assertEquals("Hermes", FirstRunWizard.suggestedName(null, null, "bad://::"));
     }
+
+    @Test public void confirmProfileLabelAndStagedPairingNeverUseHostnameAsProfile() {
+        // Explicit displayName wins
+        assertEquals("Jacob", FirstRunWizard.confirmProfileLabel("Jacob", "default", "Default"));
+        assertEquals("Jacob", FirstRunWizard.formProfileName("Jacob", "default", "Default"));
+
+        // Non-default slug beats fallback
+        assertEquals("allison", FirstRunWizard.confirmProfileLabel("", "allison", "Default"));
+        assertEquals("Allison", FirstRunWizard.formProfileName("", "allison", "Default"));
+
+        // Missing/default slug uses localized Default label — NEVER the server URL hostname!
+        assertEquals("Default", FirstRunWizard.confirmProfileLabel("", "default", "Default"));
+        assertEquals("Par défaut", FirstRunWizard.confirmProfileLabel("", "", "Par défaut"));
+        assertEquals("Par défaut", FirstRunWizard.formProfileName("", "default", "Par défaut"));
+
+        // StagedPairing preserves full subpath URL, blanks default slug, and detects drift cleanly
+        FirstRunWizard.StagedPairing stagedDefault = new FirstRunWizard.StagedPairing(
+                "https://chat.ai.localserver.ca/mobile", "pair_AbCdEf1234567890", "default", "Jacob", 1_800_000_300L);
+        assertEquals("https://chat.ai.localserver.ca/mobile", stagedDefault.serverUrl());
+        assertEquals("", stagedDefault.formProfileSlug());
+        assertEquals("https://chat.ai.localserver.ca/mobile", stagedDefault.resolvedEndpoint());
+        assertTrue(stagedDefault.matchesTarget("https://chat.ai.localserver.ca/mobile", ""));
+        assertTrue(stagedDefault.matchesTarget("https://chat.ai.localserver.ca/mobile/", "default"));
+        assertFalse(stagedDefault.matchesTarget("https://other.example.com/mobile", ""));
+        assertFalse(stagedDefault.matchesTarget("https://chat.ai.localserver.ca/mobile", "allison"));
+
+        FirstRunWizard.StagedPairing stagedNamed = new FirstRunWizard.StagedPairing(
+                "https://chat.ai.localserver.ca/mobile", "pair_AbCdEf1234567890", "allison", "Allison", 0L);
+        assertEquals("allison", stagedNamed.formProfileSlug());
+        assertEquals("https://chat.ai.localserver.ca/mobile/p/allison", stagedNamed.resolvedEndpoint());
+        assertTrue(stagedNamed.matchesTarget("https://chat.ai.localserver.ca/mobile", "allison"));
+        assertFalse(stagedNamed.matchesTarget("https://chat.ai.localserver.ca/mobile", ""));
+    }
 }

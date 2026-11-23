@@ -115,6 +115,24 @@ public final class OnboardingModels {
         }
     }
 
+    /** Non-consuming metadata returned by {@code POST /api/mobile/pairing/inspect} (never contains an API key). */
+    public record PairingInspect(
+            boolean valid,
+            String serverUrl,
+            String baseHost,
+            String profileSlug,
+            String displayName,
+            String mode,
+            long expiresAtEpochSec,
+            int ttlRemainingSeconds) {
+        /** Canonical endpoint combining {@link #serverUrl} and optional non-default {@link #profileSlug}. */
+        public String resolvedEndpoint() {
+            return profileSlug == null || profileSlug.isEmpty() || "default".equalsIgnoreCase(profileSlug)
+                    ? GatewayAddress.normalize(serverUrl)
+                    : GatewayAddress.normalize(serverUrl, profileSlug);
+        }
+    }
+
     public record PairingClaim(
             String serverUrl,
             String profileSlug,
@@ -211,6 +229,33 @@ public final class OnboardingModels {
             }
         }
         return Collections.unmodifiableList(out);
+    }
+
+    public static PairingInspect parsePairingInspect(JSONObject obj) {
+        return parsePairingInspectMap(jsonToMap(obj));
+    }
+
+    public static PairingInspect parsePairingInspectMap(Map<String, Object> map) {
+        if (map == null || map.isEmpty()) {
+            throw new IllegalArgumentException("Missing pairing inspect response");
+        }
+        boolean valid = bool(map.get("valid"), false);
+        if (!valid) {
+            throw new IllegalArgumentException("Pairing ticket is not valid");
+        }
+        String rawServer = str(map.get("server_url")).trim();
+        String rawBaseHost = str(map.get("base_host")).trim();
+        String chosenUrl = !rawServer.isEmpty() ? rawServer : rawBaseHost;
+        String serverUrl = GatewayAddress.normalize(chosenUrl);
+        String baseHost = rawBaseHost.isEmpty() ? serverUrl : GatewayAddress.normalize(rawBaseHost);
+        String slug = safeSlug(str(map.get("profile_slug")));
+        String displayName = cleanText(str(map.get("display_name")), 64);
+        String mode = normalizeMode(str(map.get("mode")));
+        long expiresAt = parseEpochSeconds(map.get("expires_at"));
+        Object rawTtl = map.containsKey("ttl_remaining_seconds")
+                ? map.get("ttl_remaining_seconds") : map.get("ttl_seconds");
+        int ttl = Math.max(0, (int) num(rawTtl, 0L));
+        return new PairingInspect(true, serverUrl, baseHost, slug, displayName, mode, expiresAt, ttl);
     }
 
     public static PairingClaim parsePairingClaim(JSONObject obj) {

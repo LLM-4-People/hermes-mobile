@@ -73,10 +73,60 @@ public final class FirstRunWizard {
             String profileSlug,
             String pairingCode,
             String apiKey,
+            String displayName,
             String suggestedName) {}
+
+    /**
+     * Verified but unconsumed pairing ticket staged on Step 1 until the user completes
+     * local profile setup (passphrase + Save). Never burns the single-use code prematurely.
+     */
+    public record StagedPairing(
+            String serverUrl,
+            String pairingCode,
+            String profileSlug,
+            String displayName,
+            long expiresAtEpochSec) {
+        public StagedPairing {
+            serverUrl = GatewayAddress.normalize(Objects.requireNonNull(serverUrl, "serverUrl"));
+            pairingCode = pairingCode == null ? "" : pairingCode.trim();
+            if (!PairingLinkParser.isValidPairingCode(pairingCode)) {
+                throw new IllegalArgumentException("Invalid pairing code");
+            }
+            profileSlug = profileSlug == null ? "" : profileSlug.trim();
+            displayName = displayName == null ? "" : displayName.trim();
+        }
+
+        /** Value written into the optional Server profile field (blank for default profile). */
+        public String formProfileSlug() {
+            return profileSlug.isEmpty() || "default".equalsIgnoreCase(profileSlug) ? "" : profileSlug;
+        }
+
+        /** Canonical endpoint combining {@link #serverUrl} and non-default {@link #profileSlug}. */
+        public String resolvedEndpoint() {
+            String slug = formProfileSlug();
+            return slug.isEmpty()
+                    ? GatewayAddress.normalize(serverUrl)
+                    : GatewayAddress.normalize(serverUrl, slug);
+        }
+
+        /** Returns true iff the form's server URL + profile slug still target this staged ticket. */
+        public boolean matchesTarget(String rawServerUrl, String rawSlug) {
+            if (rawServerUrl == null || rawServerUrl.trim().isEmpty()) return false;
+            try {
+                String cleanSlug = rawSlug == null ? "" : rawSlug.trim();
+                String formEndpoint = cleanSlug.isEmpty() || "default".equalsIgnoreCase(cleanSlug)
+                        ? GatewayAddress.normalize(rawServerUrl)
+                        : GatewayAddress.normalize(rawServerUrl, cleanSlug);
+                return resolvedEndpoint().equalsIgnoreCase(formEndpoint);
+            } catch (IllegalArgumentException invalid) {
+                return false;
+            }
+        }
+    }
 
     public interface Step1Targets {
         void fillFields(String suggestedName, String serverUrl, String profileSlug, String apiKey, boolean focusPassphrase);
+        void stagePairing(StagedPairing staged);
         void triggerConnectionProbe(String endpoint, String bearer);
         void showInstantStatus(String message, int colorRes);
         void onClaimedMetadata(OnboardingModels.PairingClaim claim);
@@ -103,6 +153,7 @@ public final class FirstRunWizard {
                     parsed.profileSlug(),
                     parsed.pairingCode(),
                     "",
+                    parsed.displayName(),
                     name);
             case DIRECT_CREDENTIALS -> new Step1Plan(
                     ApplyAction.FILL_CREDENTIALS,
@@ -110,6 +161,7 @@ public final class FirstRunWizard {
                     parsed.profileSlug(),
                     "",
                     parsed.apiKey(),
+                    parsed.displayName(),
                     name);
             case SERVER_ONLY -> new Step1Plan(
                     ApplyAction.FILL_SERVER_ONLY,
@@ -117,8 +169,38 @@ public final class FirstRunWizard {
                     parsed.profileSlug(),
                     "",
                     "",
+                    parsed.displayName(),
                     name);
         };
+    }
+
+    /**
+     * Distinct profile label shown in the pairing confirmation dialog.
+     * Priority: explicit {@code displayName} -&gt; non-default {@code profileSlug} -&gt; localized
+     * {@code defaultLabel}. NEVER falls back to the server URL hostname.
+     */
+    public static String confirmProfileLabel(String displayName, String profileSlug, String defaultLabel) {
+        if (displayName != null && !displayName.trim().isEmpty()) return displayName.trim();
+        if (profileSlug != null && !profileSlug.trim().isEmpty()
+                && !"default".equalsIgnoreCase(profileSlug.trim())) {
+            return profileSlug.trim();
+        }
+        return (defaultLabel != null && !defaultLabel.trim().isEmpty()) ? defaultLabel.trim() : "Default";
+    }
+
+    /**
+     * Friendly profile name pre-filled into the Step-1 "Profile name" field for a pairing ticket.
+     * Priority: explicit {@code displayName} -&gt; capitalized non-default {@code profileSlug} -&gt;
+     * localized {@code defaultLabel}. NEVER falls back to the server URL hostname.
+     */
+    public static String formProfileName(String displayName, String profileSlug, String defaultLabel) {
+        if (displayName != null && !displayName.trim().isEmpty()) return displayName.trim();
+        if (profileSlug != null && !profileSlug.trim().isEmpty()
+                && !"default".equalsIgnoreCase(profileSlug.trim())) {
+            String s = profileSlug.trim();
+            return Character.toUpperCase(s.charAt(0)) + s.substring(1);
+        }
+        return (defaultLabel != null && !defaultLabel.trim().isEmpty()) ? defaultLabel.trim() : "Default";
     }
 
     /** Derives a friendly profile display name from explicit name, slug, or server host. */
@@ -185,13 +267,14 @@ public final class FirstRunWizard {
     }
 
     /**
-     * Attaches the Step-1 "Instant setup" card inside {@link ProfileScreen} above manual fields.
+     * Attaches the Step-1 "Instant setup" card inside {@link ProfileScreen} above manual fields and
+     * returns the handler to invoke once all form {@link EditText} fields are initialized.
      * Preserves every manual form control so existing flows &amp; tests stay 100% compatible.
      */
-    static TextView attachInstantSetupCard(
+    static Consumer<PairingLinkParser.ParsedInput> attachInstantSetupCard(
             Activity activity,
             ProfileScreen screen,
-            PairingLinkParser.ParsedInput pendingDeepLink,
+            boolean hasIncomingLink,
             ExecutorService io,
             BooleanSupplier isCurrent,
             Step1Targets targets) {
@@ -229,9 +312,9 @@ public final class FirstRunWizard {
                 return;
             }
             if (plan.action() == ApplyAction.CLAIM_TICKET) {
-                confirmAndClaim(activity, plan, statusNote, io, isCurrent, targets);
+                inspectAndConfirm(activity, plan, statusNote, io, isCurrent, targets);
             } else if (plan.action() == ApplyAction.FILL_CREDENTIALS) {
-                targets.fillFields(plan.suggestedName(), plan.serverUrl(), plan.profileSlug(), plan.apiKey(), true);
+                targets.fillFields(plan.suggestedName(), plan.serverUrl(), plan.profileSlug(), plan.apiKey(), false);
                 showStatus(activity, statusNote, activity.getString(R.string.onboarding_direct_applied), R.color.accent);
                 targets.triggerConnectionProbe(parsed.composedEndpoint(), plan.apiKey());
             } else {
@@ -240,7 +323,7 @@ public final class FirstRunWizard {
             }
         };
 
-        PairingLinkParser.ParsedInput detectedClip = pendingDeepLink == null ? detectClipboardLink(activity) : null;
+        PairingLinkParser.ParsedInput detectedClip = hasIncomingLink ? null : detectClipboardLink(activity);
         if (detectedClip != null) {
             LinearLayout banner = Ui.column(activity);
             Ui.pad(banner, 12, 10);
@@ -297,11 +380,7 @@ public final class FirstRunWizard {
         card.addView(statusNote, statusLp);
 
         screen.card(card, 14);
-
-        if (pendingDeepLink != null) {
-            handleParsed.accept(pendingDeepLink);
-        }
-        return statusNote;
+        return handleParsed;
     }
 
     private static void showManualPasteDialog(
@@ -334,63 +413,87 @@ public final class FirstRunWizard {
         targets.trackDialog(dialog);
     }
 
-    private static void confirmAndClaim(
+    /**
+     * Non-consuming ticket check ({@code POST /api/mobile/pairing/inspect}) followed by explicit user
+     * confirmation. Continuing stages the ticket on Step 1 without calling {@code /claim} until the
+     * user finishes entering their passphrase and taps Save.
+     */
+    private static void inspectAndConfirm(
             Activity activity,
             Step1Plan plan,
             TextView statusNote,
             ExecutorService io,
             BooleanSupplier isCurrent,
             Step1Targets targets) {
-        String profileLabel = plan.profileSlug().isEmpty() ? plan.suggestedName() : plan.profileSlug();
-        String body = activity.getString(R.string.onboarding_paste_confirm_body, plan.serverUrl(), profileLabel);
-        AlertDialog dialog = Ui.secureDialog(new AlertDialog.Builder(activity)
-                .setTitle(R.string.onboarding_paste_confirm_title)
-                .setMessage(body)
-                .setNegativeButton(R.string.profile_setup_cancel, null)
-                .setPositiveButton(R.string.onboarding_paste_confirm_action,
-                        (d, w) -> executeClaim(activity, plan, statusNote, io, isCurrent, targets)));
-        targets.trackDialog(dialog);
-    }
-
-    private static void executeClaim(
-            Activity activity,
-            Step1Plan plan,
-            TextView statusNote,
-            ExecutorService io,
-            BooleanSupplier isCurrent,
-            Step1Targets targets) {
-        showStatus(activity, statusNote, activity.getString(R.string.onboarding_paste_claiming), R.color.muted);
+        showStatus(activity, statusNote, activity.getString(R.string.onboarding_paste_checking), R.color.muted);
         HermesConfig cfg = HermesConfig.load(activity);
+        int inspectTimeoutMs = Math.min(ProfileGate.PROBE_TIMEOUT_MS, 4_000);
         HermesApi.Limits limits = new HermesApi.Limits(
-                ProfileGate.PROBE_TIMEOUT_MS, ProfileGate.PROBE_TIMEOUT_MS,
-                cfg.httpJsonMaxBytes, cfg.httpEventMaxBytes);
+                inspectTimeoutMs, inspectTimeoutMs, cfg.httpJsonMaxBytes, cfg.httpEventMaxBytes);
         io.execute(() -> {
-            OnboardingModels.PairingClaim claim = null;
+            StagedPairing resolved = null;
+            boolean expiredOrUsed = false;
             try {
-                JSONObject raw = HermesApi.claimPairing(plan.serverUrl(), plan.pairingCode(), limits);
-                claim = OnboardingModels.parsePairingClaim(raw);
-                Diagnostics.event("onboarding", "pairing_claimed");
+                JSONObject raw = HermesApi.inspectPairing(plan.serverUrl(), plan.pairingCode(), limits);
+                OnboardingModels.PairingInspect inspected = OnboardingModels.parsePairingInspect(raw);
+                String chosenServer = inspected.serverUrl().isEmpty() ? plan.serverUrl() : inspected.serverUrl();
+                String chosenSlug = inspected.profileSlug().isEmpty() ? plan.profileSlug() : inspected.profileSlug();
+                String chosenName = inspected.displayName().isEmpty() ? plan.displayName() : inspected.displayName();
+                resolved = new StagedPairing(
+                        chosenServer, plan.pairingCode(), chosenSlug, chosenName, inspected.expiresAtEpochSec());
+                Diagnostics.event("onboarding", "pairing_inspected");
+            } catch (HermesApi.HttpError http) {
+                if (http.status == 410) {
+                    expiredOrUsed = true;
+                    Diagnostics.warning("onboarding", "pairing_inspect_expired");
+                } else {
+                    // Older server without /inspect (404) or transient error: fall back to parsed QR metadata.
+                    Diagnostics.debug("onboarding", "pairing_inspect_fallback_http_" + http.status);
+                    resolved = new StagedPairing(
+                            plan.serverUrl(), plan.pairingCode(), plan.profileSlug(), plan.displayName(), 0L);
+                }
             } catch (Exception err) {
-                Diagnostics.warning("onboarding", "pairing_claim_failed");
+                Diagnostics.debug("onboarding", "pairing_inspect_fallback");
+                resolved = new StagedPairing(
+                        plan.serverUrl(), plan.pairingCode(), plan.profileSlug(), plan.displayName(), 0L);
             }
-            OnboardingModels.PairingClaim result = claim;
+
+            StagedPairing finalStaged = resolved;
+            boolean finalExpired = expiredOrUsed;
             activity.runOnUiThread(() -> {
                 if (!isCurrent.getAsBoolean() || activity.isFinishing() || activity.isDestroyed()) return;
-                if (result == null) {
+                if (finalExpired || finalStaged == null) {
                     showStatus(activity, statusNote,
                             activity.getString(R.string.onboarding_paste_claim_failed), R.color.danger);
                     return;
                 }
-                String name = suggestedName(result.displayName(), result.profileSlug(), result.serverUrl());
-                String formSlug = "default".equalsIgnoreCase(result.profileSlug()) ? "" : result.profileSlug();
-                targets.fillFields(name, result.serverUrl(), formSlug, result.apiKey(), true);
-                targets.onClaimedMetadata(result);
-                showStatus(activity, statusNote,
-                        activity.getString(R.string.onboarding_paste_claimed, result.serverUrl(), name),
-                        R.color.accent);
-                targets.triggerConnectionProbe(result.resolvedEndpoint(), result.apiKey());
+                showStatus(activity, statusNote, "", R.color.muted);
+                showConfirmStageDialog(activity, finalStaged, statusNote, isCurrent, targets);
             });
         });
+    }
+
+    private static void showConfirmStageDialog(
+            Activity activity,
+            StagedPairing staged,
+            TextView statusNote,
+            BooleanSupplier isCurrent,
+            Step1Targets targets) {
+        String defaultLabel = activity.getString(R.string.onboarding_default_profile_label);
+        String profileLabel = confirmProfileLabel(staged.displayName(), staged.profileSlug(), defaultLabel);
+        String body = activity.getString(R.string.onboarding_paste_confirm_body, staged.serverUrl(), profileLabel);
+        AlertDialog dialog = Ui.secureDialog(new AlertDialog.Builder(activity)
+                .setTitle(R.string.onboarding_paste_confirm_title)
+                .setMessage(body)
+                .setNegativeButton(R.string.profile_setup_cancel, null)
+                .setPositiveButton(R.string.onboarding_paste_confirm_action, (d, w) -> {
+                    if (!isCurrent.getAsBoolean() || activity.isFinishing() || activity.isDestroyed()) return;
+                    targets.stagePairing(staged);
+                    showStatus(activity, statusNote,
+                            activity.getString(R.string.onboarding_paste_staged, staged.serverUrl(), profileLabel),
+                            R.color.accent);
+                }));
+        targets.trackDialog(dialog);
     }
 
     private static void showStatus(Activity activity, TextView view, String message, int colorRes) {
