@@ -5,6 +5,9 @@ import android.content.SharedPreferences;
 
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.R;
+import org.llm4people.hermes.profile.PreferenceTransaction;
+
+import java.util.Collections;
 
 /**
  * Per-profile auto-lock grace policy. Defaults strictly to immediate locking (0s) and always locks
@@ -83,7 +86,11 @@ public final class LockGracePolicy {
         if (context == null || profileId == null || profileId.isEmpty()) return;
         SharedPreferences prefs = prefs(context);
         synchronized (prefs) {
-            prefs.edit().remove(PREFIX + profileId).apply();
+            try {
+                PreferenceTransaction.commit(prefs, Collections.singletonMap(PREFIX + profileId, null));
+            } catch (IllegalStateException fallback) {
+                Diagnostics.warning("security", "grace_forget_commit_failed");
+            }
         }
     }
 

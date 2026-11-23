@@ -57,6 +57,7 @@ public final class HermesApi {
     private final String bearer;
     private final Limits limits;
     private final Set<RunEvents> openStreams = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private final Set<HttpURLConnection> activeConnections = ConcurrentHashMap.newKeySet();
     private volatile boolean revoked;
 
     public HermesApi(String endpoint, String bearer) {
@@ -71,13 +72,34 @@ public final class HermesApi {
         this.limits = limits;
     }
 
-    /** Immediately revokes this profile-bound client, aborting all open SSE streams and rejecting new calls. */
+    /** Immediately revokes this profile-bound client, aborting all open HTTP & SSE sockets and rejecting new calls. */
     public void revoke() {
         revoked = true;
         for (RunEvents stream : new ArrayList<>(openStreams)) {
             stream.close();
         }
         openStreams.clear();
+        for (HttpURLConnection conn : new ArrayList<>(activeConnections)) {
+            try { conn.disconnect(); } catch (RuntimeException ignored) {}
+        }
+        activeConnections.clear();
+    }
+
+    private void trackConnection(HttpURLConnection http) throws IOException {
+        activeConnections.add(http);
+        if (revoked) {
+            releaseConnection(http);
+            throw new IOException("Client revoked");
+        }
+    }
+
+    private void releaseConnection(HttpURLConnection http) {
+        activeConnections.remove(http);
+        try {
+            http.disconnect();
+        } catch (RuntimeException ignored) {
+            // Concurrent revoke() may have already torn down internal connection state.
+        }
     }
 
     public boolean isRevoked() {
@@ -174,6 +196,7 @@ public final class HermesApi {
         long maxUpload = Math.max(limits.jsonBytes, HermesConfig.defaults().artifactDefaultMaxBytes + 4096L);
         if (body.length > maxUpload) throw new IOException("Upload exceeded the byte limit");
         HttpURLConnection http = connection(path, "POST", "application/json");
+        trackConnection(http);
         try {
             http.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
             http.setDoOutput(true);
@@ -187,8 +210,11 @@ public final class HermesApi {
         } catch (IOException error) {
             Diagnostics.event("network", "multipart_upload_failed");
             throw error;
+        } catch (RuntimeException error) {
+            if (revoked) throw new IOException("Client revoked", error);
+            throw error;
         } finally {
-            http.disconnect();
+            releaseConnection(http);
         }
     }
 
@@ -249,6 +275,7 @@ public final class HermesApi {
 
     private JSONObject request(String method, String path, JSONObject body, String key) throws IOException {
         HttpURLConnection http = connection(path, method, "application/json");
+        trackConnection(http);
         try {
             if (key != null) http.setRequestProperty("Idempotency-Key", key);
             if (body != null) {
@@ -269,8 +296,11 @@ public final class HermesApi {
         } catch (IOException error) {
             Diagnostics.event("network", "request_failed");
             throw error;
+        } catch (RuntimeException error) {
+            if (revoked) throw new IOException("Client revoked", error);
+            throw error;
         } finally {
-            http.disconnect();
+            releaseConnection(http);
         }
     }
 
@@ -305,6 +335,7 @@ public final class HermesApi {
         if (sink == null || maxBytes < 0) throw new IllegalArgumentException("Invalid download bounds");
         String header = accept == null || accept.trim().isEmpty() ? "application/octet-stream" : accept.trim();
         HttpURLConnection http = connection(path, "GET", header);
+        trackConnection(http);
         try {
             checkResponse(http);
             if (http.getContentLengthLong() > maxBytes) throw new IOException("File exceeded the byte limit");
@@ -313,6 +344,7 @@ public final class HermesApi {
                 byte[] block = new byte[32768];
                 int count;
                 while ((count = source.read(block)) != -1) {
+                    if (revoked) throw new IOException("Client revoked");
                     if (Thread.currentThread().isInterrupted()) throw new IOException("Transfer cancelled");
                     if (count > maxBytes - total) throw new IOException("File exceeded the byte limit");
                     sink.write(block, 0, count);
@@ -323,8 +355,11 @@ public final class HermesApi {
         } catch (IOException error) {
             Diagnostics.event("network", "download_failed");
             throw error;
+        } catch (RuntimeException error) {
+            if (revoked) throw new IOException("Client revoked", error);
+            throw error;
         } finally {
-            http.disconnect();
+            releaseConnection(http);
         }
     }
 

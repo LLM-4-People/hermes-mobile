@@ -189,7 +189,12 @@ public final class ContinuousLocationTracker {
             if (running && preciseMode == effectivePrecise) {
                 return true;
             }
+            boolean downgradedFromPrecise = !effectivePrecise && (preciseMode || (latest != null && latest.precise()));
             unregisterLocked();
+            if (downgradedFromPrecise) {
+                latest = null;
+                previous = null;
+            }
             preciseMode = effectivePrecise;
             LocationListener listener = location -> {
                 if (location != null) {
@@ -206,6 +211,9 @@ public final class ContinuousLocationTracker {
                 subscribed |= tryRegister(manager, LocationManager.GPS_PROVIDER, listener);
             }
             if (!subscribed) {
+                latest = null;
+                previous = null;
+                preciseMode = false;
                 Diagnostics.warning("presence", "location_no_provider");
                 return false;
             }
@@ -246,11 +254,12 @@ public final class ContinuousLocationTracker {
         }
     }
 
-    /** Returns the latest non-stale snapshot ONLY when policy permits live location; else null. */
+    /** Returns the latest non-stale snapshot ONLY when policy permits live location (and precision); else null. */
     public Snapshot currentSnapshot(PresencePolicy policy, long nowMs) {
         if (policy == null || !policy.allowsLiveLocation()) return null;
         synchronized (lock) {
             if (latest == null || latest.isStale(nowMs)) return null;
+            if (!policy.preciseLocation && latest.precise()) return null;
             return latest;
         }
     }
