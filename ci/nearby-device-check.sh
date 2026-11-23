@@ -11,17 +11,29 @@ adb -s "$serial" shell pm clear org.llm4people.hermes.test
 adb -s "$serial" shell pm clear org.llm4people.hermes
 adb -s "$serial" shell cmd connectivity airplane-mode enable
 adb -s "$serial" shell svc wifi disable
+adb -s "$serial" shell svc data disable
 resolved=$(adb -s "$serial" shell cmd package resolve-activity --brief --user 0 \
   -a android.intent.action.VIEW -d 'geo:0,0?q=Montreal' | tail -n 1)
 if [[ "$resolved" != com.google.android.apps.maps/* ]]; then
   echo "Expected Android to resolve geo intent to com.google.android.apps.maps. Received: $resolved" >&2
   exit 1
 fi
-for ((i = 0; i < 120; i++)); do
+offline_hits=0
+for ((i = 0; i < 30; i++)); do
+  airplane=$(adb -s "$serial" shell settings get global airplane_mode_on | tr -d '\r')
   connectivity=$(adb -s "$serial" shell dumpsys connectivity)
-  if [[ "$connectivity" == *'Active default network: none'* ]]; then break; fi
-  sleep 0.25
+  if [[ "$airplane" == "1" && "$connectivity" == *'Active default network: none'* ]]; then
+    offline_hits=$((offline_hits + 1))
+    if ((offline_hits >= 2)); then break; fi
+  else
+    offline_hits=0
+  fi
+  sleep 1
 done
+if ((offline_hits < 2)); then
+  echo "Emulator did not settle offline in airplane mode" >&2
+  exit 1
+fi
 "$RUNNER_TEMP/hermes-env/bin/python" -B -m verification.nearby_restaurants --serial "$serial" \
   --source .fixture/hermes --verify-apks "$app" "$tests" --output "$evidence"
 for file in nearby.json guide.png comparison.png detail.png; do

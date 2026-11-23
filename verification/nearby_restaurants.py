@@ -17,9 +17,11 @@ from verification.device.run import Emulator
 from verification.gateway_fixture import Gateway, PINNED_REVISION, check_source
 from verification.nearby_capture import captures
 from verification.nearby_fixture import overpass, PLACES
-from verification.nearby_journey import (FAILED, PROMPT, STAGED, USE_LOCATION, enter_message,
-                                          lock, open_consent, stage_public_location, unlock, verify_guide, visible_app_node)
-from verification.nearby_location import COARSE, answer_android_location, location_access, public_city_fix
+from verification.nearby_journey import (CONSENT, FAILED, PROMPT, STAGED, USE_LOCATION, choose_consent, dismiss_ime,
+                                          enter_message, lock, open_consent, stage_public_location,
+                                          tap_visible_app_until, unlock, verify_guide)
+from verification.nearby_location import (COARSE, PERMISSION_CONTROLLERS, answer_android_location,
+                                          app_activity_stopped, location_access, public_city_fix)
 from verification.phone_actions import MAPS, admissions, assert_offline, focused, visible
 from verification.unifiedpush.editor import editor
 from verification.unifiedpush.stack import eventually
@@ -102,13 +104,39 @@ def verified_turn(gateway, provider, question, previous, *, location):
 def enter_discussion(ui):
     def opened():
         tree = ui.hierarchy()
-        if ui.node("Message à Hermes", tree) is not None:
+        if (ui.node("Envoyer", tree) is not None
+                and any(node.get("package") == APP and node.get("class") == "android.widget.EditText"
+                        for node in tree.iter("node"))):
             return True
         create = ui.node("Nouvelle conversation", tree)
-        if create is not None and create.get("clickable") == "true":
+        if create is not None and create.get("class") == "android.widget.Button":
             ui.tap_node(create)
         return False
     eventually("the unlocked profile's editable conversation", opened)
+
+
+def wait_status(ui, label):
+    try:
+        return ui.wait(label)
+    except AssertionError:
+        root = ui.hierarchy()
+        packages = sorted({node.get("package", "") for node in root.iter("node") if node.get("package")})
+        markers = {
+            "consent": ui.node(CONSENT, root) is not None,
+            "searching": ui.node("Recherche de la position…", root) is not None,
+            "failed": ui.node(FAILED, root) is not None,
+            "staged": ui.node(STAGED, root) is not None,
+            "lock_screen": ui.node("Choisir un profil", root) is not None,
+            "composer": ui.node("Message à Hermes", root) is not None,
+            "send": ui.node("Envoyer", root) is not None,
+            "location_grant": location_access(ui.device),
+        }
+        print("Android nearby status " + json.dumps({
+            "focused": focused(ui.device),
+            "packages": packages,
+            "markers": markers,
+        }, sort_keys=True), file=sys.stderr, flush=True)
+        raise
 
 
 def consent_failures(ui, fix, second, names, phrases, check_idle):
@@ -116,31 +144,41 @@ def consent_failures(ui, fix, second, names, phrases, check_idle):
     enter_discussion(ui)
     enter_message(ui)
     open_consent(ui)
-    ui.tap(USE_LOCATION, scroll=True)
+    choose_consent(ui, USE_LOCATION)
     controller = answer_android_location(ui, allow=False)
-    ui.wait(FAILED)
+    wait_status(ui, FAILED)
     check_idle()
 
     # Grant while the system-wide service is off. Permission alone cannot stage or send a coordinate.
     fix.enabled(False)
     open_consent(ui)
-    ui.tap(USE_LOCATION, scroll=True)
+    choose_consent(ui, USE_LOCATION)
     if answer_android_location(ui, allow=True) != controller:
         raise AssertionError("Different Android components handled the paired permission decisions")
-    ui.wait(FAILED)
+    wait_status(ui, FAILED)
     check_idle()
 
     fix.enabled(True)
     open_consent(ui)
-    ui.tap(USE_LOCATION, scroll=True)
-    ui.wait("Recherche de la position…")
+    choose_consent(ui, USE_LOCATION)
+    wait_status(ui, "Recherche de la position…")
     ui.device.shell("input", "keyevent", "HOME")
-    background = eventually("Android launcher foreground before late fix",
-                            lambda: (active if (active := focused(ui.device)) and
-                                     not active.startswith(APP + "/") else None))
+
+    def launcher_stopped_app():
+        active = focused(ui.device)
+        if not active or active.startswith(APP + "/"):
+            return None
+        if ui.hierarchy().get("package") == APP:
+            return None
+        if not app_activity_stopped(ui.device.shell("dumpsys", "activity", "activities")):
+            return None
+        return active
+
+    background = eventually("Android launcher foreground and stopped Hermes activity before late fix",
+                            launcher_stopped_app)
     fix.publish()
     launch(ui.device, APP)
-    ui.wait("Choisir un profil")
+    wait_status(ui, "Choisir un profil")
     start_account(ui, names[1], second.endpoint, second.key, phrases[1])
     enter_discussion(ui)
     if ui.node(STAGED) is not None:
@@ -151,32 +189,82 @@ def consent_failures(ui, fix, second, names, phrases, check_idle):
     return controller, background
 
 
+def matches_map_coordinate(text, lat, lon):
+    target_lat = Decimal(str(lat))
+    target_lon = Decimal(str(lon))
+    for found_lat, found_lon in re.findall(r"(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)", text):
+        if Decimal(found_lat) == target_lat and Decimal(found_lon) == target_lon:
+            return True
+    dms = re.search(
+        r"(\d+)°(\d+)'(\d+(?:\.\d+)?)\"([NS])\s*(\d+)°(\d+)'(\d+(?:\.\d+)?)\"([EW])",
+        text,
+    )
+    if dms:
+        d1, m1, s1, h1, d2, m2, s2, h2 = dms.groups()
+        parsed_lat = (Decimal(d1) + Decimal(m1) / 60 + Decimal(s1) / 3600) * (-1 if h1 == "S" else 1)
+        parsed_lon = (Decimal(d2) + Decimal(m2) / 60 + Decimal(s2) / 3600) * (-1 if h2 == "W" else 1)
+        if abs(parsed_lat - target_lat) < Decimal("0.0002") and abs(parsed_lon - target_lon) < Decimal("0.0002"):
+            return True
+    return False
+
+
 def map_selected(ui, title, point):
     coordinate = ",".join(format(Decimal(str(point[key])).normalize(), "f") for key in ("lat", "lon"))
-    ui.tap_node(visible_app_node(ui, "Voir sur la carte"))
-    ui.wait("Ouvrir la carte")
+    tap_visible_app_until(
+        ui,
+        "Voir sur la carte",
+        lambda root: ui.node("Ouvrir la carte", root) is not None,
+        description="visible map handoff review dialog",
+    )
     if not visible(ui, [title, "Coordonnées du lieu · " + coordinate]) or not focused(ui.device).startswith(APP + "/"):
         raise AssertionError("The app did not review the source venue and coordinates before handoff")
-    ui.tap("Ouvrir la carte")
+    ui.tap_until(
+        "Ouvrir la carte",
+        lambda root: ui.node("Ouvrir la carte", root) is None,
+        description="dismissed map handoff review dialog",
+    )
+    deny_ids = {controller + ":id/permission_deny_button" for controller in PERMISSION_CONTROLLERS}
 
     def received():
         component = focused(ui.device)
-        if not component.startswith(MAPS + "/"):
-            return None
         tree = ui.hierarchy()
+        if component.startswith(MAPS + "/"):
+            for node in tree.iter("node"):
+                if node.get("package") == MAPS:
+                    for key in ("text", "content-desc"):
+                        value = node.get(key, "")
+                        if coordinate in "".join(value.split()) or matches_map_coordinate(value, point["lat"], point["lon"]):
+                            return component
         for node in tree.iter("node"):
-            if node.get("package") == MAPS:
-                for key in ("text", "content-desc"):
-                    if coordinate in "".join(node.get(key, "").split()):
-                        return component
-        for label in ("Skip", "Continue without an account"):
+            if node.get("package") in PERMISSION_CONTROLLERS and node.get("resource-id") in deny_ids:
+                ui.tap_node(node)
+                return None
+        for label in ("Skip", "Continue without an account", "No thanks", "Not now", "Dismiss", "Got it"):
             option = ui.node(label, tree)
-            if option is not None and option.get("package") == MAPS:
+            if option is not None and option.get("package") != APP:
                 ui.tap_node(option)
                 break
         return None
 
-    component = eventually("public venue coordinates visible in the actual Maps app", received, timeout=150)
+    try:
+        component = eventually("public venue coordinates visible in the actual Maps app", received, timeout=150)
+    except AssertionError:
+        tree = ui.hierarchy()
+        packages = sorted({node.get("package", "") for node in tree.iter("node") if node.get("package")})
+        non_app_labels = [
+            value[:80]
+            for node in tree.iter("node")
+            if node.get("package") != APP
+            for key in ("text", "content-desc")
+            if (value := node.get(key, "").strip())
+        ][:20]
+        print("Android maps handoff " + json.dumps({
+            "focused": focused(ui.device),
+            "packages": packages,
+            "expected": coordinate,
+            "labels": non_app_labels,
+        }, ensure_ascii=False, sort_keys=True), file=sys.stderr, flush=True)
+        raise
     return {"source_venue": title, "source_coordinates": coordinate, "receiver": component}
 
 
@@ -249,6 +337,7 @@ def execute(args):
         stage_public_location(ui, fix, system_prompt=False, remember=True)
         if admissions(first) or a_model.main_requests() or queries:
             raise AssertionError("Staging the first fix submitted or queried without Send")
+        dismiss_ime(ui)
         ui.tap("Envoyer")
         area = verified_turn(first, a_model, PROMPT, 0, location=True)
         eventually("one lookup through the authenticated real nearby plugin", lambda: len(queries) == 1)
@@ -258,13 +347,24 @@ def execute(args):
                              distances=[111, 445, 1001], filter_cuisine="Italienne")
         picked = next(p for p in queries[0][1]["elements"] if p["tags"]["name"] == guide["selected"])
         source_url = "https://www.openstreetmap.org/" + picked["type"] + "/" + str(picked["id"])
-        ui.tap_node(visible_app_node(ui, guide["source_control"], attribute="content-desc"))
-        ui.wait("Ouvrir OpenStreetMap")
+        tap_visible_app_until(
+            ui,
+            guide["source_control"],
+            lambda root: ui.node("Ouvrir OpenStreetMap", root) is not None,
+            attribute="content-desc",
+            description="visible OpenStreetMap source review dialog",
+        )
         if not visible(ui, [guide["selected"], source_url]) or not focused(device).startswith(APP + "/"):
             raise AssertionError("The review did not show the selected source venue and canonical OSM URL")
-        ui.tap("Annuler")
+        ui.tap_until(
+            "Annuler",
+            lambda root: ui.node("Ouvrir OpenStreetMap", root) is None,
+            description="dismissed OpenStreetMap source review dialog",
+        )
         guide["reviewed_source"] = source_url
         maps = map_selected(ui, guide["selected"], picked["center"])
+        eventually("Hermes activity stopped behind Maps",
+                   lambda: app_activity_stopped(device.shell("dumpsys", "activity", "activities")))
         launch(device, APP)
         unlock(ui, names[0], phrases[0])
         enter_discussion(ui)
@@ -288,7 +388,7 @@ def execute(args):
         open_consent(ui)
         if len(admissions(first)) != 2 or len(queries) != 1:
             raise AssertionError("Revocation reused a cached coordinate or submitted the waiting draft")
-        ui.tap("Envoyer sans position", scroll=True)
+        choose_consent(ui, "Envoyer sans position")
         verified_turn(first, a_model, REVOKED, 2, location=False)
         if len(queries) != 1 or errors or location_access(device):
             raise AssertionError("Explicit send without location leaked or re-acquired location")

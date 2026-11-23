@@ -33,6 +33,8 @@ final class DiscussionPhotoJourney {
     static final int BACKGROUND_BLUE = Color.rgb(38, 75, 123);
     static final int CENTER_GOLD = Color.rgb(247, 195, 63);
     private static final int COLOR_TOLERANCE = 25;
+    private static final double MIN_SCRIM_SCALE = 0.65;
+    private static final double MAX_SCRIM_SCALE = 1.05;
     private static final long TOTAL_PICKER_TIMEOUT_MS = 60_000L;
     private static final long PICKER_ATTEMPT_TIMEOUT_MS = 18_000L;
     private static final long EXPAND_AFTER_MS = 1_200L;
@@ -67,7 +69,7 @@ final class DiscussionPhotoJourney {
             select();
             ui.see("Retirer");
             // Preserve both parts of an accepted draft across an explicit lock and unlock.
-            ui.tap("Profil et verrouillage");
+            ui.tap("Autres actions");
             ui.tap("Verrouiller le profil");
             ui.see("Choisir un profil");
             unlock.run();
@@ -402,11 +404,35 @@ final class DiscussionPhotoJourney {
         if (bounds.width() < 24 || bounds.height() < 24 || bounds.width() > 2 * bounds.height()
                 || bounds.height() > 2 * bounds.width() || bounds.left < 0 || bounds.top < 0
                 || bounds.right > screenshot.getWidth() || bounds.bottom > screenshot.getHeight()) return false;
-        // Match the image, never the first or newest gallery item. The system may center-crop or round corners.
-        return colorAt(screenshot, bounds, .5, .5, CENTER_GOLD) && colorAt(screenshot, bounds, .41, .43, CENTER_GOLD)
-                && colorAt(screenshot, bounds, .59, .57, CENTER_GOLD) && colorAt(screenshot, bounds, .5, .14, BACKGROUND_BLUE)
-                && colorAt(screenshot, bounds, .5, .86, BACKGROUND_BLUE) && colorAt(screenshot, bounds, .22, .14, BACKGROUND_BLUE)
-                && colorAt(screenshot, bounds, .78, .86, BACKGROUND_BLUE);
+        // Match the exact pattern, never an arbitrary gallery item. Android 16's Compose PhotoPicker
+        // composites a uniform dark scrim (~0.80x) over grid tiles, so derive one shared luminance scale
+        // from the gold center and verify all 7 gold/blue points against that exact same scale.
+        int center = samplePixel(screenshot, bounds, .5, .5);
+        double scale = ((Color.red(center) / (double) Color.red(CENTER_GOLD))
+                + (Color.green(center) / (double) Color.green(CENTER_GOLD))) / 2.0;
+        if (scale < MIN_SCRIM_SCALE || scale > MAX_SCRIM_SCALE) return false;
+        int scaledGold = scaleColor(CENTER_GOLD, scale);
+        int scaledBlue = scaleColor(BACKGROUND_BLUE, scale);
+        return colorAt(screenshot, bounds, .5, .5, scaledGold) && colorAt(screenshot, bounds, .41, .43, scaledGold)
+                && colorAt(screenshot, bounds, .59, .57, scaledGold) && colorAt(screenshot, bounds, .5, .14, scaledBlue)
+                && colorAt(screenshot, bounds, .5, .86, scaledBlue) && colorAt(screenshot, bounds, .22, .14, scaledBlue)
+                && colorAt(screenshot, bounds, .78, .86, scaledBlue);
+    }
+
+    static int scaleColor(int color, double scale) {
+        return Color.rgb(
+                clampByte((int) Math.round(Color.red(color) * scale)),
+                clampByte((int) Math.round(Color.green(color) * scale)),
+                clampByte((int) Math.round(Color.blue(color) * scale)));
+    }
+
+    private static int clampByte(int value) {
+        return Math.max(0, Math.min(255, value));
+    }
+
+    private static int samplePixel(Bitmap bitmap, Rect bounds, double x, double y) {
+        return bitmap.getPixel(bounds.left + (int) (bounds.width() * x),
+                bounds.top + (int) (bounds.height() * y));
     }
 
     static boolean isBlackFrame(Bitmap bitmap) {
@@ -428,8 +454,7 @@ final class DiscussionPhotoJourney {
     }
 
     private static boolean colorAt(Bitmap bitmap, Rect bounds, double x, double y, int expected) {
-        int actual = bitmap.getPixel(bounds.left + (int) (bounds.width() * x),
-                bounds.top + (int) (bounds.height() * y));
+        int actual = samplePixel(bitmap, bounds, x, y);
         return Math.abs(Color.red(actual) - Color.red(expected)) < COLOR_TOLERANCE
                 && Math.abs(Color.green(actual) - Color.green(expected)) < COLOR_TOLERANCE
                 && Math.abs(Color.blue(actual) - Color.blue(expected)) < COLOR_TOLERANCE;

@@ -1,15 +1,19 @@
 """Exercise Android's platform location services and real permission controller on a disposable guest."""
 
 from contextlib import contextmanager, ExitStack
+import json
 import re
+import sys
 
 from verification.nearby_fixture import MONTREAL
+from verification.unifiedpush.shade import bounds
 from verification.unifiedpush.stack import eventually
 from verification.unifiedpush.ui import APP
 
 
 COARSE = "android.permission.ACCESS_COARSE_LOCATION"
 PERMISSION_CONTROLLERS = {"com.android.permissioncontroller", "com.google.android.permissioncontroller"}
+MIN_TAP_HEIGHT = 24
 
 
 def location_access(device, *, wait_for_install=False):
@@ -32,25 +36,105 @@ def _location_grant(device):
     return match[1] == "true" if match else None
 
 
+def app_activity_stopped(dump):
+    """Return True once every ActivityRecord for APP in `dumpsys activity activities` is STOPPED/DESTROYED."""
+    in_app = False
+    app_pkg = re.compile(rf"\bpackageName={re.escape(APP)}(?:\s|$)")
+    for line in dump.splitlines():
+        stripped = line.strip()
+        if (
+            stripped.startswith("* Hist")
+            or stripped.startswith("* Task")
+            or stripped.startswith("ActivityRecord{")
+            or (stripped.startswith("packageName=") and not app_pkg.search(stripped))
+        ):
+            in_app = False
+        if app_pkg.search(stripped):
+            in_app = True
+        elif in_app and (match := re.search(r"\bstate=([A-Z_]+)\b", stripped)):
+            if match.group(1) not in ("STOPPED", "DESTROYED"):
+                return False
+            in_app = False
+    return True
+
+
+def _clipped_in_scrollable(target, controller_nodes):
+    box = bounds(target)
+    if len(box) != 4:
+        return False
+    _, y1, _, y2 = box
+    if y2 - y1 < MIN_TAP_HEIGHT:
+        return True
+    for node in controller_nodes:
+        if node.get("scrollable") == "true":
+            sbox = bounds(node)
+            if len(sbox) == 4 and (y1 < sbox[1] or y2 > sbox[3]):
+                return True
+    return False
+
+
 def answer_android_location(ui, *, allow):
     resource = "permission_allow_foreground_only_button" if allow else "permission_deny_button"
+    targets = {controller + ":id/" + resource for controller in PERMISSION_CONTROLLERS}
+    saw_location = set()
+    acted_controller = None
+    last_clipped = None
+    last_controller_ids = []
+    taps = 0
+    scrolls = 0
 
-    def find_prompt():
+    def decide():
+        nonlocal acted_controller, last_clipped, last_controller_ids, taps, scrolls
         root = ui.hierarchy()
+        controller = None
+        controller_nodes = []
         for node in root.iter("node"):
             package = node.get("package")
-            if package in PERMISSION_CONTROLLERS and node.get("resource-id") == package + ":id/" + resource:
-                prompt = " ".join(item.get("text", "") for item in root.iter("node")
-                                  if item.get("package") == package)
-                if "location" not in prompt.casefold():
-                    raise AssertionError("The foreground system permission prompt did not ask for location")
-                return node, package
+            if package in PERMISSION_CONTROLLERS:
+                if controller is None:
+                    controller = package
+                if package == controller:
+                    controller_nodes.append(node)
+        if controller is None:
+            if acted_controller is not None and location_access(ui.device) == allow:
+                return acted_controller
+            return None
+        last_controller_ids = sorted({item.get("resource-id", "") for item in controller_nodes
+                                      if item.get("resource-id")})
+        prompt = " ".join(item.get("text", "") for item in controller_nodes)
+        if "location" in prompt.casefold():
+            saw_location.add(controller)
+        target = next((item for item in controller_nodes if item.get("resource-id") in targets), None)
+        if target is not None:
+            if controller not in saw_location:
+                raise AssertionError("The foreground system permission prompt did not ask for location")
+            target_bounds = target.get("bounds")
+            if _clipped_in_scrollable(target, controller_nodes) and target_bounds != last_clipped:
+                last_clipped = target_bounds
+                ui.scroll(root)
+                scrolls += 1
+                return None
+            ui.tap_node(target)
+            acted_controller = controller
+            taps += 1
+            return None
+        ui.scroll(root)
+        scrolls += 1
         return None
 
-    node, package = eventually("Android's location permission dialog", find_prompt)
-    ui.tap_node(node)
-    eventually("the Android location permission decision", lambda: location_access(ui.device) == allow)
-    return package
+    try:
+        return eventually("Android's location permission decision", decide)
+    except AssertionError as failure:
+        if "did not ask for location" not in str(failure):
+            print("Android location permission " + json.dumps({
+                "allow": allow,
+                "acted_controller": acted_controller,
+                "saw_location": sorted(saw_location),
+                "taps": taps,
+                "scrolls": scrolls,
+                "controller_ids": last_controller_ids,
+            }, sort_keys=True), file=sys.stderr, flush=True)
+        raise
 
 
 class PublicCityFix:

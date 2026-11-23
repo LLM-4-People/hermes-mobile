@@ -45,6 +45,8 @@ if "resolve-activity" in sys.argv:
         print(os.environ.get("MAP_COMPONENT", "com.google.android.apps.maps/.MapsActivity"))
 if sys.argv[3:] == ["shell", "dumpsys", "connectivity"]:
     print("Active default network: none")
+if sys.argv[3:] == ["shell", "settings", "get", "global", "airplane_mode_on"]:
+    print("1")
 if sys.argv[1:] == ["get-serialno"]:
     print(os.environ.get("FIXTURE_ADB_SERIAL", "emulator-fixture"))
 if Path(sys.argv[0]).name == "dexdump":
@@ -304,7 +306,9 @@ class DeviceGateTest(unittest.TestCase):
         self.assertIn([*device, "install", "-r", "-t", TEST_APK], calls)
         self.assertIn([*device, "shell", "cmd", "connectivity", "airplane-mode", "enable"], calls)
         self.assertIn([*device, "shell", "svc", "wifi", "disable"], calls)
-        self.assertIn([*device, "shell", "dumpsys", "connectivity"], calls)
+        self.assertIn([*device, "shell", "svc", "data", "disable"], calls)
+        self.assertGreaterEqual(calls.count([*device, "shell", "dumpsys", "connectivity"]), 2)
+        self.assertGreaterEqual(calls.count([*device, "shell", "settings", "get", "global", "airplane_mode_on"]), 2)
         verifier = next(cmd for cmd in calls if cmd[0] == "python")
         self.assertEqual(verifier[:4], ["python", "-B", "-m", "verification.nearby_restaurants"])
         self.assertEqual(verifier[verifier.index("--verify-apks") + 1:verifier.index("--verify-apks") + 3], [APP_APK, TEST_APK])

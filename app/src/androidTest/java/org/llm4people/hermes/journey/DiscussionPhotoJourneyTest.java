@@ -25,6 +25,14 @@ public final class DiscussionPhotoJourneyTest extends TestCase {
             Rect gridCell = new Rect(0, 427, 105, 532);
             canvas.drawBitmap(pattern, squareCrop, gridCell, null);
             assertTrue(DiscussionPhotoJourney.syntheticTile(gridCell, frame));
+
+            // 20%-darkened scrim tile matching Android 16 Compose com.google.android.photopicker (#c69c32 / #1e3b62).
+            Rect scrimmedCell = new Rect(0, 285, 106, 391);
+            canvas.drawBitmap(pattern, squareCrop, scrimmedCell, null);
+            android.graphics.Paint scrim = new android.graphics.Paint();
+            scrim.setColor(Color.argb(51, 0, 0, 0));
+            canvas.drawRect(scrimmedCell, scrim);
+            assertTrue(DiscussionPhotoJourney.syntheticTile(scrimmedCell, frame));
             assertFalse(DiscussionPhotoJourney.isBlackFrame(frame));
         } finally {
             pattern.recycle();
@@ -62,6 +70,22 @@ public final class DiscussionPhotoJourneyTest extends TestCase {
             canvas.drawBitmap(inverted, 120, 0, null);
             inverted.recycle();
             assertFalse(DiscussionPhotoJourney.syntheticTile(new Rect(120, 0, 220, 100), frame));
+
+            // Neutral gray, white, and heavily dimmed (<0.65x) tiles must never match under scrim scaling.
+            android.graphics.Paint fill = new android.graphics.Paint();
+            fill.setColor(Color.rgb(160, 160, 160));
+            canvas.drawRect(0, 120, 100, 220, fill);
+            assertFalse(DiscussionPhotoJourney.syntheticTile(new Rect(0, 120, 100, 220), frame));
+
+            fill.setColor(Color.WHITE);
+            canvas.drawRect(120, 120, 220, 220, fill);
+            assertFalse(DiscussionPhotoJourney.syntheticTile(new Rect(120, 120, 220, 220), frame));
+
+            Rect tooDark = new Rect(220, 120, 320, 220);
+            canvas.drawBitmap(pattern, new Rect(16, 0, 80, 64), tooDark, null);
+            fill.setColor(Color.argb(160, 0, 0, 0));
+            canvas.drawRect(tooDark, fill);
+            assertFalse(DiscussionPhotoJourney.syntheticTile(tooDark, frame));
         } finally {
             pattern.recycle();
             frame.recycle();
