@@ -1,0 +1,54 @@
+<resources>
+    <string name="templates_route_label">Modèles du quotidien</string>
+    <string name="templates_route_hint">Raccourcis prêts à l’emploi et modèles personnels</string>
+    <string name="templates_panel_title">Modèles du quotidien</string>
+    <string name="templates_panel_subtitle">Chaque modèle prépare un brouillon modifiable dans la discussion. Rien n’est envoyé sans votre validation.</string>
+    <string name="templates_section_everyday">Idées prêtes à l’emploi</string>
+    <string name="templates_section_custom">Mes modèles personnels</string>
+    <string name="templates_custom_empty">Aucun modèle personnel enregistré dans ce profil.</string>
+    <string name="templates_new_button">Nouveau modèle</string>
+    <string name="templates_use_button">Préparer le brouillon</string>
+    <string name="templates_edit_button">Modifier</string>
+    <string name="templates_delete_button">Supprimer</string>
+    <string name="templates_dialog_new_title">Nouveau modèle personnel</string>
+    <string name="templates_dialog_edit_title">Modifier le modèle</string>
+    <string name="templates_field_title">Titre</string>
+    <string name="templates_field_title_hint">Ex. Bilan du vendredi</string>
+    <string name="templates_field_subtitle">Description courte (facultative)</string>
+    <string name="templates_field_subtitle_hint">Ex. Résume mes tâches terminées</string>
+    <string name="templates_field_draft">Texte du brouillon</string>
+    <string name="templates_field_draft_hint">Écrivez la demande qui sera placée dans le champ de saisie</string>
+    <string name="templates_save_button">Enregistrer</string>
+    <string name="templates_cancel_button">Annuler</string>
+    <string name="templates_delete_confirm_title">Supprimer ce modèle ?</string>
+    <string name="templates_delete_confirm_body">Le modèle « %1$s » sera retiré de ce profil.</string>
+    <string name="templates_error_invalid">Saisissez un titre et un texte de brouillon valides.</string>
+    <string name="templates_error_secret">Ne stockez pas de clé secrète ou de mot de passe dans un modèle.</string>
+    <string name="templates_error_limit">Ce profil a atteint la limite de modèles personnels.</string>
+    <string name="templates_error_storage">Impossible de lire ou d’enregistrer les modèles de ce profil.</string>
+    <string name="templates_chip_cd">Préparer le brouillon : %1$s</string>
+
+    <string name="tpl_photo_title">Résumer une photo ou un reçu</string>
+    <string name="tpl_photo_subtitle">Extraire les montants, dates et informations utiles</string>
+    <string name="tpl_photo_draft">Résume cette photo ou ce reçu de façon claire (date, total, points importants) et indique si quelque chose mérite mon attention.</string>
+
+    <string name="tpl_reply_title">Rédiger une réponse polie</string>
+    <string name="tpl_reply_subtitle">Préparer un message clair et naturel</string>
+    <string name="tpl_reply_draft">Aide-moi à rédiger une réponse polie, courte et naturelle au message suivant :\n\n</string>
+
+    <string name="tpl_plan_day_title">Organiser ma journée</string>
+    <string name="tpl_plan_day_subtitle">Croiser agenda, rappels et priorités</string>
+    <string name="tpl_plan_day_draft">Aide-moi à organiser ma journée en tenant compte de mon agenda et de mes notifications autorisées. Propose un plan simple avec les 3 priorités du jour.</string>
+
+    <string name="tpl_code_title">Expliquer et corriger un code</string>
+    <string name="tpl_code_subtitle">Comprendre un bug et obtenir une correction sûre</string>
+    <string name="tpl_code_draft">Explique simplement ce que fait cet extrait de code, identifie les bugs potentiels et propose une correction claire avec un test :\n\n</string>
+
+    <string name="tpl_nearby_title">Comparer des lieux à proximité</string>
+    <string name="tpl_nearby_subtitle">Trouver un café, restaurant, parc ou service proche</string>
+    <string name="tpl_nearby_draft">Cherche et compare 4 bonnes options à proximité autour de ma position, avec leurs points forts et la distance à pied.</string>
+
+    <string name="tpl_widget_title">Transformer en widget d’accueil</string>
+    <string name="tpl_widget_subtitle">Créer une fiche compacte à épingler sur l’écran d’accueil</string>
+    <string name="tpl_widget_draft">Crée une petite fiche de suivi simple et sûre pour l’écran d’accueil (sans donnée confidentielle) que je pourrai épingler en widget.</string>
+</resources>
