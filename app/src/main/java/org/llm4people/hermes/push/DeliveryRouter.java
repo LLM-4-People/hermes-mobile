@@ -156,7 +156,8 @@ public final class DeliveryRouter {
             Ui.pad(empty, 0, 12);
             box.addView(empty);
         } else {
-            DateFormat fmt = DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT, Locale.getDefault());
+            DateFormat fmt = DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT,
+                    AppLanguage.resolvedLocale(activity));
             for (DeliveryItem item : items) {
                 box.addView(Ui.divider(activity));
                 box.addView(buildRowView(item, fmt));

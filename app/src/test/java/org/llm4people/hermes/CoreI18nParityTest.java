@@ -81,8 +81,33 @@ public final class CoreI18nParityTest {
             String enVal = en.get(key);
             assertFalse("Empty FR value for " + key, frVal == null || frVal.trim().isEmpty());
             assertFalse("Empty EN value for " + key, enVal == null || enVal.trim().isEmpty());
+            assertFalse("Leading/trailing whitespace stripped by AAPT2 in FR " + key, hasEdgeSpaces(frVal));
+            assertFalse("Leading/trailing whitespace stripped by AAPT2 in EN " + key, hasEdgeSpaces(enVal));
             assertEquals("Format placeholders mismatch for " + key, placeholders(frVal), placeholders(enVal));
         }
+
+        // Verify every key in i18n_core_strings.xml is actually referenced in app/src/main/java (zero dead keys).
+        StringBuilder allJava = new StringBuilder();
+        try (var stream = Files.walk(resolveAppRoot().resolve("src/main/java"))) {
+            for (Path file : stream.filter(p -> p.toString().endsWith(".java")).toList()) {
+                allJava.append(new String(Files.readAllBytes(file), StandardCharsets.UTF_8)).append('\n');
+            }
+        }
+        String sources = allJava.toString();
+        List<String> unused = new ArrayList<>();
+        for (String fullKey : fr.keySet()) {
+            String[] parts = fullKey.split(":");
+            String token = ("plurals".equals(parts[0]) ? "R.plurals." : "R.string.") + parts[1];
+            if (!sources.contains(token) && !unused.contains(token)) unused.add(token);
+        }
+        assertTrue("Unused keys in i18n_core_strings.xml: " + unused, unused.isEmpty());
+    }
+
+    private static boolean hasEdgeSpaces(String raw) {
+        if (raw == null || raw.isEmpty()) return false;
+        char first = raw.charAt(0);
+        char last = raw.charAt(raw.length() - 1);
+        return first == ' ' || first == '\t' || last == ' ' || last == '\t';
     }
 
     @Test

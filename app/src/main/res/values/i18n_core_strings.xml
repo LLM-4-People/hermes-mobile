@@ -1,8 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools" tools:locale="fr">
-    <!-- OS / Widgets -->
-    <string name="widget_redacted_content">Contenu masqué · Ouvrez l’application</string>
-
     <!-- Published files -->
     <string name="files_export_cancelled_profile">Exportation annulée après le changement de profil.</string>
     <string name="files_export_interrupted">Exportation interrompue. Le document choisi peut être incomplet.</string>
@@ -151,7 +148,6 @@
     <string name="places_guide_cat_selected_desc">Catégorie %1$s, sélectionnée</string>
     <string name="places_guide_radius_chip">Rayon · %1$s</string>
     <string name="places_guide_radius_desc">Rayon de recherche actuel : %1$s. Appuyer pour changer.</string>
-    <string name="places_guide_radius_option">Rayon de %1$s</string>
     <string name="places_guide_radius_from_center">Rayon de %1$s depuis le centre de la zone</string>
     <plurals name="places_guide_count">
         <item quantity="one">%1$d adresse</item>
@@ -185,8 +181,8 @@
     <string name="places_guide_collapse_details">Replier les détails</string>
     <string name="places_guide_expand_details">Afficher les détails</string>
     <string name="places_guide_approx_center">Centre de la zone approximative</string>
-    <string name="places_guide_uncertainty"> · incertitude annoncée ± %1$s</string>
-    <string name="places_guide_source_date"> · données du %1$s</string>
+    <string name="places_guide_uncertainty">incertitude annoncée ± %1$s</string>
+    <string name="places_guide_source_date">données du %1$s</string>
     <string name="places_guide_use_approx_area">Utiliser ma zone approximative</string>
     <string name="places_guide_specify_neighborhood">Préciser un quartier</string>
     <string name="places_distance_meters">%1$s m</string>
@@ -279,8 +275,8 @@
     <string name="push_settings_back">Retour</string>
     <string name="push_settings_reconnecting">Reconnexion au distributeur…</string>
     <string name="push_settings_active_summary">Les rappels et l’activité de vos sessions peuvent vous prévenir même après la fermeture de l’application.</string>
-    <string name="push_settings_relay_pending">La confirmation du relais est en attente. </string>
-    <string name="push_settings_relay_registered">Le relais a enregistré ce profil. </string>
+    <string name="push_settings_relay_pending">La confirmation du relais est en attente.</string>
+    <string name="push_settings_relay_registered">Le relais a enregistré ce profil.</string>
     <string name="push_settings_waiting_distributor">Hermes attend la confirmation du distributeur.</string>
     <string name="push_settings_retry_distributor_auto">Hermes réessaiera automatiquement de joindre le distributeur.</string>
     <string name="push_settings_open_distributor_check">Ouvrez le distributeur pour vérifier sa connexion et terminer la configuration des alertes.</string>
@@ -447,7 +443,6 @@
         <item quantity="one">%1$d ligne supprimée</item>
         <item quantity="other">%1$d lignes supprimées</item>
     </plurals>
-    <string name="diff_stats_desc">%1$s, %2$s</string>
     <string name="diff_risk_low">Risque faible</string>
     <string name="diff_risk_medium">Risque modéré</string>
     <string name="diff_risk_high">Risque élevé</string>

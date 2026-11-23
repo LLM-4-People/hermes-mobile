@@ -1,8 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- OS / Widgets -->
-    <string name="widget_redacted_content">Content hidden · Open app</string>
-
     <!-- Published files -->
     <string name="files_export_cancelled_profile">Export cancelled after switching profile.</string>
     <string name="files_export_interrupted">Export interrupted. The selected document may be incomplete.</string>
@@ -151,7 +148,6 @@
     <string name="places_guide_cat_selected_desc">Category %1$s, selected</string>
     <string name="places_guide_radius_chip">Radius · %1$s</string>
     <string name="places_guide_radius_desc">Current search radius: %1$s. Tap to change.</string>
-    <string name="places_guide_radius_option">%1$s radius</string>
     <string name="places_guide_radius_from_center">%1$s radius from area center</string>
     <plurals name="places_guide_count">
         <item quantity="one">%1$d place</item>
@@ -185,8 +181,8 @@
     <string name="places_guide_collapse_details">Collapse details</string>
     <string name="places_guide_expand_details">Show details</string>
     <string name="places_guide_approx_center">Center of approximate area</string>
-    <string name="places_guide_uncertainty"> · reported uncertainty ± %1$s</string>
-    <string name="places_guide_source_date"> · data from %1$s</string>
+    <string name="places_guide_uncertainty">reported uncertainty ± %1$s</string>
+    <string name="places_guide_source_date">data from %1$s</string>
     <string name="places_guide_use_approx_area">Use my approximate area</string>
     <string name="places_guide_specify_neighborhood">Specify a neighborhood</string>
     <string name="places_distance_meters">%1$s m</string>
@@ -279,8 +275,8 @@
     <string name="push_settings_back">Back</string>
     <string name="push_settings_reconnecting">Reconnecting to distributor…</string>
     <string name="push_settings_active_summary">Reminders and session activity can alert you even after closing the app.</string>
-    <string name="push_settings_relay_pending">Relay confirmation is pending. </string>
-    <string name="push_settings_relay_registered">The relay registered this profile. </string>
+    <string name="push_settings_relay_pending">Relay confirmation is pending.</string>
+    <string name="push_settings_relay_registered">The relay registered this profile.</string>
     <string name="push_settings_waiting_distributor">Hermes is waiting for confirmation from the distributor.</string>
     <string name="push_settings_retry_distributor_auto">Hermes will automatically retry reaching the distributor.</string>
     <string name="push_settings_open_distributor_check">Open the distributor to check its connection and finish alert setup.</string>
@@ -447,7 +443,6 @@
         <item quantity="one">%1$d line removed</item>
         <item quantity="other">%1$d lines removed</item>
     </plurals>
-    <string name="diff_stats_desc">%1$s, %2$s</string>
     <string name="diff_risk_low">Low risk</string>
     <string name="diff_risk_medium">Medium risk</string>
     <string name="diff_risk_high">High risk</string>

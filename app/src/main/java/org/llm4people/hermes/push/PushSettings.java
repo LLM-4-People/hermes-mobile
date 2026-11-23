@@ -313,7 +313,7 @@ final class PushSettings {
         if (!device.unified()) return activity.getString(R.string.push_settings_active_summary);
         String status = activity.getString(
                 pendingRepair(device) ? R.string.push_settings_relay_pending : R.string.push_settings_relay_registered);
-        return status + switch (device.repair) {
+        return status + " " + switch (device.repair) {
             case PushStore.WAITING_ENDPOINT -> activity.getString(R.string.push_settings_waiting_distributor);
             case PushStore.RETRY_REPAIR -> activity.getString(R.string.push_settings_retry_distributor_auto);
             case PushStore.REPAIR_ACTION -> registrationMessage(device);

@@ -430,10 +430,10 @@ public final class NearbyGuide extends LinearLayout {
     private void provenance(LinearLayout parent, State s) {
         String precision = getContext().getString(R.string.places_guide_approx_center);
         if (Double.isFinite(s.accuracy) && s.accuracy > 0) {
-            precision += getContext().getString(R.string.places_guide_uncertainty,
+            precision += " · " + getContext().getString(R.string.places_guide_uncertainty,
                     distance(getContext(), (int) Math.ceil(s.accuracy)));
         }
-        TextView note = text(precision + "\n" + s.result.attribution
+        TextView note = text(precision + "\n" + s.result.attribution + " · "
                 + getContext().getString(R.string.places_guide_source_date,
                         dateFormatter().format(Instant.parse(s.result.sourceDate))), 13, R.color.muted);
         note.setPaddingRelative(0, dp(6), 0, dp(4));
