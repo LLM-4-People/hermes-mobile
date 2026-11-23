@@ -20,6 +20,7 @@ import android.widget.TextView;
 import org.llm4people.hermes.ambient.AmbientAccessPanel;
 import org.llm4people.hermes.doctor.ConnectionDoctorPanel;
 import org.llm4people.hermes.panel.BrainStudioRoutes;
+import org.llm4people.hermes.presence.PresenceSettingsPanel;
 import org.llm4people.hermes.templates.TemplatesPanel;
 
 import java.util.Objects;
@@ -293,6 +294,8 @@ final class WorkspaceShell {
                 activity.getString(R.string.activity_push_policy_hint), "push_policy");
         link(list, activity.getString(R.string.ambient_route_label),
                 activity.getString(R.string.ambient_route_hint), AmbientAccessPanel.ROUTE_ID);
+        link(list, activity.getString(R.string.presence_route_label),
+                activity.getString(R.string.presence_route_hint), PresenceSettingsPanel.ROUTE_ID);
         link(list, activity.getString(R.string.activity_usage_title),
                 activity.getString(R.string.activity_usage_hint), "stats");
         link(list, activity.getString(R.string.activity_security_title), securitySummary, "security");

@@ -291,6 +291,8 @@ final class ThreadRun {
             NearbyTurn.attach(body, area);
             AppLanguage.acceptLanguageHeader(page.activity);
             body.put("user_language", AppLanguage.resolvedTag(page.activity));
+            JSONObject presenceContext = page.host.appPresenceContext();
+            if (presenceContext != null) body.put("app_presence", presenceContext);
             if (features.optBoolean("device_bridge")) {
                 NotificationAllowlist allowlist = NotificationAllowlist.forAccount(page.account());
                 NotificationAllowlist.Settings ambient = allowlist.settings();

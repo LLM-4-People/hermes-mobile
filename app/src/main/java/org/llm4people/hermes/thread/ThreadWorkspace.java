@@ -60,6 +60,7 @@ public final class ThreadWorkspace implements AutoCloseable {
         default void noticeThread(boolean sameThread) {}
         default void nearbyGuide(ThreadWorkspace origin, String threadId, String runId, JSONObject assistantRow, JSONObject area) {}
         default void runProgress(LiveRunNotification.Snapshot snapshot) {}
+        default JSONObject appPresenceContext() { return null; }
         JSONObject options(String sessionId);
         void timing(String sessionId, long firstTextMillis, long elapsedMillis, long outputTokens);
     }
