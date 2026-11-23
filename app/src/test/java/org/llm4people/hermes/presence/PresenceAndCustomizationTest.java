@@ -574,4 +574,73 @@ public final class PresenceAndCustomizationTest {
         double expectedLinear10 = (10.0 / 255.0) / 12.92;
         assertEquals(expectedLinear10, ThemePalette.relativeLuminance(0xFF0A0A0A), 1e-9);
     }
+
+    @Test
+    public void r3ThemeModeCrossPolarityAdaptationAndFailClosedApplyThemeMode() throws Exception {
+        // 1. Every curated + custom palette adapts cleanly when explicit theme differs from system Day/Night.
+        List<AppCustomization> variants = List.of(
+                AppCustomization.defaults().withPalette(AppCustomization.PalettePreset.SLATE, null),
+                AppCustomization.defaults().withPalette(AppCustomization.PalettePreset.TERRACOTTA, null),
+                AppCustomization.defaults().withPalette(AppCustomization.PalettePreset.INDIGO, null),
+                AppCustomization.defaults().withPalette(AppCustomization.PalettePreset.PLUM, null),
+                AppCustomization.defaults().withPalette(AppCustomization.PalettePreset.CUSTOM, "#1B4D3E"));
+
+        for (AppCustomization custom : variants) {
+            // Day-mode device (systemNight=false) -> apply palette -> switch to explicit theme="dark".
+            ThemePalette.OverrideSpec daySpec = custom.toThemeOverride(ThemePalette.OverrideSpec.defaults(), false);
+            ThemePalette.OverrideSpec darkOnDayDevice = custom.adaptOverrideForThemeMode(daySpec, "dark", false);
+            assertEquals("dark", darkOnDayDevice.theme);
+            assertNotNull(darkOnDayDevice.accentHex);
+            assertTrue("Dark accent must pass WCAG AA on NIGHT_SURFACE",
+                    ThemePalette.contrastRatio(ThemePalette.parseHexColor(darkOnDayDevice.accentHex),
+                            ThemePalette.NIGHT_SURFACE) >= ThemePalette.WCAG_AA_NORMAL);
+
+            // Re-applying palette while explicit theme="dark" is active on a Day-mode device keeps WCAG AA.
+            ThemePalette.OverrideSpec reappliedDark = custom.toThemeOverride(darkOnDayDevice, false);
+            assertEquals("dark", reappliedDark.theme);
+            assertTrue(ThemePalette.contrastRatio(ThemePalette.parseHexColor(reappliedDark.accentHex),
+                    ThemePalette.NIGHT_SURFACE) >= ThemePalette.WCAG_AA_NORMAL);
+
+            // Night-mode device (systemNight=true) -> apply palette -> switch to explicit theme="light".
+            ThemePalette.OverrideSpec nightSpec = custom.toThemeOverride(ThemePalette.OverrideSpec.defaults(), true);
+            ThemePalette.OverrideSpec lightOnNightDevice = custom.adaptOverrideForThemeMode(nightSpec, "light", true);
+            assertEquals("light", lightOnNightDevice.theme);
+            assertNotNull(lightOnNightDevice.accentHex);
+            assertTrue("Light accent must pass WCAG AA on DAY_SURFACE",
+                    ThemePalette.contrastRatio(ThemePalette.parseHexColor(lightOnNightDevice.accentHex),
+                            ThemePalette.DAY_SURFACE) >= ThemePalette.WCAG_AA_NORMAL);
+        }
+
+        // 2. DeepAndroidActions.handleCustomize fails closed when HostBridge.applyThemeMode returns false
+        //    and does not mutate customizationStore on failure.
+        AppPresenceTracker presence = new AppPresenceTracker();
+        presence.bindProfile("p1", 1L);
+        AppCustomizationStore store = new AppCustomizationStore(new MemoryBacking());
+        DeepAndroidActions failingThemeActions = new DeepAndroidActions(
+                presence, new ContinuousLocationTracker(), store, new DeepAndroidActions.NudgeRateLimiter(),
+                new DeepAndroidActions.HostBridge() {
+                    @Override public boolean applyThemeMode(String themeMode) { return false; }
+                });
+        long now = 30_000_000L;
+        PresencePolicy off = PresencePolicy.defaults();
+        PushPolicy push = PushPolicy.defaults();
+
+        DeepAndroidActions.Result standaloneFail = failingThemeActions.execute(
+                "app_customize", Map.of("operation", "apply", "theme", "dark"), off, push, true, now, 600);
+        assertEquals(DeepAndroidActions.Status.REJECTED_INVALID_PARAMS, standaloneFail.status());
+        assertEquals("theme_mode_apply_failed", standaloneFail.reasonCode());
+
+        DeepAndroidActions.Result combinedFail = failingThemeActions.execute(
+                "app_customize", Map.of("operation", "apply", "accent", "slate", "theme", "dark"),
+                off, push, true, now, 600);
+        assertEquals(DeepAndroidActions.Status.REJECTED_INVALID_PARAMS, combinedFail.status());
+        assertEquals("theme_mode_apply_failed", combinedFail.reasonCode());
+        assertEquals("Store must remain untouched when applyThemeMode fails",
+                AppCustomization.PalettePreset.FOREST, store.current().palette);
+
+        DeepAndroidActions.Result resetFail = failingThemeActions.execute(
+                "app_customize", Map.of("operation", "reset"), off, push, true, now, 600);
+        assertEquals(DeepAndroidActions.Status.REJECTED_INVALID_PARAMS, resetFail.status());
+        assertEquals("theme_mode_apply_failed", resetFail.reasonCode());
+    }
 }

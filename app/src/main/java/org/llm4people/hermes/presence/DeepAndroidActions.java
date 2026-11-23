@@ -152,7 +152,7 @@ public final class DeepAndroidActions {
     public interface HostBridge {
         default boolean navigate(String targetKind, String targetId) { return true; }
         default void onCustomizationChanged(AppCustomization updated) {}
-        default boolean applyThemeMode(String themeMode) { return false; }
+        default boolean applyThemeMode(String themeMode) { return true; }
         default boolean createTemplate(String title, String category, String draftText) { return true; }
         default boolean setTimer(int durationSeconds, String label) { return true; }
         default boolean openShareSheet(String text, String subject) { return true; }
@@ -296,8 +296,8 @@ public final class DeepAndroidActions {
                     "{\"accent\":" + AppPresenceTracker.quoteJson(restored.palette.wire) + "}");
         }
         if ("reset".equals(operation)) {
+            if (!hostBridge.applyThemeMode("system")) return reject("theme_mode_apply_failed");
             AppCustomization reset = customizationStore.resetToDefault();
-            hostBridge.applyThemeMode("system");
             hostBridge.onCustomizationChanged(reset);
             return new Result(Status.EXECUTED, "reset",
                     "{\"accent\":" + AppPresenceTracker.quoteJson(reset.palette.wire) + "}");
@@ -378,15 +378,15 @@ public final class DeepAndroidActions {
                 changed = true;
             }
             if (!changed && themeMode == null) return reject("empty_customization");
-            AppCustomization updated = current;
+            AppCustomization updated = changed
+                    ? new AppCustomization(preset, customHex, density, fontDelta, startupTab, greeting, shortcuts)
+                    : current;
+            if (themeMode != null && !hostBridge.applyThemeMode(themeMode)) {
+                return reject("theme_mode_apply_failed");
+            }
             if (changed) {
-                updated = new AppCustomization(
-                        preset, customHex, density, fontDelta, startupTab, greeting, shortcuts);
                 customizationStore.apply(updated);
                 hostBridge.onCustomizationChanged(updated);
-            }
-            if (themeMode != null) {
-                hostBridge.applyThemeMode(themeMode);
             }
             Diagnostics.event("deep_action", "app_customize");
             StringBuilder payload = new StringBuilder();

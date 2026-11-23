@@ -1,8 +1,10 @@
 package org.llm4people.hermes.customization;
 
 import org.llm4people.hermes.Diagnostics;
+import org.llm4people.hermes.artifact.ThemePalette;
 import org.llm4people.hermes.os.HermesWidgetSpec;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -219,6 +221,46 @@ public final class AppCustomization {
         double whiteRatio = contrastRatio(WHITE_RGB, rgb);
         double inkRatio = contrastRatio(LIGHT_INK_RGB, rgb);
         return (whiteRatio >= inkRatio ? WHITE_RGB : LIGHT_INK_RGB) | 0xFF000000;
+    }
+
+    /**
+     * Bridges this {@link AppCustomization} onto an existing {@link ThemePalette.OverrideSpec},
+     * selecting the light or dark accent for the effective theme mode (never system-only) so
+     * WCAG AA (&gt;= 4.5:1) validation succeeds regardless of device Day/Night vs explicit theme.
+     */
+    public ThemePalette.OverrideSpec toThemeOverride(
+            ThemePalette.OverrideSpec existing, boolean systemNight) throws IOException {
+        ThemePalette.OverrideSpec base = existing == null ? ThemePalette.OverrideSpec.defaults() : existing;
+        boolean effectiveNight = "dark".equals(base.theme) || ("system".equals(base.theme) && systemNight);
+        String accentHex = null;
+        if (palette != PalettePreset.FOREST || customAccentHex != null) {
+            int candidate = effectiveNight ? darkAccentArgb() : lightAccentArgb();
+            accentHex = ThemePalette.formatHex(ThemePalette.adaptAccentForMode(candidate, effectiveNight));
+        }
+        int fontStep = Math.max(ThemePalette.MIN_FONT_SCALE_STEP,
+                Math.min(ThemePalette.MAX_FONT_SCALE_STEP, Math.round(fontScaleDelta * 20f)));
+        return ThemePalette.OverrideSpec.validated(
+                base.theme, accentHex, density.wire, fontStep, base.surfaceStyle, systemNight);
+    }
+
+    /**
+     * Transitions an existing {@link ThemePalette.OverrideSpec} to {@code safeMode} ({@code system|light|dark}),
+     * adapting any active accent color for the target surface polarity so contrast always passes WCAG AA.
+     */
+    public ThemePalette.OverrideSpec adaptOverrideForThemeMode(
+            ThemePalette.OverrideSpec current, String safeMode, boolean systemNight) throws IOException {
+        ThemePalette.OverrideSpec base = current == null ? ThemePalette.OverrideSpec.defaults() : current;
+        boolean targetNight = "dark".equals(safeMode) || ("system".equals(safeMode) && systemNight);
+        String adaptedAccent = base.accentHex;
+        if (adaptedAccent != null && base.surfaceHex == null && base.accentInkHex == null) {
+            int candidate = (palette != PalettePreset.FOREST || customAccentHex != null)
+                    ? (targetNight ? darkAccentArgb() : lightAccentArgb())
+                    : ThemePalette.parseHexColor(adaptedAccent);
+            adaptedAccent = ThemePalette.formatHex(ThemePalette.adaptAccentForMode(candidate, targetNight));
+        }
+        return ThemePalette.OverrideSpec.validated(
+                safeMode, adaptedAccent, base.accentInkHex, base.surfaceHex, base.inkHex,
+                base.density, base.fontScaleStep, base.surfaceStyle, systemNight);
     }
 
     /** Validates a custom {@code #RRGGBB} hex accent against WCAG 2.1 AA (&gt;= 4.5:1 on light surface). */

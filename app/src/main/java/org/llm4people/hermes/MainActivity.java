@@ -1228,14 +1228,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         try {
             boolean night = ThemePalette.isNight(this);
             ThemePalette.OverrideSpec existing = ThemePalette.load(owner, night);
-            String accentHex = (custom.palette == AppCustomization.PalettePreset.FOREST
-                    && custom.customAccentHex == null)
-                    ? null
-                    : ThemePalette.formatHex(night ? custom.darkAccentArgb() : custom.lightAccentArgb());
-            int fontStep = Math.max(ThemePalette.MIN_FONT_SCALE_STEP,
-                    Math.min(ThemePalette.MAX_FONT_SCALE_STEP, Math.round(custom.fontScaleDelta * 20f)));
-            ThemePalette.OverrideSpec spec = ThemePalette.OverrideSpec.validated(
-                    existing.theme, accentHex, custom.density.wire, fontStep, existing.surfaceStyle, night);
+            ThemePalette.OverrideSpec spec = custom.toThemeOverride(existing, night);
             ThemePalette.save(owner, spec);
             if (refreshLayout && account == owner) {
                 onLayoutChanged();
@@ -1252,9 +1245,8 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         try {
             boolean night = ThemePalette.isNight(this);
             ThemePalette.OverrideSpec current = ThemePalette.load(owner, night);
-            ThemePalette.OverrideSpec updated = ThemePalette.OverrideSpec.validated(
-                    safeMode, current.accentHex, current.accentInkHex, current.surfaceHex, current.inkHex,
-                    current.density, current.fontScaleStep, current.surfaceStyle, night);
+            AppCustomization saved = AppCustomizationStore.forAccount(owner).current();
+            ThemePalette.OverrideSpec updated = saved.adaptOverrideForThemeMode(current, safeMode, night);
             ThemePalette.save(owner, updated);
             onLayoutChanged();
             return true;

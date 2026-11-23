@@ -737,7 +737,7 @@ public final class ThreadViews {
                     this.openDialog.accept(new AlertDialog.Builder(context)
                             .setTitle(R.string.reasoning_title)
                             .setView(MessageText.reader(context, currentReasoning, false, false))
-                            .setPositiveButton("Fermer", null));
+                            .setPositiveButton(R.string.ws_close, null));
                 }
             });
             fullButton.setVisibility(View.GONE);
