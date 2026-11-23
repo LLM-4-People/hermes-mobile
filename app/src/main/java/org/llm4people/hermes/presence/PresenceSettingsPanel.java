@@ -18,6 +18,7 @@ import org.llm4people.hermes.RouteRegistry;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.customization.AppCustomization;
 import org.llm4people.hermes.customization.AppCustomizationStore;
+import org.llm4people.hermes.os.PermissionCenter;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -59,6 +60,7 @@ public final class PresenceSettingsPanel {
     private PresencePolicy policy;
     private TextView statusBanner;
     private TextView feedback;
+    private Button feedbackAction;
     private Button pauseLocationButton;
     private Button undoButton;
     private Switch screenSwitch;
@@ -151,6 +153,13 @@ public final class PresenceSettingsPanel {
         feedback.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         feedback.setVisibility(View.GONE);
         addTop(body, feedback, 6);
+
+        feedbackAction = Ui.button(context, "", null);
+        feedbackAction.setTag("presence:feedback_action");
+        feedbackAction.setMinWidth(minTouch);
+        feedbackAction.setMinimumWidth(minTouch);
+        feedbackAction.setVisibility(View.GONE);
+        addTop(body, feedbackAction, 4);
 
         addSectionHeader(body, context.getString(R.string.presence_section_sharing));
 
@@ -325,8 +334,52 @@ public final class PresenceSettingsPanel {
                 context.getString(R.string.presence_feedback_saved));
     }
 
+    /** Called by host Activity with the outcome of a location permission prompt. */
+    public void onLocationPermissionResult(boolean fine, boolean granted) {
+        if (granted) {
+            onLocationPermissionGranted(fine);
+            return;
+        }
+        PermissionCenter.Key key = fine ? PermissionCenter.Key.PRECISE_LOCATION : PermissionCenter.Key.LOCATION;
+        PermissionCenter.State state = PermissionCenter.state(context, key);
+        if (state == PermissionCenter.State.UNAVAILABLE) {
+            showFeedback(context.getString(R.string.perm_precise_location_unavailable));
+        } else if (state == PermissionCenter.State.PERMANENTLY_DENIED) {
+            showFeedbackWithAction(context.getString(R.string.perm_location_blocked),
+                    context.getString(R.string.perm_action_open_settings),
+                    () -> {
+                        if (!PermissionCenter.openAppSettings(context)) {
+                            showFeedback(context.getString(R.string.perm_settings_unavailable));
+                        }
+                    });
+        } else {
+            showFeedbackWithAction(context.getString(R.string.presence_feedback_location_permission),
+                    context.getString(R.string.perm_action_allow_location),
+                    () -> {
+                        PermissionCenter.recordRequested(context, key);
+                        if (fine) listener.onRequestPreciseLocationPermission();
+                        else listener.onRequestLocationPermission();
+                    });
+        }
+        refresh();
+    }
+
     private void handleLocationToggle(boolean enabled) {
         if (enabled && !ContinuousLocationTracker.hasCoarsePermission(context)) {
+            PermissionCenter.State state = PermissionCenter.state(context, PermissionCenter.Key.LOCATION);
+            if (state == PermissionCenter.State.PERMANENTLY_DENIED) {
+                applyPolicy(policy.withContinuousLocation(false),
+                        context.getString(R.string.perm_location_blocked));
+                showFeedbackWithAction(context.getString(R.string.perm_location_blocked),
+                        context.getString(R.string.perm_action_open_settings),
+                        () -> {
+                            if (!PermissionCenter.openAppSettings(context)) {
+                                showFeedback(context.getString(R.string.perm_settings_unavailable));
+                            }
+                        });
+                return;
+            }
+            PermissionCenter.recordRequested(context, PermissionCenter.Key.LOCATION);
             applyPolicy(policy.withContinuousLocation(false),
                     context.getString(R.string.presence_feedback_location_permission));
             listener.onRequestLocationPermission();
@@ -337,6 +390,25 @@ public final class PresenceSettingsPanel {
 
     private void handlePreciseLocationToggle(boolean enabled) {
         if (enabled && !ContinuousLocationTracker.hasFinePermission(context)) {
+            PermissionCenter.State state = PermissionCenter.state(context, PermissionCenter.Key.PRECISE_LOCATION);
+            if (state == PermissionCenter.State.UNAVAILABLE) {
+                applyPolicy(policy.withPreciseLocation(false),
+                        context.getString(R.string.perm_precise_location_unavailable));
+                return;
+            }
+            if (state == PermissionCenter.State.PERMANENTLY_DENIED) {
+                applyPolicy(policy.withPreciseLocation(false),
+                        context.getString(R.string.perm_location_blocked));
+                showFeedbackWithAction(context.getString(R.string.perm_location_blocked),
+                        context.getString(R.string.perm_action_open_settings),
+                        () -> {
+                            if (!PermissionCenter.openAppSettings(context)) {
+                                showFeedback(context.getString(R.string.perm_settings_unavailable));
+                            }
+                        });
+                return;
+            }
+            PermissionCenter.recordRequested(context, PermissionCenter.Key.PRECISE_LOCATION);
             applyPolicy(policy.withPreciseLocation(false),
                     context.getString(R.string.presence_feedback_location_permission));
             listener.onRequestPreciseLocationPermission();
@@ -393,6 +465,19 @@ public final class PresenceSettingsPanel {
         if (feedback == null) return;
         feedback.setText(text);
         feedback.setVisibility(View.VISIBLE);
+        if (feedbackAction != null) {
+            feedbackAction.setVisibility(View.GONE);
+            feedbackAction.setOnClickListener(null);
+        }
+    }
+
+    private void showFeedbackWithAction(String text, String actionLabel, Runnable onClick) {
+        showFeedback(text);
+        if (feedbackAction != null && onClick != null) {
+            feedbackAction.setText(actionLabel);
+            feedbackAction.setOnClickListener(v -> onClick.run());
+            feedbackAction.setVisibility(View.VISIBLE);
+        }
     }
 
     private void addSectionHeader(LinearLayout parent, String label) {

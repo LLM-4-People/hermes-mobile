@@ -23,6 +23,7 @@ final class WorkspaceNavigation {
                 || org.llm4people.hermes.ambient.AmbientAccessPanel.ROUTE_ID.equals(route)
                 || org.llm4people.hermes.presence.PresenceSettingsPanel.ROUTE_ID.equals(route)
                 || org.llm4people.hermes.doctor.ConnectionDoctorPanel.ROUTE_ID.equals(route)
+                || org.llm4people.hermes.os.PermissionsPanel.ROUTE_ID.equals(route)
                 || org.llm4people.hermes.update.UpdatePanel.ROUTE_ID.equals(route)) {
             return ACTIVITY;
         }

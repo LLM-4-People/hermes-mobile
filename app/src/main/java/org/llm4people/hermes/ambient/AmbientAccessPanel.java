@@ -8,8 +8,6 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.graphics.Typeface;
-import android.net.Uri;
-import android.provider.Settings;
 import android.text.Editable;
 import android.text.InputType;
 import android.text.TextWatcher;
@@ -25,6 +23,7 @@ import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.RouteRegistry;
 import org.llm4people.hermes.Ui;
+import org.llm4people.hermes.os.PermissionCenter;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -76,6 +75,7 @@ public final class AmbientAccessPanel {
     private LinearLayout mediaContainer;
     private TextView statusBadge;
     private TextView feedback;
+    private Button feedbackAction;
     private AlertDialog activeDialog;
     private String searchFilter = "";
 
@@ -135,6 +135,10 @@ public final class AmbientAccessPanel {
         feedback.setVisibility(View.GONE);
         addTop(body, feedback, 8);
 
+        feedbackAction = Ui.button(activity, "", null);
+        feedbackAction.setVisibility(View.GONE);
+        addTop(body, feedbackAction, 4);
+
         buildOnboardingSection(body);
         buildTogglesSection(body);
         buildAllowlistSection(body);
@@ -180,15 +184,47 @@ public final class AmbientAccessPanel {
 
     /** Open Android App Info so the user can allow restricted settings on Android 13-16. */
     public static boolean openAppInfoSettings(Context context) {
-        Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                Uri.fromParts("package", context.getPackageName(), null));
-        return startSettingsIntent(context, intent, "open_app_info");
+        return PermissionCenter.openAppSettings(context);
     }
 
     /** Open Android's Notification Access screen so the user can enable the listener. */
     public static boolean openNotificationListenerSettings(Context context) {
-        Intent intent = new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS);
-        return startSettingsIntent(context, intent, "open_listener_settings");
+        return PermissionCenter.openNotificationListenerSettings(context);
+    }
+
+    /** Handle Calendar or Contacts runtime permission outcomes with clear 1-tap recovery on denial. */
+    public void onPermissionResult(int requestCode, String[] permissions, int[] results) {
+        boolean granted = results != null && results.length > 0
+                && results[0] == PackageManager.PERMISSION_GRANTED;
+        if (requestCode == REQUEST_READ_CALENDAR) {
+            handleRuntimePermissionOutcome(PermissionCenter.Key.CALENDAR, Manifest.permission.READ_CALENDAR,
+                    REQUEST_READ_CALENDAR, R.string.perm_ambient_calendar_denied, granted);
+        } else if (requestCode == REQUEST_READ_CONTACTS) {
+            handleRuntimePermissionOutcome(PermissionCenter.Key.CONTACTS, Manifest.permission.READ_CONTACTS,
+                    REQUEST_READ_CONTACTS, R.string.perm_ambient_contacts_denied, granted);
+        }
+        refreshAll();
+    }
+
+    private void handleRuntimePermissionOutcome(
+            PermissionCenter.Key key, String permission, int requestCode, int deniedMsgRes, boolean granted) {
+        if (granted) {
+            clearFeedback();
+            return;
+        }
+        PermissionCenter.State st = PermissionCenter.state(activity, key);
+        if (st == PermissionCenter.State.PERMANENTLY_DENIED) {
+            showFeedbackWithAction(deniedMsgRes, true, R.string.perm_action_open_settings, () -> {
+                if (!PermissionCenter.openAppSettings(activity)) {
+                    showFeedback(R.string.ambient_settings_unavailable, true);
+                }
+            });
+        } else {
+            showFeedbackWithAction(deniedMsgRes, true, R.string.perm_action_allow, () -> {
+                PermissionCenter.recordRequested(activity, key);
+                activity.requestPermissions(new String[]{permission}, requestCode);
+            });
+        }
     }
 
     /** Filter candidate installed apps by search text while excluding hard-blocked packages. */
@@ -242,8 +278,19 @@ public final class AmbientAccessPanel {
         });
         addSwitch(body, R.string.ambient_toggle_calendar, initial.calendarEnabled(), checked -> {
             if (checked && !CalendarContextReader.hasPermission(activity)) {
-                activity.requestPermissions(new String[]{Manifest.permission.READ_CALENDAR}, REQUEST_READ_CALENDAR);
-                showFeedback(R.string.ambient_permission_needed, false);
+                PermissionCenter.State st = PermissionCenter.state(activity, PermissionCenter.Key.CALENDAR);
+                if (st == PermissionCenter.State.PERMANENTLY_DENIED) {
+                    showFeedbackWithAction(R.string.perm_ambient_calendar_denied, true,
+                            R.string.perm_action_open_settings, () -> {
+                                if (!PermissionCenter.openAppSettings(activity)) {
+                                    showFeedback(R.string.ambient_settings_unavailable, true);
+                                }
+                            });
+                } else {
+                    PermissionCenter.recordRequested(activity, PermissionCenter.Key.CALENDAR);
+                    activity.requestPermissions(new String[]{Manifest.permission.READ_CALENDAR}, REQUEST_READ_CALENDAR);
+                    showFeedback(R.string.ambient_permission_needed, false);
+                }
             }
             NotificationAllowlist.Settings cur = allowlist.settings();
             allowlist.saveSettings(new NotificationAllowlist.Settings(
@@ -253,8 +300,19 @@ public final class AmbientAccessPanel {
         });
         addSwitch(body, R.string.ambient_toggle_contacts, initial.contactsEnabled(), checked -> {
             if (checked && !ContactsContextReader.hasPermission(activity)) {
-                activity.requestPermissions(new String[]{Manifest.permission.READ_CONTACTS}, REQUEST_READ_CONTACTS);
-                showFeedback(R.string.ambient_permission_needed, false);
+                PermissionCenter.State st = PermissionCenter.state(activity, PermissionCenter.Key.CONTACTS);
+                if (st == PermissionCenter.State.PERMANENTLY_DENIED) {
+                    showFeedbackWithAction(R.string.perm_ambient_contacts_denied, true,
+                            R.string.perm_action_open_settings, () -> {
+                                if (!PermissionCenter.openAppSettings(activity)) {
+                                    showFeedback(R.string.ambient_settings_unavailable, true);
+                                }
+                            });
+                } else {
+                    PermissionCenter.recordRequested(activity, PermissionCenter.Key.CONTACTS);
+                    activity.requestPermissions(new String[]{Manifest.permission.READ_CONTACTS}, REQUEST_READ_CONTACTS);
+                    showFeedback(R.string.ambient_permission_needed, false);
+                }
             }
             NotificationAllowlist.Settings cur = allowlist.settings();
             allowlist.saveSettings(new NotificationAllowlist.Settings(
@@ -529,6 +587,27 @@ public final class AmbientAccessPanel {
         feedback.setVisibility(View.VISIBLE);
         feedback.setTextColor(activity.getColor(error ? R.color.danger : R.color.accent));
         feedback.setText(messageRes);
+        if (feedbackAction != null) {
+            feedbackAction.setVisibility(View.GONE);
+            feedbackAction.setOnClickListener(null);
+        }
+    }
+
+    private void showFeedbackWithAction(int messageRes, boolean error, int actionRes, Runnable onClick) {
+        showFeedback(messageRes, error);
+        if (feedbackAction != null && onClick != null) {
+            feedbackAction.setText(actionRes);
+            feedbackAction.setOnClickListener(v -> onClick.run());
+            feedbackAction.setVisibility(View.VISIBLE);
+        }
+    }
+
+    private void clearFeedback() {
+        if (feedback != null) feedback.setVisibility(View.GONE);
+        if (feedbackAction != null) {
+            feedbackAction.setVisibility(View.GONE);
+            feedbackAction.setOnClickListener(null);
+        }
     }
 
     private void addTop(LinearLayout parent, View child, int topDp) {
@@ -537,17 +616,5 @@ public final class AmbientAccessPanel {
                 -1, existing == null ? -2 : existing.height);
         params.topMargin = Ui.dp(activity, topDp);
         parent.addView(child, params);
-    }
-
-    private static boolean startSettingsIntent(Context context, Intent intent, String actionName) {
-        try {
-            if (!(context instanceof Activity)) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            context.startActivity(intent);
-            Diagnostics.event("ambient", actionName);
-            return true;
-        } catch (RuntimeException ex) {
-            Diagnostics.warning("ambient", actionName + "_failed", ex);
-            return false;
-        }
     }
 }

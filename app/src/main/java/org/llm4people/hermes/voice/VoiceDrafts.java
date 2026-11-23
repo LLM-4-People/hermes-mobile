@@ -26,6 +26,7 @@ import android.widget.TextView;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
+import org.llm4people.hermes.os.PermissionCenter;
 
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -251,7 +252,7 @@ public final class VoiceDrafts {
         optionsDialog = Ui.secureDialog(new AlertDialog.Builder(activity)
                 .setTitle(R.string.voice_options_title)
                 .setView(content)
-                .setNegativeButton("Fermer", null));
+                .setNegativeButton(R.string.ws_close, null));
     }
 
     private void begin(Controls target, VoiceInput.Source source, DuplexBridge duplex, int duplexGen) {
@@ -310,10 +311,21 @@ public final class VoiceDrafts {
         if (!attempt.permissionGranted) {
             DuplexBridge d = attempt.duplex;
             int g = attempt.duplexGen;
-            attempt.finish(R.string.voice_permission_denied);
+            attempt.finishPermissionDenied();
             if (d != null) d.session.onListenError(g, false);
         } else if (activity.hasWindowFocus()) startApprovedRecording();
         return true;
+    }
+
+    private void reportPermissionDenied(Controls target, VoiceInput.Source source) {
+        PermissionCenter.State state = PermissionCenter.state(activity, PermissionCenter.Key.MICROPHONE);
+        if (state == PermissionCenter.State.PERMANENTLY_DENIED) {
+            target.report(R.string.voice_permission_denied, R.string.perm_action_open_settings,
+                    () -> PermissionCenter.openAppSettings(activity));
+        } else {
+            target.report(R.string.voice_permission_denied, R.string.perm_action_allow_microphone,
+                    () -> begin(target, source, null, -1));
+        }
     }
 
     public void cancel() {
@@ -581,9 +593,10 @@ public final class VoiceDrafts {
                 phase = Phase.PERMISSION;
                 permissionCode = permissionIds.getAndUpdate(previous -> previous >= 60000 ? 20000 : previous + 1);
                 target.report(R.string.voice_permission_wait, R.string.voice_cancel_short, target::cancel);
+                PermissionCenter.recordRequested(activity, PermissionCenter.Key.MICROPHONE);
                 input.requestPermission(permissionCode);
             } catch (RuntimeException unavailable) {
-                finish(R.string.voice_permission_denied);
+                finishPermissionDenied();
                 if (duplex != null) duplex.session.onListenError(duplexGen, false);
             }
         }
@@ -598,7 +611,7 @@ public final class VoiceDrafts {
                 recording = input.open(source, this);
                 recording.start();
             } catch (SecurityException denied) {
-                finish(R.string.voice_permission_denied);
+                finishPermissionDenied();
                 if (duplex != null) duplex.session.onListenError(duplexGen, false);
             } catch (RuntimeException unavailable) {
                 finish(R.string.voice_unavailable);
@@ -710,13 +723,16 @@ public final class VoiceDrafts {
                     || reason == SpeechRecognizer.ERROR_SPEECH_TIMEOUT;
             DuplexBridge d = duplex;
             int g = duplexGen;
-            finish(switch (reason) {
-                case SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> R.string.voice_empty;
-                case SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> R.string.voice_permission_denied;
-                case SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> R.string.voice_network;
-                case SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED, SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE -> R.string.voice_language;
-                default -> R.string.voice_failed;
-            });
+            if (reason == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) {
+                finishPermissionDenied();
+            } else {
+                finish(switch (reason) {
+                    case SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> R.string.voice_empty;
+                    case SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> R.string.voice_network;
+                    case SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED, SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE -> R.string.voice_language;
+                    default -> R.string.voice_failed;
+                });
+            }
             if (d != null) d.session.onListenError(g, recoverableSilence);
         }
 
@@ -756,6 +772,12 @@ public final class VoiceDrafts {
             if (active != this) return;
             cancelAttemptAndRecovery();
             target.report(status, 0, null);
+        }
+
+        private void finishPermissionDenied() {
+            if (active != this) return;
+            cancelAttemptAndRecovery();
+            reportPermissionDenied(target, source);
         }
     }
 

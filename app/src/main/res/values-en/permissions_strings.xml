@@ -1,0 +1,56 @@
+<resources>
+    <string name="perm_route_label">Permissions</string>
+    <string name="perm_route_hint">Notifications, microphone, camera, location, and Android access</string>
+    <string name="perm_panel_title">Permissions</string>
+    <string name="perm_panel_subtitle">Choose what Hermes can use on this phone. Every access stays optional.</string>
+    <string name="perm_summary_counts">%1$d allowed · %2$d off</string>
+    <string name="perm_summary_with_blocked">%1$d allowed · %2$d blocked · %3$d off</string>
+    <string name="perm_status_allowed">Allowed</string>
+    <string name="perm_status_off">Off</string>
+    <string name="perm_status_blocked">Blocked</string>
+    <string name="perm_status_unavailable">Unavailable</string>
+
+    <string name="perm_action_allow">Allow</string>
+    <string name="perm_action_allow_notifications">Allow notifications</string>
+    <string name="perm_action_allow_microphone">Allow microphone</string>
+    <string name="perm_action_allow_location">Allow location</string>
+    <string name="perm_action_open_settings">Open Android settings</string>
+    <string name="perm_action_open_notification_settings">Open notification settings</string>
+    <string name="perm_action_open_listener_settings">Open notification access</string>
+    <string name="perm_action_open_install_settings">Allow app installs</string>
+    <string name="perm_action_manage_all">Manage permissions</string>
+
+    <string name="perm_notifications_title">Notifications</string>
+    <string name="perm_notifications_desc">Receive replies in the background, scheduled job alerts, and live run progress.</string>
+    <string name="perm_camera_title">Camera</string>
+    <string name="perm_camera_desc">Scan pairing QR codes or attach a photo to a discussion.</string>
+    <string name="perm_microphone_title">Microphone</string>
+    <string name="perm_microphone_desc">Dictate voice drafts or use hands-free voice chat.</string>
+    <string name="perm_location_title">Approximate location</string>
+    <string name="perm_location_desc">Look up nearby places or share your general area only when you turn it on.</string>
+    <string name="perm_calendar_title">Calendar</string>
+    <string name="perm_calendar_desc">Include upcoming appointment context when ambient access is enabled.</string>
+    <string name="perm_contacts_title">Contacts</string>
+    <string name="perm_contacts_desc">Match contact names only when the contacts option is turned on.</string>
+    <string name="perm_notification_access_title">Notification access</string>
+    <string name="perm_notification_access_desc">Read notifications from allowed apps to prepare summaries or editable drafts.</string>
+    <string name="perm_install_updates_title">Install updates</string>
+    <string name="perm_install_updates_desc">Let Android install signed updates downloaded from GitHub.</string>
+
+    <string name="perm_banner_notifications_title">Notifications are turned off</string>
+    <string name="perm_banner_notifications_body">Allow notifications to see Hermes replies, scheduled reminders, and running tasks when you leave the app.</string>
+    <string name="perm_banner_notifications_blocked_body">Android is blocking notifications for Hermes. Open notification settings to turn them back on.</string>
+
+    <string name="perm_feedback_granted">%1$s permission allowed.</string>
+    <string name="perm_feedback_denied">%1$s permission denied. Try again to allow access.</string>
+    <string name="perm_feedback_blocked">%1$s is blocked by Android. Open Android settings to allow it.</string>
+    <string name="perm_settings_unavailable">Could not open that settings screen on this device.</string>
+
+    <string name="perm_ambient_calendar_denied">Calendar permission is missing. Allow calendar access or open Android settings to enable this context.</string>
+    <string name="perm_ambient_contacts_denied">Contacts permission is missing. Allow contacts access or open Android settings to enable this context.</string>
+    <string name="perm_location_blocked">Location access is blocked by Android. Open Android settings to allow it.</string>
+    <string name="perm_precise_location_unavailable">This build of Hermes uses approximate location only by privacy design.</string>
+    <string name="perm_update_install_still_off">Install unknown apps permission is still off. Open Android settings to install this update.</string>
+    <string name="doctor_permissions_card_title">Device permissions</string>
+    <string name="doctor_fix_permissions">Open permissions</string>
+</resources>
