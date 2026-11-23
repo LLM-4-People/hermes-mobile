@@ -1,0 +1,58 @@
+name: PR area labeler
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: pr-labeler-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  label:
+    name: Label PR by changed area
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Compute and apply area labels
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          labels=$(python3 -B ci/ci_routing.py --base "$BASE_SHA" --head "$HEAD_SHA" --labels-json)
+          python3 -B - "$labels" <<'PY'
+          import json, os, subprocess, sys
+          COLORS = {
+              "android": ("225C50", "Android client, Gradle, or device tests"),
+              "server": ("1D76DB", "Python push bridge, plugins, or deployment"),
+              "pages": ("0E8A16", "Static GitHub Pages showcase & docs portal"),
+              "docs": ("0075CA", "Markdown documentation & design tokens"),
+              "ci": ("5319E7", "CI workflows, verification scripts & automations"),
+              "dependencies": ("0366D6", "Dependency and toolchain updates"),
+          }
+          labels = json.loads(sys.argv[1])
+          pr = os.environ["PR_NUMBER"]
+          for label in labels:
+              color, desc = COLORS.get(label, ("53625B", f"Area: {label}"))
+              subprocess.run(
+                  ["gh", "label", "create", label, "--color", color, "--description", desc, "--force"],
+                  check=True,
+              )
+          if labels:
+              cmd = ["gh", "pr", "edit", pr]
+              for label in labels:
+                  cmd.extend(["--add-label", label])
+              subprocess.run(cmd, check=True)
+          PY

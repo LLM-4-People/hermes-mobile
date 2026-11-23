@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from native_tests import RUNNER, crash_summary, packaged_cases, run, successful_cases
+from native_tests import RUNNER, crash_summary, packaged_cases, run, shard_cases, successful_cases
 
 
 def status(method, code, count=1):
@@ -104,3 +104,31 @@ java.lang.NoClassDefFoundError: private content
                 run("serial", directory, self.expected)
             self.assertEqual(log.getvalue().strip(), "device disconnected")
             self.assertFalse((directory / "execution.txt").exists())
+
+    def test_shard_cases_partitions_completely_disjointly_and_balances_load(self):
+        cases = {
+            ("app.BigTest", f"test{i}") for i in range(6)
+        } | {
+            ("app.MediumTest", f"test{i}") for i in range(4)
+        } | {
+            ("app.SmallATest", "testOne"),
+            ("app.SmallATest", "testTwo"),
+            ("app.SmallBTest", "testOne"),
+        }
+        self.assertEqual(shard_cases(cases, ""), cases)
+        self.assertEqual(shard_cases(cases, "0/1"), cases)
+
+        shard0 = shard_cases(cases, "0/2")
+        shard1 = shard_cases(cases, "1/2")
+        self.assertEqual(shard0 | shard1, cases)
+        self.assertEqual(shard0 & shard1, set())
+        # LPT balancing puts Big(6)+SmallB(1)=7 vs Medium(4)+SmallA(2)=6
+        self.assertLessEqual(abs(len(shard0) - len(shard1)), 1)
+        # Never splits a class across shards
+        self.assertEqual({c for c, _ in shard0} & {c for c, _ in shard1}, set())
+
+    def test_shard_cases_rejects_malformed_out_of_range_or_empty_shards(self):
+        cases = {("app.OnlyTest", "testOne")}
+        for bad in ("2/2", "-1/2", "0/0", "1/0", "abc", "0/2/3", "1/2"):
+            with self.subTest(spec=bad), self.assertRaises(ValueError):
+                shard_cases(cases, bad)

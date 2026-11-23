@@ -39,6 +39,15 @@ class FastCheckTest(unittest.TestCase):
         self.assertEqual(names[1:1 + len(expected_ci)], expected_ci)
         self.assertEqual(names[-1], "gradle")
 
+    def test_ci_only_runs_docs_and_every_ci_unittest_file_only(self):
+        names = [name for name, _ in fast_check.build_suites(None, ci_only=True)]
+        expected_ci = [
+            f"ci:{p.stem}"
+            for p in sorted((ROOT / "ci").glob("test_*.py"))
+            if fast_check._has_unittest_cases(p)
+        ]
+        self.assertEqual(names, ["docs", *expected_ci])
+
     def test_failure_in_any_suite_returns_nonzero(self):
         def fake_run(name, cmd):
             return (name, 1 if name == "deploy" else 0, 0.01, "", "boom" if name == "deploy" else "")

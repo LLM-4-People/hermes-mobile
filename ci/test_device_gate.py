@@ -133,26 +133,48 @@ class DeviceGateTest(unittest.TestCase):
         workflow = (GATE.parents[1] / ".github/workflows/checks.yml").read_text()
         self.assertIn("concurrency:", workflow)
         self.assertIn("cancel-in-progress: ${{ github.ref != 'refs/heads/main' && github.event_name != 'workflow_call' }}", workflow)
+        self.assertIn("\n  changes:\n", workflow)
+        self.assertIn("\n  pages-check:\n", workflow)
+        self.assertIn("\n  package-debug:\n", workflow)
+        self.assertIn("\n  package:\n", workflow)
         device_section = workflow.split("\n  device:\n", 1)[1].split("\n  aosp:", 1)[0]
-        self.assertIn("HERMES_DEVICE_SUITE: core", device_section)
+        self.assertIn("HERMES_DEVICE_SUITE: native", device_section)
+        self.assertIn("HERMES_NATIVE_SHARD: 0/2", device_section)
+        self.assertIn("HERMES_NATIVE_SHARD: 1/2", device_section)
+        self.assertIn("HERMES_DEVICE_SUITE: live-core", device_section)
         self.assertIn("HERMES_DEVICE_SUITE: journeys", device_section)
-        self.assertIn("avd-name: hermes-journeys", device_section)
+        self.assertIn("uses: ./.github/actions/avd-cache", device_section)
+        self.assertIn("\n  device-native-1:\n", device_section)
+        self.assertIn("\n  device-live-core:\n", device_section)
         self.assertIn("\n  device-journeys:\n", device_section)
         self.assertIn("\n  phone-handoffs:\n", device_section)
         self.assertIn("\n  nearby-guide:\n", device_section)
 
         handoffs = workflow.split("\n  phone-handoffs:\n", 1)[1].split("\n  nearby-guide:", 1)[0]
-        self.assertIn("needs: package", handoffs)
+        self.assertIn("needs: [changes, package-debug]", handoffs)
         handoff_step = handoffs.split("      - name: Verify Android phone handoffs on a fresh emulator", 1)[1].split("      - name:", 1)[0]
         self.assertIn("ReactiveCircus/android-emulator-runner@", handoff_step)
         self.assertIn("target: google_apis", handoff_step)
-        self.assertIn("avd-name: hermes-handoffs", handoff_step)
-        self.assertIn("force-avd-creation: true", handoff_step)
+        self.assertIn("avd-name: hermes-ci", handoff_step)
+        self.assertIn("-no-snapshot-save", handoff_step)
         self.assertIn("script: bash ci/phone-action-check.sh " + APP_APK, handoff_step)
         self.assertNotIn("if:", handoff_step)
         self.assertNotIn("continue-on-error", handoff_step)
 
     def test_device_check_shards_cover_full_gate_without_gaps(self):
+        native_res, native_calls = self.gate(suite="native", include_handoff=False, HERMES_NATIVE_SHARD="0/1")
+        self.assertEqual(native_res.returncode, 0, native_res.stderr)
+        self.assertIn(["dexdump", "-l", "xml", TEST_APK], native_calls)
+        self.assertEqual([cmd for cmd in native_calls if cmd[0] == "python"], [])
+
+        self.trace.write_text("")
+        live_res, live_calls = self.gate(suite="live-core", include_handoff=False)
+        self.assertEqual(live_res.returncode, 0, live_res.stderr)
+        self.assertNotIn(["dexdump", "-l", "xml", TEST_APK], live_calls)
+        self.assertEqual([cmd[2] for cmd in live_calls if cmd[0] == "python"],
+                         ["verification/live_api.py", "verification/conversation_cards.py"])
+
+        self.trace.write_text("")
         core_res, core_calls = self.gate(suite="core", include_handoff=False)
         self.assertEqual(core_res.returncode, 0, core_res.stderr)
         core_verifiers = [cmd[2] for cmd in core_calls if cmd[0] == "python"]
@@ -287,18 +309,28 @@ class DeviceGateTest(unittest.TestCase):
     def test_workflow_requires_a_fresh_third_emulator_for_nearby_restaurants(self):
         workflow = (GATE.parents[1] / ".github/workflows/checks.yml").read_text()
         job = workflow.split("\n  nearby-guide:\n", 1)[1].split("\n  aosp:", 1)[0]
-        self.assertIn("needs: package", job)
+        self.assertIn("needs: [changes, package-debug]", job)
+        self.assertIn("uses: ./.github/actions/avd-cache", job)
         _, nearby = job.split("      - name: Verify Android foreground location and restaurant guide on a fresh emulator", 1)
         nearby_step, rest = nearby.split("      - name:", 1)
         self.assertIn("ReactiveCircus/android-emulator-runner@", nearby_step)
         self.assertIn("target: google_apis", nearby_step)
-        self.assertIn("avd-name: hermes-nearby", nearby_step)
-        self.assertIn("force-avd-creation: true", nearby_step)
+        self.assertIn("avd-name: hermes-ci", nearby_step)
+        self.assertIn("-no-snapshot-save", nearby_step)
         self.assertIn("script: bash ci/nearby-device-check.sh", nearby_step)
         self.assertNotIn("if:", nearby_step)
         self.assertNotIn("continue-on-error", nearby_step)
         self.assertIn("name: android-nearby-restaurants", rest)
         self.assertIn("${{ runner.temp }}/hermes-nearby/nearby.json", rest)
+
+        avd_action = (GATE.parents[1] / ".github/actions/avd-cache/action.yml").read_text()
+        self.assertIn("actions/cache/restore@", avd_action)
+        self.assertIn("actions/cache/save@", avd_action)
+        self.assertLess(avd_action.index("Warm pristine AVD snapshot"), avd_action.index("actions/cache/save@"))
+
+        labeler = (GATE.parents[1] / ".github/workflows/pr-labeler.yml").read_text()
+        self.assertIn("issues: write", labeler)
+        self.assertIn("pull-requests: write", labeler)
 
     def test_nearby_gate_installs_verifies_offline_and_requires_all_evidence(self):
         result, calls = self.nearby_gate()
