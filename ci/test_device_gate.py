@@ -323,6 +323,15 @@ class DeviceGateTest(unittest.TestCase):
         self.assertIn("name: android-nearby-restaurants", rest)
         self.assertIn("${{ runner.temp }}/hermes-nearby/nearby.json", rest)
 
+        avd_action = (GATE.parents[1] / ".github/actions/avd-cache/action.yml").read_text()
+        self.assertIn("actions/cache/restore@", avd_action)
+        self.assertIn("actions/cache/save@", avd_action)
+        self.assertLess(avd_action.index("Warm pristine AVD snapshot"), avd_action.index("actions/cache/save@"))
+
+        labeler = (GATE.parents[1] / ".github/workflows/pr-labeler.yml").read_text()
+        self.assertIn("issues: write", labeler)
+        self.assertIn("pull-requests: write", labeler)
+
     def test_nearby_gate_installs_verifies_offline_and_requires_all_evidence(self):
         result, calls = self.nearby_gate()
         self.assertEqual(result.returncode, 0, result.stderr)

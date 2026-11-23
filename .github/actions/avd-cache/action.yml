@@ -1,5 +1,5 @@
 name: Pristine Android AVD snapshot cache
-description: Enable KVM and restore or warm one clean, untouched Google APIs AVD quick-boot snapshot shared across emulator jobs.
+description: Enable KVM and restore or warm-and-save one clean, untouched Google APIs AVD quick-boot snapshot before any tests mutate the emulator.
 inputs:
   api-level:
     description: Android API level for the Google APIs emulator
@@ -14,9 +14,9 @@ runs:
     - name: Enable KVM
       shell: bash
       run: sudo chmod a+rw /dev/kvm
-    - name: Cache pristine AVD snapshot
+    - name: Restore pristine AVD snapshot
       id: avd-cache
-      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
       with:
         path: |
           ~/.android/avd/*
@@ -34,3 +34,11 @@ runs:
         emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
         disable-animations: true
         script: echo "Warmed pristine AVD snapshot for API ${{ inputs.api-level }}"
+    - name: Save pristine AVD snapshot immediately before test mutations
+      if: steps.avd-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      with:
+        path: |
+          ~/.android/avd/*
+          ~/.android/adb*
+        key: avd-v1-${{ runner.os }}-api${{ inputs.api-level }}-google_apis-x86_64-${{ inputs.avd-name }}
