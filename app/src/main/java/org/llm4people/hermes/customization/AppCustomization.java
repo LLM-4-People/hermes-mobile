@@ -361,7 +361,7 @@ public final class AppCustomization {
     }
 
     private static double linearizeChannel(double c) {
-        return c <= 0.03928 ? (c / 12.92) : Math.pow((c + 0.055) / 1.055, 2.4);
+        return c <= 0.04045 ? (c / 12.92) : Math.pow((c + 0.055) / 1.055, 2.4);
     }
 
     private static float clamp(float value, float min, float max) {

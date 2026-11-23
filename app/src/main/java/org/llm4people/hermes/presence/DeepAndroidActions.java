@@ -55,13 +55,16 @@ public final class DeepAndroidActions {
     public static final int MAX_NUDGE_BODY_CHARS = 180;
     public static final String NUDGE_CHANNEL_ID = "hermes_proactive_nudges";
 
-    private static final Set<String> NAVIGATE_KINDS =
-            Set.of("tab", "panel", "thread", "command_palette", "template");
+    private static final Set<String> NAVIGATE_TARGETS = Set.of(
+            "discussions", "atelier", "cerveau", "activite",
+            "thread", "template", "panel", "command_palette",
+            "presence_control", "workflow_templates", "connection_doctor");
     private static final Set<String> ALLOWED_DEEP_LINK_SCHEMES =
             Set.of("https", "geo", "mailto", "tel");
     private static final Pattern SAFE_PACKAGE =
             Pattern.compile("[a-zA-Z][a-zA-Z0-9_]*(\\.[a-zA-Z][a-zA-Z0-9_]*)+");
     private static final Pattern SAFE_TARGET_ID = Pattern.compile("[A-Za-z0-9._:/-]{0,96}");
+    private static final Pattern SAFE_SHORTCUT_ID = Pattern.compile("[a-z0-9][a-z0-9_-]{0,31}");
 
     public enum ConsentTier {
         AUTOMATIC_SAFE,
@@ -77,7 +80,7 @@ public final class DeepAndroidActions {
         ANDROID_SET_TIMER("android_set_timer", ConsentTier.CONFIRM_REQUIRED),
         ANDROID_SHARE_SHEET("android_share_sheet", ConsentTier.CONFIRM_REQUIRED),
         ANDROID_OPEN_APP("android_open_app", ConsentTier.CONFIRM_REQUIRED),
-        ANDROID_SYNC_SHORTCUTS("android_sync_shortcuts", ConsentTier.AUTOMATIC_SAFE),
+        ANDROID_SYNC_SHORTCUTS("android_sync_shortcuts", ConsentTier.CONFIRM_REQUIRED),
         ANDROID_PROACTIVE_NUDGE("android_proactive_nudge", ConsentTier.OPT_IN_ONLY);
 
         public final String wire;
@@ -247,92 +250,123 @@ public final class DeepAndroidActions {
     }
 
     private Result handleNavigate(Map<String, Object> params) {
-        String targetKind = str(params.get("target_kind")).trim().toLowerCase(Locale.ROOT);
-        String targetId = str(params.get("target_id")).trim();
-        if (!NAVIGATE_KINDS.contains(targetKind) || !SAFE_TARGET_ID.matcher(targetId).matches()) {
+        String target = str(params.get("target")).trim().toLowerCase(Locale.ROOT);
+        if (!NAVIGATE_TARGETS.contains(target)) {
             return reject("invalid_navigate_target");
         }
-        if (("tab".equals(targetKind) || "panel".equals(targetKind) || "thread".equals(targetKind))
-                && targetId.isEmpty()) {
-            return reject("missing_navigate_id");
+        String sessionId = str(params.get("session_id")).trim();
+        String templateId = str(params.get("template_id")).trim();
+        String routeId = str(params.get("route_id")).trim();
+        if (!SAFE_TARGET_ID.matcher(sessionId).matches()
+                || !SAFE_TARGET_ID.matcher(templateId).matches()
+                || !SAFE_TARGET_ID.matcher(routeId).matches()) {
+            return reject("invalid_navigate_target");
         }
-        boolean ok = hostBridge.navigate(targetKind, targetId);
+        String targetId;
+        if ("thread".equals(target)) {
+            if (sessionId.isEmpty()) return reject("missing_navigate_id");
+            targetId = sessionId;
+        } else if ("template".equals(target)) {
+            if (templateId.isEmpty()) return reject("missing_navigate_id");
+            targetId = templateId;
+        } else if ("panel".equals(target)) {
+            if (routeId.isEmpty()) return reject("missing_navigate_id");
+            targetId = routeId;
+        } else {
+            targetId = routeId;
+        }
+        boolean ok = hostBridge.navigate(target, targetId);
         if (!ok) return reject("navigate_unavailable");
         Diagnostics.event("deep_action", "app_navigate");
         return new Result(Status.EXECUTED, "ok", "{\"navigated\":true}");
     }
 
-    @SuppressWarnings("unchecked")
     private Result handleCustomize(Map<String, Object> params) {
-        String mode = str(params.get("mode")).trim().toLowerCase(Locale.ROOT);
-        if (mode.isEmpty()) mode = "apply";
-        if ("undo".equals(mode)) {
+        String operation = str(params.get("operation")).trim().toLowerCase(Locale.ROOT);
+        if (operation.isEmpty()) return reject("missing_customize_operation");
+        if ("undo".equals(operation)) {
             AppCustomization restored = customizationStore.undo();
             return new Result(Status.EXECUTED, "undone",
-                    "{\"palette\":" + AppPresenceTracker.quoteJson(restored.palette.wire) + "}");
+                    "{\"accent\":" + AppPresenceTracker.quoteJson(restored.palette.wire) + "}");
         }
-        if ("reset".equals(mode)) {
+        if ("reset".equals(operation)) {
             AppCustomization reset = customizationStore.resetToDefault();
             return new Result(Status.EXECUTED, "reset",
-                    "{\"palette\":" + AppPresenceTracker.quoteJson(reset.palette.wire) + "}");
+                    "{\"accent\":" + AppPresenceTracker.quoteJson(reset.palette.wire) + "}");
         }
-        if (!"apply".equals(mode)) return reject("invalid_customize_mode");
+        if (!"apply".equals(operation)) return reject("invalid_customize_operation");
 
         try {
             AppCustomization current = customizationStore.current();
             AppCustomization.PalettePreset preset = current.palette;
             String customHex = current.customAccentHex;
-            if (params.containsKey("palette")) {
-                preset = AppCustomization.PalettePreset.parse(str(params.get("palette")));
+            boolean changed = false;
+
+            Object rawAccent = params.containsKey("accent") ? params.get("accent") : params.get("accent_preset");
+            if (rawAccent != null) {
+                preset = AppCustomization.PalettePreset.parse(str(rawAccent));
                 if (preset == null) return reject("invalid_palette");
                 if (preset != AppCustomization.PalettePreset.CUSTOM) customHex = null;
+                changed = true;
             }
-            if (params.containsKey("custom_accent_hex")) {
-                String rawHex = str(params.get("custom_accent_hex"));
-                if (!rawHex.isEmpty()) {
-                    preset = AppCustomization.PalettePreset.CUSTOM;
-                    customHex = AppCustomization.validateCustomAccentHex(rawHex);
-                }
+            if (params.containsKey("accent_hex") && params.get("accent_hex") != null) {
+                String rawHex = str(params.get("accent_hex"));
+                if (rawHex.isEmpty()) return reject("invalid_accent_hex");
+                preset = AppCustomization.PalettePreset.CUSTOM;
+                customHex = AppCustomization.validateCustomAccentHex(rawHex);
+                changed = true;
             }
             AppCustomization.Density density = current.density;
-            if (params.containsKey("density")) {
+            if (params.containsKey("density") && params.get("density") != null) {
                 density = AppCustomization.Density.parse(str(params.get("density")));
                 if (density == null) return reject("invalid_density");
+                changed = true;
             }
             float fontDelta = current.fontScaleDelta;
-            if (params.containsKey("font_scale_delta")) {
-                if (!(params.get("font_scale_delta") instanceof Number n)) return reject("invalid_font_scale");
-                fontDelta = n.floatValue();
+            if (params.containsKey("font_scale_step") && params.get("font_scale_step") != null) {
+                if (!(params.get("font_scale_step") instanceof Number n)) return reject("invalid_font_scale");
+                int step = n.intValue();
+                if (step < -3 || step > 6) return reject("invalid_font_scale");
+                fontDelta = step * 0.05f;
+                changed = true;
             }
             AppCustomization.StartupTab startupTab = current.startupTab;
-            if (params.containsKey("startup_tab")) {
+            if (params.containsKey("startup_tab") && params.get("startup_tab") != null) {
                 startupTab = AppCustomization.StartupTab.parse(str(params.get("startup_tab")));
                 if (startupTab == null) return reject("invalid_startup_tab");
+                changed = true;
             }
             String greeting = current.companionGreeting;
-            if (params.containsKey("companion_greeting")) {
+            if (params.containsKey("greeting") && params.get("greeting") != null) {
                 greeting = AppCustomization.sanitizePlainText(
-                        str(params.get("companion_greeting")), AppCustomization.MAX_GREETING_CHARS);
+                        str(params.get("greeting")), AppCustomization.MAX_GREETING_CHARS);
+                changed = true;
             }
             List<AppCustomization.ComposerShortcut> shortcuts = current.composerShortcuts;
-            if (params.containsKey("composer_shortcuts")) {
-                Object rawList = params.get("composer_shortcuts");
-                if (!(rawList instanceof List<?> list)) return reject("invalid_shortcuts");
-                List<AppCustomization.ComposerShortcut> parsed = new ArrayList<>();
-                for (Object entry : list) {
-                    if (parsed.size() >= AppCustomization.MAX_COMPOSER_SHORTCUTS) break;
+            if (params.containsKey("quick_shortcuts") && params.get("quick_shortcuts") != null) {
+                Object rawList = params.get("quick_shortcuts");
+                if (!(rawList instanceof List<?> list) || list.size() > AppCustomization.MAX_COMPOSER_SHORTCUTS) {
+                    return reject("invalid_shortcuts");
+                }
+                List<AppCustomization.ComposerShortcut> parsed = new ArrayList<>(list.size());
+                for (int i = 0; i < list.size(); i++) {
+                    Object entry = list.get(i);
                     if (!(entry instanceof Map<?, ?> m)) return reject("invalid_shortcut_entry");
+                    String rawId = str(m.get("id")).trim();
+                    String id = rawId.isEmpty() ? ("sc_" + (i + 1)) : rawId;
                     parsed.add(new AppCustomization.ComposerShortcut(
-                            str(m.get("id")), str(m.get("label")), str(m.get("draft_text"))));
+                            id, str(m.get("label")), str(m.get("draft"))));
                 }
                 shortcuts = parsed;
+                changed = true;
             }
+            if (!changed) return reject("empty_customization");
             AppCustomization updated = new AppCustomization(
                     preset, customHex, density, fontDelta, startupTab, greeting, shortcuts);
             customizationStore.apply(updated);
             Diagnostics.event("deep_action", "app_customize");
             return new Result(Status.EXECUTED, "applied",
-                    "{\"palette\":" + AppPresenceTracker.quoteJson(updated.palette.wire)
+                    "{\"accent\":" + AppPresenceTracker.quoteJson(updated.palette.wire)
                             + ",\"density\":" + AppPresenceTracker.quoteJson(updated.density.wire) + "}");
         } catch (IllegalArgumentException invalid) {
             return reject("invalid_customization");
@@ -352,9 +386,9 @@ public final class DeepAndroidActions {
 
     private Result handleCreateTemplate(Map<String, Object> params) {
         try {
-            String title = AppCustomization.sanitizePlainText(str(params.get("title")), 48);
-            String category = AppCustomization.sanitizePlainText(str(params.get("category")), 32);
-            String draft = AppCustomization.sanitizePlainText(str(params.get("draft_text")), 400);
+            String title = AppCustomization.sanitizePlainText(str(params.get("title")), 80);
+            String category = AppCustomization.sanitizePlainText(str(params.get("category")), 40);
+            String draft = AppCustomization.sanitizePlainText(str(params.get("draft_prompt")), 1000);
             if (title.isEmpty() || draft.isEmpty()) return reject("missing_template_fields");
             boolean ok = hostBridge.createTemplate(title, category.isEmpty() ? "custom" : category, draft);
             if (!ok) return reject("template_create_failed");
@@ -402,7 +436,7 @@ public final class DeepAndroidActions {
 
     private Result handleOpenApp(Map<String, Object> params) {
         String pkg = str(params.get("package_name")).trim();
-        String url = str(params.get("deep_link_url")).trim();
+        String url = str(params.get("deep_link")).trim();
         if (pkg.isEmpty() && url.isEmpty()) return reject("missing_app_target");
         if (!pkg.isEmpty() && !isValidPackageName(pkg)) return reject("invalid_package_name");
         if (!url.isEmpty() && !isAllowedDeepLink(url)) return reject("blocked_deep_link_scheme");
@@ -413,18 +447,38 @@ public final class DeepAndroidActions {
     }
 
     private Result handleSyncShortcuts(Map<String, Object> params) {
-        String widgetTitle;
-        String widgetSubtitle;
+        String tileLabel;
+        String widgetSummary;
+        int shortcutCount = 0;
         try {
-            widgetTitle = AppCustomization.sanitizePlainText(
-                    str(params.get("widget_title")), HermesWidgetSpec.MAX_TITLE_CHARS);
-            widgetSubtitle = AppCustomization.sanitizePlainText(
-                    str(params.get("widget_subtitle")), HermesWidgetSpec.MAX_SUBTITLE_CHARS);
+            tileLabel = AppCustomization.sanitizePlainText(str(params.get("tile_label")), 32);
+            widgetSummary = AppCustomization.sanitizePlainText(
+                    str(params.get("widget_summary")), HermesWidgetSpec.MAX_SUBTITLE_CHARS);
+            if (params.containsKey("shortcuts") && params.get("shortcuts") != null) {
+                Object rawSc = params.get("shortcuts");
+                if (!(rawSc instanceof List<?> list) || list.size() > 4) return reject("invalid_shortcuts");
+                for (Object entry : list) {
+                    if (!(entry instanceof Map<?, ?> m)) return reject("invalid_shortcut_entry");
+                    String sid = str(m.get("id")).trim();
+                    String lbl = AppCustomization.sanitizePlainText(str(m.get("label")), 40);
+                    String target = str(m.get("target")).trim().toLowerCase(Locale.ROOT);
+                    if (target.isEmpty()) target = "discussions";
+                    if (!SAFE_SHORTCUT_ID.matcher(sid).matches() || lbl.isEmpty()
+                            || !NAVIGATE_TARGETS.contains(target)) {
+                        return reject("invalid_shortcut_entry");
+                    }
+                    shortcutCount++;
+                }
+            }
         } catch (IllegalArgumentException invalid) {
             return reject("invalid_widget_summary");
         }
-        boolean homeScreenSafe = Boolean.TRUE.equals(params.get("home_screen_safe"));
-        boolean ok = hostBridge.syncShortcutsAndWidgets(widgetTitle, widgetSubtitle, homeScreenSafe);
+        if (tileLabel.isEmpty() && widgetSummary.isEmpty() && shortcutCount == 0) {
+            return reject("missing_sync_payload");
+        }
+        boolean hasWidgetSummary = !widgetSummary.isEmpty();
+        String widgetTitle = !tileLabel.isEmpty() ? tileLabel : (hasWidgetSummary ? "Hermes" : "");
+        boolean ok = hostBridge.syncShortcutsAndWidgets(widgetTitle, widgetSummary, hasWidgetSummary);
         if (!ok) return reject("sync_failed");
         Diagnostics.event("deep_action", "android_sync_shortcuts");
         return new Result(Status.EXECUTED, "synced", "{\"synced\":true}");
@@ -592,11 +646,19 @@ public final class DeepAndroidActions {
                         NUDGE_CHANNEL_ID,
                         app.getString(R.string.deep_action_nudge_channel),
                         NotificationManager.IMPORTANCE_DEFAULT);
+                channel.setLockscreenVisibility(Notification.VISIBILITY_PRIVATE);
                 nm.createNotificationChannel(channel);
+                Notification publicVersion = new Notification.Builder(app, NUDGE_CHANNEL_ID)
+                        .setSmallIcon(R.drawable.ic_push_notification)
+                        .setContentTitle(app.getString(R.string.app_name))
+                        .setContentText(app.getString(R.string.deep_action_nudge_channel))
+                        .build();
                 Notification notification = new Notification.Builder(app, NUDGE_CHANNEL_ID)
                         .setSmallIcon(R.drawable.ic_push_notification)
                         .setContentTitle(title)
                         .setContentText(body)
+                        .setVisibility(Notification.VISIBILITY_PRIVATE)
+                        .setPublicVersion(publicVersion)
                         .setAutoCancel(true)
                         .build();
                 nm.notify((int) (System.currentTimeMillis() & 0x7FFF) + 5100, notification);

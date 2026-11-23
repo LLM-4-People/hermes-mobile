@@ -137,7 +137,7 @@ final class PlaceCompass extends View {
     static final class Plot {
         final float width, height, cx, cy, radius;
         final float[] x, y, labelX, labelY;
-        final List<Integer> indices;
+        final int[] indices;
         private final float badge, font, scaleWidth;
 
         Plot(float width, float height, float font, float badge, int scale, double[] bearings,
@@ -151,13 +151,14 @@ final class PlaceCompass extends View {
             cy = height / 2;
             radius = Math.max(1, Math.min(cx - 12, cy - Math.max(12, font)));
             this.scaleWidth = Math.max(scaleWidth, radius / 2);
-            indices = new ArrayList<>(visible);
+            indices = new int[visible.size()];
+            for (int k = 0; k < visible.size(); k++) indices[k] = visible.get(k);
             x = new float[distances.length];
             y = new float[distances.length];
             labelX = new float[distances.length];
             labelY = new float[distances.length];
-            for (int rank = 0; rank < indices.size(); rank++) {
-                int i = indices.get(rank);
+            for (int rank = 0; rank < indices.length; rank++) {
+                int i = indices[rank];
                 float range = radius * distances[i] / scale;
                 x[i] = cx + (float) Math.sin(bearings[i]) * range;
                 y[i] = cy - (float) Math.cos(bearings[i]) * range;
@@ -166,7 +167,7 @@ final class PlaceCompass extends View {
         }
 
         private void placeLabel(int rank) {
-            int i = indices.get(rank);
+            int i = indices[rank];
             float margin = badge + 4;
             float spacing = 2 * badge + 8;
             double outward = Math.atan2(y[i] - cy, x[i] - cx);
@@ -184,7 +185,7 @@ final class PlaceCompass extends View {
                     if (px > width - scaleWidth - 12 - margin && py > height - font - 10 - margin) continue;
                     float clearance = (float) Math.hypot(px - cx, py - cy) + spacing - badge - 7;
                     for (int previous = 0; previous < rank; previous++) {
-                        int j = indices.get(previous);
+                        int j = indices[previous];
                         clearance = Math.min(clearance, (float) Math.hypot(px - labelX[j], py - labelY[j]));
                     }
                     if (clearance > best) {

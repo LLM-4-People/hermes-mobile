@@ -46,6 +46,7 @@ public final class PresenceSettingsPanel {
         default void onPolicyChanged(PresencePolicy policy) {}
         default void onCustomizationChanged(AppCustomization customization) {}
         default void onRequestLocationPermission() {}
+        default void onRequestPreciseLocationPermission() { onRequestLocationPermission(); }
     }
 
     private final Context context;
@@ -167,7 +168,7 @@ public final class PresenceSettingsPanel {
         preciseSwitch = addToggle(body, "presence:toggle_precise",
                 context.getString(R.string.presence_toggle_precise_title),
                 context.getString(R.string.presence_toggle_precise_summary),
-                checked -> applyPolicy(policy.withPreciseLocation(checked), context.getString(R.string.presence_feedback_saved)));
+                this::handlePreciseLocationToggle);
 
         nudgeSwitch = addToggle(body, "presence:toggle_nudges",
                 context.getString(R.string.presence_toggle_nudges_title),
@@ -286,6 +287,25 @@ public final class PresenceSettingsPanel {
         row.addView(chip);
     }
 
+    /** Called by host Activity once Android grants coarse or fine location permission. */
+    public void onLocationPermissionGranted(boolean fine) {
+        if (fine) {
+            if (!ContinuousLocationTracker.hasFinePermission(context)) {
+                refresh();
+                return;
+            }
+            applyPolicy(policy.withContinuousLocation(true).withPreciseLocation(true),
+                    context.getString(R.string.presence_feedback_saved));
+            return;
+        }
+        if (!ContinuousLocationTracker.hasCoarsePermission(context)) {
+            refresh();
+            return;
+        }
+        applyPolicy(policy.withContinuousLocation(true),
+                context.getString(R.string.presence_feedback_saved));
+    }
+
     private void handleLocationToggle(boolean enabled) {
         if (enabled && !ContinuousLocationTracker.hasCoarsePermission(context)) {
             applyPolicy(policy.withContinuousLocation(false),
@@ -294,6 +314,16 @@ public final class PresenceSettingsPanel {
             return;
         }
         applyPolicy(policy.withContinuousLocation(enabled), context.getString(R.string.presence_feedback_saved));
+    }
+
+    private void handlePreciseLocationToggle(boolean enabled) {
+        if (enabled && !ContinuousLocationTracker.hasFinePermission(context)) {
+            applyPolicy(policy.withPreciseLocation(false),
+                    context.getString(R.string.presence_feedback_location_permission));
+            listener.onRequestPreciseLocationPermission();
+            return;
+        }
+        applyPolicy(policy.withPreciseLocation(enabled), context.getString(R.string.presence_feedback_saved));
     }
 
     private void toggleLocationPause() {

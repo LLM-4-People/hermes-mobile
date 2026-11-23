@@ -11,9 +11,11 @@ import android.widget.CheckBox;
 import android.widget.Switch;
 import android.widget.TextView;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
+import org.llm4people.hermes.artifact.LiveUiPatch;
 import org.llm4people.hermes.customization.AppCustomization;
 import org.llm4people.hermes.customization.AppCustomizationStore;
 import org.llm4people.hermes.customization.InteractiveCardView;
@@ -183,6 +185,36 @@ public final class DeepAndroidPresenceAndroidTest extends InstrumentationTestCas
         JSONObject rwr = obj.optJSONObject("read_without_reply");
         assertNotNull(rwr);
         assertTrue(rwr.optBoolean("in_app_unread_reply"));
+    }
+
+    public void testLiveUiPatchParsesCanonicalTrack9aInteractiveCards() throws Exception {
+        JSONObject raw = new JSONObject()
+                .put("revision_id", "rev-cards-1")
+                .put("scope", "thread")
+                .put("interactive_cards", new JSONArray()
+                        .put(new JSONObject()
+                                .put("id", "c_pick")
+                                .put("kind", "quick_pick")
+                                .put("title", "Suite")
+                                .put("items", new JSONArray().put(new JSONObject()
+                                        .put("id", "i1")
+                                        .put("label", "Résumer")
+                                        .put("draft", "Résume en 3 puces"))))
+                        .put(new JSONObject()
+                                .put("id", "c_prev")
+                                .put("kind", "customization_preview")
+                                .put("title", "Habillage")
+                                .put("customization", new JSONObject()
+                                        .put("accent", "indigo")
+                                        .put("density", "spacious")
+                                        .put("font_scale_step", 1)
+                                        .put("greeting", "Bonjour"))));
+        LiveUiPatch patch = LiveUiPatch.parse(raw, false);
+        assertEquals(2, patch.interactiveCards.size());
+        assertEquals("c_pick", patch.interactiveCards.get(0).cardId);
+        assertEquals("Résume en 3 puces", patch.interactiveCards.get(0).quickPicks.get(0).draftText());
+        assertEquals(AppCustomization.PalettePreset.INDIGO,
+                patch.interactiveCards.get(1).proposedCustomization.palette);
     }
 
     private static void assertNoWebViewAndMinTouch(View root, int minTouchPx) {

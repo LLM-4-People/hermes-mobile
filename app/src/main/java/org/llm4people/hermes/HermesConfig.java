@@ -108,8 +108,9 @@ public final class HermesConfig {
         this.updateCheckIntervalMs = updateCheckIntervalMs;
     }
 
-    private static volatile Object cachedKey;
-    private static volatile HermesConfig cachedConfig;
+    private record CacheSnapshot(Object key, HermesConfig config) {}
+
+    private static volatile CacheSnapshot cached;
 
     public static HermesConfig defaults() {
         return DEFAULTS;
@@ -118,21 +119,20 @@ public final class HermesConfig {
     /** Clears the memoized config snapshot (intended for tests or configuration reload). */
     public static void clearCacheForTest() {
         synchronized (HermesConfig.class) {
-            cachedKey = null;
-            cachedConfig = null;
+            cached = null;
         }
     }
 
     static HermesConfig loadCached(Object key, Supplier<HermesConfig> loader) {
         if (key == null || loader == null) return DEFAULTS;
-        HermesConfig local = cachedConfig;
-        if (local != null && cachedKey == key) return local;
+        CacheSnapshot snapshot = cached;
+        if (snapshot != null && snapshot.key() == key) return snapshot.config();
         synchronized (HermesConfig.class) {
-            if (cachedConfig != null && cachedKey == key) return cachedConfig;
+            snapshot = cached;
+            if (snapshot != null && snapshot.key() == key) return snapshot.config();
             HermesConfig loaded = loader.get();
             if (loaded == null) return DEFAULTS;
-            cachedKey = key;
-            cachedConfig = loaded;
+            cached = new CacheSnapshot(key, loaded);
             return loaded;
         }
     }

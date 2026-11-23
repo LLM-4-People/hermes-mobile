@@ -310,13 +310,19 @@ public final class PresenceAndCustomizationTest {
         assertEquals(DeepAndroidActions.Status.REJECTED_UNKNOWN_ACTION,
                 actions.execute("evil_action", Map.of(), off, quietNight, true, now, 12 * 60).status());
 
-        // 1. app_navigate works for safe targets and rejects invalid kinds.
+        // 1. app_navigate matches Track 9A canonical target/session_id/template_id/route_id params.
         assertTrue(actions.execute("app_navigate",
-                Map.of("target_kind", "tab", "target_id", "atelier"), off, quietNight, false, now, 12 * 60).ok());
-        assertEquals("tab:atelier", lastNav.get());
+                Map.of("target", "atelier"), off, quietNight, false, now, 12 * 60).ok());
+        assertEquals("atelier:", lastNav.get());
+        assertTrue(actions.execute("app_navigate",
+                Map.of("target", "thread", "session_id", "sess-42"), off, quietNight, false, now, 12 * 60).ok());
+        assertEquals("thread:sess-42", lastNav.get());
         assertEquals(DeepAndroidActions.Status.REJECTED_INVALID_PARAMS,
                 actions.execute("app_navigate",
-                        Map.of("target_kind", "shell_exec", "target_id", "rm"), off, quietNight, true, now, 12 * 60).status());
+                        Map.of("target", "thread"), off, quietNight, false, now, 12 * 60).status());
+        assertEquals(DeepAndroidActions.Status.REJECTED_INVALID_PARAMS,
+                actions.execute("app_navigate",
+                        Map.of("target", "shell_exec", "route_id", "rm"), off, quietNight, true, now, 12 * 60).status());
 
         // 2. app_read_state fails closed when presence is OFF, succeeds when opted in.
         assertEquals(DeepAndroidActions.Status.DENIED_NOT_OPTED_IN,
@@ -326,23 +332,32 @@ public final class PresenceAndCustomizationTest {
         assertTrue(readOk.ok());
         assertTrue(readOk.payloadJson().contains("\"current_screen\":\"discussions\""));
 
-        // 3. app_customize requires confirmation, enforces WCAG AA, supports undo & reset.
+        // 3. app_customize requires confirmation, enforces WCAG AA, uses Track 9A canonical params, supports undo & reset.
         assertEquals(DeepAndroidActions.Status.DENIED_CONFIRMATION_REQUIRED,
-                actions.execute("app_customize", Map.of("palette", "slate"), off, quietNight, false, now, 12 * 60).status());
+                actions.execute("app_customize", Map.of("operation", "apply", "accent", "slate"), off, quietNight, false, now, 12 * 60).status());
         assertEquals(DeepAndroidActions.Status.REJECTED_INVALID_PARAMS,
-                actions.execute("app_customize", Map.of("custom_accent_hex", "#FFFF00"), off, quietNight, true, now, 12 * 60).status());
-        assertTrue(actions.execute("app_customize",
-                Map.of("palette", "indigo", "density", "compact"), off, quietNight, true, now, 12 * 60).ok());
+                actions.execute("app_customize", Map.of("operation", "apply", "accent_hex", "#FFFF00"), off, quietNight, true, now, 12 * 60).status());
+        assertTrue(actions.execute("app_customize", Map.of(
+                "operation", "apply",
+                "accent", "indigo",
+                "density", "compact",
+                "font_scale_step", 2,
+                "greeting", "Salut",
+                "quick_shortcuts", List.of(Map.of("label", "Bilan", "draft", "Fais un bilan"))
+        ), off, quietNight, true, now, 12 * 60).ok());
         assertEquals(AppCustomization.PalettePreset.INDIGO, customStore.current().palette);
-        assertTrue(actions.execute("app_customize", Map.of("mode", "undo"), off, quietNight, true, now, 12 * 60).ok());
+        assertEquals(0.10f, customStore.current().fontScaleDelta, 0.001f);
+        assertEquals("Salut", customStore.current().companionGreeting);
+        assertEquals(1, customStore.current().composerShortcuts.size());
+        assertTrue(actions.execute("app_customize", Map.of("operation", "undo"), off, quietNight, true, now, 12 * 60).ok());
         assertEquals(AppCustomization.PalettePreset.FOREST, customStore.current().palette);
 
-        // 4. app_create_template requires confirmation and validates draft.
+        // 4. app_create_template requires confirmation and validates Track 9A draft_prompt.
         assertEquals(DeepAndroidActions.Status.DENIED_CONFIRMATION_REQUIRED,
                 actions.execute("app_create_template",
-                        Map.of("title", "Résumé", "draft_text", "Résume ceci"), off, quietNight, false, now, 12 * 60).status());
+                        Map.of("title", "Résumé", "draft_prompt", "Résume ceci"), off, quietNight, false, now, 12 * 60).status());
         assertTrue(actions.execute("app_create_template",
-                Map.of("title", "Résumé", "draft_text", "Résume ceci"), off, quietNight, true, now, 12 * 60).ok());
+                Map.of("title", "Résumé", "draft_prompt", "Résume ceci"), off, quietNight, true, now, 12 * 60).ok());
 
         // 5. android_set_timer enforces confirmation and 1..86400s bounds.
         assertEquals(DeepAndroidActions.Status.REJECTED_INVALID_PARAMS,
@@ -357,22 +372,28 @@ public final class PresenceAndCustomizationTest {
         assertTrue(actions.execute("android_share_sheet",
                 Map.of("text", "Résumé de la réunion"), off, quietNight, true, now, 12 * 60).ok());
 
-        // 7. android_open_app blocks dangerous schemes (file/content/javascript/intent) and allows https/geo/pkg.
+        // 7. android_open_app blocks dangerous schemes (file/content/javascript/intent) and uses Track 9A deep_link.
         for (String blocked : List.of("file:///etc/passwd", "content://sms/inbox", "javascript:alert(1)", "intent:#Intent;end")) {
             assertEquals("Scheme must be blocked: " + blocked, DeepAndroidActions.Status.REJECTED_INVALID_PARAMS,
-                    actions.execute("android_open_app", Map.of("deep_link_url", blocked), off, quietNight, true, now, 12 * 60).status());
+                    actions.execute("android_open_app", Map.of("deep_link", blocked), off, quietNight, true, now, 12 * 60).status());
         }
         assertTrue(actions.execute("android_open_app",
-                Map.of("deep_link_url", "https://example.org/docs"), off, quietNight, true, now, 12 * 60).ok());
+                Map.of("deep_link", "https://example.org/docs"), off, quietNight, true, now, 12 * 60).ok());
         assertEquals("|https://example.org/docs", lastOpenedUrl.get());
 
-        // 8. android_sync_shortcuts executes safely and rejects secrets in widget text.
-        assertTrue(actions.execute("android_sync_shortcuts",
-                Map.of("widget_title", "Ma journée", "home_screen_safe", true), off, quietNight, false, now, 12 * 60).ok());
+        // 8. android_sync_shortcuts requires confirmation, uses Track 9A tile_label/shortcuts/widget_summary, and rejects secrets.
+        assertEquals(DeepAndroidActions.Status.DENIED_CONFIRMATION_REQUIRED,
+                actions.execute("android_sync_shortcuts",
+                        Map.of("tile_label", "Hermes", "widget_summary", "Ma journée"), off, quietNight, false, now, 12 * 60).status());
+        assertTrue(actions.execute("android_sync_shortcuts", Map.of(
+                "tile_label", "Hermes",
+                "widget_summary", "Ma journée",
+                "shortcuts", List.of(Map.of("id", "ask", "label", "Demander", "target", "discussions"))
+        ), off, quietNight, true, now, 12 * 60).ok());
         assertEquals(1, syncCount.get());
         assertEquals(DeepAndroidActions.Status.REJECTED_INVALID_PARAMS,
                 actions.execute("android_sync_shortcuts",
-                        Map.of("widget_title", "Bearer ghp_1234567890abcdef"), off, quietNight, true, now, 12 * 60).status());
+                        Map.of("widget_summary", "Bearer ghp_1234567890abcdef"), off, quietNight, true, now, 12 * 60).status());
 
         // 9. android_proactive_nudge enforces opt-in, quiet hours, and hourly rate cap!
         Map<String, Object> nudgeParams = Map.of("title", "Petit rappel", "body", "Votre train part dans 20 min.");
@@ -399,24 +420,53 @@ public final class PresenceAndCustomizationTest {
 
     @Test
     public void interactiveCardSpecValidatesKindsAndRejectsMalformedOrSecretPayloads() {
+        // Canonical Track 9A quick_pick card (id + items + draft)
         Map<String, Object> card = new HashMap<>();
-        card.put("card_id", "card_1");
+        card.put("id", "card_1");
         card.put("kind", "quick_pick");
         card.put("title", "Choisissez une suite");
-        card.put("choices", List.of(
-                Map.of("id", "c1", "label", "Résumer", "draft_text", "Résume en 3 points")));
+        card.put("items", List.of(
+                Map.of("id", "c1", "label", "Résumer", "draft", "Résume en 3 points")));
         InteractiveCardView.Spec spec = InteractiveCardView.Spec.fromMap(card);
+        assertEquals("card_1", spec.cardId);
         assertEquals(InteractiveCardView.Kind.QUICK_PICKS, spec.kind);
         assertEquals(1, spec.quickPicks.size());
         assertEquals("Résume en 3 points", spec.quickPicks.get(0).draftText());
-        assertEquals(InteractiveCardView.Kind.TOGGLES, InteractiveCardView.Kind.parse("toggle_confirm"));
+
+        // Canonical Track 9A toggle_confirm card (id + items + enabled)
+        InteractiveCardView.Spec toggleSpec = InteractiveCardView.Spec.fromMap(Map.of(
+                "id", "card_t",
+                "kind", "toggle_confirm",
+                "title", "Options",
+                "items", List.of(Map.of("id", "t1", "label", "Concis", "description", "Court", "enabled", true))));
+        assertEquals(InteractiveCardView.Kind.TOGGLES, toggleSpec.kind);
+        assertTrue(toggleSpec.toggles.get(0).checked());
+
+        // Canonical Track 9A customization_preview card (accent_hex, font_scale_step, greeting)
+        InteractiveCardView.Spec okPreview = InteractiveCardView.Spec.fromMap(Map.of(
+                "id", "card_ok",
+                "kind", "customization_preview",
+                "title", "Nouvel habillage",
+                "customization", Map.of(
+                        "accent_hex", "#1B4D3E",
+                        "density", "spacious",
+                        "font_scale_step", 2,
+                        "greeting", "Bonjour")));
+        assertEquals(AppCustomization.PalettePreset.CUSTOM, okPreview.proposedCustomization.palette);
+        assertEquals("#1B4D3E", okPreview.proposedCustomization.customAccentHex);
+        assertEquals(0.10f, okPreview.proposedCustomization.fontScaleDelta, 0.001f);
+        assertEquals("Bonjour", okPreview.proposedCustomization.companionGreeting);
+
+        // WCAG 2.1 threshold (0.04045): 10/255 = 0.039215... uses linear branch c / 12.92.
+        double expectedLinear10 = (10.0 / 255.0) / 12.92;
+        assertEquals(expectedLinear10, AppCustomization.relativeLuminance(0x0A0A0A), 1e-9);
 
         // Preview card validates WCAG AA custom accent.
         Map<String, Object> badPreview = Map.of(
-                "card_id", "card_2",
+                "id", "card_2",
                 "kind", "customization_preview",
                 "title", "Aperçu",
-                "customization", Map.of("palette", "custom", "custom_accent_hex", "#FFFF00"));
+                "customization", Map.of("accent_hex", "#FFFF00"));
         try {
             InteractiveCardView.Spec.fromMap(badPreview);
             fail("Expected WCAG AA rejection on interactive customization preview");

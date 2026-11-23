@@ -149,11 +149,11 @@ public final class InteractiveCardView extends LinearLayout {
             return new Spec(cardId, Kind.CUSTOMIZATION_PREVIEW, title, subtitle, null, null, null, proposed);
         }
 
-        /** Pure-Java fail-closed parser for host-JVM and map-based callers. */
+        /** Pure-Java fail-closed parser matching canonical Track 9A {@code interactive_cards} schema. */
         @SuppressWarnings("unchecked")
         public static Spec fromMap(Map<String, Object> raw) {
             if (raw == null) throw new IllegalArgumentException("Missing card object");
-            String id = str(raw.get("card_id"));
+            String id = str(raw.get("id"));
             Kind kind = Kind.parse(str(raw.get("kind")));
             if (kind == null) throw new IllegalArgumentException("Unknown card kind");
             String title = str(raw.get("title"));
@@ -174,27 +174,27 @@ public final class InteractiveCardView extends LinearLayout {
                 }
                 case QUICK_PICKS -> {
                     List<QuickPick> picks = new ArrayList<>();
-                    Object rawPicks = raw.get("choices");
+                    Object rawPicks = raw.get("items");
                     if (rawPicks instanceof List<?> list) {
                         for (Object entry : list) {
                             if (picks.size() >= MAX_QUICK_PICKS) break;
                             if (!(entry instanceof Map<?, ?> m)) continue;
                             picks.add(new QuickPick(
-                                    str(m.get("id")), str(m.get("label")), str(m.get("draft_text"))));
+                                    str(m.get("id")), str(m.get("label")), str(m.get("draft"))));
                         }
                     }
                     yield quickPicks(id, title, subtitle, picks);
                 }
                 case TOGGLES -> {
                     List<ToggleItem> items = new ArrayList<>();
-                    Object rawToggles = raw.get("toggles");
+                    Object rawToggles = raw.get("items");
                     if (rawToggles instanceof List<?> list) {
                         for (Object entry : list) {
                             if (items.size() >= MAX_TOGGLES) break;
                             if (!(entry instanceof Map<?, ?> m)) continue;
                             items.add(new ToggleItem(
                                     str(m.get("id")), str(m.get("label")),
-                                    str(m.get("description")), bool(m.get("checked"))));
+                                    str(m.get("description")), bool(m.get("enabled"))));
                         }
                     }
                     yield toggles(id, title, subtitle, items);
@@ -210,10 +210,10 @@ public final class InteractiveCardView extends LinearLayout {
             };
         }
 
-        /** Android JSONObject fail-closed parser matching Track 9A wire payloads. */
+        /** Android JSONObject fail-closed parser matching canonical Track 9A {@code interactive_cards} schema. */
         public static Spec fromJson(JSONObject obj) {
             if (obj == null) throw new IllegalArgumentException("Missing card JSON");
-            String id = obj.optString("card_id", "");
+            String id = obj.optString("id", "");
             Kind kind = Kind.parse(obj.optString("kind", ""));
             if (kind == null) throw new IllegalArgumentException("Unknown card kind");
             String title = obj.optString("title", "");
@@ -236,7 +236,7 @@ public final class InteractiveCardView extends LinearLayout {
                 }
                 case QUICK_PICKS -> {
                     List<QuickPick> picks = new ArrayList<>();
-                    JSONArray arr = obj.optJSONArray("choices");
+                    JSONArray arr = obj.optJSONArray("items");
                     if (arr != null) {
                         for (int i = 0; i < arr.length() && picks.size() < MAX_QUICK_PICKS; i++) {
                             JSONObject item = arr.optJSONObject(i);
@@ -244,14 +244,14 @@ public final class InteractiveCardView extends LinearLayout {
                             picks.add(new QuickPick(
                                     item.optString("id", ""),
                                     item.optString("label", ""),
-                                    item.optString("draft_text", "")));
+                                    item.optString("draft", "")));
                         }
                     }
                     yield quickPicks(id, title, subtitle, picks);
                 }
                 case TOGGLES -> {
                     List<ToggleItem> items = new ArrayList<>();
-                    JSONArray arr = obj.optJSONArray("toggles");
+                    JSONArray arr = obj.optJSONArray("items");
                     if (arr != null) {
                         for (int i = 0; i < arr.length() && items.size() < MAX_TOGGLES; i++) {
                             JSONObject item = arr.optJSONObject(i);
@@ -260,7 +260,7 @@ public final class InteractiveCardView extends LinearLayout {
                                     item.optString("id", ""),
                                     item.optString("label", ""),
                                     item.optString("description", ""),
-                                    item.optBoolean("checked", false)));
+                                    item.optBoolean("enabled", false)));
                         }
                     }
                     yield toggles(id, title, subtitle, items);
@@ -269,43 +269,62 @@ public final class InteractiveCardView extends LinearLayout {
                     JSONObject cust = obj.optJSONObject("customization");
                     if (cust == null) throw new IllegalArgumentException("Missing customization JSON");
                     AppCustomization base = AppCustomization.defaults();
-                    String paletteRaw = cust.optString("palette", base.palette.wire);
-                    AppCustomization.PalettePreset preset = AppCustomization.PalettePreset.parse(paletteRaw);
-                    if (preset == null) throw new IllegalArgumentException("Invalid palette");
-                    String customHex = cust.optString("custom_accent_hex", "");
+                    String accentRaw = cust.has("accent") ? cust.optString("accent", "")
+                            : cust.optString("accent_preset", "");
+                    String accentHex = cust.optString("accent_hex", "");
+                    AppCustomization.PalettePreset preset;
+                    String customHex = null;
+                    if (!accentHex.isEmpty()) {
+                        preset = AppCustomization.PalettePreset.CUSTOM;
+                        customHex = accentHex;
+                    } else if (!accentRaw.isEmpty()) {
+                        preset = AppCustomization.PalettePreset.parse(accentRaw);
+                        if (preset == null) throw new IllegalArgumentException("Invalid accent");
+                    } else {
+                        preset = base.palette;
+                    }
                     AppCustomization.Density density = AppCustomization.Density.parse(
                             cust.optString("density", base.density.wire));
                     if (density == null) throw new IllegalArgumentException("Invalid density");
-                    float delta = (float) cust.optDouble("font_scale_delta", base.fontScaleDelta);
+                    float delta = cust.has("font_scale_step")
+                            ? (cust.optInt("font_scale_step", 0) * 0.05f) : base.fontScaleDelta;
                     AppCustomization.StartupTab tab = AppCustomization.StartupTab.parse(
                             cust.optString("startup_tab", base.startupTab.wire));
                     if (tab == null) throw new IllegalArgumentException("Invalid startup tab");
-                    String greeting = cust.optString("companion_greeting", "");
+                    String greeting = cust.optString("greeting", "");
                     yield customizationPreview(id, title, subtitle, new AppCustomization(
-                            preset, customHex.isEmpty() ? null : customHex, density, delta, tab, greeting, null));
+                            preset, customHex, density, delta, tab, greeting, null));
                 }
             };
         }
 
         private static AppCustomization parseCustomizationMap(Map<String, Object> m) {
             AppCustomization base = AppCustomization.defaults();
-            String paletteWire = str(m.get("palette"));
-            AppCustomization.PalettePreset preset = paletteWire.isEmpty()
-                    ? base.palette : AppCustomization.PalettePreset.parse(paletteWire);
-            if (preset == null) throw new IllegalArgumentException("Invalid palette");
-            String customHex = str(m.get("custom_accent_hex"));
+            String accentWire = str(m.containsKey("accent") ? m.get("accent") : m.get("accent_preset"));
+            String accentHex = str(m.get("accent_hex"));
+            AppCustomization.PalettePreset preset;
+            String customHex = null;
+            if (!accentHex.isEmpty()) {
+                preset = AppCustomization.PalettePreset.CUSTOM;
+                customHex = accentHex;
+            } else if (!accentWire.isEmpty()) {
+                preset = AppCustomization.PalettePreset.parse(accentWire);
+                if (preset == null) throw new IllegalArgumentException("Invalid accent");
+            } else {
+                preset = base.palette;
+            }
             String densityWire = str(m.get("density"));
             AppCustomization.Density density = densityWire.isEmpty()
                     ? base.density : AppCustomization.Density.parse(densityWire);
             if (density == null) throw new IllegalArgumentException("Invalid density");
-            float delta = m.get("font_scale_delta") instanceof Number n ? n.floatValue() : base.fontScaleDelta;
+            float delta = m.get("font_scale_step") instanceof Number n
+                    ? (n.intValue() * 0.05f) : base.fontScaleDelta;
             String tabWire = str(m.get("startup_tab"));
             AppCustomization.StartupTab tab = tabWire.isEmpty()
                     ? base.startupTab : AppCustomization.StartupTab.parse(tabWire);
             if (tab == null) throw new IllegalArgumentException("Invalid startup tab");
-            String greeting = str(m.get("companion_greeting"));
-            return new AppCustomization(preset, customHex.isEmpty() ? null : customHex,
-                    density, delta, tab, greeting, null);
+            String greeting = str(m.get("greeting"));
+            return new AppCustomization(preset, customHex, density, delta, tab, greeting, null);
         }
 
         private static <T> List<T> boundedCopy(List<T> items, int max) {
