@@ -10,7 +10,11 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Locale;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /** Blocking, profile-bound Hermes HTTP client. Call on a worker thread. */
 public final class HermesApi {
@@ -52,6 +56,8 @@ public final class HermesApi {
     private final Endpoint endpoint;
     private final String bearer;
     private final Limits limits;
+    private final Set<RunEvents> openStreams = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private volatile boolean revoked;
 
     public HermesApi(String endpoint, String bearer) {
         this(endpoint, bearer, Limits.defaults());
@@ -63,6 +69,24 @@ public final class HermesApi {
         if (limits == null) throw new IllegalArgumentException("Missing transport limits");
         this.bearer = bearer;
         this.limits = limits;
+    }
+
+    /** Immediately revokes this profile-bound client, aborting all open SSE streams and rejecting new calls. */
+    public void revoke() {
+        revoked = true;
+        for (RunEvents stream : new ArrayList<>(openStreams)) {
+            stream.close();
+        }
+        openStreams.clear();
+    }
+
+    public boolean isRevoked() {
+        return revoked;
+    }
+
+    /** Request cooperative stop for a running server task. */
+    public JSONObject stopRun(String runId) throws IOException {
+        return post("/v1/runs/" + segment(runId) + "/stop", new JSONObject());
     }
 
     public static String segment(String raw) {
@@ -201,6 +225,7 @@ public final class HermesApi {
     }
 
     private HttpURLConnection connection(String path, String method, String accept) throws IOException {
+        if (revoked) throw new IOException("Client revoked");
         HttpURLConnection http = (HttpURLConnection) endpoint.url(path).openConnection();
         http.setInstanceFollowRedirects(false);
         http.setUseCaches(false);
@@ -316,11 +341,17 @@ public final class HermesApi {
         }
 
         private SseReader open() throws IOException {
+            if (closed || revoked) throw new IOException("Stream closed");
             HttpURLConnection stream = connection(path, "GET", "text/event-stream");
             if (lastEventId >= 0) stream.setRequestProperty("Last-Event-ID", Long.toString(lastEventId));
             synchronized (lifecycle) {
-                if (closed) { stream.disconnect(); throw new IOException("Stream closed"); }
+                if (closed || revoked) { stream.disconnect(); throw new IOException("Stream closed"); }
                 http = stream;
+            }
+            openStreams.add(this);
+            if (revoked) {
+                close();
+                throw new IOException("Stream closed");
             }
             checkResponse(stream);
             String type = stream.getContentType();
@@ -349,6 +380,7 @@ public final class HermesApi {
         }
 
         @Override public void close() {
+            openStreams.remove(this);
             HttpURLConnection stream;
             synchronized (lifecycle) {
                 closed = true;

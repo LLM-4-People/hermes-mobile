@@ -42,6 +42,11 @@ import java.util.LinkedHashMap;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 /** Profile-scoped native workspace. Call its public methods on the Android main thread. */
@@ -59,11 +64,15 @@ public final class ThreadWorkspace implements AutoCloseable {
         void timing(String sessionId, long firstTextMillis, long elapsedMillis, long outputTokens);
     }
 
+    private static final int RPC_WORKERS = 4;
+
     final Activity activity;
     final HermesApi api;
     final Host host;
     final Handler main = new Handler(Looper.getMainLooper());
-    final ExecutorService workers = Executors.newFixedThreadPool(3);
+    final ExecutorService workers = namedFixedPool("hermes-rpc", RPC_WORKERS);
+    final ExecutorService runStreams = boundedStreamPool("hermes-run", ActiveRunTracker.MAX_CONCURRENT_RUNS);
+    final ActiveRunTracker activeRuns = new ActiveRunTracker();
     private final Account account;
     private final VoiceDrafts voice;
     private final ConversationPanes container;
@@ -89,6 +98,7 @@ public final class ThreadWorkspace implements AutoCloseable {
     private long messageCount = -1;
     private List<String> slotOrder = Collections.emptyList();
     private volatile int generation;
+    private volatile int profileEpoch;
     private int inboxOffset;
     private boolean inboxLoaded, inboxLoading, inboxFailed, inboxMore;
     private int messageOffset;
@@ -187,7 +197,40 @@ public final class ThreadWorkspace implements AutoCloseable {
     }
 
     public void stopActiveRun() {
-        if (!closed && run != null) run.stop();
+        if (closed) return;
+        if (run != null && run.canStop()) {
+            run.stop();
+            return;
+        }
+        String bgSession = activeRuns.mostRecentStoppableSession();
+        if (bgSession != null) activeRuns.stopBackground(bgSession, api, workers);
+    }
+
+    /** Stop a specific running discussion (foreground or background) by canonical root session ID. */
+    public boolean stopRun(String sessionId) {
+        if (closed || sessionId == null || sessionId.isEmpty()) return false;
+        if (sessionId.equals(session) && run != null && run.canStop()) {
+            run.stop();
+            return true;
+        }
+        return activeRuns.stopBackground(sessionId, api, workers);
+    }
+
+    /** Number of concurrent active tasks currently running across discussions in this profile. */
+    public int activeRunCount() {
+        return closed ? 0 : activeRuns.activeCount();
+    }
+
+    int profileEpoch() {
+        return profileEpoch;
+    }
+
+    void publishRunProgress() {
+        if (closed) return;
+        host.runProgress(activeRuns.aggregateSnapshot());
+        if (inboxLoaded || inbox.length() > 0 || session != null) {
+            paintIndex();
+        }
     }
 
     public List<ThreadSummary> recentThreads() {
@@ -392,7 +435,7 @@ public final class ThreadWorkspace implements AutoCloseable {
 
     private void inbox(String warning, Runnable recovery) {
         if (closed) return;
-        reset(index);
+        switchScreen(index);
         session = remoteSession = null;
         title = "Conversations";
         inboxWarning = warning;
@@ -437,7 +480,7 @@ public final class ThreadWorkspace implements AutoCloseable {
 
     private void paintIndex() {
         index.indexRows(DiscussionIndex.selectedFirst(inbox, session, remoteSession, title, firstPrompt, messageCount),
-                session, inboxMore);
+                session, inboxMore, activeRuns.badges(), this::stopRun);
         if (inboxLoading) index.paging();
     }
 
@@ -562,12 +605,13 @@ public final class ThreadWorkspace implements AutoCloseable {
 
     private void open(ThreadIdentity identity, String label, String observedRun) {
         if (closed) return;
-        reset(new ThreadViews(activity, voice));
+        switchScreen(new ThreadViews(activity, voice));
         inboxWarning = "";
         inboxRecovery = null;
         session = identity.root;
         remoteSession = identity.tip;
         String id = session;
+        ActiveRunTracker.ReclaimedState reclaimed = activeRuns.reclaimForeground(id);
         namedTitle = identity.name;
         firstPrompt = openingPrompts.getOrDefault(id, identity.prompt);
         title = !namedTitle.isEmpty() || firstPrompt.isEmpty() ? label : firstPrompt;
@@ -608,7 +652,7 @@ public final class ThreadWorkspace implements AutoCloseable {
         indexNotice();
         selectionChanged();
         loadMessages(false, null);
-        run.restore();
+        run.restore(reclaimed);
     }
 
     private void recover(ThreadIdentity identity, String label) {
@@ -783,6 +827,7 @@ public final class ThreadWorkspace implements AutoCloseable {
         if (!closed) {
             ++generation;
             main.removeCallbacksAndMessages(null);
+            activeRuns.stopAllWatchers();
             if (screen != null) screen.dismiss();
             if (instruments != null) { instruments.retire(); instruments = null; }
             try {
@@ -791,12 +836,29 @@ public final class ThreadWorkspace implements AutoCloseable {
             } catch (RuntimeException unavailable) {
                 storageError();
             }
+            host.runProgress(LiveRunNotification.Snapshot.idle());
         }
     }
 
-    private void reset(ThreadViews next) {
-        onBackground();
-        if (journal != null) journal.retire();
+    /** Switch between discussions inside the same unlocked profile without cancelling active SSE runs. */
+    private void switchScreen(ThreadViews next) {
+        nearby.clearTurn();
+        voice.reader().stop();
+        deviceBridge.dismissDialogs();
+        boolean handedOff = false;
+        if (!closed) {
+            ++generation;
+            main.removeCallbacksAndMessages(null);
+            if (screen != null) screen.dismiss();
+            if (instruments != null) { instruments.retire(); instruments = null; }
+            try {
+                if (run != null) handedOff = run.detachForThreadSwitch();
+                if (journal != null) journal.flush();
+            } catch (RuntimeException unavailable) {
+                storageError();
+            }
+        }
+        if (!handedOff && journal != null) journal.retire();
         importingPhoto = false;
         loading = creating = inboxLoading = false;
         run = null;
@@ -815,11 +877,14 @@ public final class ThreadWorkspace implements AutoCloseable {
 
     @Override public void close() {
         if (closed) return;
+        ++profileEpoch;
+        api.revoke();
         try { onBackground(); }
         finally {
             closed = true;
             if (journal != null) journal.retire();
             workers.shutdownNow();
+            runStreams.shutdownNow();
             drafts.shutdownNow();
             index.indexRows(new JSONArray(), null, false);
             index.notice("", "", null);
@@ -841,28 +906,59 @@ public final class ThreadWorkspace implements AutoCloseable {
         }
     }
 
+    private static ExecutorService namedFixedPool(String prefix, int size) {
+        AtomicInteger counter = new AtomicInteger(1);
+        ThreadFactory factory = r -> {
+            Thread t = new Thread(r, prefix + "-" + counter.getAndIncrement());
+            t.setDaemon(true);
+            return t;
+        };
+        return Executors.newFixedThreadPool(size, factory);
+    }
+
+    private static ExecutorService boundedStreamPool(String prefix, int maxThreads) {
+        AtomicInteger counter = new AtomicInteger(1);
+        ThreadPoolExecutor pool = new ThreadPoolExecutor(
+                maxThreads, maxThreads, 30L, TimeUnit.SECONDS,
+                new LinkedBlockingQueue<>(),
+                r -> {
+                    Thread t = new Thread(r, prefix + "-" + counter.getAndIncrement());
+                    t.setDaemon(true);
+                    return t;
+                });
+        pool.allowCoreThreadTimeOut(true);
+        return pool;
+    }
+
     <T> void request(Callable<T> work, Consumer<T> success, Consumer<Exception> failure) {
         int generationAtStart = generation;
+        int epochAtStart = profileEpoch;
         workers.execute(() -> {
+            if (closed || epochAtStart != profileEpoch || api.isRevoked()) return;
             try {
                 T data = work.call();
-                deliver(generationAtStart, () -> success.accept(data));
+                deliver(generationAtStart, epochAtStart, () -> success.accept(data));
             } catch (Exception e) {
-                deliver(generationAtStart, () -> failure.accept(e));
+                deliver(generationAtStart, epochAtStart, () -> failure.accept(e));
             }
         });
     }
 
     public BooleanSupplier discussionOrigin() {
         int token = generation;
-        return () -> !closed && generation == token;
+        int epoch = profileEpoch;
+        return () -> !closed && generation == token && profileEpoch == epoch;
     }
 
     int token() { return generation; }
 
     void deliver(int token, Runnable update) {
+        deliver(token, profileEpoch, update);
+    }
+
+    void deliver(int token, int epoch, Runnable update) {
         main.post(() -> {
-            if (!closed && token == generation) {
+            if (!closed && token == generation && epoch == profileEpoch) {
                 try { update.run(); }
                 catch (IllegalStateException e) { storageError(); }
             }

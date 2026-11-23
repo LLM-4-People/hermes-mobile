@@ -67,4 +67,33 @@ public class LiveRunNotificationTest {
         assertTrue(LiveRunNotification.shouldEmit(decision, LiveRunNotification.Snapshot.idle()));
         assertFalse(LiveRunNotification.shouldEmit(LiveRunNotification.Snapshot.idle(), null));
     }
+
+    @Test public void multiRunPresentationsShowCountsAndDecisionSummaryWithoutPrivateText() {
+        LiveRunNotification.Snapshot threeRunning = new LiveRunNotification.Snapshot(
+                LiveRunNotification.Phase.WORKING, 0, 0, false, true, 3, 0);
+        LiveRunNotification.Presentation multi = LiveRunNotification.present(threeRunning);
+        assertNotNull(multi);
+        assertEquals("3 tâches en cours", multi.title());
+        assertEquals("3 tâches", multi.shortCriticalText());
+        assertTrue(multi.indeterminate());
+
+        LiveRunNotification.Snapshot fourWithTwoDecisions = new LiveRunNotification.Snapshot(
+                LiveRunNotification.Phase.AWAITING_DECISION, 4, 0, true, true, 4, 2);
+        LiveRunNotification.Presentation multiDecision = LiveRunNotification.present(fourWithTwoDecisions);
+        assertNotNull(multiDecision);
+        assertEquals("4 tâches · action requise", multiDecision.title());
+        assertEquals("Action (2/4)", multiDecision.shortCriticalText());
+        assertFalse(multiDecision.indeterminate());
+
+        // Count changes trigger emission so Live Update chip updates as tasks start/finish.
+        LiveRunNotification.Snapshot twoRunning = new LiveRunNotification.Snapshot(
+                LiveRunNotification.Phase.WORKING, 0, 0, false, true, 2, 0);
+        assertTrue(LiveRunNotification.shouldEmit(twoRunning, threeRunning));
+
+        // Out-of-range active count clamps safely to 99.
+        LiveRunNotification.Presentation clamped = LiveRunNotification.present(
+                new LiveRunNotification.Snapshot(LiveRunNotification.Phase.WORKING, 0, 0, false, true, 999, 0));
+        assertNotNull(clamped);
+        assertEquals("99 tâches", clamped.shortCriticalText());
+    }
 }
