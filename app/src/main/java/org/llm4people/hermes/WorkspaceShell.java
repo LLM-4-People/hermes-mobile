@@ -18,7 +18,9 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 
 import org.llm4people.hermes.ambient.AmbientAccessPanel;
+import org.llm4people.hermes.doctor.ConnectionDoctorPanel;
 import org.llm4people.hermes.panel.BrainStudioRoutes;
+import org.llm4people.hermes.templates.TemplatesPanel;
 
 import java.util.Objects;
 import java.util.function.BooleanSupplier;
@@ -224,6 +226,10 @@ final class WorkspaceShell {
             link(list, activity.getString(R.string.ws_usage), null, "stats");
         }
         section(list, activity.getString(R.string.ws_workspace));
+        link(list, activity.getString(R.string.templates_route_label),
+                activity.getString(R.string.templates_route_hint), TemplatesPanel.ROUTE_ID);
+        link(list, activity.getString(R.string.palette_title),
+                activity.getString(R.string.palette_search_hint), "command_palette");
         link(list, activity.getString(R.string.ws_my_screens), null, "pages");
         link(list, activity.getString(R.string.ws_new_discussion), null, "new_thread");
         link(list, activity.getString(R.string.ws_all_discussions), null, "threads");
@@ -290,6 +296,8 @@ final class WorkspaceShell {
         link(list, activity.getString(R.string.activity_usage_title),
                 activity.getString(R.string.activity_usage_hint), "stats");
         link(list, activity.getString(R.string.activity_security_title), securitySummary, "security");
+        link(list, activity.getString(R.string.doctor_route_label),
+                activity.getString(R.string.doctor_route_hint), ConnectionDoctorPanel.ROUTE_ID);
         String updateHint = updateBadge != null && !updateBadge.isEmpty()
                 ? updateBadge : activity.getString(R.string.update_route_hint);
         link(list, activity.getString(R.string.update_route_label), updateHint,

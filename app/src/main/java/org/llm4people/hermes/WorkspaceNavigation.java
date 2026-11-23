@@ -21,6 +21,7 @@ final class WorkspaceNavigation {
         if (BRAIN.equals(route)) return BRAIN;
         if (ACTIVITY.equals(route)
                 || org.llm4people.hermes.ambient.AmbientAccessPanel.ROUTE_ID.equals(route)
+                || org.llm4people.hermes.doctor.ConnectionDoctorPanel.ROUTE_ID.equals(route)
                 || org.llm4people.hermes.update.UpdatePanel.ROUTE_ID.equals(route)) {
             return ACTIVITY;
         }

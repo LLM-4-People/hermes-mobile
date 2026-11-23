@@ -13,6 +13,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
 import android.provider.CalendarContract;
+import android.view.KeyEvent;
 import android.view.View;
 import android.view.WindowInsets;
 import android.view.WindowManager;
@@ -29,6 +30,7 @@ import org.llm4people.hermes.artifact.LiveUiDeliveryDefaults;
 import org.llm4people.hermes.artifact.LiveUiPatch;
 import org.llm4people.hermes.artifact.ThemePalette;
 import org.llm4people.hermes.camera.ThreadCameraCapture;
+import org.llm4people.hermes.doctor.ConnectionDoctorPanel;
 import org.llm4people.hermes.files.PublishedFiles;
 import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.os.HermesShortcuts;
@@ -38,6 +40,8 @@ import org.llm4people.hermes.os.LiveRunActionReceiver;
 import org.llm4people.hermes.os.LiveRunNotification;
 import org.llm4people.hermes.os.LockGracePolicy;
 import org.llm4people.hermes.os.OsEntryIntent;
+import org.llm4people.hermes.palette.CommandPalette;
+import org.llm4people.hermes.palette.CommandRegistry;
 import org.llm4people.hermes.panel.BrainStudioRoutes;
 import org.llm4people.hermes.panel.SessionPanel;
 import org.llm4people.hermes.panel.ShareWithUserSheet;
@@ -50,6 +54,8 @@ import org.llm4people.hermes.push.DeliveryRouter;
 import org.llm4people.hermes.push.MobilePush;
 import org.llm4people.hermes.share.SharedMediaFlow;
 import org.llm4people.hermes.share.SharedTextFlow;
+import org.llm4people.hermes.templates.TemplateStore;
+import org.llm4people.hermes.templates.TemplatesPanel;
 import org.llm4people.hermes.thread.ThreadPhotoPicker;
 import org.llm4people.hermes.thread.ThreadWorkspace;
 import org.llm4people.hermes.update.UpdateCheckCoordinator;
@@ -57,6 +63,7 @@ import org.llm4people.hermes.update.UpdatePanel;
 import org.llm4people.hermes.voice.VoiceDrafts;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -86,6 +93,9 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     private ArtifactDesk.Host activeHost;
     private AmbientAccessPanel activeAmbientPanel;
     private UpdatePanel activeUpdatePanel;
+    private ConnectionDoctorPanel activeDoctorPanel;
+    private TemplatesPanel activeTemplatesPanel;
+    private CommandPalette activePalette;
     private UpdateCheckCoordinator.BadgeState updateBadge;
     private final Map<String, View> customPages = new HashMap<>();
     private SharedTextFlow sharedText;
@@ -128,7 +138,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
                     android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT, this::back);
         }
-        HermesShortcuts.publish(this);
+        notifications.execute(() -> HermesShortcuts.publish(getApplicationContext()));
         voice = new VoiceDrafts(this);
         push = new MobilePush(this);
         files = new PublishedFiles(this);
@@ -194,6 +204,23 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             activeUpdatePanel = new UpdatePanel(this);
             shell.show(activeUpdatePanel.buildView(), getString(R.string.update_panel_title));
         });
+        shellRoutes.register(ConnectionDoctorPanel.ROUTE_ID, (route, force) -> {
+            navigation.display(route, this::leavingSurface);
+            if (activeDoctorPanel != null) activeDoctorPanel.close();
+            Account owner = account;
+            HermesApi doctorApi = new HermesApi(owner.endpoint, owner.bearer,
+                    HermesApi.Limits.from(HermesConfig.load(this)));
+            activeDoctorPanel = new ConnectionDoctorPanel(this, owner, doctorApi, doctorFixHandlers(owner));
+            shell.show(activeDoctorPanel.buildView(), getString(R.string.doctor_panel_title));
+        });
+        shellRoutes.register(TemplatesPanel.ROUTE_ID, (route, force) -> {
+            navigation.display(route, this::leavingSurface);
+            if (activeTemplatesPanel != null) activeTemplatesPanel.close();
+            Account owner = account;
+            activeTemplatesPanel = new TemplatesPanel(this, owner, this::stageDraft,
+                    () -> account == owner && !isFinishing() && !isDestroyed());
+            shell.show(activeTemplatesPanel.buildView(), getString(R.string.templates_panel_title));
+        });
         shellRoutes.register(WorkspaceNavigation.GALLERY, (route, force) -> {
             navigation.display(route, this::leavingSurface);
             shell.show(ArtifactDesk.pages(this, account, activeHost), getString(R.string.ws_my_screens));
@@ -248,7 +275,10 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         actions.register("deliveries", () -> push.openInbox(account, deliveryActions(account)));
         actions.register("push_policy", () -> push.openPolicy(account));
         actions.register(AmbientAccessPanel.ROUTE_ID, () -> navigate(AmbientAccessPanel.ROUTE_ID));
+        actions.register(ConnectionDoctorPanel.ROUTE_ID, () -> navigate(ConnectionDoctorPanel.ROUTE_ID));
+        actions.register(TemplatesPanel.ROUTE_ID, () -> navigate(TemplatesPanel.ROUTE_ID));
         actions.register(UpdatePanel.ROUTE_ID, () -> navigate(UpdatePanel.ROUTE_ID));
+        actions.register("command_palette", this::openCommandPalette);
         actions.register("language", () -> {
             Account owner = account;
             if (notice != null) notice.dismiss();
@@ -359,6 +389,10 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                 () -> { if (account == unlocked && push != null) push.openPolicy(account); });
         AmbientAccessPanel.registerRoute(featureRoutes, this,
                 () -> { if (account == unlocked) navigate(AmbientAccessPanel.ROUTE_ID); });
+        ConnectionDoctorPanel.registerRoute(featureRoutes, this,
+                () -> { if (account == unlocked) navigate(ConnectionDoctorPanel.ROUTE_ID); });
+        TemplatesPanel.registerRoute(featureRoutes, this,
+                () -> { if (account == unlocked) navigate(TemplatesPanel.ROUTE_ID); });
         UpdatePanel.registerRoute(featureRoutes, this,
                 () -> { if (account == unlocked) navigate(UpdatePanel.ROUTE_ID); });
         UpdateCheckCoordinator.checkIfDueAsync(this, state -> {
@@ -638,6 +672,10 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         notice = null;
         if (activeAmbientPanel != null) activeAmbientPanel.dismissDialogs();
         if (activeUpdatePanel != null) activeUpdatePanel.dismissDialogs();
+        if (activeDoctorPanel != null) activeDoctorPanel.dismissDialogs();
+        if (activeTemplatesPanel != null) activeTemplatesPanel.dismissDialogs();
+        if (activePalette != null) activePalette.dismiss();
+        activePalette = null;
         if (files != null) files.dismiss();
         if (threadActions != null) threadActions.dismiss();
         if (!keepThreadEditor) {
@@ -831,6 +869,58 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         };
     }
 
+    private void openCommandPalette() {
+        Account owner = account;
+        if (owner == null || threads == null) return;
+        if (activePalette != null) activePalette.dismiss();
+        CommandRegistry registry = new CommandRegistry(CommandRegistry.defaultNativeCommands(this, this::onAction));
+        registry.addAll(CommandRegistry.fromTemplates(
+                TemplateStore.forAccount(owner).allTemplates(this), this::stageDraft));
+        List<CommandRegistry.RecentThread> recent = new ArrayList<>();
+        for (ThreadWorkspace.ThreadSummary summary : threads.recentThreads()) {
+            recent.add(new CommandRegistry.RecentThread(summary.id(), summary.title(), ""));
+        }
+        registry.addAll(CommandRegistry.fromRecentThreads(recent, sessionId -> {
+            if (account != owner || threads == null) return;
+            displayDiscussion();
+            threads.open(sessionId);
+        }));
+        CommandPalette palette = new CommandPalette(this, registry,
+                () -> account == owner && !isFinishing() && !isDestroyed());
+        activePalette = palette;
+        palette.show(() -> {
+            if (activePalette == palette) activePalette = null;
+        });
+    }
+
+    private ConnectionDoctorPanel.FixHandlers doctorFixHandlers(Account owner) {
+        return new ConnectionDoctorPanel.FixHandlers() {
+            @Override public void openPushSettings() {
+                if (account == owner) onAction("notifications");
+            }
+            @Override public void openAppUpdates() {
+                if (account == owner) onAction(UpdatePanel.ROUTE_ID);
+            }
+            @Override public void openAmbientAccess() {
+                if (account == owner) onAction(AmbientAccessPanel.ROUTE_ID);
+            }
+            @Override public void openLanguageSettings() {
+                if (account == owner) onAction("language");
+            }
+        };
+    }
+
+    @Override public boolean dispatchKeyEvent(KeyEvent event) {
+        if (account != null && threads != null && event != null
+                && event.getAction() == KeyEvent.ACTION_DOWN
+                && CommandRegistry.isPaletteShortcut(event.getKeyCode(),
+                event.isCtrlPressed(), event.isMetaPressed())) {
+            openCommandPalette();
+            return true;
+        }
+        return super.dispatchKeyEvent(event);
+    }
+
     private void message(String title, String body) {
         if (notice != null) notice.dismiss();
         notice = Ui.secureDialog(new AlertDialog.Builder(this).setTitle(title).setMessage(body)
@@ -912,6 +1002,14 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         if (activeUpdatePanel != null) {
             activeUpdatePanel.close();
             activeUpdatePanel = null;
+        }
+        if (activeDoctorPanel != null) {
+            activeDoctorPanel.close();
+            activeDoctorPanel = null;
+        }
+        if (activeTemplatesPanel != null) {
+            activeTemplatesPanel.close();
+            activeTemplatesPanel = null;
         }
     }
 
@@ -1069,6 +1167,12 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         activeAmbientPanel = null;
         if (activeUpdatePanel != null) activeUpdatePanel.close();
         activeUpdatePanel = null;
+        if (activeDoctorPanel != null) activeDoctorPanel.close();
+        activeDoctorPanel = null;
+        if (activeTemplatesPanel != null) activeTemplatesPanel.close();
+        activeTemplatesPanel = null;
+        if (activePalette != null) activePalette.dismiss();
+        activePalette = null;
         LiveRunActionReceiver.clearStopHandler(liveStopHandler);
         LiveRunNotification.cancel(this);
         if (sharedText != null) sharedText.lock();
