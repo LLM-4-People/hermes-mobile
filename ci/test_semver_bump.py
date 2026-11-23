@@ -1,4 +1,4 @@
-"""Deterministic positive and negative tests for SemVer release planning and gradle.properties updates."""
+"""Deterministic positive and negative tests for SemVer release planning and code-driven automation."""
 
 from pathlib import Path
 import tempfile
@@ -30,6 +30,79 @@ class SemverBumpTest(unittest.TestCase):
         ):
             with self.subTest(labels=bad), self.assertRaises(ValueError):
                 semver_bump.select_release_action(bad)
+
+    def test_skip_release_overrides_auto_code_changes_and_explicit_labels(self):
+        action, reason = semver_bump.classify_release(
+            ["skip-release"],
+            changed_files=["app/src/main/java/org/llm4people/hermes/MainActivity.java"],
+            pr_title="feat: add new screen",
+        )
+        self.assertIsNone(action)
+        self.assertEqual(reason, "skip_label")
+
+        action2, reason2 = semver_bump.classify_release(
+            ["skip-release", "release:minor"],
+            changed_files=["app/src/main/java/org/llm4people/hermes/MainActivity.java"],
+            pr_title="feat: add new screen",
+        )
+        self.assertIsNone(action2)
+        self.assertEqual(reason2, "skip_label")
+
+    def test_non_shippable_paths_automatically_skip_release(self):
+        non_shippable_sets = [
+            ["README.md", "docs/release.md", "docs/sources/README.md.in"],
+            ["site/en/index.html", "site/fr/walkthrough/index.html"],
+            ["app/src/test/java/org/llm4people/hermes/ExampleTest.java"],
+            ["app/src/androidTest/java/org/llm4people/hermes/journey/DeviceJourney.java"],
+            ["verification/gateway_fixture.py", "verification/device/run.py"],
+            [".github/workflows/checks.yml", "ci/semver_bump.py", "scripts/docs.py"],
+            ["server/mobile_push/app.py", "deploy/accounts.py", "skills/hermes-mobile-workspace/SKILL.md"],
+        ]
+        for paths in non_shippable_sets:
+            with self.subTest(paths=paths):
+                action, reason = semver_bump.classify_release(
+                    [], changed_files=paths, pr_title="feat: big non-app change"
+                )
+                self.assertIsNone(action)
+                self.assertEqual(reason, "non_shippable_paths")
+
+    def test_shippable_app_paths_infer_bump_from_title_and_labels(self):
+        shippable_cases = [
+            (["app/src/main/java/org/llm4people/hermes/MainActivity.java"], "feat(ui): add dual theme", [], "minor"),
+            (["app/src/main/res/values/strings.xml"], "fix(i18n): tighten copy", [], "patch"),
+            (["app/build.gradle"], "build(deps): bump AGP", [], "patch"),
+            (["app/proguard-rules.pro"], "perf: trim R8 rules", [], "patch"),
+            (["gradle/libs.versions.toml"], "feat!: drop legacy push bridge", [], "major"),
+            (["gradle/wrapper/gradle-wrapper.properties"], "chore: update Gradle wrapper", [], "patch"),
+            (["build.gradle"], "refactor: simplify root build", [], "patch"),
+            (["settings.gradle"], "chore: configure plugin management", [], "patch"),
+            (["gradle.properties"], "feat: raise targetSdk to 36", [], "minor"),
+            (["app/src/main/AndroidManifest.xml"], "Update notification tile", ["enhancement"], "minor"),
+            (["app/src/main/java/org/llm4people/hermes/Ui.java"], "Switch layout BREAKING CHANGE", [], "major"),
+        ]
+        for paths, title, labels, expected in shippable_cases:
+            with self.subTest(paths=paths, title=title):
+                action, reason = semver_bump.classify_release(labels, changed_files=paths, pr_title=title)
+                self.assertEqual(action, expected)
+                self.assertEqual(reason, "auto_code_change")
+
+        # Explicit release label still takes precedence over automatic inference.
+        action, reason = semver_bump.classify_release(
+            ["release:major"],
+            changed_files=["app/src/main/java/org/llm4people/hermes/Ui.java"],
+            pr_title="fix: tiny change",
+        )
+        self.assertEqual(action, "major")
+        self.assertEqual(reason, "explicit_label")
+
+        # Bump-only chore(release) PR without release:publish does not self-loop on gradle.properties.
+        loop_action, loop_reason = semver_bump.classify_release(
+            [],
+            changed_files=["gradle.properties", "README.md"],
+            pr_title="chore(release): v0.2.0",
+        )
+        self.assertIsNone(loop_action)
+        self.assertEqual(loop_reason, "non_shippable_paths")
 
     def test_bump_semver_handles_patch_minor_major_and_rejects_invalid_inputs(self):
         self.assertEqual(semver_bump.bump_semver("0.1.0", "patch"), "0.1.1")
@@ -84,16 +157,19 @@ class SemverBumpTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "must exceed latest tag"):
             semver_bump.plan_release("0.1.0", 5, "publish", existing_tags=["v0.2.0"], published_max_code=4)
 
-    def test_read_and_write_gradle_version_roundtrip_and_cli_apply_bump(self):
+    def test_read_and_write_gradle_version_roundtrip_and_cli_auto_and_force_bump(self):
         with tempfile.TemporaryDirectory() as tmp:
             props = Path(tmp) / "gradle.properties"
             out = Path(tmp) / "github_output.txt"
             props.write_text(SAMPLE_GRADLE, encoding="utf-8")
             self.assertEqual(semver_bump.read_gradle_version(props), ("0.2.1", 4))
 
+            # Automatic code-driven bump from app/src/main change + feat: title
             code = semver_bump.main([
                 "--gradle-properties", str(props),
-                "--labels-json", '["android", "release:minor"]',
+                "--labels-json", "[]",
+                "--changed-files-json", '["app/src/main/java/org/llm4people/hermes/MainActivity.java"]',
+                "--pr-title", "feat(ui): add connection doctor",
                 "--tags-json", '["v0.2.1"]',
                 "--published-max-code", "4",
                 "--apply-bump",
@@ -105,6 +181,37 @@ class SemverBumpTest(unittest.TestCase):
             self.assertIn("mode=open_bump_pr\n", output_text)
             self.assertIn("tag=v0.3.0\n", output_text)
             self.assertIn("version_code=5\n", output_text)
+            self.assertIn("reason=auto_code_change\n", output_text)
+
+            # Docs-only PR produces mode=none and does not touch gradle.properties
+            out2 = Path(tmp) / "github_output_2.txt"
+            code2 = semver_bump.main([
+                "--gradle-properties", str(props),
+                "--labels-json", "[]",
+                "--changed-files-json", '["README.md", "site/en/index.html"]',
+                "--pr-title", "docs: polish copy",
+                "--tags-json", '["v0.3.0"]',
+                "--published-max-code", "5",
+                "--apply-bump",
+                "--github-output", str(out2),
+            ])
+            self.assertEqual(code2, 0)
+            self.assertEqual(semver_bump.read_gradle_version(props), ("0.3.0", 5))
+            self.assertIn("mode=none\n", out2.read_text(encoding="utf-8"))
+
+            # Manual force-bump override works cleanly
+            out3 = Path(tmp) / "github_output_3.txt"
+            code3 = semver_bump.main([
+                "--gradle-properties", str(props),
+                "--force-bump", "patch",
+                "--tags-json", '["v0.3.0"]',
+                "--published-max-code", "5",
+                "--apply-bump",
+                "--github-output", str(out3),
+            ])
+            self.assertEqual(code3, 0)
+            self.assertEqual(semver_bump.read_gradle_version(props), ("0.3.1", 6))
+            self.assertIn("reason=manual_dispatch\n", out3.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

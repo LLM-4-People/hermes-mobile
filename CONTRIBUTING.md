@@ -8,7 +8,7 @@ Thank you for contributing to Hermes Mobile. Every change should keep the app na
 - **Android SDK** with `compileSdk` and `buildToolsVersion` matching `gradle.properties` (currently API 36 / Build Tools 36.0.0)
 - **Python 3.11+** (`uv` recommended for fast isolated server test environments)
 - Optional for workflow linting: **Go** (for `actionlint`) and **shellcheck**
-- Companion server checkout from **[LLM-4-People/hermes-agent](https://github.com/LLM-4-People/hermes-agent)** at the revision pinned in `verification/gateway_fixture.py` when running live gateway journeys
+- Companion server checkout from **[LLM-4-People/hermes-agent](https://github.com/LLM-4-People/hermes-agent)** at the revision pinned in `verification/gateway_fixture.py` (`eb99545c`) when running live gateway journeys
 
 ## Architecture and coding standards
 

@@ -9,7 +9,7 @@
   <img src="docs/assets/hero-studio.png" alt="Hermes Mobile on a modern Android flagship phone resting on warm walnut wood and pale travertine stone" width="100%">
 </p>
 
-**{{ project }}** is a fast, native Android client (API 28–36, Java, zero WebView, ~1.9 MiB signed release APK) for chatting, coding, approving actions, running parallel tasks, and customizing your workspace with your own Hermes Agent. The app automatically follows your Android system language (**English** and **French**) with a 1-tap override and syncs your preference to Hermes.
+**{{ project }}** is a fast, native Android client (API {{ min_sdk }}–{{ target_sdk }}, Java, zero WebView, {{ release_apk_size_en }} signed release APK) for chatting, coding, approving actions, running parallel tasks, and customizing your workspace with your own Hermes Agent. The app automatically follows your Android system language (**English** and **French**) with a 1-tap override and syncs your preference to Hermes.
 
 **[Explore the Showcase & Docs Portal →]({{ pages_url }}en/)** · [Documentation]({{ pages_url }}en/docs/) · [Live Device Gallery]({{ pages_url }}en/walkthrough/) · [Latest Signed APK](https://github.com/{{ repository }}/releases/latest)
 
@@ -18,7 +18,7 @@
 ## Real device preview
 
 <p align="center">
-  <a href="docs/assets/app-preview-en.png"><img src="docs/assets/app-preview-en.png" width="100%" alt="Four real Android 16 screens of Hermes Mobile in English: command palette, everyday workflows, connection doctor, and presence and appearance controls"></a>
+  <a href="docs/assets/dual-theme-showcase-en.png"><img src="docs/assets/dual-theme-showcase-en.png" width="100%" alt="Light and dark themes of Hermes Mobile side by side on Android 16: connection doctor, everyday workflows, command palette, and presence and appearance controls"></a>
 </p>
 
 <p align="center">
@@ -33,10 +33,10 @@
 | Pillar | Capabilities |
 | --- | --- |
 | **Adaptive Phone & Tablet Shell** | 4 top-level workspaces (**Discussions**, **Atelier**, **Brain**, **Activity**): IME-aware bottom bar on phones, **92 dp** navigation rail and collapsible dual-pane discussion sidebar (`232–360 dp`) on tablets, preserving drafts across rotation and split-screen. |
-| **Global Command Palette (`Ctrl+K`) & Everyday Workflows** | 1-tap searchable overlay (`Ctrl+K` / `Cmd+K` on hardware keyboards) with accent-insensitive fuzzy jump across every action, recent thread, and template. Includes 6 curated everyday workflows plus encrypted per-profile custom templates that strictly stage editable drafts before sending. |
+| **Global Command Palette (`Ctrl+K`) & Everyday Workflows** | 1-tap searchable overlay (`Ctrl+K` / `Cmd+K` on hardware keyboards) with accent-insensitive fuzzy jump across every action, recent thread, and template. Includes {{ curated_workflows_count }} curated everyday workflows plus encrypted per-profile custom templates that strictly stage editable drafts before sending. |
 | **Concurrent Multi-Run & Multi-User Isolation** | Run multiple concurrent tasks across different discussions simultaneously for one user without canceling active streams or mixing deltas/approvals, while serving many concurrent users on **one single HTTPS hostname** (`/p/<profile>`) with isolated homes, workspaces, and 256-bit keys. [Multi-Profile Deploy](docs/accounts.md) |
-| **Instant Infinite Chats & Runtime Performance** | Instant session switching with smooth lazy history paging, frame-budgeted live stream coalescing (0 ms first-token latency), zero-allocation custom views, bounded bitmap/token caches cleared under memory pressure and lock, and a shrunk **~1.9 MiB** signed release APK (**-19%** footprint). |
-| **Live Connection Doctor** | Built-in parallel diagnostics under **Activity → Connection Doctor** verifying server reachability & latency, companion fork capabilities (`51/51` with clear upstream non-fork warning), push readiness, app updates, ambient permissions, and language sync—with 1-tap fixes and a strictly redacted safe report copy. |
+| **Instant Infinite Chats & Runtime Performance** | Instant session switching with smooth lazy history paging, frame-budgeted live stream coalescing (0 ms first-token latency), zero-allocation custom views, bounded bitmap/token caches cleared under memory pressure and lock, and a shrunk **{{ release_apk_size_en }}** signed release APK (**-19%** footprint). |
+| **Live Connection Doctor** | Built-in parallel diagnostics under **Activity → Connection Doctor** verifying server reachability & latency, companion fork capabilities (`{{ expected_fork_capabilities }}/{{ expected_fork_capabilities }}` with clear upstream non-fork warning), push readiness, app updates, ambient permissions, and language sync—with 1-tap fixes and a strictly redacted safe report copy. |
 | **Coding, Visual Diffs & Duplex Voice** | Streaming replies with rich Markdown, syntax-highlighted `CodeReader`, visual hunk-level approval diffs, hands-free **Duplex Voice** plus offline/system dictation and offline speech playback. |
 | **Live UI Modding & On-the-Fly Widgets** | Ask Hermes to adapt a screen, tune colors (WCAG-AA `4.5:1` Day/Night invariant), or build an interactive tool (`ui.patch` + Surfaces v2). Preview diffs, apply atomically, roll back any revision, or pin profile-scoped Home Screen Widgets. [Live UI & Widgets](docs/live-ui-and-widgets.md) |
 | **Hardened Profile Vault & Android 16 OS Integration** | Per-profile AES-GCM encrypted storage, Class-3 Biometric Vault (`BIOMETRIC_STRONG` / `DEVICE_CREDENTIAL`), persisted passphrase backoff, atomic profile wipe, Android 16 Live Updates notifications showing active concurrent task counts, Quick Settings Tile, and App Shortcuts. |

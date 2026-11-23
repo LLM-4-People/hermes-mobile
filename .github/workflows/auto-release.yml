@@ -4,6 +4,19 @@ on:
   pull_request:
     types: [closed]
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Release bump mode (auto inspects HEAD diff; patch/minor/major/publish forces explicit action)
+        required: true
+        default: auto
+        type: choice
+        options:
+          - auto
+          - patch
+          - minor
+          - major
+          - publish
 
 permissions:
   contents: write
@@ -17,7 +30,7 @@ concurrency:
 jobs:
   release-automation:
     name: Plan SemVer tag or bump PR
-    if: github.event.pull_request.merged == true
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -27,10 +40,14 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.RELEASE_BOT_TOKEN || github.token }}
       - id: plan
-        name: Evaluate release labels and compute next SemVer (fail-closed)
+        name: Evaluate release labels, changed paths, and compute next SemVer (fail-closed)
         env:
           GH_TOKEN: ${{ secrets.RELEASE_BOT_TOKEN || github.token }}
-          PR_LABELS: ${{ toJson(github.event.pull_request.labels.*.name) }}
+          EVENT_NAME: ${{ github.event_name }}
+          DISPATCH_BUMP: ${{ inputs.bump || '' }}
+          PR_NUMBER: ${{ github.event.pull_request.number || '' }}
+          PR_TITLE: ${{ github.event.pull_request.title || '' }}
+          PR_LABELS: ${{ github.event_name == 'pull_request' && toJson(github.event.pull_request.labels.*.name) || '[]' }}
         run: |
           tags_json=$(git tag --list 'v*' | python3 -B -c 'import json, sys; print(json.dumps([l.strip() for l in sys.stdin if l.strip()]))')
           max_code=$(python3 -B - <<'PY'
@@ -54,11 +71,29 @@ jobs:
           print(best)
           PY
           )
+          changed_files_json='[]'
+          effective_title="$PR_TITLE"
+          extra_args=()
+          if [[ "$EVENT_NAME" == "pull_request" && -n "$PR_NUMBER" ]]; then
+            changed_files_json=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files" --paginate --jq '.[].filename' \
+              | python3 -B -c 'import json, sys; print(json.dumps([l.strip() for l in sys.stdin if l.strip()]))')
+            extra_args+=(--changed-files-json "$changed_files_json" --pr-title "$effective_title")
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            if [[ -n "$DISPATCH_BUMP" && "$DISPATCH_BUMP" != "auto" ]]; then
+              extra_args+=(--force-bump "$DISPATCH_BUMP")
+            else
+              changed_files_json=$(git diff-tree --no-commit-id --name-only -r HEAD \
+                | python3 -B -c 'import json, sys; print(json.dumps([l.strip() for l in sys.stdin if l.strip()]))')
+              effective_title=$(git log -1 --pretty=%s HEAD)
+              extra_args+=(--changed-files-json "$changed_files_json" --pr-title "$effective_title")
+            fi
+          fi
           python3 -B ci/semver_bump.py \
             --gradle-properties gradle.properties \
             --labels-json "$PR_LABELS" \
             --tags-json "$tags_json" \
             --published-max-code "$max_code" \
+            "${extra_args[@]}" \
             --apply-bump \
             --github-output "$GITHUB_OUTPUT"
       - name: Create annotated SemVer tag and dispatch Signed Android release
@@ -68,20 +103,22 @@ jobs:
           USE_BOT_TOKEN: ${{ secrets.RELEASE_BOT_TOKEN != '' && '1' || '0' }}
           TAG: ${{ steps.plan.outputs.tag }}
           VERSION_CODE: ${{ steps.plan.outputs.version_code }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REASON: ${{ steps.plan.outputs.reason }}
+          PR_NUMBER: ${{ github.event.pull_request.number || 'manual' }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -a "$TAG" -m "Release $TAG (versionCode $VERSION_CODE, from PR #$PR_NUMBER)"
+          git tag -a "$TAG" -m "Release $TAG (versionCode $VERSION_CODE, source $PR_NUMBER)"
           git push origin "refs/tags/$TAG"
           if [[ "$USE_BOT_TOKEN" == "0" ]]; then
             # Tag pushes made with GITHUB_TOKEN do not trigger on:push:tags workflows; dispatch explicitly.
             gh workflow run release.yml --repo "$GITHUB_REPOSITORY" --ref main -f "release_tag=$TAG"
           fi
           {
-            echo "### Automated SemVer Release Dispatched"
+            echo "### Automated SemVer release dispatched"
             echo ""
             echo "- **Tag**: \`$TAG\` (versionCode \`$VERSION_CODE\`)"
+            echo "- **Reason**: \`$REASON\`"
             echo "- **Commit**: \`$(git rev-parse HEAD)\`"
             echo "- **Workflow**: Triggered \`.github/workflows/release.yml\` on \`main\`"
           } >> "$GITHUB_STEP_SUMMARY"
@@ -89,22 +126,25 @@ jobs:
         if: steps.plan.outputs.mode == 'open_bump_pr'
         env:
           GH_TOKEN: ${{ secrets.RELEASE_BOT_TOKEN || github.token }}
+          USE_BOT_TOKEN: ${{ secrets.RELEASE_BOT_TOKEN != '' && '1' || '0' }}
           TAG: ${{ steps.plan.outputs.tag }}
           VERSION_NAME: ${{ steps.plan.outputs.version_name }}
           VERSION_CODE: ${{ steps.plan.outputs.version_code }}
           BRANCH: ${{ steps.plan.outputs.branch }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REASON: ${{ steps.plan.outputs.reason }}
+          PR_NUMBER: ${{ github.event.pull_request.number || 'manual' }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git fetch origin "refs/heads/$BRANCH:refs/remotes/origin/$BRANCH" 2>/dev/null || true
           git checkout -B "$BRANCH"
-          git add gradle.properties
+          python3 -B scripts/docs.py --write
+          git add -- gradle.properties README.md PRODUCT.md SECURITY.md DESIGN.md CONTRIBUTING.md docs/ site/
           git commit -m "chore(release): bump Android version to $TAG (versionCode $VERSION_CODE)"
           git push --force-with-lease origin "$BRANCH"
           existing=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
           body=$(cat <<EOF
-          Automated SemVer release preparation triggered by merged PR #$PR_NUMBER.
+          Automated SemVer release preparation triggered by $PR_NUMBER (reason: \`$REASON\`).
 
           - **Next release tag**: \`$TAG\`
           - **\`hermesVersionName\`**: \`$VERSION_NAME\`
@@ -114,14 +154,22 @@ jobs:
           EOF
           )
           if [[ -n "$existing" ]]; then
-            gh pr edit "$existing" --repo "$GITHUB_REPOSITORY" --title "chore(release): $TAG" --body "$body" --add-label "release:publish" --add-label "ci"
+            pr_num="$existing"
+            gh pr edit "$pr_num" --repo "$GITHUB_REPOSITORY" --title "chore(release): $TAG" --body "$body" --add-label "release:publish" --add-label "ci"
           else
-            gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$BRANCH" --title "chore(release): $TAG" --body "$body" --label "release:publish" --label "ci"
+            pr_url=$(gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$BRANCH" --title "chore(release): $TAG" --body "$body" --label "release:publish" --label "ci")
+            pr_num="${pr_url##*/}"
+          fi
+          gh pr merge "$pr_num" --repo "$GITHUB_REPOSITORY" --auto --squash || true
+          if [[ "$USE_BOT_TOKEN" == "0" ]]; then
+            # PRs created with GITHUB_TOKEN do not trigger on:pull_request workflows; dispatch checks explicitly.
+            gh workflow run checks.yml --repo "$GITHUB_REPOSITORY" --ref "$BRANCH" || true
           fi
           {
-            echo "### Automated Release Bump PR Ready"
+            echo "### Automated release bump PR ready"
             echo ""
+            echo "- **PR**: #$pr_num (\`$BRANCH\`, auto-merge requested)"
             echo "- **Target tag**: \`$TAG\` (\`hermesVersionName=$VERSION_NAME\`, \`hermesVersionCode=$VERSION_CODE\`)"
-            echo "- **Branch**: \`$BRANCH\` (labeled \`release:publish\`)"
-            echo "- **Next step**: Merge the PR into \`main\` to tag \`$TAG\` and publish the signed APK release."
+            echo "- **Reason**: \`$REASON\`"
+            echo "- **Next step**: Once CI passes and the PR merges into \`main\`, tag \`$TAG\` and the signed APK release publish automatically."
           } >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Documentation — Hermes Mobile</title>
+  <meta name="description" content="Documentation complète en français pour Hermes Mobile : installation de l’APK signé, serveur multi-profils sur un seul domaine, palette rapide, diagnostic de connexion, tâches parallèles et sécurité.">
+  <link rel="icon" type="image/svg+xml" href="../../assets/favicon.svg">
+  <link rel="canonical" href="{{ pages_url }}fr/docs/">
+  <link rel="alternate" hreflang="fr" href="{{ pages_url }}fr/docs/">
+  <link rel="alternate" hreflang="en" href="{{ pages_url }}en/docs/">
+  <link rel="alternate" hreflang="x-default" href="{{ pages_url }}en/docs/">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Documentation — Hermes Mobile">
+  <meta property="og:description" content="Démarrage, hébergement multi-profils, palette rapide, diagnostic en direct, tâches parallèles et vérification des versions signées.">
+  <meta property="og:url" content="{{ pages_url }}fr/docs/">
+  <meta property="og:image" content="{{ pages_url }}assets/marketing/social-preview-fr.png">
+  <meta property="og:locale" content="fr_CA">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="{{ pages_url }}assets/marketing/social-preview-fr.png">
+  <link rel="stylesheet" href="../../assets/style.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Aller à la documentation</a>
+
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="../">
+        <img class="brand-mark" src="../../assets/favicon.svg" alt="" width="30" height="30">
+        <span>Hermes Mobile</span>
+      </a>
+      <nav class="nav-links" aria-label="Navigation principale">
+        <a href="../">Aperçu</a>
+        <a href="./" class="is-active">Documentation</a>
+        <a href="../walkthrough/">Galerie</a>
+        <a href="https://github.com/{{ repository }}" rel="noopener">GitHub</a>
+      </nav>
+      <div class="nav-actions">
+        <a class="lang-link" href="../../en/docs/" data-lang-switch="en" hreflang="en" lang="en" aria-label="Passer à la documentation anglaise">English</a>
+        <button type="button" class="pill-btn" data-theme-toggle aria-pressed="false">☾ Sombre</button>
+        <a class="btn btn-primary" data-latest-apk href="https://github.com/{{ repository }}/releases/latest" rel="noopener">Télécharger l’APK</a>
+      </div>
+    </div>
+  </header>
+
+  <main id="main" class="section">
+    <div class="container docs-layout">
+      <aside class="docs-sidebar" aria-label="Sections de la documentation">
+        <label for="docs-search" class="sr-only">Filtrer les sections</label>
+        <input id="docs-search" class="search-input" type="search" placeholder="Filtrer la documentation…" autocomplete="off">
+        <div id="docs-search-status" class="search-status" aria-live="polite"></div>
+        <nav class="docs-nav">
+          <a href="#demarrage" class="is-active">Démarrage et APK signé</a>
+          <a href="#multi-profil">Multi-profils sur un domaine</a>
+          <a href="#palette-modeles">Palette rapide et modèles</a>
+          <a href="#diagnostic">Diagnostic de connexion</a>
+          <a href="#concurrence">Tâches parallèles et vitesse</a>
+          <a href="#cerveau-partage">Cerveau et partage</a>
+          <a href="#interface-directe">Interface en direct et widgets</a>
+          <a href="#securite">Sécurité, ambiant et alertes</a>
+          <a href="#compilation">Compiler localement</a>
+        </nav>
+      </aside>
+
+      <div class="docs-content">
+        <section id="demarrage" class="doc-section">
+          <h1>Documentation de Hermes Mobile</h1>
+          <p>Tout le nécessaire pour installer une version Android signée et vérifiée, relier votre profil à votre serveur compagnon Hermes et travailler sur plusieurs tâches en toute sérénité sur Android {{ min_android }} à {{ target_android }}.</p>
+          <h2>1. Installer et mettre à jour</h2>
+          <ul>
+            <li><strong>Versions officielles signées sur GitHub :</strong> Téléchargez <code>{{ release_apk }}</code>, <code>{{ checksum_file }}</code> et <code>release.json</code> depuis la <a href="https://github.com/{{ repository }}/releases/latest" rel="noopener">dernière version publiée</a>.</li>
+            <li><strong>Mises à jour intégrées et vérifiées :</strong> Ouvrez <strong>Activité → Mises à jour</strong>. L’application vérifie l’hôte HTTPS GitHub officiel, contrôle l’empreinte SHA-256 en temps constant et valide que le certificat de signature correspond exactement avant de lancer l’installateur Android.</li>
+          </ul>
+          <div class="code-block"><code>sha256sum -c {{ checksum_file }}
+adb install -r {{ release_apk }}</code></div>
+        </section>
+
+        <section id="multi-profil" class="doc-section">
+          <h2>2. Serveur multi-profils sur une seule adresse HTTPS</h2>
+          <p>Hermes Mobile nécessite notre serveur compagnon (<a href="{{ fork_url }}" rel="noopener">LLM-4-People/hermes-agent</a>). Une seule adresse HTTPS suffit pour héberger plusieurs personnes sous <code>/p/&lt;profil&gt;</code>, chacune dans son espace et avec sa propre clé d’accès.</p>
+          <ol>
+            <li>Déployez le serveur compagnon puis lancez <code>python3 scripts/mobile_doctor.py</code> sur l’hôte pour vérifier les {{ expected_fork_capabilities }} capacités actives et afficher l’adresse de connexion de chaque profil.</li>
+            <li>Sur Android, ouvrez <strong>Connecter Hermes</strong>, saisissez un nom de profil, l’adresse HTTPS du serveur (par exemple <code>https://hermes.example.com</code>), votre identifiant <strong>Profil serveur</strong> et votre clé d’accès 256 bits.</li>
+            <li>Protégez le coffre local avec une phrase secrète et activez au besoin la biométrie forte dans <strong>Activité → Sécurité</strong>.</li>
+          </ol>
+        </section>
+
+        <section id="palette-modeles" class="doc-section">
+          <h2>3. Palette de commandes et modèles quotidiens</h2>
+          <ul>
+            <li><strong>Palette rapide (<code>Ctrl+K</code>) :</strong> Ouvrez la recherche globale depuis la barre supérieure ou un clavier matériel pour rejoindre immédiatement n’importe quelle section, discussion récente ou modèle, avec tolérance aux accents dans une fenêtre protégée.</li>
+            <li><strong>Modèles quotidiens et modèles chiffrés :</strong> Sous <strong>Atelier → Modèles quotidiens</strong>, utilisez les 6 modèles intégrés ou créez vos propres modèles enregistrés dans le coffre chiffré du profil. Chaque modèle respecte la <strong>règle du brouillon modifiable</strong> : rien n’est envoyé sans votre validation.</li>
+          </ul>
+        </section>
+
+        <section id="diagnostic" class="doc-section">
+          <h2>4. Diagnostic de connexion en direct</h2>
+          <p>Ouvrez <strong>Activité → Diagnostic de connexion</strong> pour lancer 6 contrôles parallèles sans bloquer l’interface :</p>
+          <ul>
+            <li><strong>Joignabilité et latence serveur :</strong> Mesure le temps de réponse réel et distingue clairement une panne réseau d’une clé refusée.</li>
+            <li><strong>Capacités du serveur compagnon (<code>{{ expected_fork_capabilities }}/{{ expected_fork_capabilities }}</code>) :</strong> Reconnaît le serveur compagnon complet et avertit clairement si un serveur Hermes standard est détecté.</li>
+            <li><strong>Notifications, mises à jour, accès ambiant et langue :</strong> Vérifie l’inscription aux alertes, l’état des versions, la connexion du service ambiant optionnel et la cohérence de la langue active.</li>
+            <li><strong>Copie d’un rapport sécurisé :</strong> Sous <em>Détails techniques</em>, copiez un résumé strictement expurgé (hôte assaini, version, langue et statuts uniquement — jamais de clé d’accès, de nom de profil, de note ni de message).</li>
+          </ul>
+        </section>
+
+        <section id="concurrence" class="doc-section">
+          <h2>5. Tâches parallèles et performances</h2>
+          <ul>
+            <li><strong>Plusieurs tâches simultanées par utilisateur :</strong> Démarrez une analyse dans le fil A, basculez vers le fil B puis le fil C pour lancer d’autres tâches, et revenez au fil A sans perdre les flux en cours ni mélanger les réponses. Les notifications en direct Android 16 affichent le nombre de tâches actives.</li>
+            <li><strong>Discussions instantanées :</strong> Le passage d’un fil à l’autre s’affiche immédiatement avec chargement progressif de l’historique ancien.</li>
+            <li><strong>Empreinte réduite :</strong> Regroupement fluide des flux en continu, vues personnalisées sans allocation inutile, purge des caches sous pression mémoire ou verrouillage, et APK signé d’environ <code>{{ release_apk_size_fr }}</code>.</li>
+          </ul>
+        </section>
+
+        <section id="cerveau-partage" class="doc-section">
+          <h2>6. Espace Cerveau et partage sur le même serveur</h2>
+          <p>Ouvrez l’onglet <strong>Cerveau</strong> pour consulter et modifier la mémoire, gérer vos notes intelligentes, valider des habitudes proposées après au moins 3 répétitions, lancer une recherche plein texte FTS5 dans tout l’historique, gérer vos savoir-faire et explorer les fichiers du projet.</p>
+          <p>Partagez sélectivement 7 types d’éléments — notes, savoir-faire, écrans personnalisés, widgets, outils, fichiers et discussions — avec d’autres profils du même serveur sans exposer votre espace privé.</p>
+        </section>
+
+        <section id="interface-directe" class="doc-section">
+          <h2>7. Personnalisation en direct et widgets d’accueil</h2>
+          <p>Demandez à Hermes d’adapter un écran, d’ajuster les couleurs jour/nuit (contraste WCAG-AA <code>4.5:1</code> garanti) ou de créer un outil interactif avec aperçu, application atomique et historique d’annulation. Épinglez des widgets sur votre écran d’accueil Android tout en conservant le verrouillage strict par profil.</p>
+        </section>
+
+        <section id="securite" class="doc-section">
+          <h2>8. Sécurité, accès ambiant et notifications privées</h2>
+          <ul>
+            <li><strong>Coffre local renforcé :</strong> Stockage chiffré AES-GCM par profil, temporisation persistante sur les erreurs de phrase secrète, effacement atomique de profil et isolation stricte des rappels réseau.</li>
+            <li><strong>Accès ambiant privé par défaut :</strong> Entièrement désactivé au départ. Le filtre de confidentialité bloque avant toute lecture les codes de vérification, gestionnaires de mots de passe, banques et notifications privées d’écran verrouillé.</li>
+            <li><strong>Notifications sans fuite :</strong> Firebase ou UnifiedPush auto-hébergé (ntfy + chiffrement RFC 8291) ne transmettent que des identifiants opaques ; vos messages restent sur votre serveur jusqu’au déverrouillage.</li>
+          </ul>
+        </section>
+
+        <section id="compilation" class="doc-section">
+          <h2>9. Compiler et vérifier localement</h2>
+          <div class="code-block"><code>python3 scripts/fast_check.py
+./gradlew :app:lintDebug :app:testDebugUnitTest :app:assembleDebug :app:assembleRelease
+./gradlew :app:connectedDebugAndroidTest</code></div>
+          <p>Consultez aussi le guide dédié sur GitHub : <a href="https://github.com/{{ repository }}/blob/main/docs/fr/README.md" rel="noopener">docs/fr/README.md</a>.</p>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer-inner">
+      <span>Hermes Mobile · Documentation française</span>
+      <div class="footer-links">
+        <a href="../">Aperçu</a>
+        <a href="../walkthrough/">Galerie</a>
+        <a href="../../en/docs/" data-lang-switch="en" hreflang="en" lang="en">English documentation</a>
+        <a href="https://github.com/{{ repository }}" rel="noopener">GitHub</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="../../assets/app.js" defer></script>
+</body>
+</html>

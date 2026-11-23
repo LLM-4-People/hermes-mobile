@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hermes Mobile — Private AI companion for Android 16</title>
+  <meta name="description" content="A fast, native Android client for your own Hermes agent server. Command palette, everyday templates, connection doctor, concurrent multi-run, encrypted profile vault, and signed GitHub Releases.">
+  <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
+  <link rel="canonical" href="{{ pages_url }}en/">
+  <link rel="alternate" hreflang="en" href="{{ pages_url }}en/">
+  <link rel="alternate" hreflang="fr" href="{{ pages_url }}fr/">
+  <link rel="alternate" hreflang="x-default" href="{{ pages_url }}en/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Hermes Mobile">
+  <meta property="og:title" content="Hermes Mobile — Private AI companion for Android 16">
+  <meta property="og:description" content="Native Android workspace (API {{ min_sdk }}–{{ target_sdk }}, zero WebView, {{ release_apk_size_en }} signed APK) with command palette, live connection doctor, concurrent multi-run, and isolated multi-user profiles.">
+  <meta property="og:url" content="{{ pages_url }}en/">
+  <meta property="og:image" content="{{ pages_url }}assets/marketing/social-preview-en.png">
+  <meta property="og:locale" content="en_US">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Hermes Mobile — Private AI companion for Android 16">
+  <meta name="twitter:description" content="Native Android companion for Hermes with concurrent multi-run, command palette, connection doctor, and signed APK releases.">
+  <meta name="twitter:image" content="{{ pages_url }}assets/marketing/social-preview-en.png">
+  <link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="./">
+        <img class="brand-mark" src="../assets/favicon.svg" alt="" width="30" height="30">
+        <span>Hermes Mobile</span>
+      </a>
+      <nav class="nav-links" aria-label="Primary navigation">
+        <a href="./" class="is-active">Overview</a>
+        <a href="./docs/">Docs</a>
+        <a href="./walkthrough/">Gallery</a>
+        <a href="https://github.com/{{ repository }}" rel="noopener">GitHub</a>
+      </nav>
+      <div class="nav-actions">
+        <a class="lang-link" href="../fr/" data-lang-switch="fr" hreflang="fr" lang="fr" aria-label="Switch to French portal">Français</a>
+        <button type="button" class="pill-btn" data-theme-toggle aria-pressed="false">☾ Dark</button>
+        <a class="btn btn-primary" data-latest-apk href="https://github.com/{{ repository }}/releases/latest" rel="noopener">Download APK</a>
+      </div>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="hero">
+      <div class="container hero-grid">
+        <div>
+          <span class="eyebrow">Android 16 native · Zero WebView · {{ release_apk_size_en }} signed APK</span>
+          <h1>A calm, private paper workspace for your own Hermes agent.</h1>
+          <p class="lead">Chat, review visual code diffs, launch parallel tasks across discussions, and shape your workspace on phone or tablet—backed by your own multi-user Hermes server with zero telemetry and fail-closed security.</p>
+          <div class="hero-cta">
+            <a class="btn btn-primary" data-latest-apk href="https://github.com/{{ repository }}/releases/latest" rel="noopener">Download signed APK</a>
+            <a class="btn btn-secondary" href="./docs/">Read documentation</a>
+            <a class="btn btn-secondary" href="./walkthrough/">View live captures</a>
+          </div>
+          <p class="hero-note">Requires our companion server fork at <a href="{{ fork_url }}" rel="noopener">LLM-4-People/hermes-agent</a> for <code>/p/&lt;profile&gt;</code> multi-user routing, concurrent tasks, live UI patches, brain studio, and zero-leak push.</p>
+        </div>
+
+        <figure class="editorial-figure">
+          <img src="../assets/marketing/hero-studio.png" alt="Hermes Mobile on a modern matte black Android flagship smartphone resting on warm walnut wood and honed travertine stone in crisp morning window light">
+          <figcaption>Native Android views tuned for warm day and deep night readability (WCAG-AA 4.5:1), 150% font scale, TalkBack, and dual-pane tablets.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container">
+        <div class="facts-grid">
+          <div class="fact-card">
+            <strong>{{ release_apk_size_en }}</strong>
+            <span>Signed release APK size (-19% footprint with R8 &amp; resource shrinking)</span>
+          </div>
+          <div class="fact-card">
+            <strong>{{ expected_fork_capabilities }} / {{ expected_fork_capabilities }}</strong>
+            <span>Companion fork capabilities checked live in Connection Doctor</span>
+          </div>
+          <div class="fact-card">
+            <strong>Multi-Run</strong>
+            <span>Run parallel tasks per user and isolated profiles on one HTTPS host</span>
+          </div>
+          <div class="fact-card">
+            <strong>0 WebView</strong>
+            <span>Pure native Java views, AES-GCM vault, Class-3 Biometrics &amp; backoff</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-alt">
+      <div class="container">
+        <div class="section-head">
+          <span class="eyebrow">Real device captures</span>
+          <h2>Inspect the live Android interface</h2>
+          <p>Switch between verified phone and tablet captures rendered directly by Hermes Mobile.</p>
+        </div>
+
+        <div class="showcase-shell">
+          <div class="showcase-tabs" role="tablist" aria-label="Device screens">
+            <button type="button" class="showcase-tab" role="tab" aria-selected="true"
+              data-src="../assets/screens/phone-transcript.png" data-kind="phone" data-badge="Phone"
+              data-title="Focused conversation transcript"
+              data-desc="Readable warm-paper typography, selectable code blocks, instant paging, and an editable draft composer.">
+              Transcript
+            </button>
+            <button type="button" class="showcase-tab" role="tab" aria-selected="false"
+              data-src="../assets/screens/phone-approval.png" data-kind="phone" data-badge="Phone"
+              data-title="Visual action approval"
+              data-desc="Inspect proposed commands or hunk-level diffs clearly before tapping Allow once or Deny.">
+              Approval
+            </button>
+            <button type="button" class="showcase-tab" role="tab" aria-selected="false"
+              data-src="../assets/screens/phone-photo-draft.png" data-kind="phone" data-badge="Phone"
+              data-title="Photo staged in editable draft"
+              data-desc="Photos are stripped of EXIF and GPS metadata and staged with your question before you tap send.">
+              Photo draft
+            </button>
+            <button type="button" class="showcase-tab" role="tab" aria-selected="false"
+              data-src="../assets/screens/phone-clarify.png" data-kind="phone" data-badge="Phone"
+              data-title="Structured clarification prompt"
+              data-desc="Answer follow-up questions with single tap choices, checkboxes, or voice dictation without leaving the thread.">
+              Clarification
+            </button>
+            <button type="button" class="showcase-tab" role="tab" aria-selected="false"
+              data-src="../assets/screens/tablet-dual-pane.png" data-kind="tablet" data-badge="Tablet"
+              data-title="Tablet dual-pane &amp; 92 dp rail"
+              data-desc="Adaptive tablet shell pairs a 92 dp navigation rail with a collapsible discussion sidebar and full transcript.">
+              Tablet dual-pane
+            </button>
+            <button type="button" class="showcase-tab" role="tab" aria-selected="false"
+              data-src="../assets/screens/tablet-live-tool.png" data-kind="tablet" data-badge="Tablet"
+              data-title="Side-by-side pinned tool"
+              data-desc="Custom Hermes-authored forms and tools share width cleanly beside the active conversation.">
+              Live tool
+            </button>
+          </div>
+
+          <div class="stage-wrap">
+            <div id="showcase-frame" class="device-frame is-phone">
+              <img id="showcase-img" src="../assets/screens/phone-transcript.png" alt="Focused conversation transcript">
+            </div>
+            <div class="stage-meta">
+              <span id="showcase-badge" class="badge">Phone</span>
+              <h3 id="showcase-title">Focused conversation transcript</h3>
+              <p id="showcase-desc">Readable warm-paper typography, selectable code blocks, instant paging, and an editable draft composer.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container">
+        <div class="section-head">
+          <span class="eyebrow">Built for speed, control, and scale</span>
+          <h2>Everything included in the current release</h2>
+          <p>Designed to feel simple for everyday tasks while giving power users and multi-user households complete control.</p>
+        </div>
+
+        <div class="pillars-grid">
+          <article class="pillar-card">
+            <h3>Global command palette (Ctrl+K)</h3>
+            <p>Jump straight to any screen, recent thread, or reusable template with accent-insensitive fuzzy filtering and hardware keyboard <code>Ctrl+K</code> / <code>Cmd+K</code> support inside a <code>FLAG_SECURE</code> overlay.</p>
+          </article>
+          <article class="pillar-card">
+            <h3>Everyday workflows and encrypted templates</h3>
+            <p>Start faster with 6 curated workflows (summarize receipts, draft polite replies, plan your day, review code, compare nearby places, create widgets) plus custom per-profile templates stored in your encrypted local vault—always staged as editable drafts.</p>
+          </article>
+          <article class="pillar-card">
+            <h3>Live connection doctor</h3>
+            <p>Runs 6 parallel non-blocking health checks (server latency, <code>{{ expected_fork_capabilities }}/{{ expected_fork_capabilities }}</code> companion capabilities with upstream detection, push, app updates, ambient permissions, and language sync) with 1-tap fixes and a strictly redacted safe report copy.</p>
+          </article>
+          <article class="pillar-card">
+            <h3>Concurrent multi-run and multi-user isolation</h3>
+            <p>Start parallel runs across multiple discussions for one user without canceling active streams or mixing deltas, while hosting isolated users under one HTTPS domain (<code>/p/&lt;profile&gt;</code>).</p>
+          </article>
+          <article class="pillar-card">
+            <h3>Instant infinite chats and smooth streaming</h3>
+            <p>Switch threads instantly with lazy history paging, frame-budgeted stream coalescing (0 ms first-token latency), zero-allocation custom views, and automatic bitmap/cache eviction under memory pressure or lock.</p>
+          </article>
+          <article class="pillar-card">
+            <h3>Hardened vault and passphrase backoff</h3>
+            <p>Per-profile AES-GCM encrypted storage, persisted unlock backoff against brute-force attempts, Class-3 biometric vault, atomic profile deletion, and Android 16 live update notifications showing active task counts.</p>
+          </article>
+          <article class="pillar-card">
+            <h3>Brain studio and 7-kind same-server sharing</h3>
+            <p>Edit memory, manage smart notes, review pattern-gated habit suggestions, search full history via FTS5, browse workspace files and Git diffs, and share notes, skills, surfaces, widgets, tools, artifacts, and threads with other profiles on the same server.</p>
+          </article>
+          <article class="pillar-card">
+            <h3>Live UI modding and verified auto-updates</h3>
+            <p>Tailor screens and pin profile-scoped home screen widgets with atomic rollback, and update directly from GitHub Releases with fail-closed SHA-256 and signing-certificate checks.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-alt">
+      <div class="container arch-split">
+        <div>
+          <span class="eyebrow">Privacy and continuity architecture</span>
+          <h2>Isolated local vaults, parallel flows, unbroken threads.</h2>
+          <p>Every unlocked profile keeps its own encrypted storage, active-run tracker, notification allowlist, and widget ownership. Locking or switching profiles immediately clears decoded caches, dismisses dialogs, and fences late callbacks so zero data ever crosses between users.</p>
+          <p>Closed-app notifications over Firebase or self-hosted UnifiedPush (ntfy + RFC 8291 Web Push) carry only opaque routing metadata—private message bodies stay on your gateway until you unlock the owning profile.</p>
+          <div class="hero-cta">
+            <a class="btn btn-primary" href="./docs/#security">Explore security model</a>
+            <a class="btn btn-secondary" href="./docs/#multi-profile">Single-host setup</a>
+          </div>
+        </div>
+        <figure class="editorial-figure">
+          <img src="../assets/marketing/privacy-architecture.png" alt="Editorial architectural illustration showing three interlocking private vaults connected by clean parallel pathways into a serene central courtyard">
+          <figcaption>Three isolated profile chambers, parallel concurrent streams, and continuous thread history—zero shared secrets across profiles.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container">
+        <div class="section-head">
+          <span class="eyebrow">Android 16 verified captures</span>
+          <h2>Everyday control and diagnostics</h2>
+          <p>Real Android 16 (API 36) phone screenshots captured in English across the command palette, everyday workflows, connection doctor, and presence and appearance controls.</p>
+        </div>
+        <figure class="editorial-figure" style="margin-bottom:2rem;">
+          <img src="../assets/marketing/dual-theme-showcase-en.png" alt="Light and dark themes of Hermes Mobile side by side on Android 16: connection doctor, everyday workflows, command palette, and presence and appearance controls">
+          <figcaption>Real Android 16 (1080×2340) light and dark captures side by side: warm stone paper for daytime focus and deep emerald obsidian for low-light comfort.</figcaption>
+        </figure>
+        <div class="gallery-grid">
+          <article class="capture-card" data-category="phone">
+            <div class="capture-media">
+              <img src="../assets/screens/en/command-palette.png" alt="Global command palette quick jump overlay in English showing searchable actions, recent threads, and templates">
+            </div>
+            <div class="capture-body">
+              <span class="badge">Android 16 · EN</span>
+              <h3>Global command palette (Ctrl+K)</h3>
+              <p>Instant accent-insensitive jump across actions, recent threads, and encrypted templates.</p>
+            </div>
+          </article>
+          <article class="capture-card" data-category="phone">
+            <div class="capture-media">
+              <img src="../assets/screens/en/templates.png" alt="Everyday workflows panel in English with curated starters and custom templates staging editable drafts">
+            </div>
+            <div class="capture-body">
+              <span class="badge">Android 16 · EN</span>
+              <h3>Everyday workflows and templates</h3>
+              <p>Curated everyday starters and encrypted custom templates staging editable drafts.</p>
+            </div>
+          </article>
+          <article class="capture-card" data-category="phone">
+            <div class="capture-media">
+              <img src="../assets/screens/en/connection-doctor.png" alt="Live connection doctor panel in English showing healthy 51 of 51 companion capabilities and 28 ms latency">
+            </div>
+            <div class="capture-body">
+              <span class="badge">Android 16 · EN</span>
+              <h3>Live connection doctor</h3>
+              <p>Six parallel status cards, {{ expected_fork_capabilities }}/{{ expected_fork_capabilities }} companion check, 1-tap fixes, and safe redacted report.</p>
+            </div>
+          </article>
+          <article class="capture-card" data-category="phone">
+            <div class="capture-media">
+              <img src="../assets/screens/en/presence-control.png" alt="Presence and appearance control panel in English with all optional sharing switches off by default">
+            </div>
+            <div class="capture-body">
+              <span class="badge">Android 16 · EN</span>
+              <h3>Presence and live appearance</h3>
+              <p>Fail-closed opt-in presence switches, 1-tap turn everything off, and instant WCAG-AA palettes.</p>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer-inner">
+      <span>Hermes Mobile · Open Source · Paper &amp; Deep Teal Design System</span>
+      <div class="footer-links">
+        <a href="./docs/">Documentation</a>
+        <a href="./walkthrough/">Gallery</a>
+        <a href="../fr/" data-lang-switch="fr" hreflang="fr" lang="fr">Version française</a>
+        <a href="https://github.com/{{ repository }}" rel="noopener">GitHub</a>
+        <a href="{{ fork_url }}" rel="noopener">Companion Server</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="../assets/app.js" defer></script>
+</body>
+</html>

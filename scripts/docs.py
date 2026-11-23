@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render the repository's Markdown from its declared sources and shared facts."""
+"""Render repository Markdown and GitHub Pages HTML from declared sources and live code facts."""
 
 import argparse
 import json
@@ -11,6 +11,82 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = Path("docs/sources")
 TOKEN = re.compile(r"{{\s*([a-z][a-z0-9_]*)\s*}}")
+ANDROID_RELEASE_BY_API = {
+    28: "9",
+    29: "10",
+    30: "11",
+    31: "12",
+    32: "12L",
+    33: "13",
+    34: "14",
+    35: "15",
+    36: "16",
+}
+
+
+def live_facts(root):
+    """Derive live factual tokens directly from repository code so docs never drift."""
+    derived = {}
+    gradle_props = root / "gradle.properties"
+    if gradle_props.is_file():
+        props = {}
+        for line in gradle_props.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            props[key.strip()] = value.strip()
+        if "hermesMinSdk" in props:
+            derived["min_sdk"] = props["hermesMinSdk"]
+            if props["hermesMinSdk"].isdigit():
+                derived["min_android"] = ANDROID_RELEASE_BY_API.get(
+                    int(props["hermesMinSdk"]), props["hermesMinSdk"]
+                )
+        if "hermesTargetSdk" in props:
+            derived["target_sdk"] = props["hermesTargetSdk"]
+            if props["hermesTargetSdk"].isdigit():
+                derived["target_android"] = ANDROID_RELEASE_BY_API.get(
+                    int(props["hermesTargetSdk"]), props["hermesTargetSdk"]
+                )
+        if "hermesCompileSdk" in props:
+            derived["compile_sdk"] = props["hermesCompileSdk"]
+        if "hermesBuildTools" in props:
+            derived["build_tools"] = props["hermesBuildTools"]
+        if "hermesVersionName" in props:
+            derived["version_name"] = props["hermesVersionName"]
+
+    fixture = root / "verification/gateway_fixture.py"
+    if fixture.is_file():
+        m = re.search(
+            r'^PINNED_REVISION\s*=\s*"([0-9a-f]{40})"',
+            fixture.read_text(encoding="utf-8"),
+            re.MULTILINE,
+        )
+        if m:
+            derived["pinned_revision"] = m.group(1)
+            derived["pinned_revision_short"] = m.group(1)[:8]
+
+    doctor_check = root / "app/src/main/java/org/llm4people/hermes/doctor/DoctorCheck.java"
+    if doctor_check.is_file():
+        m = re.search(
+            r"EXPECTED_FORK_CAPABILITIES\s*=\s*(\d+)",
+            doctor_check.read_text(encoding="utf-8"),
+        )
+        if m:
+            derived["expected_fork_capabilities"] = m.group(1)
+
+    templates_xml = root / "app/src/main/res/values/templates_strings.xml"
+    if templates_xml.is_file():
+        count = len(
+            re.findall(
+                r'<string\s+name="tpl_[a-z0-9_]+_title">',
+                templates_xml.read_text(encoding="utf-8"),
+            )
+        )
+        if count > 0:
+            derived["curated_workflows_count"] = str(count)
+
+    return derived
 
 
 def public_markdown(root):
@@ -25,15 +101,39 @@ def public_markdown(root):
     }
 
 
+def public_localized_site_html(root):
+    listing = subprocess.check_output(
+        ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+        cwd=root,
+    )
+    result = set()
+    for item in listing.split(b"\0"):
+        if not item:
+            continue
+        rel = Path(item.decode())
+        if rel.suffix.lower() == ".html" and len(rel.parts) >= 3 and rel.parts[0] == "site" and rel.parts[1] in ("en", "fr"):
+            result.add(rel)
+    return result
+
+
 def render(root, check):
     sources = root / SOURCE
     facts = json.loads((sources / "facts.json").read_text(encoding="utf-8"))
-    outputs = set()
+    facts.update(live_facts(root))
+    md_outputs = set()
+    html_outputs = set()
     problems = []
-    for template in sorted(sources.rglob("*.md.in")):
+
+    templates = sorted(
+        list(sources.rglob("*.md.in")) + list(sources.rglob("*.html.in"))
+    )
+    for template in templates:
         target = template.relative_to(sources).with_suffix("")
         path = root / target
-        outputs.add(target)
+        if target.suffix.lower() == ".md":
+            md_outputs.add(target)
+        elif target.suffix.lower() == ".html":
+            html_outputs.add(target)
         if template.is_symlink() or path.resolve() != path:
             problems.append(f"{target}: documentation paths must be regular files")
             continue
@@ -55,14 +155,20 @@ def render(root, check):
         else:
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(generated.encode())
-    for unmanaged in sorted(public_markdown(root) - outputs):
+
+    for unmanaged in sorted(public_markdown(root) - md_outputs):
         problems.append(f"{unmanaged}: needs source {SOURCE / unmanaged}.in")
+    if (sources / "site").is_dir():
+        for unmanaged in sorted(public_localized_site_html(root) - html_outputs):
+            problems.append(f"{unmanaged}: needs source {SOURCE / unmanaged}.in")
     return problems
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--check", action="store_true", help="report drift without writing")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--check", action="store_true", help="report drift without writing")
+    mode.add_argument("--write", action="store_true", help="render outputs in place (default)")
     args = parser.parse_args()
     problems = render(ROOT, args.check)
     for problem in problems:

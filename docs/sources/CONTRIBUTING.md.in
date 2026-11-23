@@ -5,10 +5,10 @@ Thank you for contributing to {{ project }}. Every change should keep the app na
 ## Prerequisites
 
 - **JDK 21**
-- **Android SDK** with `compileSdk` and `buildToolsVersion` matching `gradle.properties` (currently API 36 / Build Tools 36.0.0)
+- **Android SDK** with `compileSdk` and `buildToolsVersion` matching `gradle.properties` (currently API {{ compile_sdk }} / Build Tools {{ build_tools }})
 - **Python 3.11+** (`uv` recommended for fast isolated server test environments)
 - Optional for workflow linting: **Go** (for `actionlint`) and **shellcheck**
-- Companion server checkout from **[{{ fork_repository }}]({{ fork_url }})** at the revision pinned in `verification/gateway_fixture.py` when running live gateway journeys
+- Companion server checkout from **[{{ fork_repository }}]({{ fork_url }})** at the revision pinned in `verification/gateway_fixture.py` (`{{ pinned_revision_short }}`) when running live gateway journeys
 
 ## Architecture and coding standards
 

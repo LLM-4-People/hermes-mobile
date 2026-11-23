@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hermes Mobile — Compagnon IA privé pour Android 16</title>
+  <meta name="description" content="Client Android natif pour votre propre serveur Hermes : palette de commandes rapide, modèles quotidiens, diagnostic de connexion, tâches simultanées, coffre chiffré et versions signées sur GitHub.">
+  <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
+  <link rel="canonical" href="{{ pages_url }}fr/">
+  <link rel="alternate" hreflang="fr" href="{{ pages_url }}fr/">
+  <link rel="alternate" hreflang="en" href="{{ pages_url }}en/">
+  <link rel="alternate" hreflang="x-default" href="{{ pages_url }}en/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Hermes Mobile">
+  <meta property="og:title" content="Hermes Mobile — Compagnon IA privé pour Android 16">
+  <meta property="og:description" content="Espace de travail Android natif (API {{ min_sdk }} à {{ target_sdk }}, zéro WebView, APK signé d’environ {{ release_apk_size_fr }}) avec palette rapide, diagnostic en direct, tâches parallèles et profils multi-utilisateurs isolés.">
+  <meta property="og:url" content="{{ pages_url }}fr/">
+  <meta property="og:image" content="{{ pages_url }}assets/marketing/social-preview-fr.png">
+  <meta property="og:locale" content="fr_CA">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Hermes Mobile — Compagnon IA privé pour Android 16">
+  <meta name="twitter:description" content="Client Android natif pour Hermes avec tâches parallèles, palette rapide, diagnostic de connexion et versions APK signées.">
+  <meta name="twitter:image" content="{{ pages_url }}assets/marketing/social-preview-fr.png">
+  <link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Aller au contenu</a>
+
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="./">
+        <img class="brand-mark" src="../assets/favicon.svg" alt="" width="30" height="30">
+        <span>Hermes Mobile</span>
+      </a>
+      <nav class="nav-links" aria-label="Navigation principale">
+        <a href="./" class="is-active">Aperçu</a>
+        <a href="./docs/">Documentation</a>
+        <a href="./walkthrough/">Galerie</a>
+        <a href="https://github.com/{{ repository }}" rel="noopener">GitHub</a>
+      </nav>
+      <div class="nav-actions">
+        <a class="lang-link" href="../en/" data-lang-switch="en" hreflang="en" lang="en" aria-label="Passer au portail anglais">English</a>
+        <button type="button" class="pill-btn" data-theme-toggle aria-pressed="false">☾ Sombre</button>
+        <a class="btn btn-primary" data-latest-apk href="https://github.com/{{ repository }}/releases/latest" rel="noopener">Télécharger l’APK</a>
+      </div>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="hero">
+      <div class="container hero-grid">
+        <div>
+          <span class="eyebrow">Android 16 natif · Zéro WebView · APK signé ~{{ release_apk_size_fr }}</span>
+          <h1>Un espace papier calme et privé pour votre propre agent Hermes.</h1>
+          <p class="lead">Discutez, examinez des modifications de code, lancez plusieurs tâches en parallèle et façonnez votre espace sur téléphone ou tablette, relié à votre serveur Hermes multi-utilisateurs sans aucune télémétrie.</p>
+          <div class="hero-cta">
+            <a class="btn btn-primary" data-latest-apk href="https://github.com/{{ repository }}/releases/latest" rel="noopener">Télécharger l’APK signé</a>
+            <a class="btn btn-secondary" href="./docs/">Lire la documentation</a>
+            <a class="btn btn-secondary" href="./walkthrough/">Voir les écrans réels</a>
+          </div>
+          <p class="hero-note">Fonctionne avec notre serveur compagnon <a href="{{ fork_url }}" rel="noopener">LLM-4-People/hermes-agent</a> pour l’hébergement multi-profils <code>/p/&lt;profil&gt;</code>, les tâches simultanées, la personnalisation en direct, l’espace Cerveau et les alertes privées.</p>
+        </div>
+
+        <figure class="editorial-figure">
+          <img src="../assets/marketing/hero-studio.png" alt="Hermes Mobile sur un téléphone Android noir mat posé sur du noyer chaleureux et de la pierre claire dans une lumière matinale">
+          <figcaption>Vues Android natives calibrées pour le mode clair et le mode sombre (contraste WCAG-AA 4.5:1), police à 150 %, TalkBack et tablettes double volet.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container">
+        <div class="facts-grid">
+          <div class="fact-card">
+            <strong>~{{ release_apk_size_fr }}</strong>
+            <span>Taille de l’APK signé (-19 % grâce au compactage des ressources)</span>
+          </div>
+          <div class="fact-card">
+            <strong>{{ expected_fork_capabilities }} / {{ expected_fork_capabilities }}</strong>
+            <span>Capacités du serveur compagnon vérifiées en direct dans le diagnostic</span>
+          </div>
+          <div class="fact-card">
+            <strong>Parallèle</strong>
+            <span>Tâches simultanées par utilisateur et profils isolés sur un seul domaine HTTPS</span>
+          </div>
+          <div class="fact-card">
+            <strong>0 WebView</strong>
+            <span>Vues Java natives, coffre chiffré AES-GCM, biométrie forte et temporisation</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-alt">
+      <div class="container">
+        <div class="section-head">
+          <span class="eyebrow">Captures sur appareils réels</span>
+          <h2>Explorez l’interface Android en direct</h2>
+          <p>Parcourez des écrans authentiques capturés sur téléphone et tablette lors des vérifications automatisées.</p>
+        </div>
+
+        <div class="showcase-shell">
+          <div class="showcase-tabs" role="tablist" aria-label="Écrans de l’application">
+            <button type="button" class="showcase-tab" role="tab" aria-selected="true"
+              data-src="../assets/screens/phone-transcript.png" data-kind="phone" data-badge="Téléphone"
+              data-title="Fil de discussion lisible"
+              data-desc="Typographie papier claire, extraits de code sélectionnables, chargement fluide et zone de rédaction toujours à portée.">
+              Discussion
+            </button>
+            <button type="button" class="showcase-tab" role="tab" aria-selected="false"
+              data-src="../assets/screens/phone-approval.png" data-kind="phone" data-badge="Téléphone"
+              data-title="Validation visuelle d’action"
+              data-desc="Relisez la commande ou les écarts proposés avant de choisir Autoriser une fois ou Refuser.">
+              Validation
+            </button>
+            <button type="button" class="showcase-tab" role="tab" aria-selected="false"
+              data-src="../assets/screens/phone-photo-draft.png" data-kind="phone" data-badge="Téléphone"
+              data-title="Photo préparée en brouillon"
+              data-desc="Les métadonnées EXIF et GPS sont retirées automatiquement et l’image reste modifiable avant l’envoi.">
+              Brouillon photo
+            </button>
+            <button type="button" class="showcase-tab" role="tab" aria-selected="false"
+              data-src="../assets/screens/phone-clarify.png" data-kind="phone" data-badge="Téléphone"
+              data-title="Question de précision guidée"
+              data-desc="Répondez en un geste, cochez plusieurs options ou dictez une réponse sans quitter la conversation.">
+              Précision
+            </button>
+            <button type="button" class="showcase-tab" role="tab" aria-selected="false"
+              data-src="../assets/screens/tablet-dual-pane.png" data-kind="tablet" data-badge="Tablette"
+              data-title="Double volet et rail 92 dp"
+              data-desc="L’affichage tablette associe une barre latérale de 92 dp, une liste de discussions repliable et le fil actif.">
+              Tablette double volet
+            </button>
+            <button type="button" class="showcase-tab" role="tab" aria-selected="false"
+              data-src="../assets/screens/tablet-live-tool.png" data-kind="tablet" data-badge="Tablette"
+              data-title="Outil épinglé côte à côte"
+              data-desc="Les formulaires et outils créés par Hermes s’ouvrent côte à côte avec votre discussion.">
+              Outil en direct
+            </button>
+          </div>
+
+          <div class="stage-wrap">
+            <div id="showcase-frame" class="device-frame is-phone">
+              <img id="showcase-img" src="../assets/screens/phone-transcript.png" alt="Fil de discussion lisible">
+            </div>
+            <div class="stage-meta">
+              <span id="showcase-badge" class="badge">Téléphone</span>
+              <h3 id="showcase-title">Fil de discussion lisible</h3>
+              <p id="showcase-desc">Typographie papier claire, extraits de code sélectionnables, chargement fluide et zone de rédaction toujours à portée.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container">
+        <div class="section-head">
+          <span class="eyebrow">Vitesse, maîtrise et confidentialité</span>
+          <h2>Tout ce qu’offre la version actuelle</h2>
+          <p>Pensé pour rester simple au quotidien tout en offrant une architecture rigoureuse aux utilisateurs exigeants et aux foyers multi-profils.</p>
+        </div>
+
+        <div class="pillars-grid">
+          <article class="pillar-card">
+            <h3>Palette de commandes rapide (Ctrl+K)</h3>
+            <p>Accédez instantanément à n’importe quel écran, fil récent ou modèle grâce à une recherche tolérante aux accents et au raccourci clavier <code>Ctrl+K</code> dans une fenêtre protégée contre les captures.</p>
+          </article>
+          <article class="pillar-card">
+            <h3>Modèles quotidiens et modèles chiffrés</h3>
+            <p>Démarrez plus vite grâce à 6 modèles quotidiens (résumer une photo ou un reçu, rédiger une réponse, planifier sa journée, expliquer du code, comparer des lieux, créer un widget) ainsi que vos propres modèles chiffrés par profil, toujours placés en brouillon modifiable.</p>
+          </article>
+          <article class="pillar-card">
+            <h3>Diagnostic de connexion en direct</h3>
+            <p>Exécute 6 vérifications parallèles (latence serveur, <code>{{ expected_fork_capabilities }}/{{ expected_fork_capabilities }}</code> fonctions du serveur compagnon avec alerte serveur standard, notifications, mises à jour, accès ambiant et langue) avec boutons de correction et copie d’un rapport expurgé.</p>
+          </article>
+          <article class="pillar-card">
+            <h3>Tâches simultanées et isolation multi-utilisateurs</h3>
+            <p>Lancez plusieurs tâches en parallèle dans des discussions distinctes sans interrompre les flux en cours ni mélanger les réponses, sur un seul serveur HTTPS (<code>/p/&lt;profil&gt;</code>).</p>
+          </article>
+          <article class="pillar-card">
+            <h3>Discussions instantanées et performances</h3>
+            <p>Ouverture immédiate des fils avec chargement progressif de l’historique, regroupement fluide des réponses en continu, vues personnalisées sans surcharge mémoire et purge automatique des caches au verrouillage.</p>
+          </article>
+          <article class="pillar-card">
+            <h3>Coffre renforcé et temporisation persistante</h3>
+            <p>Chiffrement local AES-GCM par profil, temporisation persistante contre les essais répétés de phrase secrète, biométrie forte, effacement atomique et notifications en direct Android 16 indiquant le nombre de tâches actives.</p>
+          </article>
+          <article class="pillar-card">
+            <h3>Espace Cerveau et partage sur le serveur</h3>
+            <p>Modifiez la mémoire, gérez vos notes intelligentes, validez des habitudes détectées après 3 répétitions, recherchez dans tout l’historique via FTS5, parcourez vos fichiers et partagez 7 types d’éléments entre utilisateurs du même serveur.</p>
+          </article>
+          <article class="pillar-card">
+            <h3>Personnalisation en direct et mises à jour vérifiées</h3>
+            <p>Adaptez vos écrans et épinglez des widgets d’accueil isolés par profil avec annulation complète, et mettez l’application à jour depuis GitHub avec contrôle SHA-256 et vérification stricte du certificat.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-alt">
+      <div class="container arch-split">
+        <div>
+          <span class="eyebrow">Architecture de confidentialité et continuité</span>
+          <h2>Des coffres locaux isolés, des flux parallèles et des fils ininterrompus.</h2>
+          <p>Chaque profil déverrouillé possède son propre stockage chiffré, son suivi des tâches actives, sa liste blanche ambiante et ses widgets. Au verrouillage ou au changement de profil, les caches d’images, boîtes de dialogue et rappels tardifs sont immédiatement purgés afin qu’aucune donnée ne circule entre utilisateurs.</p>
+          <p>Les alertes reçues application fermée via Firebase ou UnifiedPush auto-hébergé (ntfy + chiffrement Web Push RFC 8291) ne transportent que des métadonnées opaques : le contenu privé reste sur votre serveur jusqu’au déverrouillage.</p>
+          <div class="hero-cta">
+            <a class="btn btn-primary" href="./docs/#securite">Découvrir le modèle de sécurité</a>
+            <a class="btn btn-secondary" href="./docs/#multi-profil">Déploiement sur un seul hôte</a>
+          </div>
+        </div>
+        <figure class="editorial-figure">
+          <img src="../assets/marketing/privacy-architecture.png" alt="Illustration architecturale de trois coffres privés reliés par des voies parallèles vers une cour centrale sereine">
+          <figcaption>Trois coffres de profils isolés, des flux parallèles non bloquants et un historique continu, sans aucun secret partagé.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container">
+        <div class="section-head">
+          <span class="eyebrow">Captures vérifiées sur Android 16</span>
+          <h2>Contrôle quotidien et diagnostic en direct</h2>
+          <p>Captures réelles prises en français sur Android 16 (API 36) : palette rapide, modèles quotidiens, diagnostic de connexion et présence &amp; apparence.</p>
+        </div>
+        <figure class="editorial-figure" style="margin-bottom:2rem;">
+          <img src="../assets/marketing/dual-theme-showcase-fr.png" alt="Thèmes clair et sombre de Hermes Mobile côte à côte sur Android 16 : diagnostic de connexion, modèles du quotidien, palette de commandes et présence et apparence">
+          <figcaption>Captures réelles Android 16 (1080×2340) en thèmes clair et sombre côte à côte : papier pierre chaude le jour et obsidienne émeraude la nuit.</figcaption>
+        </figure>
+        <div class="gallery-grid">
+          <article class="capture-card" data-category="phone">
+            <div class="capture-media">
+              <img src="../assets/screens/fr/command-palette.png" alt="Palette de commandes en français affichant les actions rapides, discussions récentes et modèles">
+            </div>
+            <div class="capture-body">
+              <span class="badge">Android 16 · FR</span>
+              <h3>Palette de commandes (Ctrl+K)</h3>
+              <p>Accès instantané aux actions, fils récents et modèles chiffrés avec recherche tolérante aux accents.</p>
+            </div>
+          </article>
+          <article class="capture-card" data-category="phone">
+            <div class="capture-media">
+              <img src="../assets/screens/fr/templates.png" alt="Panneau des modèles quotidiens en français ouvrant chaque modèle en brouillon modifiable">
+            </div>
+            <div class="capture-body">
+              <span class="badge">Android 16 · FR</span>
+              <h3>Modèles quotidiens</h3>
+              <p>Six modèles prêts à l’emploi et modèles personnalisés chiffrés, toujours ouverts en brouillon modifiable.</p>
+            </div>
+          </article>
+          <article class="capture-card" data-category="phone">
+            <div class="capture-media">
+              <img src="../assets/screens/fr/connection-doctor.png" alt="Diagnostic de connexion en français montrant 51 capacités sur 51 actives et une latence de 28 ms">
+            </div>
+            <div class="capture-body">
+              <span class="badge">Android 16 · FR</span>
+              <h3>Diagnostic de connexion</h3>
+              <p>Six cartes d’état parallèles, contrôle {{ expected_fork_capabilities }}/{{ expected_fork_capabilities }} du serveur compagnon, corrections directes et rapport expurgé.</p>
+            </div>
+          </article>
+          <article class="capture-card" data-category="phone">
+            <div class="capture-media">
+              <img src="../assets/screens/fr/presence-control.png" alt="Panneau présence et apparence en français avec tous les partages désactivés par défaut">
+            </div>
+            <div class="capture-body">
+              <span class="badge">Android 16 · FR</span>
+              <h3>Présence et apparence en direct</h3>
+              <p>Partages tous désactivés par défaut, arrêt complet en un geste et palettes WCAG-AA instantanées.</p>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer-inner">
+      <span>Hermes Mobile · Code ouvert · Système visuel papier et sarcelle</span>
+      <div class="footer-links">
+        <a href="./docs/">Documentation</a>
+        <a href="./walkthrough/">Galerie</a>
+        <a href="../en/" data-lang-switch="en" hreflang="en" lang="en">English version</a>
+        <a href="https://github.com/{{ repository }}" rel="noopener">GitHub</a>
+        <a href="{{ fork_url }}" rel="noopener">Serveur compagnon</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="../assets/app.js" defer></script>
+</body>
+</html>
