@@ -10,9 +10,15 @@
     <string name="onboarding_paste_clipboard_use">Use detected link</string>
     <string name="onboarding_paste_empty">Clipboard is empty or does not contain a valid link.</string>
     <string name="onboarding_paste_invalid">Link or code not recognized. Paste a valid pairing link or use manual setup.</string>
+    <string name="onboarding_paste_checking">Checking pairing link…</string>
     <string name="onboarding_paste_claiming">Pairing with your Hermes server…</string>
+    <string name="onboarding_paste_staged">Ready to connect to %1$s (%2$s). Choose a passphrase below, then save.</string>
     <string name="onboarding_paste_claimed">Connected to %1$s · profile “%2$s” ready</string>
     <string name="onboarding_paste_claim_failed">Could not claim this link. It may have expired or already been used.</string>
+    <string name="onboarding_default_profile_label">Default</string>
+    <string name="onboarding_key_paired_auto_hint">Paired automatically when you connect</string>
+    <string name="onboarding_pairing_probe_ok">Pairing link active · ready to connect (%1$d ms).</string>
+    <string name="onboarding_pairing_probe_legacy">Server reachable · pairing link will be claimed when you save.</string>
     <string name="onboarding_paste_confirm_title">Connect to this Hermes server?</string>
     <string name="onboarding_paste_confirm_body">Server: %1$s\nProfile: %2$s\nChoose a passphrase to encrypt this profile on this device.</string>
     <string name="onboarding_paste_confirm_action">Continue</string>

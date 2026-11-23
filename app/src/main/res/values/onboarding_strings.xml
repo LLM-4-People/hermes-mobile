@@ -10,9 +10,15 @@
     <string name="onboarding_paste_clipboard_use">Utiliser le lien détecté</string>
     <string name="onboarding_paste_empty">Le presse-papiers est vide ou ne contient pas de lien valide.</string>
     <string name="onboarding_paste_invalid">Lien ou code non reconnu. Collez un lien d’association valide ou utilisez la configuration manuelle.</string>
+    <string name="onboarding_paste_checking">Vérification du lien d’association…</string>
     <string name="onboarding_paste_claiming">Association avec votre serveur Hermes…</string>
+    <string name="onboarding_paste_staged">Prêt à connecter %1$s (%2$s). Choisissez une phrase secrète ci-dessous puis enregistrez.</string>
     <string name="onboarding_paste_claimed">Connecté à %1$s · profil « %2$s » prêt</string>
     <string name="onboarding_paste_claim_failed">Impossible d’utiliser ce lien. Il est peut-être expiré ou déjà utilisé.</string>
+    <string name="onboarding_default_profile_label">Par défaut</string>
+    <string name="onboarding_key_paired_auto_hint">Associée automatiquement à la connexion</string>
+    <string name="onboarding_pairing_probe_ok">Lien d’association actif · prêt à connecter (%1$d ms).</string>
+    <string name="onboarding_pairing_probe_legacy">Serveur joignable · le lien sera validé à l’enregistrement.</string>
     <string name="onboarding_paste_confirm_title">Associer ce serveur Hermes ?</string>
     <string name="onboarding_paste_confirm_body">Serveur : %1$s\nProfil : %2$s\nChoisissez une phrase secrète pour chiffrer ce profil sur cet appareil.</string>
     <string name="onboarding_paste_confirm_action">Continuer</string>
