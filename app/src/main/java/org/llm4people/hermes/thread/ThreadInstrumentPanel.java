@@ -40,6 +40,7 @@ final class ThreadInstrumentPanel {
     private final int generation;
     private final ArtifactDesk.Host actions;
     private final ThreadInstruments store;
+    private final ThreadPlaces places;
     final InstrumentViewport viewport;
     private final Map<String, List<Pin>> byMessage = new HashMap<>();
     private State state;
@@ -73,6 +74,7 @@ final class ThreadInstrumentPanel {
         generation = workspace.token();
         this.store = store;
         this.actions = actions;
+        places = new ThreadPlaces(workspace, actions, pin -> current() && (present(pin) || pin.sameSource(pinned())));
         viewport = screen.attachInstrumentViewport();
         viewport.onTranscriptVisibilityChanged(() -> { if (current()) workspace.host.pendingChanged(); });
         readState();
@@ -97,9 +99,21 @@ final class ThreadInstrumentPanel {
                 byMessage.computeIfAbsent(pin.messageId, ignored -> new ArrayList<>()).add(pin);
             }
         } catch (IllegalStateException unavailable) { readState(); }
+        places.reconcile();
         if (displayed != null && !displayed.sameSource(pinned()) && !present(displayed)) {
             close();
             discard();
+        }
+    }
+
+    void admittedGuide(String runId, JSONObject verifiedRow, JSONObject approvedArea) {
+        if (!current() || forRow(verifiedRow).isEmpty()) return;
+        // Reparse the admitted row and match its exact source bytes and segment to the current transcript.
+        List<Pin> verified;
+        try { verified = store.proposals(new JSONArray().put(verifiedRow)); }
+        catch (IllegalStateException unreadable) { readState(); return; }
+        for (Pin source : verified) {
+            if (source.nearbyPlaces && present(source)) { places.admitted(runId, source, approvedArea); return; }
         }
     }
 
@@ -143,6 +157,11 @@ final class ThreadInstrumentPanel {
     }
 
     void proposal(LinearLayout cell, Pin pin) {
+        if (pin.nearbyPlaces) {
+            cell.addView(places.view(pin, () -> current() && screen.list.isShown() && present(pin)));
+            action(cell, R.string.places_open_page, () -> { if (current() && present(pin)) show(pin, revision(pin)); });
+            return;
+        }
         LinearLayout body = Ui.column(activity);
         boolean selected = viewport.open() && pin.sameSource(displayed);
         body.setSelected(selected);
@@ -442,6 +461,9 @@ final class ThreadInstrumentPanel {
                 return current() && visibleForm == form && viewport.open() && viewport.isShown()
                         && (form.pin.sameSource(pinned()) || present(form.pin));
             }
+            @Override public View nearbyGuide() {
+                return form.pin.nearbyPlaces ? places.view(form.pin, this::active) : null;
+            }
             @Override public BooleanSupplier deviceActionOrigin() {
                 BooleanSupplier origin = actions.deviceActionOrigin();
                 return () -> active() && origin.getAsBoolean();
@@ -487,6 +509,7 @@ final class ThreadInstrumentPanel {
     }
 
     void retire() {
+        places.retire();
         dismissDocumentDialogs();
         if (menu != null) { menu.dismiss(); menu = null; }
         byMessage.clear();

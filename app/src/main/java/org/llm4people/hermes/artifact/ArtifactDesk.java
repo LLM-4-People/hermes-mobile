@@ -21,6 +21,8 @@ import java.util.function.BooleanSupplier;
 public final class ArtifactDesk {
     public interface Host {
         BooleanSupplier deviceActionOrigin();
+        /** Only a verified proposal in its originating discussion can mount a nearby guide. */
+        default View nearbyGuide() { return null; }
         void onAction(String actionId);
         void onLayoutChanged();
         void openWorkspace(String pageId);

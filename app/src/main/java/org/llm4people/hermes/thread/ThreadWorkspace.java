@@ -35,6 +35,7 @@ public final class ThreadWorkspace implements AutoCloseable {
         void selected(String sessionId, String title);
         void pendingChanged();
         default void noticeThread(boolean sameThread) {}
+        default void nearbyGuide(ThreadWorkspace origin, String threadId, String runId, JSONObject assistantRow, JSONObject area) {}
         JSONObject options(String sessionId);
         void timing(String sessionId, long firstTextMillis, long elapsedMillis, long outputTokens);
     }
@@ -49,6 +50,7 @@ public final class ThreadWorkspace implements AutoCloseable {
     private final FrameLayout container;
     ThreadViews screen;
     ThreadJournal journal;
+    final NearbyConsent nearby;
     private ThreadRun run;
     private ArtifactDesk.Host instrumentHost;
     private ThreadInstrumentPanel instruments;
@@ -93,10 +95,16 @@ public final class ThreadWorkspace implements AutoCloseable {
         this.account = account;
         this.host = host;
         container = new FrameLayout(activity);
+        nearby = new NearbyConsent(this, account);
     }
 
     public void setInstrumentHost(ArtifactDesk.Host actions) { instrumentHost = actions; }
     public boolean closeInstrument() { return instruments != null && instruments.close(); }
+
+    public void acceptNearbyGuide(String threadId, String runId, JSONObject assistantRow, JSONObject approvedArea) {
+        if (!closed && instruments != null && threadId != null && threadId.equals(session))
+            instruments.admittedGuide(runId, assistantRow, approvedArea);
+    }
 
     void refreshInstruments() {
         if (instruments != null) {
@@ -104,6 +112,14 @@ public final class ThreadWorkspace implements AutoCloseable {
             screen.refreshInstrumentRows();
         }
     }
+
+    public void editNearbyArea() { nearby.show(null); }
+    public void chooseGuideArea(BooleanSupplier current, Consumer<JSONObject> selected) { nearby.chooseGuide(current, selected); }
+    public boolean nearbyPermission(int code, String[] permissions, int[] results) {
+        return nearby.permissionResult(code, permissions, results);
+    }
+    public void pauseNearbyFix() { nearby.pauseFix(); }
+    boolean admitting() { return run != null && run.submitting(); }
 
     public View view() { return container; }
     public void dismissDialogs() { if (screen != null) screen.dismiss(); }
@@ -431,6 +447,7 @@ public final class ThreadWorkspace implements AutoCloseable {
             main.postDelayed(save, 300);
         }, run::send, run::stop, () -> loadMessages(true, null));
         refreshPhoto();
+        nearby.restore();
         if (instrumentHost != null) {
             instruments = new ThreadInstrumentPanel(this, new ThreadInstruments(account, id), instrumentHost);
             screen.instruments = instruments;
@@ -605,6 +622,7 @@ public final class ThreadWorkspace implements AutoCloseable {
     private volatile int transcriptRequest;
 
     public void onBackground() {
+        nearby.clearTurn();
         voice.reader().stop();
         if (!closed) {
             ++generation;

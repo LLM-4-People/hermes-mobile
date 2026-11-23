@@ -27,7 +27,9 @@ class AccountDeploymentTest(unittest.TestCase):
             self.assertNotIn("ports", gateway)
             self.assertNotIn("network_mode", gateway)
             self.assertEqual(["user-" + name], gateway["networks"])
-            home, seed, plugin = gateway["volumes"]
+            home, seed, nearby, plugin = gateway["volumes"]
+            self.assertEqual("/opt/data/plugins/mobile_nearby", nearby["target"])
+            self.assertTrue(nearby["read_only"] and (Path(nearby["source"]) / "plugin.yaml").is_file())
             self.assertNotIn("entrypoint", gateway)
             self.assertEqual("/etc/cont-init.d/00-mobile-account", seed["target"])
             self.assertTrue(seed["read_only"] and os.access(seed["source"], os.X_OK))

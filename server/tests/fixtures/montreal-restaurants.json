@@ -1,0 +1,171 @@
+{
+  "version": 0.6,
+  "generator": "Overpass API 0.7.62.11 87bfad18",
+  "osm3s": {
+    "timestamp_osm_base": "2026-11-22T07:27:46Z",
+    "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL."
+  },
+  "elements": [
+    {
+      "type": "node",
+      "id": 3812097910,
+      "lat": 45.5085397,
+      "lon": -73.5720223,
+      "tags": {
+        "addr:housenumber": "3424",
+        "addr:street": "Avenue du Parc",
+        "amenity": "restaurant",
+        "name": "Pullman Bar à Vin"
+      }
+    },
+    {
+      "type": "node",
+      "id": 3812097916,
+      "lat": 45.5089786,
+      "lon": -73.5729364,
+      "tags": {
+        "addr:housenumber": "3460A",
+        "addr:street": "Avenue du Parc",
+        "amenity": "restaurant",
+        "cuisine": "asian;japanese",
+        "name": "Resto Chillax"
+      }
+    },
+    {
+      "type": "node",
+      "id": 3812097917,
+      "lat": 45.5092442,
+      "lon": -73.5727432,
+      "tags": {
+        "addr:housenumber": "3460A",
+        "addr:street": "Avenue du Parc",
+        "amenity": "restaurant",
+        "cuisine": "italian_pizza;pasta;pizza",
+        "name": "Alto Restaurant",
+        "website": "https://altorestaurant.ca"
+      }
+    },
+    {
+      "type": "node",
+      "id": 6732094290,
+      "lat": 45.5104122,
+      "lon": -73.5726866,
+      "tags": {
+        "addr:housenumber": "224",
+        "addr:street": "Milton Street",
+        "amenity": "restaurant",
+        "cuisine": "asian",
+        "name": "Mae Sri Thai",
+        "website": "https://www.maesrithai.com/"
+      }
+    },
+    {
+      "type": "node",
+      "id": 11112929020,
+      "lat": 45.5107331,
+      "lon": -73.5672027,
+      "tags": {
+        "amenity": "restaurant",
+        "cuisine": "korean",
+        "name": "Omma"
+      }
+    },
+    {
+      "type": "node",
+      "id": 11280151110,
+      "lat": 45.5105406,
+      "lon": -73.5725473,
+      "tags": {
+        "amenity": "restaurant",
+        "cuisine": "sushi",
+        "name": "Yamu Yamu Sushi"
+      }
+    },
+    {
+      "type": "node",
+      "id": 11292417422,
+      "lat": 45.5087752,
+      "lon": -73.5724857,
+      "tags": {
+        "addr:housenumber": "3444",
+        "addr:street": "Avenue du Parc",
+        "amenity": "restaurant",
+        "cuisine": "sushi",
+        "name": "Ōma Sushi",
+        "website": "https://omasushi.ca/"
+      }
+    },
+    {
+      "type": "node",
+      "id": 11764443743,
+      "lat": 45.5088388,
+      "lon": -73.5726571,
+      "tags": {
+        "addr:housenumber": "3452",
+        "addr:street": "Avenue du Parc",
+        "amenity": "restaurant",
+        "cuisine": "lebanese",
+        "name": "Ô Four"
+      }
+    },
+    {
+      "type": "node",
+      "id": 11764443744,
+      "lat": 45.5088864,
+      "lon": -73.5727667,
+      "tags": {
+        "addr:housenumber": "3454",
+        "addr:street": "Avenue du Parc",
+        "amenity": "restaurant",
+        "cuisine": "lebanese",
+        "name": "Malak Al Tawouk"
+      }
+    },
+    {
+      "type": "node",
+      "id": 12194959181,
+      "lat": 45.5083743,
+      "lon": -73.5716569,
+      "tags": {
+        "amenity": "restaurant",
+        "cuisine": "italian",
+        "name": "Tiamo"
+      }
+    },
+    {
+      "type": "node",
+      "id": 12194959185,
+      "lat": 45.5093761,
+      "lon": -73.5731358,
+      "tags": {
+        "amenity": "restaurant",
+        "name": "Cacao 70"
+      }
+    },
+    {
+      "type": "node",
+      "id": 12194959186,
+      "lat": 45.5093528,
+      "lon": -73.5730767,
+      "tags": {
+        "amenity": "restaurant",
+        "name": "El Mida"
+      }
+    },
+    {
+      "type": "way",
+      "id": 207977352,
+      "center": {
+        "lat": 45.5088158,
+        "lon": -73.5515673
+      },
+      "tags": {
+        "addr:housenumber": "363",
+        "addr:street": "Rue De la Commune Est",
+        "amenity": "restaurant",
+        "cuisine": "french",
+        "name": "Le Cabaret du Roy"
+      }
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 package org.llm4people.hermes.thread;
 
 import android.app.Activity;
+import org.llm4people.hermes.profile.WorkspaceAccountFixture;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Rect;
@@ -173,7 +174,7 @@ public class ThreadSlotsTest extends InstrumentationTestCase {
         Context context = getInstrumentation().getTargetContext();
         Intent launch = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
         Activity activity = getInstrumentation().startActivitySync(launch);
-        try {
+        try (WorkspaceAccountFixture fixture = new WorkspaceAccountFixture(context)) {
             runTestOnUiThread(() -> {
                 ThreadViews view = new ThreadViews(activity);
                 AtomicInteger admissions = new AtomicInteger();
@@ -186,12 +187,12 @@ public class ThreadSlotsTest extends InstrumentationTestCase {
                     }
                     public void timing(String id, long first, long elapsed, long tokens) {}
                 };
-                ThreadWorkspace page = new ThreadWorkspace(activity, null, null, host, view.voice);
+                ThreadWorkspace page = new ThreadWorkspace(activity, null, fixture.account, host, view.voice);
                 page.screen = view;
-                page.journal = new ThreadJournal("discussion", "owner", null, ignored -> {});
+                page.journal = new ThreadJournal(fixture.account, "discussion");
                 try {
                     ThreadRun run = new ThreadRun(page);
-                    view.chat("", ignored -> {}, run::send, () -> {}, () -> {});
+                    view.chat("", page.journal::draft, run::send, () -> {}, () -> {});
                     activity.setContentView(view.root);
                     View send = find(view.root, "Envoyer");
                     for (String blank : new String[]{"", " ", "\u00a0", "\u202f", "\u200b\ufe0f"}) {

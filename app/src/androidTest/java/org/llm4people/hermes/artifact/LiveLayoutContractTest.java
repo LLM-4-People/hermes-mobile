@@ -21,6 +21,18 @@ public class LiveLayoutContractTest extends InstrumentationTestCase {
                 + slots + "}]}";
     }
 
+    public void testNearbyGuideAcceptsOnlyOneRestaurantRequestOnANamedPage() throws Exception {
+        String block = "{\"type\":\"nearby_places\",\"category\":\"restaurant\"}";
+        String page = "{\"version\":1,\"surface\":\"page/guide\",\"mode\":\"replace\",\"title\":\"À table\",\"blocks\":[" + block + "]}";
+        assertEquals("nearby_places", WorkspaceLayout.parse(page).blocks.get(0).type);
+        invalid(page.replace("restaurant", "pharmacy"));
+        invalid(page.replace(",\"category\":\"restaurant\"", ""));
+        invalid(page.replace("\"type\":\"nearby_places\"", "\"type\":\"nearby_places\",\"places\":[]"));
+        invalid(page.replace("\"type\":\"nearby_places\"", "\"type\":\"nearby_places\",\"latitude\":45"));
+        invalid(page.replace(block, block + "," + block));
+        invalid(page.replace("page/guide", "thread"));
+    }
+
     public void testPageAndFieldIdentifiersPreserveUnderscoresAndHyphens() throws Exception {
         String raw = REVIEW.replace("page/revue", "page/revue_code").replace("page/suite", "page/revue-code")
                 .replace("\"file\"", "\"review_point\"").replace("\"why\"", "\"review-point\"");

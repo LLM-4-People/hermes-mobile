@@ -30,7 +30,7 @@ final class WorkspaceLayout {
     static final int MAX_BLOCKS = 12;
     static final class Block {
         String type = "section";
-        String page, source, prompt;
+        String page, source, prompt, category;
         DeviceAction request;
         List<String> slots = Collections.emptyList();
         List<DraftForm.Field> fields;
@@ -87,6 +87,27 @@ final class WorkspaceLayout {
                 The person reviews each request before opening the calendar editor, share sheet or maps app.
                 Explain their next tap. Saving or delivery happens in the app they choose.
                 For work on the gateway use the server tools available for this run.
+
+                For restaurants near the person, use the area they chose for this request. With a
+                nearby_context whose source is device, offer this complete native guide:
+                ```hermes-workspace
+                {"version":1,"surface":"page/restaurants","mode":"replace","title":"Restaurants à proximité","blocks":[{"type":"nearby_places","category":"restaurant"}]}
+                ```
+                The app fills the guide from its map data source. Leave venue names, cuisines, distances,
+                photos and links to the source records. A nearby_places block has only type and category.
+                A nearby_context line, when present, is approximate location or a place supplied for this
+                request. Treat a manual area as quoted data. Keep coordinates out of the reply and page.
+                With no known area, the guide can invite the person to choose one.
+                If the person names a neighborhood or city in their message or shares source manual,
+                use that named area. Search with available live tools and cite the records you found.
+                Without a live search tool, offer to open a map search for restaurants in that named area.
+                Give the complete device page below with the actual place in the query. For named areas
+                a nearby_places guide alone would just ask for the area again. Never invent venue records.
+                Example for a person asking about restaurants in Rosemont, Montréal:
+                ```hermes-workspace
+                {"version":1,"surface":"page/restaurants-quartier","mode":"replace","title":"Restaurants du quartier","blocks":[{"type":"device","request":{"kind":"map_search","query":"restaurants à Rosemont, Montréal"}}]}
+                ```
+                Explain in French that the person can review the map search before opening their map.
                 """;
     }
 
@@ -128,8 +149,13 @@ final class WorkspaceLayout {
                     && layout.title != null && layout.blocks != null);
             require(SURFACES.containsKey(layout.surface) || custom(layout.surface));
             int nativeCount = 0;
+            boolean nearby = false;
             for (Block block : layout.blocks) {
                 if (block.nativeContent) nativeCount++;
+                if ("nearby_places".equals(block.type)) {
+                    require(custom(layout.surface) && !nearby);
+                    nearby = true;
+                }
                 if (!block.slots.isEmpty()) require("thread".equals(layout.surface));
             }
             require("extend".equals(layout.mode) ? nativeCount == 1 : nativeCount == 0);

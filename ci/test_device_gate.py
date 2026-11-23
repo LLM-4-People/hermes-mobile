@@ -45,6 +45,8 @@ if "resolve-activity" in sys.argv:
         print(os.environ.get("MAP_COMPONENT", "com.google.android.apps.maps/.MapsActivity"))
 if sys.argv[3:] == ["shell", "dumpsys", "connectivity"]:
     print("Active default network: none")
+if sys.argv[3:] == ["shell", "settings", "get", "global", "airplane_mode_on"]:
+    print(os.environ.get("AIRPLANE_MODE_ON", "1"))
 if sys.argv[1:] == ["get-serialno"]:
     print(os.environ.get("FIXTURE_ADB_SERIAL", "emulator-fixture"))
 if Path(sys.argv[0]).name == "dexdump":
@@ -62,6 +64,12 @@ if "verification.phone_actions" in sys.argv:
     for suffix in (".json", "-conversation.json", "-share_text.png", "-calendar_event.png", "-map_search.png"):
         if suffix != os.environ.get("MISSING_EVIDENCE"):
             (directory / ("phone-actions" + suffix)).write_bytes(b"recorded fixture")
+if "verification.nearby_restaurants" in sys.argv:
+    directory = Path(sys.argv[sys.argv.index("--output") + 1])
+    directory.mkdir(parents=True, exist_ok=True)
+    for filename in ("nearby.json", "guide.png", "comparison.png", "detail.png"):
+        if filename != os.environ.get("MISSING_NEARBY_EVIDENCE"):
+            (directory / filename).write_bytes(b"recorded fixture")
 """
 
 # Framework protocol for one discovered and executed test on the installed test APK.
@@ -84,7 +92,7 @@ class DeviceGateTest(unittest.TestCase):
         self.trace.touch()
         ci = self.root / "ci"
         ci.mkdir()
-        for name in ("native_tests.py", "phone-action-check.sh"):
+        for name in ("native_tests.py", "phone-action-check.sh", "nearby-device-check.sh"):
             shutil.copyfile(GATE.with_name(name), ci / name)
         apk = self.root / TEST_APK
         apk.parent.mkdir(parents=True)
@@ -225,3 +233,55 @@ class DeviceGateTest(unittest.TestCase):
                 self.assertFalse(any("clear" in cmd or cmd[0] == "python" for cmd in calls))
                 report = self.runner / "android-instrumentation/execution.txt"
                 self.assertEqual(report.read_text(), output)
+
+    def nearby_gate(self, **changes):
+        env = {**os.environ, "RUNNER_TEMP": str(self.runner), "GATE_COMMANDS": str(self.trace),
+               "ANDROID_BUILD_TOOLS": str(self.build_tools),
+               "PATH": str(self.root / "bin") + os.pathsep + os.environ["PATH"],
+               "FIXTURE_ADB_SERIAL": "emulator-nearby", **changes}
+        result = subprocess.run(["bash", GATE.with_name("nearby-device-check.sh")],
+                                cwd=self.root, env=env, text=True, capture_output=True)
+        return result, [json.loads(line) for line in self.trace.read_text().splitlines()]
+
+    def test_workflow_requires_a_fresh_third_emulator_for_nearby_restaurants(self):
+        workflow = (GATE.parents[1] / ".github/workflows/checks.yml").read_text()
+        job = workflow.split("\n  device:\n", 1)[1].split("\n  aosp:", 1)[0]
+        _, nearby = job.split("      - name: Verify Android foreground location and restaurant guide on a fresh emulator", 1)
+        nearby_step, rest = nearby.split("      - name:", 1)
+        self.assertIn("ReactiveCircus/android-emulator-runner@", nearby_step)
+        self.assertIn("target: google_apis", nearby_step)
+        self.assertIn("avd-name: hermes-nearby", nearby_step)
+        self.assertIn("force-avd-creation: true", nearby_step)
+        self.assertIn("script: bash ci/nearby-device-check.sh", nearby_step)
+        self.assertNotIn("if:", nearby_step)
+        self.assertNotIn("continue-on-error", nearby_step)
+        self.assertIn("name: android-nearby-restaurants", rest)
+        self.assertIn("${{ runner.temp }}/hermes-nearby/nearby.json", rest)
+
+    def test_nearby_gate_installs_verifies_offline_and_requires_all_evidence(self):
+        result, calls = self.nearby_gate()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        device = ["adb", "-s", "emulator-nearby"]
+        self.assertIn([*device, "install", "-r", "-t", APP_APK], calls)
+        self.assertIn([*device, "install", "-r", "-t", TEST_APK], calls)
+        self.assertIn([*device, "shell", "cmd", "connectivity", "airplane-mode", "enable"], calls)
+        self.assertIn([*device, "shell", "svc", "wifi", "disable"], calls)
+        self.assertIn([*device, "shell", "svc", "data", "disable"], calls)
+        self.assertGreaterEqual(calls.count([*device, "shell", "dumpsys", "connectivity"]), 2)
+        self.assertGreaterEqual(calls.count([*device, "shell", "settings", "get", "global", "airplane_mode_on"]), 2)
+        verifier = next(cmd for cmd in calls if cmd[0] == "python")
+        self.assertEqual(verifier[:4], ["python", "-B", "-m", "verification.nearby_restaurants"])
+        self.assertEqual(verifier[verifier.index("--verify-apks") + 1:verifier.index("--verify-apks") + 3], [APP_APK, TEST_APK])
+        self.assertEqual(verifier[verifier.index("--output") + 1], str(self.runner / "hermes-nearby"))
+
+    def test_nearby_gate_fails_on_missing_evidence_or_unexpected_map_resolver(self):
+        result, calls = self.nearby_gate(MISSING_NEARBY_EVIDENCE="comparison.png")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("Missing Android nearby evidence: comparison.png", result.stderr)
+        self.assertIn("verification.nearby_restaurants", calls[-1])
+
+        self.trace.write_text("")
+        result, calls = self.nearby_gate(MAP_COMPONENT="android/.ResolverActivity")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("com.google.android.apps.maps", result.stderr)
+        self.assertNotIn("verification.nearby_restaurants", [arg for cmd in calls for arg in cmd])

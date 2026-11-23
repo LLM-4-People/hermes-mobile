@@ -6,6 +6,7 @@ import android.provider.CalendarContract;
 import android.util.JsonReader;
 import android.util.JsonToken;
 import org.llm4people.hermes.VisibleText;
+import org.llm4people.hermes.places.NearbyResult;
 
 import java.io.IOException;
 import java.time.DateTimeException;
@@ -26,7 +27,8 @@ sealed interface DeviceAction {
     enum Kind {
         CALENDAR("Événement d’agenda", "Vérifier l’événement", "Ouvrir l’agenda"),
         SHARE("Texte à partager", "Vérifier le partage", "Choisir une application"),
-        MAP("Lieu à rechercher", "Vérifier le lieu", "Ouvrir la carte");
+        MAP("Lieu à rechercher", "Vérifier le lieu", "Ouvrir la carte"),
+        OSM("Fiche OpenStreetMap", "Vérifier la source", "Ouvrir OpenStreetMap");
 
         final String title, review, open;
         Kind(String title, String review, String open) { this.title = title; this.review = review; this.open = open; }
@@ -76,6 +78,18 @@ sealed interface DeviceAction {
         @Override public Intent target() {
             return new Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=" + Uri.encode(query)));
         }
+    }
+
+    record PlaceMap(NearbyResult.Place place) implements DeviceAction {
+        @Override public Kind kind() { return Kind.MAP; }
+        @Override public String preview() { return place.name + "\n\nCoordonnées du lieu · " + place.coordinates(); }
+        @Override public Intent target() { return new MapSearch(place.coordinates()).target(); }
+    }
+
+    record PlaceSource(NearbyResult.Place place) implements DeviceAction {
+        @Override public Kind kind() { return Kind.OSM; }
+        @Override public String preview() { return place.name + "\n\n" + place.sourceUrl; }
+        @Override public Intent target() { return new Intent(Intent.ACTION_VIEW, Uri.parse(place.sourceUrl)); }
     }
 
     static DeviceAction read(JsonReader in) throws IOException {

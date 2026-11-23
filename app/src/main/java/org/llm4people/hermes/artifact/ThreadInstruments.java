@@ -31,6 +31,7 @@ public final class ThreadInstruments {
     public static final class Pin {
         public final String pageId, title, pageJson, messageId;
         public final int fenceOrdinal, version;
+        public final boolean nearbyPlaces;
         private final ThreadInstruments owner;
         private final String sourceSession;
 
@@ -38,6 +39,7 @@ public final class ThreadInstruments {
                     String sourceSession, int fenceOrdinal, int version) {
             this.owner = owner;
             this.pageId = layout.surface;
+            this.nearbyPlaces = layout.blocks.stream().anyMatch(block -> "nearby_places".equals(block.type));
             this.title = layout.title;
             this.pageJson = pageJson;
             this.messageId = messageId;

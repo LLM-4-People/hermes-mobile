@@ -17,6 +17,16 @@ final class WorkspaceBlocks {
     static void add(LinearLayout parent, WorkspaceLayout layout, WorkspaceLayout.Block block,
                     Activity activity, ArtifactDesk.Host host) {
         Context c = parent.getContext();
+        if ("nearby_places".equals(block.type)) {
+            View guide = host == null ? null : host.nearbyGuide();
+            if (guide != null) parent.addView(guide);
+            else {
+                TextView unavailable = Ui.text(c, "Retrouvez le guide des restaurants dans la discussion d’origine.", 16);
+                Ui.pad(unavailable, 16, 12);
+                parent.addView(unavailable);
+            }
+            return;
+        }
         LinearLayout group = Ui.column(c);
         Ui.pad(group, 16, "compact".equals(layout.density) ? 5 : 12);
         if ("link".equals(block.type)) {

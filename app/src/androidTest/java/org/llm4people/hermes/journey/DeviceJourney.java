@@ -22,7 +22,7 @@ public final class DeviceJourney extends Instrumentation {
     private JSONObject fixture;
     private String primary;
     private String secondary;
-    private Activity resumed;
+    private volatile Activity resumed;
 
     private boolean instrumentViewport() {
         return "instrument".equals(phase) || "instrument-wide".equals(phase);
@@ -84,6 +84,11 @@ public final class DeviceJourney extends Instrumentation {
                 throw new AssertionError("Private workspace allows external screen capture");
             ui = new JourneyUi(this, activity, new File(dir, fixture.getString("run")));
             switch (phase) {
+                case "nearby-capture": {
+                    File folder = new File(dir, fixture.getString("run"));
+                    NearbyGuideCapture.observe(folder, () -> new JourneyUi(this, resumed, folder));
+                    break;
+                }
                 case "skills-draft": {
                     String owner = "Compétences " + fixture.getString("run");
                     profile(owner, "endpoint", "key", fixture.getString("phrase"));

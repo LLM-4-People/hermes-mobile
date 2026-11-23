@@ -72,6 +72,8 @@ def gateway(name, image, plugin):
             {"type": "bind", "source": str(Path(__file__).resolve().with_name("seed_account.py")),
              "target": "/etc/cont-init.d/00-mobile-account", "read_only": True,
              "bind": {"create_host_path": False}},
+            {"type": "bind", "source": str(SERVER / "nearby"), "target": "/opt/data/plugins/mobile_nearby",
+             "read_only": True, "bind": {"create_host_path": False}},
             {"type": "bind", "source": str(plugin), "target": "/opt/data/plugins/mobile_artifacts",
              "read_only": True, "bind": {"create_host_path": False}},
         ],

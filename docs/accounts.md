@@ -46,7 +46,7 @@ docker compose -f "$deployment/compose.json" ps
 
 Keep using the absolute `$deployment/compose.json` path for Compose commands. Compose resolves the account environment files and bind mounts relative to that file. Use `config --quiet` when validating the stack because the full configuration includes resolved secrets. [Compose file selection](https://docs.docker.com/reference/cli/docker/compose/#use--f-to-specify-the-name-and-path-of-one-or-more-compose-files)
 
-The gateway loads the shared read-only plugin code from `server/artifacts`. Before updating an existing deployment, record its current image reference and back up each home independently. Rerun the original renderer command with the reviewed image digest, every account and enabled push bridge, and any custom proxy image or local TLS options. Apply the generated stack with `docker compose -f "$deployment/compose.json" up -d`. After a route change, run `docker compose -f "$deployment/compose.json" up -d --no-deps --force-recreate https` so Caddy mounts the new file.
+The gateway mounts the shared read-only plugins from `server/artifacts` and `server/nearby`. For mapped restaurant guides, configure the account’s Overpass interpreter. [Nearby place data](nearby-places.md) Before updating an existing deployment, record its current image reference and back up each home independently. Rerun the original renderer command with the reviewed image digest, every account and enabled push bridge, and any custom proxy image or local TLS options. Apply the generated stack with `docker compose -f "$deployment/compose.json" up -d`. After a route change, run `docker compose -f "$deployment/compose.json" up -d --no-deps --force-recreate https` so Caddy mounts the new file.
 
 ## Enable closed-app notifications
 
