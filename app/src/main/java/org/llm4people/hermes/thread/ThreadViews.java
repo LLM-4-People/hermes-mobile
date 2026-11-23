@@ -125,14 +125,19 @@ public final class ThreadViews {
         Button newThread = Ui.button(activity, activity.getString(R.string.thread_new_conversation), v -> create.run());
         newThread.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
         newThread.setTextSize(16);
-        Ui.pad(newThread, 18, 4);
+        Ui.pad(newThread, 18, 10);
         newThread.setCompoundDrawablesRelativeWithIntrinsicBounds(0, 0, R.drawable.thread_new, 0);
+        newThread.setCompoundDrawableTintList(activity.getColorStateList(R.color.accent));
         LinearLayout actions = Ui.row(activity);
+        actions.setBackgroundColor(activity.getColor(R.color.surface));
         actions.setGravity(Gravity.CENTER_VERTICAL);
+        actions.setPaddingRelative(0, Ui.dp(activity, 2), Ui.dp(activity, 6), Ui.dp(activity, 2));
         newThread.setSingleLine(false);
         actions.addView(newThread, new LinearLayout.LayoutParams(0, -2, 1));
-        ImageButton reload = new ImageButton(activity, null, android.R.attr.borderlessButtonStyle);
+        ImageButton reload = new ImageButton(activity);
+        reload.setBackground(Ui.roundedRipple(activity, 24, null));
         reload.setImageResource(R.drawable.ic_skills_refresh);
+        reload.setImageTintList(activity.getColorStateList(R.color.ink));
         reload.setContentDescription(activity.getString(R.string.thread_refresh_discussions));
         reload.setTooltipText(reload.getContentDescription());
         reload.setOnClickListener(v -> refresh.run());
@@ -210,7 +215,7 @@ public final class ThreadViews {
         LinearLayout composer = Ui.row(activity);
         composer.setGravity(Gravity.BOTTOM);
         composer.setBaselineAligned(false);
-        Ui.pad(composer, 8, 4);
+        Ui.pad(composer, 10, 6);
         input = new EditText(activity);
         input.setSaveEnabled(false);
         input.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS);
@@ -224,8 +229,9 @@ public final class ThreadViews {
         input.setTextColor(activity.getColor(R.color.ink));
         input.setHintTextColor(activity.getColor(R.color.muted));
         input.setTextSize(17);
+        input.setLineSpacing(0f, 1.18f);
         input.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
-        input.setPaddingRelative(Ui.dp(activity, 10), Ui.dp(activity, 6), 0, Ui.dp(activity, 6));
+        input.setPaddingRelative(Ui.dp(activity, 16), Ui.dp(activity, 8), Ui.dp(activity, 4), Ui.dp(activity, 8));
         input.setHint(R.string.thread_message_hint);
         input.setText(draft);
         input.setSelection(input.length());
@@ -246,26 +252,31 @@ public final class ThreadViews {
         writing.setGravity(Gravity.BOTTOM);
         writing.setBaselineAligned(false);
         writing.setAddStatesFromChildren(true);
-        writing.setBackgroundResource(R.drawable.profile_input);
+        writing.setBackgroundResource(R.drawable.composer_capsule);
         writing.addView(input, new LinearLayout.LayoutParams(0, -2, 1));
         writing.addView(composerVoice.button);
         LinearLayout.LayoutParams writingSize = new LinearLayout.LayoutParams(0, -2, 1);
-        writingSize.setMarginEnd(Ui.dp(activity, 6));
+        writingSize.setMarginEnd(Ui.dp(activity, 8));
         composer.addView(writing, writingSize);
         for (Button action : new Button[]{send, stop}) {
             action.setMinWidth(Ui.dp(activity, 48));
             action.setMinimumWidth(Ui.dp(activity, 48));
-            Ui.pad(action, 10, 4);
+            action.setTextSize(15);
+            Ui.pad(action, 14, 4);
         }
         send.setBackgroundResource(R.drawable.thread_send);
         send.setBackgroundTintList(null);
         send.setTextColor(activity.getColorStateList(R.color.thread_send_ink));
+        stop.setBackground(Ui.roundedRipple(activity, 24,
+                Ui.shape(activity, 24, R.color.danger_surface, R.color.danger, 1)));
         stop.setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.thread_stop, 0, 0, 0);
-        stop.setCompoundDrawablePadding(Ui.dp(activity, 4));
-        stop.setTextColor(activity.getColor(R.color.ink));
+        stop.setCompoundDrawableTintList(activity.getColorStateList(R.color.danger));
+        stop.setCompoundDrawablePadding(Ui.dp(activity, 6));
+        stop.setTextColor(activity.getColor(R.color.danger));
         composer.addView(send);
         composer.addView(stop);
         composerSlot = Ui.column(activity);
+        composerSlot.setBackgroundColor(activity.getColor(R.color.surface));
         composerSlot.addView(Ui.divider(activity));
         photoSlot = Ui.row(activity);
         photoSlot.setGravity(Gravity.CENTER_VERTICAL);
@@ -588,10 +599,10 @@ public final class ThreadViews {
         Ui.pad(label, 8, 0);
         label.setMaxLines(2);
         label.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        label.setContentDescription("Image jointe : " + name);
+        label.setContentDescription(activity.getString(R.string.thread_photo_attached_cd, name));
         photoSlot.addView(label, new LinearLayout.LayoutParams(0, -2, 1));
         Button removeButton = Ui.button(activity, activity.getString(R.string.thread_remove), v -> remove.run());
-        removeButton.setContentDescription("Retirer l’image " + name);
+        removeButton.setContentDescription(activity.getString(R.string.thread_photo_remove_cd, name));
         photoSlot.addView(removeButton);
     }
 
@@ -778,12 +789,8 @@ public final class ThreadViews {
             this.context = context;
             this.openDialog = openDialog;
             root = Ui.column(context);
-            Ui.pad(root, 12, 6);
-            android.graphics.drawable.GradientDrawable border = new android.graphics.drawable.GradientDrawable();
-            border.setCornerRadius(Ui.dp(context, 10));
-            border.setColor(context.getColor(R.color.surface));
-            border.setStroke(Ui.dp(context, 1), context.getColor(R.color.line));
-            root.setBackground(border);
+            Ui.pad(root, 12, 8);
+            root.setBackground(Ui.shape(context, 14, R.color.surface, R.color.line, 1));
 
             contentBox = Ui.column(context);
             contentBox.setVisibility(View.GONE);
@@ -879,12 +886,17 @@ public final class ThreadViews {
         Cell(Context context) {
             super(context);
             setOrientation(VERTICAL);
-            Ui.pad(this, 18, transcript ? 9 : 12);
+            Ui.pad(this, 18, transcript ? 11 : 13);
             setMinimumHeight(Ui.dp(context, 48));
             heading = Ui.text(context, "", 13);
             body = Ui.text(context, "", 17);
-            if (!transcript) {
-                body.setPadding(0, Ui.dp(context, 2), 0, 0);
+            if (transcript) {
+                heading.setLetterSpacing(0.015f);
+                body.setLineSpacing(0f, 1.18f);
+                body.setPaddingRelative(0, Ui.dp(context, 3), 0, 0);
+            } else {
+                body.setPaddingRelative(0, Ui.dp(context, 3), 0, 0);
+                body.setLineSpacing(0f, 1.15f);
                 setAccessibilityDelegate(new View.AccessibilityDelegate() {
                     @Override public void onInitializeAccessibilityNodeInfo(View host, android.view.accessibility.AccessibilityNodeInfo info) {
                         super.onInitializeAccessibilityNodeInfo(host, info);
@@ -913,9 +925,9 @@ public final class ThreadViews {
             }
             String name = switch (role) {
                 case "user" -> getContext().getString(R.string.thread_you);
-                case "assistant" -> "Hermes";
-                case "prompt_status" -> "Suivi de la question";
-                case "approval_result" -> "Autorisation";
+                case "assistant" -> getContext().getString(R.string.thread_speaker_hermes);
+                case "prompt_status" -> getContext().getString(R.string.thread_role_prompt_status);
+                case "approval_result" -> getContext().getString(R.string.thread_role_approval_result);
                 default -> role;
             };
             List<Pin> proposals =
@@ -934,14 +946,15 @@ public final class ThreadViews {
                     if (names.length() > 0) names.append(", ");
                     names.append(tool);
                 }
-                content = names.length() == 0 ? "" : "Outils · " + names;
+                content = names.length() == 0 ? "" : getContext().getString(R.string.thread_tools_prefix, names.toString());
             }
             String label = chat ? name : ThreadData.title(row);
             if (!chat && label.equals(ThreadTitles.snippet(content))) content = "";
             heading.setText(label);
-            heading.setTextSize(chat ? 13 : 17);
+            heading.setTextSize(chat ? 13 : 16);
             heading.setMaxLines(chat ? 2 : 3);
-            heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+            heading.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL),
+                    chat ? Typeface.BOLD : Typeface.NORMAL);
             heading.setTextColor(getContext().getColor(chat && role.equals("assistant") ? R.color.accent : R.color.ink));
             body.setTextColor(getContext().getColor(chat ? R.color.ink : R.color.muted));
             body.setMaxLines(chat ? Integer.MAX_VALUE : 2);
@@ -991,18 +1004,19 @@ public final class ThreadViews {
             }
             if (chat && "approval_result".equals(role)) {
                 String details = ThreadData.string(row, "receipt_details");
-                addView(Ui.button(getContext(), "Voir les détails", v ->
-                        show(new AlertDialog.Builder(getContext()).setTitle("Détails de l’action")
+                addView(Ui.button(getContext(), getContext().getString(R.string.thread_see_details), v ->
+                        show(new AlertDialog.Builder(getContext())
+                                .setTitle(R.string.thread_action_details)
                                 .setView(MessageText.reader(getContext(), details, false, true))
-                                .setPositiveButton("Fermer", null))));
+                                .setPositiveButton(R.string.ws_close, null))));
             }
             if (chat && preview.hasMore()) {
                 String full = content;
-                addView(Ui.button(getContext(), "Lire le message entier", v ->
+                addView(Ui.button(getContext(), getContext().getString(R.string.thread_read_full_message), v ->
                         show(new AlertDialog.Builder(getContext()).setTitle(name)
                                 .setView(MessageText.reader(getContext(), full, markdown, false,
                                         new TranscriptPage.Cursor(), ThreadViews.this::show))
-                                .setPositiveButton("Fermer", null))));
+                                .setPositiveButton(R.string.ws_close, null))));
             }
             for (Pin proposal : proposals)
                 instruments.proposal(this, proposal);

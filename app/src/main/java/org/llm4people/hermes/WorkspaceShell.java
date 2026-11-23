@@ -1,9 +1,9 @@
 package org.llm4people.hermes;
 
 import android.app.Activity;
+import android.content.res.ColorStateList;
 import android.graphics.Typeface;
 import android.text.TextUtils;
-import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -28,8 +28,9 @@ import java.util.Objects;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
-/** Adaptive navigation frame shared by Discussions, Atelier, Cerveau, Activité and custom pages. */
+/** Adaptive Material 3 navigation frame shared by Discussions, Atelier, Brain, Activity and custom pages. */
 final class WorkspaceShell {
+    private static final Typeface MEDIUM = Typeface.create("sans-serif-medium", Typeface.NORMAL);
     final LinearLayout root;
     private final Activity activity;
     private final Consumer<String> action;
@@ -77,16 +78,19 @@ final class WorkspaceShell {
 
         contentPane = Ui.column(activity);
         header = Ui.row(activity);
-        Ui.pad(header, 6, 2);
+        header.setBackgroundColor(activity.getColor(R.color.surface));
+        header.setMinimumHeight(Ui.dp(activity, 56));
+        Ui.pad(header, 8, 4);
         leading = icon(R.drawable.ic_threads, activity.getString(R.string.ws_discussions));
         leading.setOnClickListener(v -> action.accept(
                 pageTitle != null ? "previous" : canTogglePanes ? "toggle_discussions" : "threads"));
         header.addView(leading);
         heading = Ui.text(activity, activity.getString(R.string.ws_discussions), 20);
-        heading.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        heading.setTypeface(MEDIUM);
+        heading.setLetterSpacing(-0.01f);
         heading.setMaxLines(2);
         heading.setEllipsize(TextUtils.TruncateAt.END);
-        Ui.pad(heading, 6, 2);
+        Ui.pad(heading, 8, 2);
         heading.setAccessibilityHeading(true);
         header.addView(heading, new LinearLayout.LayoutParams(0, -2, 1));
 
@@ -106,10 +110,14 @@ final class WorkspaceShell {
 
         contentPane.addView(header);
         contentPane.addView(Ui.divider(activity));
-        pending = Ui.button(activity, activity.getString(R.string.ws_reply_hermes), null);
+        pending = Ui.tonalButton(activity, activity.getString(R.string.ws_reply_hermes), null);
+        pending.setBackground(Ui.roundedRipple(activity, 0,
+                Ui.shape(activity, 0, R.color.accent_surface, 0, 0)));
+        pending.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+        Ui.pad(pending, 18, 10);
         pending.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         pending.setVisibility(View.GONE);
-        contentPane.addView(pending);
+        contentPane.addView(pending, new LinearLayout.LayoutParams(-1, -2));
         body = new FrameLayout(activity);
         contentPane.addView(body, new LinearLayout.LayoutParams(-1, 0, 1));
 
@@ -220,28 +228,28 @@ final class WorkspaceShell {
         ScrollView scroll = centeredScroll(list);
         subtitle(list, activity.getString(R.string.atelier_subtitle));
         if (threadTitle != null) {
-            section(list, threadTitle);
-            link(list, activity.getString(R.string.ws_resume_discussion), null, "return");
-            link(list, activity.getString(R.string.ws_artifacts), null, "artifacts");
-            link(list, activity.getString(R.string.brain_files_title), null, BrainStudioRoutes.ROUTE_WORKSPACE_FILES);
-            link(list, activity.getString(R.string.ws_model_and_tools), null, "models");
-            link(list, activity.getString(R.string.ws_usage), null, "stats");
+            LinearLayout currentGroup = sectionGroup(list, threadTitle);
+            link(currentGroup, activity.getString(R.string.ws_resume_discussion), null, "return");
+            link(currentGroup, activity.getString(R.string.ws_artifacts), null, "artifacts");
+            link(currentGroup, activity.getString(R.string.brain_files_title), null, BrainStudioRoutes.ROUTE_WORKSPACE_FILES);
+            link(currentGroup, activity.getString(R.string.ws_model_and_tools), null, "models");
+            link(currentGroup, activity.getString(R.string.ws_usage), null, "stats");
         }
-        section(list, activity.getString(R.string.ws_workspace));
-        link(list, activity.getString(R.string.templates_route_label),
+        LinearLayout wsGroup = sectionGroup(list, activity.getString(R.string.ws_workspace));
+        link(wsGroup, activity.getString(R.string.templates_route_label),
                 activity.getString(R.string.templates_route_hint), TemplatesPanel.ROUTE_ID);
-        link(list, activity.getString(R.string.palette_title),
+        link(wsGroup, activity.getString(R.string.palette_title),
                 activity.getString(R.string.palette_search_hint), "command_palette");
-        link(list, activity.getString(R.string.ws_my_screens), null, "pages");
-        link(list, activity.getString(R.string.ws_new_discussion), null, "new_thread");
-        link(list, activity.getString(R.string.ws_all_discussions), null, "threads");
-        link(list, activity.getString(R.string.widget_pin_action), null, "pin_widget");
-        link(list, activity.getString(R.string.ws_restore_desk), null, "restore");
-        section(list, accountName);
-        link(list, activity.getString(R.string.activity_security_title), null, "security");
-        link(list, activity.getString(R.string.ws_notifications), null, "notifications");
-        link(list, activity.getString(R.string.language_action), null, "language");
-        link(list, activity.getString(R.string.ws_lock_profile), null, "profiles");
+        link(wsGroup, activity.getString(R.string.ws_my_screens), null, "pages");
+        link(wsGroup, activity.getString(R.string.ws_new_discussion), null, "new_thread");
+        link(wsGroup, activity.getString(R.string.ws_all_discussions), null, "threads");
+        link(wsGroup, activity.getString(R.string.widget_pin_action), null, "pin_widget");
+        link(wsGroup, activity.getString(R.string.ws_restore_desk), null, "restore");
+        LinearLayout accountGroup = sectionGroup(list, accountName);
+        link(accountGroup, activity.getString(R.string.activity_security_title), null, "security");
+        link(accountGroup, activity.getString(R.string.ws_notifications), null, "notifications");
+        link(accountGroup, activity.getString(R.string.language_action), null, "language");
+        link(accountGroup, activity.getString(R.string.ws_lock_profile), null, "profiles");
         return scroll;
     }
 
@@ -249,29 +257,29 @@ final class WorkspaceShell {
         LinearLayout list = Ui.column(activity);
         ScrollView scroll = centeredScroll(list);
         subtitle(list, activity.getString(R.string.brain_subtitle));
-        section(list, activity.getString(R.string.nav_brain));
-        link(list, activity.getString(R.string.brain_open_all_title),
+        LinearLayout group = sectionGroup(list, activity.getString(R.string.nav_brain));
+        link(group, activity.getString(R.string.brain_open_all_title),
                 activity.getString(R.string.brain_open_all_hint), "brain");
-        link(list, activity.getString(R.string.brain_memory_title),
+        link(group, activity.getString(R.string.brain_memory_title),
                 activity.getString(R.string.brain_memory_card_hint), BrainStudioRoutes.ROUTE_MEMORY);
-        link(list, activity.getString(R.string.brain_notes_title),
+        link(group, activity.getString(R.string.brain_notes_title),
                 activity.getString(R.string.brain_notes_card_hint), BrainStudioRoutes.ROUTE_NOTES);
-        link(list, activity.getString(R.string.brain_shared_with_me_title),
+        link(group, activity.getString(R.string.brain_shared_with_me_title),
                 activity.getString(R.string.brain_shared_card_hint),
                 BrainStudioRoutes.ROUTE_SHARED_WITH_ME);
-        link(list, activity.getString(R.string.brain_search_title),
+        link(group, activity.getString(R.string.brain_search_title),
                 activity.getString(R.string.brain_search_card_hint), BrainStudioRoutes.ROUTE_SEARCH);
-        link(list, activity.getString(R.string.brain_skills_title),
+        link(group, activity.getString(R.string.brain_skills_title),
                 activity.getString(R.string.brain_skills_hint), BrainStudioRoutes.ROUTE_SKILLS);
-        link(list, activity.getString(R.string.brain_files_title),
+        link(group, activity.getString(R.string.brain_files_title),
                 activity.getString(R.string.brain_files_card_hint),
                 BrainStudioRoutes.ROUTE_WORKSPACE_FILES);
-        link(list, activity.getString(R.string.brain_profile_defaults_title),
+        link(group, activity.getString(R.string.brain_profile_defaults_title),
                 activity.getString(R.string.brain_profile_defaults_card_hint),
                 BrainStudioRoutes.ROUTE_PROFILE_DEFAULTS);
-        link(list, activity.getString(R.string.brain_models_title),
+        link(group, activity.getString(R.string.brain_models_title),
                 activity.getString(R.string.brain_models_hint), "models");
-        link(list, activity.getString(R.string.brain_create_tool_title),
+        link(group, activity.getString(R.string.brain_create_tool_title),
                 activity.getString(R.string.brain_create_tool_hint), "create_instrument");
         return scroll;
     }
@@ -292,29 +300,29 @@ final class WorkspaceShell {
             bannerLp.bottomMargin = Ui.dp(activity, 8);
             list.addView(notifBanner, bannerLp);
         }
-        section(list, activity.getString(R.string.nav_activity));
-        link(list, activity.getString(R.string.activity_reminders_title),
+        LinearLayout group = sectionGroup(list, activity.getString(R.string.nav_activity));
+        link(group, activity.getString(R.string.activity_reminders_title),
                 activity.getString(R.string.activity_reminders_hint), "reminders");
-        link(list, activity.getString(R.string.activity_deliveries_title),
+        link(group, activity.getString(R.string.activity_deliveries_title),
                 activity.getString(R.string.activity_deliveries_hint), "deliveries");
-        link(list, activity.getString(R.string.activity_notifications_title),
+        link(group, activity.getString(R.string.activity_notifications_title),
                 activity.getString(R.string.activity_notifications_hint), "notifications");
-        link(list, activity.getString(R.string.activity_push_policy_title),
+        link(group, activity.getString(R.string.activity_push_policy_title),
                 activity.getString(R.string.activity_push_policy_hint), "push_policy");
-        link(list, activity.getString(R.string.ambient_route_label),
+        link(group, activity.getString(R.string.ambient_route_label),
                 activity.getString(R.string.ambient_route_hint), AmbientAccessPanel.ROUTE_ID);
-        link(list, activity.getString(R.string.presence_route_label),
+        link(group, activity.getString(R.string.presence_route_label),
                 activity.getString(R.string.presence_route_hint), PresenceSettingsPanel.ROUTE_ID);
-        link(list, activity.getString(R.string.activity_usage_title),
+        link(group, activity.getString(R.string.activity_usage_title),
                 activity.getString(R.string.activity_usage_hint), "stats");
-        link(list, activity.getString(R.string.activity_security_title), securitySummary, "security");
-        link(list, activity.getString(R.string.perm_route_label),
+        link(group, activity.getString(R.string.activity_security_title), securitySummary, "security");
+        link(group, activity.getString(R.string.perm_route_label),
                 PermissionsPanel.summaryLine(activity), PermissionsPanel.ROUTE_ID);
-        link(list, activity.getString(R.string.doctor_route_label),
+        link(group, activity.getString(R.string.doctor_route_label),
                 activity.getString(R.string.doctor_route_hint), ConnectionDoctorPanel.ROUTE_ID);
         String updateHint = updateBadge != null && !updateBadge.isEmpty()
                 ? updateBadge : activity.getString(R.string.update_route_hint);
-        link(list, activity.getString(R.string.update_route_label), updateHint,
+        link(group, activity.getString(R.string.update_route_label), updateHint,
                 org.llm4people.hermes.update.UpdatePanel.ROUTE_ID);
         return scroll;
     }
@@ -325,14 +333,16 @@ final class WorkspaceShell {
                 float density = getResources().getDisplayMetrics().density;
                 int gutter = Ui.dp(activity, AdaptiveLayout.centeredGutterDp(
                         MeasureSpec.getSize(widthSpec) / density, AdaptiveLayout.READING_COLUMN_MAX_DP, 22));
-                int vertical = Ui.dp(activity, 14);
-                if (list.getPaddingStart() != gutter || list.getPaddingTop() != vertical) {
-                    list.setPaddingRelative(gutter, vertical, gutter, vertical);
+                int top = Ui.dp(activity, 14);
+                int bottom = Ui.dp(activity, 24);
+                if (list.getPaddingStart() != gutter || list.getPaddingTop() != top) {
+                    list.setPaddingRelative(gutter, top, gutter, bottom);
                 }
                 super.onMeasure(widthSpec, heightSpec);
             }
         };
         scroll.setFillViewport(true);
+        scroll.setClipToPadding(false);
         scroll.addView(list, new ScrollView.LayoutParams(-1, -2));
         return scroll;
     }
@@ -351,10 +361,9 @@ final class WorkspaceShell {
 
     private ImageButton icon(int resource, String name) {
         ImageButton view = new ImageButton(activity);
-        TypedValue ripple = new TypedValue();
-        activity.getTheme().resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, ripple, true);
-        view.setBackgroundResource(ripple.resourceId);
+        view.setBackground(Ui.roundedRipple(activity, 24, null));
         view.setImageResource(resource);
+        view.setImageTintList(ColorStateList.valueOf(activity.getColor(R.color.ink)));
         view.setContentDescription(name);
         view.setTooltipText(name);
         view.setLayoutParams(new LinearLayout.LayoutParams(Ui.dp(activity, 48), Ui.dp(activity, 48)));
@@ -419,27 +428,36 @@ final class WorkspaceShell {
     private void subtitle(LinearLayout list, String text) {
         TextView note = Ui.text(activity, text, 15);
         note.setTextColor(activity.getColor(R.color.muted));
-        note.setPaddingRelative(0, Ui.dp(activity, 4), 0, Ui.dp(activity, 8));
+        note.setLineSpacing(0f, 1.25f);
+        note.setPaddingRelative(0, Ui.dp(activity, 2), 0, Ui.dp(activity, 8));
         list.addView(note);
     }
 
-    private void section(LinearLayout list, String name) {
-        TextView section = Ui.text(activity, name, 24);
-        section.setTypeface(Typeface.SERIF);
-        section.setPaddingRelative(0, Ui.dp(activity, 18), 0, Ui.dp(activity, 10));
+    private LinearLayout sectionGroup(LinearLayout list, String name) {
+        TextView section = Ui.text(activity, name, 18);
+        section.setTypeface(MEDIUM);
+        section.setLetterSpacing(-0.01f);
+        section.setPaddingRelative(Ui.dp(activity, 4), Ui.dp(activity, 18), 0, Ui.dp(activity, 8));
         section.setAccessibilityHeading(true);
         list.addView(section);
+
+        LinearLayout group = Ui.column(activity);
+        group.setBackground(Ui.shape(activity, Ui.CARD_CORNER_DP, R.color.surface, R.color.line, 1));
+        group.setClipToOutline(true);
+        list.addView(group, new LinearLayout.LayoutParams(-1, -2));
+        return group;
     }
 
-    private void link(LinearLayout list, String label, String hint, String id) {
+    private void link(LinearLayout group, String label, String hint, String id) {
+        if (group.getChildCount() > 0) {
+            group.addView(Ui.insetDivider(activity, 16));
+        }
         LinearLayout row = Ui.row(activity);
-        row.setMinimumHeight(Ui.dp(activity, 53));
-        row.setPaddingRelative(0, Ui.dp(activity, 8), 0, Ui.dp(activity, 8));
+        row.setMinimumHeight(Ui.dp(activity, 56));
+        row.setPaddingRelative(Ui.dp(activity, 16), Ui.dp(activity, 12), Ui.dp(activity, 14), Ui.dp(activity, 12));
         row.setOnClickListener(v -> action.accept(id));
         row.setFocusable(true);
-        TypedValue ripple = new TypedValue();
-        activity.getTheme().resolveAttribute(android.R.attr.selectableItemBackground, ripple, true);
-        row.setBackgroundResource(ripple.resourceId);
+        row.setBackground(Ui.roundedRipple(activity, 0, null));
         row.setAccessibilityDelegate(new View.AccessibilityDelegate() {
             @Override public void onInitializeAccessibilityNodeInfo(View host, AccessibilityNodeInfo info) {
                 super.onInitializeAccessibilityNodeInfo(host, info);
@@ -449,20 +467,25 @@ final class WorkspaceShell {
         row.setContentDescription(hint == null || hint.isEmpty() ? label : label + ". " + hint);
         LinearLayout copy = Ui.column(activity);
         TextView text = Ui.text(activity, label, 16);
+        text.setTypeface(MEDIUM);
         text.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         copy.addView(text);
         if (hint != null && !hint.isEmpty()) {
             TextView detail = Ui.text(activity, hint, 14);
             detail.setTextColor(activity.getColor(R.color.muted));
+            detail.setLineSpacing(0f, 1.2f);
+            detail.setPaddingRelative(0, Ui.dp(activity, 2), 0, 0);
             detail.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
             copy.addView(detail);
         }
         row.addView(copy, new LinearLayout.LayoutParams(0, -2, 1));
         ImageView arrow = new ImageView(activity);
         arrow.setImageResource(R.drawable.ic_navigate_forward);
+        arrow.setImageTintList(ColorStateList.valueOf(activity.getColor(R.color.muted)));
         arrow.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-        row.addView(arrow, Ui.dp(activity, 18), Ui.dp(activity, 18));
-        list.addView(row);
-        list.addView(Ui.divider(activity));
+        LinearLayout.LayoutParams arrowLp = new LinearLayout.LayoutParams(Ui.dp(activity, 18), Ui.dp(activity, 18));
+        arrowLp.setMarginStart(Ui.dp(activity, 8));
+        row.addView(arrow, arrowLp);
+        group.addView(row);
     }
 }

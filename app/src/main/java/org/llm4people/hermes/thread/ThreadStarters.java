@@ -14,8 +14,9 @@ import java.util.function.Consumer;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 
-/** Optional examples in an empty transcript. The composer owns every resulting draft. */
+/** Optional Material 3 starter cards in an empty transcript. The composer owns every resulting draft. */
 final class ThreadStarters {
+    private static final Typeface MEDIUM = Typeface.create("sans-serif-medium", Typeface.NORMAL);
     private final LinearLayout content;
     private final ListView list;
 
@@ -23,18 +24,16 @@ final class ThreadStarters {
         list = transcript;
         Context context = transcript.getContext();
         content = Ui.column(context);
-        Ui.pad(content, 18, 12);
+        Ui.pad(content, 18, 16);
         content.setVisibility(View.GONE);
-        TextView heading = Ui.text(context, context.getString(R.string.starter_heading), 26);
-        heading.setTypeface(Typeface.create(Typeface.DEFAULT, 600, false));
-        heading.setLetterSpacing(-0.025f);
-        heading.setPaddingRelative(0, 0, 0, Ui.dp(context, 6));
+        TextView heading = Ui.text(context, context.getString(R.string.starter_heading), 24);
+        heading.setTypeface(MEDIUM);
+        heading.setLetterSpacing(-0.02f);
+        heading.setPaddingRelative(0, 0, 0, Ui.dp(context, 12));
         heading.setAccessibilityHeading(true);
         content.addView(heading);
         add(R.string.starter_question, 0, edit);
-        content.addView(Ui.divider(context));
         add(R.string.starter_code, R.string.starter_code_draft, edit);
-        content.addView(Ui.divider(context));
         add(R.string.starter_plan, R.string.starter_plan_draft, edit);
 
         // The list measures its header even when a child is gone. Keep the hidden header zero-height.
@@ -49,18 +48,21 @@ final class ThreadStarters {
 
     private void add(int label, int draft, Consumer<String> edit) {
         Context context = content.getContext();
-        Button action = Ui.button(context, context.getString(label), view -> {
+        Button action = Ui.outlinedButton(context, context.getString(label), view -> {
             if (content.isShown()) edit.accept(draft == 0 ? "" : context.getString(draft) + "\n");
         });
         action.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
         action.setSingleLine(false);
-        action.setTextSize(16);
+        action.setTextSize(15);
+        action.setTypeface(Typeface.DEFAULT);
         action.setTextColor(context.getColor(R.color.ink));
         action.setCompoundDrawablesRelativeWithIntrinsicBounds(0, 0, R.drawable.ic_navigate_forward, 0);
         action.setCompoundDrawableTintList(context.getColorStateList(R.color.accent));
-        action.setCompoundDrawablePadding(Ui.dp(context, 8));
-        Ui.pad(action, 0, 4);
-        content.addView(action);
+        action.setCompoundDrawablePadding(Ui.dp(context, 10));
+        Ui.pad(action, 16, 12);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, -2);
+        params.bottomMargin = Ui.dp(context, 8);
+        content.addView(action, params);
     }
 
     static boolean available(boolean confirmedEmpty, String draft, boolean pending, List<String> slots) {
