@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import Mock, call, patch
 from xml.etree.ElementTree import Element, SubElement
 
-from .ui import NTFY, Screen, enroll, focused_window, start_account
+from .ui import NTFY, Screen, enroll, focused_window, open_notifications_settings, start_account
 
 
 def tree(*specs, package="org.llm4people.hermes", window_id="10"):
@@ -165,6 +165,35 @@ class ScreenUiTest(unittest.TestCase):
                     "ntfy\n" + NTFY,
                     "ntfy\n" + NTFY,
                 ])
+
+    def test_open_notifications_settings_scrolls_when_notifications_is_below_the_fold(self):
+        for lang in ("en", "fr"):
+            with self.subTest(lang=lang):
+                ui = Screen(Mock(), Mock(), lang=lang)
+                s = ui.strings
+                thread_view = tree({"text": s["nav_atelier"], "bounds": "[100,580][180,630]"})
+                atelier_top = tree(
+                    {"scrollable": "true", "bounds": "[0,60][320,580]"},
+                    {"text": s["ws_model_and_tools"], "bounds": "[20,100][300,150]"},
+                    {"text": s["ws_workspace"], "bounds": "[20,200][300,240]"},
+                )
+                atelier_scrolled = tree(
+                    {"scrollable": "true", "bounds": "[0,60][320,580]"},
+                    {"text": s["ws_notifications"], "bounds": "[20,400][300,450]"},
+                )
+                notif_dialog = tree({"text": s["push_settings_disable"], "bounds": "[20,300][300,350]"})
+                ui.hierarchy = Mock(side_effect=[
+                    thread_view, atelier_top,
+                    atelier_top, atelier_scrolled, notif_dialog,
+                ])
+                scrolled = []
+                tapped = []
+                ui.scroll = Mock(side_effect=lambda root: scrolled.append(root))
+                ui.tap_node = Mock(side_effect=lambda node: tapped.append(node.get("text")))
+                with patch("verification.unifiedpush.stack.time.sleep"):
+                    open_notifications_settings(ui, s["push_settings_disable"])
+                self.assertEqual(len(scrolled), 1)
+                self.assertEqual(tapped, [s["nav_atelier"], s["ws_notifications"]])
 
 
 if __name__ == "__main__":

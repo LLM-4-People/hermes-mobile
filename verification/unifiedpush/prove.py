@@ -35,6 +35,7 @@ from .ui import (
     distributor,
     enroll,
     launch,
+    open_notifications_settings,
     process_absent,
     start_account,
     tap_notice,
@@ -260,17 +261,7 @@ def run(args):
                     failure.add_note("Delivery state unavailable (" + type(diagnostic).__name__ + ")")
                 raise
             tap_notice(ui, notice_title(adb, notice), owner, phrase, title, reply, args.evidence_dir)
-            ui.tap_until(
-                s["nav_atelier"],
-                lambda root: ui.node(s["ws_notifications"], root) is not None,
-                description="Atelier workspace for push revocation",
-            )
-            ui.tap_until(
-                s["ws_notifications"],
-                lambda root: ui.node(disable_push, root) is not None,
-                scroll=True,
-                description="Notifications settings showing disable control",
-            )
+            open_notifications_settings(ui, disable_push)
             ui.tap_until(
                 disable_push,
                 lambda root: ui.node(disable_push, root) is None or ui.node(s["push_settings_enable"], root) is not None,

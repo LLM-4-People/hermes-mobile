@@ -358,24 +358,31 @@ def choose_ntfy(ui):
         raise
 
 
-def enroll(ui):
+def open_notifications_settings(ui, expected_control):
+    """Open Atelier -> Notifications with retried taps even when Notifications sits below the fold."""
     s = ui.strings
     nav_atelier = s["nav_atelier"]
     notifications = s["ws_notifications"]
-    enable = s["push_settings_enable"]
-    transport_title = s["push_settings_service_title"]
-    distributor_title = s["push_settings_choose_distributor"]
+    atelier_anchors = (s["ws_workspace"], s["ws_model_and_tools"], notifications)
     ui.tap_until(
         nav_atelier,
-        lambda root: ui.node(notifications, root) is not None,
-        description="Atelier workspace showing notifications entry",
+        lambda root: any(ui.node(anchor, root) is not None for anchor in atelier_anchors),
+        description="Atelier workspace opened",
     )
     ui.tap_until(
         notifications,
-        lambda root: ui.node(enable, root) is not None,
+        lambda root: ui.node(expected_control, root) is not None,
         scroll=True,
-        description="Notifications settings showing enable control",
+        description="Notifications settings showing " + expected_control,
     )
+
+
+def enroll(ui):
+    s = ui.strings
+    enable = s["push_settings_enable"]
+    transport_title = s["push_settings_service_title"]
+    distributor_title = s["push_settings_choose_distributor"]
+    open_notifications_settings(ui, enable)
     ui.tap_until(
         enable,
         lambda root: (
