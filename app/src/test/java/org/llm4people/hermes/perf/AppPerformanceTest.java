@@ -84,6 +84,16 @@ public final class AppPerformanceTest {
         assertTrue(duplicateGuard.offer("bonjour", 100L));
         assertFalse("Identical snapshot must not re-flush", duplicateGuard.offer("bonjour", 200L));
         assertEquals(1, duplicateGuard.flushedCount());
+
+        // An initial empty SSE status frame must NOT consume the 0ms TTFT slot for the first real token.
+        List<String> ttft = new ArrayList<>();
+        StreamCoalescer ttftGuard = new StreamCoalescer(64L, ttft::add);
+        assertTrue(ttftGuard.offer("", 1_000L));
+        assertTrue("First non-empty token arriving 5ms after empty frame must flush immediately (0ms TTFT)",
+                ttftGuard.offer("Bonjour", 1_005L));
+        assertEquals(List.of("", "Bonjour"), ttft);
+        assertFalse("Subsequent rapid delta within budget must coalesce normally",
+                ttftGuard.offer("Bonjour le monde", 1_010L));
     }
 
     @Test

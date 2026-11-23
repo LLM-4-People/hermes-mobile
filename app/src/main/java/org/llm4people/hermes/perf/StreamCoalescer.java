@@ -20,6 +20,7 @@ public final class StreamCoalescer {
     private String pending;
     private String lastFlushed;
     private long lastFlushMs = Long.MIN_VALUE;
+    private boolean emittedNonEmpty;
     private int offered;
     private int flushed;
     private int coalesced;
@@ -53,7 +54,8 @@ public final class StreamCoalescer {
             return false;
         }
         boolean firstEmit = lastFlushMs == Long.MIN_VALUE;
-        boolean due = firstEmit || (nowMs - lastFlushMs >= frameBudgetMs);
+        boolean firstNonEmpty = !emittedNonEmpty && !text.isEmpty();
+        boolean due = firstEmit || firstNonEmpty || (nowMs - lastFlushMs >= frameBudgetMs);
         if (due) {
             if (pending != null) coalesced++;
             pending = null;
@@ -103,6 +105,7 @@ public final class StreamCoalescer {
         pending = null;
         lastFlushed = null;
         lastFlushMs = Long.MIN_VALUE;
+        emittedNonEmpty = false;
         offered = 0;
         flushed = 0;
         coalesced = 0;
@@ -111,6 +114,7 @@ public final class StreamCoalescer {
     private void emit(String text, long nowMs) {
         lastFlushed = text;
         lastFlushMs = nowMs;
+        if (!text.isEmpty()) emittedNonEmpty = true;
         flushed++;
         sink.accept(text);
     }
