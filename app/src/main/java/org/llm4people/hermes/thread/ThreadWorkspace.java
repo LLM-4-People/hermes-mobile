@@ -402,6 +402,9 @@ public final class ThreadWorkspace implements AutoCloseable {
             Diagnostics.warning("threads", "last_selection_clear_failed");
             if (inboxWarning.isEmpty()) inboxWarning = "Impossible d’enregistrer la sélection. Vérifiez l’espace disponible.";
         }
+        inboxOffset = 0;
+        inbox = new JSONArray();
+        inboxLoaded = false;
         container.select(null);
         selectionChanged();
         loadThreads(true);

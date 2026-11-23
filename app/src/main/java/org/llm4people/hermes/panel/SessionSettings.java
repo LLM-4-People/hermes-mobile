@@ -187,7 +187,14 @@ final class SessionSettings {
         ListView list = new ListView(panel.activity);
         list.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
         ArrayAdapter<T> adapter = new ArrayAdapter<>(panel.activity, R.layout.discussion_setting_choice,
-                new ArrayList<>(choices));
+                new ArrayList<>(choices)) {
+            @Override public View getView(int position, View convertView, android.view.ViewGroup parent) {
+                View row = super.getView(position, convertView, parent);
+                T item = getItem(position);
+                row.setContentDescription(item instanceof ModelCapabilityBadges.ModelInfo info ? info.id() : null);
+                return row;
+            }
+        };
         list.setAdapter(adapter);
         restoreChoice(list, adapter.getPosition(current));
         list.setEmptyView(empty);

@@ -21,7 +21,7 @@ import java.util.function.Consumer;
 /**
  * Effortless 4-destination adaptive navigation chrome.
  * Renders as a bottom bar on phones (&lt; 720dp, auto-hidden when IME is open)
- * and a calm 72dp leading navigation rail on tablets (&gt;= 720dp).
+ * and a calm 92dp leading navigation rail on tablets (&gt;= 720dp).
  */
 public final class AdaptiveNavBar extends LinearLayout {
     public record Destination(String route, int viewId, int iconRes, int labelRes) {}

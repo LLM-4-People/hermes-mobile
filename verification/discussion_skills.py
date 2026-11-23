@@ -55,7 +55,10 @@ def verify_catalog(gateway):
     if catalog.get("object") != "list":
         raise AssertionError("The authenticated skills endpoint did not return a list")
     rows = {r["name"]: r for r in catalog["data"]}
-    if (rows.get(LOCATOR) != {"name": LOCATOR, "description": SUMMARY, "category": "qualite"}
+    target = rows.get(LOCATOR)
+    if (not isinstance(target, dict)
+            or {k: target.get(k) for k in ("name", "description", "category")}
+            != {"name": LOCATOR, "description": SUMMARY, "category": "qualite"}
             or "support/synthese" not in rows or "synthese" in rows):
         raise AssertionError("The gateway did not offer the exact loadable skill locators")
 

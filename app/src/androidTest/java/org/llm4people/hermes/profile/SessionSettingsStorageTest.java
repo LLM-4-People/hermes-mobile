@@ -108,6 +108,43 @@ public final class SessionSettingsStorageTest extends InstrumentationTestCase {
         exerciseModelPicker(true);
     }
 
+    public void testBadgeDecoratedModelRowExposesModelIdContentDescription() throws Throwable {
+        if (Build.VERSION.SDK_INT < 29) return;
+        Context context = getInstrumentation().getTargetContext();
+        AccountIndexCommitTest.IndexContext storage = new AccountIndexCommitTest.IndexContext(context);
+        String features = "{\"features\":{}}";
+        String catalog = "{\"data\":[]}";
+        JSONObject provider = new JSONObject().put("name", "vendor").put("slug", "vendor")
+                .put("models", new JSONArray().put("Alpha").put("Beta"))
+                .put("capabilities", new JSONObject().put("Alpha", new JSONObject().put("reasoning", true)));
+        String routes = new JSONObject().put("providers", new JSONArray().put(provider)).toString();
+        try (Exchange server = new Exchange("200 OK", "", features, catalog, routes, features, catalog);
+             Account owner = new Account("model-badge-test", "Profil", server.endpoint(), "test", storage.index,
+                     new byte[Account.KEY_BYTES])) {
+            Intent launch = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
+            Activity activity = getInstrumentation().startActivitySync(launch);
+            SessionPanel panel = new SessionPanel(activity, new HermesApi(server.endpoint(), "test"), owner);
+            try {
+                runTestOnUiThread(() -> {
+                    panel.show("thread", "thread");
+                    View choice = matching(activity.getString(R.string.panel_route)).get(0);
+                    while (!choice.isClickable()) choice = (View) choice.getParent();
+                    assertTrue(choice.performClick());
+                });
+                CheckedTextView vendor = awaitChoice("vendor", 1);
+                runTestOnUiThread(() -> tapChoice(vendor));
+                CheckedTextView alpha = awaitChoice("Alpha\nRéflexion", 2);
+                runTestOnUiThread(() -> {
+                    assertEquals("Alpha", String.valueOf(alpha.getContentDescription()));
+                    tapChoice(alpha);
+                    assertEquals("Alpha", SessionPanel.runOptions(context, owner, "thread").optString("model"));
+                });
+            } finally {
+                runTestOnUiThread(() -> { panel.close(); activity.finish(); });
+            }
+        }
+    }
+
     private void exerciseModelPicker(Boolean landscape) throws Throwable {
         Context context = getInstrumentation().getTargetContext();
         AccountIndexCommitTest.IndexContext storage = new AccountIndexCommitTest.IndexContext(context);

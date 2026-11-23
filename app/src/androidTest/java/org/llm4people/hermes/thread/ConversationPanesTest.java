@@ -3,15 +3,21 @@ package org.llm4people.hermes.thread;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
+import android.os.SystemClock;
 import android.test.InstrumentationTestCase;
 import android.view.View;
 import android.widget.EditText;
+import android.widget.ListView;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
+import org.llm4people.hermes.net.Exchange;
+import org.llm4people.hermes.net.HermesApi;
+import org.llm4people.hermes.profile.WorkspaceAccountFixture;
+import org.llm4people.hermes.voice.VoiceDrafts;
 
 @SuppressWarnings("deprecation")
 public final class ConversationPanesTest extends InstrumentationTestCase {
@@ -145,6 +151,81 @@ public final class ConversationPanesTest extends InstrumentationTestCase {
         // Null or empty inputs degrade safely.
         assertEquals(0, DiscussionIndex.merge(null, null).length());
         assertEquals(0, DiscussionIndex.selectedFirst(null, null, null, null, null, 0).length());
+    }
+
+    public void testInboxClearsStaleRowsBeforeReloadingNewOrder() throws Throwable {
+        Context context = getInstrumentation().getTargetContext();
+        String firstPage = new JSONObject().put("data", new JSONArray()
+                .put(new JSONObject().put("id", "first-1").put("title", "Première"))).toString();
+        String secondPage = new JSONObject().put("data", new JSONArray()
+                .put(new JSONObject().put("id", "second-2").put("title", "Seconde"))
+                .put(new JSONObject().put("id", "first-1").put("title", "Première"))).toString();
+        try (Exchange server = new Exchange("200 OK", "", firstPage, secondPage);
+             WorkspaceAccountFixture fixture = new WorkspaceAccountFixture(context, server.endpoint())) {
+            Intent launch = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
+            Activity activity = getInstrumentation().startActivitySync(launch);
+            ThreadWorkspace.Host host = new ThreadWorkspace.Host() {
+                @Override public void selected(String id, String title) {}
+                @Override public JSONObject options(String sessionId) { return new JSONObject(); }
+                @Override public void timing(String id, long firstTextMs, long elapsedMs, long outputTokens) {}
+                @Override public void noticeThread(boolean sameThread) {}
+            };
+            ThreadWorkspace[] holder = new ThreadWorkspace[1];
+            try {
+                runTestOnUiThread(() -> {
+                    holder[0] = new ThreadWorkspace(activity, new HermesApi(server.endpoint(), "test"),
+                            fixture.account, host, new VoiceDrafts(activity));
+                    activity.setContentView(holder[0].view());
+                    holder[0].inbox();
+                });
+                awaitInboxCount(holder[0], 1);
+                int[] immediateCount = {-1};
+                runTestOnUiThread(() -> {
+                    holder[0].inbox();
+                    // Returning to inbox must clear stale pre-refresh rows immediately so an async
+                    // reorder ([second, first]) cannot shift a row underneath an in-flight tap.
+                    immediateCount[0] = findListView(holder[0].view()).getAdapter().getCount();
+                });
+                assertEquals(0, immediateCount[0]);
+                awaitInboxCount(holder[0], 2);
+                runTestOnUiThread(() -> {
+                    ListView list = findListView(holder[0].view());
+                    assertEquals("second-2", ((JSONObject) list.getAdapter().getItem(0)).optString("id"));
+                    assertEquals("first-1", ((JSONObject) list.getAdapter().getItem(1)).optString("id"));
+                });
+            } finally {
+                runTestOnUiThread(() -> {
+                    if (holder[0] != null) holder[0].close();
+                    activity.finish();
+                });
+            }
+        }
+    }
+
+    private void awaitInboxCount(ThreadWorkspace workspace, int expected) throws Throwable {
+        long deadline = SystemClock.uptimeMillis() + 5000;
+        int[] count = {-1};
+        do {
+            getInstrumentation().waitForIdleSync();
+            runTestOnUiThread(() -> {
+                ListView list = findListView(workspace.view());
+                count[0] = list == null || list.getAdapter() == null ? -1 : list.getAdapter().getCount();
+            });
+            if (count[0] == expected) return;
+            SystemClock.sleep(25);
+        } while (SystemClock.uptimeMillis() < deadline);
+        assertEquals(expected, count[0]);
+    }
+
+    private static ListView findListView(View view) {
+        if (view instanceof ListView list) return list;
+        if (view instanceof android.view.ViewGroup group) {
+            for (int i = 0; i < group.getChildCount(); i++) {
+                ListView found = findListView(group.getChildAt(i));
+                if (found != null) return found;
+            }
+        }
+        return null;
     }
 
     private static void size(View view, int widthDp, int heightDp) {
