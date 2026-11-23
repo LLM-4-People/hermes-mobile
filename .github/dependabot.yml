@@ -4,11 +4,40 @@ updates:
     directory: /
     schedule:
       interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+      - ci
+    groups:
+      github-actions-updates:
+        patterns:
+          - "*"
+
   - package-ecosystem: gradle
     directory: /
     schedule:
       interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+      - android
+    groups:
+      gradle-and-android:
+        patterns:
+          - "*"
+
   - package-ecosystem: pip
     directory: /server
     schedule:
       interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+      - server
+    groups:
+      server-python-deps:
+        patterns:
+          - "*"

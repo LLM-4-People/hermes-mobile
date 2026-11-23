@@ -34,8 +34,13 @@ def _discover_files(directory, prefix, python_exe, extra_args=()):
     ]
 
 
-def build_suites(server_python, workspace_only=False, with_gradle=False):
+def build_suites(server_python, workspace_only=False, ci_only=False, with_gradle=False):
     py = sys.executable
+    if ci_only:
+        return [
+            ("docs", [py, "-B", "scripts/docs.py", "--check"]),
+            *_discover_files("ci", "ci", py),
+        ]
     server_py = server_python or py
     suites = [
         *_discover_files("server/tests", "server-tests", server_py),
@@ -69,12 +74,19 @@ def run_one(name, command):
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Run independent Hermes Mobile verification suites in parallel.")
     parser.add_argument("--server-python", default=None, help="Python executable with server/requirements.txt installed")
-    parser.add_argument("--workspace-only", action="store_true", help="Run only the workspace job's Python suites")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--workspace-only", action="store_true", help="Run only the workspace job's Python suites")
+    mode.add_argument("--ci-only", action="store_true", help="Run only docs --check and ci/ unit tests in parallel")
     parser.add_argument("--with-gradle", action="store_true", help="Also run Gradle build, lint, and host unit tests")
     parser.add_argument("--jobs", type=int, default=min(8, max(2, os.cpu_count() or 2)), help="Parallel worker count")
     args = parser.parse_args(argv)
 
-    suites = build_suites(args.server_python, workspace_only=args.workspace_only, with_gradle=args.with_gradle)
+    suites = build_suites(
+        args.server_python,
+        workspace_only=args.workspace_only,
+        ci_only=args.ci_only,
+        with_gradle=args.with_gradle,
+    )
     wall_start = time.monotonic()
     failed = []
     results = []

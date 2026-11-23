@@ -1,5 +1,7 @@
 """Run the complete installed Android framework suite and verify each result."""
 
+from collections import defaultdict
+import os
 from pathlib import Path
 import re
 import shlex
@@ -8,6 +10,40 @@ import sys
 import xml.etree.ElementTree as ET
 
 RUNNER = "org.llm4people.hermes.test/android.test.InstrumentationTestRunner"
+SHARD_RE = re.compile(r"^([0-9]+)/([0-9]+)$")
+
+
+def shard_cases(cases, shard_spec):
+    """Deterministically partition packaged test cases by class using LPT load balancing.
+
+    Accepts empty/None (no sharding) or '<index>/<total>' with 0 <= index < total.
+    Guarantees complete coverage (union == cases) and disjoint shards across 0..total-1.
+    """
+    if not shard_spec:
+        return set(cases)
+    match = SHARD_RE.fullmatch(str(shard_spec).strip())
+    if not match:
+        raise ValueError(f"Invalid HERMES_NATIVE_SHARD {shard_spec!r} (expected '<index>/<total>')")
+    index, total = int(match.group(1)), int(match.group(2))
+    if total < 1 or index < 0 or index >= total:
+        raise ValueError(f"Out-of-range HERMES_NATIVE_SHARD {shard_spec!r}")
+    if total == 1:
+        return set(cases)
+
+    by_class = defaultdict(list)
+    for cls, method in cases:
+        by_class[cls].append((cls, method))
+    ordered_classes = sorted(by_class.items(), key=lambda item: (-len(item[1]), item[0]))
+    buckets = [set() for _ in range(total)]
+    loads = [0] * total
+    for _, methods in ordered_classes:
+        target = min(range(total), key=lambda i: (loads[i], i))
+        buckets[target].update(methods)
+        loads[target] += len(methods)
+    selected = buckets[index]
+    if not selected:
+        raise ValueError(f"Shard {shard_spec!r} received zero packaged Android framework tests")
+    return selected
 
 
 def packaged_cases(dexdump):
@@ -119,6 +155,8 @@ def run(serial, directory, expected):
 if __name__ == "__main__":
     try:
         inventory = subprocess.check_output([sys.argv[3], "-l", "xml", sys.argv[4]])
-        run(sys.argv[1], Path(sys.argv[2]), packaged_cases(inventory))
+        shard_spec = sys.argv[5] if len(sys.argv) > 5 else os.environ.get("HERMES_NATIVE_SHARD", "")
+        expected = shard_cases(packaged_cases(inventory), shard_spec)
+        run(sys.argv[1], Path(sys.argv[2]), expected)
     except subprocess.CalledProcessError as error:
         raise SystemExit(error.returncode) from error
