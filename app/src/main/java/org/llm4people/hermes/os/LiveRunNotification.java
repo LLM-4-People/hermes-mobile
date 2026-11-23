@@ -81,14 +81,33 @@ public final class LiveRunNotification {
         return !Objects.equals(prevNorm, nextNorm);
     }
 
-    /** Pure privacy-safe presentation mapper tested deterministically on the host JVM. */
-    public static Presentation present(Snapshot snapshot) {
-        return present(null, snapshot);
+    interface TextLookup {
+        String string(int resId, Object... args);
+        String quantity(int pluralsId, int quantity, Object... args);
     }
 
-    /** Localized privacy-safe presentation mapper using FR/EN string resources when Context is provided. */
+    static TextLookup lookup(Context context) {
+        Objects.requireNonNull(context, "context");
+        Context localized = localizedContext(context);
+        return new TextLookup() {
+            @Override public String string(int resId, Object... args) {
+                return args.length == 0 ? localized.getString(resId) : localized.getString(resId, args);
+            }
+            @Override public String quantity(int pluralsId, int quantity, Object... args) {
+                return localized.getResources().getQuantityString(pluralsId, quantity, args);
+            }
+        };
+    }
+
+    /** Localized privacy-safe presentation mapper using FR/EN string resources. */
     public static Presentation present(Context context, Snapshot snapshot) {
-        if (snapshot == null || !snapshot.active()) return null;
+        if (context == null || snapshot == null || !snapshot.active()) return null;
+        return present(snapshot, lookup(context));
+    }
+
+    /** Pure privacy-safe presentation mapper tested deterministically on the host JVM. */
+    static Presentation present(Snapshot snapshot, TextLookup strings) {
+        if (snapshot == null || !snapshot.active() || strings == null) return null;
         int completed = Math.max(0, Math.min(99, snapshot.completedSteps()));
         int total = Math.max(0, Math.min(99, snapshot.totalSteps()));
         int activeCount = Math.max(1, Math.min(99, snapshot.activeCount()));
@@ -99,15 +118,9 @@ public final class LiveRunNotification {
             if (needsDecision) {
                 int shownDecisions = Math.max(1, decisions);
                 return new Presentation(
-                        context == null
-                                ? activeCount + " tâches · action requise"
-                                : context.getString(R.string.live_run_multi_decision_title, activeCount),
-                        context == null
-                                ? "Hermes attend votre réponse dans l’application."
-                                : context.getString(R.string.live_run_decision_body),
-                        context == null
-                                ? "Action (" + shownDecisions + "/" + activeCount + ")"
-                                : context.getString(R.string.live_run_multi_chip_action, shownDecisions, activeCount),
+                        strings.string(R.string.live_run_multi_decision_title, activeCount),
+                        strings.string(R.string.live_run_decision_body),
+                        strings.string(R.string.live_run_multi_chip_action, shownDecisions, activeCount),
                         SEGMENT_PREP + SEGMENT_WORK / 2,
                         TOTAL_UNITS,
                         false);
@@ -116,17 +129,9 @@ public final class LiveRunNotification {
                     ? Math.min(SEGMENT_PREP + SEGMENT_WORK, SEGMENT_PREP + completed * 10)
                     : SEGMENT_PREP + SEGMENT_WORK / 3;
             return new Presentation(
-                    context == null
-                            ? activeCount + " tâches en cours"
-                            : context.getResources().getQuantityString(
-                                    R.plurals.live_run_multi_title, activeCount, activeCount),
-                    context == null
-                            ? "Ouvrez l’application pour suivre vos tâches en cours."
-                            : context.getString(R.string.live_run_multi_body),
-                    context == null
-                            ? activeCount + " tâches"
-                            : context.getResources().getQuantityString(
-                                    R.plurals.live_run_multi_chip, activeCount, activeCount),
+                    strings.quantity(R.plurals.live_run_multi_title, activeCount, activeCount),
+                    strings.string(R.string.live_run_multi_body),
+                    strings.quantity(R.plurals.live_run_multi_chip, activeCount, activeCount),
                     progress,
                     TOTAL_UNITS,
                     completed == 0);
@@ -134,9 +139,9 @@ public final class LiveRunNotification {
 
         if (needsDecision) {
             return new Presentation(
-                    context == null ? "Décision requise" : context.getString(R.string.live_run_decision_title),
-                    context == null ? "Hermes attend votre réponse dans l’application." : context.getString(R.string.live_run_decision_body),
-                    context == null ? "Action" : context.getString(R.string.live_run_chip_action),
+                    strings.string(R.string.live_run_decision_title),
+                    strings.string(R.string.live_run_decision_body),
+                    strings.string(R.string.live_run_chip_action),
                     SEGMENT_PREP + SEGMENT_WORK / 2,
                     TOTAL_UNITS,
                     false);
@@ -146,29 +151,25 @@ public final class LiveRunNotification {
         boolean indeterminate;
         if (total > 0 && completed > 0) {
             int boundedCompleted = Math.min(completed, total);
-            chip = context == null
-                    ? "Étape " + boundedCompleted + "/" + total
-                    : context.getString(R.string.live_run_chip_step_of, boundedCompleted, total);
+            chip = strings.string(R.string.live_run_chip_step_of, boundedCompleted, total);
             progress = SEGMENT_PREP + Math.round((SEGMENT_WORK * (float) boundedCompleted) / total);
             indeterminate = false;
         } else if (completed > 0) {
-            chip = context == null
-                    ? "Étape " + completed
-                    : context.getString(R.string.live_run_chip_step, completed);
+            chip = strings.string(R.string.live_run_chip_step, completed);
             progress = Math.min(SEGMENT_PREP + SEGMENT_WORK, SEGMENT_PREP + completed * 12);
             indeterminate = false;
         } else if (snapshot.phase() == Phase.STARTING) {
-            chip = context == null ? "Envoi" : context.getString(R.string.live_run_chip_sending);
+            chip = strings.string(R.string.live_run_chip_sending);
             progress = SEGMENT_PREP / 2;
             indeterminate = true;
         } else {
-            chip = context == null ? "En cours" : context.getString(R.string.live_run_chip_working);
+            chip = strings.string(R.string.live_run_chip_working);
             progress = SEGMENT_PREP + SEGMENT_WORK / 3;
             indeterminate = true;
         }
         return new Presentation(
-                context == null ? "Hermes travaille…" : context.getString(R.string.live_run_working_title),
-                context == null ? "Ouvrez l’application pour suivre la réponse." : context.getString(R.string.live_run_working_body),
+                strings.string(R.string.live_run_working_title),
+                strings.string(R.string.live_run_working_body),
                 chip,
                 progress,
                 TOTAL_UNITS,
@@ -210,11 +211,9 @@ public final class LiveRunNotification {
         }
     }
 
-    /** Preserves an Activity's AppLanguage-wrapped context on API 28-32, wrapping ApplicationContext if passed directly. */
+    /** Always wraps via AppLanguage so background/application contexts honor the selected app locale on API 28-36. */
     static Context localizedContext(Context context) {
-        if (context == null) return null;
-        Context app = context.getApplicationContext();
-        return (app != null && context == app) ? AppLanguage.wrapContext(app) : context;
+        return context == null ? null : AppLanguage.wrapContext(context);
     }
 
     record ActionLabels(String channelName, String openLabel, String stopLabel) {}

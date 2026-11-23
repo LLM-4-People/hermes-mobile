@@ -58,6 +58,15 @@ public final class TranscriptPageTest {
         assertTrue(count >= 3);
     }
 
+    @org.junit.Before public void bindStrings() {
+        ThreadStrings.setResolverForTest(res -> res == org.llm4people.hermes.R.string.thread_attached_image_bracket
+                ? "[Image jointe]" : "");
+    }
+
+    @org.junit.After public void clearStrings() {
+        ThreadStrings.setResolverForTest(null);
+    }
+
     @Test public void dataUrlsConsumeNoPayloadBudgetAndKeepTheSurroundingProse() {
         String payload = "Qm9uam91".repeat(600000);
         var page = first("Avant\n![image](data:image/webp;base64," + payload + ")\nAprès **ici**.");

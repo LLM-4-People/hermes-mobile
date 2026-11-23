@@ -17,6 +17,7 @@ import android.widget.ScrollView;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import org.json.JSONObject;
+import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.nearby.NearbyFix;
 import org.llm4people.hermes.places.NearbyCategory;
@@ -47,12 +48,15 @@ final class NearbyConsent {
 
     private void refreshPreference() {
         try { remembered = owner().equals(account.read(PREF)); }
-        catch (RuntimeException unavailable) { remembered = false; failure = "Réglage de position indisponible"; }
+        catch (RuntimeException unavailable) {
+            remembered = false;
+            failure = page.activity.getString(R.string.nearby_setting_unavailable);
+        }
         if (stagedFromPreference && !remembered) {
             staged = null;
             stagedFromPreference = false;
             generation++;
-            failure = "Partage de position désactivé pour ce profil";
+            failure = page.activity.getString(R.string.nearby_disabled_profile);
         }
     }
 
@@ -64,7 +68,7 @@ final class NearbyConsent {
         if (staged != null) {
             if (frozen() != null && (!deviceStaged() || granted())) return true;
             staged = null;
-            failure = "Position expirée ou autorisation retirée";
+            failure = page.activity.getString(R.string.nearby_expired_or_revoked);
         }
         if (remembered && failure.isEmpty() && granted()) {
             locateTurn(false, remembered, exactSend);
@@ -93,7 +97,7 @@ final class NearbyConsent {
         switch (saved.optString("mode")) {
             case "omit" -> skip = true;
             case "manual" -> staged = NearbyTurn.manual(saved.optString("area"));
-            default -> failure = "Position à confirmer pour ce message";
+            default -> failure = page.activity.getString(R.string.nearby_confirm_message);
         }
         refresh();
     }
@@ -101,7 +105,7 @@ final class NearbyConsent {
     private boolean saveChoice(String mode, String area) {
         try { page.journal.nearbyDraft(mode, area); return true; }
         catch (RuntimeException unavailable) {
-            failure = "Impossible d’enregistrer le choix de zone";
+            failure = page.activity.getString(R.string.nearby_save_choice_failed);
             refresh();
             return false;
         }
@@ -121,7 +125,11 @@ final class NearbyConsent {
         locate(allowPermission, () -> true, area -> {
             if (!allowPermission) {
                 refreshPreference();
-                if (!remembered) { failure = "Partage de position désactivé pour ce profil"; refresh(); return; }
+                if (!remembered) {
+                    failure = page.activity.getString(R.string.nearby_disabled_profile);
+                    refresh();
+                    return;
+                }
             } else if (!preference(remember)) return;
             stage(area);
             stagedFromPreference = !allowPermission;
@@ -151,14 +159,16 @@ final class NearbyConsent {
         if (cancelFix == null) return;
         generation++;
         cancel();
-        failure = "Recherche de position interrompue";
+        failure = page.activity.getString(R.string.nearby_lookup_interrupted);
         refresh();
     }
 
     void refresh() {
-        String status = busy ? "Recherche de la position…" : !failure.isEmpty() ? failure
-                : deviceStaged() ? "Position approximative jointe" : staged != null ? "Quartier joint · " + staged.optString("area")
-                : skip ? "Sans position pour ce message" : remembered ? "Position activée pour ce profil" : "";
+        String status = busy ? page.activity.getString(R.string.nearby_locating) : !failure.isEmpty() ? failure
+                : deviceStaged() ? page.activity.getString(R.string.nearby_approx_attached)
+                : staged != null ? page.activity.getString(R.string.nearby_neighborhood_attached, staged.optString("area"))
+                : skip ? page.activity.getString(R.string.nearby_none_for_message)
+                : remembered ? page.activity.getString(R.string.nearby_enabled_profile) : "";
         if (page.screen != null) page.screen.nearbyStatus(status, () -> show(null));
     }
 
@@ -172,31 +182,33 @@ final class NearbyConsent {
         boolean editable = page.journal.pending() == null && !page.admitting();
         LinearLayout items = Ui.column(page.activity);
         Ui.pad(items, 20, 6);
-        String disclosure = "Hermes reçoit la zone avec votre message. Pour un guide de lieux à proximité, votre passerelle peut aussi transmettre la zone approximative au fournisseur de données OpenStreetMap configuré.";
+        String disclosure = page.activity.getString(R.string.nearby_consent_explain);
         items.addView(Ui.text(page.activity, disclosure, 15));
         CheckBox remember = new CheckBox(page.activity);
-        remember.setText("Utiliser ma position pour mes prochains messages sur ce profil");
+        remember.setText(R.string.nearby_always_profile);
         remember.setChecked(remembered);
         if (editable) {
             items.addView(remember);
-            option(items, "Utiliser ma position approximative", ticket, () -> locateTurn(true, remember.isChecked(), null));
-            option(items, "Saisir un quartier", ticket, () -> {
+            option(items, page.activity.getString(R.string.nearby_use_approx), ticket,
+                    () -> locateTurn(true, remember.isChecked(), null));
+            option(items, page.activity.getString(R.string.nearby_enter_neighborhood), ticket, () -> {
                 if (!remembered || remember.isChecked() || preference(false)) manual();
             });
-            option(items, sendWithout == null ? "Sans position pour ce message" : "Envoyer sans position", ticket, () -> {
+            option(items, page.activity.getString(sendWithout == null
+                    ? R.string.nearby_none_for_message : R.string.nearby_send_without), ticket, () -> {
                 if (remembered && !remember.isChecked() && !preference(false)) return;
                 omit(sendWithout);
             });
         }
-        if (remembered) option(items, "Désactiver pour ce profil", ticket, () -> {
+        if (remembered) option(items, page.activity.getString(R.string.nearby_disable_profile), ticket, () -> {
             if (preference(false) && (!editable || saveChoice("omit", null))) { clearTurn(); skip = editable; refresh(); }
         });
-        if (!editable) items.addView(Ui.text(page.activity, "Le message en cours a déjà ses réglages.", 15));
+        if (!editable) items.addView(Ui.text(page.activity, page.activity.getString(R.string.nearby_locked_in_flight), 15));
         if (!failure.isEmpty()) items.addView(Ui.text(page.activity, failure, 15));
         ScrollView scroll = new ScrollView(page.activity);
         scroll.addView(items);
-        page.screen.show(new AlertDialog.Builder(page.activity).setTitle("Ajouter une zone à ce message ?")
-                .setView(scroll).setNegativeButton("Annuler", null));
+        page.screen.show(new AlertDialog.Builder(page.activity).setTitle(R.string.nearby_add_area_title)
+                .setView(scroll).setNegativeButton(R.string.ws_cancel, null));
     }
 
     void omit(Runnable sendWithout) {
@@ -214,7 +226,7 @@ final class NearbyConsent {
             remembered = enable;
             return true;
         } catch (RuntimeException unavailable) {
-            failure = "Impossible d’enregistrer ce choix sur le profil";
+            failure = page.activity.getString(R.string.nearby_save_profile_failed);
             refresh();
             return false;
         }
@@ -237,17 +249,19 @@ final class NearbyConsent {
         input.setSaveEnabled(false);
         input.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS);
         input.setImeOptions(EditorInfo.IME_ACTION_DONE | EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING | EditorInfo.IME_FLAG_NO_EXTRACT_UI);
-        input.setHint("Quartier et ville");
+        input.setHint(R.string.nearby_neighborhood_city_hint);
         input.setFilters(new InputFilter[]{new InputFilter.LengthFilter(100)});
         LinearLayout box = Ui.column(page.activity);
         Ui.pad(box, 20, 8);
         box.addView(input);
-        AlertDialog dialog = page.screen.show(new AlertDialog.Builder(page.activity).setTitle("Indiquer un quartier")
-                .setView(box).setNegativeButton("Annuler", null).setPositiveButton("Utiliser ce quartier", null));
+        AlertDialog dialog = page.screen.show(new AlertDialog.Builder(page.activity)
+                .setTitle(R.string.nearby_specify_neighborhood_title)
+                .setView(box).setNegativeButton(R.string.ws_cancel, null)
+                .setPositiveButton(R.string.nearby_use_neighborhood, null));
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
             if (generation != ticket) return;
             JSONObject area = NearbyTurn.manual(input.getText().toString());
-            if (area == null) { input.setError("Indiquez un lieu en quelques mots, par exemple Rosemont, Montréal."); return; }
+            if (area == null) { input.setError(page.activity.getString(R.string.nearby_neighborhood_example)); return; }
             if (!saveChoice("manual", area.optString("area"))) return;
             page.screen.dismiss(dialog);
             stage(area);
@@ -264,9 +278,10 @@ final class NearbyConsent {
         generation++;
         cancel();
         long ticket = generation;
-        page.screen.show(new AlertDialog.Builder(page.activity).setTitle("Rechercher autour de moi ?")
-                .setMessage("Votre passerelle et son fournisseur de données OpenStreetMap recevront votre position approximative pour rechercher " + activeCat.draftPlural + ".")
-                .setNegativeButton("Annuler", null).setPositiveButton("Utiliser ma position", (d,w) -> {
+        page.screen.show(new AlertDialog.Builder(page.activity).setTitle(R.string.nearby_around_me_title)
+                .setMessage(page.activity.getString(R.string.nearby_around_me_body, activeCat.draftPlural(page.activity)))
+                .setNegativeButton(R.string.ws_cancel, null)
+                .setPositiveButton(R.string.nearby_use_location, (d,w) -> {
                     if (generation == ticket && current.getAsBoolean()) locate(true, current, chosen);
                 }));
     }
@@ -334,7 +349,7 @@ final class NearbyConsent {
 
     private void clearFailure() {
         cancel();
-        failure = "Position indisponible · choisir un quartier ou continuer sans position";
+        failure = page.activity.getString(R.string.nearby_unavailable_hint);
         refresh();
     }
 }

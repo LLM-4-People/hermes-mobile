@@ -1,8 +1,11 @@
 package org.llm4people.hermes.thread;
 
+import android.content.Context;
+
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.llm4people.hermes.R;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -16,6 +19,10 @@ final class PromptHistory {
     private PromptHistory() {}
 
     static JSONArray display(JSONArray source) {
+        return display(null, source);
+    }
+
+    static JSONArray display(Context context, JSONArray source) {
         Map<Call, Tool> tools = new HashMap<>();
         Map<Integer, JSONArray> receipts = new HashMap<>();
         Map<Integer, Set<String>> answered = new HashMap<>();
@@ -40,8 +47,8 @@ final class PromptHistory {
                 if (tool != null && !name.isEmpty() && !tool.name().equals(name)) continue;
                 if (name.isEmpty() && tool != null) name = tool.name();
                 JSONArray turns = switch (name) {
-                    case "clarify" -> turns(ThreadData.content(row));
-                    case "terminal" -> approval(ThreadData.content(row));
+                    case "clarify" -> turns(context, ThreadData.content(context, row));
+                    case "terminal" -> approval(context, ThreadData.content(context, row));
                     default -> null;
                 };
                 if (turns != null) {
@@ -76,7 +83,7 @@ final class PromptHistory {
     }
 
     /** Only explicit gateway provenance identifies user consent. Exit codes and stdout do not. */
-    private static JSONArray approval(String encoded) {
+    private static JSONArray approval(Context context, String encoded) {
         if (!encoded.contains("\"user_summary\"") && !encoded.contains("\"approval\"")) return null;
         try {
             JSONObject result = new JSONObject(encoded);
@@ -86,7 +93,8 @@ final class PromptHistory {
             boolean denied = "blocked".equals(result.opt("status"))
                     && "You denied this command — it did not run.".equals(result.opt("user_summary"));
             if (allowed == denied) return null;
-            String summary = allowed ? "Action autorisée." : "Action refusée. La commande n’a pas été exécutée.";
+            String summary = ThreadStrings.get(context,
+                    allowed ? R.string.prompt_history_approved : R.string.prompt_history_denied);
             String output = ThreadData.string(result, "output");
             if (!output.isEmpty()) summary += "\n\n" + output;
             JSONObject row = new JSONObject().put("role", "approval_result").put("content", summary)
@@ -97,7 +105,7 @@ final class PromptHistory {
         }
     }
 
-    private static JSONArray turns(String encoded) {
+    private static JSONArray turns(Context context, String encoded) {
         try {
             JSONObject result = new JSONObject(encoded);
             JSONArray rows = result.optJSONArray("responses");
@@ -115,7 +123,7 @@ final class PromptHistory {
                     if (answer == null || answer.trim().isEmpty()) return null;
                 } else if ("skipped".equals(status) && row.isNull("user_response")) {
                     role = "prompt_status";
-                    answer = "Question passée.";
+                    answer = ThreadStrings.get(context, R.string.prompt_history_skipped);
                 } else if ("unanswered".equals(status) && row.isNull("user_response")) {
                     // Sequential delivery can stop before reaching later entries in the same batch.
                     unanswered = true;
@@ -125,10 +133,10 @@ final class PromptHistory {
                 turns.put(new JSONObject().put("role", role).put("content", answer));
             }
             String summary = switch (result.optString("outcome")) {
-                case "submitted" -> unanswered ? "Des réponses manquent dans cette demande." : "";
-                case "undelivered" -> "La demande n’a pas pu être transmise.";
-                case "timed_out" -> "Le délai de réponse a expiré.";
-                case "cancelled" -> "La demande a été annulée.";
+                case "submitted" -> unanswered ? ThreadStrings.get(context, R.string.prompt_history_missing) : "";
+                case "undelivered" -> ThreadStrings.get(context, R.string.prompt_history_undelivered);
+                case "timed_out" -> ThreadStrings.get(context, R.string.prompt_history_timed_out);
+                case "cancelled" -> ThreadStrings.get(context, R.string.prompt_history_cancelled);
                 default -> null;
             };
             if (summary == null) return null;

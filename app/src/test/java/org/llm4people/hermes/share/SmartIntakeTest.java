@@ -40,12 +40,12 @@ public final class SmartIntakeTest {
         // Below threshold (< 3): default calm ordering preserved.
         List<SmartIntake.Suggestion> below = SmartIntake.suggest(null, List.of(photo), Map.of("save_note", 2));
         assertEquals(3, below.size());
-        assertEquals("Expliquer", below.get(0).label());
+        assertEquals(org.llm4people.hermes.R.string.share_intake_explain, below.get(0).labelRes());
 
         // At/above threshold (>= 3): learned habit promoted cleanly to first chip.
         List<SmartIntake.Suggestion> learned = SmartIntake.suggest(null, List.of(photo), Map.of("save_note", 4));
         assertTrue(learned.size() <= SmartIntake.MAX_CHIPS);
-        assertEquals("Sauvegarder en note", learned.get(0).label());
+        assertEquals(org.llm4people.hermes.R.string.share_intake_save_note, learned.get(0).labelRes());
 
         // URL and message stay at 2 calm chips.
         assertEquals(2, SmartIntake.suggest("https://exemple.fr", null, null).size());

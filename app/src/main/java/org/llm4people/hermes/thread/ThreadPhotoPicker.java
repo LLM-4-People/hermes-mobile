@@ -10,6 +10,7 @@ import java.util.UUID;
 import android.provider.MediaStore;
 import android.widget.Toast;
 
+import org.llm4people.hermes.R;
 import org.llm4people.hermes.profile.Account;
 
 /** The external picker can stop and lock the activity. Only the original unlocked owner may import its result. */
@@ -59,7 +60,7 @@ public final class ThreadPhotoPicker {
                     .addCategory(Intent.CATEGORY_OPENABLE).setType("image/*"), requestCode);
         } catch (ActivityNotFoundException | SecurityException unavailable) {
             clear();
-            Toast.makeText(activity, "Le sélecteur d’images est indisponible.", Toast.LENGTH_LONG).show();
+            Toast.makeText(activity, R.string.thread_photo_picker_unavailable, Toast.LENGTH_LONG).show();
         }
     }
 
@@ -102,7 +103,7 @@ public final class ThreadPhotoPicker {
         if (reselect) {
             clear();
             if (!workspace.hasPhotoDraft())
-                Toast.makeText(activity, "Sélection interrompue. Joignez de nouveau l’image.", Toast.LENGTH_LONG).show();
+                Toast.makeText(activity, R.string.thread_photo_selection_interrupted, Toast.LENGTH_LONG).show();
         }
         return false;
     }

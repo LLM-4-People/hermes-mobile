@@ -39,7 +39,7 @@ final class ConversationPanes extends LinearLayout {
         addView(rule, new LayoutParams(Math.max(1, Ui.dp(context, 1)), -1));
         detail = new FrameLayout(context);
         detail.setId(R.id.discussion_detail);
-        empty = Ui.text(context, "Choisissez une discussion pour l’ouvrir.", 18);
+        empty = Ui.text(context, context.getString(R.string.thread_choose_to_open), 18);
         Ui.pad(empty, 24, 16);
         empty.setGravity(Gravity.CENTER);
         empty.setTextColor(context.getColor(R.color.muted));

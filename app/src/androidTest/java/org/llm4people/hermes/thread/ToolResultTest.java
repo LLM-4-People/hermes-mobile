@@ -1,9 +1,14 @@
 package org.llm4people.hermes.thread;
 
-import junit.framework.TestCase;
+import android.test.InstrumentationTestCase;
 import org.json.JSONObject;
 
-public final class ToolResultTest extends TestCase {
+@SuppressWarnings("deprecation")
+public final class ToolResultTest extends InstrumentationTestCase {
+    @Override protected void setUp() throws Exception {
+        super.setUp();
+        ThreadStrings.attach(getInstrumentation().getTargetContext());
+    }
     public void testSkillReceiptUsesItsExplicitOutcomeAndKeepsItsExactTechnicalText() throws Exception {
         String result = " { \"success\": true, \"name\": \"synthese\", \"content\": \"Étape\\n2\", "
                 + "\"path\": \"qualite/synthese/SKILL.md\", \"skill_dir\": \"/profil/skills/qualite/synthese\" }\n";

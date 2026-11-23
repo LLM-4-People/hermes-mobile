@@ -1,7 +1,10 @@
 package org.llm4people.hermes.thread;
 
+import android.content.Context;
+
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.llm4people.hermes.R;
 
 /** Select a readable hint from the user's own opening message when the discussion has no name. */
 final class ThreadTitles {
@@ -75,9 +78,13 @@ final class ThreadTitles {
     }
 
     static String display(String name, String prompt, boolean empty) {
+        return display(null, name, prompt, empty);
+    }
+
+    static String display(Context context, String name, String prompt, boolean empty) {
         if (!name.isEmpty()) return name;
         if (!prompt.isEmpty()) return prompt;
-        return empty ? "Nouvelle conversation" : "Conversation";
+        return ThreadStrings.get(context, empty ? R.string.thread_new_conversation : R.string.thread_conversation);
     }
 
     private ThreadTitles() {}

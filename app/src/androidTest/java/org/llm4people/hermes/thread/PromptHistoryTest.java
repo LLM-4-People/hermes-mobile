@@ -1,10 +1,15 @@
 package org.llm4people.hermes.thread;
 
-import junit.framework.TestCase;
+import android.test.InstrumentationTestCase;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-public class PromptHistoryTest extends TestCase {
+@SuppressWarnings("deprecation")
+public class PromptHistoryTest extends InstrumentationTestCase {
+    @Override protected void setUp() throws Exception {
+        super.setUp();
+        ThreadStrings.attach(getInstrumentation().getTargetContext());
+    }
     public void testCanonicalResultsBecomeConversationalTurnsWithoutDuplicatingTheToolRequest() throws Exception {
         JSONObject call = new JSONObject().put("id", "a").put("function", new JSONObject().put("name", "clarify"));
         JSONObject ask = new JSONObject().put("role", "assistant").put("session_id", "t").put("tool_calls", new JSONArray().put(call));

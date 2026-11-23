@@ -12,6 +12,7 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 
+import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.R;
 
@@ -39,18 +40,24 @@ final class PushNotices {
         return event != null && EVENT.matcher(event).matches();
     }
 
-    static String title(String kind) {
-        if (kind == null) return null;
+    static int titleRes(String kind) {
+        if (kind == null) return 0;
         DeliveryItem.Kind typed = DeliveryItem.Kind.fromWire(kind);
-        if (typed != null) return typed.lockscreenNoticeTitleFr;
+        if (typed != null) return typed.lockscreenNoticeTitleRes;
         return switch (kind) {
-            case "run_completed" -> "Hermes a terminé";
-            case "run_failed" -> "Vérifiez votre session";
-            case QUESTION -> "Hermes a une question";
-            case APPROVAL -> "Autorisation requise";
-            case "reminder" -> "Un rappel vous attend";
-            default -> null;
+            case "run_completed" -> R.string.push_notice_run_completed;
+            case "run_failed" -> R.string.push_notice_run_attention;
+            case QUESTION -> R.string.push_notice_question;
+            case APPROVAL -> R.string.push_notice_approval;
+            case "reminder" -> R.string.push_notice_reminder;
+            default -> 0;
         };
+    }
+
+    static String title(Context context, String kind) {
+        int res = titleRes(kind);
+        if (res == 0 || context == null) return null;
+        return AppLanguage.wrapContext(context).getString(res);
     }
 
     static boolean isPrompt(String kind) {
@@ -58,7 +65,9 @@ final class PushNotices {
     }
 
     static void channel(Context context) {
-        NotificationChannel channel = new NotificationChannel(CHANNEL, "Activité d’Hermes",
+        Context localized = AppLanguage.wrapContext(context);
+        NotificationChannel channel = new NotificationChannel(CHANNEL,
+                localized.getString(R.string.push_channel_activity),
                 NotificationManager.IMPORTANCE_DEFAULT);
         channel.setLockscreenVisibility(Notification.VISIBILITY_PRIVATE);
         context.getSystemService(NotificationManager.class).createNotificationChannel(channel);
@@ -108,7 +117,8 @@ final class PushNotices {
             }
             return;
         }
-        String noticeTitle = title(kind);
+        Context localized = AppLanguage.wrapContext(context);
+        String noticeTitle = title(localized, kind);
         if (noticeTitle == null || !allowed(context)) return;
         PushPolicy policy = PushPolicy.load(context, owner.profile);
         PushPolicy.Decision decision = policy.evaluate(kind, urgency, minuteOfDay);
@@ -120,11 +130,11 @@ final class PushNotices {
         if (intent == null) return;
         PendingIntent tap = PendingIntent.getActivity(context, 0, intent,
                 PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
-        channel(context);
+        channel(localized);
         Notification notice = new Notification.Builder(context, CHANNEL)
                 .setSmallIcon(R.drawable.ic_push_notification)
                 .setContentTitle(noticeTitle)
-                .setContentText("Ouvrez votre profil pour voir les détails.")
+                .setContentText(localized.getString(R.string.push_notice_open_details))
                 .setVisibility(Notification.VISIBILITY_PRIVATE).setContentIntent(tap)
                 .setOnlyAlertOnce(true).setAutoCancel(true)
                 .setTimeoutAfter(isPrompt(kind) ? PROMPT_DISPLAY_MILLIS : 0).build();

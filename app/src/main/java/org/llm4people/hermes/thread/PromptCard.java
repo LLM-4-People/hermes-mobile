@@ -40,8 +40,10 @@ final class PromptCard extends LinearLayout {
         panel.setBackground(outline);
         addView(panel);
         boolean question = RunPrompts.question(prompt);
-        String heading = question ? ThreadData.string(prompt, "question") : "Autoriser cette action ?";
-        TextView title = Ui.text(ui.activity, heading.trim().isEmpty() ? "Question de Hermes" : heading, 18);
+        String heading = question ? ThreadData.string(prompt, "question")
+                : ui.activity.getString(R.string.prompt_approve_title);
+        TextView title = Ui.text(ui.activity,
+                heading.trim().isEmpty() ? ui.activity.getString(R.string.prompt_question_title) : heading, 18);
         title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         title.setAccessibilityHeading(true);
         panel.addView(title);
@@ -59,7 +61,7 @@ final class PromptCard extends LinearLayout {
         status.setTextColor(ui.activity.getColor(R.color.muted));
         status.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         spaced(panel, status);
-        verify = PromptButtons.add(panel, "Vérifier la demande", check, PromptButtons.Role.UTILITY);
+        verify = PromptButtons.add(panel, ui.activity.getString(R.string.prompt_verify_request), check, PromptButtons.Role.UTILITY);
         state(State.READY);
     }
 
@@ -72,17 +74,17 @@ final class PromptCard extends LinearLayout {
                 || (diff != null && (diff.hasLines() || !diff.summary().isEmpty()));
         String summary;
         if (diff != null && !diff.summary().isEmpty()) summary = diff.summary();
-        else if (!path.isEmpty()) summary = "Hermes propose de modifier " + path + ".";
+        else if (!path.isEmpty()) summary = getContext().getString(R.string.prompt_modify_path, path);
         else if (!description.isEmpty()) summary = switch (description) {
-            case "world/other-writable permissions" -> "Hermes demande à accorder un droit d’écriture à d’autres utilisateurs.";
+            case "world/other-writable permissions" -> getContext().getString(R.string.prompt_chmod_file);
             case "recursive world/other-writable (long flag)" ->
-                    "Hermes demande à accorder un droit d’écriture à d’autres utilisateurs sur un dossier et son contenu.";
+                    getContext().getString(R.string.prompt_chmod_recursive);
             case "recursive delete", "recursive delete (long flag)", "recursive delete (flags after operands)" ->
-                    "Hermes demande à supprimer des fichiers ou des dossiers avec leur contenu.";
+                    getContext().getString(R.string.prompt_delete_recursive);
             default -> description;
         };
-        else if (!command.isEmpty()) summary = "Hermes souhaite exécuter cette commande.";
-        else summary = "Hermes n’a pas précisé l’action demandée.";
+        else if (!command.isEmpty()) summary = getContext().getString(R.string.prompt_run_command);
+        else summary = getContext().getString(R.string.prompt_unspecified_action);
         TextView reason = Ui.text(getContext(), summary, 16);
         spaced(panel, reason);
         if (diff != null && (!diff.path().isEmpty() || !DiffRenderer.statsText(diff).isEmpty() || !diff.risk().isEmpty())) {
@@ -98,7 +100,7 @@ final class PromptCard extends LinearLayout {
         if (described) {
             String textDetails = approvalTextDetails(prompt);
             LinearLayout expanded = Ui.column(getContext());
-            Button more = PromptButtons.add(panel, "Voir les détails", null, PromptButtons.Role.UTILITY);
+            Button more = PromptButtons.add(panel, getContext().getString(R.string.thread_see_details), null, PromptButtons.Role.UTILITY);
             PromptButtons.icon(more, R.drawable.ic_prompt_disclosure);
             more.setOnClickListener(v -> {
                 boolean opening = expanded.getVisibility() == GONE;
@@ -107,18 +109,20 @@ final class PromptCard extends LinearLayout {
                 }
                 expanded.setVisibility(opening ? VISIBLE : GONE);
                 more.setActivated(opening);
-                more.setText(opening ? "Masquer les détails" : "Voir les détails");
+                more.setText(opening ? R.string.prompt_hide_details : R.string.thread_see_details);
             });
             expanded.setVisibility(GONE);
             panel.addView(expanded);
         }
         panel.addView(actions);
         if (described && RunPrompts.permits(prompt, "once")) {
-            Button allow = PromptButtons.add(actions, "Autoriser une fois", () -> answer.accept("once"), PromptButtons.Role.DECISION);
+            Button allow = PromptButtons.add(actions, getContext().getString(R.string.share_bridge_allow_once),
+                    () -> answer.accept("once"), PromptButtons.Role.DECISION);
             PromptButtons.icon(allow, R.drawable.ic_prompt_allow);
         }
         if (RunPrompts.permits(prompt, "deny")) {
-            Button deny = PromptButtons.add(actions, "Refuser", () -> answer.accept("deny"), PromptButtons.Role.DECISION);
+            Button deny = PromptButtons.add(actions, getContext().getString(R.string.share_bridge_deny),
+                    () -> answer.accept("deny"), PromptButtons.Role.DECISION);
             PromptButtons.icon(deny, R.drawable.ic_prompt_deny);
         }
     }
@@ -133,19 +137,19 @@ final class PromptCard extends LinearLayout {
                     ? textDetails.substring(0, TranscriptPage.PAGE_CHARS) + "…" : textDetails, 15);
             exact.setTextIsSelectable(true);
             spaced(expanded, exact);
-            if (over) PromptButtons.add(expanded, "Lire tous les détails", () ->
-                    ui.show(new AlertDialog.Builder(getContext()).setTitle("Détails de la demande")
+            if (over) PromptButtons.add(expanded, getContext().getString(R.string.prompt_read_all_details), () ->
+                    ui.show(new AlertDialog.Builder(getContext()).setTitle(R.string.prompt_details_title)
                             .setView(MessageText.reader(getContext(), textDetails, false, true))
-                            .setPositiveButton("Fermer", null)), PromptButtons.Role.UTILITY);
+                            .setPositiveButton(R.string.ws_close, null)), PromptButtons.Role.UTILITY);
         }
     }
 
-    private static String approvalTextDetails(JSONObject prompt) {
+    private String approvalTextDetails(JSONObject prompt) {
         List<String> details = new ArrayList<>();
         String reason = ThreadData.string(prompt, "description");
         String command = ThreadData.string(prompt, "command");
         if (!reason.trim().isEmpty()) details.add(reason);
-        if (!command.trim().isEmpty()) details.add("Commande\n" + command);
+        if (!command.trim().isEmpty()) details.add(getContext().getString(R.string.prompt_command_prefix, command));
         return String.join("\n\n", details);
     }
 
@@ -155,10 +159,10 @@ final class PromptCard extends LinearLayout {
         enabled(actions, next == State.READY);
         if (question != null) question.stateChanged();
         String message = switch (next) {
-            case SENDING -> "Envoi de votre réponse…";
-            case VERIFY -> "Hermes n’a pas confirmé la réponse.";
-            case CHECKING -> "Vérification de la demande…";
-            case OFFLINE -> "En attente de la reconnexion à Hermes.";
+            case SENDING -> getContext().getString(R.string.prompt_sending_reply);
+            case VERIFY -> getContext().getString(R.string.prompt_reply_unconfirmed);
+            case CHECKING -> getContext().getString(R.string.prompt_verifying);
+            case OFFLINE -> getContext().getString(R.string.prompt_waiting_reconnect);
             default -> "";
         };
         status.setText(message);

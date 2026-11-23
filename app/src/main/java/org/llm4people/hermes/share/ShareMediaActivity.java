@@ -12,6 +12,7 @@ import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.HermesConfig;
 import org.llm4people.hermes.MainActivity;
+import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.camera.CapturedMedia;
 import org.llm4people.hermes.profile.IncomingMediaShare;
@@ -48,7 +49,7 @@ public final class ShareMediaActivity extends Activity {
                 if (previous != null && previous.equals(IncomingMediaShare.pending(this))) {
                     busy(previous);
                 } else {
-                    unavailable("Relancez le partage depuis l’application d’origine.");
+                    unavailable(getString(R.string.share_retry_origin));
                 }
                 return;
             }
@@ -58,14 +59,14 @@ public final class ShareMediaActivity extends Activity {
             if (uris.isEmpty() || uris.size() > IncomingMediaShare.MAX_ITEMS) {
                 setIntent(new Intent());
                 Diagnostics.warning("share", "media_count_rejected");
-                unavailable("Vous pouvez partager jusqu’à " + IncomingMediaShare.MAX_ITEMS + " photos ou fichiers à la fois.");
+                unavailable(getString(R.string.share_media_limit, IncomingMediaShare.MAX_ITEMS));
                 return;
             }
             long maxBytes = HermesConfig.load(this).artifactDefaultMaxBytes;
             worker.execute(() -> processOffUiThread(uris, declaredMime, maxBytes));
         } catch (RuntimeException unavailable) {
             Diagnostics.warning("share", "media_unavailable", unavailable);
-            unavailable("Le partage n’a pas pu être ouvert. Réessayez depuis l’application d’origine.");
+            unavailable(getString(R.string.share_open_failed));
         }
     }
 
@@ -95,14 +96,14 @@ public final class ShareMediaActivity extends Activity {
             Diagnostics.warning("share", "media_rejected", rejected);
             runOnUiThread(() -> {
                 if (!isFinishing() && !isDestroyed()) {
-                    unavailable("Ce type de fichier ou sa taille n’est pas pris en charge. Partagez des photos, PDF ou fichiers texte.");
+                    unavailable(getString(R.string.share_media_unsupported));
                 }
             });
         } catch (RuntimeException unavailable) {
             Diagnostics.warning("share", "media_unavailable", unavailable);
             runOnUiThread(() -> {
                 if (!isFinishing() && !isDestroyed()) {
-                    unavailable("Le partage n’a pas pu être ouvert. Réessayez depuis l’application d’origine.");
+                    unavailable(getString(R.string.share_open_failed));
                 }
             });
         }
@@ -143,25 +144,25 @@ public final class ShareMediaActivity extends Activity {
     private void busy(String previous) {
         waiting = previous;
         Ui.secureDialog(new AlertDialog.Builder(this)
-                .setTitle("Un partage est déjà en attente")
-                .setMessage("Terminez ou annulez le partage précédent dans Hermes avant d’en ajouter un nouveau.")
-                .setPositiveButton("Reprendre le partage précédent", (d, w) -> review(previous))
-                .setNegativeButton("Fermer", (d, w) -> finish())
+                .setTitle(R.string.share_pending_title)
+                .setMessage(R.string.share_pending_media_body)
+                .setPositiveButton(R.string.share_pending_resume, (d, w) -> review(previous))
+                .setNegativeButton(R.string.ws_close, (d, w) -> finish())
                 .setOnCancelListener(d -> finish()));
     }
 
     private void unavailable(String message) {
         setIntent(new Intent());
         Ui.secureDialog(new AlertDialog.Builder(this)
-                .setTitle("Partage indisponible")
+                .setTitle(R.string.share_unavailable_title)
                 .setMessage(message)
-                .setPositiveButton("Fermer", (d, w) -> finish())
+                .setPositiveButton(R.string.ws_close, (d, w) -> finish())
                 .setOnCancelListener(d -> finish()));
     }
 
     private void review(String id) {
         if (id == null || !id.equals(IncomingMediaShare.pending(this))) {
-            unavailable("Le partage a expiré. Repartagez les fichiers depuis l’application d’origine.");
+            unavailable(getString(R.string.share_media_expired));
             return;
         }
         startActivity(new Intent(this, MainActivity.class)

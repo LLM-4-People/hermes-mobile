@@ -48,7 +48,8 @@ final class PromptQuestion {
             boolean recommended = choice.endsWith(RECOMMENDED);
             String value = recommended ? choice.substring(0, choice.length() - RECOMMENDED.length()).trim() : choice;
             if (VisibleText.isBlank(value)) continue;
-            String label = recommended ? value + " (choix recommandé)" : choice;
+            String label = recommended
+                    ? card.getContext().getString(R.string.prompt_choice_recommended, value) : choice;
             displayed.add(label);
             CharSequence caption = recommended ? recommendedCaption(label, value.length() + 1) : label;
             if (multiple) {
@@ -68,7 +69,7 @@ final class PromptQuestion {
         LinearLayout custom = Ui.column(card.getContext());
         if (!displayed.isEmpty()) {
             custom.setVisibility(View.GONE);
-            Button write = PromptButtons.add(actions, "Écrire une réponse", null, PromptButtons.Role.UTILITY);
+            Button write = PromptButtons.add(actions, card.getContext().getString(R.string.prompt_write_answer), null, PromptButtons.Role.UTILITY);
             write.setOnClickListener(v -> {
                 write.setVisibility(View.GONE);
                 custom.setVisibility(View.VISIBLE);
@@ -78,7 +79,7 @@ final class PromptQuestion {
             });
         }
         actions.addView(custom);
-        input.setHint("Votre réponse");
+        input.setHint(R.string.prompt_your_answer_hint);
         input.setSaveEnabled(false);
         input.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS);
         input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE
@@ -105,12 +106,12 @@ final class PromptQuestion {
             public void afterTextChanged(Editable s) { updateSubmit(); }
             public void onTextChanged(CharSequence s, int start, int before, int count) {}
         });
-        submit = PromptButtons.add(multiple ? actions : custom, "Envoyer la réponse", () -> {
+        submit = PromptButtons.add(multiple ? actions : custom, card.getContext().getString(R.string.prompt_send_answer), () -> {
             String value = selectedAnswer();
             if (!value.isEmpty()) answer.accept(value);
         }, PromptButtons.Role.SUBMIT);
         // Only canonical clarify prompts reach this view. Their API defines an empty answer as skip.
-        PromptButtons.add(actions, "Passer la question", () -> answer.accept(""), PromptButtons.Role.SKIP);
+        PromptButtons.add(actions, card.getContext().getString(R.string.prompt_skip_question), () -> answer.accept(""), PromptButtons.Role.SKIP);
     }
 
     private static CharSequence recommendedCaption(String label, int noteStart) {

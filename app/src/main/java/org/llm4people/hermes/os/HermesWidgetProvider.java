@@ -9,6 +9,7 @@ import android.graphics.Color;
 import android.view.View;
 import android.widget.RemoteViews;
 
+import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.R;
 
@@ -36,9 +37,13 @@ public final class HermesWidgetProvider extends AppWidgetProvider {
     };
     private static volatile boolean runActive;
 
-    /** Pure privacy-safe status line tested on the host JVM. */
-    public static String statusText(boolean active) {
-        return active ? "Travail en cours" : "Assistant privé";
+    /** Pure privacy-safe status resource tested on the host JVM. */
+    public static int statusTextRes(boolean active) {
+        return active ? R.string.widget_status_working : R.string.widget_status_private;
+    }
+
+    public static String statusText(Context context, boolean active) {
+        return AppLanguage.wrapContext(context).getString(statusTextRes(active));
     }
 
     @Override public void onReceive(Context context, Intent intent) {
@@ -129,10 +134,14 @@ public final class HermesWidgetProvider extends AppWidgetProvider {
     }
 
     static RemoteViews buildDefaultViews(Context context, boolean active) {
+        Context localized = AppLanguage.wrapContext(context);
         RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.hermes_widget);
-        views.setTextViewText(R.id.widget_title, context.getString(R.string.widget_title));
-        views.setTextViewText(R.id.widget_status,
-                context.getString(active ? R.string.widget_status_working : R.string.widget_status_private));
+        views.setTextViewText(R.id.widget_title, localized.getString(R.string.widget_title));
+        views.setTextViewText(R.id.widget_status, localized.getString(statusTextRes(active)));
+        views.setTextViewText(R.id.widget_ask, localized.getString(R.string.widget_ask));
+        views.setContentDescription(R.id.widget_ask, localized.getString(R.string.widget_ask_description));
+        views.setTextViewText(R.id.widget_dictate, localized.getString(R.string.widget_dictate));
+        views.setContentDescription(R.id.widget_dictate, localized.getString(R.string.widget_dictate_description));
         views.setOnClickPendingIntent(R.id.widget_ask,
                 OsEntryIntent.pendingIntent(context, OsEntryIntent.Target.ASK, REQUEST_WIDGET_ASK));
         views.setOnClickPendingIntent(R.id.widget_dictate,
@@ -141,10 +150,11 @@ public final class HermesWidgetProvider extends AppWidgetProvider {
     }
 
     static RemoteViews buildDynamicViews(Context context, HermesWidgetSpec rawSpec) {
-        HermesWidgetSpec safe = rawSpec.redactedForHomeScreen(context);
+        Context localized = AppLanguage.wrapContext(context);
+        HermesWidgetSpec safe = rawSpec.redactedForHomeScreen(localized);
         RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.hermes_widget_dynamic);
         views.setTextViewText(R.id.widget_dynamic_title, safe.title);
-        views.setTextViewText(R.id.widget_dynamic_badge, badgeForTemplate(context, safe.template));
+        views.setTextViewText(R.id.widget_dynamic_badge, badgeForTemplate(localized, safe.template));
         if (safe.accentHex != null) {
             try {
                 views.setTextColor(R.id.widget_dynamic_badge, Color.parseColor(safe.accentHex));

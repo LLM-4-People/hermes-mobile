@@ -508,7 +508,7 @@ final class PushStore extends SQLiteOpenHelper {
             case PushNotices.DISMISS_QUESTION -> "question_requested";
             default -> null;
         };
-        if (request == null && PushNotices.title(kind) == null) return;
+        if (request == null && PushNotices.titleRes(kind) == 0) return;
         SQLiteDatabase db = getWritableDatabase();
         db.beginTransaction();
         try {

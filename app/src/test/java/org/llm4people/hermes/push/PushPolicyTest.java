@@ -115,8 +115,10 @@ public final class PushPolicyTest {
                 .withQuietHours(true, 21 * 60 + 30, 6 * 60 + 45, false);
         PushPolicy restored = PushPolicy.decode(custom.encode());
         assertEquals(custom, restored);
-        assertEquals("21 h 30", PushPolicy.formatMinuteFr(restored.quietStartMinute));
-        assertEquals("06 h 45", PushPolicy.formatMinuteFr(restored.quietEndMinute));
+        assertEquals("21 h 30", PushPolicy.formatMinute(restored.quietStartMinute, "%1$02d h %2$02d", java.util.Locale.FRENCH));
+        assertEquals("06 h 45", PushPolicy.formatMinute(restored.quietEndMinute, "%1$02d h %2$02d", java.util.Locale.FRENCH));
+        assertEquals("21:30", PushPolicy.formatMinute(restored.quietStartMinute, "%1$02d:%2$02d", java.util.Locale.ENGLISH));
+        assertEquals("06:45", PushPolicy.formatMinute(restored.quietEndMinute, "%1$02d:%2$02d", java.util.Locale.ENGLISH));
 
         // Corrupt payloads fail closed to defaults and emit a diagnostic warning.
         for (String bad : new String[]{"v2|bad", "v1|files|x|0|0|1", "v1|files|1|9999|0|1", "garbage"}) {

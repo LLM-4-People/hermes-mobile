@@ -1,10 +1,15 @@
 package org.llm4people.hermes.thread;
 
-import junit.framework.TestCase;
+import android.test.InstrumentationTestCase;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-public class ThreadTitlesTest extends TestCase {
+@SuppressWarnings("deprecation")
+public class ThreadTitlesTest extends InstrumentationTestCase {
+    @Override protected void setUp() throws Exception {
+        super.setUp();
+        ThreadStrings.attach(getInstrumentation().getTargetContext());
+    }
     public void testOpeningIsVisibleUserTextAndMultimodalTextWorks() throws Exception {
         JSONArray rows = new JSONArray("[{role:'tool',content:'SECRET'},{role:'session_meta',content:'system'},"
                 + "{role:'user',display_kind:'hidden',content:'summary'},{role:'assistant',content:'Generated title'},"

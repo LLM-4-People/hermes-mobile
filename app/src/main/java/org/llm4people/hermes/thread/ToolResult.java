@@ -32,7 +32,6 @@ final class ToolResult {
         String name = name(row);
         boolean skill = name.equals("skill_view");
         JSONObject result = envelope(row.opt("content"));
-        String suffix = name.isEmpty() ? "" : " · " + name;
         if (result != null) {
             Object success = result.opt("success");
             Object error = result.opt("error");
@@ -42,27 +41,24 @@ final class ToolResult {
                     || Boolean.TRUE.equals(result.opt("is_error"))
                     || error instanceof String message && !message.isEmpty() || error instanceof JSONObject
                     || exit instanceof Number n && n.doubleValue() != 0) {
-                if (context == null) return skill ? "Échec de la consultation" : "Échec de l’outil" + suffix;
-                if (skill) return context.getString(R.string.thread_skill_failed);
+                if (skill) return ThreadStrings.get(context, R.string.thread_skill_failed);
                 return name.isEmpty()
-                        ? context.getString(R.string.thread_tool_failed)
-                        : context.getString(R.string.thread_tool_failed_named, name);
+                        ? ThreadStrings.get(context, R.string.thread_tool_failed)
+                        : ThreadStrings.get(context, R.string.thread_tool_failed_named, name);
             }
             boolean settled = !"pending".equals(status) && !"running".equals(status) && !"queued".equals(status)
                     && !"unknown".equals(status);
             if (settled && (Boolean.TRUE.equals(success) || exit instanceof Number n && n.doubleValue() == 0)) {
-                if (context == null) return skill ? "Compétence consultée" : "Outil terminé" + suffix;
-                if (skill) return context.getString(R.string.thread_skill_done);
+                if (skill) return ThreadStrings.get(context, R.string.thread_skill_done);
                 return name.isEmpty()
-                        ? context.getString(R.string.thread_tool_done)
-                        : context.getString(R.string.thread_tool_done_named, name);
+                        ? ThreadStrings.get(context, R.string.thread_tool_done)
+                        : ThreadStrings.get(context, R.string.thread_tool_done_named, name);
             }
         }
-        if (context == null) return skill ? "Consultation d’une compétence" : "Résultat de l’outil" + suffix;
-        if (skill) return context.getString(R.string.thread_skill_result);
+        if (skill) return ThreadStrings.get(context, R.string.thread_skill_result);
         return name.isEmpty()
-                ? context.getString(R.string.thread_tool_result)
-                : context.getString(R.string.thread_tool_result_named, name);
+                ? ThreadStrings.get(context, R.string.thread_tool_result)
+                : ThreadStrings.get(context, R.string.thread_tool_result_named, name);
     }
 
     private static JSONObject envelope(Object content) {

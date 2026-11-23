@@ -44,7 +44,10 @@ public final class SmartIntake {
         MESSAGE
     }
 
-    public record Suggestion(String id, String label, String draftText) {}
+    public record Suggestion(String id, int labelRes, int draftRes) {
+        public String label(Context context) { return context.getString(labelRes); }
+        public String draftText(Context context) { return context.getString(draftRes); }
+    }
 
     private SmartIntake() {}
 
@@ -89,22 +92,22 @@ public final class SmartIntake {
     private static List<Suggestion> defaultsFor(ContentType type) {
         return switch (type) {
             case PHOTO_OR_RECEIPT -> List.of(
-                    new Suggestion("explain_image", "Expliquer", "Explique cette image simplement."),
-                    new Suggestion("extract_info", "Extraire les infos", "Extrais les informations importantes de cette image."),
-                    new Suggestion("save_note", "Sauvegarder en note", "Enregistre les informations importantes de cette image dans une note."));
+                    new Suggestion("explain_image", R.string.share_intake_explain, R.string.share_intake_draft_explain_image),
+                    new Suggestion("extract_info", R.string.share_intake_extract, R.string.share_intake_draft_extract_image),
+                    new Suggestion("save_note", R.string.share_intake_save_note, R.string.share_intake_draft_save_image));
             case URL -> List.of(
-                    new Suggestion("summarize_url", "Résumer", "Résume le contenu de ce lien."),
-                    new Suggestion("save_note", "Sauvegarder en note", "Enregistre un résumé de ce lien dans une note."));
+                    new Suggestion("summarize_url", R.string.share_intake_summarize, R.string.share_intake_draft_summarize_url),
+                    new Suggestion("save_note", R.string.share_intake_save_note, R.string.share_intake_draft_save_url));
             case CODE_OR_LOG -> List.of(
-                    new Suggestion("diagnose_code", "Diagnostiquer", "Diagnostique ce problème et propose une solution claire."),
-                    new Suggestion("explain_code", "Expliquer", "Explique simplement ce que fait cet extrait."));
+                    new Suggestion("diagnose_code", R.string.share_intake_diagnose, R.string.share_intake_draft_diagnose_code),
+                    new Suggestion("explain_code", R.string.share_intake_explain, R.string.share_intake_draft_explain_code));
             case DOCUMENT -> List.of(
-                    new Suggestion("summarize_doc", "Résumer", "Résume les points essentiels de ce document."),
-                    new Suggestion("extract_info", "Extraire les infos", "Extrais les informations clés de ce document."),
-                    new Suggestion("save_note", "Sauvegarder en note", "Enregistre un résumé de ce document dans une note."));
+                    new Suggestion("summarize_doc", R.string.share_intake_summarize, R.string.share_intake_draft_summarize_doc),
+                    new Suggestion("extract_info", R.string.share_intake_extract, R.string.share_intake_draft_extract_doc),
+                    new Suggestion("save_note", R.string.share_intake_save_note, R.string.share_intake_draft_save_doc));
             case MESSAGE -> List.of(
-                    new Suggestion("reply_message", "Répondre", "Aide-moi à rédiger une réponse claire à ce message."),
-                    new Suggestion("add_calendar", "Ajouter au calendrier", "Vérifie s’il y a une date dans ce message pour l’ajouter à mon agenda."));
+                    new Suggestion("reply_message", R.string.share_intake_reply, R.string.share_intake_draft_reply_msg),
+                    new Suggestion("add_calendar", R.string.share_intake_add_calendar, R.string.share_intake_draft_calendar_msg));
         };
     }
 
@@ -132,10 +135,11 @@ public final class SmartIntake {
         int count = suggestions == null ? 0 : Math.min(MAX_CHIPS, suggestions.size());
         for (int i = 0; i < count; i++) {
             Suggestion suggestion = suggestions.get(i);
-            Button chip = Ui.button(context, suggestion.label(), v -> {
+            String chipLabel = suggestion.label(context);
+            Button chip = Ui.button(context, chipLabel, v -> {
                 if (onPick != null) onPick.accept(suggestion);
             });
-            chip.setContentDescription("Préparer : " + suggestion.label());
+            chip.setContentDescription(context.getString(R.string.share_intake_prepare_desc, chipLabel));
             chip.setTextColor(context.getColor(R.color.accent));
             GradientDrawable bg = new GradientDrawable();
             bg.setCornerRadius(Ui.dp(context, 16));

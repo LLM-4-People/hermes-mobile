@@ -167,7 +167,7 @@ final class TranscriptPage {
             while (next.offset < next.lineEnd && base64(source.charAt(next.offset))) next.offset++;
             if (next.offset < next.lineEnd && source.charAt(next.offset) == ')') next.offset++;
             next.image = false;
-            text.append("[Image jointe]");
+            text.append(ThreadStrings.get(org.llm4people.hermes.R.string.thread_attached_image_bracket));
         }
         while (next.offset < source.length() && text.length() < limit) {
             if (next.lineEnd < 0 && beginLine(limit)) continue;
@@ -624,7 +624,7 @@ final class TranscriptPage {
         int after = image.end();
         while (after < next.lineEnd && base64(source.charAt(after))) after++;
         if (image.start(1) >= 0 && after < next.lineEnd && source.charAt(after) == ')') after++;
-        text.append("[Image jointe]");
+        text.append(ThreadStrings.get(org.llm4people.hermes.R.string.thread_attached_image_bracket));
         next.offset = after;
     }
 

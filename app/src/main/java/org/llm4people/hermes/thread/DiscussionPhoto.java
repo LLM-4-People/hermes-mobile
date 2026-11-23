@@ -127,7 +127,7 @@ final class DiscussionPhoto {
                 }
             }
         } catch (RuntimeException unavailable) { /* The name is optional. */ }
-        return "Image sélectionnée";
+        return ThreadStrings.get(org.llm4people.hermes.R.string.thread_photo_selected);
     }
 
     static boolean valid(JSONObject info) {

@@ -1,11 +1,14 @@
 package org.llm4people.hermes.places;
 
-import junit.framework.TestCase;
+import android.content.Context;
+import android.test.InstrumentationTestCase;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-public final class NearbyResultTest extends TestCase {
+@SuppressWarnings("deprecation")
+public final class NearbyResultTest extends InstrumentationTestCase {
+    private Context targetContext() { return getInstrumentation().getTargetContext(); }
     private static JSONObject response(JSONArray rows) throws JSONException {
         return new JSONObject().put("source", "OpenStreetMap").put("attribution", "© OpenStreetMap contributors")
                 .put("source_date", "2026-11-22T13:05:00Z").put("radius_m", 1500).put("places", rows);
@@ -24,7 +27,7 @@ public final class NearbyResultTest extends TestCase {
                         .put("website","https://example.invalid/"))
                 .put(venue("node",17,"Café ☕",205))
                 .put(venue("relation",5000000000L,"Bistro",22));
-        NearbyResult result = NearbyResult.parse(response(records));
+        NearbyResult result = NearbyResult.parse(targetContext(), response(records));
         assertEquals("© OpenStreetMap contributors", result.attribution);
         assertEquals("2026-11-22T13:05:00Z", result.sourceDate);
         assertEquals(1500, result.radiusMeters);
@@ -50,7 +53,7 @@ public final class NearbyResultTest extends TestCase {
     public void testCuisineFilterKeepsAnUnknownSourceTagContainingAMiddleDot() throws Exception {
         JSONArray rows = new JSONArray().put(venue("node", 42, "Restaurant", 10)
                 .put("cuisine", "du marché · local; italian;du marché · local"));
-        NearbyResult.Place place = NearbyResult.parse(response(rows)).places.get(0);
+        NearbyResult.Place place = NearbyResult.parse(targetContext(), response(rows)).places.get(0);
         assertEquals(java.util.Arrays.asList("du marché · local", "Italienne"), place.cuisines);
         assertEquals("du marché · local · Italienne", place.cuisine);
     }
@@ -59,7 +62,7 @@ public final class NearbyResultTest extends TestCase {
         JSONArray rows = new JSONArray().put(venue("node", 42, "Restaurant", 10)
                 .put("cuisine", "italian_pizza;pasta;asian;korean"));
         assertEquals("Pizza italienne · Pâtes · Asiatique · Coréenne",
-                NearbyResult.parse(response(rows)).places.get(0).cuisine);
+                NearbyResult.parse(targetContext(), response(rows)).places.get(0).cuisine);
     }
 
     public void testMalformedNeighborsCannotSupplyAnIdentityOrReplaceGoodResults() throws Exception {

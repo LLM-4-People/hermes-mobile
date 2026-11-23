@@ -2,6 +2,7 @@ package org.llm4people.hermes.thread;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.llm4people.hermes.R;
 import java.util.LinkedHashMap;
 
 /** The gateway orders the inbox. The currently open root stays reachable even off its first page. */
@@ -38,7 +39,8 @@ final class DiscussionIndex {
             if (root.equals(ThreadIdentity.rootId(row)) || root.equals(ThreadData.string(row, "id"))) {
                 if (matchIndex < 0) matchIndex = i;
                 if (preview.isEmpty()) preview = ThreadTitles.previewForRow(row);
-                if ("Conversation".equals(resolvedTitle) && !ThreadData.string(row, "title").isEmpty())
+                if ((resolvedTitle.isEmpty() || resolvedTitle.equals(ThreadStrings.get(R.string.thread_conversation)))
+                        && !ThreadData.string(row, "title").isEmpty())
                     resolvedTitle = ThreadData.string(row, "title");
             }
         }

@@ -7,6 +7,7 @@ import android.content.DialogInterface;
 import android.os.Bundle;
 
 import org.llm4people.hermes.Diagnostics;
+import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.profile.Account;
@@ -96,7 +97,7 @@ public final class SharedTextFlow {
             target = entry == null ? session : entry.confirmedThread();
             imported = workspace.containsShare(target, key);
         } catch (RuntimeException unavailable) {
-            failed("Impossible de vérifier le partage et son brouillon. Réessayez lorsque le stockage sera disponible.");
+            failed(activity.getString(R.string.share_text_verify_failed));
             return;
         }
         if (imported) {
@@ -106,37 +107,37 @@ public final class SharedTextFlow {
         if (entry == null) {
             // A different unlock must neither display nor discard the owning profile's share.
             ticket = cleanupTicket = null;
-            failed("Le partage a expiré ou appartient à un autre profil. Repartagez le texte depuis l’application d’origine.");
+            failed(activity.getString(R.string.share_text_expired_profile));
             return;
         }
         String text = entry.text();
         int end = Math.min(480, text.length());
         if (end < text.length() && Character.isHighSurrogate(text.charAt(end - 1))) end--;
         String preview = end == text.length() ? text : text.substring(0, end) + "…";
-        String destination = session == null ? "" : "\nDiscussion : " + shownTitle
-                + "\nIdentifiant : " + HermesApi.segment(session);
+        String destination = session == null ? "" : activity.getString(
+                R.string.share_destination_details, shownTitle, HermesApi.segment(session));
+        String header = activity.getString(R.string.share_profile_prefix, account.label) + destination;
         AlertDialog.Builder builder = new AlertDialog.Builder(activity)
-                .setTitle(session == null ? "Choisir une discussion" : "Ajouter au brouillon ?")
-                .setMessage("Profil : " + account.label + destination
-                        + "\n\n" + preview + "\n\nLe texte sera ajouté à la suite du brouillon. Vous pourrez le modifier avant l’envoi.")
-                .setNegativeButton("Annuler", (d,w) -> { if (owns(d, key, account, session)) cancel(); })
+                .setTitle(session == null ? R.string.ws_choose_discussion_title : R.string.share_add_text_title)
+                .setMessage(activity.getString(R.string.share_text_confirm_body, header, preview))
+                .setNegativeButton(R.string.ws_cancel, (d,w) -> { if (owns(d, key, account, session)) cancel(); })
                 .setOnCancelListener(d -> { if (d == dialog && key.equals(ticket) && owner == account) cancel(); });
         if (session != null) {
-            builder.setPositiveButton("Ajouter au brouillon", (d,w) -> {
+            builder.setPositiveButton(R.string.share_add_to_draft, (d,w) -> {
                 if (!owns(d, key, account, session)) return;
                 try {
                     if (!IncomingShare.target(activity, key, account, session)) {
-                        failed("Le partage a expiré ou a déjà été confirmé pour une autre discussion.");
+                        failed(activity.getString(R.string.share_expired_confirmed));
                         return;
                     }
                     if (!workspace.appendShare(session, key, text)) return;
                 } catch (RuntimeException unavailable) {
-                    failed("Le brouillon n’a pas pu être confirmé. Vérifiez le stockage puis réessayez.");
+                    failed(activity.getString(R.string.share_text_confirm_failed));
                     return;
                 }
                 completed(key, session);
-            }).setNeutralButton("Autre discussion", (d,w) -> choose(d, key, account, session));
-        } else builder.setPositiveButton("Choisir une discussion", (d,w) -> choose(d, key, account, null));
+            }).setNeutralButton(R.string.share_other_discussion, (d,w) -> choose(d, key, account, session));
+        } else builder.setPositiveButton(R.string.ws_choose_discussion_title, (d,w) -> choose(d, key, account, null));
         dialog = Ui.secureDialog(builder);
     }
 
@@ -155,10 +156,10 @@ public final class SharedTextFlow {
             cleanupTicket = null;
         } catch (RuntimeException unavailable) {
             Account account = owner;
-            dialog = Ui.secureDialog(new AlertDialog.Builder(activity).setTitle("Texte ajouté au brouillon")
-                    .setMessage("Votre brouillon est enregistré. La copie temporaire du partage n’a pas pu être effacée.")
-                    .setPositiveButton("Modifier le brouillon", null)
-                    .setNegativeButton("Réessayer le nettoyage", (d,w) -> {
+            dialog = Ui.secureDialog(new AlertDialog.Builder(activity).setTitle(R.string.share_text_added_title)
+                    .setMessage(R.string.share_text_cleanup_body)
+                    .setPositiveButton(R.string.share_edit_draft, null)
+                    .setNegativeButton(R.string.share_retry_cleanup, (d,w) -> {
                         if (d == dialog && owner == account && key.equals(cleanupTicket)) cleanup(key);
                     }));
         }
@@ -178,17 +179,17 @@ public final class SharedTextFlow {
 
     private void failed(String message) {
         dismiss();
-        AlertDialog.Builder alert = new AlertDialog.Builder(activity).setTitle("Partage indisponible").setMessage(message);
-        if (ticket == null) alert.setPositiveButton("Fermer", null);
-        else alert.setPositiveButton("Réessayer", (d,w) -> { if (owner != null && d == dialog) present(); })
-                .setNegativeButton("Fermer", (d,w) -> { if (owner != null && d == dialog) leave(); })
+        AlertDialog.Builder alert = new AlertDialog.Builder(activity).setTitle(R.string.share_unavailable_title).setMessage(message);
+        if (ticket == null) alert.setPositiveButton(R.string.ws_close, null);
+        else alert.setPositiveButton(R.string.instrument_retry, (d,w) -> { if (owner != null && d == dialog) present(); })
+                .setNegativeButton(R.string.ws_close, (d,w) -> { if (owner != null && d == dialog) leave(); })
                 .setOnCancelListener(d -> { if (d == dialog) leave(); });
         dialog = Ui.secureDialog(alert);
     }
 
     private void cancel() {
         try { IncomingShare.discard(activity, ticket); }
-        catch (RuntimeException failure) { failed("La copie temporaire du partage n’a pas pu être effacée."); return; }
+        catch (RuntimeException failure) { failed(activity.getString(R.string.share_cleanup_failed)); return; }
         ticket = null;
         dismiss();
     }
