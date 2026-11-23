@@ -318,10 +318,11 @@ def choose_ntfy(ui):
     no_transport = s["push_settings_no_service"]
     no_distributor = s["push_settings_install_up"]
     attempts = 0
+    distributor_taps = 0
     flags = {}
 
     def choose():
-        nonlocal attempts
+        nonlocal attempts, distributor_taps
         root = ui.hierarchy()
         transport = ui.node(transport_title, root) is not None
         distributor = ui.node(distributor_title, root) is not None
@@ -335,8 +336,13 @@ def choose_ntfy(ui):
                      ntfy_option=ntfy is not None, unavailable=unavailable, transport_taps=attempts)
         if unavailable:
             raise AssertionError("The application reported no available transport or distributor")
+        if distributor_taps > 0 and not distributor:
+            return (True,)
         if distributor:
-            return (ntfy,) if ntfy is not None else None
+            if ntfy is not None:
+                ui.tap_node(ntfy)
+                distributor_taps += 1
+            return None
         if transport and unified is not None and attempts < 3:
             ui.tap_node(unified)
             attempts += 1
@@ -350,11 +356,6 @@ def choose_ntfy(ui):
     except (AssertionError, TimeoutError, RuntimeError):
         print("Android enrollment " + json.dumps(flags, sort_keys=True), file=sys.stderr, flush=True)
         raise
-    ui.tap_until(
-        "ntfy\n" + NTFY,
-        lambda root: ui.node(distributor_title, root) is None,
-        description="distributor chooser to dismiss after selecting ntfy",
-    )
 
 
 def enroll(ui):

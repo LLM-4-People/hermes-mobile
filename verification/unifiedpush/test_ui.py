@@ -150,8 +150,7 @@ class ScreenUiTest(unittest.TestCase):
                     atelier, notif_dialog,
                     notif_dialog, notif_dialog, transport_picker,
                     transport_picker,  # allow_if_prompted()
-                    transport_picker, distributor_picker,  # choose_ntfy() loop
-                    distributor_picker, distributor_picker, enrolled,  # choose_ntfy() tap_until
+                    transport_picker, distributor_picker, distributor_picker, enrolled,  # choose_ntfy() loop
                 ])
                 tapped = []
                 ui.tap_node = Mock(side_effect=lambda node: tapped.append(node.get("text")))

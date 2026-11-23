@@ -23,11 +23,16 @@ class EnrollmentTest(unittest.TestCase):
                 first, original = dialog(s["push_settings_service_title"], s["push_settings_enable_up"])
                 second, retry = dialog(s["push_settings_service_title"], s["push_settings_enable_up"])
                 third, target = dialog(s["push_settings_choose_distributor"], "ntfy\n" + NTFY)
-                ui.hierarchy = Mock(side_effect=[first, second, third])
+                fourth, target_retry = dialog(s["push_settings_choose_distributor"], "ntfy\n" + NTFY)
+                dismissed = Element("node")
+                ui.hierarchy = Mock(side_effect=[first, second, third, fourth, dismissed])
                 ui.tap_node = Mock()
                 with patch("verification.unifiedpush.stack.time.sleep"):
                     choose_ntfy(ui)
-                self.assertEqual(ui.tap_node.call_args_list, [call(original), call(retry), call(target)])
+                self.assertEqual(
+                    ui.tap_node.call_args_list,
+                    [call(original), call(retry), call(target), call(target_retry)],
+                )
 
     def test_reports_real_unavailable_picker_without_tapping_unrelated_controls(self):
         for lang in ("en", "fr"):
