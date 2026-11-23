@@ -189,6 +189,8 @@ PROPER_WORDS = {
     "Pixel",
     "Samsung",
     "Linux",
+    "Landlock",
+    "Cosign",
     "Windows",
     "Docker",
     "Tailscale",

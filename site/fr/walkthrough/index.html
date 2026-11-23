@@ -3,21 +3,22 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Galerie des écrans réels — Hermes Mobile</title>
-  <meta name="description" content="Captures réelles en français sur téléphone et tablette Android 16 issues des vérifications de Hermes Mobile.">
+  <title>Galerie des écrans | Hermes Mobile</title>
+  <meta name="description" content="Captures françaises vérifiées sur Android 16 en thèmes clair et sombre issues de Hermes Mobile.">
   <link rel="icon" type="image/svg+xml" href="../../assets/favicon.svg">
   <link rel="canonical" href="https://llm-4-people.github.io/hermes-mobile/fr/walkthrough/">
   <link rel="alternate" hreflang="fr" href="https://llm-4-people.github.io/hermes-mobile/fr/walkthrough/">
   <link rel="alternate" hreflang="en" href="https://llm-4-people.github.io/hermes-mobile/en/walkthrough/">
   <link rel="alternate" hreflang="x-default" href="https://llm-4-people.github.io/hermes-mobile/en/walkthrough/">
   <meta property="og:type" content="website">
-  <meta property="og:title" content="Galerie des écrans réels — Hermes Mobile">
-  <meta property="og:description" content="Découvrez des captures authentiques de Hermes Mobile sur téléphone et tablette Android.">
+  <meta property="og:title" content="Galerie des écrans | Hermes Mobile">
+  <meta property="og:description" content="Découvrez les captures réelles en français de Hermes Mobile sur Android 16 en thèmes clair et sombre.">
   <meta property="og:url" content="https://llm-4-people.github.io/hermes-mobile/fr/walkthrough/">
   <meta property="og:image" content="https://llm-4-people.github.io/hermes-mobile/assets/marketing/social-preview-fr.png">
   <meta property="og:locale" content="fr_CA">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:image" content="https://llm-4-people.github.io/hermes-mobile/assets/marketing/social-preview-fr.png">
+  <script>(function(){try{var q=new URLSearchParams(location.search).get('theme');var s=q==='light'||q==='dark'?q:localStorage.getItem('hermes-site-theme');var t=s==='light'||s==='dark'?s:(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
   <link rel="stylesheet" href="../../assets/style.css">
 </head>
 <body>
@@ -26,19 +27,33 @@
   <header class="topbar">
     <div class="topbar-inner">
       <a class="brand" href="../">
-        <img class="brand-mark" src="../../assets/favicon.svg" alt="" width="30" height="30">
+        <img class="brand-mark" src="../../assets/favicon.svg" alt="" width="28" height="28">
         <span>Hermes Mobile</span>
       </a>
       <nav class="nav-links" aria-label="Navigation principale">
         <a href="../">Aperçu</a>
         <a href="../docs/">Documentation</a>
-        <a href="./" class="is-active">Galerie</a>
+        <a href="./" class="is-active" aria-current="page">Galerie</a>
         <a href="https://github.com/LLM-4-People/hermes-mobile" rel="noopener">GitHub</a>
       </nav>
       <div class="nav-actions">
         <a class="lang-link" href="../../en/walkthrough/" data-lang-switch="en" hreflang="en" lang="en" aria-label="Passer à la galerie anglaise">English</a>
-        <button type="button" class="pill-btn" data-theme-toggle aria-pressed="false">☾ Sombre</button>
-        <a class="btn btn-primary" data-latest-apk href="https://github.com/LLM-4-People/hermes-mobile/releases/latest" rel="noopener">Télécharger l’APK</a>
+        <button type="button" class="pill-btn" data-theme-toggle aria-pressed="false">Sombre</button>
+        <a class="topbar-apk" data-latest-apk href="https://github.com/LLM-4-People/hermes-mobile/releases/latest" rel="noopener">Télécharger l’APK</a>
+        <button type="button" class="menu-btn" data-menu-toggle aria-expanded="false" aria-controls="mobile-nav" aria-label="Afficher ou masquer la navigation">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M4 7h16v2H4V7zm0 4h16v2H4v-2zm0 4h16v2H4v-2z"/></svg>
+        </button>
+      </div>
+    </div>
+    <div id="mobile-nav" class="mobile-drawer">
+      <nav class="mobile-drawer-links" aria-label="Navigation mobile">
+        <a href="../">Aperçu</a>
+        <a href="../docs/">Documentation</a>
+        <a href="./" class="is-active" aria-current="page">Galerie des écrans</a>
+        <a href="https://github.com/LLM-4-People/hermes-mobile" rel="noopener">Dépôt GitHub</a>
+      </nav>
+      <div class="mobile-drawer-cta">
+        <a class="btn btn-primary" data-latest-apk href="https://github.com/LLM-4-People/hermes-mobile/releases/latest" rel="noopener">Télécharger l’APK signé</a>
       </div>
     </div>
   </header>
@@ -46,229 +61,124 @@
   <main id="main" class="section">
     <div class="container">
       <div class="section-head">
-        <span class="eyebrow">Captures Android vérifiées</span>
-        <h1>Galerie des écrans réels</h1>
-        <p>Touchez n’importe quelle image pour l’inspecter en grand format. Chaque capture provient directement des tests sur appareils Android.</p>
+        <h1>Galerie des écrans Android 16</h1>
+        <p>Touchez n’importe quelle capture pour l’inspecter en grand format. Choisissez Clair, Sombre ou Les deux pour comparer les thèmes natifs directement.</p>
       </div>
 
-      <div class="filter-bar" role="tablist" aria-label="Filtrer les captures">
-        <button type="button" class="showcase-tab" role="tab" aria-selected="true" data-gallery-filter="all">Tout</button>
-        <button type="button" class="showcase-tab" role="tab" aria-selected="false" data-gallery-filter="phone">Téléphone</button>
-        <button type="button" class="showcase-tab" role="tab" aria-selected="false" data-gallery-filter="tablet">Tablette</button>
-        <button type="button" class="showcase-tab" role="tab" aria-selected="false" data-gallery-filter="editorial">Visuels clés</button>
-      </div>
-
-      <div class="gallery-grid">
-        <article class="capture-card" data-category="phone">
-          <div class="capture-media" role="button" tabindex="0">
-            <img src="../../assets/screens/phone-transcript.png" alt="Fil de discussion sur téléphone avec typographie papier claire">
-          </div>
-          <div class="capture-body">
-            <span class="badge">Téléphone</span>
-            <h3>Fil de discussion</h3>
-            <p>Colonne de lecture chaleureuse, texte sélectionnable, aperçus de code et rédaction toujours accessible.</p>
-          </div>
-        </article>
-
-        <article class="capture-card" data-category="phone">
-          <div class="capture-media" role="button" tabindex="0">
-            <img src="../../assets/screens/phone-approval.png" alt="Carte de validation d’action affichant les détails proposés">
-          </div>
-          <div class="capture-body">
-            <span class="badge">Téléphone</span>
-            <h3>Carte de validation</h3>
-            <p>Choix explicite Autoriser une fois ou Refuser avec détails techniques dépliables avant exécution.</p>
-          </div>
-        </article>
-
-        <article class="capture-card" data-category="phone">
-          <div class="capture-media" role="button" tabindex="0">
-            <img src="../../assets/screens/phone-photo-draft.png" alt="Photo jointe préparée dans un brouillon modifiable sur téléphone">
-          </div>
-          <div class="capture-body">
-            <span class="badge">Téléphone</span>
-            <h3>Brouillon avec photo</h3>
-            <p>Les métadonnées EXIF et GPS sont retirées automatiquement avant la préparation de votre message.</p>
-          </div>
-        </article>
-
-        <article class="capture-card" data-category="phone">
-          <div class="capture-media" role="button" tabindex="0">
-            <img src="../../assets/screens/phone-clarify.png" alt="Carte de question structurée avec choix proposés sur téléphone">
-          </div>
-          <div class="capture-body">
-            <span class="badge">Téléphone</span>
-            <h3>Question de précision</h3>
-            <p>Répondez par choix rapide, cases à cocher ou dictée vocale sans quitter la conversation.</p>
-          </div>
-        </article>
-
-        <article class="capture-card" data-category="tablet">
-          <div class="capture-media" role="button" tabindex="0">
-            <img src="../../assets/screens/tablet-dual-pane.png" alt="Affichage tablette double volet avec rail de navigation 92 dp">
-          </div>
-          <div class="capture-body">
-            <span class="badge">Tablette</span>
-            <h3>Double volet et rail 92 dp</h3>
-            <p>Barre latérale de 92 dp associée à la liste repliable des discussions et au fil actif.</p>
-          </div>
-        </article>
-
-        <article class="capture-card" data-category="tablet">
-          <div class="capture-media" role="button" tabindex="0">
-            <img src="../../assets/screens/tablet-live-tool.png" alt="Outil épinglé affiché côte à côte avec la discussion sur tablette">
-          </div>
-          <div class="capture-body">
-            <span class="badge">Tablette</span>
-            <h3>Outil en direct côte à côte</h3>
-            <p>Les formulaires interactifs créés par Hermes partagent la largeur avec la conversation en cours.</p>
-          </div>
-        </article>
-
-        <article class="capture-card" data-category="tablet">
-          <div class="capture-media" role="button" tabindex="0">
-            <img src="../../assets/screens/tablet-large-text.png" alt="Affichage tablette vérifié avec une taille de police de 150 pour cent">
-          </div>
-          <div class="capture-body">
-            <span class="badge">Tablette · Police 150 %</span>
-            <h3>Accessibilité grande police</h3>
-            <p>Vérifié à l’échelle 1,5x sans troncature de boutons et avec des zones tactiles de 48 dp préservées.</p>
-          </div>
-        </article>
-
-        <article class="capture-card" data-category="tablet">
-          <div class="capture-media" role="button" tabindex="0">
-            <img src="../../assets/screens/tablet-rotated.png" alt="Affichage tablette après rotation conservant le brouillon et la discussion">
-          </div>
-          <div class="capture-body">
-            <span class="badge">Tablette · Rotation</span>
-            <h3>Continuité en rotation</h3>
-            <p>Les changements d’orientation et d’écran partagé se réorganisent sur place sans verrouiller ni perdre le brouillon.</p>
-          </div>
-        </article>
-
-        <article class="capture-card" data-category="editorial">
-          <div class="capture-media" role="button" tabindex="0">
-            <img src="../../assets/marketing/hero-studio.png" alt="Photographie studio d’un téléphone moderne sur du noyer et de la pierre claire">
-          </div>
-          <div class="capture-body">
-            <span class="badge">Visuel clé</span>
-            <h3>Photographie studio</h3>
-            <p>Noyer chaleureux, pierre claire et obsidienne mate à l’image de l’esthétique papier de Hermes Mobile.</p>
-          </div>
-        </article>
-
-        <article class="capture-card" data-category="editorial">
-          <div class="capture-media" role="button" tabindex="0">
-            <img src="../../assets/marketing/privacy-architecture.png" alt="Illustration architecturale des coffres chiffrés et flux parallèles">
-          </div>
-          <div class="capture-body">
-            <span class="badge">Visuel clé</span>
-            <h3>Architecture de confidentialité</h3>
-            <p>Coffres chiffrés par profil reliés par des flux parallèles vers un espace de travail serein.</p>
-          </div>
-        </article>
-      </div>
-
-      <section class="section" style="padding-bottom:0;">
-        <div class="section-head">
-          <span class="eyebrow">Android 16 · API 36</span>
-          <h2>Palette rapide, modèles, diagnostic et présence</h2>
-          <p>Captures françaises vérifiées directement sur Android 16 (1080×2340).</p>
+      <div class="filter-controls">
+        <div class="filter-bar" role="tablist" aria-label="Filtrer les captures">
+          <button type="button" class="showcase-tab" role="tab" aria-selected="true" data-gallery-filter="all">Tout</button>
+          <button type="button" class="showcase-tab" role="tab" aria-selected="false" data-gallery-filter="screen">Écrans Android 16</button>
+          <button type="button" class="showcase-tab" role="tab" aria-selected="false" data-gallery-filter="overview">Visuels d’ensemble</button>
         </div>
-        <div class="gallery-grid">
-          <article class="capture-card" data-category="phone">
-            <div class="capture-media" role="button" tabindex="0">
-              <img src="../../assets/screens/fr/command-palette.png" alt="Palette de commandes en français affichant les actions, fils récents et modèles">
-            </div>
-            <div class="capture-body">
-              <span class="badge">Android 16 · FR</span>
-              <h3>Palette de commandes (Ctrl+K)</h3>
-              <p>Fenêtre de recherche rapide vers toutes les actions, fils récents et modèles.</p>
-            </div>
-          </article>
-          <article class="capture-card" data-category="phone">
-            <div class="capture-media" role="button" tabindex="0">
-              <img src="../../assets/screens/fr/templates.png" alt="Panneau modèles quotidiens en français ouvrant un brouillon modifiable">
-            </div>
-            <div class="capture-body">
-              <span class="badge">Android 16 · FR</span>
-              <h3>Modèles quotidiens</h3>
-              <p>Modèles prêts à l’emploi et modèles chiffrés par profil ouvrant un brouillon modifiable.</p>
-            </div>
-          </article>
-          <article class="capture-card" data-category="phone">
-            <div class="capture-media" role="button" tabindex="0">
-              <img src="../../assets/screens/fr/connection-doctor.png" alt="Diagnostic de connexion en français vérifiant 51 capacités sur 51">
-            </div>
-            <div class="capture-body">
-              <span class="badge">Android 16 · FR</span>
-              <h3>Diagnostic de connexion</h3>
-              <p>Six cartes d’état parallèles, vérification 51/51 et rapport sécurisé expurgé.</p>
-            </div>
-          </article>
-          <article class="capture-card" data-category="phone">
-            <div class="capture-media" role="button" tabindex="0">
-              <img src="../../assets/screens/fr/presence-control.png" alt="Panneau présence et apparence en français avec partages désactivés par défaut">
-            </div>
-            <div class="capture-body">
-              <span class="badge">Android 16 · FR</span>
-              <h3>Présence et apparence en direct</h3>
-              <p>Partages tous désactivés par défaut, arrêt en un geste et palettes WCAG-AA instantanées.</p>
-            </div>
-          </article>
-          <article class="capture-card" data-category="editorial">
-            <div class="capture-media" role="button" tabindex="0">
-              <img src="../../assets/marketing/dual-theme-showcase-fr.png" alt="Thèmes clair et sombre de Hermes Mobile côte à côte sur Android 16">
-            </div>
-            <div class="capture-body">
-              <span class="badge">Visuel clé · Clair et sombre</span>
-              <h3>Présentation double thème Android 16</h3>
-              <p>Thème clair pierre chaude et thème sombre obsidienne émeraude capturés côte à côte.</p>
-            </div>
-          </article>
-          <article class="capture-card" data-category="phone">
-            <div class="capture-media" role="button" tabindex="0">
-              <img src="../../assets/screens/dark/fr/command-palette.png" alt="Palette de commandes en thème sombre et en français affichant les actions et modèles">
-            </div>
-            <div class="capture-body">
-              <span class="badge">Android 16 · Sombre · FR</span>
-              <h3>Palette de commandes en thème sombre</h3>
-              <p>Accès rapide en obsidienne émeraude avec contraste WCAG-AA pour la lecture de nuit.</p>
-            </div>
-          </article>
-          <article class="capture-card" data-category="phone">
-            <div class="capture-media" role="button" tabindex="0">
-              <img src="../../assets/screens/dark/fr/templates.png" alt="Panneau modèles quotidiens en thème sombre et en français">
-            </div>
-            <div class="capture-body">
-              <span class="badge">Android 16 · Sombre · FR</span>
-              <h3>Modèles quotidiens en thème sombre</h3>
-              <p>Idées prêtes à l’emploi et modèles chiffrés par profil adaptés au confort nocturne.</p>
-            </div>
-          </article>
-          <article class="capture-card" data-category="phone">
-            <div class="capture-media" role="button" tabindex="0">
-              <img src="../../assets/screens/dark/fr/connection-doctor.png" alt="Diagnostic de connexion en thème sombre et en français vérifiant 51 capacités sur 51">
-            </div>
-            <div class="capture-body">
-              <span class="badge">Android 16 · Sombre · FR</span>
-              <h3>Diagnostic de connexion en thème sombre</h3>
-              <p>Six vérifications parallèles, pastilles de nuit lisibles et rapport sécurisé expurgé.</p>
-            </div>
-          </article>
-          <article class="capture-card" data-category="phone">
-            <div class="capture-media" role="button" tabindex="0">
-              <img src="../../assets/screens/dark/fr/presence-control.png" alt="Panneau présence et apparence en thème sombre et en français">
-            </div>
-            <div class="capture-body">
-              <span class="badge">Android 16 · Sombre · FR</span>
-              <h3>Présence et apparence en thème sombre</h3>
-              <p>Tous les partages désactivés par défaut avec contraste nocturne apaisé et arrêt direct.</p>
-            </div>
-          </article>
+        <div class="theme-segment" role="group" aria-label="Mode d’affichage du thème">
+          <button type="button" data-gallery-mode-btn="light" aria-pressed="true">Clair</button>
+          <button type="button" data-gallery-mode-btn="dark" aria-pressed="false">Sombre</button>
+          <button type="button" data-gallery-mode-btn="both" aria-pressed="false">Les deux</button>
         </div>
-      </section>
+      </div>
+
+      <div id="gallery-grid" class="gallery-grid" data-gallery-mode="light">
+        <article class="capture-card" data-category="screen">
+          <div class="capture-media is-phone" role="button" tabindex="0">
+            <div class="dual-pair">
+              <img class="capture-phone-img capture-phone-primary" src="../../assets/screens/fr/command-palette.png" data-src-light="../../assets/screens/fr/command-palette.png" data-src-dark="../../assets/screens/dark/fr/command-palette.png" data-fixed-theme="1" width="1080" height="2340" alt="Palette de commandes en français affichant les actions, discussions récentes et modèles">
+              <img class="capture-phone-img capture-phone-secondary" src="../../assets/screens/dark/fr/command-palette.png" data-fixed-theme="1" width="1080" height="2340" loading="lazy" alt="Palette de commandes en français en thème sombre">
+            </div>
+          </div>
+          <div class="capture-body">
+            <span class="badge">Android 16 · FR · Clair et sombre</span>
+            <h3>Palette de commandes (Ctrl+K)</h3>
+            <p>Accès rapide tolérant aux accents vers les écrans natifs, discussions récentes et modèles chiffrés.</p>
+          </div>
+        </article>
+
+        <article class="capture-card" data-category="screen">
+          <div class="capture-media is-phone" role="button" tabindex="0">
+            <div class="dual-pair">
+              <img class="capture-phone-img capture-phone-primary" src="../../assets/screens/fr/templates.png" data-src-light="../../assets/screens/fr/templates.png" data-src-dark="../../assets/screens/dark/fr/templates.png" data-fixed-theme="1" width="1080" height="2340" alt="Panneau modèles du quotidien en français avec idées prêtes à l’emploi et modèles chiffrés">
+              <img class="capture-phone-img capture-phone-secondary" src="../../assets/screens/dark/fr/templates.png" data-fixed-theme="1" width="1080" height="2340" loading="lazy" alt="Panneau modèles du quotidien en français en thème sombre">
+            </div>
+          </div>
+          <div class="capture-body">
+            <span class="badge">Android 16 · FR · Clair et sombre</span>
+            <h3>Modèles du quotidien</h3>
+            <p>Six modèles prêts à l’emploi et modèles personnalisés chiffrés qui préparent un brouillon modifiable sans envoi automatique.</p>
+          </div>
+        </article>
+
+        <article class="capture-card" data-category="screen">
+          <div class="capture-media is-phone" role="button" tabindex="0">
+            <div class="dual-pair">
+              <img class="capture-phone-img capture-phone-primary" src="../../assets/screens/fr/connection-doctor.png" data-src-light="../../assets/screens/fr/connection-doctor.png" data-src-dark="../../assets/screens/dark/fr/connection-doctor.png" data-fixed-theme="1" width="1080" height="2340" alt="Diagnostic de connexion en français vérifiant latence serveur, capacités compagnon, notifications et mises à jour">
+              <img class="capture-phone-img capture-phone-secondary" src="../../assets/screens/dark/fr/connection-doctor.png" data-fixed-theme="1" width="1080" height="2340" loading="lazy" alt="Diagnostic de connexion en français en thème sombre">
+            </div>
+          </div>
+          <div class="capture-body">
+            <span class="badge">Android 16 · FR · Clair et sombre</span>
+            <h3>Diagnostic de connexion</h3>
+            <p>Six vérifications parallèles, contrôle 51/51 du serveur compagnon et copie de rapport expurgé.</p>
+          </div>
+        </article>
+
+        <article class="capture-card" data-category="screen">
+          <div class="capture-media is-phone" role="button" tabindex="0">
+            <div class="dual-pair">
+              <img class="capture-phone-img capture-phone-primary" src="../../assets/screens/fr/presence-control.png" data-src-light="../../assets/screens/fr/presence-control.png" data-src-dark="../../assets/screens/dark/fr/presence-control.png" data-fixed-theme="1" width="1080" height="2340" alt="Panneau présence et apparence en français avec tous les partages désactivés par défaut">
+              <img class="capture-phone-img capture-phone-secondary" src="../../assets/screens/dark/fr/presence-control.png" data-fixed-theme="1" width="1080" height="2340" loading="lazy" alt="Panneau présence et apparence en français en thème sombre">
+            </div>
+          </div>
+          <div class="capture-body">
+            <span class="badge">Android 16 · FR · Clair et sombre</span>
+            <h3>Présence et apparence</h3>
+            <p>Partages sur accord désactivés par défaut, arrêt complet en un geste et thèmes jour et nuit WCAG-AA.</p>
+          </div>
+        </article>
+
+        <article class="capture-card" data-category="overview">
+          <div class="capture-media is-landscape" role="button" tabindex="0">
+            <img src="../../assets/marketing/dual-theme-showcase-fr.png" width="1920" height="1080" loading="lazy" alt="Thèmes papier clair et papier sombre de Hermes Mobile côte à côte sur Android 16">
+          </div>
+          <div class="capture-body">
+            <span class="badge">Aperçu · Clair et sombre</span>
+            <h3>Présentation double thème Android 16</h3>
+            <p>Thème papier clair de jour et thème sombre de nuit capturés côte à côte sur quatre écrans réels.</p>
+          </div>
+        </article>
+
+        <article class="capture-card" data-category="overview">
+          <div class="capture-media is-landscape" role="button" tabindex="0">
+            <img src="../../assets/marketing/app-preview-fr.png" width="1920" height="1080" loading="lazy" alt="Vue quatre écrans de Hermes Mobile en français alternant thèmes sombre et clair">
+          </div>
+          <div class="capture-body">
+            <span class="badge">Aperçu · Quatre espaces</span>
+            <h3>Bandeau quatre écrans</h3>
+            <p>Palette de commandes, modèles du quotidien, présence et diagnostic réunis sur une seule planche.</p>
+          </div>
+        </article>
+
+        <article class="capture-card" data-category="overview">
+          <div class="capture-media is-landscape" role="button" tabindex="0">
+            <img src="../../assets/marketing/hero-studio-fr.png" width="1920" height="1080" loading="lazy" alt="Présentation en français de Hermes Mobile avec carte de décision sur papier clair, appairage QR, console admin et écrans Android 16">
+          </div>
+          <div class="capture-body">
+            <span class="badge">Aperçu · Fiche produit</span>
+            <h3>Vue d’ensemble papier</h3>
+            <p>Carte de décision en brouillon modifiable, résumé d’appairage QR, console admin et captures Android 16.</p>
+          </div>
+        </article>
+
+        <article class="capture-card" data-category="overview">
+          <div class="capture-media is-landscape" role="button" tabindex="0">
+            <img src="../../assets/marketing/privacy-architecture-fr.png" width="1920" height="1080" loading="lazy" alt="Schéma d’architecture sécurité et confidentialité en français : coffre Android Keystore, lien chiffré direct et serveur Linux Landlock">
+          </div>
+          <div class="capture-body">
+            <span class="badge">Aperçu · Sécurité</span>
+            <h3>Architecture sécurité et confidentialité</h3>
+            <p>Coffre Android Keystore AES-256-GCM, lien HTTPS ou Tailscale direct, alertes opaques et isolation serveur Linux Landlock.</p>
+          </div>
+        </article>
+      </div>
     </div>
   </main>
 
@@ -278,13 +188,13 @@
         <strong id="lightbox-title">Capture d’écran</strong>
         <button id="lightbox-close" type="button" class="pill-btn">Fermer</button>
       </div>
-      <img id="lightbox-img" src="../../assets/screens/phone-transcript.png" alt="Aperçu de la capture">
+      <img id="lightbox-img" src="../../assets/screens/fr/command-palette.png" width="1080" height="2340" alt="Aperçu de la capture">
     </div>
   </div>
 
   <footer class="footer">
     <div class="container footer-inner">
-      <span>Hermes Mobile · Galerie des écrans réels</span>
+      <span>Hermes Mobile · Galerie des écrans</span>
       <div class="footer-links">
         <a href="../">Aperçu</a>
         <a href="../docs/">Documentation</a>

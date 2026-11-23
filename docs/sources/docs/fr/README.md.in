@@ -3,7 +3,7 @@
 *[English README](../../README.md) · [Portail français en ligne]({{ pages_url }}fr/) · [Télécharger la dernière version signée](https://github.com/{{ repository }}/releases/latest)*
 
 <p align="center">
-  <img src="../assets/hero-studio.png" alt="Hermes Mobile sur un téléphone Android moderne posé sur du noyer chaleureux et de la pierre claire" width="100%">
+  <img src="../assets/hero-studio-fr.png" alt="Présentation en français de Hermes Mobile avec carte de décision sur papier clair, appairage QR, console admin et écrans réels Android 16 clair et sombre" width="100%">
 </p>
 
 **{{ project }}** est un client Android natif (API {{ min_sdk }} à {{ target_sdk }}, Java, zéro WebView, APK signé d’environ {{ release_apk_size_fr }}) conçu pour discuter, programmer, valider des actions, lancer plusieurs tâches simultanées et personnaliser votre espace avec votre propre serveur Hermes. L’application suit automatiquement la langue de votre téléphone (**français** ou **anglais**), offre un changement en un geste et synchronise cette préférence avec votre serveur.
@@ -17,10 +17,10 @@
 </p>
 
 <p align="center">
-  <a href="../../site/assets/screens/phone-transcript.png"><img src="../../site/assets/screens/phone-transcript.png" width="24%" alt="Fil de discussion lisible sur téléphone dans Hermes Mobile"></a>
-  <a href="../../site/assets/screens/phone-approval.png"><img src="../../site/assets/screens/phone-approval.png" width="24%" alt="Carte de validation visuelle d’une action dans Hermes Mobile"></a>
-  <a href="../../site/assets/screens/phone-photo-draft.png"><img src="../../site/assets/screens/phone-photo-draft.png" width="24%" alt="Photo jointe préparée dans un brouillon modifiable"></a>
-  <a href="../../site/assets/screens/tablet-dual-pane.png"><img src="../../site/assets/screens/tablet-dual-pane.png" width="24%" alt="Affichage double volet sur tablette avec barre latérale"></a>
+  <a href="../../site/assets/screens/fr/command-palette.png"><img src="../../site/assets/screens/fr/command-palette.png" width="24%" alt="Palette de commandes rapide en français sur Android 16"></a>
+  <a href="../../site/assets/screens/fr/templates.png"><img src="../../site/assets/screens/fr/templates.png" width="24%" alt="Modèles du quotidien en français préparant un brouillon modifiable"></a>
+  <a href="../../site/assets/screens/fr/connection-doctor.png"><img src="../../site/assets/screens/fr/connection-doctor.png" width="24%" alt="Diagnostic de connexion en français vérifiant la santé du serveur"></a>
+  <a href="../../site/assets/screens/dark/fr/presence-control.png"><img src="../../site/assets/screens/dark/fr/presence-control.png" width="24%" alt="Panneau présence et apparence en thème sombre et en français"></a>
 </p>
 
 ## Ce que fait {{ project }}

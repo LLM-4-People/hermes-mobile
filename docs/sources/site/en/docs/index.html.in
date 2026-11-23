@@ -3,21 +3,22 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Documentation — Hermes Mobile</title>
-  <meta name="description" content="Complete English documentation for Hermes Mobile: installation, signed updates, single-host multi-profile setup, Command Palette, Connection Doctor, concurrent tasks, Brain Studio, and security.">
+  <title>Documentation | Hermes Mobile</title>
+  <meta name="description" content="English documentation for Hermes Mobile: signed APK installation, 1-tap QR pairing, single-host multi-profile admin console, command palette, connection doctor, and security.">
   <link rel="icon" type="image/svg+xml" href="../../assets/favicon.svg">
   <link rel="canonical" href="{{ pages_url }}en/docs/">
   <link rel="alternate" hreflang="en" href="{{ pages_url }}en/docs/">
   <link rel="alternate" hreflang="fr" href="{{ pages_url }}fr/docs/">
   <link rel="alternate" hreflang="x-default" href="{{ pages_url }}en/docs/">
   <meta property="og:type" content="website">
-  <meta property="og:title" content="Documentation — Hermes Mobile">
-  <meta property="og:description" content="Setup, multi-profile hosting, Command Palette, Connection Doctor, concurrent runs, and signed APK verification.">
+  <meta property="og:title" content="Documentation | Hermes Mobile">
+  <meta property="og:description" content="Setup, QR pairing, multi-profile hosting, command palette, connection doctor, and signed APK verification.">
   <meta property="og:url" content="{{ pages_url }}en/docs/">
   <meta property="og:image" content="{{ pages_url }}assets/marketing/social-preview-en.png">
   <meta property="og:locale" content="en_US">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:image" content="{{ pages_url }}assets/marketing/social-preview-en.png">
+  <script>(function(){try{var q=new URLSearchParams(location.search).get('theme');var s=q==='light'||q==='dark'?q:localStorage.getItem('hermes-site-theme');var t=s==='light'||s==='dark'?s:(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
   <link rel="stylesheet" href="../../assets/style.css">
 </head>
 <body>
@@ -26,19 +27,33 @@
   <header class="topbar">
     <div class="topbar-inner">
       <a class="brand" href="../">
-        <img class="brand-mark" src="../../assets/favicon.svg" alt="" width="30" height="30">
+        <img class="brand-mark" src="../../assets/favicon.svg" alt="" width="28" height="28">
         <span>Hermes Mobile</span>
       </a>
       <nav class="nav-links" aria-label="Primary navigation">
         <a href="../">Overview</a>
-        <a href="./" class="is-active">Docs</a>
+        <a href="./" class="is-active" aria-current="page">Docs</a>
         <a href="../walkthrough/">Gallery</a>
         <a href="https://github.com/{{ repository }}" rel="noopener">GitHub</a>
       </nav>
       <div class="nav-actions">
         <a class="lang-link" href="../../fr/docs/" data-lang-switch="fr" hreflang="fr" lang="fr" aria-label="Switch to French documentation">Français</a>
-        <button type="button" class="pill-btn" data-theme-toggle aria-pressed="false">☾ Dark</button>
-        <a class="btn btn-primary" data-latest-apk href="https://github.com/{{ repository }}/releases/latest" rel="noopener">Download APK</a>
+        <button type="button" class="pill-btn" data-theme-toggle aria-pressed="false">Dark</button>
+        <a class="topbar-apk" data-latest-apk href="https://github.com/{{ repository }}/releases/latest" rel="noopener">Download APK</a>
+        <button type="button" class="menu-btn" data-menu-toggle aria-expanded="false" aria-controls="mobile-nav" aria-label="Toggle navigation">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M4 7h16v2H4V7zm0 4h16v2H4v-2zm0 4h16v2H4v-2z"/></svg>
+        </button>
+      </div>
+    </div>
+    <div id="mobile-nav" class="mobile-drawer">
+      <nav class="mobile-drawer-links" aria-label="Mobile navigation">
+        <a href="../">Overview</a>
+        <a href="./" class="is-active" aria-current="page">Documentation</a>
+        <a href="../walkthrough/">Screen gallery</a>
+        <a href="https://github.com/{{ repository }}" rel="noopener">GitHub repository</a>
+      </nav>
+      <div class="mobile-drawer-cta">
+        <a class="btn btn-primary" data-latest-apk href="https://github.com/{{ repository }}/releases/latest" rel="noopener">Download signed APK</a>
       </div>
     </div>
   </header>
@@ -47,17 +62,17 @@
     <div class="container docs-layout">
       <aside class="docs-sidebar" aria-label="Documentation sections">
         <label for="docs-search" class="sr-only">Filter sections</label>
-        <input id="docs-search" class="search-input" type="search" placeholder="Filter documentation…" autocomplete="off">
+        <input id="docs-search" class="search-input" type="search" placeholder="Filter documentation..." autocomplete="off">
         <div id="docs-search-status" class="search-status" aria-live="polite"></div>
         <nav class="docs-nav">
           <a href="#quickstart" class="is-active">Quickstart and signed APK</a>
-          <a href="#multi-profile">Single-host multi-profile</a>
+          <a href="#multi-profile">QR pairing and multi-profile</a>
           <a href="#palette-templates">Command palette and templates</a>
           <a href="#connection-doctor">Live connection doctor</a>
           <a href="#concurrency">Concurrent tasks and performance</a>
           <a href="#brain-sharing">Brain studio and sharing</a>
           <a href="#live-ui">Live UI and home widgets</a>
-          <a href="#security">Security, ambient, and push</a>
+          <a href="#security">Security, Landlock, and push</a>
           <a href="#build">Build and verify locally</a>
         </nav>
       </aside>
@@ -65,71 +80,73 @@
       <div class="docs-content">
         <section id="quickstart" class="doc-section">
           <h1>Hermes Mobile documentation</h1>
-          <p>Everything needed to install a verified signed APK, connect your profile to a self-hosted Hermes companion server, and run parallel workflows safely on Android {{ min_android }}–{{ target_android }}.</p>
+          <p>Install a verified signed APK, pair your phone with a self-hosted Hermes companion server, and run parallel workflows safely on Android {{ min_android }} to {{ target_android }}.</p>
           <h2>1. Install and keep updated</h2>
           <ul>
             <li><strong>Official signed GitHub Releases:</strong> Download <code>{{ release_apk }}</code>, <code>{{ checksum_file }}</code>, and <code>release.json</code> from the <a href="https://github.com/{{ repository }}/releases/latest" rel="noopener">latest release</a>.</li>
-            <li><strong>Verified in-app updates:</strong> Open <strong>Activity → App updates</strong>. The app checks official HTTPS GitHub release hosts, validates constant-time SHA-256 checksums, and confirms a matching signing certificate before handing off to Android’s installer.</li>
+            <li><strong>Verified in-app updates:</strong> Open <strong>Activity &gt; App updates</strong>. The app checks official HTTPS GitHub release hosts, validates constant-time SHA-256 checksums, and confirms a matching signing certificate before launching Android’s installer.</li>
           </ul>
           <div class="code-block"><code>sha256sum -c {{ checksum_file }}
 adb install -r {{ release_apk }}</code></div>
         </section>
 
         <section id="multi-profile" class="doc-section">
-          <h2>2. Single-host multi-profile setup</h2>
-          <p>Hermes Mobile requires our companion server fork (<a href="{{ fork_url }}" rel="noopener">LLM-4-People/hermes-agent</a>). One single HTTPS domain serves multiple isolated users under <code>/p/&lt;profile&gt;</code>—no per-user subdomains required.</p>
+          <h2>2. QR pairing and single-host multi-profile setup</h2>
+          <p>Hermes Mobile connects to the companion server at <a href="{{ fork_url }}" rel="noopener">LLM-4-People/hermes-agent</a>. One single HTTPS host serves isolated users under <code>/p/&lt;profile&gt;</code> with no per-user subdomains required.</p>
           <ol>
-            <li>Deploy the companion server and run <code>python3 scripts/mobile_doctor.py</code> on the host to verify all {{ expected_fork_capabilities }} active capabilities and print each user’s connection URL.</li>
-            <li>On Android, open <strong>Connect Hermes</strong>, enter your profile label, HTTPS host (for example <code>https://hermes.example.com</code>), your <strong>Server profile</strong> slug, and your 256-bit access key.</li>
-            <li>Protect the local device vault with a passphrase and optionally enable Class-3 biometrics in <strong>Activity → Security</strong>.</li>
+            <li>Deploy the companion server and run <code>python3 scripts/mobile_setup.py --invite alex --qr</code> on the host to create an isolated profile and a single-use 5-minute pairing ticket.</li>
+            <li>On Android, open <strong>Connect your Hermes</strong> and tap <strong>Paste pairing link</strong> or open the <code>hermes://pair</code> deep link. Confirm the target host before claiming, or fill in host, profile slug, and access key manually.</li>
+            <li>The first profile acts as admin with an in-app <strong>Admin console</strong> for inviting members, rotating keys, setting concurrency caps, and revoking active tickets.</li>
+            <li>Protect the local device vault with a passphrase and optionally enable Class-3 biometrics in <strong>Activity &gt; Security</strong>.</li>
           </ol>
         </section>
 
         <section id="palette-templates" class="doc-section">
           <h2>3. Global command palette and everyday templates</h2>
           <ul>
-            <li><strong>Command palette (<code>Ctrl+K</code> / <code>Cmd+K</code>):</strong> Open from the top bar or hardware keyboard to jump across all native destinations, recent discussions, and reusable templates using accent-insensitive fuzzy matching inside a <code>FLAG_SECURE</code> dialog.</li>
-            <li><strong>Everyday workflows and custom templates:</strong> Open <strong>Atelier → Everyday workflows</strong> for 6 curated everyday templates plus per-profile encrypted custom templates stored in your local vault. Every template obeys the <strong>editable draft rule</strong>—staging text in your composer so you review before tapping send.</li>
+            <li><strong>Command palette (<code>Ctrl+K</code> / <code>Cmd+K</code>):</strong> Open from the top bar or hardware keyboard to jump across native destinations, recent discussions, and reusable templates with accent-insensitive fuzzy matching inside a <code>FLAG_SECURE</code> dialog.</li>
+            <li><strong>Everyday workflows and custom templates:</strong> Open <strong>Atelier &gt; Everyday workflows</strong> for {{ curated_workflows_count }} built-in workflows plus encrypted per-profile custom templates. Every template obeys the editable draft rule and stages text in the composer until you tap Send.</li>
           </ul>
         </section>
 
         <section id="connection-doctor" class="doc-section">
           <h2>4. Live connection doctor</h2>
-          <p>Open <strong>Activity → Connection doctor</strong> to execute 6 parallel non-blocking health checks off the UI thread:</p>
+          <p>Open <strong>Activity &gt; Connection doctor</strong> to execute 6 parallel non-blocking health checks off the UI thread:</p>
           <ul>
             <li><strong>Server reachability and latency:</strong> Measures round-trip response time and surfaces auth or network errors clearly.</li>
-            <li><strong>Companion fork capabilities (<code>{{ expected_fork_capabilities }}/{{ expected_fork_capabilities }}</code>):</strong> Distinguishes the full companion fork from plain upstream servers with actionable guidance.</li>
-            <li><strong>Push, updates, ambient, and language sync:</strong> Verifies instant notification registration, installed vs latest release status, optional notification listener connectivity, and active language alignment.</li>
-            <li><strong>Copy safe report:</strong> Under <em>Technical details</em>, copy a strictly redacted diagnostic summary containing only your sanitized host, app version, language, and check statuses—zero bearer keys, profile names, notes, or messages.</li>
+            <li><strong>Companion capabilities (<code>{{ expected_fork_capabilities }}/{{ expected_fork_capabilities }}</code>):</strong> Distinguishes the full companion fork from plain upstream servers with actionable next steps.</li>
+            <li><strong>Push, updates, ambient, and language sync:</strong> Verifies instant notification registration, installed vs latest release status, optional notification listener status, and language alignment.</li>
+            <li><strong>Copy safe report:</strong> Under <em>Technical details</em>, copy a redacted diagnostic summary containing only sanitized host, app version, language, and check statuses with zero keys, profile names, or messages.</li>
           </ul>
         </section>
 
         <section id="concurrency" class="doc-section">
           <h2>5. Concurrent tasks and runtime performance</h2>
           <ul>
-            <li><strong>True multi-run per user:</strong> Start a long coding or research task in Thread A, switch to Thread B and Thread C to launch additional runs, and return to Thread A without losing live streams or mixing deltas/approvals. Android 16 live updates display your active task count with per-run stop support.</li>
+            <li><strong>True multi-run per user:</strong> Start a coding or research task in one discussion, switch to another thread to launch an additional run, and return without losing live streams or mixing deltas and approvals.</li>
             <li><strong>Instant infinite chats:</strong> Switching discussions renders immediately and loads older history smoothly on demand.</li>
-            <li><strong>Lean resource footprint:</strong> Frame-budgeted stream coalescing (0 ms first-token latency), zero-allocation custom views, bounded bitmap and highlight caches cleared on memory pressure or lock, and an R8-shrunk <code>{{ release_apk_size_en }}</code> signed release APK.</li>
+            <li><strong>Lean resource footprint:</strong> Frame-budgeted stream coalescing, zero-allocation custom views, bounded bitmap caches cleared on memory pressure or lock, and an R8-shrunk <code>{{ release_apk_size_en }}</code> signed release APK.</li>
           </ul>
         </section>
 
         <section id="brain-sharing" class="doc-section">
-          <h2>6. Brain studio and universal same-server sharing</h2>
-          <p>Open the <strong>Brain</strong> tab to edit Hermes memory (<code>MEMORY.md</code> / <code>USER.md</code>), manage smart notes, review pattern-gated habit suggestions (<code>&gt;= 3</code> occurrences), run full-text FTS5 history searches, manage skills, and browse workspace files and Git diffs.</p>
-          <p>Share 7 resource kinds—notes, skills, custom surfaces, widgets, tools, artifacts, and threads—selectively with other profiles on the same server without exposing your private workspace.</p>
+          <h2>6. Brain studio and same-server sharing</h2>
+          <p>Open the <strong>Brain</strong> tab to edit Hermes memory (<code>MEMORY.md</code> and <code>USER.md</code>), manage smart notes, review pattern-gated habit suggestions (<code>&gt;= 3</code> occurrences), run full-text FTS5 history searches, manage skills, and browse workspace files and Git diffs.</p>
+          <p>Share 7 resource kinds (notes, skills, custom surfaces, widgets, tools, artifacts, and threads) selectively with other profiles on the same server without exposing your private workspace.</p>
         </section>
 
         <section id="live-ui" class="doc-section">
           <h2>7. Live UI modding and home screen widgets</h2>
-          <p>Ask Hermes to adapt a built-in screen, adjust day/night theme accents (WCAG-AA <code>4.5:1</code> contrast enforced), or author an interactive tool with preview, atomic apply, and full revision rollback. Pin profile-scoped widgets directly to your Android home screen—cross-profile taps stay locked behind profile authentication.</p>
+          <p>Ask Hermes to adapt a built-in screen, adjust day and night theme accents with WCAG-AA <code>4.5:1</code> contrast enforced, or author an interactive tool with preview, atomic apply, and full revision rollback. Pin profile-scoped widgets directly to your Android home screen while keeping cross-profile taps locked behind profile authentication.</p>
         </section>
 
         <section id="security" class="doc-section">
-          <h2>8. Security, ambient privacy, and zero-leak push</h2>
+          <h2>8. Security, Landlock isolation, and zero-leak push</h2>
           <ul>
-            <li><strong>Profile vault hardening:</strong> Per-profile AES-GCM encryption, persisted passphrase backoff, atomic profile wipe, and session-epoch fencing on every async callback.</li>
-            <li><strong>Zero-root ambient intelligence:</strong> Completely OFF by default per profile. A fail-closed privacy filter hard-blocks OTP/2FA codes, password managers, banking apps, and secret lockscreen notices before content enters memory.</li>
-            <li><strong>Zero-leak closed-app push:</strong> Firebase Cloud Messaging or self-hosted UnifiedPush (ntfy + RFC 8291 Web Push) transmit opaque routing metadata only—messages remain on your server until unlock.</li>
+            <li><strong>Profile vault hardening:</strong> Per-profile Android Keystore AES-256-GCM encryption, persisted passphrase backoff, <code>FLAG_SECURE</code> overlays, atomic profile wipe, and session-epoch fencing on async callbacks.</li>
+            <li><strong>Server kernel isolation:</strong> On the companion server, Linux kernel Landlock LSM physically blocks subprocesses from reading sibling profile directories (<code>EACCES</code>), while non-admin profiles exclude <code>terminal</code> and <code>code_execution</code> by default.</li>
+            <li><strong>Ambient privacy off by default:</strong> Optional context signals start completely disabled per profile, with a fail-closed privacy filter blocking OTP codes, password managers, banking apps, and lockscreen secrets before content enters memory.</li>
+            <li><strong>Zero-leak closed-app push:</strong> Firebase Cloud Messaging or self-hosted UnifiedPush (ntfy + RFC 8291 Web Push) carry opaque routing metadata only so messages stay on your server until unlock.</li>
           </ul>
         </section>
 
@@ -146,7 +163,7 @@ adb install -r {{ release_apk }}</code></div>
 
   <footer class="footer">
     <div class="container footer-inner">
-      <span>Hermes Mobile · English Documentation</span>
+      <span>Hermes Mobile · English documentation</span>
       <div class="footer-links">
         <a href="../">Overview</a>
         <a href="../walkthrough/">Gallery</a>

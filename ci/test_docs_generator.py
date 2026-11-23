@@ -8,6 +8,8 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT / "ci"))
+import check_pages
 import docs
 
 
@@ -71,6 +73,101 @@ class MechanicalDocsGeneratorTest(unittest.TestCase):
             problems = docs.render(root, check=True)
             self.assertEqual(len(problems), 1)
             self.assertIn("site/fr/orphan.html", problems[0])
+
+
+def _scaffold_minimal_site(root):
+    for rel in (
+        ".nojekyll",
+        "index.html",
+        "docs/index.html",
+        "walkthrough/index.html",
+        "en/index.html",
+        "fr/index.html",
+        "en/docs/index.html",
+        "fr/docs/index.html",
+        "en/walkthrough/index.html",
+        "fr/walkthrough/index.html",
+    ):
+        p = root / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text("<!DOCTYPE html><html><title>Ok</title></html>\n", encoding="utf-8")
+    for asset in (
+        "assets/screens/en/command-palette.png",
+        "assets/screens/dark/en/command-palette.png",
+        "assets/screens/fr/command-palette.png",
+        "assets/screens/dark/fr/command-palette.png",
+        "assets/screens/phone-transcript.png",
+        "assets/marketing/hero-studio.png",
+        "assets/marketing/hero-studio-fr.png",
+    ):
+        p = root / asset
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_bytes(b"\x89PNG\r\n\x1a\n")
+
+
+class CheckPagesIntegrityTest(unittest.TestCase):
+    def test_rejects_missing_img_dimensions_and_em_dash(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _scaffold_minimal_site(root)
+            (root / "en/index.html").write_text(
+                '<!DOCTYPE html><html lang="en"><title>Bad \u2014 page</title>'
+                '<img src="../assets/screens/en/command-palette.png" alt="ok"></html>\n',
+                encoding="utf-8",
+            )
+            joined = "\n".join(check_pages.validate_site(root))
+            self.assertIn("em-dash", joined)
+            self.assertIn("missing positive integer width", joined)
+            self.assertIn("missing positive integer height", joined)
+
+    def test_rejects_cross_language_images(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _scaffold_minimal_site(root)
+            (root / "en/index.html").write_text(
+                '<!DOCTYPE html><html lang="en">'
+                '<img src="../assets/screens/fr/command-palette.png" width="1080" height="2340" alt="wrong">'
+                '<img src="../assets/screens/phone-transcript.png" width="1080" height="2340" alt="legacy">'
+                "</html>\n",
+                encoding="utf-8",
+            )
+            (root / "fr/index.html").write_text(
+                '<!DOCTYPE html><html lang="fr">'
+                '<img src="../assets/marketing/hero-studio.png" width="1920" height="1080" alt="en">'
+                '<img src="../assets/screens/en/command-palette.png" width="1080" height="2340" alt="en">'
+                "</html>\n",
+                encoding="utf-8",
+            )
+            joined = "\n".join(check_pages.validate_site(root))
+            self.assertIn("English page references non-English image", joined)
+            self.assertIn("phone-transcript.png", joined)
+            self.assertIn("French page references English-only image", joined)
+            self.assertIn("hero-studio.png", joined)
+
+    def test_accepts_clean_language_matched_dual_theme_pages(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _scaffold_minimal_site(root)
+            (root / "en/index.html").write_text(
+                '<!DOCTYPE html><html lang="en">'
+                '<img src="../assets/screens/en/command-palette.png" '
+                'data-src-light="../assets/screens/en/command-palette.png" '
+                'data-src-dark="../assets/screens/dark/en/command-palette.png" '
+                'width="1080" height="2340" alt="Command palette">'
+                "</html>\n",
+                encoding="utf-8",
+            )
+            (root / "fr/index.html").write_text(
+                '<!DOCTYPE html><html lang="fr">'
+                '<img src="../assets/marketing/hero-studio-fr.png" width="1920" height="1080" alt="Apercu">'
+                '<img src="../assets/screens/fr/command-palette.png" '
+                'data-src-light="../assets/screens/fr/command-palette.png" '
+                'data-src-dark="../assets/screens/dark/fr/command-palette.png" '
+                'width="1080" height="2340" alt="Palette">'
+                "</html>\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(check_pages.validate_site(root), [])
 
 
 if __name__ == "__main__":
