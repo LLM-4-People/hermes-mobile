@@ -25,7 +25,7 @@ Open **Activity → App Updates** on Android (a lightweight 24-hour throttled ch
 3. **Fail-closed download verification:** Streams the APK into private app cache (`cacheDir/updates/`) within `HermesConfig` size bounds while computing a streaming SHA-256 digest:
    - Any missing checksum or SHA-256 mismatch immediately deletes the downloaded file and aborts.
    - `PackageManager` verifies that the archive’s `packageName` and **signing certificate SHA-256** match the currently installed app before launching the installer (preventing spoofed or mismatched-key installs).
-4. **Native Android 8–16 install handoff:** Checks `canRequestPackageInstalls()` (guiding you cleanly to Android’s *Install unknown apps* toggle if not yet enabled), then hands the verified APK to Android’s package installer via a non-exported, path-checked `UpdateApkProvider` URI.
+4. **Native Android 9–16 install handoff:** Checks `canRequestPackageInstalls()` (guiding you cleanly to Android’s *Install unknown apps* toggle if not yet enabled), then hands the verified APK to Android’s package installer via a non-exported, path-checked `UpdateApkProvider` URI.
 
 ## Publishing a New Release (Maintainers)
 

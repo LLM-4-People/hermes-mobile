@@ -80,9 +80,18 @@ public final class HermesApi {
         }
         openStreams.clear();
         for (HttpURLConnection conn : new ArrayList<>(activeConnections)) {
-            try { conn.disconnect(); } catch (RuntimeException ignored) {}
+            disconnectSafely(conn);
         }
         activeConnections.clear();
+    }
+
+    static void disconnectSafely(HttpURLConnection conn) {
+        if (conn == null) return;
+        try {
+            conn.disconnect();
+        } catch (RuntimeException ignored) {
+            // Concurrent revoke() or socket teardown may have already invalidated internal connection state.
+        }
     }
 
     private void trackConnection(HttpURLConnection http) throws IOException {
@@ -95,11 +104,7 @@ public final class HermesApi {
 
     private void releaseConnection(HttpURLConnection http) {
         activeConnections.remove(http);
-        try {
-            http.disconnect();
-        } catch (RuntimeException ignored) {
-            // Concurrent revoke() may have already torn down internal connection state.
-        }
+        disconnectSafely(http);
     }
 
     public boolean isRevoked() {
@@ -383,17 +388,21 @@ public final class HermesApi {
         }
 
         private SseReader open() throws IOException {
-            if (closed || revoked) throw new IOException("Stream closed");
+            if (revoked) throw new IOException("Client revoked");
+            if (closed) throw new IOException("Stream closed");
             HttpURLConnection stream = connection(path, "GET", "text/event-stream");
             if (lastEventId >= 0) stream.setRequestProperty("Last-Event-ID", Long.toString(lastEventId));
             synchronized (lifecycle) {
-                if (closed || revoked) { stream.disconnect(); throw new IOException("Stream closed"); }
+                if (closed || revoked) {
+                    disconnectSafely(stream);
+                    throw new IOException(revoked ? "Client revoked" : "Stream closed");
+                }
                 http = stream;
             }
             openStreams.add(this);
             if (revoked) {
                 close();
-                throw new IOException("Stream closed");
+                throw new IOException("Client revoked");
             }
             checkResponse(stream);
             String type = stream.getContentType();
@@ -408,6 +417,10 @@ public final class HermesApi {
 
         /** Include empty objects for SSE comment heartbeats so an idle follower can reconcile status. */
         public synchronized JSONObject next(boolean includeHeartbeats) throws IOException {
+            if (revoked) {
+                close();
+                throw new IOException("Client revoked");
+            }
             if (closed) return null;
             try {
                 if (reader == null) reader = open();
@@ -417,6 +430,13 @@ public final class HermesApi {
             } catch (IOException error) {
                 if (!closed) Diagnostics.event("network", "stream_failed");
                 close();
+                throw error;
+            } catch (RuntimeException error) {
+                boolean wasRevoked = revoked;
+                boolean wasClosed = closed;
+                close();
+                if (wasRevoked) throw new IOException("Client revoked", error);
+                if (wasClosed) throw new IOException("Stream closed", error);
                 throw error;
             }
         }
@@ -429,7 +449,7 @@ public final class HermesApi {
                 stream = http;
                 http = null;
             }
-            if (stream != null) stream.disconnect();
+            disconnectSafely(stream);
         }
     }
 }

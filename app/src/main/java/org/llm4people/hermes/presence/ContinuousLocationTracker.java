@@ -196,12 +196,17 @@ public final class ContinuousLocationTracker {
                 previous = null;
             }
             preciseMode = effectivePrecise;
-            LocationListener listener = location -> {
-                if (location != null) {
-                    recordFix(location.getLatitude(), location.getLongitude(),
+            LocationListener listener = new LocationListener() {
+                @Override
+                public void onLocationChanged(Location location) {
+                    if (location == null) return;
+                    recordFromActiveListener(
+                            this,
+                            location.getLatitude(),
+                            location.getLongitude(),
                             location.hasAccuracy() ? location.getAccuracy() : COARSE_MIN_ACCURACY_M,
                             location.hasSpeed() ? location.getSpeed() : -1.0f,
-                            "", System.currentTimeMillis(), preciseMode);
+                            System.currentTimeMillis());
                 }
             };
             boolean subscribed = false;
@@ -230,6 +235,37 @@ public final class ContinuousLocationTracker {
     public Snapshot recordFix(
             double lat, double lon, float accuracyM, float speedMps,
             String areaLabel, long nowMs, boolean precise) {
+        synchronized (lock) {
+            return recordFixLocked(lat, lon, accuracyM, speedMps, areaLabel, nowMs, precise);
+        }
+    }
+
+    /**
+     * Records a fix from a registered {@link LocationListener} ONLY if the tracker is still running
+     * and the callback belongs to the currently active listener (blocking stale queued MainLooper fixes).
+     */
+    Snapshot recordFromActiveListener(
+            LocationListener source, double lat, double lon, float accuracyM, float speedMps, long nowMs) {
+        synchronized (lock) {
+            if (!running || activeListener == null || activeListener != source) {
+                return null;
+            }
+            return recordFixLocked(lat, lon, accuracyM, speedMps, "", nowMs, preciseMode);
+        }
+    }
+
+    /** Package-private seam for host-JVM fencing tests without Android LocationManager. */
+    void activateListenerForTest(LocationListener listener, boolean precise) {
+        synchronized (lock) {
+            activeListener = listener;
+            preciseMode = precise;
+            running = (listener != null);
+        }
+    }
+
+    private Snapshot recordFixLocked(
+            double lat, double lon, float accuracyM, float speedMps,
+            String areaLabel, long nowMs, boolean precise) {
         if (!Double.isFinite(lat) || lat < -90.0 || lat > 90.0
                 || !Double.isFinite(lon) || lon < -180.0 || lon > 180.0) {
             throw new IllegalArgumentException("Invalid coordinates");
@@ -240,18 +276,16 @@ public final class ContinuousLocationTracker {
         if (!precise && safeAccuracy < COARSE_MIN_ACCURACY_M) {
             safeAccuracy = COARSE_MIN_ACCURACY_M;
         }
-        synchronized (lock) {
-            double deltaM = 0.0;
-            long deltaMs = 0L;
-            if (latest != null && nowMs > latest.capturedAtMs()) {
-                deltaM = distanceMeters(latest.lat(), latest.lon(), effectiveLat, effectiveLon);
-                deltaMs = nowMs - latest.capturedAtMs();
-            }
-            MovingState state = classifyMovingState(speedMps, deltaM, deltaMs);
-            previous = latest;
-            latest = new Snapshot(effectiveLat, effectiveLon, safeAccuracy, areaLabel, state, nowMs, precise);
-            return latest;
+        double deltaM = 0.0;
+        long deltaMs = 0L;
+        if (latest != null && nowMs > latest.capturedAtMs()) {
+            deltaM = distanceMeters(latest.lat(), latest.lon(), effectiveLat, effectiveLon);
+            deltaMs = nowMs - latest.capturedAtMs();
         }
+        MovingState state = classifyMovingState(speedMps, deltaM, deltaMs);
+        previous = latest;
+        latest = new Snapshot(effectiveLat, effectiveLon, safeAccuracy, areaLabel, state, nowMs, precise);
+        return latest;
     }
 
     /** Returns the latest non-stale snapshot ONLY when policy permits live location (and precision); else null. */

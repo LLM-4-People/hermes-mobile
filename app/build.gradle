@@ -30,7 +30,7 @@ android {
         resources {
             excludes += [
                 '**/*.proto',
-                'kotlin/**/*.kotlin_builtins',
+                '**/*.kotlin_builtins',
                 'DebugProbesKt.bin',
                 'META-INF/*.kotlin_module',
                 'META-INF/AL2.0',

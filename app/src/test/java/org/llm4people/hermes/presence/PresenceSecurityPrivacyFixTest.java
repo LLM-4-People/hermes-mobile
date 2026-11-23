@@ -85,4 +85,47 @@ public final class PresenceSecurityPrivacyFixTest {
         assertFalse(wire.contains("\"dismissed_notifications\""));
         assertFalse(wire.contains("\"precision\""));
     }
+
+    @Test
+    public void staleQueuedLocationListenerNeverRepopulatesAfterStopAndWipeOrResubscribe() {
+        ContinuousLocationTracker tracker = new ContinuousLocationTracker();
+        PresencePolicy precisePolicy = PresencePolicy.defaults()
+                .withContinuousLocation(true)
+                .withPreciseLocation(true);
+        PresencePolicy coarsePolicy = precisePolicy.withPreciseLocation(false);
+
+        android.location.LocationListener firstListener = loc -> {};
+        android.location.LocationListener secondListener = loc -> {};
+
+        long t0 = 4_000_000L;
+        tracker.activateListenerForTest(firstListener, true);
+        ContinuousLocationTracker.Snapshot active = tracker.recordFromActiveListener(
+                firstListener, 45.50171, -73.56728, 8.0f, 0.0f, t0);
+        assertNotNull(active);
+        assertTrue(active.precise());
+        assertNotNull(tracker.currentSnapshot(precisePolicy, t0 + 1_000L));
+
+        // Lock/pause/disable wipes RAM and detaches listener.
+        tracker.stopAndWipe();
+        assertFalse(tracker.isRunning());
+        assertNull(tracker.currentSnapshot(precisePolicy, t0 + 2_000L));
+
+        // Stale MainLooper callback queued before stopAndWipe() MUST be ignored.
+        assertNull(tracker.recordFromActiveListener(
+                firstListener, 45.50171, -73.56728, 8.0f, 0.0f, t0 + 3_000L));
+        assertNull(tracker.currentSnapshot(precisePolicy, t0 + 3_000L));
+
+        // Even after restarting with a new coarse listener, stale callbacks from firstListener MUST be ignored.
+        tracker.activateListenerForTest(secondListener, false);
+        assertNull(tracker.recordFromActiveListener(
+                firstListener, 45.50171, -73.56728, 8.0f, 0.0f, t0 + 4_000L));
+        assertNull(tracker.currentSnapshot(coarsePolicy, t0 + 4_000L));
+
+        // Callbacks from the active secondListener record normally in coarse mode.
+        ContinuousLocationTracker.Snapshot coarse = tracker.recordFromActiveListener(
+                secondListener, 45.50171, -73.56728, 8.0f, 0.0f, t0 + 5_000L);
+        assertNotNull(coarse);
+        assertFalse(coarse.precise());
+        assertNotNull(tracker.currentSnapshot(coarsePolicy, t0 + 5_000L));
+    }
 }

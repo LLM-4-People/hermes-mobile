@@ -5,9 +5,11 @@ import org.junit.Test;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.net.HttpURLConnection;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -87,6 +89,87 @@ public final class HermesApiRevokeTest {
             try {
                 api.download("/api/sessions/s1/export?format=markdown", new ByteArrayOutputStream(), 1024);
                 fail("Expected IOException on download after revoke()");
+            } catch (IOException expected) {
+                assertTrue(expected.getMessage().contains("revoked"));
+            }
+            releaseServer.countDown();
+        }
+    }
+
+    @Test
+    public void revokeAbortsInFlightSseStreamAndDisconnectSafelySwallowsRuntimeException() throws Exception {
+        // disconnectSafely must never propagate RuntimeException during revoke() / RunEvents.close().
+        HttpURLConnection throwingConn = new HttpURLConnection(new URL("http://127.0.0.1:1/")) {
+            @Override public void disconnect() { throw new IllegalStateException("already torn down"); }
+            @Override public boolean usingProxy() { return false; }
+            @Override public void connect() {}
+        };
+        HermesApi.disconnectSafely(throwingConn);
+        HermesApi.disconnectSafely(null);
+
+        CountDownLatch streamOpened = new CountDownLatch(1);
+        CountDownLatch releaseServer = new CountDownLatch(1);
+        try (ServerSocket server = new ServerSocket(0, 4, InetAddress.getByName("127.0.0.1"))) {
+            Thread responder = new Thread(() -> {
+                try (Socket client = server.accept()) {
+                    client.getInputStream().read(new byte[512]);
+                    OutputStream out = client.getOutputStream();
+                    // Send valid SSE headers + comment frame so SseReader stays blocked waiting for events
+                    // (avoiding host-JVM org.json.JSONObject stubs while exercising the live RunEvents socket).
+                    String headers = "HTTP/1.1 200 OK\r\n"
+                            + "Content-Type: text/event-stream; charset=utf-8\r\n"
+                            + "Connection: close\r\n\r\n"
+                            + ": open\n\n";
+                    out.write(headers.getBytes(StandardCharsets.UTF_8));
+                    out.flush();
+                    streamOpened.countDown();
+                    releaseServer.await(10, TimeUnit.SECONDS);
+                } catch (Exception ignored) {
+                    // Socket closed by client revoke().
+                }
+            }, "hermes-api-sse-revoke-server");
+            responder.setDaemon(true);
+            responder.start();
+
+            HermesApi api = new HermesApi(
+                    "http://127.0.0.1:" + server.getLocalPort(),
+                    "test-bearer-secret",
+                    new HermesApi.Limits(5_000, 15_000, 65_536, 65_536));
+
+            try (HermesApi.RunEvents events = api.runEvents("r-revoke", -1)) {
+                CountDownLatch readerFinished = new CountDownLatch(1);
+                AtomicReference<Throwable> readerError = new AtomicReference<>();
+                Thread reader = new Thread(() -> {
+                    try {
+                        events.next();
+                    } catch (Throwable err) {
+                        readerError.set(err);
+                    } finally {
+                        readerFinished.countDown();
+                    }
+                }, "hermes-api-sse-revoke-reader");
+                reader.setDaemon(true);
+                reader.start();
+
+                assertTrue("Server should open SSE stream", streamOpened.await(5, TimeUnit.SECONDS));
+                api.revoke();
+                assertTrue("In-flight SSE stream must abort promptly on revoke()",
+                        readerFinished.await(3, TimeUnit.SECONDS));
+                Throwable err = readerError.get();
+                assertTrue("Revoked SSE reader must return null or IOException, got " + err,
+                        err == null || err instanceof IOException);
+
+                // Subsequent reads on revoked RunEvents fail closed with IOException("Client revoked").
+                try {
+                    events.next();
+                    fail("Expected IOException on revoked RunEvents.next()");
+                } catch (IOException expected) {
+                    assertTrue(expected.getMessage().contains("revoked"));
+                }
+            }
+            try (HermesApi.RunEvents fresh = api.runEvents("r-after-revoke", -1)) {
+                fresh.next();
+                fail("Expected IOException on new RunEvents after revoke()");
             } catch (IOException expected) {
                 assertTrue(expected.getMessage().contains("revoked"));
             }
