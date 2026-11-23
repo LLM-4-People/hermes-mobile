@@ -57,16 +57,16 @@ public final class VisualDiffPromptCardTest extends InstrumentationTestCase {
             activity.setContentView(card);
             assertTrue(containsVisible(card, "src/App.java"));
             assertTrue(containsVisible(card, "+2 / -1"));
-            assertTrue(containsVisible(card, "Risque modéré"));
+            assertTrue(containsVisible(card, activity.getString(R.string.diff_risk_medium)));
             assertFalse(containsVisible(card, "+int y = 3;"));
 
-            findExact(card, "Voir les détails").performClick();
+            findExact(card, activity.getString(R.string.thread_see_details)).performClick();
             assertTrue(containsVisible(card, "-int x = 1;"));
             assertTrue(containsVisible(card, "+int y = 3;"));
             assertFalse("Must never dump raw JSON keys", containsVisible(card, "\"hunks\""));
             assertNotNull(findExact(card, activity.getString(R.string.diff_open_full)));
 
-            findExact(card, "Masquer les détails").performClick();
+            findExact(card, activity.getString(R.string.prompt_hide_details)).performClick();
             assertFalse(containsVisible(card, "+int y = 3;"));
         });
     }
@@ -92,7 +92,7 @@ public final class VisualDiffPromptCardTest extends InstrumentationTestCase {
             activity.setContentView(legacyCard);
             assertTrue(containsVisible(legacyCard, "README.md"));
             assertTrue(containsVisible(legacyCard, "+1 / -1"));
-            findExact(legacyCard, "Voir les détails").performClick();
+            findExact(legacyCard, activity.getString(R.string.thread_see_details)).performClick();
             assertTrue(containsVisible(legacyCard, "-Avant"));
             assertTrue(containsVisible(legacyCard, "+Après"));
             assertFalse(containsVisible(legacyCard, "\"old_text\""));

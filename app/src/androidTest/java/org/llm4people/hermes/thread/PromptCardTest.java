@@ -13,6 +13,7 @@ import android.widget.TextView;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 
 import java.util.ArrayList;
@@ -41,22 +42,22 @@ public class PromptCardTest extends InstrumentationTestCase {
                 .put("choices", new JSONArray().put("Liste (Recommended)").put("Texte"));
         runTestOnUiThread(() -> {
             PromptCard card = mount(prompt);
-            find(card, "Liste (choix recommandé)").performClick();
+            find(card, activity.getString(R.string.prompt_choice_recommended, "Liste")).performClick();
             assertEquals("Liste", answers.get(0));
-            find(card, "Écrire une réponse").performClick();
-            EditText input = (EditText) find(card, "Votre réponse");
+            find(card, activity.getString(R.string.prompt_write_answer)).performClick();
+            EditText input = (EditText) find(card, activity.getString(R.string.prompt_your_answer_hint));
             input.setText("Une carte");
             input.setSelection(2, 6);
             card.state(PromptCard.State.OFFLINE);
-            assertFalse(find(card, "Envoyer la réponse").isEnabled());
+            assertFalse(find(card, activity.getString(R.string.prompt_send_answer)).isEnabled());
             card.state(PromptCard.State.VERIFY);
-            assertTrue(find(card, "Vérifier la demande").isShown());
+            assertTrue(find(card, activity.getString(R.string.prompt_verify_request)).isShown());
             card.state(PromptCard.State.READY);
             assertEquals(2, input.getSelectionStart());
             assertEquals(6, input.getSelectionEnd());
             assertEquals(1, answers.size());
-            find(card, "Envoyer la réponse").performClick();
-            find(card, "Passer la question").performClick();
+            find(card, activity.getString(R.string.prompt_send_answer)).performClick();
+            find(card, activity.getString(R.string.prompt_skip_question)).performClick();
             assertEquals("Une carte", answers.get(1));
             assertEquals("", answers.get(2));
         });
@@ -68,13 +69,13 @@ public class PromptCardTest extends InstrumentationTestCase {
                 .put("choices", new JSONArray().put("Un, deux").put("Trois (Recommended)"));
         runTestOnUiThread(() -> {
             PromptCard card = mount(prompt);
-            assertFalse(find(card, "Envoyer la réponse").isEnabled());
+            assertFalse(find(card, activity.getString(R.string.prompt_send_answer)).isEnabled());
             find(card, "Un, deux").performClick();
-            find(card, "Trois (choix recommandé)").performClick();
-            find(card, "Écrire une réponse").performClick();
-            ((EditText) find(card, "Votre réponse")).setText("Autre");
+            find(card, activity.getString(R.string.prompt_choice_recommended, "Trois")).performClick();
+            find(card, activity.getString(R.string.prompt_write_answer)).performClick();
+            ((EditText) find(card, activity.getString(R.string.prompt_your_answer_hint))).setText("Autre");
             assertTrue(answers.isEmpty());
-            find(card, "Envoyer la réponse").performClick();
+            find(card, activity.getString(R.string.prompt_send_answer)).performClick();
             assertEquals(new JSONArray().put("Un, deux").put("Trois").put("Autre").toString(), answers.get(0));
         });
     }
@@ -89,17 +90,17 @@ public class PromptCardTest extends InstrumentationTestCase {
                 .put("choices", choices);
         runTestOnUiThread(() -> {
             PromptCard card = mount(prompt);
-            assertNull(find(card, "Écrire une réponse"));
-            assertTrue(find(card, "Votre réponse").isShown());
-            View submit = find(card, "Envoyer la réponse");
-            EditText input = (EditText) find(card, "Votre réponse");
+            assertNull(find(card, activity.getString(R.string.prompt_write_answer)));
+            assertTrue(find(card, activity.getString(R.string.prompt_your_answer_hint)).isShown());
+            View submit = find(card, activity.getString(R.string.prompt_send_answer));
+            EditText input = (EditText) find(card, activity.getString(R.string.prompt_your_answer_hint));
             for (String blank : invisible) {
                 input.setText(blank);
                 assertFalse(submit.isEnabled());
                 submit.performClick();
             }
             assertTrue(answers.isEmpty());
-            find(card, "Passer la question").performClick();
+            find(card, activity.getString(R.string.prompt_skip_question)).performClick();
             assertEquals("", answers.get(0));
             String visible = "  Préparer un vol ✈️\u202f? 👩🏽‍💻  ";
             input.setText(visible);
@@ -117,13 +118,13 @@ public class PromptCardTest extends InstrumentationTestCase {
                         .put(option + " (Recommended)"));
         runTestOnUiThread(() -> {
             PromptCard card = mount(prompt);
-            assertNull(find(card, "\u200b (choix recommandé)"));
-            find(card, "Écrire une réponse").performClick();
-            EditText input = (EditText) find(card, "Votre réponse");
+            assertNull(find(card, activity.getString(R.string.prompt_choice_recommended, "\u200b")));
+            find(card, activity.getString(R.string.prompt_write_answer)).performClick();
+            EditText input = (EditText) find(card, activity.getString(R.string.prompt_your_answer_hint));
             input.setText("\u00a0\ufe0f");
-            View submit = find(card, "Envoyer la réponse");
+            View submit = find(card, activity.getString(R.string.prompt_send_answer));
             assertFalse(submit.isEnabled());
-            find(card, option + " (choix recommandé)").performClick();
+            find(card, activity.getString(R.string.prompt_choice_recommended, option)).performClick();
             assertTrue(submit.isEnabled());
             submit.performClick();
             assertEquals(new JSONArray().put(option).toString(), answers.get(0));
@@ -140,8 +141,8 @@ public class PromptCardTest extends InstrumentationTestCase {
                 .put("multi_select", true).put("choices", new JSONArray().put("\u00a0").put("(Recommended)"));
         runTestOnUiThread(() -> {
             PromptCard card = mount(prompt);
-            EditText input = (EditText) find(card, "Votre réponse");
-            View submit = find(card, "Envoyer la réponse");
+            EditText input = (EditText) find(card, activity.getString(R.string.prompt_your_answer_hint));
+            View submit = find(card, activity.getString(R.string.prompt_send_answer));
             input.setText("\u200b");
             assertFalse(submit.isEnabled());
             String visible = "Une réponse libre";
@@ -155,22 +156,24 @@ public class PromptCardTest extends InstrumentationTestCase {
         JSONObject prompt = new JSONObject().put("kind", "approval").put("prompt_id", "a")
                 .put("execution_generation", 1).put("choices", new JSONArray().put("once").put("deny").put("always"));
         runTestOnUiThread(() -> {
+            String allowOnce = activity.getString(R.string.share_bridge_allow_once);
+            String deny = activity.getString(R.string.share_bridge_deny);
             PromptCard unnamed = mount(prompt);
-            assertNull(find(unnamed, "Autoriser une fois"));
-            assertNotNull(find(unnamed, "Refuser"));
+            assertNull(find(unnamed, allowOnce));
+            assertNotNull(find(unnamed, deny));
             ThreadData.put(prompt, "description", "Modifier la note");
             ThreadData.put(prompt, "edit", ThreadData.object("{\"path\":\"note.txt\",\"new_text\":\"Ligne ajoutée\"}"));
             PromptCard edit = mount(prompt);
-            find(edit, "Voir les détails").performClick();
+            find(edit, activity.getString(R.string.thread_see_details)).performClick();
             assertTrue(textContains(edit, "Ligne ajoutée"));
-            find(edit, "Masquer les détails").performClick();
+            find(edit, activity.getString(R.string.prompt_hide_details)).performClick();
             assertFalse(textContains(edit, "Ligne ajoutée"));
-            find(edit, "Autoriser une fois").performClick();
-            find(edit, "Refuser").performClick();
+            find(edit, allowOnce).performClick();
+            find(edit, deny).performClick();
             assertEquals("once", answers.get(0));
             assertEquals("deny", answers.get(1));
             ThreadData.put(prompt, "choices", new JSONArray().put("deny"));
-            assertNull(find(mount(prompt), "Autoriser une fois"));
+            assertNull(find(mount(prompt), allowOnce));
         });
     }
 
@@ -179,8 +182,8 @@ public class PromptCardTest extends InstrumentationTestCase {
                 .put("choices", new JSONArray().put("once").put("deny"));
         runTestOnUiThread(() -> {
             PromptCard card = mount(prompt);
-            TextView allow = (TextView) find(card, "Autoriser une fois");
-            TextView deny = (TextView) find(card, "Refuser");
+            TextView allow = (TextView) find(card, activity.getString(R.string.share_bridge_allow_once));
+            TextView deny = (TextView) find(card, activity.getString(R.string.share_bridge_deny));
             int narrow = Ui.dp(activity, 260);
             int wide = Ui.dp(activity, 800);
             for (int width : new int[]{wide, narrow, wide}) {
@@ -227,7 +230,7 @@ public class PromptCardTest extends InstrumentationTestCase {
             assertTrue(option.isClickable());
             View title = find(card, "Comment préparer la réunion ?");
             assertTrue(title.isAccessibilityHeading());
-            View skip = find(card, "Passer la question");
+            View skip = find(card, activity.getString(R.string.prompt_skip_question));
             assertTrue(skip.isClickable());
             for (int i = 0; i < 24; i++) ui.list.scrollListBy(Ui.dp(activity, 36));
             Rect visible = new Rect();

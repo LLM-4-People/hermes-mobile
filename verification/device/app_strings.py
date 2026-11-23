@@ -104,11 +104,12 @@ def detect_device_lang(device, *, package: str = APP, default: str = "en") -> st
 
 
 @lru_cache(maxsize=8)
-def _load_resources(lang: str, res_dir: Path = RES_DIR) -> dict[str, str]:
+def _load_resources(lang: str, res_dir: Path = RES_DIR) -> tuple[dict[str, str], dict[str, dict[str, str]]]:
     if lang not in SUPPORTED_LANGS:
         raise ValueError(f"Unsupported app language: {lang!r}")
     base_dir = res_dir / "values"
     merged: dict[str, str] = {}
+    plurals: dict[str, dict[str, str]] = {}
 
     def read_folder(folder: Path) -> None:
         if not folder.is_dir():
@@ -121,11 +122,32 @@ def _load_resources(lang: str, res_dir: Path = RES_DIR) -> dict[str, str]:
                     continue
                 raw = "".join(element.itertext())
                 merged[name] = _unescape_android_xml(raw)
+            for element in root.findall("plurals"):
+                name = element.attrib.get("name")
+                if not name:
+                    continue
+                bucket = plurals.setdefault(name, {})
+                for item in element.findall("item"):
+                    qty = item.attrib.get("quantity")
+                    if qty:
+                        bucket[qty] = _unescape_android_xml("".join(item.itertext()))
 
     read_folder(base_dir)
     if lang != "fr":
         read_folder(res_dir / f"values-{lang}")
-    return merged
+    return merged, plurals
+
+
+def _format_printf(template: str, args: tuple) -> str:
+    positional = iter(args)
+
+    def repl(match: re.Match[str]) -> str:
+        idx = match.group(1)
+        if idx is not None:
+            return str(args[int(idx) - 1])
+        return str(next(positional))
+
+    return _PRINTF_RE.sub(repl, template)
 
 
 class AppStrings:
@@ -133,7 +155,7 @@ class AppStrings:
 
     def __init__(self, lang: str, *, res_dir: Path = RES_DIR):
         self.lang = resolve_lang([lang], default="en")
-        self._table = _load_resources(self.lang, res_dir)
+        self._table, self._plurals = _load_resources(self.lang, res_dir)
 
     @classmethod
     def for_lang(cls, lang: str, *, res_dir: Path = RES_DIR) -> "AppStrings":
@@ -157,13 +179,11 @@ class AppStrings:
         raise KeyError(key)
 
     def fmt(self, key: str, *args) -> str:
-        template = self._table[key]
-        positional = iter(args)
+        return _format_printf(self._table[key], args)
 
-        def repl(match: re.Match[str]) -> str:
-            idx = match.group(1)
-            if idx is not None:
-                return str(args[int(idx) - 1])
-            return str(next(positional))
-
-        return _PRINTF_RE.sub(repl, template)
+    def plural(self, key: str, quantity: int, *args) -> str:
+        forms = self._plurals[key]
+        # EN: 1 -> one, else other. FR: 0 and 1 -> one, else other.
+        use_one = quantity == 1 or (self.lang == "fr" and quantity == 0)
+        template = forms["one"] if use_one and "one" in forms else forms["other"]
+        return _format_printf(template, args or (quantity,))

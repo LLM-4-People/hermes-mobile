@@ -3,6 +3,7 @@ package org.llm4people.hermes.thread;
 import junit.framework.TestCase;
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.llm4people.hermes.R;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -382,7 +383,8 @@ public class ThreadStateTest extends TestCase {
         assertEquals("", ThreadData.content(null));
         JSONObject row = new JSONObject("{\"content\":[null,{\"type\":\"text\",\"text\":\"one\"},{\"type\":\"text\",\"text\":\"two\"}]}");
         assertEquals("one\ntwo", ThreadData.content(row));
-        assertEquals("Nouvelle conversation", ThreadData.title(new JSONObject().put("title", JSONObject.NULL)));
+        assertEquals(ThreadStrings.get(R.string.thread_new_conversation),
+                ThreadData.title(new JSONObject().put("title", JSONObject.NULL)));
     }
 
     public void testTranscriptKeepsConversationAndToolCallsBetweenBookkeepingRows() throws Exception {

@@ -4,6 +4,7 @@ import android.os.SystemClock;
 
 import org.json.JSONObject;
 import org.llm4people.hermes.Diagnostics;
+import org.llm4people.hermes.R;
 import org.llm4people.hermes.artifact.LiveUiPatch;
 import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.share.DeviceBridgeFlow;
@@ -71,7 +72,7 @@ final class RunFollower implements AutoCloseable {
     private long started;
     private long firstText = -1;
     private int toolSteps;
-    private String activity = "Hermes travaille…";
+    private String activity = ThreadStrings.get(R.string.live_run_working_title);
     private final RunPrompts controls = new RunPrompts();
     private List<DeviceBridgeFlow.BridgeRequest> deviceRequests = Collections.emptyList();
     private final List<JSONObject> pendingUiPatches = new ArrayList<>();
@@ -117,7 +118,7 @@ final class RunFollower implements AutoCloseable {
                     if ("replay.truncated".equals(type)) {
                         if (!refreshControls()) return;
                         preview.gap();
-                        activity = "Extrait de la réponse en cours";
+                        activity = ThreadStrings.get(R.string.thread_stream_excerpt);
                         started = -1;
                         publish();
                         continue;
@@ -208,26 +209,29 @@ final class RunFollower implements AutoCloseable {
                     int remaining = REASONING_LIMIT - reasoning.length();
                     if (thought.length() <= remaining) reasoning.append(thought);
                     else reasoning.append(thought, 0, remaining);
-                    activity = "Hermes réfléchit…";
+                    activity = ThreadStrings.get(R.string.thread_hermes_thinking);
                     textAwaitingPaint = true;
                 }
                 break;
             case "message.interim":
-                if (!event.optBoolean("already_streamed")) activity = event.optString("text", "Hermes travaille…");
+                if (!event.optBoolean("already_streamed")) {
+                    activity = event.optString("text", ThreadStrings.get(R.string.live_run_working_title));
+                }
                 break;
             case "tool.started":
                 toolSteps++;
-                activity = "Outil en cours · " + event.optString("tool");
+                activity = ThreadStrings.get(R.string.thread_tool_running, event.optString("tool"));
                 break;
             case "tool.completed":
-                activity = (event.optBoolean("error") ? "Échec de l’outil · " : "Outil terminé · ")
-                        + event.optString("tool");
+                activity = ThreadStrings.get(event.optBoolean("error")
+                        ? R.string.thread_tool_failed_named : R.string.thread_tool_done_named,
+                        event.optString("tool"));
                 break;
             case "approval.responded":
             case "approval.settled":
             case "clarify.settled":
                 controls.settle(event);
-                activity = "Hermes travaille…";
+                activity = ThreadStrings.get(R.string.live_run_working_title);
                 break;
             case "ui.patch":
             case "surface.update":
@@ -236,7 +240,7 @@ final class RunFollower implements AutoCloseable {
                 } else {
                     if (pendingUiPatches.size() >= MAX_PENDING_PATCHES) pendingUiPatches.remove(0);
                     pendingUiPatches.add(event);
-                    activity = "Hermes propose une amélioration d’écran";
+                    activity = ThreadStrings.get(R.string.thread_live_ui_proposed);
                 }
                 break;
             default:

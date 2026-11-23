@@ -16,6 +16,7 @@ import android.widget.TextView;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.RouteRegistry;
@@ -72,14 +73,11 @@ public final class DeliveryRouter {
     public static void registerRoutes(RouteRegistry registry, Context context,
                                       Runnable openInbox, Runnable openPolicy) {
         Objects.requireNonNull(registry, "registry");
-        String deliveriesLabel = context == null ? "Livraisons" : context.getString(R.string.push_route_deliveries_label);
-        String deliveriesHint = context == null
-                ? "Briefings, fichiers et propositions envoyés par Hermes"
-                : context.getString(R.string.push_route_deliveries_hint);
-        String policyLabel = context == null ? "Préférences d’alertes" : context.getString(R.string.push_route_policy_label);
-        String policyHint = context == null
-                ? "Catégories de notifications et heures calmes"
-                : context.getString(R.string.push_route_policy_hint);
+        Context localized = context == null ? null : AppLanguage.wrapContext(context);
+        String deliveriesLabel = localized == null ? "activite/livraisons" : localized.getString(R.string.push_route_deliveries_label);
+        String deliveriesHint = localized == null ? "" : localized.getString(R.string.push_route_deliveries_hint);
+        String policyLabel = localized == null ? "activite/preferences_notifications" : localized.getString(R.string.push_route_policy_label);
+        String policyHint = localized == null ? "" : localized.getString(R.string.push_route_policy_hint);
         registry.register(new RouteRegistry.Destination(
                 "activite/livraisons",
                 RouteRegistry.Section.ACTIVITE,
@@ -158,7 +156,8 @@ public final class DeliveryRouter {
             Ui.pad(empty, 0, 12);
             box.addView(empty);
         } else {
-            DateFormat fmt = DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT, Locale.getDefault());
+            DateFormat fmt = DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT,
+                    AppLanguage.resolvedLocale(activity));
             for (DeliveryItem item : items) {
                 box.addView(Ui.divider(activity));
                 box.addView(buildRowView(item, fmt));
@@ -177,7 +176,7 @@ public final class DeliveryRouter {
         LinearLayout row = Ui.column(activity);
         Ui.pad(row, 4, 10);
 
-        String badge = item.kind.labelFr;
+        String badge = item.kind.label(activity);
         if (!item.isAcknowledged()) {
             badge = badge + " · " + activity.getString(R.string.push_inbox_unread_badge);
         }
@@ -200,7 +199,7 @@ public final class DeliveryRouter {
             row.addView(preview);
         }
 
-        row.addView(Ui.button(activity, item.primaryActionLabel(), v -> openDelivery(item)));
+        row.addView(Ui.button(activity, item.primaryActionLabel(activity), v -> openDelivery(item)));
         return row;
     }
 
@@ -221,7 +220,7 @@ public final class DeliveryRouter {
         LinearLayout content = Ui.column(activity);
         Ui.pad(content, 16, 12);
 
-        TextView kindLabel = Ui.text(activity, item.kind.labelFr, 13);
+        TextView kindLabel = Ui.text(activity, item.kind.label(activity), 13);
         kindLabel.setTextColor(activity.getColor(R.color.accent));
         content.addView(kindLabel);
 
@@ -349,7 +348,7 @@ public final class DeliveryRouter {
         String body = firstNonEmpty(payload, "summary", "body", "result", "text", "message");
         AlertDialog.Builder builder = new AlertDialog.Builder(activity)
                 .setTitle(item.title)
-                .setMessage(body.isEmpty() ? item.kind.labelFr : body)
+                .setMessage(body.isEmpty() ? item.kind.label(activity) : body)
                 .setNegativeButton(R.string.push_inbox_close, null);
         if (item.sessionId != null) {
             builder.setPositiveButton(R.string.push_inbox_open_thread,
@@ -413,6 +412,7 @@ public final class DeliveryRouter {
 
     static ReviewedAction parseSafeDeviceAction(Context context, JSONObject payload) {
         if (payload == null) return null;
+        Context localized = context == null ? null : AppLanguage.wrapContext(context);
         JSONObject action = payload.optJSONObject("action");
         if (action == null) action = payload;
         String kind = action.optString("kind", action.optString("action_type", "")).trim();
@@ -432,18 +432,18 @@ public final class DeliveryRouter {
                             .putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, start.toInstant().toEpochMilli())
                             .putExtra(CalendarContract.EXTRA_EVENT_END_TIME, end.toInstant().toEpochMilli());
                     if (!location.isEmpty()) intent.putExtra(CalendarContract.Events.EVENT_LOCATION, location);
-                    String startLine = context == null ? "Début · " + startRaw
-                            : context.getString(R.string.push_action_calendar_start, startRaw);
-                    String endLine = context == null ? "Fin · " + endRaw
-                            : context.getString(R.string.push_action_calendar_end, endRaw);
+                    String startLine = localized == null ? startRaw
+                            : localized.getString(R.string.push_action_calendar_start, startRaw);
+                    String endLine = localized == null ? endRaw
+                            : localized.getString(R.string.push_action_calendar_end, endRaw);
                     String locLine = location.isEmpty() ? ""
-                            : "\n" + (context == null ? "Lieu · " + location
-                            : context.getString(R.string.push_action_calendar_location, location));
+                            : "\n" + (localized == null ? location
+                            : localized.getString(R.string.push_action_calendar_location, location));
                     String preview = title + "\n\n" + startLine + "\n" + endLine + locLine;
                     yield new ReviewedAction(
-                            context == null ? "Événement d’agenda" : context.getString(R.string.push_action_calendar_title),
+                            localized == null ? "" : localized.getString(R.string.push_action_calendar_title),
                             preview,
-                            context == null ? "Ouvrir l’agenda" : context.getString(R.string.push_action_calendar_open),
+                            localized == null ? "" : localized.getString(R.string.push_action_calendar_open),
                             intent);
                 } catch (DateTimeException invalid) {
                     yield null;
@@ -455,9 +455,9 @@ public final class DeliveryRouter {
                 Intent send = new Intent(Intent.ACTION_SEND).setType("text/plain")
                         .putExtra(Intent.EXTRA_TEXT, text);
                 yield new ReviewedAction(
-                        context == null ? "Texte à partager" : context.getString(R.string.push_action_share_title),
+                        localized == null ? "" : localized.getString(R.string.push_action_share_title),
                         text,
-                        context == null ? "Choisir une application" : context.getString(R.string.push_action_share_open),
+                        localized == null ? "" : localized.getString(R.string.push_action_share_open),
                         Intent.createChooser(send, null));
             }
             case "map_search" -> {
@@ -465,9 +465,9 @@ public final class DeliveryRouter {
                 if (query.isEmpty() || query.length() > 200) yield null;
                 Intent map = new Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=" + Uri.encode(query)));
                 yield new ReviewedAction(
-                        context == null ? "Lieu à rechercher" : context.getString(R.string.push_action_map_title),
+                        localized == null ? "" : localized.getString(R.string.push_action_map_title),
                         query,
-                        context == null ? "Ouvrir la carte" : context.getString(R.string.push_action_map_open),
+                        localized == null ? "" : localized.getString(R.string.push_action_map_open),
                         map);
             }
             default -> null;

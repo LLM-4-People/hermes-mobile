@@ -89,43 +89,45 @@ final class PushSettings {
     }
 
     AlertDialog.Builder settingsDialog(PushStore.Device device, boolean allowed) {
-        AlertDialog.Builder builder = new AlertDialog.Builder(activity).setTitle("Notifications du profil")
-                .setNegativeButton("Fermer", null)
-                .setNeutralButton("Historique", (d,w) -> history(0, new ArrayDeque<>()));
+        AlertDialog.Builder builder = new AlertDialog.Builder(activity).setTitle(R.string.push_settings_title)
+                .setNegativeButton(R.string.ws_close, null)
+                .setNeutralButton(R.string.push_settings_history, (d,w) -> history(0, new ArrayDeque<>()));
         if (device != null && PushStore.REMOVING.equals(device.state)) {
-            builder.setMessage("Les alertes sont coupées sur cet appareil. La désactivation sur le serveur reste à confirmer.")
-                    .setPositiveButton("Réessayer", (d,w) -> remove(device));
+            builder.setMessage(R.string.push_settings_removal_pending)
+                    .setPositiveButton(R.string.instrument_retry, (d,w) -> remove(device));
         } else if (device != null && (PushStore.ACTIVE.equals(device.state) || pendingRepair(device))) {
             if (!allowed) {
-                String android = "Autorisez les notifications dans les réglages Android pour recevoir les alertes de ce profil.";
-                builder.setTitle("Alertes bloquées par Android")
+                String android = activity.getString(R.string.push_settings_blocked_message);
+                builder.setTitle(R.string.push_settings_blocked_title)
                         .setMessage(device.repair == PushStore.NO_REPAIR ? android : android + "\n\n" + activeMessage(device))
-                        .setPositiveButton("Réglages Android", (d,w) -> systemSettings())
-                        .setNegativeButton("Désactiver", (d,w) -> remove(device));
+                        .setPositiveButton(R.string.push_settings_android_settings, (d,w) -> systemSettings())
+                        .setNegativeButton(R.string.push_settings_disable, (d,w) -> remove(device));
             } else if (device.repair != PushStore.NO_REPAIR) {
-                builder.setTitle("Connexion au distributeur").setMessage(activeMessage(device))
-                        .setNegativeButton("Désactiver", (d,w) -> remove(device));
+                builder.setTitle(R.string.push_settings_distributor_connecting).setMessage(activeMessage(device))
+                        .setNegativeButton(R.string.push_settings_disable, (d,w) -> remove(device));
                 if (device.repair == PushStore.REPAIR_ACTION)
-                    builder.setPositiveButton("Réessayer", (d,w) -> retryRepair(device));
+                    builder.setPositiveButton(R.string.instrument_retry, (d,w) -> retryRepair(device));
             } else {
-                builder.setMessage(activeMessage(device)).setPositiveButton("Désactiver", (d,w) -> remove(device));
+                builder.setMessage(activeMessage(device)).setPositiveButton(R.string.push_settings_disable, (d,w) -> remove(device));
             }
         } else if (device != null) {
-            builder.setTitle("Inscription à confirmer")
+            builder.setTitle(R.string.push_settings_registration_confirm)
                     .setMessage(registrationMessage(device))
-                    .setPositiveButton("Réessayer", (d,w) -> begin())
-                    .setNegativeButton("Désactiver", (d,w) -> remove(device));
+                    .setPositiveButton(R.string.instrument_retry, (d,w) -> begin())
+                    .setNegativeButton(R.string.push_settings_disable, (d,w) -> remove(device));
         } else {
-            builder.setMessage("Recevez les rappels, les demandes d’autorisation et la fin des sessions. Le contenu de vos échanges reste privé.")
-                    .setPositiveButton("Activer", (d,w) -> begin());
+            builder.setMessage(R.string.push_settings_intro)
+                    .setPositiveButton(R.string.push_settings_enable, (d,w) -> begin());
         }
         LinearLayout extras = null;
         if (offersDistributor(device)) {
             extras = Ui.column(activity);
             Ui.pad(extras, 16, 4);
-            extras.addView(Ui.button(activity, "Ouvrir le distributeur", v -> openDistributor(v, device)));
+            extras.addView(Ui.button(activity, activity.getString(R.string.push_settings_open_distributor),
+                    v -> openDistributor(v, device)));
             if (!allowed && device.repair == PushStore.REPAIR_ACTION) {
-                extras.addView(Ui.button(activity, "Réessayer", v -> retryRepair(device)));
+                extras.addView(Ui.button(activity, activity.getString(R.string.instrument_retry),
+                        v -> retryRepair(device)));
             }
         }
         if (account != null) {
@@ -136,8 +138,8 @@ final class PushSettings {
             PushPolicy currentPolicy = PushPolicy.load(activity, account.id);
             String quietLine = currentPolicy.quietHoursEnabled
                     ? activity.getString(R.string.push_policy_quiet_status_on,
-                            PushPolicy.formatMinuteFr(currentPolicy.quietStartMinute),
-                            PushPolicy.formatMinuteFr(currentPolicy.quietEndMinute))
+                            PushPolicy.formatMinute(activity, currentPolicy.quietStartMinute),
+                            PushPolicy.formatMinute(activity, currentPolicy.quietEndMinute))
                     : activity.getString(R.string.push_policy_quiet_status_off);
             TextView summary = Ui.text(activity, quietLine, 14);
             summary.setTextColor(activity.getColor(R.color.muted));
@@ -168,7 +170,7 @@ final class PushSettings {
 
         for (DeliveryItem.Category category : DeliveryItem.Category.values()) {
             Switch toggle = new Switch(activity);
-            toggle.setText(category.labelFr);
+            toggle.setText(category.label(activity));
             toggle.setChecked(state[0].isCategoryEnabled(category));
             toggle.setMinHeight(Ui.dp(activity, 48));
             toggle.setOnCheckedChangeListener((btn, checked) -> {
@@ -176,7 +178,7 @@ final class PushSettings {
                 PushPolicy.save(activity, account.id, state[0]);
             });
             content.addView(toggle);
-            TextView sub = Ui.text(activity, category.hintFr, 12);
+            TextView sub = Ui.text(activity, category.hint(activity), 12);
             sub.setTextColor(activity.getColor(R.color.muted));
             Ui.pad(sub, 0, 2);
             content.addView(sub);
@@ -194,9 +196,9 @@ final class PushSettings {
 
         Runnable refreshQuietViews = () -> {
             startButton.setText(activity.getString(R.string.push_policy_quiet_start,
-                    PushPolicy.formatMinuteFr(state[0].quietStartMinute)));
+                    PushPolicy.formatMinute(activity, state[0].quietStartMinute)));
             endButton.setText(activity.getString(R.string.push_policy_quiet_end,
-                    PushPolicy.formatMinuteFr(state[0].quietEndMinute)));
+                    PushPolicy.formatMinute(activity, state[0].quietEndMinute)));
             startButton.setEnabled(state[0].quietHoursEnabled);
             endButton.setEnabled(state[0].quietHoursEnabled);
             highToggle.setEnabled(state[0].quietHoursEnabled);
@@ -254,8 +256,8 @@ final class PushSettings {
         display(new AlertDialog.Builder(activity)
                 .setTitle(activity.getString(R.string.push_policy_title))
                 .setView(scroll)
-                .setNegativeButton("Retour", (d, w) -> show())
-                .setPositiveButton("Fermer", null));
+                .setNegativeButton(R.string.push_settings_back, (d, w) -> show())
+                .setPositiveButton(R.string.ws_close, null));
     }
 
     private void openQuietTimePicker(int initialMinute, java.util.function.IntConsumer onPicked) {
@@ -303,31 +305,35 @@ final class PushSettings {
     }
 
     private void retryRepair(PushStore.Device device) {
-        run("Reconnexion au distributeur…", () -> DistributorEnrollment.repair(activity.getApplicationContext(), device, true));
+        run(activity.getString(R.string.push_settings_reconnecting),
+                () -> DistributorEnrollment.repair(activity.getApplicationContext(), device, true));
     }
 
-    private static String activeMessage(PushStore.Device device) {
-        if (!device.unified()) return "Les rappels et l’activité de vos sessions peuvent vous prévenir même après la fermeture de l’application.";
-        String status = pendingRepair(device) ? "La confirmation du relais est en attente. " : "Le relais a enregistré ce profil. ";
-        return status + switch (device.repair) {
-            case PushStore.WAITING_ENDPOINT -> "Hermes attend la confirmation du distributeur.";
-            case PushStore.RETRY_REPAIR -> "Hermes réessaiera automatiquement de joindre le distributeur.";
+    private String activeMessage(PushStore.Device device) {
+        if (!device.unified()) return activity.getString(R.string.push_settings_active_summary);
+        String status = activity.getString(
+                pendingRepair(device) ? R.string.push_settings_relay_pending : R.string.push_settings_relay_registered);
+        return status + " " + switch (device.repair) {
+            case PushStore.WAITING_ENDPOINT -> activity.getString(R.string.push_settings_waiting_distributor);
+            case PushStore.RETRY_REPAIR -> activity.getString(R.string.push_settings_retry_distributor_auto);
             case PushStore.REPAIR_ACTION -> registrationMessage(device);
-            default -> "Ouvrez le distributeur pour vérifier sa connexion et terminer la configuration des alertes.";
+            default -> activity.getString(R.string.push_settings_open_distributor_check);
         };
     }
 
-    private static String registrationMessage(PushStore.Device device) {
-        if (device.retryScheduled()) return "Hermes réessaiera automatiquement lorsque le réseau sera disponible.";
-        if (!PushStore.FAILED.equals(device.state) && device.repair != PushStore.REPAIR_ACTION) return "L’inscription de cet appareil auprès du serveur reste à confirmer.";
+    private String registrationMessage(PushStore.Device device) {
+        if (device.retryScheduled()) return activity.getString(R.string.push_settings_retry_network_auto);
+        if (!PushStore.FAILED.equals(device.state) && device.repair != PushStore.REPAIR_ACTION) {
+            return activity.getString(R.string.push_settings_device_registration_pending);
+        }
         return switch (device.failure == null ? "" : device.failure) {
-            case "ACTION_REQUIRED" -> "Ouvrez le distributeur pour terminer sa configuration, puis réessayez.";
-            case "VAPID_REQUIRED" -> "Le distributeur demande une clé VAPID. Vérifiez la configuration du relais, puis réessayez.";
-            case PushStore.ENDPOINT_REJECTED -> "Le relais refuse cette adresse de notification. Vérifiez le serveur du distributeur, puis réessayez.";
-            case PushStore.ACCOUNT_REQUIRED -> "Le relais demande de confirmer l’inscription avec ce profil. Vérifiez sa clé d’accès, puis réessayez.";
-            default -> device.repair == PushStore.REPAIR_ACTION
-                    ? "La reconnexion au distributeur a échoué. Vérifiez sa configuration, puis réessayez."
-                    : "Le distributeur n’a pas pu terminer l’inscription. Vérifiez sa configuration, puis réessayez.";
+            case "ACTION_REQUIRED" -> activity.getString(R.string.push_settings_distributor_finish);
+            case "VAPID_REQUIRED" -> activity.getString(R.string.push_settings_distributor_vapid);
+            case PushStore.ENDPOINT_REJECTED -> activity.getString(R.string.push_settings_relay_refused_endpoint);
+            case PushStore.ACCOUNT_REQUIRED -> activity.getString(R.string.push_settings_relay_confirm_profile);
+            default -> activity.getString(device.repair == PushStore.REPAIR_ACTION
+                    ? R.string.push_settings_distributor_reconnect_failed
+                    : R.string.push_settings_distributor_register_failed);
         };
     }
 
@@ -355,36 +361,39 @@ final class PushSettings {
     }
 
     private void history(long cursor, ArrayDeque<Long> previous) {
-        AlertDialog progress = display(new AlertDialog.Builder(activity).setTitle("Historique du profil").setMessage("Chargement…"));
+        AlertDialog progress = display(new AlertDialog.Builder(activity)
+                .setTitle(R.string.push_settings_history_title)
+                .setMessage(R.string.push_settings_loading));
         if (progress == null) return;
         Locale locale = activity.getResources().getConfiguration().getLocales().get(0);
         PushConnection.WORK.execute(() -> {
             try {
                 if (!current()) return;
-                PushHistory.Page page = PushHistory.load(account, cursor, locale);
+                PushHistory.Page page = PushHistory.load(activity, account, cursor, locale);
                 finishProgress(progress, () -> {
-                    AlertDialog.Builder list = new AlertDialog.Builder(activity).setTitle("Historique du profil")
-                            .setNegativeButton("Fermer", null);
-                    if (page.labels.isEmpty()) list.setMessage("Aucune activité sur cette page.");
+                    AlertDialog.Builder list = new AlertDialog.Builder(activity)
+                            .setTitle(R.string.push_settings_history_title)
+                            .setNegativeButton(R.string.ws_close, null);
+                    if (page.labels.isEmpty()) list.setMessage(R.string.push_settings_history_empty);
                     else list.setItems(page.labels.toArray(new String[0]), (d,index) -> {
                         if (current() && activity instanceof MobilePush.EventHost host) {
                             host.openPushEvent(account, page.events.get(index));
                         }
                     });
-                    if (page.more) list.setPositiveButton("Suite", (d,w) -> {
+                    if (page.more) list.setPositiveButton(R.string.push_settings_next, (d,w) -> {
                         previous.push(cursor);
                         history(page.next, previous);
                     });
-                    if (!previous.isEmpty()) list.setNeutralButton("Précédent",
+                    if (!previous.isEmpty()) list.setNeutralButton(R.string.push_settings_previous,
                             (d,w) -> history(previous.pop(), previous));
                     display(list);
                 });
             } catch (Exception error) {
                 Diagnostics.warning("push", "history_load_failed");
                 finishProgress(progress, () -> display(new AlertDialog.Builder(activity)
-                        .setTitle("Historique indisponible").setMessage(errorMessage(error))
-                        .setPositiveButton("Réessayer", (d,w) -> history(cursor, previous))
-                        .setNegativeButton("Fermer", null)));
+                        .setTitle(R.string.push_settings_history_unavailable).setMessage(errorMessage(error))
+                        .setPositiveButton(R.string.instrument_retry, (d,w) -> history(cursor, previous))
+                        .setNegativeButton(R.string.ws_close, null)));
             }
         });
     }
@@ -414,12 +423,12 @@ final class PushSettings {
     private void openDistributor(View button, PushStore.Device displayed) {
         if (!current() || dialog == null || !dialog.isShowing()
                 || button.getRootView() != dialog.getWindow().getDecorView()) return;
-        String message = "Android ne propose pas d’écran à ouvrir pour ce distributeur.";
+        String message = activity.getString(R.string.push_settings_distributor_no_screen);
         try {
             Intent launch = activity.getPackageManager().getLaunchIntentForPackage(displayed.distributor);
             synchronized (PushConnection.class) {
                 if (!mayOpenDistributor(activity, account.id, displayed)) {
-                    message = "Ce distributeur n’est plus autorisé pour cette inscription. Revenez aux notifications du profil pour vérifier son état.";
+                    message = activity.getString(R.string.push_settings_distributor_unauthorized);
                 } else if (launch != null) {
                     activity.startActivity(launch);
                     return;
@@ -428,9 +437,9 @@ final class PushSettings {
         } catch (ActivityNotFoundException | SecurityException gone) {
             Diagnostics.warning("push", "distributor_launcher_unavailable");
         }
-        display(new AlertDialog.Builder(activity).setTitle("Distributeur indisponible")
+        display(new AlertDialog.Builder(activity).setTitle(R.string.push_settings_distributor_unavailable)
                 .setMessage(message)
-                .setPositiveButton("Retour", (d,w) -> show()));
+                .setPositiveButton(R.string.push_settings_back, (d,w) -> show()));
     }
 
     private void begin() {
@@ -444,13 +453,13 @@ final class PushSettings {
     void permissionResult() {
         if (!current()) return;
         if (!PushNotices.allowed(activity)) {
-            display(new AlertDialog.Builder(activity).setTitle("Autoriser les notifications")
-                    .setMessage("Ouvrez les réglages Android pour autoriser les alertes d’Hermes.")
-                    .setPositiveButton("Réglages Android", (d,w) -> systemSettings())
-                    .setNegativeButton("Fermer", null));
+            display(new AlertDialog.Builder(activity).setTitle(R.string.push_settings_allow_title)
+                    .setMessage(R.string.push_settings_allow_body)
+                    .setPositiveButton(R.string.push_settings_android_settings, (d,w) -> systemSettings())
+                    .setNegativeButton(R.string.ws_close, null));
             return;
         }
-        load("Recherche des services de notification…",
+        load(activity.getString(R.string.push_settings_searching_services),
                 () -> new HermesApi(account.endpoint, account.bearer).get(PushConnection.BASE), this::chooseTransport);
     }
 
@@ -460,27 +469,27 @@ final class PushSettings {
         List<Runnable> choices = new ArrayList<>();
         long epoch = PushConnection.version();
         if (PushConfig.offers(discovery, DistributorEnrollment.PROVIDER) && (existing == null || existing.unified())) {
-            labels.add("Activer avec UnifiedPush");
+            labels.add(activity.getString(R.string.push_settings_enable_up));
             choices.add(() -> chooseDistributor(discovery, epoch));
         }
         if (PushConfig.offers(discovery, "fcm") && (existing == null || !existing.unified())) {
-            labels.add("Activer avec Google Play");
-            choices.add(() -> run("Inscription en cours…", () -> PushConnection.enroll(
+            labels.add(activity.getString(R.string.push_settings_enable_fcm));
+            choices.add(() -> run(activity.getString(R.string.push_settings_registering), () -> PushConnection.enroll(
                     activity.getApplicationContext(), account, PushConfig.parse(discovery), epoch, this::current)));
         }
-        AlertDialog.Builder picker = new AlertDialog.Builder(activity).setTitle("Service de notification")
-                .setNegativeButton("Retour", (d,w) -> show());
-        if (choices.isEmpty()) picker.setMessage("Aucun service de notification disponible pour ce profil.");
+        AlertDialog.Builder picker = new AlertDialog.Builder(activity).setTitle(R.string.push_settings_service_title)
+                .setNegativeButton(R.string.push_settings_back, (d,w) -> show());
+        if (choices.isEmpty()) picker.setMessage(R.string.push_settings_no_service);
         else picker.setItems(labels.toArray(new String[0]), (d,w) -> choices.get(w).run());
         display(picker);
     }
 
     private void chooseDistributor(JSONObject discovery, long epoch) {
         List<String> packages = DistributorEnrollment.choices(activity);
-        AlertDialog.Builder picker = new AlertDialog.Builder(activity).setTitle("Choisir un distributeur")
-                .setNegativeButton("Retour", (d,w) -> show());
+        AlertDialog.Builder picker = new AlertDialog.Builder(activity).setTitle(R.string.push_settings_choose_distributor)
+                .setNegativeButton(R.string.push_settings_back, (d,w) -> show());
         if (packages.isEmpty()) {
-            picker.setMessage("Installez ou configurez un distributeur UnifiedPush, par exemple ntfy, puis réessayez.");
+            picker.setMessage(R.string.push_settings_install_up);
         } else {
             String[] labels = new String[packages.size()];
             String[] signers = new String[packages.size()];
@@ -492,7 +501,7 @@ final class PushSettings {
                     labels[i] = manager.getApplicationLabel(manager.getApplicationInfo(name, 0)) + "\n" + name;
                 } catch (PackageManager.NameNotFoundException gone) { labels[i] = name; }
             }
-            picker.setItems(labels, (d,w) -> run("Inscription au distributeur…", () ->
+            picker.setItems(labels, (d,w) -> run(activity.getString(R.string.push_settings_registering_distributor), () ->
                     DistributorEnrollment.enroll(activity.getApplicationContext(), account, packages.get(w), signers[w],
                             DistributorEnrollment.vapid(discovery), epoch, this::current)));
         }
@@ -501,7 +510,7 @@ final class PushSettings {
 
     private void remove(PushStore.Device device) {
         MobilePush.forget(activity, account.id);
-        run("Désactivation en cours…", () ->
+        run(activity.getString(R.string.push_settings_disabling), () ->
                 PushConnection.remove(activity.getApplicationContext(), device, account.bearer));
     }
 
@@ -512,7 +521,8 @@ final class PushSettings {
     }
 
     private <T> void load(String progress, Callable<T> action, Consumer<T> after) {
-        AlertDialog waiting = display(new AlertDialog.Builder(activity).setTitle("Notifications du profil").setMessage(progress));
+        AlertDialog waiting = display(new AlertDialog.Builder(activity)
+                .setTitle(R.string.push_settings_title).setMessage(progress));
         if (waiting == null) return;
         PushConnection.WORK.execute(() -> {
             try {
@@ -523,24 +533,24 @@ final class PushSettings {
                 Diagnostics.event("push", "enrollment_action_failed");
                 String message = errorMessage(error);
                 finishProgress(waiting, () -> display(new AlertDialog.Builder(activity)
-                        .setTitle("Notifications du profil").setMessage(message)
-                        .setPositiveButton("Retour", (d,w) -> show())));
+                        .setTitle(R.string.push_settings_title).setMessage(message)
+                        .setPositiveButton(R.string.push_settings_back, (d,w) -> show())));
             }
         });
     }
 
-    private static String errorMessage(Exception error) {
+    private String errorMessage(Exception error) {
         if (error instanceof PushConnection.DifferentProject) {
-            return "Un autre projet de notifications est déjà utilisé. Désactivez ses profils avant d’en changer.";
+            return activity.getString(R.string.push_settings_other_project);
         }
         if (error instanceof PushConnection.MissingPlayServices) {
-            return "Les services Google Play doivent être installés et à jour pour recevoir ces alertes.";
+            return activity.getString(R.string.push_settings_play_required);
         }
         if (error instanceof HermesApi.HttpError http) {
-            if (http.status == 404 || http.status == 503) return "Le relais de notifications est indisponible sur ce serveur.";
-            if (http.status == 401 || http.status == 403) return "Vérifiez la clé d’accès de ce profil.";
-            if (http.status == 409) return "Cet appareil est déjà inscrit. Vérifiez ses inscriptions sur le serveur.";
+            if (http.status == 404 || http.status == 503) return activity.getString(R.string.push_settings_relay_unavailable);
+            if (http.status == 401 || http.status == 403) return activity.getString(R.string.push_settings_check_profile_key);
+            if (http.status == 409) return activity.getString(R.string.push_settings_device_already_registered);
         }
-        return "La connexion a échoué. Vérifiez le réseau et la configuration du relais, puis réessayez.";
+        return activity.getString(R.string.push_settings_connection_failed);
     }
 }

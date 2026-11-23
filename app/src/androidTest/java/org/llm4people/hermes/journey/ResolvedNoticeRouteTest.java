@@ -66,7 +66,7 @@ public class ResolvedNoticeRouteTest extends InstrumentationTestCase {
             ui.tap(tabProposed);
             assertEquals("proposition.py", ui.fieldText("Fichier"));
             ui.tap(replyBtn);
-            ui.see(question ? "Quelle date ?" : "Autoriser cette action ?");
+            ui.see(question ? "Quelle date ?" : activity.getString(org.llm4people.hermes.R.string.prompt_approve_title));
             assertEquals("Demain à midi", ui.fieldText(composerHint));
             releaseEvents.countDown();
             String wire = gateway.observed();

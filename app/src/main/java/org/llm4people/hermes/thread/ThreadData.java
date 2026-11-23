@@ -1,6 +1,9 @@
 package org.llm4people.hermes.thread;
 
+import android.content.Context;
+
 import org.json.JSONArray;
+import org.llm4people.hermes.R;
 import org.llm4people.hermes.artifact.MessageParts;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -43,7 +46,11 @@ final class ThreadData {
     }
 
     static String title(JSONObject session) {
-        return ThreadTitles.display(string(session, "title").trim(), ThreadTitles.inboxPrompt(session),
+        return title(null, session);
+    }
+
+    static String title(Context context, JSONObject session) {
+        return ThreadTitles.display(context, string(session, "title").trim(), ThreadTitles.inboxPrompt(session),
                 ThreadTitles.emptySession(session));
     }
 
@@ -56,9 +63,15 @@ final class ThreadData {
             RETAINED_HINT + "(?:\\s+\\[screenshot\\])?");
 
     static String content(JSONObject message) {
+        return content(null, message);
+    }
+
+    static String content(Context context, JSONObject message) {
         String value = MessageParts.display(message);
-        if ("user".equals(string(message, "role")) && value.contains(PHOTO_HINT))
-            return PHOTO_LINE.matcher(value).replaceAll("Image jointe");
+        if ("user".equals(string(message, "role")) && value.contains(PHOTO_HINT)) {
+            return PHOTO_LINE.matcher(value).replaceAll(java.util.regex.Matcher.quoteReplacement(
+                    ThreadStrings.get(context, R.string.thread_attached_image)));
+        }
         return value;
     }
 

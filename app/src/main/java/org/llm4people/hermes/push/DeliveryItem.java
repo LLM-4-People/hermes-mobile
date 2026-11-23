@@ -1,7 +1,11 @@
 package org.llm4people.hermes.push;
 
+import android.content.Context;
+
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.llm4people.hermes.AppLanguage;
+import org.llm4people.hermes.R;
 
 import java.util.Locale;
 import java.util.Objects;
@@ -17,21 +21,24 @@ public final class DeliveryItem {
     private static final Pattern SAFE_ID = Pattern.compile("[A-Za-z0-9._-]{1,64}");
 
     public enum Category {
-        BRIEFINGS_CARDS("briefings_cards", "Briefings & cartes", "Résumés, notes et cartes préparées par Hermes"),
-        SCREEN_UPDATES("screen_updates", "Mises à jour d’écran", "Propositions d’écran et actualisations du widget"),
-        FILES("files", "Fichiers envoyés", "Documents, images ou extraits publiés pour vous"),
-        PROPOSED_ACTIONS("proposed_actions", "Actions proposées", "Agenda, partages, itinéraires et demandes à valider"),
-        REMINDERS("reminders", "Rappels", "Rappels planifiés et résultats de tâches");
+        BRIEFINGS_CARDS("briefings_cards", R.string.push_cat_briefings_label, R.string.push_cat_briefings_desc),
+        SCREEN_UPDATES("screen_updates", R.string.push_cat_screen_label, R.string.push_cat_screen_desc),
+        FILES("files", R.string.push_cat_files_label, R.string.push_cat_files_desc),
+        PROPOSED_ACTIONS("proposed_actions", R.string.push_cat_actions_label, R.string.push_cat_actions_desc),
+        REMINDERS("reminders", R.string.push_cat_reminders_label, R.string.push_cat_reminders_desc);
 
         public final String wireKey;
-        public final String labelFr;
-        public final String hintFr;
+        public final int labelRes;
+        public final int hintRes;
 
-        Category(String wireKey, String labelFr, String hintFr) {
+        Category(String wireKey, int labelRes, int hintRes) {
             this.wireKey = wireKey;
-            this.labelFr = labelFr;
-            this.hintFr = hintFr;
+            this.labelRes = labelRes;
+            this.hintRes = hintRes;
         }
+
+        public String label(Context context) { return AppLanguage.wrapContext(context).getString(labelRes); }
+        public String hint(Context context) { return AppLanguage.wrapContext(context).getString(hintRes); }
 
         public static Category fromWireKey(String raw) {
             if (raw == null) return null;
@@ -56,28 +63,40 @@ public final class DeliveryItem {
     }
 
     public enum Kind {
-        NOTICE("notice", Category.BRIEFINGS_CARDS, "Message d’Hermes", "Nouveau message d’Hermes", "Consulter"),
-        CARD("card", Category.BRIEFINGS_CARDS, "Carte reçue", "Nouvelle carte d’Hermes", "Lire la carte"),
-        BRIEFING("briefing", Category.BRIEFINGS_CARDS, "Briefing", "Votre briefing Hermes est prêt", "Lire le briefing"),
-        FILE("file", Category.FILES, "Fichier envoyé", "Hermes a envoyé un fichier", "Ouvrir le fichier"),
-        UI_PATCH("ui_patch", Category.SCREEN_UPDATES, "Mise à jour d’écran", "Hermes propose une mise à jour d’écran", "Voir la mise à jour"),
-        WIDGET_UPDATE("widget_update", Category.SCREEN_UPDATES, "Widget", "Mise à jour du widget prête", "Actualiser le widget"),
-        DEVICE_ACTION("device_action", Category.PROPOSED_ACTIONS, "Action proposée", "Hermes propose une action à vérifier", "Vérifier l’action"),
-        REMINDER_RESULT("reminder_result", Category.REMINDERS, "Résultat d’un rappel", "Résultat d’un rappel disponible", "Ouvrir la discussion");
+        NOTICE("notice", Category.BRIEFINGS_CARDS,
+                R.string.push_kind_notice_label, R.string.push_kind_notice_title, R.string.push_kind_notice_action),
+        CARD("card", Category.BRIEFINGS_CARDS,
+                R.string.push_kind_card_label, R.string.push_kind_card_title, R.string.push_kind_card_action),
+        BRIEFING("briefing", Category.BRIEFINGS_CARDS,
+                R.string.push_kind_briefing_label, R.string.push_kind_briefing_title, R.string.push_kind_briefing_action),
+        FILE("file", Category.FILES,
+                R.string.push_kind_file_label, R.string.push_kind_file_title, R.string.push_kind_file_action),
+        UI_PATCH("ui_patch", Category.SCREEN_UPDATES,
+                R.string.push_kind_ui_patch_label, R.string.push_kind_ui_patch_title, R.string.push_kind_ui_patch_action),
+        WIDGET_UPDATE("widget_update", Category.SCREEN_UPDATES,
+                R.string.push_kind_widget_label, R.string.push_kind_widget_title, R.string.push_kind_widget_action),
+        DEVICE_ACTION("device_action", Category.PROPOSED_ACTIONS,
+                R.string.push_kind_device_action_label, R.string.push_kind_device_action_title, R.string.push_kind_device_action_action),
+        REMINDER_RESULT("reminder_result", Category.REMINDERS,
+                R.string.push_kind_reminder_result_label, R.string.push_kind_reminder_result_title, R.string.push_kind_reminder_result_action);
 
         public final String wire;
         public final Category category;
-        public final String labelFr;
-        public final String lockscreenNoticeTitleFr;
-        public final String primaryActionFr;
+        public final int labelRes;
+        public final int lockscreenNoticeTitleRes;
+        public final int primaryActionRes;
 
-        Kind(String wire, Category category, String labelFr, String lockscreenNoticeTitleFr, String primaryActionFr) {
+        Kind(String wire, Category category, int labelRes, int lockscreenNoticeTitleRes, int primaryActionRes) {
             this.wire = wire;
             this.category = category;
-            this.labelFr = labelFr;
-            this.lockscreenNoticeTitleFr = lockscreenNoticeTitleFr;
-            this.primaryActionFr = primaryActionFr;
+            this.labelRes = labelRes;
+            this.lockscreenNoticeTitleRes = lockscreenNoticeTitleRes;
+            this.primaryActionRes = primaryActionRes;
         }
+
+        public String label(Context context) { return AppLanguage.wrapContext(context).getString(labelRes); }
+        public String lockscreenNoticeTitle(Context context) { return AppLanguage.wrapContext(context).getString(lockscreenNoticeTitleRes); }
+        public String primaryAction(Context context) { return AppLanguage.wrapContext(context).getString(primaryActionRes); }
 
         public static Kind fromWire(String raw) {
             if (raw == null) return null;
@@ -163,8 +182,12 @@ public final class DeliveryItem {
         return ackedAtEpochSec > 0L;
     }
 
-    public String primaryActionLabel() {
-        return kind.primaryActionFr;
+    public int primaryActionRes() {
+        return kind.primaryActionRes;
+    }
+
+    public String primaryActionLabel(Context context) {
+        return kind.primaryAction(context);
     }
 
     public DeliveryItem withAcknowledged(long epochSec) {

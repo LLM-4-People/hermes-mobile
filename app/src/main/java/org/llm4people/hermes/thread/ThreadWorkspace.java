@@ -13,6 +13,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.HermesConfig;
+import org.llm4people.hermes.R;
 import org.llm4people.hermes.artifact.ArtifactDesk;
 import org.llm4people.hermes.artifact.HomePinBridge;
 import org.llm4people.hermes.artifact.LiveUiPatch;
@@ -134,6 +135,7 @@ public final class ThreadWorkspace implements AutoCloseable {
     }
 
     public ThreadWorkspace(Activity activity, HermesApi api, Account account, Host host, VoiceDrafts voice) {
+        ThreadStrings.attach(activity);
         this.voice = voice;
         this.activity = activity;
         this.api = api;
@@ -264,16 +266,15 @@ public final class ThreadWorkspace implements AutoCloseable {
     public void openSummary(String rootId, String label) {
         if (closed || !ThreadData.validId(rootId)) return;
         if (!rootId.equals(session)) open(new ThreadIdentity(rootId, rootId),
-                label == null || label.trim().isEmpty() ? "Conversation" : label);
+                label == null || label.trim().isEmpty() ? activity.getString(R.string.thread_conversation) : label);
     }
 
     boolean importingPhoto;
     public boolean readyForPhoto() {
         if (closed || journal == null || run == null) return false;
         if (!importingPhoto && !run.submitting() && journal.pending() == null && journal.photo() == null) return true;
-        String text = journal.photo() != null ? "Retirez d’abord l’image jointe pour la remplacer."
-                : "Patientez jusqu’à la fin de l’envoi en cours.";
-        android.widget.Toast.makeText(activity, text, android.widget.Toast.LENGTH_SHORT).show();
+        int res = journal.photo() != null ? R.string.thread_remove_photo_first : R.string.thread_wait_current_send;
+        android.widget.Toast.makeText(activity, res, android.widget.Toast.LENGTH_SHORT).show();
         return false;
     }
 
@@ -283,7 +284,7 @@ public final class ThreadWorkspace implements AutoCloseable {
         if (!readyForPhoto()) { completed.run(); return; }
         importingPhoto = true;
         screen.importingPhoto(true);
-        screen.notice("Préparation de l’image…", "", null);
+        screen.notice(activity.getString(R.string.thread_preparing_image), "", null);
         long maxSourceBytes = HermesConfig.load(activity).artifactDefaultMaxBytes;
         request(() -> DiscussionPhoto.read(activity.getContentResolver(), uri, maxSourceBytes), photo -> {
             importingPhoto = false;
@@ -299,7 +300,7 @@ public final class ThreadWorkspace implements AutoCloseable {
             importingPhoto = false;
             screen.importingPhoto(false);
             completed.run();
-            screen.notice("Image illisible ou trop volumineuse. Choisissez une photo ou une capture fixe de moins de 16 Mio.", "", null);
+            screen.notice(activity.getString(R.string.thread_image_too_large), "", null);
         });
     }
 
@@ -324,7 +325,7 @@ public final class ThreadWorkspace implements AutoCloseable {
 
     public void attachMedia(List<CapturedMedia.Item> items) {
         if (closed || screen == null || session == null || items == null || items.isEmpty()) return;
-        screen.attachMedia(items, suggestion -> stageDraft(suggestion.draftText()));
+        screen.attachMedia(items, suggestion -> stageDraft(suggestion.draftText(activity)));
         screen.focusComposer();
     }
 
@@ -338,7 +339,7 @@ public final class ThreadWorkspace implements AutoCloseable {
         }, failure -> {
             Diagnostics.warning("camera", "import_failed", failure);
             if (screen != null) {
-                screen.notice("La photo capturée n’a pas pu être lue. Réessayez.", "", null);
+                screen.notice(activity.getString(R.string.thread_camera_read_failed), "", null);
             }
         });
         return true;
@@ -373,7 +374,7 @@ public final class ThreadWorkspace implements AutoCloseable {
 
     public void openSharedDraft(String target) {
         if (closed) return;
-        if (!target.equals(session)) open(new ThreadIdentity(target, target), "Conversation");
+        if (!target.equals(session)) open(new ThreadIdentity(target, target), activity.getString(R.string.thread_conversation));
         if (target.equals(session) && journal != null) {
             screen.displayDraft(journal.draft());
             screen.focusComposer();
@@ -431,12 +432,12 @@ public final class ThreadWorkspace implements AutoCloseable {
         String last;
         try { last = account.read("last-thread"); }
         catch (RuntimeException unavailable) {
-            inbox("Dernière conversation illisible. Choisissez une conversation pour reprendre.", null);
+            inbox(activity.getString(R.string.thread_last_unreadable), null);
             return;
         }
         if (last == null || last.isEmpty()) inbox();
-        else if (ThreadData.validId(last)) open(new ThreadIdentity(last, last), "Conversation");
-        else inbox("L’identifiant de la dernière conversation est invalide.", null);
+        else if (ThreadData.validId(last)) open(new ThreadIdentity(last, last), activity.getString(R.string.thread_conversation));
+        else inbox(activity.getString(R.string.thread_last_invalid), null);
     }
 
     public boolean back() {
@@ -451,13 +452,13 @@ public final class ThreadWorkspace implements AutoCloseable {
         if (closed) return;
         switchScreen(index);
         session = remoteSession = null;
-        title = "Conversations";
+        title = activity.getString(R.string.thread_conversations);
         inboxWarning = warning;
         inboxRecovery = recovery;
         try { account.remove("last-thread"); }
         catch (RuntimeException unavailable) {
             Diagnostics.warning("threads", "last_selection_clear_failed");
-            if (inboxWarning.isEmpty()) inboxWarning = "Impossible d’enregistrer la sélection. Vérifiez l’espace disponible.";
+            if (inboxWarning.isEmpty()) inboxWarning = activity.getString(R.string.thread_selection_save_failed);
         }
         inboxOffset = 0;
         inbox = new JSONArray();
@@ -473,7 +474,8 @@ public final class ThreadWorkspace implements AutoCloseable {
             ThreadIdentity identity = ThreadIdentity.of(row);
             if (!identity.root.equals(session)) open(identity, identity.label);
         } catch (IllegalArgumentException invalid) {
-            index.notice("La réponse du serveur est incomplète.", "Réessayer", () -> loadThreads(true));
+            index.notice(activity.getString(R.string.thread_incomplete_server_reply),
+                    activity.getString(R.string.instrument_retry), () -> loadThreads(true));
         }
     }
 
@@ -499,8 +501,9 @@ public final class ThreadWorkspace implements AutoCloseable {
     }
 
     private void indexNotice() {
-        if (!inboxWarning.isEmpty()) index.notice(inboxWarning, "Récupérer la conversation…", inboxRecovery);
-        else index.notice(inboxLoaded && inbox.length() == 0 && session == null ? "Aucune conversation pour ce profil." : "", "", null);
+        if (!inboxWarning.isEmpty()) index.notice(inboxWarning, activity.getString(R.string.thread_recover_action), inboxRecovery);
+        else index.notice(inboxLoaded && inbox.length() == 0 && session == null
+                ? activity.getString(R.string.thread_empty_profile) : "", "", null);
     }
 
     private void loadThreads(boolean first) {
@@ -508,7 +511,7 @@ public final class ThreadWorkspace implements AutoCloseable {
         inboxLoading = true;
         inboxFailed = false;
         index.paging();
-        index.notice("Chargement des conversations…", "", null);
+        index.notice(activity.getString(R.string.thread_loading_list), "", null);
         int offset = first ? 0 : inboxOffset;
         request(() -> api.get("/api/sessions?source=api_server&limit=" + ThreadData.PAGE + "&offset=" + offset),
                 data -> {
@@ -516,7 +519,8 @@ public final class ThreadWorkspace implements AutoCloseable {
                     JSONArray page = data.optJSONArray("data");
                     if (page == null) {
                         inboxFailed = true;
-                        index.notice("La réponse du serveur est incomplète.", "Réessayer", () -> loadThreads(first));
+                        index.notice(activity.getString(R.string.thread_incomplete_server_reply),
+                                activity.getString(R.string.instrument_retry), () -> loadThreads(first));
                         return;
                     }
                     for (int i = 0; i < page.length(); i++) {
@@ -532,7 +536,7 @@ public final class ThreadWorkspace implements AutoCloseable {
                 }, failure -> {
                     inboxLoading = false;
                     inboxFailed = true;
-                    index.notice(errorMessage(failure), "Réessayer", () -> loadThreads(first));
+                    index.notice(errorMessage(failure), activity.getString(R.string.instrument_retry), () -> loadThreads(first));
                 });
     }
 
@@ -546,7 +550,7 @@ public final class ThreadWorkspace implements AutoCloseable {
     private void create(String id, Runnable afterOpen, ThreadViews feedback) {
         if (closed || creating) return;
         creating = true;
-        feedback.notice("Création de la conversation…", "", null);
+        feedback.notice(activity.getString(R.string.thread_creating), "", null);
         request(() -> {
             try { return api.post("/api/sessions", ThreadData.put(new JSONObject(), "id", id)); }
             catch (HermesApi.HttpError e) {
@@ -557,15 +561,16 @@ public final class ThreadWorkspace implements AutoCloseable {
             creating = false;
             JSONObject row = response.optJSONObject("session");
             if (row == null || !id.equals(row.optString("id"))) {
-                feedback.notice("La réponse du serveur est incomplète.", "Réessayer", () -> create(id, afterOpen, feedback));
+                feedback.notice(activity.getString(R.string.thread_incomplete_server_reply),
+                        activity.getString(R.string.instrument_retry), () -> create(id, afterOpen, feedback));
                 return;
             }
             if (feedback == index) indexNotice();
-            open(ThreadIdentity.of(row), ThreadData.title(row));
+            open(ThreadIdentity.of(row), ThreadData.title(activity, row));
             if (afterOpen != null && id.equals(session)) afterOpen.run();
         }, e -> {
             creating = false;
-            feedback.notice(errorMessage(e), "Réessayer", () -> create(id, afterOpen, feedback));
+            feedback.notice(errorMessage(e), activity.getString(R.string.instrument_retry), () -> create(id, afterOpen, feedback));
         });
     }
 
@@ -600,7 +605,7 @@ public final class ThreadWorkspace implements AutoCloseable {
             if (lookup != noticeRequest) return;
             ThreadIdentity identity = target.thread();
             if (identity == null) {
-                screen.notice("Cette conversation est introuvable dans le profil actif.", "", null);
+                screen.notice(activity.getString(R.string.thread_not_found_profile), "", null);
                 return;
             }
             boolean same = journal != null && identity.root.equals(session);
@@ -632,7 +637,7 @@ public final class ThreadWorkspace implements AutoCloseable {
         try { journal = new ThreadJournal(account, id); }
         catch (RuntimeException unreadable) {
             Diagnostics.warning("threads", "journal_unreadable");
-            inbox("Les données locales de cette conversation sont illisibles.", () -> recover(identity, label));
+            inbox(activity.getString(R.string.thread_local_unreadable), () -> recover(identity, label));
             return;
         }
         try {
@@ -640,7 +645,7 @@ public final class ThreadWorkspace implements AutoCloseable {
             account.write("last-thread", id);
         }
         catch (RuntimeException unavailable) {
-            inbox("Impossible d’enregistrer la sélection. Vérifiez l’espace disponible puis réessayez.", null);
+            inbox(activity.getString(R.string.thread_selection_save_retry), null);
             return;
         }
         run = new ThreadRun(this);
@@ -683,11 +688,10 @@ public final class ThreadWorkspace implements AutoCloseable {
     }
 
     private void recover(ThreadIdentity identity, String label) {
-        screen.show(new AlertDialog.Builder(activity).setTitle("Récupérer la conversation ?")
-                .setMessage("Le brouillon et le suivi des envois enregistrés sur ce téléphone seront effacés. "
-                        + "L’historique de la passerelle sera rechargé. Un envoi antérieur peut encore être en cours.")
-                .setNegativeButton("Annuler", null)
-                .setPositiveButton("Effacer les données locales", (dialog, which) -> {
+        screen.show(new AlertDialog.Builder(activity).setTitle(R.string.thread_recover_title)
+                .setMessage(R.string.thread_recover_body)
+                .setNegativeButton(R.string.ws_cancel, null)
+                .setPositiveButton(R.string.thread_clear_local_data, (dialog, which) -> {
                     try {
                         java.util.Map<String, String> records = new java.util.HashMap<>();
                         records.put("thread:" + identity.root, null);
@@ -710,12 +714,16 @@ public final class ThreadWorkspace implements AutoCloseable {
         input.setSaveEnabled(false);
         input.setText(title);
         input.selectAll();
-        screen.show(new AlertDialog.Builder(activity).setTitle("Renommer la conversation").setView(input)
-                .setNegativeButton("Annuler", null)
-                .setPositiveButton("Renommer", (d, w) -> {
+        screen.show(new AlertDialog.Builder(activity).setTitle(R.string.thread_rename_title).setView(input)
+                .setNegativeButton(R.string.ws_cancel, null)
+                .setPositiveButton(R.string.thread_rename_confirm, (d, w) -> {
                     if (closed || !id.equals(session)) return;
                     String value = input.getText().toString().trim();
-                    if (value.isEmpty()) { screen.notice("Le titre est vide.", "Renommer", this::rename); return; }
+                    if (value.isEmpty()) {
+                        screen.notice(activity.getString(R.string.thread_empty_title),
+                                activity.getString(R.string.thread_rename_confirm), this::rename);
+                        return;
+                    }
                     request(() -> api.patch(ThreadData.path(target), ThreadData.put(new JSONObject(), "title", value)),
                             r -> { metadataRequest++; namedTitle = title = value; selectionChanged(); }, e -> error(e, this::rename));
                 }));
@@ -1111,25 +1119,25 @@ public final class ThreadWorkspace implements AutoCloseable {
     }
 
     void invalidReply(Runnable retry) {
-        screen.notice("La réponse du serveur est incomplète.", "Réessayer", retry);
+        screen.notice(activity.getString(R.string.thread_incomplete_server_reply),
+                activity.getString(R.string.instrument_retry), retry);
     }
 
     void error(Exception error, Runnable retry) {
-        screen.notice(errorMessage(error), "Réessayer", retry);
+        screen.notice(errorMessage(error), activity.getString(R.string.instrument_retry), retry);
     }
 
-    private static String errorMessage(Exception error) {
-        String message = "La connexion à Hermes a échoué.";
+    private String errorMessage(Exception error) {
         if (error instanceof HermesApi.HttpError http) {
-            message = switch (http.status) {
-                case 401, 403 -> "Accès refusé. Vérifiez la clé de ce profil.";
-                case 404 -> "Cet élément est introuvable sur le serveur.";
-                case 409 -> "Le serveur signale un conflit.";
-                case 429 -> "Le serveur reçoit trop de demandes. Réessayez plus tard.";
-                default -> "Le serveur a refusé la demande (HTTP " + http.status + ").";
+            return switch (http.status) {
+                case 401, 403 -> activity.getString(R.string.thread_http_unauthorized);
+                case 404 -> activity.getString(R.string.thread_http_not_found);
+                case 409 -> activity.getString(R.string.thread_http_conflict);
+                case 429 -> activity.getString(R.string.thread_http_rate_limited);
+                default -> activity.getString(R.string.thread_http_refused, http.status);
             };
         }
-        return message;
+        return activity.getString(R.string.thread_connection_failed);
     }
 
     String failureDetail(JSONObject status) { return ThreadData.failureDetail(status, account.bearer); }
@@ -1299,7 +1307,7 @@ public final class ThreadWorkspace implements AutoCloseable {
                             ignored -> Diagnostics.event("live_ui", "server_apply_skipped"));
                 } catch (java.io.IOException | IllegalStateException e) {
                     Diagnostics.warning("live_ui", "apply_failed");
-                    if (screen != null) screen.notice("Impossible d’appliquer cette modification d’écran.", "", null);
+                    if (screen != null) screen.notice(activity.getString(R.string.thread_live_ui_apply_failed), "", null);
                 }
             }
 
@@ -1330,7 +1338,7 @@ public final class ThreadWorkspace implements AutoCloseable {
                             ignored -> Diagnostics.event("live_ui", "server_revert_skipped"));
                 } catch (java.io.IOException | IllegalStateException e) {
                     Diagnostics.warning("live_ui", "rollback_failed");
-                    if (screen != null) screen.notice("Impossible d’annuler cette modification.", "", null);
+                    if (screen != null) screen.notice(activity.getString(R.string.thread_live_ui_rollback_failed), "", null);
                 }
             }
 
@@ -1408,6 +1416,6 @@ public final class ThreadWorkspace implements AutoCloseable {
 
     void storageError() {
         Diagnostics.event("threads", "storage_failed");
-        if (screen != null) screen.notice("Enregistrement local impossible. Vérifiez l’espace disponible.", "", null);
+        if (screen != null) screen.notice(activity.getString(R.string.thread_storage_failed), "", null);
     }
 }

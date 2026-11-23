@@ -106,12 +106,13 @@ public final class DeviceBridgeCapabilitiesTest {
     }
 
     @Test
-    public void frenchTitlesUsePlainEverydayLanguageWithoutAiJargon() {
+    public void localizedTitlesAndDefaultReasonsExistForEverySupportedAction() {
         for (String action : DeviceBridgeFlow.SUPPORTED_ACTIONS) {
-            String title = DeviceBridgeFlow.frenchTitle(action);
-            assertFalse("Blank title for " + action, title.trim().isEmpty());
-            assertFalse("AI jargon found in: " + title, JARGON.matcher(title.toLowerCase()).find());
+            assertTrue("Missing title resource for " + action, DeviceBridgeFlow.titleRes(action) != 0);
+            assertTrue("Missing reason resource for " + action, DeviceBridgeFlow.defaultReasonRes(action) != 0);
         }
+        assertEquals(org.llm4people.hermes.R.string.share_bridge_title_default, DeviceBridgeFlow.titleRes("unknown_action"));
+        assertEquals(org.llm4people.hermes.R.string.share_bridge_reason_default, DeviceBridgeFlow.defaultReasonRes("unknown_action"));
     }
 
     @Test

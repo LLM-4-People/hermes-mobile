@@ -85,7 +85,7 @@ final class ThreadRun {
         }
         if (!journal.photoOwned()) {
             ui.stopDuplex();
-            ui.notice("Le profil a changé. Retirez l’image et sélectionnez-la de nouveau.", "", null);
+            ui.notice(page.activity.getString(R.string.thread_photo_profile_changed), "", null);
             return;
         }
         int token = page.token();
@@ -104,7 +104,7 @@ final class ThreadRun {
         }
         catch (RuntimeException unreadable) {
             ui.stopDuplex();
-            ui.notice("Réglages illisibles. Vérifiez le modèle et les outils avant l’envoi.", "", null);
+            ui.notice(page.activity.getString(R.string.thread_settings_unreadable), "", null);
             return;
         }
         submitWithCapabilities(ThreadData.body(page.remoteSessionId(), text, options), true);
@@ -125,7 +125,8 @@ final class ThreadRun {
             frame = reclaimed.latestFrame;
             int count = reclaimed.latestFrame.prompts.size();
             String label = count == 0 ? reclaimed.latestFrame.activity : count == 1
-                    ? "Hermes attend votre réponse" : count + " demandes en attente";
+                    ? page.activity.getString(R.string.thread_hermes_awaiting_reply)
+                    : page.activity.getResources().getQuantityString(R.plurals.thread_pending_requests, count, count);
             ui.live(label, reclaimed.latestFrame.text, count > 0, reclaimed.latestFrame.origin,
                     reclaimed.latestFrame.reasoning);
         }
@@ -166,7 +167,7 @@ final class ThreadRun {
         long nearbyVersion = page.nearby.version();
         submitting = true;
         ui.busy(true, false);
-        ui.notice(fresh ? "Préparation de l’envoi…" : "Vérification de l’envoi…", "", null);
+        ui.notice(page.activity.getString(fresh ? R.string.thread_preparing_send : R.string.thread_verifying_send), "", null);
         reportProgress(new LiveRunNotification.Snapshot(
                 LiveRunNotification.Phase.STARTING, 0, 0, false, false));
         page.request(() -> page.api.get("/v1/capabilities"), capabilities -> {
@@ -178,7 +179,7 @@ final class ThreadRun {
                 ui.stopDuplex();
                 if (!fresh) { uncertain(); return; }
                 ui.busy(false, false);
-                ui.notice("Cette passerelle doit prendre en charge les envois identifiables. Mettez Hermes à jour.", "", null);
+                ui.notice(page.activity.getString(R.string.thread_gateway_idempotent_required), "", null);
                 return;
             }
             if (!fresh && !NearbyTurn.canReplay(journal.pending(), features)) {
@@ -196,7 +197,7 @@ final class ThreadRun {
                 ui.stopDuplex();
                 if (!fresh) { uncertain(); return; }
                 ui.busy(false, false);
-                ui.notice("Cette passerelle ne peut pas appliquer la sélection d’outils. Vérifiez les réglages de la conversation.", "", null);
+                ui.notice(page.activity.getString(R.string.thread_gateway_tools_unsupported), "", null);
                 return;
             }
             List<CapturedMedia.Item> stagedAttachments = fresh ? ui.stagedAttachments() : Collections.emptyList();
@@ -210,7 +211,7 @@ final class ThreadRun {
                     reportProgress(LiveRunNotification.Snapshot.idle());
                     ui.stopDuplex();
                     ui.busy(false, false);
-                    ui.notice("Le brouillon a changé. Vous pouvez l’envoyer.", "", null);
+                    ui.notice(page.activity.getString(R.string.thread_draft_changed_resend), "", null);
                     return;
                 }
                 if (!stagedAttachments.isEmpty() && !AttachmentUploader.supportsUploads(features)) {
@@ -218,7 +219,7 @@ final class ThreadRun {
                     reportProgress(LiveRunNotification.Snapshot.idle());
                     ui.stopDuplex();
                     ui.busy(false, false);
-                    ui.notice("Mettez Hermes à jour pour envoyer des fichiers joints.", "", null);
+                    ui.notice(page.activity.getString(R.string.thread_gateway_files_unsupported), "", null);
                     return;
                 }
                 if (area != null && !NearbyTurn.supportsScope(features)) {
@@ -228,7 +229,8 @@ final class ThreadRun {
                     ui.busy(false, false);
                     int token = page.token();
                     java.util.function.BooleanSupplier unchanged = journal.unchangedDraft(snapshot);
-                    ui.notice("Mettez Hermes à jour pour partager une zone avec ce seul message.", "Envoyer sans position", () -> {
+                    ui.notice(page.activity.getString(R.string.thread_gateway_nearby_unsupported),
+                            page.activity.getString(R.string.nearby_send_without), () -> {
                         if (page.token() == token && page.journal == journal && unchanged.getAsBoolean()
                                 && snapshot.equals(ui.draft())) page.nearby.omit(this::send);
                     });
@@ -241,11 +243,11 @@ final class ThreadRun {
                         reportProgress(LiveRunNotification.Snapshot.idle());
                         ui.stopDuplex();
                         ui.busy(false, false);
-                        ui.notice("La discussion n’est pas encore prête pour recevoir des fichiers. Réessayez.", "", null);
+                        ui.notice(page.activity.getString(R.string.thread_not_ready_files), "", null);
                         return;
                     }
                     long maxUploadBytes = HermesConfig.load(page.activity).artifactDefaultMaxBytes;
-                    ui.notice("Envoi des fichiers joints…", "", null);
+                    ui.notice(page.activity.getString(R.string.thread_uploading_files), "", null);
                     page.request(() -> AttachmentUploader.uploadAll(
                             page.api::postMultipart, remoteSession, stagedAttachments, maxUploadBytes), receipts -> {
                         if (!snapshot.equals(ui.draft()) || selectedPhoto != journal.photo()
@@ -255,7 +257,7 @@ final class ThreadRun {
                             reportProgress(LiveRunNotification.Snapshot.idle());
                             ui.stopDuplex();
                             ui.busy(false, false);
-                            ui.notice("Le brouillon a changé. Vous pouvez l’envoyer.", "", null);
+                            ui.notice(page.activity.getString(R.string.thread_draft_changed_resend), "", null);
                             return;
                         }
                         AttachmentUploader.attachToRunBody(body, receipts);
@@ -333,9 +335,9 @@ final class ThreadRun {
         admit(body, true, stagedAttachments);
     }
 
-    private static String outgoing(JSONObject receipt) {
+    private String outgoing(JSONObject receipt) {
         String caption = ThreadData.string(receipt.optJSONObject("body"), "input");
-        return receipt.has("photo") ? caption + "\nImage jointe" : caption;
+        return receipt.has("photo") ? caption + "\n" + page.activity.getString(R.string.thread_attached_image) : caption;
     }
 
     private int bootCount() {
@@ -344,7 +346,7 @@ final class ThreadRun {
 
     private void admit(JSONObject body, boolean fresh, List<CapturedMedia.Item> stagedAttachments) {
         String key = journal.pending().optString("key");
-        ui.notice("Envoi à Hermes…", "", null);
+        ui.notice(page.activity.getString(R.string.thread_sending_to_hermes), "", null);
         JSONObject image = journal.pending().optJSONObject("photo");
         page.request(() -> page.api.post("/v1/runs", journal.wire(body, image), key), response -> {
             admissionFinished();
@@ -371,14 +373,14 @@ final class ThreadRun {
                 page.refreshPhoto();
                 ui.outgoing("");
                 ui.busy(false, false);
-                if (imageUnavailable) ui.notice("L’image enregistrée est illisible. Retirez-la et sélectionnez-la de nouveau.", "", null);
+                if (imageUnavailable) ui.notice(page.activity.getString(R.string.thread_saved_image_unreadable), "", null);
                 else if (image != null && error instanceof HermesApi.HttpError http
                         && (http.status == 400 || http.status == 413 || http.status == 422))
-                    ui.notice("Hermes a refusé l’image. Vérifiez le modèle ou choisissez une autre image.", "", null);
+                    ui.notice(page.activity.getString(R.string.thread_image_rejected), "", null);
                 else page.error(error, this::send);
             } else {
-                ui.notice("Accusé de réception manquant. L’envoi garde le même identifiant.",
-                        "Vérifier l’envoi", this::restore);
+                ui.notice(page.activity.getString(R.string.thread_missing_ack),
+                        page.activity.getString(R.string.thread_verify_send_action), this::restore);
             }
         });
     }
@@ -389,17 +391,17 @@ final class ThreadRun {
         RunAction owner = owner();
         canStop = false;
         ui.busy(true, false);
-        ui.notice("Hermes a peut-être reçu le message. Vérifiez la conversation avant un nouvel envoi.",
-                "Vérifier la conversation", owner.guard(() -> page.loadMessages(false,
+        ui.notice(page.activity.getString(R.string.thread_maybe_received),
+                page.activity.getString(R.string.thread_check_conversation), owner.guard(() -> page.loadMessages(false,
                         owner.guard(() -> offerDismiss(owner)))));
     }
 
     private void offerDismiss(RunAction owner) {
         ui.show(new AlertDialog.Builder(page.activity)
-                .setTitle("Clore le suivi de cet envoi ?")
-                .setMessage("L’envoi a un résultat inconnu. Hermes peut encore le traiter. Vous pourrez écrire un nouveau message.")
-                .setNegativeButton("Continuer le suivi", (d, w) -> { if (owner.current()) uncertain(); })
-                .setPositiveButton("Clore le suivi", (d, w) -> {
+                .setTitle(R.string.thread_close_tracking_title)
+                .setMessage(R.string.thread_close_tracking_body)
+                .setNegativeButton(R.string.thread_continue_tracking, (d, w) -> { if (owner.current()) uncertain(); })
+                .setPositiveButton(R.string.thread_close_tracking_confirm, (d, w) -> {
                     if (!owner.current()) return;
                     canStop = false;
                     if (finishTracking()) return;
@@ -449,7 +451,7 @@ final class ThreadRun {
         canStop = true;
         ui.busy(true, true);
         RunPreview saved = new RunPreview(receipt);
-        ui.live("Hermes travaille…", saved.toString(), false, saved.origin());
+        ui.live(page.activity.getString(R.string.live_run_working_title), saved.toString(), false, saved.origin());
         reportProgress(new LiveRunNotification.Snapshot(
                 LiveRunNotification.Phase.WORKING, 0, 0, false, true));
         StreamCoalescer coalescer = new StreamCoalescer(StreamCoalescer.DEFAULT_FRAME_BUDGET_MS, ignored -> {
@@ -471,7 +473,8 @@ final class ThreadRun {
                     frame = next;
                     int count = next.prompts.size();
                     String activity = count == 0 ? next.activity : count == 1
-                            ? "Hermes attend votre réponse" : count + " demandes en attente";
+                            ? page.activity.getString(R.string.thread_hermes_awaiting_reply)
+                            : page.activity.getResources().getQuantityString(R.plurals.thread_pending_requests, count, count);
                     boolean hasPrompts = count > 0;
                     boolean reasoningVisibilityChanged = coalescedFrame == null
                             || next.reasoning.isEmpty() != coalescedFrame.reasoning.isEmpty();
@@ -552,7 +555,7 @@ final class ThreadRun {
                     started = -1;
                     long delay = journal.nextReconnectDelayMillis();
                     if (delay < 0) { trackingInterrupted(); return; }
-                    ui.notice("Connexion interrompue. Reconnexion en cours…", "", null);
+                    ui.notice(page.activity.getString(R.string.thread_reconnecting), "", null);
                     page.main.postDelayed(() -> { if (token == page.token() && current()) follow(); }, delay);
                 });
             }
@@ -570,24 +573,25 @@ final class ThreadRun {
         frame = null;
         started = -1;
         ui.busy(true, false);
-        ui.live("Traitement interrompu", "", false);
+        ui.live(page.activity.getString(R.string.thread_run_interrupted), "", false);
         RunAction owner = owner();
         JSONObject receipt = ThreadData.unknownReceipt(status);
         if (receipt == null) {
-            ui.notice("La passerelle doit confirmer l’identité du traitement.", "Actualiser", owner.guard(this::follow));
+            ui.notice(page.activity.getString(R.string.thread_gateway_confirm_run),
+                    page.activity.getString(R.string.push_inbox_refresh), owner.guard(this::follow));
             return;
         }
-        ui.notice("La passerelle attend votre décision pour débloquer la conversation.", "Examiner", owner.guard(() ->
-            ui.show(new AlertDialog.Builder(page.activity).setTitle("Débloquer la conversation ?")
-                    .setMessage("Hermes a perdu le suivi de ce traitement. Le clore permet à la passerelle de "
-                            + "poursuivre les messages suivants. Les opérations déjà effectuées restent en place.")
-                    .setNegativeButton("Attendre", (d,w) -> { if (owner.current()) follow(); })
-                    .setPositiveButton("Clore le traitement", (d,w) -> { if (owner.current()) resolve(owner, receipt); }))));
+        ui.notice(page.activity.getString(R.string.thread_gateway_unblock_notice),
+                page.activity.getString(R.string.thread_review_action), owner.guard(() ->
+            ui.show(new AlertDialog.Builder(page.activity).setTitle(R.string.thread_unblock_title)
+                    .setMessage(R.string.thread_unblock_body)
+                    .setNegativeButton(R.string.thread_wait_action, (d,w) -> { if (owner.current()) follow(); })
+                    .setPositiveButton(R.string.thread_close_run_action, (d,w) -> { if (owner.current()) resolve(owner, receipt); }))));
     }
 
     private void resolve(RunAction owner, JSONObject receipt) {
         String path = owner.path();
-        ui.notice("Vérification du traitement…", "", null);
+        ui.notice(page.activity.getString(R.string.thread_checking_run), "", null);
         page.request(() -> page.api.get(path), owner.guard(status -> {
             JSONObject current = ThreadData.unknownReceipt(status);
             if (!owner.run.equals(status.opt("run_id")) || current == null
@@ -605,8 +609,8 @@ final class ThreadRun {
         reportProgress(LiveRunNotification.Snapshot.idle());
         ui.stopDuplex();
         RunAction owner = owner().when(journal::reconnectsExhausted);
-        ui.notice("Suivi interrompu. Vous pouvez consulter la conversation.",
-                "Vérifier la conversation", owner.guard(() -> page.loadMessages(false,
+        ui.notice(page.activity.getString(R.string.thread_tracking_interrupted_notice),
+                page.activity.getString(R.string.thread_check_conversation), owner.guard(() -> page.loadMessages(false,
                         owner.guard(() -> reviewLost(owner)))));
     }
 
@@ -616,11 +620,12 @@ final class ThreadRun {
             catch (IllegalStateException unavailable) { page.storageError(); return; }
             follow();
         });
-        ui.notice("Le résultat reste inconnu.", "Reprendre le suivi", resume);
-        ui.show(new AlertDialog.Builder(page.activity).setTitle("Suivi interrompu")
-                .setMessage("Reprenez le suivi pour retrouver l’état du traitement sur la passerelle.")
-                .setNegativeButton("Clore le suivi…", (d,w) -> { if (owner.current()) offerDismiss(owner); })
-                .setPositiveButton("Reprendre", (d,w) -> resume.run()));
+        ui.notice(page.activity.getString(R.string.thread_unknown_result),
+                page.activity.getString(R.string.thread_resume_tracking), resume);
+        ui.show(new AlertDialog.Builder(page.activity).setTitle(R.string.thread_tracking_interrupted_title)
+                .setMessage(R.string.thread_tracking_interrupted_body)
+                .setNegativeButton(R.string.thread_close_tracking_ellipsis, (d,w) -> { if (owner.current()) offerDismiss(owner); })
+                .setPositiveButton(R.string.thread_resume_action, (d,w) -> resume.run()));
     }
 
     private void completed(JSONObject status, long firstText, long elapsed) {
@@ -631,15 +636,15 @@ final class ThreadRun {
         RunAction owner = owner();
         String outcome = status.optString("status");
         String output = ThreadData.string(status, "output");
-        String label = switch (outcome) {
-            case "completed" -> "Réponse terminée";
-            case "cancelled" -> "Traitement arrêté";
-            case "interrupted" -> "Traitement interrompu par la passerelle";
-            default -> "Le traitement a échoué";
-        };
+        String label = page.activity.getString(switch (outcome) {
+            case "completed" -> R.string.thread_reply_completed;
+            case "cancelled" -> R.string.thread_run_stopped;
+            case "interrupted" -> R.string.thread_run_interrupted_gateway;
+            default -> R.string.thread_run_failed;
+        });
         String detail = "failed".equals(outcome) ? page.failureDetail(status) : "";
         String visionHint = "failed".equals(outcome) && journal.pending().has("photo")
-                ? "\nVérifiez le modèle ou le service de vision configuré sur la passerelle." : "";
+                ? page.activity.getString(R.string.thread_vision_hint) : "";
         String summary = (detail.isEmpty() ? label : label + "\n" + detail) + visionHint;
         if ("completed".equals(outcome) && elapsed >= 0 && firstText >= 0) {
             JSONObject usage = status.optJSONObject("usage");
@@ -695,7 +700,7 @@ final class ThreadRun {
             return;
         }
         page.request(() -> page.api.stopRun(owner.run),
-                owner.guard(ok -> ui.notice("Demande d’arrêt envoyée.", "", null)),
+                owner.guard(ok -> ui.notice(page.activity.getString(R.string.thread_stop_requested), "", null)),
                 owner.guard(error -> page.error(error, check)));
     }
 

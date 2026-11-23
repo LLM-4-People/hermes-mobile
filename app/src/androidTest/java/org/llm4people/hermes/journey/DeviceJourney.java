@@ -187,7 +187,7 @@ public final class DeviceJourney extends Instrumentation {
         String passphrase = fixture.getString("secondPhrase");
         lock();
         profile(other, "secondEndpoint", "secondKey", passphrase);
-        ui.see("Aucune conversation pour ce profil.");
+        ui.see(ui.str(R.string.thread_empty_profile));
         ui.tap(ui.str(R.string.nav_atelier));
         ui.tap(ui.str(R.string.ws_my_screens));
         ui.contains(ui.str(R.string.ws_pages_empty));
@@ -306,7 +306,7 @@ public final class DeviceJourney extends Instrumentation {
         ui.back();
         lock();
         profile(secondary, "secondEndpoint", "secondKey", fixture.getString("secondPhrase"));
-        ui.see("Aucune conversation pour ce profil.");
+        ui.see(ui.str(R.string.thread_empty_profile));
         ui.absent(fixture.getString("draft"));
         ui.absent("Exemple Python");
         lock();

@@ -16,6 +16,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.HermesConfig;
+import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.profile.Account;
@@ -67,7 +68,7 @@ public final class PublishedFiles implements Closeable {
         api = client;
         if (selection != null && !selection.owner.equals(owner)) {
             selection = null;
-            toast("Exportation annulée après le changement de profil.");
+            toast(activity.getString(R.string.files_export_cancelled_profile));
         }
         notifyIncomplete();
         finishSelection();
@@ -75,7 +76,7 @@ public final class PublishedFiles implements Closeable {
 
     private void notifyIncomplete() {
         if (owner != null && incomplete.remove(owner)) {
-            toast("Exportation interrompue. Le document choisi peut être incomplet.");
+            toast(activity.getString(R.string.files_export_interrupted));
         }
     }
 
@@ -97,11 +98,11 @@ public final class PublishedFiles implements Closeable {
                 labels.add(file.name + "\n" + Formatter.formatShortFileSize(activity, file.size));
             }
             String next = result.isNull("next") ? null : result.getString("next");
-            if (next != null) labels.add("Fichiers plus anciens");
+            if (next != null) labels.add(activity.getString(R.string.files_older_files));
             return () -> {
-                AlertDialog.Builder sheet = new AlertDialog.Builder(activity).setTitle("Fichiers publiés")
-                        .setNegativeButton("Fermer", null);
-                if (files.isEmpty()) sheet.setMessage("Les fichiers que Hermes publie dans cette discussion apparaîtront ici.");
+                AlertDialog.Builder sheet = new AlertDialog.Builder(activity).setTitle(R.string.files_published_title)
+                        .setNegativeButton(R.string.ws_close, null);
+                if (files.isEmpty()) sheet.setMessage(R.string.files_empty_message);
                 else sheet.setItems(labels.toArray(new String[0]), (ignored, index) -> {
                     if (index == files.size()) page(path, next);
                     else options(files.get(index));
@@ -114,10 +115,10 @@ public final class PublishedFiles implements Closeable {
     private void options(PublishedFile item) {
         AlertDialog.Builder sheet = new AlertDialog.Builder(activity).setTitle(item.name)
                 .setMessage(item.mime + "\n" + Formatter.formatShortFileSize(activity, item.size))
-                .setNegativeButton("Fermer", null)
-                .setPositiveButton("Enregistrer sous…", (d, w) -> select(item));
+                .setNegativeButton(R.string.ws_close, null)
+                .setPositiveButton(R.string.files_save_as, (d, w) -> select(item));
         if (item.text() || item.image()) {
-            sheet.setNeutralButton("Aperçu", (d, w) -> preview(item));
+            sheet.setNeutralButton(R.string.files_preview, (d, w) -> preview(item));
         }
         present(sheet);
     }
@@ -131,7 +132,7 @@ public final class PublishedFiles implements Closeable {
         try { activity.startActivityForResult(request, SAVE); }
         catch (ActivityNotFoundException e) {
             selection = null;
-            toast("Aucun sélecteur de fichiers disponible.");
+            toast(activity.getString(R.string.files_picker_unavailable));
         }
     }
 
@@ -144,7 +145,7 @@ public final class PublishedFiles implements Closeable {
             selection.destination = uri;
             finishSelection();
         } else {
-            toast("L’exportation a expiré. Sélectionnez de nouveau le fichier.");
+            toast(activity.getString(R.string.files_export_expired));
         }
         return true;
     }
@@ -161,7 +162,7 @@ public final class PublishedFiles implements Closeable {
                 // The system picker may already have created a document, even when the fetch failed.
                 throw new ExportFailure(target, failure);
             }
-            return () -> toast("Fichier enregistré.");
+            return () -> toast(activity.getString(R.string.files_saved));
         }, false);
         exporting = target;
     }
@@ -195,8 +196,8 @@ public final class PublishedFiles implements Closeable {
     }
 
     private AlertDialog.Builder previewDialog(PublishedFile item) {
-        return new AlertDialog.Builder(activity).setTitle(item.name).setNegativeButton("Fermer", null)
-                .setPositiveButton("Enregistrer sous…", (d, w) -> select(item));
+        return new AlertDialog.Builder(activity).setTitle(item.name).setNegativeButton(R.string.ws_close, null)
+                .setPositiveButton(R.string.files_save_as, (d, w) -> select(item));
     }
 
     private interface Operation { Runnable execute(HermesApi client) throws Exception; }
@@ -207,8 +208,8 @@ public final class PublishedFiles implements Closeable {
         int token = ++generation;
         HermesApi client = api;
         AlertDialog progress = present(new AlertDialog.Builder(activity)
-                .setTitle(discovery ? "Chargement des fichiers…" : "Transfert du fichier…")
-                .setView(new ProgressBar(activity)).setNegativeButton("Annuler", (d, w) -> cancel(token))
+                .setTitle(discovery ? R.string.files_loading_title : R.string.files_transferring_title)
+                .setView(new ProgressBar(activity)).setNegativeButton(R.string.ws_cancel, (d, w) -> cancel(token))
                 .setOnCancelListener(d -> cancel(token)));
         worker = io.submit(() -> {
             Runnable update;
@@ -226,8 +227,9 @@ public final class PublishedFiles implements Closeable {
             catch (Exception e) {
                 boolean absent = discovery && e instanceof HermesApi.HttpError && ((HermesApi.HttpError) e).status == 404;
                 Diagnostics.warning("files", absent ? "extension_absent" : "transfer_failed");
-                update = () -> toast(absent ? "L’extension de fichiers est absente de ce serveur."
-                        : "Impossible d’ouvrir ou d’enregistrer le fichier. Réessayez.");
+                update = () -> toast(activity.getString(absent
+                        ? R.string.files_extension_absent
+                        : R.string.files_open_or_save_failed));
             }
             Runnable result = update;
             activity.runOnUiThread(() -> {

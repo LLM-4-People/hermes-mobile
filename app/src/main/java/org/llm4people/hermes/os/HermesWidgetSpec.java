@@ -156,10 +156,9 @@ public final class HermesWidgetSpec {
 
     public HermesWidgetSpec redactedForHomeScreen(Context context) {
         if (homeScreenSafe) return this;
-        String redactedTitle = context == null ? "Hermes" : context.getString(R.string.widget_title);
-        String redactedSubtitle = context == null
-                ? "Contenu masqué · Ouvrez l’application"
-                : context.getString(R.string.widget_redacted_subtitle);
+        Context localized = context == null ? null : org.llm4people.hermes.AppLanguage.wrapContext(context);
+        String redactedTitle = localized == null ? "Hermes" : localized.getString(R.string.widget_title);
+        String redactedSubtitle = localized == null ? "" : localized.getString(R.string.widget_redacted_subtitle);
         return new HermesWidgetSpec(
                 widgetId,
                 redactedTitle,

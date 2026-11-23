@@ -259,22 +259,31 @@ public final class DiffRenderer {
         return model.additions > 0 ? "+" + model.additions : "-" + model.deletions;
     }
 
-    public static String statsAccessibleDescription(DiffModel model) {
-        if (model == null) return "";
+    public static String statsAccessibleDescription(Context context, DiffModel model) {
+        if (model == null || context == null) return "";
         List<String> parts = new ArrayList<>();
         if (!model.path.isEmpty()) parts.add(model.path);
-        if (model.additions > 0) parts.add(model.additions + (model.additions == 1 ? " ligne ajoutée" : " lignes ajoutées"));
-        if (model.deletions > 0) parts.add(model.deletions + (model.deletions == 1 ? " ligne supprimée" : " lignes supprimées"));
+        if (model.additions > 0) {
+            parts.add(context.getResources().getQuantityString(R.plurals.diff_lines_added, model.additions, model.additions));
+        }
+        if (model.deletions > 0) {
+            parts.add(context.getResources().getQuantityString(R.plurals.diff_lines_removed, model.deletions, model.deletions));
+        }
         return String.join(", ", parts);
     }
 
-    public static String riskLabel(String risk) {
+    public static int riskLabelRes(String risk) {
         return switch (normalizeRisk(risk)) {
-            case "low" -> "Risque faible";
-            case "medium" -> "Risque modéré";
-            case "high" -> "Risque élevé";
-            default -> "";
+            case "low" -> R.string.diff_risk_low;
+            case "medium" -> R.string.diff_risk_medium;
+            case "high" -> R.string.diff_risk_high;
+            default -> 0;
         };
+    }
+
+    public static String riskLabel(Context context, String risk) {
+        int res = riskLabelRes(risk);
+        return res == 0 || context == null ? "" : context.getString(res);
     }
 
     public static String toUnifiedText(DiffModel model) {
@@ -311,7 +320,7 @@ public final class DiffRenderer {
             pathView.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE);
             info.addView(pathView);
         }
-        String risk = riskLabel(model.risk);
+        String risk = riskLabel(context, model.risk);
         if (!risk.isEmpty()) {
             TextView riskView = Ui.text(context, risk, 13);
             riskView.setTextColor(context.getColor("high".equals(model.risk) ? R.color.danger : R.color.muted));
@@ -320,15 +329,16 @@ public final class DiffRenderer {
         box.addView(info, new LinearLayout.LayoutParams(0, -2, 1));
 
         String stats = statsText(model);
+        String statsDesc = statsAccessibleDescription(context, model);
         if (!stats.isEmpty()) {
             TextView badge = Ui.text(context, "", 13);
             badge.setText(styledStats(context, model));
             badge.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
             badge.setPaddingRelative(Ui.dp(context, 8), 0, 0, 0);
-            badge.setContentDescription(statsAccessibleDescription(model));
+            badge.setContentDescription(statsDesc);
             box.addView(badge);
         }
-        box.setContentDescription(statsAccessibleDescription(model));
+        box.setContentDescription(statsDesc);
         return box;
     }
 
@@ -365,7 +375,7 @@ public final class DiffRenderer {
 
         String unified = toUnifiedText(model);
         if (openDialog != null && !unified.isEmpty()) {
-            String title = model.path.isEmpty() ? "Modification proposée" : model.path;
+            String title = model.path.isEmpty() ? context.getString(R.string.diff_proposed_change) : model.path;
             Button openFull = Ui.button(context, context.getString(R.string.diff_open_full),
                     v -> openDialog.accept(CodeReader.dialog(context, title, "diff", unified)));
             openFull.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);

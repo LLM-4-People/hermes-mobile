@@ -8,7 +8,7 @@ import unittest
 from unittest.mock import Mock, patch
 from xml.etree.ElementTree import Element, SubElement
 
-from .shade import BODY, ROW, SYSTEM_UI
+from .shade import ROW, SYSTEM_UI, generic_body
 from .ui import Screen, open_notice
 
 
@@ -17,11 +17,12 @@ FOCUS = "mCurrentFocus=Window{37af7a7 u0 NotificationShade}"
 WINDOW = "Window{37af7a7 u0 NotificationShade}"
 
 
-def snapshot(package=SYSTEM_UI, window="17", heading="[1,1][6,3]", body="[2,4][8,6]"):
+def snapshot(package=SYSTEM_UI, window="17", heading="[1,1][6,3]", body="[2,4][8,6]", body_text=None):
     root = Element("node", {"package": package, "window-id": window})
     row = SubElement(root, "node", {"resource-id": ROW})
     SubElement(row, "node", {"text": TITLE, "bounds": heading})
-    SubElement(row, "node", {"text": BODY, "bounds": body})
+    if body_text is not None:
+        SubElement(row, "node", {"text": body_text, "bounds": body})
     return root
 
 
@@ -33,14 +34,18 @@ def attempt_once(description, attempt):
 class CaptureTest(unittest.TestCase):
     def setUp(self):
         self.ui = Screen(Mock(), Mock(), lang="en")
+        self.body = generic_body(self.ui)
         self.ui.device.shell.return_value = FOCUS
         self.ui.controls.send.return_value = b"tapped"
         self.directory = Path(self.enterContext(TemporaryDirectory()))
-        self.enterContext(patch("verification.unifiedpush.ui.show_notice", return_value=snapshot()))
+        self.enterContext(patch("verification.unifiedpush.ui.show_notice", return_value=self.frame()))
         self.enterContext(patch("verification.unifiedpush.ui.eventually", side_effect=attempt_once))
 
+    def frame(self, package=SYSTEM_UI, window="17", heading="[1,1][6,3]", body="[2,4][8,6]"):
+        return snapshot(package=package, window=window, heading=heading, body=body, body_text=self.body)
+
     def test_foreign_focused_root_with_same_label_cannot_supply_pixels(self):
-        self.ui.snapshot = Mock(return_value=snapshot(package="private.fixture"))
+        self.ui.snapshot = Mock(return_value=self.frame(package="private.fixture"))
         with self.assertRaisesRegex(AssertionError, "stable focused"):
             open_notice(self.ui, TITLE, self.directory)
         self.ui.device.run.assert_not_called()
@@ -61,15 +66,15 @@ class CaptureTest(unittest.TestCase):
 
     def test_screencap_is_discarded_on_window_focus_or_either_label_change(self):
         for changed, focus in (
-            (snapshot(package="private.fixture"), FOCUS),
-            (snapshot(window="18"), FOCUS),
-            (snapshot(), "mCurrentFocus=Window{123 u0 NotificationShade}"),
-            (snapshot(), "mCurrentFocus=Window{def u0 com.android.launcher3/.Launcher}"),
-            (snapshot(heading="[2,1][7,3]"), FOCUS),
-            (snapshot(body="[3,5][9,7]"), FOCUS),
+            (self.frame(package="private.fixture"), FOCUS),
+            (self.frame(window="18"), FOCUS),
+            (self.frame(), "mCurrentFocus=Window{123 u0 NotificationShade}"),
+            (self.frame(), "mCurrentFocus=Window{def u0 com.android.launcher3/.Launcher}"),
+            (self.frame(heading="[2,1][7,3]"), FOCUS),
+            (self.frame(body="[3,5][9,7]"), FOCUS),
         ):
             with self.subTest(changed=changed, focus=focus):
-                self.ui.snapshot = Mock(side_effect=[snapshot(), changed])
+                self.ui.snapshot = Mock(side_effect=[self.frame(), changed])
                 self.ui.device.shell.side_effect = [FOCUS, focus]
                 with self.assertRaisesRegex(AssertionError, "stable focused"):
                     open_notice(self.ui, TITLE, self.directory)
@@ -77,7 +82,7 @@ class CaptureTest(unittest.TestCase):
                 self.assertEqual(list(self.directory.iterdir()), [])
 
     def test_window_replaced_between_screencap_and_physical_tap(self):
-        self.ui.snapshot = Mock(side_effect=[snapshot(), snapshot(), snapshot(package="private.fixture")])
+        self.ui.snapshot = Mock(side_effect=[self.frame(), self.frame(), self.frame(package="private.fixture")])
         images = (Mock(), Mock())
         with patch("verification.unifiedpush.ui.masked_notice", return_value=images):
             with self.assertRaisesRegex(AssertionError, "stable focused"):
@@ -86,7 +91,7 @@ class CaptureTest(unittest.TestCase):
         self.assertEqual(list(self.directory.iterdir()), [])
 
     def test_native_last_moment_rejection_discards_staged_evidence(self):
-        self.ui.snapshot = Mock(side_effect=[snapshot(), snapshot(), snapshot()])
+        self.ui.snapshot = Mock(side_effect=[self.frame(), self.frame(), self.frame()])
         self.ui.controls.send.return_value = b"retry"
         with patch("verification.unifiedpush.ui.masked_notice", return_value=(Mock(), Mock())):
             with self.assertRaisesRegex(AssertionError, "stable focused"):
@@ -97,7 +102,7 @@ class CaptureTest(unittest.TestCase):
     def test_rejection_counts_distinguish_outer_title_and_native_geometry_without_exposing_inputs(self):
         for stage in ("multiple_titles", "native_bounds", "native_unexpected"):
             with self.subTest(stage=stage):
-                root = snapshot(window="123456")
+                root = self.frame(window="123456")
                 if stage == "multiple_titles":
                     SubElement(root, "node", {"text": TITLE})
                 else:
@@ -110,7 +115,7 @@ class CaptureTest(unittest.TestCase):
                                  {"attempts": 1, stage: 1})
 
     def test_without_capture_tap_uses_fresh_current_window_and_bounds(self):
-        self.ui.snapshot = Mock(return_value=snapshot(window="75", heading="[20,21][40,45]"))
+        self.ui.snapshot = Mock(return_value=self.frame(window="75", heading="[20,21][40,45]"))
         open_notice(self.ui, TITLE)
         self.ui.controls.send.assert_called_once_with("tap-notice", title=TITLE, window=75, focus=WINDOW, bounds=(20, 21, 40, 45))
 
@@ -118,7 +123,7 @@ class CaptureTest(unittest.TestCase):
     def test_stable_capture_writes_only_pixels_in_known_label_rectangles(self):
         from PIL import Image
 
-        self.ui.snapshot = Mock(side_effect=[snapshot(), snapshot(), snapshot()])
+        self.ui.snapshot = Mock(side_effect=[self.frame(), self.frame(), self.frame()])
         source = Image.new("RGB", (12, 9), "red")
         source.paste("white", (1, 1, 6, 3))
         source.paste("yellow", (2, 4, 8, 6))

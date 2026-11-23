@@ -7,6 +7,7 @@ import android.content.Intent;
 import android.os.Bundle;
 
 import org.llm4people.hermes.Diagnostics;
+import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.camera.CapturedMedia;
 import org.llm4people.hermes.net.HermesApi;
@@ -99,12 +100,12 @@ public final class SharedMediaFlow {
             batch = IncomingMediaShare.open(activity, key, account);
         } catch (RuntimeException unavailable) {
             Diagnostics.warning("share", "media_open_failed", unavailable);
-            failed("Impossible d’ouvrir les fichiers partagés. Réessayez depuis l’application d’origine.");
+            failed(activity.getString(R.string.share_media_open_failed));
             return;
         }
         if (batch == null) {
             ticket = null;
-            failed("Le partage a expiré ou appartient à un autre profil. Repartagez les fichiers depuis l’application d’origine.");
+            failed(activity.getString(R.string.share_media_expired_profile));
             return;
         }
         StringBuilder names = new StringBuilder();
@@ -114,22 +115,22 @@ public final class SharedMediaFlow {
             IncomingMediaShare.StagedFile f = batch.items().get(i);
             names.append("• ").append(f.name());
         }
-        String destination = session == null ? "" : "\nDiscussion : " + shownTitle
-                + "\nIdentifiant : " + HermesApi.segment(session);
-        String summary = count == 1 ? "1 élément partagé :" : count + " éléments partagés :";
+        String destination = session == null ? "" : activity.getString(
+                R.string.share_destination_details, shownTitle, HermesApi.segment(session));
+        String header = activity.getString(R.string.share_profile_prefix, account.label) + destination;
+        String summary = activity.getResources().getQuantityString(R.plurals.share_media_count, count, count)
+                + "\n" + names;
         AlertDialog.Builder builder = new AlertDialog.Builder(activity)
-                .setTitle(session == null ? "Choisir une discussion" : "Joindre au brouillon ?")
-                .setMessage("Profil : " + account.label + destination
-                        + "\n\n" + summary + "\n" + names
-                        + "\n\nLes éléments seront ajoutés à votre brouillon. Rien n’est envoyé avant votre clic sur Envoyer.")
-                .setNegativeButton("Annuler", (d, w) -> { if (owns(d, key, account, session)) cancel(); })
+                .setTitle(session == null ? R.string.ws_choose_discussion_title : R.string.share_attach_to_draft_title)
+                .setMessage(activity.getString(R.string.share_media_confirm_body, header, summary))
+                .setNegativeButton(R.string.ws_cancel, (d, w) -> { if (owns(d, key, account, session)) cancel(); })
                 .setOnCancelListener(d -> { if (d == dialog && key.equals(ticket) && owner == account) cancel(); });
         if (session != null) {
-            builder.setPositiveButton("Ajouter au brouillon", (d, w) -> {
+            builder.setPositiveButton(R.string.share_add_to_draft, (d, w) -> {
                 if (!owns(d, key, account, session)) return;
                 try {
                     if (!IncomingMediaShare.target(activity, key, account, session)) {
-                        failed("Le partage a expiré ou a déjà été confirmé pour une autre discussion.");
+                        failed(activity.getString(R.string.share_expired_confirmed));
                         return;
                     }
                     List<CapturedMedia.Item> items = toCapturedItems(batch.items());
@@ -137,13 +138,13 @@ public final class SharedMediaFlow {
                     workspace.attachMedia(items);
                 } catch (RuntimeException unavailable) {
                     Diagnostics.warning("share", "media_stage_failed", unavailable);
-                    failed("Les fichiers n’ont pas pu être ajoutés au brouillon. Réessayez.");
+                    failed(activity.getString(R.string.share_media_add_failed));
                     return;
                 }
                 completed(key);
-            }).setNeutralButton("Autre discussion", (d, w) -> choose(d, key, account, session));
+            }).setNeutralButton(R.string.share_other_discussion, (d, w) -> choose(d, key, account, session));
         } else {
-            builder.setPositiveButton("Choisir une discussion", (d, w) -> choose(d, key, account, null));
+            builder.setPositiveButton(R.string.ws_choose_discussion_title, (d, w) -> choose(d, key, account, null));
         }
         dialog = Ui.secureDialog(builder);
     }
@@ -179,9 +180,9 @@ public final class SharedMediaFlow {
     private void failed(String message) {
         dismiss();
         AlertDialog.Builder alert = new AlertDialog.Builder(activity)
-                .setTitle("Partage indisponible")
+                .setTitle(R.string.share_unavailable_title)
                 .setMessage(message)
-                .setPositiveButton("Fermer", (d, w) -> leave())
+                .setPositiveButton(R.string.ws_close, (d, w) -> leave())
                 .setOnCancelListener(d -> leave());
         dialog = Ui.secureDialog(alert);
     }

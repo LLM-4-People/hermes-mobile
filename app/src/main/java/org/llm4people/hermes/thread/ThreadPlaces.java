@@ -10,6 +10,7 @@ import android.view.inputmethod.EditorInfo;
 import android.widget.EditText;
 import org.json.JSONObject;
 import org.llm4people.hermes.Diagnostics;
+import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.VisibleText;
 import org.llm4people.hermes.artifact.ArtifactDesk;
@@ -152,8 +153,9 @@ final class ThreadPlaces {
                 List<String> terms = new ArrayList<>(e.selection.cuisines);
                 terms.add(0, "");
                 List<String> labels = new ArrayList<>(terms);
-                labels.set(0, "Toutes les cuisines");
-                choose("Choisir une cuisine", labels, terms.indexOf(e.selection.cuisine()), active,
+                labels.set(0, thread.activity.getString(R.string.places_all_cuisines));
+                choose(thread.activity.getString(R.string.places_choose_cuisine), labels,
+                        terms.indexOf(e.selection.cuisine()), active,
                         i -> { e.selection.filter(terms.get(i)); e.update(); });
             }
 
@@ -162,8 +164,9 @@ final class ThreadPlaces {
                 List<String> terms = new ArrayList<>(e.selection.tags);
                 terms.add(0, "");
                 List<String> labels = new ArrayList<>(terms);
-                labels.set(0, "Tous les lieux");
-                choose("Filtrer par attribut", labels, terms.indexOf(e.selection.tag()), active,
+                labels.set(0, thread.activity.getString(R.string.places_all_places));
+                choose(thread.activity.getString(R.string.places_filter_by_attribute), labels,
+                        terms.indexOf(e.selection.tag()), active,
                         i -> { e.selection.filterTag(terms.get(i)); e.update(); });
             }
 
@@ -175,14 +178,15 @@ final class ThreadPlaces {
                 if (ids.isEmpty()) return;
                 List<String> labels = new ArrayList<>();
                 for (int i : ids) {
-                    if (i < 0) labels.add("Arrêter la comparaison");
+                    if (i < 0) labels.add(thread.activity.getString(R.string.places_stop_comparison));
                     else {
                         NearbyResult.Place place = e.result.places.get(i);
-                        labels.add(place.name + " · " + NearbyGuide.distance(place.distanceMeters));
+                        labels.add(place.name + " · " + NearbyGuide.distance(thread.activity, place.distanceMeters));
                     }
                 }
                 String name = e.result.places.get(e.selection.selected()).name;
-                choose("Comparer " + name + " avec…", labels, ids.indexOf(e.selection.comparison()), active,
+                choose(thread.activity.getString(R.string.places_compare_with, name), labels,
+                        ids.indexOf(e.selection.comparison()), active,
                         i -> { e.selection.compare(ids.get(i)); e.update(); });
             }
 
@@ -229,7 +233,7 @@ final class ThreadPlaces {
         ThreadData.put(query, "limit", limit);
         thread.request(() -> {
             if (!owner.getAsBoolean() || e.retired || e.requestSerial != serial) throw new CancellationException();
-            return NearbyResult.parse(thread.api.post("/api/mobile/places/nearby", query));
+            return NearbyResult.parse(thread.activity, thread.api.post("/api/mobile/places/nearby", query));
         }, result -> {
             if (e.retired || e.requestSerial != serial || !valid.test(e.pin)) return;
             e.result = result;
@@ -245,12 +249,13 @@ final class ThreadPlaces {
     }
 
     private void reviewRoute(BooleanSupplier active, NearbyResult.Place place, NearbyCategory.RouteMode mode) {
-        String preview = place.name + "\n\nMode · " + mode.chipLabel + "\nCoordonnées · " + place.coordinates();
+        String preview = thread.activity.getString(R.string.places_route_preview,
+                place.name, mode.chipLabel(thread.activity), place.coordinates());
         thread.screen.show(new AlertDialog.Builder(thread.activity)
-                .setTitle(mode.title)
+                .setTitle(mode.title(thread.activity))
                 .setMessage(preview)
-                .setNegativeButton("Annuler", null)
-                .setPositiveButton(mode.openLabel, (dialog, which) -> {
+                .setNegativeButton(R.string.ws_cancel, null)
+                .setPositiveButton(mode.openLabel(thread.activity), (dialog, which) -> {
                     if (!active.getAsBoolean()) return;
                     Intent nav = new Intent(Intent.ACTION_VIEW, Uri.parse(mode.navigationUri(place.latitude, place.longitude)));
                     try {
@@ -263,9 +268,9 @@ final class ThreadPlaces {
                         } catch (ActivityNotFoundException | SecurityException secondFailure) {
                             Diagnostics.warning("places", "maps_unavailable");
                             thread.screen.show(new AlertDialog.Builder(thread.activity)
-                                    .setTitle("Application de carte indisponible")
-                                    .setMessage("Aucune application de navigation disponible ne peut ouvrir cet itinéraire.")
-                                    .setPositiveButton("Fermer", null));
+                                    .setTitle(R.string.places_map_unavailable_title)
+                                    .setMessage(R.string.places_map_unavailable_body)
+                                    .setPositiveButton(R.string.ws_close, null));
                         }
                     }
                 }));
@@ -276,7 +281,7 @@ final class ThreadPlaces {
                 .setSingleChoiceItems(labels.toArray(new String[0]), selected, (dialog, index) -> {
                     if (active.getAsBoolean()) action.accept(index);
                     dialog.dismiss();
-                }).setNegativeButton("Annuler", null));
+                }).setNegativeButton(R.string.ws_cancel, null));
     }
 
     private void neighborhood(BooleanSupplier active, NearbyCategory category) {
@@ -286,19 +291,25 @@ final class ThreadPlaces {
         field.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS);
         field.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
         field.setImeOptions(EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING | EditorInfo.IME_FLAG_NO_EXTRACT_UI);
-        field.setHint("Quartier ou ville");
+        field.setHint(R.string.places_neighborhood_hint);
         android.widget.LinearLayout form = Ui.column(thread.activity);
         Ui.pad(form, 20, 4);
         form.addView(field);
-        AlertDialog dialog = thread.screen.show(new AlertDialog.Builder(thread.activity).setTitle("Préciser un quartier")
-                .setView(form).setNegativeButton("Annuler", null).setPositiveButton("Préparer le brouillon", null));
+        AlertDialog dialog = thread.screen.show(new AlertDialog.Builder(thread.activity)
+                .setTitle(R.string.places_guide_specify_neighborhood)
+                .setView(form).setNegativeButton(R.string.ws_cancel, null)
+                .setPositiveButton(R.string.places_prepare_draft, null));
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
             if (!active.getAsBoolean() || !dialog.isShowing()) { dialog.dismiss(); return; }
             String area = field.getText().toString();
-            if (VisibleText.isBlank(area)) { field.setError("Indiquez un quartier ou une ville."); return; }
+            if (VisibleText.isBlank(area)) {
+                field.setError(thread.activity.getString(R.string.places_enter_neighborhood));
+                return;
+            }
             dialog.dismiss();
             NearbyCategory activeCat = category == null ? NearbyCategory.RESTAURANT : category;
-            host.stageDraft("Cherche " + activeCat.draftPlural + " dans ce quartier ou cette ville : " + area);
+            host.stageDraft(thread.activity.getString(R.string.places_search_draft,
+                    activeCat.draftPlural(thread.activity), area));
         });
     }
 }

@@ -443,7 +443,7 @@ final class ThreadInstrumentPanel {
             if (valid(pin, activeDocument)) { close(); screen.revealProposal(source); }
             return true;
         });
-        popup.getMenu().add("Épingler sur l’écran d’accueil").setOnMenuItemClickListener(item -> {
+        popup.getMenu().add(t(R.string.widget_pin_action)).setOnMenuItemClickListener(item -> {
             if (valid(pin, activeDocument)) HomePinBridge.offerPinSurface(activity, source.pageId, source.title);
             return true;
         });

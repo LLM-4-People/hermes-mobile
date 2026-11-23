@@ -5,6 +5,7 @@ import android.content.pm.ShortcutInfo;
 import android.content.pm.ShortcutManager;
 import android.graphics.drawable.Icon;
 
+import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.R;
 
@@ -17,17 +18,17 @@ import java.util.List;
  */
 public final class HermesShortcuts {
     public record Descriptor(String id, int shortLabelRes, int longLabelRes, int iconRes,
-                             OsEntryIntent.Target target, String defaultShortLabel) {}
+                             OsEntryIntent.Target target) {}
 
     private static final List<Descriptor> DESCRIPTORS = List.of(
             new Descriptor("hermes_new_discussion", R.string.shortcut_new_short, R.string.shortcut_new_long,
-                    R.drawable.thread_new, OsEntryIntent.Target.NEW_DISCUSSION, "Nouvelle discussion"),
+                    R.drawable.thread_new, OsEntryIntent.Target.NEW_DISCUSSION),
             new Descriptor("hermes_dictate", R.string.shortcut_dictate_short, R.string.shortcut_dictate_long,
-                    R.drawable.ic_voice, OsEntryIntent.Target.DICTATE, "Dicter"),
+                    R.drawable.ic_voice, OsEntryIntent.Target.DICTATE),
             new Descriptor("hermes_atelier", R.string.shortcut_atelier_short, R.string.shortcut_atelier_long,
-                    R.drawable.ic_desk, OsEntryIntent.Target.ATELIER, "Atelier"),
+                    R.drawable.ic_desk, OsEntryIntent.Target.ATELIER),
             new Descriptor("hermes_activity", R.string.shortcut_activity_short, R.string.shortcut_activity_long,
-                    R.drawable.ic_activity, OsEntryIntent.Target.ACTIVITY, "Activité")
+                    R.drawable.ic_activity, OsEntryIntent.Target.ACTIVITY)
     );
 
     private HermesShortcuts() {}
@@ -38,6 +39,7 @@ public final class HermesShortcuts {
 
     public static void publish(Context context) {
         if (context == null) return;
+        Context localized = AppLanguage.wrapContext(context);
         ShortcutManager manager = context.getSystemService(ShortcutManager.class);
         if (manager == null) return;
         int limit = Math.max(0, Math.min(DESCRIPTORS.size(), manager.getMaxShortcutCountPerActivity()));
@@ -45,8 +47,8 @@ public final class HermesShortcuts {
         for (int i = 0; i < limit; i++) {
             Descriptor item = DESCRIPTORS.get(i);
             infos.add(new ShortcutInfo.Builder(context, item.id())
-                    .setShortLabel(context.getString(item.shortLabelRes()))
-                    .setLongLabel(context.getString(item.longLabelRes()))
+                    .setShortLabel(localized.getString(item.shortLabelRes()))
+                    .setLongLabel(localized.getString(item.longLabelRes()))
                     .setIcon(Icon.createWithResource(context, item.iconRes()))
                     .setIntent(OsEntryIntent.intent(context, item.target()))
                     .setRank(i)

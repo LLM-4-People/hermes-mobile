@@ -2,6 +2,7 @@ package org.llm4people.hermes.share;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.Context;
 import android.text.InputFilter;
 import android.text.InputType;
 import android.view.View;
@@ -659,7 +660,7 @@ public final class DeviceBridgeFlow {
             return null;
         }
         if (reason.length() > 300) reason = reason.substring(0, 300);
-        if (VisibleText.isBlank(reason)) reason = defaultFrenchReason(actionType);
+        if (VisibleText.isBlank(reason)) reason = "";
         JSONObject params = event.optJSONObject("params");
         long expiresAt = event.optLong("expires_at", 0L);
         return new BridgeRequest(id, actionType, reason, params == null ? new JSONObject() : params, expiresAt);
@@ -801,12 +802,14 @@ public final class DeviceBridgeFlow {
             once.finish(Status.UNAVAILABLE, null);
             return;
         }
+        String reasonText = VisibleText.isBlank(request.reason())
+                ? defaultReason(activity, request.actionType()) : request.reason();
         AlertDialog.Builder dialog = new AlertDialog.Builder(activity)
-                .setTitle(frenchTitle(request.actionType()))
-                .setMessage(request.reason() + "\n\nRien n’est envoyé sans votre accord.")
-                .setNegativeButton("Refuser", (d, w) -> once.finish(Status.DENIED, null))
+                .setTitle(title(activity, request.actionType()))
+                .setMessage(activity.getString(org.llm4people.hermes.R.string.share_bridge_consent_footer, reasonText))
+                .setNegativeButton(org.llm4people.hermes.R.string.share_bridge_deny, (d, w) -> once.finish(Status.DENIED, null))
                 .setOnCancelListener(d -> once.finish(Status.DENIED, null))
-                .setPositiveButton("Autoriser une fois", (d, w) -> {
+                .setPositiveButton(org.llm4people.hermes.R.string.share_bridge_allow_once, (d, w) -> {
                     if (executor == null) {
                         once.finish(Status.UNAVAILABLE, null);
                     } else {
@@ -816,56 +819,66 @@ public final class DeviceBridgeFlow {
         trackDialog(Ui.secureDialog(dialog), once);
     }
 
-    public static String frenchTitle(String actionType) {
+    public static int titleRes(String actionType) {
+        if (actionType == null) return org.llm4people.hermes.R.string.share_bridge_title_default;
         return switch (actionType) {
-            case "camera" -> "Prendre une photo pour Hermes ?";
-            case "location_coarse", "nearby_osm" -> "Partager votre zone approximative ?";
-            case "clipboard_read" -> "Partager le texte du presse-papiers ?";
-            case "calendar_draft" -> "Préparer un événement dans l’agenda ?";
-            case "alarm_timer" -> "Régler une alarme ou un minuteur ?";
-            case "maps_handoff" -> "Ouvrir l’application de carte ?";
-            case "share_sheet" -> "Partager avec une autre application ?";
-            case "dial_draft" -> "Ouvrir le téléphone avec ce numéro ?";
-            case "email_draft" -> "Préparer un courriel ?";
-            case "contacts_pick" -> "Choisir ou enregistrer un contact ?";
-            case "ui_surfaces_v2" -> "Afficher un écran interactif proposé ?";
-            case "notifications_digest" -> "Partager le résumé des notifications choisies ?";
-            case "notification_reply" -> "Envoyer une réponse à une notification ?";
-            case "media_control" -> "Contrôler la lecture audio en cours ?";
-            case "calendar_read" -> "Consulter vos prochains rendez-vous d’agenda ?";
-            case "app_navigate" -> "Ouvrir cet écran dans l’application ?";
-            case "app_customize" -> "Modifier l’apparence de l’application ?";
-            case "app_read_state" -> "Partager votre écran actuel avec Hermes ?";
-            case "app_create_template" -> "Enregistrer un nouveau modèle réutilisable ?";
-            case "android_set_timer" -> "Régler un minuteur sur votre téléphone ?";
-            case "android_share_sheet" -> "Ouvrir le partage Android ?";
-            case "android_open_app" -> "Ouvrir cette application ou ce lien ?";
-            case "android_sync_shortcuts" -> "Mettre à jour vos raccourcis et widgets ?";
-            case "android_proactive_nudge" -> "Afficher un rappel local discret ?";
-            default -> "Autoriser cette action sur votre téléphone ?";
+            case "camera" -> org.llm4people.hermes.R.string.share_bridge_title_capture_photo;
+            case "location_coarse", "nearby_osm" -> org.llm4people.hermes.R.string.share_bridge_title_location_coarse;
+            case "clipboard_read" -> org.llm4people.hermes.R.string.share_bridge_title_clipboard_read;
+            case "calendar_draft" -> org.llm4people.hermes.R.string.share_bridge_title_calendar_insert;
+            case "alarm_timer" -> org.llm4people.hermes.R.string.share_bridge_title_alarm_or_timer;
+            case "maps_handoff" -> org.llm4people.hermes.R.string.share_bridge_title_maps_open;
+            case "share_sheet" -> org.llm4people.hermes.R.string.share_bridge_title_share_sheet;
+            case "dial_draft" -> org.llm4people.hermes.R.string.share_bridge_title_dial_phone;
+            case "email_draft" -> org.llm4people.hermes.R.string.share_bridge_title_compose_email;
+            case "contacts_pick" -> org.llm4people.hermes.R.string.share_bridge_title_contacts_pick;
+            case "ui_surfaces_v2" -> org.llm4people.hermes.R.string.share_bridge_title_render_surface;
+            case "notifications_digest" -> org.llm4people.hermes.R.string.share_bridge_title_notification_summary;
+            case "notification_reply" -> org.llm4people.hermes.R.string.share_bridge_title_notification_reply;
+            case "media_control" -> org.llm4people.hermes.R.string.share_bridge_title_media_control;
+            case "calendar_read" -> org.llm4people.hermes.R.string.share_bridge_title_calendar_query;
+            case "app_navigate" -> org.llm4people.hermes.R.string.share_bridge_title_app_navigate;
+            case "app_customize" -> org.llm4people.hermes.R.string.share_bridge_title_app_customize;
+            case "app_read_state" -> org.llm4people.hermes.R.string.share_bridge_title_app_inspect;
+            case "app_create_template" -> org.llm4people.hermes.R.string.share_bridge_title_template_save;
+            case "android_set_timer" -> org.llm4people.hermes.R.string.share_bridge_title_android_set_timer;
+            case "android_share_sheet" -> org.llm4people.hermes.R.string.share_bridge_title_android_share;
+            case "android_open_app" -> org.llm4people.hermes.R.string.share_bridge_title_android_open_app;
+            case "android_sync_shortcuts" -> org.llm4people.hermes.R.string.share_bridge_title_android_update_shortcuts;
+            case "android_proactive_nudge" -> org.llm4people.hermes.R.string.share_bridge_title_android_local_reminder;
+            default -> org.llm4people.hermes.R.string.share_bridge_title_default;
         };
     }
 
-    private static String defaultFrenchReason(String actionType) {
+    public static String title(Context context, String actionType) {
+        return org.llm4people.hermes.AppLanguage.wrapContext(context).getString(titleRes(actionType));
+    }
+
+    public static int defaultReasonRes(String actionType) {
+        if (actionType == null) return org.llm4people.hermes.R.string.share_bridge_reason_default;
         return switch (actionType) {
-            case "camera" -> "Hermes souhaite utiliser une photo prise maintenant pour répondre à votre demande.";
-            case "location_coarse", "nearby_osm" -> "Hermes demande votre quartier approximatif pour cette réponse.";
-            case "clipboard_read" -> "Hermes propose de lire le texte copié dans votre presse-papiers.";
-            case "contacts_pick" -> "Hermes propose d’ouvrir votre carnet de contacts.";
-            case "notifications_digest" -> "Hermes propose de consulter les notifications des applications que vous avez autorisées.";
-            case "notification_reply" -> "Hermes propose de répondre à une notification après votre validation.";
-            case "media_control" -> "Hermes propose de piloter la lecture audio après votre accord.";
-            case "calendar_read" -> "Hermes propose de consulter vos créneaux disponibles dans votre agenda.";
-            case "app_navigate" -> "Hermes propose d’ouvrir directement cette section de l’application.";
-            case "app_customize" -> "Hermes propose d’ajuster les couleurs ou l’espacement de votre espace.";
-            case "app_read_state" -> "Hermes demande votre état actuel dans l’application.";
-            case "app_create_template" -> "Hermes propose d’enregistrer un modèle dans votre coffre chiffré.";
-            case "android_set_timer" -> "Hermes propose de démarrer un minuteur dans l’horloge Android.";
-            case "android_share_sheet" -> "Hermes propose de préparer un partage vers une autre application.";
-            case "android_open_app" -> "Hermes propose d’ouvrir une application ou un lien vérifié.";
-            case "android_sync_shortcuts" -> "Hermes propose d’actualiser vos raccourcis et widgets d’accueil.";
-            case "android_proactive_nudge" -> "Hermes propose d’afficher un rappel discret sur votre téléphone.";
-            default -> "Hermes propose d’ouvrir cette action sur votre téléphone.";
+            case "camera" -> org.llm4people.hermes.R.string.share_bridge_reason_capture_photo;
+            case "location_coarse", "nearby_osm" -> org.llm4people.hermes.R.string.share_bridge_reason_location_coarse;
+            case "clipboard_read" -> org.llm4people.hermes.R.string.share_bridge_reason_clipboard_read;
+            case "contacts_pick" -> org.llm4people.hermes.R.string.share_bridge_reason_contacts_pick;
+            case "notifications_digest" -> org.llm4people.hermes.R.string.share_bridge_reason_notification_summary;
+            case "notification_reply" -> org.llm4people.hermes.R.string.share_bridge_reason_notification_reply;
+            case "media_control" -> org.llm4people.hermes.R.string.share_bridge_reason_media_control;
+            case "calendar_read" -> org.llm4people.hermes.R.string.share_bridge_reason_calendar_query;
+            case "app_navigate" -> org.llm4people.hermes.R.string.share_bridge_reason_app_navigate;
+            case "app_customize" -> org.llm4people.hermes.R.string.share_bridge_reason_app_customize;
+            case "app_read_state" -> org.llm4people.hermes.R.string.share_bridge_reason_app_inspect;
+            case "app_create_template" -> org.llm4people.hermes.R.string.share_bridge_reason_template_save;
+            case "android_set_timer" -> org.llm4people.hermes.R.string.share_bridge_reason_android_set_timer;
+            case "android_share_sheet" -> org.llm4people.hermes.R.string.share_bridge_reason_android_share;
+            case "android_open_app" -> org.llm4people.hermes.R.string.share_bridge_reason_android_open_app;
+            case "android_sync_shortcuts" -> org.llm4people.hermes.R.string.share_bridge_reason_android_update_shortcuts;
+            case "android_proactive_nudge" -> org.llm4people.hermes.R.string.share_bridge_reason_android_local_reminder;
+            default -> org.llm4people.hermes.R.string.share_bridge_reason_default;
         };
+    }
+
+    public static String defaultReason(Context context, String actionType) {
+        return org.llm4people.hermes.AppLanguage.wrapContext(context).getString(defaultReasonRes(actionType));
     }
 }

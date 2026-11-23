@@ -34,6 +34,15 @@ public final class LiveTranscriptTest {
         assertTrue(stream.latest.text.length() <= LiveTranscript.PAGE_CHARS);
     }
 
+    @org.junit.Before public void bindStrings() {
+        ThreadStrings.setResolverForTest(res -> res == org.llm4people.hermes.R.string.thread_attached_image_bracket
+                ? "[Image jointe]" : "");
+    }
+
+    @org.junit.After public void clearStrings() {
+        ThreadStrings.setResolverForTest(null);
+    }
+
     @Test public void incompleteMediaMarkupNeverPaintsTheGrowingPayload() {
         LiveTranscript stream = new LiveTranscript();
         String prefix = "Résumé. ".repeat(1499) + "![image](data:image/png;base64,";

@@ -16,6 +16,7 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
 
+import org.llm4people.hermes.R;
 import org.unifiedpush.android.connector.UnifiedPush;
 import org.unifiedpush.android.connector.FailedReason;
 
@@ -288,16 +289,22 @@ public final class DistributorLifecycleTest extends InstrumentationTestCase {
                     runTestOnUiThread(() -> {
                         AlertDialog dialog = settings.settingsDialog(row, allowed).show();
                         try {
-                            assertEquals(!allowed, hasAction(dialog, "Réglages Android"));
-                            assertEquals(repair == PushStore.REPAIR_ACTION, hasAction(dialog, "Réessayer"));
-                            for (String action : new String[]{"Désactiver", "Historique", "Ouvrir le distributeur"})
+                            assertEquals(!allowed, hasAction(dialog, activity.getString(R.string.push_settings_android_settings)));
+                            assertEquals(repair == PushStore.REPAIR_ACTION, hasAction(dialog, activity.getString(R.string.instrument_retry)));
+                            for (String action : new String[]{
+                                    activity.getString(R.string.push_settings_disable),
+                                    activity.getString(R.string.push_settings_history),
+                                    activity.getString(R.string.push_settings_open_distributor)})
                                 assertTrue(action, hasAction(dialog, action));
                             TextView message = dialog.findViewById(android.R.id.message);
                             String text = message.getText().toString();
-                            assertEquals(!allowed, text.contains("réglages Android"));
-                            if (repair != PushStore.NO_REPAIR) assertTrue(text.contains("enregistré ce profil"));
-                            assertEquals(repair == PushStore.RETRY_REPAIR, text.contains("automatiquement"));
-                            assertEquals(repair == PushStore.WAITING_ENDPOINT, text.contains("attend la confirmation"));
+                            assertEquals(!allowed, text.contains(activity.getString(R.string.push_settings_blocked_message)));
+                            if (repair != PushStore.NO_REPAIR)
+                                assertTrue(text.contains(activity.getString(R.string.push_settings_relay_registered)));
+                            assertEquals(repair == PushStore.RETRY_REPAIR,
+                                    text.contains(activity.getString(R.string.push_settings_retry_distributor_auto)));
+                            assertEquals(repair == PushStore.WAITING_ENDPOINT,
+                                    text.contains(activity.getString(R.string.push_settings_waiting_distributor)));
                         } finally { dialog.dismiss(); }
                     });
                 }

@@ -162,31 +162,37 @@ public final class ConversationCardsJourney extends Instrumentation {
         ui.tap(ui.str(R.string.thread_send));
         boolean approval = "approval".equals(turn.getString("kind"));
         String answer = turn.getString("answer");
-        ui.showPendingControl(approval ? "Autoriser une fois" : turn.getString("question"));
+        String allowOnce = ui.str(R.string.share_bridge_allow_once);
+        String deny = ui.str(R.string.share_bridge_deny);
+        String seeDetails = ui.str(R.string.thread_see_details);
+        String hideDetails = ui.str(R.string.prompt_hide_details);
+        String answerHint = ui.str(R.string.prompt_your_answer_hint);
+        String sendAnswer = ui.str(R.string.prompt_send_answer);
+        ui.showPendingControl(approval ? allowOnce : turn.getString("question"));
         if (turn.optBoolean("read_history")) {
             await("permit-" + index);
             seeTranscriptRow(ui.str(R.string.thread_you), fixture.getJSONArray("turns").getJSONObject(0).getString("prompt"));
             ui.tap(ui.str(R.string.ws_reply_hermes));
         }
         if (approval) {
-            ui.see("Autoriser une fois");
-            ui.see("Refuser");
-            ui.tapInListRow("Refuser", "Voir les détails");
-            ui.containsInListRow("Refuser", "chmod 666 partage-demo.txt");
-            ui.tapInListRow("Refuser", "Masquer les détails");
+            ui.see(allowOnce);
+            ui.see(deny);
+            ui.tapInListRow(deny, seeDetails);
+            ui.containsInListRow(deny, "chmod 666 partage-demo.txt");
+            ui.tapInListRow(deny, hideDetails);
         } else {
             ui.contains(turn.getString("question"));
         }
         ui.capture("card-" + (index + 1));
         await("permit-" + index);
         if (approval) {
-            ui.tap("once".equals(answer) ? "Autoriser une fois" : "Refuser");
+            ui.tap("once".equals(answer) ? allowOnce : deny);
         } else if (turn.has("choices")) {
             ui.tap(answer);
         } else {
             if (turn.optBoolean("voice")) {
                 main(() -> {
-                    EditText editor = answerEditor(activity.getWindow().getDecorView());
+                    EditText editor = answerEditor(activity.getWindow().getDecorView(), answerHint);
                     if (editor == null) throw new AssertionError("Missing answer editor");
                     View microphone = null;
                     String dictate = activity.getString(R.string.voice_dictate);
@@ -202,19 +208,19 @@ public final class ConversationCardsJourney extends Instrumentation {
                 if (!new File(directory, "voice-filled").createNewFile()) throw new AssertionError("Duplicate dictation");
                 await("permit-voice-submit");
             } else {
-                ui.fill("Votre réponse", answer);
+                ui.fill(answerHint, answer);
             }
-            ui.tap("Envoyer la réponse");
+            ui.tap(sendAnswer);
         }
         ui.contains(turn.getString("reply"));
     }
 
-    private static EditText answerEditor(View view) {
+    private static EditText answerEditor(View view, String hint) {
         if (!view.isShown()) return null;
-        if (view instanceof EditText edit && "Votre réponse".contentEquals(edit.getHint() == null ? "" : edit.getHint())) return edit;
+        if (view instanceof EditText edit && hint.contentEquals(edit.getHint() == null ? "" : edit.getHint())) return edit;
         if (view instanceof ViewGroup group) {
             for (int i = 0; i < group.getChildCount(); i++) {
-                EditText editor = answerEditor(group.getChildAt(i));
+                EditText editor = answerEditor(group.getChildAt(i), hint);
                 if (editor != null) return editor;
             }
         }

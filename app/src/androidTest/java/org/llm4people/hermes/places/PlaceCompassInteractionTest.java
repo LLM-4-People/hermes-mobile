@@ -61,8 +61,12 @@ public final class PlaceCompassInteractionTest extends InstrumentationTestCase {
                 assertTrue(chart.requestFocus());
                 assertTrue(chart.isFocused());
                 String description = chart.getContentDescription().toString();
-                assertTrue(description.contains("Mae Sri Thai, environ 214 m à l’ouest du centre"));
-                assertTrue(description.contains("Tiamo, environ 222 m au sud-ouest du centre"));
+                assertTrue(description.contains(activity.getString(R.string.places_compass_relative,
+                        "Mae Sri Thai", activity.getString(R.string.places_distance_meters, "214"),
+                        activity.getString(R.string.places_compass_west))));
+                assertTrue(description.contains(activity.getString(R.string.places_compass_relative,
+                        "Tiamo", activity.getString(R.string.places_distance_meters, "222"),
+                        activity.getString(R.string.places_compass_southwest))));
 
                 // Locate the filled primary marker in the rendered chart. Its much thinner distance line
                 // and anchor cannot create enough highlighted pixels in a scan disk to be mistaken for it.
@@ -94,7 +98,7 @@ public final class PlaceCompassInteractionTest extends InstrumentationTestCase {
 
                 chart.setSelection(0, 1, Set.of(0, 2));
                 assertTrue(chart.isFocused());
-                assertFalse(chart.getContentDescription().toString().contains("En comparaison"));
+                assertFalse(chart.getContentDescription().toString().contains(activity.getString(R.string.places_guide_in_comparison)));
                 assertFalse(chart.onKeyDown(KeyEvent.KEYCODE_DPAD_LEFT, new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_LEFT)));
                 assertTrue(chart.onKeyDown(KeyEvent.KEYCODE_DPAD_RIGHT, new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_RIGHT)));
                 assertEquals(List.of(1, 2), chosen);

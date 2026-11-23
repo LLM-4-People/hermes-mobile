@@ -10,6 +10,7 @@ import android.view.WindowManager;
 import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.MainActivity;
+import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.VisibleText;
 import org.llm4people.hermes.profile.IncomingShare;
@@ -34,7 +35,7 @@ public final class ShareTextActivity extends Activity {
             if (state != null) {
                 String previous = state.getString(RECEIPT);
                 if (previous != null && previous.equals(IncomingShare.pending(this))) busy(previous);
-                else unavailable("Relancez le partage depuis l’application d’origine.");
+                else unavailable(getString(R.string.share_retry_origin));
                 return;
             }
             String text = incoming(getIntent());
@@ -45,10 +46,10 @@ public final class ShareTextActivity extends Activity {
             return;
         } catch (IllegalArgumentException rejected) {
             Diagnostics.warning("share", "incoming_rejected", rejected);
-            message = "Partagez du texte brut, un lien ou un extrait de code de 32 768 caractères au maximum.";
+            message = getString(R.string.share_text_limit);
         } catch (RuntimeException unavailable) {
             Diagnostics.warning("share", "incoming_unavailable", unavailable);
-            message = "Le partage n’a pas pu être ouvert. Réessayez depuis l’application d’origine.";
+            message = getString(R.string.share_open_failed);
         }
         unavailable(message);
     }
@@ -61,16 +62,16 @@ public final class ShareTextActivity extends Activity {
 
     private void busy(String previous) {
         waiting = previous;
-        Ui.secureDialog(new AlertDialog.Builder(this).setTitle("Un partage est déjà en attente")
-                .setMessage("Terminez le partage précédent ou annulez-le dans Hermes. Vous pourrez ensuite partager ce nouveau texte.")
-                .setPositiveButton("Reprendre le partage précédent", (d,w) -> review(previous))
-                .setNegativeButton("Fermer", (d,w) -> finish()).setOnCancelListener(d -> finish()));
+        Ui.secureDialog(new AlertDialog.Builder(this).setTitle(R.string.share_pending_title)
+                .setMessage(R.string.share_pending_text_body)
+                .setPositiveButton(R.string.share_pending_resume, (d,w) -> review(previous))
+                .setNegativeButton(R.string.ws_close, (d,w) -> finish()).setOnCancelListener(d -> finish()));
     }
 
     private void unavailable(String message) {
         setIntent(new Intent());
-        Ui.secureDialog(new AlertDialog.Builder(this).setTitle("Partage indisponible").setMessage(message)
-                .setPositiveButton("Fermer", (d,w) -> finish()).setOnCancelListener(d -> finish()));
+        Ui.secureDialog(new AlertDialog.Builder(this).setTitle(R.string.share_unavailable_title).setMessage(message)
+                .setPositiveButton(R.string.ws_close, (d,w) -> finish()).setOnCancelListener(d -> finish()));
     }
 
     static String incoming(Intent intent) {
@@ -98,7 +99,7 @@ public final class ShareTextActivity extends Activity {
 
     private void review(String id) {
         if (id == null || !id.equals(IncomingShare.pending(this))) {
-            unavailable("Le partage a expiré. Repartagez le texte depuis l’application d’origine.");
+            unavailable(getString(R.string.share_text_expired));
             return;
         }
         startActivity(new Intent(this, MainActivity.class).setAction(REVIEW).putExtra(RECEIPT, id)

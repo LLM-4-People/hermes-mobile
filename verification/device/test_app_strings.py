@@ -51,6 +51,18 @@ class AppStringsTest(unittest.TestCase):
         self.assertIn("revue", en.fmt("instrument_revision_draft", "revue"))
         self.assertIn("revue", fr.fmt("instrument_revision_draft", "revue"))
 
+    def test_plural_handles_en_and_fr_quantity_rules(self):
+        en = AppStrings.for_lang("en")
+        fr = AppStrings.for_lang("fr")
+        self.assertEqual(en.plural("places_guide_count", 0, 0), "0 places")
+        self.assertEqual(en.plural("places_guide_count", 1, 1), "1 place")
+        self.assertEqual(en.plural("places_guide_count", 3, 3), "3 places")
+        self.assertEqual(fr.plural("places_guide_count", 0, 0), "0 adresse")
+        self.assertEqual(fr.plural("places_guide_count", 1, 1), "1 adresse")
+        self.assertEqual(fr.plural("places_guide_count", 3, 3), "3 adresses")
+        self.assertEqual(en.fmt("places_guide_count_of", en.plural("places_guide_count", 1, 1), 3), "1 place of 3")
+        self.assertEqual(fr.fmt("places_guide_count_of", fr.plural("places_guide_count", 1, 1), 3), "1 adresse sur 3")
+
     def test_parse_locale_tags_and_resolve_lang(self):
         self.assertEqual(parse_locale_tags("Locales for org.llm4people.hermes for user 0 are []"), [])
         self.assertEqual(parse_locale_tags("Locales for org.llm4people.hermes for user 0 are [fr-CA, en-US]"),

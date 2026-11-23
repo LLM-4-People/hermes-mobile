@@ -24,11 +24,12 @@ public class HermesOsPrivacyAndWidgetTest {
         assertEquals(4, list.size());
         for (HermesShortcuts.Descriptor item : list) {
             assertTrue(item.id().startsWith("hermes_"));
-            assertFalse(item.defaultShortLabel().isEmpty());
+            assertTrue(item.shortLabelRes() != 0);
+            assertTrue(item.longLabelRes() != 0);
             assertNotNull(item.target());
         }
-        assertEquals("Assistant privé", HermesWidgetProvider.statusText(false));
-        assertEquals("Travail en cours", HermesWidgetProvider.statusText(true));
+        assertEquals(org.llm4people.hermes.R.string.widget_status_private, HermesWidgetProvider.statusTextRes(false));
+        assertEquals(org.llm4people.hermes.R.string.widget_status_working, HermesWidgetProvider.statusTextRes(true));
     }
 
     @Test public void osEntryTargetAllowlistRejectsArbitraryValues() {

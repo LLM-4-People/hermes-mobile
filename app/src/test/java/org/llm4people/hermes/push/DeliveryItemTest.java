@@ -23,9 +23,9 @@ public final class DeliveryItemTest {
             DeliveryItem.Kind kind = DeliveryItem.Kind.fromWire(wire);
             assertNotNull("Missing kind " + wire, kind);
             assertNotNull(kind.category);
-            assertFalse(kind.labelFr.isEmpty());
-            assertFalse(kind.lockscreenNoticeTitleFr.isEmpty());
-            assertFalse(kind.primaryActionFr.isEmpty());
+            assertTrue(kind.labelRes != 0);
+            assertTrue(kind.lockscreenNoticeTitleRes != 0);
+            assertTrue(kind.primaryActionRes != 0);
             assertEquals(kind.category, DeliveryItem.Category.forWireKind(wire));
         }
         assertNull(DeliveryItem.Kind.fromWire("unknown_kind"));
@@ -55,7 +55,7 @@ public final class DeliveryItemTest {
                 null,
                 0L);
         assertFalse(item.isAcknowledged());
-        assertEquals("Lire le briefing", item.primaryActionLabel());
+        assertEquals(org.llm4people.hermes.R.string.push_kind_briefing_action, item.primaryActionRes());
 
         DeliveryItem acked = item.withAcknowledged(1700000099L);
         assertFalse(item.isAcknowledged());

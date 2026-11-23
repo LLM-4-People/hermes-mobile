@@ -1,5 +1,10 @@
 package org.llm4people.hermes.places;
 
+import android.content.Context;
+
+import org.llm4people.hermes.AppLanguage;
+import org.llm4people.hermes.R;
+
 import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Collections;
@@ -10,60 +15,60 @@ import java.util.Map;
 
 /** Single source of truth for allowlisted OpenStreetMap categories, bounds, and route handoff modes. */
 public enum NearbyCategory {
-    RESTAURANT("restaurant", "Restaurants", "Restaurants dans la zone",
-            "Recherche des restaurants dans la zone partagée…",
-            "Aucun restaurant répertorié dans ce rayon.",
-            "Le guide des restaurants est indisponible. Vous pouvez choisir à nouveau une zone.",
-            "Repères des restaurants, nord en haut.",
-            "Restaurant suivant", "Restaurant précédent", "des restaurants", true),
-    CAFE("cafe", "Cafés", "Cafés dans la zone",
-            "Recherche des cafés dans la zone partagée…",
-            "Aucun café répertorié dans ce rayon.",
-            "Le guide des cafés est indisponible. Vous pouvez choisir à nouveau une zone.",
-            "Repères des cafés, nord en haut.",
-            "Café suivant", "Café précédent", "des cafés", true),
-    BAKERY("bakery", "Boulangeries", "Boulangeries dans la zone",
-            "Recherche des boulangeries dans la zone partagée…",
-            "Aucune boulangerie répertoriée dans ce rayon.",
-            "Le guide des boulangeries est indisponible. Vous pouvez choisir à nouveau une zone.",
-            "Repères des boulangeries, nord en haut.",
-            "Boulangerie suivante", "Boulangerie précédente", "des boulangeries", true),
-    PHARMACY("pharmacy", "Pharmacies", "Pharmacies dans la zone",
-            "Recherche des pharmacies dans la zone partagée…",
-            "Aucune pharmacie répertoriée dans ce rayon.",
-            "Le guide des pharmacies est indisponible. Vous pouvez choisir à nouveau une zone.",
-            "Repères des pharmacies, nord en haut.",
-            "Pharmacie suivante", "Pharmacie précédente", "des pharmacies", false),
-    TRANSIT("transit", "Transports", "Transports dans la zone",
-            "Recherche des arrêts et stations dans la zone partagée…",
-            "Aucun arrêt ou station répertorié dans ce rayon.",
-            "Le guide des transports est indisponible. Vous pouvez choisir à nouveau une zone.",
-            "Repères des transports, nord en haut.",
-            "Arrêt suivant", "Arrêt précédent", "des transports", false),
-    PARK("park", "Parcs", "Parcs dans la zone",
-            "Recherche des parcs dans la zone partagée…",
-            "Aucun parc répertorié dans ce rayon.",
-            "Le guide des parcs est indisponible. Vous pouvez choisir à nouveau une zone.",
-            "Repères des parcs, nord en haut.",
-            "Parc suivant", "Parc précédent", "des parcs", false),
-    GROCERY("grocery", "Épiceries", "Épiceries dans la zone",
-            "Recherche des épiceries dans la zone partagée…",
-            "Aucune épicerie répertoriée dans ce rayon.",
-            "Le guide des épiceries est indisponible. Vous pouvez choisir à nouveau une zone.",
-            "Repères des épiceries, nord en haut.",
-            "Épicerie suivante", "Épicerie précédente", "des épiceries", false),
-    BOOKSHOP("bookshop", "Librairies", "Librairies dans la zone",
-            "Recherche des librairies dans la zone partagée…",
-            "Aucune librairie répertoriée dans ce rayon.",
-            "Le guide des librairies est indisponible. Vous pouvez choisir à nouveau une zone.",
-            "Repères des librairies, nord en haut.",
-            "Librairie suivante", "Librairie précédente", "des librairies", false),
-    COWORKING("coworking", "Coworking", "Espaces de coworking dans la zone",
-            "Recherche des espaces de coworking dans la zone partagée…",
-            "Aucun espace de coworking répertorié dans ce rayon.",
-            "Le guide des espaces de coworking est indisponible. Vous pouvez choisir à nouveau une zone.",
-            "Repères des espaces de coworking, nord en haut.",
-            "Espace suivant", "Espace précédent", "des espaces de coworking", false);
+    RESTAURANT("restaurant",
+            R.string.places_cat_restaurant_label, R.string.places_cat_restaurant_heading,
+            R.string.places_cat_restaurant_loading, R.string.places_cat_restaurant_empty,
+            R.string.places_cat_restaurant_unavailable, R.string.places_cat_restaurant_compass,
+            R.string.places_cat_restaurant_next, R.string.places_cat_restaurant_prev,
+            R.string.places_cat_restaurant_plural, true),
+    CAFE("cafe",
+            R.string.places_cat_cafe_label, R.string.places_cat_cafe_heading,
+            R.string.places_cat_cafe_loading, R.string.places_cat_cafe_empty,
+            R.string.places_cat_cafe_unavailable, R.string.places_cat_cafe_compass,
+            R.string.places_cat_cafe_next, R.string.places_cat_cafe_prev,
+            R.string.places_cat_cafe_plural, true),
+    BAKERY("bakery",
+            R.string.places_cat_bakery_label, R.string.places_cat_bakery_heading,
+            R.string.places_cat_bakery_loading, R.string.places_cat_bakery_empty,
+            R.string.places_cat_bakery_unavailable, R.string.places_cat_bakery_compass,
+            R.string.places_cat_bakery_next, R.string.places_cat_bakery_prev,
+            R.string.places_cat_bakery_plural, true),
+    PHARMACY("pharmacy",
+            R.string.places_cat_pharmacy_label, R.string.places_cat_pharmacy_heading,
+            R.string.places_cat_pharmacy_loading, R.string.places_cat_pharmacy_empty,
+            R.string.places_cat_pharmacy_unavailable, R.string.places_cat_pharmacy_compass,
+            R.string.places_cat_pharmacy_next, R.string.places_cat_pharmacy_prev,
+            R.string.places_cat_pharmacy_plural, false),
+    TRANSIT("transit",
+            R.string.places_cat_transit_label, R.string.places_cat_transit_heading,
+            R.string.places_cat_transit_loading, R.string.places_cat_transit_empty,
+            R.string.places_cat_transit_unavailable, R.string.places_cat_transit_compass,
+            R.string.places_cat_transit_next, R.string.places_cat_transit_prev,
+            R.string.places_cat_transit_plural, false),
+    PARK("park",
+            R.string.places_cat_park_label, R.string.places_cat_park_heading,
+            R.string.places_cat_park_loading, R.string.places_cat_park_empty,
+            R.string.places_cat_park_unavailable, R.string.places_cat_park_compass,
+            R.string.places_cat_park_next, R.string.places_cat_park_prev,
+            R.string.places_cat_park_plural, false),
+    GROCERY("grocery",
+            R.string.places_cat_grocery_label, R.string.places_cat_grocery_heading,
+            R.string.places_cat_grocery_loading, R.string.places_cat_grocery_empty,
+            R.string.places_cat_grocery_unavailable, R.string.places_cat_grocery_compass,
+            R.string.places_cat_grocery_next, R.string.places_cat_grocery_prev,
+            R.string.places_cat_grocery_plural, false),
+    BOOKSHOP("bookshop",
+            R.string.places_cat_bookshop_label, R.string.places_cat_bookshop_heading,
+            R.string.places_cat_bookshop_loading, R.string.places_cat_bookshop_empty,
+            R.string.places_cat_bookshop_unavailable, R.string.places_cat_bookshop_compass,
+            R.string.places_cat_bookshop_next, R.string.places_cat_bookshop_prev,
+            R.string.places_cat_bookshop_plural, false),
+    COWORKING("coworking",
+            R.string.places_cat_coworking_label, R.string.places_cat_coworking_heading,
+            R.string.places_cat_coworking_loading, R.string.places_cat_coworking_empty,
+            R.string.places_cat_coworking_unavailable, R.string.places_cat_coworking_compass,
+            R.string.places_cat_coworking_next, R.string.places_cat_coworking_prev,
+            R.string.places_cat_coworking_plural, false);
 
     public static final int MIN_RADIUS_M = 500;
     public static final int DEFAULT_RADIUS_M = 1500;
@@ -74,17 +79,22 @@ public enum NearbyCategory {
     public static final List<Integer> RADIUS_CHOICES = Collections.unmodifiableList(Arrays.asList(500, 1500, 3000, 5000));
 
     public enum RouteMode {
-        WALKING("w", "À pied", "Itinéraire à pied", "Ouvrir l’itinéraire à pied"),
-        DRIVING("d", "En voiture", "Itinéraire en voiture", "Ouvrir l’itinéraire en voiture");
+        WALKING("w", R.string.places_route_walk_chip, R.string.places_route_walk_title, R.string.places_route_walk_open),
+        DRIVING("d", R.string.places_route_drive_chip, R.string.places_route_drive_title, R.string.places_route_drive_open);
 
-        public final String navParam, chipLabel, title, openLabel;
+        public final String navParam;
+        public final int chipLabelRes, titleRes, openLabelRes;
 
-        RouteMode(String navParam, String chipLabel, String title, String openLabel) {
+        RouteMode(String navParam, int chipLabelRes, int titleRes, int openLabelRes) {
             this.navParam = navParam;
-            this.chipLabel = chipLabel;
-            this.title = title;
-            this.openLabel = openLabel;
+            this.chipLabelRes = chipLabelRes;
+            this.titleRes = titleRes;
+            this.openLabelRes = openLabelRes;
         }
+
+        public String chipLabel(Context context) { return localized(context, chipLabelRes); }
+        public String title(Context context) { return localized(context, titleRes); }
+        public String openLabel(Context context) { return localized(context, openLabelRes); }
 
         public String navigationUri(double latitude, double longitude) {
             return "google.navigation:q=" + plainCoords(latitude, longitude) + "&mode=" + navParam;
@@ -95,8 +105,11 @@ public enum NearbyCategory {
         }
     }
 
-    public final String id, label, heading, loadingMessage, emptyMessage, unavailableMessage;
-    public final String compassDescription, nextItemLabel, previousItemLabel, draftPlural;
+    public final String id;
+    /** Opaque fallback key retained for callers without Context; use {@link #heading(Context)} for UI text. */
+    public final String heading;
+    public final int labelRes, headingRes, loadingMessageRes, emptyMessageRes, unavailableMessageRes;
+    public final int compassDescriptionRes, nextItemLabelRes, previousItemLabelRes, draftPluralRes;
     public final boolean supportsCuisine;
 
     private static final Map<String, NearbyCategory> BY_ID;
@@ -106,20 +119,35 @@ public enum NearbyCategory {
         BY_ID = Collections.unmodifiableMap(map);
     }
 
-    NearbyCategory(String id, String label, String heading, String loadingMessage, String emptyMessage,
-                   String unavailableMessage, String compassDescription, String nextItemLabel,
-                   String previousItemLabel, String draftPlural, boolean supportsCuisine) {
+    NearbyCategory(String id, int labelRes, int headingRes, int loadingMessageRes, int emptyMessageRes,
+                   int unavailableMessageRes, int compassDescriptionRes, int nextItemLabelRes,
+                   int previousItemLabelRes, int draftPluralRes, boolean supportsCuisine) {
         this.id = id;
-        this.label = label;
-        this.heading = heading;
-        this.loadingMessage = loadingMessage;
-        this.emptyMessage = emptyMessage;
-        this.unavailableMessage = unavailableMessage;
-        this.compassDescription = compassDescription;
-        this.nextItemLabel = nextItemLabel;
-        this.previousItemLabel = previousItemLabel;
-        this.draftPlural = draftPlural;
+        this.heading = id;
+        this.labelRes = labelRes;
+        this.headingRes = headingRes;
+        this.loadingMessageRes = loadingMessageRes;
+        this.emptyMessageRes = emptyMessageRes;
+        this.unavailableMessageRes = unavailableMessageRes;
+        this.compassDescriptionRes = compassDescriptionRes;
+        this.nextItemLabelRes = nextItemLabelRes;
+        this.previousItemLabelRes = previousItemLabelRes;
+        this.draftPluralRes = draftPluralRes;
         this.supportsCuisine = supportsCuisine;
+    }
+
+    public String label(Context context) { return localized(context, labelRes); }
+    public String heading(Context context) { return localized(context, headingRes); }
+    public String loadingMessage(Context context) { return localized(context, loadingMessageRes); }
+    public String emptyMessage(Context context) { return localized(context, emptyMessageRes); }
+    public String unavailableMessage(Context context) { return localized(context, unavailableMessageRes); }
+    public String compassDescription(Context context) { return localized(context, compassDescriptionRes); }
+    public String nextItemLabel(Context context) { return localized(context, nextItemLabelRes); }
+    public String previousItemLabel(Context context) { return localized(context, previousItemLabelRes); }
+    public String draftPlural(Context context) { return localized(context, draftPluralRes); }
+
+    private static String localized(Context context, int resId) {
+        return AppLanguage.wrapContext(context).getString(resId);
     }
 
     public static NearbyCategory fromId(String id) {
@@ -142,16 +170,21 @@ public enum NearbyCategory {
         return limit >= MIN_LIMIT && limit <= MAX_LIMIT;
     }
 
-    public static String tagLabel(String rawTag) {
-        if (rawTag == null) return "";
+    public static int tagLabelRes(String rawTag) {
+        if (rawTag == null) return 0;
         return switch (rawTag.trim().toLowerCase(Locale.ROOT)) {
-            case "wheelchair" -> "Accès PMR";
-            case "takeaway" -> "À emporter";
-            case "wifi" -> "Wi-Fi";
-            case "24/7" -> "Ouvert 24h/24";
-            case "outdoor_seating" -> "Terrasse";
-            default -> "";
+            case "wheelchair" -> R.string.places_tag_wheelchair;
+            case "takeaway" -> R.string.places_tag_takeaway;
+            case "wifi" -> R.string.places_tag_wifi;
+            case "24/7" -> R.string.places_tag_24_7;
+            case "outdoor_seating" -> R.string.places_tag_outdoor_seating;
+            default -> 0;
         };
+    }
+
+    public static String tagLabel(Context context, String rawTag) {
+        int res = tagLabelRes(rawTag);
+        return res == 0 || context == null ? "" : localized(context, res);
     }
 
     static String plainCoords(double latitude, double longitude) {

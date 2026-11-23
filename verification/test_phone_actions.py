@@ -219,9 +219,9 @@ class PhoneActionsTransitionTest(unittest.TestCase):
                 s = AppStrings.for_lang(lang)
                 chooser = node_tree(s["profile_choose_title"], account, window_id="20")
                 unlock = node_tree(s["profile_passphrase_label"], s["profile_unlock_action"], window_id="20")
-                review1 = node_tree("Ajouter au brouillon ?", account, session, first_text, "Ajouter au brouillon", window_id="21")
+                review1 = node_tree(s["share_add_text_title"], account, session, first_text, s["share_add_to_draft"], window_id="21")
                 composer1 = node_tree(s["thread_send"], first_text, window_id="20")
-                review2 = node_tree("Ajouter au brouillon ?", account, session, second_text, "Ajouter au brouillon", window_id="22")
+                review2 = node_tree(s["share_add_text_title"], account, session, second_text, s["share_add_to_draft"], window_id="22")
                 composer2 = node_tree(s["thread_send"], combined, window_id="20")
 
                 hierarchies = iter([

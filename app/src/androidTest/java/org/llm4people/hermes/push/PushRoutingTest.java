@@ -9,6 +9,7 @@ import android.os.Build;
 import android.service.notification.StatusBarNotification;
 import android.test.InstrumentationTestCase;
 
+import org.llm4people.hermes.R;
 import org.llm4people.hermes.net.Exchange;
 import org.json.JSONObject;
 import org.json.JSONArray;
@@ -123,12 +124,12 @@ public final class PushRoutingTest extends InstrumentationTestCase {
                 .put(new JSONObject().put("event_id", event).put("kind", "reminder").put("created_at", 1700000000))
                 .put(new JSONObject().put("event_id", "../other").put("kind", "reminder"));
         JSONObject response = new JSONObject().put("events", events).put("next_cursor", 12).put("has_more", true);
-        PushHistory.Page page = new PushHistory.Page(response, 0, Locale.CANADA_FRENCH);
+        PushHistory.Page page = new PushHistory.Page(context, response, 0, Locale.CANADA_FRENCH);
         assertEquals(1, page.events.size());
         assertEquals(event, page.events.get(0).getString("event_id"));
-        assertTrue(page.labels.get(0).startsWith("Un rappel vous attend"));
+        assertTrue(page.labels.get(0).startsWith(PushNotices.title(context, "reminder")));
         try {
-            new PushHistory.Page(response, 12, Locale.CANADA_FRENCH);
+            new PushHistory.Page(context, response, 12, Locale.CANADA_FRENCH);
             fail("Non-advancing cursor accepted");
         } catch (IOException expected) {}
     }
@@ -168,7 +169,8 @@ public final class PushRoutingTest extends InstrumentationTestCase {
             getInstrumentation().getUiAutomation().grantRuntimePermission(context.getPackageName(),
                     Manifest.permission.POST_NOTIFICATIONS);
         }
-        assertEquals("Hermes a une question", PushNotices.title(PushNotices.QUESTION));
+        assertEquals(context.getString(org.llm4people.hermes.R.string.push_notice_question),
+                PushNotices.title(context, PushNotices.QUESTION));
         PushStore.Device owner = store.forInstallation(device.installation);
         String late = "00000000000000000000000000000001";
         PushNotices.post(context, owner, late, PushNotices.DISMISS_QUESTION);
@@ -199,8 +201,8 @@ public final class PushRoutingTest extends InstrumentationTestCase {
             for (StatusBarNotification row : context.getSystemService(NotificationManager.class).getActiveNotifications()) {
                 if (!tag.equals(row.getTag())) continue;
                 present = true;
-                assertEquals("Hermes a une question", row.getNotification().extras.getString("android.title"));
-                assertEquals("Ouvrez votre profil pour voir les détails.", row.getNotification().extras.getString("android.text"));
+                assertEquals(context.getString(R.string.push_notice_question), row.getNotification().extras.getString("android.title"));
+                assertEquals(context.getString(R.string.push_notice_open_details), row.getNotification().extras.getString("android.text"));
                 assertEquals(android.app.Notification.VISIBILITY_PRIVATE, row.getNotification().visibility);
                 assertEquals(PushNotices.PROMPT_DISPLAY_MILLIS, row.getNotification().getTimeoutAfter());
             }
@@ -213,7 +215,7 @@ public final class PushRoutingTest extends InstrumentationTestCase {
     private boolean postedNotice(String tag) {
         for (StatusBarNotification active : context.getSystemService(NotificationManager.class).getActiveNotifications()) {
             if (!tag.equals(active.getTag())) continue;
-            assertEquals("Un rappel vous attend", active.getNotification().extras.getString("android.title"));
+            assertEquals(context.getString(R.string.push_notice_reminder), active.getNotification().extras.getString("android.title"));
             assertFalse(active.getNotification().extras.toString().contains("sensitive-body-never-display"));
             return true;
         }

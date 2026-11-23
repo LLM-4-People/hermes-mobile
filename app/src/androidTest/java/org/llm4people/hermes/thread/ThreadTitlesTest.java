@@ -1,10 +1,16 @@
 package org.llm4people.hermes.thread;
 
-import junit.framework.TestCase;
+import android.test.InstrumentationTestCase;
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.llm4people.hermes.R;
 
-public class ThreadTitlesTest extends TestCase {
+@SuppressWarnings("deprecation")
+public class ThreadTitlesTest extends InstrumentationTestCase {
+    @Override protected void setUp() throws Exception {
+        super.setUp();
+        ThreadStrings.attach(getInstrumentation().getTargetContext());
+    }
     public void testOpeningIsVisibleUserTextAndMultimodalTextWorks() throws Exception {
         JSONArray rows = new JSONArray("[{role:'tool',content:'SECRET'},{role:'session_meta',content:'system'},"
                 + "{role:'user',display_kind:'hidden',content:'summary'},{role:'assistant',content:'Generated title'},"
@@ -27,16 +33,18 @@ public class ThreadTitlesTest extends TestCase {
     }
 
     public void testCompactedTipPreviewCannotClaimToBeTheOpening() throws Exception {
+        String conversation = ThreadStrings.get(R.string.thread_conversation);
+        String newConversation = ThreadStrings.get(R.string.thread_new_conversation);
         JSONObject row = new JSONObject("{id:'tip',_lineage_root_id:'root',title:null,preview:'Dernière demande',message_count:4}");
-        assertEquals("Conversation", ThreadData.title(row));
+        assertEquals(conversation, ThreadData.title(row));
         row.put("message_count", 0);  // A freshly rotated tip can be empty even though its root has history.
-        assertEquals("Conversation", ThreadData.title(row));
-        assertEquals("Conversation", ThreadIdentity.of(row).label);
-        assertEquals("Nouvelle conversation", ThreadData.title(null));
+        assertEquals(conversation, ThreadData.title(row));
+        assertEquals(conversation, ThreadIdentity.of(row).label);
+        assertEquals(newConversation, ThreadData.title(null));
         row.put(ThreadTitles.FIRST_PROMPT, "Vérifier le plan");
         assertEquals("Vérifier le plan", ThreadData.title(row));
-        assertEquals("Conversation", ThreadTitles.display("", "", false));
-        assertEquals("Nouvelle conversation", ThreadTitles.display("", "", true));
+        assertEquals(conversation, ThreadTitles.display("", "", false));
+        assertEquals(newConversation, ThreadTitles.display("", "", true));
     }
 
     public void testSnippetHasAUnicodeSafeBoundAndNoControlText() {

@@ -1,9 +1,13 @@
 package org.llm4people.hermes.places;
 
+import android.content.Context;
+
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.Diagnostics;
+import org.llm4people.hermes.R;
 import org.llm4people.hermes.VisibleText;
 
 import java.time.DateTimeException;
@@ -16,6 +20,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.function.IntFunction;
 import java.util.regex.Pattern;
 
 /** A snapshot of the gateway's bounded, attributed OpenStreetMap nearby results. */
@@ -67,6 +72,15 @@ public final class NearbyResult {
     }
 
     public static NearbyResult parse(JSONObject response) throws JSONException {
+        return parse(response, (IntFunction<String>) null);
+    }
+
+    public static NearbyResult parse(Context context, JSONObject response) throws JSONException {
+        Context localized = context == null ? null : AppLanguage.wrapContext(context);
+        return parse(response, localized == null ? null : localized::getString);
+    }
+
+    public static NearbyResult parse(JSONObject response, IntFunction<String> strings) throws JSONException {
         if (response == null || !"OpenStreetMap".equals(response.opt("source"))
                 || !CREDIT.equals(response.opt("attribution"))
                 || !(response.opt("source_date") instanceof String date) || !UTC.matcher(date).matches()
@@ -113,7 +127,7 @@ public final class NearbyResult {
 
         List<Place> places = new ArrayList<>();
         for (int i = 0; i < rows.length(); i++) {
-            Place place = readPlace(rows.optJSONObject(i), radius);
+            Place place = readPlace(rows.optJSONObject(i), radius, strings);
             if (place != null) places.add(place);
         }
         if (rows.length() > 0 && places.isEmpty()) {
@@ -126,7 +140,7 @@ public final class NearbyResult {
         return new NearbyResult(date, category, radius, limit, places);
     }
 
-    private static Place readPlace(JSONObject row, int radiusMeters) {
+    private static Place readPlace(JSONObject row, int radiusMeters, IntFunction<String> strings) {
         if (row == null || !(row.opt("osm_type") instanceof String type)
                 || !("node".equals(type) || "way".equals(type) || "relation".equals(type))) return null;
         long id = integer(row.opt("osm_id"));
@@ -137,20 +151,23 @@ public final class NearbyResult {
         double latitude = lat.doubleValue(), longitude = lon.doubleValue();
         if (!Double.isFinite(latitude) || Math.abs(latitude) > 90 || !Double.isFinite(longitude)
                 || Math.abs(longitude) > 180) return null;
-        return new Place(type + "/" + id, name, cuisines(label(row.opt("cuisine"), 256)),
-                readTags(row.opt("tags")), label(row.opt("address"), 320),
+        return new Place(type + "/" + id, name, cuisines(label(row.opt("cuisine"), 256), strings),
+                readTags(row.opt("tags"), strings), label(row.opt("address"), 320),
                 label(row.opt("opening_hours"), 160), latitude, longitude, (int) distance);
     }
 
-    private static List<String> readTags(Object raw) {
+    private static List<String> readTags(Object raw, IntFunction<String> strings) {
         if (!(raw instanceof JSONArray array)) return Collections.emptyList();
         Set<String> labels = new LinkedHashSet<>();
         int cap = Math.min(array.length(), 10);
         for (int i = 0; i < cap; i++) {
             Object item = array.opt(i);
             if (item instanceof String text) {
-                String mapped = NearbyCategory.tagLabel(text);
-                if (!mapped.isEmpty()) labels.add(mapped);
+                int res = NearbyCategory.tagLabelRes(text);
+                if (res != 0) {
+                    String mapped = strings == null ? text.trim().toLowerCase(Locale.ROOT) : strings.apply(res);
+                    if (mapped != null && !mapped.isEmpty()) labels.add(mapped);
+                }
             }
         }
         return Collections.unmodifiableList(new ArrayList<>(labels));
@@ -173,35 +190,42 @@ public final class NearbyResult {
         return text.trim();
     }
 
-    private static List<String> cuisines(String value) {
+    public static int cuisineLabelRes(String rawCuisine) {
+        if (rawCuisine == null) return 0;
+        return switch (rawCuisine.trim().toLowerCase(Locale.ROOT)) {
+            case "italian" -> R.string.places_cuisine_italian;
+            case "italian_pizza" -> R.string.places_cuisine_italian_pizza;
+            case "pasta" -> R.string.places_cuisine_pasta;
+            case "asian" -> R.string.places_cuisine_asian;
+            case "korean" -> R.string.places_cuisine_korean;
+            case "french" -> R.string.places_cuisine_french;
+            case "japanese" -> R.string.places_cuisine_japanese;
+            case "chinese" -> R.string.places_cuisine_chinese;
+            case "indian" -> R.string.places_cuisine_indian;
+            case "vietnamese" -> R.string.places_cuisine_vietnamese;
+            case "thai" -> R.string.places_cuisine_thai;
+            case "lebanese" -> R.string.places_cuisine_lebanese;
+            case "mexican" -> R.string.places_cuisine_mexican;
+            case "greek" -> R.string.places_cuisine_greek;
+            case "mediterranean" -> R.string.places_cuisine_mediterranean;
+            case "vegan" -> R.string.places_cuisine_vegan;
+            case "vegetarian" -> R.string.places_cuisine_vegetarian;
+            case "seafood" -> R.string.places_cuisine_seafood;
+            case "pizza" -> R.string.places_cuisine_pizza;
+            case "burger" -> R.string.places_cuisine_burger;
+            case "sushi" -> R.string.places_cuisine_sushi;
+            default -> 0;
+        };
+    }
+
+    private static List<String> cuisines(String value, IntFunction<String> strings) {
         Set<String> labels = new LinkedHashSet<>();
         for (String part : value.split(";")) {
             String name = part.trim();
             if (VisibleText.isBlank(name)) continue;
-            labels.add(switch (name.toLowerCase(Locale.ROOT)) {
-                case "italian" -> "Italienne";
-                case "italian_pizza" -> "Pizza italienne";
-                case "pasta" -> "Pâtes";
-                case "asian" -> "Asiatique";
-                case "korean" -> "Coréenne";
-                case "french" -> "Française";
-                case "japanese" -> "Japonaise";
-                case "chinese" -> "Chinoise";
-                case "indian" -> "Indienne";
-                case "vietnamese" -> "Vietnamienne";
-                case "thai" -> "Thaïlandaise";
-                case "lebanese" -> "Libanaise";
-                case "mexican" -> "Mexicaine";
-                case "greek" -> "Grecque";
-                case "mediterranean" -> "Méditerranéenne";
-                case "vegan" -> "Végétalienne";
-                case "vegetarian" -> "Végétarienne";
-                case "seafood" -> "Fruits de mer";
-                case "pizza" -> "Pizza";
-                case "burger" -> "Burgers";
-                case "sushi" -> "Sushi";
-                default -> name;
-            });
+            int res = cuisineLabelRes(name);
+            String resolved = res != 0 && strings != null ? strings.apply(res) : name;
+            labels.add(resolved == null || resolved.isEmpty() ? name : resolved);
         }
         return Collections.unmodifiableList(new ArrayList<>(labels));
     }

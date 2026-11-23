@@ -21,9 +21,7 @@ public final class DiffRendererTest {
         assertEquals(2, model.additions());
         assertEquals(1, model.deletions());
         assertEquals("+2 / -1", DiffRenderer.statsText(model));
-        assertEquals("Risque modéré", DiffRenderer.riskLabel(model.risk()));
-        assertTrue(DiffRenderer.statsAccessibleDescription(model).contains("2 lignes ajoutées"));
-        assertTrue(DiffRenderer.statsAccessibleDescription(model).contains("1 ligne supprimée"));
+        assertEquals(org.llm4people.hermes.R.string.diff_risk_medium, DiffRenderer.riskLabelRes(model.risk()));
         assertFalse(model.truncated());
         assertEquals(5, model.lines().size());
         assertEquals(DiffRenderer.LineKind.HUNK, model.lines().get(0).kind());
@@ -46,7 +44,7 @@ public final class DiffRendererTest {
         assertEquals(2, edit.additions());
         assertEquals(1, edit.deletions());
         assertEquals("+2 / -1", DiffRenderer.statsText(edit));
-        assertEquals("Risque faible", DiffRenderer.riskLabel(edit.risk()));
+        assertEquals(org.llm4people.hermes.R.string.diff_risk_low, DiffRenderer.riskLabelRes(edit.risk()));
         assertTrue(edit.lines().stream().anyMatch(l -> l.kind() == DiffRenderer.LineKind.REMOVE && l.text().equals("-Ancienne ligne")));
         assertTrue(edit.lines().stream().anyMatch(l -> l.kind() == DiffRenderer.LineKind.ADD && l.text().equals("+Nouvelle ligne 2")));
 
@@ -56,7 +54,7 @@ public final class DiffRendererTest {
         assertEquals("foo.py", patchEdit.path());
         assertEquals(1, patchEdit.additions());
         assertEquals(1, patchEdit.deletions());
-        assertEquals("Risque élevé", DiffRenderer.riskLabel(patchEdit.risk()));
+        assertEquals(org.llm4people.hermes.R.string.diff_risk_high, DiffRenderer.riskLabelRes(patchEdit.risk()));
     }
 
     @Test public void hunksClassifyAddedPlusPlusAndRemovedMinusMinusLinesAccurately() {
@@ -88,7 +86,8 @@ public final class DiffRendererTest {
         assertNull(DiffRenderer.fromEditStrings("", "", "", "", "", "", ""));
         assertNull(DiffRenderer.fromEditStrings(null, null, null, null, null, null, null));
         assertNull(DiffRenderer.fromHunks("", "", null, -1, -1, false, null, null, "bogus"));
-        assertEquals("", DiffRenderer.riskLabel("critical-unknown"));
+        assertEquals(0, DiffRenderer.riskLabelRes("critical-unknown"));
+        assertEquals("", DiffRenderer.riskLabel(null, "critical-unknown"));
         assertEquals("", DiffRenderer.statsText(null));
 
         List<String> hugeLines = new ArrayList<>();

@@ -298,7 +298,7 @@ final class MessageText {
                 open.accept(new AlertDialog.Builder(context)
                         .setTitle(R.string.markdown_link_choose)
                         .setItems(items, (d, which) -> confirmLink(context, page.links.get(which), open))
-                        .setNegativeButton("Fermer", null));
+                        .setNegativeButton(R.string.ws_close, null));
             });
             chooser.setSingleLine(false);
             chooser.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
@@ -332,7 +332,7 @@ final class MessageText {
                 .setView(body)
                 .setPositiveButton(R.string.markdown_link_confirm_open, (d, w) -> launchHttps(context, safe.url()))
                 .setNeutralButton(R.string.markdown_link_copy, (d, w) -> copyLink(context, safe.url()))
-                .setNegativeButton("Annuler", null));
+                .setNegativeButton(R.string.ws_cancel, null));
     }
 
     static boolean launchHttps(Context context, String rawUrl) {
@@ -358,7 +358,7 @@ final class MessageText {
         ClipboardManager clipboard = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
         if (clipboard == null) return;
         try {
-            clipboard.setPrimaryClip(ClipData.newPlainText("Lien", url));
+            clipboard.setPrimaryClip(ClipData.newPlainText(context.getString(R.string.thread_link_fallback), url));
             if (android.os.Build.VERSION.SDK_INT < 33) {
                 Toast.makeText(context, R.string.markdown_link_copied, Toast.LENGTH_SHORT).show();
             }
@@ -400,7 +400,7 @@ final class MessageText {
                             b -> open.accept(new AlertDialog.Builder(context)
                                     .setTitle(R.string.reasoning_title)
                                     .setView(reader(context, reasoning, false, false))
-                                    .setPositiveButton("Fermer", null)));
+                                    .setPositiveButton(R.string.ws_close, null)));
                     contentBox.addView(full);
                 }
             }
@@ -435,7 +435,7 @@ final class MessageText {
                 }
                 open.accept(new AlertDialog.Builder(context).setTitle(R.string.code_choose).setItems(choices,
                         (d, which) -> openBlock(context, page.blocks.get(which), source, open))
-                        .setNegativeButton("Fermer", null));
+                        .setNegativeButton(R.string.ws_close, null));
             }
         });
         if (count == 1 && first.displayEnd == page.text.length()) {

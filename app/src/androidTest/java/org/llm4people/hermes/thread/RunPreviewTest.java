@@ -2,6 +2,7 @@ package org.llm4people.hermes.thread;
 
 import junit.framework.TestCase;
 import org.json.JSONObject;
+import org.llm4people.hermes.R;
 import org.llm4people.hermes.net.Exchange;
 import org.llm4people.hermes.net.HermesApi;
 import java.util.Locale;
@@ -71,14 +72,15 @@ public final class RunPreviewTest extends TestCase {
     }
 
     public void testImageDataRemainsCollapsedAfterEvictionAndReplayGapDropsPriorMarkup() {
+        String imagePlaceholder = ThreadStrings.get(R.string.thread_attached_image_bracket);
         RunPreview preview = new RunPreview(null);
         preview.append("![graphique](data:image/png;base64," + repeat("QUJD", 36_000));
         LiveTranscript view = new LiveTranscript();
         view.update(preview.toString(), preview.origin());
-        assertEquals("[Image jointe]", visible(view));
+        assertEquals(imagePlaceholder, visible(view));
         preview.append(")\n**Suite**");
         view.update(preview.toString(), preview.origin());
-        assertEquals("[Image jointe]\nSuite", visible(view));
+        assertEquals(imagePlaceholder + "\nSuite", visible(view));
         preview.gap();
         preview.append("**Reprise**");
         view.update(preview.toString(), preview.origin());

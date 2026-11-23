@@ -57,8 +57,11 @@ public final class NearbyGuide extends LinearLayout {
         default void route(View clicked, NearbyResult.Place place, NearbyCategory.RouteMode mode) {}
     }
 
-    private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("d MMM yyyy, HH:mm 'UTC'", Locale.FRANCE)
-            .withZone(ZoneOffset.UTC);
+    private DateTimeFormatter dateFormatter() {
+        Locale locale = getResources().getConfiguration().getLocales().get(0);
+        return DateTimeFormatter.ofPattern("d MMM yyyy, HH:mm 'UTC'", locale == null ? Locale.getDefault() : locale)
+                .withZone(ZoneOffset.UTC);
+    }
     private final Actions actions;
     private State state;
     private boolean wide, renderedWide;
@@ -108,7 +111,7 @@ public final class NearbyGuide extends LinearLayout {
         removeAllViews();
         addView(Ui.divider(getContext()));
         NearbyCategory category = next.activeCategory();
-        TextView heading = text(category.heading, 24, R.color.ink);
+        TextView heading = text(category.heading(getContext()), 24, R.color.ink);
         heading.setTypeface(Typeface.create(Typeface.DEFAULT, 650, false));
         heading.setLetterSpacing(-.025f);
         heading.setAccessibilityHeading(true);
@@ -118,9 +121,9 @@ public final class NearbyGuide extends LinearLayout {
         if (next.phase == Phase.READY) showResult(next);
         else {
             String message = switch (next.phase) {
-                case OFFER -> "Choisissez la zone où chercher avec OpenStreetMap.";
-                case LOADING -> category.loadingMessage;
-                default -> category.unavailableMessage;
+                case OFFER -> getContext().getString(R.string.places_guide_choose_area);
+                case LOADING -> category.loadingMessage(getContext());
+                default -> category.unavailableMessage(getContext());
             };
             TextView note = text(message, 16, R.color.muted);
             note.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
@@ -141,9 +144,11 @@ public final class NearbyGuide extends LinearLayout {
         Ui.pad(chips, 0, 4);
         for (NearbyCategory cat : NearbyCategory.values()) {
             boolean selected = cat == active;
-            Button chip = chipButton(cat.label, selected, "places-cat-" + cat.id,
+            String catLabel = cat.label(getContext());
+            Button chip = chipButton(catLabel, selected, "places-cat-" + cat.id,
                     v -> actions.explore(cat, activeRadius));
-            chip.setContentDescription("Catégorie " + cat.label + (selected ? ", sélectionnée" : ""));
+            chip.setContentDescription(getContext().getString(
+                    selected ? R.string.places_guide_cat_selected_desc : R.string.places_guide_cat_desc, catLabel));
             LayoutParams lp = new LayoutParams(-2, -2);
             lp.setMarginEnd(dp(6));
             chips.addView(chip, lp);
@@ -152,8 +157,10 @@ public final class NearbyGuide extends LinearLayout {
         wrapper.addView(scroll);
 
         LinearLayout radiusRow = Ui.row(getContext());
-        radiusButton = action("Rayon · " + distance(activeRadius), "places-radius", v -> cycleRadius(active, activeRadius));
-        radiusButton.setContentDescription("Rayon de recherche actuel : " + distance(activeRadius) + ". Appuyer pour changer.");
+        String distText = distance(getContext(), activeRadius);
+        radiusButton = action(getContext().getString(R.string.places_guide_radius_chip, distText),
+                "places-radius", v -> cycleRadius(active, activeRadius));
+        radiusButton.setContentDescription(getContext().getString(R.string.places_guide_radius_desc, distText));
         radiusRow.addView(radiusButton);
         wrapper.addView(radiusRow);
         return wrapper;
@@ -192,9 +199,10 @@ public final class NearbyGuide extends LinearLayout {
         NearbyResult result = s.result;
         NearbyCategory category = s.activeCategory();
         int count = result.places.size();
-        String scope = "Rayon de " + distance(result.radiusMeters) + " depuis le centre de la zone";
+        String scope = getContext().getString(R.string.places_guide_radius_from_center,
+                distance(getContext(), result.radiusMeters));
         if (count == 0) {
-            TextView empty = text(category.emptyMessage, 17, R.color.ink);
+            TextView empty = text(category.emptyMessage(getContext()), 17, R.color.ink);
             empty.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
             addView(empty);
             addView(text(scope, 14, R.color.muted));
@@ -224,16 +232,16 @@ public final class NearbyGuide extends LinearLayout {
                 s.selection.selected(), index -> actions.select(index, false));
         chart.setTag("places-compass");
         overview.addView(chart, new LayoutParams(-1, dp(wide ? 185 : 136)));
-        TextView caption = text("Distances approximatives à vol d’oiseau depuis le centre", 13, R.color.muted);
+        TextView caption = text(getContext().getString(R.string.places_guide_straight_line_note), 13, R.color.muted);
         Ui.pad(caption, 0, 3);
         overview.addView(caption);
         provenance(overview, s);
         LinearLayout filters = new LinearLayout(getContext());
         boolean inline = getResources().getConfiguration().fontScale <= 1.2f;
         filters.setOrientation(inline ? HORIZONTAL : VERTICAL);
-        cuisineButton = action("Cuisine", "places-cuisine", v -> actions.cuisine());
-        tagButton = action("Filtres", "places-tags", v -> actions.tagFilter());
-        compareButton = action("Comparer", "places-compare", v -> actions.compare());
+        cuisineButton = action(getContext().getString(R.string.places_guide_cuisine), "places-cuisine", v -> actions.cuisine());
+        tagButton = action(getContext().getString(R.string.places_guide_filters), "places-tags", v -> actions.tagFilter());
+        compareButton = action(getContext().getString(R.string.places_guide_compare), "places-compare", v -> actions.compare());
         filters.addView(cuisineButton, inline ? new LayoutParams(0, -2, 1) : new LayoutParams(-1, -2));
         filters.addView(tagButton, inline ? new LayoutParams(0, -2, 1) : new LayoutParams(-1, -2));
         filters.addView(compareButton, inline ? new LayoutParams(0, -2, 1) : new LayoutParams(-1, -2));
@@ -263,25 +271,41 @@ public final class NearbyGuide extends LinearLayout {
         PlaceSelection choice = state.selection;
         chart.setSelection(choice.selected(), choice.comparison(), choice.visible());
         int count = choice.visible().size();
-        String number = count + (count == 1 ? " adresse" : " adresses");
-        if (count != venues.size()) number += " sur " + venues.size();
-        range.setText(number + " · rayon de " + distance(state.result.radiusMeters));
+        String number = getResources().getQuantityString(R.plurals.places_guide_count, count, count);
+        if (count != venues.size()) {
+            number = getContext().getString(R.string.places_guide_count_of, number, venues.size());
+        }
+        range.setText(getContext().getString(R.string.places_guide_summary_radius,
+                number, distance(getContext(), state.result.radiusMeters)));
         cuisineButton.setVisibility(choice.cuisines.isEmpty() ? GONE : VISIBLE);
-        cuisineButton.setText(choice.cuisine().isEmpty() ? "Cuisine" : "Cuisine · " + choice.cuisine());
-        cuisineButton.setContentDescription("Filtrer par cuisine, " + (choice.cuisine().isEmpty() ? "toutes les cuisines" : choice.cuisine()));
+        cuisineButton.setText(choice.cuisine().isEmpty()
+                ? getContext().getString(R.string.places_guide_cuisine)
+                : getContext().getString(R.string.places_guide_cuisine_selected, choice.cuisine()));
+        cuisineButton.setContentDescription(getContext().getString(R.string.places_guide_cuisine_desc,
+                choice.cuisine().isEmpty()
+                        ? getContext().getString(R.string.places_guide_all_cuisines_lower)
+                        : choice.cuisine()));
         tagButton.setVisibility(choice.tags.isEmpty() ? GONE : VISIBLE);
-        tagButton.setText(choice.tag().isEmpty() ? "Filtres" : "Filtre · " + choice.tag());
-        tagButton.setContentDescription("Filtrer par attribut, " + (choice.tag().isEmpty() ? "tous les lieux" : choice.tag()));
+        tagButton.setText(choice.tag().isEmpty()
+                ? getContext().getString(R.string.places_guide_filters)
+                : getContext().getString(R.string.places_guide_filter_selected, choice.tag()));
+        tagButton.setContentDescription(getContext().getString(R.string.places_guide_filter_desc,
+                choice.tag().isEmpty()
+                        ? getContext().getString(R.string.places_guide_all_places_lower)
+                        : choice.tag()));
         compareButton.setVisibility(count < 2 ? GONE : VISIBLE);
-        compareButton.setText(choice.comparison() < 0 ? "Comparer" : "Comparaison");
-        compareButton.setContentDescription(choice.comparison() < 0 ? "Comparer deux lieux" : "Modifier la comparaison");
+        compareButton.setText(getContext().getString(
+                choice.comparison() < 0 ? R.string.places_guide_compare : R.string.places_guide_comparison));
+        compareButton.setContentDescription(getContext().getString(
+                choice.comparison() < 0 ? R.string.places_guide_compare_desc : R.string.places_guide_compare_edit_desc));
         comparisonFacts.setVisibility(choice.comparison() >= 0 ? VISIBLE : GONE);
         if (choice.comparison() >= 0) {
             NearbyResult.Place a = state.result.places.get(choice.selected());
             NearbyResult.Place b = state.result.places.get(choice.comparison());
-            primaryFact.setText(a.name + " · " + distance(a.distanceMeters));
-            comparisonFact.setText(b.name + " · " + distance(b.distanceMeters));
-            difference.setText("Écart des distances au centre : " + distance(Math.abs(a.distanceMeters - b.distanceMeters)));
+            primaryFact.setText(a.name + " · " + distance(getContext(), a.distanceMeters));
+            comparisonFact.setText(b.name + " · " + distance(getContext(), b.distanceMeters));
+            difference.setText(getContext().getString(R.string.places_guide_distance_gap,
+                    distance(getContext(), Math.abs(a.distanceMeters - b.distanceMeters))));
         }
         int visibleRank = 0;
         for (Venue row : venues) {
@@ -291,7 +315,9 @@ public final class NearbyGuide extends LinearLayout {
         }
         if (more != null) {
             more.setVisibility(count > 2 ? VISIBLE : GONE);
-            more.setText(choice.all() ? "Réduire la liste" : "Afficher les " + count + " adresses");
+            more.setText(choice.all()
+                    ? getContext().getString(R.string.places_guide_collapse_list)
+                    : getContext().getString(R.string.places_guide_show_all_places, count));
         }
     }
 
@@ -326,7 +352,7 @@ public final class NearbyGuide extends LinearLayout {
             marker.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
             top.addView(marker);
             name = text(place.name, 16, R.color.ink);
-            TextView dist = text(distance(place.distanceMeters), 15, R.color.accent);
+            TextView dist = text(distance(getContext(), place.distanceMeters), 15, R.color.accent);
             dist.setPaddingRelative(dp(8), 0, 0, 0);
             dist.setTypeface(Typeface.create(Typeface.DEFAULT, 600, false));
             top.addView(name, new LayoutParams(0, -2, 1));
@@ -347,21 +373,23 @@ public final class NearbyGuide extends LinearLayout {
             if (!place.cuisine.isEmpty()) detail.addView(text(place.cuisine, 15, R.color.ink));
             if (!place.tags.isEmpty()) detail.addView(text(String.join(" · ", place.tags), 14, R.color.muted));
             if (!place.address.isEmpty()) detail.addView(text(place.address, 15, R.color.ink));
-            if (!place.openingHours.isEmpty()) detail.addView(text("Horaires · " + place.openingHours, 14, R.color.muted));
+            if (!place.openingHours.isEmpty()) {
+                detail.addView(text(getContext().getString(R.string.places_guide_hours, place.openingHours), 14, R.color.muted));
+            }
             boolean row = getResources().getConfiguration().fontScale <= 1.2f;
             LinearLayout links = new LinearLayout(getContext());
             links.setOrientation(row ? HORIZONTAL : VERTICAL);
-            Button map = action("Voir sur la carte", "map-" + place.id, v -> actions.map(v, place));
-            Button source = action("Fiche OSM", "source-" + place.id, v -> actions.source(v, place));
-            source.setContentDescription("Fiche OpenStreetMap de " + place.name);
+            Button map = action(getContext().getString(R.string.places_guide_view_map), "map-" + place.id, v -> actions.map(v, place));
+            Button source = action(getContext().getString(R.string.places_guide_osm_card), "source-" + place.id, v -> actions.source(v, place));
+            source.setContentDescription(getContext().getString(R.string.places_guide_osm_card_desc, place.name));
             links.addView(map, row ? new LayoutParams(0, -2, 1.1f) : new LayoutParams(-1, -2));
             links.addView(source, row ? new LayoutParams(0, -2, 1) : new LayoutParams(-1, -2));
             detail.addView(links);
             LinearLayout routes = new LinearLayout(getContext());
             routes.setOrientation(row ? HORIZONTAL : VERTICAL);
-            Button walk = action(NearbyCategory.RouteMode.WALKING.title, "walk-" + place.id,
+            Button walk = action(NearbyCategory.RouteMode.WALKING.title(getContext()), "walk-" + place.id,
                     v -> actions.route(v, place, NearbyCategory.RouteMode.WALKING));
-            Button drive = action(NearbyCategory.RouteMode.DRIVING.title, "drive-" + place.id,
+            Button drive = action(NearbyCategory.RouteMode.DRIVING.title(getContext()), "drive-" + place.id,
                     v -> actions.route(v, place, NearbyCategory.RouteMode.DRIVING));
             routes.addView(walk, row ? new LayoutParams(0, -2, 1) : new LayoutParams(-1, -2));
             routes.addView(drive, row ? new LayoutParams(0, -2, 1) : new LayoutParams(-1, -2));
@@ -380,7 +408,7 @@ public final class NearbyGuide extends LinearLayout {
             group.setBackground(selected ? tint : null);
             pairNote.setVisibility(paired ? VISIBLE : GONE);
             if (paired) {
-                String note = "En comparaison";
+                String note = getContext().getString(R.string.places_guide_in_comparison);
                 if (!place.cuisine.isEmpty()) note += " · " + place.cuisine;
                 pairNote.setText(note);
             }
@@ -388,8 +416,11 @@ public final class NearbyGuide extends LinearLayout {
             top.setSelected(selected);
             marker.setTextColor(getContext().getColor(selected ? R.color.accent
                     : paired ? R.color.places_compare_ink : R.color.muted));
-            top.setContentDescription("Repère " + (index + 1) + ", " + place.name + ", environ " + distance(place.distanceMeters) + " du centre. "
-                    + (paired ? "En comparaison. " : "") + (expanded ? "Replier les détails" : "Afficher les détails"));
+            String toggleLabel = getContext().getString(
+                    expanded ? R.string.places_guide_collapse_details : R.string.places_guide_expand_details);
+            top.setContentDescription(getContext().getString(
+                    paired ? R.string.places_guide_place_row_compared_desc : R.string.places_guide_place_row_desc,
+                    index + 1, place.name, distance(getContext(), place.distanceMeters), toggleLabel));
             name.setTextSize(selected ? 18 : 16);
             name.setTypeface(Typeface.create(Typeface.DEFAULT, selected ? 650 : 500, false));
             detail.setVisibility(expanded ? VISIBLE : GONE);
@@ -397,24 +428,40 @@ public final class NearbyGuide extends LinearLayout {
     }
 
     private void provenance(LinearLayout parent, State s) {
-        String precision = "Centre de la zone approximative";
-        if (Double.isFinite(s.accuracy) && s.accuracy > 0) precision += " · incertitude annoncée ± " + distance((int) Math.ceil(s.accuracy));
-        TextView note = text(precision + "\n" + s.result.attribution + " · données du "
-                + DATE.format(Instant.parse(s.result.sourceDate)), 13, R.color.muted);
+        String precision = getContext().getString(R.string.places_guide_approx_center);
+        if (Double.isFinite(s.accuracy) && s.accuracy > 0) {
+            precision += " · " + getContext().getString(R.string.places_guide_uncertainty,
+                    distance(getContext(), (int) Math.ceil(s.accuracy)));
+        }
+        TextView note = text(precision + "\n" + s.result.attribution + " · "
+                + getContext().getString(R.string.places_guide_source_date,
+                        dateFormatter().format(Instant.parse(s.result.sourceDate))), 13, R.color.muted);
         note.setPaddingRelative(0, dp(6), 0, dp(4));
         parent.addView(note);
     }
 
     private void alternatives() {
-        addView(action("Utiliser ma zone approximative", "places-locate", v -> actions.locate()));
-        addView(action("Préciser un quartier", "places-manual", v -> actions.manual()));
+        addView(action(getContext().getString(R.string.places_guide_use_approx_area), "places-locate", v -> actions.locate()));
+        addView(action(getContext().getString(R.string.places_guide_specify_neighborhood), "places-manual", v -> actions.manual()));
+    }
+
+    public static String distance(Context context, int meters) {
+        Locale locale = context == null
+                ? Locale.getDefault()
+                : context.getResources().getConfiguration().getLocales().get(0);
+        if (locale == null) locale = Locale.getDefault();
+        if (meters < 1000) {
+            String value = Integer.toString(meters);
+            return context == null ? value + " m" : context.getString(R.string.places_distance_meters, value);
+        }
+        NumberFormat format = NumberFormat.getNumberInstance(locale);
+        format.setMaximumFractionDigits(1);
+        String formatted = format.format(meters / 1000d);
+        return context == null ? formatted + " km" : context.getString(R.string.places_distance_km, formatted);
     }
 
     public static String distance(int meters) {
-        if (meters < 1000) return meters + " m";
-        NumberFormat format = NumberFormat.getNumberInstance(Locale.FRANCE);
-        format.setMaximumFractionDigits(1);
-        return format.format(meters / 1000d) + " km";
+        return distance(null, meters);
     }
 
     private Button action(String label, String tag, OnClickListener click) {

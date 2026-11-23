@@ -23,13 +23,17 @@ final class PlaceCompass extends View {
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final List<NearbyResult.Place> places;
     private final NearbyCategory category;
-    private static final String[] DIRECTIONS = {"au nord", "au nord-est", "à l’est", "au sud-est",
-            "au sud", "au sud-ouest", "à l’ouest", "au nord-ouest"};
+    private static final int[] DIRECTION_RES = {
+            R.string.places_compass_north, R.string.places_compass_northeast,
+            R.string.places_compass_east, R.string.places_compass_southeast,
+            R.string.places_compass_south, R.string.places_compass_southwest,
+            R.string.places_compass_west, R.string.places_compass_northwest
+    };
     private final double[] bearings;
     private final int[] distances;
     private final Path diamond = new Path();
     private final float textSize, badgeRadius, scaleLabelWidth, rankBaselineOffset;
-    private final String scaleLabel;
+    private final String scaleLabel, northSymbol;
     private final String[] rankLabels;
     private final float[] rankHalfWidths;
     private final int scaleMeters, touchSlop;
@@ -61,7 +65,8 @@ final class PlaceCompass extends View {
             distances[i] = p.distanceMeters;
         }
         scaleMeters = scale(distances);
-        scaleLabel = NearbyGuide.distance(scaleMeters / 2);
+        scaleLabel = NearbyGuide.distance(c, scaleMeters / 2);
+        northSymbol = c.getString(R.string.places_compass_north_symbol);
         textSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 12,
                 getResources().getDisplayMetrics()) / dp;
         paint.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
@@ -94,19 +99,24 @@ final class PlaceCompass extends View {
         selected = visible.contains(primary) ? primary : visible.isEmpty() ? -1 : visible.get(0);
         comparison = second != selected && visible.contains(second) ? second : -1;
         setClickable(visible.size() > 1);
-        String description = category.compassDescription;
+        String description = category.compassDescription(getContext());
         if (selected >= 0) description += " " + describe(selected) + ".";
-        if (comparison >= 0) description += " En comparaison, " + describe(comparison) + ".";
+        if (comparison >= 0) description += " " + getContext().getString(R.string.places_compass_compared, describe(comparison));
         setContentDescription(description);
         invalidate();
     }
 
     private String describe(int i) {
         NearbyResult.Place place = places.get(i);
-        if (place.distanceMeters == 0) return place.name + ", au centre de la zone";
+        if (place.distanceMeters == 0) {
+            return getContext().getString(R.string.places_compass_at_center, place.name);
+        }
         int direction = Math.floorMod((int) Math.round(bearings[i] / (Math.PI / 4)), 8);
-        return place.name + ", environ " + NearbyGuide.distance(place.distanceMeters)
-                + " " + DIRECTIONS[direction] + " du centre";
+        return getContext().getString(
+                R.string.places_compass_relative,
+                place.name,
+                NearbyGuide.distance(getContext(), place.distanceMeters),
+                getContext().getString(DIRECTION_RES[direction]));
     }
 
     static double bearing(double lat, double lon, double pointLat, double pointLon) {
@@ -228,7 +238,7 @@ final class PlaceCompass extends View {
         canvas.drawLine(x, y-r-4, x, y+r+4, paint);
         // The north key and a true-length scale bar sit outside the geographic projection.
         fill(label);
-        canvas.drawText("N", 8, textSize + 4, paint);
+        canvas.drawText(northSymbol, 8, textSize + 4, paint);
         float bar = r * .5f;
         canvas.drawText(scaleLabel, w - 9 - scaleLabelWidth, h - 11, paint);
         stroke(label, 1);
@@ -339,9 +349,9 @@ final class PlaceCompass extends View {
                 1, visible.size(), rank + 1));
         info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SET_PROGRESS);
         if (rank + 1 < visible.size()) info.addAction(new AccessibilityNodeInfo.AccessibilityAction(
-                AccessibilityNodeInfo.ACTION_SCROLL_FORWARD, category.nextItemLabel));
+                AccessibilityNodeInfo.ACTION_SCROLL_FORWARD, category.nextItemLabel(getContext())));
         if (rank > 0) info.addAction(new AccessibilityNodeInfo.AccessibilityAction(
-                AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD, category.previousItemLabel));
+                AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD, category.previousItemLabel(getContext())));
     }
     @Override public boolean performAccessibilityAction(int action, Bundle args) {
         if (action == AccessibilityNodeInfo.AccessibilityAction.ACTION_SET_PROGRESS.getId()) {

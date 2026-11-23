@@ -62,20 +62,20 @@ public final class ShareDraftTray {
     public boolean add(CapturedMedia.Item item, int maxItems) {
         if (item == null || items.size() >= maxItems) return false;
         items.add(item);
-        render("Élément ajouté : " + item.name());
+        render(context.getString(R.string.share_tray_added, item.name()));
         return true;
     }
 
     public void removeAt(int index) {
         if (index < 0 || index >= items.size()) return;
         CapturedMedia.Item removed = items.remove(index);
-        render("Élément retiré : " + removed.name());
+        render(context.getString(R.string.share_tray_removed, removed.name()));
     }
 
     public void clear() {
         if (items.isEmpty()) return;
         items.clear();
-        render("Pièces jointes effacées.");
+        render(context.getString(R.string.share_tray_cleared));
     }
 
     private void render(String notice) {
@@ -100,7 +100,7 @@ public final class ShareDraftTray {
                     ImageView thumb = new ImageView(context);
                     thumb.setImageBitmap(preview);
                     thumb.setScaleType(ImageView.ScaleType.CENTER_CROP);
-                    thumb.setContentDescription("Aperçu · " + item.name());
+                    thumb.setContentDescription(context.getString(R.string.share_tray_preview_desc, item.name()));
                     LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(Ui.dp(context, 36), Ui.dp(context, 36));
                     tp.setMarginEnd(gap);
                     chip.addView(thumb, tp);
@@ -112,7 +112,8 @@ public final class ShareDraftTray {
             title.setMaxLines(1);
             title.setEllipsize(TextUtils.TruncateAt.MIDDLE);
             title.setMaxWidth(Ui.dp(context, 150));
-            String subtitle = (item.kind() == CapturedMedia.Kind.IMAGE ? "Photo" : "Fichier")
+            String subtitle = context.getString(item.kind() == CapturedMedia.Kind.IMAGE
+                    ? R.string.share_tray_photo : R.string.share_tray_file)
                     + " · " + Formatter.formatShortFileSize(context, item.size());
             TextView detail = Ui.text(context, subtitle, 12);
             detail.setTextColor(context.getColor(R.color.muted));
@@ -120,8 +121,8 @@ public final class ShareDraftTray {
             meta.addView(detail);
             chip.addView(meta);
 
-            Button remove = Ui.button(context, "Retirer", v -> removeAt(index));
-            remove.setContentDescription("Retirer " + item.name());
+            Button remove = Ui.button(context, context.getString(R.string.thread_remove), v -> removeAt(index));
+            remove.setContentDescription(context.getString(R.string.share_tray_remove_desc, item.name()));
             remove.setMinimumHeight(Ui.dp(context, 48));
             LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-2, -2);
             rp.setMarginStart(gap);

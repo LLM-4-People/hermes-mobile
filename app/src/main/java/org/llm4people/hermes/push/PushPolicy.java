@@ -3,7 +3,9 @@ package org.llm4people.hermes.push;
 import android.content.Context;
 import android.content.SharedPreferences;
 
+import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.Diagnostics;
+import org.llm4people.hermes.R;
 import org.llm4people.hermes.profile.PreferenceTransaction;
 
 import java.nio.charset.StandardCharsets;
@@ -136,11 +138,20 @@ public final class PushPolicy {
         return evaluate(wireKind, urgency, localTime.getHour() * 60 + localTime.getMinute());
     }
 
-    public static String formatMinuteFr(int minuteOfDay) {
+    public static String formatMinute(Context context, int minuteOfDay) {
         if (minuteOfDay < 0 || minuteOfDay >= 1440) {
             throw new IllegalArgumentException("Minute out of range");
         }
-        return String.format(Locale.FRENCH, "%02d h %02d", minuteOfDay / 60, minuteOfDay % 60);
+        return AppLanguage.wrapContext(context).getString(
+                R.string.push_quiet_time_format, minuteOfDay / 60, minuteOfDay % 60);
+    }
+
+    public static String formatMinute(int minuteOfDay, String formatPattern, Locale locale) {
+        if (minuteOfDay < 0 || minuteOfDay >= 1440) {
+            throw new IllegalArgumentException("Minute out of range");
+        }
+        return String.format(locale == null ? Locale.ROOT : locale, formatPattern,
+                minuteOfDay / 60, minuteOfDay % 60);
     }
 
     /** Compact, deterministic, pure-Java serialization (no PII, host-JVM testable). */

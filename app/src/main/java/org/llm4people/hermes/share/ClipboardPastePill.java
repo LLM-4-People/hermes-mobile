@@ -107,8 +107,8 @@ public final class ClipboardPastePill {
 
     /** Create a calm tonal pill that pastes into the target editor at cursor selection (never auto-sends). */
     public Button createView(Context context, EditText editor) {
-        Button pill = Ui.button(context, "Coller le presse-papiers", null);
-        pill.setContentDescription("Coller le texte copié dans votre message");
+        Button pill = Ui.button(context, context.getString(R.string.share_paste_clipboard), null);
+        pill.setContentDescription(context.getString(R.string.share_paste_clipboard_desc));
         pill.setTextColor(context.getColor(R.color.accent));
         GradientDrawable bg = new GradientDrawable();
         bg.setCornerRadius(Ui.dp(context, 16));

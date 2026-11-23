@@ -35,7 +35,7 @@ class NearbyJourneyConsentTest(unittest.TestCase):
                 device.shell.side_effect = shell
                 ui = Screen(device, Mock(), lang=lang)
                 send_btn = ui.strings["thread_send"]
-                consent_title = ui.strings.get("nearby_consent_title", nearby_journey.CONSENT)
+                consent_title = ui.strings["nearby_add_area_title"]
 
                 gms_warning = node_tree((nearby_journey.GMS_PACKAGE, "Location is off"))
                 gms_with_systemui = node_tree(
@@ -66,7 +66,7 @@ class NearbyJourneyConsentTest(unittest.TestCase):
         device.shell.side_effect = lambda *args: (shell_calls.append(args), "")[1]
         ui = Screen(device, Mock(), lang="fr")
         send_btn = ui.strings["thread_send"]
-        consent_title = ui.strings.get("nearby_consent_title", nearby_journey.CONSENT)
+        consent_title = ui.strings["nearby_add_area_title"]
 
         permission_dialog = node_tree(("com.google.android.permissioncontroller", "Allow location"))
         app_with_gms_node = node_tree((APP, send_btn), (nearby_journey.GMS_PACKAGE, "Autofill"))

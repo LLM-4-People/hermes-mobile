@@ -12,6 +12,7 @@ import android.test.InstrumentationTestCase;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.llm4people.hermes.Diagnostics;
+import org.llm4people.hermes.R;
 import org.llm4people.hermes.RouteRegistry;
 import org.llm4people.hermes.net.Exchange;
 import org.llm4people.hermes.net.HermesApi;
@@ -75,8 +76,8 @@ public final class UniversalDeliveryTest extends InstrumentationTestCase {
         StatusBarNotification posted = awaitNotification(deviceA.installation + "/" + briefingEvent);
         assertNotNull(posted);
         Notification notice = posted.getNotification();
-        assertEquals("Votre briefing Hermes est prêt", notice.extras.getString("android.title"));
-        assertEquals("Ouvrez votre profil pour voir les détails.", notice.extras.getString("android.text"));
+        assertEquals(context.getString(R.string.push_kind_briefing_title), notice.extras.getString("android.title"));
+        assertEquals(context.getString(R.string.push_notice_open_details), notice.extras.getString("android.text"));
         assertEquals(Notification.VISIBILITY_PRIVATE, notice.visibility);
         assertFalse(notice.extras.toString().contains("SECRET-TITLE-MUST-NEVER-SHOW"));
         assertFalse(notice.extras.toString().contains("SECRET-SNIPPET-MUST-NEVER-SHOW"));

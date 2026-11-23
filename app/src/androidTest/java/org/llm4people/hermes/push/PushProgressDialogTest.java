@@ -13,6 +13,7 @@ import android.view.inspector.WindowInspector;
 import android.widget.Button;
 import android.widget.TextView;
 
+import org.llm4people.hermes.R;
 import org.llm4people.hermes.net.Exchange;
 import org.llm4people.hermes.profile.WorkspaceAccountFixture;
 
@@ -56,10 +57,12 @@ public final class PushProgressDialogTest extends InstrumentationTestCase {
                     initial.addAll(WindowInspector.getGlobalWindowViews());
                     push.settings(fixture.account);
                     Button start = dialogWindow(initial).findViewById(history ? android.R.id.button3 : android.R.id.button1);
-                    assertEquals(history ? "Historique" : "Activer", start.getText().toString());
+                    assertEquals(activity.getString(history ? R.string.push_settings_history : R.string.push_settings_enable),
+                            start.getText().toString());
                     start.performClick();
                 });
-                String loading = history ? "Chargement…" : "Recherche des services de notification…";
+                String loading = activity.getString(history
+                        ? R.string.push_settings_loading : R.string.push_settings_searching_services);
                 awaitWindows("Loading dialog did not acquire input focus", () -> {
                     for (View window : WindowInspector.getGlobalWindowViews()) {
                         if (initial.contains(window) || !window.hasWindowFocus() || !window.isShown() || !window.isLaidOut()) continue;

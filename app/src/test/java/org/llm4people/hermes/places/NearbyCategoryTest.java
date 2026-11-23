@@ -39,11 +39,12 @@ public final class NearbyCategoryTest {
         assertEquals("geo:0,0?q=45.51,-73.57",
                 NearbyCategory.RouteMode.WALKING.fallbackGeoUri(45.51, -73.57));
 
-        assertEquals("Accès PMR", NearbyCategory.tagLabel("wheelchair"));
-        assertEquals("Wi-Fi", NearbyCategory.tagLabel("wifi"));
-        assertEquals("À emporter", NearbyCategory.tagLabel("takeaway"));
-        assertEquals("Ouvert 24h/24", NearbyCategory.tagLabel("24/7"));
-        assertEquals("Terrasse", NearbyCategory.tagLabel("outdoor_seating"));
-        assertEquals("", NearbyCategory.tagLabel("unknown_tag"));
+        assertEquals(org.llm4people.hermes.R.string.places_tag_wheelchair, NearbyCategory.tagLabelRes("wheelchair"));
+        assertEquals(org.llm4people.hermes.R.string.places_tag_wifi, NearbyCategory.tagLabelRes("wifi"));
+        assertEquals(org.llm4people.hermes.R.string.places_tag_takeaway, NearbyCategory.tagLabelRes("takeaway"));
+        assertEquals(org.llm4people.hermes.R.string.places_tag_24_7, NearbyCategory.tagLabelRes("24/7"));
+        assertEquals(org.llm4people.hermes.R.string.places_tag_outdoor_seating, NearbyCategory.tagLabelRes("outdoor_seating"));
+        assertEquals(0, NearbyCategory.tagLabelRes("unknown_tag"));
+        assertEquals("", NearbyCategory.tagLabel(null, "unknown_tag"));
     }
 }
