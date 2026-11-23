@@ -65,6 +65,7 @@ jobs:
         if: steps.plan.outputs.mode == 'tag_and_release'
         env:
           GH_TOKEN: ${{ secrets.RELEASE_BOT_TOKEN || github.token }}
+          USE_BOT_TOKEN: ${{ secrets.RELEASE_BOT_TOKEN != '' && '1' || '0' }}
           TAG: ${{ steps.plan.outputs.tag }}
           VERSION_CODE: ${{ steps.plan.outputs.version_code }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -73,13 +74,16 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag -a "$TAG" -m "Release $TAG (versionCode $VERSION_CODE, from PR #$PR_NUMBER)"
           git push origin "refs/tags/$TAG"
-          gh workflow run release.yml --repo "$GITHUB_REPOSITORY" --ref main -f "release_tag=$TAG"
+          if [[ "$USE_BOT_TOKEN" == "0" ]]; then
+            # Tag pushes made with GITHUB_TOKEN do not trigger on:push:tags workflows; dispatch explicitly.
+            gh workflow run release.yml --repo "$GITHUB_REPOSITORY" --ref main -f "release_tag=$TAG"
+          fi
           {
             echo "### Automated SemVer Release Dispatched"
             echo ""
             echo "- **Tag**: \`$TAG\` (versionCode \`$VERSION_CODE\`)"
             echo "- **Commit**: \`$(git rev-parse HEAD)\`"
-            echo "- **Workflow**: Dispatched \`.github/workflows/release.yml\` on \`main\`"
+            echo "- **Workflow**: Triggered \`.github/workflows/release.yml\` on \`main\`"
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Open or update ruleset-compliant version-bump PR
         if: steps.plan.outputs.mode == 'open_bump_pr'
@@ -93,6 +97,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin "refs/heads/$BRANCH:refs/remotes/origin/$BRANCH" 2>/dev/null || true
           git checkout -B "$BRANCH"
           git add gradle.properties
           git commit -m "chore(release): bump Android version to $TAG (versionCode $VERSION_CODE)"
