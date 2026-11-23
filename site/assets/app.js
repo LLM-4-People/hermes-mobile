@@ -12,8 +12,15 @@
       var saved = window.localStorage.getItem(LANG_KEY);
       if (saved === 'fr' || saved === 'en') return saved;
     } catch (e) {}
-    var nav = (navigator.language || 'fr').toLowerCase();
-    return nav.indexOf('fr') === 0 ? 'fr' : 'en';
+    var list = (Array.isArray(navigator.languages) && navigator.languages.length)
+      ? navigator.languages
+      : (navigator.language ? [navigator.language] : []);
+    for (var i = 0; i < list.length; i++) {
+      var tag = String(list[i] || '').trim().toLowerCase();
+      if (tag === 'en' || tag.indexOf('en-') === 0 || tag.indexOf('en_') === 0) return 'en';
+      if (tag === 'fr' || tag.indexOf('fr-') === 0 || tag.indexOf('fr_') === 0) return 'fr';
+    }
+    return 'en';
   }
 
   function detectTheme() {
