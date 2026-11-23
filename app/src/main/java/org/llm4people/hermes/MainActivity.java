@@ -37,6 +37,8 @@ import org.llm4people.hermes.customization.AppCustomizationStore;
 import org.llm4people.hermes.doctor.ConnectionDoctorPanel;
 import org.llm4people.hermes.files.PublishedFiles;
 import org.llm4people.hermes.net.HermesApi;
+import org.llm4people.hermes.onboarding.PairingIntent;
+import org.llm4people.hermes.onboarding.PairingLinkParser;
 import org.llm4people.hermes.os.HermesShortcuts;
 import org.llm4people.hermes.os.HermesWidgetSpec;
 import org.llm4people.hermes.os.HermesWidgetStore;
@@ -120,6 +122,8 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     private MobilePush push;
     private MobilePush.Target delivery;
     private OsEntryIntent.Request pendingOsEntry;
+    private PairingLinkParser.ParsedInput pendingPairing;
+    private java.util.function.Consumer<PairingLinkParser.ParsedInput> pairingLinkHandler;
     private String pendingPinnedSurface;
     private String pendingPinnedWidget;
     private AlertDialog notice;
@@ -179,6 +183,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         delivery = MobilePush.target(this, getIntent());
         if (delivery != null && key(delivery).equals(handledDelivery)) delivery = null;
         pendingOsEntry = OsEntryIntent.parseRequest(getIntent());
+        capturePairingDeepLink(getIntent());
         capturePinnedShortcutIntent(getIntent());
         registerBuiltInRoutes();
         registerBuiltInActions();
@@ -190,6 +195,29 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
 
     /** Extensibility hook for feature modules registering additional workspace actions. */
     public ActionRegistry actionRegistry() { return actions; }
+
+    /** Peek at a pending {@code hermes://pair} deep link awaiting explicit user confirmation. */
+    public PairingLinkParser.ParsedInput pendingPairing() { return pendingPairing; }
+
+    /** Consume and clear a pending {@code hermes://pair} deep link so single-use codes are never replayed. */
+    public PairingLinkParser.ParsedInput consumePendingPairing() {
+        PairingLinkParser.ParsedInput current = pendingPairing;
+        pendingPairing = null;
+        return current;
+    }
+
+    /** Register the UI handler (e.g., {@code ProfileGate}/{@code FirstRunWizard}) for warm {@code hermes://pair} intents. */
+    public void setPairingLinkHandler(java.util.function.Consumer<PairingLinkParser.ParsedInput> handler) {
+        this.pairingLinkHandler = handler;
+    }
+
+    private boolean capturePairingDeepLink(Intent intent) {
+        PairingLinkParser.ParsedInput parsed = PairingIntent.parse(intent);
+        if (parsed == null) return false;
+        pendingPairing = parsed;
+        setIntent(new Intent(this, MainActivity.class));
+        return true;
+    }
 
     private void registerBuiltInRoutes() {
         shellRoutes.register(WorkspaceNavigation.DISCUSSION, (route, force) -> renderDiscussion(false, force));
@@ -751,6 +779,19 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         // Android invokes onNewIntent() before onStart()/onResume(); enforce grace expiry first
         // so an expired session locks immediately and queues incoming OS intents until re-unlock.
         checkGraceOnReturn();
+        if (capturePairingDeepLink(intent)) {
+            PairingLinkParser.ParsedInput link = pendingPairing;
+            if (pairingLinkHandler != null && link != null) {
+                pairingLinkHandler.accept(consumePendingPairing());
+            } else if (account != null) {
+                // Lock/switch cleanly to the setup gate so the user explicitly confirms before saving a new profile.
+                lock();
+                unlock();
+            } else {
+                unlock();
+            }
+            return;
+        }
         if (sharedText.receive(intent) || sharedMedia.receive(intent)) {
             setIntent(new Intent(this, MainActivity.class));
             delivery = null;
@@ -1624,6 +1665,8 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     }
 
     @Override protected void onDestroy() {
+        pendingPairing = null;
+        pairingLinkHandler = null;
         clearWorkspace();
         if (gate != null) gate.close();
         if (files != null) files.close();
