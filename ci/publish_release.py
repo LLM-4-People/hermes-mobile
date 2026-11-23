@@ -47,7 +47,7 @@ class Releases:
             raise ValueError("The reviewed main revision changed")
         refs = json.loads(self.api("git/matching-refs/tags/" + self.tag))
         if any(row["ref"] == "refs/tags/" + self.tag for row in refs):
-            if json.loads(self.api("commits/tags/" + self.tag))["sha"] != self.sha:
+            if json.loads(self.api("commits/refs/tags/" + self.tag))["sha"] != self.sha:
                 raise ValueError("The tag identifies a different commit")
 
     def history(self):

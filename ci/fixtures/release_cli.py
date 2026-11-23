@@ -16,8 +16,13 @@ if args[0] == "api":
     if "/branches/main" in path:
         print(json.dumps({"commit": {"sha": state["main"]}}))
     elif "/git/matching-refs/tags/" in path:
-        print(json.dumps([{"ref": "refs/tags/" + path.split("/")[-1]}] if state["ref"] else []))
-    elif "/commits/tags/" in path:
+        if state["ref"]:
+            obj = ({"type": "tag", "sha": "0" * 40} if state.get("annotated")
+                   else {"type": "commit", "sha": state["ref"]})
+            print(json.dumps([{"ref": "refs/tags/" + path.split("/")[-1], "object": obj}]))
+        else:
+            print("[]")
+    elif "/commits/refs/tags/" in path:
         print(json.dumps({"sha": state["ref"]}))
     elif "/releases?" in path:
         print(json.dumps([state["releases"]]))
