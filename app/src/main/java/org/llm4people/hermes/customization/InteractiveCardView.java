@@ -18,6 +18,9 @@ import org.json.JSONObject;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
+import org.llm4people.hermes.onboarding.PairingLinkParser;
+import org.llm4people.hermes.onboarding.PairingShareSheet;
+import org.llm4people.hermes.onboarding.QrCodeView;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -58,7 +61,8 @@ public final class InteractiveCardView extends LinearLayout {
         CHECKLIST("checklist"),
         QUICK_PICKS("quick_pick"),
         TOGGLES("toggle_confirm"),
-        CUSTOMIZATION_PREVIEW("customization_preview");
+        CUSTOMIZATION_PREVIEW("customization_preview"),
+        PAIRING_INVITE("pairing_invite");
 
         public final String wire;
 
@@ -71,8 +75,36 @@ public final class InteractiveCardView extends LinearLayout {
                 case "quick_pick", "quick_picks" -> QUICK_PICKS;
                 case "toggle_confirm", "toggles" -> TOGGLES;
                 case "customization_preview" -> CUSTOMIZATION_PREVIEW;
+                case "pairing_invite", "pairing" -> PAIRING_INVITE;
                 default -> null;
             };
+        }
+    }
+
+    /** Validated fail-closed payload for an inline LLM pairing / invite card with QR &amp; Share actions. */
+    public record PairingInvite(
+            String mode,
+            String deepLink,
+            String profileSlug,
+            String displayName,
+            long expiresAtEpochSec,
+            int ttlSeconds) {
+        public PairingInvite {
+            String normalizedMode = mode == null ? "" : mode.trim().toLowerCase(Locale.ROOT);
+            mode = ("invite".equals(normalizedMode) || "device".equals(normalizedMode)) ? normalizedMode : "device";
+            deepLink = deepLink == null ? "" : deepLink.trim();
+            if (deepLink.isEmpty() || PairingLinkParser.parseOrNull(deepLink) == null) {
+                throw new IllegalArgumentException("Invalid pairing_invite deep_link");
+            }
+            profileSlug = AppCustomization.sanitizePlainText(profileSlug, 64);
+            displayName = AppCustomization.sanitizePlainText(displayName, 64);
+            expiresAtEpochSec = Math.max(0L, expiresAtEpochSec);
+            ttlSeconds = Math.max(0, Math.min(900, ttlSeconds));
+        }
+
+        public long remainingSeconds(long nowEpochSec) {
+            if (expiresAtEpochSec > 0L) return Math.max(0L, expiresAtEpochSec - nowEpochSec);
+            return ttlSeconds;
         }
     }
 
@@ -135,6 +167,7 @@ public final class InteractiveCardView extends LinearLayout {
         public final List<ToggleItem> toggles;
         public final AppCustomization proposedCustomization;
         public final CustomizationDelta customizationDelta;
+        public final PairingInvite pairingInvite;
 
         public Spec(
                 String cardId,
@@ -145,7 +178,7 @@ public final class InteractiveCardView extends LinearLayout {
                 List<QuickPick> quickPicks,
                 List<ToggleItem> toggles,
                 AppCustomization proposedCustomization) {
-            this(cardId, kind, title, subtitle, checklist, quickPicks, toggles, proposedCustomization, null);
+            this(cardId, kind, title, subtitle, checklist, quickPicks, toggles, proposedCustomization, null, null);
         }
 
         public Spec(
@@ -158,6 +191,21 @@ public final class InteractiveCardView extends LinearLayout {
                 List<ToggleItem> toggles,
                 AppCustomization proposedCustomization,
                 CustomizationDelta customizationDelta) {
+            this(cardId, kind, title, subtitle, checklist, quickPicks, toggles,
+                    proposedCustomization, customizationDelta, null);
+        }
+
+        public Spec(
+                String cardId,
+                Kind kind,
+                String title,
+                String subtitle,
+                List<ChecklistItem> checklist,
+                List<QuickPick> quickPicks,
+                List<ToggleItem> toggles,
+                AppCustomization proposedCustomization,
+                CustomizationDelta customizationDelta,
+                PairingInvite pairingInvite) {
             this.cardId = validateId(cardId);
             this.kind = Objects.requireNonNull(kind, "kind");
             this.title = requireText(title, MAX_TITLE_CHARS, "Card title");
@@ -169,8 +217,12 @@ public final class InteractiveCardView extends LinearLayout {
             this.proposedCustomization = proposedCustomization != null
                     ? proposedCustomization
                     : (customizationDelta != null ? customizationDelta.mergeOnto(AppCustomization.defaults()) : null);
+            this.pairingInvite = pairingInvite;
             if (kind == Kind.CUSTOMIZATION_PREVIEW && this.proposedCustomization == null) {
                 throw new IllegalArgumentException("Customization preview requires proposed customization");
+            }
+            if (kind == Kind.PAIRING_INVITE && this.pairingInvite == null) {
+                throw new IllegalArgumentException("Pairing invite card requires pairingInvite payload");
             }
         }
 
@@ -202,7 +254,13 @@ public final class InteractiveCardView extends LinearLayout {
                 String cardId, String title, String subtitle, CustomizationDelta delta) {
             Objects.requireNonNull(delta, "delta");
             return new Spec(cardId, Kind.CUSTOMIZATION_PREVIEW, title, subtitle, null, null, null,
-                    delta.mergeOnto(AppCustomization.defaults()), delta);
+                    delta.mergeOnto(AppCustomization.defaults()), delta, null);
+        }
+
+        public static Spec pairingInvite(
+                String cardId, String title, String subtitle, PairingInvite invite) {
+            Objects.requireNonNull(invite, "invite");
+            return new Spec(cardId, Kind.PAIRING_INVITE, title, subtitle, null, null, null, null, null, invite);
         }
 
         /** Pure-Java fail-closed parser matching canonical Track 9A {@code interactive_cards} schema. */
@@ -262,6 +320,18 @@ public final class InteractiveCardView extends LinearLayout {
                     }
                     CustomizationDelta delta = parseCustomizationDeltaMap((Map<String, Object>) m);
                     yield customizationPreview(id, title, subtitle, delta);
+                }
+                case PAIRING_INVITE -> {
+                    Object nested = raw.get("pairing");
+                    Map<String, Object> src = nested instanceof Map<?, ?> m ? (Map<String, Object>) m : raw;
+                    String mode = str(src.get("mode"));
+                    String link = str(src.containsKey("deep_link") ? src.get("deep_link") : src.get("link"));
+                    String slug = str(src.get("profile_slug"));
+                    String displayName = str(src.get("display_name"));
+                    long expiresAt = parseLongVal(src.get("expires_at"));
+                    int ttl = (int) parseLongVal(src.get("ttl_seconds"));
+                    yield pairingInvite(id, title, subtitle,
+                            new PairingInvite(mode, link, slug, displayName, expiresAt, ttl));
                 }
             };
         }
@@ -366,6 +436,18 @@ public final class InteractiveCardView extends LinearLayout {
                             preset, customHex, density, fontDelta, tab, greeting, themeMode);
                     yield customizationPreview(id, title, subtitle, delta);
                 }
+                case PAIRING_INVITE -> {
+                    JSONObject src = obj.optJSONObject("pairing");
+                    if (src == null) src = obj;
+                    String mode = src.optString("mode", "device");
+                    String link = src.has("deep_link") ? src.optString("deep_link", "") : src.optString("link", "");
+                    String slug = src.optString("profile_slug", "");
+                    String displayName = src.optString("display_name", "");
+                    long expiresAt = parseLongVal(src.opt("expires_at"));
+                    int ttl = src.optInt("ttl_seconds", 300);
+                    yield pairingInvite(id, title, subtitle,
+                            new PairingInvite(mode, link, slug, displayName, expiresAt, ttl));
+                }
             };
         }
 
@@ -447,6 +529,8 @@ public final class InteractiveCardView extends LinearLayout {
         default void onToggleChanged(String cardId, String toggleId, boolean checked) {}
         default void onApplyCustomization(String cardId, AppCustomization proposed) {}
         default void onUndoCustomization(String cardId) {}
+        default void onSharePairingLink(String cardId, PairingInvite invite) {}
+        default void onCopyPairingLink(String cardId, PairingInvite invite) {}
     }
 
     private final Spec spec;
@@ -493,6 +577,7 @@ public final class InteractiveCardView extends LinearLayout {
             case QUICK_PICKS -> renderQuickPicks(context);
             case TOGGLES -> renderToggles(context);
             case CUSTOMIZATION_PREVIEW -> renderCustomizationPreview(context);
+            case PAIRING_INVITE -> renderPairingInvite(context);
         }
     }
 
@@ -669,6 +754,100 @@ public final class InteractiveCardView extends LinearLayout {
         addView(actionsScroll, actionsLp);
     }
 
+    private void renderPairingInvite(Context context) {
+        PairingInvite invite = spec.pairingInvite;
+        if (invite == null) return;
+        int touchMin = Ui.dp(context, 48);
+
+        TextView modePill = Ui.text(context,
+                context.getString("invite".equals(invite.mode())
+                        ? R.string.card_pairing_mode_invite : R.string.card_pairing_mode_device), 12);
+        modePill.setTypeface(mediumTypeface());
+        modePill.setTextColor(context.getColor(R.color.accent));
+        modePill.setPaddingRelative(Ui.dp(context, 10), Ui.dp(context, 4),
+                Ui.dp(context, 10), Ui.dp(context, 4));
+        GradientDrawable pillBg = new GradientDrawable();
+        pillBg.setCornerRadius(Ui.dp(context, 999));
+        pillBg.setColor(context.getColor(R.color.accent_surface));
+        modePill.setBackground(pillBg);
+        LayoutParams modeLp = new LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
+        modeLp.topMargin = Ui.dp(context, 10);
+        addView(modePill, modeLp);
+
+        QrCodeView qr = new QrCodeView(context);
+        qr.setTag("card:pairing_qr");
+        qr.setContentDescription(spec.title);
+        if (qr.setPayload(invite.deepLink())) {
+            int qrSide = Ui.dp(context, 196);
+            LayoutParams qrLp = new LayoutParams(qrSide, qrSide);
+            qrLp.gravity = Gravity.CENTER_HORIZONTAL;
+            qrLp.topMargin = Ui.dp(context, 12);
+            qrLp.bottomMargin = Ui.dp(context, 8);
+            addView(qr, qrLp);
+        }
+
+        long remaining = invite.remainingSeconds(System.currentTimeMillis() / 1000L);
+        String expLabel = remaining > 0L
+                ? context.getString(R.string.card_pairing_expires, PairingShareSheet.formatCountdown(remaining))
+                : context.getString(R.string.card_pairing_expired);
+        TextView expView = Ui.text(context, expLabel, 12);
+        expView.setTextColor(context.getColor(remaining > 0L ? R.color.muted : R.color.danger));
+        expView.setGravity(Gravity.CENTER_HORIZONTAL);
+        LayoutParams expLp = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
+        expLp.topMargin = Ui.dp(context, 2);
+        addView(expView, expLp);
+
+        LinearLayout actions = Ui.row(context);
+        Button share = new Button(context, null, android.R.attr.borderlessButtonStyle);
+        share.setText(context.getString(R.string.card_pairing_share));
+        share.setAllCaps(false);
+        share.setTypeface(mediumTypeface());
+        share.setTextColor(context.getColor(R.color.on_accent));
+        share.setMinHeight(touchMin);
+        share.setMinimumHeight(touchMin);
+        share.setMinWidth(touchMin);
+        share.setMinimumWidth(touchMin);
+        Ui.pad(share, 16, 8);
+        GradientDrawable shareBg = new GradientDrawable();
+        shareBg.setColor(context.getColor(R.color.accent));
+        shareBg.setCornerRadius(Ui.dp(context, 10));
+        share.setBackground(shareBg);
+        share.setTag("card:pairing_share");
+        share.setEnabled(remaining > 0L);
+        share.setOnClickListener(v -> {
+            Diagnostics.event("card", "pairing_share");
+            PairingShareSheet.shareLink(context, invite.deepLink());
+            callbacks.onSharePairingLink(spec.cardId, invite);
+        });
+
+        Button copy = Ui.button(context, context.getString(R.string.card_pairing_copy), v -> {
+            Diagnostics.event("card", "pairing_copy");
+            if (PairingShareSheet.copyLink(context, invite.deepLink())) {
+                ((Button) v).setText(context.getString(R.string.card_pairing_copied));
+            }
+            callbacks.onCopyPairingLink(spec.cardId, invite);
+        });
+        copy.setMinHeight(touchMin);
+        copy.setMinimumHeight(touchMin);
+        copy.setMinWidth(touchMin);
+        copy.setMinimumWidth(touchMin);
+        copy.setTag("card:pairing_copy");
+        copy.setEnabled(remaining > 0L);
+
+        LayoutParams shareLp = new LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
+        shareLp.setMarginEnd(Ui.dp(context, 10));
+        actions.addView(share, shareLp);
+        actions.addView(copy);
+
+        HorizontalScrollView actionsScroll = new HorizontalScrollView(context);
+        actionsScroll.setHorizontalScrollBarEnabled(false);
+        actionsScroll.addView(actions, new HorizontalScrollView.LayoutParams(
+                LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT));
+        LayoutParams actionsLp = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
+        actionsLp.topMargin = Ui.dp(context, 12);
+        addView(actionsScroll, actionsLp);
+    }
+
     static String paletteLabel(Context context, AppCustomization.PalettePreset preset) {
         return switch (preset) {
             case FOREST -> context.getString(R.string.custom_palette_forest);
@@ -708,5 +887,25 @@ public final class InteractiveCardView extends LinearLayout {
 
     private static boolean bool(Object value) {
         return value instanceof Boolean b && b;
+    }
+
+    private static long parseLongVal(Object value) {
+        if (value instanceof Number n) {
+            long raw = n.longValue();
+            return raw > 10_000_000_000L ? raw / 1000L : Math.max(0L, raw);
+        }
+        if (value instanceof String s && !s.trim().isEmpty()) {
+            try {
+                return java.time.Instant.parse(s.trim()).getEpochSecond();
+            } catch (RuntimeException ignored) {
+                try {
+                    long parsed = Long.parseLong(s.trim());
+                    return parsed > 10_000_000_000L ? parsed / 1000L : Math.max(0L, parsed);
+                } catch (NumberFormatException ignored2) {
+                    return 0L;
+                }
+            }
+        }
+        return 0L;
     }
 }

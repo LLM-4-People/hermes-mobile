@@ -224,6 +224,10 @@ final class ProfileScreen {
         status.setText(message);
     }
 
+    void card(View view, int top) {
+        add(view, top);
+    }
+
     private void add(View view, int top) {
         ViewGroup.LayoutParams initial = view.getLayoutParams();
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, initial == null ? -2 : initial.height);

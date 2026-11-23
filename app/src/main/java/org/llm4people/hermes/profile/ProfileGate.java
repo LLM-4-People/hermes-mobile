@@ -19,6 +19,8 @@ import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.ambient.NotificationAllowlist;
 import org.llm4people.hermes.net.HermesApi;
+import org.llm4people.hermes.onboarding.OnboardingModels;
+import org.llm4people.hermes.onboarding.PairingLinkParser;
 import org.llm4people.hermes.os.BiometricVault;
 import java.net.URI;
 import java.util.Arrays;
@@ -142,9 +144,31 @@ public final class ProfileGate {
     private AlertDialog confirmation;
     private BiometricVault.Session activeBiometric;
     private final ProbeController probe = new ProbeController();
+    private PairingLinkParser.ParsedInput pendingPairing;
+    private OnboardingModels.PairingClaim lastPairingClaim;
     private int generation;
     private boolean nested;
     private boolean busy;
+
+    /** Queues a {@code hermes://pair} deep link to be confirmed on the connect screen. */
+    public void setPendingPairing(PairingLinkParser.ParsedInput parsed) {
+        pendingPairing = parsed;
+    }
+
+    /** Opens the connect screen directly with an incoming pairing link requiring explicit confirmation. */
+    public void openAddWithPairing(PairingLinkParser.ParsedInput parsed) {
+        pendingPairing = parsed;
+        if (active == null && !activity.isDestroyed() && !activity.isFinishing()) {
+            add(!store.profiles().isEmpty());
+        }
+    }
+
+    /** Returns and clears the claimed onboarding metadata from a freshly paired profile, or null. */
+    public OnboardingModels.PairingClaim consumeFreshPairingClaim() {
+        OnboardingModels.PairingClaim claimed = lastPairingClaim;
+        lastPairingClaim = null;
+        return claimed;
+    }
 
     public ProfileGate(Activity activity) {
         this.activity = activity;
@@ -258,7 +282,9 @@ public final class ProfileGate {
         onOpen = Objects.requireNonNull(callback);
         invalidate();
         Map<String, String> profiles = store.profiles();
-        if (requestedId != null && profiles.containsKey(requestedId)) {
+        if (pendingPairing != null) {
+            add(!profiles.isEmpty());
+        } else if (requestedId != null && profiles.containsKey(requestedId)) {
             unlock(requestedId, profiles.get(requestedId));
         } else if (requestedId != null) {
             chooser(activity.getString(R.string.profile_setup_missing_on_device));
@@ -357,10 +383,68 @@ public final class ProfileGate {
 
     private void add(boolean canGoBack) {
         generation++;
+        int screenEpoch = generation;
         cancelProbe();
         nested = canGoBack;
+        lastPairingClaim = null;
+        PairingLinkParser.ParsedInput incomingLink = pendingPairing;
+        pendingPairing = null;
         ProfileScreen screen = new ProfileScreen(
                 activity, activity.getString(R.string.profile_connect_title), activity.getString(R.string.profile_connect_detail));
+        final EditText[] fields = new EditText[5];
+        final Button[] testBtnRef = new Button[1];
+        final TextView[] probeStatusRef = new TextView[1];
+        FirstRunWizard.attachInstantSetupCard(
+                activity,
+                screen,
+                incomingLink,
+                PROBE_IO,
+                () -> screenEpoch == generation && !busy,
+                new FirstRunWizard.Step1Targets() {
+                    @Override public void fillFields(String suggestedName, String serverUrl, String profileSlug,
+                                                     String apiKey, boolean focusPassphrase) {
+                        if (fields[0] != null && fields[0].getText().toString().trim().isEmpty()
+                                && suggestedName != null && !suggestedName.isEmpty()) {
+                            fields[0].setText(suggestedName);
+                        }
+                        if (fields[1] != null && serverUrl != null && !serverUrl.isEmpty()) {
+                            fields[1].setText(serverUrl);
+                        }
+                        if (fields[2] != null && profileSlug != null) {
+                            fields[2].setText(profileSlug);
+                        }
+                        if (fields[3] != null && apiKey != null && !apiKey.isEmpty()) {
+                            fields[3].setText(apiKey);
+                        }
+                        if (focusPassphrase && fields[4] != null) {
+                            fields[4].requestFocus();
+                        } else if (!focusPassphrase && fields[3] != null) {
+                            fields[3].requestFocus();
+                        }
+                    }
+
+                    @Override public void triggerConnectionProbe(String endpoint, String bearer) {
+                        if (testBtnRef[0] != null && probeStatusRef[0] != null
+                                && endpoint != null && !endpoint.isEmpty() && bearer != null && !bearer.isEmpty()) {
+                            runConnectionProbe(screen, testBtnRef[0], probeStatusRef[0], endpoint, bearer);
+                        }
+                    }
+
+                    @Override public void showInstantStatus(String message, int colorRes) {
+                        if (probeStatusRef[0] != null) screen.setNote(probeStatusRef[0], message, colorRes);
+                    }
+
+                    @Override public void onClaimedMetadata(OnboardingModels.PairingClaim claim) {
+                        lastPairingClaim = claim;
+                    }
+
+                    @Override public void trackDialog(AlertDialog dialog) {
+                        if (confirmation != null && confirmation != dialog) {
+                            try { confirmation.dismiss(); } catch (RuntimeException ignored) {}
+                        }
+                        confirmation = dialog;
+                    }
+                });
         EditText name = screen.field(activity.getString(R.string.profile_name_label),
                 activity.getString(R.string.profile_name_hint), TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES, 80, false);
         EditText server = screen.field(activity.getString(R.string.profile_server_label),
@@ -374,6 +458,8 @@ public final class ProfileGate {
         EditText key = screen.field(activity.getString(R.string.profile_key_label), "", SECRET, 8192, true);
         Button testButton = screen.action(activity.getString(R.string.profile_setup_test_action), false, null);
         TextView probeStatus = screen.liveNote("");
+        testBtnRef[0] = testButton;
+        probeStatusRef[0] = probeStatus;
         testButton.setOnClickListener(view -> {
             if (busy) return;
             String endpoint = validatedEndpoint(server, serverProfile);
@@ -386,6 +472,11 @@ public final class ProfileGate {
         EditText phrase = screen.field(activity.getString(R.string.profile_passphrase_label),
                 activity.getResources().getQuantityString(R.plurals.profile_passphrase_hint, MIN_PASSPHRASE, MIN_PASSPHRASE),
                 SECRET, 512, true);
+        fields[0] = name;
+        fields[1] = server;
+        fields[2] = serverProfile;
+        fields[3] = key;
+        fields[4] = phrase;
         EditText repeat = screen.field(activity.getString(R.string.profile_passphrase_confirm_label), "", SECRET, 512, true);
         TextView passphraseHint = screen.liveNote("");
         watchPassphraseStrength(screen, phrase, repeat, passphraseHint);

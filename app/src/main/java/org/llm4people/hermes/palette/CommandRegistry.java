@@ -166,6 +166,15 @@ public final class CommandRegistry {
 
     /** Builds the default curated native action catalog in the active FR/EN locale. */
     public static List<CommandItem> defaultNativeCommands(Context context, Consumer<String> dispatchAction) {
+        return defaultNativeCommands(context, false, dispatchAction);
+    }
+
+    /**
+     * Builds the curated native action catalog in the active FR/EN locale.
+     * Admin-only profile &amp; server actions are included strictly when {@code isAdmin} is true.
+     */
+    public static List<CommandItem> defaultNativeCommands(Context context, boolean isAdmin,
+                                                          Consumer<String> dispatchAction) {
         Objects.requireNonNull(context, "context");
         Consumer<String> run = dispatchAction != null ? dispatchAction : ignored -> {};
         List<CommandItem> list = new ArrayList<>();
@@ -199,6 +208,18 @@ public final class CommandRegistry {
                 R.string.palette_act_language_hint, "language langue francais english fr en", run);
         addAction(list, context, "security", R.string.palette_act_security_title,
                 R.string.palette_act_security_hint, "security securite lock verrouiller biometrie profil", run);
+        addAction(list, context, "profile_hub", R.string.palette_act_profile_hub_title,
+                R.string.palette_act_profile_hub_hint, "profiles profils users utilisateurs hub gerer manage", run);
+        addAction(list, context, "switch_profile", R.string.palette_act_switch_profile_title,
+                R.string.palette_act_switch_profile_hint, "switch changer profil account compte", run);
+        addAction(list, context, "pair_device", R.string.palette_act_pair_device_title,
+                R.string.palette_act_pair_device_hint, "pair associer qr device appareil tablette", run);
+        if (isAdmin) {
+            addAction(list, context, "invite_person", R.string.palette_act_invite_person_title,
+                    R.string.palette_act_invite_person_hint, "invite inviter user utilisateur famille equipe", run);
+            addAction(list, context, "admin_console", R.string.palette_act_admin_console_title,
+                    R.string.palette_act_admin_console_hint, "admin administration server serveur settings users", run);
+        }
         addAction(list, context, "pages", R.string.palette_act_screens_title,
                 R.string.palette_act_screens_hint, "screens ecrans atelier pages custom widgets", run);
         return Collections.unmodifiableList(list);
