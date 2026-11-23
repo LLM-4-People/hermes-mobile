@@ -1,0 +1,31 @@
+# Zero-Root Ambient Intelligence
+
+Hermes Mobile includes an optional, zero-root **Ambient Intelligence** panel under **Activity** (**Activité**) that lets Hermes help with selected third-party notifications, media playback, and opt-in device context—while staying **fail-closed and completely OFF by default**.
+
+## Opt-In & Privacy Boundaries
+
+- **OFF by default per profile:** Enabling ambient access on one profile never enables it on another profile on the same device.
+- **Guided Android 13–16 setup:** The panel walks you through Android’s two-step restricted-settings and Notification Listener enrollment without hidden prompts or accessibility hacks.
+- **Searchable per-app allowlist:** Only apps you explicitly toggle ON can enter the in-memory sanitized digest.
+- **Fail-closed `NotificationPrivacyGuard`:** Before any third-party notification reaches memory, `NotificationPrivacyGuard` evaluates it at the lowest choking point and hard-blocks:
+  - Hermes itself (`org.llm4people.hermes`)
+  - OTP / 2FA verification codes and alphanumeric authentication tokens
+  - Password managers, authenticators, banking, finance, and crypto wallet apps (excluded from the allowlist UI as well)
+  - `VISIBILITY_SECRET` lockscreen notifications
+  - Ongoing, foreground-service, group-summary, and system/status noise
+
+## What You Can Do From the Digest
+
+Each sanitized entry in your profile’s live digest offers explicit, user-confirmed actions:
+- **Summarize in Discussions:** Stage a prompt in your active discussion composer (never auto-sent).
+- **Save to Smart Notes:** Turn an important message into a structured note in Brain Studio.
+- **Add to Calendar:** Open Android’s calendar editor pre-filled with the event details for review.
+- **Reviewed Quick-Reply:** Draft a reply with Hermes, inspect the exact outgoing text in a confirmation dialog, and explicitly approve before Android invokes the notification’s `RemoteInput` action.
+- **Dismiss:** Remove the entry from the local digest buffer.
+
+## Now Playing & Approved Device Context
+
+- **Now Playing card:** When notification access is granted and media control is enabled, inspect the active media session and trigger user-confirmed play/pause/next/previous actions.
+- **Calendar, Contacts & Device Bridge:** Optional read-only calendar/contact context and approved bridge capabilities (`calendar_read`, `media_control`, `camera`, `location_coarse`, `nearby_osm`, `clipboard_read`, and the 10 reviewed OS actions) each request explicit runtime permission and per-action user review before executing or returning results to Hermes.
+
+<!-- Generated from docs/sources/docs/ambient.md.in by scripts/docs.py. -->

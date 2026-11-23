@@ -8,29 +8,31 @@ android
 
 ## Stack
 
-Native Android views, with Java and the Android SDK. This app requires our own Hermes Agent fork at [{{ fork_repository }}]({{ fork_url }}) for single-host multi-profile `/p/{profile}`, run-scoped instructions, live UI editing, universal push, universal sharing, Smart Notes, visual approval diffs, and Brain Studio.
+Native Android views, with Java and the Android SDK (API 28–36, zero WebView, minimal dependencies: Firebase Messaging and UnifiedPush Connector). This app requires our Hermes Agent fork at [{{ fork_repository }}]({{ fork_url }}) for single-host multi-profile `/p/{profile}`, run-scoped instructions, Live UI modding (`ui.patch`), universal push deliveries (`mobile_deliver`), universal same-server sharing, Smart Notes, pattern-gated habits, visual approval diffs, Brain Studio, and the approved device bridge.
 
 ## Users and operating context
 
-People use their own protected Hermes profile to chat, write code, and return to long-running work from a phone or tablet. One single HTTPS server hostname serves all users and profiles under `/p/<profile>`, each isolated in its own profile directory with its own private workspace, provider credentials, and access key—without needing a separate HTTPS hostname per person. A device can hold more than one account, and users on the same server can share notes, tools, widgets, and discussions with one another.
+People use their own protected Hermes profile to chat, write code, manage personal knowledge, and return to long-running work from a phone or tablet in English or French. **One single HTTPS server hostname** serves all users and profiles under `/p/<profile>`, each isolated in its own profile directory with its own private workspace, provider credentials, and 256-bit access key—without needing a separate HTTPS hostname per person. A device can hold more than one account, and users on the same server can share notes, skills, surfaces, widgets, tools, artifacts, and discussions with one another.
 
 ## Product purpose
 
-Resume a conversation, see what happened while away, and act on the work in the same thread. Coding sessions need readable code and diffs, visible tool activity, and approval requests. Artifacts belong to their originating conversation.
+Resume a conversation, see what happened while away, and act on the work in the same thread. Coding sessions need readable syntax-highlighted code and visual hunk diffs, visible tool activity, and explicit approval requests. Artifacts and pinned tools belong to their originating conversation.
 
-People describe what they want in everyday language, by typing or speaking. Hermes can ask a follow-up question in the same conversation. A person can choose a suggested answer or give their own. When Hermes needs permission to act, show the proposed action and its consequences, with the exact technical details available for inspection.
+People describe what they want in everyday language, by typing, dictating, or using hands-free Duplex Voice. Hermes can ask follow-up questions, propose interactive tools or live screen adaptations, suggest habits after observing repeated patterns (`>= 3` occurrences), and prepare native Android actions for review before opening another app.
 
 ## Capabilities and constraints
 
-The APK speaks to the Hermes API. Sessions, jobs, model inventory and available tools come from the connected runtime. Show the source and scope of each usage metric. An unavailable cost or timing measurement needs an explicit unknown state.
-
-A user can receive a private alert while the app is closed and unlock the owning account before opening its thread. One single HTTPS server hostname serves all users while isolating each person’s profile directory, workspace, credentials, and access key (and allowing controlled sharing of notes, tools, widgets, and discussions on the same server). An agent can propose changes to the workspace in the conversation where the need arises. The user can preview, apply, and undo them.
+- **Four adaptive workspaces.** **Discussions**, **Atelier**, **Brain / Cerveau**, and **Activity / Activité** adapt automatically between an IME-aware phone bottom bar and a 92 dp tablet navigation rail with a dual-pane conversation sidebar.
+- **Single source of truth & transparency.** Sessions, jobs, model inventory, capabilities, and available tools come from the connected fork runtime. Usage metrics show their source and scope; unavailable measurements remain visibly unknown rather than fabricated zeros.
+- **Zero-leak private alerts & deliveries.** Closed-app alerts (FCM or self-hosted UnifiedPush) carry only opaque routing metadata. Titles, messages, and delivery payloads stay on the authenticated gateway until the user unlocks the owning profile.
+- **Fail-closed privacy by default.** Local credentials and drafts are encrypted per profile with optional Class-3 biometric unlock and configurable lock grace. Ambient Intelligence (notifications, media, calendar, contacts) starts completely OFF per profile and hard-blocks OTP/2FA codes, password managers, banking apps, and secret lockscreen notifications before content enters memory.
+- **Observable, reversible customization.** Live UI patches (`ui.patch`), Surfaces v2, WCAG-AA theme overrides, and profile-scoped Home Screen Widgets require explicit preview/confirmation and retain full rollback history.
 
 ## Product principles
 
-- Keep the transcript and composer within reach during ongoing work across phones, tablets, rotation and split-screen windows.
-- Keep each question and its answer together. A tap on an approval applies only to the request it names.
-- Let people edit a dictated message before sending it. Keep the keyboard available when voice input is unavailable.
-- Preserve the user's place, drafts and selections across disconnects, window resizes, incoming events and account switches.
-- Keep the entire French interface usable with the keyboard visible, TalkBack, larger text and light or dark appearance.
-- Make changes to tools, providers, reminders and layouts explicit and observable.
+- Keep the transcript and composer within reach during ongoing work across phones, tablets, rotation, and split-screen windows.
+- Keep each question and its answer together. A tap on an approval applies only to the exact request it names.
+- Let people edit a dictated message before sending it, and keep the keyboard available whenever voice input is unavailable.
+- Preserve the user's place, drafts, and selections across disconnects, window resizes, incoming events, and account switches.
+- Keep both the French and English interfaces free of unnecessary technical jargon and fully usable with the keyboard visible, TalkBack, 150% text scale, and light or dark appearance, following the Impeccable Design System Single Source of Truth in [`.impeccable/design.json`](.impeccable/design.json) and [`DESIGN.md`](DESIGN.md) (*"A paper workspace for conversation"*).
+- Make changes to tools, providers, reminders, widgets, and screen layouts explicit, bounded, and reversible.
