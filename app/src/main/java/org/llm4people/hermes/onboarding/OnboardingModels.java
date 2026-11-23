@@ -124,9 +124,9 @@ public final class OnboardingModels {
             String defaultModel,
             int activeCapabilities,
             OnboardingStatus onboarding) {
-        /** Canonical endpoint combining {@link #serverUrl} and optional {@link #profileSlug}. */
+        /** Canonical endpoint combining {@link #serverUrl} and optional non-default {@link #profileSlug}. */
         public String resolvedEndpoint() {
-            return profileSlug == null || profileSlug.isEmpty()
+            return profileSlug == null || profileSlug.isEmpty() || "default".equalsIgnoreCase(profileSlug)
                     ? GatewayAddress.normalize(serverUrl)
                     : GatewayAddress.normalize(serverUrl, profileSlug);
         }
@@ -172,7 +172,8 @@ public final class OnboardingModels {
         String ticketId = cleanText(str(map.get("ticket_id")), 96);
         String code = str(map.get("code")).trim();
         long expiresAt = parseEpochSeconds(map.get("expires_at"));
-        int ttl = Math.max(0, (int) num(map.get("ttl_seconds"), 0L));
+        Object rawTtl = map.containsKey("ttl_seconds") ? map.get("ttl_seconds") : map.get("ttl_remaining_seconds");
+        int ttl = Math.max(0, (int) num(rawTtl, 0L));
         String deepLink = str(map.get("deep_link")).trim();
         String slug = safeSlug(str(map.get("profile_slug")));
         String displayName = cleanText(str(map.get("display_name")), 64);
@@ -196,7 +197,8 @@ public final class OnboardingModels {
     @SuppressWarnings("unchecked")
     public static List<PairingTicket> parseActivePairingTicketsMap(Map<String, Object> map) {
         if (map == null) return Collections.emptyList();
-        Object raw = map.containsKey("tickets") ? map.get("tickets") : map.get("items");
+        Object raw = map.containsKey("data") ? map.get("data")
+                : (map.containsKey("tickets") ? map.get("tickets") : map.get("items"));
         if (!(raw instanceof List<?> list)) return Collections.emptyList();
         List<PairingTicket> out = new ArrayList<>();
         for (Object item : list) {
@@ -342,7 +344,8 @@ public final class OnboardingModels {
     @SuppressWarnings("unchecked")
     public static List<RemoteProfile> parseProfilesMap(Map<String, Object> map) {
         if (map == null) return Collections.emptyList();
-        Object raw = map.containsKey("profiles") ? map.get("profiles") : map.get("items");
+        Object raw = map.containsKey("data") ? map.get("data")
+                : (map.containsKey("profiles") ? map.get("profiles") : map.get("items"));
         if (!(raw instanceof List<?> list)) return Collections.emptyList();
         List<RemoteProfile> out = new ArrayList<>();
         for (Object item : list) {
@@ -358,23 +361,26 @@ public final class OnboardingModels {
         return parseRemoteProfileMap(jsonToMap(obj));
     }
 
+    @SuppressWarnings("unchecked")
     public static RemoteProfile parseRemoteProfileMap(Map<String, Object> map) {
         if (map == null) return null;
-        String slug = safeSlug(str(map.get("slug")));
-        if (slug.isEmpty()) slug = safeSlug(str(map.get("profile_slug")));
+        Map<String, Object> src = map.get("profile") instanceof Map<?, ?> nested
+                ? (Map<String, Object>) nested : map;
+        String slug = safeSlug(str(src.get("slug")));
+        if (slug.isEmpty()) slug = safeSlug(str(src.get("profile_slug")));
         if (slug.isEmpty()) return null;
-        String displayName = cleanText(str(map.get("display_name")), 64);
+        String displayName = cleanText(str(src.get("display_name")), 64);
         if (displayName.isEmpty()) displayName = slug;
-        String lang = normalizeLanguage(str(map.containsKey("preferred_language")
-                ? map.get("preferred_language") : map.get("language")));
-        String model = cleanText(str(map.get("default_model")), 128);
-        String badgeColor = safeHexColor(str(map.get("badge_color")));
-        int activeRuns = Math.max(0, (int) num(map.get("active_runs"), 0L));
-        int threadCount = Math.max(0, (int) num(map.get("thread_count"), 0L));
-        long lastActive = parseEpochSeconds(map.get("last_active"));
-        boolean isAdmin = map.get("is_admin") instanceof Boolean b
-                ? b : "admin".equalsIgnoreCase(str(map.get("role")));
-        boolean isolatedDbOk = bool(map.get("isolated_db_ok"), true);
+        String lang = normalizeLanguage(str(src.containsKey("preferred_language")
+                ? src.get("preferred_language") : src.get("language")));
+        String model = cleanText(str(src.get("default_model")), 128);
+        String badgeColor = safeHexColor(str(src.get("badge_color")));
+        int activeRuns = Math.max(0, (int) num(src.get("active_runs"), 0L));
+        int threadCount = Math.max(0, (int) num(src.get("thread_count"), 0L));
+        long lastActive = parseEpochSeconds(src.get("last_active"));
+        boolean isAdmin = src.get("is_admin") instanceof Boolean b
+                ? b : "admin".equalsIgnoreCase(str(src.get("role")));
+        boolean isolatedDbOk = bool(src.get("isolated_db_ok"), true);
         return new RemoteProfile(slug, displayName, lang, model, badgeColor,
                 activeRuns, threadCount, lastActive, isAdmin, isolatedDbOk);
     }

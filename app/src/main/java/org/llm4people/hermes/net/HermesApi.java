@@ -291,9 +291,17 @@ public final class HermesApi {
         return post("/api/mobile/pairing/create", body == null ? new JSONObject() : body);
     }
 
-    /** List active non-expired pairing ticket metadata (never returns secret codes). */
+    /** List active non-expired pairing ticket metadata for the caller profile (never returns secret codes). */
     public JSONObject activePairings() throws IOException {
-        return get("/api/mobile/pairing/active");
+        return activePairings(false);
+    }
+
+    /**
+     * List active non-expired pairing ticket metadata (never returns secret codes).
+     * When {@code allProfiles} is true, requests cross-profile tickets ({@code ?all=1}) for admin callers.
+     */
+    public JSONObject activePairings(boolean allProfiles) throws IOException {
+        return get(allProfiles ? "/api/mobile/pairing/active?all=1" : "/api/mobile/pairing/active");
     }
 
     /** Revoke an unused pairing ticket immediately. */

@@ -264,7 +264,7 @@ public final class AdminConsoleSheet implements AutoCloseable {
                     Diagnostics.warning("admin", "settings_load_failed");
                 }
                 try {
-                    loadedTickets = OnboardingModels.parseActivePairingTickets(api.activePairings());
+                    loadedTickets = OnboardingModels.parseActivePairingTickets(api.activePairings(true));
                 } catch (Exception ignored) {
                     loadedTickets = Collections.emptyList();
                 }
