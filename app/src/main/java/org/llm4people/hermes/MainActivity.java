@@ -177,28 +177,19 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         });
         shellRoutes.register(WorkspaceNavigation.ACTIVITY, (route, force) -> {
             navigation.display(route, this::leavingSurface);
-            activeAmbientPanel = null;
-            if (activeUpdatePanel != null) {
-                activeUpdatePanel.close();
-                activeUpdatePanel = null;
-            }
             shell.show(shell.activitySurface(WorkspaceDialogs.securitySummary(this, account.id),
                             UpdatePanel.badgeLabel(this, updateBadge)),
                     getString(R.string.nav_activity));
         });
         shellRoutes.register(AmbientAccessPanel.ROUTE_ID, (route, force) -> {
             navigation.display(route, this::leavingSurface);
-            if (activeUpdatePanel != null) {
-                activeUpdatePanel.close();
-                activeUpdatePanel = null;
-            }
+            if (activeAmbientPanel != null) activeAmbientPanel.dismissDialogs();
             activeAmbientPanel = new AmbientAccessPanel(this, NotificationAllowlist.forAccount(account),
                     ambientCallbacks());
             shell.show(activeAmbientPanel.buildView(), getString(R.string.ambient_panel_title));
         });
         shellRoutes.register(UpdatePanel.ROUTE_ID, (route, force) -> {
             navigation.display(route, this::leavingSurface);
-            activeAmbientPanel = null;
             if (activeUpdatePanel != null) activeUpdatePanel.close();
             activeUpdatePanel = new UpdatePanel(this);
             shell.show(activeUpdatePanel.buildView(), getString(R.string.update_panel_title));
@@ -916,6 +907,14 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     private void leavingSurface() {
         shell.dismissMenu();
         voice.reader().stop();
+        if (activeAmbientPanel != null) {
+            activeAmbientPanel.dismissDialogs();
+            activeAmbientPanel = null;
+        }
+        if (activeUpdatePanel != null) {
+            activeUpdatePanel.close();
+            activeUpdatePanel = null;
+        }
     }
 
     private void renderDiscussion(boolean composer, boolean force) {
