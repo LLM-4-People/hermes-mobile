@@ -211,6 +211,14 @@ public final class ProfileLockPolicy {
         return out;
     }
 
+    /**
+     * Returns true when switching away from biometric-primary mode so the previous hardware-backed
+     * biometric envelope is revoked once the new PIN/passphrase seal succeeds.
+     */
+    public static boolean shouldRevokeBiometricOnModeChange(Mode previous, Mode next) {
+        return previous == Mode.BIOMETRIC && next != Mode.BIOMETRIC;
+    }
+
     public static Mode mode(Context context, String profileId) {
         if (context == null || profileId == null || profileId.isEmpty()) return Mode.PASSPHRASE;
         SharedPreferences prefs = prefs(context);

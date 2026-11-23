@@ -147,12 +147,11 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     private boolean internalActivityTransition;
     private long internalTransitionAtMs = -1L;
     private boolean screenLockedWhileBackgrounded;
-    private static final long MAX_INTERNAL_TRANSITION_MS = 300_000L;
     private final android.content.BroadcastReceiver screenOffReceiver = new android.content.BroadcastReceiver() {
         @Override public void onReceive(Context context, Intent intent) {
             if (Intent.ACTION_SCREEN_OFF.equals(intent.getAction())) {
                 screenLockedWhileBackgrounded = true;
-                internalActivityTransition = false;
+                clearInternalTransition();
                 if (account != null) {
                     Diagnostics.event("security", "screen_off_locked");
                     lock();
@@ -1697,6 +1696,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
 
     private void clearWorkspace() {
         clearGraceTimer();
+        clearInternalTransition();
         MemoryPressure.clearAll();
         nudgeRateLimiter.reset();
         presenceTracker.clearOnLock();
@@ -1827,19 +1827,33 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
 
     @Override public void startActivityForResult(Intent intent, int requestCode, Bundle options) {
         markInternalTransition();
-        super.startActivityForResult(intent, requestCode, options);
+        try {
+            super.startActivityForResult(intent, requestCode, options);
+        } catch (RuntimeException err) {
+            clearInternalTransition();
+            throw err;
+        }
     }
 
     @Override public void startActivity(Intent intent, Bundle options) {
-        if (intent != null && Intent.ACTION_CHOOSER.equals(intent.getAction())) {
-            markInternalTransition();
+        boolean marked = intent != null && Intent.ACTION_CHOOSER.equals(intent.getAction());
+        if (marked) markInternalTransition();
+        try {
+            super.startActivity(intent, options);
+        } catch (RuntimeException err) {
+            if (marked) clearInternalTransition();
+            throw err;
         }
-        super.startActivity(intent, options);
     }
 
     private void markInternalTransition() {
         internalActivityTransition = true;
         internalTransitionAtMs = SystemClock.elapsedRealtime();
+    }
+
+    private void clearInternalTransition() {
+        internalActivityTransition = false;
+        internalTransitionAtMs = -1L;
     }
 
     private boolean isDeviceLockedNow() {
@@ -1853,9 +1867,11 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         long now = SystemClock.elapsedRealtime();
         if (internalActivityTransition) {
             long startedAt = internalTransitionAtMs;
-            internalActivityTransition = false;
-            internalTransitionAtMs = -1L;
-            boolean expired = startedAt < 0L || now < startedAt || (now - startedAt) >= MAX_INTERNAL_TRANSITION_MS;
+            clearInternalTransition();
+            long timeoutMs = account != null
+                    ? LockGracePolicy.internalTransitionTimeoutMillis(LockGracePolicy.window(this, account.id))
+                    : LockGracePolicy.INTERNAL_TRANSITION_MAX_MS;
+            boolean expired = LockGracePolicy.isInternalTransitionExpired(startedAt, now, timeoutMs);
             if (account != null && (deviceLocked || expired)) {
                 Diagnostics.event("security", "internal_transition_locked");
                 lock();
@@ -1885,6 +1901,13 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         }
         boolean deviceLocked = isDeviceLockedNow();
         if (internalActivityTransition && !deviceLocked) {
+            if (account != null) {
+                backgroundedAtElapsedMs = SystemClock.elapsedRealtime();
+                long timeoutMs = LockGracePolicy.internalTransitionTimeoutMillis(
+                        LockGracePolicy.window(this, account.id));
+                main.removeCallbacks(graceExpiry);
+                main.postDelayed(graceExpiry, timeoutMs);
+            }
             return;
         }
         if (account == null) {

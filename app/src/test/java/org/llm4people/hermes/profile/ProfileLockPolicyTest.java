@@ -128,4 +128,40 @@ public final class ProfileLockPolicyTest {
         Arrays.fill(s1, '\0');
         Arrays.fill(s2, '\0');
     }
+
+    @Test
+    public void switchingAwayFromBiometricPrimaryRevokesOldEnvelopeOnlyWhenLeavingBiometric() {
+        assertTrue(ProfileLockPolicy.shouldRevokeBiometricOnModeChange(
+                ProfileLockPolicy.Mode.BIOMETRIC, ProfileLockPolicy.Mode.PIN));
+        assertTrue(ProfileLockPolicy.shouldRevokeBiometricOnModeChange(
+                ProfileLockPolicy.Mode.BIOMETRIC, ProfileLockPolicy.Mode.PASSPHRASE));
+        assertFalse(ProfileLockPolicy.shouldRevokeBiometricOnModeChange(
+                ProfileLockPolicy.Mode.BIOMETRIC, ProfileLockPolicy.Mode.BIOMETRIC));
+        assertFalse(ProfileLockPolicy.shouldRevokeBiometricOnModeChange(
+                ProfileLockPolicy.Mode.PIN, ProfileLockPolicy.Mode.PASSPHRASE));
+        assertFalse(ProfileLockPolicy.shouldRevokeBiometricOnModeChange(
+                ProfileLockPolicy.Mode.PASSPHRASE, ProfileLockPolicy.Mode.PIN));
+        assertFalse(ProfileLockPolicy.shouldRevokeBiometricOnModeChange(
+                ProfileLockPolicy.Mode.PIN, ProfileLockPolicy.Mode.BIOMETRIC));
+    }
+
+    @Test
+    public void biometricEnrollmentGuardRollsBackExactlyOnceOnCancelOrInterruptAndNeverAfterEnroll() {
+        ProfileGate.BiometricEnrollmentGuard guard = new ProfileGate.BiometricEnrollmentGuard();
+        int[] rollbacks = {0};
+
+        // Interruption (e.g., cancelBiometric/invalidate) before enrollment triggers rollback once
+        guard.arm(() -> rollbacks[0]++);
+        assertTrue(guard.rollbackOnce());
+        assertFalse("Second rollback (e.g., late onCancelled) must be a no-op", guard.rollbackOnce());
+        assertFalse("Late onEnrolled after rollback must be rejected", guard.markEnrolled());
+        assertEquals(1, rollbacks[0]);
+
+        // Successful enrollment disarms rollback permanently
+        guard.arm(() -> rollbacks[0]++);
+        assertTrue(guard.markEnrolled());
+        assertFalse("Double onEnrolled must be ignored", guard.markEnrolled());
+        assertFalse("Cancel after successful enroll must not roll back", guard.rollbackOnce());
+        assertEquals(1, rollbacks[0]);
+    }
 }

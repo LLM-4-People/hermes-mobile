@@ -141,6 +141,33 @@ public final class ProfileGate {
         }
     }
 
+    /** Idempotent single-settlement guard ensuring an un-enrolled biometric profile is rolled back exactly once. */
+    static final class BiometricEnrollmentGuard {
+        private boolean settled;
+        private Runnable onRollback;
+
+        void arm(Runnable rollback) {
+            settled = false;
+            onRollback = rollback;
+        }
+
+        boolean markEnrolled() {
+            if (settled) return false;
+            settled = true;
+            onRollback = null;
+            return true;
+        }
+
+        boolean rollbackOnce() {
+            if (settled) return false;
+            settled = true;
+            Runnable action = onRollback;
+            onRollback = null;
+            if (action != null) action.run();
+            return true;
+        }
+    }
+
     private final Activity activity;
     private final AccountStore store;
     private final UnlockBackoff backoff;
@@ -149,6 +176,7 @@ public final class ProfileGate {
     private Account active;
     private AlertDialog confirmation;
     private BiometricVault.Session activeBiometric;
+    private BiometricEnrollmentGuard pendingBiometricGuard;
     private final ProbeController probe = new ProbeController();
     private PairingLinkParser.ParsedInput pendingPairing;
     private OnboardingModels.PairingClaim lastPairingClaim;
@@ -337,6 +365,9 @@ public final class ProfileGate {
         BiometricVault.Session session = activeBiometric;
         activeBiometric = null;
         if (session != null) session.cancel();
+        BiometricEnrollmentGuard guard = pendingBiometricGuard;
+        pendingBiometricGuard = null;
+        if (guard != null) guard.rollbackOnce();
     }
 
     private void cancelProbe() {
@@ -383,11 +414,10 @@ public final class ProfileGate {
             long waitMs = backoff.remainingMs(id);
             String badge;
             ProfileScreen.BadgeTone tone;
-            ProfileLockPolicy.Mode lockMode = ProfileLockPolicy.mode(activity, id);
             if (waitMs > 0L) {
                 badge = activity.getString(R.string.profile_setup_badge_cooldown, UnlockBackoff.formatRemaining(waitMs));
                 tone = ProfileScreen.BadgeTone.COOLDOWN;
-            } else if (bioAvailable && (lockMode == ProfileLockPolicy.Mode.BIOMETRIC || BiometricVault.isEnrolled(activity, id))) {
+            } else if (bioAvailable && BiometricVault.isEnrolled(activity, id)) {
                 badge = activity.getString(R.string.profile_setup_badge_biometric);
                 tone = ProfileScreen.BadgeTone.BIOMETRIC;
             } else {
@@ -889,11 +919,15 @@ public final class ProfileGate {
             onDone.accept(false);
             return null;
         }
+        ProfileLockPolicy.Mode previousMode = ProfileLockPolicy.mode(activity, unlocked.id);
         IO.execute(() -> {
             boolean ok = false;
             try {
                 store.changeLockSecret(unlocked, nextSecret);
                 ProfileLockPolicy.setMode(activity, unlocked.id, nextMode);
+                if (ProfileLockPolicy.shouldRevokeBiometricOnModeChange(previousMode, nextMode)) {
+                    BiometricVault.revoke(activity, unlocked.id);
+                }
                 ok = true;
             } catch (Exception err) {
                 Diagnostics.warning("security", "lock_mode_reseal_failed");
@@ -1253,7 +1287,16 @@ public final class ProfileGate {
             boolean finalExpired = expiredOrUsed;
             activity.runOnUiThread(() -> {
                 if (epoch != generation || activity.isFinishing() || activity.isDestroyed()) {
-                    if (created != null) created.close();
+                    if (created != null) {
+                        created.close();
+                        if (lockMode == ProfileLockPolicy.Mode.BIOMETRIC) {
+                            try {
+                                store.forget(created.id);
+                            } catch (java.io.IOException ignored) {
+                                Diagnostics.warning("profile", "biometric_rollback_forget_failed");
+                            }
+                        }
+                    }
                     return;
                 }
                 if (created == null) {
@@ -1276,12 +1319,35 @@ public final class ProfileGate {
                     return;
                 }
                 // Biometric-primary mode: seal hardware-backed envelope before opening workspace.
+                cancelBiometric();
+                BiometricEnrollmentGuard guard = new BiometricEnrollmentGuard();
+                guard.arm(() -> {
+                    if (pendingBiometricGuard == guard) pendingBiometricGuard = null;
+                    activeBiometric = null;
+                    String claimedKey = finalClaim != null ? finalClaim.apiKey() : null;
+                    created.close();
+                    try {
+                        store.forget(created.id);
+                    } catch (java.io.IOException ignored) {
+                        Diagnostics.warning("profile", "biometric_rollback_forget_failed");
+                    }
+                    if (epoch != generation || activity.isFinishing() || activity.isDestroyed()) return;
+                    busy = false;
+                    if (claimedKey != null && !claimedKey.isEmpty()) {
+                        preserveClaimedKeyOnRollback.accept(claimedKey);
+                    } else {
+                        refreshReadiness.run();
+                    }
+                    screen.status(activity.getString(R.string.lock_mode_biometric_enroll_failed), true);
+                });
+                pendingBiometricGuard = guard;
                 try {
                     byte[] payload = store.serializeForBiometric(created);
-                    cancelBiometric();
                     activeBiometric = BiometricVault.enroll(activity, created.id, created.label, payload,
                             new BiometricVault.EnrollmentCallback() {
                                 @Override public void onEnrolled() {
+                                    if (!guard.markEnrolled()) return;
+                                    if (pendingBiometricGuard == guard) pendingBiometricGuard = null;
                                     activeBiometric = null;
                                     if (epoch != generation || activity.isFinishing() || activity.isDestroyed()) {
                                         created.close();
@@ -1295,43 +1361,15 @@ public final class ProfileGate {
                                 }
 
                                 @Override public void onCancelled() {
-                                    rollbackBiometricCreate();
+                                    guard.rollbackOnce();
                                 }
 
                                 @Override public void onError() {
-                                    rollbackBiometricCreate();
-                                }
-
-                                private void rollbackBiometricCreate() {
-                                    activeBiometric = null;
-                                    String claimedKey = finalClaim != null ? finalClaim.apiKey() : null;
-                                    created.close();
-                                    try {
-                                        store.forget(created.id);
-                                    } catch (java.io.IOException ignored) {
-                                        Diagnostics.warning("profile", "biometric_rollback_forget_failed");
-                                    }
-                                    if (epoch != generation || activity.isFinishing() || activity.isDestroyed()) return;
-                                    busy = false;
-                                    if (claimedKey != null && !claimedKey.isEmpty()) {
-                                        preserveClaimedKeyOnRollback.accept(claimedKey);
-                                    } else {
-                                        refreshReadiness.run();
-                                    }
-                                    screen.status(activity.getString(R.string.lock_mode_biometric_enroll_failed), true);
+                                    guard.rollbackOnce();
                                 }
                             });
                 } catch (java.io.IOException | RuntimeException err) {
-                    String claimedKey = finalClaim != null ? finalClaim.apiKey() : null;
-                    created.close();
-                    try { store.forget(created.id); } catch (java.io.IOException ignored) {}
-                    busy = false;
-                    if (claimedKey != null && !claimedKey.isEmpty()) {
-                        preserveClaimedKeyOnRollback.accept(claimedKey);
-                    } else {
-                        refreshReadiness.run();
-                    }
-                    screen.status(activity.getString(R.string.lock_mode_biometric_enroll_failed), true);
+                    guard.rollbackOnce();
                 }
             });
         });

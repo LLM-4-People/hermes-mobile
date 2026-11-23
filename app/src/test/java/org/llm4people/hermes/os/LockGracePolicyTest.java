@@ -80,4 +80,30 @@ public class LockGracePolicyTest {
         assertTrue(LockGracePolicy.shouldLockOnReturn(
                 LockGracePolicy.Window.MINUTES_15, 1_000L, 901_000L, false, false, false));
     }
+
+    @Test public void internalTransitionTimeoutsStayBoundedAndFailClosed() {
+        assertEquals(LockGracePolicy.INTERNAL_TRANSITION_MIN_MS,
+                LockGracePolicy.internalTransitionTimeoutMillis(null));
+        assertEquals(LockGracePolicy.INTERNAL_TRANSITION_MIN_MS,
+                LockGracePolicy.internalTransitionTimeoutMillis(LockGracePolicy.Window.IMMEDIATE));
+        assertEquals(LockGracePolicy.INTERNAL_TRANSITION_MIN_MS,
+                LockGracePolicy.internalTransitionTimeoutMillis(LockGracePolicy.Window.SECONDS_30));
+        assertEquals(LockGracePolicy.INTERNAL_TRANSITION_MIN_MS,
+                LockGracePolicy.internalTransitionTimeoutMillis(LockGracePolicy.Window.MINUTES_1));
+        assertEquals(120_000L,
+                LockGracePolicy.internalTransitionTimeoutMillis(LockGracePolicy.Window.MINUTES_2));
+        assertEquals(LockGracePolicy.INTERNAL_TRANSITION_MAX_MS,
+                LockGracePolicy.internalTransitionTimeoutMillis(LockGracePolicy.Window.MINUTES_5));
+        assertEquals(LockGracePolicy.INTERNAL_TRANSITION_MAX_MS,
+                LockGracePolicy.internalTransitionTimeoutMillis(LockGracePolicy.Window.MINUTES_30));
+        assertEquals(LockGracePolicy.INTERNAL_TRANSITION_MAX_MS,
+                LockGracePolicy.internalTransitionTimeoutMillis(LockGracePolicy.Window.SCREEN_LOCK));
+
+        // Within cap stays valid; exact boundary, negative, or clock-backwards fail closed
+        assertFalse(LockGracePolicy.isInternalTransitionExpired(1_000L, 60_999L, 60_000L));
+        assertTrue(LockGracePolicy.isInternalTransitionExpired(1_000L, 61_000L, 60_000L));
+        assertTrue(LockGracePolicy.isInternalTransitionExpired(-1L, 2_000L, 60_000L));
+        assertTrue(LockGracePolicy.isInternalTransitionExpired(5_000L, 4_999L, 60_000L));
+        assertTrue(LockGracePolicy.isInternalTransitionExpired(1_000L, 1_001L, 0L));
+    }
 }

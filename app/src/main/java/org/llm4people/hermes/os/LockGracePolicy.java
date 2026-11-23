@@ -18,6 +18,8 @@ public final class LockGracePolicy {
     private static final String PREFIX = "grace.";
 
     public static final Window DEFAULT_FOR_NEW_PROFILE = Window.MINUTES_5;
+    public static final long INTERNAL_TRANSITION_MIN_MS = 60_000L;
+    public static final long INTERNAL_TRANSITION_MAX_MS = 300_000L;
 
     public enum Window {
         IMMEDIATE("0s", 0L, R.string.security_grace_0s),
@@ -92,6 +94,25 @@ public final class LockGracePolicy {
         if (window == null || window == Window.IMMEDIATE) return true;
         if (window == Window.SCREEN_LOCK) return false;
         return shouldLockOnReturn(backgroundedAtElapsedMs, nowElapsedMs, window.millis, false);
+    }
+
+    /**
+     * Bounded RAM-safety timeout for internal child activities (QR scanner, camera capture, photo/file
+     * pickers, share chooser). Allows legitimate picker flows even under {@link Window#IMMEDIATE} while
+     * ensuring an abandoned picker cannot keep keys unlocked indefinitely.
+     */
+    public static long internalTransitionTimeoutMillis(Window window) {
+        if (window == null || window == Window.IMMEDIATE || window.millis <= INTERNAL_TRANSITION_MIN_MS) {
+            if (window != null && window.locksOnScreenOffOnly()) return INTERNAL_TRANSITION_MAX_MS;
+            return INTERNAL_TRANSITION_MIN_MS;
+        }
+        return Math.min(window.millis, INTERNAL_TRANSITION_MAX_MS);
+    }
+
+    /** Fail-closed expiry check for an in-flight internal child-activity transition. */
+    public static boolean isInternalTransitionExpired(long startedAtElapsedMs, long nowElapsedMs, long timeoutMs) {
+        if (timeoutMs <= 0L || startedAtElapsedMs < 0L || nowElapsedMs < startedAtElapsedMs) return true;
+        return (nowElapsedMs - startedAtElapsedMs) >= timeoutMs;
     }
 
     public static long remainingMillis(long backgroundedAtElapsedMs, long nowElapsedMs, long graceMillis) {

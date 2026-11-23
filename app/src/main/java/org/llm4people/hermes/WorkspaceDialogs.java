@@ -222,12 +222,19 @@ final class WorkspaceDialogs {
         refreshBio.run();
 
         final AlertDialog[] dialogHolder = new AlertDialog[1];
+        final AlertDialog[] childDialog = new AlertDialog[1];
         final BiometricVault.Session[] activeEnroll = new BiometricVault.Session[1];
-        changeModeBtn.setOnClickListener(v -> showChangeLockModeDialog(
-                activity, account, gate, activeEnroll, () -> {
-                    refreshBio.run();
-                    if (onPolicyChanged != null) onPolicyChanged.run();
-                }));
+        changeModeBtn.setOnClickListener(v -> {
+            if (childDialog[0] != null) {
+                childDialog[0].dismiss();
+                childDialog[0] = null;
+            }
+            childDialog[0] = showChangeLockModeDialog(
+                    activity, account, gate, activeEnroll, childDialog, () -> {
+                        refreshBio.run();
+                        if (onPolicyChanged != null) onPolicyChanged.run();
+                    });
+        });
         bioAction.setOnClickListener(v -> {
             if (BiometricVault.isEnrolled(activity, account.id)) {
                 BiometricVault.revoke(activity, account.id);
@@ -314,6 +321,10 @@ final class WorkspaceDialogs {
             onLockNow.run();
         });
         dialog.setOnDismissListener(d -> {
+            if (childDialog[0] != null) {
+                childDialog[0].dismiss();
+                childDialog[0] = null;
+            }
             if (activeEnroll[0] != null) {
                 activeEnroll[0].cancel();
                 activeEnroll[0] = null;
@@ -323,11 +334,12 @@ final class WorkspaceDialogs {
         return dialog;
     }
 
-    private static void showChangeLockModeDialog(
+    private static AlertDialog showChangeLockModeDialog(
             Activity activity,
             Account account,
             ProfileGate gate,
             BiometricVault.Session[] activeEnroll,
+            AlertDialog[] childHolder,
             Runnable onUpdated) {
         LinearLayout form = Ui.column(activity);
         Ui.pad(form, 18, 12);
@@ -380,8 +392,8 @@ final class WorkspaceDialogs {
         form.addView(note, nLp);
 
         Runnable syncInputs = () -> {
-            first.setText("");
-            confirm.setText("");
+            first.getText().clear();
+            confirm.getText().clear();
             if (chosen[0] == ProfileLockPolicy.Mode.BIOMETRIC) {
                 first.setVisibility(View.GONE);
                 confirm.setVisibility(View.GONE);
@@ -415,7 +427,7 @@ final class WorkspaceDialogs {
         });
         syncInputs.run();
 
-        Ui.secureDialog(new AlertDialog.Builder(activity)
+        AlertDialog modeDialog = Ui.secureDialog(new AlertDialog.Builder(activity)
                 .setTitle(R.string.security_lock_mode_title)
                 .setView(form)
                 .setNegativeButton(R.string.profile_setup_cancel, null)
@@ -425,20 +437,30 @@ final class WorkspaceDialogs {
                     if (target == ProfileLockPolicy.Mode.PIN) {
                         if (ProfileLockPolicy.evaluatePin(first.getText(), confirm.getText())
                                 != ProfileLockPolicy.CredentialState.READY) {
+                            first.getText().clear();
+                            confirm.getText().clear();
                             Toast.makeText(activity, R.string.lock_setup_missing_pin, Toast.LENGTH_LONG).show();
                             return;
                         }
                         secret = new char[first.length()];
                         first.getText().getChars(0, secret.length, secret, 0);
+                        first.getText().clear();
+                        confirm.getText().clear();
                     } else if (target == ProfileLockPolicy.Mode.PASSPHRASE) {
                         if (ProfileLockPolicy.evaluatePassphrase(first.getText(), confirm.getText())
                                 != ProfileLockPolicy.CredentialState.READY) {
+                            first.getText().clear();
+                            confirm.getText().clear();
                             Toast.makeText(activity, R.string.lock_setup_missing_passphrase, Toast.LENGTH_LONG).show();
                             return;
                         }
                         secret = new char[first.length()];
                         first.getText().getChars(0, secret.length, secret, 0);
+                        first.getText().clear();
+                        confirm.getText().clear();
                     } else if (!bioAvailable) {
+                        first.getText().clear();
+                        confirm.getText().clear();
                         Toast.makeText(activity, R.string.lock_mode_biometric_unavailable, Toast.LENGTH_LONG).show();
                         return;
                     }
@@ -452,6 +474,12 @@ final class WorkspaceDialogs {
                         if (ok && onUpdated != null) onUpdated.run();
                     });
                 }));
+        modeDialog.setOnDismissListener(d -> {
+            first.getText().clear();
+            confirm.getText().clear();
+            if (childHolder != null && childHolder[0] == modeDialog) childHolder[0] = null;
+        });
+        return modeDialog;
     }
 
     /** Each profile pins its own quick-actions widget, so profiles never overwrite or purge each other's. */
