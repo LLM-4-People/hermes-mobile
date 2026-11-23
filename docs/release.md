@@ -1,8 +1,8 @@
-# Releases & In-App GitHub Auto-Update
+# Releases and in-app GitHub auto-update
 
-Hermes Mobile publishes reproducible, signed Android releases on GitHub and includes built-in, fail-closed update detection, checksum/signature verification, and native Android installation directly from **Activity → App Updates**.
+Hermes Mobile publishes reproducible, signed Android releases on GitHub and includes built-in, fail-closed update detection, checksum/signature verification, and native Android installation directly from **Activity → App updates**.
 
-## How Signed Releases Are Generated
+## How signed releases are generated
 
 The **Signed Android release** workflow (`.github/workflows/release.yml`) runs on either:
 1. **SemVer tag push (`v*.*.*` or `v*.*.*-*`)** pointing at the reviewed `main` commit matching `hermesVersionName` in `gradle.properties`, or
@@ -16,9 +16,9 @@ Every release passes the complete release gate before publishing:
 
 Every pull request and `main` build in **Workspace checks** (`.github/workflows/checks.yml`) also uploads an installable **android-debug** artifact containing `app-debug.apk` and its matching `SHA256SUMS` file.
 
-## Built-In In-App Update Detection & Verified Install
+## Built-in in-app update detection and verified install
 
-Open **Activity → App Updates** on Android (a lightweight 24-hour throttled check also surfaces a subtle update badge in **Activity** when a newer signed release is published):
+Open **Activity → App updates** on Android (a lightweight 24-hour throttled check also surfaces a subtle update badge in **Activity** when a newer signed release is published):
 
 1. **Zero-credential GitHub lookup:** Queries `https://api.github.com/repos/LLM-4-People/hermes-mobile/releases/latest` over HTTPS without ever sending Hermes profile credentials, bearer keys, or device identifiers.
 2. **Strict asset & host validation:** Compares the remote SemVer tag against the installed version, requires both a signed `.apk` asset (rejecting `*-unsigned.apk`) and its matching `SHA256SUMS` / `.sha256` file, and allowlists only official HTTPS GitHub release hosts (`github.com`, `objects.githubusercontent.com`, `release-assets.githubusercontent.com`, `api.github.com`).
@@ -27,9 +27,9 @@ Open **Activity → App Updates** on Android (a lightweight 24-hour throttled ch
    - `PackageManager` verifies that the archive’s `packageName` and **signing certificate SHA-256** match the currently installed app before launching the installer (preventing spoofed or mismatched-key installs).
 4. **Native Android 9–16 install handoff:** Checks `canRequestPackageInstalls()` (guiding you cleanly to Android’s *Install unknown apps* toggle if not yet enabled), then hands the verified APK to Android’s package installer via a non-exported, path-checked `UpdateApkProvider` URI.
 
-## Publishing a New Release (Maintainers)
+## Publishing a new release (maintainers)
 
-### Label-Driven Automated SemVer Release (Recommended)
+### Label-driven automated SemVer release (recommended)
 
 Apply **one** SemVer release label (`release:patch`, `release:minor`, or `release:major`) to a PR targeting `main` before merging (conflicting `release:*` labels fail closed):
 1. When the PR merges into `main`, **Automated SemVer release** (`.github/workflows/auto-release.yml`) inspects `gradle.properties`, existing `v*` tags, and published GitHub Releases via `ci/semver_bump.py`.
@@ -38,7 +38,7 @@ Apply **one** SemVer release label (`release:patch`, `release:minor`, or `releas
 
 On any pull request where you want to override smart path routing and run the full Android + emulator suite (for example on a docs or server-only PR), apply the `run-full-ci` label.
 
-### Manual Release Dispatch
+### Manual release dispatch
 
 1. Bump `hermesVersionCode` (strictly greater than every published release) and `hermesVersionName` (SemVer, e.g. `0.2.0`) in `gradle.properties`, merge via PR into `main`, and verify `android-release` environment secrets/variables are configured (see [Verification & Signed Delivery](delivery.md#signed-release)).
 2. Either push an annotated tag matching `v<hermesVersionName>` on `main` (`git tag -a v0.2.0 -m "Release v0.2.0" && git push origin v0.2.0`) or dispatch **Signed Android release** manually from GitHub Actions on `main`.

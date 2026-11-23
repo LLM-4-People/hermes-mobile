@@ -16,7 +16,7 @@
     <string name="brain_models_title">Modèle et capacités</string>
     <string name="brain_models_hint">Choisir l’assistant et les capacités actives pour la discussion en cours.</string>
     <string name="brain_memory_hint">Vos préférences et outils restent chiffrés sur cet appareil. Votre profil protège vos échanges.</string>
-    <string name="brain_create_tool_title">Créer un outil sur mesure</string>
+    <string name="brain_create_tool_title">Créer un outil personnalisé</string>
     <string name="brain_create_tool_hint">Demander à Hermes un formulaire ou un tableau adapté à votre besoin.</string>
 
     <string name="activity_subtitle">Retrouvez vos rappels, vos livraisons, vos alertes et le suivi de vos échanges.</string>
@@ -100,7 +100,7 @@
     <string name="widget_quick_plan_draft">Aide-moi à planifier ma journée.</string>
     <string name="widget_pin_action">Épingler sur l’écran d’accueil</string>
     <string name="widget_pin_requested">Confirmez l’ajout du widget sur votre écran d’accueil.</string>
-    <string name="widget_pin_unsupported">Votre écran d’accueil ne permet pas l’ajout automatique. Maintenez le doigt sur l’écran d’accueil, ouvrez Widgets, puis choisissez Hermes.</string>
+    <string name="widget_pin_unsupported">Votre écran d’accueil ne permet pas l’ajout automatique. Maintenez le doigt sur l’écran d’accueil, ouvrez les widgets, puis choisissez Hermes.</string>
     <string name="widget_pin_invalid">Ce widget ne peut pas être affiché sur l’écran d’accueil.</string>
     <string name="widget_pin_failed">Impossible d’ajouter ce widget pour le moment.</string>
     <string name="widget_updated_toast">Widget d’accueil mis à jour.</string>

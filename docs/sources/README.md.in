@@ -15,7 +15,11 @@
 
 > **Companion server requirement:** {{ project }} requires our Hermes Agent fork at **[{{ fork_repository }}]({{ fork_url }})**. It relies on the fork’s single-host multi-profile routing (`/p/{profile}`), per-session concurrent run execution, run-scoped instructions, Live UI modding (`ui.patch`), universal push deliveries (`mobile_deliver`), Brain Studio (memory, Smart Notes, pattern-gated habits, universal sharing, FTS5 search, skill studio, workspace files), visual approval diffs, and the approved device bridge.
 
-## Real Device Preview
+## Real device preview
+
+<p align="center">
+  <a href="docs/assets/app-preview-en.png"><img src="docs/assets/app-preview-en.png" width="100%" alt="Four real Android 16 screens of Hermes Mobile in English: command palette, everyday workflows, connection doctor, and presence and appearance controls"></a>
+</p>
 
 <p align="center">
   <a href="site/assets/screens/phone-transcript.png"><img src="site/assets/screens/phone-transcript.png" width="24%" alt="Hermes Mobile phone conversation transcript with clear typography and composer"></a>
@@ -24,7 +28,7 @@
   <a href="site/assets/screens/tablet-dual-pane.png"><img src="site/assets/screens/tablet-dual-pane.png" width="24%" alt="Hermes Mobile tablet dual-pane layout with navigation rail and sidebar"></a>
 </p>
 
-## What {{ project }} Does
+## What {{ project }} does
 
 | Pillar | Capabilities |
 | --- | --- |
@@ -43,19 +47,19 @@
 
 ## Quickstart
 
-### 1. Get the Signed APK & Stay Up to Date
+### 1. Get the signed APK and stay up to date
 
-- **Official signed releases (recommended):** Download `{{ release_apk }}`, `{{ checksum_file }}`, and `release.json` from [Latest GitHub Release](https://github.com/{{ repository }}/releases/latest), then verify checksum, APK signature, and GitHub build provenance. [Releases & In-App Auto-Update](docs/release.md) · [Verify a release](docs/delivery.md#verify-a-release)
-- **Built-in verified in-app updates:** Open **Activity → App Updates** to check GitHub Releases directly from your phone. Downloads are fail-closed: the app verifies HTTPS GitHub release hosts, constant-time `SHA256SUMS` match, and matching APK signing certificate before handing off to Android’s native installer.
+- **Official signed releases (recommended):** Download `{{ release_apk }}`, `{{ checksum_file }}`, and `release.json` from [Latest GitHub Release](https://github.com/{{ repository }}/releases/latest), then verify checksum, APK signature, and GitHub build provenance. [Releases and in-app auto-update](docs/release.md) · [Verify a release](docs/delivery.md#verify-a-release)
+- **Built-in verified in-app updates:** Open **Activity → App updates** to check GitHub Releases directly from your phone. Downloads are fail-closed: the app verifies HTTPS GitHub release hosts, constant-time `SHA256SUMS` match, and matching APK signing certificate before handing off to Android’s native installer.
 - **Development builds:** Open a passing [Workspace checks](https://github.com/{{ repository }}/actions/workflows/checks.yml) run and download the **android-debug** artifact (includes `app-debug.apk` and `SHA256SUMS`).
 
-### 2. Connect a Profile on One HTTPS Host
+### 2. Connect a profile on one HTTPS host
 
-1. Deploy our Hermes Agent fork ([{{ fork_repository }}]({{ fork_url }})) behind **one single HTTPS hostname** (`https://hermes.example.com`), routing each user to `/p/<profile>` with an isolated home and access key. [Deploy multi-profile accounts](docs/accounts.md)
+1. Deploy our Hermes agent fork ([{{ fork_repository }}]({{ fork_url }})) behind **one single HTTPS hostname** (`https://hermes.example.com`), routing each user to `/p/<profile>` with an isolated home and access key. [Deploy multi-profile accounts](docs/accounts.md)
 2. Open **Connect Hermes**, enter a profile label, your shared HTTPS server address, your **Server profile** slug (the app composes `/p/<profile>` automatically), and your access key.
-3. Protect the local device vault with a passphrase (and optionally enroll Class-3 Biometrics in **Activity → Security**).
+3. Protect the local device vault with a passphrase (and optionally enroll Class-3 biometrics in **Activity → Security**).
 
-## Build & Verify Locally
+## Build and verify locally
 
 Requires **JDK 21**, **Android SDK** (`compileSdk` and `buildToolsVersion` in `gradle.properties`), and **Python 3.11+** (with `uv` or `pip`).
 
@@ -72,7 +76,7 @@ adb install -r {{ debug_apk }}
 
 Run `./gradlew :app:connectedDebugAndroidTest` against a connected Android emulator or handset to execute the full instrumentation suite.
 
-## Documentation Index
+## Documentation index
 
 - **Setup & Deployment:** [Multi-Profile Single-Host Deploy](docs/accounts.md) · [Closed-App Push & Reminders](docs/push.md) · [Self-Hosted UnifiedPush (ntfy)](docs/unifiedpush.md) · [File Publication](docs/files.md)
 - **Features & Workflows:** [Live UI Modding & On-the-Fly Widgets](docs/live-ui-and-widgets.md) · [Brain Studio & Universal Sharing](docs/brain-and-sharing.md) · [Zero-Root Ambient Intelligence](docs/ambient.md) · [Android Actions & Examples](docs/android-actions.md) · [Mobile Layouts & Artifacts](docs/workspace.md) · [Photos & Skills in Discussions](docs/discussion-context.md) · [Nearby Restaurants & Location](docs/nearby-restaurants.md) · [Nearby Place Data](docs/nearby-places.md)

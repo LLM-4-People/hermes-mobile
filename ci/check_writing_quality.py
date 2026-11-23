@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
-"""Fail-closed writing quality & single-language purity gate for docs, site, and Android strings.
+"""Fail-closed writing quality, sentence-case, and single-language purity gate.
 
-Rejects Wikipedia "Signs of AI Writing" clichés/filler, sycophantic openers, robotic wrap-ups,
-em-dash overuse, and mixed-language leakage across single-language EN/FR surfaces while ignoring
-code blocks, inline code, URLs, proper nouns, and explicit language-switcher links.
+Enforces:
+- Strict sentence case on Markdown headings, HTML headings/titles/buttons/captions, and Android UI
+  strings/plurals/arrays (allowing true proper nouns, technical acronyms, and CamelCase identifiers).
+- Prohibited Wikipedia "Signs of AI Writing" clichés/filler, hype metaphors, negative parallelisms,
+  sycophantic openers, robotic wrap-ups, and em-dash clutter (English + French).
+- Single-language purity across English and French docs, GitHub Pages, and Android resources.
 """
 
 from html.parser import HTMLParser
@@ -26,6 +29,17 @@ EN_SLOP_WORDS = re.compile(
     r"foster|fosters|fostering|fostered|"
     r"elevate|elevates|elevating|elevated|"
     r"seamlessly|seamless|"
+    r"supercharge|supercharges|supercharging|supercharged|"
+    r"bespoke|"
+    r"next[- ]level|"
+    r"groundbreaking|"
+    r"transformative|"
+    r"synergy|synergies|"
+    r"vibrant|"
+    r"unleash|unleashes|unleashing|unleashed|"
+    r"effortless|effortlessly|"
+    r"orchestrate|orchestrates|orchestrating|orchestrated|"
+    r"reimagine|reimagines|reimagining|reimagined|"
     r"robust|"
     r"holistic|"
     r"game[- ]changer|game[- ]changing|"
@@ -48,24 +62,28 @@ EN_HYPE_UNLOCK = re.compile(
     re.IGNORECASE,
 )
 
-# English sycophantic openers, negation-reframe clichés, and robotic wrap-ups.
+# English sycophantic openers, negative parallelisms, and robotic wrap-ups / sign-offs.
 EN_SLOP_PHRASES = re.compile(
     r"(?:"
     r"\b(?:great|excellent|wonderful)\s+question\b|"
     r"^\s*(?:certainly|absolutely|of course)\s*!|"
     r"\b(?:i(?:'|’)d\s+be\s+)?happy\s+to\s+help\b|"
     r"\bnot\s+(?:just|only|merely)\b[^.!?\n]{1,90}\b(?:it(?:'|’)s|but\s+also|but\s+rather)\b|"
+    r"\bmore\s+than\s+just\s+a\b|"
     r"\bin\s+conclusion\b|"
     r"(?:^|[.!?]\s+)to\s+summarize\b[,:]?|"
     r"\ball\s+in\s+all\b|"
     r"\bfeel\s+free\s+to\b|"
+    r"\bdon(?:'|’)t\s+hesitate\s+to\b|"
     r"\blet\s+me\s+know\s+if\s+you\b|"
+    r"\bhope\s+this\s+helps\b|"
+    r"\bhappy\s+coding\b|"
     r"^\s*(?:moreover|furthermore)\s*,"
     r")",
     re.IGNORECASE | re.MULTILINE,
 )
 
-# French AI-slop clichés, sycophantic openers, and robotic wrap-ups.
+# French AI-slop clichés, hype verbs, negative parallelisms, and robotic wrap-ups.
 FR_SLOP_PATTERNS = re.compile(
     r"(?:"
     r"\btapisseries?\b|"
@@ -77,11 +95,24 @@ FR_SLOP_PATTERNS = re.compile(
     r"\bpropuls(?:er|e|ez|ant)\b|"
     r"\bplong(?:er|ez)\s+dans\b|"
     r"\bsans\s+couture\b|"
-    r"\bce\s+n(?:'|’)est\s+pas\s+seulement\b|"
+    r"\bdécupl(?:er|e|ez|ant|é|ée|és|ées)\b|"
+    r"\bsublim(?:er|e|ez|ant|é|ée|és|ées)\b|"
+    r"\bsur[- ]mesure\b|"
+    r"\bécosystèmes?\b|"
+    r"\bsans\s+effort\b|"
+    r"\bà\s+la\s+pointe\b|"
+    r"\bnouvelle\s+ère\b|"
+    r"\bclé\s+en\s+main\b|"
+    r"\bau\s+cœur\s+de\b|"
+    r"\bce\s+n(?:'|’)est\s+pas\s+(?:seulement|juste|qu(?:'|’)un)\b|"
+    r"\bnon\s+seulement\b[^.!?\n]{1,90}\bmais\s+aussi\b|"
     r"\bexcellente\s+question\b|"
-    r"\bn(?:'|’)hésitez\s+pas\s+(?:si|à\s+me\s+demander)\b|"
+    r"\bn(?:'|’)hésitez\s+pas\b|"
     r"\bravi\s+de\s+vous\s+aider\b|"
-    r"\ben\s+conclusion\b"
+    r"\ben\s+conclusion\b|"
+    r"\bpour\s+conclure\b|"
+    r"\ben\s+résumé\b|"
+    r"\ben\s+somme\b"
     r")",
     re.IGNORECASE,
 )
@@ -100,10 +131,10 @@ FR_LEAK_ON_EN = re.compile(
 
 EN_LEAK_ON_FR = re.compile(
     r"\b("
-    r"Skip to content|Read Documentation|Download Signed APK|View Live Captures|"
+    r"Skip to content|Read documentation|Download signed APK|View live captures|"
     r"Click here|Get started|Show more|Try again|Allow once|Unlock profile|"
-    r"Connection doctor|Everyday workflows|Quickstart|Explore Security Model|"
-    r"Live Device Gallery|Filter documentation|No matching sections|"
+    r"Connection doctor|Everyday workflows|Quickstart|Explore security model|"
+    r"Live device gallery|Filter documentation|No matching sections|"
     r"Please enter|Could not reach|Are you sure"
     r")\b",
     re.IGNORECASE,
@@ -112,12 +143,276 @@ EN_LEAK_ON_FR = re.compile(
 FENCED_CODE = re.compile(r"```[\s\S]*?```")
 INLINE_CODE = re.compile(r"`[^`\n]+`")
 HTML_COMMENT = re.compile(r"<!--[\s\S]*?-->")
+MD_LINK = re.compile(r"\[([^\]]+)\]\([^)\n]+\)")
 MD_LINK_TARGET = re.compile(r"\]\([^)\n]+\)")
 RAW_URL = re.compile(r"https?://\S+")
+TEMPLATE_TOKEN = re.compile(r"\{\{\s*[a-z0-9_]+\s*\}\}")
+ANDROID_FMT = re.compile(r"%(?:\d+\$)?[sdfoxegc%]")
+MD_HEADING = re.compile(r"^(#{1,6})\s+(.+?)\s*#*\s*$")
 EXPLICIT_LANG_SWITCH_LINE = re.compile(
     r"(?:Documentation en français|English README|Site français|Portail français|Version française|English version)",
     re.IGNORECASE,
 )
+
+# Multi-word proper nouns & brand/OS feature names allowed with internal capitals.
+PROPER_PHRASES = (
+    "Hermes Mobile",
+    "LLM-4-People",
+    "GitHub Pages",
+    "GitHub Releases",
+    "GitHub Actions",
+    "Google Play",
+    "Play Store",
+    "Android Keystore",
+    "Android Studio",
+    "Android Auto",
+    "Android TV",
+    "Android Security",
+    "Class 3",
+    "Class-3",
+    "Quick Settings",
+    "Pixel 9",
+    "Pixel 8",
+    "Pixel 7",
+    "Pixel Tablet",
+    "Pixel Fold",
+    "Material You",
+    "Web Push",
+)
+
+# Single-word true proper nouns, brands, languages, platforms, and standard technical nouns.
+PROPER_WORDS = {
+    "Hermes",
+    "LLM-4-People",
+    "Android",
+    "Google",
+    "Pixel",
+    "Samsung",
+    "Linux",
+    "Windows",
+    "Docker",
+    "Tailscale",
+    "WireGuard",
+    "Caddy",
+    "Nginx",
+    "Firebase",
+    "Keystore",
+    "Passkey",
+    "Passkeys",
+    "SQLite",
+    "Python",
+    "Java",
+    "Kotlin",
+    "Gradle",
+    "Markdown",
+    "Signal",
+    "Anthropic",
+    "Claude",
+    "Gemini",
+    "Telegram",
+    "Matrix",
+    "Nextcloud",
+    "Ntfy",
+    "Atelier",
+    "Wi-Fi",
+    "Bluetooth",
+    "Chromium",
+    "Firefox",
+    "F-Droid",
+    "Wikipedia",
+    "Ubuntu",
+    "Debian",
+    "Fedora",
+    "Termux",
+    "Apache",
+    "Bash",
+    "Cron",
+    "Ctrl",
+    "Cmd",
+    "Alt",
+    "Shift",
+    "Esc",
+    "Enter",
+    "Space",
+    "Tab",
+    "France",
+    "Canada",
+    "Europe",
+    "Paris",
+    "Montréal",
+    "Montreal",
+    "Quebec",
+    "Québec",
+}
+
+EN_ONLY_PROPER_WORDS = {
+    "I",
+    "I'm",
+    "I've",
+    "I'll",
+    "I'd",
+    "I’m",
+    "I’ve",
+    "I’ll",
+    "I’d",
+    "English",
+    "French",
+    "Français",
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+    "Sunday",
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+}
+
+FR_ONLY_PROPER_WORDS = {
+    "Français",
+    "English",
+    "Cerveau",
+}
+
+FR_ELISION = re.compile(r"^(?:[cdjlmnst]|qu)['’](.+)$", re.IGNORECASE)
+CLAUSE_SPLIT = re.compile(r"(?:[.!?](?:\s+|$)|[—–·|•→\n\t]|:\s+|\s+/\s+)")
+WORD_TOKEN = re.compile(r"[A-Za-zÀ-ÿ0-9][A-Za-zÀ-ÿ0-9'’+\-/]*")
+SENTENCE_CASE_HTML_TAGS = {"title", "h1", "h2", "h3", "h4", "button", "figcaption"}
+
+
+def _is_camelcase_identifier(token):
+    """True for single alphanumeric CamelCase/PascalCase identifiers like GitHub, UnifiedPush, TalkBack."""
+    if not token.isalnum():
+        return False
+    has_lower = False
+    for ch in token:
+        if ch.islower():
+            has_lower = True
+        elif ch.isupper() and has_lower:
+            return True
+    return False
+
+
+def _is_allowed_capitalized_word(word, lang):
+    """Return True when a capitalized token is an acronym, CamelCase identifier, or proper noun."""
+    # All-uppercase acronyms/codes (API, APK, HTTPS, SHA-256, R8, FTS5, WCAG, 2FA, etc.)
+    letters = [c for c in word if c.isalpha()]
+    if not letters:
+        return True
+    if all(c.isupper() for c in letters):
+        return True
+    if _is_camelcase_identifier(word):
+        return True
+    if word in PROPER_WORDS:
+        return True
+    if lang == "en" and word in EN_ONLY_PROPER_WORDS:
+        return True
+    if lang == "fr" and word in FR_ONLY_PROPER_WORDS:
+        return True
+    # Possessive English proper nouns (e.g., Hermes's, Android's, Google's).
+    for suffix in ("'s", "’s"):
+        if word.endswith(suffix):
+            return _is_allowed_capitalized_word(word[:-2], lang)
+    # French elisions (e.g., d'Android, l'Atelier, d'Hermes).
+    if lang == "fr":
+        m = FR_ELISION.match(word)
+        if m:
+            return _is_allowed_capitalized_word(m.group(1), lang)
+    return False
+
+
+def check_sentence_case(text, lang):
+    """Return offending Title-Case words in a heading, button, caption, or UI label."""
+    if not text or not text.strip():
+        return []
+    cleaned = INLINE_CODE.sub(" ", text)
+    cleaned = TEMPLATE_TOKEN.sub(" ", cleaned)
+    cleaned = RAW_URL.sub(" ", cleaned)
+    cleaned = MD_LINK.sub(r"\1", cleaned)
+    cleaned = ANDROID_FMT.sub(" ", cleaned)
+    cleaned = cleaned.replace("*", "").replace("_", "")
+
+    offenders = []
+    for segment in CLAUSE_SPLIT.split(cleaned):
+        seg = segment.strip()
+        if not seg:
+            continue
+        # Mask allowed multi-word proper phrases in this segment before word inspection.
+        masked_spans = []
+        for phrase in PROPER_PHRASES:
+            start = 0
+            while True:
+                idx = seg.find(phrase, start)
+                if idx < 0:
+                    break
+                end = idx + len(phrase)
+                left_ok = idx == 0 or not seg[idx - 1].isalnum()
+                right_ok = end == len(seg) or not seg[end].isalnum()
+                if left_ok and right_ok:
+                    masked_spans.append((idx, end))
+                start = end
+
+        def _in_masked(pos, end_pos):
+            return any(a <= pos and end_pos <= b for a, b in masked_spans)
+
+        seen_alpha_word = False
+        for m in WORD_TOKEN.finditer(seg):
+            token = m.group(0)
+            if not any(c.isalpha() for c in token):
+                continue
+            # Skip file paths / slash routes / key combos already formatted cleanly.
+            if "/" in token and token.startswith("/"):
+                seen_alpha_word = True
+                continue
+            is_first = not seen_alpha_word
+            seen_alpha_word = True
+
+            if _in_masked(m.start(), m.end()):
+                continue
+
+            if is_first:
+                # Even on the first word, reject Title-Case hyphenated compounds like "End-to-End".
+                if "-" in token and not _is_allowed_capitalized_word(token, lang):
+                    parts = token.split("-")
+                    for part in parts[1:]:
+                        if part and part[0].isupper() and any(c.islower() for c in part[1:]):
+                            if not _is_allowed_capitalized_word(part, lang):
+                                offenders.append(token)
+                                break
+                continue
+
+            # Check whole token first (handles Wi-Fi, F-Droid, Ctrl+K, CamelCase, acronyms, proper nouns).
+            if _is_allowed_capitalized_word(token, lang):
+                continue
+
+            # Check slash-separated segments first (e.g. LLM-4-People/hermes-agent), then hyphen/plus parts.
+            slash_parts = token.split("/")
+            flagged = False
+            for sp in slash_parts:
+                if not sp or _is_allowed_capitalized_word(sp, lang):
+                    continue
+                for part in re.split(r"[-+]", sp):
+                    if not part:
+                        continue
+                    if part[0].isupper() and any(c.islower() for c in part[1:]):
+                        if not _is_allowed_capitalized_word(part, lang):
+                            offenders.append(token)
+                            flagged = True
+                            break
+                if flagged:
+                    break
+    return offenders
 
 
 def strip_markdown_code(text):
@@ -134,18 +429,21 @@ def strip_markdown_code(text):
 
 
 class _HtmlProseExtractor(HTMLParser):
-    """Extract visible prose, title, description, and alt text, skipping code and lang-switch links."""
+    """Extract visible prose plus heading/button/title/caption elements for sentence-case checks."""
 
     def __init__(self, page_lang):
         super().__init__()
         self.page_lang = page_lang
         self.skip_depth = 0
         self.chunks = []
+        self.sentence_case_items = []
+        self._sc_stack = []
 
     def handle_starttag(self, tag, attrs):
         attr_map = dict(attrs)
+        void_tag = tag in ("meta", "link", "img", "br", "hr", "input")
         if self.skip_depth > 0:
-            if tag not in ("meta", "link", "img", "br", "hr", "input"):
+            if not void_tag:
                 self.skip_depth += 1
             return
 
@@ -154,7 +452,7 @@ class _HtmlProseExtractor(HTMLParser):
             lang_attr and not lang_attr.startswith(self.page_lang) and tag != "html"
         )
         if tag in ("script", "style", "code", "pre") or is_lang_switch:
-            if tag not in ("meta", "link", "img", "br", "hr", "input"):
+            if not void_tag:
                 self.skip_depth = 1
             return
 
@@ -167,9 +465,19 @@ class _HtmlProseExtractor(HTMLParser):
             if alt:
                 self.chunks.append((self.getpos()[0], alt))
 
+        classes = set((attr_map.get("class") or "").split())
+        if not void_tag and (tag in SENTENCE_CASE_HTML_TAGS or "btn" in classes):
+            self._sc_stack.append([tag, self.getpos()[0], []])
+
     def handle_endtag(self, tag):
         if self.skip_depth > 0:
             self.skip_depth -= 1
+            return
+        if self._sc_stack and self._sc_stack[-1][0] == tag:
+            closed_tag, line_no, parts = self._sc_stack.pop()
+            joined = " ".join(p.strip() for p in parts if p.strip())
+            if joined:
+                self.sentence_case_items.append((line_no, closed_tag, joined))
 
     def handle_data(self, data):
         if self.skip_depth > 0:
@@ -177,6 +485,8 @@ class _HtmlProseExtractor(HTMLParser):
         text = data.strip()
         if text:
             self.chunks.append((self.getpos()[0], text))
+            for item in self._sc_stack:
+                item[2].append(text)
 
 
 def check_text_lines(rel_path, lines, lang, check_em_dash=True):
@@ -228,16 +538,42 @@ def check_text_lines(rel_path, lines, lang, check_em_dash=True):
 
 def check_markdown_file(path, root, lang):
     rel = path.relative_to(root).as_posix()
-    cleaned = strip_markdown_code(path.read_text(encoding="utf-8"))
+    raw = path.read_text(encoding="utf-8")
+    cleaned = strip_markdown_code(raw)
     lines = list(enumerate(cleaned.splitlines(), 1))
-    return check_text_lines(rel, lines, lang, check_em_dash=True)
+    issues = check_text_lines(rel, lines, lang, check_em_dash=True)
+    # Check sentence case on headings (outside fenced code blocks).
+    no_fenced = FENCED_CODE.sub(lambda m: "\n" * m.group(0).count("\n"), raw)
+    no_fenced = HTML_COMMENT.sub(lambda m: "\n" * m.group(0).count("\n"), no_fenced)
+    for line_no, raw_line in enumerate(no_fenced.splitlines(), 1):
+        m = MD_HEADING.match(raw_line)
+        if not m:
+            continue
+        heading = m.group(2).strip()
+        if EXPLICIT_LANG_SWITCH_LINE.search(heading):
+            continue
+        offenders = check_sentence_case(heading, lang)
+        if offenders:
+            issues.append(
+                f"{rel}:{line_no}: Title Case in heading {heading!r} (offending: {', '.join(offenders)}; use sentence case)"
+            )
+    return issues
 
 
 def check_html_file(path, root, lang):
     rel = path.relative_to(root).as_posix()
     extractor = _HtmlProseExtractor(lang)
     extractor.feed(path.read_text(encoding="utf-8"))
-    return check_text_lines(rel, extractor.chunks, lang, check_em_dash=True)
+    issues = check_text_lines(rel, extractor.chunks, lang, check_em_dash=True)
+    for line_no, tag, text in extractor.sentence_case_items:
+        if EXPLICIT_LANG_SWITCH_LINE.search(text):
+            continue
+        offenders = check_sentence_case(text, lang)
+        if offenders:
+            issues.append(
+                f"{rel}:{line_no}: Title Case in <{tag}> {text!r} (offending: {', '.join(offenders)}; use sentence case)"
+            )
+    return issues
 
 
 def check_android_strings_file(path, root, lang):
@@ -248,6 +584,7 @@ def check_android_strings_file(path, root, lang):
     except ET.ParseError as err:
         return [f"{rel}: invalid XML ({err})"]
     entries = []
+    named_entries = []
     idx = 0
     root_el = tree.getroot()
     for el in root_el.findall("string"):
@@ -257,10 +594,12 @@ def check_android_strings_file(path, root, lang):
         if text:
             idx += 1
             entries.append((idx, text))
+            named_entries.append((el.attrib.get("name", f"string#{idx}"), text))
     for container_tag in ("plurals", "string-array"):
         for container in root_el.findall(container_tag):
             if container.attrib.get("translatable") == "false":
                 continue
+            cname = container.attrib.get("name", container_tag)
             for item in container.findall("item"):
                 if item.attrib.get("translatable") == "false":
                     continue
@@ -268,14 +607,21 @@ def check_android_strings_file(path, root, lang):
                 if text:
                     idx += 1
                     entries.append((idx, text))
+                    named_entries.append((f"{cname}/item", text))
     # Individual UI strings are short; check clichés & mixed-language per string (skip doc-level em-dash density).
     for item_issue in check_text_lines(rel, entries, lang, check_em_dash=False):
         issues.append(item_issue)
+    for key_name, text in named_entries:
+        offenders = check_sentence_case(text, lang)
+        if offenders:
+            issues.append(
+                f"{rel}:{key_name}: Title Case in Android resource {text!r} (offending: {', '.join(offenders)}; use sentence case)"
+            )
     return issues
 
 
 def check_repo(repo_root=ROOT, include_android_strings=True):
-    """Scan all managed English/French docs, GitHub Pages, and Android string resources."""
+    """Scan all managed English/French docs, doc sources, GitHub Pages, and Android string resources."""
     root = Path(repo_root).resolve()
     problems = []
 
@@ -293,6 +639,12 @@ def check_repo(repo_root=ROOT, include_android_strings=True):
         if fr_docs.is_dir():
             for p in sorted(fr_docs.rglob("*.md")):
                 problems.extend(check_markdown_file(p, root, "fr"))
+        sources_dir = docs_dir / "sources"
+        if sources_dir.is_dir():
+            for p in sorted(sources_dir.rglob("*.md.in")):
+                rel_src = p.relative_to(sources_dir).as_posix()
+                src_lang = "fr" if rel_src.startswith("docs/fr/") else "en"
+                problems.extend(check_markdown_file(p, root, src_lang))
 
     site_en = root / "site/en"
     if site_en.is_dir():
@@ -329,7 +681,7 @@ def main(argv=None):
     for problem in problems:
         print(problem, file=sys.stderr)
     if not problems:
-        print(f"Writing quality & language purity check passed ({target}).")
+        print(f"Writing quality, sentence case & language purity check passed ({target}).")
     return 1 if problems else 0
 
 

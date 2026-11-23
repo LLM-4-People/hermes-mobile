@@ -12,7 +12,7 @@ List the exact commands run and their results:
 - [ ] `./gradlew :app:connectedDebugAndroidTest` (when touching Android UI, lifecycle, permissions, or storage)
 - [ ] `go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12` and `shellcheck ci/*.sh` (when touching workflows or shell scripts)
 
-## Architecture & Quality Checklist
+## Architecture and quality checklist
 
 - [ ] Native Android Views only (0 `WebView`, 0 unnecessary third-party Android dependencies)
 - [ ] Centralized logging only (`Diagnostics` on Android, `server/logging_util.py` on Python; 0 direct `android.util.Log`)

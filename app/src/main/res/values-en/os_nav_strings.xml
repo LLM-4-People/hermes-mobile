@@ -98,17 +98,17 @@
     <string name="widget_quick_ask">Ask a question</string>
     <string name="widget_quick_plan">Plan my day</string>
     <string name="widget_quick_plan_draft">Help me plan my day.</string>
-    <string name="widget_pin_action">Pin to Home screen</string>
-    <string name="widget_pin_requested">Confirm adding the widget to your Home screen.</string>
-    <string name="widget_pin_unsupported">Your launcher does not support automatic pinning. Long-press the Home screen, open Widgets, and choose Hermes.</string>
-    <string name="widget_pin_invalid">This widget cannot be displayed on the Home screen.</string>
+    <string name="widget_pin_action">Pin to home screen</string>
+    <string name="widget_pin_requested">Confirm adding the widget to your home screen.</string>
+    <string name="widget_pin_unsupported">Your launcher does not support automatic pinning. Long-press the home screen, open widgets, and choose Hermes.</string>
+    <string name="widget_pin_invalid">This widget cannot be displayed on the home screen.</string>
     <string name="widget_pin_failed">Unable to add this widget right now.</string>
     <string name="widget_updated_toast">Home screen widget updated.</string>
 
     <string name="ws_capture_photo">Take a photo…</string>
     <string name="ws_choose_discussion_tool_body">Open a discussion to create a tool.</string>
     <string name="ws_choose_discussion_files_body">Open a discussion to browse project files.</string>
-    <string name="brain_open_all_title">Open all of Hermes Brain</string>
+    <string name="brain_open_all_title">Open all of Hermes brain</string>
     <string name="brain_open_all_hint">Memory, notes, shared items, search, and settings verified with your server.</string>
     <string name="brain_memory_card_hint">What Hermes remembers and knows about you.</string>
     <string name="brain_notes_card_hint">Your structured notes and habits learned with Hermes.</string>

@@ -13,6 +13,10 @@
 ## Aperçu sur appareil réel
 
 <p align="center">
+  <a href="../assets/app-preview-fr.png"><img src="../assets/app-preview-fr.png" width="100%" alt="Quatre écrans réels de Hermes Mobile en français sur Android 16 : palette de commandes, modèles du quotidien, diagnostic de connexion et présence et apparence"></a>
+</p>
+
+<p align="center">
   <a href="../../site/assets/screens/phone-transcript.png"><img src="../../site/assets/screens/phone-transcript.png" width="24%" alt="Fil de discussion lisible sur téléphone dans Hermes Mobile"></a>
   <a href="../../site/assets/screens/phone-approval.png"><img src="../../site/assets/screens/phone-approval.png" width="24%" alt="Carte de validation visuelle d’une action dans Hermes Mobile"></a>
   <a href="../../site/assets/screens/phone-photo-draft.png"><img src="../../site/assets/screens/phone-photo-draft.png" width="24%" alt="Photo jointe préparée dans un brouillon modifiable"></a>

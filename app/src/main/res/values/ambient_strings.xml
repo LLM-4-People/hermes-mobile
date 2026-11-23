@@ -10,7 +10,7 @@
     <string name="ambient_status_off">Désactivé pour ce profil</string>
     <string name="ambient_onboarding_title">Activer sur Android 13 à 16</string>
     <string name="ambient_onboarding_detail">Pour une application installée hors boutique, Android protège cet accès en deux étapes simples :</string>
-    <string name="ambient_step_restricted">1. Ouvrir Infos sur l’application (⋮ → Autoriser les paramètres restreints)</string>
+    <string name="ambient_step_restricted">1. Ouvrir les infos sur l’application (⋮ → Autoriser les paramètres restreints)</string>
     <string name="ambient_step_listener">2. Ouvrir l’accès aux notifications Android</string>
     <string name="ambient_settings_unavailable">Impossible d’ouvrir cet écran de réglages sur cet appareil.</string>
     <string name="ambient_section_toggles">Autorisations de ce profil</string>

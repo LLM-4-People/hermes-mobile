@@ -206,7 +206,7 @@ A trial or pinned tool occupies the transcript area. Below 640 dp of available p
 
 The 320 × 640 px phone previews show the reading column and stacked usage labels. The 1080 × 2340 px conversation captures show a long prompt scrolling above the composer and a dictated answer in its own field. These capture sizes illustrate the layouts. The app measures the available window in dp. [Discussion and usage journey](app/src/androidTest/java/org/llm4people/hermes/journey/DeviceJourney.java) · [Question and approval journey](app/src/androidTest/java/org/llm4people/hermes/journey/ConversationCardsJourney.java)
 
-## Elevation & Depth
+## Elevation and depth
 
 A thin outline and a change from paper to surface bring a question forward. Ordinary transcript turns sit directly on paper. Use the platform ripple on actionable surfaces and the platform window treatment for menus and dialogs.
 
@@ -246,7 +246,7 @@ Group differences by section. An added or removed field leads with its name in b
 
 **Usage.** Group cumulative counters under “Discussion totals”. Group device timings under “Last reply measured on this device”. Distinguish known billed and estimated costs, show pricing provenance when available, and display “Unavailable” for a missing measurement.
 
-## Do's and Don'ts
+## Do's and don'ts
 
 ### Do
 
