@@ -10,7 +10,7 @@ import android.view.View;
 import android.view.WindowManager;
 
 import org.json.JSONObject;
-import org.llm4people.hermes.AppLanguage;
+import org.llm4people.hermes.R;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
@@ -78,7 +78,6 @@ public final class DeviceJourney extends Instrumentation {
             primary = "Atelier " + fixture.getString("run");
             secondary = "Personnel " + fixture.getString("run");
             String pkg = getTargetContext().getPackageName();
-            AppLanguage.apply(getTargetContext(), AppLanguage.Mode.FRENCH);
             Activity activity = startActivitySync(new Intent().setClassName(pkg, pkg + ".MainActivity")
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK));
             if (instrumentViewport()) activity = instrumentActivity();
@@ -118,7 +117,7 @@ public final class DeviceJourney extends Instrumentation {
                 case "skills-send": {
                     String owner = "Compétences " + fixture.getString("run");
                     String phrase = fixture.getString("phrase");
-                    ui.see("Choisir un profil");
+                    ui.see(ui.str(R.string.profile_choose_title));
                     unlock(owner, phrase);
                     new DiscussionSkillsJourney(ui, fixture).send();
                     lock();
@@ -145,7 +144,7 @@ public final class DeviceJourney extends Instrumentation {
                 }
                 case "instrument-wide": {
                     String owner = "Relecture " + fixture.getString("run");
-                    ui.see("Choisir un profil");
+                    ui.see(ui.str(R.string.profile_choose_title));
                     unlock(owner, fixture.getString("phrase"));
                     new ThreadInstrumentJourney(ui, fixture).wide();
                     lock();
@@ -171,15 +170,16 @@ public final class DeviceJourney extends Instrumentation {
     }
 
     private void profile(String label, String endpoint, String key, String phrase) throws Exception {
-        if (ui.has("Ajouter un profil")) ui.tap("Ajouter un profil");
-        ui.see("Connecter Hermes");
-        ui.fill("Nom du profil", label);
-        ui.fill("Adresse du serveur", fixture.getString(endpoint));
-        ui.fill("Clé d’accès Hermes", fixture.getString(key));
-        ui.fill("Phrase secrète du profil", phrase);
-        ui.fill("Confirmer la phrase secrète", phrase);
-        ui.tap("Enregistrer le profil");
-        ui.see("Nouvelle conversation");
+        String addProfile = ui.str(R.string.profile_add_action);
+        if (ui.has(addProfile)) ui.tap(addProfile);
+        ui.see(ui.str(R.string.profile_connect_title));
+        ui.fill(ui.str(R.string.profile_name_label), label);
+        ui.fill(ui.str(R.string.profile_server_label), fixture.getString(endpoint));
+        ui.fill(ui.str(R.string.profile_key_label), fixture.getString(key));
+        ui.fill(ui.str(R.string.profile_passphrase_label), phrase);
+        ui.fill(ui.str(R.string.profile_passphrase_confirm_label), phrase);
+        ui.tap(ui.str(R.string.profile_save_action));
+        ui.see(ui.str(R.string.thread_new_conversation));
     }
 
     private void pagesIsolation(String owner) throws Exception {
@@ -188,8 +188,8 @@ public final class DeviceJourney extends Instrumentation {
         lock();
         profile(other, "secondEndpoint", "secondKey", passphrase);
         ui.see("Aucune conversation pour ce profil.");
-        ui.tap("Atelier");
-        ui.tap("Mes écrans");
+        ui.tap(ui.str(R.string.nav_atelier));
+        ui.tap(ui.str(R.string.ws_my_screens));
         ui.contains("Demandez à Hermes de créer un écran");
         ui.absent("Diagnostic mobile");
         lock();
@@ -199,90 +199,91 @@ public final class DeviceJourney extends Instrumentation {
     }
 
     private void lock() {
-        ui.tap("Profil et verrouillage");
-        ui.tap("Verrouiller le profil");
-        ui.see("Choisir un profil");
+        ui.tap(ui.str(R.string.top_profile_lock));
+        ui.tap(ui.str(R.string.security_lock_now));
+        ui.see(ui.str(R.string.profile_choose_title));
     }
 
     private void unlock(String label, String phrase) {
         ui.tap(label);
-        ui.fill("Phrase secrète du profil", phrase);
-        ui.tap("Déverrouiller");
+        ui.fill(ui.str(R.string.profile_passphrase_label), phrase);
+        ui.tap(ui.str(R.string.profile_unlock_action));
     }
 
     private void menu(String name) {
-        ui.tap("Autres actions");
+        ui.tap(ui.str(R.string.ws_more_actions));
         ui.tap(name);
     }
 
     private void send(String text, String expected) {
-        ui.fill("Message à Hermes", text);
-        ui.tap("Envoyer");
+        ui.fill(ui.str(R.string.thread_message_hint), text);
+        ui.tap(ui.str(R.string.thread_send));
         ui.contains(expected);
         // Wait for transcript reconciliation, as it owns artifact and usage records.
-        ui.see("Envoyer");
+        ui.see(ui.str(R.string.thread_send));
     }
 
     private void work() throws Exception {
-        if (ui.has("Ajouter un profil")) ui.tap("Ajouter un profil");
-        ui.see("Connecter Hermes");
+        String addProfile = ui.str(R.string.profile_add_action);
+        if (ui.has(addProfile)) ui.tap(addProfile);
+        ui.see(ui.str(R.string.profile_connect_title));
         ui.capture("01-connexion");
         profile(primary, "endpoint", "key", fixture.getString("phrase"));
         ui.see("Conversation de vérification");
         ui.capture("02-discussions");
-        ui.tap("Nouvelle conversation");
-        ui.see("Message à Hermes");
-        ui.see("Comprendre du code");
-        ui.see("Planifier mon travail");
+        ui.tap(ui.str(R.string.thread_new_conversation));
+        ui.see(ui.str(R.string.thread_message_hint));
+        ui.see(ui.str(R.string.starter_code));
+        ui.see(ui.str(R.string.starter_plan));
         ui.capture("02-conversation-vide");
-        ui.tap("Comprendre du code");
-        ui.contains("Peux-tu m’expliquer ce code ?");
-        ui.absent("Planifier mon travail");
+        ui.tap(ui.str(R.string.starter_code));
+        ui.contains(ui.str(R.string.starter_code_draft));
+        ui.absent(ui.str(R.string.starter_plan));
         send("Bonjour depuis le téléphone", "La conversation est prête.");
-        ui.absent("Quelques idées pour commencer");
+        ui.absent(ui.str(R.string.starter_heading));
         send("Donne une fonction Python pour calculer un carré.", "return n * n");
         ui.hideKeyboard();
         ui.heading("Bonjour depuis le téléphone");
         ui.capture("03-discussion-code");
-        ui.tap("Ouvrir le code · python");
+        ui.tap(ui.str(R.string.code_open_named, "python"));
         ui.contains("return n * n");
-        ui.see("Copier le contenu");
-        ui.tap("Fermer");
-        ui.tap("Toutes les discussions");
+        ui.see(ui.str(R.string.code_copy_content));
+        ui.tap(ui.str(R.string.ws_close));
+        ui.tap(ui.str(R.string.ws_all_discussions));
         ui.see("Bonjour depuis le téléphone");
         ui.capture("15-discussion-retrouvee");
         ui.tap("Bonjour depuis le téléphone");
         ui.heading("Bonjour depuis le téléphone");
         ui.contains("return n * n");
-        menu("Artefacts");
+        menu(ui.str(R.string.ws_artifacts));
         ui.tap("Extrait python");
         ui.contains("return n * n");
         ui.capture("04-artefact");
         ui.tap("Fermer");
         ui.tap("Fermer");
         send("Disposition de vérification", "Raccourcis de vérification");
-        menu("Artefacts");
+        menu(ui.str(R.string.ws_artifacts));
         ui.tap("Disposition · Atelier");
         ui.tap("Appliquer la disposition…");
         ui.tap("Appliquer");
-        ui.tap("Atelier");
+        ui.tap(ui.str(R.string.nav_atelier));
         ui.see("Raccourcis de vérification");
         ui.capture("05-atelier-personnalise");
-        menu("Rétablir l’atelier");
+        menu(ui.str(R.string.ws_restore_desk));
         ui.tap("Atelier");
         ui.tap("Annuler la modification");
-        ui.see("Espace de travail");
+        ui.see(ui.str(R.string.ws_workspace));
         ui.absent("Raccourcis de vérification");
-        ui.tap("Reprendre la discussion");
+        ui.tap(ui.str(R.string.ws_resume_discussion));
 
-        menu("Modèle et outils");
-        ui.see("Ensembles d’outils");
+        menu(ui.str(R.string.ws_model_and_tools));
+        ui.see(ui.str(R.string.panel_tools));
         ui.capture("06-reglages");
-        ui.tap("Choisir le modèle");
+        ui.tap(ui.str(R.string.panel_route));
         ui.tap(fixture.getString("provider"));
         ui.tap("fake-model");
         ui.contains("fake-model");
-        ui.tap("Choisir le modèle");
+        ui.tap(ui.str(R.string.panel_route));
         ui.see(fixture.getString("provider"));
         ui.capture("06-fournisseurs");
         ui.tap(fixture.getString("alternateProvider"));
@@ -290,18 +291,18 @@ public final class DeviceJourney extends Instrumentation {
         ui.capture("06-modeles");
         ui.tap(fixture.getString("alternateModel"));
         ui.contains(fixture.getString("alternateModel"));
-        ui.tap("Fermer");
+        ui.tap(ui.str(R.string.panel_done));
         send("Quel fournisseur de vérification répond ?", "Réponse du fournisseur Atelier.");
-        menu("Utilisation");
-        ui.see("Cumul de la discussion");
-        ui.see("Jetons de sortie");
+        menu(ui.str(R.string.ws_usage));
+        ui.see(ui.str(R.string.panel_server_totals));
+        ui.see(ui.str(R.string.panel_out));
         ui.capture("07-statistiques");
-        ui.tap("Fermer");
+        ui.tap(ui.str(R.string.panel_done));
         reminders();
 
-        ui.tap("Message à Hermes");
+        ui.tap(ui.str(R.string.thread_message_hint));
         ui.imeVisible();
-        ui.fill("Message à Hermes", fixture.getString("draft"));
+        ui.fill(ui.str(R.string.thread_message_hint), fixture.getString("draft"));
         ui.usableComposer();
         ui.capture("09-compositeur-clavier");
         ui.back();
@@ -318,40 +319,42 @@ public final class DeviceJourney extends Instrumentation {
 
     private void reminders() throws Exception {
         String name = "Rappel " + fixture.getString("run");
-        ui.tap("Activité");
-        ui.tap("Rappels");
-        ui.tap("Nouveau rappel");
-        ui.fill("Titre", name);
-        ui.fill("Consigne pour Hermes", "Relire la fonction carré.");
-        ui.tap("Enregistrer");
+        String scheduled = ui.str(R.string.panel_job_state, ui.str(R.string.panel_scheduled));
+        String paused = ui.str(R.string.panel_job_state, ui.str(R.string.panel_paused));
+        ui.tap(ui.str(R.string.nav_activity));
+        ui.tap(ui.str(R.string.activity_reminders_title));
+        ui.tap(ui.str(R.string.panel_new_reminder));
+        ui.fill(ui.str(R.string.panel_name), name);
+        ui.fill(ui.str(R.string.panel_prompt), "Relire la fonction carré.");
+        ui.tap(ui.str(R.string.panel_save));
         ui.tapButton(name);
-        ui.see("État : Planifié");
+        ui.see(scheduled);
         ui.see("Relire la fonction carré.");
         ui.capture("08-rappel");
-        ui.tap("Mettre en pause");
+        ui.tap(ui.str(R.string.panel_pause));
         ui.tapButton(name);
-        ui.see("État : En pause");
-        ui.tap("Reprendre");
+        ui.see(paused);
+        ui.tap(ui.str(R.string.panel_resume));
         ui.tapButton(name);
-        ui.see("État : Planifié");
-        ui.tapButton("Supprimer");
-        ui.see("Supprimer « " + name + " » ?");
-        ui.tapButton("Supprimer");
-        ui.see("Aucun rappel planifié pour ce profil.");
-        ui.tap("Fermer");
-        ui.tap("Discussions");
+        ui.see(scheduled);
+        ui.tapButton(ui.str(R.string.panel_delete));
+        ui.see(ui.str(R.string.panel_confirm_delete, name));
+        ui.tapButton(ui.str(R.string.panel_delete));
+        ui.see(ui.str(R.string.panel_no_reminder));
+        ui.tap(ui.str(R.string.panel_done));
+        ui.tap(ui.str(R.string.nav_discussions));
     }
 
     private void restart() throws Exception {
-        ui.see("Choisir un profil");
+        ui.see(ui.str(R.string.profile_choose_title));
         ui.absent(fixture.getString("draft"));
         unlock(primary, fixture.getString("phrase"));
         ui.see(fixture.getString("draft"));
         ui.contains("Réponse du fournisseur Atelier.");
         ui.usableComposer();
         ui.capture("10-discussion-nuit-grands-caracteres");
-        ui.tap("Atelier");
-        ui.see("Espace de travail");
+        ui.tap(ui.str(R.string.nav_atelier));
+        ui.see(ui.str(R.string.ws_workspace));
         ui.capture("11-atelier-nuit-grands-caracteres");
         lock();
         forget(primary, fixture.getString("phrase"));
@@ -360,10 +363,10 @@ public final class DeviceJourney extends Instrumentation {
 
     private void forget(String label, String passphrase) {
         ui.tap(label);
-        ui.fill("Phrase secrète du profil", passphrase);
-        ui.tap("Retirer ce profil");
+        ui.fill(ui.str(R.string.profile_passphrase_label), passphrase);
+        ui.tap(ui.str(R.string.profile_remove_action));
         ui.tap("Retirer");
-        ui.see("Choisir un profil");
+        ui.see(ui.str(R.string.profile_choose_title));
         ui.absent(label);
     }
 }

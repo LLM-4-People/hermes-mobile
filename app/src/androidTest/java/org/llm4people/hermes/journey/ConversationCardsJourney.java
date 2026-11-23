@@ -14,7 +14,7 @@ import android.widget.TextView;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
-import org.llm4people.hermes.AppLanguage;
+import org.llm4people.hermes.R;
 
 import java.io.File;
 import java.lang.reflect.Field;
@@ -47,13 +47,12 @@ public final class ConversationCardsJourney extends Instrumentation {
             fixture = new JSONObject(new String(Files.readAllBytes(
                     new File(directory, "fixture.json").toPath()), StandardCharsets.UTF_8));
             String pkg = getTargetContext().getPackageName();
-            AppLanguage.apply(getTargetContext(), AppLanguage.Mode.FRENCH);
             activity = startActivitySync(new Intent().setClassName(pkg, pkg + ".MainActivity")
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK));
             ui = new JourneyUi(this, activity, directory);
             installRecognizer();
             addProfile();
-            ui.tap("Nouvelle conversation");
+            ui.tap(ui.str(R.string.thread_new_conversation));
             JSONArray turns = fixture.getJSONArray("turns");
             for (int i = 0; i < turns.length(); i++) {
                 JSONObject spec = turns.getJSONObject(i);
@@ -76,42 +75,45 @@ public final class ConversationCardsJourney extends Instrumentation {
     }
 
     private void addProfile() throws Exception {
-        if (ui.has("Ajouter un profil")) ui.tap("Ajouter un profil");
-        ui.see("Connecter Hermes");
-        ui.fill("Nom du profil", fixture.getString("profile"));
-        ui.fill("Adresse du serveur", fixture.getString("endpoint"));
-        ui.fill("Clé d’accès Hermes", fixture.getString("key"));
-        ui.fill("Phrase secrète du profil", fixture.getString("phrase"));
-        ui.fill("Confirmer la phrase secrète", fixture.getString("phrase"));
-        ui.tap("Enregistrer le profil");
-        ui.see("Nouvelle conversation");
+        String addProfile = ui.str(R.string.profile_add_action);
+        if (ui.has(addProfile)) ui.tap(addProfile);
+        ui.see(ui.str(R.string.profile_connect_title));
+        ui.fill(ui.str(R.string.profile_name_label), fixture.getString("profile"));
+        ui.fill(ui.str(R.string.profile_server_label), fixture.getString("endpoint"));
+        ui.fill(ui.str(R.string.profile_key_label), fixture.getString("key"));
+        ui.fill(ui.str(R.string.profile_passphrase_label), fixture.getString("phrase"));
+        ui.fill(ui.str(R.string.profile_passphrase_confirm_label), fixture.getString("phrase"));
+        ui.tap(ui.str(R.string.profile_save_action));
+        ui.see(ui.str(R.string.thread_new_conversation));
         ownProfile = true;
     }
 
     private void removeOwnProfile() throws Exception {
-        if (ui.has("Profil et verrouillage")) {
-            ui.tap("Profil et verrouillage");
-            ui.tap("Verrouiller le profil");
+        String lockAction = ui.str(R.string.top_profile_lock);
+        if (ui.has(lockAction)) {
+            ui.tap(lockAction);
+            ui.tap(ui.str(R.string.security_lock_now));
         }
-        ui.see("Choisir un profil");
+        String chooseProfile = ui.str(R.string.profile_choose_title);
+        ui.see(chooseProfile);
         String name = fixture.getString("profile");
         ui.tap(name);
-        ui.fill("Phrase secrète du profil", fixture.getString("phrase"));
-        ui.tap("Retirer ce profil");
+        ui.fill(ui.str(R.string.profile_passphrase_label), fixture.getString("phrase"));
+        ui.tap(ui.str(R.string.profile_remove_action));
         ui.tap("Retirer");
-        ui.see("Choisir un profil");
+        ui.see(chooseProfile);
         ui.absent(name);
     }
 
     private void reopenHistory(JSONObject turn) throws Exception {
-        ui.see("Envoyer");
-        ui.tap("Profil et verrouillage");
-        ui.tap("Verrouiller le profil");
-        ui.see("Choisir un profil");
+        ui.see(ui.str(R.string.thread_send));
+        ui.tap(ui.str(R.string.top_profile_lock));
+        ui.tap(ui.str(R.string.security_lock_now));
+        ui.see(ui.str(R.string.profile_choose_title));
         ui.tap(fixture.getString("profile"));
-        ui.fill("Phrase secrète du profil", fixture.getString("phrase"));
-        ui.tap("Déverrouiller");
-        ui.see("Message à Hermes");
+        ui.fill(ui.str(R.string.profile_passphrase_label), fixture.getString("phrase"));
+        ui.tap(ui.str(R.string.profile_unlock_action));
+        ui.see(ui.str(R.string.thread_message_hint));
         ui.contains(turn.getString("reply"));
         seeTranscriptRow("Hermes", turn.getString("question"));
         seeTranscriptRow("Vous", turn.getString("answer"));
@@ -163,15 +165,15 @@ public final class ConversationCardsJourney extends Instrumentation {
     }
 
     private void turn(int index, JSONObject turn) throws Exception {
-        ui.fill("Message à Hermes", turn.getString("prompt"));
-        ui.tap("Envoyer");
+        ui.fill(ui.str(R.string.thread_message_hint), turn.getString("prompt"));
+        ui.tap(ui.str(R.string.thread_send));
         boolean approval = "approval".equals(turn.getString("kind"));
         String answer = turn.getString("answer");
         ui.showPendingControl(approval ? "Autoriser une fois" : turn.getString("question"));
         if (turn.optBoolean("read_history")) {
             await("permit-" + index);
             seeTranscriptRow("Vous", fixture.getJSONArray("turns").getJSONObject(0).getString("prompt"));
-            ui.tap("Répondre à Hermes");
+            ui.tap(ui.str(R.string.ws_reply_hermes));
         }
         if (approval) {
             ui.see("Autoriser une fois");
@@ -194,8 +196,9 @@ public final class ConversationCardsJourney extends Instrumentation {
                     EditText editor = answerEditor(activity.getWindow().getDecorView());
                     if (editor == null) throw new AssertionError("Missing answer editor");
                     View microphone = null;
+                    String dictate = activity.getString(R.string.voice_dictate);
                     for (ViewParent parent = editor.getParent(); parent instanceof View view; parent = parent.getParent()) {
-                        microphone = microphone(view);
+                        microphone = microphone(view, dictate);
                         if (microphone != null) break;
                     }
                     if (microphone == null || !microphone.performClick()) throw new AssertionError("Missing answer microphone");
@@ -225,12 +228,12 @@ public final class ConversationCardsJourney extends Instrumentation {
         return null;
     }
 
-    private static View microphone(View view) {
+    private static View microphone(View view, String label) {
         if (!view.isShown()) return null;
-        if ("Dicter".contentEquals(view.getContentDescription() == null ? "" : view.getContentDescription())) return view;
+        if (label.contentEquals(view.getContentDescription() == null ? "" : view.getContentDescription())) return view;
         if (view instanceof ViewGroup group) {
             for (int i = 0; i < group.getChildCount(); i++) {
-                View button = microphone(group.getChildAt(i));
+                View button = microphone(group.getChildAt(i), label);
                 if (button != null) return button;
             }
         }

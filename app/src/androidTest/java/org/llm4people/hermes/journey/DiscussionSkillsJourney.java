@@ -2,6 +2,7 @@ package org.llm4people.hermes.journey;
 
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.llm4people.hermes.R;
 
 /** Two phases let the host check the canonical admission ledger before the real Send tap. */
 final class DiscussionSkillsJourney {
@@ -14,13 +15,13 @@ final class DiscussionSkillsJourney {
     }
 
     void stage() throws JSONException {
-        ui.tap("Nouvelle conversation");
-        ui.fill("Message à Hermes", fixture.getString("draft"));
+        ui.tap(ui.str(R.string.thread_new_conversation));
+        ui.fill(ui.str(R.string.thread_message_hint), fixture.getString("draft"));
         ui.hideKeyboard();
-        ui.tap("Autres actions");
-        ui.tap("Modèle et outils");
-        ui.tap("Compétences de Hermes");
-        ui.fill("Rechercher un savoir-faire", "relecture");
+        ui.tap(ui.str(R.string.ws_more_actions));
+        ui.tap(ui.str(R.string.ws_model_and_tools));
+        ui.tap(ui.str(R.string.skills_title));
+        ui.fill(ui.str(R.string.brain_skills_search), "relecture");
         ui.hideKeyboard();
         ui.see(fixture.getString("skill"));
         ui.absent("support/synthese");
@@ -29,23 +30,24 @@ final class DiscussionSkillsJourney {
         ui.see("qualite");
         ui.contains(fixture.getString("summary"));
         ui.capture("02-competence-resume");
-        ui.tap("Utiliser dans la discussion");
+        ui.tap(ui.str(R.string.brain_skills_use_in_thread));
         ui.see(fixture.getString("staged"));
         ui.capture("03-competence-brouillon");
     }
 
     void send() throws JSONException {
+        String sendLabel = ui.str(R.string.thread_send);
         ui.see(fixture.getString("staged"));
-        ui.tap("Envoyer");
-        ui.see("Envoyer");
+        ui.tap(sendLabel);
+        ui.see(sendLabel);
         ui.see("Compétence consultée");
         ui.see("Voir le résultat");
         ui.revealText(fixture.getString("answer"));
         ui.capture("04-competence-reponse");
         ui.tap("Voir le résultat");
         ui.see("Résultat · skill_view");
-        ui.see("Copier le contenu");
+        ui.see(ui.str(R.string.code_copy_content));
         ui.selectableText(fixture.getString("skill") + "/SKILL.md", fixture.getString("marker"));
-        ui.tap("Fermer");
+        ui.tap(ui.str(R.string.ws_close));
     }
 }

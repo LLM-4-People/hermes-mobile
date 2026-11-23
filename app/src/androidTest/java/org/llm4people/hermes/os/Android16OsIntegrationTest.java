@@ -11,6 +11,8 @@ import android.os.Build;
 import android.test.InstrumentationTestCase;
 import android.widget.RemoteViews;
 
+import org.llm4people.hermes.R;
+
 import java.util.List;
 import java.util.UUID;
 
@@ -54,7 +56,7 @@ public final class Android16OsIntegrationTest extends InstrumentationTestCase {
         NotificationManager manager = context.getSystemService(NotificationManager.class);
         LiveRunNotification.Snapshot snapshot = new LiveRunNotification.Snapshot(
                 LiveRunNotification.Phase.TOOL_RUNNING, 2, 4, false, true);
-        LiveRunNotification.Presentation model = LiveRunNotification.present(snapshot);
+        LiveRunNotification.Presentation model = LiveRunNotification.present(context, snapshot);
         assertNotNull(model);
 
         Notification built = LiveRunNotification.build(context, manager, snapshot, model);
@@ -63,9 +65,9 @@ public final class Android16OsIntegrationTest extends InstrumentationTestCase {
         assertTrue((built.flags & Notification.FLAG_ONGOING_EVENT) != 0);
         assertNotNull(built.actions);
         assertEquals(2, built.actions.length);
-        assertEquals("Hermes travaille…", built.extras.getString(Notification.EXTRA_TITLE));
+        assertEquals(context.getString(R.string.live_run_working_title), built.extras.getString(Notification.EXTRA_TITLE));
         if (Build.VERSION.SDK_INT >= 36) {
-            assertEquals("Étape 2/4", built.getShortCriticalText());
+            assertEquals(context.getString(R.string.live_run_chip_step_of, 2, 4), built.getShortCriticalText());
         }
     }
 

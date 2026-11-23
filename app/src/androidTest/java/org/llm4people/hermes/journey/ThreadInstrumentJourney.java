@@ -2,22 +2,17 @@ package org.llm4people.hermes.journey;
 
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.llm4people.hermes.R;
 
 /** Drives the model's two real review forms without publishing either as an account-wide page. */
 final class ThreadInstrumentJourney {
     private final JourneyUi ui;
-    private final String first, template, goal, revision, other, title, form;
-    private static final String RETURN = "Revenir à la discussion";
-    private static final String OPEN = "Ouvrir l’outil épinglé";
-    private static final String TRY = "Essayer dans la discussion";
-    private static final String PIN = "Épingler à cette discussion";
-    private static final String COMPARE = "Comparer les versions";
+    private final String first, goal, revision, other, title, form;
     private static final String STAGED = "Relire ce changement.\n\nFichier\nfacture.py";
 
     ThreadInstrumentJourney(JourneyUi ui, JSONObject spec) throws JSONException {
         this.ui = ui;
         first = spec.getString("first");
-        template = spec.getString("template");
         goal = spec.getString("goal");
         revision = spec.getString("revision");
         other = spec.getString("other");
@@ -26,37 +21,52 @@ final class ThreadInstrumentJourney {
     }
 
     void portrait() {
-        ui.tap("Nouvelle conversation");
+        String ret = ui.str(R.string.instrument_return);
+        String open = ui.str(R.string.instrument_open_pin);
+        String tryTool = ui.str(R.string.instrument_try);
+        String pin = ui.str(R.string.instrument_pin);
+        String compare = ui.str(R.string.instrument_compare);
+        String createTool = ui.str(R.string.instrument_create);
+        String expectedRequest = ui.str(R.string.instrument_create_request);
+        String composerHint = ui.str(R.string.thread_message_hint);
+        String sendLabel = ui.str(R.string.thread_send);
+        String tabProposed = ui.str(R.string.instrument_tab_next_role);
+        String tabPinned = ui.str(R.string.instrument_tab_pin_role);
+        String tabDiff = ui.str(R.string.instrument_tab_diff_role);
+
+        ui.tap(ui.str(R.string.thread_new_conversation));
         send(first, "Vérifiez le calcul du total avant l’arrondi.");
-        ui.tap("Autres actions");
-        ui.revealText("Créer un outil pour ce fil");
+        ui.tap(ui.str(R.string.ws_more_actions));
+        ui.revealText(createTool);
         ui.capture("18-creer-outil");
-        ui.tap("Créer un outil pour ce fil");
-        String request = ui.fieldText("Message à Hermes");
-        if (!request.equals(template)) throw new AssertionError("The French request did not enter the editable composer");
-        ui.fill("Message à Hermes", request + "\n\n" + goal);
+        ui.tap(createTool);
+        String request = ui.fieldText(composerHint);
+        if (!request.equals(expectedRequest)) {
+            throw new AssertionError("The create-tool request did not enter the editable composer");
+        }
+        ui.fill(composerHint, request + "\n\n" + goal);
         ui.hideKeyboard();
         ui.heading(first);
         ui.capture("19-demande-outil");
-        ui.tap("Envoyer");
+        ui.tap(sendLabel);
         ui.contains("Voici votre outil de relecture.");
-        ui.see("Envoyer");
-        ui.tap(TRY);
+        ui.see(sendLabel);
+        ui.tap(tryTool);
         ui.contains(title);
         ui.see(form);
         ui.fill("Fichier", "facture.py");
         ui.hideKeyboard();
         ui.revealField("Fichier");
         ui.capture("20-essai-discussion");
-        ui.tap(RETURN);
-        ui.absent(OPEN);
-        ui.tap("Atelier");
-        ui.tap("Mes écrans");
+        ui.tap(ret);
+        ui.absent(open);
+        ui.tap(ui.str(R.string.nav_atelier));
+        ui.tap(ui.str(R.string.ws_my_screens));
         ui.contains("Demandez à Hermes de créer un écran");
         ui.absent(title);
-        ui.tap("Discussions");
-        ui.tap(TRY);
-        ui.tap(PIN);
+        ui.tap(ui.str(R.string.nav_discussions));
+        ui.tap(tryTool);
+        ui.tap(pin);
         ui.see(form);
         ui.fill("Fichier", "facture.py");
         ui.tap("Préparer un brouillon…");
@@ -66,23 +76,23 @@ final class ThreadInstrumentJourney {
         ui.heading(first);
         ui.hideKeyboard();
         ui.capture("21-brouillon-outil");
-        if (ui.has(RETURN)) ui.tap(RETURN);
-        ui.tap(OPEN);
+        if (ui.has(ret)) ui.tap(ret);
+        ui.tap(open);
         ui.see(form);
         send(revision, "La priorité est prête à comparer.");
-        ui.tap(COMPARE);
+        ui.tap(compare);
         ui.contains("Consigne du brouillon", "Avant", "Relire ce changement.",
                 "Après", "Relire ce changement par priorité.");
         ui.revealText("Champ ajouté", "Priorité");
         ui.capture("22-comparaison-outil");
-        ui.tap("Version proposée");
+        ui.tap(tabProposed);
         String candidateFile = "facture/revue-proposee.py";
         ui.fill("Fichier", candidateFile);
         ui.fill("Priorité", "Élevée");
         ui.hideKeyboard();
         ui.revealField("Priorité");
         ui.capture("22-version-proposee");
-        ui.tap("Version épinglée");
+        ui.tap(tabPinned);
         ui.see(form);
         ui.absent("Priorité");
         if (candidateFile.equals(ui.fieldText("Fichier")))
@@ -90,46 +100,46 @@ final class ThreadInstrumentJourney {
         ui.fill("Fichier", "facture/revue-epinglee.py");
         ui.revealField("Fichier");
         ui.capture("22-version-epinglee");
-        ui.tap("Version proposée");
+        ui.tap(tabProposed);
         if (!candidateFile.equals(ui.fieldText("Fichier")) || !"Élevée".equals(ui.fieldText("Priorité")))
             throw new AssertionError("Switching between revisions discarded the private candidate fields");
-        ui.tap("Différences entre les versions");
+        ui.tap(tabDiff);
         ui.contains("Champ ajouté", "Priorité");
-        ui.tap("Garder la version épinglée");
+        ui.tap(ui.str(R.string.instrument_keep));
         ui.see(form);
         ui.absent("Priorité");
-        ui.tap(RETURN);
-        ui.tap(COMPARE);
-        ui.tap("Adopter cette version");
+        ui.tap(ret);
+        ui.tap(compare);
+        ui.tap(ui.str(R.string.instrument_adopt));
         ui.see("Priorité");
         ui.fill("Priorité", "Élevée");
         ui.hideKeyboard();
         ui.revealField("Priorité");
         ui.capture("23-outil-adopte");
-        ui.tap("Annuler la modification");
+        ui.tap(ui.str(R.string.instrument_undo));
         ui.see(form);
         ui.absent("Priorité");
         ui.revealField("Fichier");
         ui.capture("24-outil-annule");
-        ui.tap(RETURN);
-        ui.tap("Toutes les discussions");
-        ui.tap("Nouvelle conversation");
+        ui.tap(ret);
+        ui.tap(ui.str(R.string.ws_all_discussions));
+        ui.tap(ui.str(R.string.thread_new_conversation));
         send(other, "La réunion est prête.");
-        ui.absent(OPEN);
-        ui.absent(TRY);
-        ui.absent(COMPARE);
-        ui.tap("Toutes les discussions");
+        ui.absent(open);
+        ui.absent(tryTool);
+        ui.absent(compare);
+        ui.tap(ui.str(R.string.ws_all_discussions));
         ui.tap(first);
         ui.heading(first);
-        ui.tap(OPEN);
+        ui.tap(open);
         ui.see(form);
         ui.absent("Priorité");
-        ui.tap(RETURN);
+        ui.tap(ret);
     }
 
     void wide() {
         ui.heading(first);
-        ui.tap(OPEN);
+        ui.tap(ui.str(R.string.instrument_open_pin));
         ui.see(form);
         ui.fill("Fichier", "facture.py");
         ui.hideKeyboard();
@@ -138,10 +148,10 @@ final class ThreadInstrumentJourney {
     }
 
     private void send(String prompt, String reply) {
-        ui.fill("Message à Hermes", prompt);
-        ui.tap("Envoyer");
+        ui.fill(ui.str(R.string.thread_message_hint), prompt);
+        ui.tap(ui.str(R.string.thread_send));
         ui.contains(reply);
-        ui.see("Envoyer");
+        ui.see(ui.str(R.string.thread_send));
         ui.hideKeyboard();
     }
 }

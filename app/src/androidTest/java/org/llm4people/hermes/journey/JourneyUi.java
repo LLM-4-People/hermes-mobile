@@ -39,6 +39,16 @@ public final class JourneyUi {
         this.evidence = evidence;
     }
 
+    /** Resolve an app string resource in the Activity's active locale (en-US, fr-*, etc.). */
+    public String str(int resId) {
+        return activity.getString(resId);
+    }
+
+    /** Resolve a formatted app string resource in the Activity's active locale. */
+    public String str(int resId, Object... args) {
+        return activity.getString(resId, args);
+    }
+
     <T> T main(Supplier<T> task) {
         AtomicReference<T> result = new AtomicReference<>();
         AtomicReference<Throwable> failure = new AtomicReference<>();

@@ -34,10 +34,10 @@ public final class WorkspaceOverflowTest extends InstrumentationTestCase {
                 assertSame(original, currentMenu(shell));
                 shell.selected("B", "Même titre");
                 assertNull(currentMenu(shell));
-                assertFalse(selectModels(original));
+                assertFalse(selectModels(context, original));
                 assertTrue(actions.isEmpty());
                 Menu replacement = open(shell);
-                assertTrue(selectModels(replacement));
+                assertTrue(selectModels(context, replacement));
                 assertEquals(java.util.Collections.singletonList("models"), actions);
                 shell.dismissMenu();
             });
@@ -68,12 +68,13 @@ public final class WorkspaceOverflowTest extends InstrumentationTestCase {
         }
     }
 
-    private static boolean selectModels(Menu menu) {
+    private static boolean selectModels(Context context, Menu menu) {
+        String label = context.getString(R.string.ws_model_and_tools);
         menu.setQwertyMode(true);
         for (int i = 0; i < menu.size(); i++) {
             MenuItem item = menu.getItem(i);
             CharSequence title = item.getTitle();
-            if ("Modèle et outils".contentEquals(title) || "Model and tools".contentEquals(title)) {
+            if (label.contentEquals(title)) {
                 item.setAlphabeticShortcut('m', 0);
                 return menu.performShortcut(KeyEvent.KEYCODE_M,
                         new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_M), 0);

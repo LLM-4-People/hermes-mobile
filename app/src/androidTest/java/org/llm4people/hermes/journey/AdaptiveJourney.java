@@ -29,10 +29,11 @@ final class AdaptiveJourney {
 
     void resize() throws Exception {
         String draft = fixture.optString("draft", "Brouillon adaptatif " + fixture.optString("run", "test"));
-        ui.tap("Nouvelle conversation");
-        ui.see("Message à Hermes");
-        ui.fill("Message à Hermes", draft);
-        EditText initialComposer = ui.field("Message à Hermes");
+        String composerHint = ui.str(R.string.thread_message_hint);
+        ui.tap(ui.str(R.string.thread_new_conversation));
+        ui.see(composerHint);
+        ui.fill(composerHint, draft);
+        EditText initialComposer = ui.field(composerHint);
         int selection = Math.min(8, draft.length());
         ui.main(() -> {
             initialComposer.requestFocus();
@@ -45,11 +46,11 @@ final class AdaptiveJourney {
         ui.capture("30-adaptatif-initial");
 
         if (initial.optBoolean("dualPane")) {
-            ui.tap("Masquer les discussions");
-            ui.see("Afficher les discussions");
+            ui.tap(ui.str(R.string.ws_hide_discussions));
+            ui.see(ui.str(R.string.ws_show_discussions));
             assertPreserved(initialComposer, draft, selection);
-            ui.tap("Afficher les discussions");
-            ui.see("Masquer les discussions");
+            ui.tap(ui.str(R.string.ws_show_discussions));
+            ui.see(ui.str(R.string.ws_hide_discussions));
             assertPreserved(initialComposer, draft, selection);
             matrix.put("sidebarToggled", true);
         }
@@ -82,17 +83,18 @@ final class AdaptiveJourney {
             ui.capture("31-adaptatif-rotation");
 
             ui.hideKeyboard();
-            ui.tap("Activité");
-            ui.tap("Rappels");
-            ui.tap("Nouveau rappel");
+            ui.tap(ui.str(R.string.nav_activity));
+            ui.tap(ui.str(R.string.activity_reminders_title));
+            ui.tap(ui.str(R.string.panel_new_reminder));
             String reminderDraft = "Rappel adaptatif " + fixture.optString("run", "test");
-            ui.fill("Titre", reminderDraft);
-            if (!reminderDraft.equals(ui.fieldText("Titre"))) {
+            String titleLabel = ui.str(R.string.panel_name);
+            ui.fill(titleLabel, reminderDraft);
+            if (!reminderDraft.equals(ui.fieldText(titleLabel))) {
                 throw new AssertionError("Reminder title draft did not stick");
             }
-            ui.tap("Retour");
-            ui.tap("Fermer");
-            ui.tap("Discussions");
+            ui.tap(ui.str(R.string.panel_back));
+            ui.tap(ui.str(R.string.panel_done));
+            ui.tap(ui.str(R.string.nav_discussions));
             assertPreserved(initialComposer, draft, selection);
         } finally {
             automation.setRotation(freezeFor(startingRotation));
@@ -122,24 +124,24 @@ final class AdaptiveJourney {
         matrix.put("largeText", state);
         ui.capture("32-adaptatif-grands-caracteres");
         ui.hideKeyboard();
-        ui.tap("Activité");
-        ui.tap("Rappels");
-        ui.tap("Nouveau rappel");
-        EditText title = ui.field("Titre");
+        ui.tap(ui.str(R.string.nav_activity));
+        ui.tap(ui.str(R.string.activity_reminders_title));
+        ui.tap(ui.str(R.string.panel_new_reminder));
+        EditText title = ui.field(ui.str(R.string.panel_name));
         int minTarget = ui.main(() -> Math.round(activity.getResources().getDisplayMetrics().density * 48));
         int measured = ui.main(title::getHeight);
         if (measured < minTarget) {
             throw new AssertionError("Reminder field height below 48dp at large text: " + measured);
         }
-        ui.tap("Retour");
-        ui.tap("Fermer");
-        ui.tap("Discussions");
+        ui.tap(ui.str(R.string.panel_back));
+        ui.tap(ui.str(R.string.panel_done));
+        ui.tap(ui.str(R.string.nav_discussions));
     }
 
     JSONObject evidence() { return matrix; }
 
     private void assertPreserved(EditText expected, String draft, int selection) {
-        EditText current = ui.field("Message à Hermes");
+        EditText current = ui.field(ui.str(R.string.thread_message_hint));
         ui.main(() -> {
             if (current != expected) throw new AssertionError("Composer view was recreated on resize");
             if (!draft.equals(current.getText().toString())) throw new AssertionError("Draft lost across resize");

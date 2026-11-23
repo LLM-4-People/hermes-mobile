@@ -16,6 +16,8 @@ import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 
+import org.llm4people.hermes.R;
+
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
@@ -56,27 +58,28 @@ final class DiscussionPhotoJourney {
     void run() throws Exception {
         ContentResolver resolver = test.getTargetContext().getContentResolver();
         Uri uri = insertSyntheticPhoto(resolver);
+        String remove = ui.str(R.string.thread_remove);
         try {
-            ui.tap("Nouvelle conversation");
-            ui.fill("Message à Hermes", "Décris les deux couleurs.");
+            ui.tap(ui.str(R.string.thread_new_conversation));
+            ui.fill(ui.str(R.string.thread_message_hint), "Décris les deux couleurs.");
             ui.hideKeyboard();
             select();
-            ui.see("Retirer");
+            ui.see(remove);
             ui.capture("01-photo-brouillon");
-            ui.tapButton("Retirer");
+            ui.tapButton(remove);
             ui.contains("Décris les deux couleurs.");
-            ui.absent("Retirer");
+            ui.absent(remove);
             select();
-            ui.see("Retirer");
+            ui.see(remove);
             // Preserve both parts of an accepted draft across an explicit lock and unlock.
-            ui.tap("Profil et verrouillage");
-            ui.tap("Verrouiller le profil");
-            ui.see("Choisir un profil");
+            ui.tap(ui.str(R.string.top_profile_lock));
+            ui.tap(ui.str(R.string.security_lock_now));
+            ui.see(ui.str(R.string.profile_choose_title));
             unlock.run();
-            ui.see("Retirer");
-            ui.fill("Votre question sur l’image", "Quelles couleurs voyez-vous sur ma capture ?");
+            ui.see(remove);
+            ui.fill(ui.str(R.string.thread_image_question_hint), "Quelles couleurs voyez-vous sur ma capture ?");
             ui.hideKeyboard();
-            ui.tap("Envoyer");
+            ui.tap(ui.str(R.string.thread_send));
             ui.contains("Rectangle jaune sur fond bleu.");
             ui.capture("02-photo-reponse");
         } finally {
@@ -155,8 +158,8 @@ final class DiscussionPhotoJourney {
             long remaining = overallDeadline - SystemClock.elapsedRealtime();
             if (remaining <= 0) break;
             diagnostics.attempts = attempt;
-            ui.tap("Autres actions");
-            ui.tap("Joindre une image…");
+            ui.tap(ui.str(R.string.ws_more_actions));
+            ui.tap(ui.str(R.string.ws_attach_image));
             long attemptDeadline = Math.min(overallDeadline,
                     SystemClock.elapsedRealtime() + PICKER_ATTEMPT_TIMEOUT_MS);
             if (trySelectInOpenPicker(automation, attemptDeadline, diagnostics)) {
@@ -174,12 +177,14 @@ final class DiscussionPhotoJourney {
 
     private void awaitReturnToComposer() {
         long end = SystemClock.elapsedRealtime() + 15_000L;
+        String chooseProfile = ui.str(R.string.profile_choose_title);
+        String remove = ui.str(R.string.thread_remove);
         while (SystemClock.elapsedRealtime() < end) {
-            if (ui.has("Choisir un profil")) {
+            if (ui.has(chooseProfile)) {
                 unlock.run();
                 return;
             }
-            if (ui.has("Retirer")) return;
+            if (ui.has(remove)) return;
             SystemClock.sleep(100);
         }
         throw new AssertionError("Picker did not return to the protected composer");
@@ -356,13 +361,15 @@ final class DiscussionPhotoJourney {
             }
         }
         long end = SystemClock.elapsedRealtime() + 10_000L;
+        String chooseProfile = ui.str(R.string.profile_choose_title);
+        String moreActions = ui.str(R.string.ws_more_actions);
         while (SystemClock.elapsedRealtime() < end) {
-            if (ui.has("Choisir un profil")) {
+            if (ui.has(chooseProfile)) {
                 unlock.run();
-                ui.see("Autres actions");
+                ui.see(moreActions);
                 return;
             }
-            if (ui.has("Autres actions")) return;
+            if (ui.has(moreActions)) return;
             SystemClock.sleep(150);
         }
     }
