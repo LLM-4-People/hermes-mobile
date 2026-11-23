@@ -167,7 +167,7 @@ public final class BrainJsonAndApiContractTest extends InstrumentationTestCase {
         assertEquals(1, rich.size());
         assertTrue(rich.get(0).badges(context).contains(context.getString(R.string.ws_badge_vision)));
         assertTrue(rich.get(0).badges(context).contains(context.getString(R.string.ws_badge_tools)));
-        assertTrue(rich.get(0).badges(context).contains(context.getString(R.string.ws_badge_long_context, "200 k")));
+        assertTrue(rich.get(0).badges(context).contains(context.getString(R.string.ws_badge_long_context, "200k")));
 
         // Fork /api/model/options emits sibling `capabilities` and `pricing` maps keyed by model ID.
         List<ModelCapabilityBadges.ModelInfo> forkShape = BrainJson.parseProviderModels(new JSONObject("""
@@ -184,7 +184,7 @@ public final class BrainJsonAndApiContractTest extends InstrumentationTestCase {
         assertEquals(3, forkShape.size());
         assertTrue(forkShape.get(0).badges(context).contains(context.getString(R.string.ws_badge_vision)));
         assertTrue(forkShape.get(0).badges(context).contains(context.getString(R.string.ws_badge_tools)));
-        assertTrue(forkShape.get(0).badges(context).contains(context.getString(R.string.ws_badge_long_context, "200 k")));
+        assertTrue(forkShape.get(0).badges(context).contains(context.getString(R.string.ws_badge_long_context, "200k")));
         assertTrue(forkShape.get(0).badges(context).contains(context.getString(R.string.ws_badge_reasoning)));
         assertEquals(3.0, forkShape.get(0).inputPer1mUsd(), 1e-6);
         assertEquals(15.0, forkShape.get(0).outputPer1mUsd(), 1e-6);
