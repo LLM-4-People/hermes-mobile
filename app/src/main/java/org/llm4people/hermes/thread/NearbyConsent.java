@@ -20,6 +20,7 @@ import org.json.JSONObject;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.nearby.NearbyFix;
+import org.llm4people.hermes.os.PermissionCenter;
 import org.llm4people.hermes.places.NearbyCategory;
 import org.llm4people.hermes.profile.Account;
 
@@ -191,6 +192,11 @@ final class NearbyConsent {
             items.addView(remember);
             option(items, page.activity.getString(R.string.nearby_use_approx), ticket,
                     () -> locateTurn(true, remember.isChecked(), null));
+            if (!granted() && PermissionCenter.state(page.activity, PermissionCenter.Key.LOCATION)
+                    == PermissionCenter.State.PERMANENTLY_DENIED) {
+                option(items, page.activity.getString(R.string.perm_action_open_settings), ticket,
+                        () -> PermissionCenter.openAppSettings(page.activity));
+            }
             option(items, page.activity.getString(R.string.nearby_enter_neighborhood), ticket, () -> {
                 if (!remembered || remember.isChecked() || preference(false)) manual();
             });
@@ -317,6 +323,11 @@ final class NearbyConsent {
         };
         if (granted()) start.run();
         else if (allowPermission) {
+            if (PermissionCenter.state(page.activity, PermissionCenter.Key.LOCATION)
+                    == PermissionCenter.State.PERMANENTLY_DENIED) {
+                showBlockedRecovery();
+                return;
+            }
             try {
                 permissionTicket = nextPermission();
                 onGrant = start;
@@ -341,10 +352,32 @@ final class NearbyConsent {
         Runnable ready = onGrant;
         permissionTicket = -1;
         onGrant = null;
-        if (permissions.length == 1 && PERMISSION.equals(permissions[0]) && results.length == 1
-                && results[0] == PackageManager.PERMISSION_GRANTED && granted() && ready != null) ready.run();
-        else clearFailure();
+        PermissionCenter.recordCompletedPrompt(page.activity, PermissionCenter.Key.LOCATION, results);
+        if (permissions != null && results != null
+                && permissions.length == 1 && PERMISSION.equals(permissions[0]) && results.length == 1
+                && results[0] == PackageManager.PERMISSION_GRANTED && granted() && ready != null) {
+            ready.run();
+        } else if (PermissionCenter.state(page.activity, PermissionCenter.Key.LOCATION)
+                == PermissionCenter.State.PERMANENTLY_DENIED) {
+            showBlockedRecovery();
+        } else {
+            clearFailure();
+        }
         return true;
+    }
+
+    private void showBlockedRecovery() {
+        cancel();
+        failure = page.activity.getString(R.string.perm_location_blocked);
+        refresh();
+        if (page.screen != null) {
+            page.screen.show(new AlertDialog.Builder(page.activity)
+                    .setTitle(R.string.nearby_add_area_title)
+                    .setMessage(R.string.perm_location_blocked)
+                    .setPositiveButton(R.string.perm_action_open_settings,
+                            (d, w) -> PermissionCenter.openAppSettings(page.activity))
+                    .setNegativeButton(R.string.ws_cancel, null));
+        }
     }
 
     private void clearFailure() {

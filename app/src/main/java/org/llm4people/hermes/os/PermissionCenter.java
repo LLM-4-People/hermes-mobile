@@ -136,6 +136,51 @@ public final class PermissionCenter {
         return fromRequestCode(requestCode) != null;
     }
 
+    /**
+     * Pure-Java check for whether an Android {@code onRequestPermissionsResult} callback reflects a
+     * completed user decision rather than an interrupted/cancelled dialog (empty {@code grantResults}).
+     */
+    public static boolean isCompletedResult(int[] grantResults) {
+        return grantResults != null && grantResults.length > 0;
+    }
+
+    /** Resolve a managed runtime {@link Key} from an Android manifest permission string, or null. */
+    public static Key fromManifestPermission(String permission) {
+        if (permission == null || permission.isEmpty()) return null;
+        for (Key key : Key.values()) {
+            if (!key.specialAccess && permission.equals(key.manifestPermission)) return key;
+        }
+        return null;
+    }
+
+    /**
+     * Record that a runtime permission prompt actually completed ({@code grantResults.length > 0})
+     * so interrupted dialogs leave {@link State#NOT_REQUESTED} intact instead of falsely marking
+     * {@link State#PERMANENTLY_DENIED}.
+     */
+    public static boolean recordCompletedPrompt(Context context, Key key, int[] grantResults) {
+        if (context == null || key == null || key.specialAccess || !isCompletedResult(grantResults)) {
+            return false;
+        }
+        recordRequested(context, key);
+        return true;
+    }
+
+    /**
+     * Record every completed managed runtime permission from an {@code onRequestPermissionsResult}
+     * callback (no-op when {@code grantResults} is null or empty).
+     */
+    public static void recordCompletedPrompts(Context context, String[] permissions, int[] grantResults) {
+        if (context == null || permissions == null || !isCompletedResult(grantResults)) return;
+        int count = Math.min(permissions.length, grantResults.length);
+        for (int i = 0; i < count; i++) {
+            Key key = fromManifestPermission(permissions[i]);
+            if (key != null) {
+                recordRequested(context, key);
+            }
+        }
+    }
+
     /** Summarize a snapshot map of permission states. */
     public static Summary summarizeStates(Map<Key, State> states) {
         int allowed = 0;
@@ -197,7 +242,8 @@ public final class PermissionCenter {
         if (context == null || key == null || key.specialAccess) return;
         try {
             prefs(context).edit().putBoolean(KEY_PREFIX_REQUESTED + key.storageKey, true).apply();
-        } catch (RuntimeException ignored) {
+        } catch (RuntimeException error) {
+            Diagnostics.warning("permissions", "record_requested_failed", error);
         }
     }
 
@@ -205,7 +251,8 @@ public final class PermissionCenter {
         if (context == null || key == null || key.specialAccess) return false;
         try {
             return prefs(context).getBoolean(KEY_PREFIX_REQUESTED + key.storageKey, false);
-        } catch (RuntimeException ignored) {
+        } catch (RuntimeException error) {
+            Diagnostics.warning("permissions", "read_requested_failed", error);
             return false;
         }
     }
@@ -230,7 +277,6 @@ public final class PermissionCenter {
             if (Build.VERSION.SDK_INT < 33 || current == State.PERMANENTLY_DENIED) {
                 return openNotificationSettings(activity);
             }
-            recordRequested(activity, key);
             activity.requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, key.requestCode);
             Diagnostics.event("permissions", "request_" + key.storageKey);
             return true;
@@ -239,7 +285,6 @@ public final class PermissionCenter {
             return openAppSettings(activity);
         }
         if (key.manifestPermission == null || key.requestCode <= 0) return false;
-        recordRequested(activity, key);
         activity.requestPermissions(new String[]{key.manifestPermission}, key.requestCode);
         Diagnostics.event("permissions", "request_" + key.storageKey);
         return true;
@@ -297,6 +342,7 @@ public final class PermissionCenter {
             }
             return false;
         } catch (PackageManager.NameNotFoundException | RuntimeException unavailable) {
+            Diagnostics.warning("permissions", "declared_check_failed", unavailable);
             return false;
         }
     }
@@ -341,6 +387,7 @@ public final class PermissionCenter {
             }
             return true;
         } catch (RuntimeException unavailable) {
+            Diagnostics.warning("permissions", "feature_check_failed", unavailable);
             return true;
         }
     }
@@ -350,6 +397,7 @@ public final class PermissionCenter {
             NotificationManager nm = context.getSystemService(NotificationManager.class);
             return nm == null || nm.areNotificationsEnabled();
         } catch (RuntimeException unavailable) {
+            Diagnostics.warning("permissions", "notifications_enabled_check_failed", unavailable);
             return true;
         }
     }
@@ -359,6 +407,7 @@ public final class PermissionCenter {
         try {
             return activity.shouldShowRequestPermissionRationale(permission);
         } catch (RuntimeException unavailable) {
+            Diagnostics.warning("permissions", "rationale_check_failed", unavailable);
             return true;
         }
     }
