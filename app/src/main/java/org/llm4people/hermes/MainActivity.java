@@ -238,6 +238,12 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                                         REQUEST_PRESENCE_LOCATION);
                             }
                         }
+                        @Override public void onRequestPreciseLocationPermission() {
+                            if (account == owner) {
+                                requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
+                                        REQUEST_PRESENCE_FINE_LOCATION);
+                            }
+                        }
                     });
             shell.show(activePresencePanel.buildView(), getString(R.string.presence_panel_title));
         });
@@ -1344,18 +1350,20 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                 }
             }
             if (account != null) {
-                PresencePolicy current = PresencePolicy.load(account);
-                PresencePolicy updated = current;
-                if (granted) {
-                    updated = code == REQUEST_PRESENCE_FINE_LOCATION
-                            ? current.withContinuousLocation(true).withPreciseLocation(true)
-                            : current.withContinuousLocation(true);
-                    if (!updated.equals(current)) PresencePolicy.save(account, updated);
-                }
-                locationTracker.syncWithPolicy(this, updated);
-                if (activePresencePanel != null && navigation != null
-                        && PresenceSettingsPanel.ROUTE_ID.equals(navigation.current())) {
-                    render(true);
+                boolean fine = code == REQUEST_PRESENCE_FINE_LOCATION;
+                if (granted && activePresencePanel != null) {
+                    activePresencePanel.onLocationPermissionGranted(fine);
+                } else {
+                    PresencePolicy current = PresencePolicy.load(account);
+                    PresencePolicy updated = current;
+                    if (granted) {
+                        updated = fine
+                                ? current.withContinuousLocation(true).withPreciseLocation(true)
+                                : current.withContinuousLocation(true);
+                        if (!updated.equals(current)) PresencePolicy.save(account, updated);
+                    }
+                    locationTracker.syncWithPolicy(this, updated);
+                    if (activePresencePanel != null) activePresencePanel.refresh();
                 }
             }
             return;

@@ -1,6 +1,6 @@
 <resources>
     <string name="palette_title">Accès rapide</string>
-    <string name="palette_search_hint">Rechercher une action, un fil ou un modèle…</string>
+    <string name="palette_search_hint">Action, fil ou modèle…</string>
     <string name="palette_empty">Aucun résultat pour cette recherche.</string>
     <string name="palette_close">Fermer</string>
     <string name="palette_results_count">%1$d résultat(s)</string>

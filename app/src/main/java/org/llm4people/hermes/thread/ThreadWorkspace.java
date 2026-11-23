@@ -1128,6 +1128,7 @@ public final class ThreadWorkspace implements AutoCloseable {
     void clearSuggestedActions() {
         if (closed || screen == null) return;
         screen.suggestedActions(Collections.emptyList(), null, null, null, null, null);
+        screen.interactiveCards(Collections.emptyList(), null);
     }
 
     /** Reconciles composer quick actions and LiveUiPatchBar after external layout/rollback changes. */
@@ -1191,10 +1192,31 @@ public final class ThreadWorkspace implements AutoCloseable {
                         action -> { if (instrumentHost != null) instrumentHost.onAction(action); },
                         this::pinWidgetById);
             }
+            if (!patch.interactiveCards.isEmpty()) {
+                screen.interactiveCards(patch.interactiveCards, interactiveCardCallbacks());
+            }
             Diagnostics.event("live_ui", "patch_presented");
         } catch (java.io.IOException rejected) {
             Diagnostics.warning("live_ui", "patch_rejected");
         }
+    }
+
+    private InteractiveCardView.Callbacks interactiveCardCallbacks() {
+        return new InteractiveCardView.Callbacks() {
+            @Override public void onQuickPickDraft(String cardId, String choiceId, String draftText) {
+                if (!closed && draftText != null && !draftText.isEmpty()) stageDraft(draftText);
+            }
+            @Override public void onApplyCustomization(String cardId, AppCustomization proposed) {
+                if (closed || account == null || proposed == null) return;
+                AppCustomization applied = AppCustomizationStore.forAccount(account).apply(proposed);
+                host.onCustomizationChanged(applied);
+            }
+            @Override public void onUndoCustomization(String cardId) {
+                if (closed || account == null) return;
+                AppCustomization restored = AppCustomizationStore.forAccount(account).undo();
+                host.onCustomizationChanged(restored);
+            }
+        };
     }
 
     private void pinWidgetById(String widgetId) {

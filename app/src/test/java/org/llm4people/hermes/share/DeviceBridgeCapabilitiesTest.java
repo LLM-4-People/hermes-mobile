@@ -2,6 +2,7 @@ package org.llm4people.hermes.share;
 
 import org.junit.Test;
 import org.llm4people.hermes.ambient.NotificationAllowlist;
+import org.llm4people.hermes.presence.PresencePolicy;
 
 import java.util.List;
 import java.util.Set;
@@ -127,6 +128,29 @@ public final class DeviceBridgeCapabilitiesTest {
         assertEquals(14, DeviceBridgeFlow.resolveCalendarDays(14, null));
         assertEquals(3, DeviceBridgeFlow.resolveCalendarDays(null, 3));
         assertEquals(1, DeviceBridgeFlow.resolveCalendarDays(1, 10));
+    }
+
+    @Test
+    public void deepCapabilitiesGatePresenceAndNudgesFailClosedAndStayInSupportedActions() {
+        List<String> defCaps = DeviceBridgeFlow.deepExecutableCapabilities(PresencePolicy.defaults());
+        assertTrue(defCaps.contains("app_navigate"));
+        assertTrue(defCaps.contains("app_customize"));
+        assertTrue(defCaps.contains("app_create_template"));
+        assertTrue(defCaps.contains("android_sync_shortcuts"));
+        assertFalse("app_read_state requires shareAppPresence opt-in", defCaps.contains("app_read_state"));
+        assertFalse("android_proactive_nudge requires proactiveNudgesEnabled opt-in",
+                defCaps.contains("android_proactive_nudge"));
+
+        PresencePolicy optedIn = PresencePolicy.defaults()
+                .withAppPresence(true)
+                .withProactiveNudges(true);
+        List<String> fullCaps = DeviceBridgeFlow.deepExecutableCapabilities(optedIn);
+        assertTrue(fullCaps.contains("app_read_state"));
+        assertTrue(fullCaps.contains("android_proactive_nudge"));
+        for (String cap : fullCaps) {
+            assertTrue("Deep capability must be registered in SUPPORTED_ACTIONS: " + cap,
+                    DeviceBridgeFlow.SUPPORTED_ACTIONS.contains(cap));
+        }
     }
 
     @Test
