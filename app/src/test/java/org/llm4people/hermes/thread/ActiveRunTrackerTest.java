@@ -154,4 +154,22 @@ public final class ActiveRunTrackerTest {
         ThreadWorkspace.notifyIdleSafely(host);
         assertTrue(delivered.get() != null && !delivered.get().active());
     }
+
+    @Test
+    public void threadRunAdmissionAllowsUnboundSessionsBelowCapacityAndEnforcesCap() {
+        ActiveRunTracker tracker = new ActiveRunTracker();
+        assertFalse(tracker.canStart(null));
+        assertFalse(tracker.canStart(""));
+        assertTrue(ThreadRun.canAdmitRun(tracker, null));
+        assertTrue(ThreadRun.canAdmitRun(tracker, ""));
+
+        for (int i = 1; i <= ActiveRunTracker.MAX_CONCURRENT_RUNS; i++) {
+            assertTrue(tracker.updateForeground("s-" + i, "r-" + i,
+                    new LiveRunNotification.Snapshot(LiveRunNotification.Phase.WORKING, 0, 0, false, true)));
+        }
+        assertFalse(ThreadRun.canAdmitRun(tracker, null));
+        assertFalse(ThreadRun.canAdmitRun(tracker, ""));
+        assertFalse(ThreadRun.canAdmitRun(tracker, "s-overflow"));
+        assertTrue(ThreadRun.canAdmitRun(tracker, "s-1"));
+    }
 }

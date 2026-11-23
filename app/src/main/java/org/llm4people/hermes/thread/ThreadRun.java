@@ -62,6 +62,14 @@ final class ThreadRun {
         ui = page.screen;
     }
 
+    static boolean canAdmitRun(ActiveRunTracker tracker, String sessionId) {
+        if (tracker == null) return true;
+        if (sessionId == null || sessionId.isEmpty()) {
+            return tracker.activeCount() < ActiveRunTracker.MAX_CONCURRENT_RUNS;
+        }
+        return tracker.canStart(sessionId);
+    }
+
     boolean submitting() { return submitting; }
 
     void send() {
@@ -70,7 +78,7 @@ final class ThreadRun {
             ui.stopDuplex();
             return;
         }
-        if (!page.activeRuns.canStart(page.sessionId())) {
+        if (!canAdmitRun(page.activeRuns, page.sessionId())) {
             ui.stopDuplex();
             ui.notice(page.activity.getString(R.string.thread_concurrent_limit_reached), "", null);
             return;
