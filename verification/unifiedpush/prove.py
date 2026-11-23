@@ -212,6 +212,7 @@ def run(args):
         phrase = secrets.token_hex(14)
         title = "Discussion-" + unique
         try:
+            adb.shell("cmd", "locale", "set-app-locales", APP, "--locales", "fr-FR")
             launch(adb, APP)
             start_account(ui, owner, account_url, primary.key, phrase)
             enroll(ui)

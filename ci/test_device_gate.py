@@ -174,18 +174,19 @@ class DeviceGateTest(unittest.TestCase):
     def test_journeys_use_the_packaged_apks_and_their_own_emulator(self):
         result, calls = self.gate()
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(calls[:8], [
+        self.assertEqual(calls[:9], [
             ["adb", "get-serialno"],
             [*ADB, "install", "-r", "-t", APP_APK], [*ADB, "install", "-r", "-t", TEST_APK],
             ["dexdump", "-l", "xml", TEST_APK],
             [*INSTRUMENT, "-e", "log", "true", FRAMEWORK], [*INSTRUMENT, FRAMEWORK],
             [*ADB, "shell", "pm", "clear", "org.llm4people.hermes.test"],
             [*ADB, "shell", "pm", "clear", "org.llm4people.hermes"],
+            [*ADB, "shell", "cmd", "locale", "set-app-locales", "org.llm4people.hermes", "--locales", "fr-FR"],
         ])
         for phase in ("discovery", "execution"):
             saved = self.runner / "android-instrumentation" / f"{phase}.txt"
             self.assertEqual(saved.read_text(), (self.root / f"{phase}.txt").read_text())
-        verifiers = [cmd for cmd in calls[8:] if cmd[0] == "python"]
+        verifiers = [cmd for cmd in calls[9:] if cmd[0] == "python"]
         self.assertEqual([cmd[:2] for cmd in verifiers], [["python", "-B"]] * 6)
         self.assertEqual([cmd[2] for cmd in verifiers], [
             "verification/live_api.py", "verification/conversation_cards.py", "verification/thread_instruments.py",

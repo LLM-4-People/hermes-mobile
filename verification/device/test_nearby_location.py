@@ -340,7 +340,7 @@ class NearbyLocationTest(unittest.TestCase):
         thread_screen = ET.fromstring(
             '<node text="" content-desc="" resource-id="" class="android.widget.FrameLayout" '
             'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[0,0][320,640]">'
-            '<node text="" content-desc="Autres actions" resource-id="" class="android.widget.ImageButton" '
+            '<node text="" content-desc="Profil et verrouillage" resource-id="" class="android.widget.ImageButton" '
             'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[260,24][316,72]"/>'
             '</node>'
         )
@@ -383,7 +383,7 @@ class NearbyLocationTest(unittest.TestCase):
 
         lock(StubScreen())
         self.assertEqual(actions, [
-            ("tap", "Autres actions"),
+            ("tap", "Profil et verrouillage"),
             "scroll",
             ("tap", "Verrouiller le profil"),
         ])

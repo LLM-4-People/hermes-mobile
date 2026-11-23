@@ -9,6 +9,7 @@ adb -s "$serial" install -r -t "$app"
 adb -s "$serial" install -r -t "$tests"
 adb -s "$serial" shell pm clear org.llm4people.hermes.test
 adb -s "$serial" shell pm clear org.llm4people.hermes
+adb -s "$serial" shell cmd locale set-app-locales org.llm4people.hermes --locales fr-FR
 adb -s "$serial" shell cmd connectivity airplane-mode enable
 adb -s "$serial" shell svc wifi disable
 adb -s "$serial" shell svc data disable

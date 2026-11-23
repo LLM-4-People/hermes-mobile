@@ -18,6 +18,7 @@ fi
 # Remove private test state before the independent two-account journey.
 adb -s "$device" shell pm clear org.llm4people.hermes.test
 adb -s "$device" shell pm clear org.llm4people.hermes
+adb -s "$device" shell cmd locale set-app-locales org.llm4people.hermes --locales fr-FR
 fixture_python="$RUNNER_TEMP/hermes-env/bin/python"
 source_args=(--source .fixture/hermes)
 phone_args=(--serial "$device" --verify-apks "$app_apk" "$test_apk")
