@@ -23,7 +23,7 @@ import java.util.regex.Pattern;
  * Enforces HTTPS-only allowlisted hosts on both initial requests and every HTTP redirect.
  */
 public final class GithubReleaseClient {
-    public static final String PREFERRED_APK_NAME = "Hermes-Mobile.apk";
+    public static final String APK_NAME_PREFIX = "hermes-mobile-";
     public static final String PREFERRED_CHECKSUMS_NAME = "SHA256SUMS";
     public static final int MAX_CHECKSUM_BYTES = 65_536;
     private static final int MAX_RELEASE_JSON_BYTES = 512 * 1024;
@@ -188,7 +188,9 @@ public final class GithubReleaseClient {
             throw new IOException("Release has no downloadable assets");
         }
 
+        String preferredApk = preferredApkName(tagName);
         AssetCandidate chosenApk = null;
+        int chosenApkPriority = -1;
         AssetCandidate chosenChecksum = null;
         for (Object entry : assetsList) {
             if (!(entry instanceof Map<?, ?> assetMap)) continue;
@@ -203,8 +205,10 @@ public final class GithubReleaseClient {
                 if (size > maxApkBytes) continue;
                 String digest = parseGithubDigest(strField(asset, "digest"));
                 AssetCandidate candidate = new AssetCandidate(name, downloadUrl, size, digest);
-                if (chosenApk == null || PREFERRED_APK_NAME.equals(name)) {
+                int priority = apkAssetPriority(name, preferredApk);
+                if (chosenApk == null || priority > chosenApkPriority) {
                     chosenApk = candidate;
+                    chosenApkPriority = priority;
                 }
             } else if (isChecksumAssetName(name) && size <= MAX_CHECKSUM_BYTES) {
                 AssetCandidate candidate = new AssetCandidate(name, downloadUrl, size, null);
@@ -271,6 +275,22 @@ public final class GithubReleaseClient {
         }
         if (matched != null) return matched;
         return nonEmptyLines == 1 ? bareSingleHash : null;
+    }
+
+    /** Expected canonical signed APK filename for a SemVer release tag (e.g. {@code hermes-mobile-v0.3.0.apk}). */
+    public static String preferredApkName(String tagName) {
+        if (tagName == null || ReleaseVersion.parseOrNull(tagName) == null) return "";
+        String trimmed = tagName.trim();
+        String normalizedTag = (trimmed.startsWith("v") || trimmed.startsWith("V"))
+                ? "v" + trimmed.substring(1)
+                : "v" + trimmed;
+        return APK_NAME_PREFIX + normalizedTag + ".apk";
+    }
+
+    private static int apkAssetPriority(String name, String preferredApk) {
+        if (!preferredApk.isEmpty() && preferredApk.equals(name)) return 3;
+        if (name.toLowerCase(Locale.ROOT).startsWith(APK_NAME_PREFIX)) return 2;
+        return 1;
     }
 
     static boolean isSignedApkAssetName(String name) {

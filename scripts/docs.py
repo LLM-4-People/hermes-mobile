@@ -54,6 +54,7 @@ def live_facts(root):
             derived["build_tools"] = props["hermesBuildTools"]
         if "hermesVersionName" in props:
             derived["version_name"] = props["hermesVersionName"]
+            derived["release_apk"] = f"hermes-mobile-v{props['hermesVersionName']}.apk"
 
     fixture = root / "verification/gateway_fixture.py"
     if fixture.is_file():

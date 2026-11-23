@@ -12,7 +12,7 @@ import sys
 import tempfile
 import zipfile
 
-from publish_release import validate_recovered
+from publish_release import expected_apk_name, validate_recovered
 
 
 def verify_signing(tools, unsigned, device_input=None):
@@ -37,6 +37,9 @@ def verify_signing(tools, unsigned, device_input=None):
         subprocess.run([script, unsigned, output], check=True, env=environment)
         subprocess.run(["sha256sum", "--check", "SHA256SUMS"], cwd=output, check=True)
         metadata = json.loads((output / "release.json").read_text())
+        apk_name = expected_apk_name(metadata)
+        if not (output / apk_name).is_file():
+            raise RuntimeError(f"Expected versioned signed APK {apk_name} in {output}.")
         if metadata["certificateSha256"] != environment["ANDROID_SIGNING_CERT_SHA256"]:
             raise RuntimeError("Signing metadata contains the wrong fingerprint.")
         check_ecdsa_retry(scratch, script, unsigned, environment, output)
@@ -50,7 +53,7 @@ def verify_signing(tools, unsigned, device_input=None):
             # Only the signed APK, its public identity and the original input leave this temporary directory.
             destination = Path(device_input)
             destination.mkdir(exist_ok=False)
-            shutil.copy2(output / "Hermes-Mobile.apk", destination)
+            shutil.copy2(output / apk_name, destination)
             shutil.copy2(output / "release.json", destination)
             shutil.copy2(unsigned, destination / "app-release-unsigned.apk")
 
@@ -58,7 +61,8 @@ def verify_signing(tools, unsigned, device_input=None):
 def check_ecdsa_retry(scratch, signing_script, unsigned, environment, first):
     retry = scratch / "retry"
     subprocess.run([signing_script, unsigned, retry], env=environment, check=True)
-    name = "Hermes-Mobile.apk"
+    first_metadata = json.loads((first / "release.json").read_text())
+    name = expected_apk_name(first_metadata)
     original = first / name
     old_checksum = hashlib.sha256(original.read_bytes()).hexdigest()
     if old_checksum == hashlib.sha256((retry / name).read_bytes()).hexdigest():

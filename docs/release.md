@@ -11,8 +11,8 @@ The **Signed Android release** workflow (`.github/workflows/release.yml`) runs o
 Every release passes the complete release gate before publishing:
 1. **Reproducible clean build:** Rebuilds the unsigned release APK from clean outputs (no build cache or configuration cache) and asserts byte-for-byte identity (`cmp`) against the first release build.
 2. **AOSP closed-app device verification:** Exercises the exact unsigned release payload (with a disposable test signature) on a fresh AOSP emulator and checks the unsigned SHA-256 receipt before touching production keys.
-3. **Production signing & attestation:** Signs `Hermes-Mobile.apk` inside the protected `android-release` environment, verifies alignment (`zipalign -c -P 16 4`) and signer certificate SHA-256, generates `SHA256SUMS` and `release.json`, and creates GitHub build provenance attestations (`actions/attest`).
-4. **Atomic publication (`ci/publish_release.py`):** Verifies `main` HEAD alignment, strictly increasing `versionCode`, and exact SHA-256 digests for all three release assets (`Hermes-Mobile.apk`, `SHA256SUMS`, `release.json`) before promoting the draft release to published.
+3. **Production signing & attestation:** Signs `hermes-mobile-v0.2.1.apk` inside the protected `android-release` environment, verifies alignment (`zipalign -c -P 16 4`) and signer certificate SHA-256, generates `SHA256SUMS` and `release.json`, and creates GitHub build provenance attestations (`actions/attest`).
+4. **Atomic publication (`ci/publish_release.py`):** Verifies `main` HEAD alignment, strictly increasing `versionCode`, and exact SHA-256 digests for all three release assets (`hermes-mobile-v0.2.1.apk`, `SHA256SUMS`, `release.json`) before promoting the draft release to published.
 
 Every pull request and `main` build in **Workspace checks** (`.github/workflows/checks.yml`) also uploads an installable **android-debug** artifact containing `app-debug.apk` and its matching `SHA256SUMS` file.
 
@@ -42,6 +42,6 @@ On any pull request where you want to override smart path routing and run the fu
 
 1. Bump `hermesVersionCode` (strictly greater than every published release) and `hermesVersionName` (SemVer, e.g. `0.2.0`) in `gradle.properties`, merge via PR into `main`, and verify `android-release` environment secrets/variables are configured (see [Verification & Signed Delivery](delivery.md#signed-release)).
 2. Either push an annotated tag matching `v<hermesVersionName>` on `main` (`git tag -a v0.2.0 -m "Release v0.2.0" && git push origin v0.2.0`) or dispatch **Signed Android release** manually from GitHub Actions on `main`.
-3. Confirm the published release at `https://github.com/LLM-4-People/hermes-mobile/releases/latest` includes `Hermes-Mobile.apk`, `SHA256SUMS`, and `release.json`.
+3. Confirm the published release at `https://github.com/LLM-4-People/hermes-mobile/releases/latest` includes `hermes-mobile-v0.2.1.apk`, `SHA256SUMS`, and `release.json`.
 
 <!-- Generated from docs/sources/docs/release.md.in by scripts/docs.py. -->
