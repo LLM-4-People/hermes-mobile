@@ -21,6 +21,7 @@ import org.llm4people.hermes.R;
 import org.llm4people.hermes.RouteRegistry;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.net.HermesApi;
+import org.llm4people.hermes.os.PermissionsPanel;
 import org.llm4people.hermes.profile.Account;
 
 import java.util.Objects;
@@ -44,6 +45,7 @@ public final class ConnectionDoctorPanel {
         default void openAppUpdates() {}
         default void openAmbientAccess() {}
         default void openLanguageSettings() {}
+        default void openPermissions() {}
     }
 
     private final Activity activity;
@@ -61,6 +63,7 @@ public final class ConnectionDoctorPanel {
     private TextView feedback;
     private ProgressBar progressBar;
     private Button rerunButton;
+    private TextView permissionsSummary;
     private LinearLayout cardsContainer;
     private Button technicalToggle;
     private LinearLayout technicalBox;
@@ -150,6 +153,27 @@ public final class ConnectionDoctorPanel {
         summaryCard.addView(rerunButton, rerunLp);
 
         body.addView(summaryCard, new LinearLayout.LayoutParams(-1, -2));
+
+        LinearLayout permissionsCard = createCard();
+        TextView permTitle = Ui.text(activity, activity.getString(R.string.doctor_permissions_card_title), 16);
+        permTitle.setTypeface(MEDIUM);
+        permissionsCard.addView(permTitle);
+
+        permissionsSummary = Ui.text(activity, PermissionsPanel.summaryLine(activity), 14);
+        permissionsSummary.setTextColor(activity.getColor(R.color.muted));
+        permissionsSummary.setPaddingRelative(0, Ui.dp(activity, 4), 0, 0);
+        permissionsCard.addView(permissionsSummary);
+
+        Button openPerms = minTargetButton(activity.getString(R.string.doctor_fix_permissions),
+                v -> fixHandlers.openPermissions());
+        openPerms.setTag("doctor:open_permissions");
+        LinearLayout.LayoutParams openPermsLp = new LinearLayout.LayoutParams(-2, -2);
+        openPermsLp.topMargin = Ui.dp(activity, 6);
+        permissionsCard.addView(openPerms, openPermsLp);
+
+        LinearLayout.LayoutParams permCardLp = new LinearLayout.LayoutParams(-1, -2);
+        permCardLp.topMargin = Ui.dp(activity, 12);
+        body.addView(permissionsCard, permCardLp);
 
         feedback = Ui.text(activity, "", 14);
         feedback.setTextColor(activity.getColor(R.color.accent));
@@ -297,6 +321,9 @@ public final class ConnectionDoctorPanel {
                 report.count(DoctorCheck.Status.ERROR)));
         summaryCounts.setVisibility(View.VISIBLE);
 
+        if (permissionsSummary != null) {
+            permissionsSummary.setText(PermissionsPanel.summaryLine(activity));
+        }
         cardsContainer.removeAllViews();
         for (DoctorCheck.Item item : report.items()) {
             LinearLayout card = buildCheckCard(item);

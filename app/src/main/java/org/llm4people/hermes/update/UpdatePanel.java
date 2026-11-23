@@ -24,6 +24,7 @@ import org.llm4people.hermes.HermesConfig;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.RouteRegistry;
 import org.llm4people.hermes.Ui;
+import org.llm4people.hermes.os.PermissionCenter;
 import org.llm4people.hermes.thread.SafeLinks;
 
 import java.io.File;
@@ -65,6 +66,7 @@ public final class UpdatePanel {
     private Button checkButton;
     private Button installButton;
     private Button cancelButton;
+    private Button permissionButton;
     private Button githubButton;
     private AlertDialog activeDialog;
 
@@ -196,6 +198,12 @@ public final class UpdatePanel {
         feedback.setVisibility(View.GONE);
         card.addView(feedback);
 
+        permissionButton = Ui.button(activity, activity.getString(R.string.perm_action_open_install_settings),
+                v -> openInstallPermissionSettings());
+        permissionButton.setTag("update:open_install_permission");
+        permissionButton.setVisibility(View.GONE);
+        card.addView(permissionButton);
+
         LinearLayout actions = Ui.row(activity);
         LinearLayout.LayoutParams actionsLp = new LinearLayout.LayoutParams(-1, -2);
         actionsLp.topMargin = Ui.dp(activity, 10);
@@ -275,8 +283,13 @@ public final class UpdatePanel {
     public void onResume() {
         if (closed || verifiedApkFile == null || !verifiedApkFile.isFile()) return;
         if (ApkUpdateInstaller.canRequestPackageInstalls(activity)) {
+            if (permissionButton != null) permissionButton.setVisibility(View.GONE);
             installButton.setText(R.string.update_install_ready_action);
             installButton.setVisibility(View.VISIBLE);
+            showFeedback(activity.getString(R.string.update_verified_ready), false);
+        } else {
+            showFeedback(activity.getString(R.string.perm_update_install_still_off), true);
+            if (permissionButton != null) permissionButton.setVisibility(View.VISIBLE);
         }
     }
 
@@ -410,17 +423,27 @@ public final class UpdatePanel {
         try {
             ApkUpdateInstaller.InstallAction action = ApkUpdateInstaller.launchInstall(activity, apk);
             if (action == ApkUpdateInstaller.InstallAction.NEEDS_UNKNOWN_SOURCES_PERMISSION) {
+                showFeedback(activity.getString(R.string.perm_update_install_still_off), true);
+                if (permissionButton != null) permissionButton.setVisibility(View.VISIBLE);
                 dismissDialogs();
                 activeDialog = Ui.secureDialog(new AlertDialog.Builder(activity)
                         .setTitle(R.string.update_permission_title)
                         .setMessage(R.string.update_permission_body)
                         .setNegativeButton(R.string.update_cancel_action, null)
                         .setPositiveButton(R.string.update_permission_open_settings,
-                                (d, w) -> ApkUpdateInstaller.openUnknownSourcesSettings(activity)));
+                                (d, w) -> openInstallPermissionSettings()));
+            } else if (permissionButton != null) {
+                permissionButton.setVisibility(View.GONE);
             }
         } catch (IOException | RuntimeException error) {
             Diagnostics.warning("update", "install_launch_failed");
             showFeedback(activity.getString(R.string.update_error_install_launch), true);
+        }
+    }
+
+    private void openInstallPermissionSettings() {
+        if (!PermissionCenter.openUnknownSourcesSettings(activity)) {
+            showFeedback(activity.getString(R.string.perm_settings_unavailable), true);
         }
     }
 

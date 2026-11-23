@@ -1,0 +1,56 @@
+<resources>
+    <string name="perm_route_label">Autorisations</string>
+    <string name="perm_route_hint">Notifications, micro, caméra, position et accès Android</string>
+    <string name="perm_panel_title">Autorisations</string>
+    <string name="perm_panel_subtitle">Choisissez ce qu’Hermes peut utiliser sur ce téléphone. Chaque accès reste optionnel.</string>
+    <string name="perm_summary_counts">%1$d autorisées · %2$d désactivées</string>
+    <string name="perm_summary_with_blocked">%1$d autorisées · %2$d bloquées · %3$d désactivées</string>
+    <string name="perm_status_allowed">Autorisée</string>
+    <string name="perm_status_off">Désactivée</string>
+    <string name="perm_status_blocked">Bloquée</string>
+    <string name="perm_status_unavailable">Indisponible</string>
+
+    <string name="perm_action_allow">Autoriser</string>
+    <string name="perm_action_allow_notifications">Autoriser les notifications</string>
+    <string name="perm_action_allow_microphone">Autoriser le micro</string>
+    <string name="perm_action_allow_location">Autoriser la position</string>
+    <string name="perm_action_open_settings">Ouvrir les réglages Android</string>
+    <string name="perm_action_open_notification_settings">Ouvrir les réglages de notifications</string>
+    <string name="perm_action_open_listener_settings">Ouvrir l’accès aux notifications</string>
+    <string name="perm_action_open_install_settings">Autoriser l’installation</string>
+    <string name="perm_action_manage_all">Gérer les autorisations</string>
+
+    <string name="perm_notifications_title">Notifications</string>
+    <string name="perm_notifications_desc">Recevoir les réponses en arrière-plan, les tâches planifiées et l’avancement des tâches en cours.</string>
+    <string name="perm_camera_title">Caméra</string>
+    <string name="perm_camera_desc">Scanner un code QR d’appairage ou joindre une photo à une discussion.</string>
+    <string name="perm_microphone_title">Micro</string>
+    <string name="perm_microphone_desc">Dicter des brouillons vocaux ou utiliser la discussion vocale mains libres.</string>
+    <string name="perm_location_title">Position approximative</string>
+    <string name="perm_location_desc">Rechercher des lieux à proximité ou partager votre zone uniquement quand vous l’activez.</string>
+    <string name="perm_calendar_title">Agenda</string>
+    <string name="perm_calendar_desc">Fournir le contexte de vos rendez-vous lorsque l’accès ambiant est activé.</string>
+    <string name="perm_contacts_title">Contacts</string>
+    <string name="perm_contacts_desc">Reconnaître les noms de contacts uniquement lorsque l’option contacts est activée.</string>
+    <string name="perm_notification_access_title">Accès aux notifications</string>
+    <string name="perm_notification_access_desc">Lire les notifications des applications autorisées pour créer des résumés ou des brouillons.</string>
+    <string name="perm_install_updates_title">Installation des mises à jour</string>
+    <string name="perm_install_updates_desc">Permettre à Android d’installer les mises à jour signées téléchargées depuis GitHub.</string>
+
+    <string name="perm_banner_notifications_title">Les notifications sont désactivées</string>
+    <string name="perm_banner_notifications_body">Activez les notifications pour voir les réponses d’Hermes, les rappels et les tâches longues même hors de l’application.</string>
+    <string name="perm_banner_notifications_blocked_body">Android bloque les notifications d’Hermes. Ouvrez les réglages de notifications pour les réactiver.</string>
+
+    <string name="perm_feedback_granted">%1$s : autorisation activée.</string>
+    <string name="perm_feedback_denied">%1$s : autorisation refusée. Réessayez pour l’autoriser.</string>
+    <string name="perm_feedback_blocked">%1$s est bloquée par Android. Ouvrez les réglages Android pour l’autoriser.</string>
+    <string name="perm_settings_unavailable">Impossible d’ouvrir cet écran de réglages sur cet appareil.</string>
+
+    <string name="perm_ambient_calendar_denied">L’autorisation agenda est manquante. Autorisez l’agenda ou ouvrez les réglages Android pour activer ce contexte.</string>
+    <string name="perm_ambient_contacts_denied">L’autorisation contacts est manquante. Autorisez les contacts ou ouvrez les réglages Android pour activer ce contexte.</string>
+    <string name="perm_location_blocked">L’accès à la position est bloqué par Android. Ouvrez les réglages Android pour l’autoriser.</string>
+    <string name="perm_precise_location_unavailable">Cette version d’Hermes utilise uniquement la position approximative par choix de confidentialité.</string>
+    <string name="perm_update_install_still_off">L’autorisation d’installation d’applications inconnues est encore désactivée. Ouvrez les réglages pour installer cette mise à jour.</string>
+    <string name="doctor_permissions_card_title">Autorisations de l’appareil</string>
+    <string name="doctor_fix_permissions">Ouvrir les autorisations</string>
+</resources>

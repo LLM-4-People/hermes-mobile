@@ -48,6 +48,8 @@ import org.llm4people.hermes.os.LiveRunActionReceiver;
 import org.llm4people.hermes.os.LiveRunNotification;
 import org.llm4people.hermes.os.LockGracePolicy;
 import org.llm4people.hermes.os.OsEntryIntent;
+import org.llm4people.hermes.os.PermissionCenter;
+import org.llm4people.hermes.os.PermissionsPanel;
 import org.llm4people.hermes.palette.CommandPalette;
 import org.llm4people.hermes.palette.CommandRegistry;
 import org.llm4people.hermes.panel.BrainStudioRoutes;
@@ -118,6 +120,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     private PresenceSettingsPanel activePresencePanel;
     private UpdatePanel activeUpdatePanel;
     private ConnectionDoctorPanel activeDoctorPanel;
+    private PermissionsPanel activePermissionsPanel;
     private TemplatesPanel activeTemplatesPanel;
     private CommandPalette activePalette;
     private ProfileHubSheet activeProfileHub;
@@ -300,6 +303,11 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             activeDoctorPanel = new ConnectionDoctorPanel(this, owner, doctorApi, doctorFixHandlers(owner));
             shell.show(activeDoctorPanel.buildView(), getString(R.string.doctor_panel_title));
         });
+        shellRoutes.register(PermissionsPanel.ROUTE_ID, (route, force) -> {
+            navigation.display(route, this::leavingSurface);
+            activePermissionsPanel = new PermissionsPanel(this);
+            shell.show(activePermissionsPanel.buildView(), getString(R.string.perm_panel_title));
+        });
         shellRoutes.register(TemplatesPanel.ROUTE_ID, (route, force) -> {
             navigation.display(route, this::leavingSurface);
             if (activeTemplatesPanel != null) activeTemplatesPanel.close();
@@ -364,6 +372,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         actions.register(AmbientAccessPanel.ROUTE_ID, () -> navigate(AmbientAccessPanel.ROUTE_ID));
         actions.register(PresenceSettingsPanel.ROUTE_ID, () -> navigate(PresenceSettingsPanel.ROUTE_ID));
         actions.register(ConnectionDoctorPanel.ROUTE_ID, () -> navigate(ConnectionDoctorPanel.ROUTE_ID));
+        actions.register(PermissionsPanel.ROUTE_ID, () -> navigate(PermissionsPanel.ROUTE_ID));
         actions.register(TemplatesPanel.ROUTE_ID, () -> navigate(TemplatesPanel.ROUTE_ID));
         actions.register(UpdatePanel.ROUTE_ID, () -> navigate(UpdatePanel.ROUTE_ID));
         actions.register("command_palette", this::openCommandPalette);
@@ -499,6 +508,8 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                 () -> { if (account == unlocked) navigate(PresenceSettingsPanel.ROUTE_ID); });
         ConnectionDoctorPanel.registerRoute(featureRoutes, this,
                 () -> { if (account == unlocked) navigate(ConnectionDoctorPanel.ROUTE_ID); });
+        PermissionsPanel.registerRoute(featureRoutes, this,
+                () -> { if (account == unlocked) navigate(PermissionsPanel.ROUTE_ID); });
         TemplatesPanel.registerRoute(featureRoutes, this,
                 () -> { if (account == unlocked) navigate(TemplatesPanel.ROUTE_ID); });
         UpdatePanel.registerRoute(featureRoutes, this,
@@ -1131,6 +1142,9 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             @Override public void openLanguageSettings() {
                 if (account == owner) onAction("language");
             }
+            @Override public void openPermissions() {
+                if (account == owner) onAction(PermissionsPanel.ROUTE_ID);
+            }
         };
     }
 
@@ -1247,6 +1261,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             activeDoctorPanel.close();
             activeDoctorPanel = null;
         }
+        activePermissionsPanel = null;
         if (activeTemplatesPanel != null) {
             activeTemplatesPanel.close();
             activeTemplatesPanel = null;
@@ -1463,6 +1478,10 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                 navigate(ConnectionDoctorPanel.ROUTE_ID);
                 return true;
             }
+            case "permissions", PermissionsPanel.ROUTE_ID -> {
+                navigate(PermissionsPanel.ROUTE_ID);
+                return true;
+            }
             case "presence", PresenceSettingsPanel.ROUTE_ID -> {
                 navigate(PresenceSettingsPanel.ROUTE_ID);
                 return true;
@@ -1605,8 +1624,16 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
 
     @Override public void onRequestPermissionsResult(int code, String[] permissions, int[] results) {
         super.onRequestPermissionsResult(code, permissions, results);
+        if (PermissionCenter.isManagedRequestCode(code)) {
+            if (activePermissionsPanel != null) {
+                activePermissionsPanel.onPermissionResult(code, permissions, results);
+            } else if (navigation != null && WorkspaceNavigation.ACTIVITY.equals(navigation.current())) {
+                render(true);
+            }
+            return;
+        }
         if (code == AmbientAccessPanel.REQUEST_READ_CALENDAR || code == AmbientAccessPanel.REQUEST_READ_CONTACTS) {
-            if (activeAmbientPanel != null) activeAmbientPanel.refreshAll();
+            if (activeAmbientPanel != null) activeAmbientPanel.onPermissionResult(code, permissions, results);
             return;
         }
         if (code == REQUEST_PRESENCE_LOCATION || code == REQUEST_PRESENCE_FINE_LOCATION) {
@@ -1621,8 +1648,8 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             }
             if (account != null) {
                 boolean fine = code == REQUEST_PRESENCE_FINE_LOCATION;
-                if (granted && activePresencePanel != null) {
-                    activePresencePanel.onLocationPermissionGranted(fine);
+                if (activePresencePanel != null) {
+                    activePresencePanel.onLocationPermissionResult(fine, granted);
                 } else {
                     PresencePolicy current = PresencePolicy.load(account);
                     PresencePolicy updated = current;
@@ -1633,7 +1660,6 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                         if (!updated.equals(current)) PresencePolicy.save(account, updated);
                     }
                     locationTracker.syncWithPolicy(this, updated);
-                    if (activePresencePanel != null) activePresencePanel.refresh();
                 }
             }
             return;
@@ -1663,6 +1689,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         activeUpdatePanel = null;
         if (activeDoctorPanel != null) activeDoctorPanel.close();
         activeDoctorPanel = null;
+        activePermissionsPanel = null;
         if (activeTemplatesPanel != null) activeTemplatesPanel.close();
         activeTemplatesPanel = null;
         if (activePalette != null) activePalette.dismiss();
@@ -1754,6 +1781,13 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         if (account != null && activeUpdatePanel != null
                 && navigation != null && UpdatePanel.ROUTE_ID.equals(navigation.current())) {
             activeUpdatePanel.onResume();
+        }
+        if (account != null && activePermissionsPanel != null
+                && navigation != null && PermissionsPanel.ROUTE_ID.equals(navigation.current())) {
+            activePermissionsPanel.refresh();
+        }
+        if (account != null && navigation != null && WorkspaceNavigation.ACTIVITY.equals(navigation.current())) {
+            render(true);
         }
         voice.resume();
     }

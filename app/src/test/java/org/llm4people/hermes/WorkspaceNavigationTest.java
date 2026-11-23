@@ -93,6 +93,8 @@ public class WorkspaceNavigationTest {
         assertEquals(WorkspaceNavigation.ACTIVITY, WorkspaceNavigation.topDestination(WorkspaceNavigation.ACTIVITY));
         assertEquals(WorkspaceNavigation.ACTIVITY, WorkspaceNavigation.topDestination(AmbientAccessPanel.ROUTE_ID));
         assertEquals(WorkspaceNavigation.ACTIVITY, WorkspaceNavigation.topDestination(
+                org.llm4people.hermes.os.PermissionsPanel.ROUTE_ID));
+        assertEquals(WorkspaceNavigation.ACTIVITY, WorkspaceNavigation.topDestination(
                 org.llm4people.hermes.update.UpdatePanel.ROUTE_ID));
 
         nav.selectTab(WorkspaceNavigation.HOME);

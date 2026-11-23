@@ -19,6 +19,7 @@ import android.widget.TextView;
 
 import org.llm4people.hermes.ambient.AmbientAccessPanel;
 import org.llm4people.hermes.doctor.ConnectionDoctorPanel;
+import org.llm4people.hermes.os.PermissionsPanel;
 import org.llm4people.hermes.panel.BrainStudioRoutes;
 import org.llm4people.hermes.presence.PresenceSettingsPanel;
 import org.llm4people.hermes.templates.TemplatesPanel;
@@ -283,6 +284,14 @@ final class WorkspaceShell {
         LinearLayout list = Ui.column(activity);
         ScrollView scroll = centeredScroll(list);
         subtitle(list, activity.getString(R.string.activity_subtitle));
+        View notifBanner = PermissionsPanel.buildNotificationPromptBanner(
+                activity, () -> action.accept(PermissionsPanel.ROUTE_ID));
+        if (notifBanner != null) {
+            LinearLayout.LayoutParams bannerLp = new LinearLayout.LayoutParams(-1, -2);
+            bannerLp.topMargin = Ui.dp(activity, 8);
+            bannerLp.bottomMargin = Ui.dp(activity, 8);
+            list.addView(notifBanner, bannerLp);
+        }
         section(list, activity.getString(R.string.nav_activity));
         link(list, activity.getString(R.string.activity_reminders_title),
                 activity.getString(R.string.activity_reminders_hint), "reminders");
@@ -299,6 +308,8 @@ final class WorkspaceShell {
         link(list, activity.getString(R.string.activity_usage_title),
                 activity.getString(R.string.activity_usage_hint), "stats");
         link(list, activity.getString(R.string.activity_security_title), securitySummary, "security");
+        link(list, activity.getString(R.string.perm_route_label),
+                PermissionsPanel.summaryLine(activity), PermissionsPanel.ROUTE_ID);
         link(list, activity.getString(R.string.doctor_route_label),
                 activity.getString(R.string.doctor_route_hint), ConnectionDoctorPanel.ROUTE_ID);
         String updateHint = updateBadge != null && !updateBadge.isEmpty()
