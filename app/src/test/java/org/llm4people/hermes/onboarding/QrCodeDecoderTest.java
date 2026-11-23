@@ -79,6 +79,63 @@ public final class QrCodeDecoderTest {
             assertEquals("Alphanumeric mode failed for " + alpha,
                     alpha, QrCodeDecoder.decodeMatrix(grid, QrIsoSpec.dimensionForVersion(3)));
         }
+
+        // FNC1 first-position (0101, 0 bits) and second-position (1001, 8-bit Application Indicator)
+        String fncMsg = "HERMES-FNC1";
+        byte[] fncBytes = fncMsg.getBytes(StandardCharsets.UTF_8);
+        assertEquals(fncMsg, QrCodeDecoder.decodeMatrix(
+                encodeFnc1ByteGrid(fncBytes, false, 0, 2, QrIsoSpec.EC_M, 2),
+                QrIsoSpec.dimensionForVersion(2)));
+        assertEquals(fncMsg, QrCodeDecoder.decodeMatrix(
+                encodeFnc1ByteGrid(fncBytes, true, 0x37, 2, QrIsoSpec.EC_M, 4),
+                QrIsoSpec.dimensionForVersion(2)));
+    }
+
+    @Test
+    public void decodesTransparentPngBackgroundSmallModuleScaleAndRejectsNonFiniteHomography() {
+        String link = "hermes://pair?host=https%3A%2F%2Fhermes.ai.localserver.ca&code=pair_AlphaPng12345678&profile=alex";
+        QrCodeMatrix m = QrCodeMatrix.encode(link);
+
+        // 1. Transparent background (0x00000000) + semi-transparent dark modules composited over white
+        int scale = 6;
+        int quiet = 4;
+        int dim = (m.size() + quiet * 2) * scale;
+        int[] transparentArgb = new int[dim * dim];
+        Arrays.fill(transparentArgb, 0x00000000); // fully transparent background!
+        for (int my = 0; my < m.size(); my++) {
+            for (int mx = 0; mx < m.size(); mx++) {
+                if (!m.get(mx, my)) continue;
+                int x0 = (mx + quiet) * scale;
+                int y0 = (my + quiet) * scale;
+                for (int dy = 0; dy < scale; dy++) {
+                    int row = (y0 + dy) * dim + x0;
+                    for (int dx = 0; dx < scale; dx++) {
+                        transparentArgb[row + dx] = 0xFF000000;
+                    }
+                }
+            }
+        }
+        assertEquals("Transparent-background PNG QR must decode cleanly",
+                link, QrCodeDecoder.decodePixels(transparentArgb, dim, dim));
+
+        // 2. Small 1-px module rendering (exercises floor-vs-round pixel-edge alignment centers)
+        int smallQuiet = 4;
+        int smallDim = m.size() + smallQuiet * 2;
+        int[] smallArgb = renderMatrixArgb(m, 1, smallQuiet);
+        assertEquals("1px-per-module QR must decode without off-by-one center shift",
+                link, QrCodeDecoder.decodePixels(smallArgb, smallDim, smallDim));
+
+        // 3. PerspectiveTransform rejects NaN/Infinity inputs fail-closed -> {-1, -1} (never 0)
+        QrCodeDecoder.PerspectiveTransform id = QrCodeDecoder.PerspectiveTransform.quadToQuad(
+                0, 0, 10, 0, 10, 10, 0, 10,
+                0, 0, 10, 0, 10, 10, 0, 10);
+        assertNotNull(id);
+        double[] nanOut = id.transform(Double.NaN, 5.0);
+        assertEquals(-1.0, nanOut[0], 0.0);
+        assertEquals(-1.0, nanOut[1], 0.0);
+        double[] infOut = id.transform(Double.POSITIVE_INFINITY, 5.0);
+        assertEquals(-1.0, infOut[0], 0.0);
+        assertEquals(-1.0, infOut[1], 0.0);
     }
 
     @Test
@@ -421,6 +478,22 @@ public final class QrCodeDecoderTest {
         bb.append(mode, 4);
         int countBits = version <= 9 ? 8 : 16;
         bb.append(payload.length, countBits);
+        for (byte b : payload) bb.append(b & 0xFF, 8);
+        return finalizeGrid(bb, version, ecLevel, mask);
+    }
+
+    private static boolean[] encodeFnc1ByteGrid(
+            byte[] payload, boolean secondPosition, int appIndicator, int version, int ecLevel, int mask) {
+        int[] spec = QrIsoSpec.ecSpec(ecLevel, version);
+        BitBuilder bb = new BitBuilder(spec[0] * 8);
+        if (secondPosition) {
+            bb.append(0b1001, 4);
+            bb.append(appIndicator & 0xFF, 8);
+        } else {
+            bb.append(0b0101, 4);
+        }
+        bb.append(0b0100, 4);
+        bb.append(payload.length, version <= 9 ? 8 : 16);
         for (byte b : payload) bb.append(b & 0xFF, 8);
         return finalizeGrid(bb, version, ecLevel, mask);
     }

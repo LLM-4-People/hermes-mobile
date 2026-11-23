@@ -83,10 +83,16 @@ public final class QrCodeDecoder {
                 int dstRow = y * w;
                 for (int x = 0; x < w; x++) {
                     int px = argb[srcRow + x * scale];
+                    int a = (px >>> 24) & 0xFF;
                     int r = (px >>> 16) & 0xFF;
                     int g = (px >>> 8) & 0xFF;
                     int b = px & 0xFF;
-                    compact[dstRow + x] = (byte) ((77 * r + 150 * g + 29 * b) >>> 8);
+                    int luma = (77 * r + 150 * g + 29 * b) >>> 8;
+                    if (a < 255) {
+                        // Composite transparent/semi-transparent PNG QR backgrounds over white
+                        luma = (luma * a + 255 * (255 - a) + 127) / 255;
+                    }
+                    compact[dstRow + x] = (byte) luma;
                 }
             }
             return decodeCompactLuma(compact, w, h);
@@ -323,13 +329,13 @@ public final class QrCodeDecoder {
             boolean[] bin, int w, int h, int[] hState, int y, int endX, List<FinderCenter> clusters) {
         double hTotal = hState[0] + hState[1] + hState[2] + hState[3] + hState[4];
         double estX = endX - hState[4] - hState[3] - hState[2] * 0.5;
-        int ix = clamp((int) Math.round(estX), 0, w - 1);
+        int ix = clamp((int) Math.floor(estX), 0, w - 1);
         double[] vert = crossCheckLine(bin, w, h, ix, y, 0, 1, hState[2], hTotal);
         if (vert == null) return;
-        int iy = clamp((int) Math.round(vert[0]), 0, h - 1);
+        int iy = clamp((int) Math.floor(vert[0]), 0, h - 1);
         double[] horiz = crossCheckLine(bin, w, h, ix, iy, 1, 0, hState[2], vert[1]);
         if (horiz == null) return;
-        int rix = clamp((int) Math.round(horiz[0]), 0, w - 1);
+        int rix = clamp((int) Math.floor(horiz[0]), 0, w - 1);
         if (!crossCheckDiagonal(bin, w, h, rix, iy, hState[2], horiz[1])) return;
 
         double mod = (hTotal + vert[1] + horiz[1]) / 21.0;
@@ -560,7 +566,7 @@ public final class QrCodeDecoder {
                     } else { // state == 2 -> hit right dark border
                         if (matchesAlignmentRatio(c, mod)) {
                             double cx = x - c[2] - c[1] * 0.5;
-                            double cy = crossCheckAlignmentVertical(bin, w, h, (int) Math.round(cx), y, maxMod, mod);
+                            double cy = crossCheckAlignmentVertical(bin, w, h, (int) Math.floor(cx), y, maxMod, mod);
                             if (cy >= 0.0) {
                                 double dist = Math.hypot(cx - estX, cy - estY);
                                 if (dist < bestScore) {
@@ -794,7 +800,11 @@ public final class QrCodeDecoder {
                 int eci = parseEciValue(reader);
                 if (eci < 0) return null;
                 byteCharset = (eci == 3) ? StandardCharsets.ISO_8859_1 : StandardCharsets.UTF_8;
-            } else if (mode == 0b0101 || mode == 0b1001) { // FNC1 markers
+            } else if (mode == 0b0101) { // FNC1 in first position (0 extra bits)
+                continue;
+            } else if (mode == 0b1001) { // FNC1 in second position (ISO/IEC 18004 §7.4.8.2: 8-bit AI)
+                if (reader.available() < 8) return null;
+                reader.readBits(8);
                 continue;
             } else if (mode == 0b0001) { // Numeric
                 int countBits = version <= 9 ? 10 : 12;
@@ -961,11 +971,11 @@ public final class QrCodeDecoder {
 
         double[] transform(double x, double y) {
             double denom = a13 * x + a23 * y + a33;
-            if (Math.abs(denom) < 1e-9) return new double[]{-1.0, -1.0};
-            return new double[]{
-                    (a11 * x + a21 * y + a31) / denom,
-                    (a12 * x + a22 * y + a32) / denom
-            };
+            if (!Double.isFinite(denom) || Math.abs(denom) < 1e-9) return new double[]{-1.0, -1.0};
+            double rx = (a11 * x + a21 * y + a31) / denom;
+            double ry = (a12 * x + a22 * y + a32) / denom;
+            if (!Double.isFinite(rx) || !Double.isFinite(ry)) return new double[]{-1.0, -1.0};
+            return new double[]{rx, ry};
         }
     }
 

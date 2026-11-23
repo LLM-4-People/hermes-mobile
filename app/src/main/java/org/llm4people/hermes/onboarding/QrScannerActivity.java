@@ -9,6 +9,7 @@ import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
+import android.graphics.Insets;
 import android.graphics.Paint;
 import android.graphics.RectF;
 import android.graphics.Typeface;
@@ -23,6 +24,7 @@ import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.Image;
 import android.media.ImageReader;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
@@ -34,6 +36,7 @@ import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
+import android.view.WindowInsets;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.FrameLayout;
@@ -143,6 +146,7 @@ public final class QrScannerActivity extends Activity {
 
     private Size analysisSize;
     private boolean surfaceReady;
+    private boolean cameraOpening;
     private boolean permissionRequested;
     private boolean flashAvailable;
     private boolean torchOn;
@@ -312,10 +316,22 @@ public final class QrScannerActivity extends Activity {
         root.addView(bottomBar, bottomLp);
 
         root.setOnApplyWindowInsetsListener((view, insets) -> {
-            int topInset = insets.getSystemWindowInsetTop();
-            int bottomInset = insets.getSystemWindowInsetBottom();
-            int leftInset = insets.getSystemWindowInsetLeft();
-            int rightInset = insets.getSystemWindowInsetRight();
+            int topInset;
+            int bottomInset;
+            int leftInset;
+            int rightInset;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                Insets bars = insets.getInsets(WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
+                topInset = bars.top;
+                bottomInset = bars.bottom;
+                leftInset = bars.left;
+                rightInset = bars.right;
+            } else {
+                topInset = insets.getSystemWindowInsetTop();
+                bottomInset = insets.getSystemWindowInsetBottom();
+                leftInset = insets.getSystemWindowInsetLeft();
+                rightInset = insets.getSystemWindowInsetRight();
+            }
             topBar.setPadding(
                     Ui.dp(this, 12) + leftInset,
                     Ui.dp(this, 12) + topInset,
@@ -516,18 +532,23 @@ public final class QrScannerActivity extends Activity {
     private void maybeStartCamera() {
         if (!surfaceReady || resultDelivered.get() || isFinishing() || isDestroyed()) return;
         if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) return;
+        Handler bgHandler;
         synchronized (cameraLock) {
-            if (cameraDevice != null || cameraHandler == null) return;
+            if (cameraDevice != null || cameraOpening || cameraHandler == null) return;
+            cameraOpening = true;
+            bgHandler = cameraHandler;
         }
 
         CameraManager manager = getSystemService(CameraManager.class);
         if (manager == null) {
+            clearCameraOpening();
             showFallback(R.string.qr_scanner_unavailable_title, R.string.qr_scanner_unavailable_detail);
             return;
         }
 
         String camId = selectCameraId(manager);
         if (camId == null) {
+            clearCameraOpening();
             Diagnostics.warning("qr_scanner", "no_camera_hardware");
             showFallback(R.string.qr_scanner_unavailable_title, R.string.qr_scanner_unavailable_detail);
             return;
@@ -546,20 +567,17 @@ public final class QrScannerActivity extends Activity {
             StreamConfigurationMap map = chars.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
             analysisSize = chooseAnalysisSize(map);
             if (analysisSize == null) {
+                clearCameraOpening();
                 showFallback(R.string.qr_scanner_unavailable_title, R.string.qr_scanner_unavailable_detail);
                 return;
             }
 
-            Handler bgHandler;
-            synchronized (cameraLock) {
-                bgHandler = cameraHandler;
-                if (bgHandler == null) return;
-            }
             manager.openCamera(camId, new CameraDevice.StateCallback() {
                 @Override
                 public void onOpened(CameraDevice device) {
                     synchronized (cameraLock) {
-                        if (isFinishing() || isDestroyed() || cameraHandler == null) {
+                        cameraOpening = false;
+                        if (isFinishing() || isDestroyed() || cameraHandler == null || cameraDevice != null) {
                             device.close();
                             return;
                         }
@@ -572,6 +590,7 @@ public final class QrScannerActivity extends Activity {
                 public void onDisconnected(CameraDevice device) {
                     device.close();
                     synchronized (cameraLock) {
+                        cameraOpening = false;
                         if (cameraDevice == device) cameraDevice = null;
                     }
                 }
@@ -580,6 +599,7 @@ public final class QrScannerActivity extends Activity {
                 public void onError(CameraDevice device, int error) {
                     device.close();
                     synchronized (cameraLock) {
+                        cameraOpening = false;
                         if (cameraDevice == device) cameraDevice = null;
                     }
                     Diagnostics.warning("qr_scanner", "camera_open_error_" + error);
@@ -588,14 +608,24 @@ public final class QrScannerActivity extends Activity {
                 }
             }, bgHandler);
         } catch (CameraAccessException | RuntimeException err) {
+            clearCameraOpening();
             Diagnostics.warning("qr_scanner", "camera_start_failed");
             showFallback(R.string.qr_scanner_unavailable_title, R.string.qr_scanner_unavailable_detail);
         }
     }
 
+    private void clearCameraOpening() {
+        synchronized (cameraLock) {
+            cameraOpening = false;
+        }
+    }
+
     private void createCaptureSession(CameraDevice device) {
         Surface previewSurface = previewView.getHolder().getSurface();
-        if (previewSurface == null || !previewSurface.isValid() || analysisSize == null) return;
+        if (previewSurface == null || !previewSurface.isValid() || analysisSize == null) {
+            closeCamera();
+            return;
+        }
 
         Handler bgHandler;
         ImageReader reader;
@@ -645,6 +675,7 @@ public final class QrScannerActivity extends Activity {
                         @Override
                         public void onConfigureFailed(CameraCaptureSession session) {
                             Diagnostics.warning("qr_scanner", "session_configure_failed");
+                            closeCamera();
                             mainHandler.post(() -> showFallback(
                                     R.string.qr_scanner_unavailable_title, R.string.qr_scanner_unavailable_detail));
                         }
@@ -652,6 +683,7 @@ public final class QrScannerActivity extends Activity {
                     bgHandler);
         } catch (CameraAccessException | RuntimeException err) {
             Diagnostics.warning("qr_scanner", "capture_session_failed");
+            closeCamera();
             mainHandler.post(() -> showFallback(
                     R.string.qr_scanner_unavailable_title, R.string.qr_scanner_unavailable_detail));
         }
@@ -737,8 +769,11 @@ public final class QrScannerActivity extends Activity {
     }
 
     private void closeCamera() {
+        boolean resetTorchUi;
         synchronized (cameraLock) {
+            resetTorchUi = torchOn;
             torchOn = false;
+            cameraOpening = false;
             if (captureSession != null) {
                 try { captureSession.close(); } catch (RuntimeException ignored) {}
                 captureSession = null;
@@ -752,6 +787,13 @@ public final class QrScannerActivity extends Activity {
                 imageReader = null;
             }
             previewRequestBuilder = null;
+        }
+        if (resetTorchUi) {
+            mainHandler.post(() -> {
+                if (!isFinishing() && !isDestroyed() && torchButton != null) {
+                    torchButton.setText(R.string.qr_scanner_torch_on);
+                }
+            });
         }
     }
 
