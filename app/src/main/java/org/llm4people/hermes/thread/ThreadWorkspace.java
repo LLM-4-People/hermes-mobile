@@ -67,6 +67,7 @@ public final class ThreadWorkspace implements AutoCloseable {
         default JSONObject appPresenceContext() { return null; }
         default DeepAndroidActions deepAndroidActions() { return null; }
         default void onCustomizationChanged(AppCustomization customization) {}
+        default void onThemeModeChanged(String themeMode) {}
         JSONObject options(String sessionId);
         void timing(String sessionId, long firstTextMillis, long elapsedMillis, long outputTokens);
     }
@@ -1197,21 +1198,36 @@ public final class ThreadWorkspace implements AutoCloseable {
                         this::pinWidgetById);
             }
             screen.interactiveCards(patch.interactiveCards,
-                    patch.interactiveCards.isEmpty() ? null : interactiveCardCallbacks());
+                    patch.interactiveCards.isEmpty() ? null : interactiveCardCallbacks(patch.interactiveCards));
             Diagnostics.event("live_ui", "patch_presented");
         } catch (java.io.IOException rejected) {
             Diagnostics.warning("live_ui", "patch_rejected");
         }
     }
 
-    private InteractiveCardView.Callbacks interactiveCardCallbacks() {
+    private InteractiveCardView.Callbacks interactiveCardCallbacks(List<InteractiveCardView.Spec> cards) {
         return new InteractiveCardView.Callbacks() {
             @Override public void onQuickPickDraft(String cardId, String choiceId, String draftText) {
                 if (!closed && draftText != null && !draftText.isEmpty()) stageDraft(draftText);
             }
             @Override public void onApplyCustomization(String cardId, AppCustomization proposed) {
                 if (closed || account == null || proposed == null) return;
-                AppCustomization applied = AppCustomizationStore.forAccount(account).apply(proposed);
+                InteractiveCardView.Spec matched = null;
+                if (cards != null && cardId != null) {
+                    for (InteractiveCardView.Spec candidate : cards) {
+                        if (candidate != null && cardId.equals(candidate.cardId)) {
+                            matched = candidate;
+                            break;
+                        }
+                    }
+                }
+                AppCustomizationStore store = AppCustomizationStore.forAccount(account);
+                AppCustomization merged = matched != null ? matched.mergeOnto(store.current()) : proposed;
+                AppCustomization applied = store.apply(merged);
+                if (matched != null && matched.customizationDelta != null
+                        && matched.customizationDelta.themeMode() != null) {
+                    host.onThemeModeChanged(matched.customizationDelta.themeMode());
+                }
                 host.onCustomizationChanged(applied);
             }
             @Override public void onUndoCustomization(String cardId) {

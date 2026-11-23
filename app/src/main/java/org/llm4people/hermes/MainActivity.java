@@ -1171,18 +1171,55 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                         return false;
                     }
                 });
+        DeepAndroidActions.HostBridge bridge = new DeepAndroidActions.HostBridge() {
+            @Override public boolean navigate(String targetKind, String targetId) {
+                return osBridge.navigate(targetKind, targetId);
+            }
+            @Override public void onCustomizationChanged(AppCustomization updated) {
+                if (account == owner) applyAppCustomization(owner, updated, true);
+            }
+            @Override public boolean applyThemeMode(String themeMode) {
+                return applyThemeModeOverride(owner, themeMode);
+            }
+            @Override public boolean createTemplate(String title, String category, String draftText) {
+                return osBridge.createTemplate(title, category, draftText);
+            }
+            @Override public boolean setTimer(int durationSeconds, String label) {
+                return osBridge.setTimer(durationSeconds, label);
+            }
+            @Override public boolean openShareSheet(String text, String subject) {
+                return osBridge.openShareSheet(text, subject);
+            }
+            @Override public boolean openAppOrLink(String packageName, String deepLinkUrl) {
+                return osBridge.openAppOrLink(packageName, deepLinkUrl);
+            }
+            @Override public boolean syncShortcutsAndWidgets(
+                    String widgetTitle, String widgetSubtitle, boolean homeScreenSafe) {
+                return osBridge.syncShortcutsAndWidgets(widgetTitle, widgetSubtitle, homeScreenSafe);
+            }
+            @Override public boolean postLocalNudge(String title, String body) {
+                return osBridge.postLocalNudge(title, body);
+            }
+        };
         return new DeepAndroidActions(
                 presenceTracker,
                 locationTracker,
                 AppCustomizationStore.forAccount(owner),
                 nudgeRateLimiter,
-                osBridge);
+                bridge);
     }
 
     @Override public void onCustomizationChanged(AppCustomization customization) {
         Account owner = account;
         if (owner != null && customization != null) {
             applyAppCustomization(owner, customization, true);
+        }
+    }
+
+    @Override public void onThemeModeChanged(String themeMode) {
+        Account owner = account;
+        if (owner != null && themeMode != null) {
+            applyThemeModeOverride(owner, themeMode);
         }
     }
 
