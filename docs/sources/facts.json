@@ -1,12 +1,14 @@
 {
   "project": "Hermes Mobile",
   "repository": "LLM-4-People/hermes-mobile",
+  "pages_url": "https://llm-4-people.github.io/hermes-mobile/",
   "fork_repository": "LLM-4-People/hermes-agent",
   "fork_url": "https://github.com/LLM-4-People/hermes-agent",
   "build_debug": "./gradlew :app:assembleDebug",
   "debug_apk": "app/build/outputs/apk/debug/app-debug.apk",
   "release_apk": "Hermes-Mobile.apk",
   "checksum_file": "SHA256SUMS",
+  "fast_check": "python3 scripts/fast_check.py",
   "server_tests": "python3 -m unittest discover -s server/tests",
   "server_deps": "python3 -m pip install -r server/requirements.txt"
 }

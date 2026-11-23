@@ -1,0 +1,42 @@
+name: Feature request
+description: Propose a new native capability, UX improvement, or companion integration.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What everyday task or problem does this solve?
+      description: Describe the user goal in plain language.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: pillar
+    attributes:
+      label: Target workspace / pillar
+      options:
+        - Discussions, Coding & Voice
+        - Atelier, Live UI & Widgets
+        - Brain Studio & Universal Sharing
+        - Activity, Push & Ambient Intelligence
+        - Single-Host Multi-Profile Deploy & Companion Fork
+        - Developer Experience & Verification
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: How should it work on phones and tablets (and in both English and French)?
+    validations:
+      required: true
+
+  - type: textarea
+    id: privacy
+    attributes:
+      label: Privacy, security & offline considerations (optional)
+      description: Should this be opt-in per profile, require user review before acting, or keep data local?
+    validations:
+      required: false
