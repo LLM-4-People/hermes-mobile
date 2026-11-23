@@ -23,6 +23,8 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * Native Android launcher pinning bridge for Hermes-created surfaces and widgets.
@@ -34,6 +36,11 @@ public final class HomePinBridge {
     public static final String ACTION_WIDGET_UPDATED = "org.llm4people.hermes.ACTION_WIDGET_SPEC_UPDATED";
     public static final String EXTRA_WIDGET_ID = "hermes_widget_id";
     public static final String EXTRA_SURFACE_ID = "hermes_surface_id";
+    private static final ExecutorService PIN_EXECUTOR = Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "hermes-home-pin");
+        t.setDaemon(true);
+        return t;
+    });
 
     private HomePinBridge() {}
 
@@ -108,7 +115,7 @@ public final class HomePinBridge {
                 .setPositiveButton(R.string.home_pin_widget_action, (d, w) ->
                         launchWidgetPin(activity, spec, ownerProfileId))
                 .setNeutralButton(R.string.home_pin_shortcut_action, (d, w) ->
-                        requestPinShortcut(activity, "widget-" + spec.widgetId, spec.title, null, spec.widgetId)));
+                        pinShortcutAsync(activity, "widget-" + spec.widgetId, spec.title, null, spec.widgetId)));
     }
 
     /** Offers 1-tap pinning to the Android Home Screen for any Hermes-created surface/tool/dashboard. */
@@ -120,7 +127,12 @@ public final class HomePinBridge {
                 .setMessage(activity.getString(R.string.home_pin_surface_body, safeTitle))
                 .setNegativeButton(R.string.home_pin_cancel, null)
                 .setPositiveButton(R.string.home_pin_shortcut_action, (d, w) ->
-                        requestPinShortcut(activity, "page-" + surfaceId.substring(5), safeTitle, surfaceId, null)));
+                        pinShortcutAsync(activity, "page-" + surfaceId.substring(5), safeTitle, surfaceId, null)));
+    }
+
+    private static void pinShortcutAsync(Activity activity, String shortcutId, String label,
+                                         String surfaceId, String widgetId) {
+        PIN_EXECUTOR.execute(() -> requestPinShortcut(activity, shortcutId, label, surfaceId, widgetId));
     }
 
     public static boolean requestPinShortcut(Activity activity, String shortcutId, String label,
@@ -189,7 +201,7 @@ public final class HomePinBridge {
                 .setMessage(R.string.home_pin_widget_fallback_body)
                 .setNegativeButton(R.string.home_pin_close, null)
                 .setPositiveButton(R.string.home_pin_shortcut_action, (d, w) ->
-                        requestPinShortcut(activity, "widget-" + spec.widgetId, spec.title, null, spec.widgetId)));
+                        pinShortcutAsync(activity, "widget-" + spec.widgetId, spec.title, null, spec.widgetId)));
     }
 
     /** Upserts a validated Live UI widget bound to an owner profile into HermesWidgetStore. */
@@ -281,9 +293,13 @@ public final class HomePinBridge {
     }
 
     private static void guidance(Activity activity, String title, String message) {
-        DeskDialogs.open(activity, new AlertDialog.Builder(activity)
-                .setTitle(title)
-                .setMessage(message)
-                .setPositiveButton(R.string.home_pin_close, null));
+        if (activity == null || activity.isFinishing() || activity.isDestroyed()) return;
+        activity.runOnUiThread(() -> {
+            if (activity.isFinishing() || activity.isDestroyed()) return;
+            DeskDialogs.open(activity, new AlertDialog.Builder(activity)
+                    .setTitle(title)
+                    .setMessage(message)
+                    .setPositiveButton(R.string.home_pin_close, null));
+        });
     }
 }

@@ -281,7 +281,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             Account owner = account;
             panels.showSkills(() -> account == owner && !isFinishing(), this::stageDraft);
         });
-        actions.register("stats", () -> openThreadAction("stats"));
+        actions.register("stats", () -> panels.showStats(threads.sessionId(), threads.remoteSessionId()));
         actions.register("tools", () -> openThreadAction("tools"));
         actions.register("models", () -> openThreadAction("models"));
         actions.register("artifacts", () -> openThreadAction("artifacts"));
@@ -292,8 +292,6 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         if (session == null) {
             message(getString(R.string.ws_choose_discussion_title),
                     getString(R.string.ws_choose_discussion_body));
-        } else if ("stats".equals(id)) {
-            panels.showStats(session, threads.remoteSessionId());
         } else if ("artifacts".equals(id)) {
             new ArtifactDesk(this, account, session, threads.messages(), activeHost).show();
         } else {

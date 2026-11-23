@@ -48,6 +48,16 @@
     <string name="thread_read_full_message">Lire le message entier</string>
     <string name="thread_see_details">Voir les détails</string>
     <string name="thread_see_result">Voir le résultat</string>
+    <string name="thread_tool_failed">Échec de l’outil</string>
+    <string name="thread_tool_failed_named">Échec de l’outil · %1$s</string>
+    <string name="thread_tool_done">Outil terminé</string>
+    <string name="thread_tool_done_named">Outil terminé · %1$s</string>
+    <string name="thread_tool_result">Résultat de l’outil</string>
+    <string name="thread_tool_result_named">Résultat de l’outil · %1$s</string>
+    <string name="thread_tool_result_dialog_named">Résultat · %1$s</string>
+    <string name="thread_skill_failed">Échec de la consultation</string>
+    <string name="thread_skill_done">Compétence consultée</string>
+    <string name="thread_skill_result">Consultation d’une compétence</string>
     <string name="profile_choose_title">Choisir un profil</string>
     <string name="profile_add_action">Ajouter un profil</string>
     <string name="profile_connect_title">Connecter Hermes</string>

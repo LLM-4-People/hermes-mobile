@@ -37,15 +37,16 @@ final class DiscussionSkillsJourney {
 
     void send() throws JSONException {
         String sendLabel = ui.str(R.string.thread_send);
+        String seeResult = ui.str(R.string.thread_see_result);
         ui.see(fixture.getString("staged"));
         ui.tap(sendLabel);
         ui.see(sendLabel);
-        ui.see("Compétence consultée");
-        ui.see("Voir le résultat");
+        ui.see(ui.str(R.string.thread_skill_done));
+        ui.see(seeResult);
         ui.revealText(fixture.getString("answer"));
         ui.capture("04-competence-reponse");
-        ui.tap("Voir le résultat");
-        ui.see("Résultat · skill_view");
+        ui.tap(seeResult);
+        ui.see(ui.str(R.string.thread_tool_result_dialog_named, "skill_view"));
         ui.see(ui.str(R.string.code_copy_content));
         ui.selectableText(fixture.getString("skill") + "/SKILL.md", fixture.getString("marker"));
         ui.tap(ui.str(R.string.ws_close));

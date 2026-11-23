@@ -89,13 +89,8 @@ public final class ConversationCardsJourney extends Instrumentation {
     }
 
     private void removeOwnProfile() throws Exception {
-        String lockAction = ui.str(R.string.top_profile_lock);
-        if (ui.has(lockAction)) {
-            ui.tap(lockAction);
-            ui.tap(ui.str(R.string.security_lock_now));
-        }
+        ui.lockProfile();
         String chooseProfile = ui.str(R.string.profile_choose_title);
-        ui.see(chooseProfile);
         String name = fixture.getString("profile");
         ui.tap(name);
         ui.fill(ui.str(R.string.profile_passphrase_label), fixture.getString("phrase"));
@@ -107,16 +102,14 @@ public final class ConversationCardsJourney extends Instrumentation {
 
     private void reopenHistory(JSONObject turn) throws Exception {
         ui.see(ui.str(R.string.thread_send));
-        ui.tap(ui.str(R.string.top_profile_lock));
-        ui.tap(ui.str(R.string.security_lock_now));
-        ui.see(ui.str(R.string.profile_choose_title));
+        ui.lockProfile();
         ui.tap(fixture.getString("profile"));
         ui.fill(ui.str(R.string.profile_passphrase_label), fixture.getString("phrase"));
         ui.tap(ui.str(R.string.profile_unlock_action));
         ui.see(ui.str(R.string.thread_message_hint));
         ui.contains(turn.getString("reply"));
         seeTranscriptRow("Hermes", turn.getString("question"));
-        seeTranscriptRow("Vous", turn.getString("answer"));
+        seeTranscriptRow(ui.str(R.string.thread_you), turn.getString("answer"));
         ui.capture("card-restored-history");
     }
 
@@ -172,7 +165,7 @@ public final class ConversationCardsJourney extends Instrumentation {
         ui.showPendingControl(approval ? "Autoriser une fois" : turn.getString("question"));
         if (turn.optBoolean("read_history")) {
             await("permit-" + index);
-            seeTranscriptRow("Vous", fixture.getJSONArray("turns").getJSONObject(0).getString("prompt"));
+            seeTranscriptRow(ui.str(R.string.thread_you), fixture.getJSONArray("turns").getJSONObject(0).getString("prompt"));
             ui.tap(ui.str(R.string.ws_reply_hermes));
         }
         if (approval) {

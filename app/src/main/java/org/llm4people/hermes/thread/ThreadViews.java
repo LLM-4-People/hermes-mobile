@@ -515,7 +515,7 @@ final class ThreadViews {
     }
 
     void outgoing(String text) {
-        outgoing.setText(text.isEmpty() ? "" : "Vous\n" + text);
+        outgoing.setText(text.isEmpty() ? "" : activity.getString(R.string.thread_you) + "\n" + text);
         outgoing.setVisibility(text.isEmpty() ? View.GONE : View.VISIBLE);
     }
 
@@ -644,7 +644,7 @@ final class ThreadViews {
                 return;
             }
             String name = switch (role) {
-                case "user" -> "Vous";
+                case "user" -> getContext().getString(R.string.thread_you);
                 case "assistant" -> "Hermes";
                 case "prompt_status" -> "Suivi de la question";
                 case "approval_result" -> "Autorisation";
@@ -726,7 +726,7 @@ final class ThreadViews {
 
         private void bindTool(JSONObject row) {
             Context context = getContext();
-            heading.setText(ToolResult.label(row));
+            heading.setText(ToolResult.label(context, row));
             heading.setTextSize(14);
             heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
             heading.setMaxLines(2);
@@ -735,10 +735,14 @@ final class ThreadViews {
             body.setVisibility(View.GONE);
             if (row.isNull("content") || "".equals(row.opt("content"))) return;
             String name = ToolResult.name(row);
-            Button details = Ui.button(context, "Voir le résultat", v -> show(CodeReader.dialog(context,
-                    name.isEmpty() ? "Résultat de l’outil" : "Résultat · " + name, "", ToolResult.raw(row))));
+            String seeResult = context.getString(R.string.thread_see_result);
+            String dialogTitle = name.isEmpty()
+                    ? context.getString(R.string.thread_tool_result)
+                    : context.getString(R.string.thread_tool_result_dialog_named, name);
+            Button details = Ui.button(context, seeResult, v -> show(CodeReader.dialog(context,
+                    dialogTitle, "", ToolResult.raw(row))));
             details.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
-            details.setContentDescription("Voir le résultat · " + heading.getText());
+            details.setContentDescription(seeResult + " · " + heading.getText());
             addView(details);
         }
     }

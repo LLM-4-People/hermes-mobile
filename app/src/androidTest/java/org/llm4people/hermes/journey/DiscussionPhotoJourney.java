@@ -72,9 +72,7 @@ final class DiscussionPhotoJourney {
             select();
             ui.see(remove);
             // Preserve both parts of an accepted draft across an explicit lock and unlock.
-            ui.tap(ui.str(R.string.top_profile_lock));
-            ui.tap(ui.str(R.string.security_lock_now));
-            ui.see(ui.str(R.string.profile_choose_title));
+            ui.lockProfile();
             unlock.run();
             ui.see(remove);
             ui.fill(ui.str(R.string.thread_image_question_hint), "Quelles couleurs voyez-vous sur ma capture ?");

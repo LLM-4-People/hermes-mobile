@@ -23,7 +23,7 @@ final class WorkspacePagesJourney {
         apply("Disposition · Conversation");
         ui.see("Écriture ciblée");
         ui.see(existing);
-        ui.absent("Vous");
+        ui.absent(ui.str(R.string.thread_you));
         pages();
         ui.tap("Diagnostic mobile");
         ui.see(name);
