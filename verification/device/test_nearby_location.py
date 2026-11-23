@@ -2,7 +2,7 @@ import unittest
 import xml.etree.ElementTree as ET
 
 from verification.device.app_strings import AppStrings
-from verification.nearby_journey import CONSENT, PROMPT, USE_LOCATION, choose_consent, enter_message, lock, open_consent
+from verification.nearby_journey import PROMPT, choose_consent, enter_message, lock, open_consent
 from verification.nearby_location import (COARSE, answer_android_location, app_activity_stopped,
                                           location_access, public_city_fix)
 from verification.nearby_restaurants import enter_discussion, matches_map_coordinate
@@ -324,7 +324,7 @@ class NearbyLocationTest(unittest.TestCase):
                     'package="org.llm4people.hermes" window-id="3" scrollable="false" bounds="[0,80][320,600]">'
                     f'<node text="{consent_title}" content-desc="" resource-id="" class="android.widget.TextView" '
                     'package="org.llm4people.hermes" window-id="3" scrollable="false" bounds="[16,100][304,160]"/>'
-                    '<node text="Hermes reçoit la zone et peut la transmettre à OpenStreetMap." content-desc="" resource-id="" '
+                    f'<node text="{s["nearby_consent_explain"]}" content-desc="" resource-id="" '
                     'class="android.widget.TextView" package="org.llm4people.hermes" window-id="3" scrollable="false" bounds="[16,170][304,260]"/>'
                     '</node>'
                 )

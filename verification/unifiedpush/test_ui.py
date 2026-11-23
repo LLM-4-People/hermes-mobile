@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import Mock, call, patch
 from xml.etree.ElementTree import Element, SubElement
 
-from .ui import Screen, focused_window, start_account
+from .ui import NTFY, Screen, enroll, focused_window, start_account
 
 
 def tree(*specs, package="org.llm4people.hermes", window_id="10"):
@@ -111,22 +111,61 @@ class ScreenUiTest(unittest.TestCase):
             with self.subTest(lang=lang):
                 ui = Screen(Mock(), Mock(), lang=lang)
                 s = ui.strings
-                push_dialog = tree({"text": "Fermer", "bounds": "[20,260][120,310]"})
+                push_dialog = tree({"text": s["ws_close"], "bounds": "[20,260][120,310]"})
                 workspace = tree({"content-desc": s["top_profile_lock"], "bounds": "[200,10][260,70]"})
                 security = tree({"text": s["security_lock_now"], "bounds": "[20,100][280,150]"})
                 chooser = tree({"text": s["profile_add_action"], "bounds": "[20,200][280,250]"})
                 connect = tree({"text": s["profile_connect_title"], "bounds": "[20,40][280,90]"})
-                ui.hierarchy = Mock(side_effect=[push_dialog, workspace, security, chooser, connect])
+                save_form = tree({"text": s["profile_save_action"], "bounds": "[20,500][280,550]"})
+                opened_ws = tree({"text": s["thread_new_conversation"], "bounds": "[20,80][280,130]"})
+                ui.hierarchy = Mock(side_effect=[push_dialog, workspace, security, chooser, connect, save_form, save_form, opened_ws])
                 ui.tap_node = Mock()
                 ui.field = Mock()
-                ui.tap = Mock()
-                ui.wait = Mock()
                 with patch("verification.unifiedpush.stack.time.sleep"):
                     start_account(ui, "Alt", "https://example.test", "secret-key", "correct-horse-battery")
-                self.assertEqual(ui.tap_node.call_count, 4)
+                # 4 navigation taps (close, profile_lock, lock_now, add_action) + 2 save taps (1st swallowed, 2nd succeeds).
+                self.assertEqual(ui.tap_node.call_count, 6)
                 self.assertEqual(ui.field.call_count, 5)
-                ui.tap.assert_called_once_with(s["profile_save_action"], scroll=True)
-                ui.wait.assert_called_once_with(s["thread_new_conversation"])
+
+    def test_enroll_retries_swallowed_enable_tap_and_transitions_in_en_and_fr(self):
+        for lang in ("en", "fr"):
+            with self.subTest(lang=lang):
+                ui = Screen(Mock(), Mock(), lang=lang)
+                s = ui.strings
+                home = tree({"text": s["nav_atelier"], "bounds": "[100,580][180,630]"})
+                atelier = tree({"text": s["ws_notifications"], "bounds": "[20,180][300,230]"})
+                notif_dialog = tree({"text": s["push_settings_enable"], "bounds": "[20,300][300,350]"})
+                transport_picker = tree(
+                    {"text": s["push_settings_service_title"], "bounds": "[20,80][300,130]"},
+                    {"text": s["push_settings_enable_up"], "bounds": "[20,200][300,250]"},
+                )
+                distributor_picker = tree(
+                    {"text": s["push_settings_choose_distributor"], "bounds": "[20,80][300,130]"},
+                    {"text": "ntfy\n" + NTFY, "bounds": "[20,200][300,260]"},
+                )
+                enrolled = tree({"text": s["push_settings_disable"], "bounds": "[20,300][300,350]"})
+                # Swallowed taps on Enable (2nd poll still on notif_dialog) and on ntfy option (still on distributor_picker).
+                ui.hierarchy = Mock(side_effect=[
+                    home, atelier,
+                    atelier, notif_dialog,
+                    notif_dialog, notif_dialog, transport_picker,
+                    transport_picker,  # allow_if_prompted()
+                    transport_picker, distributor_picker,  # choose_ntfy() loop
+                    distributor_picker, distributor_picker, enrolled,  # choose_ntfy() tap_until
+                ])
+                tapped = []
+                ui.tap_node = Mock(side_effect=lambda node: tapped.append(node.get("text")))
+                with patch("verification.unifiedpush.stack.time.sleep"):
+                    enroll(ui)
+                self.assertEqual(tapped, [
+                    s["nav_atelier"],
+                    s["ws_notifications"],
+                    s["push_settings_enable"],
+                    s["push_settings_enable"],
+                    s["push_settings_enable_up"],
+                    "ntfy\n" + NTFY,
+                    "ntfy\n" + NTFY,
+                ])
 
 
 if __name__ == "__main__":

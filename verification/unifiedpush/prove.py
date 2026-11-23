@@ -225,8 +225,12 @@ def run(args):
                 raise AssertionError("Device registered with another push origin")
             before = len(published_messages(topic))
             ui.wait(disable_push)
-            ui.tap(open_distributor)
-            ui.wait("Subscribed topics")
+            ui.tap_until(
+                open_distributor,
+                lambda root: ui.node("Subscribed topics", root) is not None,
+                scroll=True,
+                description="ntfy subscribed topics screen after tapping " + open_distributor,
+            )
             wait_for_ntfy_subscriber(root, topic)
             launch(adb, APP)
             start_account(ui, alt, other_url, other.key, secrets.token_hex(14))
@@ -256,9 +260,23 @@ def run(args):
                     failure.add_note("Delivery state unavailable (" + type(diagnostic).__name__ + ")")
                 raise
             tap_notice(ui, notice_title(adb, notice), owner, phrase, title, reply, args.evidence_dir)
-            ui.tap(s["nav_atelier"])
-            ui.tap(s["ws_notifications"], scroll=True)
-            ui.tap(disable_push)
+            ui.tap_until(
+                s["nav_atelier"],
+                lambda root: ui.node(s["ws_notifications"], root) is not None,
+                description="Atelier workspace for push revocation",
+            )
+            ui.tap_until(
+                s["ws_notifications"],
+                lambda root: ui.node(disable_push, root) is not None,
+                scroll=True,
+                description="Notifications settings showing disable control",
+            )
+            ui.tap_until(
+                disable_push,
+                lambda root: ui.node(disable_push, root) is None or ui.node(s["push_settings_enable"], root) is not None,
+                scroll=True,
+                description="Push settings disabled after tapping " + disable_push,
+            )
             eventually("server revocation", lambda: revoked_everywhere(db, device_id))
             _, second_run = trigger(primary, "Après révocation")
             revoked = eventually(

@@ -4,9 +4,7 @@
 
 ## How signed releases are generated
 
-The **Signed Android release** workflow (`.github/workflows/release.yml`) runs on either:
-1. **SemVer tag push (`v*.*.*` or `v*.*.*-*`)** pointing at the reviewed `main` commit matching `hermesVersionName` in `gradle.properties`, or
-2. **Manual `workflow_dispatch`** on `main` (with an optional `release_tag` guard verified against the signed manifest).
+The **Signed Android release** workflow (`.github/workflows/release.yml`) runs via `workflow_dispatch` on `main` (respecting the `android-release` environment’s `main`-only deployment policy), either dispatched automatically by **Automated SemVer release** (`.github/workflows/auto-release.yml`) or triggered manually with an optional `release_tag` guard verified against the signed manifest.
 
 Every release passes the complete release gate before publishing:
 1. **Reproducible clean build:** Rebuilds the unsigned release APK from clean outputs (no build cache or configuration cache) and asserts byte-for-byte identity (`cmp`) against the first release build.
@@ -29,17 +27,20 @@ Open **Activity → App updates** on Android (a lightweight 24-hour throttled ch
 
 ## Publishing a new release (maintainers)
 
-### Label-driven automated SemVer release (recommended)
+### Automatic code-driven and conventional-commit SemVer release (recommended)
 
-Apply **one** SemVer release label (`release:patch`, `release:minor`, or `release:major`) to a PR targeting `main` before merging (conflicting `release:*` labels fail closed):
-1. When the PR merges into `main`, **Automated SemVer release** (`.github/workflows/auto-release.yml`) inspects `gradle.properties`, existing `v*` tags, and published GitHub Releases via `ci/semver_bump.py`.
-2. If `gradle.properties` on `main` is already strictly newer than every existing tag and published `versionCode`, it immediately creates and pushes annotated tag `vX.Y.Z` and dispatches **Signed Android release** (`.github/workflows/release.yml`).
-3. Otherwise, respecting `main` branch protection rulesets, it opens a clean `chore(release): vX.Y.Z` PR bumping `hermesVersionName` and `hermesVersionCode` (labeled `release:publish` + `ci`). Merging that PR creates tag `vX.Y.Z` and dispatches **Signed Android release** automatically, generating categorized release notes via `.github/release.yml`.
+**Automated SemVer release** (`.github/workflows/auto-release.yml`) runs automatically whenever a pull request merges into `main` (or via manual `workflow_dispatch` with `bump` = `auto`, `patch`, `minor`, `major`, or `publish`):
+1. **Fail-closed classification (`ci/semver_bump.py`):**
+   - Applying `skip-release` skips release planning completely.
+   - Explicit labels (`release:patch`, `release:minor`, `release:major`, `release:publish`) take precedence (conflicting or unknown `release:*` labels fail closed).
+   - Otherwise, if the PR changed shippable Android app files (`app/src/main/`, `app/build.gradle`, `app/proguard-rules.pro`, `gradle/`), the bump is inferred from Conventional Commits (`feat!:` / `BREAKING CHANGE` → `major`, `feat:` or `enhancement` → `minor`, `fix:`/`perf:`/`refactor:` → `patch`) while scanning all unreleased commits since the latest `v*` tag and any open `release/v*` PRs so a later `fix:` never downgrades a pending minor/major release. Docs-, CI-, or test-only PRs skip automatically.
+2. **Immediate tag & dispatch:** If `gradle.properties` on `main` is already strictly newer than every existing tag and published `versionCode`, `auto-release.yml` creates and pushes annotated tag `vX.Y.Z` and dispatches **Signed Android release** (`.github/workflows/release.yml`) on `main` with `release_tag=vX.Y.Z`.
+3. **Ruleset-compliant bump PR:** Otherwise, it opens or updates `chore(release): vX.Y.Z` bumping `hermesVersionName` and `hermesVersionCode`, regenerates all managed docs via `scripts/docs.py --write`, and labels the PR `release:publish` + `ci`. Merging that PR tags `vX.Y.Z` and dispatches **Signed Android release** automatically, generating categorized release notes via `.github/release.yml`.
 
 On any pull request where you want to override smart path routing and run the full Android + emulator suite (for example on a docs or server-only PR), apply the `run-full-ci` label.
 
 ### Manual release dispatch
 
-1. Bump `hermesVersionCode` (strictly greater than every published release) and `hermesVersionName` (SemVer, e.g. `0.2.0`) in `gradle.properties`, merge via PR into `main`, and verify `android-release` environment secrets/variables are configured (see [Verification & Signed Delivery](delivery.md#signed-release)).
-2. Either push an annotated tag matching `v<hermesVersionName>` on `main` (`git tag -a v0.2.0 -m "Release v0.2.0" && git push origin v0.2.0`) or dispatch **Signed Android release** manually from GitHub Actions on `main`.
+1. Bump `hermesVersionCode` (strictly greater than every published release) and `hermesVersionName` (SemVer, e.g. `0.3.0`) in `gradle.properties`, regenerate docs (`python3 scripts/docs.py --write`), merge via PR into `main`, and verify `android-release` environment secrets/variables are configured (see [Verification & Signed Delivery](delivery.md#signed-release)).
+2. Dispatch **Signed Android release** (`.github/workflows/release.yml`) manually on `main` from GitHub Actions (optionally passing `release_tag=v<hermesVersionName>`), or dispatch **Automated SemVer release** (`workflow_dispatch`) on `main`.
 3. Confirm the published release at `https://github.com/{{ repository }}/releases/latest` includes `{{ release_apk }}`, `{{ checksum_file }}`, and `release.json`.

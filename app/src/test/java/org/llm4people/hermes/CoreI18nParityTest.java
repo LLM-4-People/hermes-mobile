@@ -13,7 +13,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -26,11 +25,6 @@ public final class CoreI18nParityTest {
     private static final Pattern FORMAT_SPEC = Pattern.compile("%(\\d+\\$)?[\\-#+ 0,(]*\\d*(?:\\.\\d+)?[sdfoxegcb]");
     private static final Pattern STRING_LITERAL = Pattern.compile("\"((?:[^\"\\\\]|\\\\.)*)\"");
     private static final Pattern FRENCH_ACCENT = Pattern.compile("[àâäçéèêëîïôöùûüÿœæÀÂÄÇÉÈÊËÎÏÔÖÙÛÜŸŒÆ«»]");
-    private static final Set<String> EXCLUDED_FILES = Set.of(
-            "ThreadViews.java",
-            "ThreadStarters.java",
-            "BiometricVault.java",
-            "LockGracePolicy.java");
 
     private static Path resolveAppRoot() {
         File cwd = new File("").getAbsoluteFile();
@@ -119,7 +113,7 @@ public final class CoreI18nParityTest {
             try (var stream = Files.list(dir)) {
                 for (Path file : stream.toList()) {
                     String name = file.getFileName().toString();
-                    if (!name.endsWith(".java") || EXCLUDED_FILES.contains(name)) continue;
+                    if (!name.endsWith(".java")) continue;
                     List<String> lines = Files.readAllLines(file, StandardCharsets.UTF_8);
                     boolean inBlock = false;
                     for (int i = 0; i < lines.size(); i++) {

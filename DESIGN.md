@@ -3,24 +3,26 @@ version: alpha
 name: Hermes Mobile
 description: A native Android work surface for bilingual English and French conversations, decisions and tools.
 colors:
-  primary: "#225C50"
+  primary: "#1B5E50"
   on-accent: "#FFFFFF"
-  accent-surface: "#DCEDE3"
-  danger: "#9B342D"
-  paper: "#F7F5EF"
-  surface: "#FFFEFA"
-  ink: "#172521"
-  muted: "#53625B"
-  line: "#CED4CB"
-  primary-night: "#A0D7BC"
-  on-accent-night: "#102F23"
-  accent-surface-night: "#253F34"
-  danger-night: "#FFAEA4"
-  paper-night: "#141D19"
-  surface-night: "#1C2823"
-  ink-night: "#F3F2E8"
-  muted-night: "#B1BEB3"
-  line-night: "#3D4C43"
+  accent-surface: "#D8EDE3"
+  danger: "#A12E28"
+  paper: "#F6F4EE"
+  surface: "#FFFEFB"
+  surface-container: "#EEECE3"
+  ink: "#14231E"
+  muted: "#4E5D56"
+  line: "#D2D7CE"
+  primary-night: "#9AD7BA"
+  on-accent-night: "#0E2B20"
+  accent-surface-night: "#223D31"
+  danger-night: "#FFB4AA"
+  paper-night: "#111916"
+  surface-night: "#19241F"
+  surface-container-night: "#223029"
+  ink-night: "#F2F1E8"
+  muted-night: "#AEBCB2"
+  line-night: "#33433B"
 typography:
   panel-title:
     fontFamily: sans-serif
@@ -67,9 +69,11 @@ typography:
     fontSize: 20px
     fontWeight: 400
 rounded:
-  version-option: 6px
-  profile-field: 8px
-  prompt: 12px
+  version-option: 12px
+  profile-field: 12px
+  prompt: 14px
+  card: 16px
+  composer: 24px
 spacing:
   rule: 1px
   action-gap: 8px
@@ -212,7 +216,7 @@ A thin outline and a change from paper to surface bring a question forward. Ordi
 
 ## Shapes
 
-Use 12 dp corners on the pending prompt and its suggested answers. A 1 dp line outlines the panel. Profile fields, the message composer and the question’s free-answer editor use an 8 dp radius with a 1 dp muted outline that becomes a 2 dp accent outline on focus. In each conversation editor, the outline encloses the text field and its microphone.
+Use 14–16 dp corners on cards, pending prompts, and suggested answers, with a 1 dp line outlining raised surfaces (`surface` `#FFFEFB` by day, `#19241F` at night). Profile fields, dialogs, and buttons use a 12 dp radius with a 1 dp muted outline that becomes a 2 dp accent outline (`#1B5E50` by day, `#9AD7BA` at night) on focus. The floating message composer uses a 24 dp capsule enclosing the text field, 48 dp microphone, and circular accent Send/Stop button; active navigation pills use a 16 dp full-capsule indicator.
 
 ## Components
 

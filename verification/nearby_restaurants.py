@@ -17,7 +17,7 @@ from verification.device.run import Emulator
 from verification.gateway_fixture import Gateway, PINNED_REVISION, check_source
 from verification.nearby_capture import captures
 from verification.nearby_fixture import overpass, PLACES
-from verification.nearby_journey import (CONSENT, FAILED, PROMPT, STAGED, USE_LOCATION, choose_consent, dismiss_ime,
+from verification.nearby_journey import (PROMPT, choose_consent, dismiss_ime,
                                           ensure_unlocked, enter_message, lock, open_consent, stage_public_location,
                                           tap_visible_app_until, unlock, verify_guide)
 from verification.nearby_location import (COARSE, PERMISSION_CONTROLLERS, answer_android_location,

@@ -50,6 +50,16 @@ jobs:
           PR_LABELS: ${{ github.event_name == 'pull_request' && toJson(github.event.pull_request.labels.*.name) || '[]' }}
         run: |
           tags_json=$(git tag --list 'v*' | python3 -B -c 'import json, sys; print(json.dumps([l.strip() for l in sys.stdin if l.strip()]))')
+          latest_tag=$(git describe --tags --abbrev=0 --match 'v*' HEAD 2>/dev/null || true)
+          if [[ -n "$latest_tag" ]]; then
+            unreleased_titles_json=$(git log "${latest_tag}..HEAD" --pretty=%s \
+              | python3 -B -c 'import json, sys; print(json.dumps([l.strip() for l in sys.stdin if l.strip()]))')
+          else
+            unreleased_titles_json=$(git log -n 50 --pretty=%s HEAD \
+              | python3 -B -c 'import json, sys; print(json.dumps([l.strip() for l in sys.stdin if l.strip()]))')
+          fi
+          pending_tags_json=$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --limit 50 --json headRefName \
+            --jq '[.[] | .headRefName | select(startswith("release/v")) | sub("^release/"; "")]')
           max_code=$(python3 -B - <<'PY'
           import json, os, subprocess
           repo = os.environ["GITHUB_REPOSITORY"]
@@ -92,6 +102,8 @@ jobs:
             --gradle-properties gradle.properties \
             --labels-json "$PR_LABELS" \
             --tags-json "$tags_json" \
+            --unreleased-titles-json "$unreleased_titles_json" \
+            --pending-tags-json "$pending_tags_json" \
             --published-max-code "$max_code" \
             "${extra_args[@]}" \
             --apply-bump \
@@ -100,7 +112,6 @@ jobs:
         if: steps.plan.outputs.mode == 'tag_and_release'
         env:
           GH_TOKEN: ${{ secrets.RELEASE_BOT_TOKEN || github.token }}
-          USE_BOT_TOKEN: ${{ secrets.RELEASE_BOT_TOKEN != '' && '1' || '0' }}
           TAG: ${{ steps.plan.outputs.tag }}
           VERSION_CODE: ${{ steps.plan.outputs.version_code }}
           REASON: ${{ steps.plan.outputs.reason }}
@@ -110,10 +121,8 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag -a "$TAG" -m "Release $TAG (versionCode $VERSION_CODE, source $PR_NUMBER)"
           git push origin "refs/tags/$TAG"
-          if [[ "$USE_BOT_TOKEN" == "0" ]]; then
-            # Tag pushes made with GITHUB_TOKEN do not trigger on:push:tags workflows; dispatch explicitly.
-            gh workflow run release.yml --repo "$GITHUB_REPOSITORY" --ref main -f "release_tag=$TAG"
-          fi
+          # Always dispatch on main so the android-release environment branch policy (main-only) passes cleanly.
+          gh workflow run release.yml --repo "$GITHUB_REPOSITORY" --ref main -f "release_tag=$TAG"
           {
             echo "### Automated SemVer release dispatched"
             echo ""
@@ -139,7 +148,8 @@ jobs:
           git fetch origin "refs/heads/$BRANCH:refs/remotes/origin/$BRANCH" 2>/dev/null || true
           git checkout -B "$BRANCH"
           python3 -B scripts/docs.py --write
-          git add -- gradle.properties README.md PRODUCT.md SECURITY.md DESIGN.md CONTRIBUTING.md docs/ site/
+          mapfile -t doc_outputs < <(python3 -B scripts/docs.py --list-outputs)
+          git add -- gradle.properties "${doc_outputs[@]}"
           git commit -m "chore(release): bump Android version to $TAG (versionCode $VERSION_CODE)"
           git push --force-with-lease origin "$BRANCH"
           existing=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$BRANCH" --state open --json number --jq '.[0].number // empty')

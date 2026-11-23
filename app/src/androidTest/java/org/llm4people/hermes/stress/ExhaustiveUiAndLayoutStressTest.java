@@ -219,7 +219,8 @@ public final class ExhaustiveUiAndLayoutStressTest extends InstrumentationTestCa
                 // Simulate immediate profile lock mid-flight while multiple worker tasks are active.
                 panel.close();
             });
-            SystemClock.sleep(250);
+            getInstrumentation().waitForIdleSync();
+            waitForCondition(() -> !activity.isFinishing(), 2_000L);
             runTestOnUiThread(() -> assertFalse("Activity must stay healthy after lock-mid-action",
                     activity.isFinishing()));
         } finally {
@@ -294,7 +295,19 @@ public final class ExhaustiveUiAndLayoutStressTest extends InstrumentationTestCa
                     throw new AssertionError(err);
                 }
             });
-            SystemClock.sleep(300);
+            getInstrumentation().waitForIdleSync();
+            waitForCondition(() -> {
+                boolean[] ready = new boolean[1];
+                try {
+                    runTestOnUiThread(() -> {
+                        View tab = activity.getWindow().getDecorView().findViewById(R.id.nav_tab_discussions);
+                        ready[0] = tab != null && tab.getWidth() > 0 && tab.getHeight() > 0;
+                    });
+                } catch (Throwable ignored) {
+                    return false;
+                }
+                return ready[0];
+            }, 5_000L);
 
             int[] tabIds = {
                     R.id.nav_tab_discussions,
@@ -326,7 +339,6 @@ public final class ExhaustiveUiAndLayoutStressTest extends InstrumentationTestCa
     private void exercisePanel(String name, Runnable open, Activity activity, String expectedTitle) throws Throwable {
         runTestOnUiThread(open);
         waitForWindowText(expectedTitle, 10_000L);
-        SystemClock.sleep(200);
         getInstrumentation().waitForIdleSync();
         long settleDeadline = SystemClock.elapsedRealtime() + 2_000L;
         while (SystemClock.elapsedRealtime() < settleDeadline) {

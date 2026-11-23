@@ -5,7 +5,6 @@ import hashlib
 import json
 import os
 from pathlib import Path
-import re
 import subprocess
 import tempfile
 import zipfile
@@ -39,13 +38,11 @@ class Releases:
         self.metadata = json.loads((directory / METADATA).read_bytes())
         self.repo = os.environ["GITHUB_REPOSITORY"]
         self.sha = os.environ["GITHUB_SHA"]
-        self.tag = self.metadata["tag"]
-        if not re.fullmatch(r"v[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?", self.tag):
-            raise ValueError("Invalid release tag")
-        if self.metadata["sourceCommit"] != self.sha:
-            raise ValueError("The build metadata identifies a different commit")
-        self.code = version_code(self.metadata["versionCode"])
         self.apk = expected_apk_name(self.metadata)
+        self.tag = self.metadata["tag"]
+        if self.metadata.get("sourceCommit") != self.sha:
+            raise ValueError("The build metadata identifies a different commit")
+        self.code = version_code(self.metadata.get("versionCode"))
         self.assets = (self.apk, CHECKSUMS, METADATA)
 
     def api(self, resource, *options):

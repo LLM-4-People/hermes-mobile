@@ -29,13 +29,26 @@ def apk_certificate(tools, apk):
     return fingerprints[0].lower()
 
 
-SEMVER_PATTERN = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?")
+SEMVER_PATTERN = re.compile(
+    r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)"
+    r"(?:-[0-9A-Za-z]+(?:-[0-9A-Za-z]+)*(?:\.[0-9A-Za-z]+(?:-[0-9A-Za-z]+)*)*)?"
+)
 
 
 def release_apk_name(version_name):
     if not isinstance(version_name, str) or not SEMVER_PATTERN.fullmatch(version_name):
         raise ValueError("Use a semantic release version for the Android versionName.")
     return f"hermes-mobile-v{version_name}.apk"
+
+
+def read_gradle_version_name(gradle_properties):
+    text = Path(gradle_properties).read_text(encoding="utf-8")
+    match = re.search(r"^hermesVersionName=(.+)$", text, re.MULTILINE)
+    if not match:
+        raise ValueError("gradle.properties missing hermesVersionName.")
+    version_name = match.group(1).strip()
+    release_apk_name(version_name)
+    return version_name
 
 
 def describe(badging, unsigned, signed, certificate, commit):
@@ -62,6 +75,9 @@ def describe(badging, unsigned, signed, certificate, commit):
 
 
 if __name__ == "__main__":
+    if len(sys.argv) == 3 and sys.argv[1] == "--apk-name-from-gradle":
+        print(release_apk_name(read_gradle_version_name(sys.argv[2])))
+        sys.exit(0)
     manifest, unsigned_apk, signed_apk, expected, sha, tools = sys.argv[1:]
     signer = apk_certificate(tools, signed_apk)
     if signer != expected.replace(":", "").lower():

@@ -495,6 +495,8 @@ public final class HermesApi {
                     total += count;
                 }
             }
+            if (revoked) throw new IOException("Client revoked");
+            if (Thread.currentThread().isInterrupted()) throw new IOException("Transfer cancelled");
             return total;
         } catch (IOException error) {
             Diagnostics.event("network", "download_failed");

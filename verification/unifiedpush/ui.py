@@ -302,8 +302,12 @@ def start_account(ui, label, endpoint, bearer, phrase):
         (s["profile_passphrase_confirm_label"], phrase),
     ]:
         ui.field(name, value)
-    ui.tap(s["profile_save_action"], scroll=True)
-    ui.wait(s["thread_new_conversation"])
+    ui.tap_until(
+        s["profile_save_action"],
+        lambda root: ui.node(s["thread_new_conversation"], root) is not None,
+        scroll=True,
+        description="workspace opened after saving profile",
+    )
 
 
 def choose_ntfy(ui):
@@ -342,18 +346,46 @@ def choose_ntfy(ui):
         return None
 
     try:
-        target = eventually("the enrolled ntfy package in the distributor chooser", choose)[0]
+        eventually("the enrolled ntfy package in the distributor chooser", choose)
     except (AssertionError, TimeoutError, RuntimeError):
         print("Android enrollment " + json.dumps(flags, sort_keys=True), file=sys.stderr, flush=True)
         raise
-    ui.tap_node(target)
+    ui.tap_until(
+        "ntfy\n" + NTFY,
+        lambda root: ui.node(distributor_title, root) is None,
+        description="distributor chooser to dismiss after selecting ntfy",
+    )
 
 
 def enroll(ui):
     s = ui.strings
-    ui.tap(s["nav_atelier"])
-    ui.tap(s["ws_notifications"], scroll=True)
-    ui.tap(s["push_settings_enable"])
+    nav_atelier = s["nav_atelier"]
+    notifications = s["ws_notifications"]
+    enable = s["push_settings_enable"]
+    transport_title = s["push_settings_service_title"]
+    distributor_title = s["push_settings_choose_distributor"]
+    ui.tap_until(
+        nav_atelier,
+        lambda root: ui.node(notifications, root) is not None,
+        description="Atelier workspace showing notifications entry",
+    )
+    ui.tap_until(
+        notifications,
+        lambda root: ui.node(enable, root) is not None,
+        scroll=True,
+        description="Notifications settings showing enable control",
+    )
+    ui.tap_until(
+        enable,
+        lambda root: (
+            ui.node(transport_title, root) is not None
+            or ui.node(distributor_title, root) is not None
+            or ui.node("com.android.permissioncontroller:id/permission_allow_button", root) is not None
+            or ui.node("com.google.android.permissioncontroller:id/permission_allow_button", root) is not None
+        ),
+        scroll=True,
+        description="Push enrollment prompt or transport chooser after tapping " + enable,
+    )
     ui.allow_if_prompted()
     choose_ntfy(ui)
 
@@ -462,7 +494,13 @@ def tap_notice(ui, notice_text, owner, phrase, title, reply, evidence=None):
     ui.controls.reconnect()
     profile_label = ui.wait(owner).get("text")
     ui.field(s["profile_passphrase_label"], phrase)
-    ui.tap(s["profile_unlock_action"])
+    unlock_btn = s["profile_unlock_action"]
+    ui.tap_until(
+        unlock_btn,
+        lambda root: ui.node(unlock_btn, root) is None,
+        scroll=True,
+        description="profile to unlock after tapping " + unlock_btn,
+    )
 
     def opened():
         root = ui.hierarchy()
