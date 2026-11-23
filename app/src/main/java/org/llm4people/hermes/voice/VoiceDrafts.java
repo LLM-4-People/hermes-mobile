@@ -305,7 +305,9 @@ public final class VoiceDrafts {
     public boolean permissionResult(int code, String[] permissions, int[] results) {
         Attempt attempt = active;
         if (attempt == null || attempt.phase != Phase.PERMISSION || code != attempt.permissionCode) return false;
-        attempt.permissionGranted = permissions.length == 1 && results.length == 1
+        PermissionCenter.recordCompletedPrompt(activity, PermissionCenter.Key.MICROPHONE, results);
+        attempt.permissionGranted = permissions != null && results != null
+                && permissions.length == 1 && results.length == 1
                 && Manifest.permission.RECORD_AUDIO.equals(permissions[0])
                 && results[0] == PackageManager.PERMISSION_GRANTED && input.permitted();
         if (!attempt.permissionGranted) {
@@ -593,7 +595,6 @@ public final class VoiceDrafts {
                 phase = Phase.PERMISSION;
                 permissionCode = permissionIds.getAndUpdate(previous -> previous >= 60000 ? 20000 : previous + 1);
                 target.report(R.string.voice_permission_wait, R.string.voice_cancel_short, target::cancel);
-                PermissionCenter.recordRequested(activity, PermissionCenter.Key.MICROPHONE);
                 input.requestPermission(permissionCode);
             } catch (RuntimeException unavailable) {
                 finishPermissionDenied();

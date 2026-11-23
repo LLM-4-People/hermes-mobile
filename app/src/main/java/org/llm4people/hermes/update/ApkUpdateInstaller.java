@@ -9,7 +9,6 @@ import android.content.pm.Signature;
 import android.content.pm.SigningInfo;
 import android.net.Uri;
 import android.os.Build;
-import android.provider.Settings;
 
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.HermesConfig;
@@ -238,21 +237,6 @@ public final class ApkUpdateInstaller {
 
     public static boolean canRequestPackageInstalls(Context context) {
         return context != null && context.getPackageManager().canRequestPackageInstalls();
-    }
-
-    /** Open Android's per-app "Install unknown apps" permission screen cleanly. */
-    public static boolean openUnknownSourcesSettings(Activity activity) {
-        if (activity == null || activity.isFinishing() || activity.isDestroyed()) return false;
-        Intent intent = new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                Uri.parse("package:" + activity.getPackageName()));
-        try {
-            activity.startActivity(intent);
-            logEvent("unknown_sources_settings_opened");
-            return true;
-        } catch (RuntimeException unavailable) {
-            logWarning("unknown_sources_settings_failed");
-            return false;
-        }
     }
 
     /** Launch the native Android package installer for an already-verified APK file. */

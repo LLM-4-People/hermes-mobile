@@ -4,7 +4,6 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.graphics.Typeface;
-import android.graphics.drawable.GradientDrawable;
 import android.view.View;
 import android.widget.Button;
 import android.widget.LinearLayout;
@@ -72,7 +71,7 @@ public final class PermissionsPanel {
         if (state == PermissionCenter.State.GRANTED || state == PermissionCenter.State.UNAVAILABLE) {
             return null;
         }
-        LinearLayout card = createCard(activity);
+        LinearLayout card = Ui.card(activity);
         card.setTag("permissions:notifications_banner");
 
         TextView badge = statusPill(activity, state);
@@ -93,9 +92,9 @@ public final class PermissionsPanel {
 
         LinearLayout actions = Ui.column(activity);
         LinearLayout.LayoutParams actionsLp = new LinearLayout.LayoutParams(-1, -2);
-        actionsLp.topMargin = Ui.dp(activity, 8);
+        actionsLp.topMargin = Ui.dp(activity, 10);
 
-        Button allowBtn = minTargetButton(activity,
+        Button allowBtn = Ui.filledButton(activity,
                 activity.getString(blocked
                         ? R.string.perm_action_open_notification_settings
                         : R.string.perm_action_allow_notifications),
@@ -104,12 +103,12 @@ public final class PermissionsPanel {
         actions.addView(allowBtn, new LinearLayout.LayoutParams(-2, -2));
 
         if (onManagePermissions != null) {
-            Button manageBtn = minTargetButton(activity,
+            Button manageBtn = Ui.outlinedButton(activity,
                     activity.getString(R.string.perm_action_manage_all),
                     v -> onManagePermissions.run());
             manageBtn.setTag("permissions:banner_manage_all");
             LinearLayout.LayoutParams manageLp = new LinearLayout.LayoutParams(-2, -2);
-            manageLp.topMargin = Ui.dp(activity, 4);
+            manageLp.topMargin = Ui.dp(activity, 8);
             actions.addView(manageBtn, manageLp);
         }
         card.addView(actions, actionsLp);
@@ -136,13 +135,13 @@ public final class PermissionsPanel {
         subtitle.setPaddingRelative(0, Ui.dp(activity, 4), 0, Ui.dp(activity, 14));
         body.addView(subtitle);
 
-        LinearLayout summaryCard = createCard(activity);
+        LinearLayout summaryCard = Ui.card(activity);
         summaryText = Ui.text(activity, "", 16);
         summaryText.setTypeface(MEDIUM);
         summaryText.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         summaryCard.addView(summaryText);
 
-        Button settingsButton = minTargetButton(activity,
+        Button settingsButton = Ui.outlinedButton(activity,
                 activity.getString(R.string.perm_action_open_settings),
                 v -> {
                     if (!PermissionCenter.openAppSettings(activity)) {
@@ -151,7 +150,7 @@ public final class PermissionsPanel {
                 });
         settingsButton.setTag("permissions:open_app_settings");
         LinearLayout.LayoutParams settingsLp = new LinearLayout.LayoutParams(-2, -2);
-        settingsLp.topMargin = Ui.dp(activity, 8);
+        settingsLp.topMargin = Ui.dp(activity, 10);
         summaryCard.addView(settingsButton, settingsLp);
         body.addView(summaryCard, new LinearLayout.LayoutParams(-1, -2));
 
@@ -197,8 +196,11 @@ public final class PermissionsPanel {
     public void onPermissionResult(int requestCode, String[] permissions, int[] results) {
         PermissionCenter.Key key = PermissionCenter.fromRequestCode(requestCode);
         if (key == null) return;
-        boolean granted = results != null && results.length > 0
-                && results[0] == PackageManager.PERMISSION_GRANTED;
+        if (!PermissionCenter.recordCompletedPrompt(activity, key, results)) {
+            refresh();
+            return;
+        }
+        boolean granted = results[0] == PackageManager.PERMISSION_GRANTED;
         PermissionCenter.State updated = PermissionCenter.state(activity, key);
         String label = activity.getString(titleRes(key));
         if (granted || updated == PermissionCenter.State.GRANTED) {
@@ -212,7 +214,7 @@ public final class PermissionsPanel {
     }
 
     private LinearLayout buildPermissionCard(PermissionCenter.Key key, PermissionCenter.State state) {
-        LinearLayout card = createCard(activity);
+        LinearLayout card = Ui.card(activity);
         card.setTag("permissions:card:" + key.storageKey);
 
         TextView badge = statusPill(activity, state);
@@ -229,14 +231,14 @@ public final class PermissionsPanel {
         card.addView(desc);
 
         if (state != PermissionCenter.State.GRANTED && state != PermissionCenter.State.UNAVAILABLE) {
-            Button action = minTargetButton(activity, actionLabel(key, state), v -> {
+            Button action = Ui.filledButton(activity, actionLabel(key, state), v -> {
                 if (!PermissionCenter.requestOrOpenSettings(activity, key)) {
                     showFeedback(activity.getString(R.string.perm_settings_unavailable), true);
                 }
             });
             action.setTag("permissions:action:" + key.storageKey);
             LinearLayout.LayoutParams actionLp = new LinearLayout.LayoutParams(-2, -2);
-            actionLp.topMargin = Ui.dp(activity, 8);
+            actionLp.topMargin = Ui.dp(activity, 10);
             card.addView(action, actionLp);
         }
         return card;
@@ -270,65 +272,36 @@ public final class PermissionsPanel {
 
     private static TextView statusPill(Context context, PermissionCenter.State state) {
         int textRes;
-        int inkColor;
-        int surfaceColor;
+        int inkColorRes;
+        int surfaceColorRes;
         switch (state) {
             case GRANTED -> {
                 textRes = R.string.perm_status_allowed;
-                inkColor = context.getColor(R.color.accent);
-                surfaceColor = context.getColor(R.color.accent_surface);
+                inkColorRes = R.color.accent;
+                surfaceColorRes = R.color.accent_surface;
             }
             case PERMANENTLY_DENIED -> {
                 textRes = R.string.perm_status_blocked;
-                inkColor = context.getColor(R.color.danger);
-                surfaceColor = context.getColor(R.color.danger_surface);
+                inkColorRes = R.color.danger;
+                surfaceColorRes = R.color.danger_surface;
             }
             case UNAVAILABLE -> {
                 textRes = R.string.perm_status_unavailable;
-                inkColor = context.getColor(R.color.muted);
-                surfaceColor = context.getColor(R.color.paper);
+                inkColorRes = R.color.muted;
+                surfaceColorRes = R.color.paper;
             }
             case NOT_REQUESTED, DENIED -> {
                 textRes = R.string.perm_status_off;
-                inkColor = context.getColor(R.color.warning);
-                surfaceColor = context.getColor(R.color.warning_surface);
+                inkColorRes = R.color.warning;
+                surfaceColorRes = R.color.warning_surface;
             }
             default -> {
                 textRes = R.string.perm_status_off;
-                inkColor = context.getColor(R.color.muted);
-                surfaceColor = context.getColor(R.color.paper);
+                inkColorRes = R.color.muted;
+                surfaceColorRes = R.color.paper;
             }
         }
-        TextView badge = Ui.text(context, context.getString(textRes), 12);
-        badge.setTypeface(MEDIUM);
-        badge.setTextColor(inkColor);
-        GradientDrawable pill = new GradientDrawable();
-        pill.setColor(surfaceColor);
-        pill.setCornerRadius(Ui.dp(context, 8));
-        badge.setBackground(pill);
-        Ui.pad(badge, 10, 4);
-        return badge;
-    }
-
-    private static LinearLayout createCard(Context context) {
-        LinearLayout card = Ui.column(context);
-        Ui.pad(card, 16, 14);
-        GradientDrawable bg = new GradientDrawable();
-        bg.setColor(context.getColor(R.color.surface));
-        bg.setCornerRadius(Ui.dp(context, 12));
-        bg.setStroke(Math.max(1, Ui.dp(context, 1)), context.getColor(R.color.line));
-        card.setBackground(bg);
-        return card;
-    }
-
-    private static Button minTargetButton(Context context, String label, View.OnClickListener action) {
-        Button button = Ui.button(context, label, action);
-        int minTouch = Ui.dp(context, 48);
-        button.setMinWidth(minTouch);
-        button.setMinHeight(minTouch);
-        button.setMinimumWidth(minTouch);
-        button.setMinimumHeight(minTouch);
-        return button;
+        return Ui.pill(context, context.getString(textRes), surfaceColorRes, inkColorRes);
     }
 
     private static int titleRes(PermissionCenter.Key key) {

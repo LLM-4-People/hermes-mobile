@@ -144,6 +144,56 @@ public final class PermissionCenterTest {
     }
 
     @Test
+    public void completedPromptHelperDistinguishesInterruptedFromCompletedOutcomes() {
+        // Interrupted/cancelled Android permission prompts deliver null or empty grantResults.
+        assertFalse(PermissionCenter.isCompletedResult(null));
+        assertFalse(PermissionCenter.isCompletedResult(new int[0]));
+
+        // Completed prompts deliver non-empty grantResults (either GRANTED=0 or DENIED=-1).
+        assertTrue(PermissionCenter.isCompletedResult(new int[]{0}));
+        assertTrue(PermissionCenter.isCompletedResult(new int[]{-1}));
+
+        // Interrupted prompt MUST NOT mark requestedBefore=true, keeping NOT_REQUESTED intact
+        // even when shouldShowRequestPermissionRationale returns false.
+        boolean recordedInterrupted = PermissionCenter.isCompletedResult(new int[0]);
+        assertEquals(PermissionCenter.State.NOT_REQUESTED,
+                PermissionCenter.evaluateRuntimeState(true, false, recordedInterrupted, false));
+
+        // Completed non-empty denial with rationale=false transitions to PERMANENTLY_DENIED.
+        boolean recordedCompleted = PermissionCenter.isCompletedResult(new int[]{-1});
+        assertEquals(PermissionCenter.State.PERMANENTLY_DENIED,
+                PermissionCenter.evaluateRuntimeState(true, false, recordedCompleted, false));
+        assertEquals(PermissionCenter.State.DENIED,
+                PermissionCenter.evaluateRuntimeState(true, false, recordedCompleted, true));
+
+        // GRANTED always wins regardless of requestedBefore or rationale.
+        assertEquals(PermissionCenter.State.GRANTED,
+                PermissionCenter.evaluateRuntimeState(true, true, recordedCompleted, false));
+        assertEquals(PermissionCenter.State.GRANTED,
+                PermissionCenter.evaluateRuntimeState(true, true, false, false));
+
+        // Null/special-access guards return false without throwing.
+        assertFalse(PermissionCenter.recordCompletedPrompt(null, PermissionCenter.Key.CAMERA, new int[]{-1}));
+        assertFalse(PermissionCenter.recordCompletedPrompt(null, null, new int[]{-1}));
+        assertFalse(PermissionCenter.recordCompletedPrompt(null, PermissionCenter.Key.NOTIFICATION_ACCESS, new int[]{0}));
+        assertFalse(PermissionCenter.recordCompletedPrompt(null, PermissionCenter.Key.INSTALL_UPDATES, new int[]{0}));
+        PermissionCenter.recordCompletedPrompts(null, new String[]{"android.permission.CAMERA"}, new int[]{-1});
+        PermissionCenter.recordCompletedPrompts(null, null, null);
+    }
+
+    @Test
+    public void fromManifestPermissionMapsAllRuntimeKeysAndRejectsInvalidInputs() {
+        for (PermissionCenter.Key key : PermissionCenter.Key.values()) {
+            if (!key.specialAccess) {
+                assertEquals(key, PermissionCenter.fromManifestPermission(key.manifestPermission));
+            }
+        }
+        assertNull(PermissionCenter.fromManifestPermission(null));
+        assertNull(PermissionCenter.fromManifestPermission(""));
+        assertNull(PermissionCenter.fromManifestPermission("android.permission.UNKNOWN_FAKE"));
+    }
+
+    @Test
     public void permissionsStringsHaveExactFrenchEnglishKeyParity() throws Exception {
         Path base = Path.of("src/main/res");
         if (!Files.isDirectory(base)) {

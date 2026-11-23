@@ -242,6 +242,14 @@ public final class ConnectionDoctorPanel {
         return latestReport;
     }
 
+    /** Refresh the live device-permissions summary card (e.g. on Activity resume from Android Settings). */
+    public void refresh() {
+        if (closed) return;
+        if (permissionsSummary != null) {
+            permissionsSummary.setText(PermissionsPanel.summaryLine(activity));
+        }
+    }
+
     /** Dismiss any active dialog cleanly (e.g., on profile lock or activity pause). */
     public void dismissDialogs() {
         AlertDialog dialog = activeDialog;

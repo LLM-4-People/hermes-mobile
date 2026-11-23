@@ -47,7 +47,16 @@ public final class AmbientAccessPanel {
     public static final int REQUEST_READ_CALENDAR = 4201;
     public static final int REQUEST_READ_CONTACTS = 4202;
 
-    private static final Typeface MEDIUM = Typeface.create("sans-serif-medium", Typeface.NORMAL);
+    private static volatile Typeface mediumTypeface;
+
+    private static Typeface mediumTypeface() {
+        Typeface cached = mediumTypeface;
+        if (cached == null) {
+            cached = Typeface.create("sans-serif-medium", Typeface.NORMAL);
+            mediumTypeface = cached;
+        }
+        return cached;
+    }
 
     public interface DraftSink {
         void stageDraft(String text);
@@ -76,8 +85,36 @@ public final class AmbientAccessPanel {
     private TextView statusBadge;
     private TextView feedback;
     private Button feedbackAction;
+    private Switch notificationsSwitch;
+    private Switch mediaSwitch;
+    private Switch calendarSwitch;
+    private Switch contactsSwitch;
+    private Switch deviceContextSwitch;
+    private boolean binding;
+    private PermissionCenter.Key pendingDenialKey;
     private AlertDialog activeDialog;
     private String searchFilter = "";
+
+    /** Pure-Java fail-closed reconciliation of Ambient Calendar/Contacts opt-ins against live permissions. */
+    public static NotificationAllowlist.Settings reconcilePermissions(
+            NotificationAllowlist.Settings settings,
+            boolean hasCalendarPermission,
+            boolean hasContactsPermission) {
+        if (settings == null) {
+            return new NotificationAllowlist.Settings(false, false, false, false, false);
+        }
+        boolean cal = settings.calendarEnabled() && hasCalendarPermission;
+        boolean contacts = settings.contactsEnabled() && hasContactsPermission;
+        if (cal == settings.calendarEnabled() && contacts == settings.contactsEnabled()) {
+            return settings;
+        }
+        return new NotificationAllowlist.Settings(
+                settings.notificationsEnabled(),
+                settings.mediaEnabled(),
+                cal,
+                contacts,
+                settings.deviceContextEnabled());
+    }
 
     public AmbientAccessPanel(Activity activity, NotificationAllowlist allowlist, DraftSink draftSink) {
         this(activity, allowlist, draftSink instanceof ActionCallbacks ac
@@ -117,7 +154,7 @@ public final class AmbientAccessPanel {
         scroll.addView(body, new ScrollView.LayoutParams(-1, -2));
 
         TextView title = Ui.text(activity, activity.getString(R.string.ambient_panel_title), 24);
-        title.setTypeface(MEDIUM);
+        title.setTypeface(mediumTypeface());
         title.setAccessibilityHeading(true);
         body.addView(title);
 
@@ -125,7 +162,7 @@ public final class AmbientAccessPanel {
         addTop(body, intro, 6);
 
         statusBadge = Ui.text(activity, "", 14);
-        statusBadge.setTypeface(MEDIUM);
+        statusBadge.setTypeface(mediumTypeface());
         Ui.pad(statusBadge, 12, 8);
         statusBadge.setBackgroundColor(activity.getColor(R.color.accent_surface));
         addTop(body, statusBadge, 12);
@@ -172,14 +209,39 @@ public final class AmbientAccessPanel {
         }
     }
 
-    /** Refresh status badge, media card, and live notification digest (e.g. on Activity resume). */
+    /** Refresh status badge, toggles, media card, and live notification digest (e.g. on Activity resume). */
     public void refreshAll() {
-        NotificationAllowlist.Settings current = allowlist.settings();
+        NotificationAllowlist.Settings saved = allowlist.settings();
+        NotificationAllowlist.Settings current = reconcilePermissions(
+                saved,
+                CalendarContextReader.hasPermission(activity),
+                ContactsContextReader.hasPermission(activity));
+        if (!current.equals(saved)) {
+            allowlist.saveSettings(current);
+        }
+        if (pendingDenialKey != null
+                && PermissionCenter.state(activity, pendingDenialKey) == PermissionCenter.State.GRANTED) {
+            clearFeedback();
+        }
+        syncSwitches(current);
         HermesNotificationListener.bindProfile(allowlist.effectiveAllowedPackages());
         updateStatusBadge(current);
         renderAllowlist();
         renderMedia(current);
         renderDigest();
+    }
+
+    private void syncSwitches(NotificationAllowlist.Settings settings) {
+        binding = true;
+        try {
+            if (notificationsSwitch != null) notificationsSwitch.setChecked(settings.notificationsEnabled());
+            if (mediaSwitch != null) mediaSwitch.setChecked(settings.mediaEnabled());
+            if (calendarSwitch != null) calendarSwitch.setChecked(settings.calendarEnabled());
+            if (contactsSwitch != null) contactsSwitch.setChecked(settings.contactsEnabled());
+            if (deviceContextSwitch != null) deviceContextSwitch.setChecked(settings.deviceContextEnabled());
+        } finally {
+            binding = false;
+        }
     }
 
     /** Open Android App Info so the user can allow restricted settings on Android 13-16. */
@@ -192,18 +254,44 @@ public final class AmbientAccessPanel {
         return PermissionCenter.openNotificationListenerSettings(context);
     }
 
-    /** Handle Calendar or Contacts runtime permission outcomes with clear 1-tap recovery on denial. */
+    /** Handle Calendar or Contacts runtime permission outcomes with fail-closed persistence and 1-tap recovery. */
     public void onPermissionResult(int requestCode, String[] permissions, int[] results) {
-        boolean granted = results != null && results.length > 0
-                && results[0] == PackageManager.PERMISSION_GRANTED;
         if (requestCode == REQUEST_READ_CALENDAR) {
+            PermissionCenter.recordCompletedPrompt(activity, PermissionCenter.Key.CALENDAR, results);
+            boolean granted = PermissionCenter.isCompletedResult(results)
+                    && results[0] == PackageManager.PERMISSION_GRANTED
+                    && CalendarContextReader.hasPermission(activity);
+            saveCalendarSetting(granted);
             handleRuntimePermissionOutcome(PermissionCenter.Key.CALENDAR, Manifest.permission.READ_CALENDAR,
                     REQUEST_READ_CALENDAR, R.string.perm_ambient_calendar_denied, granted);
         } else if (requestCode == REQUEST_READ_CONTACTS) {
+            PermissionCenter.recordCompletedPrompt(activity, PermissionCenter.Key.CONTACTS, results);
+            boolean granted = PermissionCenter.isCompletedResult(results)
+                    && results[0] == PackageManager.PERMISSION_GRANTED
+                    && ContactsContextReader.hasPermission(activity);
+            saveContactsSetting(granted);
             handleRuntimePermissionOutcome(PermissionCenter.Key.CONTACTS, Manifest.permission.READ_CONTACTS,
                     REQUEST_READ_CONTACTS, R.string.perm_ambient_contacts_denied, granted);
+        } else {
+            return;
         }
         refreshAll();
+    }
+
+    private void saveCalendarSetting(boolean enabled) {
+        NotificationAllowlist.Settings cur = allowlist.settings();
+        if (cur.calendarEnabled() == enabled) return;
+        allowlist.saveSettings(new NotificationAllowlist.Settings(
+                cur.notificationsEnabled(), cur.mediaEnabled(), enabled,
+                cur.contactsEnabled(), cur.deviceContextEnabled()));
+    }
+
+    private void saveContactsSetting(boolean enabled) {
+        NotificationAllowlist.Settings cur = allowlist.settings();
+        if (cur.contactsEnabled() == enabled) return;
+        allowlist.saveSettings(new NotificationAllowlist.Settings(
+                cur.notificationsEnabled(), cur.mediaEnabled(), cur.calendarEnabled(),
+                enabled, cur.deviceContextEnabled()));
     }
 
     private void handleRuntimePermissionOutcome(
@@ -214,16 +302,14 @@ public final class AmbientAccessPanel {
         }
         PermissionCenter.State st = PermissionCenter.state(activity, key);
         if (st == PermissionCenter.State.PERMANENTLY_DENIED) {
-            showFeedbackWithAction(deniedMsgRes, true, R.string.perm_action_open_settings, () -> {
+            showFeedbackWithAction(key, deniedMsgRes, true, R.string.perm_action_open_settings, () -> {
                 if (!PermissionCenter.openAppSettings(activity)) {
                     showFeedback(R.string.ambient_settings_unavailable, true);
                 }
             });
         } else {
-            showFeedbackWithAction(deniedMsgRes, true, R.string.perm_action_allow, () -> {
-                PermissionCenter.recordRequested(activity, key);
-                activity.requestPermissions(new String[]{permission}, requestCode);
-            });
+            showFeedbackWithAction(key, deniedMsgRes, true, R.string.perm_action_allow, () ->
+                    activity.requestPermissions(new String[]{permission}, requestCode));
         }
     }
 
@@ -260,7 +346,7 @@ public final class AmbientAccessPanel {
         addSectionHeader(body, R.string.ambient_section_toggles, 0);
         NotificationAllowlist.Settings initial = allowlist.settings();
 
-        addSwitch(body, R.string.ambient_toggle_notifications, initial.notificationsEnabled(), checked -> {
+        notificationsSwitch = addSwitch(body, R.string.ambient_toggle_notifications, initial.notificationsEnabled(), checked -> {
             if (!checked) dismissDialogs();
             NotificationAllowlist.Settings cur = allowlist.settings();
             allowlist.saveSettings(new NotificationAllowlist.Settings(
@@ -268,7 +354,7 @@ public final class AmbientAccessPanel {
                     cur.contactsEnabled(), cur.deviceContextEnabled()));
             refreshAll();
         });
-        addSwitch(body, R.string.ambient_toggle_media, initial.mediaEnabled(), checked -> {
+        mediaSwitch = addSwitch(body, R.string.ambient_toggle_media, initial.mediaEnabled(), checked -> {
             if (!checked) dismissDialogs();
             NotificationAllowlist.Settings cur = allowlist.settings();
             allowlist.saveSettings(new NotificationAllowlist.Settings(
@@ -276,51 +362,51 @@ public final class AmbientAccessPanel {
                     cur.contactsEnabled(), cur.deviceContextEnabled()));
             refreshAll();
         });
-        addSwitch(body, R.string.ambient_toggle_calendar, initial.calendarEnabled(), checked -> {
+        calendarSwitch = addSwitch(body, R.string.ambient_toggle_calendar, initial.calendarEnabled(), checked -> {
             if (checked && !CalendarContextReader.hasPermission(activity)) {
+                saveCalendarSetting(false);
                 PermissionCenter.State st = PermissionCenter.state(activity, PermissionCenter.Key.CALENDAR);
                 if (st == PermissionCenter.State.PERMANENTLY_DENIED) {
-                    showFeedbackWithAction(R.string.perm_ambient_calendar_denied, true,
+                    showFeedbackWithAction(PermissionCenter.Key.CALENDAR, R.string.perm_ambient_calendar_denied, true,
                             R.string.perm_action_open_settings, () -> {
                                 if (!PermissionCenter.openAppSettings(activity)) {
                                     showFeedback(R.string.ambient_settings_unavailable, true);
                                 }
                             });
                 } else {
-                    PermissionCenter.recordRequested(activity, PermissionCenter.Key.CALENDAR);
                     activity.requestPermissions(new String[]{Manifest.permission.READ_CALENDAR}, REQUEST_READ_CALENDAR);
                     showFeedback(R.string.ambient_permission_needed, false);
                 }
+                refreshAll();
+                return;
             }
-            NotificationAllowlist.Settings cur = allowlist.settings();
-            allowlist.saveSettings(new NotificationAllowlist.Settings(
-                    cur.notificationsEnabled(), cur.mediaEnabled(), checked,
-                    cur.contactsEnabled(), cur.deviceContextEnabled()));
+            saveCalendarSetting(checked);
+            if (checked) clearFeedback();
             refreshAll();
         });
-        addSwitch(body, R.string.ambient_toggle_contacts, initial.contactsEnabled(), checked -> {
+        contactsSwitch = addSwitch(body, R.string.ambient_toggle_contacts, initial.contactsEnabled(), checked -> {
             if (checked && !ContactsContextReader.hasPermission(activity)) {
+                saveContactsSetting(false);
                 PermissionCenter.State st = PermissionCenter.state(activity, PermissionCenter.Key.CONTACTS);
                 if (st == PermissionCenter.State.PERMANENTLY_DENIED) {
-                    showFeedbackWithAction(R.string.perm_ambient_contacts_denied, true,
+                    showFeedbackWithAction(PermissionCenter.Key.CONTACTS, R.string.perm_ambient_contacts_denied, true,
                             R.string.perm_action_open_settings, () -> {
                                 if (!PermissionCenter.openAppSettings(activity)) {
                                     showFeedback(R.string.ambient_settings_unavailable, true);
                                 }
                             });
                 } else {
-                    PermissionCenter.recordRequested(activity, PermissionCenter.Key.CONTACTS);
                     activity.requestPermissions(new String[]{Manifest.permission.READ_CONTACTS}, REQUEST_READ_CONTACTS);
                     showFeedback(R.string.ambient_permission_needed, false);
                 }
+                refreshAll();
+                return;
             }
-            NotificationAllowlist.Settings cur = allowlist.settings();
-            allowlist.saveSettings(new NotificationAllowlist.Settings(
-                    cur.notificationsEnabled(), cur.mediaEnabled(), cur.calendarEnabled(),
-                    checked, cur.deviceContextEnabled()));
+            saveContactsSetting(checked);
+            if (checked) clearFeedback();
             refreshAll();
         });
-        addSwitch(body, R.string.ambient_toggle_device_context, initial.deviceContextEnabled(), checked -> {
+        deviceContextSwitch = addSwitch(body, R.string.ambient_toggle_device_context, initial.deviceContextEnabled(), checked -> {
             NotificationAllowlist.Settings cur = allowlist.settings();
             allowlist.saveSettings(new NotificationAllowlist.Settings(
                     cur.notificationsEnabled(), cur.mediaEnabled(), cur.calendarEnabled(),
@@ -421,7 +507,7 @@ public final class AmbientAccessPanel {
             return;
         }
         TextView track = Ui.text(activity, current.displayTrack(), 15);
-        track.setTypeface(MEDIUM);
+        track.setTypeface(mediumTypeface());
         mediaContainer.addView(track);
         LinearLayout actions = Ui.row(activity);
         MediaContextBridge.ControlAction toggleAction =
@@ -457,7 +543,7 @@ public final class AmbientAccessPanel {
             card.setBackgroundColor(activity.getColor(R.color.surface));
 
             TextView header = Ui.text(activity, item.displaySource() + " · " + item.displaySender(), 14);
-            header.setTypeface(MEDIUM);
+            header.setTypeface(mediumTypeface());
             card.addView(header);
 
             TextView content = Ui.text(activity, item.displayBody(), 14);
@@ -560,20 +646,23 @@ public final class AmbientAccessPanel {
     private void addSectionHeader(LinearLayout parent, int titleRes, int detailRes) {
         addTop(parent, Ui.divider(activity), 18);
         TextView heading = Ui.text(activity, activity.getString(titleRes), 18);
-        heading.setTypeface(MEDIUM);
+        heading.setTypeface(mediumTypeface());
         heading.setAccessibilityHeading(true);
         addTop(parent, heading, 14);
         if (detailRes != 0) addTop(parent, mutedNote(activity.getString(detailRes)), 4);
     }
 
-    private void addSwitch(LinearLayout parent, int labelRes, boolean initial, Consumer<Boolean> onToggle) {
+    private Switch addSwitch(LinearLayout parent, int labelRes, boolean initial, Consumer<Boolean> onToggle) {
         Switch toggle = new Switch(activity);
         toggle.setText(labelRes);
         toggle.setTextColor(activity.getColor(R.color.ink));
         toggle.setMinHeight(Ui.dp(activity, 48));
         toggle.setChecked(initial);
-        toggle.setOnCheckedChangeListener((buttonView, isChecked) -> onToggle.accept(isChecked));
+        toggle.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (!binding) onToggle.accept(isChecked);
+        });
         addTop(parent, toggle, 4);
+        return toggle;
     }
 
     private TextView mutedNote(String text) {
@@ -583,6 +672,7 @@ public final class AmbientAccessPanel {
     }
 
     private void showFeedback(int messageRes, boolean error) {
+        pendingDenialKey = null;
         if (feedback == null) return;
         feedback.setVisibility(View.VISIBLE);
         feedback.setTextColor(activity.getColor(error ? R.color.danger : R.color.accent));
@@ -593,8 +683,10 @@ public final class AmbientAccessPanel {
         }
     }
 
-    private void showFeedbackWithAction(int messageRes, boolean error, int actionRes, Runnable onClick) {
+    private void showFeedbackWithAction(
+            PermissionCenter.Key denialKey, int messageRes, boolean error, int actionRes, Runnable onClick) {
         showFeedback(messageRes, error);
+        pendingDenialKey = denialKey;
         if (feedbackAction != null && onClick != null) {
             feedbackAction.setText(actionRes);
             feedbackAction.setOnClickListener(v -> onClick.run());
@@ -603,6 +695,7 @@ public final class AmbientAccessPanel {
     }
 
     private void clearFeedback() {
+        pendingDenialKey = null;
         if (feedback != null) feedback.setVisibility(View.GONE);
         if (feedbackAction != null) {
             feedbackAction.setVisibility(View.GONE);

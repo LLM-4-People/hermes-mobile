@@ -112,6 +112,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     private ArtifactDesk.Host activeHost;
     private static final int REQUEST_PRESENCE_LOCATION = 4092;
     private static final int REQUEST_PRESENCE_FINE_LOCATION = 4093;
+    private static final int REQUEST_PRESENCE_NOTIFICATIONS = 4094;
     private final AppPresenceTracker presenceTracker = new AppPresenceTracker();
     private final ContinuousLocationTracker locationTracker = new ContinuousLocationTracker();
     private final DeepAndroidActions.NudgeRateLimiter nudgeRateLimiter = new DeepAndroidActions.NudgeRateLimiter();
@@ -142,7 +143,6 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     private String handledDelivery;
     private long noticeRequest;
     private long backgroundedAtElapsedMs = -1L;
-    private long activeGraceMillis;
     private LockGracePolicy.Window activeGraceWindow = LockGracePolicy.Window.IMMEDIATE;
     private boolean internalActivityTransition;
     private long internalTransitionAtMs = -1L;
@@ -243,6 +243,27 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         this.pairingLinkHandler = handler;
     }
 
+    enum PairingDeepLinkRoute {
+        NONE,
+        DELIVER_TO_LOCKED_HANDLER,
+        LOCK_AND_UNLOCK_FOR_CONFIRMATION,
+        OPEN_SETUP_GATE
+    }
+
+    /** Pure-Java SSoT routing decision for warm {@code hermes://pair} intents across locked and unlocked states. */
+    static PairingDeepLinkRoute resolvePairingDeepLinkRoute(
+            boolean hasPendingPairing,
+            boolean hasUnlockedAccount,
+            boolean hasPairingHandler) {
+        if (!hasPendingPairing) return PairingDeepLinkRoute.NONE;
+        if (!hasUnlockedAccount && hasPairingHandler) {
+            return PairingDeepLinkRoute.DELIVER_TO_LOCKED_HANDLER;
+        }
+        return hasUnlockedAccount
+                ? PairingDeepLinkRoute.LOCK_AND_UNLOCK_FOR_CONFIRMATION
+                : PairingDeepLinkRoute.OPEN_SETUP_GATE;
+    }
+
     private boolean capturePairingDeepLink(Intent intent) {
         PairingLinkParser.ParsedInput parsed = PairingIntent.parse(intent);
         if (parsed == null) return false;
@@ -303,6 +324,16 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                             if (account == owner) {
                                 requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
                                         REQUEST_PRESENCE_FINE_LOCATION);
+                            }
+                        }
+                        @Override public void onRequestNotificationPermission() {
+                            if (account == owner) {
+                                if (Build.VERSION.SDK_INT >= 33) {
+                                    requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},
+                                            REQUEST_PRESENCE_NOTIFICATIONS);
+                                } else {
+                                    PermissionCenter.openNotificationSettings(MainActivity.this);
+                                }
                             }
                         }
                     });
@@ -495,6 +526,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
 
     private void opened(Account unlocked) {
         clearGraceTimer();
+        pairingLinkHandler = null;
         account = unlocked;
         photoPicker.unlocked(unlocked);
         cameraCapture.unlocked(unlocked);
@@ -863,15 +895,16 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         // so an expired session locks immediately and queues incoming OS intents until re-unlock.
         checkGraceOnReturn();
         if (capturePairingDeepLink(intent)) {
-            PairingLinkParser.ParsedInput link = pendingPairing;
-            if (pairingLinkHandler != null && link != null) {
-                pairingLinkHandler.accept(consumePendingPairing());
-            } else if (account != null) {
-                // Lock/switch cleanly to the setup gate so the user explicitly confirms before saving a new profile.
-                lock();
-                unlock();
-            } else {
-                unlock();
+            switch (resolvePairingDeepLinkRoute(
+                    pendingPairing != null, account != null, pairingLinkHandler != null)) {
+                case DELIVER_TO_LOCKED_HANDLER -> pairingLinkHandler.accept(consumePendingPairing());
+                case LOCK_AND_UNLOCK_FOR_CONFIRMATION -> {
+                    // Lock/switch cleanly to the setup gate so the user explicitly confirms before saving a new profile.
+                    lock();
+                    unlock();
+                }
+                case OPEN_SETUP_GATE -> unlock();
+                case NONE -> {}
             }
             return;
         }
@@ -1644,6 +1677,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
 
     @Override public void onRequestPermissionsResult(int code, String[] permissions, int[] results) {
         super.onRequestPermissionsResult(code, permissions, results);
+        PermissionCenter.recordCompletedPrompts(this, permissions, results);
         if (PermissionCenter.isManagedRequestCode(code)) {
             if (activePermissionsPanel != null) {
                 activePermissionsPanel.onPermissionResult(code, permissions, results);
@@ -1654,6 +1688,20 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         }
         if (code == AmbientAccessPanel.REQUEST_READ_CALENDAR || code == AmbientAccessPanel.REQUEST_READ_CONTACTS) {
             if (activeAmbientPanel != null) activeAmbientPanel.onPermissionResult(code, permissions, results);
+            return;
+        }
+        if (code == REQUEST_PRESENCE_NOTIFICATIONS) {
+            boolean granted = PermissionCenter.isCompletedResult(results)
+                    && results[0] == PackageManager.PERMISSION_GRANTED;
+            if (account != null) {
+                if (activePresencePanel != null) {
+                    activePresencePanel.onNotificationPermissionResult(granted);
+                } else if (granted) {
+                    PresencePolicy current = PresencePolicy.load(account);
+                    PresencePolicy updated = current.withProactiveNudges(true);
+                    if (!updated.equals(current)) PresencePolicy.save(account, updated);
+                }
+            }
             return;
         }
         if (code == REQUEST_PRESENCE_LOCATION || code == REQUEST_PRESENCE_FINE_LOCATION) {
@@ -1691,7 +1739,6 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     private void clearGraceTimer() {
         main.removeCallbacks(graceExpiry);
         backgroundedAtElapsedMs = -1L;
-        activeGraceMillis = 0L;
     }
 
     private void clearWorkspace() {
@@ -1807,6 +1854,10 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                 && navigation != null && PermissionsPanel.ROUTE_ID.equals(navigation.current())) {
             activePermissionsPanel.refresh();
         }
+        if (account != null && activeDoctorPanel != null
+                && navigation != null && ConnectionDoctorPanel.ROUTE_ID.equals(navigation.current())) {
+            activeDoctorPanel.refresh();
+        }
         if (account != null && navigation != null && WorkspaceNavigation.ACTIVITY.equals(navigation.current())) {
             render(true);
         }
@@ -1921,7 +1972,6 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         }
         backgroundedAtElapsedMs = SystemClock.elapsedRealtime();
         activeGraceWindow = window;
-        activeGraceMillis = window.millis;
         main.removeCallbacks(graceExpiry);
         if (!window.locksOnScreenOffOnly() && window.millis > 0L) {
             main.postDelayed(graceExpiry, window.millis);

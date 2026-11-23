@@ -49,6 +49,43 @@ public final class PresenceSettingsPanel {
         default void onCustomizationChanged(AppCustomization customization) {}
         default void onRequestLocationPermission() {}
         default void onRequestPreciseLocationPermission() { onRequestLocationPermission(); }
+        default void onRequestNotificationPermission() {}
+    }
+
+    public enum ToggleDecision {
+        APPLY,
+        REQUEST_PERMISSION,
+        OPEN_SETTINGS,
+        UNAVAILABLE
+    }
+
+    /** Pure-Java fail-closed gate: never enables a permission-backed toggle before GRANT. */
+    public static ToggleDecision decidePermissionToggle(
+            boolean requestedEnabled, PermissionCenter.State permissionState) {
+        if (!requestedEnabled) return ToggleDecision.APPLY;
+        if (permissionState == PermissionCenter.State.GRANTED) return ToggleDecision.APPLY;
+        if (permissionState == PermissionCenter.State.UNAVAILABLE) return ToggleDecision.UNAVAILABLE;
+        if (permissionState == PermissionCenter.State.PERMANENTLY_DENIED) return ToggleDecision.OPEN_SETTINGS;
+        return ToggleDecision.REQUEST_PERMISSION;
+    }
+
+    /** Reconcile persisted presence toggles against live Android permissions (fail-closed on revocation). */
+    public static PresencePolicy reconcilePermissions(
+            PresencePolicy policy,
+            boolean hasCoarseLocation,
+            boolean hasFineLocation,
+            boolean notificationsAllowed) {
+        PresencePolicy current = policy == null ? PresencePolicy.defaults() : policy;
+        PresencePolicy next = current;
+        if (next.continuousLocationEnabled && !hasCoarseLocation) {
+            next = next.withContinuousLocation(false);
+        } else if (next.preciseLocation && !hasFineLocation) {
+            next = next.withPreciseLocation(false);
+        }
+        if (next.proactiveNudgesEnabled && !notificationsAllowed) {
+            next = next.withProactiveNudges(false);
+        }
+        return next;
     }
 
     private final Context context;
@@ -69,6 +106,7 @@ public final class PresenceSettingsPanel {
     private Switch preciseSwitch;
     private Switch nudgeSwitch;
     private boolean binding;
+    private PermissionCenter.Key pendingDenialKey;
     private AlertDialog activeDialog;
 
     public PresenceSettingsPanel(
@@ -186,7 +224,7 @@ public final class PresenceSettingsPanel {
         nudgeSwitch = addToggle(body, "presence:toggle_nudges",
                 context.getString(R.string.presence_toggle_nudges_title),
                 context.getString(R.string.presence_toggle_nudges_summary),
-                checked -> applyPolicy(policy.withProactiveNudges(checked), context.getString(R.string.presence_feedback_saved)));
+                this::handleNudgesToggle);
 
         buildCustomizationSection(body);
         refresh();
@@ -194,6 +232,23 @@ public final class PresenceSettingsPanel {
     }
 
     public void refresh() {
+        boolean hasCoarse = ContinuousLocationTracker.hasCoarsePermission(context);
+        boolean hasFine = ContinuousLocationTracker.hasFinePermission(context);
+        boolean hasNotifications = PermissionCenter.state(context, PermissionCenter.Key.NOTIFICATIONS)
+                == PermissionCenter.State.GRANTED;
+        PresencePolicy reconciled = reconcilePermissions(policy, hasCoarse, hasFine, hasNotifications);
+        if (!reconciled.equals(policy)) {
+            policy = reconciled;
+            policySaver.accept(policy);
+            if (!policy.allowsLiveLocation()) {
+                locationTracker.stopAndWipe();
+            }
+            listener.onPolicyChanged(policy);
+        }
+        if (pendingDenialKey != null
+                && PermissionCenter.state(context, pendingDenialKey) == PermissionCenter.State.GRANTED) {
+            clearFeedback();
+        }
         binding = true;
         try {
             if (screenSwitch != null) screenSwitch.setChecked(policy.shareAppPresence);
@@ -345,7 +400,7 @@ public final class PresenceSettingsPanel {
         if (state == PermissionCenter.State.UNAVAILABLE) {
             showFeedback(context.getString(R.string.perm_precise_location_unavailable));
         } else if (state == PermissionCenter.State.PERMANENTLY_DENIED) {
-            showFeedbackWithAction(context.getString(R.string.perm_location_blocked),
+            showFeedbackWithAction(key, context.getString(R.string.perm_location_blocked),
                     context.getString(R.string.perm_action_open_settings),
                     () -> {
                         if (!PermissionCenter.openAppSettings(context)) {
@@ -353,10 +408,9 @@ public final class PresenceSettingsPanel {
                         }
                     });
         } else {
-            showFeedbackWithAction(context.getString(R.string.presence_feedback_location_permission),
+            showFeedbackWithAction(key, context.getString(R.string.presence_feedback_location_permission),
                     context.getString(R.string.perm_action_allow_location),
                     () -> {
-                        PermissionCenter.recordRequested(context, key);
                         if (fine) listener.onRequestPreciseLocationPermission();
                         else listener.onRequestLocationPermission();
                     });
@@ -364,13 +418,28 @@ public final class PresenceSettingsPanel {
         refresh();
     }
 
+    /** Called by host Activity with the outcome of a notification permission prompt for proactive nudges. */
+    public void onNotificationPermissionResult(boolean granted) {
+        PermissionCenter.State state = PermissionCenter.state(context, PermissionCenter.Key.NOTIFICATIONS);
+        if (granted || state == PermissionCenter.State.GRANTED) {
+            applyPolicy(policy.withProactiveNudges(true), context.getString(R.string.presence_feedback_saved));
+            return;
+        }
+        applyPolicy(policy.withProactiveNudges(false), context.getString(
+                state == PermissionCenter.State.PERMANENTLY_DENIED
+                        ? R.string.perm_banner_notifications_blocked_body
+                        : R.string.perm_banner_notifications_body));
+        showNotificationRecovery(state);
+    }
+
     private void handleLocationToggle(boolean enabled) {
         if (enabled && !ContinuousLocationTracker.hasCoarsePermission(context)) {
             PermissionCenter.State state = PermissionCenter.state(context, PermissionCenter.Key.LOCATION);
-            if (state == PermissionCenter.State.PERMANENTLY_DENIED) {
+            if (decidePermissionToggle(true, state) == ToggleDecision.OPEN_SETTINGS) {
                 applyPolicy(policy.withContinuousLocation(false),
                         context.getString(R.string.perm_location_blocked));
-                showFeedbackWithAction(context.getString(R.string.perm_location_blocked),
+                showFeedbackWithAction(PermissionCenter.Key.LOCATION,
+                        context.getString(R.string.perm_location_blocked),
                         context.getString(R.string.perm_action_open_settings),
                         () -> {
                             if (!PermissionCenter.openAppSettings(context)) {
@@ -379,7 +448,6 @@ public final class PresenceSettingsPanel {
                         });
                 return;
             }
-            PermissionCenter.recordRequested(context, PermissionCenter.Key.LOCATION);
             applyPolicy(policy.withContinuousLocation(false),
                     context.getString(R.string.presence_feedback_location_permission));
             listener.onRequestLocationPermission();
@@ -391,15 +459,17 @@ public final class PresenceSettingsPanel {
     private void handlePreciseLocationToggle(boolean enabled) {
         if (enabled && !ContinuousLocationTracker.hasFinePermission(context)) {
             PermissionCenter.State state = PermissionCenter.state(context, PermissionCenter.Key.PRECISE_LOCATION);
-            if (state == PermissionCenter.State.UNAVAILABLE) {
+            ToggleDecision decision = decidePermissionToggle(true, state);
+            if (decision == ToggleDecision.UNAVAILABLE) {
                 applyPolicy(policy.withPreciseLocation(false),
                         context.getString(R.string.perm_precise_location_unavailable));
                 return;
             }
-            if (state == PermissionCenter.State.PERMANENTLY_DENIED) {
+            if (decision == ToggleDecision.OPEN_SETTINGS) {
                 applyPolicy(policy.withPreciseLocation(false),
                         context.getString(R.string.perm_location_blocked));
-                showFeedbackWithAction(context.getString(R.string.perm_location_blocked),
+                showFeedbackWithAction(PermissionCenter.Key.PRECISE_LOCATION,
+                        context.getString(R.string.perm_location_blocked),
                         context.getString(R.string.perm_action_open_settings),
                         () -> {
                             if (!PermissionCenter.openAppSettings(context)) {
@@ -408,13 +478,55 @@ public final class PresenceSettingsPanel {
                         });
                 return;
             }
-            PermissionCenter.recordRequested(context, PermissionCenter.Key.PRECISE_LOCATION);
             applyPolicy(policy.withPreciseLocation(false),
                     context.getString(R.string.presence_feedback_location_permission));
             listener.onRequestPreciseLocationPermission();
             return;
         }
         applyPolicy(policy.withPreciseLocation(enabled), context.getString(R.string.presence_feedback_saved));
+    }
+
+    private void handleNudgesToggle(boolean enabled) {
+        if (!enabled) {
+            applyPolicy(policy.withProactiveNudges(false), context.getString(R.string.presence_feedback_saved));
+            return;
+        }
+        PermissionCenter.State state = PermissionCenter.state(context, PermissionCenter.Key.NOTIFICATIONS);
+        switch (decidePermissionToggle(true, state)) {
+            case APPLY -> applyPolicy(policy.withProactiveNudges(true),
+                    context.getString(R.string.presence_feedback_saved));
+            case OPEN_SETTINGS -> {
+                applyPolicy(policy.withProactiveNudges(false),
+                        context.getString(R.string.perm_banner_notifications_blocked_body));
+                showNotificationRecovery(state);
+            }
+            case REQUEST_PERMISSION -> {
+                applyPolicy(policy.withProactiveNudges(false),
+                        context.getString(R.string.perm_banner_notifications_body));
+                showNotificationRecovery(state);
+                listener.onRequestNotificationPermission();
+            }
+            case UNAVAILABLE -> applyPolicy(policy.withProactiveNudges(false),
+                    context.getString(R.string.perm_settings_unavailable));
+        }
+    }
+
+    private void showNotificationRecovery(PermissionCenter.State state) {
+        if (state == PermissionCenter.State.PERMANENTLY_DENIED || android.os.Build.VERSION.SDK_INT < 33) {
+            showFeedbackWithAction(PermissionCenter.Key.NOTIFICATIONS,
+                    context.getString(R.string.perm_banner_notifications_blocked_body),
+                    context.getString(R.string.perm_action_open_notification_settings),
+                    () -> {
+                        if (!PermissionCenter.openNotificationSettings(context)) {
+                            showFeedback(context.getString(R.string.perm_settings_unavailable));
+                        }
+                    });
+        } else {
+            showFeedbackWithAction(PermissionCenter.Key.NOTIFICATIONS,
+                    context.getString(R.string.perm_banner_notifications_body),
+                    context.getString(R.string.perm_action_allow_notifications),
+                    listener::onRequestNotificationPermission);
+        }
     }
 
     private void toggleLocationPause() {
@@ -462,6 +574,7 @@ public final class PresenceSettingsPanel {
     }
 
     private void showFeedback(String text) {
+        pendingDenialKey = null;
         if (feedback == null) return;
         feedback.setText(text);
         feedback.setVisibility(View.VISIBLE);
@@ -471,12 +584,23 @@ public final class PresenceSettingsPanel {
         }
     }
 
-    private void showFeedbackWithAction(String text, String actionLabel, Runnable onClick) {
+    private void showFeedbackWithAction(
+            PermissionCenter.Key denialKey, String text, String actionLabel, Runnable onClick) {
         showFeedback(text);
+        pendingDenialKey = denialKey;
         if (feedbackAction != null && onClick != null) {
             feedbackAction.setText(actionLabel);
             feedbackAction.setOnClickListener(v -> onClick.run());
             feedbackAction.setVisibility(View.VISIBLE);
+        }
+    }
+
+    private void clearFeedback() {
+        pendingDenialKey = null;
+        if (feedback != null) feedback.setVisibility(View.GONE);
+        if (feedbackAction != null) {
+            feedbackAction.setVisibility(View.GONE);
+            feedbackAction.setOnClickListener(null);
         }
     }
 

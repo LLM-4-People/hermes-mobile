@@ -11,7 +11,6 @@ import android.database.DataSetObserver;
 import android.content.pm.PackageManager;
 import android.graphics.Typeface;
 import android.os.Build;
-import android.provider.Settings;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
@@ -20,10 +19,12 @@ import android.widget.ScrollView;
 import android.widget.Switch;
 import android.widget.TextView;
 
+import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.net.HermesApi;
+import org.llm4people.hermes.os.PermissionCenter;
 import org.llm4people.hermes.profile.Account;
 
 import java.util.ArrayDeque;
@@ -365,7 +366,7 @@ final class PushSettings {
                 .setTitle(R.string.push_settings_history_title)
                 .setMessage(R.string.push_settings_loading));
         if (progress == null) return;
-        Locale locale = activity.getResources().getConfiguration().getLocales().get(0);
+        Locale locale = AppLanguage.resolvedLocale(activity);
         PushConnection.WORK.execute(() -> {
             try {
                 if (!current()) return;
@@ -399,8 +400,7 @@ final class PushSettings {
     }
 
     private void systemSettings() {
-        activity.startActivity(new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
-                .putExtra(Settings.EXTRA_APP_PACKAGE, activity.getPackageName()));
+        PermissionCenter.openNotificationSettings(activity);
     }
 
     private static boolean pendingRepair(PushStore.Device device) {
