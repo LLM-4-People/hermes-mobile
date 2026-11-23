@@ -10,7 +10,11 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Locale;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /** Blocking, profile-bound Hermes HTTP client. Call on a worker thread. */
 public final class HermesApi {
@@ -52,6 +56,9 @@ public final class HermesApi {
     private final Endpoint endpoint;
     private final String bearer;
     private final Limits limits;
+    private final Set<RunEvents> openStreams = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private final Set<HttpURLConnection> activeConnections = ConcurrentHashMap.newKeySet();
+    private volatile boolean revoked;
 
     public HermesApi(String endpoint, String bearer) {
         this(endpoint, bearer, Limits.defaults());
@@ -63,6 +70,50 @@ public final class HermesApi {
         if (limits == null) throw new IllegalArgumentException("Missing transport limits");
         this.bearer = bearer;
         this.limits = limits;
+    }
+
+    /** Immediately revokes this profile-bound client, aborting all open HTTP & SSE sockets and rejecting new calls. */
+    public void revoke() {
+        revoked = true;
+        for (RunEvents stream : new ArrayList<>(openStreams)) {
+            stream.close();
+        }
+        openStreams.clear();
+        for (HttpURLConnection conn : new ArrayList<>(activeConnections)) {
+            disconnectSafely(conn);
+        }
+        activeConnections.clear();
+    }
+
+    static void disconnectSafely(HttpURLConnection conn) {
+        if (conn == null) return;
+        try {
+            conn.disconnect();
+        } catch (RuntimeException ignored) {
+            // Concurrent revoke() or socket teardown may have already invalidated internal connection state.
+        }
+    }
+
+    private void trackConnection(HttpURLConnection http) throws IOException {
+        activeConnections.add(http);
+        if (revoked) {
+            releaseConnection(http);
+            throw new IOException("Client revoked");
+        }
+    }
+
+    private void releaseConnection(HttpURLConnection http) {
+        activeConnections.remove(http);
+        disconnectSafely(http);
+    }
+
+    public boolean isRevoked() {
+        return revoked;
+    }
+
+    /** Request cooperative stop for a running server task. */
+    public JSONObject stopRun(String runId) throws IOException {
+        return post("/v1/runs/" + segment(runId) + "/stop", new JSONObject());
     }
 
     public static String segment(String raw) {
@@ -150,6 +201,7 @@ public final class HermesApi {
         long maxUpload = Math.max(limits.jsonBytes, HermesConfig.defaults().artifactDefaultMaxBytes + 4096L);
         if (body.length > maxUpload) throw new IOException("Upload exceeded the byte limit");
         HttpURLConnection http = connection(path, "POST", "application/json");
+        trackConnection(http);
         try {
             http.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
             http.setDoOutput(true);
@@ -163,8 +215,11 @@ public final class HermesApi {
         } catch (IOException error) {
             Diagnostics.event("network", "multipart_upload_failed");
             throw error;
+        } catch (RuntimeException error) {
+            if (revoked) throw new IOException("Client revoked", error);
+            throw error;
         } finally {
-            http.disconnect();
+            releaseConnection(http);
         }
     }
 
@@ -201,6 +256,7 @@ public final class HermesApi {
     }
 
     private HttpURLConnection connection(String path, String method, String accept) throws IOException {
+        if (revoked) throw new IOException("Client revoked");
         HttpURLConnection http = (HttpURLConnection) endpoint.url(path).openConnection();
         http.setInstanceFollowRedirects(false);
         http.setUseCaches(false);
@@ -211,12 +267,20 @@ public final class HermesApi {
         http.setRequestProperty("Accept", accept);
         http.setRequestProperty("Cache-Control", "no-store");
         String acceptLanguage = AppLanguage.currentAcceptLanguage();
-        if (!acceptLanguage.isEmpty()) http.setRequestProperty("Accept-Language", acceptLanguage);
+        if (acceptLanguage == null || acceptLanguage.isEmpty()) {
+            acceptLanguage = Locale.getDefault().toLanguageTag();
+        }
+        if (acceptLanguage != null && !acceptLanguage.isEmpty()) {
+            http.setRequestProperty("Accept-Language", acceptLanguage);
+            String langTag = acceptLanguage.toLowerCase(Locale.ROOT).startsWith("fr") ? "fr" : "en";
+            http.setRequestProperty("X-Hermes-Lang", langTag);
+        }
         return http;
     }
 
     private JSONObject request(String method, String path, JSONObject body, String key) throws IOException {
         HttpURLConnection http = connection(path, method, "application/json");
+        trackConnection(http);
         try {
             if (key != null) http.setRequestProperty("Idempotency-Key", key);
             if (body != null) {
@@ -237,8 +301,11 @@ public final class HermesApi {
         } catch (IOException error) {
             Diagnostics.event("network", "request_failed");
             throw error;
+        } catch (RuntimeException error) {
+            if (revoked) throw new IOException("Client revoked", error);
+            throw error;
         } finally {
-            http.disconnect();
+            releaseConnection(http);
         }
     }
 
@@ -273,6 +340,7 @@ public final class HermesApi {
         if (sink == null || maxBytes < 0) throw new IllegalArgumentException("Invalid download bounds");
         String header = accept == null || accept.trim().isEmpty() ? "application/octet-stream" : accept.trim();
         HttpURLConnection http = connection(path, "GET", header);
+        trackConnection(http);
         try {
             checkResponse(http);
             if (http.getContentLengthLong() > maxBytes) throw new IOException("File exceeded the byte limit");
@@ -281,6 +349,7 @@ public final class HermesApi {
                 byte[] block = new byte[32768];
                 int count;
                 while ((count = source.read(block)) != -1) {
+                    if (revoked) throw new IOException("Client revoked");
                     if (Thread.currentThread().isInterrupted()) throw new IOException("Transfer cancelled");
                     if (count > maxBytes - total) throw new IOException("File exceeded the byte limit");
                     sink.write(block, 0, count);
@@ -291,8 +360,11 @@ public final class HermesApi {
         } catch (IOException error) {
             Diagnostics.event("network", "download_failed");
             throw error;
+        } catch (RuntimeException error) {
+            if (revoked) throw new IOException("Client revoked", error);
+            throw error;
         } finally {
-            http.disconnect();
+            releaseConnection(http);
         }
     }
 
@@ -316,11 +388,21 @@ public final class HermesApi {
         }
 
         private SseReader open() throws IOException {
+            if (revoked) throw new IOException("Client revoked");
+            if (closed) throw new IOException("Stream closed");
             HttpURLConnection stream = connection(path, "GET", "text/event-stream");
             if (lastEventId >= 0) stream.setRequestProperty("Last-Event-ID", Long.toString(lastEventId));
             synchronized (lifecycle) {
-                if (closed) { stream.disconnect(); throw new IOException("Stream closed"); }
+                if (closed || revoked) {
+                    disconnectSafely(stream);
+                    throw new IOException(revoked ? "Client revoked" : "Stream closed");
+                }
                 http = stream;
+            }
+            openStreams.add(this);
+            if (revoked) {
+                close();
+                throw new IOException("Client revoked");
             }
             checkResponse(stream);
             String type = stream.getContentType();
@@ -335,6 +417,10 @@ public final class HermesApi {
 
         /** Include empty objects for SSE comment heartbeats so an idle follower can reconcile status. */
         public synchronized JSONObject next(boolean includeHeartbeats) throws IOException {
+            if (revoked) {
+                close();
+                throw new IOException("Client revoked");
+            }
             if (closed) return null;
             try {
                 if (reader == null) reader = open();
@@ -345,17 +431,25 @@ public final class HermesApi {
                 if (!closed) Diagnostics.event("network", "stream_failed");
                 close();
                 throw error;
+            } catch (RuntimeException error) {
+                boolean wasRevoked = revoked;
+                boolean wasClosed = closed;
+                close();
+                if (wasRevoked) throw new IOException("Client revoked", error);
+                if (wasClosed) throw new IOException("Stream closed", error);
+                throw error;
             }
         }
 
         @Override public void close() {
+            openStreams.remove(this);
             HttpURLConnection stream;
             synchronized (lifecycle) {
                 closed = true;
                 stream = http;
                 http = null;
             }
-            if (stream != null) stream.disconnect();
+            disconnectSafely(stream);
         }
     }
 }

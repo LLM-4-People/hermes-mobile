@@ -235,6 +235,12 @@ final class TranscriptPage {
                     pos = hasNewline ? lineEnd + 1 : lineEnd;
                     continue;
                 }
+                int tagLt = source.indexOf('<', pos);
+                if (tagLt < 0 || tagLt >= lineEnd) {
+                    visible.append(source, pos, hasNewline ? lineEnd + 1 : lineEnd);
+                    pos = hasNewline ? lineEnd + 1 : lineEnd;
+                    continue;
+                }
             }
             String line = source.substring(pos, lineEnd);
             int cursor = 0;
@@ -535,7 +541,12 @@ final class TranscriptPage {
         // Include the longest supported image header past the page boundary. Once recognized,
         // skip its payload in the original source so the next page starts after the attachment.
         int lookahead = Math.min(next.lineEnd - end, 384);
-        Matcher tokens = (markdown ? INLINE : MEDIA).matcher(source).region(next.offset, end + lookahead);
+        int scanEnd = end + lookahead;
+        if (!hasInlineDelimiter(source, next.offset, scanEnd, markdown)) {
+            literal(end);
+            return;
+        }
+        Matcher tokens = (markdown ? INLINE : MEDIA).matcher(source).region(next.offset, scanEnd);
         while (tokens.find() && tokens.start() < end) {
             boolean image = tokens.start(1) >= 0 || tokens.start(2) >= 0;
             if (!image && tokens.end() > end) {
@@ -568,9 +579,22 @@ final class TranscriptPage {
         literal(end);
     }
 
+    private static boolean hasInlineDelimiter(String source, int start, int end, boolean markdown) {
+        for (int i = start; i < end; i++) {
+            char c = source.charAt(i);
+            if (markdown && (c == '`' || c == '*' || c == '_' || c == '[')) return true;
+            if (c == '!' || ((c == 'd' || c == 'D') && i + 10 < end && source.regionMatches(true, i, "data:image/", 0, 11))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private void collectLinks(int from, int to) {
         if (from >= to || links.size() >= MAX_LINKS) return;
-        Matcher matcher = MD_LINK.matcher(source).region(from, to);
+        int bracket = source.indexOf('[', from);
+        if (bracket < 0 || bracket >= to) return;
+        Matcher matcher = MD_LINK.matcher(source).region(bracket, to);
         while (matcher.find()) {
             String label = matcher.group(1).trim();
             String rawUrl = matcher.group(2).trim();

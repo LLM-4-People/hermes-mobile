@@ -8,6 +8,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.HermesConfig;
+import org.llm4people.hermes.R;
 import org.llm4people.hermes.VisibleText;
 import org.llm4people.hermes.ambient.CalendarContextReader;
 import org.llm4people.hermes.ambient.HermesNotificationListener;
@@ -15,6 +16,8 @@ import org.llm4people.hermes.ambient.NotificationAllowlist;
 import org.llm4people.hermes.camera.CapturedMedia;
 import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.os.LiveRunNotification;
+import org.llm4people.hermes.perf.StreamCoalescer;
+import org.llm4people.hermes.presence.PresencePolicy;
 import org.llm4people.hermes.share.AttachmentUploader;
 import org.llm4people.hermes.share.DeviceBridgeFlow;
 
@@ -36,20 +39,35 @@ final class ThreadRun {
     private long subscription;
     private boolean canStop;
     private LiveRunNotification.Snapshot lastProgress = LiveRunNotification.Snapshot.idle();
+    private StreamCoalescer liveCoalescer;
+    private Runnable pendingCoalesceFlush;
+    private RunFollower.Frame coalescedFrame;
+    private String coalescedActivity = "";
+    private boolean coalescedHasPrompts;
     private RunAction owner() { return RunAction.capture(journal, page::token, () -> subscription); }
     private String runId() { return ThreadData.string(journal.pending(), "run_id"); }
 
     private void reportProgress(LiveRunNotification.Snapshot next) {
         LiveRunNotification.Snapshot safe = next == null ? LiveRunNotification.Snapshot.idle() : next;
-        if (!LiveRunNotification.shouldEmit(lastProgress, safe)) return;
         lastProgress = safe;
-        page.host.runProgress(safe);
+        page.activeRuns.updateForeground(page.sessionId(), runId(), safe);
+        page.publishRunProgress();
     }
+
+    boolean canStop() { return canStop && !runId().isEmpty(); }
 
     ThreadRun(ThreadWorkspace page) {
         this.page = page;
         journal = page.journal;
         ui = page.screen;
+    }
+
+    static boolean canAdmitRun(ActiveRunTracker tracker, String sessionId) {
+        if (tracker == null) return true;
+        if (sessionId == null || sessionId.isEmpty()) {
+            return tracker.activeCount() < ActiveRunTracker.MAX_CONCURRENT_RUNS;
+        }
+        return tracker.canStart(sessionId);
     }
 
     boolean submitting() { return submitting; }
@@ -58,6 +76,11 @@ final class ThreadRun {
         String text = ui.draft();
         if (submitting || page.importingPhoto || journal.pending() != null || VisibleText.isBlank(text)) {
             ui.stopDuplex();
+            return;
+        }
+        if (!canAdmitRun(page.activeRuns, page.sessionId())) {
+            ui.stopDuplex();
+            ui.notice(page.activity.getString(R.string.thread_concurrent_limit_reached), "", null);
             return;
         }
         if (!journal.photoOwned()) {
@@ -88,12 +111,24 @@ final class ThreadRun {
     }
 
     void restore() {
+        restore(null);
+    }
+
+    void restore(ActiveRunTracker.ReclaimedState reclaimed) {
         JSONObject pending = journal.pending();
         if (pending == null) return;
         if (!journal.sameOwner()) { uncertain(); return; }
         ui.outgoing(outgoing(pending));
         canStop = !runId().isEmpty();
         ui.busy(true, canStop);
+        if (reclaimed != null && reclaimed.latestFrame != null) {
+            frame = reclaimed.latestFrame;
+            int count = reclaimed.latestFrame.prompts.size();
+            String label = count == 0 ? reclaimed.latestFrame.activity : count == 1
+                    ? "Hermes attend votre réponse" : count + " demandes en attente";
+            ui.live(label, reclaimed.latestFrame.text, count > 0, reclaimed.latestFrame.origin,
+                    reclaimed.latestFrame.reasoning);
+        }
         if (runId().isEmpty()) submitWithCapabilities(pending.optJSONObject("body"), false);
         else if (journal.reconnectsExhausted()) trackingInterrupted();
         else follow();
@@ -265,6 +300,8 @@ final class ThreadRun {
             NearbyTurn.attach(body, area);
             AppLanguage.acceptLanguageHeader(page.activity);
             body.put("user_language", AppLanguage.resolvedTag(page.activity));
+            JSONObject presenceContext = page.host == null ? null : page.host.appPresenceContext();
+            if (presenceContext != null) body.put("app_presence", presenceContext);
             if (features.optBoolean("device_bridge")) {
                 NotificationAllowlist allowlist = NotificationAllowlist.forAccount(page.account());
                 NotificationAllowlist.Settings ambient = allowlist.settings();
@@ -272,7 +309,8 @@ final class ThreadRun {
                 boolean hasApps = !allowlist.effectiveAllowedPackages().isEmpty();
                 boolean calendarGranted = CalendarContextReader.hasPermission(page.activity);
                 List<String> caps = DeviceBridgeFlow.executableCapabilities(
-                        true, true, true, ambient, listenerOn, calendarGranted, hasApps);
+                        true, true, true, ambient, listenerOn, calendarGranted, hasApps,
+                        PresencePolicy.load(page.account()));
                 body.put("device_capabilities", DeviceBridgeFlow.capabilitiesJson(caps));
             }
             journal.stage(body, SystemClock.elapsedRealtime(), bootCount(), idem.optLong("retention_seconds"),
@@ -383,7 +421,22 @@ final class ThreadRun {
         return true;
     }
 
+    private void clearLiveCoalescer() {
+        if (pendingCoalesceFlush != null) {
+            page.main.removeCallbacks(pendingCoalesceFlush);
+            pendingCoalesceFlush = null;
+        }
+        if (liveCoalescer != null) {
+            liveCoalescer.reset();
+            liveCoalescer = null;
+        }
+        coalescedFrame = null;
+        coalescedActivity = "";
+        coalescedHasPrompts = false;
+    }
+
     private void follow() {
+        clearLiveCoalescer();
         if (follower != null) follower.close();
         int token = page.token();
         long serial = ++subscription;
@@ -399,6 +452,13 @@ final class ThreadRun {
         ui.live("Hermes travaille…", saved.toString(), false, saved.origin());
         reportProgress(new LiveRunNotification.Snapshot(
                 LiveRunNotification.Phase.WORKING, 0, 0, false, true));
+        StreamCoalescer coalescer = new StreamCoalescer(StreamCoalescer.DEFAULT_FRAME_BUDGET_MS, ignored -> {
+            if (coalescedFrame != null) {
+                ui.live(coalescedActivity, coalescedFrame.text, coalescedHasPrompts,
+                        coalescedFrame.origin, coalescedFrame.reasoning);
+            }
+        });
+        liveCoalescer = coalescer;
         RunFollower nextFollower = new RunFollower(page.api, id, receipt, started, new RunFollower.Listener() {
             private boolean current() { return serial == subscription && receipt == journal.pending(); }
 
@@ -412,7 +472,50 @@ final class ThreadRun {
                     int count = next.prompts.size();
                     String activity = count == 0 ? next.activity : count == 1
                             ? "Hermes attend votre réponse" : count + " demandes en attente";
-                    ui.live(activity, next.text, count > 0, next.origin, next.reasoning);
+                    boolean hasPrompts = count > 0;
+                    boolean reasoningVisibilityChanged = coalescedFrame == null
+                            || next.reasoning.isEmpty() != coalescedFrame.reasoning.isEmpty();
+                    boolean firstVisibleReply = !next.text.isEmpty()
+                            && (coalescedFrame == null || coalescedFrame.text.isEmpty());
+                    boolean urgent = hasPrompts
+                            || !next.deviceRequests.isEmpty()
+                            || !next.uiPatches.isEmpty()
+                            || coalescedFrame == null
+                            || !activity.equals(coalescedActivity)
+                            || reasoningVisibilityChanged
+                            || firstVisibleReply
+                            || next.origin != coalescedFrame.origin;
+                    coalescedFrame = next;
+                    coalescedActivity = activity;
+                    coalescedHasPrompts = hasPrompts;
+                    String coalesceKey = next.reasoning.isEmpty()
+                            ? next.text : (next.text + "\u0000" + next.reasoning);
+                    long now = SystemClock.elapsedRealtime();
+                    if (urgent) {
+                        if (pendingCoalesceFlush != null) {
+                            page.main.removeCallbacks(pendingCoalesceFlush);
+                            pendingCoalesceFlush = null;
+                        }
+                        boolean emitted = coalescer.offer(coalesceKey, now);
+                        if (!emitted && coalescer.hasPending()) emitted = coalescer.flush(now);
+                        if (!emitted) ui.live(activity, next.text, hasPrompts, next.origin, next.reasoning);
+                    } else {
+                        boolean emitted = coalescer.offer(coalesceKey, now);
+                        if (emitted && pendingCoalesceFlush != null) {
+                            page.main.removeCallbacks(pendingCoalesceFlush);
+                            pendingCoalesceFlush = null;
+                        } else if (!emitted && coalescer.hasPending() && pendingCoalesceFlush == null) {
+                            long delay = Math.max(1L, coalescer.pendingDelayMs(now));
+                            Runnable flushTask = () -> {
+                                pendingCoalesceFlush = null;
+                                if (token == page.token() && current() && liveCoalescer == coalescer) {
+                                    coalescer.flush(SystemClock.elapsedRealtime());
+                                }
+                            };
+                            pendingCoalesceFlush = flushTask;
+                            page.main.postDelayed(flushTask, delay);
+                        }
+                    }
                     decisions.present(next.prompts);
                     if (!next.deviceRequests.isEmpty()) page.handleDeviceRequests(id, next.deviceRequests);
                     if (!next.uiPatches.isEmpty()) {
@@ -420,20 +523,30 @@ final class ThreadRun {
                     }
                     ui.notice("", "", null);
                     reportProgress(new LiveRunNotification.Snapshot(
-                            count > 0 ? LiveRunNotification.Phase.AWAITING_DECISION
+                            hasPrompts ? LiveRunNotification.Phase.AWAITING_DECISION
                                     : next.toolSteps > 0 ? LiveRunNotification.Phase.TOOL_RUNNING
                                     : LiveRunNotification.Phase.WORKING,
-                            next.toolSteps, 0, count > 0, canStop));
+                            next.toolSteps, 0, hasPrompts, canStop));
                 });
             }
             @Override public void complete(JSONObject status, long firstText, long elapsed) {
-                deliver(() -> completed(status, firstText, elapsed));
+                deliver(() -> {
+                    clearLiveCoalescer();
+                    completed(status, firstText, elapsed);
+                });
             }
             @Override public void unknown(JSONObject status) {
-                deliver(() -> unresolved(status));
+                deliver(() -> {
+                    clearLiveCoalescer();
+                    unresolved(status);
+                });
             }
             @Override public void disconnected() {
                 deliver(() -> {
+                    if (liveCoalescer == coalescer && coalescer.hasPending()) {
+                        coalescer.flush(SystemClock.elapsedRealtime());
+                    }
+                    clearLiveCoalescer();
                     checkpoint();
                     decisions.disconnected();
                     started = -1;
@@ -445,7 +558,7 @@ final class ThreadRun {
             }
         });
         follower = nextFollower;
-        page.workers.execute(nextFollower::follow);
+        page.runStreams.execute(nextFollower::follow);
     }
 
     private void unresolved(JSONObject status) {
@@ -581,8 +694,7 @@ final class ThreadRun {
             }), owner.guard(error -> page.error(error, check)));
             return;
         }
-        String path = owner.path() + "/stop";
-        page.request(() -> page.api.post(path, new JSONObject()),
+        page.request(() -> page.api.stopRun(owner.run),
                 owner.guard(ok -> ui.notice("Demande d’arrêt envoyée.", "", null)),
                 owner.guard(error -> page.error(error, check)));
     }
@@ -592,13 +704,56 @@ final class ThreadRun {
         journal.checkpoint(frame.seq, frame.text, frame.origin, frame.highSurrogate);
     }
 
+    /**
+     * Hands off an active admitted run into {@link ActiveRunTracker} when switching discussions inside
+     * the same profile, so SSE streaming continues live without losing deltas or locking the user out.
+     * Returns true when {@link ActiveRunTracker} took ownership of {@link ThreadJournal}.
+     */
+    boolean detachForThreadSwitch() {
+        ++subscription;
+        clearLiveCoalescer();
+        canStop = false;
+        ui.stopDuplex();
+        if (decisions != null) decisions.clear();
+        if (follower != null) {
+            follower.close();
+            follower = null;
+        }
+        checkpoint();
+        String activeRunId = runId();
+        if (!activeRunId.isEmpty() && journal.pending() != null && journal.sameOwner() && !page.api.isRevoked()) {
+            boolean handedOff = page.activeRuns.moveToBackground(
+                    page.sessionId(),
+                    activeRunId,
+                    journal,
+                    frame,
+                    lastProgress,
+                    page.api,
+                    page.runStreams,
+                    page.main,
+                    page::profileEpoch,
+                    page.profileEpoch(),
+                    page::publishRunProgress);
+            if (handedOff) {
+                page.publishRunProgress();
+                return true;
+            }
+        }
+        reportProgress(LiveRunNotification.Snapshot.idle());
+        return false;
+    }
+
     void detach() {
         ++subscription;
+        clearLiveCoalescer();
         canStop = false;
         reportProgress(LiveRunNotification.Snapshot.idle());
         ui.stopDuplex();
         if (decisions != null) decisions.clear();
-        if (follower != null) follower.close();
+        if (follower != null) {
+            follower.close();
+            follower = null;
+        }
         checkpoint();
     }
 }

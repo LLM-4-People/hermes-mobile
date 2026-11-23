@@ -25,6 +25,7 @@ import org.llm4people.hermes.artifact.LiveUiPatchBar;
 import org.llm4people.hermes.artifact.ThemePalette;
 import org.llm4people.hermes.artifact.ThreadInstruments.Pin;
 import org.llm4people.hermes.camera.CapturedMedia;
+import org.llm4people.hermes.customization.InteractiveCardView;
 import org.llm4people.hermes.profile.IncomingMediaShare;
 import org.llm4people.hermes.share.ClipboardPastePill;
 import org.llm4people.hermes.share.ShareDraftTray;
@@ -36,9 +37,17 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 
-final class ThreadViews {
+public final class ThreadViews {
+    private static final TranscriptCellCache CELL_CACHE = new TranscriptCellCache();
+
+    /** Clear the bounded transcript Markdown/span LRU cache (memory trim or profile lock). */
+    public static void clearCellCache() {
+        CELL_CACHE.clear();
+    }
+
     final LinearLayout root;
     final ListView list;
     final Activity activity;
@@ -51,6 +60,7 @@ final class ThreadViews {
     private LinearLayout composerSlot;
     private LinearLayout quickActionSlot;
     private LinearLayout suggestedActionSlot;
+    private LinearLayout interactiveCardsSlot;
     private Button nearbyStatus;
     private LinearLayout photoSlot;
     private ShareDraftTray attachmentTray;
@@ -70,6 +80,7 @@ final class ThreadViews {
     private TextView progress;
     private TextView outgoing;
     private LinearLayout liveReasoningSlot;
+    private LiveReasoningCard liveReasoningCard;
     private String lastLiveReasoning = "";
     private TextView liveText;
     private Button fullLiveText;
@@ -79,6 +90,11 @@ final class ThreadViews {
     private AlertDialog dialog;
     private boolean transcript;
     private String selectedRoot;
+    private Map<String, ActiveRunTracker.TaskBadge> activeBadges = Collections.emptyMap();
+    private Consumer<String> onStopTask;
+    private InfiniteScrollController scrollController;
+    private int tailFollowEpoch;
+    private View.OnLayoutChangeListener pendingTailListener;
     ThreadInstrumentPanel instruments;
     private InstrumentViewport instrumentSlot;
 
@@ -132,6 +148,16 @@ final class ThreadViews {
         list.setOnItemClickListener((parent, view, pos, id) -> {
             if (view.getTag() instanceof JSONObject session) choose.accept(session);
         });
+        list.setOnScrollListener(new AbsListView.OnScrollListener() {
+            @Override public void onScrollStateChanged(AbsListView view, int scrollState) {}
+            @Override public void onScroll(AbsListView view, int firstVisible, int visibleCount, int totalCount) {
+                if (visibleCount > 0 && totalCount > 0 && more != null
+                        && more.getVisibility() == View.VISIBLE && more.isEnabled()
+                        && firstVisible + visibleCount >= totalCount - InfiniteScrollController.DEFAULT_BOTTOM_THRESHOLD) {
+                    next.run();
+                }
+            }
+        });
     }
 
     void chat(String draft, Consumer<String> onDraft, Runnable onSend, Runnable onStop,
@@ -159,15 +185,28 @@ final class ThreadViews {
         live.addView(progress);
         liveReasoningSlot = Ui.column(activity);
         liveReasoningSlot.setVisibility(View.GONE);
+        liveReasoningCard = null;
+        lastLiveReasoning = "";
         live.addView(liveReasoningSlot);
         live.addView(liveText);
         live.addView(fullLiveText);
         suggestedActionSlot = Ui.column(activity);
         suggestedActionSlot.setVisibility(View.GONE);
         live.addView(suggestedActionSlot);
+        interactiveCardsSlot = Ui.column(activity);
+        interactiveCardsSlot.setVisibility(View.GONE);
+        live.addView(interactiveCardsSlot);
         list.addFooterView(live, null, false);
         bindList();
         list.setOnItemClickListener(null);
+        list.setOnScrollListener(new AbsListView.OnScrollListener() {
+            @Override public void onScrollStateChanged(AbsListView view, int scrollState) {
+                if (scrollState == SCROLL_STATE_TOUCH_SCROLL) cancelPendingTailFollow();
+            }
+            @Override public void onScroll(AbsListView view, int firstVisible, int visibleCount, int totalCount) {
+                promptRows.onScroll();
+            }
+        });
         LinearLayout composer = Ui.row(activity);
         composer.setGravity(Gravity.BOTTOM);
         composer.setBaselineAligned(false);
@@ -271,7 +310,47 @@ final class ThreadViews {
         live("", "", false);
     }
 
+    void attachInfiniteScroll(InfiniteScrollController.Callbacks callbacks, Runnable onJumpToLatest) {
+        if (!transcript || composerSlot == null || callbacks == null) return;
+        InfiniteScrollController controller = new InfiniteScrollController(
+                callbacks,
+                InfiniteScrollController.DEFAULT_TOP_THRESHOLD,
+                InfiniteScrollController.DEFAULT_BOTTOM_THRESHOLD,
+                list.getHeaderViewsCount(),
+                list.getFooterViewsCount());
+        Button pill = controller.createJumpPill(activity, () -> {
+            if (onJumpToLatest != null) onJumpToLatest.run();
+            else followTail();
+        });
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
+        lp.gravity = Gravity.END;
+        int margin = Ui.dp(activity, 8);
+        lp.setMargins(margin, Ui.dp(activity, 4), margin, Ui.dp(activity, 4));
+        composerSlot.addView(pill, 0, lp);
+        list.setOnScrollListener(new AbsListView.OnScrollListener() {
+            @Override public void onScrollStateChanged(AbsListView view, int scrollState) {
+                if (scrollState == SCROLL_STATE_TOUCH_SCROLL) cancelPendingTailFollow();
+                controller.onScrollStateChanged(view, scrollState);
+            }
+            @Override public void onScroll(AbsListView view, int firstVisible, int visibleCount, int totalCount) {
+                promptRows.onScroll();
+                controller.onScroll(view, firstVisible, visibleCount, totalCount);
+            }
+        });
+        scrollController = controller;
+    }
+
+    void onNewMessagesArrived(int count) {
+        if (scrollController != null) scrollController.onNewMessagesArrived(count);
+    }
+
+    void scrollToTail() {
+        followTail();
+    }
+
     private void reset(boolean chat) {
+        cancelPendingTailFollow();
+        scrollController = null;
         transcript = chat;
         root.removeAllViews();
         rows = new JSONArray();
@@ -303,19 +382,56 @@ final class ThreadViews {
     }
 
     void rows(JSONArray data, boolean hasMore, boolean follow, int prepended) {
+        rows(data, hasMore, follow, prepended, prepended);
+    }
+
+    void rows(JSONArray data, boolean hasMore, boolean follow, int prepended, int anchorShift) {
         int top = list.getFirstVisiblePosition();
         int y = list.getChildCount() == 0 ? 0 : list.getChildAt(0).getTop();
-        int previous = rows.length();
+        int headers = list.getHeaderViewsCount();
+        JSONObject topRow = top >= headers && (top - headers) < rows.length()
+                ? rows.optJSONObject(top - headers) : null;
+        ThreadData.RowId topAnchorId = topRow == null ? null : ThreadData.rowId(topRow);
+        String topAnchorRaw = (topRow != null && topAnchorId == null) ? topRow.toString() : null;
         rows = transcript ? PromptHistory.display(data) : data;
         more.setVisibility(hasMore ? View.VISIBLE : View.GONE);
         more.setEnabled(true);
         adapter.notifyDataSetChanged();
-        if (follow) followTail();
-        else if (prepended > 0) list.setSelectionFromTop(top + rows.length() - previous, y);
+        if (follow) {
+            followTail();
+        } else if (prepended > 0 || anchorShift != 0) {
+            cancelPendingTailFollow();
+            int target = -1;
+            if (topAnchorId != null || topAnchorRaw != null) {
+                for (int i = 0; i < rows.length(); i++) {
+                    JSONObject row = rows.optJSONObject(i);
+                    if (row == null) continue;
+                    boolean match = topAnchorId != null
+                            ? topAnchorId.equals(ThreadData.rowId(row))
+                            : topAnchorRaw.equals(row.toString());
+                    if (match) {
+                        target = headers + i;
+                        break;
+                    }
+                }
+            }
+            if (target < 0) {
+                int delta = anchorShift != 0 ? anchorShift : prepended;
+                target = Math.max(0, Math.min(Math.max(0, list.getCount() - 1), top + delta));
+            }
+            list.setSelectionFromTop(target, y);
+        }
     }
 
     void indexRows(JSONArray data, String selected, boolean hasMore) {
+        indexRows(data, selected, hasMore, Collections.emptyMap(), null);
+    }
+
+    void indexRows(JSONArray data, String selected, boolean hasMore,
+                   Map<String, ActiveRunTracker.TaskBadge> badges, Consumer<String> onStop) {
         selectedRoot = selected;
+        activeBadges = badges == null ? Collections.emptyMap() : badges;
+        onStopTask = onStop;
         rows(data, hasMore, false, 0);
     }
 
@@ -439,6 +555,24 @@ final class ThreadViews {
         suggestedActionSlot.setVisibility(View.VISIBLE);
     }
 
+    void interactiveCards(List<InteractiveCardView.Spec> cards, InteractiveCardView.Callbacks callbacks) {
+        if (interactiveCardsSlot == null) return;
+        interactiveCardsSlot.removeAllViews();
+        if (cards == null || cards.isEmpty()) {
+            interactiveCardsSlot.setVisibility(View.GONE);
+            return;
+        }
+        int pad = Ui.dp(activity, 8);
+        for (InteractiveCardView.Spec spec : cards) {
+            if (spec == null) continue;
+            InteractiveCardView card = new InteractiveCardView(activity, spec, callbacks);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+            lp.setMargins(0, pad, 0, pad);
+            interactiveCardsSlot.addView(card, lp);
+        }
+        interactiveCardsSlot.setVisibility(interactiveCardsSlot.getChildCount() > 0 ? View.VISIBLE : View.GONE);
+    }
+
     void photo(JSONObject info, Runnable remove) {
         photoSlot.removeAllViews();
         photoSlot.setVisibility(info == null ? View.GONE : View.VISIBLE);
@@ -535,16 +669,23 @@ final class ThreadViews {
         String visibleText = split.visible();
         if (liveReasoningSlot != null) {
             if (split.reasoning().isEmpty()) {
-                if (!lastLiveReasoning.isEmpty()) {
+                if (!lastLiveReasoning.isEmpty() || liveReasoningCard != null) {
                     lastLiveReasoning = "";
+                    liveReasoningCard = null;
                     liveReasoningSlot.removeAllViews();
                     liveReasoningSlot.setVisibility(View.GONE);
                 }
-            } else if (!split.reasoning().equals(lastLiveReasoning)) {
-                lastLiveReasoning = split.reasoning();
-                liveReasoningSlot.removeAllViews();
-                liveReasoningSlot.addView(MessageText.reasoningCard(activity, lastLiveReasoning,
-                        split.open() || visibleText.isEmpty(), this::show));
+            } else {
+                boolean streamingReasoning = split.open() || visibleText.isEmpty();
+                if (liveReasoningCard == null) {
+                    liveReasoningCard = new LiveReasoningCard(activity, this::show);
+                    liveReasoningSlot.removeAllViews();
+                    liveReasoningSlot.addView(liveReasoningCard.root);
+                }
+                if (!split.reasoning().equals(lastLiveReasoning) || liveReasoningCard.streaming != streamingReasoning) {
+                    lastLiveReasoning = split.reasoning();
+                    liveReasoningCard.update(lastLiveReasoning, streamingReasoning);
+                }
                 liveReasoningSlot.setVisibility(View.VISIBLE);
             }
         }
@@ -572,11 +713,138 @@ final class ThreadViews {
         if (duplex != null && duplex.active()) duplex.stop();
     }
 
+    private void cancelPendingTailFollow() {
+        tailFollowEpoch++;
+        if (pendingTailListener != null) {
+            list.removeOnLayoutChangeListener(pendingTailListener);
+            pendingTailListener = null;
+        }
+    }
+
     private void followTail() {
         // A prompt can arrive between a transcript refresh and its queued scroll.
-        if (!promptRows.visible()) list.post(() -> {
-            if (!promptRows.visible()) list.setSelection(list.getCount() - 1);
-        });
+        if (scrollController != null) scrollController.onSnappedToLatest();
+        if (promptRows.visible()) return;
+        cancelPendingTailFollow();
+        int epoch = tailFollowEpoch;
+        list.post(() -> scrollToTailAfterLayout(epoch, 2));
+    }
+
+    private void scrollToTailAfterLayout(int epoch, int retriesRemaining) {
+        if (epoch != tailFollowEpoch || promptRows.visible()) return;
+        int count = list.getCount();
+        if (count <= 0) return;
+        int target = count - 1;
+        list.setSelection(target);
+        if (scrollController != null) scrollController.onSnappedToLatest();
+        if (retriesRemaining <= 0) return;
+        if (!list.isLaidOut() || list.isLayoutRequested() || list.getLastVisiblePosition() < target) {
+            if (pendingTailListener != null) {
+                list.removeOnLayoutChangeListener(pendingTailListener);
+                pendingTailListener = null;
+            }
+            View.OnLayoutChangeListener listener = new View.OnLayoutChangeListener() {
+                @Override public void onLayoutChange(View v, int l, int t, int r, int b,
+                                                     int ol, int ot, int or, int ob) {
+                    list.removeOnLayoutChangeListener(this);
+                    if (pendingTailListener == this) pendingTailListener = null;
+                    if (epoch != tailFollowEpoch || promptRows.visible()) return;
+                    if (list.getLastVisiblePosition() < list.getCount() - 1) {
+                        list.post(() -> scrollToTailAfterLayout(epoch, retriesRemaining - 1));
+                    } else if (scrollController != null) {
+                        scrollController.onSnappedToLatest();
+                    }
+                }
+            };
+            pendingTailListener = listener;
+            list.addOnLayoutChangeListener(listener);
+        }
+    }
+
+    /** In-place live reasoning disclosure card preserving user expanded/collapsed state across token updates. */
+    private static final class LiveReasoningCard {
+        final LinearLayout root;
+        private final Context context;
+        private final Consumer<AlertDialog.Builder> openDialog;
+        private final Button toggle;
+        private final LinearLayout contentBox;
+        private final TextView detail;
+        private final Button fullButton;
+        private boolean expanded;
+        boolean streaming;
+        private String currentReasoning = "";
+
+        LiveReasoningCard(Context context, Consumer<AlertDialog.Builder> openDialog) {
+            this.context = context;
+            this.openDialog = openDialog;
+            root = Ui.column(context);
+            Ui.pad(root, 12, 6);
+            android.graphics.drawable.GradientDrawable border = new android.graphics.drawable.GradientDrawable();
+            border.setCornerRadius(Ui.dp(context, 10));
+            border.setColor(context.getColor(R.color.surface));
+            border.setStroke(Ui.dp(context, 1), context.getColor(R.color.line));
+            root.setBackground(border);
+
+            contentBox = Ui.column(context);
+            contentBox.setVisibility(View.GONE);
+
+            detail = Ui.text(context, "", 14);
+            detail.setTextColor(context.getColor(R.color.muted));
+            detail.setTextIsSelectable(true);
+            Ui.pad(detail, 4, 4);
+            contentBox.addView(detail);
+
+            fullButton = Ui.button(context, context.getString(R.string.reasoning_read_full), b -> {
+                if (this.openDialog != null) {
+                    this.openDialog.accept(new AlertDialog.Builder(context)
+                            .setTitle(R.string.reasoning_title)
+                            .setView(MessageText.reader(context, currentReasoning, false, false))
+                            .setPositiveButton(R.string.ws_close, null));
+                }
+            });
+            fullButton.setVisibility(View.GONE);
+            contentBox.addView(fullButton);
+
+            toggle = Ui.button(context, context.getString(R.string.reasoning_streaming), null);
+            toggle.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+            toggle.setTextSize(14);
+            toggle.setContentDescription(context.getString(R.string.reasoning_show_label));
+            PromptButtons.icon(toggle, R.drawable.ic_prompt_disclosure);
+            toggle.setOnClickListener(v -> {
+                expanded = !expanded;
+                if (expanded) bindDetail();
+                contentBox.setVisibility(expanded ? View.VISIBLE : View.GONE);
+                syncToggleLabel();
+            });
+
+            root.addView(toggle);
+            root.addView(contentBox);
+        }
+
+        void update(String reasoning, boolean isStreaming) {
+            this.currentReasoning = reasoning == null ? "" : reasoning;
+            this.streaming = isStreaming;
+            syncToggleLabel();
+            if (expanded) bindDetail();
+        }
+
+        private void syncToggleLabel() {
+            int labelRes = expanded
+                    ? R.string.reasoning_hide
+                    : (streaming ? R.string.reasoning_streaming : R.string.reasoning_title);
+            toggle.setActivated(expanded);
+            toggle.setText(context.getString(labelRes));
+            toggle.setContentDescription(context.getString(
+                    expanded ? R.string.reasoning_hide : R.string.reasoning_show_label));
+        }
+
+        private void bindDetail() {
+            boolean over = currentReasoning.length() > TranscriptPage.PAGE_CHARS;
+            detail.setText(over
+                    ? currentReasoning.substring(0, TranscriptPage.PAGE_CHARS) + "…"
+                    : currentReasoning);
+            fullButton.setVisibility(over && openDialog != null ? View.VISIBLE : View.GONE);
+        }
     }
 
     void notice(String message, String label, Runnable action) {
@@ -681,20 +949,36 @@ final class ThreadViews {
             body.setTypeface(Typeface.DEFAULT);
             body.setTextIsSelectable(chat);
             boolean markdown = chat && "assistant".equals(role);
-            String visibleContent = content;
-            String reasoningContent = "";
-            if (markdown) {
-                TranscriptPage.ReasoningSplit split = TranscriptPage.splitReasoning(content, ThreadData.string(row, "reasoning"));
-                visibleContent = split.visible();
-                reasoningContent = split.reasoning();
-            }
+            String rawReasoning = markdown ? ThreadData.string(row, "reasoning") : "";
+            int pageLimit = chat ? TranscriptPage.PAGE_CHARS : 300;
+            boolean night = (getContext().getResources().getConfiguration().uiMode
+                    & android.content.res.Configuration.UI_MODE_NIGHT_MASK)
+                    == android.content.res.Configuration.UI_MODE_NIGHT_YES;
+            ThreadData.RowId rid = ThreadData.rowId(row);
+            String rowKey = rid == null ? (role + "#" + (chat ? "c" : "i")) : (rid.segment() + ":" + rid.id());
+            final String rowContent = content;
+            TranscriptCellCache.Key cacheKey = TranscriptCellCache.keyFor(
+                    rowKey, rowContent, rawReasoning, markdown, night, pageLimit);
+            TranscriptCellCache.Rendered cached = CELL_CACHE.getOrCompute(cacheKey, () -> {
+                String vis = rowContent;
+                String reas = "";
+                if (markdown) {
+                    TranscriptPage.ReasoningSplit split = TranscriptPage.splitReasoning(rowContent, rawReasoning);
+                    vis = split.visible();
+                    reas = split.reasoning();
+                }
+                TranscriptPage pg = new TranscriptPage(vis, new TranscriptPage.Cursor(), markdown, pageLimit);
+                CharSequence styled = markdown && (!pg.blocks.isEmpty() || !pg.tables.isEmpty())
+                        ? MessageText.excerpt(getContext(), pg)
+                        : MessageText.styled(getContext(), pg);
+                CharSequence finalText = pg.hasMore() ? android.text.TextUtils.concat(styled, "…") : styled;
+                return new TranscriptCellCache.Rendered(pg, finalText, vis, reas);
+            });
+            String visibleContent = cached.visibleContent();
+            String reasoningContent = cached.reasoningContent();
+            TranscriptPage preview = cached.page();
             body.setVisibility(visibleContent.isEmpty() ? View.GONE : View.VISIBLE);
-            TranscriptPage preview = new TranscriptPage(visibleContent, new TranscriptPage.Cursor(), markdown,
-                    chat ? TranscriptPage.PAGE_CHARS : 300);
-            CharSequence rendered = markdown && (!preview.blocks.isEmpty() || !preview.tables.isEmpty())
-                    ? MessageText.excerpt(getContext(), preview)
-                    : MessageText.styled(getContext(), preview);
-            body.setText(preview.hasMore() ? android.text.TextUtils.concat(rendered, "…") : rendered);
+            body.setText(cached.text());
             if (markdown && !reasoningContent.isEmpty()) {
                 LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, -2);
                 params.topMargin = Ui.dp(getContext(), 6);
@@ -722,6 +1006,36 @@ final class ThreadViews {
             }
             for (Pin proposal : proposals)
                 instruments.proposal(this, proposal);
+            if (!chat) {
+                String rootId = ThreadIdentity.rootId(row);
+                ActiveRunTracker.TaskBadge badge = activeBadges.get(rootId);
+                if (badge != null && badge.active()) {
+                    addView(activeTaskRow(getContext(), rootId, badge));
+                }
+            }
+        }
+
+        private View activeTaskRow(Context context, String rootId, ActiveRunTracker.TaskBadge badge) {
+            LinearLayout strip = Ui.row(context);
+            strip.setGravity(Gravity.CENTER_VERTICAL);
+            strip.setPadding(0, Ui.dp(context, 4), 0, 0);
+            int labelRes = badge.awaitingDecision()
+                    ? R.string.thread_badge_action_needed
+                    : R.string.thread_badge_running;
+            TextView pill = Ui.text(context, "● " + context.getString(labelRes), 13);
+            pill.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+            pill.setTextColor(context.getColor(badge.awaitingDecision() ? R.color.danger : R.color.accent));
+            strip.addView(pill, new LinearLayout.LayoutParams(0, -2, 1));
+            if (badge.canStop() && onStopTask != null) {
+                Button stopBtn = Ui.button(context, context.getString(R.string.thread_badge_stop),
+                        v -> onStopTask.accept(rootId));
+                stopBtn.setFocusable(false);
+                stopBtn.setFocusableInTouchMode(false);
+                stopBtn.setMinHeight(Ui.dp(context, 48));
+                stopBtn.setMinimumHeight(Ui.dp(context, 48));
+                strip.addView(stopBtn);
+            }
+            return strip;
         }
 
         private void bindTool(JSONObject row) {

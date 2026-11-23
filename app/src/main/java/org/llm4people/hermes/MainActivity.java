@@ -1,10 +1,12 @@
 package org.llm4people.hermes;
 
+import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.graphics.Insets;
 import android.os.Build;
@@ -13,6 +15,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
 import android.provider.CalendarContract;
+import android.view.KeyEvent;
 import android.view.View;
 import android.view.WindowInsets;
 import android.view.WindowManager;
@@ -29,6 +32,9 @@ import org.llm4people.hermes.artifact.LiveUiDeliveryDefaults;
 import org.llm4people.hermes.artifact.LiveUiPatch;
 import org.llm4people.hermes.artifact.ThemePalette;
 import org.llm4people.hermes.camera.ThreadCameraCapture;
+import org.llm4people.hermes.customization.AppCustomization;
+import org.llm4people.hermes.customization.AppCustomizationStore;
+import org.llm4people.hermes.doctor.ConnectionDoctorPanel;
 import org.llm4people.hermes.files.PublishedFiles;
 import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.os.HermesShortcuts;
@@ -38,11 +44,19 @@ import org.llm4people.hermes.os.LiveRunActionReceiver;
 import org.llm4people.hermes.os.LiveRunNotification;
 import org.llm4people.hermes.os.LockGracePolicy;
 import org.llm4people.hermes.os.OsEntryIntent;
+import org.llm4people.hermes.palette.CommandPalette;
+import org.llm4people.hermes.palette.CommandRegistry;
 import org.llm4people.hermes.panel.BrainStudioRoutes;
 import org.llm4people.hermes.panel.SessionPanel;
 import org.llm4people.hermes.panel.ShareWithUserSheet;
 import org.llm4people.hermes.panel.ThreadActions;
 import org.llm4people.hermes.panel.UniversalShareModel;
+import org.llm4people.hermes.perf.MemoryPressure;
+import org.llm4people.hermes.presence.AppPresenceTracker;
+import org.llm4people.hermes.presence.ContinuousLocationTracker;
+import org.llm4people.hermes.presence.DeepAndroidActions;
+import org.llm4people.hermes.presence.PresencePolicy;
+import org.llm4people.hermes.presence.PresenceSettingsPanel;
 import org.llm4people.hermes.profile.Account;
 import org.llm4people.hermes.profile.ProfileGate;
 import org.llm4people.hermes.push.DeliveryItem;
@@ -50,6 +64,8 @@ import org.llm4people.hermes.push.DeliveryRouter;
 import org.llm4people.hermes.push.MobilePush;
 import org.llm4people.hermes.share.SharedMediaFlow;
 import org.llm4people.hermes.share.SharedTextFlow;
+import org.llm4people.hermes.templates.TemplateStore;
+import org.llm4people.hermes.templates.TemplatesPanel;
 import org.llm4people.hermes.thread.ThreadPhotoPicker;
 import org.llm4people.hermes.thread.ThreadWorkspace;
 import org.llm4people.hermes.update.UpdateCheckCoordinator;
@@ -57,6 +73,7 @@ import org.llm4people.hermes.update.UpdatePanel;
 import org.llm4people.hermes.voice.VoiceDrafts;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -84,8 +101,18 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     private WorkspaceShell shell;
     private WorkspaceNavigation navigation;
     private ArtifactDesk.Host activeHost;
+    private static final int REQUEST_PRESENCE_LOCATION = 4092;
+    private static final int REQUEST_PRESENCE_FINE_LOCATION = 4093;
+    private final AppPresenceTracker presenceTracker = new AppPresenceTracker();
+    private final ContinuousLocationTracker locationTracker = new ContinuousLocationTracker();
+    private final DeepAndroidActions.NudgeRateLimiter nudgeRateLimiter = new DeepAndroidActions.NudgeRateLimiter();
+    private long presenceEpoch;
     private AmbientAccessPanel activeAmbientPanel;
+    private PresenceSettingsPanel activePresencePanel;
     private UpdatePanel activeUpdatePanel;
+    private ConnectionDoctorPanel activeDoctorPanel;
+    private TemplatesPanel activeTemplatesPanel;
+    private CommandPalette activePalette;
     private UpdateCheckCoordinator.BadgeState updateBadge;
     private final Map<String, View> customPages = new HashMap<>();
     private SharedTextFlow sharedText;
@@ -128,7 +155,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
                     android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT, this::back);
         }
-        HermesShortcuts.publish(this);
+        notifications.execute(() -> HermesShortcuts.publish(getApplicationContext()));
         voice = new VoiceDrafts(this);
         push = new MobilePush(this);
         files = new PublishedFiles(this);
@@ -143,6 +170,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         sharedMedia.restore(state, getIntent());
         gate = new ProfileGate(this);
         gate.setOnForget(id -> {
+            nudgeRateLimiter.reset();
             MobilePush.forget(this, id);
             HermesWidgetStore.forgetProfile(this, id);
             HermesNotificationListener.clearSession();
@@ -188,11 +216,60 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                     ambientCallbacks());
             shell.show(activeAmbientPanel.buildView(), getString(R.string.ambient_panel_title));
         });
+        shellRoutes.register(PresenceSettingsPanel.ROUTE_ID, (route, force) -> {
+            navigation.display(route, this::leavingSurface);
+            if (activePresencePanel != null) activePresencePanel.close();
+            Account owner = account;
+            activePresencePanel = new PresenceSettingsPanel(
+                    this,
+                    PresencePolicy.load(owner),
+                    locationTracker,
+                    AppCustomizationStore.forAccount(owner),
+                    next -> { if (account == owner) PresencePolicy.save(owner, next); },
+                    new PresenceSettingsPanel.Listener() {
+                        @Override public void onPolicyChanged(PresencePolicy policy) {
+                            if (account == owner) locationTracker.syncWithPolicy(MainActivity.this, policy);
+                        }
+                        @Override public void onCustomizationChanged(AppCustomization customization) {
+                            if (account == owner) applyAppCustomization(owner, customization, true);
+                        }
+                        @Override public void onRequestLocationPermission() {
+                            if (account == owner) {
+                                requestPermissions(new String[]{Manifest.permission.ACCESS_COARSE_LOCATION},
+                                        REQUEST_PRESENCE_LOCATION);
+                            }
+                        }
+                        @Override public void onRequestPreciseLocationPermission() {
+                            if (account == owner) {
+                                requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
+                                        REQUEST_PRESENCE_FINE_LOCATION);
+                            }
+                        }
+                    });
+            shell.show(activePresencePanel.buildView(), getString(R.string.presence_panel_title));
+        });
         shellRoutes.register(UpdatePanel.ROUTE_ID, (route, force) -> {
             navigation.display(route, this::leavingSurface);
             if (activeUpdatePanel != null) activeUpdatePanel.close();
             activeUpdatePanel = new UpdatePanel(this);
             shell.show(activeUpdatePanel.buildView(), getString(R.string.update_panel_title));
+        });
+        shellRoutes.register(ConnectionDoctorPanel.ROUTE_ID, (route, force) -> {
+            navigation.display(route, this::leavingSurface);
+            if (activeDoctorPanel != null) activeDoctorPanel.close();
+            Account owner = account;
+            HermesApi doctorApi = new HermesApi(owner.endpoint, owner.bearer,
+                    HermesApi.Limits.from(HermesConfig.load(this)));
+            activeDoctorPanel = new ConnectionDoctorPanel(this, owner, doctorApi, doctorFixHandlers(owner));
+            shell.show(activeDoctorPanel.buildView(), getString(R.string.doctor_panel_title));
+        });
+        shellRoutes.register(TemplatesPanel.ROUTE_ID, (route, force) -> {
+            navigation.display(route, this::leavingSurface);
+            if (activeTemplatesPanel != null) activeTemplatesPanel.close();
+            Account owner = account;
+            activeTemplatesPanel = new TemplatesPanel(this, owner, this::stageDraft,
+                    () -> account == owner && !isFinishing() && !isDestroyed());
+            shell.show(activeTemplatesPanel.buildView(), getString(R.string.templates_panel_title));
         });
         shellRoutes.register(WorkspaceNavigation.GALLERY, (route, force) -> {
             navigation.display(route, this::leavingSurface);
@@ -248,7 +325,11 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         actions.register("deliveries", () -> push.openInbox(account, deliveryActions(account)));
         actions.register("push_policy", () -> push.openPolicy(account));
         actions.register(AmbientAccessPanel.ROUTE_ID, () -> navigate(AmbientAccessPanel.ROUTE_ID));
+        actions.register(PresenceSettingsPanel.ROUTE_ID, () -> navigate(PresenceSettingsPanel.ROUTE_ID));
+        actions.register(ConnectionDoctorPanel.ROUTE_ID, () -> navigate(ConnectionDoctorPanel.ROUTE_ID));
+        actions.register(TemplatesPanel.ROUTE_ID, () -> navigate(TemplatesPanel.ROUTE_ID));
         actions.register(UpdatePanel.ROUTE_ID, () -> navigate(UpdatePanel.ROUTE_ID));
+        actions.register("command_palette", this::openCommandPalette);
         actions.register("language", () -> {
             Account owner = account;
             if (notice != null) notice.dismiss();
@@ -341,6 +422,12 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         cameraCapture.unlocked(unlocked);
         AppLanguage.refreshRuntime(this);
         HermesNotificationListener.bindProfile(this, unlocked);
+        presenceEpoch = presenceTracker.bindProfile(unlocked.id, presenceEpoch + 1);
+        locationTracker.syncWithPolicy(this, PresencePolicy.load(unlocked));
+        AppCustomization savedCustom = AppCustomizationStore.forAccount(unlocked).current();
+        if (!savedCustom.equals(AppCustomization.defaults())) {
+            applyAppCustomization(unlocked, savedCustom, false);
+        }
         HermesApi api = new HermesApi(account.endpoint, account.bearer,
                 HermesApi.Limits.from(HermesConfig.load(this)));
         navigation = new WorkspaceNavigation();
@@ -359,6 +446,12 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                 () -> { if (account == unlocked && push != null) push.openPolicy(account); });
         AmbientAccessPanel.registerRoute(featureRoutes, this,
                 () -> { if (account == unlocked) navigate(AmbientAccessPanel.ROUTE_ID); });
+        PresenceSettingsPanel.registerRoute(featureRoutes, this,
+                () -> { if (account == unlocked) navigate(PresenceSettingsPanel.ROUTE_ID); });
+        ConnectionDoctorPanel.registerRoute(featureRoutes, this,
+                () -> { if (account == unlocked) navigate(ConnectionDoctorPanel.ROUTE_ID); });
+        TemplatesPanel.registerRoute(featureRoutes, this,
+                () -> { if (account == unlocked) navigate(TemplatesPanel.ROUTE_ID); });
         UpdatePanel.registerRoute(featureRoutes, this,
                 () -> { if (account == unlocked) navigate(UpdatePanel.ROUTE_ID); });
         UpdateCheckCoordinator.checkIfDueAsync(this, state -> {
@@ -637,7 +730,12 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         if (notice != null) notice.dismiss();
         notice = null;
         if (activeAmbientPanel != null) activeAmbientPanel.dismissDialogs();
+        if (activePresencePanel != null) activePresencePanel.dismissDialogs();
         if (activeUpdatePanel != null) activeUpdatePanel.dismissDialogs();
+        if (activeDoctorPanel != null) activeDoctorPanel.dismissDialogs();
+        if (activeTemplatesPanel != null) activeTemplatesPanel.dismissDialogs();
+        if (activePalette != null) activePalette.dismiss();
+        activePalette = null;
         if (files != null) files.dismiss();
         if (threadActions != null) threadActions.dismiss();
         if (!keepThreadEditor) {
@@ -831,6 +929,58 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         };
     }
 
+    private void openCommandPalette() {
+        Account owner = account;
+        if (owner == null || threads == null) return;
+        if (activePalette != null) activePalette.dismiss();
+        CommandRegistry registry = new CommandRegistry(CommandRegistry.defaultNativeCommands(this, this::onAction));
+        registry.addAll(CommandRegistry.fromTemplates(
+                TemplateStore.forAccount(owner).allTemplates(this), this::stageDraft));
+        List<CommandRegistry.RecentThread> recent = new ArrayList<>();
+        for (ThreadWorkspace.ThreadSummary summary : threads.recentThreads()) {
+            recent.add(new CommandRegistry.RecentThread(summary.id(), summary.title(), ""));
+        }
+        registry.addAll(CommandRegistry.fromRecentThreads(recent, sessionId -> {
+            if (account != owner || threads == null) return;
+            displayDiscussion();
+            threads.open(sessionId);
+        }));
+        CommandPalette palette = new CommandPalette(this, registry,
+                () -> account == owner && !isFinishing() && !isDestroyed());
+        activePalette = palette;
+        palette.show(() -> {
+            if (activePalette == palette) activePalette = null;
+        });
+    }
+
+    private ConnectionDoctorPanel.FixHandlers doctorFixHandlers(Account owner) {
+        return new ConnectionDoctorPanel.FixHandlers() {
+            @Override public void openPushSettings() {
+                if (account == owner) onAction("notifications");
+            }
+            @Override public void openAppUpdates() {
+                if (account == owner) onAction(UpdatePanel.ROUTE_ID);
+            }
+            @Override public void openAmbientAccess() {
+                if (account == owner) onAction(AmbientAccessPanel.ROUTE_ID);
+            }
+            @Override public void openLanguageSettings() {
+                if (account == owner) onAction("language");
+            }
+        };
+    }
+
+    @Override public boolean dispatchKeyEvent(KeyEvent event) {
+        if (account != null && threads != null && event != null
+                && event.getAction() == KeyEvent.ACTION_DOWN
+                && CommandRegistry.isPaletteShortcut(event.getKeyCode(),
+                event.isCtrlPressed(), event.isMetaPressed())) {
+            openCommandPalette();
+            return true;
+        }
+        return super.dispatchKeyEvent(event);
+    }
+
     private void message(String title, String body) {
         if (notice != null) notice.dismiss();
         notice = Ui.secureDialog(new AlertDialog.Builder(this).setTitle(title).setMessage(body)
@@ -886,20 +1036,32 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     }
 
     @Override public void stageDraft(String text) {
-        if (threads == null || text == null || text.trim().isEmpty()) return;
+        if (threads == null || account == null || text == null || text.trim().isEmpty()) return;
         dismissOverlays();
+        final Account owner = account;
+        final ThreadWorkspace origin = threads;
         Runnable edit = () -> {
-            if (!threads.composerVisible()) navigate(WorkspaceNavigation.COMPOSER);
-            threads.stageDraft(text);
+            if (account != owner || threads != origin || isFinishing() || isDestroyed()) return;
+            if (!origin.composerVisible()) navigate(WorkspaceNavigation.COMPOSER);
+            origin.stageDraft(text);
         };
-        if (threads.sessionId() != null) { edit.run(); return; }
-        notice = Ui.secureDialog(new AlertDialog.Builder(this).setTitle(R.string.ws_create_discussion_title)
+        if (origin.sessionId() != null) { edit.run(); return; }
+        AlertDialog dialog = Ui.secureDialog(new AlertDialog.Builder(this).setTitle(R.string.ws_create_discussion_title)
                 .setMessage(R.string.ws_create_discussion_body)
                 .setNegativeButton(R.string.ws_cancel, null)
                 .setPositiveButton(R.string.ws_create_draft, (d, w) -> {
+                    if (account != owner || threads != origin || isFinishing() || isDestroyed()) return;
                     navigate(WorkspaceNavigation.COMPOSER);
-                    threads.newThread(() -> threads.stageDraft(text));
+                    origin.newThread(() -> {
+                        if (account == owner && threads == origin && !isFinishing() && !isDestroyed()) {
+                            origin.stageDraft(text);
+                        }
+                    });
                 }));
+        notice = dialog;
+        dialog.setOnDismissListener(d -> {
+            if (notice == d) notice = null;
+        });
     }
 
     private void leavingSurface() {
@@ -909,9 +1071,21 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             activeAmbientPanel.dismissDialogs();
             activeAmbientPanel = null;
         }
+        if (activePresencePanel != null) {
+            activePresencePanel.close();
+            activePresencePanel = null;
+        }
         if (activeUpdatePanel != null) {
             activeUpdatePanel.close();
             activeUpdatePanel = null;
+        }
+        if (activeDoctorPanel != null) {
+            activeDoctorPanel.close();
+            activeDoctorPanel = null;
+        }
+        if (activeTemplatesPanel != null) {
+            activeTemplatesPanel.close();
+            activeTemplatesPanel = null;
         }
     }
 
@@ -938,6 +1112,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         customPages.keySet().removeIf(id -> !navigation.contains(id));
         shell.setActiveRoute(route);
         shellRoutes.render(route, force);
+        presenceTracker.updateScreen(presenceEpoch, route, threads == null ? "" : threads.sessionId());
         pendingChanged();
     }
 
@@ -966,7 +1141,217 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             LiveRunNotification.cancel(this);
             return;
         }
+        presenceTracker.updateActiveRunCount(presenceEpoch, threads == null ? 0 : threads.activeRunCount());
         LiveRunNotification.update(this, snapshot);
+    }
+
+    @Override public JSONObject appPresenceContext() {
+        Account owner = account;
+        if (owner == null) return null;
+        PresencePolicy policy = PresencePolicy.load(owner);
+        if (!policy.anySharingEnabled()) return null;
+        long now = System.currentTimeMillis();
+        return presenceTracker.toWireContext(policy, locationTracker.currentSnapshot(policy, now), now);
+    }
+
+    @Override public DeepAndroidActions deepAndroidActions() {
+        Account owner = account;
+        if (owner == null) return null;
+        DeepAndroidActions.HostBridge osBridge = DeepAndroidActions.androidOsBridge(
+                this,
+                owner.id,
+                (targetKind, targetId) -> navigateFromDeepAction(owner, targetKind, targetId),
+                (title, category, draftText) -> {
+                    if (account != owner) return false;
+                    try {
+                        TemplateStore.forAccount(owner).saveCustom(null, title, category, draftText);
+                        return true;
+                    } catch (IOException | RuntimeException failed) {
+                        Diagnostics.warning("deep_action", "template_create_failed");
+                        return false;
+                    }
+                });
+        DeepAndroidActions.HostBridge bridge = new DeepAndroidActions.HostBridge() {
+            @Override public boolean navigate(String targetKind, String targetId) {
+                return osBridge.navigate(targetKind, targetId);
+            }
+            @Override public void onCustomizationChanged(AppCustomization updated) {
+                if (account == owner) applyAppCustomization(owner, updated, true);
+            }
+            @Override public boolean applyThemeMode(String themeMode) {
+                return applyThemeModeOverride(owner, themeMode);
+            }
+            @Override public boolean createTemplate(String title, String category, String draftText) {
+                return osBridge.createTemplate(title, category, draftText);
+            }
+            @Override public boolean setTimer(int durationSeconds, String label) {
+                return osBridge.setTimer(durationSeconds, label);
+            }
+            @Override public boolean openShareSheet(String text, String subject) {
+                return osBridge.openShareSheet(text, subject);
+            }
+            @Override public boolean openAppOrLink(String packageName, String deepLinkUrl) {
+                return osBridge.openAppOrLink(packageName, deepLinkUrl);
+            }
+            @Override public boolean syncShortcutsAndWidgets(
+                    String widgetTitle, String widgetSubtitle, boolean homeScreenSafe) {
+                return osBridge.syncShortcutsAndWidgets(widgetTitle, widgetSubtitle, homeScreenSafe);
+            }
+            @Override public boolean postLocalNudge(String title, String body) {
+                return osBridge.postLocalNudge(title, body);
+            }
+        };
+        return new DeepAndroidActions(
+                presenceTracker,
+                locationTracker,
+                AppCustomizationStore.forAccount(owner),
+                nudgeRateLimiter,
+                bridge);
+    }
+
+    @Override public void onCustomizationChanged(AppCustomization customization) {
+        Account owner = account;
+        if (owner != null && customization != null) {
+            applyAppCustomization(owner, customization, true);
+        }
+    }
+
+    @Override public void onThemeModeChanged(String themeMode) {
+        Account owner = account;
+        if (owner != null && themeMode != null) {
+            applyThemeModeOverride(owner, themeMode);
+        }
+    }
+
+    private void applyAppCustomization(Account owner, AppCustomization custom, boolean refreshLayout) {
+        if (owner == null || custom == null) return;
+        try {
+            boolean night = ThemePalette.isNight(this);
+            ThemePalette.OverrideSpec existing = ThemePalette.load(owner, night);
+            ThemePalette.OverrideSpec spec = custom.toThemeOverride(existing, night);
+            ThemePalette.save(owner, spec);
+            if (refreshLayout && account == owner) {
+                onLayoutChanged();
+            }
+        } catch (IOException | RuntimeException failed) {
+            Diagnostics.warning("customization", "live_theme_sync_failed");
+        }
+    }
+
+    private boolean applyThemeModeOverride(Account owner, String themeMode) {
+        if (owner == null || account != owner || themeMode == null) return false;
+        String safeMode = themeMode.trim().toLowerCase(java.util.Locale.ROOT);
+        if (!ThemePalette.THEMES.contains(safeMode)) return false;
+        try {
+            boolean night = ThemePalette.isNight(this);
+            ThemePalette.OverrideSpec current = ThemePalette.load(owner, night);
+            AppCustomization saved = AppCustomizationStore.forAccount(owner).current();
+            ThemePalette.OverrideSpec updated = saved.adaptOverrideForThemeMode(current, safeMode, night);
+            ThemePalette.save(owner, updated);
+            onLayoutChanged();
+            return true;
+        } catch (IOException | RuntimeException failed) {
+            Diagnostics.warning("customization", "theme_mode_sync_failed");
+            return false;
+        }
+    }
+
+    private boolean navigateFromDeepAction(Account owner, String targetKind, String targetId) {
+        if (account != owner || isFinishing() || isDestroyed()) return false;
+        String kind = targetKind == null ? "" : targetKind.trim().toLowerCase(java.util.Locale.ROOT);
+        String id = targetId == null ? "" : targetId.trim();
+        switch (kind) {
+            case "discussions", "discussion" -> {
+                switchTab(WorkspaceNavigation.DISCUSSION);
+                return true;
+            }
+            case "atelier", "home", "workspace" -> {
+                switchTab(WorkspaceNavigation.HOME);
+                return true;
+            }
+            case "cerveau", "brain" -> {
+                switchTab(WorkspaceNavigation.BRAIN);
+                return true;
+            }
+            case "activite", "activity" -> {
+                switchTab(WorkspaceNavigation.ACTIVITY);
+                return true;
+            }
+            case "command_palette" -> {
+                openCommandPalette();
+                return true;
+            }
+            case "template", "templates", TemplatesPanel.ROUTE_ID -> {
+                navigate(TemplatesPanel.ROUTE_ID);
+                return true;
+            }
+            case "thread" -> {
+                if (threads == null) return false;
+                displayDiscussion();
+                if (!id.isEmpty()) threads.open(id);
+                return true;
+            }
+            case "ambient", AmbientAccessPanel.ROUTE_ID -> {
+                navigate(AmbientAccessPanel.ROUTE_ID);
+                return true;
+            }
+            case "doctor", ConnectionDoctorPanel.ROUTE_ID -> {
+                navigate(ConnectionDoctorPanel.ROUTE_ID);
+                return true;
+            }
+            case "presence", PresenceSettingsPanel.ROUTE_ID -> {
+                navigate(PresenceSettingsPanel.ROUTE_ID);
+                return true;
+            }
+            case "updates", UpdatePanel.ROUTE_ID -> {
+                navigate(UpdatePanel.ROUTE_ID);
+                return true;
+            }
+            case "memory" -> {
+                if (panels == null) return false;
+                brainHandlers().openMemory();
+                return true;
+            }
+            case "notes" -> {
+                if (panels == null) return false;
+                brainHandlers().openNotes();
+                return true;
+            }
+            case "shared_with_me" -> {
+                if (panels == null) return false;
+                brainHandlers().openSharedWithMe();
+                return true;
+            }
+            case "search" -> {
+                if (panels == null) return false;
+                brainHandlers().openGlobalSearch();
+                return true;
+            }
+            case "skills" -> {
+                if (panels == null) return false;
+                brainHandlers().openSkillStudio();
+                return true;
+            }
+            case "workspace_files" -> {
+                if (panels == null) return false;
+                brainHandlers().openWorkspaceFiles();
+                return true;
+            }
+            case "profile_defaults" -> {
+                if (panels == null) return false;
+                brainHandlers().openProfileDefaults();
+                return true;
+            }
+            case "tab" -> {
+                return !id.isEmpty() && navigateFromDeepAction(owner, id, "");
+            }
+            case "panel" -> {
+                return !id.isEmpty() && navigateFromDeepAction(owner, id, "");
+            }
+            default -> {
+                return false;
+            }
+        }
     }
 
     @Override public void discussionPanes(boolean canToggle, boolean listVisible) {
@@ -1052,6 +1437,35 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             if (activeAmbientPanel != null) activeAmbientPanel.refreshAll();
             return;
         }
+        if (code == REQUEST_PRESENCE_LOCATION || code == REQUEST_PRESENCE_FINE_LOCATION) {
+            boolean granted = false;
+            if (results != null) {
+                for (int r : results) {
+                    if (r == PackageManager.PERMISSION_GRANTED) {
+                        granted = true;
+                        break;
+                    }
+                }
+            }
+            if (account != null) {
+                boolean fine = code == REQUEST_PRESENCE_FINE_LOCATION;
+                if (granted && activePresencePanel != null) {
+                    activePresencePanel.onLocationPermissionGranted(fine);
+                } else {
+                    PresencePolicy current = PresencePolicy.load(account);
+                    PresencePolicy updated = current;
+                    if (granted) {
+                        updated = fine
+                                ? current.withContinuousLocation(true).withPreciseLocation(true)
+                                : current.withContinuousLocation(true);
+                        if (!updated.equals(current)) PresencePolicy.save(account, updated);
+                    }
+                    locationTracker.syncWithPolicy(this, updated);
+                    if (activePresencePanel != null) activePresencePanel.refresh();
+                }
+            }
+            return;
+        }
         if (threads != null && threads.nearbyPermission(code, permissions, results)) return;
         if (!voice.permissionResult(code, permissions, results)) push.onPermissionResult(code);
     }
@@ -1064,11 +1478,23 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
 
     private void clearWorkspace() {
         clearGraceTimer();
+        MemoryPressure.clearAll();
+        nudgeRateLimiter.reset();
+        presenceTracker.clearOnLock();
+        locationTracker.stopAndWipe();
         HermesNotificationListener.clearSession();
         if (activeAmbientPanel != null) activeAmbientPanel.dismissDialogs();
         activeAmbientPanel = null;
+        if (activePresencePanel != null) activePresencePanel.close();
+        activePresencePanel = null;
         if (activeUpdatePanel != null) activeUpdatePanel.close();
         activeUpdatePanel = null;
+        if (activeDoctorPanel != null) activeDoctorPanel.close();
+        activeDoctorPanel = null;
+        if (activeTemplatesPanel != null) activeTemplatesPanel.close();
+        activeTemplatesPanel = null;
+        if (activePalette != null) activePalette.dismiss();
+        activePalette = null;
         LiveRunActionReceiver.clearStopHandler(liveStopHandler);
         LiveRunNotification.cancel(this);
         if (sharedText != null) sharedText.lock();
@@ -1136,6 +1562,13 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     @Override protected void onResume() {
         super.onResume();
         checkGraceOnReturn();
+        if (account != null) {
+            locationTracker.syncWithPolicy(this, PresencePolicy.load(account));
+            if (activePresencePanel != null
+                    && navigation != null && PresenceSettingsPanel.ROUTE_ID.equals(navigation.current())) {
+                activePresencePanel.refresh();
+            }
+        }
         if (account != null && activeAmbientPanel != null
                 && navigation != null && AmbientAccessPanel.ROUTE_ID.equals(navigation.current())) {
             activeAmbientPanel.refreshAll();
@@ -1145,6 +1578,18 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             activeUpdatePanel.onResume();
         }
         voice.resume();
+    }
+
+    @Override public void onTrimMemory(int level) {
+        super.onTrimMemory(level);
+        if (level >= TRIM_MEMORY_RUNNING_LOW && threads != null) {
+            threads.onTrimMemory();
+        }
+    }
+
+    @Override public void onLowMemory() {
+        super.onLowMemory();
+        if (threads != null) threads.onTrimMemory();
     }
 
     private void checkGraceOnReturn() {

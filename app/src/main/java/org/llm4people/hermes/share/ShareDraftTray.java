@@ -2,7 +2,6 @@ package org.llm4people.hermes.share;
 
 import android.content.Context;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.graphics.drawable.GradientDrawable;
 import android.text.TextUtils;
 import android.text.format.Formatter;
@@ -18,6 +17,7 @@ import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.camera.CapturedMedia;
+import org.llm4people.hermes.perf.ThumbnailCache;
 
 import java.util.ArrayList;
 import java.util.Base64;
@@ -95,7 +95,7 @@ public final class ShareDraftTray {
             chip.setBackground(bg);
 
             if (item.kind() == CapturedMedia.Kind.IMAGE && item.thumbnailBase64() != null) {
-                Bitmap preview = decodeThumb(item.thumbnailBase64());
+                Bitmap preview = decodeThumb(item);
                 if (preview != null) {
                     ImageView thumb = new ImageView(context);
                     thumb.setImageBitmap(preview);
@@ -137,10 +137,20 @@ public final class ShareDraftTray {
         if (listener != null) listener.onChanged(items());
     }
 
-    private static Bitmap decodeThumb(String base64) {
+    static String thumbnailCacheKey(CapturedMedia.Item item) {
+        if (item == null || item.sha256Hex() == null || item.sha256Hex().isEmpty()) return null;
+        return "draft:" + item.sha256Hex();
+    }
+
+    private static Bitmap decodeThumb(CapturedMedia.Item item) {
+        String base64 = item == null ? null : item.thumbnailBase64();
+        if (base64 == null || base64.isEmpty()) return null;
         try {
             byte[] raw = Base64.getDecoder().decode(base64);
-            return BitmapFactory.decodeByteArray(raw, 0, raw.length);
+            return ThumbnailCache.getOrDecode(
+                    thumbnailCacheKey(item),
+                    raw,
+                    ThumbnailCache.DEFAULT_THUMB_MAX_EDGE);
         } catch (IllegalArgumentException invalid) {
             Diagnostics.debug("share", "thumb_decode_failed", invalid);
             return null;

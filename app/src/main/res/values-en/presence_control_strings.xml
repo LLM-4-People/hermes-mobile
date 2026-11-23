@@ -1,0 +1,65 @@
+<resources>
+    <!-- Route & panel chrome -->
+    <string name="presence_route_label">Presence &amp; look</string>
+    <string name="presence_route_hint">Optional sharing, continuous location, personalization</string>
+    <string name="presence_panel_title">Presence &amp; look</string>
+    <string name="presence_panel_intro">Everything is off by default. You choose what your assistant may see or adjust, and you can turn everything off in one tap.</string>
+
+    <!-- Live privacy status banner -->
+    <string name="presence_status_all_off">Everything is off</string>
+    <string name="presence_status_active">Active sharing: %1$s</string>
+    <string name="presence_status_tag_screen">open screen</string>
+    <string name="presence_status_tag_read">read messages</string>
+    <string name="presence_status_tag_location_coarse">approximate location</string>
+    <string name="presence_status_tag_location_precise">precise location</string>
+    <string name="presence_status_tag_location_paused">location paused</string>
+    <string name="presence_status_tag_nudges">helpful reminders</string>
+    <string name="presence_pause_location">Pause location</string>
+    <string name="presence_resume_location">Resume location</string>
+    <string name="presence_turn_all_off">Turn everything off</string>
+    <string name="presence_feedback_all_off">All presence sharing is turned off.</string>
+    <string name="presence_feedback_saved">Preferences saved.</string>
+    <string name="presence_feedback_location_permission">Grant location permission in Android to turn on continuous location.</string>
+
+    <!-- Privacy opt-in toggles -->
+    <string name="presence_section_sharing">What your assistant may see</string>
+    <string name="presence_toggle_screen_title">Open screen &amp; conversation</string>
+    <string name="presence_toggle_screen_summary">Shares the current tab, active tasks, and draft length (without sending draft text).</string>
+    <string name="presence_toggle_read_title">Read without reply</string>
+    <string name="presence_toggle_read_summary">Lets your assistant notice when a message or allowed notification was read without a reply after a short pause.</string>
+    <string name="presence_toggle_location_title">Continuous location (optional)</string>
+    <string name="presence_toggle_location_summary">Follows movement with low battery impact. Nothing is kept after lock or sign-out.</string>
+    <string name="presence_toggle_precise_title">Precise location accuracy</string>
+    <string name="presence_toggle_precise_summary">Only your approximate area is shared by default. Turn on for exact coordinates.</string>
+    <string name="presence_toggle_nudges_title">Helpful local reminders</string>
+    <string name="presence_toggle_nudges_summary">Allows brief local notifications, capped per hour and always silenced during quiet hours.</string>
+
+    <!-- App customization section -->
+    <string name="custom_section_title">App appearance</string>
+    <string name="custom_section_intro">Pick a high-contrast palette and comfortable spacing for this profile.</string>
+    <string name="custom_palette_label">Accent color</string>
+    <string name="custom_palette_forest">Forest</string>
+    <string name="custom_palette_slate">Slate</string>
+    <string name="custom_palette_terracotta">Terracotta</string>
+    <string name="custom_palette_indigo">Indigo</string>
+    <string name="custom_palette_plum">Plum</string>
+    <string name="custom_palette_custom">Custom</string>
+    <string name="custom_density_label">Spacing</string>
+    <string name="custom_density_compact">Compact</string>
+    <string name="custom_density_comfortable">Comfortable</string>
+    <string name="custom_density_spacious">Spacious</string>
+    <string name="custom_undo">Undo last change</string>
+    <string name="custom_reset">Reset to default</string>
+    <string name="custom_feedback_applied">Appearance updated.</string>
+    <string name="custom_feedback_undone">Last change undone.</string>
+    <string name="custom_feedback_reset">Default appearance restored.</string>
+
+    <!-- Interactive cards & deep actions -->
+    <string name="card_apply_appearance">Apply</string>
+    <string name="card_undo_appearance">Undo</string>
+    <string name="card_preview_palette">Palette: %1$s</string>
+    <string name="card_preview_density">Spacing: %1$s</string>
+    <string name="card_preview_greeting">Greeting: %1$s</string>
+    <string name="deep_action_share_chooser">Share with…</string>
+    <string name="deep_action_nudge_channel">Helpful reminders</string>
+</resources>

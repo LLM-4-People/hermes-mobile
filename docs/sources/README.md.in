@@ -3,42 +3,63 @@
 [![Workspace checks](https://github.com/{{ repository }}/actions/workflows/checks.yml/badge.svg)](https://github.com/{{ repository }}/actions/workflows/checks.yml)
 [![Docs & Showcase](https://github.com/{{ repository }}/actions/workflows/pages.yml/badge.svg)]({{ pages_url }})
 
-A native Android client (API 28–36, Java, zero WebView) for chatting, coding, approving actions, and customizing your workspace with your own Hermes Agent. Automatically follows your device language (**English** and **French**) with a 1-tap override and syncs your language preference to Hermes.
+*[Documentation en français](docs/fr/README.md) · [Site français]({{ pages_url }}fr/)*
 
-**[Explore the Showcase & Docs Portal →]({{ pages_url }})** · [Documentation]({{ pages_url }}docs/) · [Live Device Gallery]({{ pages_url }}walkthrough/) · [Releases](https://github.com/{{ repository }}/releases)
+<p align="center">
+  <img src="docs/assets/hero-studio.png" alt="Hermes Mobile on a modern Android flagship phone resting on warm walnut wood and pale travertine stone" width="100%">
+</p>
 
-> **Companion server requirement:** {{ project }} requires our Hermes Agent fork at **[{{ fork_repository }}]({{ fork_url }})**. It depends on the fork’s single-host multi-profile routing (`/p/{profile}`), run-scoped instructions, Live UI modding (`ui.patch`), universal push deliveries (`mobile_deliver`), Brain Studio (memory, Smart Notes, pattern-gated habits, universal sharing, FTS5 search, skill studio, workspace files), visual approval diffs, and approved device bridge.
+**{{ project }}** is a fast, native Android client (API 28–36, Java, zero WebView, ~1.9 MiB signed release APK) for chatting, coding, approving actions, running parallel tasks, and customizing your workspace with your own Hermes Agent. The app automatically follows your Android system language (**English** and **French**) with a 1-tap override and syncs your preference to Hermes.
 
-## What {{ project }} Does
+**[Explore the Showcase & Docs Portal →]({{ pages_url }}en/)** · [Documentation]({{ pages_url }}en/docs/) · [Live Device Gallery]({{ pages_url }}en/walkthrough/) · [Latest Signed APK](https://github.com/{{ repository }}/releases/latest)
+
+> **Companion server requirement:** {{ project }} requires our Hermes Agent fork at **[{{ fork_repository }}]({{ fork_url }})**. It relies on the fork’s single-host multi-profile routing (`/p/{profile}`), per-session concurrent run execution, run-scoped instructions, Live UI modding (`ui.patch`), universal push deliveries (`mobile_deliver`), Brain Studio (memory, Smart Notes, pattern-gated habits, universal sharing, FTS5 search, skill studio, workspace files), visual approval diffs, and the approved device bridge.
+
+## Real device preview
+
+<p align="center">
+  <a href="docs/assets/app-preview-en.png"><img src="docs/assets/app-preview-en.png" width="100%" alt="Four real Android 16 screens of Hermes Mobile in English: command palette, everyday workflows, connection doctor, and presence and appearance controls"></a>
+</p>
+
+<p align="center">
+  <a href="site/assets/screens/phone-transcript.png"><img src="site/assets/screens/phone-transcript.png" width="24%" alt="Hermes Mobile phone conversation transcript with clear typography and composer"></a>
+  <a href="site/assets/screens/phone-approval.png"><img src="site/assets/screens/phone-approval.png" width="24%" alt="Hermes Mobile visual approval card for reviewing a proposed action"></a>
+  <a href="site/assets/screens/phone-photo-draft.png"><img src="site/assets/screens/phone-photo-draft.png" width="24%" alt="Hermes Mobile photo attachment staged in an editable draft"></a>
+  <a href="site/assets/screens/tablet-dual-pane.png"><img src="site/assets/screens/tablet-dual-pane.png" width="24%" alt="Hermes Mobile tablet dual-pane layout with navigation rail and sidebar"></a>
+</p>
+
+## What {{ project }} does
 
 | Pillar | Capabilities |
 | --- | --- |
-| **Adaptive Phone & Tablet Shell** | 4 top-level workspaces (**Discussions**, **Atelier**, **Brain / Cerveau**, **Activity / Activité**): IME-aware bottom bar on phones, **92 dp** navigation rail and dual-pane discussion sidebar (`232–360 dp`) on tablets, preserving drafts across rotation and split-screen. |
-| **Coding, Diffs & Duplex Voice** | Streaming replies with rich Markdown, paged syntax-highlighted `CodeReader`, visual hunk-level approval diffs, hands-free **Duplex Voice** plus offline/system dictation and offline speech playback. |
+| **Adaptive Phone & Tablet Shell** | 4 top-level workspaces (**Discussions**, **Atelier**, **Brain**, **Activity**): IME-aware bottom bar on phones, **92 dp** navigation rail and collapsible dual-pane discussion sidebar (`232–360 dp`) on tablets, preserving drafts across rotation and split-screen. |
+| **Global Command Palette (`Ctrl+K`) & Everyday Workflows** | 1-tap searchable overlay (`Ctrl+K` / `Cmd+K` on hardware keyboards) with accent-insensitive fuzzy jump across every action, recent thread, and template. Includes 6 curated everyday workflows plus encrypted per-profile custom templates that strictly stage editable drafts before sending. |
+| **Concurrent Multi-Run & Multi-User Isolation** | Run multiple concurrent tasks across different discussions simultaneously for one user without canceling active streams or mixing deltas/approvals, while serving many concurrent users on **one single HTTPS hostname** (`/p/<profile>`) with isolated homes, workspaces, and 256-bit keys. [Multi-Profile Deploy](docs/accounts.md) |
+| **Instant Infinite Chats & Runtime Performance** | Instant session switching with smooth lazy history paging, frame-budgeted live stream coalescing (0 ms first-token latency), zero-allocation custom views, bounded bitmap/token caches cleared under memory pressure and lock, and a shrunk **~1.9 MiB** signed release APK (**-19%** footprint). |
+| **Live Connection Doctor** | Built-in parallel diagnostics under **Activity → Connection Doctor** verifying server reachability & latency, companion fork capabilities (`51/51` with clear upstream non-fork warning), push readiness, app updates, ambient permissions, and language sync—with 1-tap fixes and a strictly redacted safe report copy. |
+| **Coding, Visual Diffs & Duplex Voice** | Streaming replies with rich Markdown, syntax-highlighted `CodeReader`, visual hunk-level approval diffs, hands-free **Duplex Voice** plus offline/system dictation and offline speech playback. |
 | **Live UI Modding & On-the-Fly Widgets** | Ask Hermes to adapt a screen, tune colors (WCAG-AA `4.5:1` Day/Night invariant), or build an interactive tool (`ui.patch` + Surfaces v2). Preview diffs, apply atomically, roll back any revision, or pin profile-scoped Home Screen Widgets. [Live UI & Widgets](docs/live-ui-and-widgets.md) |
-| **Android 16 OS Integration** | Live Updates notifications for active runs, Quick Settings Tile, App Shortcuts, Class-3 Biometric Vault (`BIOMETRIC_STRONG` / `DEVICE_CREDENTIAL`), and configurable lock grace periods. |
-| **Brain Studio & Universal Sharing** | Edit Hermes’s Memory (`MEMORY.md` / `USER.md`), capture AI Smart Notes, review pattern-gated habit suggestions (`>= 3` occurrences), search all history via FTS5, manage Skills, browse Workspace Files & Git diffs, pin/fork/export threads, and share **7 resource kinds** (`note`, `skill`, `surface`, `widget`, `tool`, `artifact`, `session`) with other users on the same server. [Brain Studio & Sharing](docs/brain-and-sharing.md) |
+| **Hardened Profile Vault & Android 16 OS Integration** | Per-profile AES-GCM encrypted storage, Class-3 Biometric Vault (`BIOMETRIC_STRONG` / `DEVICE_CREDENTIAL`), persisted passphrase backoff, atomic profile wipe, Android 16 Live Updates notifications showing active concurrent task counts, Quick Settings Tile, and App Shortcuts. |
+| **Brain Studio & Universal Sharing** | Edit Hermes’s Memory (`MEMORY.md` / `USER.md`), capture Smart Notes, review pattern-gated habit suggestions (`>= 3` occurrences), search all history via FTS5, manage Skills, browse Workspace Files & Git diffs, pin/fork/export threads, and share **7 resource kinds** (`note`, `skill`, `surface`, `widget`, `tool`, `artifact`, `session`) across users on the same server. [Brain Studio & Sharing](docs/brain-and-sharing.md) |
 | **Zero-Root Ambient Intelligence** | Strictly opt-in per profile (all OFF by default). Searchable per-app notification allowlist guarded by a fail-closed privacy filter that hard-blocks OTP/2FA codes, password managers, banking apps, and secret lockscreen notices. 1-tap Summarize, Save to Note, Calendar, Reviewed Quick-Reply, plus Now Playing media controls. [Ambient Intelligence](docs/ambient.md) |
-| **Universal Push & Closed-App Delivery** | Zero-leak notifications via Firebase Cloud Messaging or self-hosted UnifiedPush (ntfy + Web Push encryption). Polls run, cron, and `mobile_state.db` delivery metadata only—titles and bodies stay on your gateway until you unlock the owning profile. Supports urgency tiers (`normal`, `high`, `silent`) and Quiet Hours. [Push & Reminders](docs/push.md) |
+| **Universal Push & Closed-App Delivery** | Zero-leak notifications via Firebase Cloud Messaging or self-hosted UnifiedPush (ntfy + Web Push encryption). Carries opaque routing metadata only—titles and bodies stay on your gateway until you unlock the owning profile. Supports urgency tiers (`normal`, `high`, `silent`) and Quiet Hours. [Push & Reminders](docs/push.md) |
 | **Universal Capture & 10 OS Actions** | Share text, photos (EXIF/GPS/ICC stripped into fresh sRGB pixels), documents, or camera captures into any thread. Review and launch 10 native Android actions: calendar, share sheet, map search, turn-by-turn navigation, alarm, timer, dialer, SMS, email, and contact editor. [Android Actions](docs/android-actions.md) |
-| **Bilingual FR / EN Auto-Detect** | Follows Android’s system language automatically (`fr` / `en`, App Bundle language splits disabled, 1:1 XML parity) with an in-app picker that updates `Accept-Language`, `user_language`, and `PATCH /api/profile/defaults`. |
-| **Single HTTPS Hostname Multi-Profile** | **One single HTTPS server hostname** (for example `https://hermes.example.com`) serves every user under `/p/<profile>` with isolated profile homes, workspaces, credentials, and 256-bit access keys—no per-user subdomains required. [Multi-Profile Deploy](docs/accounts.md) |
 
 ## Quickstart
 
-### 1. Get the APK & Stay Up to Date
+### 1. Get the signed APK and stay up to date
 
-- **Signed releases (recommended):** Download `{{ release_apk }}`, `{{ checksum_file }}`, and `release.json` from [Latest GitHub Release](https://github.com/{{ repository }}/releases/latest), then verify checksum, APK signature, and GitHub build provenance. [Releases & In-App Auto-Update](docs/release.md) · [Verify a release](docs/delivery.md#verify-a-release)
-- **Built-in verified in-app updates:** Open **Activity → App Updates** (**Activité → Mises à jour**) to check GitHub Releases directly from the phone. Downloads are fail-closed: the app verifies HTTPS GitHub release hosts, constant-time `SHA256SUMS` match, and matching APK signing certificate before handing off to Android’s native installer.
+- **Official signed releases (recommended):** Download `{{ release_apk }}`, `{{ checksum_file }}`, and `release.json` from [Latest GitHub Release](https://github.com/{{ repository }}/releases/latest), then verify checksum, APK signature, and GitHub build provenance. [Releases and in-app auto-update](docs/release.md) · [Verify a release](docs/delivery.md#verify-a-release)
+- **Built-in verified in-app updates:** Open **Activity → App updates** to check GitHub Releases directly from your phone. Downloads are fail-closed: the app verifies HTTPS GitHub release hosts, constant-time `SHA256SUMS` match, and matching APK signing certificate before handing off to Android’s native installer.
 - **Development builds:** Open a passing [Workspace checks](https://github.com/{{ repository }}/actions/workflows/checks.yml) run and download the **android-debug** artifact (includes `app-debug.apk` and `SHA256SUMS`).
 
-### 2. Connect a Profile on One HTTPS Host
+### 2. Connect a profile on one HTTPS host
 
-1. Deploy our Hermes Agent fork ([{{ fork_repository }}]({{ fork_url }})) behind **one single HTTPS hostname** (`https://hermes.example.com`), routing each person to `/p/<profile>` with their own isolated home and access key. [Deploy multi-profile accounts](docs/accounts.md)
-2. Open **Connect Hermes** (**Connecter Hermes**), enter a profile label, your shared HTTPS server address, your **Server profile** (**Profil serveur**) slug (the app composes `/p/<profile>` automatically), and your access key.
-3. Protect the local device vault with a passphrase (and optionally enroll Class-3 Biometrics in **Activity → Security**).
+1. Deploy our Hermes agent fork ([{{ fork_repository }}]({{ fork_url }})) behind **one single HTTPS hostname** (`https://hermes.example.com`), routing each user to `/p/<profile>` with an isolated home and access key. [Deploy multi-profile accounts](docs/accounts.md)
+2. Open **Connect Hermes**, enter a profile label, your shared HTTPS server address, your **Server profile** slug (the app composes `/p/<profile>` automatically), and your access key.
+3. Protect the local device vault with a passphrase (and optionally enroll Class-3 biometrics in **Activity → Security**).
 
-## Build & Verify Locally
+## Build and verify locally
 
 Requires **JDK 21**, **Android SDK** (`compileSdk` and `buildToolsVersion` in `gradle.properties`), and **Python 3.11+** (with `uv` or `pip`).
 
@@ -55,7 +76,7 @@ adb install -r {{ debug_apk }}
 
 Run `./gradlew :app:connectedDebugAndroidTest` against a connected Android emulator or handset to execute the full instrumentation suite.
 
-## Documentation Index
+## Documentation index
 
 - **Setup & Deployment:** [Multi-Profile Single-Host Deploy](docs/accounts.md) · [Closed-App Push & Reminders](docs/push.md) · [Self-Hosted UnifiedPush (ntfy)](docs/unifiedpush.md) · [File Publication](docs/files.md)
 - **Features & Workflows:** [Live UI Modding & On-the-Fly Widgets](docs/live-ui-and-widgets.md) · [Brain Studio & Universal Sharing](docs/brain-and-sharing.md) · [Zero-Root Ambient Intelligence](docs/ambient.md) · [Android Actions & Examples](docs/android-actions.md) · [Mobile Layouts & Artifacts](docs/workspace.md) · [Photos & Skills in Discussions](docs/discussion-context.md) · [Nearby Restaurants & Location](docs/nearby-restaurants.md) · [Nearby Place Data](docs/nearby-places.md)

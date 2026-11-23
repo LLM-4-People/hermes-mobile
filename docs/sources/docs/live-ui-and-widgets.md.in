@@ -1,33 +1,33 @@
-# Live UI Modding, Surfaces v2 & On-the-Fly Widgets
+# Live UI modding, surfaces v2, and on-the-fly widgets
 
 {{ project }} lets Hermes adapt your mobile workspace in real time using declarative native Android blocks—with strict validation, WCAG-AA contrast enforcement, profile isolation, and full revision rollback.
 
 > **Requires companion fork:** Live UI patches and gateway revision history require [{{ fork_repository }}]({{ fork_url }}).
 
-## Live UI Patches (`ui.patch`)
+## Live UI patches (`ui.patch`)
 
-Ask Hermes in any conversation to tailor a screen, adjust colors, or build a reusable tool or tracker (for example: *"Ajoute une carte de suivi de mes lectures sur mon écran d'accueil"* or *"Give my workspace a warm dark slate accent"*).
+Ask Hermes in any conversation to tailor a screen, adjust colors, or build a reusable tool or tracker (for example: *"Add a reading tracker card to my workspace home"* or *"Give my workspace a warm dark slate accent"*).
 
 - **Bounded atomic operations:** Each `LiveUiPatch` applies up to **16 operations** (`MAX_OPS = 16`) atomically to the unlocked profile’s workspace state. If any operation fails validation, the entire patch is rejected without mutating saved state.
-- **Surfaces v2 & Interactive Controls:** Surfaces support rich native sections, live values, contextual quick-action chips, and interactive controls (`InteractiveControlsBlock`—toggles, sliders with TalkBack support, multi-select chips, and form inputs) whose state persists locally per profile and stages reviewed drafts before sending.
-- **Preview, Apply & Multi-Revision Rollback:** Every patch shows a clear summary bar before or after application. Undoing a revision (`rollbackAllTo`) rolls back dependent newer revisions cleanly and synchronizes sequential reverts back to the gateway (`POST /api/mobile/ui/revisions/{id}/revert`). You can also inspect history or reset any surface from **Atelier → Restore workspace** (**Rétablir l’atelier**).
+- **Surfaces v2 & interactive controls:** Surfaces support rich native sections, live values, contextual quick-action chips, and interactive controls (`InteractiveControlsBlock`—toggles, sliders with TalkBack support, multi-select chips, and form inputs) whose state persists locally per profile and stages reviewed drafts before sending.
+- **Preview, apply & multi-revision rollback:** Every patch shows a clear summary bar before or after application. Undoing a revision (`rollbackAllTo`) rolls back dependent newer revisions cleanly and synchronizes sequential reverts back to the gateway (`POST /api/mobile/ui/revisions/{id}/revert`). You can also inspect history or reset any surface from **Workspace → Restore workspace**.
 
-## WCAG-AA Theme Overrides (`ThemePalette`)
+## WCAG-AA theme overrides (`ThemePalette`)
 
-Hermes can propose theme accent, surface, or ink overrides while keeping both Day and Night appearances legible:
+Hermes can propose theme accent, surface, or ink overrides while keeping both day and night appearances legible:
 
 - **Minimum `4.5:1` contrast:** `ThemePalette.OverrideSpec` validates foreground/background pairs against WCAG-AA (`>= 4.5:1`) before persisting.
-- **Day ↔ Night stability:** Single-color `surface_hex` or `ink_hex` overrides in `system` mode resolve mode-invariantly using automatic high-contrast ink selection, so switching between light and dark themes never corrupts saved workspace state or produces unreadable text.
+- **Day ↔ night stability:** Single-color `surface_hex` or `ink_hex` overrides in `system` mode resolve mode-invariantly using automatic high-contrast ink selection, so switching between light and dark themes never corrupts saved workspace state or produces unreadable text.
 
-## On-the-Fly Pinned Home Screen Widgets
+## On-the-fly pinned home screen widgets
 
-Hermes can generate custom Home Screen widgets alongside a workspace patch or from **Atelier**:
+Hermes can generate custom home screen widgets alongside a workspace patch or from **Atelier**:
 
 - **Zero-leak & profile-scoped:** Every dynamic widget spec is stored under an opaque SHA-256 profile-scoped identifier (`HermesWidgetStore.profileScopedId`) bound to its owning `profileId`.
 - **Cross-profile protection:** Tapping a widget owned by another profile locks the current session and prompts you to unlock the owning profile before staging any draft or opening its surface.
 - **Clean removal:** Forgetting a profile automatically purges all widget specs owned by that profile and refreshes the launcher widget surface.
 
-## Android 16 OS Integration
+## Android 16 OS integration
 
 - **Live Updates:** Active Hermes runs surface progress directly in an Android 16 Live Update notification (`LiveRunNotification`) with a quick stop action—without exposing private prompt contents on the lockscreen.
 - **Quick Settings Tile & App Shortcuts:** Jump directly into a new discussion, voice input, or camera capture via `HermesTileService` and `HermesShortcuts`, always gated behind `ProfileGate`.

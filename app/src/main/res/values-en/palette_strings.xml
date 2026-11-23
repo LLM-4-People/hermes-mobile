@@ -1,0 +1,44 @@
+<resources>
+    <string name="palette_title">Quick jump</string>
+    <string name="palette_search_hint">Search an action, thread, or template…</string>
+    <string name="palette_empty">No matching results.</string>
+    <string name="palette_close">Close</string>
+    <string name="palette_results_count">%1$d result(s)</string>
+    <string name="palette_cat_action">Action</string>
+    <string name="palette_cat_thread">Thread</string>
+    <string name="palette_cat_template">Template</string>
+    <string name="palette_cat_screen">Screen</string>
+
+    <string name="palette_act_new_thread_title">New discussion</string>
+    <string name="palette_act_new_thread_hint">Start a fresh conversation with Hermes</string>
+    <string name="palette_act_templates_title">Everyday workflows</string>
+    <string name="palette_act_templates_hint">Stage a ready-to-edit draft</string>
+    <string name="palette_act_notes_title">Smart notes</string>
+    <string name="palette_act_notes_hint">Read or create personal notes</string>
+    <string name="palette_act_memory_title">Hermes memory</string>
+    <string name="palette_act_memory_hint">Review and edit what Hermes remembers</string>
+    <string name="palette_act_skills_title">Skills</string>
+    <string name="palette_act_skills_hint">Browse or create reusable skills</string>
+    <string name="palette_act_shared_title">Shared with me</string>
+    <string name="palette_act_shared_hint">Items shared on this server</string>
+    <string name="palette_act_files_title">Workspace files</string>
+    <string name="palette_act_files_hint">Browse project files and diffs</string>
+    <string name="palette_act_search_title">Global search</string>
+    <string name="palette_act_search_hint">Search across your discussions</string>
+    <string name="palette_act_reminders_title">Reminders</string>
+    <string name="palette_act_reminders_hint">Manage scheduled tasks</string>
+    <string name="palette_act_deliveries_title">Deliveries inbox</string>
+    <string name="palette_act_deliveries_hint">View received updates and briefings</string>
+    <string name="palette_act_ambient_title">Ambient access</string>
+    <string name="palette_act_ambient_hint">Notifications, calendar, contacts, and media</string>
+    <string name="palette_act_doctor_title">Connection health</string>
+    <string name="palette_act_doctor_hint">Check server, alerts, and permissions</string>
+    <string name="palette_act_updates_title">App updates</string>
+    <string name="palette_act_updates_hint">Check for and install a new version</string>
+    <string name="palette_act_language_title">Language (FR / EN)</string>
+    <string name="palette_act_language_hint">Choose the app language</string>
+    <string name="palette_act_security_title">Security and lock</string>
+    <string name="palette_act_security_hint">Biometrics, lock grace, and instant lock</string>
+    <string name="palette_act_screens_title">Custom screens</string>
+    <string name="palette_act_screens_hint">Open or manage custom screens</string>
+</resources>

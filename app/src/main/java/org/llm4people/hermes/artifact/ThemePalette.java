@@ -318,7 +318,7 @@ public final class ThemePalette {
     }
 
     private static double linearize(double channel) {
-        return channel <= 0.03928 ? channel / 12.92 : Math.pow((channel + 0.055) / 1.055, 2.4);
+        return channel <= 0.04045 ? channel / 12.92 : Math.pow((channel + 0.055) / 1.055, 2.4);
     }
 
     /** WCAG 2.1 contrast ratio in [1.0, 21.0]. */

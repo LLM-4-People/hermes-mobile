@@ -28,9 +28,11 @@ final class PlaceCompass extends View {
     private final double[] bearings;
     private final int[] distances;
     private final Path diamond = new Path();
-    private final float textSize, badgeRadius;
+    private final float textSize, badgeRadius, scaleLabelWidth, rankBaselineOffset;
     private final String scaleLabel;
-    private final int scaleMeters;
+    private final String[] rankLabels;
+    private final float[] rankHalfWidths;
+    private final int scaleMeters, touchSlop;
     private Plot plot;
     private final IntConsumer choose;
     private final float dp;
@@ -46,6 +48,7 @@ final class PlaceCompass extends View {
         this.category = result.category == null ? NearbyCategory.RESTAURANT : result.category;
         this.choose = choose;
         dp = c.getResources().getDisplayMetrics().density;
+        touchSlop = ViewConfiguration.get(c).getScaledTouchSlop();
         ground = c.getColor(R.color.places_chart);
         grid = c.getColor(R.color.places_grid);
         label = c.getColor(R.color.places_label);
@@ -63,6 +66,15 @@ final class PlaceCompass extends View {
                 getResources().getDisplayMetrics()) / dp;
         paint.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         paint.setTextSize(textSize);
+        scaleLabelWidth = paint.measureText(scaleLabel);
+        rankBaselineOffset = (paint.ascent() + paint.descent()) / 2f;
+        rankLabels = new String[places.size()];
+        rankHalfWidths = new float[places.size()];
+        for (int i = 0; i < places.size(); i++) {
+            String rank = String.valueOf(i + 1);
+            rankLabels[i] = rank;
+            rankHalfWidths[i] = paint.measureText(rank) / 2f;
+        }
         badgeRadius = Math.max(9, paint.measureText(String.valueOf(Math.max(1, places.size()))) / 2 + 3);
         setFocusable(true);
         setClickable(true);
@@ -118,14 +130,14 @@ final class PlaceCompass extends View {
     private void updatePlot() {
         if (getWidth() == 0 || getHeight() == 0) return;
         plot = new Plot(getWidth() / dp, getHeight() / dp, textSize, badgeRadius, scaleMeters,
-                bearings, distances, visible, paint.measureText(scaleLabel));
+                bearings, distances, visible, scaleLabelWidth);
     }
 
     /** The anchor is the actual geographic projection. Only a numbered label may move. All units are dp. */
     static final class Plot {
         final float width, height, cx, cy, radius;
         final float[] x, y, labelX, labelY;
-        final List<Integer> indices;
+        final int[] indices;
         private final float badge, font, scaleWidth;
 
         Plot(float width, float height, float font, float badge, int scale, double[] bearings,
@@ -139,13 +151,14 @@ final class PlaceCompass extends View {
             cy = height / 2;
             radius = Math.max(1, Math.min(cx - 12, cy - Math.max(12, font)));
             this.scaleWidth = Math.max(scaleWidth, radius / 2);
-            indices = new ArrayList<>(visible);
+            indices = new int[visible.size()];
+            for (int k = 0; k < visible.size(); k++) indices[k] = visible.get(k);
             x = new float[distances.length];
             y = new float[distances.length];
             labelX = new float[distances.length];
             labelY = new float[distances.length];
-            for (int rank = 0; rank < indices.size(); rank++) {
-                int i = indices.get(rank);
+            for (int rank = 0; rank < indices.length; rank++) {
+                int i = indices[rank];
                 float range = radius * distances[i] / scale;
                 x[i] = cx + (float) Math.sin(bearings[i]) * range;
                 y[i] = cy - (float) Math.cos(bearings[i]) * range;
@@ -154,7 +167,7 @@ final class PlaceCompass extends View {
         }
 
         private void placeLabel(int rank) {
-            int i = indices.get(rank);
+            int i = indices[rank];
             float margin = badge + 4;
             float spacing = 2 * badge + 8;
             double outward = Math.atan2(y[i] - cy, x[i] - cx);
@@ -172,7 +185,7 @@ final class PlaceCompass extends View {
                     if (px > width - scaleWidth - 12 - margin && py > height - font - 10 - margin) continue;
                     float clearance = (float) Math.hypot(px - cx, py - cy) + spacing - badge - 7;
                     for (int previous = 0; previous < rank; previous++) {
-                        int j = indices.get(previous);
+                        int j = indices[previous];
                         clearance = Math.min(clearance, (float) Math.hypot(px - labelX[j], py - labelY[j]));
                     }
                     if (clearance > best) {
@@ -217,7 +230,7 @@ final class PlaceCompass extends View {
         fill(label);
         canvas.drawText("N", 8, textSize + 4, paint);
         float bar = r * .5f;
-        canvas.drawText(scaleLabel, w-9-paint.measureText(scaleLabel), h-11, paint);
+        canvas.drawText(scaleLabel, w - 9 - scaleLabelWidth, h - 11, paint);
         stroke(label, 1);
         canvas.drawLine(w-9-bar, h-6, w-9, h-6, paint);
         canvas.drawLine(w-9-bar, h-9, w-9-bar, h-6, paint);
@@ -269,9 +282,7 @@ final class PlaceCompass extends View {
             }
         }
         fill(i == selected ? ground : label);
-        String rank = String.valueOf(i + 1);
-        canvas.drawText(rank, x - paint.measureText(rank) / 2,
-                y - (paint.ascent() + paint.descent()) / 2, paint);
+        canvas.drawText(rankLabels[i], x - rankHalfWidths[i], y - rankBaselineOffset, paint);
     }
 
     private void fill(int color) {
@@ -291,7 +302,7 @@ final class PlaceCompass extends View {
             return true;
         }
         if (event.getActionMasked() == MotionEvent.ACTION_UP) {
-            if (Math.hypot(event.getX()-downX, event.getY()-downY) > ViewConfiguration.get(getContext()).getScaledTouchSlop()) return false;
+            if (Math.hypot(event.getX() - downX, event.getY() - downY) > touchSlop) return false;
             int closest = plot == null ? -1 : plot.nearest(event.getX() / dp, event.getY() / dp);
             if (closest >= 0) { super.performClick(); choose.accept(closest); }
             return true;

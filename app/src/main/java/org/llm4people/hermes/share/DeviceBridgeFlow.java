@@ -25,10 +25,14 @@ import org.llm4people.hermes.artifact.ArtifactDesk;
 import org.llm4people.hermes.artifact.DeviceAction;
 import org.llm4people.hermes.artifact.DeviceReview;
 import org.llm4people.hermes.net.HermesApi;
+import org.llm4people.hermes.presence.DeepAndroidActions;
+import org.llm4people.hermes.presence.PresencePolicy;
 import org.llm4people.hermes.profile.Account;
+import org.llm4people.hermes.push.PushPolicy;
 
 import java.io.IOException;
 import java.time.DateTimeException;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -48,13 +52,16 @@ import java.util.regex.Pattern;
  * POST /v1/runs/{run_id}/device-result with completed, denied, or unavailable status.
  */
 public final class DeviceBridgeFlow {
-    /** Exact 1:1 allowlist matching Fork PR #15 + PR #18 ALLOWED_DEVICE_CAPABILITIES. */
+    /** Exact 1:1 allowlist matching Fork PR #15 + PR #18 + PR #24 ALLOWED_DEVICE_CAPABILITIES. */
     public static final Set<String> SUPPORTED_ACTIONS = Set.of(
             "camera", "location_coarse", "nearby_osm",
             "calendar_draft", "alarm_timer", "maps_handoff",
             "share_sheet", "clipboard_read",
             "dial_draft", "email_draft", "contacts_pick", "ui_surfaces_v2",
-            "notifications_digest", "notification_reply", "media_control", "calendar_read");
+            "notifications_digest", "notification_reply", "media_control", "calendar_read",
+            "app_navigate", "app_customize", "app_read_state", "app_create_template",
+            "android_set_timer", "android_share_sheet", "android_open_app",
+            "android_sync_shortcuts", "android_proactive_nudge");
 
     private static final Pattern REQUEST_ID = Pattern.compile("[A-Za-z0-9_.-]{1,64}");
     private static final int MAX_NOTIFICATION_REPLY_CHARS = 1000;
@@ -189,6 +196,34 @@ public final class DeviceBridgeFlow {
         caps.add("email_draft");
         caps.addAll(ambientExecutableCapabilities(
                 ambientSettings, listenerEnabled, calendarPermissionGranted, hasAllowlistedApps));
+        return Collections.unmodifiableList(caps);
+    }
+
+    /** Fail-closed subset of Track 9A/9B deep Android capabilities ready for the active profile right now. */
+    public static List<String> deepExecutableCapabilities(PresencePolicy presencePolicy) {
+        PresencePolicy safe = presencePolicy == null ? PresencePolicy.defaults() : presencePolicy;
+        List<String> caps = new ArrayList<>();
+        caps.add("app_navigate");
+        caps.add("app_customize");
+        if (safe.shareAppPresence) caps.add("app_read_state");
+        caps.add("app_create_template");
+        caps.add("android_set_timer");
+        caps.add("android_share_sheet");
+        caps.add("android_open_app");
+        caps.add("android_sync_shortcuts");
+        if (safe.proactiveNudgesEnabled) caps.add("android_proactive_nudge");
+        return Collections.unmodifiableList(caps);
+    }
+
+    public static List<String> executableCapabilities(
+            boolean mapsAvailable, boolean alarmAvailable, boolean clipboardReadSupported,
+            NotificationAllowlist.Settings ambientSettings, boolean listenerEnabled,
+            boolean calendarPermissionGranted, boolean hasAllowlistedApps,
+            PresencePolicy presencePolicy) {
+        List<String> caps = new ArrayList<>(executableCapabilities(
+                mapsAvailable, alarmAvailable, clipboardReadSupported,
+                ambientSettings, listenerEnabled, calendarPermissionGranted, hasAllowlistedApps));
+        caps.addAll(deepExecutableCapabilities(presencePolicy));
         return Collections.unmodifiableList(caps);
     }
 
@@ -473,6 +508,91 @@ public final class DeviceBridgeFlow {
         };
     }
 
+    /**
+     * Unified executor wiring clipboard + ambient + all 9 Track 9B {@link DeepAndroidActions}
+     * with strict consent-tier enforcement (AUTOMATIC_SAFE/OPT_IN_ONLY validated fail-closed;
+     * CONFIRM_REQUIRED presented via FLAG_SECURE dialog before execution).
+     */
+    public static InteractiveExecutor deepAwareExecutor(
+            Activity activity, Account account, ClipboardPastePill pill, DeepAndroidActions deepActions) {
+        InteractiveExecutor base = ambientAwareExecutor(activity, account, pill);
+        if (deepActions == null) return base;
+        return new InteractiveExecutor() {
+            @Override public boolean handleReviewed(Activity hostActivity, BridgeRequest request, Callback callback) {
+                return handleReviewed(hostActivity, request, callback, null);
+            }
+
+            @Override public boolean handleReviewed(Activity hostActivity, BridgeRequest request, Callback callback,
+                                                    Consumer<AlertDialog> onDialogShown) {
+                if (request == null || callback == null || account == null) return false;
+                DeepAndroidActions.Action deep = DeepAndroidActions.Action.parse(request.actionType());
+                if (deep != null) {
+                    if (deep.consentTier == DeepAndroidActions.ConsentTier.AUTOMATIC_SAFE
+                            || deep.consentTier == DeepAndroidActions.ConsentTier.OPT_IN_ONLY) {
+                        runDeepAction(activity, account, deepActions, request, false, callback);
+                        return true;
+                    }
+                    // Fall through to promptUser() FLAG_SECURE confirmation dialog before execute().
+                    return false;
+                }
+                return base.handleReviewed(hostActivity, request, callback, onDialogShown);
+            }
+
+            @Override public void execute(BridgeRequest request, Callback callback) {
+                if (request == null || callback == null) return;
+                if (DeepAndroidActions.Action.parse(request.actionType()) != null) {
+                    runDeepAction(activity, account, deepActions, request, true, callback);
+                    return;
+                }
+                base.execute(request, callback);
+            }
+        };
+    }
+
+    private static void runDeepAction(
+            Activity activity,
+            Account account,
+            DeepAndroidActions deepActions,
+            BridgeRequest request,
+            boolean userConfirmed,
+            Callback callback) {
+        if (account == null) {
+            callback.finish(Status.UNAVAILABLE, null);
+            return;
+        }
+        PresencePolicy presencePolicy;
+        try {
+            presencePolicy = PresencePolicy.load(account);
+        } catch (IllegalStateException locked) {
+            callback.finish(Status.UNAVAILABLE, null);
+            return;
+        }
+        PushPolicy pushPolicy = PushPolicy.load(activity, account.id);
+        LocalTime nowLocal = LocalTime.now();
+        int minuteOfDay = nowLocal.getHour() * 60 + nowLocal.getMinute();
+        DeepAndroidActions.Result res = deepActions.executeJson(
+                request.actionType(),
+                request.params(),
+                presencePolicy,
+                pushPolicy,
+                userConfirmed,
+                System.currentTimeMillis(),
+                minuteOfDay);
+        if (res.ok()) {
+            JSONObject payload = null;
+            if (res.payloadJson() != null && !res.payloadJson().isEmpty()) {
+                try { payload = new JSONObject(res.payloadJson()); }
+                catch (JSONException ignored) { payload = null; }
+            }
+            callback.finish(Status.COMPLETED, payload);
+        } else if (res.status() == DeepAndroidActions.Status.DENIED_CONFIRMATION_REQUIRED
+                || res.status() == DeepAndroidActions.Status.DENIED_NOT_OPTED_IN) {
+            callback.finish(Status.DENIED, null);
+        } else {
+            callback.finish(Status.UNAVAILABLE, null);
+        }
+    }
+
     private static AmbientNotification findReplyTarget(JSONObject params) {
         if (params == null) return null;
         String key = params.optString("key", "").trim();
@@ -713,6 +833,15 @@ public final class DeviceBridgeFlow {
             case "notification_reply" -> "Envoyer une réponse à une notification ?";
             case "media_control" -> "Contrôler la lecture audio en cours ?";
             case "calendar_read" -> "Consulter vos prochains rendez-vous d’agenda ?";
+            case "app_navigate" -> "Ouvrir cet écran dans l’application ?";
+            case "app_customize" -> "Modifier l’apparence de l’application ?";
+            case "app_read_state" -> "Partager votre écran actuel avec Hermes ?";
+            case "app_create_template" -> "Enregistrer un nouveau modèle réutilisable ?";
+            case "android_set_timer" -> "Régler un minuteur sur votre téléphone ?";
+            case "android_share_sheet" -> "Ouvrir le partage Android ?";
+            case "android_open_app" -> "Ouvrir cette application ou ce lien ?";
+            case "android_sync_shortcuts" -> "Mettre à jour vos raccourcis et widgets ?";
+            case "android_proactive_nudge" -> "Afficher un rappel local discret ?";
             default -> "Autoriser cette action sur votre téléphone ?";
         };
     }
@@ -727,6 +856,15 @@ public final class DeviceBridgeFlow {
             case "notification_reply" -> "Hermes propose de répondre à une notification après votre validation.";
             case "media_control" -> "Hermes propose de piloter la lecture audio après votre accord.";
             case "calendar_read" -> "Hermes propose de consulter vos créneaux disponibles dans votre agenda.";
+            case "app_navigate" -> "Hermes propose d’ouvrir directement cette section de l’application.";
+            case "app_customize" -> "Hermes propose d’ajuster les couleurs ou l’espacement de votre espace.";
+            case "app_read_state" -> "Hermes demande votre état actuel dans l’application.";
+            case "app_create_template" -> "Hermes propose d’enregistrer un modèle dans votre coffre chiffré.";
+            case "android_set_timer" -> "Hermes propose de démarrer un minuteur dans l’horloge Android.";
+            case "android_share_sheet" -> "Hermes propose de préparer un partage vers une autre application.";
+            case "android_open_app" -> "Hermes propose d’ouvrir une application ou un lien vérifié.";
+            case "android_sync_shortcuts" -> "Hermes propose d’actualiser vos raccourcis et widgets d’accueil.";
+            case "android_proactive_nudge" -> "Hermes propose d’afficher un rappel discret sur votre téléphone.";
             default -> "Hermes propose d’ouvrir cette action sur votre téléphone.";
         };
     }

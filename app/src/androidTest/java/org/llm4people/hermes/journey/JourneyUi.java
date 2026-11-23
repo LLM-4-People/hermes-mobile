@@ -205,7 +205,7 @@ public final class JourneyUi {
     }
 
     void tap(String label) {
-        View target = until(label, () -> {
+        Supplier<View> locator = () -> {
             View root = window();
             View match = find(root, v -> named(v, label) && v.isEnabled());
             if (match == null) {
@@ -221,8 +221,9 @@ public final class JourneyUi {
                 }
             }
             return match;
-        });
-        tap(target, label);
+        };
+        View target = until(label, locator);
+        tap(target, locator, label);
     }
 
     public Button button(String label) {
@@ -231,7 +232,9 @@ public final class JourneyUi {
     }
 
     public void tapButton(String label) {
-        tap(button(label), label);
+        Supplier<View> locator = () -> find(window(),
+                v -> v instanceof Button && v.isEnabled() && named(v, label));
+        tap(until("button " + label, locator), locator, label);
     }
 
     void showPendingControl(String expected) {
@@ -301,13 +304,23 @@ public final class JourneyUi {
         return new int[]{root[0] + visible.centerX(), root[1] + visible.centerY()};
     }
 
-    private int[] stableTouchCenter(View target, String label) {
+    private int[] stableTouchCenter(View initialTarget, Supplier<View> locator, String label) {
         long deadline = SystemClock.elapsedRealtime() + 60000;
+        View current = initialTarget;
         while (SystemClock.elapsedRealtime() < deadline) {
-            int[] first = main(() -> screenCenter(target));
+            View candidate = current;
+            int[] first = main(() -> screenCenter(candidate));
+            if (first == null && locator != null) {
+                View refreshed = main(locator);
+                if (refreshed != null) {
+                    current = refreshed;
+                    first = main(() -> screenCenter(refreshed));
+                }
+            }
             if (first != null) {
                 SystemClock.sleep(50);
-                int[] second = main(() -> screenCenter(target));
+                View check = current;
+                int[] second = main(() -> screenCenter(check));
                 if (second != null && first[0] == second[0] && first[1] == second[1]) {
                     return second;
                 }
@@ -319,14 +332,21 @@ public final class JourneyUi {
     }
 
     private void tap(View target, String label) {
+        tap(target, null, label);
+    }
+
+    private void tap(View target, Supplier<View> locator, String label) {
         main(() -> {
-            Rect bounds = new Rect();
-            target.getDrawingRect(bounds);
-            target.requestRectangleOnScreen(bounds, true);
+            View live = (target != null && target.isAttachedToWindow()) || locator == null ? target : locator.get();
+            if (live != null) {
+                Rect bounds = new Rect();
+                live.getDrawingRect(bounds);
+                live.requestRectangleOnScreen(bounds, true);
+            }
             return null;
         });
         driver.waitForIdleSync();
-        int[] center = stableTouchCenter(target, label);
+        int[] center = stableTouchCenter(target, locator, label);
         long down = SystemClock.uptimeMillis();
         MotionEvent press = MotionEvent.obtain(down, down, MotionEvent.ACTION_DOWN, center[0], center[1], 0);
         try { driver.sendPointerSync(press); }

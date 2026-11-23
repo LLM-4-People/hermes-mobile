@@ -1,0 +1,44 @@
+<resources>
+    <string name="palette_title">Accès rapide</string>
+    <string name="palette_search_hint">Action, fil ou modèle…</string>
+    <string name="palette_empty">Aucun résultat pour cette recherche.</string>
+    <string name="palette_close">Fermer</string>
+    <string name="palette_results_count">%1$d résultat(s)</string>
+    <string name="palette_cat_action">Action</string>
+    <string name="palette_cat_thread">Discussion</string>
+    <string name="palette_cat_template">Modèle</string>
+    <string name="palette_cat_screen">Écran</string>
+
+    <string name="palette_act_new_thread_title">Nouvelle discussion</string>
+    <string name="palette_act_new_thread_hint">Démarrer un nouvel échange avec Hermes</string>
+    <string name="palette_act_templates_title">Modèles du quotidien</string>
+    <string name="palette_act_templates_hint">Préparer un brouillon prêt à l’emploi</string>
+    <string name="palette_act_notes_title">Mes notes</string>
+    <string name="palette_act_notes_hint">Consulter ou créer des notes</string>
+    <string name="palette_act_memory_title">Mémoire de Hermes</string>
+    <string name="palette_act_memory_hint">Voir et modifier ce que Hermes retient</string>
+    <string name="palette_act_skills_title">Savoir-faire</string>
+    <string name="palette_act_skills_hint">Parcourir ou créer des savoir-faire</string>
+    <string name="palette_act_shared_title">Partagé avec moi</string>
+    <string name="palette_act_shared_hint">Éléments partagés sur ce serveur</string>
+    <string name="palette_act_files_title">Fichiers du projet</string>
+    <string name="palette_act_files_hint">Explorer les fichiers et différences</string>
+    <string name="palette_act_search_title">Recherche globale</string>
+    <string name="palette_act_search_hint">Rechercher dans vos discussions</string>
+    <string name="palette_act_reminders_title">Rappels</string>
+    <string name="palette_act_reminders_hint">Gérer vos tâches planifiées</string>
+    <string name="palette_act_deliveries_title">Boîte de réception</string>
+    <string name="palette_act_deliveries_hint">Voir les messages et livraisons reçus</string>
+    <string name="palette_act_ambient_title">Accès ambiant</string>
+    <string name="palette_act_ambient_hint">Notifications, calendrier, contacts et média</string>
+    <string name="palette_act_doctor_title">État de la connexion</string>
+    <string name="palette_act_doctor_hint">Vérifier le serveur, les alertes et les accès</string>
+    <string name="palette_act_updates_title">Mises à jour de l’application</string>
+    <string name="palette_act_updates_hint">Vérifier et installer une nouvelle version</string>
+    <string name="palette_act_language_title">Langue (FR / EN)</string>
+    <string name="palette_act_language_hint">Choisir la langue de l’application</string>
+    <string name="palette_act_security_title">Sécurité et verrouillage</string>
+    <string name="palette_act_security_hint">Biométrie, délai et verrouillage immédiat</string>
+    <string name="palette_act_screens_title">Mes écrans personnalisés</string>
+    <string name="palette_act_screens_hint">Ouvrir ou gérer les écrans créés</string>
+</resources>

@@ -95,7 +95,7 @@ public final class ConversationCardsJourney extends Instrumentation {
         ui.tap(name);
         ui.fill(ui.str(R.string.profile_passphrase_label), fixture.getString("phrase"));
         ui.tap(ui.str(R.string.profile_remove_action));
-        ui.tap("Retirer");
+        ui.tap(ui.str(R.string.profile_setup_remove_confirm));
         ui.see(chooseProfile);
         ui.absent(name);
     }

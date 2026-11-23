@@ -162,8 +162,18 @@ final class AccountStore {
     void forget(String id) throws IOException {
         BiometricVault.revoke(context, id);
         LockGracePolicy.forget(context, id);
+        UnlockBackoff.forget(context, id);
         org.llm4people.hermes.os.HermesWidgetStore.forgetProfile(context, id);
+        IncomingShare.forgetProfile(context, id);
+        IncomingMediaShare.forgetProfile(context, id);
+        org.llm4people.hermes.camera.PrivateCaptureProvider.purgeAll(context);
+        org.llm4people.hermes.ambient.HermesNotificationListener.clearSession();
+        org.llm4people.hermes.perf.MemoryPressure.clearAll();
         commitMembership(id, null, null);
+        SharedPreferences profileVault = vault(id);
+        synchronized (profileVault) {
+            profileVault.edit().clear().commit();
+        }
         context.deleteSharedPreferences("hermes.vault." + id);
     }
 

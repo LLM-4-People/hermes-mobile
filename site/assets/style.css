@@ -725,8 +725,8 @@ code {
   align-items: center;
   justify-content: center;
   min-height: 290px;
-  cursor: zoom-in;
 }
+.capture-media[role="button"] { cursor: zoom-in; }
 .capture-media img.is-phone { max-height: 360px; width: auto; border-radius: 14px; border: 2px solid var(--bezel-ring); }
 .capture-media img.is-tablet { width: 100%; border-radius: 10px; border: 2px solid var(--bezel-ring); }
 
@@ -839,4 +839,84 @@ code {
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   *, *::before, *::after { transition: none !important; animation: none !important; }
+}
+
+/* ---------- Editorial Marketing Visuals & Language Router ---------- */
+.lang-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 0.86rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+.lang-link:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.editorial-figure {
+  margin: 0;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-md);
+}
+.editorial-figure img {
+  width: 100%;
+  display: block;
+}
+.editorial-figure figcaption {
+  padding: 12px 16px;
+  font-size: 0.88rem;
+  color: var(--muted);
+  border-top: 1px solid var(--line);
+}
+
+.arch-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  gap: 28px;
+  align-items: center;
+}
+
+.router-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+.router-card {
+  max-width: 520px;
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 28px;
+  box-shadow: var(--shadow-md);
+  text-align: center;
+}
+.router-card h1 {
+  margin: 0 0 8px;
+  font-size: 1.5rem;
+}
+.router-card p {
+  margin: 0 0 20px;
+  color: var(--muted);
+}
+.router-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 960px) {
+  .arch-split { grid-template-columns: 1fr; }
 }

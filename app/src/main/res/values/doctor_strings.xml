@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="doctor_route_label">Diagnostic de connexion</string>
+    <string name="doctor_route_hint">Vérifier le serveur, les fonctions, les notifications et la langue</string>
+    <string name="doctor_panel_title">Diagnostic de connexion</string>
+    <string name="doctor_panel_subtitle">Vérifie en direct votre serveur Hermes, ses capacités, vos notifications et vos réglages.</string>
+
+    <string name="doctor_status_running">Vérification en cours…</string>
+    <string name="doctor_status_all_ok">Tout fonctionne correctement</string>
+    <string name="doctor_status_attention">Quelques points demandent votre attention</string>
+    <string name="doctor_status_problem">Un problème empêche le bon fonctionnement</string>
+    <string name="doctor_summary_counts">%1$d OK · %2$d à vérifier · %3$d problème(s)</string>
+
+    <string name="doctor_badge_ok">OK</string>
+    <string name="doctor_badge_warn">À vérifier</string>
+    <string name="doctor_badge_error">Problème</string>
+
+    <string name="doctor_rerun_action">Vérifier à nouveau</string>
+    <string name="doctor_checking_action">Vérification…</string>
+    <string name="doctor_technical_show">Détails techniques</string>
+    <string name="doctor_technical_hide">Masquer les détails techniques</string>
+    <string name="doctor_copy_report_action">Copier le rapport sécurisé</string>
+    <string name="doctor_report_copied">Rapport sécurisé copié (sans clé ni contenu privé).</string>
+    <string name="doctor_report_copy_failed">Impossible de copier le rapport pour le moment.</string>
+    <string name="doctor_technical_host">Serveur : %1$s</string>
+    <string name="doctor_technical_version">Version de l’application : %1$s</string>
+    <string name="doctor_technical_language">Langue active : %1$s</string>
+    <string name="doctor_technical_privacy_note">Ce rapport ne contient jamais vos clés d’accès, vos messages, vos notes ni votre nom de profil.</string>
+
+    <string name="doctor_check_server_title">Connexion au serveur</string>
+    <string name="doctor_check_server_ok">Serveur accessible (%1$d ms).</string>
+    <string name="doctor_check_server_slow">Serveur accessible mais lent (%1$d ms).</string>
+    <string name="doctor_check_server_auth_error">Le serveur a refusé la clé d’accès de ce profil.</string>
+    <string name="doctor_check_server_unreachable">Impossible de joindre le serveur pour le moment.</string>
+    <string name="doctor_check_server_missing">Aucun profil connecté n’est ouvert.</string>
+
+    <string name="doctor_check_capabilities_title">Fonctions du serveur compagnon</string>
+    <string name="doctor_check_capabilities_ok">Serveur compagnon complet détecté (%1$d/%2$d fonctions actives).</string>
+    <string name="doctor_check_capabilities_partial">Serveur compagnon détecté (%1$d/%2$d fonctions actives).</string>
+    <string name="doctor_check_capabilities_upstream">Serveur Hermes standard détecté (0/%1$d). Installez le serveur compagnon Hermes pour activer les notes, la mémoire, les widgets et le partage.</string>
+    <string name="doctor_check_capabilities_error">Impossible de lire les fonctions du serveur.</string>
+
+    <string name="doctor_check_push_title">Notifications instantanées</string>
+    <string name="doctor_check_push_ok">Prêtes à recevoir vos alertes et rappels.</string>
+    <string name="doctor_check_push_disabled">Les notifications instantanées ne sont pas encore activées pour ce profil.</string>
+    <string name="doctor_check_push_blocked">Les notifications Android sont désactivées dans les réglages du téléphone.</string>
+
+    <string name="doctor_check_updates_title">Mises à jour de l’application</string>
+    <string name="doctor_check_updates_ok">Version %1$s à jour et prête.</string>
+    <string name="doctor_check_updates_available">Une nouvelle version (%1$s) est disponible.</string>
+    <string name="doctor_check_updates_unchecked">Version %1$s installée. Touchez pour vérifier les mises à jour.</string>
+
+    <string name="doctor_check_ambient_title">Accès ambiant et notifications</string>
+    <string name="doctor_check_ambient_ok">Lecture optionnelle des notifications connectée et prête.</string>
+    <string name="doctor_check_ambient_waiting">Accès autorisé, en attente de connexion du service Android.</string>
+    <string name="doctor_check_ambient_off">Accès aux notifications non activé (optionnel, privé par défaut).</string>
+
+    <string name="doctor_check_language_title">Synchronisation de la langue</string>
+    <string name="doctor_check_language_ok">Interface et serveur synchronisés (%1$s).</string>
+    <string name="doctor_check_language_mismatch">La langue d’envoi ne correspond pas encore à l’interface (%1$s).</string>
+
+    <string name="doctor_fix_retry">Réessayer</string>
+    <string name="doctor_fix_push">Configurer les notifications</string>
+    <string name="doctor_fix_updates">Ouvrir les mises à jour</string>
+    <string name="doctor_fix_ambient">Ouvrir l’accès ambiant</string>
+    <string name="doctor_fix_language">Choisir la langue</string>
+</resources>

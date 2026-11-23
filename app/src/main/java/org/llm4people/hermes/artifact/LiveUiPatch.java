@@ -17,6 +17,7 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.llm4people.hermes.Diagnostics;
+import org.llm4people.hermes.customization.InteractiveCardView;
 import org.llm4people.hermes.places.NearbyCategory;
 import org.llm4people.hermes.profile.Account;
 
@@ -33,6 +34,7 @@ public final class LiveUiPatch {
     public static final int MAX_WIDGETS = 16;
     public static final int MAX_WIDGET_ITEMS = 8;
     public static final int MAX_SUGGESTED_ACTIONS = 4;
+    public static final int MAX_INTERACTIVE_CARDS = 4;
     public static final int MAX_HISTORY = 16;
     public static final int MAX_SUMMARY_CHARS = 240;
     public static final int MAX_DRAFT_CHARS = 1000;
@@ -353,6 +355,7 @@ public final class LiveUiPatch {
     public final String summary;
     public final List<Op> ops;
     public final List<SuggestedAction> suggestedActions;
+    public final List<InteractiveCardView.Spec> interactiveCards;
     public final boolean requiresApply;
 
     public LiveUiPatch(String revisionId, String parentRevisionId, String scope, String summary,
@@ -362,11 +365,13 @@ public final class LiveUiPatch {
 
     public LiveUiPatch(String revisionId, String parentRevisionId, String scope, String summary,
                        List<Op> ops, List<SuggestedAction> suggestedActions, boolean requiresApply) throws IOException {
-        this(revisionId, parentRevisionId, scope, summary, ops, suggestedActions, requiresApply, MAX_OPS);
+        this(revisionId, parentRevisionId, scope, summary, ops, suggestedActions,
+                Collections.emptyList(), requiresApply, MAX_OPS);
     }
 
     private LiveUiPatch(String revisionId, String parentRevisionId, String scope, String summary,
-                        List<Op> ops, List<SuggestedAction> suggestedActions, boolean requiresApply,
+                        List<Op> ops, List<SuggestedAction> suggestedActions,
+                        List<InteractiveCardView.Spec> interactiveCards, boolean requiresApply,
                         int maxOps) throws IOException {
         if (!validRevisionId(revisionId)) throw new IOException("Invalid revision id");
         if (parentRevisionId != null && !parentRevisionId.isEmpty() && !validRevisionId(parentRevisionId)) {
@@ -374,7 +379,16 @@ public final class LiveUiPatch {
         }
         String safeScope = scope == null || scope.isEmpty() ? "thread" : scope;
         if (!SCOPES.contains(safeScope)) throw new IOException("Invalid patch scope");
-        if (ops == null || ops.isEmpty() || ops.size() > maxOps) throw new IOException("Invalid op count");
+        List<InteractiveCardView.Spec> safeCards = interactiveCards == null
+                ? Collections.emptyList()
+                : Collections.unmodifiableList(new ArrayList<>(interactiveCards));
+        if (safeCards.size() > MAX_INTERACTIVE_CARDS) {
+            throw new IOException("Too many interactive cards");
+        }
+        boolean hasOps = ops != null && !ops.isEmpty();
+        if ((!hasOps && safeCards.isEmpty()) || (ops != null && ops.size() > maxOps)) {
+            throw new IOException("Invalid op count");
+        }
         if (suggestedActions != null && suggestedActions.size() > MAX_SUGGESTED_ACTIONS) {
             throw new IOException("Too many suggested actions");
         }
@@ -385,8 +399,9 @@ public final class LiveUiPatch {
         this.revisionId = revisionId;
         this.parentRevisionId = parentRevisionId == null ? "" : parentRevisionId;
         this.scope = safeScope;
-        this.summary = cleanSummary.isEmpty() ? defaultSummary(ops) : cleanSummary;
-        this.ops = Collections.unmodifiableList(new ArrayList<>(ops));
+        this.ops = ops == null ? Collections.emptyList() : Collections.unmodifiableList(new ArrayList<>(ops));
+        this.interactiveCards = safeCards;
+        this.summary = cleanSummary.isEmpty() ? defaultSummary(this.ops, safeCards) : cleanSummary;
         this.suggestedActions = suggestedActions == null
                 ? Collections.emptyList()
                 : Collections.unmodifiableList(new ArrayList<>(suggestedActions));
@@ -405,18 +420,20 @@ public final class LiveUiPatch {
         return serializedJson != null && serializedJson.getBytes(StandardCharsets.UTF_8).length > MAX_PATCH_BYTES;
     }
 
-    private static String defaultSummary(List<Op> ops) {
+    private static String defaultSummary(List<Op> ops, List<InteractiveCardView.Spec> cards) {
         if (ops.size() == 1) return ops.get(0).frenchDescription();
-        return ops.size() + " ajustements proposés pour votre espace";
+        if (!ops.isEmpty()) return ops.size() + " ajustements proposés pour votre espace";
+        return cards.size() == 1 ? cards.get(0).title : (cards.size() + " cartes interactives");
     }
 
     public List<String> frenchHighlights() {
-        List<String> lines = new ArrayList<>(ops.size());
+        List<String> lines = new ArrayList<>(ops.size() + interactiveCards.size());
         for (Op op : ops) lines.add(op.frenchDescription());
+        for (InteractiveCardView.Spec card : interactiveCards) lines.add(card.title);
         return Collections.unmodifiableList(lines);
     }
 
-    /** Parses and validates a Fork PR #15 ui.patch SSE event or REST revision object. */
+    /** Parses and validates a Fork PR #15 / Track 9A ui.patch SSE event or REST revision object. */
     public static LiveUiPatch parse(JSONObject raw, boolean nightMode) throws IOException {
         if (raw == null) throw new IOException("Missing patch object");
         String serialized = raw.toString();
@@ -435,21 +452,49 @@ public final class LiveUiPatch {
             String summary = payload.optString("summary", "");
             boolean requiresApply = payload.optBoolean("requires_apply", true);
             JSONArray rawOps = payload.optJSONArray("ops");
-            if (rawOps == null || rawOps.length() == 0 || rawOps.length() > MAX_OPS) {
+            List<InteractiveCardView.Spec> cards = parseInteractiveCards(payload.opt("interactive_cards"));
+            if ((rawOps == null || rawOps.length() == 0) && cards.isEmpty()) {
                 throw new IOException("Missing or oversized ops");
             }
-            List<Op> parsed = new ArrayList<>(rawOps.length());
-            for (int i = 0; i < rawOps.length(); i++) {
-                JSONObject opObj = rawOps.optJSONObject(i);
-                if (opObj == null) throw new IOException("Malformed op entry");
-                parseOp(opObj, nightMode, parsed);
+            if (rawOps != null && rawOps.length() > MAX_OPS) {
+                throw new IOException("Missing or oversized ops");
+            }
+            List<Op> parsed = new ArrayList<>(rawOps == null ? 0 : rawOps.length());
+            if (rawOps != null) {
+                for (int i = 0; i < rawOps.length(); i++) {
+                    JSONObject opObj = rawOps.optJSONObject(i);
+                    if (opObj == null) throw new IOException("Malformed op entry");
+                    parseOp(opObj, nightMode, parsed);
+                }
             }
             List<SuggestedAction> suggestions = parseSuggestedActions(payload.opt("suggested_actions"), parsed);
-            return new LiveUiPatch(revId, parentId, scope, summary, parsed, suggestions, requiresApply, MAX_OPS * 2);
-        } catch (IOException | JSONException e) {
+            return new LiveUiPatch(revId, parentId, scope, summary, parsed, suggestions, cards, requiresApply, MAX_OPS * 2);
+        } catch (IOException | JSONException | IllegalArgumentException e) {
             warnRejected();
             throw e instanceof IOException io ? io : new IOException("Malformed ui.patch", e);
         }
+    }
+
+    public static List<InteractiveCardView.Spec> parseInteractiveCards(Object raw) throws IOException {
+        if (raw == null || JSONObject.NULL.equals(raw)) return Collections.emptyList();
+        if (!(raw instanceof JSONArray arr) || arr.length() > MAX_INTERACTIVE_CARDS) {
+            throw new IOException("Invalid interactive_cards");
+        }
+        List<InteractiveCardView.Spec> out = new ArrayList<>(arr.length());
+        Set<String> seenIds = new HashSet<>();
+        for (int i = 0; i < arr.length(); i++) {
+            JSONObject obj = arr.optJSONObject(i);
+            if (obj == null) throw new IOException("Malformed interactive card");
+            InteractiveCardView.Spec spec;
+            try {
+                spec = InteractiveCardView.Spec.fromJson(obj);
+            } catch (IllegalArgumentException invalid) {
+                throw new IOException("Invalid interactive card", invalid);
+            }
+            if (!seenIds.add(spec.cardId)) throw new IOException("Duplicate interactive card id");
+            out.add(spec);
+        }
+        return Collections.unmodifiableList(out);
     }
 
     public static List<SuggestedAction> parseSuggestedActions(Object raw) throws IOException {

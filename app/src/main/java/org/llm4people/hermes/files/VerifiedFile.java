@@ -4,6 +4,7 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.os.ParcelFileDescriptor;
 import org.llm4people.hermes.net.HermesApi;
+import org.llm4people.hermes.perf.BitmapSampling;
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
@@ -57,15 +58,20 @@ final class VerifiedFile implements Closeable {
         return new String(first, StandardCharsets.UTF_8) + (length < data.length() ? "\n…" : "");
     }
 
+    static final int PREVIEW_MAX_EDGE = 1024;
+
+    static int previewSampleSize(int width, int height) throws IOException {
+        if (!BitmapSampling.validDimensions(width, height)) {
+            throw new IOException("Invalid image");
+        }
+        return BitmapSampling.calculateInSampleSize(width, height, PREVIEW_MAX_EDGE);
+    }
+
     Bitmap previewImage() throws IOException {
         BitmapFactory.Options options = new BitmapFactory.Options();
         options.inJustDecodeBounds = true;
         BitmapFactory.decodeFileDescriptor(data.getFD(), null, options);
-        if (options.outWidth <= 0 || options.outHeight <= 0) throw new IOException("Invalid image");
-        options.inSampleSize = 1;
-        while (Math.max(options.outWidth, options.outHeight) / options.inSampleSize > 1024) {
-            options.inSampleSize *= 2;
-        }
+        options.inSampleSize = previewSampleSize(options.outWidth, options.outHeight);
         options.inJustDecodeBounds = false;
         data.seek(0);
         Bitmap image = BitmapFactory.decodeFileDescriptor(data.getFD(), null, options);

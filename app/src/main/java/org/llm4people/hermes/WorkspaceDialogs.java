@@ -85,6 +85,18 @@ final class WorkspaceDialogs {
             if (dialogHolder[0] != null) dialogHolder[0].dismiss();
             onAction.accept(org.llm4people.hermes.panel.BrainStudioRoutes.ROUTE_SEARCH);
         }));
+        entries.add(new Entry(activity.getString(R.string.palette_title), () -> {
+            if (dialogHolder[0] != null) dialogHolder[0].dismiss();
+            onAction.accept("command_palette");
+        }));
+        entries.add(new Entry(activity.getString(R.string.templates_route_label), () -> {
+            if (dialogHolder[0] != null) dialogHolder[0].dismiss();
+            onAction.accept(org.llm4people.hermes.templates.TemplatesPanel.ROUTE_ID);
+        }));
+        entries.add(new Entry(activity.getString(R.string.doctor_route_label), () -> {
+            if (dialogHolder[0] != null) dialogHolder[0].dismiss();
+            onAction.accept(org.llm4people.hermes.doctor.ConnectionDoctorPanel.ROUTE_ID);
+        }));
         entries.add(new Entry(activity.getString(R.string.activity_deliveries_title), () -> {
             if (dialogHolder[0] != null) dialogHolder[0].dismiss();
             onAction.accept("deliveries");

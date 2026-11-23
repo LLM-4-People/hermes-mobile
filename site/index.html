@@ -1,438 +1,62 @@
 <!DOCTYPE html>
-<html lang="fr" data-theme="light">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Hermes Mobile — Votre agent Hermes privé, natif sur Android</title>
-  <meta name="description" content="Native Android client (API 28–36) for chatting, coding, Live UI modding, Brain Studio, and zero-leak push with your own LLM-4-People/hermes-agent server.">
-  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
-  <link rel="stylesheet" href="assets/style.css">
+  <title>Hermes Mobile — Private AI Companion for Android 16</title>
+  <meta name="description" content="Native Android client for Hermes Agent with adaptive phone and tablet layouts, concurrent multi-run, encrypted profile vault, Live UI modding, and signed GitHub releases.">
+  <link rel="icon" type="image/svg+xml" href="./assets/favicon.svg">
+  <link rel="canonical" href="https://llm-4-people.github.io/hermes-mobile/en/">
+  <link rel="alternate" hreflang="en" href="https://llm-4-people.github.io/hermes-mobile/en/">
+  <link rel="alternate" hreflang="fr" href="https://llm-4-people.github.io/hermes-mobile/fr/">
+  <link rel="alternate" hreflang="x-default" href="https://llm-4-people.github.io/hermes-mobile/en/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Hermes Mobile">
+  <meta property="og:title" content="Hermes Mobile — Private AI Companion for Android 16">
+  <meta property="og:description" content="Native Android workspace for your own Hermes Agent server. Pure English and French portals, zero WebView, hardened profile isolation, and signed releases.">
+  <meta property="og:url" content="https://llm-4-people.github.io/hermes-mobile/">
+  <meta property="og:image" content="https://llm-4-people.github.io/hermes-mobile/assets/marketing/social-preview-en.png">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:locale:alternate" content="fr_CA">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Hermes Mobile — Private AI Companion for Android 16">
+  <meta name="twitter:description" content="Native Android client for Hermes Agent with concurrent multi-run, Command Palette, Connection Doctor, and signed APK releases.">
+  <meta name="twitter:image" content="https://llm-4-people.github.io/hermes-mobile/assets/marketing/social-preview-en.png">
+  <link rel="stylesheet" href="./assets/style.css">
+  <script>
+    (function () {
+      var target = 'en';
+      try {
+        var saved = window.localStorage.getItem('hermes_lang');
+        if (saved === 'fr' || saved === 'en') {
+          target = saved;
+        } else {
+          var langs = (Array.isArray(navigator.languages) && navigator.languages.length)
+            ? navigator.languages
+            : (navigator.language ? [navigator.language] : []);
+          for (var i = 0; i < langs.length; i++) {
+            var tag = String(langs[i] || '').trim().toLowerCase();
+            if (tag === 'fr' || tag.indexOf('fr-') === 0 || tag.indexOf('fr_') === 0) { target = 'fr'; break; }
+            if (tag === 'en' || tag.indexOf('en-') === 0 || tag.indexOf('en_') === 0) { target = 'en'; break; }
+          }
+        }
+      } catch (e) {}
+      var suffix = (window.location.search || '') + (window.location.hash || '');
+      window.location.replace('./' + target + '/' + suffix);
+    })();
+  </script>
 </head>
-<body data-title-fr="Hermes Mobile — Votre agent Hermes privé, natif sur Android"
-      data-title-en="Hermes Mobile — Your private Hermes Agent, native on Android">
-  <a class="skip-link" href="#main" data-fr="Aller au contenu principal" data-en="Skip to main content">Aller au contenu principal</a>
-
-  <header class="topbar">
-    <div class="topbar-inner">
-      <a class="brand" href="./">
-        <img class="brand-mark" src="assets/favicon.svg" alt="" width="30" height="30">
-        <span>Hermes Mobile</span>
-      </a>
-      <nav class="nav-links" aria-label="Navigation principale" data-fr-aria="Navigation principale" data-en-aria="Primary navigation">
-        <a href="./" aria-current="page" data-fr="Aperçu" data-en="Overview">Aperçu</a>
-        <a href="docs/" data-fr="Documentation" data-en="Docs">Documentation</a>
-        <a href="walkthrough/" data-fr="Vérification" data-en="Walkthrough">Vérification</a>
-        <a href="https://github.com/LLM-4-People/hermes-mobile" rel="noopener noreferrer">GitHub</a>
-        <a href="https://github.com/LLM-4-People/hermes-agent" rel="noopener noreferrer" data-fr="Serveur (fork)" data-en="Server (fork)">Serveur (fork)</a>
-      </nav>
-      <div class="topbar-controls">
-        <button class="pill-btn" type="button" data-lang-toggle>EN</button>
-        <button class="pill-btn" type="button" data-theme-toggle aria-pressed="false">☾ Sombre</button>
-      </div>
+<body class="router-page">
+  <main class="router-card">
+    <h1>Hermes Mobile</h1>
+    <p>Choose your language / Choisissez votre langue</p>
+    <div class="router-actions">
+      <a class="btn btn-primary" href="./en/">English</a>
+      <a class="btn btn-secondary" href="./fr/">Français</a>
     </div>
-  </header>
-
-  <main id="main">
-    <!-- Hero -->
-    <section class="hero">
-      <div class="container hero-grid">
-        <div>
-          <span class="eyebrow" data-fr="Android 9–16 · Natif Java · Zéro WebView" data-en="Android 9–16 · Native Java · Zero WebView">Android 9–16 · Natif Java · Zéro WebView</span>
-          <h1 data-fr="Votre agent Hermes privé, taillé pour téléphone et tablette."
-              data-en="Your private Hermes Agent, built natively for phone and tablet.">Votre agent Hermes privé, taillé pour téléphone et tablette.</h1>
-          <p class="lead"
-             data-fr="Discutez, relisez des diffs, laissez Hermes adapter votre écran en direct et recevez des alertes chiffrées sans fuite — sur un seul serveur HTTPS multi-profils (/p/&lt;profil&gt;)."
-             data-en="Chat, review visual diffs, let Hermes adapt your workspace live, and receive zero-leak encrypted alerts — all served from a single multi-profile HTTPS hostname (/p/&lt;profile&gt;).">Discutez, relisez des diffs, laissez Hermes adapter votre écran en direct et recevez des alertes chiffrées sans fuite — sur un seul serveur HTTPS multi-profils (/p/&lt;profil&gt;).</p>
-          <div class="btn-row">
-            <a class="btn btn-primary" href="https://github.com/LLM-4-People/hermes-mobile/releases/latest" rel="noopener noreferrer" data-latest-apk data-fr="Télécharger l’APK (Dernière version)" data-en="Download APK (Latest Release)">Télécharger l’APK (Dernière version)</a>
-            <a class="btn btn-secondary" href="docs/" data-fr="Lire la documentation" data-en="Read the Docs">Lire la documentation</a>
-            <a class="btn btn-secondary" href="walkthrough/" data-fr="Captures API 36" data-en="API 36 Captures">Captures API 36</a>
-          </div>
-          <div class="hero-meta">
-            <span><strong data-fr="Mises à jour :" data-en="Updates:">Mises à jour :</strong> <span data-fr="Détection GitHub + SHA-256 intégrés" data-en="Built-in GitHub check + SHA-256 verify">Détection GitHub + SHA-256 intégrés</span></span>
-            <span><strong data-fr="Bilingue :" data-en="Bilingual:">Bilingue :</strong> <span data-fr="FR / EN auto-détecté" data-en="FR / EN auto-detect">FR / EN auto-détecté</span></span>
-            <span><strong data-fr="Serveur :" data-en="Server:">Serveur :</strong> <code>LLM-4-People/hermes-agent</code></span>
-          </div>
-        </div>
-
-        <div class="showcase-card">
-          <div class="showcase-tabs" role="tablist" aria-label="Captures d’écran vérifiées" data-fr-aria="Captures d’écran vérifiées" data-en-aria="Verified screenshots">
-            <button class="showcase-tab" type="button" role="tab" aria-selected="true"
-                    data-src="assets/screens/tablet-live-tool.png"
-                    data-kind="tablet"
-                    data-badge="Tablet · 1200×720"
-                    data-title-fr="Tablette 3 volets : rail 92dp, fil et outil généré"
-                    data-title-en="3-Pane Tablet: 92dp Rail, Thread & Generated Tool"
-                    data-desc-fr="Hermes transforme une revue de code en formulaire réutilisable épinglé à côté de la discussion."
-                    data-desc-en="Hermes turns a code review into a reusable interactive tool pinned right beside the conversation."
-                    data-fr="Outil 3 volets" data-en="3-Pane Tool">Outil 3 volets</button>
-            <button class="showcase-tab" type="button" role="tab" aria-selected="false"
-                    data-src="assets/screens/phone-clarify.png"
-                    data-kind="phone"
-                    data-badge="Phone · 1080×2340"
-                    data-title-fr="Question interactive et barre 4 onglets"
-                    data-title-en="Interactive Clarify Card & 4-Tab Bar"
-                    data-desc-fr="Choix structurés, lecture vocale hors connexion et navigation adaptative Discussions · Atelier · Cerveau · Activité."
-                    data-desc-en="Structured choices, offline TTS playback, and adaptive Discussions · Atelier · Brain · Activity navigation."
-                    data-fr="Clarification" data-en="Clarify">Clarification</button>
-            <button class="showcase-tab" type="button" role="tab" aria-selected="false"
-                    data-src="assets/screens/phone-approval.png"
-                    data-kind="phone"
-                    data-badge="Phone · 1080×2340"
-                    data-title-fr="Autorisation explicite avant action sensible"
-                    data-title-en="Explicit Approval Before Sensitive Action"
-                    data-desc-fr="Chaque action sensible demande une décision ponctuelle (« Autoriser une fois » ou « Refuser ») avec détails techniques dépliables."
-                    data-desc-en="Every sensitive action requires a scoped decision (Allow Once or Deny) with expandable technical diff details."
-                    data-fr="Approbation" data-en="Approval">Approbation</button>
-            <button class="showcase-tab" type="button" role="tab" aria-selected="false"
-                    data-src="assets/screens/tablet-dual-pane.png"
-                    data-kind="tablet"
-                    data-badge="Tablet · 1200×800"
-                    data-title-fr="Tablette double volet et rail 92dp"
-                    data-title-en="Dual-Pane Tablet & 92dp Rail"
-                    data-desc-fr="Liste des discussions et fil actif côte à côte sans perdre le brouillon lors des rotations ou redimensionnements."
-                    data-desc-en="Conversation list and active thread side-by-side while preserving the draft across rotations and resizes."
-                    data-fr="Tablette" data-en="Tablet">Tablette</button>
-            <button class="showcase-tab" type="button" role="tab" aria-selected="false"
-                    data-src="assets/screens/phone-photo-draft.png"
-                    data-kind="phone"
-                    data-badge="Phone · 1080×2340"
-                    data-title-fr="Capture et image jointe nettoyée d’EXIF"
-                    data-title-en="EXIF-Stripped Image & Vision Draft"
-                    data-desc-fr="L’image est ré-encodée localement sans métadonnées EXIF/GPS avant d’être envoyée avec votre question."
-                    data-desc-en="Images are locally re-encoded without EXIF/GPS metadata before being sent alongside your prompt."
-                    data-fr="Photo vision" data-en="Vision Draft">Photo vision</button>
-          </div>
-          <div class="stage-wrap">
-            <div class="device-frame is-tablet" id="showcase-frame">
-              <img id="showcase-img" src="assets/screens/tablet-live-tool.png" alt="Tablette 3 volets : rail 92dp, fil et outil généré" width="1200" height="720">
-            </div>
-          </div>
-          <div class="stage-caption">
-            <div>
-              <strong id="showcase-title">Tablette 3 volets : rail 92dp, fil et outil généré</strong>
-              <span id="showcase-desc">Hermes transforme une revue de code en formulaire réutilisable épinglé à côté de la discussion.</span>
-            </div>
-            <span class="badge-chip" id="showcase-badge">Tablet · 1200×720</span>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Companion Fork Callout -->
-    <section class="section" style="padding-top: 8px; padding-bottom: 44px;">
-      <div class="container">
-        <div class="callout">
-          <div>
-            <strong data-fr="Prérequis serveur : fork compagnon LLM-4-People/hermes-agent"
-                    data-en="Server requirement: companion fork LLM-4-People/hermes-agent">Prérequis serveur : fork compagnon LLM-4-People/hermes-agent</strong>
-            <p data-fr="Hermes Mobile s’appuie sur notre fork dédié LLM-4-People/hermes-agent (révision épinglée 0ae4511b) pour le routage multi-profils sur un seul domaine (/p/&lt;profil&gt;), les patchs d’interface ui.patch, les livraisons push universelles (mobile_deliver), le partage même-serveur, les Notes intelligentes, les diffs d’approbation visuels et Brain Studio."
-               data-en="Hermes Mobile requires our dedicated LLM-4-People/hermes-agent fork (pinned commit 0ae4511b) for single-host multi-profile /p/&lt;profile&gt; routing, live ui.patch editing, universal push deliveries (mobile_deliver), same-server sharing, Smart Notes, visual approval diffs, and Brain Studio.">Hermes Mobile s’appuie sur notre fork dédié LLM-4-People/hermes-agent (révision épinglée 0ae4511b) pour le routage multi-profils sur un seul domaine (/p/&lt;profil&gt;), les patchs d’interface ui.patch, les livraisons push universelles (mobile_deliver), le partage même-serveur, les Notes intelligentes, les diffs d’approbation visuels et Brain Studio.</p>
-          </div>
-          <div class="btn-row">
-            <a class="btn btn-primary" href="https://github.com/LLM-4-People/hermes-agent" rel="noopener noreferrer" data-fr="Voir le fork serveur" data-en="Open Server Fork">Voir le fork serveur</a>
-            <a class="btn btn-secondary" href="docs/#companion-fork" data-fr="Contrats d’API" data-en="Wire Contracts">Contrats d’API</a>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- 10 Capability Pillars -->
-    <section class="section section-alt" id="capabilities">
-      <div class="container">
-        <div class="section-head">
-          <span class="eyebrow" data-fr="10 piliers natifs" data-en="10 Native Pillars">10 piliers natifs</span>
-          <h2 data-fr="Une vraie application Android, sans compromis sur la vie privée"
-              data-en="A genuine native Android client, built fail-closed from day one">Une vraie application Android, sans compromis sur la vie privée</h2>
-          <p data-fr="Chaque surface est rendue avec les vues natives Android (zéro WebView, zéro dépendance tierce inutile) et respecte les contrastes WCAG-AA en modes clair et sombre."
-             data-en="Every screen is built with native Android views (zero WebView, zero unnecessary third-party bloat) and strictly enforces WCAG-AA contrast across light and dark modes.">Chaque surface est rendue avec les vues natives Android (zéro WebView, zéro dépendance tierce inutile) et respecte les contrastes WCAG-AA en modes clair et sombre.</p>
-        </div>
-
-        <div class="pillars-grid">
-          <article class="pillar-card">
-            <div class="pillar-top">
-              <span class="pillar-num">01</span>
-              <h3 data-fr="Interface adaptative 4 onglets" data-en="Adaptive 4-Tab Phone & Tablet Shell">Interface adaptative 4 onglets</h3>
-            </div>
-            <p data-fr="Barre inférieure sur téléphone (masquée automatiquement à l’ouverture du clavier sans perte de focus) et rail latéral 92dp + double volet sur tablette, avec rotation et écran scindé en place."
-               data-en="Bottom navigation bar on phones (auto-hidden when the IME opens without dropping composer focus) and a 92dp NavigationRail + dual-pane layout on tablets with in-place rotation and split-screen.">Barre inférieure sur téléphone (masquée automatiquement à l’ouverture du clavier sans perte de focus) et rail latéral 92dp + double volet sur tablette, avec rotation et écran scindé en place.</p>
-            <div class="pillar-tags"><span class="tag">WorkspaceShell</span><span class="tag">AdaptiveNavBar</span><span class="tag">92dp rail</span></div>
-          </article>
-
-          <article class="pillar-card">
-            <div class="pillar-top">
-              <span class="pillar-num">02</span>
-              <h3 data-fr="Biométrie matérielle &amp; délai de verrouillage" data-en="Hardware Biometrics &amp; Lock Grace">Biométrie matérielle &amp; délai de verrouillage</h3>
-            </div>
-            <p data-fr="Coffres locaux chiffrés par profil (phrase secrète ou biométrie AndroidKeyStore AES-GCM), nettoyage synchrone sur annulation, et fenêtre de grâce configurable avant reverrouillage."
-               data-en="Per-profile encrypted local vaults (passphrase or AndroidKeyStore AES-GCM biometrics), synchronous cancel cleanup, and configurable background lock-grace windows.">Coffres locaux chiffrés par profil (phrase secrète ou biométrie AndroidKeyStore AES-GCM), nettoyage synchrone sur annulation, et fenêtre de grâce configurable avant reverrouillage.</p>
-            <div class="pillar-tags"><span class="tag">BiometricVault</span><span class="tag">LockGracePolicy</span><span class="tag">FLAG_SECURE</span></div>
-          </article>
-
-          <article class="pillar-card">
-            <div class="pillar-top">
-              <span class="pillar-num">03</span>
-              <h3 data-fr="Intégration native Android 16" data-en="Android 16 Native OS Integration">Intégration native Android 16</h3>
-            </div>
-            <p data-fr="Notifications de progression Live Updates, tuile Quick Settings « Demander à Hermes », raccourcis dynamiques et widgets d’écran d’accueil épinglables à la volée avec isolation stricte par profil."
-               data-en="Live Updates run-progress notifications, Quick Settings tile, dynamic app shortcuts, and on-the-fly pinned Home Screen widgets with strict per-profile ownership isolation.">Notifications de progression Live Updates, tuile Quick Settings « Demander à Hermes », raccourcis dynamiques et widgets d’écran d’accueil épinglables à la volée avec isolation stricte par profil.</p>
-            <div class="pillar-tags"><span class="tag">LiveRunNotification</span><span class="tag">HermesWidgetStore</span><span class="tag">QS Tile</span></div>
-          </article>
-
-          <article class="pillar-card">
-            <div class="pillar-top">
-              <span class="pillar-num">04</span>
-              <h3 data-fr="Édition d’interface en direct (ui.patch)" data-en="Real-Time Live UI Modding (ui.patch)">Édition d’interface en direct (ui.patch)</h3>
-            </div>
-            <p data-fr="Hermes propose des écrans riches (tuiles KPI, sparklines Canvas, tableaux triables, contrôles persistants), des thèmes vérifiés WCAG-AA et des puces d’action rapide — toujours prévisualisables et annulables en un geste."
-               data-en="Hermes proposes rich surfaces (KPI grids, Canvas sparklines, sortable data tables, persistent controls), WCAG-AA validated theme overrides, and quick-action chips — always previewable with 1-tap rollback.">Hermes propose des écrans riches (tuiles KPI, sparklines Canvas, tableaux triables, contrôles persistants), des thèmes vérifiés WCAG-AA et des puces d’action rapide — toujours prévisualisables et annulables en un geste.</p>
-            <div class="pillar-tags"><span class="tag">LiveUiPatchBar</span><span class="tag">ThemePalette</span><span class="tag">Surfaces v2</span></div>
-          </article>
-
-          <article class="pillar-card">
-            <div class="pillar-top">
-              <span class="pillar-num">05</span>
-              <h3 data-fr="Push zéro-fuite &amp; livraisons application fermée" data-en="Zero-Leak Push &amp; Closed-App Deliveries">Push zéro-fuite &amp; livraisons application fermée</h3>
-            </div>
-            <p data-fr="Réveils opaques via UnifiedPush ou FCM sans jamais exposer le contenu des messages dans Google/relais. Le pont push lit mobile_state.db en lecture seule et respecte les Heures calmes et niveaux d’urgence."
-               data-en="Opaque UnifiedPush/FCM wakeups that never expose message content to third-party relays. The push bridge polls mobile_state.db read-only and honors Quiet Hours and urgency levels.">Réveils opaques via UnifiedPush ou FCM sans jamais exposer le contenu des messages dans Google/relais. Le pont push lit mobile_state.db en lecture seule et respecte les Heures calmes et niveaux d’urgence.</p>
-            <div class="pillar-tags"><span class="tag">mobile_deliver</span><span class="tag">mobile_state.db</span><span class="tag">Quiet Hours</span></div>
-          </article>
-
-          <article class="pillar-card">
-            <div class="pillar-top">
-              <span class="pillar-num">06</span>
-              <h3 data-fr="Cerveau (Brain Studio) &amp; partage même-serveur" data-en="Brain Studio &amp; Same-Server Sharing">Cerveau (Brain Studio) &amp; partage même-serveur</h3>
-            </div>
-            <p data-fr="Mémoire éditable, Notes intelligentes, habitudes suggérées uniquement après 3 répétitions, recherche globale FTS5, Studio de compétences, explorateur de fichiers/diffs Git, et partage contrôlé des 7 types d’objets entre profils du même serveur."
-               data-en="Editable Memory, AI Smart Notes, pattern-gated Habits (&gt;= 3 repeats), FTS5 Global Search, Skill Studio, Workspace Files &amp; Git Diffs, Thread Pin/Fork/Export, and ACL sharing across all 7 item kinds on the same server.">Mémoire éditable, Notes intelligentes, habitudes suggérées uniquement après 3 répétitions, recherche globale FTS5, Studio de compétences, explorateur de fichiers/diffs Git, et partage contrôlé des 7 types d’objets entre profils du même serveur.</p>
-            <div class="pillar-tags"><span class="tag">NotesPanel</span><span class="tag">SkillStudio</span><span class="tag">FTS5 Search</span></div>
-          </article>
-
-          <article class="pillar-card">
-            <div class="pillar-top">
-              <span class="pillar-num">07</span>
-              <h3 data-fr="Intelligence ambiante sans root" data-en="Zero-Root Ambient Intelligence">Intelligence ambiante sans root</h3>
-            </div>
-            <p data-fr="Pont de notifications opt-in avec filtrage strict des codes OTP, banques et jetons API, réponses rapides toujours révisées par l’utilisateur, contrôle média et contexte calendrier/contacts/appareil opt-in."
-               data-en="Opt-in notification bridge with hard blocking for OTPs, banking alerts, and API tokens, user-reviewed Quick-Reply, Media session controls, and opt-in Calendar/Contacts/Device context.">Pont de notifications opt-in avec filtrage strict des codes OTP, banques et jetons API, réponses rapides toujours révisées par l’utilisateur, contrôle média et contexte calendrier/contacts/appareil opt-in.</p>
-            <div class="pillar-tags"><span class="tag">NotificationPrivacyGuard</span><span class="tag">Quick-Reply</span><span class="tag">Opt-in</span></div>
-          </article>
-
-          <article class="pillar-card">
-            <div class="pillar-top">
-              <span class="pillar-num">08</span>
-              <h3 data-fr="Lecture de code, diffs visuels &amp; voix duplex" data-en="CodeReader, Visual Diffs &amp; Duplex Voice">Lecture de code, diffs visuels &amp; voix duplex</h3>
-            </div>
-            <p data-fr="Coloration syntaxique multi-langages, recherche Unicode sûre, cartes d’approbation avec hunks colorés, dictée sur l’appareil, lecture vocale hors connexion et mode mains-libres duplex."
-               data-en="Multi-language syntax highlighting, Unicode-safe search, visual hunk diff approvals, on-device speech recognition, offline TTS playback, and hands-free duplex voice mode.">Coloration syntaxique multi-langages, recherche Unicode sûre, cartes d’approbation avec hunks colorés, dictée sur l’appareil, lecture vocale hors connexion et mode mains-libres duplex.</p>
-            <div class="pillar-tags"><span class="tag">CodeReader</span><span class="tag">DiffRenderer</span><span class="tag">DuplexVoice</span></div>
-          </article>
-
-          <article class="pillar-card">
-            <div class="pillar-top">
-              <span class="pillar-num">09</span>
-              <h3 data-fr="Capture universelle &amp; actions Android vérifiées" data-en="Universal Capture &amp; Reviewed OS Actions">Capture universelle &amp; actions Android vérifiées</h3>
-            </div>
-            <p data-fr="Partage entrant de texte, photos et documents (EXIF supprimé), pastille de collage presse-papiers opt-in, explorateur de lieux OpenStreetMap multi-catégories et actions Android en deux temps (agenda, alarme, itinéraire, SMS, courriel)."
-               data-en="Inbound text, photo, and document sharing (EXIF stripped), opt-in clipboard paste pill, generalized OpenStreetMap Nearby Explorer, and two-step reviewed OS handoffs (Calendar, Alarm, Maps, SMS, Email).">Partage entrant de texte, photos et documents (EXIF supprimé), pastille de collage presse-papiers opt-in, explorateur de lieux OpenStreetMap multi-catégories et actions Android en deux temps (agenda, alarme, itinéraire, SMS, courriel).</p>
-            <div class="pillar-tags"><span class="tag">CapturedMedia</span><span class="tag">DeviceReview</span><span class="tag">NearbyGuide</span></div>
-          </article>
-
-          <article class="pillar-card">
-            <div class="pillar-top">
-              <span class="pillar-num">10</span>
-              <h3 data-fr="Un seul domaine HTTPS &amp; bilinguisme FR / EN" data-en="Single HTTPS Hostname &amp; Bilingual FR / EN">Un seul domaine HTTPS &amp; bilinguisme FR / EN</h3>
-            </div>
-            <p data-fr="Déployez toute une équipe ou famille sous une unique adresse HTTPS (/p/&lt;profil&gt;). L’application détecte automatiquement la langue de l’appareil (FR/EN) et la synchronise avec la passerelle."
-               data-en="Serve an entire team or household behind one HTTPS hostname (/p/&lt;profile&gt;). The app auto-detects device language (FR/EN) with 747/747 string parity and syncs preference to the gateway.">Déployez toute une équipe ou famille sous une unique adresse HTTPS (/p/&lt;profil&gt;). L’application détecte automatiquement la langue de l’appareil (FR/EN) et la synchronise avec la passerelle.</p>
-            <div class="pillar-tags"><span class="tag">/p/&lt;profile&gt;</span><span class="tag">747 FR/EN keys</span><span class="tag">Caddy TLS</span></div>
-          </article>
-        </div>
-      </div>
-    </section>
-
-    <!-- Single HTTPS Hostname Architecture SVG -->
-    <section class="section" id="architecture">
-      <div class="container">
-        <div class="section-head">
-          <span class="eyebrow" data-fr="Architecture multi-utilisateurs" data-en="Multi-User Architecture">Architecture multi-utilisateurs</span>
-          <h2 data-fr="Un seul nom d’hôte HTTPS pour tous vos profils isolés"
-              data-en="One single HTTPS hostname serving isolated profiles">Un seul nom d’hôte HTTPS pour tous vos profils isolés</h2>
-          <p data-fr="Aucun sous-domaine par personne à gérer : Caddy termine TLS sur une seule adresse et route chaque préfixe /p/&lt;profil&gt; vers son conteneur gateway et son pont push dédiés, avec clés 256 bits distinctes."
-             data-en="No per-user subdomains to manage: Caddy terminates TLS on one hostname and routes each /p/&lt;profile&gt; prefix to its dedicated gateway container and push bridge with distinct 256-bit keys.">Aucun sous-domaine par personne à gérer : Caddy termine TLS sur une seule adresse et route chaque préfixe /p/&lt;profil&gt; vers son conteneur gateway et son pont push dédiés, avec clés 256 bits distinctes.</p>
-        </div>
-
-        <div class="diagram-frame">
-          <svg viewBox="0 0 920 330" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Single HTTPS hostname /p/profile architecture">
-            <defs>
-              <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-                <path d="M 0 1 L 10 5 L 0 9 z" fill="currentColor"/>
-              </marker>
-            </defs>
-
-            <!-- Android Clients Column -->
-            <g>
-              <rect x="14" y="34" width="186" height="106" rx="14" fill="var(--paper-alt)" stroke="var(--line-strong)" stroke-width="1.5"/>
-              <text x="32" y="62" font-size="14" font-weight="700" fill="var(--ink)">Android · Alice</text>
-              <text x="32" y="84" font-size="12" fill="var(--muted)">Vault AES-GCM + Biometric</text>
-              <text x="32" y="103" font-size="11.5" font-family="monospace" fill="var(--accent)">/p/alice + Bearer A</text>
-              <text x="32" y="122" font-size="11" fill="var(--muted)">Phone / Tablet / Widgets</text>
-
-              <rect x="14" y="182" width="186" height="106" rx="14" fill="var(--paper-alt)" stroke="var(--line-strong)" stroke-width="1.5"/>
-              <text x="32" y="210" font-size="14" font-weight="700" fill="var(--ink)">Android · Bob</text>
-              <text x="32" y="232" font-size="12" fill="var(--muted)">Vault AES-GCM + Biometric</text>
-              <text x="32" y="251" font-size="11.5" font-family="monospace" fill="var(--accent)">/p/bob + Bearer B</text>
-              <text x="32" y="270" font-size="11" fill="var(--muted)">Zero-leak Wakeups</text>
-            </g>
-
-            <!-- Single HTTPS Caddy Ingress -->
-            <g>
-              <rect x="262" y="64" width="212" height="194" rx="16" fill="var(--accent-surface)" stroke="var(--accent)" stroke-width="2"/>
-              <text x="282" y="96" font-size="14.5" font-weight="700" fill="var(--ink)">Single HTTPS Ingress</text>
-              <text x="282" y="118" font-size="12" font-family="monospace" fill="var(--accent)">https://hermes.example.com</text>
-              <line x1="282" y1="134" x2="454" y2="134" stroke="var(--line-strong)" stroke-width="1"/>
-              <text x="282" y="156" font-size="11.5" font-family="monospace" fill="var(--ink)">/p/alice/* → gateway-alice</text>
-              <text x="282" y="177" font-size="11.5" font-family="monospace" fill="var(--ink)">/p/alice/api/mobile/push</text>
-              <text x="282" y="198" font-size="11.5" font-family="monospace" fill="var(--ink)">/p/bob/*   → gateway-bob</text>
-              <text x="282" y="220" font-size="11.5" fill="var(--muted)">Unknown / nested /p/ → 404</text>
-              <text x="282" y="241" font-size="11" fill="var(--muted)">Caddy Auto-TLS · 1 Hostname</text>
-            </g>
-
-            <!-- Isolated Profile Containers -->
-            <g>
-              <rect x="536" y="24" width="370" height="122" rx="14" fill="var(--surface)" stroke="var(--line-strong)" stroke-width="1.5"/>
-              <text x="556" y="50" font-size="14" font-weight="700" fill="var(--ink)">Profile Container: alice (LLM-4-People/hermes-agent)</text>
-              <text x="556" y="72" font-size="12" fill="var(--muted)">Isolated HERMES_HOME · coding workspace · provider.env · 256-bit key</text>
-              <rect x="556" y="88" width="160" height="42" rx="8" fill="var(--paper-alt)" stroke="var(--line)"/>
-              <text x="568" y="106" font-size="11.5" font-weight="600" fill="var(--ink)">gateway-alice</text>
-              <text x="568" y="121" font-size="10.5" fill="var(--muted)">Chat · ui.patch · Brain</text>
-              <rect x="730" y="88" width="160" height="42" rx="8" fill="var(--paper-alt)" stroke="var(--line)"/>
-              <text x="742" y="106" font-size="11.5" font-weight="600" fill="var(--ink)">push-alice (ro)</text>
-              <text x="742" y="121" font-size="10.5" fill="var(--muted)">mobile_state.db → opaque</text>
-
-              <rect x="536" y="176" width="370" height="122" rx="14" fill="var(--surface)" stroke="var(--line-strong)" stroke-width="1.5"/>
-              <text x="556" y="202" font-size="14" font-weight="700" fill="var(--ink)">Profile Container: bob (LLM-4-People/hermes-agent)</text>
-              <text x="556" y="224" font-size="12" fill="var(--muted)">Isolated HERMES_HOME · coding workspace · provider.env · 256-bit key</text>
-              <rect x="556" y="240" width="160" height="42" rx="8" fill="var(--paper-alt)" stroke="var(--line)"/>
-              <text x="568" y="258" font-size="11.5" font-weight="600" fill="var(--ink)">gateway-bob</text>
-              <text x="568" y="273" font-size="10.5" fill="var(--muted)">Chat · ui.patch · Brain</text>
-              <rect x="730" y="240" width="160" height="42" rx="8" fill="var(--paper-alt)" stroke="var(--line)"/>
-              <text x="742" y="258" font-size="11.5" font-weight="600" fill="var(--ink)">push-bob (ro)</text>
-              <text x="742" y="273" font-size="10.5" fill="var(--muted)">UnifiedPush / FCM wakeup</text>
-            </g>
-
-            <!-- Connectors -->
-            <g stroke="var(--accent)" stroke-width="2" fill="none" color="var(--accent)">
-              <path d="M 200 88 L 260 124" marker-end="url(#arrow)"/>
-              <path d="M 200 234 L 260 198" marker-end="url(#arrow)"/>
-              <path d="M 474 128 L 534 88" marker-end="url(#arrow)"/>
-              <path d="M 474 198 L 534 236" marker-end="url(#arrow)"/>
-            </g>
-            <!-- Same-server ACL sharing note -->
-            <text x="536" y="318" font-size="12" fill="var(--muted)">Same-server ACL sharing (notes, skills, surfaces, widgets, threads, files, briefings) — instant owner revoke</text>
-          </svg>
-        </div>
-      </div>
-    </section>
-
-    <!-- 2-Step Quickstart -->
-    <section class="section section-alt" id="quickstart">
-      <div class="container">
-        <div class="section-head">
-          <span class="eyebrow" data-fr="Démarrage rapide" data-en="Quickstart">Démarrage rapide</span>
-          <h2 data-fr="Prêt en 2 étapes" data-en="Up and running in 2 steps">Prêt en 2 étapes</h2>
-          <p data-fr="Compilez ou téléchargez l’APK Android (API 28–36), puis provisionnez un ou plusieurs profils sur un unique serveur HTTPS."
-             data-en="Build or download the Android APK (API 28–36), then provision one or more isolated profiles on a single HTTPS host.">Compilez ou téléchargez l’APK Android (API 28–36), puis provisionnez un ou plusieurs profils sur un unique serveur HTTPS.</p>
-        </div>
-
-        <div class="steps-grid">
-          <div class="step-card">
-            <span class="badge-chip" data-fr="Étape 1 · Android" data-en="Step 1 · Android">Étape 1 · Android</span>
-            <h3 data-fr="Installer l’APK signé &amp; mises à jour GitHub intégrées" data-en="Install the signed APK &amp; built-in GitHub updates">Installer l’APK signé &amp; mises à jour GitHub intégrées</h3>
-            <p data-fr="Téléchargez le dernier APK signé depuis GitHub Releases (l’application vérifie ensuite les nouvelles versions et leur empreinte SHA-256 directement depuis GitHub avant d’ouvrir l’installeur Android), ou compilez localement avec JDK 21 et Android SDK 36."
-               data-en="Download the latest signed APK from GitHub Releases (the app checks new releases and verifies SHA-256 checksums directly from GitHub before launching the Android installer), or build locally with JDK 21 and Android SDK 36.">Téléchargez le dernier APK signé depuis GitHub Releases (l’application vérifie ensuite les nouvelles versions et leur empreinte SHA-256 directement depuis GitHub avant d’ouvrir l’installeur Android), ou compilez localement avec JDK 21 et Android SDK 36.</p>
-            <pre class="code-block"><code>git clone https://github.com/LLM-4-People/hermes-mobile.git
-cd hermes-mobile
-./gradlew :app:assembleDebug
-adb install -r app/build/outputs/apk/debug/app-debug.apk</code></pre>
-            <div class="btn-row">
-              <a class="btn btn-primary" href="https://github.com/LLM-4-People/hermes-mobile/releases/latest" rel="noopener noreferrer" data-latest-apk data-fr="Télécharger l’APK (Dernière version)" data-en="Download APK (Latest Release)">Télécharger l’APK (Dernière version)</a>
-            </div>
-          </div>
-
-          <div class="step-card">
-            <span class="badge-chip" data-fr="Étape 2 · Serveur unique" data-en="Step 2 · Single Host">Étape 2 · Serveur unique</span>
-            <h3 data-fr="Déployer les profils sur un seul hôte HTTPS" data-en="Deploy profiles on one HTTPS host">Déployer les profils sur un seul hôte HTTPS</h3>
-            <p data-fr="Construisez l’image depuis la révision épinglée du fork LLM-4-People/hermes-agent puis générez la pile Docker + Caddy."
-               data-en="Build the image from the pinned LLM-4-People/hermes-agent commit and render the Docker Compose + Caddy stack.">Construisez l’image depuis la révision épinglée du fork LLM-4-People/hermes-agent puis générez la pile Docker + Caddy.</p>
-            <pre class="code-block"><code>python3 deploy/accounts.py "$HOME/.local/share/hermes-deploy" \
-  --image "$image" \
-  --host hermes.example.com \
-  --profile alice --profile bob --push alice
-docker compose -f "$HOME/.local/share/hermes-deploy/compose.json" up -d --build</code></pre>
-            <div class="btn-row">
-              <a class="btn btn-secondary" href="docs/#quickstart" data-fr="Guide de déploiement complet" data-en="Full Deployment Guide">Guide de déploiement complet</a>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Verified Engineering Facts -->
-    <section class="section">
-      <div class="container">
-        <div class="section-head">
-          <span class="eyebrow" data-fr="Preuves vérifiées" data-en="Verified Evidence">Preuves vérifiées</span>
-          <h2 data-fr="Vérifié sur émulateurs Android 16 (API 36) et passerelle réelle"
-              data-en="Verified on live Android 16 (API 36) emulators and real gateways">Vérifié sur émulateurs Android 16 (API 36) et passerelle réelle</h2>
-          <p data-fr="Aucun chiffre inventé : chaque résultat provient de la suite de tests exécutée contre le fork serveur épinglé (0ae4511b)."
-             data-en="Every number below comes directly from automated verification against the pinned companion gateway (0ae4511b).">Aucun chiffre inventé : chaque résultat provient de la suite de tests exécutée contre le fork serveur épinglé (0ae4511b).</p>
-        </div>
-
-        <div class="facts-grid">
-          <div class="fact-box">
-            <div class="fact-value">190 / 190</div>
-            <p class="fact-label" data-fr="Tests unitaires JVM (51 suites) — 0 échec" data-en="JVM unit tests (51 suites) — 0 failures">Tests unitaires JVM (51 suites) — 0 échec</p>
-          </div>
-          <div class="fact-box">
-            <div class="fact-value">145 / 145</div>
-            <p class="fact-label" data-fr="Tests instrumentés androidTest sur API 36 (50 classes)" data-en="Live API 36 androidTest instrumentation tests (50 classes)">Tests instrumentés androidTest sur API 36 (50 classes)</p>
-          </div>
-          <div class="fact-box">
-            <div class="fact-value">27 / 27</div>
-            <p class="fact-label" data-fr="Suites hôte fast_check.py (serveur, push, deploy, docs)" data-en="Host fast_check.py suites (server, push, deploy, docs)">Suites hôte fast_check.py (serveur, push, deploy, docs)</p>
-          </div>
-          <div class="fact-box">
-            <div class="fact-value">API 28–36</div>
-            <p class="fact-label" data-fr="Android 9 à Android 16, zéro WebView" data-en="Android 9 through Android 16, zero WebView">Android 9 à Android 16, zéro WebView</p>
-          </div>
-          <div class="fact-box">
-            <div class="fact-value">747 / 747</div>
-            <p class="fact-label" data-fr="Parité stricte des chaînes FR / EN" data-en="Strict FR / EN string resource key parity">Parité stricte des chaînes FR / EN</p>
-          </div>
-          <div class="fact-box">
-            <div class="fact-value">0ae4511b</div>
-            <p class="fact-label" data-fr="Révision épinglée LLM-4-People/hermes-agent" data-en="Pinned LLM-4-People/hermes-agent revision">Révision épinglée LLM-4-People/hermes-agent</p>
-          </div>
-        </div>
-      </div>
-    </section>
+    <noscript>
+      <p style="margin-top:16px;">JavaScript is disabled. Select a language portal above.</p>
+    </noscript>
   </main>
-
-  <footer class="site-footer">
-    <div class="footer-inner">
-      <div data-fr="Hermes Mobile — Client Android natif pour LLM-4-People/hermes-agent."
-           data-en="Hermes Mobile — Native Android client for LLM-4-People/hermes-agent.">Hermes Mobile — Client Android natif pour LLM-4-People/hermes-agent.</div>
-      <div class="footer-links">
-        <a href="docs/" data-fr="Documentation" data-en="Documentation">Documentation</a>
-        <a href="walkthrough/" data-fr="Galerie API 36" data-en="API 36 Gallery">Galerie API 36</a>
-        <a href="https://github.com/LLM-4-People/hermes-mobile" rel="noopener noreferrer">hermes-mobile</a>
-        <a href="https://github.com/LLM-4-People/hermes-agent" rel="noopener noreferrer">hermes-agent</a>
-      </div>
-    </div>
-  </footer>
-
-  <script src="assets/app.js"></script>
 </body>
 </html>

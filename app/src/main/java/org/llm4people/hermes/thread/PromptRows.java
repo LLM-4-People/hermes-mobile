@@ -24,11 +24,11 @@ final class PromptRows {
 
     PromptRows(ThreadViews ui) {
         this.ui = ui;
-        ui.list.setOnScrollListener(new AbsListView.OnScrollListener() {
-            @Override public void onScroll(AbsListView list, int first, int shown, int total) { checkViewport(); }
-            @Override public void onScrollStateChanged(AbsListView list, int state) {}
-        });
         ui.list.addOnLayoutChangeListener((view, l, t, r, b, ol, ot, or, ob) -> checkViewport());
+    }
+
+    void onScroll() {
+        checkViewport();
     }
 
     private void checkViewport() {

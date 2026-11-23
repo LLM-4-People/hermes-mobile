@@ -61,12 +61,16 @@ public final class Exchange implements Closeable {
             }
             for (int i = 0; i < bytes; i++) wire.append((char) reader.read());
             beforeReply.run();
-            OutputStream out = socket.getOutputStream();
-            String head = "HTTP/1.1 " + status + "\r\n" + headers + "Content-Length: " +
-                    body.length + "\r\nConnection: close\r\n\r\n";
-            out.write(head.getBytes(StandardCharsets.US_ASCII));
-            out.write(body);
-            out.flush();
+            try {
+                OutputStream out = socket.getOutputStream();
+                String head = "HTTP/1.1 " + status + "\r\n" + headers + "Content-Length: " +
+                        body.length + "\r\nConnection: close\r\n\r\n";
+                out.write(head.getBytes(StandardCharsets.US_ASCII));
+                out.write(body);
+                out.flush();
+            } catch (java.net.SocketException clientClosed) {
+                // Client revoked or closed its connection while beforeReply held the response.
+            }
             return wire.toString();
         }
     }

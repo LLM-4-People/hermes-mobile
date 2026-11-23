@@ -1,5 +1,9 @@
 package org.llm4people.hermes.thread;
 
+import org.llm4people.hermes.perf.StreamCoalescer;
+
+import java.util.function.Consumer;
+
 /** A rolling, selectable preview. Reparse the last two display pages as Markdown delimiters arrive. */
 final class LiveTranscript {
     static final int PAGE_CHARS = 1200;
@@ -12,6 +16,15 @@ final class LiveTranscript {
     boolean foldedWorkspace;
     boolean later;
 
+    /** Create a frame-budgeted coalescer wired cleanly to update this rolling preview. */
+    StreamCoalescer coalescer(long frameBudgetMs, Consumer<String> onApplied) {
+        return new StreamCoalescer(frameBudgetMs, snapshot -> {
+            if (update(snapshot, origin) && onApplied != null) {
+                onApplied.accept(snapshot);
+            }
+        });
+    }
+
     String source() { return prior; }
     long windowStart() { return origin.offset + window.offset; }
     TranscriptPage.Cursor readerStart() { return origin.cursor(prior); }
@@ -21,7 +34,7 @@ final class LiveTranscript {
 
     boolean update(String source, RunPreview.Origin start) {
         boolean moved = start != origin;
-        if (!moved && source.equals(prior)) return false;
+        if (!moved && source.length() == prior.length() && source.equals(prior)) return false;
         origin = start;
         later = false;
         if (source.length() > RunFollower.PREVIEW_LIMIT) {

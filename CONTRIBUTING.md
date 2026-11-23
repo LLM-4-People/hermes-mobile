@@ -1,6 +1,6 @@
 # Contributing to Hermes Mobile
 
-Thank you for contributing to Hermes Mobile. Every change should keep the app native, private by default, deterministic to verify, and effortless to use in both English and French.
+Thank you for contributing to Hermes Mobile. Every change should keep the app native, private by default, deterministic to verify, and simple to use in both English and French.
 
 ## Prerequisites
 
@@ -10,7 +10,7 @@ Thank you for contributing to Hermes Mobile. Every change should keep the app na
 - Optional for workflow linting: **Go** (for `actionlint`) and **shellcheck**
 - Companion server checkout from **[LLM-4-People/hermes-agent](https://github.com/LLM-4-People/hermes-agent)** at the revision pinned in `verification/gateway_fixture.py` when running live gateway journeys
 
-## Architecture & Coding Standards
+## Architecture and coding standards
 
 - **Native Android only:** Use Android Views and the Android SDK in Java 17. Do not introduce `WebView`, JavaScript runtimes, or unnecessary third-party Android dependencies (all dependencies live in `gradle/libs.versions.toml`).
 - **Single Source of Truth (SSoT):**
@@ -26,7 +26,7 @@ Thank you for contributing to Hermes Mobile. Every change should keep the app na
 - **Fail-closed security & profile isolation:**
   - Every new feature, permission, or ambient integration must be opt-in and scoped to its owning profile ID. Deleting or locking a profile must immediately clear its active memory, open dialogs, widgets, and cached entries.
 
-## Local Verification Workflow
+## Local verification workflow
 
 Run host checks before opening a pull request:
 
@@ -50,7 +50,7 @@ When changing Android UI, lifecycle, permissions, or storage, also run instrumen
 
 Write deterministic unit and instrumentation tests covering both **expected paths** and **negative/adversarial inputs** (without `Thread.sleep`).
 
-## Pull Request Process
+## Pull request process
 
 1. Branch from current `main` with a focused, descriptive branch name.
 2. If you edited Markdown documentation, edit the templates under `docs/sources/` and run `python3 scripts/docs.py` so `python3 scripts/docs.py --check` passes.

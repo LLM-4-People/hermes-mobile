@@ -22,7 +22,10 @@ People describe what they want in everyday language, by typing, dictating, or us
 
 ## Capabilities and constraints
 
-- **Four adaptive workspaces.** **Discussions**, **Atelier**, **Brain / Cerveau**, and **Activity / Activité** adapt automatically between an IME-aware phone bottom bar and a 92 dp tablet navigation rail with a dual-pane conversation sidebar.
+- **Four adaptive workspaces.** **Discussions**, **Workspace**, **Brain**, and **Activity** adapt automatically between an IME-aware phone bottom bar and a 92 dp tablet navigation rail with a dual-pane conversation sidebar.
+- **Quick command palette & reusable workflows.** A 1-tap searchable overlay (`Ctrl+K` / `Cmd+K`) jumps across actions, recent threads, and encrypted per-profile templates while strictly preserving the Editable Draft Rule.
+- **Concurrent multi-run & multi-user isolation.** Run multiple simultaneous tasks across different discussions for one unlocked profile without canceling active streams or mixing updates, alongside persisted passphrase backoff and atomic profile deletion.
+- **Live Connection Doctor.** Parallel non-blocking checks verify server latency, companion fork capabilities (`51/51`), push, updates, ambient permissions, and language sync with 1-tap fixes and a strictly redacted safe report.
 - **Single source of truth & transparency.** Sessions, jobs, model inventory, capabilities, and available tools come from the connected fork runtime. Usage metrics show their source and scope; unavailable measurements remain visibly unknown rather than fabricated zeros.
 - **Zero-leak private alerts & deliveries.** Closed-app alerts (FCM or self-hosted UnifiedPush) carry only opaque routing metadata. Titles, messages, and delivery payloads stay on the authenticated gateway until the user unlocks the owning profile.
 - **Fail-closed privacy by default.** Local credentials and drafts are encrypted per profile with optional Class-3 biometric unlock and configurable lock grace. Ambient Intelligence (notifications, media, calendar, contacts) starts completely OFF per profile and hard-blocks OTP/2FA codes, password managers, banking apps, and secret lockscreen notifications before content enters memory.

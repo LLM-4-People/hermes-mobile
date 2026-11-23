@@ -21,11 +21,15 @@ import org.llm4people.hermes.artifact.ThemePalette;
 import org.llm4people.hermes.artifact.ThreadInstruments;
 import org.llm4people.hermes.camera.CapturedMedia;
 import org.llm4people.hermes.camera.ThreadCameraCapture;
+import org.llm4people.hermes.customization.AppCustomization;
+import org.llm4people.hermes.customization.AppCustomizationStore;
+import org.llm4people.hermes.customization.InteractiveCardView;
 import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.os.HermesWidgetPinning;
 import org.llm4people.hermes.os.HermesWidgetSpec;
 import org.llm4people.hermes.os.HermesWidgetStore;
 import org.llm4people.hermes.os.LiveRunNotification;
+import org.llm4people.hermes.presence.DeepAndroidActions;
 import org.llm4people.hermes.profile.Account;
 import org.llm4people.hermes.share.ClipboardPastePill;
 import org.llm4people.hermes.share.DeviceBridgeFlow;
@@ -42,6 +46,11 @@ import java.util.LinkedHashMap;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 /** Profile-scoped native workspace. Call its public methods on the Android main thread. */
@@ -55,15 +64,23 @@ public final class ThreadWorkspace implements AutoCloseable {
         default void noticeThread(boolean sameThread) {}
         default void nearbyGuide(ThreadWorkspace origin, String threadId, String runId, JSONObject assistantRow, JSONObject area) {}
         default void runProgress(LiveRunNotification.Snapshot snapshot) {}
+        default JSONObject appPresenceContext() { return null; }
+        default DeepAndroidActions deepAndroidActions() { return null; }
+        default void onCustomizationChanged(AppCustomization customization) {}
+        default void onThemeModeChanged(String themeMode) {}
         JSONObject options(String sessionId);
         void timing(String sessionId, long firstTextMillis, long elapsedMillis, long outputTokens);
     }
+
+    private static final int RPC_WORKERS = 4;
 
     final Activity activity;
     final HermesApi api;
     final Host host;
     final Handler main = new Handler(Looper.getMainLooper());
-    final ExecutorService workers = Executors.newFixedThreadPool(3);
+    final ExecutorService workers = namedFixedPool("hermes-rpc", RPC_WORKERS);
+    final ExecutorService runStreams = boundedStreamPool("hermes-run", ActiveRunTracker.MAX_CONCURRENT_RUNS);
+    final ActiveRunTracker activeRuns = new ActiveRunTracker();
     private final Account account;
     private final VoiceDrafts voice;
     private final ConversationPanes container;
@@ -89,8 +106,14 @@ public final class ThreadWorkspace implements AutoCloseable {
     private long messageCount = -1;
     private List<String> slotOrder = Collections.emptyList();
     private volatile int generation;
+    private volatile int profileEpoch;
     private int inboxOffset;
     private boolean inboxLoaded, inboxLoading, inboxFailed, inboxMore;
+    private final ThreadTailCache tailCache = new ThreadTailCache();
+    private final long tailCacheEpoch;
+    private final InfiniteTranscriptWindow<JSONObject> transcriptWindow = InfiniteTranscriptWindow.forJson();
+    private boolean gatewaySupportsKeyset;
+    private boolean hasOlderMessages;
     private int messageOffset;
     private boolean closed;
     private boolean creating;
@@ -116,6 +139,7 @@ public final class ThreadWorkspace implements AutoCloseable {
         this.api = api;
         this.account = account;
         this.host = host;
+        this.tailCacheEpoch = tailCache.bindProfile(account.id);
         index = new ThreadViews(activity, voice);
         index.inbox(() -> create(UUID.randomUUID().toString(), null, index), () -> loadThreads(true),
                 this::chooseThread, () -> loadThreads(false));
@@ -187,7 +211,40 @@ public final class ThreadWorkspace implements AutoCloseable {
     }
 
     public void stopActiveRun() {
-        if (!closed && run != null) run.stop();
+        if (closed) return;
+        if (run != null && run.canStop()) {
+            run.stop();
+            return;
+        }
+        String bgSession = activeRuns.mostRecentStoppableSession();
+        if (bgSession != null) activeRuns.stopBackground(bgSession, api, workers);
+    }
+
+    /** Stop a specific running discussion (foreground or background) by canonical root session ID. */
+    public boolean stopRun(String sessionId) {
+        if (closed || sessionId == null || sessionId.isEmpty()) return false;
+        if (sessionId.equals(session) && run != null && run.canStop()) {
+            run.stop();
+            return true;
+        }
+        return activeRuns.stopBackground(sessionId, api, workers);
+    }
+
+    /** Number of concurrent active tasks currently running across discussions in this profile. */
+    public int activeRunCount() {
+        return closed ? 0 : activeRuns.activeCount();
+    }
+
+    int profileEpoch() {
+        return profileEpoch;
+    }
+
+    void publishRunProgress() {
+        if (closed) return;
+        if (host != null) host.runProgress(activeRuns.aggregateSnapshot());
+        if (inboxLoaded || inbox.length() > 0 || session != null) {
+            paintIndex();
+        }
     }
 
     public List<ThreadSummary> recentThreads() {
@@ -293,8 +350,8 @@ public final class ThreadWorkspace implements AutoCloseable {
 
     void handleDeviceRequests(String runId, List<DeviceBridgeFlow.BridgeRequest> requests) {
         if (closed || screen == null || requests == null || requests.isEmpty()) return;
-        DeviceBridgeFlow.Executor executor = DeviceBridgeFlow.ambientAwareExecutor(
-                activity, account, new ClipboardPastePill(activity));
+        DeviceBridgeFlow.Executor executor = DeviceBridgeFlow.deepAwareExecutor(
+                activity, account, new ClipboardPastePill(activity), host == null ? null : host.deepAndroidActions());
         for (DeviceBridgeFlow.BridgeRequest req : requests) {
             deviceBridge.promptUser(activity, instrumentHost, screen.root, req, executor, (status, data) ->
                     workers.execute(() -> {
@@ -392,7 +449,7 @@ public final class ThreadWorkspace implements AutoCloseable {
 
     private void inbox(String warning, Runnable recovery) {
         if (closed) return;
-        reset(index);
+        switchScreen(index);
         session = remoteSession = null;
         title = "Conversations";
         inboxWarning = warning;
@@ -437,7 +494,7 @@ public final class ThreadWorkspace implements AutoCloseable {
 
     private void paintIndex() {
         index.indexRows(DiscussionIndex.selectedFirst(inbox, session, remoteSession, title, firstPrompt, messageCount),
-                session, inboxMore);
+                session, inboxMore, activeRuns.badges(), this::stopRun);
         if (inboxLoading) index.paging();
     }
 
@@ -562,12 +619,13 @@ public final class ThreadWorkspace implements AutoCloseable {
 
     private void open(ThreadIdentity identity, String label, String observedRun) {
         if (closed) return;
-        reset(new ThreadViews(activity, voice));
+        switchScreen(new ThreadViews(activity, voice));
         inboxWarning = "";
         inboxRecovery = null;
         session = identity.root;
         remoteSession = identity.tip;
         String id = session;
+        ActiveRunTracker.ReclaimedState reclaimed = activeRuns.reclaimForeground(id);
         namedTitle = identity.name;
         firstPrompt = openingPrompts.getOrDefault(id, identity.prompt);
         title = !namedTitle.isEmpty() || firstPrompt.isEmpty() ? label : firstPrompt;
@@ -596,6 +654,18 @@ public final class ThreadWorkspace implements AutoCloseable {
         }, () -> { if (owner == journal && !closed) run.send(); },
                 () -> { if (owner == journal && !closed) run.stop(); },
                 () -> { if (owner == journal && !closed) loadMessages(true, null); });
+        screen.attachInfiniteScroll(new InfiniteScrollController.Callbacks() {
+            @Override public boolean hasOlder() { return hasOlderMessages; }
+            @Override public boolean hasNewer() { return transcriptWindow.hasNewer(); }
+            @Override public boolean isLoadingOlder() { return loading; }
+            @Override public boolean isLoadingNewer() { return loading; }
+            @Override public void loadOlder() { if (owner == journal && !closed) loadMessages(true, null); }
+            @Override public void loadNewer() { if (owner == journal && !closed) loadNewerMessages(); }
+        }, () -> {
+            if (owner != journal || closed) return;
+            if (transcriptWindow.hasNewer()) loadMessages(false, null);
+            else if (screen != null) screen.scrollToTail();
+        });
         refreshPhoto();
         nearby.restore();
         attachLiveUiControls();
@@ -603,12 +673,13 @@ public final class ThreadWorkspace implements AutoCloseable {
             instruments = new ThreadInstrumentPanel(this, new ThreadInstruments(account, id), instrumentHost);
             screen.instruments = instruments;
         }
+        hydrateFromTailCache(id);
         screen.slots(slotOrder);
         container.select(screen.root);
         indexNotice();
         selectionChanged();
         loadMessages(false, null);
-        run.restore();
+        run.restore(reclaimed);
     }
 
     private void recover(ThreadIdentity identity, String label) {
@@ -622,6 +693,8 @@ public final class ThreadWorkspace implements AutoCloseable {
                         records.put("thread:" + identity.root, null);
                         records.put("thread-photo:" + identity.root, null);
                         account.writeTogether(records);
+                        tailCache.remove(identity.root);
+                        ThreadTailCache.wipeSnapshot(ThreadTailCache.fromAccount(account), identity.root);
                     }
                     catch (RuntimeException failure) { storageError(); return; }
                     open(identity, label);
@@ -667,8 +740,21 @@ public final class ThreadWorkspace implements AutoCloseable {
         ThreadData.RowId oldest = retained == 0 ? null : ThreadData.rowId(messages.optJSONObject(0));
         long priorTotal = messageCount;
         int owner = generation;
-        request(() -> ThreadWindow.read(api::get, query, offset, retained, priorTotal, oldest,
-                () -> owner == generation && requestNo == transcriptRequest), window -> {
+        Long keysetBeforeId = older && gatewaySupportsKeyset ? transcriptWindow.oldestId() : null;
+        request(() -> {
+            if (keysetBeforeId != null) {
+                JSONObject response = api.get(query + ThreadData.PAGE + "&before_id=" + keysetBeforeId);
+                JSONArray pageRows = response.optJSONArray("data");
+                if (pageRows == null) throw new java.io.IOException("Missing transcript");
+                JSONObject pag = response.optJSONObject("pagination");
+                boolean moreFlag = pag != null
+                        ? pag.optBoolean("has_more", pageRows.length() >= ThreadData.PAGE)
+                        : pageRows.length() >= ThreadData.PAGE;
+                return new ThreadWindow(response, pageRows, pageRows.length(), moreFlag);
+            }
+            return ThreadWindow.read(api::get, query, offset, retained, priorTotal, oldest,
+                    () -> owner == generation && requestNo == transcriptRequest);
+        }, window -> {
             if (requestNo != transcriptRequest) return;
             loading = false;
             JSONObject data = window.metadata();
@@ -676,18 +762,54 @@ public final class ThreadWorkspace implements AutoCloseable {
             String tip = ThreadData.string(data, "session_id");
             if (ThreadData.validId(tip)) remoteSession = tip;
             int oldSize = messages.length();
-            messages = ThreadData.visibleMessages(ThreadData.join(page, older ? messages : new JSONArray()));
-            // Advance by the rows this response actually returned. The scroll anchor counts displayed rows.
-            messageOffset = offset + window.rawCount();
+            JSONObject pag = data.optJSONObject("pagination");
+            Long cursorOldest = pag == null ? null : InfiniteTranscriptWindow.parsePositiveLong(pag.opt("oldest_id"));
+            Long cursorNewest = pag == null ? null : InfiniteTranscriptWindow.parsePositiveLong(pag.opt("newest_id"));
+            if (cursorOldest != null || cursorNewest != null) gatewaySupportsKeyset = true;
             long total = ThreadContext.visibleTotal(data);
             boolean hasMore = window.more();
+            JSONArray visiblePage = ThreadData.visibleMessages(page);
+            int prependedCount = 0;
+            int anchorShift = 0;
+            if (keysetBeforeId != null) {
+                InfiniteTranscriptWindow.PageResult result = transcriptWindow.prependOlder(
+                        InfiniteTranscriptWindow.fromJsonArray(visiblePage), hasMore, cursorOldest, total >= 0 ? (int) Math.min(Integer.MAX_VALUE, total) : -1);
+                messages = InfiniteTranscriptWindow.toJsonArray(transcriptWindow.snapshot());
+                hasMore = transcriptWindow.hasOlder();
+                prependedCount = result.prependedCount();
+                anchorShift = result.anchorDelta();
+            } else if (older) {
+                InfiniteTranscriptWindow.PageResult result = transcriptWindow.prependOlder(
+                        InfiniteTranscriptWindow.fromJsonArray(visiblePage), hasMore, cursorOldest,
+                        total >= 0 ? (int) Math.min(Integer.MAX_VALUE, total) : -1);
+                messages = InfiniteTranscriptWindow.toJsonArray(transcriptWindow.snapshot());
+                hasMore = transcriptWindow.hasOlder();
+                prependedCount = result.prependedCount();
+                anchorShift = result.anchorDelta();
+            } else {
+                messages = ThreadData.visibleMessages(ThreadData.join(page, new JSONArray()));
+                transcriptWindow.replaceLatest(InfiniteTranscriptWindow.fromJsonArray(messages), hasMore, cursorOldest, cursorNewest,
+                        total >= 0 ? (int) Math.min(Integer.MAX_VALUE, total) : messages.length());
+                messages = InfiniteTranscriptWindow.toJsonArray(transcriptWindow.snapshot());
+                hasMore = transcriptWindow.hasOlder();
+            }
+            hasOlderMessages = hasMore;
+            // Advance by the rows this response actually returned. The scroll anchor counts displayed rows.
+            messageOffset = offset + window.rawCount();
             emptyTranscript = messages.length() == 0 && !hasMore;
             if (instruments != null) instruments.proposals(messages);
             int top = screen.list.getFirstVisiblePosition();
             Object anchor = retained == 0 ? null : screen.list.getItemAtPosition(top);
             int y = screen.list.getChildCount() == 0 ? 0 : screen.list.getChildAt(0).getTop();
-            screen.rows(messages, hasMore, !older && retained == 0 && !emptyTranscript,
-                    older ? messages.length() - oldSize : 0);
+            screen.rows(messages, hasMore, !older && retained == 0 && !emptyTranscript, prependedCount, anchorShift);
+            if (!older && messages.length() > oldSize && oldSize > 0) {
+                screen.onNewMessagesArrived(messages.length() - oldSize);
+            }
+            if (!older && retained == 0 && !emptyTranscript && session != null) {
+                cacheTail(session, remoteSession, title, messages, hasMore,
+                        transcriptWindow.oldestId(), transcriptWindow.newestId(),
+                        total >= 0 ? (int) Math.min(Integer.MAX_VALUE, total) : messages.length());
+            }
             if (retained > 0) {
                 if (anchor instanceof JSONObject previous) {
                     ThreadData.RowId id = ThreadData.rowId(previous);
@@ -721,6 +843,60 @@ public final class ThreadWorkspace implements AutoCloseable {
             loading = false;
             error(e, () -> loadMessages(older, loaded, keepPosition));
         });
+    }
+
+    /** Real downward keyset paging ({@code after_id}) when scrolling forward from deep history. */
+    void loadNewerMessages() {
+        if (closed || loading || session == null) return;
+        Long afterId = transcriptWindow.newestId();
+        if (!gatewaySupportsKeyset || afterId == null || afterId <= 0L) {
+            loadMessages(false, null);
+            return;
+        }
+        loading = true;
+        int requestNo = ++transcriptRequest;
+        String path = ThreadData.path(session);
+        String url = path + "/messages?order=oldest&visible_only=true&include_compacted=true&limit="
+                + ThreadData.PAGE + "&after_id=" + afterId;
+        request(() -> {
+            JSONObject response = api.get(url);
+            JSONArray pageRows = response.optJSONArray("data");
+            if (pageRows == null) throw new java.io.IOException("Missing transcript");
+            JSONObject pag = response.optJSONObject("pagination");
+            boolean moreNewer = pag != null
+                    ? pag.optBoolean("has_more", pageRows.length() >= ThreadData.PAGE)
+                    : pageRows.length() >= ThreadData.PAGE;
+            return new ThreadWindow(response, pageRows, pageRows.length(), moreNewer);
+        }, window -> {
+            if (requestNo != transcriptRequest) return;
+            loading = false;
+            JSONObject data = window.metadata();
+            JSONObject pag = data.optJSONObject("pagination");
+            Long cursorNewest = pag == null ? null : InfiniteTranscriptWindow.parsePositiveLong(pag.opt("newest_id"));
+            long total = ThreadContext.visibleTotal(data);
+            JSONArray visiblePage = ThreadData.visibleMessages(window.rows());
+            InfiniteTranscriptWindow.PageResult result = transcriptWindow.appendNewer(
+                    InfiniteTranscriptWindow.fromJsonArray(visiblePage), window.more(), cursorNewest,
+                    total >= 0 ? (int) Math.min(Integer.MAX_VALUE, total) : -1);
+            messages = InfiniteTranscriptWindow.toJsonArray(transcriptWindow.snapshot());
+            hasOlderMessages = transcriptWindow.hasOlder();
+            if (instruments != null) instruments.proposals(messages);
+            screen.rows(messages, hasOlderMessages, false, 0, result.anchorDelta());
+            if (!transcriptWindow.hasNewer() && session != null && messages.length() > 0) {
+                cacheTail(session, remoteSession, title, messages, hasOlderMessages,
+                        transcriptWindow.oldestId(), transcriptWindow.newestId(),
+                        total >= 0 ? (int) Math.min(Integer.MAX_VALUE, total) : messages.length());
+            }
+        }, e -> {
+            if (requestNo != transcriptRequest) return;
+            loading = false;
+            error(e, this::loadNewerMessages);
+        });
+    }
+
+    /** Release in-RAM decoded tail snapshots under OS memory pressure without bumping profileEpoch. */
+    public void onTrimMemory() {
+        tailCache.onTrimMemory();
     }
     private void rememberOpening(String value) {
         firstPrompt = value;
@@ -777,12 +953,13 @@ public final class ThreadWorkspace implements AutoCloseable {
     private String appliedLiveUiRevisionId;
 
     public void onBackground() {
-        nearby.clearTurn();
-        voice.reader().stop();
+        if (nearby != null) nearby.clearTurn();
+        if (voice != null && voice.reader() != null) voice.reader().stop();
         deviceBridge.dismissDialogs();
         if (!closed) {
             ++generation;
             main.removeCallbacksAndMessages(null);
+            activeRuns.stopAllWatchers();
             if (screen != null) screen.dismiss();
             if (instruments != null) { instruments.retire(); instruments = null; }
             try {
@@ -791,17 +968,36 @@ public final class ThreadWorkspace implements AutoCloseable {
             } catch (RuntimeException unavailable) {
                 storageError();
             }
+            notifyIdleSafely(host);
         }
     }
 
-    private void reset(ThreadViews next) {
-        onBackground();
-        if (journal != null) journal.retire();
+    /** Switch between discussions inside the same unlocked profile without cancelling active SSE runs. */
+    private void switchScreen(ThreadViews next) {
+        nearby.clearTurn();
+        voice.reader().stop();
+        deviceBridge.dismissDialogs();
+        boolean handedOff = false;
+        if (!closed) {
+            ++generation;
+            main.removeCallbacksAndMessages(null);
+            if (screen != null) screen.dismiss();
+            if (instruments != null) { instruments.retire(); instruments = null; }
+            try {
+                if (run != null) handedOff = run.detachForThreadSwitch();
+                if (journal != null) journal.flush();
+            } catch (RuntimeException unavailable) {
+                storageError();
+            }
+        }
+        if (!handedOff && journal != null) journal.retire();
         importingPhoto = false;
         loading = creating = inboxLoading = false;
         run = null;
         journal = null;
         messages = new JSONArray();
+        transcriptWindow.clear();
+        hasOlderMessages = false;
         messageOffset = 0;
         messageCount = -1;
         emptyTranscript = false;
@@ -813,13 +1009,24 @@ public final class ThreadWorkspace implements AutoCloseable {
         screen = next;
     }
 
+    static void revokeApiSafely(HermesApi client) {
+        if (client != null) client.revoke();
+    }
+
+    static void notifyIdleSafely(Host target) {
+        if (target != null) target.runProgress(LiveRunNotification.Snapshot.idle());
+    }
+
     @Override public void close() {
         if (closed) return;
+        ++profileEpoch;
+        revokeApiSafely(api);
         try { onBackground(); }
         finally {
             closed = true;
             if (journal != null) journal.retire();
             workers.shutdownNow();
+            runStreams.shutdownNow();
             drafts.shutdownNow();
             index.indexRows(new JSONArray(), null, false);
             index.notice("", "", null);
@@ -831,6 +1038,9 @@ public final class ThreadWorkspace implements AutoCloseable {
             journal = null;
             session = remoteSession = null;
             messages = new JSONArray();
+            tailCache.clear();
+            transcriptWindow.clear();
+            hasOlderMessages = false;
             inbox = new JSONArray();
             inboxLoaded = inboxLoading = inboxFailed = inboxMore = false;
             inboxRecovery = null;
@@ -841,28 +1051,59 @@ public final class ThreadWorkspace implements AutoCloseable {
         }
     }
 
+    private static ExecutorService namedFixedPool(String prefix, int size) {
+        AtomicInteger counter = new AtomicInteger(1);
+        ThreadFactory factory = r -> {
+            Thread t = new Thread(r, prefix + "-" + counter.getAndIncrement());
+            t.setDaemon(true);
+            return t;
+        };
+        return Executors.newFixedThreadPool(size, factory);
+    }
+
+    private static ExecutorService boundedStreamPool(String prefix, int maxThreads) {
+        AtomicInteger counter = new AtomicInteger(1);
+        ThreadPoolExecutor pool = new ThreadPoolExecutor(
+                maxThreads, maxThreads, 30L, TimeUnit.SECONDS,
+                new LinkedBlockingQueue<>(),
+                r -> {
+                    Thread t = new Thread(r, prefix + "-" + counter.getAndIncrement());
+                    t.setDaemon(true);
+                    return t;
+                });
+        pool.allowCoreThreadTimeOut(true);
+        return pool;
+    }
+
     <T> void request(Callable<T> work, Consumer<T> success, Consumer<Exception> failure) {
         int generationAtStart = generation;
+        int epochAtStart = profileEpoch;
         workers.execute(() -> {
+            if (closed || epochAtStart != profileEpoch || api.isRevoked()) return;
             try {
                 T data = work.call();
-                deliver(generationAtStart, () -> success.accept(data));
+                deliver(generationAtStart, epochAtStart, () -> success.accept(data));
             } catch (Exception e) {
-                deliver(generationAtStart, () -> failure.accept(e));
+                deliver(generationAtStart, epochAtStart, () -> failure.accept(e));
             }
         });
     }
 
     public BooleanSupplier discussionOrigin() {
         int token = generation;
-        return () -> !closed && generation == token;
+        int epoch = profileEpoch;
+        return () -> !closed && generation == token && profileEpoch == epoch;
     }
 
     int token() { return generation; }
 
     void deliver(int token, Runnable update) {
+        deliver(token, profileEpoch, update);
+    }
+
+    void deliver(int token, int epoch, Runnable update) {
         main.post(() -> {
-            if (!closed && token == generation) {
+            if (!closed && token == generation && epoch == profileEpoch) {
                 try { update.run(); }
                 catch (IllegalStateException e) { storageError(); }
             }
@@ -896,6 +1137,7 @@ public final class ThreadWorkspace implements AutoCloseable {
     void clearSuggestedActions() {
         if (closed || screen == null) return;
         screen.suggestedActions(Collections.emptyList(), null, null, null, null, null);
+        screen.interactiveCards(Collections.emptyList(), null);
     }
 
     /** Reconciles composer quick actions and LiveUiPatchBar after external layout/rollback changes. */
@@ -950,7 +1192,11 @@ public final class ThreadWorkspace implements AutoCloseable {
         try {
             LiveUiPatch patch = LiveUiPatch.parse(rawPatch, ThemePalette.isNight(activity));
             appliedLiveUiRevisionId = null;
-            screen.liveUiBar.present(patch);
+            if (!patch.ops.isEmpty()) {
+                screen.liveUiBar.present(patch);
+            } else {
+                screen.liveUiBar.clear();
+            }
             if (!patch.suggestedActions.isEmpty()) {
                 ThemePalette palette = ThemePalette.active(activity, account);
                 screen.suggestedActions(patch.suggestedActions, palette,
@@ -959,10 +1205,47 @@ public final class ThreadWorkspace implements AutoCloseable {
                         action -> { if (instrumentHost != null) instrumentHost.onAction(action); },
                         this::pinWidgetById);
             }
+            screen.interactiveCards(patch.interactiveCards,
+                    patch.interactiveCards.isEmpty() ? null : interactiveCardCallbacks(patch.interactiveCards));
             Diagnostics.event("live_ui", "patch_presented");
         } catch (java.io.IOException rejected) {
             Diagnostics.warning("live_ui", "patch_rejected");
         }
+    }
+
+    private InteractiveCardView.Callbacks interactiveCardCallbacks(List<InteractiveCardView.Spec> cards) {
+        return new InteractiveCardView.Callbacks() {
+            @Override public void onQuickPickDraft(String cardId, String choiceId, String draftText) {
+                if (!closed && draftText != null && !draftText.isEmpty()) stageDraft(draftText);
+            }
+            @Override public void onApplyCustomization(String cardId, AppCustomization proposed) {
+                if (closed || account == null || proposed == null) return;
+                InteractiveCardView.Spec matched = null;
+                if (cards != null && cardId != null) {
+                    for (InteractiveCardView.Spec candidate : cards) {
+                        if (candidate != null && cardId.equals(candidate.cardId)) {
+                            matched = candidate;
+                            break;
+                        }
+                    }
+                }
+                AppCustomizationStore store = AppCustomizationStore.forAccount(account);
+                AppCustomization merged = matched != null ? matched.mergeOnto(store.current()) : proposed;
+                AppCustomization applied = store.apply(merged);
+                if (host != null) {
+                    if (matched != null && matched.customizationDelta != null
+                            && matched.customizationDelta.themeMode() != null) {
+                        host.onThemeModeChanged(matched.customizationDelta.themeMode());
+                    }
+                    host.onCustomizationChanged(applied);
+                }
+            }
+            @Override public void onUndoCustomization(String cardId) {
+                if (closed || account == null) return;
+                AppCustomization restored = AppCustomizationStore.forAccount(account).undo();
+                if (host != null) host.onCustomizationChanged(restored);
+            }
+        };
     }
 
     private void pinWidgetById(String widgetId) {
@@ -1077,6 +1360,50 @@ public final class ThreadWorkspace implements AutoCloseable {
                 this::stageDraft,
                 page -> { if (instrumentHost != null) instrumentHost.openWorkspace(page); },
                 action -> { if (instrumentHost != null) instrumentHost.onAction(action); });
+    }
+
+    private void hydrateFromTailCache(String threadId) {
+        if (closed || screen == null || threadId == null || threadId.isEmpty()) return;
+        ThreadTailCache.Entry cached = tailCache.get(tailCacheEpoch, threadId);
+        if (cached == null) {
+            cached = ThreadTailCache.loadSnapshot(ThreadTailCache.fromAccount(account), threadId);
+            if (cached != null) tailCache.put(tailCacheEpoch, cached);
+        }
+        if (cached == null || cached.encodedRows().isEmpty()) return;
+        List<JSONObject> parsed = new java.util.ArrayList<>(cached.encodedRows().size());
+        for (String raw : cached.encodedRows()) {
+            try { parsed.add(new JSONObject(raw)); }
+            catch (org.json.JSONException ignored) {}
+        }
+        if (parsed.isEmpty()) return;
+        transcriptWindow.replaceLatest(parsed, cached.hasMore(), cached.oldestId(), cached.newestId(), cached.totalCount());
+        messages = InfiniteTranscriptWindow.toJsonArray(transcriptWindow.snapshot());
+        hasOlderMessages = transcriptWindow.hasOlder();
+        emptyTranscript = false;
+        if (instruments != null) instruments.proposals(messages);
+        screen.rows(messages, hasOlderMessages, true, 0);
+    }
+
+    private void cacheTail(String threadId, String remoteId, String threadTitle, JSONArray rows,
+                           boolean hasMore, Long oldestId, Long newestId, int totalCount) {
+        if (closed || threadId == null || threadId.isEmpty() || rows == null || rows.length() == 0) return;
+        int start = Math.max(0, rows.length() - ThreadTailCache.MAX_MESSAGES_PER_THREAD);
+        List<String> encoded = new java.util.ArrayList<>(rows.length() - start);
+        for (int i = start; i < rows.length(); i++) {
+            JSONObject row = rows.optJSONObject(i);
+            if (row != null) encoded.add(row.toString());
+        }
+        if (encoded.isEmpty()) return;
+        ThreadTailCache.Entry entry = new ThreadTailCache.Entry(
+                threadId, remoteId, threadTitle, encoded, hasMore, oldestId, newestId,
+                totalCount, System.currentTimeMillis());
+        if (!tailCache.put(tailCacheEpoch, entry)) return;
+        int epochSnapshot = profileEpoch;
+        drafts.execute(() -> {
+            if (!closed && epochSnapshot == profileEpoch) {
+                ThreadTailCache.saveSnapshot(ThreadTailCache.fromAccount(account), entry);
+            }
+        });
     }
 
     void storageError() {

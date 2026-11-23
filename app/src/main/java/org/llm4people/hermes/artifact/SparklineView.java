@@ -5,6 +5,7 @@ import android.graphics.Canvas;
 import android.graphics.DashPathEffect;
 import android.graphics.Paint;
 import android.graphics.Path;
+import android.graphics.RectF;
 import android.util.JsonReader;
 import android.util.JsonToken;
 import android.view.View;
@@ -132,13 +133,21 @@ public final class SparklineView extends View {
     private final Paint targetPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Path linePath = new Path();
     private final Path fillPath = new Path();
+    private final RectF frameRect = new RectF();
+    private final RectF barRect = new RectF();
     private final float dp;
+    private final int desiredWidthPx;
+    private final int desiredHeightPx;
+    private final int mutedBarColor;
 
     public SparklineView(Context context, Series series, ThemePalette palette) {
         super(context);
         this.series = series;
         this.palette = palette == null ? ThemePalette.resolve(ThemePalette.OverrideSpec.defaults(), ThemePalette.isNight(context)) : palette;
         this.dp = context.getResources().getDisplayMetrics().density;
+        this.desiredWidthPx = Ui.dp(context, 240);
+        this.desiredHeightPx = Ui.dp(context, 96);
+        this.mutedBarColor = ThemePalette.blendTint(this.palette.accent, this.palette.paper, 0.45f);
         targetPaint.setStyle(Paint.Style.STROKE);
         targetPaint.setStrokeWidth(1.25f * dp);
         targetPaint.setColor(this.palette.muted);
@@ -148,9 +157,8 @@ public final class SparklineView extends View {
     }
 
     @Override protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-        int desiredHeight = Ui.dp(getContext(), 96);
-        int h = resolveSize(desiredHeight, heightMeasureSpec);
-        int w = resolveSize(Ui.dp(getContext(), 240), widthMeasureSpec);
+        int h = resolveSize(desiredHeightPx, heightMeasureSpec);
+        int w = resolveSize(desiredWidthPx, widthMeasureSpec);
         setMeasuredDimension(w, h);
     }
 
@@ -163,13 +171,17 @@ public final class SparklineView extends View {
         if (w <= 4 || h <= 4) return;
 
         // Calm paper surface frame
+        float corner = 8 * dp;
+        frameRect.set(0, 0, getWidth(), getHeight());
         paint.setStyle(Paint.Style.FILL);
         paint.setColor(palette.surface);
-        canvas.drawRoundRect(0, 0, getWidth(), getHeight(), 8 * dp, 8 * dp, paint);
+        canvas.drawRoundRect(frameRect, corner, corner, paint);
+        float halfStroke = 0.5f * dp;
+        frameRect.set(halfStroke, halfStroke, getWidth() - halfStroke, getHeight() - halfStroke);
         paint.setStyle(Paint.Style.STROKE);
         paint.setStrokeWidth(Math.max(1f, dp));
         paint.setColor(palette.line);
-        canvas.drawRoundRect(0.5f * dp, 0.5f * dp, getWidth() - 0.5f * dp, getHeight() - 0.5f * dp, 8 * dp, 8 * dp, paint);
+        canvas.drawRoundRect(frameRect, corner, corner, paint);
 
         // Optional goal reference line
         float targetNorm = series.normalizedTarget();
@@ -182,13 +194,15 @@ public final class SparklineView extends View {
         if ("bar".equals(series.style)) {
             float gap = Math.max(2 * dp, w / (n * 5f));
             float barW = Math.max(2 * dp, (w - gap * (n - 1)) / n);
+            float barCorner = 3 * dp;
             paint.setStyle(Paint.Style.FILL);
             for (int i = 0; i < n; i++) {
                 float left = padX + i * (barW + gap);
-                float barH = Math.max(3 * dp, h * series.normalized[i]);
+                float barH = Math.max(barCorner, h * series.normalized[i]);
                 float top = padY + h - barH;
-                paint.setColor(i == n - 1 ? palette.accent : ThemePalette.blendTint(palette.accent, palette.paper, 0.45f));
-                canvas.drawRoundRect(left, top, left + barW, padY + h, 3 * dp, 3 * dp, paint);
+                paint.setColor(i == n - 1 ? palette.accent : mutedBarColor);
+                barRect.set(left, top, left + barW, padY + h);
+                canvas.drawRoundRect(barRect, barCorner, barCorner, paint);
             }
             return;
         }

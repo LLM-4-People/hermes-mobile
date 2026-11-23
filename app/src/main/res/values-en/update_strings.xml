@@ -33,7 +33,7 @@
     <string name="update_error_too_large">The package exceeds the maximum allowed size and was rejected.</string>
     <string name="update_error_install_launch">Could not open the Android installer.</string>
     <string name="update_permission_title">Allow app installs</string>
-    <string name="update_permission_body">To install this verified release, allow Hermes Mobile to install unknown apps in Android Settings, then return here.</string>
+    <string name="update_permission_body">To install this verified release, allow Hermes Mobile to install unknown apps in Android settings, then return here.</string>
     <string name="update_permission_open_settings">Open settings</string>
     <string name="update_badge_available">Update %1$s available</string>
 </resources>

@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from native_tests import RUNNER, crash_summary, packaged_cases, run, shard_cases, successful_cases
+from native_tests import RUNNER, crash_summary, in_flight_cases, packaged_cases, run, shard_cases, successful_cases
 
 
 def status(method, code, count=1):
@@ -70,7 +70,8 @@ java.lang.NoClassDefFoundError: private content
     def test_complete_packaged_discovery_and_execution_pass(self):
         with tempfile.TemporaryDirectory() as temporary:
             commands = []
-            def adb(command, *, stdout, stderr):
+            def adb(command, *, stdout, stderr, timeout=None):
+                self.assertGreater(timeout, 0)
                 commands.append(command)
                 stdout.write(report())
                 return subprocess.CompletedProcess(command, 0)
@@ -82,10 +83,11 @@ java.lang.NoClassDefFoundError: private content
     def test_installed_discovery_and_actual_execution_must_match(self):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
-            def adb(command, *, stdout, stderr):
+            def adb(command, *, stdout, stderr, timeout=None):
                 self.assertEqual(command[:7], ["adb", "-s", "serial", "shell", "am", "instrument", "-w"])
                 self.assertEqual(command[-1], RUNNER)
                 self.assertEqual(stderr, subprocess.STDOUT)
+                self.assertGreater(timeout, 0)
                 stdout.write(report("testLaunch" if "log" in command else "testDifferent"))
                 return subprocess.CompletedProcess(command, 0)
             with patch("native_tests.subprocess.run", adb), contextlib.redirect_stderr(io.StringIO()), self.assertRaisesRegex(ValueError, "test sets differ"):
@@ -95,7 +97,8 @@ java.lang.NoClassDefFoundError: private content
     def test_adb_failure_stops_before_execution_and_retains_diagnostic(self):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
-            def adb(command, *, stdout, stderr):
+            def adb(command, *, stdout, stderr, timeout=None):
+                self.assertGreater(timeout, 0)
                 stdout.write("device disconnected")
                 return subprocess.CompletedProcess(command, 17)
             log = io.StringIO()
@@ -104,6 +107,31 @@ java.lang.NoClassDefFoundError: private content
                 run("serial", directory, self.expected)
             self.assertEqual(log.getvalue().strip(), "device disconnected")
             self.assertFalse((directory / "execution.txt").exists())
+
+    def test_timeout_reports_exact_in_flight_test_case(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            expected = {("app.FrameworkTest", "testPass"), ("app.FrameworkTest", "testHung")}
+            def adb(command, *, stdout, stderr, timeout=None):
+                if "log" in command:
+                    stdout.write(
+                        status("testPass", 1, 2) + status("testPass", 0, 2)
+                        + status("testHung", 1, 2) + status("testHung", 0, 2)
+                        + "OK (2 tests)\nINSTRUMENTATION_CODE: -1\n"
+                    )
+                    return subprocess.CompletedProcess(command, 0)
+                stdout.write(status("testPass", 1, 2) + status("testPass", 0, 2) + status("testHung", 1, 2))
+                stdout.flush()
+                raise subprocess.TimeoutExpired(command, timeout)
+            log = io.StringIO()
+            with (patch("native_tests.subprocess.run", adb), contextlib.redirect_stderr(log),
+                  self.assertRaisesRegex(ValueError, r"timed out.*completed 1/2.*app\.FrameworkTest#testHung")):
+                run("serial", directory, expected)
+            self.assertIn("app.FrameworkTest#testHung", log.getvalue())
+            self.assertEqual(
+                in_flight_cases(status("testPass", 1, 2) + status("testPass", 0, 2) + status("testHung", 1, 2)),
+                (1, [("app.FrameworkTest", "testHung")]),
+            )
 
     def test_shard_cases_partitions_completely_disjointly_and_balances_load(self):
         cases = {
