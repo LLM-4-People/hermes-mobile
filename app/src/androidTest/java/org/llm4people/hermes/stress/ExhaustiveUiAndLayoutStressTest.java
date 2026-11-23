@@ -81,11 +81,24 @@ public final class ExhaustiveUiAndLayoutStressTest extends InstrumentationTestCa
             "Bearer sk-ant-adversarialSECRET999 ghp_1234567890abcdef token=leak_me"
     };
 
+    private MainActivity launchMain() {
+        Context app = getInstrumentation().getTargetContext();
+        MainActivity activity = launchActivity(app.getPackageName(), MainActivity.class, null);
+        getInstrumentation().waitForIdleSync();
+        return activity;
+    }
+
+    private void finishMain(Activity activity) throws Throwable {
+        if (activity != null) {
+            runTestOnUiThread(activity::finish);
+            getInstrumentation().waitForIdleSync();
+        }
+    }
+
     public void testAllNativePanelsPassMechanicalLayoutIntegrityAcrossViewportFontAndNightMatrix() throws Throwable {
         if (Build.VERSION.SDK_INT < 29) return;
         Context app = getInstrumentation().getTargetContext();
-        Activity activity = getInstrumentation().startActivitySync(
-                app.getPackageManager().getLaunchIntentForPackage(app.getPackageName()));
+        Activity activity = launchMain();
 
         try (WorkspaceAccountFixture profile = new WorkspaceAccountFixture(app, "http://127.0.0.1:1/p/stress")) {
             Configuration originalConfig = new Configuration(activity.getResources().getConfiguration());
@@ -145,15 +158,14 @@ public final class ExhaustiveUiAndLayoutStressTest extends InstrumentationTestCa
                 runTestOnUiThread(() -> restoreConfiguration(activity, originalConfig));
             }
         } finally {
-            runTestOnUiThread(activity::finish);
+            finishMain(activity);
         }
     }
 
     public void testAllSessionPanelsHandlePopulatedEmptyErrorAndLockMidActionCleanly() throws Throwable {
         if (Build.VERSION.SDK_INT < 29) return;
         Context app = getInstrumentation().getTargetContext();
-        Activity activity = getInstrumentation().startActivitySync(
-                app.getPackageManager().getLaunchIntentForPackage(app.getPackageName()));
+        Activity activity = launchMain();
 
         // Phase 1: Populated full-capability companion gateway + layout assertions on every panel.
         try (DynamicLoopbackServer gateway = new DynamicLoopbackServer(ExhaustiveUiAndLayoutStressTest::populatedReply);
@@ -211,15 +223,13 @@ public final class ExhaustiveUiAndLayoutStressTest extends InstrumentationTestCa
             runTestOnUiThread(() -> assertFalse("Activity must stay healthy after lock-mid-action",
                     activity.isFinishing()));
         } finally {
-            runTestOnUiThread(activity::finish);
+            finishMain(activity);
         }
     }
 
     public void testAdversarialInputsAndRapidDoubleTapsPreserveSecurityAndLayoutStability() throws Throwable {
         if (Build.VERSION.SDK_INT < 29) return;
-        Context app = getInstrumentation().getTargetContext();
-        Activity activity = getInstrumentation().startActivitySync(
-                app.getPackageManager().getLaunchIntentForPackage(app.getPackageName()));
+        Activity activity = launchMain();
 
         try {
             for (String payload : ADVERSARIAL_STRINGS) {
@@ -264,15 +274,14 @@ public final class ExhaustiveUiAndLayoutStressTest extends InstrumentationTestCa
                 runTestOnUiThread(panel::close);
             }
         } finally {
-            runTestOnUiThread(activity::finish);
+            finishMain(activity);
         }
     }
 
     public void testUnlockedMainActivityShellTabsPassLayoutIntegrityAcrossPhoneAndTablet() throws Throwable {
         if (Build.VERSION.SDK_INT < 29) return;
         Context app = getInstrumentation().getTargetContext();
-        MainActivity activity = (MainActivity) getInstrumentation().startActivitySync(
-                app.getPackageManager().getLaunchIntentForPackage(app.getPackageName()));
+        MainActivity activity = launchMain();
 
         try (DynamicLoopbackServer gateway = new DynamicLoopbackServer(ExhaustiveUiAndLayoutStressTest::populatedReply);
              WorkspaceAccountFixture profile = new WorkspaceAccountFixture(app, gateway.endpoint())) {
@@ -302,7 +311,7 @@ public final class ExhaustiveUiAndLayoutStressTest extends InstrumentationTestCa
                     assertTrue(tab.getHeight() >= Ui.dp(activity, 48) - 2);
                     assertTrue(tab.performClick());
                 });
-                SystemClock.sleep(150);
+                getInstrumentation().waitForIdleSync();
                 runTestOnUiThread(() -> {
                     View content = activity.findViewById(android.R.id.content);
                     assertNotNull(content);
@@ -310,14 +319,26 @@ public final class ExhaustiveUiAndLayoutStressTest extends InstrumentationTestCa
                 });
             }
         } finally {
-            runTestOnUiThread(activity::finish);
+            finishMain(activity);
         }
     }
 
     private void exercisePanel(String name, Runnable open, Activity activity, String expectedTitle) throws Throwable {
         runTestOnUiThread(open);
         waitForWindowText(expectedTitle, 10_000L);
-        SystemClock.sleep(150);
+        SystemClock.sleep(200);
+        getInstrumentation().waitForIdleSync();
+        long settleDeadline = SystemClock.elapsedRealtime() + 2_000L;
+        while (SystemClock.elapsedRealtime() < settleDeadline) {
+            boolean[] pending = new boolean[1];
+            runTestOnUiThread(() -> {
+                View top = topFocusedWindow();
+                pending[0] = top != null && top.isLayoutRequested();
+            });
+            if (!pending[0]) break;
+            getInstrumentation().waitForIdleSync();
+            SystemClock.sleep(40);
+        }
         runTestOnUiThread(() -> {
             View top = topFocusedWindow();
             assertNotNull("Expected focused dialog window for " + name, top);
@@ -583,19 +604,19 @@ public final class ExhaustiveUiAndLayoutStressTest extends InstrumentationTestCa
                     "session_search":true,"skill_studio":true,"workspace_files":true,
                     "profile_defaults":true,"usage_analytics":true}}""");
         }
-        if (path.contains("/v1/memory")) {
+        if (path.contains("/api/memory") || path.contains("/v1/memory")) {
             return new HttpReply("200 OK", """
                     {"memory":{"entries":[{"id":"m1","text":"Prefers concise answers","pinned":true}],
                     "chars":23,"limit":2200,"enabled":true},
                     "user":{"entries":[{"id":"u1","text":"Lives in Montreal","pinned":false}],
                     "chars":17,"limit":1375,"enabled":true}}""");
         }
-        if (path.contains("/v1/notes")) {
+        if (path.contains("/api/notes") || path.contains("/v1/notes")) {
             return new HttpReply("200 OK", """
                     {"object":"list","data":[{"id":"n1","title":"Weekly plan","body":"Ship release APK",
                     "tags":["work"],"pinned":true,"updated_at":1700000000}]}""");
         }
-        if (path.contains("/v1/shares")) {
+        if (path.contains("/api/shares") || path.contains("/v1/shares")) {
             return new HttpReply("200 OK", """
                     {"object":"list","data":[{"id":"sh1","kind":"note","title":"Shared checklist",
                     "from_profile":"allison","preview":"Verify release checksum"}]}""");
@@ -604,17 +625,17 @@ public final class ExhaustiveUiAndLayoutStressTest extends InstrumentationTestCa
             return new HttpReply("200 OK", """
                     {"data":[{"session_id":"s1","title":"Release thread","snippet":"Signed APK ready"}]}""");
         }
-        if (path.contains("/v1/skills")) {
+        if (path.contains("/api/skills") || path.contains("/v1/skills")) {
             return new HttpReply("200 OK", """
                     {"object":"list","data":[{"name":"code/review","description":"Check PR diffs",
                     "category":"Coding","enabled":true,"writable":true,"source":"user"}]}""");
         }
-        if (path.contains("/v1/workspace/tree")) {
+        if (path.contains("/workspace/tree")) {
             return new HttpReply("200 OK", """
                     {"root":"workspace","entries":[{"path":"README.md","kind":"file","size_bytes":512,
                     "language":"markdown","git_status":"M"}]}""");
         }
-        if (path.contains("/v1/profile")) {
+        if (path.contains("/api/profile") || path.contains("/v1/profile")) {
             return new HttpReply("200 OK", """
                     {"name":"default","description":"Main profile","default_provider":"openai",
                     "default_model":"gpt-5","enabled_toolsets":["web","memory"],"reasoning_effort":"medium",

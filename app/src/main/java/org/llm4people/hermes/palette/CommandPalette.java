@@ -72,6 +72,7 @@ public final class CommandPalette {
         search.setHintTextColor(activity.getColor(R.color.muted));
         search.setTextSize(16);
         search.setMinHeight(Ui.dp(activity, 48));
+        search.setMinimumHeight(Ui.dp(activity, 48));
         Ui.pad(search, 12, 10);
         GradientDrawable inputBg = new GradientDrawable();
         inputBg.setColor(activity.getColor(R.color.surface));
