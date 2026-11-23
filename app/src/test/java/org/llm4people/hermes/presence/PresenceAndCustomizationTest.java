@@ -1,6 +1,7 @@
 package org.llm4people.hermes.presence;
 
 import org.junit.Test;
+import org.llm4people.hermes.artifact.ThemePalette;
 import org.llm4people.hermes.customization.AppCustomization;
 import org.llm4people.hermes.customization.AppCustomizationStore;
 import org.llm4people.hermes.customization.InteractiveCardView;
@@ -473,5 +474,104 @@ public final class PresenceAndCustomizationTest {
         } catch (IllegalArgumentException expected) {
             // ok
         }
+    }
+
+    @Test
+    public void r2FixesCoverAll17NavTargetsStandaloneThemeModePartialCardMergeAndWcag21() {
+        AppPresenceTracker presence = new AppPresenceTracker();
+        presence.bindProfile("p1", 1L);
+        ContinuousLocationTracker location = new ContinuousLocationTracker();
+        AppCustomizationStore store = new AppCustomizationStore(new MemoryBacking());
+        AtomicReference<String> appliedTheme = new AtomicReference<>();
+        AtomicInteger customizationCallbacks = new AtomicInteger();
+        AtomicReference<String> lastNav = new AtomicReference<>();
+
+        DeepAndroidActions actions = new DeepAndroidActions(
+                presence, location, store, new DeepAndroidActions.NudgeRateLimiter(),
+                new DeepAndroidActions.HostBridge() {
+                    @Override public boolean navigate(String kind, String id) { lastNav.set(kind); return true; }
+                    @Override public void onCustomizationChanged(AppCustomization updated) { customizationCallbacks.incrementAndGet(); }
+                    @Override public boolean applyThemeMode(String themeMode) { appliedTheme.set(themeMode); return true; }
+                });
+        long now = 20_000_000L;
+        PresencePolicy off = PresencePolicy.defaults();
+        PushPolicy push = PushPolicy.defaults();
+
+        // 1. All 17 canonical server _NAV_TARGETS + direct panel IDs accepted.
+        for (String target : List.of(
+                "discussions", "atelier", "cerveau", "activite", "command_palette",
+                "memory", "notes", "shared_with_me", "search", "skills",
+                "workspace_files", "profile_defaults", "ambient", "doctor", "presence",
+                "presence_control", "workflow_templates", "connection_doctor")) {
+            assertTrue("Target must be accepted: " + target,
+                    actions.execute("app_navigate", Map.of("target", target), off, push, false, now, 600).ok());
+            assertEquals(target, lastNav.get());
+        }
+
+        // 2. Standalone theme="dark" succeeds and invokes applyThemeMode; invalid theme rejected.
+        assertTrue(actions.execute("app_customize",
+                Map.of("operation", "apply", "theme", "dark"), off, push, true, now, 600).ok());
+        assertEquals("dark", appliedTheme.get());
+        assertEquals(DeepAndroidActions.Status.REJECTED_INVALID_PARAMS,
+                actions.execute("app_customize",
+                        Map.of("operation", "apply", "theme", "neon"), off, push, true, now, 600).status());
+
+        // Non-integer or out-of-range font_scale_step rejected.
+        assertEquals(DeepAndroidActions.Status.REJECTED_INVALID_PARAMS,
+                actions.execute("app_customize",
+                        Map.of("operation", "apply", "font_scale_step", 1.5), off, push, true, now, 600).status());
+        assertEquals(DeepAndroidActions.Status.REJECTED_INVALID_PARAMS,
+                actions.execute("app_customize",
+                        Map.of("operation", "apply", "font_scale_step", 7), off, push, true, now, 600).status());
+
+        // Apply / Undo / Reset all invoke onCustomizationChanged (and reset restores theme="system").
+        assertTrue(actions.execute("app_customize",
+                Map.of("operation", "apply", "accent", "terracotta"), off, push, true, now, 600).ok());
+        assertEquals(1, customizationCallbacks.get());
+        assertTrue(actions.execute("app_customize",
+                Map.of("operation", "undo"), off, push, true, now, 600).ok());
+        assertEquals(2, customizationCallbacks.get());
+        assertTrue(actions.execute("app_customize",
+                Map.of("operation", "reset"), off, push, true, now, 600).ok());
+        assertEquals(3, customizationCallbacks.get());
+        assertEquals("system", appliedTheme.get());
+
+        // 3. Partial customization_preview card preserves existing user settings via mergeOnto().
+        AppCustomization existing = AppCustomization.defaults()
+                .withPalette(AppCustomization.PalettePreset.PLUM, null)
+                .withFontScaleDelta(0.15f)
+                .withStartupTab(AppCustomization.StartupTab.CERVEAU)
+                .withCompanionGreeting("Salut Jacob")
+                .withComposerShortcuts(List.of(new AppCustomization.ComposerShortcut("s1", "Note", "Prends note")));
+        InteractiveCardView.Spec partial = InteractiveCardView.Spec.fromMap(Map.of(
+                "id", "card_partial",
+                "kind", "customization_preview",
+                "title", "Densité",
+                "customization", Map.of("density", "compact")));
+        AppCustomization merged = partial.mergeOnto(existing);
+        assertEquals(AppCustomization.Density.COMPACT, merged.density);
+        assertEquals(AppCustomization.PalettePreset.PLUM, merged.palette);
+        assertEquals(0.15f, merged.fontScaleDelta, 0.001f);
+        assertEquals(AppCustomization.StartupTab.CERVEAU, merged.startupTab);
+        assertEquals("Salut Jacob", merged.companionGreeting);
+        assertEquals(1, merged.composerShortcuts.size());
+
+        // InteractiveCardView rejects out-of-range or non-integer font_scale_step.
+        for (Object badStep : List.of(-4, 7, 1.5)) {
+            try {
+                InteractiveCardView.Spec.fromMap(Map.of(
+                        "id", "card_bad_step",
+                        "kind", "customization_preview",
+                        "title", "Bad",
+                        "customization", Map.of("font_scale_step", badStep)));
+                fail("Expected rejection for font_scale_step=" + badStep);
+            } catch (IllegalArgumentException expected) {
+                // ok
+            }
+        }
+
+        // 4. ThemePalette uses WCAG 2.1 0.04045 threshold.
+        double expectedLinear10 = (10.0 / 255.0) / 12.92;
+        assertEquals(expectedLinear10, ThemePalette.relativeLuminance(0xFF0A0A0A), 1e-9);
     }
 }

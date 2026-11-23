@@ -58,7 +58,10 @@ public final class DeepAndroidActions {
     private static final Set<String> NAVIGATE_TARGETS = Set.of(
             "discussions", "atelier", "cerveau", "activite",
             "thread", "template", "panel", "command_palette",
+            "memory", "notes", "shared_with_me", "search", "skills",
+            "workspace_files", "profile_defaults", "ambient", "doctor", "presence",
             "presence_control", "workflow_templates", "connection_doctor");
+    private static final Set<String> THEME_MODES = Set.of("system", "light", "dark");
     private static final Set<String> ALLOWED_DEEP_LINK_SCHEMES =
             Set.of("https", "geo", "mailto", "tel");
     private static final Pattern SAFE_PACKAGE =
@@ -148,6 +151,8 @@ public final class DeepAndroidActions {
     /** Pure-Java bridge implemented by the Android host (or test doubles on host JVM). */
     public interface HostBridge {
         default boolean navigate(String targetKind, String targetId) { return true; }
+        default void onCustomizationChanged(AppCustomization updated) {}
+        default boolean applyThemeMode(String themeMode) { return false; }
         default boolean createTemplate(String title, String category, String draftText) { return true; }
         default boolean setTimer(int durationSeconds, String label) { return true; }
         default boolean openShareSheet(String text, String subject) { return true; }
@@ -286,17 +291,26 @@ public final class DeepAndroidActions {
         if (operation.isEmpty()) return reject("missing_customize_operation");
         if ("undo".equals(operation)) {
             AppCustomization restored = customizationStore.undo();
+            hostBridge.onCustomizationChanged(restored);
             return new Result(Status.EXECUTED, "undone",
                     "{\"accent\":" + AppPresenceTracker.quoteJson(restored.palette.wire) + "}");
         }
         if ("reset".equals(operation)) {
             AppCustomization reset = customizationStore.resetToDefault();
+            hostBridge.applyThemeMode("system");
+            hostBridge.onCustomizationChanged(reset);
             return new Result(Status.EXECUTED, "reset",
                     "{\"accent\":" + AppPresenceTracker.quoteJson(reset.palette.wire) + "}");
         }
         if (!"apply".equals(operation)) return reject("invalid_customize_operation");
 
         try {
+            String themeMode = null;
+            if (params.containsKey("theme") && params.get("theme") != null) {
+                String normalizedTheme = str(params.get("theme")).trim().toLowerCase(Locale.ROOT);
+                if (!THEME_MODES.contains(normalizedTheme)) return reject("invalid_theme_mode");
+                themeMode = normalizedTheme;
+            }
             AppCustomization current = customizationStore.current();
             AppCustomization.PalettePreset preset = current.palette;
             String customHex = current.customAccentHex;
@@ -324,8 +338,11 @@ public final class DeepAndroidActions {
             }
             float fontDelta = current.fontScaleDelta;
             if (params.containsKey("font_scale_step") && params.get("font_scale_step") != null) {
-                if (!(params.get("font_scale_step") instanceof Number n)) return reject("invalid_font_scale");
-                int step = n.intValue();
+                Object rawStep = params.get("font_scale_step");
+                if (!(rawStep instanceof Number n)) return reject("invalid_font_scale");
+                double d = n.doubleValue();
+                if (!Double.isFinite(d) || d != Math.rint(d)) return reject("invalid_font_scale");
+                int step = (int) d;
                 if (step < -3 || step > 6) return reject("invalid_font_scale");
                 fontDelta = step * 0.05f;
                 changed = true;
@@ -360,14 +377,26 @@ public final class DeepAndroidActions {
                 shortcuts = parsed;
                 changed = true;
             }
-            if (!changed) return reject("empty_customization");
-            AppCustomization updated = new AppCustomization(
-                    preset, customHex, density, fontDelta, startupTab, greeting, shortcuts);
-            customizationStore.apply(updated);
+            if (!changed && themeMode == null) return reject("empty_customization");
+            AppCustomization updated = current;
+            if (changed) {
+                updated = new AppCustomization(
+                        preset, customHex, density, fontDelta, startupTab, greeting, shortcuts);
+                customizationStore.apply(updated);
+                hostBridge.onCustomizationChanged(updated);
+            }
+            if (themeMode != null) {
+                hostBridge.applyThemeMode(themeMode);
+            }
             Diagnostics.event("deep_action", "app_customize");
-            return new Result(Status.EXECUTED, "applied",
-                    "{\"accent\":" + AppPresenceTracker.quoteJson(updated.palette.wire)
-                            + ",\"density\":" + AppPresenceTracker.quoteJson(updated.density.wire) + "}");
+            StringBuilder payload = new StringBuilder();
+            payload.append("{\"accent\":").append(AppPresenceTracker.quoteJson(updated.palette.wire))
+                    .append(",\"density\":").append(AppPresenceTracker.quoteJson(updated.density.wire));
+            if (themeMode != null) {
+                payload.append(",\"theme\":").append(AppPresenceTracker.quoteJson(themeMode));
+            }
+            payload.append('}');
+            return new Result(Status.EXECUTED, "applied", payload.toString());
         } catch (IllegalArgumentException invalid) {
             return reject("invalid_customization");
         }

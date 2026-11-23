@@ -8,6 +8,7 @@ import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
 import android.widget.CheckBox;
+import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.Switch;
 import android.widget.TextView;
@@ -99,6 +100,30 @@ public final class InteractiveCardView extends LinearLayout {
         }
     }
 
+    /** Partial customization delta preserving omitted user settings when applied onto current state. */
+    public record CustomizationDelta(
+            AppCustomization.PalettePreset palette,
+            String customAccentHex,
+            AppCustomization.Density density,
+            Float fontScaleDelta,
+            AppCustomization.StartupTab startupTab,
+            String companionGreeting,
+            String themeMode) {
+        public AppCustomization mergeOnto(AppCustomization current) {
+            AppCustomization base = current == null ? AppCustomization.defaults() : current;
+            AppCustomization.PalettePreset nextPalette = palette != null ? palette : base.palette;
+            String nextHex = palette != null
+                    ? (palette == AppCustomization.PalettePreset.CUSTOM ? customAccentHex : null)
+                    : base.customAccentHex;
+            AppCustomization.Density nextDensity = density != null ? density : base.density;
+            float nextFontDelta = fontScaleDelta != null ? fontScaleDelta : base.fontScaleDelta;
+            AppCustomization.StartupTab nextTab = startupTab != null ? startupTab : base.startupTab;
+            String nextGreeting = companionGreeting != null ? companionGreeting : base.companionGreeting;
+            return new AppCustomization(
+                    nextPalette, nextHex, nextDensity, nextFontDelta, nextTab, nextGreeting, base.composerShortcuts);
+        }
+    }
+
     /** Pure-Java validated specification for an inline interactive card. */
     public static final class Spec {
         public final String cardId;
@@ -109,6 +134,7 @@ public final class InteractiveCardView extends LinearLayout {
         public final List<QuickPick> quickPicks;
         public final List<ToggleItem> toggles;
         public final AppCustomization proposedCustomization;
+        public final CustomizationDelta customizationDelta;
 
         public Spec(
                 String cardId,
@@ -119,6 +145,19 @@ public final class InteractiveCardView extends LinearLayout {
                 List<QuickPick> quickPicks,
                 List<ToggleItem> toggles,
                 AppCustomization proposedCustomization) {
+            this(cardId, kind, title, subtitle, checklist, quickPicks, toggles, proposedCustomization, null);
+        }
+
+        public Spec(
+                String cardId,
+                Kind kind,
+                String title,
+                String subtitle,
+                List<ChecklistItem> checklist,
+                List<QuickPick> quickPicks,
+                List<ToggleItem> toggles,
+                AppCustomization proposedCustomization,
+                CustomizationDelta customizationDelta) {
             this.cardId = validateId(cardId);
             this.kind = Objects.requireNonNull(kind, "kind");
             this.title = requireText(title, MAX_TITLE_CHARS, "Card title");
@@ -126,27 +165,44 @@ public final class InteractiveCardView extends LinearLayout {
             this.checklist = boundedCopy(checklist, MAX_CHECKLIST_ITEMS);
             this.quickPicks = boundedCopy(quickPicks, MAX_QUICK_PICKS);
             this.toggles = boundedCopy(toggles, MAX_TOGGLES);
-            this.proposedCustomization = proposedCustomization;
-            if (kind == Kind.CUSTOMIZATION_PREVIEW && proposedCustomization == null) {
+            this.customizationDelta = customizationDelta;
+            this.proposedCustomization = proposedCustomization != null
+                    ? proposedCustomization
+                    : (customizationDelta != null ? customizationDelta.mergeOnto(AppCustomization.defaults()) : null);
+            if (kind == Kind.CUSTOMIZATION_PREVIEW && this.proposedCustomization == null) {
                 throw new IllegalArgumentException("Customization preview requires proposed customization");
             }
         }
 
+        /** Merges a partial customization preview cleanly onto the profile's live customization state. */
+        public AppCustomization mergeOnto(AppCustomization current) {
+            if (customizationDelta != null) return customizationDelta.mergeOnto(current);
+            return proposedCustomization != null ? proposedCustomization
+                    : (current != null ? current : AppCustomization.defaults());
+        }
+
         public static Spec checklist(String cardId, String title, String subtitle, List<ChecklistItem> items) {
-            return new Spec(cardId, Kind.CHECKLIST, title, subtitle, items, null, null, null);
+            return new Spec(cardId, Kind.CHECKLIST, title, subtitle, items, null, null, null, null);
         }
 
         public static Spec quickPicks(String cardId, String title, String subtitle, List<QuickPick> picks) {
-            return new Spec(cardId, Kind.QUICK_PICKS, title, subtitle, null, picks, null, null);
+            return new Spec(cardId, Kind.QUICK_PICKS, title, subtitle, null, picks, null, null, null);
         }
 
         public static Spec toggles(String cardId, String title, String subtitle, List<ToggleItem> items) {
-            return new Spec(cardId, Kind.TOGGLES, title, subtitle, null, null, items, null);
+            return new Spec(cardId, Kind.TOGGLES, title, subtitle, null, null, items, null, null);
         }
 
         public static Spec customizationPreview(
                 String cardId, String title, String subtitle, AppCustomization proposed) {
-            return new Spec(cardId, Kind.CUSTOMIZATION_PREVIEW, title, subtitle, null, null, null, proposed);
+            return new Spec(cardId, Kind.CUSTOMIZATION_PREVIEW, title, subtitle, null, null, null, proposed, null);
+        }
+
+        public static Spec customizationPreview(
+                String cardId, String title, String subtitle, CustomizationDelta delta) {
+            Objects.requireNonNull(delta, "delta");
+            return new Spec(cardId, Kind.CUSTOMIZATION_PREVIEW, title, subtitle, null, null, null,
+                    delta.mergeOnto(AppCustomization.defaults()), delta);
         }
 
         /** Pure-Java fail-closed parser matching canonical Track 9A {@code interactive_cards} schema. */
@@ -204,8 +260,8 @@ public final class InteractiveCardView extends LinearLayout {
                     if (!(rawCust instanceof Map<?, ?> m)) {
                         throw new IllegalArgumentException("Missing customization block");
                     }
-                    AppCustomization proposed = parseCustomizationMap((Map<String, Object>) m);
-                    yield customizationPreview(id, title, subtitle, proposed);
+                    CustomizationDelta delta = parseCustomizationDeltaMap((Map<String, Object>) m);
+                    yield customizationPreview(id, title, subtitle, delta);
                 }
             };
         }
@@ -268,63 +324,109 @@ public final class InteractiveCardView extends LinearLayout {
                 case CUSTOMIZATION_PREVIEW -> {
                     JSONObject cust = obj.optJSONObject("customization");
                     if (cust == null) throw new IllegalArgumentException("Missing customization JSON");
-                    AppCustomization base = AppCustomization.defaults();
-                    String accentRaw = cust.has("accent") ? cust.optString("accent", "")
-                            : cust.optString("accent_preset", "");
-                    String accentHex = cust.optString("accent_hex", "");
-                    AppCustomization.PalettePreset preset;
+                    AppCustomization.PalettePreset preset = null;
                     String customHex = null;
-                    if (!accentHex.isEmpty()) {
+                    boolean hasAccentHex = cust.has("accent_hex") && !cust.isNull("accent_hex");
+                    boolean hasAccent = (cust.has("accent") && !cust.isNull("accent"))
+                            || (cust.has("accent_preset") && !cust.isNull("accent_preset"));
+                    if (hasAccentHex) {
+                        String accentHex = cust.optString("accent_hex", "");
                         preset = AppCustomization.PalettePreset.CUSTOM;
-                        customHex = accentHex;
-                    } else if (!accentRaw.isEmpty()) {
+                        customHex = AppCustomization.validateCustomAccentHex(accentHex);
+                    } else if (hasAccent) {
+                        String accentRaw = cust.has("accent") && !cust.isNull("accent")
+                                ? cust.optString("accent", "") : cust.optString("accent_preset", "");
                         preset = AppCustomization.PalettePreset.parse(accentRaw);
                         if (preset == null) throw new IllegalArgumentException("Invalid accent");
-                    } else {
-                        preset = base.palette;
                     }
-                    AppCustomization.Density density = AppCustomization.Density.parse(
-                            cust.optString("density", base.density.wire));
-                    if (density == null) throw new IllegalArgumentException("Invalid density");
-                    float delta = cust.has("font_scale_step")
-                            ? (cust.optInt("font_scale_step", 0) * 0.05f) : base.fontScaleDelta;
-                    AppCustomization.StartupTab tab = AppCustomization.StartupTab.parse(
-                            cust.optString("startup_tab", base.startupTab.wire));
-                    if (tab == null) throw new IllegalArgumentException("Invalid startup tab");
-                    String greeting = cust.optString("greeting", "");
-                    yield customizationPreview(id, title, subtitle, new AppCustomization(
-                            preset, customHex, density, delta, tab, greeting, null));
+                    AppCustomization.Density density = null;
+                    if (cust.has("density") && !cust.isNull("density")) {
+                        density = AppCustomization.Density.parse(cust.optString("density", ""));
+                        if (density == null) throw new IllegalArgumentException("Invalid density");
+                    }
+                    Float fontDelta = null;
+                    if (cust.has("font_scale_step") && !cust.isNull("font_scale_step")) {
+                        fontDelta = parseFontScaleStep(cust.opt("font_scale_step"));
+                    }
+                    AppCustomization.StartupTab tab = null;
+                    if (cust.has("startup_tab") && !cust.isNull("startup_tab")) {
+                        tab = AppCustomization.StartupTab.parse(cust.optString("startup_tab", ""));
+                        if (tab == null) throw new IllegalArgumentException("Invalid startup tab");
+                    }
+                    String greeting = null;
+                    if (cust.has("greeting") && !cust.isNull("greeting")) {
+                        greeting = AppCustomization.sanitizePlainText(
+                                cust.optString("greeting", ""), AppCustomization.MAX_GREETING_CHARS);
+                    }
+                    String themeMode = null;
+                    if (cust.has("theme") && !cust.isNull("theme")) {
+                        themeMode = parseThemeMode(cust.optString("theme", ""));
+                    }
+                    CustomizationDelta delta = new CustomizationDelta(
+                            preset, customHex, density, fontDelta, tab, greeting, themeMode);
+                    yield customizationPreview(id, title, subtitle, delta);
                 }
             };
         }
 
-        private static AppCustomization parseCustomizationMap(Map<String, Object> m) {
-            AppCustomization base = AppCustomization.defaults();
-            String accentWire = str(m.containsKey("accent") ? m.get("accent") : m.get("accent_preset"));
-            String accentHex = str(m.get("accent_hex"));
-            AppCustomization.PalettePreset preset;
+        private static CustomizationDelta parseCustomizationDeltaMap(Map<String, Object> m) {
+            AppCustomization.PalettePreset preset = null;
             String customHex = null;
-            if (!accentHex.isEmpty()) {
+            Object rawAccentHex = m.get("accent_hex");
+            Object rawAccent = m.containsKey("accent") ? m.get("accent") : m.get("accent_preset");
+            if (rawAccentHex != null) {
                 preset = AppCustomization.PalettePreset.CUSTOM;
-                customHex = accentHex;
-            } else if (!accentWire.isEmpty()) {
-                preset = AppCustomization.PalettePreset.parse(accentWire);
+                customHex = AppCustomization.validateCustomAccentHex(str(rawAccentHex));
+            } else if (rawAccent != null) {
+                preset = AppCustomization.PalettePreset.parse(str(rawAccent));
                 if (preset == null) throw new IllegalArgumentException("Invalid accent");
-            } else {
-                preset = base.palette;
             }
-            String densityWire = str(m.get("density"));
-            AppCustomization.Density density = densityWire.isEmpty()
-                    ? base.density : AppCustomization.Density.parse(densityWire);
-            if (density == null) throw new IllegalArgumentException("Invalid density");
-            float delta = m.get("font_scale_step") instanceof Number n
-                    ? (n.intValue() * 0.05f) : base.fontScaleDelta;
-            String tabWire = str(m.get("startup_tab"));
-            AppCustomization.StartupTab tab = tabWire.isEmpty()
-                    ? base.startupTab : AppCustomization.StartupTab.parse(tabWire);
-            if (tab == null) throw new IllegalArgumentException("Invalid startup tab");
-            String greeting = str(m.get("greeting"));
-            return new AppCustomization(preset, customHex, density, delta, tab, greeting, null);
+            AppCustomization.Density density = null;
+            if (m.get("density") != null) {
+                density = AppCustomization.Density.parse(str(m.get("density")));
+                if (density == null) throw new IllegalArgumentException("Invalid density");
+            }
+            Float fontDelta = null;
+            if (m.containsKey("font_scale_step") && m.get("font_scale_step") != null) {
+                fontDelta = parseFontScaleStep(m.get("font_scale_step"));
+            }
+            AppCustomization.StartupTab tab = null;
+            if (m.get("startup_tab") != null) {
+                tab = AppCustomization.StartupTab.parse(str(m.get("startup_tab")));
+                if (tab == null) throw new IllegalArgumentException("Invalid startup tab");
+            }
+            String greeting = null;
+            if (m.containsKey("greeting") && m.get("greeting") != null) {
+                greeting = AppCustomization.sanitizePlainText(str(m.get("greeting")), AppCustomization.MAX_GREETING_CHARS);
+            }
+            String themeMode = null;
+            if (m.containsKey("theme") && m.get("theme") != null) {
+                themeMode = parseThemeMode(str(m.get("theme")));
+            }
+            return new CustomizationDelta(preset, customHex, density, fontDelta, tab, greeting, themeMode);
+        }
+
+        private static float parseFontScaleStep(Object raw) {
+            if (!(raw instanceof Number n)) {
+                throw new IllegalArgumentException("Invalid font_scale_step");
+            }
+            double value = n.doubleValue();
+            if (!Double.isFinite(value) || value != Math.rint(value)) {
+                throw new IllegalArgumentException("font_scale_step must be an integer");
+            }
+            int step = (int) value;
+            if (step < -3 || step > 6) {
+                throw new IllegalArgumentException("font_scale_step out of range [-3, 6]");
+            }
+            return step * 0.05f;
+        }
+
+        private static String parseThemeMode(String raw) {
+            String normalized = raw == null ? "" : raw.trim().toLowerCase(Locale.ROOT);
+            if (!"system".equals(normalized) && !"light".equals(normalized) && !"dark".equals(normalized)) {
+                throw new IllegalArgumentException("Invalid theme mode");
+            }
+            return normalized;
         }
 
         private static <T> List<T> boundedCopy(List<T> items, int max) {
@@ -550,6 +652,7 @@ public final class InteractiveCardView extends LinearLayout {
             callbacks.onUndoCustomization(spec.cardId);
         });
         undo.setMinWidth(touchMin);
+        undo.setMinimumWidth(touchMin);
         undo.setTag("card:undo");
 
         LayoutParams applyLp = new LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
@@ -557,9 +660,13 @@ public final class InteractiveCardView extends LinearLayout {
         actions.addView(apply, applyLp);
         actions.addView(undo);
 
+        HorizontalScrollView actionsScroll = new HorizontalScrollView(context);
+        actionsScroll.setHorizontalScrollBarEnabled(false);
+        actionsScroll.addView(actions, new HorizontalScrollView.LayoutParams(
+                LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT));
         LayoutParams actionsLp = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
         actionsLp.topMargin = Ui.dp(context, 12);
-        addView(actions, actionsLp);
+        addView(actionsScroll, actionsLp);
     }
 
     static String paletteLabel(Context context, AppCustomization.PalettePreset preset) {
