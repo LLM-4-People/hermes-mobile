@@ -20,8 +20,11 @@ import android.widget.EditText;
 import android.widget.ListView;
 import android.widget.TextView;
 
+import org.llm4people.hermes.R;
+
 import java.io.File;
 import java.io.FileOutputStream;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
@@ -95,7 +98,55 @@ public final class JourneyUi {
             if (value != null) return value;
             SystemClock.sleep(100);
         }
-        throw new AssertionError("Timed out waiting for " + expectation);
+        throw new AssertionError("Timed out waiting for " + expectation + " [" + describeWindow() + "]");
+    }
+
+    private boolean waitFor(String label, long timeoutMs) {
+        long deadline = SystemClock.elapsedRealtime() + timeoutMs;
+        while (SystemClock.elapsedRealtime() < deadline) {
+            if (has(label)) return true;
+            SystemClock.sleep(100);
+        }
+        return has(label);
+    }
+
+    private String describeWindow() {
+        try {
+            return main(() -> {
+                List<View> windows = WindowInspector.getGlobalWindowViews();
+                View focused = window();
+                if (focused == null) return "windows=" + windows.size() + ", focused=null";
+                List<String> labels = new ArrayList<>();
+                collectVisibleLabels(focused, labels, 8);
+                return "windows=" + windows.size()
+                        + ", focused=" + focused.getWidth() + "x" + focused.getHeight()
+                        + ", labels=" + labels;
+            });
+        } catch (Throwable ignored) {
+            return "window_state_unavailable";
+        }
+    }
+
+    private static void collectVisibleLabels(View v, List<String> out, int limit) {
+        if (v == null || !v.isShown() || out.size() >= limit) return;
+        CharSequence label = null;
+        if (v instanceof TextView tv && tv.getText() != null && tv.getText().length() > 0) {
+            label = tv.getText();
+        } else if (v.getContentDescription() != null && v.getContentDescription().length() > 0) {
+            label = v.getContentDescription();
+        }
+        if (label != null) {
+            String s = label.toString().replace('\n', ' ').trim();
+            if (!s.isEmpty()) {
+                if (s.length() > 36) s = s.substring(0, 36) + "…";
+                if (!out.contains(s)) out.add(s);
+            }
+        }
+        if (v instanceof ViewGroup group) {
+            for (int i = 0; i < group.getChildCount() && out.size() < limit; i++) {
+                collectVisibleLabels(group.getChildAt(i), out, limit);
+            }
+        }
     }
 
     public void see(String label) {
@@ -217,6 +268,56 @@ public final class JourneyUi {
         return null;
     }
 
+    /** Tap a control and confirm the expected destination appears, retrying cleanly if a window transition swallowed a tap. */
+    public void tapUntil(String tapLabel, String expectedLabel) {
+        for (int attempt = 0; attempt < 4; attempt++) {
+            if (has(expectedLabel)) return;
+            if (has(tapLabel)) tap(tapLabel);
+            if (waitFor(expectedLabel, 5000L)) return;
+        }
+        see(expectedLabel);
+    }
+
+    /** Single Source of Truth profile lock transition across all journeys. */
+    public void lockProfile() {
+        String chooseProfile = str(R.string.profile_choose_title);
+        if (has(chooseProfile)) return;
+        String lockButton = str(R.string.top_profile_lock);
+        String lockNow = str(R.string.security_lock_now);
+        if (!has(lockNow)) {
+            tapUntil(lockButton, lockNow);
+        }
+        tapUntil(lockNow, chooseProfile);
+    }
+
+    private static int[] screenCenter(View target) {
+        if (target == null || !target.isAttachedToWindow() || !target.isShown() || !target.isEnabled()) return null;
+        View rootView = target.getRootView();
+        if (rootView == null || !rootView.isShown() || !rootView.hasWindowFocus()) return null;
+        Rect visible = new Rect();
+        if (!target.getGlobalVisibleRect(visible) || visible.isEmpty()) return null;
+        int[] root = new int[2];
+        rootView.getLocationOnScreen(root);
+        return new int[]{root[0] + visible.centerX(), root[1] + visible.centerY()};
+    }
+
+    private int[] stableTouchCenter(View target, String label) {
+        long deadline = SystemClock.elapsedRealtime() + 60000;
+        while (SystemClock.elapsedRealtime() < deadline) {
+            int[] first = main(() -> screenCenter(target));
+            if (first != null) {
+                SystemClock.sleep(50);
+                int[] second = main(() -> screenCenter(target));
+                if (second != null && first[0] == second[0] && first[1] == second[1]) {
+                    return second;
+                }
+            } else {
+                SystemClock.sleep(100);
+            }
+        }
+        throw new AssertionError("Timed out waiting for stable touch target " + label + " [" + describeWindow() + "]");
+    }
+
     private void tap(View target, String label) {
         main(() -> {
             Rect bounds = new Rect();
@@ -224,19 +325,17 @@ public final class JourneyUi {
             target.requestRectangleOnScreen(bounds, true);
             return null;
         });
-        int[] center = until("touch target " + label, () -> {
-            Rect visible = new Rect();
-            if (!target.isShown() || !target.getGlobalVisibleRect(visible) || visible.isEmpty()) return null;
-            int[] root = new int[2];
-            target.getRootView().getLocationOnScreen(root);
-            return new int[]{root[0] + visible.centerX(), root[1] + visible.centerY()};
-        });
+        driver.waitForIdleSync();
+        int[] center = stableTouchCenter(target, label);
         long down = SystemClock.uptimeMillis();
-        for (int action : new int[]{MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP}) {
-            MotionEvent event = MotionEvent.obtain(down, SystemClock.uptimeMillis(), action, center[0], center[1], 0);
-            try { driver.sendPointerSync(event); }
-            finally { event.recycle(); }
-        }
+        MotionEvent press = MotionEvent.obtain(down, down, MotionEvent.ACTION_DOWN, center[0], center[1], 0);
+        try { driver.sendPointerSync(press); }
+        finally { press.recycle(); }
+        SystemClock.sleep(25);
+        MotionEvent release = MotionEvent.obtain(down, SystemClock.uptimeMillis(), MotionEvent.ACTION_UP,
+                center[0], center[1], 0);
+        try { driver.sendPointerSync(release); }
+        finally { release.recycle(); }
         driver.waitForIdleSync();
     }
 

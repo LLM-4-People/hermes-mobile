@@ -199,9 +199,7 @@ public final class DeviceJourney extends Instrumentation {
     }
 
     private void lock() {
-        ui.tap(ui.str(R.string.top_profile_lock));
-        ui.tap(ui.str(R.string.security_lock_now));
-        ui.see(ui.str(R.string.profile_choose_title));
+        ui.lockProfile();
     }
 
     private void unlock(String label, String phrase) {

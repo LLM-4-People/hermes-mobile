@@ -35,7 +35,7 @@ final class UsagePanel {
     void show() {
         LinearLayout page = panel.page("stats", R.string.panel_stats, parent);
         if (stableId == null || stableId.isEmpty() || remoteId == null || remoteId.isEmpty()) {
-            panel.note(page, panel.t(R.string.panel_no_session));
+            showProfileWideOnly(page);
             return;
         }
         panel.action(page, R.string.panel_refresh, this::show).setLayoutParams(new LinearLayout.LayoutParams(-2, -2));
@@ -74,6 +74,24 @@ final class UsagePanel {
             return;
         }
         displayLocalTiming(local, BrainJson.parseRunTelemetry(timing));
+    }
+
+    private void showProfileWideOnly(LinearLayout page) {
+        panel.action(page, R.string.panel_refresh, this::show).setLayoutParams(new LinearLayout.LayoutParams(-2, -2));
+        LinearLayout box = Ui.column(panel.activity);
+        page.addView(box);
+        panel.request(box, this::fetchOptionalAnalytics, analytics -> {
+            if (analytics == null) {
+                panel.note(box, panel.t(R.string.panel_no_session));
+                return;
+            }
+            renderProfileAnalytics(box, analytics);
+        }, error -> {
+            Diagnostics.warning("usage", "profile_analytics_unavailable", error);
+            panel.note(box, panel.t(R.string.panel_usage_incomplete))
+                    .setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+            panel.action(box, R.string.panel_retry, this::show);
+        });
     }
 
     private BrainJson.AnalyticsSummary fetchOptionalAnalytics() {
@@ -137,21 +155,7 @@ final class UsagePanel {
         int source = sourceName(usage.lastSource);
         if (source != 0) panel.note(details, panel.t(R.string.panel_last_cost_source, panel.t(source)));
         if (analytics != null) {
-            panel.section(details, R.string.brain_usage_profile_analytics);
-            metric(details, R.string.brain_usage_cost_known,
-                    UsageFormatter.primaryCostSummary(analytics.actualCostUsd(), analytics.estimatedCostUsd(), ""));
-            metric(details, R.string.brain_usage_profile_runs, UsageFormatter.formatCount(analytics.sessions()));
-            if (Double.isFinite(analytics.apiCalls())) {
-                metric(details, R.string.brain_usage_api_calls, UsageFormatter.formatCount(analytics.apiCalls()));
-            }
-            if (Double.isFinite(analytics.avgTtftMs())) {
-                metric(details, R.string.brain_usage_profile_avg_ttft, UsageFormatter.formatResponseTime(analytics.avgTtftMs()));
-            }
-            if (Double.isFinite(analytics.avgTps())) {
-                metric(details, R.string.brain_usage_profile_avg_tps, UsageFormatter.formatSpeed(analytics.avgTps()));
-            }
-            metric(details, R.string.panel_in, UsageFormatter.formatCount(analytics.inputTokens()));
-            metric(details, R.string.panel_out, UsageFormatter.formatCount(analytics.outputTokens()));
+            renderProfileAnalytics(details, analytics);
         }
 
         boolean[] open = {false};
@@ -163,6 +167,24 @@ final class UsagePanel {
         });
         box.addView(toggle);
         box.addView(details);
+    }
+
+    private void renderProfileAnalytics(LinearLayout box, BrainJson.AnalyticsSummary analytics) {
+        panel.section(box, R.string.brain_usage_profile_analytics);
+        metric(box, R.string.brain_usage_cost_known,
+                UsageFormatter.primaryCostSummary(analytics.actualCostUsd(), analytics.estimatedCostUsd(), ""));
+        metric(box, R.string.brain_usage_profile_runs, UsageFormatter.formatCount(analytics.sessions()));
+        if (Double.isFinite(analytics.apiCalls())) {
+            metric(box, R.string.brain_usage_api_calls, UsageFormatter.formatCount(analytics.apiCalls()));
+        }
+        if (Double.isFinite(analytics.avgTtftMs())) {
+            metric(box, R.string.brain_usage_profile_avg_ttft, UsageFormatter.formatResponseTime(analytics.avgTtftMs()));
+        }
+        if (Double.isFinite(analytics.avgTps())) {
+            metric(box, R.string.brain_usage_profile_avg_tps, UsageFormatter.formatSpeed(analytics.avgTps()));
+        }
+        metric(box, R.string.panel_in, UsageFormatter.formatCount(analytics.inputTokens()));
+        metric(box, R.string.panel_out, UsageFormatter.formatCount(analytics.outputTokens()));
     }
 
     private static int sourceName(String source) {

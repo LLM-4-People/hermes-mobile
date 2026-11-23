@@ -48,6 +48,16 @@
     <string name="thread_read_full_message">Read full message</string>
     <string name="thread_see_details">View details</string>
     <string name="thread_see_result">View result</string>
+    <string name="thread_tool_failed">Tool failed</string>
+    <string name="thread_tool_failed_named">Tool failed · %1$s</string>
+    <string name="thread_tool_done">Tool finished</string>
+    <string name="thread_tool_done_named">Tool finished · %1$s</string>
+    <string name="thread_tool_result">Tool result</string>
+    <string name="thread_tool_result_named">Tool result · %1$s</string>
+    <string name="thread_tool_result_dialog_named">Result · %1$s</string>
+    <string name="thread_skill_failed">Skill lookup failed</string>
+    <string name="thread_skill_done">Skill consulted</string>
+    <string name="thread_skill_result">Skill lookup</string>
     <string name="profile_choose_title">Choose a profile</string>
     <string name="profile_add_action">Add a profile</string>
     <string name="profile_connect_title">Connect Hermes</string>

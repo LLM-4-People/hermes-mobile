@@ -193,6 +193,30 @@ public final class BrainStudioPanelsTest extends InstrumentationTestCase {
         }
     }
 
+    public void testUsagePanelShowsProfileWideAnalyticsWithoutActiveSession() throws Throwable {
+        if (Build.VERSION.SDK_INT < 29) return;
+        Context app = getInstrumentation().getTargetContext();
+        Activity activity = getInstrumentation().startActivitySync(
+                app.getPackageManager().getLaunchIntentForPackage(app.getPackageName()));
+        String caps = "{\"features\":{\"usage_analytics\":true}}";
+        String analytics = "{\"days\":30,\"sessions\":7,\"api_calls\":19,\"input_tokens\":1200,\"output_tokens\":450,\"actual_cost_usd\":0.12}";
+        try (Exchange gateway = new Exchange("200 OK", JSON, caps, analytics);
+             WorkspaceAccountFixture profile = new WorkspaceAccountFixture(app, gateway.endpoint())) {
+            SessionPanel panel = new SessionPanel(activity, new HermesApi(gateway.endpoint(), "test"), profile.account);
+            try {
+                runTestOnUiThread(() -> panel.showStats(null, null));
+                assertTextVisible(activity.getString(R.string.brain_usage_profile_analytics));
+                assertTextVisible(activity.getString(R.string.brain_usage_profile_runs));
+                assertTextVisible("7");
+                assertTextVisible(activity.getString(R.string.panel_out));
+            } finally {
+                runTestOnUiThread(panel::close);
+            }
+        } finally {
+            runTestOnUiThread(activity::finish);
+        }
+    }
+
     private void assertTextVisible(String expected) throws Throwable {
         long deadline = SystemClock.elapsedRealtime() + 8000;
         while (SystemClock.elapsedRealtime() < deadline) {
