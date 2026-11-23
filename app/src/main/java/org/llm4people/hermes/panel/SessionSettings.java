@@ -100,8 +100,7 @@ final class SessionSettings {
         modelSetting(settings.first);
         if (stageDraft != null) panel.action(settings.first, R.string.skills_title, () -> {
             if (!activeThread.getAsBoolean()) return;
-            if (skillStudioSupported) new SkillStudio(panel, activeThread, stageDraft, this::show).show();
-            else new SkillBrowser(panel, activeThread, stageDraft, this).show();
+            new SkillStudio(panel, activeThread, stageDraft, this::show).show();
         });
         panel.section(settings.second, R.string.panel_tools);
         LinearLayout controls = Ui.column(panel.activity);

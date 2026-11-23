@@ -213,7 +213,7 @@ def verify_guide(ui, names, *, capture=None, distances=None, filter_cuisine=None
     compare_title = "Comparer " + names[0] + " avec…"
     tap_visible_app_until(
         ui,
-        "Comparer deux restaurants",
+        "Comparer deux lieux",
         lambda root: ui.node(compare_title, root) is not None,
         attribute="content-desc",
         description="visible control " + compare_title,
