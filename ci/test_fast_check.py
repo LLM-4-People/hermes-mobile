@@ -16,14 +16,21 @@ class FastCheckTest(unittest.TestCase):
     def test_workspace_only_fans_out_every_server_test_file_and_all_suites(self):
         names = [name for name, _ in fast_check.build_suites("/tmp/venv/python", workspace_only=True)]
         expected_server = [f"server-tests:{p.stem}" for p in sorted((ROOT / "server/tests").glob("test_*.py"))]
+        expected_verification = [
+            f"verification:{p.stem}"
+            for p in sorted((ROOT / "verification").glob("test_*.py"))
+            if fast_check._has_unittest_cases(p)
+        ]
         self.assertTrue(expected_server)
+        self.assertIn("verification:test_nearby_journey", expected_verification)
+        self.assertIn("verification:test_phone_actions", expected_verification)
         self.assertEqual(names, [
             *expected_server,
             "server-artifacts",
             "deploy",
             "verification-device",
             "verification-unifiedpush",
-            "verification-phone-actions",
+            *expected_verification,
         ])
 
     def test_full_mode_covers_docs_every_ci_test_file_and_optional_gradle(self):

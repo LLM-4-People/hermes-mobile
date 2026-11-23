@@ -132,7 +132,10 @@ class DeviceGateTest(unittest.TestCase):
     def test_workflow_requires_parallel_fresh_emulators_and_concurrency(self):
         workflow = (GATE.parents[1] / ".github/workflows/checks.yml").read_text()
         self.assertIn("concurrency:", workflow)
-        self.assertIn("cancel-in-progress: ${{ github.ref != 'refs/heads/main' && github.event_name != 'workflow_call' }}", workflow)
+        self.assertIn(
+            "cancel-in-progress: ${{ github.ref != 'refs/heads/main' && github.event_name != 'workflow_call' && github.event_name != 'merge_group' }}",
+            workflow,
+        )
         self.assertIn("\n  changes:\n", workflow)
         self.assertIn("\n  pages-check:\n", workflow)
         self.assertIn("\n  package-debug:\n", workflow)

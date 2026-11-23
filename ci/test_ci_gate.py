@@ -215,6 +215,14 @@ class CiGateTest(unittest.TestCase):
             "ci-gate.needs must include every upstream job in checks.yml",
         )
 
+    def test_workflow_supports_native_merge_group_without_cancelling_in_flight_groups(self):
+        workflow = CHECKS_WORKFLOW.read_text(encoding="utf-8")
+        self.assertRegex(workflow, r"(?m)^  merge_group:\n    types: \[checks_requested\]$")
+        self.assertIn("github.event_name != 'merge_group'", workflow)
+        self.assertIn("github.event_name == 'merge_group'", workflow)
+        self.assertIn("github.event.merge_group.base_sha", workflow)
+        self.assertIn("github.event.merge_group.head_sha", workflow)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -30,6 +30,22 @@ DOCS_ONLY_RE = re.compile(
     r"|\.github/workflows/pr-labeler\.yml$"
     r")"
 )
+# Strictly allowlisted docs-generation, writing-quality, Pages, and release-automation paths
+# verified completely by Validate sources (fast_check.py --ci-only, actionlint, shellcheck) + Pages site check.
+CI_META_RE = re.compile(
+    r"^(?:"
+    r"scripts/docs\.py$"
+    r"|ci/semver_bump\.py$"
+    r"|ci/test_semver_bump\.py$"
+    r"|ci/test_docs_generator\.py$"
+    r"|ci/check_writing_quality\.py$"
+    r"|ci/test_writing_quality\.py$"
+    r"|ci/check_pages\.py$"
+    r"|\.github/workflows/auto-release\.yml$"
+    r"|\.github/release\.yml$"
+    r"|\.github/labeler\.yml$"
+    r")"
+)
 SERVER_ONLY_RE = re.compile(r"^(?:server/|deploy/)")
 PUSH_BRIDGE_RE = re.compile(r"^server/(?:mobile_push/|requirements\.txt$|logging_util\.py$|Dockerfile$)")
 
@@ -87,10 +103,14 @@ def classify_files(paths, *, event_name="pull_request", release_mode=False, pr_l
     run_android = False
     run_push_acceptance = False
     run_pages_check = False
+    ci_meta_touched = False
     unknown_paths = []
 
     for path in cleaned:
         if PAGES_RE.search(path):
+            run_pages_check = True
+        elif CI_META_RE.search(path):
+            ci_meta_touched = True
             run_pages_check = True
         elif DOCS_ONLY_RE.search(path):
             continue
@@ -106,7 +126,11 @@ def classify_files(paths, *, event_name="pull_request", release_mode=False, pr_l
 
     docs_only = not (run_workspace or run_android or run_push_acceptance)
     if docs_only:
-        reason = "pages/docs-only change skips Gradle & Android emulators"
+        reason = (
+            "docs/pages/release-automation fast path skips Gradle & Android emulators"
+            if ci_meta_touched
+            else "pages/docs-only change skips Gradle & Android emulators"
+        )
     elif run_push_acceptance:
         reason = "push-bridge server change runs workspace + AOSP closed-app acceptance"
     else:
