@@ -512,8 +512,14 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         displayDiscussion();
         files.unlock(account, api);
         OnboardingModels.PairingClaim freshClaim = gate.consumeFreshPairingClaim();
-        activeProfileIsAdmin = freshClaim != null && freshClaim.onboarding() != null
-                && freshClaim.onboarding().isAdmin();
+        if (freshClaim != null && freshClaim.onboarding() != null) {
+            activeProfileIsAdmin = freshClaim.onboarding().isAdmin();
+            try { unlocked.write("is_admin_hint", activeProfileIsAdmin ? "1" : "0"); }
+            catch (RuntimeException ignored) {}
+        } else {
+            try { activeProfileIsAdmin = "1".equals(unlocked.read("is_admin_hint")); }
+            catch (RuntimeException ignored) { activeProfileIsAdmin = false; }
+        }
         if (freshClaim != null && !FirstRunWizard.isCompleted(unlocked)) {
             closeFirstRunStep2();
             activeFirstRunStep2 = FirstRunWizard.showStep2(
@@ -531,20 +537,6 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                         }
                     });
         }
-        notifications.execute(() -> {
-            try {
-                if (api.isRevoked()) return;
-                OnboardingModels.OnboardingStatus status = OnboardingModels.parseOnboardingStatus(api.onboardingStatus());
-                boolean resolvedAdmin = status.isAdmin();
-                main.post(() -> {
-                    if (account == unlocked && !isFinishing() && !isDestroyed()) {
-                        activeProfileIsAdmin = resolvedAdmin;
-                    }
-                });
-            } catch (Exception ignored) {
-                Diagnostics.debug("onboarding", "admin_probe_skipped");
-            }
-        });
         try {
             threads.resumeLast();
         } catch (IllegalStateException invalidSavedSession) {
@@ -1080,7 +1072,11 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                         if (account == owner) openAdminConsole();
                     }
                     @Override public void onAdminStateResolved(boolean resolvedAdmin) {
-                        if (account == owner) activeProfileIsAdmin = resolvedAdmin;
+                        if (account == owner) {
+                            activeProfileIsAdmin = resolvedAdmin;
+                            try { owner.write("is_admin_hint", resolvedAdmin ? "1" : "0"); }
+                            catch (RuntimeException ignored) {}
+                        }
                     }
                 });
         activeProfileHub = hub;
