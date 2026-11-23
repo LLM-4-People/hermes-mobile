@@ -13,6 +13,7 @@ import android.widget.ListView;
 import android.view.WindowManager;
 import android.view.inspector.WindowInspector;
 
+import org.llm4people.hermes.R;
 import org.llm4people.hermes.push.MobilePush;
 import org.llm4people.hermes.net.Exchange;
 
@@ -38,6 +39,7 @@ public final class SecurePushWindowTest extends InstrumentationTestCase {
                 activity = getInstrumentation().startActivitySync(launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
                 MobilePush push = new MobilePush(activity);
                 assertFalse(MobilePush.isEnabled(context, account.id));
+                String historyLabel = activity.getString(R.string.push_settings_history);
                 List<View> windows = new ArrayList<>();
                 runTestOnUiThread(() -> {
                     List<View> before = new ArrayList<>(WindowInspector.getGlobalWindowViews());
@@ -49,19 +51,20 @@ public final class SecurePushWindowTest extends InstrumentationTestCase {
                     assertTrue("The dialog itself must be protected",
                             (params.flags & WindowManager.LayoutParams.FLAG_SECURE) != 0);
                     Button history = windows.get(0).findViewById(android.R.id.button3);
-                    assertEquals("Historique", history.getText().toString());
+                    assertEquals(historyLabel, history.getText().toString());
                     history.performClick();
                 });
                 String request = bridge.observed();
                 assertTrue(request.startsWith("GET /p/travail/api/mobile/push/events?after=0&limit=25 HTTP/1.1"));
                 assertTrue(request.toLowerCase(Locale.ROOT).contains("authorization: bearer " + label));
+                String reminderTitle = activity.getString(R.string.push_notice_reminder);
                 boolean[] shown = {false};
                 long end = SystemClock.elapsedRealtime() + 5000;
                 while (!shown[0] && SystemClock.elapsedRealtime() < end) {
                     getInstrumentation().waitForIdleSync();
                     runTestOnUiThread(() -> {
                         for (View window : WindowInspector.getGlobalWindowViews()) {
-                            if (!hasReminder(window)) continue;
+                            if (!hasReminder(window, reminderTitle)) continue;
                             WindowManager.LayoutParams params = (WindowManager.LayoutParams) window.getLayoutParams();
                             assertTrue((params.flags & WindowManager.LayoutParams.FLAG_SECURE) != 0);
                             windows.add(window);
@@ -81,12 +84,12 @@ public final class SecurePushWindowTest extends InstrumentationTestCase {
         }
     }
 
-    private static boolean hasReminder(View view) {
+    private static boolean hasReminder(View view, String reminderTitle) {
         if (view instanceof ListView list && list.getCount() > 0
-                && list.getAdapter().getItem(0).toString().contains("Un rappel vous attend")) return true;
+                && list.getAdapter().getItem(0).toString().contains(reminderTitle)) return true;
         if (view instanceof ViewGroup group) {
             for (int i = 0; i < group.getChildCount(); i++) {
-                if (hasReminder(group.getChildAt(i))) return true;
+                if (hasReminder(group.getChildAt(i), reminderTitle)) return true;
             }
         }
         return false;

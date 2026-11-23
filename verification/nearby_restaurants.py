@@ -127,10 +127,10 @@ def wait_status(ui, label):
         root = ui.hierarchy()
         packages = sorted({node.get("package", "") for node in root.iter("node") if node.get("package")})
         markers = {
-            "consent": ui.node(s.get("nearby_consent_title", CONSENT), root) is not None,
-            "searching": ui.node(s.get("nearby_status_searching", "Recherche de la position…"), root) is not None,
-            "failed": ui.node(s.get("nearby_status_failed", FAILED), root) is not None,
-            "staged": ui.node(s.get("nearby_status_staged", STAGED), root) is not None,
+            "consent": ui.node(s["nearby_add_area_title"], root) is not None,
+            "searching": ui.node(s["nearby_locating"], root) is not None,
+            "failed": ui.node(s["nearby_unavailable_hint"], root) is not None,
+            "staged": ui.node(s["nearby_approx_attached"], root) is not None,
             "lock_screen": ui.node(s["profile_choose_title"], root) is not None,
             "composer": ui.node(s["thread_message_hint"], root) is not None,
             "send": ui.node(s["thread_send"], root) is not None,
@@ -147,10 +147,10 @@ def wait_status(ui, label):
 def consent_failures(ui, fix, second, names, phrases, check_idle):
     """Start without cached fixes and cross a real app background/profile switch before delivering one."""
     s = ui.strings
-    use_location = s.get("nearby_use_location", USE_LOCATION)
-    failed_status = s.get("nearby_status_failed", FAILED)
-    searching_status = s.get("nearby_status_searching", "Recherche de la position…")
-    staged_status = s.get("nearby_status_staged", STAGED)
+    use_location = s["nearby_use_approx"]
+    failed_status = s["nearby_unavailable_hint"]
+    searching_status = s["nearby_locating"]
+    staged_status = s["nearby_approx_attached"]
     choose_profile = s["profile_choose_title"]
     send_btn = s["thread_send"]
     enter_discussion(ui)
@@ -226,7 +226,7 @@ def map_selected(ui, title, point):
     coords_label = ui.strings.fmt("ws_dev_place_coords", coordinate)
     tap_visible_app_until(
         ui,
-        "Voir sur la carte",
+        ui.strings["places_guide_view_map"],
         lambda root: ui.node(open_map, root) is not None,
         description="visible map handoff review dialog",
     )
@@ -360,7 +360,7 @@ def execute(args):
         if queries[0][0] != (area["latitude"], area["longitude"]) or errors:
             raise AssertionError("The place source used a different area from the area shared on this turn")
         guide = verify_guide(ui, [p[2] for p in PLACES], capture=capture,
-                             distances=[111, 445, 1001], filter_cuisine="Italienne")
+                             distances=[111, 445, 1001], filter_cuisine=s["places_cuisine_italian"])
         picked = next(p for p in queries[0][1]["elements"] if p["tags"]["name"] == guide["selected"])
         source_url = "https://www.openstreetmap.org/" + picked["type"] + "/" + str(picked["id"])
         open_osm = s["ws_dev_osm_open"]
@@ -406,7 +406,7 @@ def execute(args):
         open_consent(ui)
         if len(admissions(first)) != 2 or len(queries) != 1:
             raise AssertionError("Revocation reused a cached coordinate or submitted the waiting draft")
-        choose_consent(ui, s.get("nearby_send_without_location", "Envoyer sans position"))
+        choose_consent(ui, s["nearby_send_without"])
         verified_turn(first, a_model, REVOKED, 2, location=False)
         if len(queries) != 1 or errors or location_access(device):
             raise AssertionError("Explicit send without location leaked or re-acquired location")

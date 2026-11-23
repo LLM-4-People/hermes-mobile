@@ -380,8 +380,8 @@ def inbound_drafts(ui, account_name, phrase, session):
     passphrase_label = s["profile_passphrase_label"]
     unlock_btn = s["profile_unlock_action"]
     send_btn = s["thread_send"]
-    share_title = s.get("share_draft_title", "Ajouter au brouillon ?")
-    share_confirm = s.get("share_draft_confirm", "Ajouter au brouillon")
+    share_title = s["share_add_text_title"]
+    share_confirm = s["share_add_to_draft"]
     previous = ""
     results = []
     for kind, action, extra, value in (

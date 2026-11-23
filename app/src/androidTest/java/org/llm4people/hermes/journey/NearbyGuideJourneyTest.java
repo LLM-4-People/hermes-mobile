@@ -8,6 +8,7 @@ import java.lang.reflect.Method;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.llm4people.hermes.MainActivity;
+import org.llm4people.hermes.R;
 import org.llm4people.hermes.net.Exchange;
 import org.llm4people.hermes.profile.Account;
 import org.llm4people.hermes.profile.WorkspaceAccountFixture;
@@ -55,14 +56,17 @@ public final class NearbyGuideJourneyTest extends InstrumentationTestCase {
                     catch (ReflectiveOperationException error) { throw new AssertionError(error); }
                 });
                 JourneyUi ui = new JourneyUi(getInstrumentation(), activity, context.getCacheDir());
-                ui.see("Utiliser ma zone approximative");
+                String useApproxArea = activity.getString(R.string.places_guide_use_approx_area);
+                String distanceGap8m = activity.getString(R.string.places_guide_distance_gap,
+                        activity.getString(R.string.places_distance_meters, "8"));
+                ui.see(useApproxArea);
                 ThreadWorkspace origin = (ThreadWorkspace) workspace.get(activity);
                 runTestOnUiThread(() -> {
                     activity.nearbyGuide(null, "root", "run", assistant, area);
                     activity.nearbyGuide(origin, "other", "run", assistant, area);
                     activity.nearbyGuide(origin, "root", "run", changed, area);
                 });
-                ui.see("Utiliser ma zone approximative");
+                ui.see(useApproxArea);
                 runTestOnUiThread(() -> {
                     activity.nearbyGuide(origin, "root", "run", assistant, area);
                     activity.nearbyGuide(origin, "root", "run", assistant, area);
@@ -70,19 +74,23 @@ public final class NearbyGuideJourneyTest extends InstrumentationTestCase {
                 ui.see("Mae Sri Thai");
                 ui.tap("Mae Sri Thai");
                 ui.see("224 Milton Street");
-                ui.tap("Comparer");
-                ui.tap("Tiamo · 222 m");
-                ui.see("Écart des distances au centre : 8 m");
-                ui.tap("Cuisine");
-                ui.tap("Asiatique");
-                ui.contains("1 adresse sur 3");
-                ui.see("Repère 2, Mae Sri Thai, environ 214 m du centre. Replier les détails");
-                ui.absent("Écart des distances au centre : 8 m");
-                ui.absent("Modifier la comparaison");
+                ui.tap(activity.getString(R.string.places_guide_compare));
+                ui.tap("Tiamo · " + activity.getString(R.string.places_distance_meters, "222"));
+                ui.see(distanceGap8m);
+                ui.tap(activity.getString(R.string.places_guide_cuisine));
+                ui.tap(activity.getString(R.string.places_cuisine_asian));
+                String oneOfThree = activity.getString(R.string.places_guide_count_of,
+                        activity.getResources().getQuantityString(R.plurals.places_guide_count, 1, 1), 3);
+                ui.contains(oneOfThree);
+                ui.see(activity.getString(R.string.places_guide_place_row_desc, 2, "Mae Sri Thai",
+                        activity.getString(R.string.places_distance_meters, "214"),
+                        activity.getString(R.string.places_guide_collapse_details)));
+                ui.absent(distanceGap8m);
+                ui.absent(activity.getString(R.string.places_guide_compare_edit_desc));
                 // The persisted instrument can become unreadable between transcript hydration and run completion.
                 assertTrue(encrypted.edit().putInt(instrumentSlot, 3).commit());
                 runTestOnUiThread(() -> activity.nearbyGuide(origin, "root", "later-run", assistant, area));
-                ui.see(activity.getString(org.llm4people.hermes.R.string.instrument_repair));
+                ui.see(activity.getString(R.string.instrument_repair));
                 assertEquals(3, encrypted.getInt(instrumentSlot, 0));
                 String observed = server.observed();
                 assertEquals(1, observed.split("POST /p/travail/api/mobile/places/nearby ",-1).length - 1);

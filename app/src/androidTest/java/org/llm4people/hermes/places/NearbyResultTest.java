@@ -5,6 +5,7 @@ import android.test.InstrumentationTestCase;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.llm4people.hermes.R;
 
 @SuppressWarnings("deprecation")
 public final class NearbyResultTest extends InstrumentationTestCase {
@@ -27,7 +28,10 @@ public final class NearbyResultTest extends InstrumentationTestCase {
                         .put("website","https://example.invalid/"))
                 .put(venue("node",17,"Café ☕",205))
                 .put(venue("relation",5000000000L,"Bistro",22));
-        NearbyResult result = NearbyResult.parse(targetContext(), response(records));
+        Context context = targetContext();
+        String italian = context.getString(R.string.places_cuisine_italian);
+        String pizza = context.getString(R.string.places_cuisine_pizza);
+        NearbyResult result = NearbyResult.parse(context, response(records));
         assertEquals("© OpenStreetMap contributors", result.attribution);
         assertEquals("2026-11-22T13:05:00Z", result.sourceDate);
         assertEquals(1500, result.radiusMeters);
@@ -37,8 +41,8 @@ public final class NearbyResultTest extends InstrumentationTestCase {
         assertEquals("Érable", place.name);
         assertEquals("way/17", place.id);
         assertEquals("https://www.openstreetmap.org/way/17", place.sourceUrl);
-        assertEquals("Italienne · Cuisine de l’archipel · Pizza", place.cuisine);
-        assertEquals(java.util.Arrays.asList("Italienne", "Cuisine de l’archipel", "Pizza"), place.cuisines);
+        assertEquals(italian + " · Cuisine de l’archipel · " + pizza, place.cuisine);
+        assertEquals(java.util.Arrays.asList(italian, "Cuisine de l’archipel", pizza), place.cuisines);
         try { place.cuisines.remove(0); fail("Cuisine filters must be immutable"); }
         catch (UnsupportedOperationException expected) {}
         assertEquals("34, rue du Parc", place.address);
@@ -51,18 +55,25 @@ public final class NearbyResultTest extends InstrumentationTestCase {
     }
 
     public void testCuisineFilterKeepsAnUnknownSourceTagContainingAMiddleDot() throws Exception {
+        Context context = targetContext();
+        String italian = context.getString(R.string.places_cuisine_italian);
         JSONArray rows = new JSONArray().put(venue("node", 42, "Restaurant", 10)
                 .put("cuisine", "du marché · local; italian;du marché · local"));
-        NearbyResult.Place place = NearbyResult.parse(targetContext(), response(rows)).places.get(0);
-        assertEquals(java.util.Arrays.asList("du marché · local", "Italienne"), place.cuisines);
-        assertEquals("du marché · local · Italienne", place.cuisine);
+        NearbyResult.Place place = NearbyResult.parse(context, response(rows)).places.get(0);
+        assertEquals(java.util.Arrays.asList("du marché · local", italian), place.cuisines);
+        assertEquals("du marché · local · " + italian, place.cuisine);
     }
 
     public void testCuisineTagsFromTheMontrealSourceUseFrenchLabels() throws Exception {
+        Context context = targetContext();
         JSONArray rows = new JSONArray().put(venue("node", 42, "Restaurant", 10)
                 .put("cuisine", "italian_pizza;pasta;asian;korean"));
-        assertEquals("Pizza italienne · Pâtes · Asiatique · Coréenne",
-                NearbyResult.parse(targetContext(), response(rows)).places.get(0).cuisine);
+        String expected = context.getString(R.string.places_cuisine_italian_pizza) + " · "
+                + context.getString(R.string.places_cuisine_pasta) + " · "
+                + context.getString(R.string.places_cuisine_asian) + " · "
+                + context.getString(R.string.places_cuisine_korean);
+        assertEquals(expected,
+                NearbyResult.parse(context, response(rows)).places.get(0).cuisine);
     }
 
     public void testMalformedNeighborsCannotSupplyAnIdentityOrReplaceGoodResults() throws Exception {

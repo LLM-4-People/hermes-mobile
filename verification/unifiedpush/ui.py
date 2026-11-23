@@ -289,14 +289,11 @@ def start_account(ui, label, endpoint, bearer, phrase):
 
 def choose_ntfy(ui):
     s = ui.strings
-    transport_title = s.get("push_transport_title", "Service de notification")
-    distributor_title = s.get("push_distributor_title", "Choisir un distributeur")
-    unified_label = s.get("push_enable_unifiedpush", "Activer avec UnifiedPush")
-    no_transport = s.get("push_no_transport", "Aucun service de notification disponible pour ce profil.")
-    no_distributor = s.get(
-        "push_no_distributor",
-        "Installez ou configurez un distributeur UnifiedPush, par exemple ntfy, puis réessayez.",
-    )
+    transport_title = s["push_settings_service_title"]
+    distributor_title = s["push_settings_choose_distributor"]
+    unified_label = s["push_settings_enable_up"]
+    no_transport = s["push_settings_no_service"]
+    no_distributor = s["push_settings_install_up"]
     attempts = 0
     flags = {}
 
@@ -337,7 +334,7 @@ def enroll(ui):
     s = ui.strings
     ui.tap(s["nav_atelier"])
     ui.tap(s["ws_notifications"], scroll=True)
-    ui.tap(s.get("push_enable_action", "Activer"))
+    ui.tap(s["push_settings_enable"])
     ui.allow_if_prompted()
     choose_ntfy(ui)
 

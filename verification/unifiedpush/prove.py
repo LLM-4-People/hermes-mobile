@@ -213,8 +213,8 @@ def run(args):
         title = "Discussion-" + unique
         try:
             s = ui.strings
-            disable_push = s.get("push_disable_action", "Désactiver")
-            open_distributor = s.get("push_open_distributor", "Ouvrir le distributeur")
+            disable_push = s["push_settings_disable"]
+            open_distributor = s["push_settings_open_distributor"]
             launch(adb, APP)
             start_account(ui, owner, account_url, primary.key, phrase)
             enroll(ui)

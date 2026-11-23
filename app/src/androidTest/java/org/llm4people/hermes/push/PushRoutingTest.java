@@ -9,6 +9,7 @@ import android.os.Build;
 import android.service.notification.StatusBarNotification;
 import android.test.InstrumentationTestCase;
 
+import org.llm4people.hermes.R;
 import org.llm4people.hermes.net.Exchange;
 import org.json.JSONObject;
 import org.json.JSONArray;
@@ -200,8 +201,8 @@ public final class PushRoutingTest extends InstrumentationTestCase {
             for (StatusBarNotification row : context.getSystemService(NotificationManager.class).getActiveNotifications()) {
                 if (!tag.equals(row.getTag())) continue;
                 present = true;
-                assertEquals("Hermes a une question", row.getNotification().extras.getString("android.title"));
-                assertEquals("Ouvrez votre profil pour voir les détails.", row.getNotification().extras.getString("android.text"));
+                assertEquals(context.getString(R.string.push_notice_question), row.getNotification().extras.getString("android.title"));
+                assertEquals(context.getString(R.string.push_notice_open_details), row.getNotification().extras.getString("android.text"));
                 assertEquals(android.app.Notification.VISIBILITY_PRIVATE, row.getNotification().visibility);
                 assertEquals(PushNotices.PROMPT_DISPLAY_MILLIS, row.getNotification().getTimeoutAfter());
             }
@@ -214,7 +215,7 @@ public final class PushRoutingTest extends InstrumentationTestCase {
     private boolean postedNotice(String tag) {
         for (StatusBarNotification active : context.getSystemService(NotificationManager.class).getActiveNotifications()) {
             if (!tag.equals(active.getTag())) continue;
-            assertEquals("Un rappel vous attend", active.getNotification().extras.getString("android.title"));
+            assertEquals(context.getString(R.string.push_notice_reminder), active.getNotification().extras.getString("android.title"));
             assertFalse(active.getNotification().extras.toString().contains("sensitive-body-never-display"));
             return true;
         }

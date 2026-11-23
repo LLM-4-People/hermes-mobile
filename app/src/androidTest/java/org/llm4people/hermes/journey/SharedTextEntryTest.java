@@ -112,11 +112,13 @@ public final class SharedTextEntryTest extends InstrumentationTestCase {
                 JourneyUi ui = new JourneyUi(driver, current[0], context.getCacheDir());
                 String unlock = current[0].getString(R.string.profile_unlock_action);
                 String passphrase = current[0].getString(R.string.profile_passphrase_label);
+                String addTextTitle = current[0].getString(R.string.share_add_text_title);
+                String destinationDetails = current[0].getString(R.string.share_destination_details, "Notes de lecture", thread).trim();
                 ui.tap(profile.label);
                 ui.fill(passphrase, profile.passphrase);
                 ui.tap(unlock);
-                ui.see("Ajouter au brouillon ?");
-                ui.contains(profile.label, "Identifiant : " + thread);
+                ui.see(addTextTitle);
+                ui.contains(profile.label, destinationDetails);
                 if (recreate) {
                     Instrumentation.ActivityMonitor monitor = driver.addMonitor(MainActivity.class.getName(), null, false);
                     try {
@@ -127,14 +129,14 @@ public final class SharedTextEntryTest extends InstrumentationTestCase {
                     } finally { driver.removeMonitor(monitor); }
                     ui = new JourneyUi(driver, current[0], context.getCacheDir());
                     ui.see(unlock);
-                    assertFalse(ui.has("Ajouter au brouillon ?"));
+                    assertFalse(ui.has(addTextTitle));
                     ui.fill(passphrase, profile.passphrase);
                     ui.tap(unlock);
-                    ui.see("Ajouter au brouillon ?");
-                    ui.contains(profile.label, "Identifiant : " + thread);
+                    ui.see(addTextTitle);
+                    ui.contains(profile.label, destinationDetails);
                 }
                 assertEquals("Mon texte initial", new JSONObject(profile.account.read("thread:" + thread)).getString("draft"));
-                ui.tap("Ajouter au brouillon");
+                ui.tap(current[0].getString(R.string.share_add_to_draft));
                 ui.see(current[0].getString(R.string.thread_send));
                 String expected = "Mon texte initial\n" + text;
                 assertEquals(expected, ui.fieldText(current[0].getString(R.string.thread_message_hint)));

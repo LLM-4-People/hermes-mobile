@@ -51,9 +51,9 @@ def enter_message(ui, prompt=PROMPT):
 def open_consent(ui):
     s = ui.strings
     send_btn = s["thread_send"]
-    consent_title = s.get("nearby_consent_title", CONSENT)
-    failed_status = s.get("nearby_status_failed", FAILED)
-    searching_status = s.get("nearby_status_searching", "Recherche de la position…")
+    consent_title = s["nearby_add_area_title"]
+    failed_status = s["nearby_unavailable_hint"]
+    searching_status = s["nearby_locating"]
     choose_profile = s["profile_choose_title"]
     composer_hint = s["thread_message_hint"]
     dismiss_ime(ui)
@@ -112,7 +112,7 @@ def open_consent(ui):
 
 
 def choose_consent(ui, label):
-    consent_title = ui.strings.get("nearby_consent_title", CONSENT)
+    consent_title = ui.strings["nearby_add_area_title"]
     ui.tap_until(
         label,
         lambda root: ui.node(consent_title, root) is None,
@@ -126,12 +126,12 @@ def stage_public_location(ui, fix, *, system_prompt=True, remember=False):
     s = ui.strings
     open_consent(ui)
     if remember:
-        ui.tap(s.get("nearby_remember_profile", "Utiliser ma position pour mes prochains messages sur ce profil"), scroll=True)
+        ui.tap(s["nearby_always_profile"], scroll=True)
     fix.publish()
-    choose_consent(ui, s.get("nearby_use_location", USE_LOCATION))
+    choose_consent(ui, s["nearby_use_approx"])
     if system_prompt:
         answer_android_location(ui, allow=True)
-    ui.wait(s.get("nearby_status_staged", STAGED))
+    ui.wait(s["nearby_approx_attached"])
 
 
 def unlock(ui, label, phrase):
@@ -226,8 +226,9 @@ def verify_guide(ui, names, *, capture=None, distances=None, filter_cuisine=None
     """Select observed source records and compare the rendered venue and map/source controls."""
     if len(names) < 2:
         raise ValueError("The guide demonstration needs two source records")
-    visible_app_node(ui, HEADING)
-    compass = visible_app_node(ui, "Repères des restaurants, nord en haut", attribute="content-desc")
+    s = ui.strings
+    visible_app_node(ui, s["places_cat_restaurant_heading"])
+    compass = visible_app_node(ui, s["places_cat_restaurant_compass"], attribute="content-desc")
     if names[0] not in compass.get("content-desc", ""):
         raise AssertionError("The compass does not point to the nearest returned restaurant")
     if capture:
@@ -235,13 +236,15 @@ def verify_guide(ui, names, *, capture=None, distances=None, filter_cuisine=None
     if distances is not None:
         if len(distances) != len(names):
             raise ValueError("A distance is required for each source record")
-        for name, distance in zip(names[:2], distances[:2], strict=True):
-            visible_app_node(ui, f"{name}, environ {distance} m du centre", attribute="content-desc")
+        for idx, (name, distance) in enumerate(zip(names[:2], distances[:2], strict=True), start=1):
+            dist_label = s.fmt("places_distance_meters", distance)
+            row_desc = s.fmt("places_guide_place_row_desc", idx, name, dist_label, "").rstrip()
+            visible_app_node(ui, row_desc, attribute="content-desc")
     # Compare without re-fetching. Both facts must be observed as rendered text.
-    compare_title = "Comparer " + names[0] + " avec…"
+    compare_title = s.fmt("places_compare_with", names[0])
     tap_visible_app_until(
         ui,
-        "Comparer deux lieux",
+        s["places_guide_compare_desc"],
         lambda root: ui.node(compare_title, root) is not None,
         attribute="content-desc",
         description="visible control " + compare_title,
@@ -255,56 +258,62 @@ def verify_guide(ui, names, *, capture=None, distances=None, filter_cuisine=None
     )
     primary = visible_app_node(ui, names[0] + " · ", attribute="text").get("text")
     paired = visible_app_node(ui, names[1] + " · ", attribute="text").get("text")
-    difference = visible_app_node(ui, "Écart des distances au centre", attribute="text").get("text")
+    gap_prefix = s.fmt("places_guide_distance_gap", "").rstrip(": ")
+    difference = visible_app_node(ui, gap_prefix, attribute="text").get("text")
     if distances is not None:
-        wanted = str(abs(distances[0] - distances[1])) + " m"
-        if difference != "Écart des distances au centre : " + wanted:
+        wanted = s.fmt("places_distance_meters", abs(distances[0] - distances[1]))
+        if difference != s.fmt("places_guide_distance_gap", wanted):
             raise AssertionError("Comparison does not show the source distance difference")
     if capture:
         capture("comparison")
     if filter_cuisine:
+        cuisine_desc = s.fmt("places_guide_cuisine_desc", "").rstrip(", ")
+        choose_cuisine = s["places_choose_cuisine"]
         tap_visible_app_until(
             ui,
-            "Filtrer par cuisine",
-            lambda root: ui.node("Choisir une cuisine", root) is not None,
+            cuisine_desc,
+            lambda root: ui.node(choose_cuisine, root) is not None,
             attribute="content-desc",
             description="visible cuisine filter dialog",
         )
         ui.tap_until(
             filter_cuisine,
-            lambda root: ui.node("Choisir une cuisine", root) is None,
+            lambda root: ui.node(choose_cuisine, root) is None,
             scroll=True,
             description="dismissed cuisine filter dialog for " + filter_cuisine,
         )
-        visible_app_node(ui, "1 adresse sur " + str(len(names)), attribute="text")
+        one_of_all = s.fmt("places_guide_count_of", s.plural("places_guide_count", 1, 1), len(names))
+        visible_app_node(ui, one_of_all, attribute="text")
         tap_visible_app_until(
             ui,
-            "Filtrer par cuisine",
-            lambda root: ui.node("Choisir une cuisine", root) is not None,
+            cuisine_desc,
+            lambda root: ui.node(choose_cuisine, root) is not None,
             attribute="content-desc",
             description="visible cuisine filter dialog to reset",
         )
         ui.tap_until(
-            "Toutes les cuisines",
-            lambda root: ui.node("Choisir une cuisine", root) is None,
+            s["places_all_cuisines"],
+            lambda root: ui.node(choose_cuisine, root) is None,
             scroll=True,
             description="dismissed cuisine filter dialog after reset",
         )
-    second = visible_app_node(ui, names[1] + ", environ ", attribute="content-desc")
-    if "Afficher les détails" in second.get("content-desc", ""):
+    second_prefix = s.fmt("places_guide_place_row_desc", 2, names[1], "\x00", "").split("\x00", 1)[0]
+    expand_details = s["places_guide_expand_details"]
+    second = visible_app_node(ui, second_prefix, attribute="content-desc")
+    if expand_details in second.get("content-desc", ""):
         tap_visible_app_until(
             ui,
-            names[1] + ", environ ",
+            second_prefix,
             lambda root: not any(
                 node.get("package") == APP
                 and names[1] in node.get("content-desc", "")
-                and "Afficher les détails" in node.get("content-desc", "")
+                and expand_details in node.get("content-desc", "")
                 for node in root.iter("node")
             ),
             attribute="content-desc",
             description="expanded restaurant details for " + names[1],
         )
-    source = visible_app_node(ui, "Fiche OpenStreetMap de " + names[1], attribute="content-desc")
+    source = visible_app_node(ui, s.fmt("places_guide_osm_card_desc", names[1]), attribute="content-desc")
     if capture:
         capture("detail")
     return {"nearest": names[0], "selected": names[1], "source_control": source.get("content-desc"),

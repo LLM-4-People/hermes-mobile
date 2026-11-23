@@ -3,6 +3,7 @@ package org.llm4people.hermes.thread;
 import android.test.InstrumentationTestCase;
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.llm4people.hermes.R;
 
 @SuppressWarnings("deprecation")
 public class PromptHistoryTest extends InstrumentationTestCase {
@@ -29,8 +30,8 @@ public class PromptHistoryTest extends InstrumentationTestCase {
         assertEquals("Une liste", display.getJSONObject(1).getString("content"));
         assertEquals("• Lundi\n• Jeudi", display.getJSONObject(3).getString("content"));
         assertEquals("prompt_status", display.getJSONObject(5).getString("role"));
-        assertEquals("Question passée.", display.getJSONObject(5).getString("content"));
-        assertEquals("Des réponses manquent dans cette demande.", display.getJSONObject(6).getString("content"));
+        assertEquals(ThreadStrings.get(R.string.prompt_history_skipped), display.getJSONObject(5).getString("content"));
+        assertEquals(ThreadStrings.get(R.string.prompt_history_missing), display.getJSONObject(6).getString("content"));
         assertSame(assistant, display.getJSONObject(7));
         assertEquals(3, source.length());
         result.put("session_id", "another-session");
@@ -46,8 +47,9 @@ public class PromptHistoryTest extends InstrumentationTestCase {
                 .put(response("Question suivante ?", "unanswered", JSONObject.NULL))
                 .put(response("Dernière question ?", "unanswered", JSONObject.NULL));
         for (String[] example : new String[][] {
-                {"undelivered", "La demande n’a pas pu être transmise."},
-                {"timed_out", "Le délai de réponse a expiré."}, {"cancelled", "La demande a été annulée."}}) {
+                {"undelivered", ThreadStrings.get(R.string.prompt_history_undelivered)},
+                {"timed_out", ThreadStrings.get(R.string.prompt_history_timed_out)},
+                {"cancelled", ThreadStrings.get(R.string.prompt_history_cancelled)}}) {
             JSONObject receipt = new JSONObject().put("responses", responses).put("outcome", example[0])
                     .put("notice", "Précision de la passerelle");
             JSONObject tool = new JSONObject().put("role", "tool").put("tool_name", "clarify")
@@ -73,11 +75,11 @@ public class PromptHistoryTest extends InstrumentationTestCase {
         result.put("approval", "Command required approval (reason) and was approved by the user.");
         row.put("content", result.toString());
         JSONObject allow = PromptHistory.display(input).getJSONObject(0);
-        assertEquals("Action autorisée.\n\nfichier prêt", allow.getString("content"));
+        assertEquals(ThreadStrings.get(R.string.prompt_history_approved) + "\n\nfichier prêt", allow.getString("content"));
         assertEquals(result.toString(), allow.getString("receipt_details"));
         result = new JSONObject().put("status", "blocked").put("user_summary", "You denied this command — it did not run.");
         row.put("content", result.toString());
-        assertEquals("Action refusée. La commande n’a pas été exécutée.", PromptHistory.display(input)
+        assertEquals(ThreadStrings.get(R.string.prompt_history_denied), PromptHistory.display(input)
                 .getJSONObject(0).getString("content"));
     }
 

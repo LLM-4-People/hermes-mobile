@@ -33,7 +33,7 @@ def own_group_expander(ui, root):
 
 
 def generic_body(ui):
-    return ui.strings.get("push_notice_body", BODY)
+    return ui.strings["push_notice_open_details"]
 
 
 def presentation(ui, root, title):

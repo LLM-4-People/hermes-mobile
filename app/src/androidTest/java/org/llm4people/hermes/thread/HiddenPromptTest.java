@@ -99,7 +99,8 @@ public class HiddenPromptTest extends InstrumentationTestCase {
             assertTrue(main(() -> visibleText(list.getChildAt(0), label)));
             assertEquals(top, (int) main(() -> list.getChildAt(0).getTop()));
             assertTrue(main(reveal::performClick));
-            awaitUi(list, "visible approval", () -> !reveal.isShown() && visibleText(list, "Refuser"));
+            awaitUi(list, "visible approval", () -> !reveal.isShown()
+                    && visibleText(list, activity.getString(R.string.share_bridge_deny)));
             assertEquals("Mon brouillon", main(page.screen::draft));
             runTestOnUiThread(() -> list.setSelectionFromTop(position, 0));
             awaitUi(list, "response action after scrolling back", () -> reveal.isShown()

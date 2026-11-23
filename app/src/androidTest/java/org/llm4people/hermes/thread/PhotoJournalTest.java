@@ -3,6 +3,7 @@ package org.llm4people.hermes.thread;
 import junit.framework.TestCase;
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.llm4people.hermes.R;
 import java.util.Base64;
 
 public final class PhotoJournalTest extends TestCase {
@@ -87,8 +88,9 @@ public final class PhotoJournalTest extends TestCase {
         String digest = "ab".repeat(32);
         String reference = "[Image attached at: /srv/hermes/cache/documents/native-inputs/" + digest
                 + "/api_" + digest.substring(0, 32) + ".png]";
+        String attached = ThreadStrings.get(R.string.thread_attached_image);
         JSONObject user = new JSONObject().put("role", "user").put("content", "Question\n\n" + reference);
-        assertEquals("Question\n\nImage jointe", ThreadData.content(user));
+        assertEquals("Question\n\n" + attached, ThreadData.content(user));
         assertEquals("Question", ThreadTitles.firstPrompt(new JSONArray().put(user)));
         String clipped = "Question  [Image attached at: /tmp/he...";
         JSONObject known = new JSONObject().put("preview", clipped).put(ThreadTitles.FIRST_PROMPT, "Question");
@@ -97,7 +99,7 @@ public final class PhotoJournalTest extends TestCase {
         assertEquals(clipped, ThreadData.inboxPreview(clipped));
         assertEquals("Question", ThreadData.inboxPreview("Question  " + reference + " [screenshot]"));
         user.put("content", "Question\n\n" + reference + "\n[screenshot]");
-        assertEquals("Question\n\nImage jointe", ThreadData.content(user));
+        assertEquals("Question\n\n" + attached, ThreadData.content(user));
         assertEquals("Question", ThreadTitles.firstPrompt(new JSONArray().put(user)));
         String literal = "Pourquoi [Image attached at: /tmp/chat.png] apparaît-il dans mon journal ?";
         user.put("content", literal);
