@@ -6,11 +6,11 @@ Hermes Mobile lets Hermes adapt your mobile workspace in real time using declara
 
 ## Live UI Patches (`ui.patch`)
 
-Ask Hermes in any conversation to tailor a screen, adjust colors, or build a reusable tool or tracker (for example: *"Ajoute une carte de suivi de mes lectures sur mon écran d'accueil"* or *"Give my workspace a warm dark slate accent"*).
+Ask Hermes in any conversation to tailor a screen, adjust colors, or build a reusable tool or tracker (for example: *"Add a reading tracker card to my workspace home"* or *"Give my workspace a warm dark slate accent"*).
 
 - **Bounded atomic operations:** Each `LiveUiPatch` applies up to **16 operations** (`MAX_OPS = 16`) atomically to the unlocked profile’s workspace state. If any operation fails validation, the entire patch is rejected without mutating saved state.
 - **Surfaces v2 & Interactive Controls:** Surfaces support rich native sections, live values, contextual quick-action chips, and interactive controls (`InteractiveControlsBlock`—toggles, sliders with TalkBack support, multi-select chips, and form inputs) whose state persists locally per profile and stages reviewed drafts before sending.
-- **Preview, Apply & Multi-Revision Rollback:** Every patch shows a clear summary bar before or after application. Undoing a revision (`rollbackAllTo`) rolls back dependent newer revisions cleanly and synchronizes sequential reverts back to the gateway (`POST /api/mobile/ui/revisions/{id}/revert`). You can also inspect history or reset any surface from **Atelier → Restore workspace** (**Rétablir l’atelier**).
+- **Preview, Apply & Multi-Revision Rollback:** Every patch shows a clear summary bar before or after application. Undoing a revision (`rollbackAllTo`) rolls back dependent newer revisions cleanly and synchronizes sequential reverts back to the gateway (`POST /api/mobile/ui/revisions/{id}/revert`). You can also inspect history or reset any surface from **Workspace → Restore workspace**.
 
 ## WCAG-AA Theme Overrides (`ThemePalette`)
 

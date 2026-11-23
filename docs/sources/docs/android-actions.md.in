@@ -1,6 +1,6 @@
 # Prepare an Android action in a conversation
 
-Ask Hermes in your own words. “Ajoute mon atelier de dessin à mon agenda”, “Prépare ce message pour mon équipe” and “Montre-moi le lieu sur la carte” are all requests Hermes can turn into proposals you review on the phone. Specify the date, start and end time, and time zone for a calendar event. A place name or street address is enough for a map search.
+Ask Hermes in your own words. “Add my drawing workshop to my calendar”, “Draft this message for my team”, and “Show me the place on the map” are all requests Hermes can turn into proposals you review on the phone. Specify the date, start and end time, and time zone for a calendar event. A place name or street address is enough for a map search.
 
 | Request | What happens after you review and tap |
 | --- | --- |
@@ -12,44 +12,42 @@ The proposal appears in the conversation where you asked for it. Opening, pinnin
 
 ## From the conversation to the calendar
 
-On an Android 16 emulator, Hermes Mobile sent the following request from its conversation composer.
+On an Android 16 emulator, Hermes Mobile sent a request from its conversation composer asking Hermes to prepare a drawing workshop calendar event (April 12, 2027, 2:00 PM to 3:00 PM, UTC-04:00 at Maison des arts de Laval), a team reminder message to share, and a map search for the venue.
 
-> Je prépare un atelier de dessin à la Maison des arts de Laval le 12 avril 2027 de 14 h à 15 h, heure de Laval (UTC−04:00). Peux-tu me préparer un rendez-vous à ouvrir dans mon agenda, un message à partager avec mon équipe et une recherche pour retrouver ce lieu sur la carte de mon téléphone ?
+Local Qwen2.5-Coder-7B-Instruct returned a structured workspace page containing all three proposals. The model output matched the completed gateway run and assistant message 2 in the captured verification conversation. [Original phone request, reply and run identifiers](examples/android-actions/phone-run.json)
 
-Local Qwen2.5-Coder-7B-Instruct returned a page called **Atelier de dessin à Laval**. The exact 590-byte reply contained an agenda entry, the text “Retrouvons-nous à l'Atelier de dessin à la Maison des arts de Laval le 12 avril 2027 de 14 h à 15 h.” and a search for “Maison des arts de Laval, Laval”. The model output matched the completed gateway run and assistant message 2 in this conversation. [Original phone request, reply and run identifiers](examples/android-actions/phone-run.json)
+The tester chose **Try in discussion** and **Review event** to inspect the dates and place. **Open calendar** passed those details to the calendar. These two native view captures show the same reply replayed on a signed build, first in the conversation and then in its confirmation dialog.
 
-The tester chose **Essayer dans la discussion** and **Vérifier l’événement** to inspect the dates and place. **Ouvrir l’agenda** passed those details to the calendar. These two native view captures show the same reply replayed on a later signed build, first in the conversation and then in its confirmation dialog.
+<a href="examples/android-actions/proposal.png"><img src="examples/android-actions/proposal.png" width="260" alt="Conversation page offering three separate controls to review the calendar event, share text and map query."></a>
+<a href="examples/android-actions/review.png"><img src="examples/android-actions/review.png" width="290" alt="Native confirmation dialog with both April 12 times in UTC-04:00 and a choice to cancel or open the calendar."></a>
 
-<a href="examples/android-actions/proposal.png"><img src="examples/android-actions/proposal.png" width="260" alt="French conversation page offering three separate controls to review the calendar event, share text and map query."></a>
-<a href="examples/android-actions/review.png"><img src="examples/android-actions/review.png" width="290" alt="Native confirmation dialog with both April 12 times in UTC−04:00 and a choice to cancel or open the calendar."></a>
+**Calendar.** In the original model run, the tester opened Fossify Calendar. Its editor showed April 12, the workshop title, and the venue. Because the emulator used GMT, 2:00 PM to 3:00 PM local time appeared as 6:00 to 7:00 PM. The tester discarded the event so the test calendar contained zero events afterward.
 
-**Calendar.** In the original model run, the tester opened Fossify Calendar. Its editor showed April 12, the workshop title and the place. The emulator used GMT, so 14 h to 15 h in Laval appeared as 6:00 to 7:00 PM. The tester discarded the event. The test calendar contained zero events afterward.
+<a href="examples/android-actions/calendar.png"><img src="examples/android-actions/calendar.png" width="300" alt="Fossify Calendar New Event editor pre-filled with the workshop title, venue, and start and end times."></a>
 
-<a href="examples/android-actions/calendar.png"><img src="examples/android-actions/calendar.png" width="300" alt="Fossify Calendar’s New Event editor with Atelier de dessin à Laval, Maison des arts de Laval and the local start and end times."></a>
+**Sharing and maps.** In the signed-build replay, the Android Sharesheet displayed the proposed invitation message, and the tester dismissed it before choosing a recipient. Google Maps opened with the venue name in its search bar on the offline emulator.
 
-**Sharing and maps.** In the signed-build replay, the Android Sharesheet displayed the proposed French message. The tester dismissed it before choosing a recipient. Google Maps opened with “Maison des arts de Laval, Laval” in its search bar. The emulator was offline, so the map image shows the query as handed to Maps.
-
-<a href="examples/android-actions/share.png"><img src="examples/android-actions/share.png" width="260" alt="Android Sharesheet with the French workshop invitation, before selecting a receiving app."></a>
-<a href="examples/android-actions/map.png"><img src="examples/android-actions/map.png" width="260" alt="Google Maps on the offline emulator, with Maison des arts de Laval, Laval in its search bar."></a>
+<a href="examples/android-actions/share.png"><img src="examples/android-actions/share.png" width="260" alt="Android Sharesheet displaying the proposed workshop invitation before selecting a receiving app."></a>
+<a href="examples/android-actions/map.png"><img src="examples/android-actions/map.png" width="260" alt="Google Maps on the offline emulator with the workshop venue populated in the search bar."></a>
 
 ## One request for a workshop
 
-> Prépare un rendez-vous pour l’atelier de dessin du 12 avril 2027, de 14 h à 15 h à Laval (UTC−04:00). J’aimerais aussi partager un rappel avec mon équipe et trouver la Maison des arts de Laval sur la carte.
+> Prepare a calendar appointment for the drawing workshop on April 12, 2027, from 2:00 PM to 3:00 PM in Laval (UTC-04:00). I also want to share a reminder with my team and locate Maison des arts de Laval on the map.
 
 A compatible assistant can return this page. The calendar action carries its own dates. The map and share actions each carry only the value shown in their review.
 
 ```hermes-workspace
 {
   "version": 1,
-  "surface": "page/atelier-dessin",
+  "surface": "page/drawing-workshop",
   "mode": "replace",
-  "title": "Atelier de dessin",
+  "title": "Drawing workshop",
   "blocks": [
     {
       "type": "device",
       "request": {
         "kind": "calendar_event",
-        "title": "Atelier de dessin",
+        "title": "Drawing workshop",
         "start": "2027-04-12T14:00:00-04:00",
         "end": "2027-04-12T15:00:00-04:00",
         "location": "Maison des arts de Laval"
@@ -59,7 +57,7 @@ A compatible assistant can return this page. The calendar action carries its own
       "type": "device",
       "request": {
         "kind": "share_text",
-        "text": "Rendez-vous pour l’atelier de dessin le 12 avril à 14 h à la Maison des arts de Laval."
+        "text": "Join us for the drawing workshop on April 12 at 2:00 PM at Maison des arts de Laval."
       }
     },
     {
@@ -72,12 +70,12 @@ A compatible assistant can return this page. The calendar action carries its own
 
 ## A separate host model run
 
-A local Qwen2.5-Coder-7B-Instruct model received an ordinary French request for a drawing workshop in Laval. It returned a calendar event for 14 h to 15 h with the requested UTC−04:00 offset, a text for the team and a map query for the Maison des arts de Laval. The 554-byte reply matched the provider output, the completed gateway run and assistant message 2 in its conversation. The Android parser accepted all three blocks on the host. This run stopped before opening a phone app. The receipt preserves the model’s original wording, including “Joinez-nous !”. [Exact request, reply and run identifiers](examples/android-actions/model-run.json)
+A local Qwen2.5-Coder-7B-Instruct model received a natural-language request for the drawing workshop and returned a calendar event for 2:00 PM to 3:00 PM with the requested UTC-04:00 offset, a team message, and a map query for the venue. The 554-byte reply matched the provider output, the completed gateway run, and assistant message 2 in its conversation. The Android parser accepted all three blocks on the host, and the run stopped before opening a phone app. [Exact request, reply and run identifiers](examples/android-actions/model-run.json)
 
 ## What the gateway supplies
 
 The mobile app sends its supported action shapes in the existing `instructions` field of `POST /v1/runs`. The pinned gateway passes those instructions and the selected conversation to the model. An assistant reply supplies the page document. Preparing or opening one of its device actions requires no new gateway route, plugin or provider credential. Other API clients retain their own instructions. [Pinned Hermes run admission](https://github.com/LLM-4-People/hermes-agent/blob/3f194698f9cb586d3302129e744ed30e18c3d6ff/gateway/platforms/api_server_runs.py#L949)
 
-Requests to work on the gateway use the active profile’s tools. For example, ask Hermes to summarize research, review files in its workspace or schedule a recurring reminder. The pinned fork includes toolsets for web research, browsing, files, terminal work, skills, memory and scheduled tasks. Availability depends on configuration and the current run’s selections. Authenticated `GET /v1/capabilities` describes the API, and `GET /v1/toolsets` lists each toolset’s configuration and enabled state. The phone’s **Modèle et outils** panel controls the model and tools used for a discussion. [Pinned discovery handlers](https://github.com/LLM-4-People/hermes-agent/blob/3f194698f9cb586d3302129e744ed30e18c3d6ff/gateway/platforms/api_server.py#L2358), [pinned toolsets](https://github.com/LLM-4-People/hermes-agent/blob/3f194698f9cb586d3302129e744ed30e18c3d6ff/toolsets.py#L72), [Hermes API server](https://hermes-agent.nousresearch.com/docs/user-guide/features/api-server) and [Hermes tools](https://hermes-agent.nousresearch.com/docs/user-guide/features/tools)
+Requests to work on the gateway use the active profile’s tools. For example, ask Hermes to summarize research, review files in its workspace or schedule a recurring reminder. The pinned fork includes toolsets for web research, browsing, files, terminal work, skills, memory and scheduled tasks. Availability depends on configuration and the current run’s selections. Authenticated `GET /v1/capabilities` describes the API, and `GET /v1/toolsets` lists each toolset’s configuration and enabled state. The phone’s **Model & tools** panel controls the model and tools used for a discussion. [Pinned discovery handlers](https://github.com/LLM-4-People/hermes-agent/blob/3f194698f9cb586d3302129e744ed30e18c3d6ff/gateway/platforms/api_server.py#L2358), [pinned toolsets](https://github.com/LLM-4-People/hermes-agent/blob/3f194698f9cb586d3302129e744ed30e18c3d6ff/toolsets.py#L72), [Hermes API server](https://hermes-agent.nousresearch.com/docs/user-guide/features/api-server) and [Hermes tools](https://hermes-agent.nousresearch.com/docs/user-guide/features/tools)
 
-In **Modèle et outils → Compétences de Hermes**, search the enabled skills returned by the active profile’s authenticated `GET /v1/skills`. Open a summary and choose **Préparer le brouillon** to add its loadable name to the current draft. Tap **Envoyer** to submit. A skill can require additional configuration when Hermes opens it. [Pinned skills endpoint](https://github.com/LLM-4-People/hermes-agent/blob/3c43393e5dc075fa216d1b2cd9d60894dc0faf78/gateway/platforms/api_server.py#L2385) and [pinned catalog resolution](https://github.com/LLM-4-People/hermes-agent/blob/3c43393e5dc075fa216d1b2cd9d60894dc0faf78/tools/skills_tool.py#L292)
+In **Model & tools → Hermes skills**, search the enabled skills returned by the active profile’s authenticated `GET /v1/skills`. Open a summary and choose **Prepare draft** to add its loadable name to the current draft. Tap **Send** to submit. A skill can require additional configuration when Hermes opens it. [Pinned skills endpoint](https://github.com/LLM-4-People/hermes-agent/blob/3c43393e5dc075fa216d1b2cd9d60894dc0faf78/gateway/platforms/api_server.py#L2385) and [pinned catalog resolution](https://github.com/LLM-4-People/hermes-agent/blob/3c43393e5dc075fa216d1b2cd9d60894dc0faf78/tools/skills_tool.py#L292)
