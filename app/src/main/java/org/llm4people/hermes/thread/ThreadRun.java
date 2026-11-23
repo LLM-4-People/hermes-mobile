@@ -16,6 +16,7 @@ import org.llm4people.hermes.ambient.NotificationAllowlist;
 import org.llm4people.hermes.camera.CapturedMedia;
 import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.os.LiveRunNotification;
+import org.llm4people.hermes.perf.StreamCoalescer;
 import org.llm4people.hermes.share.AttachmentUploader;
 import org.llm4people.hermes.share.DeviceBridgeFlow;
 
@@ -37,6 +38,11 @@ final class ThreadRun {
     private long subscription;
     private boolean canStop;
     private LiveRunNotification.Snapshot lastProgress = LiveRunNotification.Snapshot.idle();
+    private StreamCoalescer liveCoalescer;
+    private Runnable pendingCoalesceFlush;
+    private RunFollower.Frame coalescedFrame;
+    private String coalescedActivity = "";
+    private boolean coalescedHasPrompts;
     private RunAction owner() { return RunAction.capture(journal, page::token, () -> subscription); }
     private String runId() { return ThreadData.string(journal.pending(), "run_id"); }
 
@@ -403,7 +409,22 @@ final class ThreadRun {
         return true;
     }
 
+    private void clearLiveCoalescer() {
+        if (pendingCoalesceFlush != null) {
+            page.main.removeCallbacks(pendingCoalesceFlush);
+            pendingCoalesceFlush = null;
+        }
+        if (liveCoalescer != null) {
+            liveCoalescer.reset();
+            liveCoalescer = null;
+        }
+        coalescedFrame = null;
+        coalescedActivity = "";
+        coalescedHasPrompts = false;
+    }
+
     private void follow() {
+        clearLiveCoalescer();
         if (follower != null) follower.close();
         int token = page.token();
         long serial = ++subscription;
@@ -419,6 +440,12 @@ final class ThreadRun {
         ui.live("Hermes travaille…", saved.toString(), false, saved.origin());
         reportProgress(new LiveRunNotification.Snapshot(
                 LiveRunNotification.Phase.WORKING, 0, 0, false, true));
+        StreamCoalescer coalescer = new StreamCoalescer(StreamCoalescer.DEFAULT_FRAME_BUDGET_MS, rendered -> {
+            if (coalescedFrame != null) {
+                ui.live(coalescedActivity, rendered, coalescedHasPrompts, coalescedFrame.origin, coalescedFrame.reasoning);
+            }
+        });
+        liveCoalescer = coalescer;
         RunFollower nextFollower = new RunFollower(page.api, id, receipt, started, new RunFollower.Listener() {
             private boolean current() { return serial == subscription && receipt == journal.pending(); }
 
@@ -432,7 +459,43 @@ final class ThreadRun {
                     int count = next.prompts.size();
                     String activity = count == 0 ? next.activity : count == 1
                             ? "Hermes attend votre réponse" : count + " demandes en attente";
-                    ui.live(activity, next.text, count > 0, next.origin, next.reasoning);
+                    boolean hasPrompts = count > 0;
+                    boolean urgent = hasPrompts
+                            || !next.deviceRequests.isEmpty()
+                            || !next.uiPatches.isEmpty()
+                            || coalescedFrame == null
+                            || !activity.equals(coalescedActivity)
+                            || !next.reasoning.equals(coalescedFrame.reasoning)
+                            || next.origin != coalescedFrame.origin;
+                    coalescedFrame = next;
+                    coalescedActivity = activity;
+                    coalescedHasPrompts = hasPrompts;
+                    long now = SystemClock.elapsedRealtime();
+                    if (urgent) {
+                        if (pendingCoalesceFlush != null) {
+                            page.main.removeCallbacks(pendingCoalesceFlush);
+                            pendingCoalesceFlush = null;
+                        }
+                        boolean emitted = coalescer.offer(next.text, now);
+                        if (!emitted && coalescer.hasPending()) emitted = coalescer.flush(now);
+                        if (!emitted) ui.live(activity, next.text, hasPrompts, next.origin, next.reasoning);
+                    } else {
+                        boolean emitted = coalescer.offer(next.text, now);
+                        if (emitted && pendingCoalesceFlush != null) {
+                            page.main.removeCallbacks(pendingCoalesceFlush);
+                            pendingCoalesceFlush = null;
+                        } else if (!emitted && coalescer.hasPending() && pendingCoalesceFlush == null) {
+                            long delay = Math.max(1L, coalescer.pendingDelayMs(now));
+                            Runnable flushTask = () -> {
+                                pendingCoalesceFlush = null;
+                                if (token == page.token() && current() && liveCoalescer == coalescer) {
+                                    coalescer.flush(SystemClock.elapsedRealtime());
+                                }
+                            };
+                            pendingCoalesceFlush = flushTask;
+                            page.main.postDelayed(flushTask, delay);
+                        }
+                    }
                     decisions.present(next.prompts);
                     if (!next.deviceRequests.isEmpty()) page.handleDeviceRequests(id, next.deviceRequests);
                     if (!next.uiPatches.isEmpty()) {
@@ -440,20 +503,30 @@ final class ThreadRun {
                     }
                     ui.notice("", "", null);
                     reportProgress(new LiveRunNotification.Snapshot(
-                            count > 0 ? LiveRunNotification.Phase.AWAITING_DECISION
+                            hasPrompts ? LiveRunNotification.Phase.AWAITING_DECISION
                                     : next.toolSteps > 0 ? LiveRunNotification.Phase.TOOL_RUNNING
                                     : LiveRunNotification.Phase.WORKING,
-                            next.toolSteps, 0, count > 0, canStop));
+                            next.toolSteps, 0, hasPrompts, canStop));
                 });
             }
             @Override public void complete(JSONObject status, long firstText, long elapsed) {
-                deliver(() -> completed(status, firstText, elapsed));
+                deliver(() -> {
+                    clearLiveCoalescer();
+                    completed(status, firstText, elapsed);
+                });
             }
             @Override public void unknown(JSONObject status) {
-                deliver(() -> unresolved(status));
+                deliver(() -> {
+                    clearLiveCoalescer();
+                    unresolved(status);
+                });
             }
             @Override public void disconnected() {
                 deliver(() -> {
+                    if (liveCoalescer == coalescer && coalescer.hasPending()) {
+                        coalescer.flush(SystemClock.elapsedRealtime());
+                    }
+                    clearLiveCoalescer();
                     checkpoint();
                     decisions.disconnected();
                     started = -1;
@@ -618,6 +691,7 @@ final class ThreadRun {
      */
     boolean detachForThreadSwitch() {
         ++subscription;
+        clearLiveCoalescer();
         canStop = false;
         ui.stopDuplex();
         if (decisions != null) decisions.clear();
@@ -651,6 +725,7 @@ final class ThreadRun {
 
     void detach() {
         ++subscription;
+        clearLiveCoalescer();
         canStop = false;
         reportProgress(LiveRunNotification.Snapshot.idle());
         ui.stopDuplex();

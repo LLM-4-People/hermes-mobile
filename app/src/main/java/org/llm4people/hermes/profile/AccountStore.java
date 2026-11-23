@@ -167,6 +167,7 @@ final class AccountStore {
         IncomingShare.forgetProfile(context, id);
         IncomingMediaShare.forgetProfile(context, id);
         org.llm4people.hermes.ambient.HermesNotificationListener.clearSession();
+        org.llm4people.hermes.perf.MemoryPressure.clearAll();
         commitMembership(id, null, null);
         SharedPreferences profileVault = vault(id);
         synchronized (profileVault) {

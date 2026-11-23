@@ -47,6 +47,7 @@ import org.llm4people.hermes.panel.SessionPanel;
 import org.llm4people.hermes.panel.ShareWithUserSheet;
 import org.llm4people.hermes.panel.ThreadActions;
 import org.llm4people.hermes.panel.UniversalShareModel;
+import org.llm4people.hermes.perf.MemoryPressure;
 import org.llm4people.hermes.profile.Account;
 import org.llm4people.hermes.profile.ProfileGate;
 import org.llm4people.hermes.push.DeliveryItem;
@@ -1162,6 +1163,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
 
     private void clearWorkspace() {
         clearGraceTimer();
+        MemoryPressure.clearAll();
         HermesNotificationListener.clearSession();
         if (activeAmbientPanel != null) activeAmbientPanel.dismissDialogs();
         activeAmbientPanel = null;
