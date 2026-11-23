@@ -55,6 +55,34 @@ public final class UiPrimitivesAndThemeContrastTest {
         }
         assertWcagPairs("light", light);
         assertWcagPairs("dark", dark);
+
+        // ThemePalette constants must stay 100% synced with values{,-night}/colors.xml (SSoT).
+        assertColorEquals("DAY_PAPER", light.get("paper"), org.llm4people.hermes.artifact.ThemePalette.DAY_PAPER);
+        assertColorEquals("DAY_SURFACE", light.get("surface"), org.llm4people.hermes.artifact.ThemePalette.DAY_SURFACE);
+        assertColorEquals("DAY_INK", light.get("ink"), org.llm4people.hermes.artifact.ThemePalette.DAY_INK);
+        assertColorEquals("DAY_MUTED", light.get("muted"), org.llm4people.hermes.artifact.ThemePalette.DAY_MUTED);
+        assertColorEquals("DAY_ACCENT", light.get("accent"), org.llm4people.hermes.artifact.ThemePalette.DAY_ACCENT);
+        assertColorEquals("DAY_ON_ACCENT", light.get("on_accent"), org.llm4people.hermes.artifact.ThemePalette.DAY_ON_ACCENT);
+        assertColorEquals("DAY_ACCENT_SURFACE", light.get("accent_surface"), org.llm4people.hermes.artifact.ThemePalette.DAY_ACCENT_SURFACE);
+        assertColorEquals("DAY_LINE", light.get("line"), org.llm4people.hermes.artifact.ThemePalette.DAY_LINE);
+        assertColorEquals("DAY_DANGER", light.get("danger"), org.llm4people.hermes.artifact.ThemePalette.DAY_DANGER);
+        assertColorEquals("DAY_WARNING", light.get("warning"), org.llm4people.hermes.artifact.ThemePalette.DAY_WARNING);
+        assertColorEquals("NIGHT_PAPER", dark.get("paper"), org.llm4people.hermes.artifact.ThemePalette.NIGHT_PAPER);
+        assertColorEquals("NIGHT_SURFACE", dark.get("surface"), org.llm4people.hermes.artifact.ThemePalette.NIGHT_SURFACE);
+        assertColorEquals("NIGHT_INK", dark.get("ink"), org.llm4people.hermes.artifact.ThemePalette.NIGHT_INK);
+        assertColorEquals("NIGHT_MUTED", dark.get("muted"), org.llm4people.hermes.artifact.ThemePalette.NIGHT_MUTED);
+        assertColorEquals("NIGHT_ACCENT", dark.get("accent"), org.llm4people.hermes.artifact.ThemePalette.NIGHT_ACCENT);
+        assertColorEquals("NIGHT_ON_ACCENT", dark.get("on_accent"), org.llm4people.hermes.artifact.ThemePalette.NIGHT_ON_ACCENT);
+        assertColorEquals("NIGHT_ACCENT_SURFACE", dark.get("accent_surface"), org.llm4people.hermes.artifact.ThemePalette.NIGHT_ACCENT_SURFACE);
+        assertColorEquals("NIGHT_LINE", dark.get("line"), org.llm4people.hermes.artifact.ThemePalette.NIGHT_LINE);
+        assertColorEquals("NIGHT_DANGER", dark.get("danger"), org.llm4people.hermes.artifact.ThemePalette.NIGHT_DANGER);
+        assertColorEquals("NIGHT_WARNING", dark.get("warning"), org.llm4people.hermes.artifact.ThemePalette.NIGHT_WARNING);
+    }
+
+    private static void assertColorEquals(String name, String hex, int argb) {
+        int[] rgb = parseRgb(hex);
+        int expected = 0xFF000000 | (rgb[0] << 16) | (rgb[1] << 8) | rgb[2];
+        assertEquals(name + " drift vs colors.xml", expected, argb);
     }
 
     @Test

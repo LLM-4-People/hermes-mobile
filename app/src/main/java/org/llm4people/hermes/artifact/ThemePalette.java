@@ -21,30 +21,30 @@ public final class ThemePalette {
     public static final double WCAG_AA_NORMAL = 4.5;
     public static final double WCAG_AA_LARGE = 3.0;
 
-    // DESIGN.md day tokens
-    public static final int DAY_PAPER = 0xFFF7F5EF;
-    public static final int DAY_SURFACE = 0xFFFFFEFA;
-    public static final int DAY_INK = 0xFF172521;
-    public static final int DAY_MUTED = 0xFF53625B;
-    public static final int DAY_ACCENT = 0xFF225C50;
+    // DESIGN.md day tokens (synced with res/values/colors.xml)
+    public static final int DAY_PAPER = 0xFFF6F4EE;
+    public static final int DAY_SURFACE = 0xFFFFFEFB;
+    public static final int DAY_INK = 0xFF14231E;
+    public static final int DAY_MUTED = 0xFF4E5D56;
+    public static final int DAY_ACCENT = 0xFF1B5E50;
     public static final int DAY_ON_ACCENT = 0xFFFFFFFF;
-    public static final int DAY_ACCENT_SURFACE = 0xFFDCEDE3;
-    public static final int DAY_LINE = 0xFFCED4CB;
-    public static final int DAY_DANGER = 0xFF9B342D;
-    public static final int DAY_WARNING = 0xFF8A5300;
+    public static final int DAY_ACCENT_SURFACE = 0xFFD8EDE3;
+    public static final int DAY_LINE = 0xFFD2D7CE;
+    public static final int DAY_DANGER = 0xFFA12E28;
+    public static final int DAY_WARNING = 0xFF7D4B00;
     public static final int DAY_POSITIVE = 0xFF1E6641;
 
-    // DESIGN.md night tokens
-    public static final int NIGHT_PAPER = 0xFF141D19;
-    public static final int NIGHT_SURFACE = 0xFF1C2823;
-    public static final int NIGHT_INK = 0xFFF3F2E8;
-    public static final int NIGHT_MUTED = 0xFFB1BEB3;
-    public static final int NIGHT_ACCENT = 0xFFA0D7BC;
-    public static final int NIGHT_ON_ACCENT = 0xFF102F23;
-    public static final int NIGHT_ACCENT_SURFACE = 0xFF253F34;
-    public static final int NIGHT_LINE = 0xFF3D4C43;
-    public static final int NIGHT_DANGER = 0xFFFFAEA4;
-    public static final int NIGHT_WARNING = 0xFFF2C272;
+    // DESIGN.md night tokens (synced with res/values-night/colors.xml)
+    public static final int NIGHT_PAPER = 0xFF111916;
+    public static final int NIGHT_SURFACE = 0xFF19241F;
+    public static final int NIGHT_INK = 0xFFF2F1E8;
+    public static final int NIGHT_MUTED = 0xFFAEBCB2;
+    public static final int NIGHT_ACCENT = 0xFF9AD7BA;
+    public static final int NIGHT_ON_ACCENT = 0xFF0E2B20;
+    public static final int NIGHT_ACCENT_SURFACE = 0xFF223D31;
+    public static final int NIGHT_LINE = 0xFF33433B;
+    public static final int NIGHT_DANGER = 0xFFFFB4AA;
+    public static final int NIGHT_WARNING = 0xFFF3CB7E;
     public static final int NIGHT_POSITIVE = 0xFF8FD8AE;
 
     public static final List<String> THEMES = Collections.unmodifiableList(Arrays.asList("system", "light", "dark"));
