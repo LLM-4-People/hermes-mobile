@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="doctor_route_label">Connection doctor</string>
+    <string name="doctor_route_hint">Check server reachability, companion features, notifications, and language</string>
+    <string name="doctor_panel_title">Connection doctor</string>
+    <string name="doctor_panel_subtitle">Checks your Hermes server, companion capabilities, notifications, updates, and language in real time.</string>
+
+    <string name="doctor_status_running">Running checks…</string>
+    <string name="doctor_status_all_ok">Everything looks healthy</string>
+    <string name="doctor_status_attention">A few items need your attention</string>
+    <string name="doctor_status_problem">A problem is preventing normal operation</string>
+    <string name="doctor_summary_counts">%1$d OK · %2$d to review · %3$d issue(s)</string>
+
+    <string name="doctor_badge_ok">OK</string>
+    <string name="doctor_badge_warn">Review</string>
+    <string name="doctor_badge_error">Issue</string>
+
+    <string name="doctor_rerun_action">Re-run checks</string>
+    <string name="doctor_checking_action">Checking…</string>
+    <string name="doctor_technical_show">Technical details</string>
+    <string name="doctor_technical_hide">Hide technical details</string>
+    <string name="doctor_copy_report_action">Copy safe report</string>
+    <string name="doctor_report_copied">Safe report copied (no access keys or private content).</string>
+    <string name="doctor_report_copy_failed">Could not copy the report right now.</string>
+    <string name="doctor_technical_host">Server: %1$s</string>
+    <string name="doctor_technical_version">App version: %1$s</string>
+    <string name="doctor_technical_language">Active language: %1$s</string>
+    <string name="doctor_technical_privacy_note">This report never includes access keys, messages, notes, or your profile name.</string>
+
+    <string name="doctor_check_server_title">Server connection</string>
+    <string name="doctor_check_server_ok">Server reachable (%1$d ms).</string>
+    <string name="doctor_check_server_slow">Server reachable but slow (%1$d ms).</string>
+    <string name="doctor_check_server_auth_error">The server rejected this profile’s access key.</string>
+    <string name="doctor_check_server_unreachable">Could not reach the server right now.</string>
+    <string name="doctor_check_server_missing">No unlocked profile is currently open.</string>
+
+    <string name="doctor_check_capabilities_title">Companion server features</string>
+    <string name="doctor_check_capabilities_ok">Full companion server detected (%1$d/%2$d features active).</string>
+    <string name="doctor_check_capabilities_partial">Companion server detected (%1$d/%2$d features active).</string>
+    <string name="doctor_check_capabilities_upstream">Standard Hermes server detected (0/%1$d). Install the Hermes companion server to unlock notes, memory, widgets, and sharing.</string>
+    <string name="doctor_check_capabilities_error">Could not read server capabilities.</string>
+
+    <string name="doctor_check_push_title">Instant notifications</string>
+    <string name="doctor_check_push_ok">Ready to deliver alerts and reminders.</string>
+    <string name="doctor_check_push_disabled">Instant notifications are not enabled for this profile yet.</string>
+    <string name="doctor_check_push_blocked">Android notifications are turned off in phone settings.</string>
+
+    <string name="doctor_check_updates_title">App updates</string>
+    <string name="doctor_check_updates_ok">Version %1$s is up to date and ready.</string>
+    <string name="doctor_check_updates_available">A newer version (%1$s) is available.</string>
+    <string name="doctor_check_updates_unchecked">Version %1$s installed. Tap to check for updates.</string>
+
+    <string name="doctor_check_ambient_title">Ambient and notification access</string>
+    <string name="doctor_check_ambient_ok">Optional notification reader connected and ready.</string>
+    <string name="doctor_check_ambient_waiting">Access granted, waiting for the Android service to connect.</string>
+    <string name="doctor_check_ambient_off">Notification access is off (optional, private by default).</string>
+
+    <string name="doctor_check_language_title">Language sync</string>
+    <string name="doctor_check_language_ok">App interface and server requests are synchronized (%1$s).</string>
+    <string name="doctor_check_language_mismatch">Request language does not match the active interface yet (%1$s).</string>
+
+    <string name="doctor_fix_retry">Retry</string>
+    <string name="doctor_fix_push">Set up notifications</string>
+    <string name="doctor_fix_updates">Open app updates</string>
+    <string name="doctor_fix_ambient">Open ambient access</string>
+    <string name="doctor_fix_language">Choose language</string>
+</resources>
