@@ -58,7 +58,7 @@ body:
     attributes:
       label: Companion fork revision & deployment mode
       description: Hermes Mobile requires LLM-4-People/hermes-agent.
-      placeholder: "e.g., LLM-4-People/hermes-agent @ 9ad1685b, single-host Caddy /p/<profile>"
+      placeholder: "e.g., LLM-4-People/hermes-agent @ eb99545c, single-host Caddy /p/<profile>"
     validations:
       required: true
 

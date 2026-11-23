@@ -11,6 +11,9 @@ import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -158,6 +161,73 @@ public class ProfileSetupUxTest {
             assertEquals(ProfileGate.ProbeOutcome.UNREACHABLE,
                     ProfileGate.classifyProbeOutcome(false, false, revokedErr, 1).outcome());
         }
+    }
+
+    @Test public void cancellingInFlightProbeRestoresUiRevokesClientAndBlocksStaleCompletion() {
+        ProfileGate.ProbeController controller = new ProfileGate.ProbeController();
+        HermesApi.Limits limits = new HermesApi.Limits(ProfileGate.PROBE_TIMEOUT_MS,
+                ProfileGate.PROBE_TIMEOUT_MS, 256 * 1024, 256 * 1024);
+
+        // 1. Cancel before attach (e.g., Save tapped during rotate()'s store.open phase): resets UI & invalidates epoch.
+        AtomicBoolean buttonEnabled = new AtomicBoolean(false);
+        AtomicReference<String> status = new AtomicReference<>("Testing connection…");
+        AtomicInteger resets = new AtomicInteger();
+        int preAttachEpoch = controller.begin(() -> {
+            resets.incrementAndGet();
+            buttonEnabled.set(true);
+            status.set("");
+        });
+        assertTrue(controller.isCurrent(preAttachEpoch));
+        controller.cancel(true);
+        assertEquals(1, resets.get());
+        assertTrue(buttonEnabled.get());
+        assertEquals("", status.get());
+        assertFalse(controller.isCurrent(preAttachEpoch));
+        assertFalse(controller.finishUi(preAttachEpoch));
+        HermesApi lateApi = new HermesApi("http://127.0.0.1:9", "secret", limits);
+        assertFalse(controller.attach(preAttachEpoch, lateApi));
+        lateApi.revoke();
+
+        // 2. Cancel after attach (e.g., Save tapped during /v1/capabilities): revokes live HermesApi & resets UI once.
+        buttonEnabled.set(false);
+        status.set("Testing connection…");
+        int activeEpoch = controller.begin(() -> {
+            resets.incrementAndGet();
+            buttonEnabled.set(true);
+            status.set("");
+        });
+        HermesApi liveApi = new HermesApi("http://127.0.0.1:9", "secret", limits);
+        assertTrue(controller.attach(activeEpoch, liveApi));
+        controller.cancel(true);
+        assertTrue(liveApi.isRevoked());
+        assertEquals(2, resets.get());
+        assertTrue(buttonEnabled.get());
+        assertEquals("", status.get());
+        assertFalse(controller.finishUi(activeEpoch));
+        // Repeated cancel is idempotent and does not re-run resetUi.
+        controller.cancel(true);
+        assertEquals(2, resets.get());
+
+        // 3. Normal UI completion clears resetUi so a subsequent Save cancel preserves the finished probe status.
+        int completedEpoch = controller.begin(() -> {
+            resets.incrementAndGet();
+            status.set("");
+        });
+        assertTrue(controller.finishUi(completedEpoch));
+        status.set("Connection ready (14 ms)");
+        controller.cancel(true);
+        assertEquals(2, resets.get());
+        assertEquals("Connection ready (14 ms)", status.get());
+
+        // 4. Screen teardown cancel(false) revokes active client and drops UI callback without running it.
+        int teardownEpoch = controller.begin(resets::incrementAndGet);
+        HermesApi teardownApi = new HermesApi("http://127.0.0.1:9", "secret", limits);
+        assertTrue(controller.attach(teardownEpoch, teardownApi));
+        controller.cancel(false);
+        assertTrue(teardownApi.isRevoked());
+        assertEquals(2, resets.get());
+        controller.cancel(true);
+        assertEquals(2, resets.get());
     }
 
     private static final class LoopbackStatusServer implements AutoCloseable {

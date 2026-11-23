@@ -70,6 +70,69 @@ public final class ProfileGate {
     record SplitEndpoint(String baseUrl, String profileSlug, String composedEndpoint,
                          boolean splitApplied, boolean conflict) {}
 
+    /** Thread-safe single-flight probe epoch, revocation, and UI-reset controller. */
+    static final class ProbeController {
+        private final Object lock = new Object();
+        private HermesApi activeApi;
+        private int generation;
+        private Runnable resetUi;
+
+        int begin(Runnable onCancelUi) {
+            HermesApi stale;
+            int epoch;
+            synchronized (lock) {
+                epoch = ++generation;
+                stale = activeApi;
+                activeApi = null;
+                resetUi = onCancelUi;
+            }
+            if (stale != null) stale.revoke();
+            return epoch;
+        }
+
+        boolean attach(int epoch, HermesApi api) {
+            synchronized (lock) {
+                if (epoch != generation) return false;
+                activeApi = api;
+                return true;
+            }
+        }
+
+        void detach(HermesApi api) {
+            synchronized (lock) {
+                if (activeApi == api) activeApi = null;
+            }
+        }
+
+        boolean isCurrent(int epoch) {
+            synchronized (lock) {
+                return epoch == generation;
+            }
+        }
+
+        boolean finishUi(int epoch) {
+            synchronized (lock) {
+                if (epoch != generation) return false;
+                resetUi = null;
+                return true;
+            }
+        }
+
+        void cancel(boolean notifyResetUi) {
+            HermesApi stale;
+            Runnable reset;
+            synchronized (lock) {
+                generation++;
+                stale = activeApi;
+                activeApi = null;
+                reset = resetUi;
+                resetUi = null;
+            }
+            if (stale != null) stale.revoke();
+            if (notifyResetUi && reset != null) reset.run();
+        }
+    }
+
     private final Activity activity;
     private final AccountStore store;
     private final UnlockBackoff backoff;
@@ -78,9 +141,7 @@ public final class ProfileGate {
     private Account active;
     private AlertDialog confirmation;
     private BiometricVault.Session activeBiometric;
-    private final Object probeLock = new Object();
-    private HermesApi activeProbeApi;
-    private int probeGeneration;
+    private final ProbeController probe = new ProbeController();
     private int generation;
     private boolean nested;
     private boolean busy;
@@ -237,13 +298,11 @@ public final class ProfileGate {
     }
 
     private void cancelProbe() {
-        HermesApi stale;
-        synchronized (probeLock) {
-            probeGeneration++;
-            stale = activeProbeApi;
-            activeProbeApi = null;
-        }
-        if (stale != null) stale.revoke();
+        cancelProbe(false);
+    }
+
+    private void cancelProbe(boolean resetUi) {
+        probe.cancel(resetUi);
     }
 
     private void invalidate() {
@@ -356,7 +415,7 @@ public final class ProfileGate {
                         : activity.getString(R.string.profile_setup_passphrase_mismatch));
                 return;
             }
-            cancelProbe();
+            cancelProbe(true);
             run(screen, (Button) view, pass, () -> store.create(label, endpoint, bearer, pass),
                     this::opened, activity.getString(R.string.profile_setup_save_failed));
         });
@@ -528,12 +587,11 @@ public final class ProfileGate {
 
     private void runConnectionProbe(ProfileScreen screen, Button testButton, TextView statusView,
                                     String endpoint, String bearer) {
-        cancelProbe();
         int screenEpoch = generation;
-        int probeEpoch;
-        synchronized (probeLock) {
-            probeEpoch = ++probeGeneration;
-        }
+        int probeEpoch = probe.begin(() -> {
+            testButton.setEnabled(true);
+            screen.setNote(statusView, "", R.color.muted);
+        });
         testButton.setEnabled(false);
         screen.setNote(statusView, activity.getString(R.string.profile_setup_testing), R.color.muted);
         HermesConfig cfg = HermesConfig.load(activity);
@@ -545,12 +603,11 @@ public final class ProfileGate {
 
     private void runKeyRotationProbe(ProfileScreen screen, Button testButton, TextView statusView,
                                      String id, String newBearer, char[] pass) {
-        cancelProbe();
         int screenEpoch = generation;
-        int probeEpoch;
-        synchronized (probeLock) {
-            probeEpoch = ++probeGeneration;
-        }
+        int probeEpoch = probe.begin(() -> {
+            testButton.setEnabled(true);
+            screen.setNote(statusView, "", R.color.muted);
+        });
         testButton.setEnabled(false);
         screen.setNote(statusView, activity.getString(R.string.profile_setup_testing), R.color.muted);
         HermesConfig cfg = HermesConfig.load(activity);
@@ -560,9 +617,7 @@ public final class ProfileGate {
             String endpoint = null;
             long appliedCooldown = 0L;
             try {
-                synchronized (probeLock) {
-                    if (probeEpoch != probeGeneration) return;
-                }
+                if (!probe.isCurrent(probeEpoch)) return;
                 Account opened = store.open(id, pass);
                 try {
                     endpoint = opened.endpoint;
@@ -580,9 +635,7 @@ public final class ProfileGate {
                 long cooldown = appliedCooldown;
                 activity.runOnUiThread(() -> {
                     if (screenEpoch != generation || activity.isFinishing() || activity.isDestroyed()) return;
-                    synchronized (probeLock) {
-                        if (probeEpoch != probeGeneration) return;
-                    }
+                    if (!probe.finishUi(probeEpoch)) return;
                     testButton.setEnabled(true);
                     String base = activity.getString(R.string.profile_setup_unlock_failed);
                     String msg = cooldown > 0L
@@ -607,12 +660,9 @@ public final class ProfileGate {
         Throwable failure = null;
         try {
             probeApi = new HermesApi(endpoint, bearer, probeLimits);
-            synchronized (probeLock) {
-                if (probeEpoch != probeGeneration) {
-                    probeApi.revoke();
-                    return;
-                }
-                activeProbeApi = probeApi;
+            if (!probe.attach(probeEpoch, probeApi)) {
+                probeApi.revoke();
+                return;
             }
             capabilities = probeApi.get("/v1/capabilities");
         } catch (Throwable error) {
@@ -620,18 +670,14 @@ public final class ProfileGate {
             Diagnostics.warning("profile", "connection_probe_failed");
         } finally {
             if (probeApi != null) {
-                synchronized (probeLock) {
-                    if (activeProbeApi == probeApi) activeProbeApi = null;
-                }
+                probe.detach(probeApi);
                 probeApi.revoke();
             }
         }
         ProbeResult result = classifyProbeResult(capabilities, failure, SystemClock.elapsedRealtime() - startMs);
         activity.runOnUiThread(() -> {
             if (screenEpoch != generation || activity.isFinishing() || activity.isDestroyed()) return;
-            synchronized (probeLock) {
-                if (probeEpoch != probeGeneration) return;
-            }
+            if (!probe.finishUi(probeEpoch)) return;
             testButton.setEnabled(true);
             presentProbeResult(screen, statusView, result);
         });
@@ -782,7 +828,7 @@ public final class ProfileGate {
                 return;
             }
             phrase.getText().clear();
-            cancelProbe();
+            cancelProbe(true);
             run(screen, (Button) view, id, pass, () -> store.replaceBearer(id, pass, bearer), this::opened,
                     activity.getString(R.string.profile_setup_rotate_failed));
         });
