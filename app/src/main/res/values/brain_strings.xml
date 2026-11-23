@@ -69,8 +69,6 @@
     <string name="brain_skills_advanced_raw">Mode avancé (texte brut)</string>
     <string name="brain_skills_lint_header">Remarques de vérification</string>
     <string name="brain_skills_supporting_files">Fichiers associés : %1$s</string>
-    <string name="brain_skills_saved">Savoir-faire enregistré.</string>
-    <string name="brain_skills_deleted">Savoir-faire supprimé.</string>
 
     <!-- Workspace File & Diff Explorer -->
     <string name="brain_files_title">Fichiers du projet</string>
@@ -91,7 +89,6 @@
 
     <!-- Thread Power Actions -->
     <string name="brain_thread_pin">Épingler la discussion</string>
-    <string name="brain_thread_unpin">Retirer l’épingle</string>
     <string name="brain_thread_pinned_ok">Discussion épinglée.</string>
     <string name="brain_thread_unpinned_ok">Épingle retirée.</string>
     <string name="brain_thread_fork">Nouvelle piste à partir d’ici</string>

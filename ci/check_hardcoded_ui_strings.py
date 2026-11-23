@@ -12,9 +12,7 @@ Enforces three invariants across ``app/src/main/``:
    ``setPositiveButton``, ``setNegativeButton``, ``setNeutralButton``, ``Toast.makeText``, ``Ui.*``,
    ``PanelScreen`` helpers, notification/dialog builders, etc.).
 
-Files owned by in-flight parallel tracks may appear temporarily in ``MIGRATION_ALLOWLIST``; a built-in
-ratchet fails CI whenever an allowlisted file reaches zero violations so the allowlist shrinks
-monotonically to empty.
+Enforced strictly across the entire repository with zero file or XML allowlists.
 """
 
 from dataclasses import dataclass
@@ -26,23 +24,9 @@ import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
 
-# Temporary file-level migration allowlist strictly for files owned by in-flight parallel tracks
-# outside Track 30B (artifact/, panel/, and palette/ are ALWAYS strictly enforced with ZERO entries).
-# Ratchet: CI fails if an allowlisted file reaches 0 findings, forcing prompt removal on merge.
-MIGRATION_ALLOWLIST: dict[str, str] = {
-    "app/src/main/java/org/llm4people/hermes/camera/ThreadCameraCapture.java": "camera i18n follow-up",
-    "app/src/main/java/org/llm4people/hermes/voice/SpokenText.java": "voice i18n follow-up",
-}
-
 # Exact non-UI parser/input-matching tokens (never displayed to users).
 NON_UI_PARSER_LITERALS: set[tuple[str, str]] = {
     ("app/src/main/java/org/llm4people/hermes/onboarding/PairingLinkParser.java", "clé"),
-}
-
-# Pre-existing XML strings outside Track 30B with unquoted trailing whitespace (ratcheted).
-PREEXISTING_WHITESPACE_STRINGS: set[tuple[str, str]] = {
-    ("app/src/main/res/values/ambient_strings.xml", "ambient_draft_media"),
-    ("app/src/main/res/values-en/ambient_strings.xml", "ambient_draft_media"),
 }
 
 # French diacritics that should never appear in Java source string literals.
@@ -99,13 +83,7 @@ QUALIFIED_UI_SINK_ARGS: dict[tuple[str, str], tuple[int, ...]] = {
     ("Ui", "filledButton"): (1,),
     ("Ui", "tonalButton"): (1,),
     ("Ui", "outlinedButton"): (1,),
-    ("Ui", "chip"): (1,),
-    ("Ui", "heading"): (1,),
-    ("Ui", "sectionTitle"): (1,),
-    ("Ui", "caption"): (1,),
-    ("Ui", "badge"): (1,),
-    ("Ui", "banner"): (1,),
-    ("Ui", "emptyState"): (1, 2),
+    ("Ui", "pill"): (1,),
     ("Toast", "makeText"): (1,),
     ("screen", "section"): (0,),
     ("screen", "note"): (0,),
@@ -545,10 +523,9 @@ def _collect_xml_resources(res_dir: Path, root: Path) -> _XmlResources:
                         raw_text = "".join(el.itertext())
                         strings[name] = raw_text
                         if raw_text != raw_text.strip() and not (raw_text.startswith('"') and raw_text.endswith('"')):
-                            if (rel, name) not in PREEXISTING_WHITESPACE_STRINGS:
-                                issues.append(
-                                    f"{rel}: <string name={name!r}> has unquoted leading/trailing whitespace that AAPT2 strips"
-                                )
+                            issues.append(
+                                f"{rel}: <string name={name!r}> has unquoted leading/trailing whitespace that AAPT2 strips"
+                            )
                     elif tag == "plurals":
                         qty_map: dict[str, str] = {}
                         for item in el.findall("item"):
@@ -616,31 +593,17 @@ def check_xml_parity(root: Path) -> list[str]:
     return issues
 
 
-def check_repo(repo_root: Path = ROOT, allowlist: dict[str, str] | None = None) -> list[str]:
-    """Run XML parity + Java hardcoded UI string checks across the repository."""
+def check_repo(repo_root: Path = ROOT) -> list[str]:
+    """Run XML parity + Java hardcoded UI string checks across the repository (zero allowlists)."""
     root = Path(repo_root).resolve()
-    active_allowlist = MIGRATION_ALLOWLIST if allowlist is None else allowlist
     problems = check_xml_parity(root)
 
     java_root = root / "app/src/main/java"
     if not java_root.is_dir():
         return problems
 
-    seen_allowlisted: set[str] = set()
     for java_file in sorted(java_root.rglob("*.java")):
-        rel = java_file.relative_to(root).as_posix()
-        file_issues = check_java_file(java_file, root)
-        if rel in active_allowlist:
-            seen_allowlisted.add(rel)
-            if not file_issues:
-                problems.append(
-                    f"{rel}: listed in MIGRATION_ALLOWLIST ({active_allowlist[rel]}) but has 0 violations — remove it to tighten the ratchet"
-                )
-            continue
-        problems.extend(file_issues)
-
-    for rel in sorted(set(active_allowlist) - seen_allowlisted):
-        problems.append(f"{rel}: listed in MIGRATION_ALLOWLIST but file no longer exists — remove stale entry")
+        problems.extend(check_java_file(java_file, root))
 
     return problems
 

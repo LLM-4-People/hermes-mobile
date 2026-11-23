@@ -19,6 +19,7 @@ import android.widget.ProgressBar;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
+import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.HermesConfig;
 import org.llm4people.hermes.R;
@@ -29,6 +30,7 @@ import org.llm4people.hermes.thread.SafeLinks;
 
 import java.io.File;
 import java.io.IOException;
+import java.text.NumberFormat;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
@@ -43,7 +45,14 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public final class UpdatePanel {
     public static final String ROUTE_ID = "app_updates";
-    private static final Typeface MEDIUM = Typeface.create("sans-serif-medium", Typeface.NORMAL);
+    private static Typeface mediumTypeface;
+
+    private static Typeface mediumTypeface() {
+        if (mediumTypeface == null) {
+            mediumTypeface = Typeface.create("sans-serif-medium", Typeface.NORMAL);
+        }
+        return mediumTypeface;
+    }
 
     private final Activity activity;
     private final HermesConfig config;
@@ -136,7 +145,7 @@ public final class UpdatePanel {
         scroll.addView(body, new ScrollView.LayoutParams(-1, -2));
 
         TextView title = Ui.text(activity, activity.getString(R.string.update_panel_title), 24);
-        title.setTypeface(MEDIUM);
+        title.setTypeface(mediumTypeface());
         title.setAccessibilityHeading(true);
         body.addView(title);
 
@@ -148,7 +157,7 @@ public final class UpdatePanel {
         String installedDisplay = installedDisplayVersion();
         TextView installedLabel = Ui.text(activity,
                 activity.getString(R.string.update_installed_version, installedDisplay), 15);
-        installedLabel.setTypeface(MEDIUM);
+        installedLabel.setTypeface(mediumTypeface());
         installedLabel.setPaddingRelative(0, 0, 0, Ui.dp(activity, 14));
         body.addView(installedLabel);
 
@@ -161,7 +170,7 @@ public final class UpdatePanel {
         card.setBackground(cardBg);
 
         statusTitle = Ui.text(activity, activity.getString(R.string.update_status_unchecked), 17);
-        statusTitle.setTypeface(MEDIUM);
+        statusTitle.setTypeface(mediumTypeface());
         statusTitle.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         card.addView(statusTitle);
 
@@ -173,7 +182,7 @@ public final class UpdatePanel {
 
         checksumBadge = Ui.text(activity, activity.getString(R.string.update_checksum_badge), 13);
         checksumBadge.setTextColor(activity.getColor(R.color.accent));
-        checksumBadge.setTypeface(MEDIUM);
+        checksumBadge.setTypeface(mediumTypeface());
         GradientDrawable pillBg = new GradientDrawable();
         pillBg.setColor(activity.getColor(R.color.accent_surface));
         pillBg.setCornerRadius(Ui.dp(activity, 8));
@@ -229,7 +238,7 @@ public final class UpdatePanel {
         body.addView(card, new LinearLayout.LayoutParams(-1, -2));
 
         notesHeading = Ui.text(activity, activity.getString(R.string.update_notes_heading), 17);
-        notesHeading.setTypeface(MEDIUM);
+        notesHeading.setTypeface(mediumTypeface());
         notesHeading.setAccessibilityHeading(true);
         notesHeading.setPaddingRelative(0, Ui.dp(activity, 18), 0, Ui.dp(activity, 6));
         notesHeading.setVisibility(View.GONE);
@@ -327,7 +336,7 @@ public final class UpdatePanel {
         }
         if (release.apkSizeBytes() > 0) {
             if (meta.length() > 0) meta.append(" · ");
-            meta.append(activity.getString(R.string.update_package_size, formatBytes(release.apkSizeBytes())));
+            meta.append(activity.getString(R.string.update_package_size, formatBytes(activity, release.apkSizeBytes())));
         }
         if (meta.length() > 0) {
             statusMeta.setText(meta.toString());
@@ -505,9 +514,29 @@ public final class UpdatePanel {
         });
     }
 
-    static String formatBytes(long bytes) {
-        if (bytes < 1024L) return bytes + " B";
-        if (bytes < 1024L * 1024L) return String.format(Locale.US, "%.1f KB", bytes / 1024.0);
-        return String.format(Locale.US, "%.1f MB", bytes / (1024.0 * 1024.0));
+    static String formatBytes(Context context, long bytes) {
+        Context localized = AppLanguage.wrapContext(context);
+        return formatBytes(
+                bytes,
+                AppLanguage.resolvedLocale(localized),
+                localized.getString(R.string.update_size_bytes),
+                localized.getString(R.string.update_size_kb),
+                localized.getString(R.string.update_size_mb));
+    }
+
+    static String formatBytes(long bytes, Locale locale, String bytesTemplate, String kbTemplate, String mbTemplate) {
+        long clamped = Math.max(0L, bytes);
+        Locale effective = locale == null ? Locale.getDefault() : locale;
+        if (clamped < 1024L) {
+            NumberFormat nf = NumberFormat.getIntegerInstance(effective);
+            return String.format(effective, bytesTemplate, nf.format(clamped));
+        }
+        NumberFormat nf = NumberFormat.getNumberInstance(effective);
+        nf.setMinimumFractionDigits(1);
+        nf.setMaximumFractionDigits(1);
+        if (clamped < 1024L * 1024L) {
+            return String.format(effective, kbTemplate, nf.format(clamped / 1024.0));
+        }
+        return String.format(effective, mbTemplate, nf.format(clamped / (1024.0 * 1024.0)));
     }
 }

@@ -12,6 +12,7 @@ import android.widget.Toast;
 
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.HermesConfig;
+import org.llm4people.hermes.R;
 import org.llm4people.hermes.profile.Account;
 
 import java.io.IOException;
@@ -105,7 +106,7 @@ public final class ThreadCameraCapture {
         } catch (IOException | ActivityNotFoundException | SecurityException unavailable) {
             Diagnostics.warning("camera", "capture_unavailable", unavailable);
             clear();
-            Toast.makeText(activity, "L’appareil photo n’est pas disponible sur cet appareil.", Toast.LENGTH_LONG).show();
+            Toast.makeText(activity, R.string.camera_unavailable, Toast.LENGTH_LONG).show();
             return false;
         }
     }

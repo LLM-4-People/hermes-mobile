@@ -19,6 +19,7 @@ import android.widget.Switch;
 import android.widget.TextView;
 import java.io.IOException;
 import java.text.NumberFormat;
+import org.llm4people.hermes.AppLanguage;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -173,9 +174,7 @@ public final class InteractiveControlsBlock {
     }
 
     static String composeSummary(Context context, String prompt, List<Control> controls, Map<String, Object> state) {
-        Locale locale = context != null && context.getResources() != null
-                && !context.getResources().getConfiguration().getLocales().isEmpty()
-                ? context.getResources().getConfiguration().getLocales().get(0) : Locale.getDefault();
+        Locale locale = context == null ? Locale.getDefault() : AppLanguage.resolvedLocale(context);
         NumberFormat fmt = NumberFormat.getNumberInstance(locale);
         fmt.setMaximumFractionDigits(2);
         StringBuilder out = new StringBuilder(prompt == null ? "" : prompt);
@@ -450,14 +449,9 @@ public final class InteractiveControlsBlock {
         group.addView(hint);
     }
 
-    private static Locale activeLocale(Context context) {
-        return context != null && context.getResources() != null
-                && !context.getResources().getConfiguration().getLocales().isEmpty()
-                ? context.getResources().getConfiguration().getLocales().get(0) : Locale.getDefault();
-    }
-
     private static String formatSliderValue(Context context, double value, String unit) {
-        NumberFormat fmt = NumberFormat.getNumberInstance(activeLocale(context));
+        Locale locale = context == null ? Locale.getDefault() : AppLanguage.resolvedLocale(context);
+        NumberFormat fmt = NumberFormat.getNumberInstance(locale);
         fmt.setMaximumFractionDigits(2);
         return fmt.format(value) + (unit.isEmpty() ? "" : " " + unit);
     }

@@ -102,7 +102,6 @@
     <string name="brain_skills_builtin_readonly">Built-in skill (read-only)</string>
     <string name="brain_skills_category_hint">Category (optional)</string>
     <string name="brain_skills_delete_confirm">Permanently delete the skill “%1$s”?</string>
-    <string name="brain_skills_deleted">Skill deleted.</string>
     <string name="brain_skills_desc_hint">What is this skill for? (optional)</string>
     <string name="brain_skills_disabled">Disabled</string>
     <string name="brain_skills_enabled">Active</string>
@@ -111,7 +110,6 @@
     <string name="brain_skills_name_hint">Short name (e.g. work/review)</string>
     <string name="brain_skills_new">New skill</string>
     <string name="brain_skills_readonly_notice">Read-only mode. Creating and editing skills requires an update to your Hermes server.</string>
-    <string name="brain_skills_saved">Skill saved.</string>
     <string name="brain_skills_search">Search a skill</string>
     <string name="brain_skills_subtitle">Reusable guides and methods Hermes can apply.</string>
     <string name="brain_skills_title">Skills</string>
@@ -134,7 +132,6 @@
     <string name="brain_thread_fork_unavailable">Branching from a message requires an update to your Hermes server.</string>
     <string name="brain_thread_pin">Pin discussion</string>
     <string name="brain_thread_pinned_ok">Discussion pinned.</string>
-    <string name="brain_thread_unpin">Unpin</string>
     <string name="brain_thread_unpinned_ok">Pin removed.</string>
     <string name="brain_upgrade_required">This feature requires an update to your Hermes server.</string>
     <string name="brain_usage_api_calls">Model calls</string>

@@ -14,6 +14,7 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import java.io.IOException;
 import java.util.List;
+import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
@@ -208,8 +209,7 @@ public final class LiveUiPatchBar extends LinearLayout {
         swatch.setBackground(chip);
         row.addView(swatch, new LinearLayout.LayoutParams(Ui.dp(c, 28), Ui.dp(c, 28)));
         double contrast = ThemePalette.contrastRatio(preview.accent, preview.paper);
-        java.util.Locale locale = c.getResources().getConfiguration().getLocales().isEmpty()
-                ? java.util.Locale.getDefault() : c.getResources().getConfiguration().getLocales().get(0);
+        java.util.Locale locale = AppLanguage.resolvedLocale(c);
         TextView info = Ui.text(c, c.getString(org.llm4people.hermes.R.string.ws_liveui_contrast_verified,
                 String.format(locale, "%.1f", contrast)), 14);
         info.setTextColor(preview.muted);

@@ -604,4 +604,7 @@
     <string name="thread_live_ui_apply_failed">Impossible d’appliquer cette modification d’écran.</string>
     <string name="thread_live_ui_rollback_failed">Impossible d’annuler cette modification.</string>
     <string name="thread_storage_failed">Enregistrement local impossible. Vérifiez l’espace disponible.</string>
+    <string name="camera_unavailable">L’appareil photo n’est pas disponible sur cet appareil.</string>
+    <string name="voice_spoken_continued_on_screen">La suite est disponible à l’écran.</string>
+    <string name="share_default_file_name">Fichier</string>
 </resources>

@@ -2,6 +2,7 @@ package org.llm4people.hermes.onboarding;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.profile.GatewayAddress;
 
 import java.util.ArrayList;
@@ -163,19 +164,7 @@ public final class OnboardingModels {
             boolean isolatedDbOk) {
         /** Crisp 1-2 character avatar initials derived from display name or slug. */
         public String initials() {
-            String src = (displayName != null && !displayName.trim().isEmpty()) ? displayName.trim() : slug;
-            if (src == null || src.isEmpty()) return "H";
-            String[] parts = src.split("[\\s_-]+");
-            StringBuilder sb = new StringBuilder(2);
-            for (String part : parts) {
-                if (part.isEmpty()) continue;
-                int cp = part.codePointAt(0);
-                if (Character.isLetterOrDigit(cp)) {
-                    sb.appendCodePoint(Character.toUpperCase(cp));
-                    if (sb.length() >= 2) break;
-                }
-            }
-            return sb.length() == 0 ? "H" : sb.toString();
+            return Ui.initials(displayName, slug);
         }
     }
 

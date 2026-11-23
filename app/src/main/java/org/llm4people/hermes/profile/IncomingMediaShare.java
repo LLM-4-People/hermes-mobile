@@ -7,7 +7,9 @@ import android.util.Base64;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.Diagnostics;
+import org.llm4people.hermes.R;
 import org.llm4people.hermes.camera.CapturedMedia;
 
 import java.io.File;
@@ -114,6 +116,7 @@ public final class IncomingMediaShare {
         }
         JSONArray rows = data.optJSONArray("items");
         if (rows == null || rows.length() == 0) return null;
+        String defaultFileName = AppLanguage.wrapContext(context).getString(R.string.share_default_file_name);
         List<StagedFile> staged = new ArrayList<>(rows.length());
         for (int i = 0; i < rows.length(); i++) {
             JSONObject row = rows.optJSONObject(i);
@@ -123,7 +126,7 @@ public final class IncomingMediaShare {
             byte[] decoded = Base64.decode(row.optString("bytes", ""), Base64.NO_WRAP);
             staged.add(new StagedFile(
                     kind,
-                    row.optString("name", "Fichier"),
+                    resolveFileName(row.optString("name", ""), defaultFileName),
                     row.optString("mime", "application/octet-stream"),
                     decoded,
                     row.optString("sha256", ""),
@@ -131,6 +134,11 @@ public final class IncomingMediaShare {
         }
         if (staged.isEmpty()) return null;
         return new Batch(id, Collections.unmodifiableList(staged), data.optString("thread", null));
+    }
+
+    static String resolveFileName(String rawName, String localizedFallback) {
+        if (rawName != null && !rawName.trim().isEmpty()) return rawName.trim();
+        return localizedFallback == null ? "" : localizedFallback;
     }
 
     public static synchronized boolean target(Context context, String id, Account account, String session) {

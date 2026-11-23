@@ -1036,10 +1036,12 @@ public final class ThreadViews {
             int labelRes = badge.awaitingDecision()
                     ? R.string.thread_badge_action_needed
                     : R.string.thread_badge_running;
-            TextView pill = Ui.text(context, "● " + context.getString(labelRes), 13);
-            pill.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-            pill.setTextColor(context.getColor(badge.awaitingDecision() ? R.color.danger : R.color.accent));
-            strip.addView(pill, new LinearLayout.LayoutParams(0, -2, 1));
+            TextView pill = Ui.pill(context, context.getString(labelRes),
+                    badge.awaitingDecision() ? R.color.danger_surface : R.color.accent_surface,
+                    badge.awaitingDecision() ? R.color.danger : R.color.accent);
+            strip.addView(pill, new LinearLayout.LayoutParams(-2, -2));
+            View spacer = new View(context);
+            strip.addView(spacer, new LinearLayout.LayoutParams(0, 1, 1));
             if (badge.canStop() && onStopTask != null) {
                 Button stopBtn = Ui.button(context, context.getString(R.string.thread_badge_stop),
                         v -> onStopTask.accept(rootId));

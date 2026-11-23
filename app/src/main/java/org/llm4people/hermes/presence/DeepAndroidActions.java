@@ -15,6 +15,7 @@ import android.service.quicksettings.TileService;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.customization.AppCustomization;
@@ -622,7 +623,8 @@ public final class DeepAndroidActions {
                 if (subject != null && !subject.isEmpty()) {
                     send.putExtra(Intent.EXTRA_SUBJECT, subject);
                 }
-                Intent chooser = Intent.createChooser(send, app.getString(R.string.deep_action_share_chooser))
+                Context localized = AppLanguage.wrapContext(app);
+                Intent chooser = Intent.createChooser(send, localized.getString(R.string.deep_action_share_chooser))
                         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                 return startSafely(app, chooser);
             }
@@ -671,16 +673,17 @@ public final class DeepAndroidActions {
                 }
                 NotificationManager nm = app.getSystemService(NotificationManager.class);
                 if (nm == null) return false;
+                Context localized = AppLanguage.wrapContext(app);
                 NotificationChannel channel = new NotificationChannel(
                         NUDGE_CHANNEL_ID,
-                        app.getString(R.string.deep_action_nudge_channel),
+                        localized.getString(R.string.deep_action_nudge_channel),
                         NotificationManager.IMPORTANCE_DEFAULT);
                 channel.setLockscreenVisibility(Notification.VISIBILITY_PRIVATE);
                 nm.createNotificationChannel(channel);
                 Notification publicVersion = new Notification.Builder(app, NUDGE_CHANNEL_ID)
                         .setSmallIcon(R.drawable.ic_push_notification)
-                        .setContentTitle(app.getString(R.string.app_name))
-                        .setContentText(app.getString(R.string.deep_action_nudge_channel))
+                        .setContentTitle(localized.getString(R.string.app_name))
+                        .setContentText(localized.getString(R.string.deep_action_nudge_channel))
                         .build();
                 Notification notification = new Notification.Builder(app, NUDGE_CHANNEL_ID)
                         .setSmallIcon(R.drawable.ic_push_notification)

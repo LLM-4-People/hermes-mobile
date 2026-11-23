@@ -1,6 +1,7 @@
 package org.llm4people.hermes.panel;
 
 import android.content.Context;
+import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.R;
 
 import java.text.NumberFormat;
@@ -13,9 +14,12 @@ import java.util.Locale;
 public final class UsageFormatter {
     public record FormattedSpec(int resId, Object... args) {
         public String resolve(Context context) {
-            return args == null || args.length == 0
-                    ? context.getString(resId)
-                    : context.getString(resId, args);
+            if (args == null || args.length == 0) return context.getString(resId);
+            Object[] resolved = new Object[args.length];
+            for (int i = 0; i < args.length; i++) {
+                resolved[i] = args[i] instanceof FormattedSpec nested ? nested.resolve(context) : args[i];
+            }
+            return context.getString(resId, resolved);
         }
     }
 
@@ -86,59 +90,46 @@ public final class UsageFormatter {
         }
         if (Double.isFinite(billedUsd) && billedUsd >= 0) return usdSpec(billedUsd, locale);
         if (Double.isFinite(estimatedUsd) && estimatedUsd >= 0) {
-            return new FormattedSpec(R.string.ws_usage_cost_estimated, formatUsdNumber(estimatedUsd, locale));
+            return new FormattedSpec(R.string.ws_usage_cost_estimated, usdSpec(estimatedUsd, locale));
         }
         return new FormattedSpec(R.string.ws_unavailable);
     }
 
     public static String formatResponseTime(Context context, double ttftMs) {
-        return responseTimeSpec(ttftMs, ReminderPanel.activeLocale(context)).resolve(context);
+        return responseTimeSpec(ttftMs, AppLanguage.resolvedLocale(context)).resolve(context);
     }
 
     public static String formatSeconds(Context context, double seconds) {
-        return secondsSpec(seconds, ReminderPanel.activeLocale(context)).resolve(context);
+        return secondsSpec(seconds, AppLanguage.resolvedLocale(context)).resolve(context);
     }
 
     public static String formatSpeed(Context context, double tokensPerSecond) {
-        return speedSpec(tokensPerSecond, ReminderPanel.activeLocale(context)).resolve(context);
+        return speedSpec(tokensPerSecond, AppLanguage.resolvedLocale(context)).resolve(context);
     }
 
     public static String formatUsd(Context context, double amount) {
-        return usdSpec(amount, ReminderPanel.activeLocale(context)).resolve(context);
+        return usdSpec(amount, AppLanguage.resolvedLocale(context)).resolve(context);
     }
 
     public static String formatPercent(Context context, double ratio) {
         if (!Double.isFinite(ratio) || ratio < 0) return context.getString(R.string.ws_unavailable);
-        return NumberFormat.getPercentInstance(ReminderPanel.activeLocale(context)).format(ratio);
+        return NumberFormat.getPercentInstance(AppLanguage.resolvedLocale(context)).format(ratio);
     }
 
     public static String formatCount(Context context, double count) {
         if (!Double.isFinite(count) || count < 0) return context.getString(R.string.ws_unavailable);
-        NumberFormat nf = NumberFormat.getNumberInstance(ReminderPanel.activeLocale(context));
+        NumberFormat nf = NumberFormat.getNumberInstance(AppLanguage.resolvedLocale(context));
         nf.setMaximumFractionDigits(0);
         return nf.format(count);
     }
 
     /** Primary cost display: known billed takes precedence over estimated; unknown stays unavailable. */
     public static String primaryCostSummary(Context context, double billedUsd, double estimatedUsd, String costStatus) {
-        if ("included".equals(costStatus) && !Double.isFinite(billedUsd) && !Double.isFinite(estimatedUsd)) {
-            return context.getString(R.string.ws_usage_cost_included);
-        }
-        if (Double.isFinite(billedUsd) && billedUsd >= 0) return formatUsd(context, billedUsd);
-        if (Double.isFinite(estimatedUsd) && estimatedUsd >= 0) {
-            return context.getString(R.string.ws_usage_cost_estimated, formatUsd(context, estimatedUsd));
-        }
-        return context.getString(R.string.ws_unavailable);
+        return primaryCostSpec(billedUsd, estimatedUsd, costStatus, AppLanguage.resolvedLocale(context)).resolve(context);
     }
 
     public static double safeMetric(double raw) {
         return Double.isFinite(raw) && raw >= 0 ? raw : Double.NaN;
-    }
-
-    private static String formatUsdNumber(double amount, Locale locale) {
-        NumberFormat nf = NumberFormat.getNumberInstance(effective(locale));
-        nf.setMaximumFractionDigits(amount >= 0.01 ? 4 : 6);
-        return nf.format(amount);
     }
 
     private static Locale effective(Locale locale) {

@@ -10,6 +10,7 @@ import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.NetworkCapabilities;
 import android.os.BatteryManager;
+import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.Diagnostics;
 
 import java.time.Clock;
@@ -122,9 +123,7 @@ public final class DeviceContextSnapshot {
         NetworkKind network = readNetworkKind(context);
         Configuration cfg = context.getResources() == null ? null : context.getResources().getConfiguration();
         int swDp = cfg == null ? 0 : cfg.smallestScreenWidthDp;
-        Locale locale = (cfg != null && !cfg.getLocales().isEmpty())
-                ? cfg.getLocales().get(0)
-                : Locale.getDefault();
+        Locale locale = AppLanguage.resolvedLocale(context);
         return build(batteryPercent, charging, network, Clock.systemDefaultZone(), ZoneId.systemDefault(), swDp, locale);
     }
 

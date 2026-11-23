@@ -1,5 +1,9 @@
 package org.llm4people.hermes.voice;
 
+import android.content.Context;
+
+import org.llm4people.hermes.AppLanguage;
+import org.llm4people.hermes.R;
 import org.llm4people.hermes.artifact.Fences;
 
 import java.util.ArrayList;
@@ -21,6 +25,17 @@ final class SpokenText {
     private static final Pattern MARKUP = Pattern.compile("[`*_]+|^\\s{0,3}[#>]+\\s*");
 
     static String prose(String source) {
+        return prose(source, (String) null);
+    }
+
+    static String prose(Context context, String source) {
+        String suffix = context == null
+                ? null
+                : AppLanguage.wrapContext(context).getString(R.string.voice_spoken_continued_on_screen);
+        return prose(source, suffix);
+    }
+
+    static String prose(String source, String continuationSuffix) {
         if (source == null || source.isEmpty()) return "";
         boolean shortened = source.length() > SCAN_LIMIT;
         String text = source.substring(0, Math.min(source.length(), SCAN_LIMIT));
@@ -63,7 +78,10 @@ final class SpokenText {
             }
             start = end + 1;
         }
-        if (shortened && spoken.length() > 0) spoken.append("\nLa suite est disponible à l’écran.");
+        String suffix = continuationSuffix == null ? "" : continuationSuffix.trim();
+        if (shortened && spoken.length() > 0 && !suffix.isEmpty()) {
+            spoken.append('\n').append(suffix);
+        }
         return spoken.toString();
     }
 

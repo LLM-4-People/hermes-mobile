@@ -8,6 +8,7 @@ import android.provider.CalendarContract;
 import android.provider.ContactsContract;
 import android.util.JsonReader;
 import android.util.JsonToken;
+import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.VisibleText;
 import org.llm4people.hermes.places.NearbyResult;
@@ -76,14 +77,14 @@ public sealed interface DeviceAction {
                 .toFormatter(Locale.ROOT).withResolverStyle(ResolverStyle.STRICT);
 
         String startSummary(Context context) {
-            Locale loc = activeLocale(context);
+            Locale loc = AppLanguage.resolvedLocale(context);
             return start.format(DateTimeFormatter.ofPattern(
                     context.getString(R.string.ws_dev_date_short_pattern), loc));
         }
 
         @Override public Kind kind() { return Kind.CALENDAR; }
         @Override public String preview(Context context) {
-            Locale loc = activeLocale(context);
+            Locale loc = AppLanguage.resolvedLocale(context);
             DateTimeFormatter fmt = DateTimeFormatter.ofPattern(
                     context.getString(R.string.ws_dev_date_full_pattern), loc);
             StringBuilder out = new StringBuilder(title)
@@ -418,17 +419,8 @@ public sealed interface DeviceAction {
         return String.join(" ", parts);
     }
 
-    private static Locale activeLocale(Context context) {
-        if (context != null && context.getResources() != null
-                && context.getResources().getConfiguration() != null
-                && !context.getResources().getConfiguration().getLocales().isEmpty()) {
-            return context.getResources().getConfiguration().getLocales().get(0);
-        }
-        return Locale.getDefault();
-    }
-
     private static String formatDays(Context context, List<Integer> days) {
-        Locale locale = activeLocale(context);
+        Locale locale = context == null ? Locale.getDefault() : AppLanguage.resolvedLocale(context);
         List<String> names = new ArrayList<>(days.size());
         for (int day : days) {
             DayOfWeek dow = switch (day) {

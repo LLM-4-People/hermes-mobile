@@ -38,7 +38,7 @@ public final class ReplyReader {
         if (!activity.isFinishing() && !activity.isDestroyed()) {
             stop();
             cancelDictation.run();
-            playback.play(SpokenText.prose(source));
+            playback.play(SpokenText.prose(activity, source));
         }
     }
 
@@ -70,9 +70,9 @@ public final class ReplyReader {
             owner = button;
             button.addOnAttachStateChangeListener(detach);
             label(button, true);
-            StringBuilder text = new StringBuilder(SpokenText.prose(question));
+            StringBuilder text = new StringBuilder(SpokenText.prose(activity, question));
             for (String choice : choices) {
-                String option = SpokenText.prose(choice);
+                String option = SpokenText.prose(activity, choice);
                 if (!option.isEmpty()) text.append('\n').append(option);
                 if (text.length() >= 16_000) break;
             }
