@@ -123,6 +123,7 @@ class Emulator:
         if f"journey={name} passed" not in report or "INSTRUMENTATION_CODE: -1" not in report:
             raise AssertionError(report)
         print(name + " passed", flush=True)
+        return report
 
 
 def provider_labels(endpoint, key, model_routes):

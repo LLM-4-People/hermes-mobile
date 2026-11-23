@@ -9,11 +9,13 @@ import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.TextView;
+import org.llm4people.hermes.AdaptiveLayout;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 
 /** Only the transcript viewport adapts. The real composer and its selection stay attached. */
 final class InstrumentViewport extends LinearLayout {
+    static final int SPLIT_DP = AdaptiveLayout.SPLIT_TOOL_DP;
     private final ListView transcript;
     private final LinearLayout dock;
     private final TextView dockTitle;
@@ -106,7 +108,8 @@ final class InstrumentViewport extends LinearLayout {
     }
 
     @Override protected void onMeasure(int width, int height) {
-        boolean wide = MeasureSpec.getSize(width) >= Ui.dp(getContext(), 640);
+        float density = getResources().getDisplayMetrics().density;
+        boolean wide = AdaptiveLayout.splitInstrument(MeasureSpec.getSize(width) / density);
         if (wide != split) {
             split = wide;
             showPanes();

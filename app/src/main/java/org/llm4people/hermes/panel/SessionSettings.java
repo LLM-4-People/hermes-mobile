@@ -19,6 +19,7 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.llm4people.hermes.AdaptiveLayout;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 import java.util.ArrayList;
@@ -86,18 +87,19 @@ final class SessionSettings {
             return;
         }
         panel.note(box, panel.t(R.string.panel_session_scope));
-        panel.section(box, R.string.panel_model);
-        modelSetting(box);
-        if (stageDraft != null) panel.action(box, R.string.skills_title, () -> {
+        PanelFrame.Sections settings = panel.sections(box);
+        panel.section(settings.first, R.string.panel_model);
+        modelSetting(settings.first);
+        if (stageDraft != null) panel.action(settings.first, R.string.skills_title, () -> {
             if (activeThread.getAsBoolean()) new SkillBrowser(panel, activeThread, stageDraft, this).show();
         });
-        panel.section(box, R.string.panel_tools);
+        panel.section(settings.second, R.string.panel_tools);
         LinearLayout controls = Ui.column(panel.activity);
-        box.addView(controls);
+        settings.second.addView(controls);
         loadTools(controls);
-        box.addView(Ui.divider(panel.activity));
-        panel.action(box, R.string.panel_stats, () -> new UsagePanel(panel, id, remoteId, this::show).show());
-        panel.action(box, R.string.panel_reminders, panel::showReminders);
+        settings.second.addView(Ui.divider(panel.activity));
+        panel.action(settings.second, R.string.panel_stats, () -> new UsagePanel(panel, id, remoteId, this::show).show());
+        panel.action(settings.second, R.string.panel_reminders, panel::showReminders);
     }
 
     private void modelSetting(LinearLayout box) {
@@ -216,17 +218,10 @@ final class SessionSettings {
             page.removeViewAt(0);
             context.addView(detail);
         }
-        Configuration window = currentWindow.get();
-        if (window.orientation == Configuration.ORIENTATION_LANDSCAPE
-                && window.screenHeightDp <= 480 && window.screenWidthDp >= 480) {
-            ScrollView header = new ScrollView(panel.activity);
-            header.addView(context);
-            panel.splitPicker(page, header, search);
-            return header;
-        }
+        boolean[] splitState = {false};
         ScrollView header = new ScrollView(panel.activity) {
             @Override protected void onMeasure(int widthSpec, int heightSpec) {
-                if (MeasureSpec.getMode(heightSpec) != MeasureSpec.UNSPECIFIED) {
+                if (!splitState[0] && MeasureSpec.getMode(heightSpec) != MeasureSpec.UNSPECIFIED) {
                     int available = MeasureSpec.getSize(heightSpec);
                     search.measure(widthSpec, MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));
                     int reserve = search.getMeasuredHeight() + field.topMargin + field.bottomMargin + Ui.dp(getContext(), 48);
@@ -237,8 +232,9 @@ final class SessionSettings {
             }
         };
         header.addView(context);
-        page.addView(header, new LinearLayout.LayoutParams(-1, -2));
-        page.addView(search, field);
+        Configuration window = currentWindow.get();
+        boolean initialSplit = AdaptiveLayout.splitPicker(window.screenWidthDp, window.screenHeightDp);
+        panel.bindPicker(page, header, search, field, splitState, initialSplit);
         return header;
     }
 

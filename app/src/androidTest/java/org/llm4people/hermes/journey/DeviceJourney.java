@@ -84,6 +84,23 @@ public final class DeviceJourney extends Instrumentation {
                 throw new AssertionError("Private workspace allows external screen capture");
             ui = new JourneyUi(this, activity, new File(dir, fixture.getString("run")));
             switch (phase) {
+                case "adaptive":
+                case "adaptive-large-text": {
+                    String owner = "Lecture " + fixture.getString("run");
+                    String phrase = fixture.getString("phrase");
+                    AdaptiveJourney journey = new AdaptiveJourney(this, ui, activity, fixture);
+                    if (phase.equals("adaptive")) {
+                        profile(owner, "endpoint", "key", phrase);
+                        journey.resize();
+                    } else {
+                        unlock(owner, phrase);
+                        journey.largeText();
+                    }
+                    result.putString("matrix", journey.evidence().toString());
+                    lock();
+                    if (phase.equals("adaptive-large-text")) forget(owner, phrase);
+                    break;
+                }
                 case "nearby-capture": {
                     File folder = new File(dir, fixture.getString("run"));
                     NearbyGuideCapture.observe(folder, () -> new JourneyUi(this, resumed, folder));

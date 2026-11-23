@@ -7,7 +7,6 @@ import android.os.Looper;
 import android.view.View;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
-import android.widget.FrameLayout;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -34,6 +33,7 @@ public final class ThreadWorkspace implements AutoCloseable {
     public interface Host {
         void selected(String sessionId, String title);
         void pendingChanged();
+        default void discussionPanes(boolean canToggle, boolean listVisible) {}
         default void noticeThread(boolean sameThread) {}
         default void nearbyGuide(ThreadWorkspace origin, String threadId, String runId, JSONObject assistantRow, JSONObject area) {}
         JSONObject options(String sessionId);
@@ -47,7 +47,8 @@ public final class ThreadWorkspace implements AutoCloseable {
     final ExecutorService workers = Executors.newFixedThreadPool(3);
     private final Account account;
     private final VoiceDrafts voice;
-    private final FrameLayout container;
+    private final ConversationPanes container;
+    private final ThreadViews index;
     ThreadViews screen;
     ThreadJournal journal;
     final NearbyConsent nearby;
@@ -69,6 +70,7 @@ public final class ThreadWorkspace implements AutoCloseable {
     private List<String> slotOrder = Collections.emptyList();
     private volatile int generation;
     private int inboxOffset;
+    private boolean inboxLoaded, inboxLoading, inboxFailed, inboxMore;
     private int messageOffset;
     private boolean closed;
     private boolean creating;
@@ -94,7 +96,11 @@ public final class ThreadWorkspace implements AutoCloseable {
         this.api = api;
         this.account = account;
         this.host = host;
-        container = new FrameLayout(activity);
+        index = new ThreadViews(activity, voice);
+        index.inbox(() -> create(UUID.randomUUID().toString(), null, index), () -> loadThreads(true),
+                this::chooseThread, () -> loadThreads(false));
+        container = new ConversationPanes(activity, index.root, () -> instruments != null && instruments.viewport.open(),
+                this::panesChanged);
         nearby = new NearbyConsent(this, account);
     }
 
@@ -287,7 +293,7 @@ public final class ThreadWorkspace implements AutoCloseable {
 
     private void inbox(String warning, Runnable recovery) {
         if (closed) return;
-        reset();
+        reset(index);
         session = remoteSession = null;
         title = "Conversations";
         inboxWarning = warning;
@@ -297,45 +303,77 @@ public final class ThreadWorkspace implements AutoCloseable {
             Diagnostics.warning("threads", "last_selection_clear_failed");
             if (inboxWarning.isEmpty()) inboxWarning = "Impossible d’enregistrer la sélection. Vérifiez l’espace disponible.";
         }
-        inboxOffset = 0;
-        inbox = new JSONArray();
-        screen.inbox(this::newThread, row -> {
-            try { open(ThreadIdentity.of(row), ThreadData.title(row)); }
-            catch (IllegalArgumentException invalid) { invalidReply(this::inbox); }
-        }, this::moreThreads);
-        host.selected(null, title);
-        moreThreads();
+        container.select(null);
+        selectionChanged();
+        loadThreads(true);
     }
 
-    private void moreThreads() {
-        if (loading) return;
-        loading = true;
-        screen.paging();
-        screen.notice("Chargement des conversations…", "", null);
-        int offset = inboxOffset;
+    private void chooseThread(JSONObject row) {
+        if (closed || !index.list.isShown()) return;
+        try {
+            ThreadIdentity identity = ThreadIdentity.of(row);
+            if (!identity.root.equals(session)) open(identity, identity.label);
+        } catch (IllegalArgumentException invalid) {
+            index.notice("La réponse du serveur est incomplète.", "Réessayer", () -> loadThreads(true));
+        }
+    }
+
+    public void toggleDiscussions() {
+        if (!closed) container.toggle();
+    }
+
+    private void panesChanged() {
+        if (closed) return;
+        host.discussionPanes(container.canToggle(), container.sidebarVisible());
+        if (container.sidebarVisible() && !inboxLoaded && !inboxLoading && !inboxFailed) loadThreads(true);
+    }
+
+    private void selectionChanged() {
+        host.selected(session, title);
+        paintIndex();
+    }
+
+    private void paintIndex() {
+        index.indexRows(DiscussionIndex.selectedFirst(inbox, session, remoteSession, title, firstPrompt, messageCount),
+                session, inboxMore);
+        if (inboxLoading) index.paging();
+    }
+
+    private void indexNotice() {
+        if (!inboxWarning.isEmpty()) index.notice(inboxWarning, "Récupérer la conversation…", inboxRecovery);
+        else index.notice(inboxLoaded && inbox.length() == 0 && session == null ? "Aucune conversation pour ce profil." : "", "", null);
+    }
+
+    private void loadThreads(boolean first) {
+        if (closed || inboxLoading) return;
+        inboxLoading = true;
+        inboxFailed = false;
+        index.paging();
+        index.notice("Chargement des conversations…", "", null);
+        int offset = first ? 0 : inboxOffset;
         request(() -> api.get("/api/sessions?source=api_server&limit=" + ThreadData.PAGE + "&offset=" + offset),
                 data -> {
-                    loading = false;
+                    inboxLoading = false;
                     JSONArray page = data.optJSONArray("data");
-                    if (page == null) { invalidReply(this::moreThreads); return; }
+                    if (page == null) {
+                        inboxFailed = true;
+                        index.notice("La réponse du serveur est incomplète.", "Réessayer", () -> loadThreads(first));
+                        return;
+                    }
                     for (int i = 0; i < page.length(); i++) {
                         JSONObject row = page.optJSONObject(i);
-                        if (row == null) continue;
-                        String id = ThreadData.string(row, "_lineage_root_id");
-                        if (id.isEmpty()) id = ThreadData.string(row, "id");
-                        ThreadData.put(row, ThreadTitles.FIRST_PROMPT, openingPrompts.get(id));
+                        if (row != null) ThreadData.put(row, ThreadTitles.FIRST_PROMPT, openingPrompts.get(ThreadIdentity.rootId(row)));
                     }
-                    inbox = ThreadData.join(inbox, page);
-                    inboxOffset += ThreadData.PAGE;
-                    screen.rows(inbox, data.optBoolean("has_more"), false, 0);
-                    if (inboxWarning.isEmpty()) {
-                        screen.notice(inbox.length() == 0 ? "Aucune conversation pour ce profil." : "", "", null);
-                    } else {
-                        screen.notice(inboxWarning, "Récupérer la conversation…", inboxRecovery);
-                    }
-                }, e -> {
-                    loading = false;
-                    error(e, this::moreThreads);
+                    inbox = DiscussionIndex.merge(first ? new JSONArray() : inbox, page);
+                    inboxLoaded = true;
+                    inboxOffset = offset + ThreadData.PAGE;
+                    inboxMore = page.length() > 0 && data.optBoolean("has_more", page.length() >= ThreadData.PAGE);
+                    paintIndex();
+                    indexNotice();
+                }, failure -> {
+                    inboxLoading = false;
+                    inboxFailed = true;
+                    index.notice(errorMessage(failure), "Réessayer", () -> loadThreads(first));
                 });
     }
 
@@ -343,13 +381,13 @@ public final class ThreadWorkspace implements AutoCloseable {
 
     public void newThread(Runnable afterOpen) {
         if (closed || creating) return;
-        create(UUID.randomUUID().toString(), afterOpen);
+        create(UUID.randomUUID().toString(), afterOpen, screen);
     }
 
-    private void create(String id, Runnable afterOpen) {
-        if (creating) return;
+    private void create(String id, Runnable afterOpen, ThreadViews feedback) {
+        if (closed || creating) return;
         creating = true;
-        screen.notice("Création de la conversation…", "", null);
+        feedback.notice("Création de la conversation…", "", null);
         request(() -> {
             try { return api.post("/api/sessions", ThreadData.put(new JSONObject(), "id", id)); }
             catch (HermesApi.HttpError e) {
@@ -359,12 +397,16 @@ public final class ThreadWorkspace implements AutoCloseable {
         }, response -> {
             creating = false;
             JSONObject row = response.optJSONObject("session");
-            if (row == null || !id.equals(row.optString("id"))) { invalidReply(() -> create(id, afterOpen)); return; }
+            if (row == null || !id.equals(row.optString("id"))) {
+                feedback.notice("La réponse du serveur est incomplète.", "Réessayer", () -> create(id, afterOpen, feedback));
+                return;
+            }
+            if (feedback == index) indexNotice();
             open(ThreadIdentity.of(row), ThreadData.title(row));
             if (afterOpen != null && id.equals(session)) afterOpen.run();
         }, e -> {
             creating = false;
-            error(e, () -> create(id, afterOpen));
+            feedback.notice(errorMessage(e), "Réessayer", () -> create(id, afterOpen, feedback));
         });
     }
 
@@ -418,7 +460,9 @@ public final class ThreadWorkspace implements AutoCloseable {
 
     private void open(ThreadIdentity identity, String label, String observedRun) {
         if (closed) return;
-        reset();
+        reset(new ThreadViews(activity, voice));
+        inboxWarning = "";
+        inboxRecovery = null;
         session = identity.root;
         remoteSession = identity.tip;
         String id = session;
@@ -440,12 +484,16 @@ public final class ThreadWorkspace implements AutoCloseable {
             return;
         }
         run = new ThreadRun(this);
+        ThreadJournal owner = journal;
         screen.chat(journal.draft(), text -> {
-            journal.draft(text);
+            if (closed || owner != journal) return;
+            owner.draft(text);
             updateStarters();
             main.removeCallbacks(save);
             main.postDelayed(save, 300);
-        }, run::send, run::stop, () -> loadMessages(true, null));
+        }, () -> { if (owner == journal && !closed) run.send(); },
+                () -> { if (owner == journal && !closed) run.stop(); },
+                () -> { if (owner == journal && !closed) loadMessages(true, null); });
         refreshPhoto();
         nearby.restore();
         if (instrumentHost != null) {
@@ -453,7 +501,9 @@ public final class ThreadWorkspace implements AutoCloseable {
             screen.instruments = instruments;
         }
         screen.slots(slotOrder);
-        host.selected(id, title);
+        container.select(screen.root);
+        indexNotice();
+        selectionChanged();
         loadMessages(false, null);
         run.restore();
     }
@@ -491,7 +541,7 @@ public final class ThreadWorkspace implements AutoCloseable {
                     String value = input.getText().toString().trim();
                     if (value.isEmpty()) { screen.notice("Le titre est vide.", "Renommer", this::rename); return; }
                     request(() -> api.patch(ThreadData.path(target), ThreadData.put(new JSONObject(), "title", value)),
-                            r -> { metadataRequest++; namedTitle = title = value; host.selected(id, value); }, e -> error(e, this::rename));
+                            r -> { metadataRequest++; namedTitle = title = value; selectionChanged(); }, e -> error(e, this::rename));
                 }));
     }
 
@@ -557,7 +607,7 @@ public final class ThreadWorkspace implements AutoCloseable {
             String nextTitle = ThreadTitles.display(namedTitle, firstPrompt, !hasMore && messages.length() == 0);
             if (previousCount != messageCount || !title.equals(nextTitle)) {
                 title = nextTitle;
-                host.selected(session, title);
+                selectionChanged();
             }
             if (!older && !receivedTitle && titleVersion == metadataRequest) readLegacyTitle();
             if (hasMore && firstPrompt.isEmpty() && namedTitle.isEmpty() && !openingRequested) readOpening();
@@ -591,7 +641,7 @@ public final class ThreadWorkspace implements AutoCloseable {
             rememberOpening(ThreadTitles.firstPrompt(page));
             if (namedTitle.isEmpty() && !firstPrompt.isEmpty() && !firstPrompt.equals(title)) {
                 title = firstPrompt;
-                host.selected(session, title);
+                selectionChanged();
             }
         }, failure -> Diagnostics.event("threads", "opening_unavailable"));
     }
@@ -609,7 +659,7 @@ public final class ThreadWorkspace implements AutoCloseable {
             namedTitle = label;
             if (!label.equals(title)) {
                 title = label;
-                host.selected(session, title);
+                selectionChanged();
             }
         }, failure -> {
             if (tip.equals(legacyTitleTip)) legacyTitleTip = null;
@@ -638,11 +688,11 @@ public final class ThreadWorkspace implements AutoCloseable {
         }
     }
 
-    private void reset() {
+    private void reset(ThreadViews next) {
         onBackground();
         if (journal != null) journal.retire();
         importingPhoto = false;
-        loading = creating = false;
+        loading = creating = inboxLoading = false;
         run = null;
         journal = null;
         messages = new JSONArray();
@@ -653,9 +703,7 @@ public final class ThreadWorkspace implements AutoCloseable {
         legacyTitleTip = null;
         openingRequested = false;
         namedTitle = firstPrompt = "";
-        screen = new ThreadViews(activity, voice);
-        container.removeAllViews();
-        container.addView(screen.root);
+        screen = next;
     }
 
     @Override public void close() {
@@ -666,7 +714,10 @@ public final class ThreadWorkspace implements AutoCloseable {
             if (journal != null) journal.retire();
             workers.shutdownNow();
             drafts.shutdownNow();
-            container.removeAllViews();
+            index.indexRows(new JSONArray(), null, false);
+            index.notice("", "", null);
+            index.root.removeAllViews();
+            container.retire();
             screen = null;
             starters = null;
             run = null;
@@ -674,6 +725,7 @@ public final class ThreadWorkspace implements AutoCloseable {
             session = remoteSession = null;
             messages = new JSONArray();
             inbox = new JSONArray();
+            inboxLoaded = inboxLoading = inboxFailed = inboxMore = false;
             inboxRecovery = null;
             openingPrompts.clear();
             namedTitle = firstPrompt = "";
@@ -713,6 +765,10 @@ public final class ThreadWorkspace implements AutoCloseable {
     }
 
     void error(Exception error, Runnable retry) {
+        screen.notice(errorMessage(error), "Réessayer", retry);
+    }
+
+    private static String errorMessage(Exception error) {
         String message = "La connexion à Hermes a échoué.";
         if (error instanceof HermesApi.HttpError http) {
             message = switch (http.status) {
@@ -723,7 +779,7 @@ public final class ThreadWorkspace implements AutoCloseable {
                 default -> "Le serveur a refusé la demande (HTTP " + http.status + ").";
             };
         }
-        screen.notice(message, "Réessayer", retry);
+        return message;
     }
 
     String failureDetail(JSONObject status) { return ThreadData.failureDetail(status, account.bearer); }

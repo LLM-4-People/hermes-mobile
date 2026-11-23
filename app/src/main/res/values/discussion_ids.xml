@@ -1,0 +1,7 @@
+<resources>
+    <item name="discussion_panes" type="id" />
+    <item name="discussion_sidebar" type="id" />
+    <item name="discussion_detail" type="id" />
+    <item name="discussion_list" type="id" />
+    <item name="discussion_transcript" type="id" />
+</resources>

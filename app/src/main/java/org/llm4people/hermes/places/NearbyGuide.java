@@ -8,6 +8,7 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import org.llm4people.hermes.AdaptiveLayout;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 import java.text.NumberFormat;
@@ -54,7 +55,8 @@ public final class NearbyGuide extends LinearLayout {
 
     @Override protected void onSizeChanged(int w, int h, int oldW, int oldH) {
         super.onSizeChanged(w, h, oldW, oldH);
-        boolean split = w >= dp(620);
+        float density = getResources().getDisplayMetrics().density;
+        boolean split = AdaptiveLayout.splitNearbyGuide(w / density);
         if (wide != split) {
             wide = split;
             post(() -> { if (isAttachedToWindow() && state != null) bind(state); });

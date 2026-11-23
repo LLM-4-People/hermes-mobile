@@ -36,6 +36,8 @@ final class WorkspaceShell {
     private String pageTitle;
     private String threadId;
     private String threadTitle;
+    private boolean canTogglePanes;
+    private boolean listVisible;
     private PopupMenu overflow;
 
     WorkspaceShell(Activity activity, Consumer<String> action, BooleanSupplier reading) {
@@ -47,7 +49,8 @@ final class WorkspaceShell {
         header = Ui.row(activity);
         Ui.pad(header, 6, 2);
         leading = icon(R.drawable.ic_threads, "Discussions");
-        leading.setOnClickListener(v -> action.accept(pageTitle != null ? "previous" : "threads"));
+        leading.setOnClickListener(v -> action.accept(
+                pageTitle != null ? "previous" : canTogglePanes ? "toggle_discussions" : "threads"));
         header.addView(leading);
         heading = Ui.text(activity, "Discussions", 20);
         heading.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
@@ -79,6 +82,13 @@ final class WorkspaceShell {
         updateHeading();
     }
 
+    void discussionPanes(boolean canToggle, boolean visible) {
+        if (canTogglePanes == canToggle && listVisible == visible) return;
+        canTogglePanes = canToggle;
+        listVisible = visible;
+        updateHeading();
+    }
+
     void show(View page, String title) {
         pageTitle = title;
         updateHeading();
@@ -95,10 +105,21 @@ final class WorkspaceShell {
     View content() { return body; }
 
     View desk(String accountName) {
-        ScrollView scroll = new ScrollView(activity);
         LinearLayout list = Ui.column(activity);
-        Ui.pad(list, 22, 14);
-        scroll.addView(list);
+        ScrollView scroll = new ScrollView(activity) {
+            @Override protected void onMeasure(int widthSpec, int heightSpec) {
+                float density = getResources().getDisplayMetrics().density;
+                int gutter = Ui.dp(activity, AdaptiveLayout.centeredGutterDp(
+                        MeasureSpec.getSize(widthSpec) / density, AdaptiveLayout.READING_COLUMN_MAX_DP, 22));
+                int vertical = Ui.dp(activity, 14);
+                if (list.getPaddingStart() != gutter || list.getPaddingTop() != vertical) {
+                    list.setPaddingRelative(gutter, vertical, gutter, vertical);
+                }
+                super.onMeasure(widthSpec, heightSpec);
+            }
+        };
+        scroll.setFillViewport(true);
+        scroll.addView(list, new ScrollView.LayoutParams(-1, -2));
         if (threadTitle != null) {
             section(list, threadTitle);
             link(list, "Reprendre la discussion", "return");
@@ -120,7 +141,12 @@ final class WorkspaceShell {
     private void updateHeading() {
         heading.setText(pageTitle != null ? pageTitle : threadTitle == null ? "Discussions" : threadTitle);
         leading.setImageResource(pageTitle != null ? R.drawable.ic_back : R.drawable.ic_threads);
-        leading.setContentDescription(pageTitle != null ? "Revenir à l’écran précédent" : "Toutes les discussions");
+        String description = pageTitle != null ? "Revenir à l’écran précédent"
+                : canTogglePanes ? (listVisible ? "Masquer les discussions" : "Afficher les discussions")
+                : "Toutes les discussions";
+        leading.setContentDescription(description);
+        leading.setTooltipText(description);
+        leading.setActivated(pageTitle == null && canTogglePanes && listVisible);
         desk.setVisibility("Atelier".equals(pageTitle) ? View.GONE : View.VISIBLE);
     }
 

@@ -59,6 +59,7 @@ final class ThreadViews {
     private BaseAdapter adapter;
     private AlertDialog dialog;
     private boolean transcript;
+    private String selectedRoot;
     ThreadInstrumentPanel instruments;
     private InstrumentViewport instrumentSlot;
 
@@ -84,29 +85,40 @@ final class ThreadViews {
         notice.addView(remedy);
     }
 
-    void inbox(Runnable create, Consumer<JSONObject> choose, Runnable next) {
+    void inbox(Runnable create, Runnable refresh, Consumer<JSONObject> choose, Runnable next) {
         reset(false);
         Button newThread = Ui.button(activity, "Nouvelle conversation", v -> create.run());
         newThread.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
         newThread.setTextSize(16);
         Ui.pad(newThread, 18, 4);
         newThread.setCompoundDrawablesRelativeWithIntrinsicBounds(0, 0, R.drawable.thread_new, 0);
-        root.addView(newThread);
+        LinearLayout actions = Ui.row(activity);
+        actions.setGravity(Gravity.CENTER_VERTICAL);
+        newThread.setSingleLine(false);
+        actions.addView(newThread, new LinearLayout.LayoutParams(0, -2, 1));
+        ImageButton reload = new ImageButton(activity, null, android.R.attr.borderlessButtonStyle);
+        reload.setImageResource(R.drawable.ic_skills_refresh);
+        reload.setContentDescription("Actualiser les discussions");
+        reload.setTooltipText(reload.getContentDescription());
+        reload.setOnClickListener(v -> refresh.run());
+        actions.addView(reload, Ui.dp(activity, 48), Ui.dp(activity, 48));
+        root.addView(actions);
         root.addView(Ui.divider(activity));
+        list.setId(R.id.discussion_list);
         list.setDivider(new ColorDrawable(activity.getColor(R.color.line)));
         list.setDividerHeight(Ui.dp(activity, 1));
         more = Ui.button(activity, "Afficher la suite", v -> next.run());
         list.addFooterView(pagingSlot(), null, false);
         bindList();
         list.setOnItemClickListener((parent, view, pos, id) -> {
-            JSONObject session = rows.optJSONObject(pos);
-            if (session != null) choose.accept(session);
+            if (view.getTag() instanceof JSONObject session) choose.accept(session);
         });
     }
 
     void chat(String draft, Consumer<String> onDraft, Runnable onSend, Runnable onStop,
               Runnable older) {
         reset(true);
+        list.setId(R.id.discussion_transcript);
         more = Ui.button(activity, "Messages précédents", v -> older.run());
         list.addHeaderView(pagingSlot(), null, false);
         LinearLayout live = Ui.column(activity);
@@ -252,6 +264,11 @@ final class ThreadViews {
         adapter.notifyDataSetChanged();
         if (follow) followTail();
         else if (prepended > 0) list.setSelectionFromTop(top + rows.length() - previous, y);
+    }
+
+    void indexRows(JSONArray data, String selected, boolean hasMore) {
+        selectedRoot = selected;
+        rows(data, hasMore, false, 0);
     }
 
     void paging() { more.setEnabled(false); }
@@ -433,6 +450,12 @@ final class ThreadViews {
             body = Ui.text(context, "", 17);
             if (!transcript) {
                 body.setPadding(0, Ui.dp(context, 2), 0, 0);
+                setAccessibilityDelegate(new View.AccessibilityDelegate() {
+                    @Override public void onInitializeAccessibilityNodeInfo(View host, android.view.accessibility.AccessibilityNodeInfo info) {
+                        super.onInitializeAccessibilityNodeInfo(host, info);
+                        if (host.isActivated()) info.setSelected(true);
+                    }
+                });
                 heading.setEllipsize(android.text.TextUtils.TruncateAt.END);
                 body.setEllipsize(android.text.TextUtils.TruncateAt.END);
             }
@@ -442,6 +465,12 @@ final class ThreadViews {
 
         void bind(JSONObject row, boolean chat) {
             if (getChildCount() > 2) removeViews(2, getChildCount() - 2);
+            if (!chat) {
+                setTag(row);
+                boolean selected = selectedRoot != null && selectedRoot.equals(ThreadIdentity.rootId(row));
+                setActivated(selected);
+                setBackgroundColor(selected ? getContext().getColor(R.color.accent_surface) : android.graphics.Color.TRANSPARENT);
+            }
             String role = ThreadData.string(row, "role");
             if (chat && role.equals("tool")) {
                 bindTool(row);

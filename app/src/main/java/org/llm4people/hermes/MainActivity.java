@@ -3,6 +3,7 @@ package org.llm4people.hermes;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.content.res.Configuration;
 import android.graphics.Insets;
 import android.os.Build;
 import android.os.Bundle;
@@ -225,6 +226,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             case "nearby_area": if (threads != null) threads.editNearbyArea(); break;
             case "attach_photo": photoPicker.launch(account, threads); break;
             case "native_thread": navigate(WorkspaceNavigation.COMPOSER); break;
+            case "toggle_discussions": threads.toggleDiscussions(); break;
             case "threads": displayDiscussion(); threads.inbox(); break;
             case "new_thread": displayDiscussion(); threads.newThread(); break;
             case "create_instrument":
@@ -393,6 +395,10 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             origin.acceptNearbyGuide(threadId, runId, assistantRow, approvedArea);
     }
 
+    @Override public void discussionPanes(boolean canToggle, boolean listVisible) {
+        if (shell != null) shell.discussionPanes(canToggle, listVisible);
+    }
+
     @Override public void selected(String sessionId, String title) {
         if (shell == null) return;
         String threadTitle = sessionId == null ? null : title == null || title.trim().isEmpty() ? "Discussion" : title;
@@ -486,6 +492,14 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         } finally {
             gate.lock();
         }
+    }
+
+    @Override public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        if (shell != null) shell.dismissMenu();
+        View content = findViewById(android.R.id.content);
+        if (content != null) content.requestApplyInsets();
+        Diagnostics.event("workspace", "window_resized");
     }
 
     @Override public void onWindowFocusChanged(boolean focused) {

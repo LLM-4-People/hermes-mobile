@@ -25,10 +25,14 @@ final class ThreadIdentity {
         this.label = ThreadTitles.display(name, prompt, empty);
     }
 
+    static String rootId(JSONObject row) {
+        String root = ThreadData.string(row, "_lineage_root_id");
+        return root.isEmpty() ? ThreadData.string(row, "id") : root;
+    }
+
     static ThreadIdentity of(JSONObject row) {
         String tip = ThreadData.string(row, "id");
-        String root = ThreadData.string(row, "_lineage_root_id");
-        return new ThreadIdentity(root.isEmpty() ? tip : root, tip, ThreadData.string(row, "title").trim(),
+        return new ThreadIdentity(rootId(row), tip, ThreadData.string(row, "title").trim(),
                 ThreadTitles.inboxPrompt(row), ThreadTitles.emptySession(row));
     }
 

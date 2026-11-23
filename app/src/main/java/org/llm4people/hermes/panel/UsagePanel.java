@@ -23,10 +23,11 @@ final class UsagePanel {
     void show() {
         LinearLayout page = panel.page("stats", R.string.panel_stats, parent);
         if (stableId == null || stableId.isEmpty() || remoteId == null || remoteId.isEmpty()) { panel.note(page, panel.t(R.string.panel_no_session)); return; }
-        panel.action(page, R.string.panel_refresh, this::show);
-        panel.section(page, R.string.panel_server_totals);
+        panel.action(page, R.string.panel_refresh, this::show).setLayoutParams(new LinearLayout.LayoutParams(-2, -2));
+        PanelFrame.Sections sections = panel.sections(page);
+        panel.section(sections.first, R.string.panel_server_totals);
         LinearLayout totals = Ui.column(panel.activity);
-        page.addView(totals);
+        sections.first.addView(totals);
         BooleanSupplier current = panel.currentPage();
         panel.request(totals, () -> {
             // Resolve the tip anew on refresh: another device can compact this discussion.
@@ -39,14 +40,15 @@ final class UsagePanel {
                     .setAccessibilityLiveRegion(android.view.View.ACCESSIBILITY_LIVE_REGION_POLITE);
             panel.action(totals, R.string.panel_retry, this::show);
         });
-        panel.section(page, R.string.panel_last_run);
+        LinearLayout local = sections.second;
+        panel.section(local, R.string.panel_last_run);
         JSONObject timing;
         try { timing = PanelData.parse(panel.account.read("panel/timing/" + stableId)); }
-        catch (IllegalStateException error) { panel.failure(page, error, null); return; }
-        if (timing.length() == 0) { panel.note(page, panel.t(R.string.panel_timing_empty)); return; }
-        metric(page, R.string.panel_first_text, format(PanelData.measure(timing, "first_ms") / 1000, R.string.panel_seconds));
-        metric(page, R.string.panel_duration, format(PanelData.measure(timing, "elapsed_ms") / 1000, R.string.panel_seconds));
-        metric(page, R.string.panel_rate, format(PanelData.endToEndRate(timing), R.string.panel_tps));
+        catch (IllegalStateException error) { panel.failure(local, error, null); return; }
+        if (timing.length() == 0) { panel.note(local, panel.t(R.string.panel_timing_empty)); return; }
+        metric(local, R.string.panel_first_text, format(PanelData.measure(timing, "first_ms") / 1000, R.string.panel_seconds));
+        metric(local, R.string.panel_duration, format(PanelData.measure(timing, "elapsed_ms") / 1000, R.string.panel_seconds));
+        metric(local, R.string.panel_rate, format(PanelData.endToEndRate(timing), R.string.panel_tps));
     }
 
     private void display(LinearLayout box, DiscussionUsage usage) {
