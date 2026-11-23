@@ -384,7 +384,9 @@ public final class InteractiveCardView extends LinearLayout {
             box.setTextColor(context.getColor(R.color.ink));
             box.setChecked(item.checked());
             box.setMinHeight(touchMin);
+            box.setMinimumHeight(touchMin);
             box.setMinWidth(touchMin);
+            box.setMinimumWidth(touchMin);
             box.setTag("checklist:" + item.id());
             box.setOnCheckedChangeListener((btn, checked) -> {
                 Diagnostics.debug("card", "checklist_toggled");
@@ -406,7 +408,9 @@ public final class InteractiveCardView extends LinearLayout {
             chip.setTypeface(mediumTypeface());
             chip.setTextColor(context.getColor(R.color.accent));
             chip.setMinHeight(touchMin);
+            chip.setMinimumHeight(touchMin);
             chip.setMinWidth(touchMin);
+            chip.setMinimumWidth(touchMin);
             chip.setGravity(Gravity.CENTER_VERTICAL | Gravity.START);
             Ui.pad(chip, 14, 8);
             GradientDrawable bg = new GradientDrawable();
@@ -434,7 +438,9 @@ public final class InteractiveCardView extends LinearLayout {
             sw.setTextColor(context.getColor(R.color.ink));
             sw.setChecked(item.checked());
             sw.setMinHeight(touchMin);
+            sw.setMinimumHeight(touchMin);
             sw.setMinWidth(touchMin);
+            sw.setMinimumWidth(touchMin);
             sw.setTag("toggle:" + item.id());
             sw.setOnCheckedChangeListener((btn, checked) -> {
                 Diagnostics.debug("card", "toggle_changed");
@@ -506,7 +512,9 @@ public final class InteractiveCardView extends LinearLayout {
         apply.setTypeface(mediumTypeface());
         apply.setTextColor(onAccentArgb);
         apply.setMinHeight(touchMin);
+        apply.setMinimumHeight(touchMin);
         apply.setMinWidth(touchMin);
+        apply.setMinimumWidth(touchMin);
         Ui.pad(apply, 16, 8);
         GradientDrawable applyBg = new GradientDrawable();
         applyBg.setColor(accentArgb);

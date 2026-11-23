@@ -39,7 +39,9 @@ public final class Ui {
         button.setText(label);
         button.setAllCaps(false);
         button.setTextColor(context.getColor(R.color.accent));
-        button.setMinHeight(dp(context, 48));
+        int minTouch = dp(context, 48);
+        button.setMinHeight(minTouch);
+        button.setMinimumHeight(minTouch);
         button.setOnClickListener(action);
         return button;
     }

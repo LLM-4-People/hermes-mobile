@@ -361,8 +361,11 @@ public final class PresenceSettingsPanel {
         sw.setText(title);
         sw.setTextSize(15);
         sw.setTextColor(context.getColor(R.color.ink));
-        sw.setMinHeight(Ui.dp(context, 48));
-        sw.setMinWidth(Ui.dp(context, 48));
+        int minTouch = Ui.dp(context, 48);
+        sw.setMinHeight(minTouch);
+        sw.setMinimumHeight(minTouch);
+        sw.setMinWidth(minTouch);
+        sw.setMinimumWidth(minTouch);
         sw.setTag(tag);
         sw.setOnCheckedChangeListener((btn, checked) -> {
             if (!binding) onToggle.accept(checked);
