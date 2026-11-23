@@ -1,5 +1,5 @@
 [versions]
-agp = "9.1.0"
+agp = "9.5.2"
 firebaseMessaging = "26.0.2"
 unifiedPushConnector = "3.3.6"
 junit = "4.13.2"
