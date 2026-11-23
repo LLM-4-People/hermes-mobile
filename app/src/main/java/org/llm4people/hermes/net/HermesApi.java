@@ -236,7 +236,14 @@ public final class HermesApi {
         http.setRequestProperty("Accept", accept);
         http.setRequestProperty("Cache-Control", "no-store");
         String acceptLanguage = AppLanguage.currentAcceptLanguage();
-        if (!acceptLanguage.isEmpty()) http.setRequestProperty("Accept-Language", acceptLanguage);
+        if (acceptLanguage == null || acceptLanguage.isEmpty()) {
+            acceptLanguage = Locale.getDefault().toLanguageTag();
+        }
+        if (acceptLanguage != null && !acceptLanguage.isEmpty()) {
+            http.setRequestProperty("Accept-Language", acceptLanguage);
+            String langTag = acceptLanguage.toLowerCase(Locale.ROOT).startsWith("fr") ? "fr" : "en";
+            http.setRequestProperty("X-Hermes-Lang", langTag);
+        }
         return http;
     }
 

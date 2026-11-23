@@ -39,7 +39,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
-final class ThreadViews {
+public final class ThreadViews {
+    private static final TranscriptCellCache CELL_CACHE = new TranscriptCellCache();
+
+    /** Clear the bounded transcript Markdown/span LRU cache (memory trim or profile lock). */
+    public static void clearCellCache() {
+        CELL_CACHE.clear();
+    }
+
     final LinearLayout root;
     final ListView list;
     final Activity activity;
@@ -82,6 +89,7 @@ final class ThreadViews {
     private String selectedRoot;
     private Map<String, ActiveRunTracker.TaskBadge> activeBadges = Collections.emptyMap();
     private Consumer<String> onStopTask;
+    private InfiniteScrollController scrollController;
     ThreadInstrumentPanel instruments;
     private InstrumentViewport instrumentSlot;
 
@@ -134,6 +142,16 @@ final class ThreadViews {
         bindList();
         list.setOnItemClickListener((parent, view, pos, id) -> {
             if (view.getTag() instanceof JSONObject session) choose.accept(session);
+        });
+        list.setOnScrollListener(new AbsListView.OnScrollListener() {
+            @Override public void onScrollStateChanged(AbsListView view, int scrollState) {}
+            @Override public void onScroll(AbsListView view, int firstVisible, int visibleCount, int totalCount) {
+                if (visibleCount > 0 && totalCount > 0 && more != null
+                        && more.getVisibility() == View.VISIBLE && more.isEnabled()
+                        && firstVisible + visibleCount >= totalCount - InfiniteScrollController.DEFAULT_BOTTOM_THRESHOLD) {
+                    next.run();
+                }
+            }
         });
     }
 
@@ -272,6 +290,35 @@ final class ThreadViews {
         });
         busy(false, false);
         live("", "", false);
+    }
+
+    void attachInfiniteScroll(InfiniteScrollController.Callbacks callbacks, Runnable onJumpToLatest) {
+        if (!transcript || composerSlot == null || callbacks == null) return;
+        InfiniteScrollController controller = new InfiniteScrollController(
+                callbacks,
+                InfiniteScrollController.DEFAULT_TOP_THRESHOLD,
+                InfiniteScrollController.DEFAULT_BOTTOM_THRESHOLD,
+                list.getHeaderViewsCount(),
+                list.getFooterViewsCount());
+        Button pill = controller.createJumpPill(activity, () -> {
+            if (onJumpToLatest != null) onJumpToLatest.run();
+            else followTail();
+        });
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
+        lp.gravity = Gravity.END;
+        int margin = Ui.dp(activity, 8);
+        lp.setMargins(margin, Ui.dp(activity, 4), margin, Ui.dp(activity, 4));
+        composerSlot.addView(pill, 0, lp);
+        list.setOnScrollListener(controller);
+        scrollController = controller;
+    }
+
+    void onNewMessagesArrived(int count) {
+        if (scrollController != null) scrollController.onNewMessagesArrived(count);
+    }
+
+    void scrollToTail() {
+        followTail();
     }
 
     private void reset(boolean chat) {
@@ -584,6 +631,7 @@ final class ThreadViews {
 
     private void followTail() {
         // A prompt can arrive between a transcript refresh and its queued scroll.
+        if (scrollController != null) scrollController.onSnappedToLatest();
         if (!promptRows.visible()) list.post(() -> {
             if (!promptRows.visible()) list.setSelection(list.getCount() - 1);
         });
@@ -691,20 +739,36 @@ final class ThreadViews {
             body.setTypeface(Typeface.DEFAULT);
             body.setTextIsSelectable(chat);
             boolean markdown = chat && "assistant".equals(role);
-            String visibleContent = content;
-            String reasoningContent = "";
-            if (markdown) {
-                TranscriptPage.ReasoningSplit split = TranscriptPage.splitReasoning(content, ThreadData.string(row, "reasoning"));
-                visibleContent = split.visible();
-                reasoningContent = split.reasoning();
-            }
+            String rawReasoning = markdown ? ThreadData.string(row, "reasoning") : "";
+            int pageLimit = chat ? TranscriptPage.PAGE_CHARS : 300;
+            boolean night = (getContext().getResources().getConfiguration().uiMode
+                    & android.content.res.Configuration.UI_MODE_NIGHT_MASK)
+                    == android.content.res.Configuration.UI_MODE_NIGHT_YES;
+            ThreadData.RowId rid = ThreadData.rowId(row);
+            String rowKey = rid == null ? (role + "#" + (chat ? "c" : "i")) : (rid.segment() + ":" + rid.id());
+            final String rowContent = content;
+            TranscriptCellCache.Key cacheKey = TranscriptCellCache.keyFor(
+                    rowKey, rowContent, rawReasoning, markdown, night, pageLimit);
+            TranscriptCellCache.Rendered cached = CELL_CACHE.getOrCompute(cacheKey, () -> {
+                String vis = rowContent;
+                String reas = "";
+                if (markdown) {
+                    TranscriptPage.ReasoningSplit split = TranscriptPage.splitReasoning(rowContent, rawReasoning);
+                    vis = split.visible();
+                    reas = split.reasoning();
+                }
+                TranscriptPage pg = new TranscriptPage(vis, new TranscriptPage.Cursor(), markdown, pageLimit);
+                CharSequence styled = markdown && (!pg.blocks.isEmpty() || !pg.tables.isEmpty())
+                        ? MessageText.excerpt(getContext(), pg)
+                        : MessageText.styled(getContext(), pg);
+                CharSequence finalText = pg.hasMore() ? android.text.TextUtils.concat(styled, "…") : styled;
+                return new TranscriptCellCache.Rendered(pg, finalText, vis, reas);
+            });
+            String visibleContent = cached.visibleContent();
+            String reasoningContent = cached.reasoningContent();
+            TranscriptPage preview = cached.page();
             body.setVisibility(visibleContent.isEmpty() ? View.GONE : View.VISIBLE);
-            TranscriptPage preview = new TranscriptPage(visibleContent, new TranscriptPage.Cursor(), markdown,
-                    chat ? TranscriptPage.PAGE_CHARS : 300);
-            CharSequence rendered = markdown && (!preview.blocks.isEmpty() || !preview.tables.isEmpty())
-                    ? MessageText.excerpt(getContext(), preview)
-                    : MessageText.styled(getContext(), preview);
-            body.setText(preview.hasMore() ? android.text.TextUtils.concat(rendered, "…") : rendered);
+            body.setText(cached.text());
             if (markdown && !reasoningContent.isEmpty()) {
                 LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, -2);
                 params.topMargin = Ui.dp(getContext(), 6);

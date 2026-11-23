@@ -17,6 +17,7 @@ public final class MemoryPressure {
         ThumbnailCache.trimMemory(level);
         if (action >= 2) {
             SyntaxHighlighter.clearCache();
+            org.llm4people.hermes.thread.ThreadViews.clearCellCache();
         }
         Diagnostics.event("perf", action >= 2 ? "memory_cleared" : "memory_trimmed");
     }
@@ -25,6 +26,7 @@ public final class MemoryPressure {
     public static void clearAll() {
         ThumbnailCache.clear();
         SyntaxHighlighter.clearCache();
+        org.llm4people.hermes.thread.ThreadViews.clearCellCache();
         Diagnostics.event("perf", "memory_cleared");
     }
 }
