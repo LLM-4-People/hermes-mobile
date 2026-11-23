@@ -300,7 +300,7 @@ public final class DistributorLifecycleTest extends InstrumentationTestCase {
                             String text = message.getText().toString();
                             assertEquals(!allowed, text.contains(activity.getString(R.string.push_settings_blocked_message)));
                             if (repair != PushStore.NO_REPAIR)
-                                assertTrue(text.contains(activity.getString(R.string.push_settings_relay_pending)));
+                                assertTrue(text.contains(activity.getString(R.string.push_settings_relay_registered)));
                             assertEquals(repair == PushStore.RETRY_REPAIR,
                                     text.contains(activity.getString(R.string.push_settings_retry_distributor_auto)));
                             assertEquals(repair == PushStore.WAITING_ENDPOINT,

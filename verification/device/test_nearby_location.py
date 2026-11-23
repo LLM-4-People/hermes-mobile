@@ -272,40 +272,46 @@ class NearbyLocationTest(unittest.TestCase):
         ])
 
     def test_choose_consent_retries_until_consent_dialog_dismisses(self):
-        consent_open = ET.fromstring(
-            '<node text="" content-desc="" resource-id="" class="android.widget.FrameLayout" '
-            'package="org.llm4people.hermes" window-id="3" scrollable="false" bounds="[0,0][320,640]">'
-            f'<node text="{CONSENT}" content-desc="" resource-id="" class="android.widget.TextView" '
-            'package="org.llm4people.hermes" window-id="3" scrollable="false" bounds="[16,100][304,160]"/>'
-            f'<node text="{USE_LOCATION}" content-desc="" resource-id="" class="android.widget.Button" '
-            'package="org.llm4people.hermes" window-id="3" scrollable="false" bounds="[16,440][304,500]"/>'
-            '</node>'
-        )
-        consent_closed = ET.fromstring(
-            '<node text="" content-desc="" resource-id="" class="android.widget.FrameLayout" '
-            'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[0,0][320,640]"/>'
-        )
-        trees = iter([consent_open, consent_open, consent_closed])
-        taps = []
+        for lang in ("en", "fr"):
+            with self.subTest(lang=lang):
+                s = AppStrings.for_lang(lang)
+                consent_title = s["nearby_add_area_title"]
+                use_location = s["nearby_use_approx"]
+                consent_open = ET.fromstring(
+                    '<node text="" content-desc="" resource-id="" class="android.widget.FrameLayout" '
+                    'package="org.llm4people.hermes" window-id="3" scrollable="false" bounds="[0,0][320,640]">'
+                    f'<node text="{consent_title}" content-desc="" resource-id="" class="android.widget.TextView" '
+                    'package="org.llm4people.hermes" window-id="3" scrollable="false" bounds="[16,100][304,160]"/>'
+                    f'<node text="{use_location}" content-desc="" resource-id="" class="android.widget.Button" '
+                    'package="org.llm4people.hermes" window-id="3" scrollable="false" bounds="[16,440][304,500]"/>'
+                    '</node>'
+                )
+                consent_closed = ET.fromstring(
+                    '<node text="" content-desc="" resource-id="" class="android.widget.FrameLayout" '
+                    'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[0,0][320,640]"/>'
+                )
+                trees = iter([consent_open, consent_open, consent_closed])
+                taps = []
 
-        class StubScreen(Screen):
-            def __init__(self):
-                pass
+                class StubScreen(Screen):
+                    def __init__(self):
+                        self._strings = s
 
-            def hierarchy(self):
-                return next(trees)
+                    def hierarchy(self):
+                        return next(trees)
 
-            def tap_node(self, node):
-                taps.append(node.get("text"))
+                    def tap_node(self, node):
+                        taps.append(node.get("text"))
 
-        choose_consent(StubScreen(), USE_LOCATION)
-        self.assertEqual(taps, [USE_LOCATION, USE_LOCATION])
+                choose_consent(StubScreen(), use_location)
+                self.assertEqual(taps, [use_location, use_location])
 
     def test_open_consent_dismisses_ime_and_retries_send_tap_until_disclosure_dialog_appears(self):
         for lang in ("en", "fr"):
             with self.subTest(lang=lang):
                 s = AppStrings.for_lang(lang)
                 send = s["thread_send"]
+                consent_title = s["nearby_add_area_title"]
                 composer = ET.fromstring(
                     '<node text="" content-desc="" resource-id="" class="android.widget.FrameLayout" '
                     'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[0,0][320,640]">'
@@ -316,7 +322,7 @@ class NearbyLocationTest(unittest.TestCase):
                 consent_dialog = ET.fromstring(
                     '<node text="" content-desc="" resource-id="" class="android.widget.FrameLayout" '
                     'package="org.llm4people.hermes" window-id="3" scrollable="false" bounds="[0,80][320,600]">'
-                    f'<node text="{CONSENT}" content-desc="" resource-id="" class="android.widget.TextView" '
+                    f'<node text="{consent_title}" content-desc="" resource-id="" class="android.widget.TextView" '
                     'package="org.llm4people.hermes" window-id="3" scrollable="false" bounds="[16,100][304,160]"/>'
                     '<node text="Hermes reçoit la zone et peut la transmettre à OpenStreetMap." content-desc="" resource-id="" '
                     'class="android.widget.TextView" package="org.llm4people.hermes" window-id="3" scrollable="false" bounds="[16,170][304,260]"/>'
