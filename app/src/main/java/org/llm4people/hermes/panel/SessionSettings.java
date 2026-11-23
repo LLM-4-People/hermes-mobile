@@ -42,6 +42,8 @@ final class SessionSettings {
     private TextView saveError;
     private boolean individualTools;
     private boolean skillStudioSupported;
+    private boolean capabilitiesLoaded;
+    private boolean pendingOpenSkills;
     private final Map<String, Provider> providers = new LinkedHashMap<>();
     private final Map<String, Set<String>> toolsets = new LinkedHashMap<>();
 
@@ -94,13 +96,19 @@ final class SessionSettings {
                             }).create()));
             return;
         }
+        capabilitiesLoaded = false;
+        pendingOpenSkills = false;
         panel.note(box, panel.t(R.string.panel_session_scope));
         PanelFrame.Sections settings = panel.sections(box);
         panel.section(settings.first, R.string.panel_model);
         modelSetting(settings.first);
         if (stageDraft != null) panel.action(settings.first, R.string.skills_title, () -> {
             if (!activeThread.getAsBoolean()) return;
-            new SkillStudio(panel, activeThread, stageDraft, this::show).show();
+            if (!capabilitiesLoaded) {
+                pendingOpenSkills = true;
+                return;
+            }
+            openSkills();
         });
         panel.section(settings.second, R.string.panel_tools);
         LinearLayout controls = Ui.column(panel.activity);
@@ -288,6 +296,14 @@ final class SessionSettings {
             JSONObject features = (JSONObject) payload[0];
             individualTools = features.optBoolean("run_tool_exclusions");
             skillStudioSupported = features.optBoolean(BrainCapabilities.SKILL_STUDIO);
+            capabilitiesLoaded = true;
+            if (pendingOpenSkills) {
+                pendingOpenSkills = false;
+                if (activeThread.getAsBoolean()) {
+                    openSkills();
+                    return;
+                }
+            }
             renderTools(box, features.optBoolean("run_toolset_selection"));
             if (features.optBoolean(BrainCapabilities.PROFILE_DEFAULTS)) {
                 box.addView(Ui.divider(panel.activity));
@@ -295,6 +311,11 @@ final class SessionSettings {
                         () -> new ProfileDefaultsPanel(panel, this::show).show());
             }
         }, () -> loadTools(box));
+    }
+
+    private void openSkills() {
+        if (skillStudioSupported) new SkillStudio(panel, activeThread, stageDraft, this::show).show();
+        else new SkillBrowser(panel, activeThread, stageDraft, this).show();
     }
 
     private void renderTools(LinearLayout box, boolean editable) {
