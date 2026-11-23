@@ -3,21 +3,22 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Documentation — Hermes Mobile</title>
-  <meta name="description" content="Documentation complète en français pour Hermes Mobile : installation de l’APK signé, serveur multi-profils sur un seul domaine, palette rapide, diagnostic de connexion, tâches parallèles et sécurité.">
+  <title>Documentation | Hermes Mobile</title>
+  <meta name="description" content="Documentation en français pour Hermes Mobile : installation de l’APK signé, appairage QR, serveur multi-profils avec console admin, palette rapide, diagnostic et sécurité Landlock.">
   <link rel="icon" type="image/svg+xml" href="../../assets/favicon.svg">
   <link rel="canonical" href="https://llm-4-people.github.io/hermes-mobile/fr/docs/">
   <link rel="alternate" hreflang="fr" href="https://llm-4-people.github.io/hermes-mobile/fr/docs/">
   <link rel="alternate" hreflang="en" href="https://llm-4-people.github.io/hermes-mobile/en/docs/">
   <link rel="alternate" hreflang="x-default" href="https://llm-4-people.github.io/hermes-mobile/en/docs/">
   <meta property="og:type" content="website">
-  <meta property="og:title" content="Documentation — Hermes Mobile">
-  <meta property="og:description" content="Démarrage, hébergement multi-profils, palette rapide, diagnostic en direct, tâches parallèles et vérification des versions signées.">
+  <meta property="og:title" content="Documentation | Hermes Mobile">
+  <meta property="og:description" content="Démarrage, appairage QR, hébergement multi-profils, palette rapide, diagnostic en direct et vérification des versions signées.">
   <meta property="og:url" content="https://llm-4-people.github.io/hermes-mobile/fr/docs/">
   <meta property="og:image" content="https://llm-4-people.github.io/hermes-mobile/assets/marketing/social-preview-fr.png">
   <meta property="og:locale" content="fr_CA">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:image" content="https://llm-4-people.github.io/hermes-mobile/assets/marketing/social-preview-fr.png">
+  <script>(function(){try{var q=new URLSearchParams(location.search).get('theme');var s=q==='light'||q==='dark'?q:localStorage.getItem('hermes-site-theme');var t=s==='light'||s==='dark'?s:(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
   <link rel="stylesheet" href="../../assets/style.css">
 </head>
 <body>
@@ -26,19 +27,33 @@
   <header class="topbar">
     <div class="topbar-inner">
       <a class="brand" href="../">
-        <img class="brand-mark" src="../../assets/favicon.svg" alt="" width="30" height="30">
+        <img class="brand-mark" src="../../assets/favicon.svg" alt="" width="28" height="28">
         <span>Hermes Mobile</span>
       </a>
       <nav class="nav-links" aria-label="Navigation principale">
         <a href="../">Aperçu</a>
-        <a href="./" class="is-active">Documentation</a>
+        <a href="./" class="is-active" aria-current="page">Documentation</a>
         <a href="../walkthrough/">Galerie</a>
         <a href="https://github.com/LLM-4-People/hermes-mobile" rel="noopener">GitHub</a>
       </nav>
       <div class="nav-actions">
         <a class="lang-link" href="../../en/docs/" data-lang-switch="en" hreflang="en" lang="en" aria-label="Passer à la documentation anglaise">English</a>
-        <button type="button" class="pill-btn" data-theme-toggle aria-pressed="false">☾ Sombre</button>
-        <a class="btn btn-primary" data-latest-apk href="https://github.com/LLM-4-People/hermes-mobile/releases/latest" rel="noopener">Télécharger l’APK</a>
+        <button type="button" class="pill-btn" data-theme-toggle aria-pressed="false">Sombre</button>
+        <a class="topbar-apk" data-latest-apk href="https://github.com/LLM-4-People/hermes-mobile/releases/latest" rel="noopener">Télécharger l’APK</a>
+        <button type="button" class="menu-btn" data-menu-toggle aria-expanded="false" aria-controls="mobile-nav" aria-label="Afficher ou masquer la navigation">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M4 7h16v2H4V7zm0 4h16v2H4v-2zm0 4h16v2H4v-2z"/></svg>
+        </button>
+      </div>
+    </div>
+    <div id="mobile-nav" class="mobile-drawer">
+      <nav class="mobile-drawer-links" aria-label="Navigation mobile">
+        <a href="../">Aperçu</a>
+        <a href="./" class="is-active" aria-current="page">Documentation</a>
+        <a href="../walkthrough/">Galerie des écrans</a>
+        <a href="https://github.com/LLM-4-People/hermes-mobile" rel="noopener">Dépôt GitHub</a>
+      </nav>
+      <div class="mobile-drawer-cta">
+        <a class="btn btn-primary" data-latest-apk href="https://github.com/LLM-4-People/hermes-mobile/releases/latest" rel="noopener">Télécharger l’APK signé</a>
       </div>
     </div>
   </header>
@@ -47,17 +62,17 @@
     <div class="container docs-layout">
       <aside class="docs-sidebar" aria-label="Sections de la documentation">
         <label for="docs-search" class="sr-only">Filtrer les sections</label>
-        <input id="docs-search" class="search-input" type="search" placeholder="Filtrer la documentation…" autocomplete="off">
+        <input id="docs-search" class="search-input" type="search" placeholder="Filtrer la documentation..." autocomplete="off">
         <div id="docs-search-status" class="search-status" aria-live="polite"></div>
         <nav class="docs-nav">
           <a href="#demarrage" class="is-active">Démarrage et APK signé</a>
-          <a href="#multi-profil">Multi-profils sur un domaine</a>
+          <a href="#multi-profil">Appairage QR et multi-profils</a>
           <a href="#palette-modeles">Palette rapide et modèles</a>
           <a href="#diagnostic">Diagnostic de connexion</a>
           <a href="#concurrence">Tâches parallèles et vitesse</a>
           <a href="#cerveau-partage">Cerveau et partage</a>
           <a href="#interface-directe">Interface en direct et widgets</a>
-          <a href="#securite">Sécurité, ambiant et alertes</a>
+          <a href="#securite">Sécurité, Landlock et alertes</a>
           <a href="#compilation">Compiler localement</a>
         </nav>
       </aside>
@@ -65,49 +80,50 @@
       <div class="docs-content">
         <section id="demarrage" class="doc-section">
           <h1>Documentation de Hermes Mobile</h1>
-          <p>Tout le nécessaire pour installer une version Android signée et vérifiée, relier votre profil à votre serveur compagnon Hermes et travailler sur plusieurs tâches en toute sérénité sur Android 9 à 16.</p>
+          <p>Installez une version Android signée et vérifiée, appairez votre téléphone avec votre serveur compagnon Hermes et lancez vos tâches en parallèle sur Android 9 à 16.</p>
           <h2>1. Installer et mettre à jour</h2>
           <ul>
             <li><strong>Versions officielles signées sur GitHub :</strong> Téléchargez <code>Hermes-Mobile.apk</code>, <code>SHA256SUMS</code> et <code>release.json</code> depuis la <a href="https://github.com/LLM-4-People/hermes-mobile/releases/latest" rel="noopener">dernière version publiée</a>.</li>
-            <li><strong>Mises à jour intégrées et vérifiées :</strong> Ouvrez <strong>Activité → Mises à jour</strong>. L’application vérifie l’hôte HTTPS GitHub officiel, contrôle l’empreinte SHA-256 en temps constant et valide que le certificat de signature correspond exactement avant de lancer l’installateur Android.</li>
+            <li><strong>Mises à jour intégrées et vérifiées :</strong> Ouvrez <strong>Activité &gt; Mises à jour</strong>. L’application vérifie l’hôte HTTPS GitHub officiel, contrôle l’empreinte SHA-256 en temps constant et valide que le certificat de signature correspond exactement avant de lancer l’installateur Android.</li>
           </ul>
           <div class="code-block"><code>sha256sum -c SHA256SUMS
 adb install -r Hermes-Mobile.apk</code></div>
         </section>
 
         <section id="multi-profil" class="doc-section">
-          <h2>2. Serveur multi-profils sur une seule adresse HTTPS</h2>
-          <p>Hermes Mobile nécessite notre serveur compagnon (<a href="https://github.com/LLM-4-People/hermes-agent" rel="noopener">LLM-4-People/hermes-agent</a>). Une seule adresse HTTPS suffit pour héberger plusieurs personnes sous <code>/p/&lt;profil&gt;</code>, chacune dans son espace et avec sa propre clé d’accès.</p>
+          <h2>2. Appairage QR et serveur multi-profils sur une seule adresse HTTPS</h2>
+          <p>Hermes Mobile se relie au serveur compagnon (<a href="https://github.com/LLM-4-People/hermes-agent" rel="noopener">LLM-4-People/hermes-agent</a>). Une seule adresse HTTPS suffit pour héberger plusieurs personnes sous <code>/p/&lt;profil&gt;</code>, chacune dans son espace isolé.</p>
           <ol>
-            <li>Déployez le serveur compagnon puis lancez <code>python3 scripts/mobile_doctor.py</code> sur l’hôte pour vérifier les 51 capacités actives et afficher l’adresse de connexion de chaque profil.</li>
-            <li>Sur Android, ouvrez <strong>Connecter Hermes</strong>, saisissez un nom de profil, l’adresse HTTPS du serveur (par exemple <code>https://hermes.example.com</code>), votre identifiant <strong>Profil serveur</strong> et votre clé d’accès 256 bits.</li>
-            <li>Protégez le coffre local avec une phrase secrète et activez au besoin la biométrie forte dans <strong>Activité → Sécurité</strong>.</li>
+            <li>Déployez le serveur compagnon puis lancez <code>python3 scripts/mobile_setup.py --invite alex --lang fr --qr</code> sur l’hôte pour créer un profil isolé et un lien d’appairage à usage unique valable 5 minutes.</li>
+            <li>Sur Android, ouvrez <strong>Connecter votre Hermes</strong> et touchez <strong>Coller le lien d’appairage</strong> ou ouvrez le lien <code>hermes://pair</code>. Confirmez l’hôte cible avant réclamation, ou saisissez manuellement l’adresse, l’identifiant de profil et la clé d’accès.</li>
+            <li>Le premier profil agit comme administrateur avec une <strong>Console admin</strong> intégrée pour inviter des membres, renouveler les clés, ajuster les plafonds et révoquer les jetons actifs.</li>
+            <li>Protégez le coffre local avec une phrase secrète et activez au besoin la biométrie forte dans <strong>Activité &gt; Sécurité</strong>.</li>
           </ol>
         </section>
 
         <section id="palette-modeles" class="doc-section">
-          <h2>3. Palette de commandes et modèles quotidiens</h2>
+          <h2>3. Palette de commandes et modèles du quotidien</h2>
           <ul>
-            <li><strong>Palette rapide (<code>Ctrl+K</code>) :</strong> Ouvrez la recherche globale depuis la barre supérieure ou un clavier matériel pour rejoindre immédiatement n’importe quelle section, discussion récente ou modèle, avec tolérance aux accents dans une fenêtre protégée.</li>
-            <li><strong>Modèles quotidiens et modèles chiffrés :</strong> Sous <strong>Atelier → Modèles quotidiens</strong>, utilisez les 6 modèles intégrés ou créez vos propres modèles enregistrés dans le coffre chiffré du profil. Chaque modèle respecte la <strong>règle du brouillon modifiable</strong> : rien n’est envoyé sans votre validation.</li>
+            <li><strong>Palette rapide (<code>Ctrl+K</code>) :</strong> Ouvrez la recherche globale depuis la barre supérieure ou un clavier matériel pour rejoindre immédiatement une section, une discussion récente ou un modèle dans une fenêtre protégée.</li>
+            <li><strong>Modèles du quotidien et modèles chiffrés :</strong> Sous <strong>Atelier &gt; Modèles du quotidien</strong>, utilisez les 6 modèles intégrés ou créez vos propres modèles chiffrés par profil. Chaque modèle respecte la règle du brouillon modifiable : rien n’est envoyé sans votre validation.</li>
           </ul>
         </section>
 
         <section id="diagnostic" class="doc-section">
           <h2>4. Diagnostic de connexion en direct</h2>
-          <p>Ouvrez <strong>Activité → Diagnostic de connexion</strong> pour lancer 6 contrôles parallèles sans bloquer l’interface :</p>
+          <p>Ouvrez <strong>Activité &gt; Diagnostic de connexion</strong> pour lancer 6 contrôles parallèles sans bloquer l’interface :</p>
           <ul>
             <li><strong>Joignabilité et latence serveur :</strong> Mesure le temps de réponse réel et distingue clairement une panne réseau d’une clé refusée.</li>
             <li><strong>Capacités du serveur compagnon (<code>51/51</code>) :</strong> Reconnaît le serveur compagnon complet et avertit clairement si un serveur Hermes standard est détecté.</li>
-            <li><strong>Notifications, mises à jour, accès ambiant et langue :</strong> Vérifie l’inscription aux alertes, l’état des versions, la connexion du service ambiant optionnel et la cohérence de la langue active.</li>
-            <li><strong>Copie d’un rapport sécurisé :</strong> Sous <em>Détails techniques</em>, copiez un résumé strictement expurgé (hôte assaini, version, langue et statuts uniquement — jamais de clé d’accès, de nom de profil, de note ni de message).</li>
+            <li><strong>Notifications, mises à jour, accès ambiant et langue :</strong> Vérifie l’inscription aux alertes, l’état des versions, le service ambiant optionnel et la cohérence de la langue active.</li>
+            <li><strong>Copie d’un rapport sécurisé :</strong> Sous <em>Détails techniques</em>, copiez un résumé strictement expurgé (hôte assaini, version, langue et statuts uniquement, sans jamais inclure clé d’accès, nom de profil, note ni message).</li>
           </ul>
         </section>
 
         <section id="concurrence" class="doc-section">
           <h2>5. Tâches parallèles et performances</h2>
           <ul>
-            <li><strong>Plusieurs tâches simultanées par utilisateur :</strong> Démarrez une analyse dans le fil A, basculez vers le fil B puis le fil C pour lancer d’autres tâches, et revenez au fil A sans perdre les flux en cours ni mélanger les réponses. Les notifications en direct Android 16 affichent le nombre de tâches actives.</li>
+            <li><strong>Plusieurs tâches simultanées par utilisateur :</strong> Démarrez une analyse dans un fil, basculez vers une autre discussion pour lancer une seconde tâche, puis revenez sans perdre les flux en cours ni mélanger les réponses.</li>
             <li><strong>Discussions instantanées :</strong> Le passage d’un fil à l’autre s’affiche immédiatement avec chargement progressif de l’historique ancien.</li>
             <li><strong>Empreinte réduite :</strong> Regroupement fluide des flux en continu, vues personnalisées sans allocation inutile, purge des caches sous pression mémoire ou verrouillage, et APK signé d’environ <code>1,9 Mo</code>.</li>
           </ul>
@@ -116,19 +132,20 @@ adb install -r Hermes-Mobile.apk</code></div>
         <section id="cerveau-partage" class="doc-section">
           <h2>6. Espace Cerveau et partage sur le même serveur</h2>
           <p>Ouvrez l’onglet <strong>Cerveau</strong> pour consulter et modifier la mémoire, gérer vos notes intelligentes, valider des habitudes proposées après au moins 3 répétitions, lancer une recherche plein texte FTS5 dans tout l’historique, gérer vos savoir-faire et explorer les fichiers du projet.</p>
-          <p>Partagez sélectivement 7 types d’éléments — notes, savoir-faire, écrans personnalisés, widgets, outils, fichiers et discussions — avec d’autres profils du même serveur sans exposer votre espace privé.</p>
+          <p>Partagez sélectivement 7 types d’éléments (notes, savoir-faire, écrans personnalisés, widgets, outils, fichiers et discussions) avec d’autres profils du même serveur sans exposer votre espace privé.</p>
         </section>
 
         <section id="interface-directe" class="doc-section">
           <h2>7. Personnalisation en direct et widgets d’accueil</h2>
-          <p>Demandez à Hermes d’adapter un écran, d’ajuster les couleurs jour/nuit (contraste WCAG-AA <code>4.5:1</code> garanti) ou de créer un outil interactif avec aperçu, application atomique et historique d’annulation. Épinglez des widgets sur votre écran d’accueil Android tout en conservant le verrouillage strict par profil.</p>
+          <p>Demandez à Hermes d’adapter un écran, d’ajuster les couleurs jour et nuit avec contraste WCAG-AA <code>4.5:1</code> garanti ou de créer un outil interactif avec aperçu, application atomique et historique d’annulation. Épinglez des widgets sur votre écran d’accueil Android tout en conservant le verrouillage strict par profil.</p>
         </section>
 
         <section id="securite" class="doc-section">
-          <h2>8. Sécurité, accès ambiant et notifications privées</h2>
+          <h2>8. Sécurité, isolation Landlock et notifications privées</h2>
           <ul>
-            <li><strong>Coffre local renforcé :</strong> Stockage chiffré AES-GCM par profil, temporisation persistante sur les erreurs de phrase secrète, effacement atomique de profil et isolation stricte des rappels réseau.</li>
-            <li><strong>Accès ambiant privé par défaut :</strong> Entièrement désactivé au départ. Le filtre de confidentialité bloque avant toute lecture les codes de vérification, gestionnaires de mots de passe, banques et notifications privées d’écran verrouillé.</li>
+            <li><strong>Coffre local renforcé :</strong> Stockage chiffré Android Keystore AES-256-GCM par profil, temporisation persistante sur les erreurs de phrase secrète, fenêtres <code>FLAG_SECURE</code>, effacement atomique et isolation des rappels réseau.</li>
+            <li><strong>Isolation par le noyau serveur :</strong> Sur le serveur compagnon, Linux Landlock LSM empêche physiquement les sous-processus de lire les dossiers des autres profils (<code>EACCES</code>), et les profils membres excluent <code>terminal</code> et <code>code_execution</code> par défaut.</li>
+            <li><strong>Accès ambiant désactivé par défaut :</strong> Les signaux de contexte optionnels démarrent éteints par profil, avec un filtre bloquant les codes de vérification, gestionnaires de mots de passe, banques et notifications d’écran verrouillé avant toute lecture.</li>
             <li><strong>Notifications sans fuite :</strong> Firebase ou UnifiedPush auto-hébergé (ntfy + chiffrement RFC 8291) ne transmettent que des identifiants opaques ; vos messages restent sur votre serveur jusqu’au déverrouillage.</li>
           </ul>
         </section>

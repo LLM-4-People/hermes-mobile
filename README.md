@@ -6,12 +6,12 @@
 *[Documentation en français](docs/fr/README.md) · [Site français](https://llm-4-people.github.io/hermes-mobile/fr/)*
 
 <p align="center">
-  <img src="docs/assets/hero-studio.png" alt="Hermes Mobile on a modern Android flagship phone resting on warm walnut wood and pale travertine stone" width="100%">
+  <img src="docs/assets/hero-studio.png" alt="Hermes Mobile paper workspace overview showing inline decision card, QR pairing, admin console, and live Android 16 light and dark screens" width="100%">
 </p>
 
 **Hermes Mobile** is a fast, native Android client (API 28–36, Java, zero WebView, ~1.9 MiB signed release APK) for chatting, coding, approving actions, running parallel tasks, and customizing your workspace with your own Hermes Agent. The app automatically follows your Android system language (**English** and **French**) with a 1-tap override and syncs your preference to Hermes.
 
-**[Explore the Showcase & Docs Portal →](https://llm-4-people.github.io/hermes-mobile/en/)** · [Documentation](https://llm-4-people.github.io/hermes-mobile/en/docs/) · [Live Device Gallery](https://llm-4-people.github.io/hermes-mobile/en/walkthrough/) · [Latest Signed APK](https://github.com/LLM-4-People/hermes-mobile/releases/latest)
+**[Explore the showcase and docs portal →](https://llm-4-people.github.io/hermes-mobile/en/)** · [Documentation](https://llm-4-people.github.io/hermes-mobile/en/docs/) · [Screen gallery](https://llm-4-people.github.io/hermes-mobile/en/walkthrough/) · [Latest signed APK](https://github.com/LLM-4-People/hermes-mobile/releases/latest)
 
 > **Companion server requirement:** Hermes Mobile requires our Hermes Agent fork at **[LLM-4-People/hermes-agent](https://github.com/LLM-4-People/hermes-agent)**. It relies on the fork’s single-host multi-profile routing (`/p/{profile}`), per-session concurrent run execution, run-scoped instructions, Live UI modding (`ui.patch`), universal push deliveries (`mobile_deliver`), Brain Studio (memory, Smart Notes, pattern-gated habits, universal sharing, FTS5 search, skill studio, workspace files), visual approval diffs, and the approved device bridge.
 
@@ -22,10 +22,10 @@
 </p>
 
 <p align="center">
-  <a href="site/assets/screens/phone-transcript.png"><img src="site/assets/screens/phone-transcript.png" width="24%" alt="Hermes Mobile phone conversation transcript with clear typography and composer"></a>
-  <a href="site/assets/screens/phone-approval.png"><img src="site/assets/screens/phone-approval.png" width="24%" alt="Hermes Mobile visual approval card for reviewing a proposed action"></a>
-  <a href="site/assets/screens/phone-photo-draft.png"><img src="site/assets/screens/phone-photo-draft.png" width="24%" alt="Hermes Mobile photo attachment staged in an editable draft"></a>
-  <a href="site/assets/screens/tablet-dual-pane.png"><img src="site/assets/screens/tablet-dual-pane.png" width="24%" alt="Hermes Mobile tablet dual-pane layout with navigation rail and sidebar"></a>
+  <a href="site/assets/screens/en/command-palette.png"><img src="site/assets/screens/en/command-palette.png" width="24%" alt="Global command palette quick jump overlay in English"></a>
+  <a href="site/assets/screens/en/templates.png"><img src="site/assets/screens/en/templates.png" width="24%" alt="Everyday workflows panel in English staging editable drafts"></a>
+  <a href="site/assets/screens/en/connection-doctor.png"><img src="site/assets/screens/en/connection-doctor.png" width="24%" alt="Live connection doctor panel in English verifying server health"></a>
+  <a href="site/assets/screens/dark/en/presence-control.png"><img src="site/assets/screens/dark/en/presence-control.png" width="24%" alt="Presence and look controls in dark theme in English"></a>
 </p>
 
 ## What Hermes Mobile does

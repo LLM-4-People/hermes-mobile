@@ -1,4 +1,4 @@
-"""Fast static integrity check for the GitHub Pages site under site/."""
+"""Fail-closed static integrity, zero-CLS, dual-theme, and language-strict check for site/."""
 
 from html.parser import HTMLParser
 from pathlib import Path
@@ -12,28 +12,82 @@ REQUIRED_FILES = (
     Path("index.html"),
     Path("docs/index.html"),
     Path("walkthrough/index.html"),
+    Path("en/index.html"),
+    Path("fr/index.html"),
+    Path("en/docs/index.html"),
+    Path("fr/docs/index.html"),
+    Path("en/walkthrough/index.html"),
+    Path("fr/walkthrough/index.html"),
 )
 EXTERNAL_SCHEMES = ("http", "https", "mailto", "tel", "data", "javascript")
+IMAGE_ATTRS = ("src", "data-src-light", "data-src-dark")
 
 
 class _AssetParser(HTMLParser):
     def __init__(self):
         super().__init__()
         self.refs = []
-        self.missing_alt = []
+        self.img_issues = []
+        self.image_refs = []
 
     def handle_starttag(self, tag, attrs):
         attr_map = dict(attrs)
         if tag == "img":
-            src = attr_map.get("src")
-            if not src or not src.strip():
-                self.missing_alt.append("img with empty src")
+            src = (attr_map.get("src") or "").strip()
+            if not src:
+                self.img_issues.append("img with empty src")
             if "alt" not in attr_map:
-                self.missing_alt.append(f"img missing alt ({src})")
-        for key in ("href", "src"):
+                self.img_issues.append(f"img missing alt ({src})")
+            for dim in ("width", "height"):
+                val = (attr_map.get(dim) or "").strip()
+                if not val.isdigit() or int(val) <= 0:
+                    self.img_issues.append(f"img missing positive integer {dim} ({src})")
+            for key in IMAGE_ATTRS:
+                raw = (attr_map.get(key) or "").strip()
+                if raw:
+                    self.image_refs.append((tag, key, raw))
+        elif tag == "button":
+            for key in ("data-src-light", "data-src-dark"):
+                raw = (attr_map.get(key) or "").strip()
+                if raw:
+                    self.refs.append((tag, key, raw))
+                    self.image_refs.append((tag, key, raw))
+        elif tag == "meta":
+            prop = (attr_map.get("property") or attr_map.get("name") or "").strip()
+            if prop in ("og:image", "twitter:image"):
+                content = (attr_map.get("content") or "").strip()
+                if content:
+                    self.image_refs.append((tag, prop, content))
+        for key in ("href", "src", "data-src-light", "data-src-dark"):
+            if tag == "button" and key in ("data-src-light", "data-src-dark"):
+                continue
             val = attr_map.get(key)
             if val is not None:
                 self.refs.append((tag, key, val.strip()))
+
+
+def _check_language_assets(rel_html, image_refs):
+    problems = []
+    if rel_html.startswith("en/"):
+        for tag, attr, raw in image_refs:
+            lower = raw.lower()
+            if "-fr." in lower or "/fr/" in lower or "/screens/phone-" in lower or "/screens/tablet-" in lower:
+                problems.append(
+                    f"site/{rel_html}: English page references non-English image <{tag} {attr}={raw!r}>"
+                )
+    elif rel_html.startswith("fr/"):
+        for tag, attr, raw in image_refs:
+            lower = raw.lower()
+            if (
+                "-en." in lower
+                or "/en/" in lower
+                or lower.endswith("marketing/hero-studio.png")
+                or lower.endswith("marketing/privacy-architecture.png")
+            ):
+                problems.append(
+                    f"site/{rel_html}: French page references English-only image <{tag} {attr}={raw!r}>"
+                )
+    return problems
 
 
 def validate_site(site_dir):
@@ -54,11 +108,15 @@ def validate_site(site_dir):
         return problems
 
     for html_file in html_files:
-        parser = _AssetParser()
-        parser.feed(html_file.read_text(encoding="utf-8"))
+        content = html_file.read_text(encoding="utf-8")
         rel_html = html_file.relative_to(site_root).as_posix()
-        for issue in parser.missing_alt:
+        if "\u2014" in content:
+            problems.append(f"site/{rel_html}: contains em-dash character (U+2014)")
+        parser = _AssetParser()
+        parser.feed(content)
+        for issue in parser.img_issues:
             problems.append(f"site/{rel_html}: {issue}")
+        problems.extend(_check_language_assets(rel_html, parser.image_refs))
         for tag, attr, raw in parser.refs:
             if not raw or raw.startswith("#"):
                 continue
