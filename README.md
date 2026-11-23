@@ -28,7 +28,7 @@
 
 | Pillar | Capabilities |
 | --- | --- |
-| **Adaptive Phone & Tablet Shell** | 4 top-level workspaces (**Discussions**, **Workspace**, **Brain**, **Activity**): IME-aware bottom bar on phones, **92 dp** navigation rail and collapsible dual-pane discussion sidebar (`232–360 dp`) on tablets, preserving drafts across rotation and split-screen. |
+| **Adaptive Phone & Tablet Shell** | 4 top-level workspaces (**Discussions**, **Atelier**, **Brain**, **Activity**): IME-aware bottom bar on phones, **92 dp** navigation rail and collapsible dual-pane discussion sidebar (`232–360 dp`) on tablets, preserving drafts across rotation and split-screen. |
 | **Global Command Palette (`Ctrl+K`) & Everyday Workflows** | 1-tap searchable overlay (`Ctrl+K` / `Cmd+K` on hardware keyboards) with accent-insensitive fuzzy jump across every action, recent thread, and template. Includes 6 curated everyday workflows plus encrypted per-profile custom templates that strictly stage editable drafts before sending. |
 | **Concurrent Multi-Run & Multi-User Isolation** | Run multiple concurrent tasks across different discussions simultaneously for one user without canceling active streams or mixing deltas/approvals, while serving many concurrent users on **one single HTTPS hostname** (`/p/<profile>`) with isolated homes, workspaces, and 256-bit keys. [Multi-Profile Deploy](docs/accounts.md) |
 | **Instant Infinite Chats & Runtime Performance** | Instant session switching with smooth lazy history paging, frame-budgeted live stream coalescing (0 ms first-token latency), zero-allocation custom views, bounded bitmap/token caches cleared under memory pressure and lock, and a shrunk **~1.83 MiB** signed release APK (**-19%** footprint). |

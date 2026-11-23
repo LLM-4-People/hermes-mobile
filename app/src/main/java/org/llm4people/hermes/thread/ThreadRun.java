@@ -17,6 +17,7 @@ import org.llm4people.hermes.camera.CapturedMedia;
 import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.os.LiveRunNotification;
 import org.llm4people.hermes.perf.StreamCoalescer;
+import org.llm4people.hermes.presence.PresencePolicy;
 import org.llm4people.hermes.share.AttachmentUploader;
 import org.llm4people.hermes.share.DeviceBridgeFlow;
 
@@ -300,7 +301,8 @@ final class ThreadRun {
                 boolean hasApps = !allowlist.effectiveAllowedPackages().isEmpty();
                 boolean calendarGranted = CalendarContextReader.hasPermission(page.activity);
                 List<String> caps = DeviceBridgeFlow.executableCapabilities(
-                        true, true, true, ambient, listenerOn, calendarGranted, hasApps);
+                        true, true, true, ambient, listenerOn, calendarGranted, hasApps,
+                        PresencePolicy.load(page.account()));
                 body.put("device_capabilities", DeviceBridgeFlow.capabilitiesJson(caps));
             }
             journal.stage(body, SystemClock.elapsedRealtime(), bootCount(), idem.optLong("retention_seconds"),

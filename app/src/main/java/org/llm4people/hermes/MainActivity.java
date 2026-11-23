@@ -6,6 +6,7 @@ import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.graphics.Insets;
 import android.os.Build;
@@ -31,6 +32,7 @@ import org.llm4people.hermes.artifact.LiveUiDeliveryDefaults;
 import org.llm4people.hermes.artifact.LiveUiPatch;
 import org.llm4people.hermes.artifact.ThemePalette;
 import org.llm4people.hermes.camera.ThreadCameraCapture;
+import org.llm4people.hermes.customization.AppCustomization;
 import org.llm4people.hermes.customization.AppCustomizationStore;
 import org.llm4people.hermes.doctor.ConnectionDoctorPanel;
 import org.llm4people.hermes.files.PublishedFiles;
@@ -52,6 +54,7 @@ import org.llm4people.hermes.panel.UniversalShareModel;
 import org.llm4people.hermes.perf.MemoryPressure;
 import org.llm4people.hermes.presence.AppPresenceTracker;
 import org.llm4people.hermes.presence.ContinuousLocationTracker;
+import org.llm4people.hermes.presence.DeepAndroidActions;
 import org.llm4people.hermes.presence.PresencePolicy;
 import org.llm4people.hermes.presence.PresenceSettingsPanel;
 import org.llm4people.hermes.profile.Account;
@@ -99,8 +102,10 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     private WorkspaceNavigation navigation;
     private ArtifactDesk.Host activeHost;
     private static final int REQUEST_PRESENCE_LOCATION = 4092;
+    private static final int REQUEST_PRESENCE_FINE_LOCATION = 4093;
     private final AppPresenceTracker presenceTracker = new AppPresenceTracker();
     private final ContinuousLocationTracker locationTracker = new ContinuousLocationTracker();
+    private final DeepAndroidActions.NudgeRateLimiter nudgeRateLimiter = new DeepAndroidActions.NudgeRateLimiter();
     private long presenceEpoch;
     private AmbientAccessPanel activeAmbientPanel;
     private PresenceSettingsPanel activePresencePanel;
@@ -223,6 +228,9 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                     new PresenceSettingsPanel.Listener() {
                         @Override public void onPolicyChanged(PresencePolicy policy) {
                             if (account == owner) locationTracker.syncWithPolicy(MainActivity.this, policy);
+                        }
+                        @Override public void onCustomizationChanged(AppCustomization customization) {
+                            if (account == owner) applyAppCustomization(owner, customization, true);
                         }
                         @Override public void onRequestLocationPermission() {
                             if (account == owner) {
@@ -409,6 +417,10 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         HermesNotificationListener.bindProfile(this, unlocked);
         presenceEpoch = presenceTracker.bindProfile(unlocked.id, presenceEpoch + 1);
         locationTracker.syncWithPolicy(this, PresencePolicy.load(unlocked));
+        AppCustomization savedCustom = AppCustomizationStore.forAccount(unlocked).current();
+        if (!savedCustom.equals(AppCustomization.defaults())) {
+            applyAppCustomization(unlocked, savedCustom, false);
+        }
         HermesApi api = new HermesApi(account.endpoint, account.bearer,
                 HermesApi.Limits.from(HermesConfig.load(this)));
         navigation = new WorkspaceNavigation();
@@ -1017,20 +1029,32 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     }
 
     @Override public void stageDraft(String text) {
-        if (threads == null || text == null || text.trim().isEmpty()) return;
+        if (threads == null || account == null || text == null || text.trim().isEmpty()) return;
         dismissOverlays();
+        final Account owner = account;
+        final ThreadWorkspace origin = threads;
         Runnable edit = () -> {
-            if (!threads.composerVisible()) navigate(WorkspaceNavigation.COMPOSER);
-            threads.stageDraft(text);
+            if (account != owner || threads != origin || isFinishing() || isDestroyed()) return;
+            if (!origin.composerVisible()) navigate(WorkspaceNavigation.COMPOSER);
+            origin.stageDraft(text);
         };
-        if (threads.sessionId() != null) { edit.run(); return; }
-        notice = Ui.secureDialog(new AlertDialog.Builder(this).setTitle(R.string.ws_create_discussion_title)
+        if (origin.sessionId() != null) { edit.run(); return; }
+        AlertDialog dialog = Ui.secureDialog(new AlertDialog.Builder(this).setTitle(R.string.ws_create_discussion_title)
                 .setMessage(R.string.ws_create_discussion_body)
                 .setNegativeButton(R.string.ws_cancel, null)
                 .setPositiveButton(R.string.ws_create_draft, (d, w) -> {
+                    if (account != owner || threads != origin || isFinishing() || isDestroyed()) return;
                     navigate(WorkspaceNavigation.COMPOSER);
-                    threads.newThread(() -> threads.stageDraft(text));
+                    origin.newThread(() -> {
+                        if (account == owner && threads == origin && !isFinishing() && !isDestroyed()) {
+                            origin.stageDraft(text);
+                        }
+                    });
                 }));
+        notice = dialog;
+        dialog.setOnDismissListener(d -> {
+            if (notice == d) notice = null;
+        });
     }
 
     private void leavingSurface() {
@@ -1123,6 +1147,109 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         return presenceTracker.toWireContext(policy, locationTracker.currentSnapshot(policy, now), now);
     }
 
+    @Override public DeepAndroidActions deepAndroidActions() {
+        Account owner = account;
+        if (owner == null) return null;
+        DeepAndroidActions.HostBridge osBridge = DeepAndroidActions.androidOsBridge(
+                this,
+                owner.id,
+                (targetKind, targetId) -> navigateFromDeepAction(owner, targetKind, targetId),
+                (title, category, draftText) -> {
+                    if (account != owner) return false;
+                    try {
+                        TemplateStore.forAccount(owner).saveCustom(null, title, category, draftText);
+                        return true;
+                    } catch (IOException | RuntimeException failed) {
+                        Diagnostics.warning("deep_action", "template_create_failed");
+                        return false;
+                    }
+                });
+        return new DeepAndroidActions(
+                presenceTracker,
+                locationTracker,
+                AppCustomizationStore.forAccount(owner),
+                nudgeRateLimiter,
+                osBridge);
+    }
+
+    @Override public void onCustomizationChanged(AppCustomization customization) {
+        Account owner = account;
+        if (owner != null && customization != null) {
+            applyAppCustomization(owner, customization, true);
+        }
+    }
+
+    private void applyAppCustomization(Account owner, AppCustomization custom, boolean refreshLayout) {
+        if (owner == null || custom == null) return;
+        try {
+            boolean night = ThemePalette.isNight(this);
+            String accentHex = (custom.palette == AppCustomization.PalettePreset.FOREST
+                    && custom.customAccentHex == null)
+                    ? null
+                    : ThemePalette.formatHex(night ? custom.darkAccentArgb() : custom.lightAccentArgb());
+            int fontStep = Math.max(ThemePalette.MIN_FONT_SCALE_STEP,
+                    Math.min(ThemePalette.MAX_FONT_SCALE_STEP, Math.round(custom.fontScaleDelta * 10f)));
+            ThemePalette.OverrideSpec spec = ThemePalette.OverrideSpec.validated(
+                    "system", accentHex, custom.density.wire, fontStep, "paper", night);
+            ThemePalette.save(owner, spec);
+            if (refreshLayout && account == owner) {
+                onLayoutChanged();
+            }
+        } catch (IOException | RuntimeException failed) {
+            Diagnostics.warning("customization", "live_theme_sync_failed");
+        }
+    }
+
+    private boolean navigateFromDeepAction(Account owner, String targetKind, String targetId) {
+        if (account != owner || isFinishing() || isDestroyed()) return false;
+        String kind = targetKind == null ? "" : targetKind.trim().toLowerCase(java.util.Locale.ROOT);
+        String id = targetId == null ? "" : targetId.trim();
+        switch (kind) {
+            case "command_palette" -> {
+                openCommandPalette();
+                return true;
+            }
+            case "template", "templates" -> {
+                navigate(TemplatesPanel.ROUTE_ID);
+                return true;
+            }
+            case "thread" -> {
+                if (threads == null) return false;
+                displayDiscussion();
+                if (!id.isEmpty()) threads.open(id);
+                return true;
+            }
+            case "tab" -> {
+                String route = switch (id) {
+                    case "discussions", "discussion" -> WorkspaceNavigation.DISCUSSION;
+                    case "atelier", "home", "workspace" -> WorkspaceNavigation.HOME;
+                    case "brain", "cerveau" -> WorkspaceNavigation.BRAIN;
+                    case "activity", "activite" -> WorkspaceNavigation.ACTIVITY;
+                    default -> "";
+                };
+                if (route.isEmpty()) return false;
+                switchTab(route);
+                return true;
+            }
+            case "panel" -> {
+                String route = switch (id) {
+                    case PresenceSettingsPanel.ROUTE_ID, "presence" -> PresenceSettingsPanel.ROUTE_ID;
+                    case ConnectionDoctorPanel.ROUTE_ID, "doctor" -> ConnectionDoctorPanel.ROUTE_ID;
+                    case TemplatesPanel.ROUTE_ID, "templates" -> TemplatesPanel.ROUTE_ID;
+                    case AmbientAccessPanel.ROUTE_ID, "ambient" -> AmbientAccessPanel.ROUTE_ID;
+                    case UpdatePanel.ROUTE_ID, "updates" -> UpdatePanel.ROUTE_ID;
+                    default -> "";
+                };
+                if (route.isEmpty()) return false;
+                navigate(route);
+                return true;
+            }
+            default -> {
+                return false;
+            }
+        }
+    }
+
     @Override public void discussionPanes(boolean canToggle, boolean listVisible) {
         if (shell != null) shell.discussionPanes(canToggle, listVisible);
     }
@@ -1206,12 +1333,31 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             if (activeAmbientPanel != null) activeAmbientPanel.refreshAll();
             return;
         }
-        if (code == REQUEST_PRESENCE_LOCATION) {
+        if (code == REQUEST_PRESENCE_LOCATION || code == REQUEST_PRESENCE_FINE_LOCATION) {
+            boolean granted = false;
+            if (results != null) {
+                for (int r : results) {
+                    if (r == PackageManager.PERMISSION_GRANTED) {
+                        granted = true;
+                        break;
+                    }
+                }
+            }
             if (account != null) {
                 PresencePolicy current = PresencePolicy.load(account);
-                locationTracker.syncWithPolicy(this, current);
+                PresencePolicy updated = current;
+                if (granted) {
+                    updated = code == REQUEST_PRESENCE_FINE_LOCATION
+                            ? current.withContinuousLocation(true).withPreciseLocation(true)
+                            : current.withContinuousLocation(true);
+                    if (!updated.equals(current)) PresencePolicy.save(account, updated);
+                }
+                locationTracker.syncWithPolicy(this, updated);
+                if (activePresencePanel != null && navigation != null
+                        && PresenceSettingsPanel.ROUTE_ID.equals(navigation.current())) {
+                    render(true);
+                }
             }
-            if (activePresencePanel != null) activePresencePanel.refresh();
             return;
         }
         if (threads != null && threads.nearbyPermission(code, permissions, results)) return;
@@ -1309,6 +1455,13 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     @Override protected void onResume() {
         super.onResume();
         checkGraceOnReturn();
+        if (account != null) {
+            locationTracker.syncWithPolicy(this, PresencePolicy.load(account));
+            if (activePresencePanel != null
+                    && navigation != null && PresenceSettingsPanel.ROUTE_ID.equals(navigation.current())) {
+                activePresencePanel.refresh();
+            }
+        }
         if (account != null && activeAmbientPanel != null
                 && navigation != null && AmbientAccessPanel.ROUTE_ID.equals(navigation.current())) {
             activeAmbientPanel.refreshAll();
@@ -1318,6 +1471,18 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             activeUpdatePanel.onResume();
         }
         voice.resume();
+    }
+
+    @Override public void onTrimMemory(int level) {
+        super.onTrimMemory(level);
+        if (level >= TRIM_MEMORY_RUNNING_LOW && threads != null) {
+            threads.onTrimMemory();
+        }
+    }
+
+    @Override public void onLowMemory() {
+        super.onLowMemory();
+        if (threads != null) threads.onTrimMemory();
     }
 
     private void checkGraceOnReturn() {

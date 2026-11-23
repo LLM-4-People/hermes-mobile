@@ -171,7 +171,7 @@
     }
 
     document.querySelectorAll('.capture-media').forEach(function (wrap) {
-      wrap.addEventListener('click', function () {
+      function openWrap() {
         var img = wrap.querySelector('img');
         var card = wrap.closest('.capture-card');
         var h3 = card ? card.querySelector('h3') : null;
@@ -182,6 +182,13 @@
         lightbox.classList.add('is-open');
         lightbox.setAttribute('aria-hidden', 'false');
         if (lbClose) lbClose.focus();
+      }
+      wrap.addEventListener('click', openWrap);
+      wrap.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          openWrap();
+        }
       });
     });
 

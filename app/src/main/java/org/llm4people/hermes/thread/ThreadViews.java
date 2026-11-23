@@ -25,6 +25,7 @@ import org.llm4people.hermes.artifact.LiveUiPatchBar;
 import org.llm4people.hermes.artifact.ThemePalette;
 import org.llm4people.hermes.artifact.ThreadInstruments.Pin;
 import org.llm4people.hermes.camera.CapturedMedia;
+import org.llm4people.hermes.customization.InteractiveCardView;
 import org.llm4people.hermes.profile.IncomingMediaShare;
 import org.llm4people.hermes.share.ClipboardPastePill;
 import org.llm4people.hermes.share.ShareDraftTray;
@@ -59,6 +60,7 @@ public final class ThreadViews {
     private LinearLayout composerSlot;
     private LinearLayout quickActionSlot;
     private LinearLayout suggestedActionSlot;
+    private LinearLayout interactiveCardsSlot;
     private Button nearbyStatus;
     private LinearLayout photoSlot;
     private ShareDraftTray attachmentTray;
@@ -186,6 +188,9 @@ public final class ThreadViews {
         suggestedActionSlot = Ui.column(activity);
         suggestedActionSlot.setVisibility(View.GONE);
         live.addView(suggestedActionSlot);
+        interactiveCardsSlot = Ui.column(activity);
+        interactiveCardsSlot.setVisibility(View.GONE);
+        live.addView(interactiveCardsSlot);
         list.addFooterView(live, null, false);
         bindList();
         list.setOnItemClickListener(null);
@@ -353,15 +358,44 @@ public final class ThreadViews {
     }
 
     void rows(JSONArray data, boolean hasMore, boolean follow, int prepended) {
+        rows(data, hasMore, follow, prepended, prepended);
+    }
+
+    void rows(JSONArray data, boolean hasMore, boolean follow, int prepended, int anchorShift) {
         int top = list.getFirstVisiblePosition();
         int y = list.getChildCount() == 0 ? 0 : list.getChildAt(0).getTop();
-        int previous = rows.length();
+        int headers = list.getHeaderViewsCount();
+        JSONObject topRow = top >= headers && (top - headers) < rows.length()
+                ? rows.optJSONObject(top - headers) : null;
+        ThreadData.RowId topAnchorId = topRow == null ? null : ThreadData.rowId(topRow);
+        String topAnchorRaw = (topRow != null && topAnchorId == null) ? topRow.toString() : null;
         rows = transcript ? PromptHistory.display(data) : data;
         more.setVisibility(hasMore ? View.VISIBLE : View.GONE);
         more.setEnabled(true);
         adapter.notifyDataSetChanged();
-        if (follow) followTail();
-        else if (prepended > 0) list.setSelectionFromTop(top + rows.length() - previous, y);
+        if (follow) {
+            followTail();
+        } else if (prepended > 0 || anchorShift != 0) {
+            int target = -1;
+            if (topAnchorId != null || topAnchorRaw != null) {
+                for (int i = 0; i < rows.length(); i++) {
+                    JSONObject row = rows.optJSONObject(i);
+                    if (row == null) continue;
+                    boolean match = topAnchorId != null
+                            ? topAnchorId.equals(ThreadData.rowId(row))
+                            : topAnchorRaw.equals(row.toString());
+                    if (match) {
+                        target = headers + i;
+                        break;
+                    }
+                }
+            }
+            if (target < 0) {
+                int delta = anchorShift != 0 ? anchorShift : prepended;
+                target = Math.max(0, Math.min(Math.max(0, list.getCount() - 1), top + delta));
+            }
+            list.setSelectionFromTop(target, y);
+        }
     }
 
     void indexRows(JSONArray data, String selected, boolean hasMore) {
@@ -494,6 +528,24 @@ public final class ThreadViews {
         suggestedActionSlot.addView(LiveUiPatchBar.suggestedActionsStrip(
                 activity, suggestions, palette, stageDraft, openSurface, openAction, pinWidget));
         suggestedActionSlot.setVisibility(View.VISIBLE);
+    }
+
+    void interactiveCards(List<InteractiveCardView.Spec> cards, InteractiveCardView.Callbacks callbacks) {
+        if (interactiveCardsSlot == null) return;
+        interactiveCardsSlot.removeAllViews();
+        if (cards == null || cards.isEmpty()) {
+            interactiveCardsSlot.setVisibility(View.GONE);
+            return;
+        }
+        int pad = Ui.dp(activity, 8);
+        for (InteractiveCardView.Spec spec : cards) {
+            if (spec == null) continue;
+            InteractiveCardView card = new InteractiveCardView(activity, spec, callbacks);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+            lp.setMargins(0, pad, 0, pad);
+            interactiveCardsSlot.addView(card, lp);
+        }
+        interactiveCardsSlot.setVisibility(interactiveCardsSlot.getChildCount() > 0 ? View.VISIBLE : View.GONE);
     }
 
     void photo(JSONObject info, Runnable remove) {
