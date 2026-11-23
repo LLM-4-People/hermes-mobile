@@ -131,6 +131,10 @@ public final class ScheduledJobsTest {
         assertFalse(frTime.isEmpty());
         assertNotEquals(enTime, frTime);
 
+        String torontoFr = ReminderPanel.formatTime(
+                "2027-01-01T01:15:07.123456+02:00", ZoneId.of("America/Toronto"), Locale.FRENCH);
+        assertTrue(torontoFr.contains("2026"));
+
         assertEquals("signal", ScheduledJobModel.deliveryChannelLabel("signal:+15551234567"));
         assertEquals("local", ScheduledJobModel.deliveryChannelLabel("local"));
         assertEquals("", ScheduledJobModel.deliveryChannelLabel("   "));

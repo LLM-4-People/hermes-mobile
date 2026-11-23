@@ -195,9 +195,17 @@ final class ReminderPanel {
 
         LinearLayout header = Ui.row(panel.activity);
         header.setGravity(Gravity.CENTER_VERTICAL);
-        TextView titleView = Ui.text(panel.activity, name, 16);
-        titleView.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        header.addView(titleView, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        Button titleBtn = new Button(panel.activity, null, android.R.attr.borderlessButtonStyle);
+        titleBtn.setText(name);
+        titleBtn.setAllCaps(false);
+        titleBtn.setTextSize(16);
+        titleBtn.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        titleBtn.setTextColor(panel.activity.getColor(R.color.ink));
+        titleBtn.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+        titleBtn.setPaddingRelative(0, Ui.dp(panel.activity, 4), Ui.dp(panel.activity, 8), Ui.dp(panel.activity, 4));
+        enforceTouch(titleBtn);
+        titleBtn.setOnClickListener(v -> details(job));
+        header.addView(titleBtn, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         header.addView(statusPill(jobState));
         card.addView(header);
 
@@ -343,7 +351,7 @@ final class ReminderPanel {
     }
 
     static String scheduleLabel(JSONObject job, ZoneId zone) {
-        return scheduleLabel(job, zone, Locale.getDefault());
+        return scheduleLabel(job, zone, Locale.FRENCH);
     }
 
     static String scheduleLabel(JSONObject job, ZoneId zone, Locale locale) {
