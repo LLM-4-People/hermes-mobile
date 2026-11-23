@@ -1,0 +1,54 @@
+<resources>
+    <string name="templates_route_label">Everyday workflows</string>
+    <string name="templates_route_hint">Ready-to-use starters and personal templates</string>
+    <string name="templates_panel_title">Everyday workflows</string>
+    <string name="templates_panel_subtitle">Every workflow stages an editable draft in Discussions. Nothing is sent until you tap Send.</string>
+    <string name="templates_section_everyday">Ready-to-use workflows</string>
+    <string name="templates_section_custom">My personal templates</string>
+    <string name="templates_custom_empty">No personal templates saved in this profile yet.</string>
+    <string name="templates_new_button">New template</string>
+    <string name="templates_use_button">Prepare draft</string>
+    <string name="templates_edit_button">Edit</string>
+    <string name="templates_delete_button">Delete</string>
+    <string name="templates_dialog_new_title">New personal template</string>
+    <string name="templates_dialog_edit_title">Edit template</string>
+    <string name="templates_field_title">Title</string>
+    <string name="templates_field_title_hint">e.g. Friday wrap-up</string>
+    <string name="templates_field_subtitle">Short note (optional)</string>
+    <string name="templates_field_subtitle_hint">e.g. Summarize completed tasks</string>
+    <string name="templates_field_draft">Draft text</string>
+    <string name="templates_field_draft_hint">Write the request that will be staged in your composer</string>
+    <string name="templates_save_button">Save</string>
+    <string name="templates_cancel_button">Cancel</string>
+    <string name="templates_delete_confirm_title">Delete this template?</string>
+    <string name="templates_delete_confirm_body">The template “%1$s” will be removed from this profile.</string>
+    <string name="templates_error_invalid">Enter a valid title and draft text.</string>
+    <string name="templates_error_secret">Do not store secret keys or passwords inside a template.</string>
+    <string name="templates_error_limit">This profile has reached the personal template limit.</string>
+    <string name="templates_error_storage">Unable to read or save templates for this profile.</string>
+    <string name="templates_chip_cd">Prepare draft: %1$s</string>
+
+    <string name="tpl_photo_title">Summarize a photo or receipt</string>
+    <string name="tpl_photo_subtitle">Extract totals, dates, and key details</string>
+    <string name="tpl_photo_draft">Summarize this photo or receipt clearly (date, total, key items) and flag anything that needs my attention.</string>
+
+    <string name="tpl_reply_title">Draft a polite reply</string>
+    <string name="tpl_reply_subtitle">Prepare a clear, natural message</string>
+    <string name="tpl_reply_draft">Help me draft a polite, concise, and natural reply to the following message:\n\n</string>
+
+    <string name="tpl_plan_day_title">Plan my day</string>
+    <string name="tpl_plan_day_subtitle">Combine calendar, reminders, and priorities</string>
+    <string name="tpl_plan_day_draft">Help me plan my day using my calendar and allowed notifications. Suggest a calm schedule with my top 3 priorities.</string>
+
+    <string name="tpl_code_title">Explain and fix code</string>
+    <string name="tpl_code_subtitle">Understand a bug and get a safe fix</string>
+    <string name="tpl_code_draft">Explain simply what this code snippet does, spot any bugs, and suggest a clean fix with a test:\n\n</string>
+
+    <string name="tpl_nearby_title">Compare nearby places</string>
+    <string name="tpl_nearby_subtitle">Find a nearby cafe, restaurant, park, or service</string>
+    <string name="tpl_nearby_draft">Find and compare 4 good nearby options around my location, highlighting what stands out and walking distance.</string>
+
+    <string name="tpl_widget_title">Turn into a home widget</string>
+    <string name="tpl_widget_subtitle">Create a compact card to pin on your home screen</string>
+    <string name="tpl_widget_draft">Create a compact, home-screen-safe tracker card (no sensitive data) that I can pin as a widget.</string>
+</resources>
