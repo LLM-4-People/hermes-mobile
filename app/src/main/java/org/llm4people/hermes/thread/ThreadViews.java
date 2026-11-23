@@ -93,6 +93,8 @@ public final class ThreadViews {
     private Map<String, ActiveRunTracker.TaskBadge> activeBadges = Collections.emptyMap();
     private Consumer<String> onStopTask;
     private InfiniteScrollController scrollController;
+    private int tailFollowEpoch;
+    private View.OnLayoutChangeListener pendingTailListener;
     ThreadInstrumentPanel instruments;
     private InstrumentViewport instrumentSlot;
 
@@ -197,6 +199,14 @@ public final class ThreadViews {
         list.addFooterView(live, null, false);
         bindList();
         list.setOnItemClickListener(null);
+        list.setOnScrollListener(new AbsListView.OnScrollListener() {
+            @Override public void onScrollStateChanged(AbsListView view, int scrollState) {
+                if (scrollState == SCROLL_STATE_TOUCH_SCROLL) cancelPendingTailFollow();
+            }
+            @Override public void onScroll(AbsListView view, int firstVisible, int visibleCount, int totalCount) {
+                promptRows.onScroll();
+            }
+        });
         LinearLayout composer = Ui.row(activity);
         composer.setGravity(Gravity.BOTTOM);
         composer.setBaselineAligned(false);
@@ -317,7 +327,16 @@ public final class ThreadViews {
         int margin = Ui.dp(activity, 8);
         lp.setMargins(margin, Ui.dp(activity, 4), margin, Ui.dp(activity, 4));
         composerSlot.addView(pill, 0, lp);
-        list.setOnScrollListener(controller);
+        list.setOnScrollListener(new AbsListView.OnScrollListener() {
+            @Override public void onScrollStateChanged(AbsListView view, int scrollState) {
+                if (scrollState == SCROLL_STATE_TOUCH_SCROLL) cancelPendingTailFollow();
+                controller.onScrollStateChanged(view, scrollState);
+            }
+            @Override public void onScroll(AbsListView view, int firstVisible, int visibleCount, int totalCount) {
+                promptRows.onScroll();
+                controller.onScroll(view, firstVisible, visibleCount, totalCount);
+            }
+        });
         scrollController = controller;
     }
 
@@ -330,6 +349,8 @@ public final class ThreadViews {
     }
 
     private void reset(boolean chat) {
+        cancelPendingTailFollow();
+        scrollController = null;
         transcript = chat;
         root.removeAllViews();
         rows = new JSONArray();
@@ -379,6 +400,7 @@ public final class ThreadViews {
         if (follow) {
             followTail();
         } else if (prepended > 0 || anchorShift != 0) {
+            cancelPendingTailFollow();
             int target = -1;
             if (topAnchorId != null || topAnchorRaw != null) {
                 for (int i = 0; i < rows.length(); i++) {
@@ -691,12 +713,52 @@ public final class ThreadViews {
         if (duplex != null && duplex.active()) duplex.stop();
     }
 
+    private void cancelPendingTailFollow() {
+        tailFollowEpoch++;
+        if (pendingTailListener != null) {
+            list.removeOnLayoutChangeListener(pendingTailListener);
+            pendingTailListener = null;
+        }
+    }
+
     private void followTail() {
         // A prompt can arrive between a transcript refresh and its queued scroll.
         if (scrollController != null) scrollController.onSnappedToLatest();
-        if (!promptRows.visible()) list.post(() -> {
-            if (!promptRows.visible()) list.setSelection(list.getCount() - 1);
-        });
+        if (promptRows.visible()) return;
+        cancelPendingTailFollow();
+        int epoch = tailFollowEpoch;
+        list.post(() -> scrollToTailAfterLayout(epoch, 2));
+    }
+
+    private void scrollToTailAfterLayout(int epoch, int retriesRemaining) {
+        if (epoch != tailFollowEpoch || promptRows.visible()) return;
+        int count = list.getCount();
+        if (count <= 0) return;
+        int target = count - 1;
+        list.setSelection(target);
+        if (scrollController != null) scrollController.onSnappedToLatest();
+        if (retriesRemaining <= 0) return;
+        if (!list.isLaidOut() || list.isLayoutRequested() || list.getLastVisiblePosition() < target) {
+            if (pendingTailListener != null) {
+                list.removeOnLayoutChangeListener(pendingTailListener);
+                pendingTailListener = null;
+            }
+            View.OnLayoutChangeListener listener = new View.OnLayoutChangeListener() {
+                @Override public void onLayoutChange(View v, int l, int t, int r, int b,
+                                                     int ol, int ot, int or, int ob) {
+                    list.removeOnLayoutChangeListener(this);
+                    if (pendingTailListener == this) pendingTailListener = null;
+                    if (epoch != tailFollowEpoch || promptRows.visible()) return;
+                    if (list.getLastVisiblePosition() < list.getCount() - 1) {
+                        list.post(() -> scrollToTailAfterLayout(epoch, retriesRemaining - 1));
+                    } else if (scrollController != null) {
+                        scrollController.onSnappedToLatest();
+                    }
+                }
+            };
+            pendingTailListener = listener;
+            list.addOnLayoutChangeListener(listener);
+        }
     }
 
     /** In-place live reasoning disclosure card preserving user expanded/collapsed state across token updates. */
