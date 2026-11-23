@@ -72,8 +72,10 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/tools"
           GOBIN="$RUNNER_TEMP/tools" go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
-      - name: Run docs check and CI unit tests in parallel
+      - name: Run docs check, writing quality, and CI unit tests in parallel
         run: python3 -B scripts/fast_check.py --ci-only
+      - name: Check writing quality and language purity
+        run: python3 -B ci/check_writing_quality.py
       - name: Check workflows and shell
         run: |
           "$RUNNER_TEMP/tools/actionlint"

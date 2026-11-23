@@ -39,6 +39,7 @@ def build_suites(server_python, workspace_only=False, ci_only=False, with_gradle
     if ci_only:
         return [
             ("docs", [py, "-B", "scripts/docs.py", "--check"]),
+            ("writing-quality", [py, "-B", "ci/check_writing_quality.py"]),
             *_discover_files("ci", "ci", py),
         ]
     server_py = server_python or py
@@ -53,6 +54,7 @@ def build_suites(server_python, workspace_only=False, ci_only=False, with_gradle
     if not workspace_only:
         suites = [
             ("docs", [py, "-B", "scripts/docs.py", "--check"]),
+            ("writing-quality", [py, "-B", "ci/check_writing_quality.py"]),
             *_discover_files("ci", "ci", py),
             *suites,
         ]
