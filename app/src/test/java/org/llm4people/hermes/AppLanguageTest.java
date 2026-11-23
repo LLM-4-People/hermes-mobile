@@ -127,6 +127,7 @@ public final class AppLanguageTest {
             NodeList strNodes = doc.getElementsByTagName("string");
             for (int i = 0; i < strNodes.getLength(); i++) {
                 Element el = (Element) strNodes.item(i);
+                if ("false".equals(el.getAttribute("translatable"))) continue;
                 String name = el.getAttribute("name");
                 if (!name.isEmpty()) strings.put(name, el.getTextContent());
             }

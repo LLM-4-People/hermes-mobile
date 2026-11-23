@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="update_route_label">Mises à jour de l’application</string>
+    <string name="update_route_hint">Vérifier et installer une version publiée sur GitHub</string>
+    <string name="update_panel_title">Mises à jour</string>
+    <string name="update_panel_subtitle">Téléchargez uniquement une version signée et vérifiée depuis GitHub.</string>
+    <string name="update_installed_version">Version installée : %1$s</string>
+    <string name="update_version_unavailable">Indisponible</string>
+    <string name="update_status_unchecked">Vérifiez les versions publiées sur GitHub</string>
+    <string name="update_available_title">Nouvelle version disponible : %1$s</string>
+    <string name="update_up_to_date_title">Vous avez la dernière version (%1$s)</string>
+    <string name="update_downloading_indeterminate">Téléchargement en cours…</string>
+    <string name="update_published_date">Publiée le %1$s</string>
+    <string name="update_package_size">Taille du fichier : %1$s</string>
+    <string name="update_checksum_badge">Empreinte vérifiée avant installation</string>
+    <string name="update_notes_heading">Nouveautés</string>
+    <string name="update_notes_empty">Aucune note de version fournie.</string>
+    <string name="update_check_action">Vérifier maintenant</string>
+    <string name="update_checking">Vérification sur GitHub…</string>
+    <string name="update_download_install_action">Télécharger et installer</string>
+    <string name="update_install_ready_action">Installer maintenant</string>
+    <string name="update_cancel_action">Annuler</string>
+    <string name="update_open_github_action">Ouvrir sur GitHub</string>
+    <string name="update_downloading">Téléchargement en cours… %1$d %%</string>
+    <string name="update_verifying">Vérification de l’intégrité et de la signature…</string>
+    <string name="update_verified_ready">Fichier vérifié. Lancement de l’installation…</string>
+    <string name="update_cancelled">Téléchargement annulé.</string>
+    <string name="update_error_network">Impossible de joindre GitHub pour le moment. Réessayez plus tard.</string>
+    <string name="update_error_invalid_release">Aucune version complète et vérifiable n’a été trouvée sur GitHub.</string>
+    <string name="update_error_checksum">Le fichier téléchargé ne correspond pas à l’empreinte attendue et a été supprimé.</string>
+    <string name="update_error_signature">La signature de cette mise à jour diffère de l’application installée. Le fichier a été supprimé par sécurité.</string>
+    <string name="update_error_package">Le fichier téléchargé n’est pas compatible avec cette application et a été supprimé.</string>
+    <string name="update_error_too_large">Le fichier dépasse la taille maximale autorisée et a été rejeté.</string>
+    <string name="update_error_install_launch">Impossible d’ouvrir l’installateur Android.</string>
+    <string name="update_permission_title">Autoriser l’installation</string>
+    <string name="update_permission_body">Pour installer la version vérifiée, autorisez Hermes Mobile à installer des applications dans les réglages Android, puis revenez ici.</string>
+    <string name="update_permission_open_settings">Ouvrir les réglages</string>
+    <string name="update_badge_available">Mise à jour %1$s disponible</string>
+</resources>

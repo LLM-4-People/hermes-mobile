@@ -14,6 +14,10 @@ public final class HermesConfigTest {
         assertEquals(8L * 1024 * 1024, cfg.resolveArtifactLimit(8L * 1024 * 1024));
         assertEquals(32L * 1024 * 1024, cfg.resolveArtifactLimit(Integer.valueOf(32 * 1024 * 1024)));
         assertEquals(cfg.artifactHardMaxBytes, cfg.resolveArtifactLimit(128L * 1024 * 1024));
+        assertEquals("LLM-4-People/hermes-mobile", cfg.updateRepo);
+        assertEquals("https://api.github.com", cfg.updateApiBase);
+        assertEquals(52_428_800L, cfg.updateMaxApkBytes);
+        assertEquals(86_400_000L, cfg.updateCheckIntervalMs);
     }
 
     @Test
