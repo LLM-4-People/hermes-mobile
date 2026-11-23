@@ -219,6 +219,55 @@ public final class FirstRunWizard {
         return "Hermes";
     }
 
+    /**
+     * Returns true when a {@code POST /api/mobile/pairing/inspect} HTTP error proves the ticket
+     * itself is expired, already used, revoked, or unknown (as opposed to an older server lacking
+     * the {@code /inspect} route, which returns HTTP 404 with an empty error {@code code}).
+     */
+    public static boolean isRejectedPairingError(int status, String code) {
+        if (status == 410) return true;
+        return status == 404 && code != null && code.startsWith("pairing_");
+    }
+
+    /**
+     * Build a clean {@link StagedPairing} from a parsed link plan and a {@code /pairing/inspect}
+     * response, always storing the clean base server URL (never duplicating {@code /p/<slug>}).
+     */
+    public static StagedPairing stagedFromInspect(Step1Plan plan, OnboardingModels.PairingInspect inspected) {
+        Objects.requireNonNull(plan, "plan");
+        if (inspected == null) {
+            return new StagedPairing(
+                    stripTrailingProfilePath(plan.serverUrl()),
+                    plan.pairingCode(),
+                    plan.profileSlug(),
+                    plan.displayName(),
+                    0L);
+        }
+        String rawBase = !inspected.baseHost().isEmpty()
+                ? inspected.baseHost()
+                : (!plan.serverUrl().isEmpty() ? plan.serverUrl() : inspected.serverUrl());
+        String cleanBase = stripTrailingProfilePath(rawBase);
+        String chosenSlug = inspected.profileSlug().isEmpty() ? plan.profileSlug() : inspected.profileSlug();
+        String chosenName = inspected.displayName().isEmpty() ? plan.displayName() : inspected.displayName();
+        return new StagedPairing(
+                cleanBase, plan.pairingCode(), chosenSlug, chosenName, inspected.expiresAtEpochSec());
+    }
+
+    private static String stripTrailingProfilePath(String serverUrl) {
+        String normalized = GatewayAddress.normalize(serverUrl);
+        try {
+            URI uri = URI.create(normalized);
+            String path = uri.getRawPath();
+            if (path != null) {
+                int idx = path.toLowerCase(java.util.Locale.ROOT).lastIndexOf("/p/");
+                if (idx >= 0 && idx + 3 < path.length() && path.indexOf('/', idx + 3) < 0) {
+                    return uri.getScheme() + "://" + uri.getRawAuthority() + path.substring(0, idx);
+                }
+            }
+        } catch (IllegalArgumentException ignored) {}
+        return normalized;
+    }
+
     /** Extracts the trailing {@code /p/<slug>} profile slug from a normalized account endpoint, or empty. */
     public static String extractSlugFromEndpoint(String endpoint) {
         if (endpoint == null || endpoint.trim().isEmpty()) return "";
@@ -436,26 +485,20 @@ public final class FirstRunWizard {
             try {
                 JSONObject raw = HermesApi.inspectPairing(plan.serverUrl(), plan.pairingCode(), limits);
                 OnboardingModels.PairingInspect inspected = OnboardingModels.parsePairingInspect(raw);
-                String chosenServer = inspected.serverUrl().isEmpty() ? plan.serverUrl() : inspected.serverUrl();
-                String chosenSlug = inspected.profileSlug().isEmpty() ? plan.profileSlug() : inspected.profileSlug();
-                String chosenName = inspected.displayName().isEmpty() ? plan.displayName() : inspected.displayName();
-                resolved = new StagedPairing(
-                        chosenServer, plan.pairingCode(), chosenSlug, chosenName, inspected.expiresAtEpochSec());
+                resolved = stagedFromInspect(plan, inspected);
                 Diagnostics.event("onboarding", "pairing_inspected");
             } catch (HermesApi.HttpError http) {
-                if (http.status == 410) {
+                if (isRejectedPairingError(http.status, http.code)) {
                     expiredOrUsed = true;
-                    Diagnostics.warning("onboarding", "pairing_inspect_expired");
+                    Diagnostics.warning("onboarding", "pairing_inspect_rejected_" + http.status);
                 } else {
-                    // Older server without /inspect (404) or transient error: fall back to parsed QR metadata.
+                    // Older server without /inspect (404 with empty code) or transient error: fall back to parsed QR metadata.
                     Diagnostics.debug("onboarding", "pairing_inspect_fallback_http_" + http.status);
-                    resolved = new StagedPairing(
-                            plan.serverUrl(), plan.pairingCode(), plan.profileSlug(), plan.displayName(), 0L);
+                    resolved = stagedFromInspect(plan, null);
                 }
             } catch (Exception err) {
                 Diagnostics.debug("onboarding", "pairing_inspect_fallback");
-                resolved = new StagedPairing(
-                        plan.serverUrl(), plan.pairingCode(), plan.profileSlug(), plan.displayName(), 0L);
+                resolved = stagedFromInspect(plan, null);
             }
 
             StagedPairing finalStaged = resolved;

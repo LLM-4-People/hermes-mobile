@@ -650,13 +650,18 @@ public final class QrScannerActivity extends Activity {
             }
             Size chosenPreview = previewSize != null ? previewSize : analysisSize;
             previewSize = chosenPreview;
-            mainHandler.post(() -> {
+            Runnable configureSurface = () -> {
                 if (!isFinishing() && !isDestroyed()) {
                     torchButton.setVisibility(flashAvailable ? View.VISIBLE : View.GONE);
                     previewView.getHolder().setFixedSize(chosenPreview.getWidth(), chosenPreview.getHeight());
                     applyPreviewLayout();
                 }
-            });
+            };
+            if (Looper.myLooper() == Looper.getMainLooper()) {
+                configureSurface.run();
+            } else {
+                mainHandler.post(configureSurface);
+            }
 
             manager.openCamera(camId, new CameraDevice.StateCallback() {
                 @Override

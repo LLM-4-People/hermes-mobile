@@ -359,6 +359,7 @@ public final class ProfileGate {
         generation++;
         cancelProbe();
         nested = false;
+        stagedPairing = null;
         ProfileScreen screen = new ProfileScreen(activity, activity.getString(R.string.profile_choose_title), null);
         boolean bioAvailable = BiometricVault.availability(activity) != BiometricVault.Availability.UNAVAILABLE;
         store.profiles().forEach((id, label) -> {
@@ -819,7 +820,7 @@ public final class ProfileGate {
                 JSONObject raw = HermesApi.inspectPairing(staged.serverUrl(), staged.pairingCode(), probeLimits);
                 OnboardingModels.parsePairingInspect(raw);
             } catch (HermesApi.HttpError http) {
-                if (http.status == 410) outcome = 1;
+                if (FirstRunWizard.isRejectedPairingError(http.status, http.code)) outcome = 1;
                 else if (http.status == 404) outcome = 2;
                 else outcome = 3;
             } catch (Exception err) {

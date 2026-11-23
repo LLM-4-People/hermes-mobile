@@ -82,5 +82,40 @@ public final class FirstRunWizardTest {
         assertEquals("https://chat.ai.localserver.ca/mobile/p/allison", stagedNamed.resolvedEndpoint());
         assertTrue(stagedNamed.matchesTarget("https://chat.ai.localserver.ca/mobile", "allison"));
         assertFalse(stagedNamed.matchesTarget("https://chat.ai.localserver.ca/mobile", ""));
+
+        // Named-profile /inspect prefers baseHost and never duplicates /p/<slug> into serverUrl
+        PairingLinkParser.ParsedInput namedQr = PairingLinkParser.parse(
+                "hermes://pair?host=https%3A%2F%2Fchat.ai.localserver.ca%2Fmobile&code=pair_AbCdEf1234567890&profile=alex");
+        FirstRunWizard.Step1Plan namedPlan = FirstRunWizard.planForInput(namedQr);
+        org.llm4people.hermes.onboarding.OnboardingModels.PairingInspect namedInspect =
+                new org.llm4people.hermes.onboarding.OnboardingModels.PairingInspect(
+                        true,
+                        "https://chat.ai.localserver.ca/mobile/p/alex",
+                        "https://chat.ai.localserver.ca/mobile",
+                        "alex", "Alex", "invite", 1_800_000_300L, 250);
+        FirstRunWizard.StagedPairing fromInspect = FirstRunWizard.stagedFromInspect(namedPlan, namedInspect);
+        assertEquals("https://chat.ai.localserver.ca/mobile", fromInspect.serverUrl());
+        assertEquals("alex", fromInspect.formProfileSlug());
+        assertEquals("Alex", fromInspect.displayName());
+        assertEquals("https://chat.ai.localserver.ca/mobile/p/alex", fromInspect.resolvedEndpoint());
+
+        // Even if inspect omits base_host (falling back to server_url with /p/alex), /p/alex is stripped cleanly
+        org.llm4people.hermes.onboarding.OnboardingModels.PairingInspect noBaseInspect =
+                new org.llm4people.hermes.onboarding.OnboardingModels.PairingInspect(
+                        true,
+                        "https://chat.ai.localserver.ca/mobile/p/alex",
+                        "https://chat.ai.localserver.ca/mobile/p/alex",
+                        "alex", "Alex", "invite", 1_800_000_300L, 250);
+        FirstRunWizard.StagedPairing stripped = FirstRunWizard.stagedFromInspect(namedPlan, noBaseInspect);
+        assertEquals("https://chat.ai.localserver.ca/mobile", stripped.serverUrl());
+        assertEquals("https://chat.ai.localserver.ca/mobile/p/alex", stripped.resolvedEndpoint());
+
+        // Reject 410 and 404 pairing_ticket_not_found; treat bare 404 (empty code) as legacy server without /inspect
+        assertTrue(FirstRunWizard.isRejectedPairingError(410, ""));
+        assertTrue(FirstRunWizard.isRejectedPairingError(410, "pairing_ticket_expired"));
+        assertTrue(FirstRunWizard.isRejectedPairingError(404, "pairing_ticket_not_found"));
+        assertFalse(FirstRunWizard.isRejectedPairingError(404, ""));
+        assertFalse(FirstRunWizard.isRejectedPairingError(404, null));
+        assertFalse(FirstRunWizard.isRejectedPairingError(500, "pairing_internal"));
     }
 }
