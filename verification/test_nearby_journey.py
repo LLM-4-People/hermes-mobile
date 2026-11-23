@@ -110,6 +110,22 @@ class NearbyJourneyConsentTest(unittest.TestCase):
         self.assertEqual(payload["taps"], 0)
         self.assertEqual(payload["packages"], [nearby_journey.GMS_PACKAGE])
 
+    def test_ensure_unlocked_skips_unlock_when_grace_kept_workspace_open(self):
+        ui = Screen(Mock(), Mock(), lang="en")
+        workspace = node_tree((APP, ui.strings["top_profile_lock"]))
+        ui.hierarchy = Mock(return_value=workspace)
+        with patch.object(nearby_journey, "unlock") as mock_unlock:
+            nearby_journey.ensure_unlocked(ui, "Guide-1", "passphrase-value")
+        mock_unlock.assert_not_called()
+
+    def test_ensure_unlocked_unlocks_profile_when_lock_screen_is_shown(self):
+        ui = Screen(Mock(), Mock(), lang="en")
+        chooser = node_tree((APP, ui.strings["profile_choose_title"]))
+        ui.hierarchy = Mock(return_value=chooser)
+        with patch.object(nearby_journey, "unlock") as mock_unlock:
+            nearby_journey.ensure_unlocked(ui, "Guide-1", "passphrase-value")
+        mock_unlock.assert_called_once_with(ui, "Guide-1", "passphrase-value")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -18,7 +18,7 @@ from verification.gateway_fixture import Gateway, PINNED_REVISION, check_source
 from verification.nearby_capture import captures
 from verification.nearby_fixture import overpass, PLACES
 from verification.nearby_journey import (CONSENT, FAILED, PROMPT, STAGED, USE_LOCATION, choose_consent, dismiss_ime,
-                                          enter_message, lock, open_consent, stage_public_location,
+                                          ensure_unlocked, enter_message, lock, open_consent, stage_public_location,
                                           tap_visible_app_until, unlock, verify_guide)
 from verification.nearby_location import (COARSE, PERMISSION_CONTROLLERS, answer_android_location,
                                           app_activity_stopped, location_access, public_city_fix)
@@ -190,7 +190,21 @@ def consent_failures(ui, fix, second, names, phrases, check_idle):
                             launcher_stopped_app)
     fix.publish()
     launch(ui.device, APP)
-    wait_status(ui, choose_profile)
+    profile_lock_btn = s["top_profile_lock"]
+
+    def returned():
+        root = ui.hierarchy()
+        if ui.node(choose_profile, root) is not None:
+            return ("locked",)
+        if ui.node(profile_lock_btn, root) is not None:
+            return ("open",)
+        return None
+
+    state = eventually("Hermes workspace or lock screen after late fix", returned)[0]
+    if ui.node(staged_status) is not None:
+        raise AssertionError("A late fix appeared after backgrounding")
+    if state == "open":
+        lock(ui)
     start_account(ui, names[1], second.endpoint, second.key, phrases[1])
     enter_discussion(ui)
     if ui.node(staged_status) is not None:
@@ -384,7 +398,7 @@ def execute(args):
         eventually("Hermes activity stopped behind Maps",
                    lambda: app_activity_stopped(device.shell("dumpsys", "activity", "activities")))
         launch(device, APP)
-        unlock(ui, names[0], phrases[0])
+        ensure_unlocked(ui, names[0], phrases[0])
         enter_discussion(ui)
 
         # Remembered profile consent lets the next explicit Send complete without a second tap.
@@ -400,7 +414,7 @@ def execute(args):
         device.shell("pm", "revoke", "--user", "0", APP, COARSE)
         eventually("Android has removed the coarse grant", lambda: not location_access(device))
         launch(device, APP)
-        unlock(ui, names[0], phrases[0])
+        ensure_unlocked(ui, names[0], phrases[0])
         enter_discussion(ui)
         enter_message(ui, REVOKED)
         open_consent(ui)

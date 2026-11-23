@@ -153,6 +153,25 @@ def unlock(ui, label, phrase):
     )
 
 
+def ensure_unlocked(ui, label, phrase):
+    """Unlock the named profile if returning to the lock screen, or continue if auto-lock grace kept it open."""
+    s = ui.strings
+    choose_profile = s["profile_choose_title"]
+    profile_lock_btn = s["top_profile_lock"]
+
+    def ready():
+        root = ui.hierarchy()
+        if ui.node(choose_profile, root) is not None:
+            return ("locked",)
+        if ui.node(profile_lock_btn, root) is not None:
+            return ("open",)
+        return None
+
+    state = eventually("Hermes workspace or lock screen", ready)[0]
+    if state == "locked":
+        unlock(ui, label, phrase)
+
+
 def lock(ui):
     s = ui.strings
     profile_lock_btn = s["top_profile_lock"]
