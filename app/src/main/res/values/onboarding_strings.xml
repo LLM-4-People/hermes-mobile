@@ -3,7 +3,8 @@
     <string name="onboarding_step1_title">Connecter votre Hermes</string>
     <string name="onboarding_step1_subtitle">Collez un lien d’association ou d’invitation pour tout configurer en un geste, ou saisissez vos identifiants manuellement.</string>
     <string name="onboarding_paste_card_title">Connexion instantanée</string>
-    <string name="onboarding_paste_card_hint">Collez un lien hermes://pair, une invitation HTTPS ou vos accès copiés</string>
+    <string name="onboarding_paste_card_hint">Scannez un code QR d’association ou collez un lien hermes://pair, une invitation HTTPS ou vos accès copiés</string>
+    <string name="onboarding_scan_qr_action">Scanner un code QR</string>
     <string name="onboarding_paste_action">Coller le lien d’association</string>
     <string name="onboarding_paste_clipboard_detected">Lien d’association détecté dans le presse-papiers</string>
     <string name="onboarding_paste_clipboard_use">Utiliser le lien détecté</string>
@@ -51,6 +52,7 @@
     <string name="profile_hub_switch_action">Ouvrir</string>
     <string name="profile_hub_edit_action">Modifier</string>
     <string name="profile_hub_pair_device_action">Ajouter un autre appareil</string>
+    <string name="profile_hub_scan_qr_action">Scanner un code QR</string>
     <string name="profile_hub_invite_action">Inviter quelqu’un</string>
     <string name="profile_hub_rotate_key_action">Renouveler la clé</string>
     <string name="profile_hub_remove_action">Retirer</string>
@@ -151,4 +153,18 @@
     <string name="admin_settings_saved">Réglages du serveur enregistrés.</string>
     <string name="admin_settings_save_failed">Impossible d’enregistrer les réglages du serveur.</string>
     <string name="admin_settings_invalid_number">Vérifiez les valeurs numériques dans les limites autorisées.</string>
+    <!-- Lecteur QR caméra intégré -->
+    <string name="qr_scanner_title">Scanner un code QR</string>
+    <string name="qr_scanner_close">Fermer</string>
+    <string name="qr_scanner_torch_on">Lampe</string>
+    <string name="qr_scanner_torch_off">Éteindre la lampe</string>
+    <string name="qr_scanner_hint">Pointez la caméra vers un code QR d’association Hermes.</string>
+    <string name="qr_scanner_choose_image">Choisir une image QR</string>
+    <string name="qr_scanner_reading_image">Lecture de l’image QR…</string>
+    <string name="qr_scanner_not_hermes">Ce code QR n’est pas un lien d’association Hermes.</string>
+    <string name="qr_scanner_image_no_qr">Aucun code QR détecté dans cette image.</string>
+    <string name="qr_scanner_permission_title">Accès à la caméra désactivé</string>
+    <string name="qr_scanner_permission_detail">Autorisez la caméra pour scanner un code QR d’association, ou choisissez une image QR enregistrée sur cet appareil.</string>
+    <string name="qr_scanner_unavailable_title">Caméra indisponible</string>
+    <string name="qr_scanner_unavailable_detail">Aucune caméra utilisable n’a été détectée sur cet appareil. Vous pouvez tout de même choisir une image QR depuis vos fichiers.</string>
 </resources>

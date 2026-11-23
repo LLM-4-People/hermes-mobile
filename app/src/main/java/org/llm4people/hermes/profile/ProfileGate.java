@@ -444,6 +444,10 @@ public final class ProfileGate {
                         }
                         confirmation = dialog;
                     }
+
+                    @Override public void onScanQrRequested() {
+                        org.llm4people.hermes.onboarding.QrScannerActivity.launch(activity);
+                    }
                 });
         EditText name = screen.field(activity.getString(R.string.profile_name_label),
                 activity.getString(R.string.profile_name_hint), TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES, 80, false);

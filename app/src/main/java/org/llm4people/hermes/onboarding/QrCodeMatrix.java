@@ -10,47 +10,12 @@ import java.util.Arrays;
  * 8-mask N1–N4 penalty selection, BCH(15,5) format bits, and BCH(18,6) version bits (v7–v10).
  */
 public final class QrCodeMatrix {
-    public static final int MIN_VERSION = 1;
-    public static final int MAX_VERSION = 10;
+    public static final int MIN_VERSION = QrIsoSpec.MIN_VERSION;
+    public static final int MAX_VERSION = QrIsoSpec.MAX_VERSION;
     public static final int MAX_PAYLOAD_BYTES = 213;
-
-    // EC Level M format indicator bits = 00 (binary)
-    private static final int EC_M_FORMAT_BITS = 0b00;
-    private static final int FORMAT_MASK = 0x5412;
-    private static final int GF_POLY = 0x11D;
-
-    // ISO/IEC 18004 Table 9 — EC Level M for Versions 1..10 (1-indexed)
-    // {totalDataCodewords, ecCodewordsPerBlock, group1Blocks, group1DataLen, group2Blocks, group2DataLen}
-    private static final int[][] EC_M_SPEC = {
-            null,
-            {16, 10, 1, 16, 0, 0},   // v1  (21x21): max 14 bytes
-            {28, 16, 1, 28, 0, 0},   // v2  (25x25): max 26 bytes
-            {44, 26, 1, 44, 0, 0},   // v3  (29x29): max 42 bytes
-            {64, 18, 2, 32, 0, 0},   // v4  (33x33): max 62 bytes
-            {86, 24, 2, 43, 0, 0},   // v5  (37x37): max 84 bytes
-            {108, 16, 4, 27, 0, 0},  // v6  (41x41): max 106 bytes
-            {124, 18, 4, 31, 0, 0},  // v7  (45x45): max 122 bytes
-            {154, 22, 2, 38, 2, 39}, // v8  (49x49): max 152 bytes
-            {182, 22, 3, 36, 2, 37}, // v9  (53x53): max 180 bytes
-            {216, 26, 4, 43, 1, 44}, // v10 (57x57): max 213 bytes
-    };
 
     private static final int[] MAX_BYTES_BY_VERSION = {
             0, 14, 26, 42, 62, 84, 106, 122, 152, 180, 213
-    };
-
-    private static final int[][] ALIGNMENT_CENTERS = {
-            null,
-            {},
-            {6, 18},
-            {6, 22},
-            {6, 26},
-            {6, 30},
-            {6, 34},
-            {6, 22, 38},
-            {6, 24, 42},
-            {6, 26, 46},
-            {6, 28, 50},
     };
 
     private final int version;
@@ -134,7 +99,7 @@ public final class QrCodeMatrix {
         if (payload.length > MAX_BYTES_BY_VERSION[version]) {
             throw new IllegalArgumentException("Payload exceeds QR version " + version + " capacity");
         }
-        int totalDataCodewords = EC_M_SPEC[version][0];
+        int totalDataCodewords = QrIsoSpec.ecSpec(QrIsoSpec.EC_M, version)[0];
         BitBuffer bits = new BitBuffer(totalDataCodewords * 8);
         // Byte mode indicator: 0100
         bits.appendBits(0b0100, 4);
@@ -160,7 +125,7 @@ public final class QrCodeMatrix {
     }
 
     static byte[] interleaveWithEcc(byte[] dataCodewords, int version) {
-        int[] spec = EC_M_SPEC[version];
+        int[] spec = QrIsoSpec.ecSpec(QrIsoSpec.EC_M, version);
         int ecLen = spec[1];
         int g1Blocks = spec[2];
         int g1Len = spec[3];
@@ -199,61 +164,26 @@ public final class QrCodeMatrix {
 
     /** Compute Reed-Solomon generator polynomial of degree {@code degree} over GF(256). */
     static byte[] reedSolomonGenerator(int degree) {
-        byte[] result = new byte[degree];
-        result[degree - 1] = 1;
-        int root = 1;
-        for (int i = 0; i < degree; i++) {
-            for (int j = 0; j < degree; j++) {
-                result[j] = (byte) gfMul(result[j] & 0xFF, root);
-                if (j + 1 < degree) {
-                    result[j] ^= result[j + 1];
-                }
-            }
-            root = gfMul(root, 0x02);
-        }
-        return result;
+        return QrIsoSpec.reedSolomonGenerator(degree);
     }
 
     /** Compute Reed-Solomon error-correction remainder bytes for {@code data} using {@code generator}. */
     static byte[] reedSolomonRemainder(byte[] data, byte[] generator) {
-        byte[] rem = new byte[generator.length];
-        for (byte b : data) {
-            int factor = (b ^ rem[0]) & 0xFF;
-            System.arraycopy(rem, 1, rem, 0, rem.length - 1);
-            rem[rem.length - 1] = 0;
-            for (int i = 0; i < generator.length; i++) {
-                rem[i] ^= (byte) gfMul(generator[i] & 0xFF, factor);
-            }
-        }
-        return rem;
+        return QrIsoSpec.reedSolomonRemainder(data, generator);
     }
 
     static int gfMul(int x, int y) {
-        int z = 0;
-        for (int i = 7; i >= 0; i--) {
-            z = (z << 1) ^ ((z >>> 7) * GF_POLY);
-            z ^= ((y >>> i) & 1) * x;
-        }
-        return z & 0xFF;
+        return QrIsoSpec.gfMul(x, y);
     }
 
     /** Compute 15-bit BCH(15,5) masked format word for EC Level M and mask {@code 0..7}. */
     static int computeFormatBits(int mask) {
-        int data = (EC_M_FORMAT_BITS << 3) | (mask & 0x7);
-        int rem = data;
-        for (int i = 0; i < 10; i++) {
-            rem = (rem << 1) ^ ((rem >>> 9) * 0x537);
-        }
-        return ((data << 10) | rem) ^ FORMAT_MASK;
+        return QrIsoSpec.computeFormatBits(QrIsoSpec.EC_M, mask);
     }
 
     /** Compute 18-bit BCH(18,6) version word for Versions 7..10. */
     static int computeVersionBits(int version) {
-        int rem = version;
-        for (int i = 0; i < 12; i++) {
-            rem = (rem << 1) ^ ((rem >>> 11) * 0x1F25);
-        }
-        return (version << 12) | rem;
+        return QrIsoSpec.computeVersionBits(version);
     }
 
     private static void drawFunctionPatterns(boolean[] grid, boolean[] fn, int version, int size) {
@@ -268,7 +198,7 @@ public final class QrCodeMatrix {
         drawFinder(grid, fn, size, 3, size - 4);
 
         // Alignment patterns
-        int[] centers = ALIGNMENT_CENTERS[version];
+        int[] centers = QrIsoSpec.ALIGNMENT_CENTERS[version];
         for (int i = 0; i < centers.length; i++) {
             for (int j = 0; j < centers.length; j++) {
                 boolean nearFinder = (i == 0 && j == 0)
@@ -364,18 +294,7 @@ public final class QrCodeMatrix {
             for (int x = 0; x < size; x++) {
                 int idx = y * size + x;
                 if (fn[idx]) continue;
-                boolean invert = switch (mask) {
-                    case 0 -> ((x + y) % 2) == 0;
-                    case 1 -> (y % 2) == 0;
-                    case 2 -> (x % 3) == 0;
-                    case 3 -> ((x + y) % 3) == 0;
-                    case 4 -> ((x / 3 + y / 2) % 2) == 0;
-                    case 5 -> ((x * y) % 2 + (x * y) % 3) == 0;
-                    case 6 -> ((((x * y) % 2 + (x * y) % 3) % 2)) == 0;
-                    case 7 -> ((((x + y) % 2 + (x * y) % 3) % 2)) == 0;
-                    default -> false;
-                };
-                if (invert) grid[idx] = !grid[idx];
+                if (QrIsoSpec.maskBit(mask, x, y)) grid[idx] = !grid[idx];
             }
         }
     }

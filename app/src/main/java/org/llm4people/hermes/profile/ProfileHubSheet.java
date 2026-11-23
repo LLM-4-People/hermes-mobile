@@ -60,6 +60,7 @@ public final class ProfileHubSheet implements AutoCloseable {
     public interface Callbacks {
         void onSwitchProfile(String profileId);
         void onAddProfile();
+        void onScanQrCode();
         void onOpenAdminConsole();
         void onAdminStateResolved(boolean isAdmin);
     }
@@ -195,12 +196,19 @@ public final class ProfileHubSheet implements AutoCloseable {
             body.addView(buildLocalProfileRow(entry.getKey(), entry.getValue()), topMargin(8));
         }
 
+        Button scanQrBtn = Ui.button(activity, activity.getString(R.string.profile_hub_scan_qr_action), v -> {
+            close();
+            callbacks.onScanQrCode();
+        });
+        enforceTouchTarget(scanQrBtn);
+        body.addView(scanQrBtn, topMargin(10));
+
         Button addLocalBtn = Ui.button(activity, activity.getString(R.string.profile_add_action), v -> {
             close();
             callbacks.onAddProfile();
         });
         enforceTouchTarget(addLocalBtn);
-        body.addView(addLocalBtn, topMargin(10));
+        body.addView(addLocalBtn, topMargin(8));
 
         // Server profiles & remote status section
         TextView serverHeading = Ui.text(activity, activity.getString(R.string.profile_hub_server_section), 14);
