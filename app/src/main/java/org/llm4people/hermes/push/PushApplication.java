@@ -5,6 +5,7 @@ import android.app.Application;
 import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.HermesConfig;
+import org.llm4people.hermes.perf.MemoryPressure;
 
 public final class PushApplication extends Application {
     @Override public void onCreate() {
@@ -22,5 +23,22 @@ public final class PushApplication extends Application {
         PushSyncService.scheduleRetries(this);
         if (pending) PushSyncService.ensureScheduled(this);
         PushConnection.restore(this);
+        PushConnection.WORK.execute(() -> {
+            try {
+                store.pruneExpired(System.currentTimeMillis());
+            } catch (RuntimeException ignored) {
+                Diagnostics.debug("push", "startup_prune_skipped", ignored);
+            }
+        });
+    }
+
+    @Override public void onTrimMemory(int level) {
+        super.onTrimMemory(level);
+        MemoryPressure.onTrimMemory(level);
+    }
+
+    @Override public void onLowMemory() {
+        super.onLowMemory();
+        MemoryPressure.clearAll();
     }
 }

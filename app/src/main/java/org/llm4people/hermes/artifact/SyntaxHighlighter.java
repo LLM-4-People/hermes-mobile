@@ -19,8 +19,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -30,6 +32,17 @@ import java.util.Set;
 public final class SyntaxHighlighter {
     static final int MAX_HIGHLIGHT_CHARS = 32_768;
     static final int MAX_SEARCH_MATCHES = 2_000;
+    private static final int MAX_CACHE_ENTRIES = 24;
+    private static final int MAX_CACHE_CHARS = 16_384;
+
+    private record CacheKey(Language language, String text) {}
+
+    private static final Map<CacheKey, List<Token>> TOKEN_CACHE =
+            new LinkedHashMap<>(MAX_CACHE_ENTRIES + 1, 0.75f, true) {
+                @Override protected boolean removeEldestEntry(Map.Entry<CacheKey, List<Token>> eldest) {
+                    return size() > MAX_CACHE_ENTRIES;
+                }
+            };
 
     public enum Language {
         JAVA, PYTHON, KOTLIN, JAVASCRIPT, JSON, YAML, BASH, SQL, DIFF, PLAIN;
@@ -119,10 +132,31 @@ public final class SyntaxHighlighter {
         return Collections.unmodifiableSet(new HashSet<>(Arrays.asList(items)));
     }
 
+    /** Evict all memoized token lists (invoked under Android memory pressure or tests). */
+    public static void clearCache() {
+        synchronized (TOKEN_CACHE) {
+            TOKEN_CACHE.clear();
+        }
+    }
+
+    public static int cacheSizeForTest() {
+        synchronized (TOKEN_CACHE) {
+            return TOKEN_CACHE.size();
+        }
+    }
+
     /** Tokenize up to MAX_HIGHLIGHT_CHARS in linear time with zero regex backtracking. */
     public static List<Token> tokenize(String text, Language language) {
         if (text == null || text.isEmpty() || language == null || language == Language.PLAIN) {
             return Collections.emptyList();
+        }
+        boolean cacheable = text.length() <= MAX_CACHE_CHARS;
+        CacheKey key = cacheable ? new CacheKey(language, text) : null;
+        if (cacheable) {
+            synchronized (TOKEN_CACHE) {
+                List<Token> cached = TOKEN_CACHE.get(key);
+                if (cached != null) return cached;
+            }
         }
         int limit = boundedEnd(text, MAX_HIGHLIGHT_CHARS);
         List<Token> tokens = new ArrayList<>();
@@ -138,7 +172,13 @@ public final class SyntaxHighlighter {
             case JAVASCRIPT -> scanGeneral(text, limit, tokens, JS_KEYWORDS, false, true, true, true, false);
             default -> {}
         }
-        return tokens;
+        List<Token> result = tokens.isEmpty() ? Collections.emptyList() : Collections.unmodifiableList(tokens);
+        if (cacheable) {
+            synchronized (TOKEN_CACHE) {
+                TOKEN_CACHE.put(key, result);
+            }
+        }
+        return result;
     }
 
     static int boundedEnd(String text, int maxChars) {
@@ -189,8 +229,9 @@ public final class SyntaxHighlighter {
                 i = end;
             } else if (isIdentStart(c)) {
                 int end = scanIdent(text, i, limit);
-                String word = text.substring(i, end);
-                if ("true".equals(word) || "false".equals(word) || "null".equals(word)) {
+                int len = end - i;
+                if ((len == 4 && (text.regionMatches(i, "true", 0, 4) || text.regionMatches(i, "null", 0, 4)))
+                        || (len == 5 && text.regionMatches(i, "false", 0, 5))) {
                     out.add(new Token(i, end, Kind.KEYWORD));
                 }
                 i = end;
@@ -248,8 +289,11 @@ public final class SyntaxHighlighter {
                 i = nEnd;
             } else if (isIdentStart(c)) {
                 int wEnd = scanIdent(text, i, end);
-                String word = text.substring(i, wEnd);
-                if ("true".equals(word) || "false".equals(word) || "null".equals(word) || "yes".equals(word) || "no".equals(word)) {
+                int len = wEnd - i;
+                if ((len == 2 && text.regionMatches(i, "no", 0, 2))
+                        || (len == 3 && text.regionMatches(i, "yes", 0, 3))
+                        || (len == 4 && (text.regionMatches(i, "true", 0, 4) || text.regionMatches(i, "null", 0, 4)))
+                        || (len == 5 && text.regionMatches(i, "false", 0, 5))) {
                     out.add(new Token(i, wEnd, Kind.KEYWORD));
                 }
                 i = wEnd;
@@ -281,7 +325,9 @@ public final class SyntaxHighlighter {
                 i = end;
             } else if (isIdentStart(c)) {
                 int end = scanIdent(text, i, limit);
-                if (SQL_KEYWORDS.contains(text.substring(i, end).toLowerCase(Locale.ROOT))) {
+                int len = end - i;
+                if (len >= 2 && len <= 11
+                        && SQL_KEYWORDS.contains(text.substring(i, end).toLowerCase(Locale.ROOT))) {
                     out.add(new Token(i, end, Kind.KEYWORD));
                 }
                 i = end;
@@ -323,10 +369,10 @@ public final class SyntaxHighlighter {
                 i = end;
             } else if (isIdentStart(c)) {
                 int end = scanIdent(text, i, limit);
-                String word = text.substring(i, end);
-                if (keywords.contains(word)) {
+                int len = end - i;
+                if (len >= 2 && len <= 14 && keywords.contains(text.substring(i, end))) {
                     out.add(new Token(i, end, Kind.KEYWORD));
-                } else if (highlightTypes && Character.isUpperCase(c) && hasLowercase(word)) {
+                } else if (highlightTypes && Character.isUpperCase(c) && hasLowercase(text, i + 1, end)) {
                     out.add(new Token(i, end, Kind.TYPE));
                 }
                 i = end;
@@ -424,9 +470,9 @@ public final class SyntaxHighlighter {
         return isIdentStart(c) || isDigit(c);
     }
 
-    private static boolean hasLowercase(String word) {
-        for (int i = 1; i < word.length(); i++) {
-            if (Character.isLowerCase(word.charAt(i))) return true;
+    private static boolean hasLowercase(String text, int start, int end) {
+        for (int i = start; i < end; i++) {
+            if (Character.isLowerCase(text.charAt(i))) return true;
         }
         return false;
     }
@@ -494,6 +540,8 @@ public final class SyntaxHighlighter {
         int addBg = context.getColor(R.color.syntax_diff_add_bg);
         int delBg = context.getColor(R.color.syntax_diff_del_bg);
         int mutedColor = context.getColor(R.color.muted);
+        LineBackgroundSpan addLineBg = null;
+        LineBackgroundSpan delLineBg = null;
 
         for (Token t : tokens) {
             if (t.start < 0 || t.end > pageText.length() || t.start >= t.end) continue;
@@ -512,12 +560,14 @@ public final class SyntaxHighlighter {
                 case ANNOTATION -> spanned.setSpan(new ForegroundColorSpan(annColor), t.start, t.end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
                 case JSON_KEY -> spanned.setSpan(new ForegroundColorSpan(kwColor), t.start, t.end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
                 case DIFF_ADD -> {
+                    if (addLineBg == null) addLineBg = lineTint(addBg);
                     spanned.setSpan(new ForegroundColorSpan(addColor), t.start, t.end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-                    spanned.setSpan(lineTint(addBg), t.start, t.end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                    spanned.setSpan(addLineBg, t.start, t.end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
                 }
                 case DIFF_DEL -> {
+                    if (delLineBg == null) delLineBg = lineTint(delBg);
                     spanned.setSpan(new ForegroundColorSpan(delColor), t.start, t.end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-                    spanned.setSpan(lineTint(delBg), t.start, t.end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                    spanned.setSpan(delLineBg, t.start, t.end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
                 }
                 case DIFF_HUNK -> {
                     spanned.setSpan(new ForegroundColorSpan(mutedColor), t.start, t.end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);

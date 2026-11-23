@@ -60,6 +60,8 @@ final class MessageText {
         SpannableStringBuilder content = new SpannableStringBuilder(page.text);
         int accent = context.getColor(R.color.accent);
         int muted = context.getColor(R.color.muted);
+        int danger = context.getColor(R.color.danger);
+        int paper = context.getColor(R.color.surface);
         int barWidth = Math.max(2, Ui.dp(context, 3));
         int quoteGap = Ui.dp(context, 10);
         int listIndent = Ui.dp(context, 16);
@@ -89,17 +91,16 @@ final class MessageText {
                     span(content, mark, new TypefaceSpan("monospace"));
                     span(content, mark, new RelativeSizeSpan(.94f));
                     if (mark.style == TranscriptPage.Style.INLINE_CODE)
-                        span(content, mark, new BackgroundColorSpan(context.getColor(R.color.surface)));
+                        span(content, mark, new BackgroundColorSpan(paper));
                     if (mark.style == TranscriptPage.Style.INSERTION || mark.style == TranscriptPage.Style.DELETION) {
-                        int color = mark.style == TranscriptPage.Style.INSERTION ? R.color.accent : R.color.danger;
-                        span(content, mark, new ForegroundColorSpan(context.getColor(color)));
+                        int color = mark.style == TranscriptPage.Style.INSERTION ? accent : danger;
+                        span(content, mark, new ForegroundColorSpan(color));
                     }
                     break;
             }
         }
-        int inset = Ui.dp(context, 10);
-        int paper = context.getColor(R.color.surface);
-        for (TranscriptPage.Block block : page.blocks) {
+        if (!page.blocks.isEmpty()) {
+            int inset = Ui.dp(context, 10);
             // One continuous surface across wrapped lines, indentation and blank lines.
             LineBackgroundSpan surface = (canvas, paint, left, right, top, baseline, bottom, text, start, end, line) -> {
                 int original = paint.getColor();
@@ -107,9 +108,11 @@ final class MessageText {
                 canvas.drawRect(left, top, right, bottom, paint);
                 paint.setColor(original);
             };
-            content.setSpan(surface, block.displayStart, block.displayEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-            if (indentBlocks) content.setSpan(new LeadingMarginSpan.Standard(inset), block.displayStart,
-                    block.displayEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            for (TranscriptPage.Block block : page.blocks) {
+                content.setSpan(surface, block.displayStart, block.displayEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                if (indentBlocks) content.setSpan(new LeadingMarginSpan.Standard(inset), block.displayStart,
+                        block.displayEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            }
         }
         return content;
     }

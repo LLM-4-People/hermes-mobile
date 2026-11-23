@@ -3,7 +3,6 @@ package org.llm4people.hermes.thread;
 import android.content.ContentResolver;
 import android.database.Cursor;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.ColorSpace;
@@ -14,6 +13,8 @@ import android.provider.OpenableColumns;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.llm4people.hermes.HermesConfig;
+import org.llm4people.hermes.perf.BitmapSampling;
+import org.llm4people.hermes.perf.ThumbnailCache;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -66,10 +67,10 @@ final class DiscussionPhoto {
         if (source.length == 0 || source.length > limit) throw new IOException("Unsupported image size");
         Bitmap image = ImageDecoder.decodeBitmap(ImageDecoder.createSource(ByteBuffer.wrap(source)), (decoder, details, src) -> {
             int width = details.getSize().getWidth(), height = details.getSize().getHeight();
-            if (details.isAnimated() || width <= 0 || height <= 0 || (long) width * height > 128_000_000L)
+            if (details.isAnimated() || !BitmapSampling.validDimensions(width, height))
                 throw new IllegalArgumentException("Unsupported still image");
-            int longEdge = Math.max(width, height);
-            if (longEdge > 1600) decoder.setTargetSize(Math.max(1, (int) (1600L * width / longEdge)), Math.max(1, (int) (1600L * height / longEdge)));
+            int[] target = BitmapSampling.targetDimensions(width, height, 1600);
+            if (target[0] != width || target[1] != height) decoder.setTargetSize(target[0], target[1]);
             decoder.setAllocator(ImageDecoder.ALLOCATOR_SOFTWARE);
             decoder.setTargetColorSpace(ColorSpace.get(ColorSpace.Named.SRGB));
         });
@@ -137,9 +138,16 @@ final class DiscussionPhoto {
     }
 
     static Bitmap thumbnail(JSONObject info) {
+        if (info == null) return null;
+        String digest = ThreadData.string(info, "digest");
+        String cacheKey = digest.isEmpty() ? null : "photo:" + digest;
+        if (cacheKey != null) {
+            Bitmap cached = ThumbnailCache.get(cacheKey);
+            if (cached != null) return cached;
+        }
         try {
             byte[] bytes = Base64.getDecoder().decode(info.optString("thumbnail"));
-            return BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
+            return ThumbnailCache.getOrDecode(cacheKey, bytes, ThumbnailCache.DEFAULT_THUMB_MAX_EDGE);
         } catch (IllegalArgumentException invalid) { return null; }
     }
 

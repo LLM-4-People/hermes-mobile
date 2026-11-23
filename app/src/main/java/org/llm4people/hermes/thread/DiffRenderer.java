@@ -393,7 +393,9 @@ public final class DiffRenderer {
     }
 
     private static SpannableString renderLines(Context context, List<DiffLine> lines) {
-        StringBuilder joined = new StringBuilder();
+        int totalChars = Math.max(0, lines.size() - 1);
+        for (DiffLine line : lines) totalChars += line.text.length();
+        StringBuilder joined = new StringBuilder(totalChars);
         int[] starts = new int[lines.size()];
         int[] ends = new int[lines.size()];
         for (int i = 0; i < lines.size(); i++) {
@@ -408,17 +410,21 @@ public final class DiffRenderer {
         int mutedInk = context.getColor(R.color.muted);
         int addBg = context.getColor(R.color.syntax_diff_add_bg);
         int delBg = context.getColor(R.color.syntax_diff_del_bg);
+        LineBackgroundSpan addFill = null;
+        LineBackgroundSpan delFill = null;
         for (int i = 0; i < lines.size(); i++) {
             int s = starts[i], e = ends[i];
             if (s >= e) continue;
             switch (lines.get(i).kind) {
                 case ADD -> {
+                    if (addFill == null) addFill = rowFill(addBg);
                     spanned.setSpan(new ForegroundColorSpan(addInk), s, e, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-                    spanned.setSpan(rowFill(addBg), s, e, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                    spanned.setSpan(addFill, s, e, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
                 }
                 case REMOVE -> {
+                    if (delFill == null) delFill = rowFill(delBg);
                     spanned.setSpan(new ForegroundColorSpan(delInk), s, e, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-                    spanned.setSpan(rowFill(delBg), s, e, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                    spanned.setSpan(delFill, s, e, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
                 }
                 case HUNK -> {
                     spanned.setSpan(new ForegroundColorSpan(mutedInk), s, e, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);

@@ -15,13 +15,27 @@ android {
         versionCode = providers.gradleProperty('hermesVersionCode').get().toInteger()
         versionName = providers.gradleProperty('hermesVersionName').get()
         testInstrumentationRunner = 'android.test.InstrumentationTestRunner'
+        resourceConfigurations += ['fr', 'en']
     }
 
     buildTypes {
         release {
             minifyEnabled = true
             shrinkResources = true
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt')
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    packaging {
+        resources {
+            excludes += [
+                '**/*.proto',
+                'kotlin/**/*.kotlin_builtins',
+                'DebugProbesKt.bin',
+                'META-INF/*.kotlin_module',
+                'META-INF/AL2.0',
+                'META-INF/LGPL2.1',
+            ]
         }
     }
 

@@ -8,6 +8,7 @@ import android.database.DataSetObserver;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 
+import org.llm4people.hermes.Diagnostics;
 import org.unifiedpush.android.connector.FailedReason;
 
 import java.io.IOException;
@@ -33,7 +34,18 @@ final class PushStore extends SQLiteOpenHelper {
 
     PushStore(Context context, String database) { super(context, database, null, DATABASE_VERSION); }
 
-    @Override public void onConfigure(SQLiteDatabase db) { db.setForeignKeyConstraintsEnabled(true); }
+    @Override public void onConfigure(SQLiteDatabase db) {
+        db.setForeignKeyConstraintsEnabled(true);
+        db.enableWriteAheadLogging();
+        try (Cursor ignored = db.rawQuery("PRAGMA synchronous=NORMAL", null)) {
+            ignored.moveToFirst();
+        }
+    }
+
+    @Override public void onOpen(SQLiteDatabase db) {
+        super.onOpen(db);
+        if (!db.isReadOnly()) ensurePerformanceIndexes(db);
+    }
 
     @Override public void onCreate(SQLiteDatabase db) {
         db.execSQL("CREATE TABLE devices(profile TEXT PRIMARY KEY, installation TEXT NOT NULL UNIQUE,"
@@ -47,6 +59,7 @@ final class PushStore extends SQLiteOpenHelper {
         addDeferredUrgency(db);
         db.execSQL("CREATE TABLE seen(installation TEXT NOT NULL REFERENCES devices(installation) ON DELETE CASCADE,"
                 + "event TEXT NOT NULL, kind TEXT NOT NULL, PRIMARY KEY(installation,event))");
+        ensurePerformanceIndexes(db);
     }
 
     @Override public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
@@ -64,6 +77,29 @@ final class PushStore extends SQLiteOpenHelper {
         addRecovery(db);
         addRepair(db);
         addDeferredUrgency(db);
+        ensurePerformanceIndexes(db);
+    }
+
+    private static void ensurePerformanceIndexes(SQLiteDatabase db) {
+        db.execSQL("CREATE INDEX IF NOT EXISTS deferred_discard ON deferred(discard_at)");
+        db.execSQL("CREATE INDEX IF NOT EXISTS devices_state_retry ON devices(state, retry_at)");
+    }
+
+    /** Reclaim expired deferred wakeups and stale prompt dismissals so SQLite stays bounded. */
+    int pruneExpired(long nowMillis) {
+        long dismissalCutoffSec = (nowMillis / 1000L) - 29L * 86400L;
+        SQLiteDatabase db = getWritableDatabase();
+        db.beginTransaction();
+        int removed = 0;
+        try {
+            removed += db.delete("deferred", "discard_at<=?", new String[]{Long.toString(nowMillis)});
+            removed += db.delete("dismissed_questions", "received_at<?", new String[]{Long.toString(dismissalCutoffSec)});
+            db.setTransactionSuccessful();
+        } finally {
+            db.endTransaction();
+        }
+        if (removed > 0) Diagnostics.debug("push", "store_pruned");
+        return removed;
     }
 
     private static void addRepair(SQLiteDatabase db) {
