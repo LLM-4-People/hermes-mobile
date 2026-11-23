@@ -26,7 +26,11 @@ public final class CommandPaletteTest extends InstrumentationTestCase {
         AtomicReference<String> openedThread = new AtomicReference<>();
 
         List<CommandItem> actions = CommandRegistry.defaultNativeCommands(context, dispatched::set);
-        assertEquals(16, actions.size());
+        assertEquals(19, actions.size());
+        assertFalse(actions.stream().anyMatch(item -> "act:admin_console".equals(item.id)));
+        List<CommandItem> adminActions = CommandRegistry.defaultNativeCommands(context, true, dispatched::set);
+        assertEquals(21, adminActions.size());
+        assertTrue(adminActions.stream().anyMatch(item -> "act:admin_console".equals(item.id)));
 
         CommandRegistry registry = new CommandRegistry(actions);
         registry.addAll(CommandRegistry.fromTemplates(WorkflowTemplate.builtIn(context), stagedDraft::set));

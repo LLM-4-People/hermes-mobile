@@ -1,0 +1,154 @@
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
+    <!-- First-run setup wizard -->
+    <string name="onboarding_step1_title">Connect your Hermes</string>
+    <string name="onboarding_step1_subtitle">Paste a pairing or invite link to configure everything in one tap, or enter your credentials manually.</string>
+    <string name="onboarding_paste_card_title">Instant setup</string>
+    <string name="onboarding_paste_card_hint">Paste a hermes://pair link, HTTPS invite, or copied credentials</string>
+    <string name="onboarding_paste_action">Paste pairing link</string>
+    <string name="onboarding_paste_clipboard_detected">Pairing link detected in clipboard</string>
+    <string name="onboarding_paste_clipboard_use">Use detected link</string>
+    <string name="onboarding_paste_empty">Clipboard is empty or does not contain a valid link.</string>
+    <string name="onboarding_paste_invalid">Link or code not recognized. Paste a valid pairing link or use manual setup.</string>
+    <string name="onboarding_paste_claiming">Pairing with your Hermes server…</string>
+    <string name="onboarding_paste_claimed">Connected to %1$s · profile “%2$s” ready</string>
+    <string name="onboarding_paste_claim_failed">Could not claim this link. It may have expired or already been used.</string>
+    <string name="onboarding_paste_confirm_title">Connect to this Hermes server?</string>
+    <string name="onboarding_paste_confirm_body">Server: %1$s\nProfile: %2$s\nChoose a passphrase to encrypt this profile on this device.</string>
+    <string name="onboarding_paste_confirm_action">Continue</string>
+    <string name="onboarding_direct_applied">Server address and key detected automatically. Add your passphrase and save.</string>
+    <string name="onboarding_endpoint_applied">Server address detected. Enter your access key and passphrase.</string>
+    <string name="onboarding_manual_toggle_show">Show manual setup</string>
+    <string name="onboarding_manual_toggle_hide">Hide manual setup</string>
+
+    <!-- Step 2: Personalize -->
+    <string name="onboarding_step2_title">Make it yours</string>
+    <string name="onboarding_step2_subtitle">Tune your preferences and start your first conversation in one tap.</string>
+    <string name="onboarding_display_name_label">Display name</string>
+    <string name="onboarding_language_label">Language</string>
+    <string name="onboarding_language_auto">Auto</string>
+    <string name="onboarding_language_en">English</string>
+    <string name="onboarding_language_fr">Français</string>
+    <string name="onboarding_theme_label">Appearance</string>
+    <string name="onboarding_theme_auto">System</string>
+    <string name="onboarding_theme_light">Light</string>
+    <string name="onboarding_theme_dark">Dark</string>
+    <string name="onboarding_lock_label">Quick lock</string>
+    <string name="onboarding_lock_immediate">Immediate in background</string>
+    <string name="onboarding_lock_grace">Grace period (2 min)</string>
+    <string name="onboarding_starters_heading">Start with one tap</string>
+    <string name="onboarding_starters_loading">Loading your starters…</string>
+    <string name="onboarding_starters_empty">Your Hermes space is ready.</string>
+    <string name="onboarding_finish_action">Open Hermes</string>
+    <string name="onboarding_skip_action">Skip for now</string>
+
+    <!-- Profile and user hub -->
+    <string name="profile_hub_title">Profiles and devices</string>
+    <string name="profile_hub_subtitle">Switch profiles in one tap, add a device, or invite someone.</string>
+    <string name="profile_hub_active_badge">Active</string>
+    <string name="profile_hub_admin_badge">Admin</string>
+    <string name="profile_hub_runs_badge">%1$d active</string>
+    <string name="profile_hub_threads_count">%1$d thread(s)</string>
+    <string name="profile_hub_switch_action">Switch</string>
+    <string name="profile_hub_edit_action">Edit</string>
+    <string name="profile_hub_pair_device_action">Add another device</string>
+    <string name="profile_hub_invite_action">Invite someone</string>
+    <string name="profile_hub_rotate_key_action">Rotate key</string>
+    <string name="profile_hub_remove_action">Remove</string>
+    <string name="profile_hub_loading">Loading profiles…</string>
+    <string name="profile_hub_offline_note">Showing local profiles · server unavailable for advanced management.</string>
+    <string name="profile_hub_local_section">On this device</string>
+    <string name="profile_hub_server_section">On your Hermes server</string>
+
+    <!-- QR sharing & countdown -->
+    <string name="profile_hub_qr_title_device">Add another device</string>
+    <string name="profile_hub_qr_title_invite">Invite for %1$s</string>
+    <string name="profile_hub_qr_hint">Scan this QR code or share the single-use link on the other device.</string>
+    <string name="profile_hub_qr_expires">Expires in %1$s</string>
+    <string name="profile_hub_qr_expired">This link has expired. Generate a new one.</string>
+    <string name="profile_hub_qr_share_action">Share link</string>
+    <string name="profile_hub_qr_copy_action">Copy link</string>
+    <string name="profile_hub_qr_copied">Pairing link copied.</string>
+    <string name="profile_hub_qr_revoke_action">Revoke</string>
+    <string name="profile_hub_qr_revoked">Link revoked.</string>
+    <string name="profile_hub_qr_share_subject">Hermes pairing link</string>
+    <string name="profile_hub_qr_unavailable">Could not generate a pairing link.</string>
+
+    <!-- Hub forms (edit / invite / rotate / delete) -->
+    <string name="profile_hub_edit_title">Edit profile</string>
+    <string name="profile_hub_edit_name_hint">Display name</string>
+    <string name="profile_hub_edit_model_hint">Default model (optional)</string>
+    <string name="profile_hub_edit_saved">Profile updated.</string>
+    <string name="profile_hub_edit_failed">Could not update the profile.</string>
+    <string name="profile_hub_invite_title">Invite someone</string>
+    <string name="profile_hub_invite_detail">Creates an isolated profile with its own key and a single-use invite link valid for 5 minutes.</string>
+    <string name="profile_hub_invite_slug_label">Short identifier</string>
+    <string name="profile_hub_invite_slug_hint">alex</string>
+    <string name="profile_hub_invite_name_label">Display name</string>
+    <string name="profile_hub_invite_name_hint">Alex</string>
+    <string name="profile_hub_invite_create_action">Create and generate link</string>
+    <string name="profile_hub_invite_invalid_slug">Use 2 to 32 lowercase letters, digits, or hyphens.</string>
+    <string name="profile_hub_invite_failed">Could not create this invite.</string>
+    <string name="profile_hub_rotate_title">Rotate key for “%1$s”?</string>
+    <string name="profile_hub_rotate_body">The previous key will stop working. A temporary pairing link will be generated to reconnect devices.</string>
+    <string name="profile_hub_rotate_confirm">Rotate</string>
+    <string name="profile_hub_rotate_done">Key rotated.</string>
+    <string name="profile_hub_rotate_failed">Could not rotate the key.</string>
+    <string name="profile_hub_delete_title">Delete profile “%1$s”?</string>
+    <string name="profile_hub_delete_body">Type “%1$s” to confirm deleting this server profile and revoking its key.</string>
+    <string name="profile_hub_delete_confirm_hint">Identifier to confirm</string>
+    <string name="profile_hub_delete_confirm_action">Delete permanently</string>
+    <string name="profile_hub_delete_done">Profile deleted.</string>
+    <string name="profile_hub_delete_failed">Could not delete this profile.</string>
+
+    <!-- Interactive pairing card -->
+    <string name="card_pairing_mode_device">Device pairing</string>
+    <string name="card_pairing_mode_invite">Profile invite</string>
+    <string name="card_pairing_share">Share link</string>
+    <string name="card_pairing_copy">Copy link</string>
+    <string name="card_pairing_copied">Link copied</string>
+    <string name="card_pairing_expires">Valid for %1$s</string>
+    <string name="card_pairing_expired">Link expired</string>
+
+    <!-- Command palette (5 new actions) -->
+    <string name="palette_act_profile_hub_title">Manage profiles</string>
+    <string name="palette_act_profile_hub_hint">Profiles, paired devices, and invites</string>
+    <string name="palette_act_switch_profile_title">Switch profile</string>
+    <string name="palette_act_switch_profile_hint">Jump to another profile on this device</string>
+    <string name="palette_act_pair_device_title">Add another device</string>
+    <string name="palette_act_pair_device_hint">Generate a 5-minute pairing QR code</string>
+    <string name="palette_act_invite_person_title">Invite someone</string>
+    <string name="palette_act_invite_person_hint">Create an isolated profile and invite link</string>
+    <string name="palette_act_admin_console_title">Admin console</string>
+    <string name="palette_act_admin_console_hint">Manage users, roles, and server settings</string>
+
+    <!-- Admin console -->
+    <string name="admin_console_title">Admin console</string>
+    <string name="admin_console_subtitle">Manage users, access roles, and Hermes server settings.</string>
+    <string name="admin_console_open_action">Open admin console</string>
+    <string name="admin_console_tab_users">Users</string>
+    <string name="admin_console_tab_settings">Server settings</string>
+    <string name="admin_console_role_admin">Admin</string>
+    <string name="admin_console_role_member">Member</string>
+    <string name="admin_console_invite_user_action">Invite user</string>
+    <string name="admin_console_grant_admin_toggle">Grant admin access</string>
+    <string name="admin_console_promote_action">Make admin</string>
+    <string name="admin_console_demote_action">Remove admin</string>
+    <string name="admin_console_last_admin_guard">Last remaining admin · cannot remove this role.</string>
+    <string name="admin_console_role_updated">Role updated.</string>
+    <string name="admin_console_role_failed">Could not update role.</string>
+    <string name="admin_console_forbidden">Access restricted to server administrators.</string>
+    <string name="admin_console_summary">%1$d profile(s) · %2$d active task(s) · %3$d active link(s)</string>
+    <string name="admin_settings_language_label">Default server language</string>
+    <string name="admin_settings_model_label">Default model</string>
+    <string name="admin_settings_model_hint">e.g. anthropic/claude-sonnet-4-5</string>
+    <string name="admin_settings_global_runs_label">Global concurrent tasks</string>
+    <string name="admin_settings_profile_runs_label">Concurrent tasks per profile</string>
+    <string name="admin_settings_pairing_ttl_label">Pairing link expiry (seconds)</string>
+    <string name="admin_settings_self_pairing_label">Allow members to pair extra devices</string>
+    <string name="admin_settings_active_links_heading">Active pairing links</string>
+    <string name="admin_settings_no_active_links">No active pairing links.</string>
+    <string name="admin_settings_save_action">Save settings</string>
+    <string name="admin_settings_saved">Server settings saved.</string>
+    <string name="admin_settings_save_failed">Could not save server settings.</string>
+    <string name="admin_settings_invalid_number">Check that all numbers are within allowed limits.</string>
+</resources>

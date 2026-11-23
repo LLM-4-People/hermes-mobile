@@ -37,6 +37,9 @@ import org.llm4people.hermes.customization.AppCustomizationStore;
 import org.llm4people.hermes.doctor.ConnectionDoctorPanel;
 import org.llm4people.hermes.files.PublishedFiles;
 import org.llm4people.hermes.net.HermesApi;
+import org.llm4people.hermes.onboarding.OnboardingModels;
+import org.llm4people.hermes.onboarding.PairingIntent;
+import org.llm4people.hermes.onboarding.PairingLinkParser;
 import org.llm4people.hermes.os.HermesShortcuts;
 import org.llm4people.hermes.os.HermesWidgetSpec;
 import org.llm4people.hermes.os.HermesWidgetStore;
@@ -58,7 +61,10 @@ import org.llm4people.hermes.presence.DeepAndroidActions;
 import org.llm4people.hermes.presence.PresencePolicy;
 import org.llm4people.hermes.presence.PresenceSettingsPanel;
 import org.llm4people.hermes.profile.Account;
+import org.llm4people.hermes.profile.AdminConsoleSheet;
+import org.llm4people.hermes.profile.FirstRunWizard;
 import org.llm4people.hermes.profile.ProfileGate;
+import org.llm4people.hermes.profile.ProfileHubSheet;
 import org.llm4people.hermes.push.DeliveryItem;
 import org.llm4people.hermes.push.DeliveryRouter;
 import org.llm4people.hermes.push.MobilePush;
@@ -113,6 +119,10 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     private ConnectionDoctorPanel activeDoctorPanel;
     private TemplatesPanel activeTemplatesPanel;
     private CommandPalette activePalette;
+    private ProfileHubSheet activeProfileHub;
+    private AdminConsoleSheet activeAdminConsole;
+    private AutoCloseable activeFirstRunStep2;
+    private boolean activeProfileIsAdmin;
     private UpdateCheckCoordinator.BadgeState updateBadge;
     private final Map<String, View> customPages = new HashMap<>();
     private SharedTextFlow sharedText;
@@ -120,6 +130,8 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     private MobilePush push;
     private MobilePush.Target delivery;
     private OsEntryIntent.Request pendingOsEntry;
+    private PairingLinkParser.ParsedInput pendingPairing;
+    private java.util.function.Consumer<PairingLinkParser.ParsedInput> pairingLinkHandler;
     private String pendingPinnedSurface;
     private String pendingPinnedWidget;
     private AlertDialog notice;
@@ -179,6 +191,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         delivery = MobilePush.target(this, getIntent());
         if (delivery != null && key(delivery).equals(handledDelivery)) delivery = null;
         pendingOsEntry = OsEntryIntent.parseRequest(getIntent());
+        capturePairingDeepLink(getIntent());
         capturePinnedShortcutIntent(getIntent());
         registerBuiltInRoutes();
         registerBuiltInActions();
@@ -190,6 +203,29 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
 
     /** Extensibility hook for feature modules registering additional workspace actions. */
     public ActionRegistry actionRegistry() { return actions; }
+
+    /** Peek at a pending {@code hermes://pair} deep link awaiting explicit user confirmation. */
+    public PairingLinkParser.ParsedInput pendingPairing() { return pendingPairing; }
+
+    /** Consume and clear a pending {@code hermes://pair} deep link so single-use codes are never replayed. */
+    public PairingLinkParser.ParsedInput consumePendingPairing() {
+        PairingLinkParser.ParsedInput current = pendingPairing;
+        pendingPairing = null;
+        return current;
+    }
+
+    /** Register the UI handler (e.g., {@code ProfileGate}/{@code FirstRunWizard}) for warm {@code hermes://pair} intents. */
+    public void setPairingLinkHandler(java.util.function.Consumer<PairingLinkParser.ParsedInput> handler) {
+        this.pairingLinkHandler = handler;
+    }
+
+    private boolean capturePairingDeepLink(Intent intent) {
+        PairingLinkParser.ParsedInput parsed = PairingIntent.parse(intent);
+        if (parsed == null) return false;
+        pendingPairing = parsed;
+        setIntent(new Intent(this, MainActivity.class));
+        return true;
+    }
 
     private void registerBuiltInRoutes() {
         shellRoutes.register(WorkspaceNavigation.DISCUSSION, (route, force) -> renderDiscussion(false, force));
@@ -344,6 +380,11 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         });
         actions.register("restore", () -> ArtifactDesk.manage(this, account, activeHost));
         actions.register("profiles", this::lock);
+        actions.register("profile_hub", () -> openProfileHub(false, false));
+        actions.register("switch_profile", () -> openProfileHub(false, false));
+        actions.register("pair_device", () -> openProfileHub(true, false));
+        actions.register("invite_person", () -> openProfileHub(false, true));
+        actions.register("admin_console", this::openAdminConsole);
         actions.register("pin_widget", () -> {
             if (account != null) WorkspaceDialogs.pinQuickWidget(this, account.id);
         });
@@ -412,6 +453,13 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                 : sharedText.requestedProfile() != null ? sharedText.requestedProfile()
                 : sharedMedia.requestedProfile() != null ? sharedMedia.requestedProfile()
                 : widgetOwner;
+        setPairingLinkHandler(parsed -> {
+            if (gate != null && account == null) gate.openAddWithPairing(parsed);
+        });
+        PairingLinkParser.ParsedInput incomingPairing = consumePendingPairing();
+        if (incomingPairing != null) {
+            gate.setPendingPairing(incomingPairing);
+        }
         gate.start(requested, this::opened);
     }
 
@@ -463,6 +511,32 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         setContentView(shell.root);
         displayDiscussion();
         files.unlock(account, api);
+        OnboardingModels.PairingClaim freshClaim = gate.consumeFreshPairingClaim();
+        if (freshClaim != null && freshClaim.onboarding() != null) {
+            activeProfileIsAdmin = freshClaim.onboarding().isAdmin();
+            try { unlocked.write("is_admin_hint", activeProfileIsAdmin ? "1" : "0"); }
+            catch (RuntimeException ignored) {}
+        } else {
+            try { activeProfileIsAdmin = "1".equals(unlocked.read("is_admin_hint")); }
+            catch (RuntimeException ignored) { activeProfileIsAdmin = false; }
+        }
+        if (freshClaim != null && !FirstRunWizard.isCompleted(unlocked)) {
+            closeFirstRunStep2();
+            activeFirstRunStep2 = FirstRunWizard.showStep2(
+                    this, unlocked, api, notifications,
+                    () -> account == unlocked && !isFinishing() && !isDestroyed(),
+                    new FirstRunWizard.Step2Callbacks() {
+                        @Override public void onThemeSelected(String themeMode) {
+                            if (account == unlocked) onThemeModeChanged(themeMode);
+                        }
+                        @Override public void onStageStarterDraft(String draftText) {
+                            if (account == unlocked) stageDraft(draftText);
+                        }
+                        @Override public void onFinished() {
+                            activeFirstRunStep2 = null;
+                        }
+                    });
+        }
         try {
             threads.resumeLast();
         } catch (IllegalStateException invalidSavedSession) {
@@ -736,6 +810,11 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         if (activeTemplatesPanel != null) activeTemplatesPanel.dismissDialogs();
         if (activePalette != null) activePalette.dismiss();
         activePalette = null;
+        if (activeProfileHub != null) activeProfileHub.close();
+        activeProfileHub = null;
+        if (activeAdminConsole != null) activeAdminConsole.close();
+        activeAdminConsole = null;
+        closeFirstRunStep2();
         if (files != null) files.dismiss();
         if (threadActions != null) threadActions.dismiss();
         if (!keepThreadEditor) {
@@ -751,6 +830,19 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         // Android invokes onNewIntent() before onStart()/onResume(); enforce grace expiry first
         // so an expired session locks immediately and queues incoming OS intents until re-unlock.
         checkGraceOnReturn();
+        if (capturePairingDeepLink(intent)) {
+            PairingLinkParser.ParsedInput link = pendingPairing;
+            if (pairingLinkHandler != null && link != null) {
+                pairingLinkHandler.accept(consumePendingPairing());
+            } else if (account != null) {
+                // Lock/switch cleanly to the setup gate so the user explicitly confirms before saving a new profile.
+                lock();
+                unlock();
+            } else {
+                unlock();
+            }
+            return;
+        }
         if (sharedText.receive(intent) || sharedMedia.receive(intent)) {
             setIntent(new Intent(this, MainActivity.class));
             delivery = null;
@@ -933,7 +1025,8 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         Account owner = account;
         if (owner == null || threads == null) return;
         if (activePalette != null) activePalette.dismiss();
-        CommandRegistry registry = new CommandRegistry(CommandRegistry.defaultNativeCommands(this, this::onAction));
+        CommandRegistry registry = new CommandRegistry(
+                CommandRegistry.defaultNativeCommands(this, activeProfileIsAdmin, this::onAction));
         registry.addAll(CommandRegistry.fromTemplates(
                 TemplateStore.forAccount(owner).allTemplates(this), this::stageDraft));
         List<CommandRegistry.RecentThread> recent = new ArrayList<>();
@@ -951,6 +1044,72 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         palette.show(() -> {
             if (activePalette == palette) activePalette = null;
         });
+    }
+
+    private void openProfileHub(boolean startPairDevice, boolean startInvite) {
+        Account owner = account;
+        if (owner == null) return;
+        if (activeProfileHub != null) activeProfileHub.close();
+        int activeRuns = threads == null ? 0 : threads.activeRunCount();
+        ProfileHubSheet hub = new ProfileHubSheet(
+                this,
+                owner,
+                activeRuns,
+                activeProfileIsAdmin,
+                () -> account == owner && !isFinishing() && !isDestroyed(),
+                new ProfileHubSheet.Callbacks() {
+                    @Override public void onSwitchProfile(String profileId) {
+                        if (account != owner) return;
+                        clearWorkspace();
+                        gate.start(profileId, MainActivity.this::opened);
+                    }
+                    @Override public void onAddProfile() {
+                        if (account != owner) return;
+                        clearWorkspace();
+                        gate.openAddWithPairing(null);
+                    }
+                    @Override public void onOpenAdminConsole() {
+                        if (account == owner) openAdminConsole();
+                    }
+                    @Override public void onAdminStateResolved(boolean resolvedAdmin) {
+                        if (account == owner) {
+                            activeProfileIsAdmin = resolvedAdmin;
+                            try { owner.write("is_admin_hint", resolvedAdmin ? "1" : "0"); }
+                            catch (RuntimeException ignored) {}
+                        }
+                    }
+                });
+        activeProfileHub = hub;
+        if (startPairDevice) {
+            hub.triggerPairDevice();
+        } else if (startInvite) {
+            hub.triggerInvitePerson();
+        } else {
+            hub.show();
+        }
+    }
+
+    private void openAdminConsole() {
+        Account owner = account;
+        if (owner == null) return;
+        if (activeAdminConsole != null) activeAdminConsole.close();
+        AdminConsoleSheet console = new AdminConsoleSheet(
+                this,
+                owner,
+                activeProfileIsAdmin,
+                () -> account == owner && !isFinishing() && !isDestroyed());
+        activeAdminConsole = console;
+        if (!console.show()) {
+            console.close();
+            if (activeAdminConsole == console) activeAdminConsole = null;
+        }
+    }
+
+    private void closeFirstRunStep2() {
+        if (activeFirstRunStep2 != null) {
+            try { activeFirstRunStep2.close(); } catch (Exception ignored) {}
+            activeFirstRunStep2 = null;
+        }
     }
 
     private ConnectionDoctorPanel.FixHandlers doctorFixHandlers(Account owner) {
@@ -1495,6 +1654,12 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         activeTemplatesPanel = null;
         if (activePalette != null) activePalette.dismiss();
         activePalette = null;
+        if (activeProfileHub != null) activeProfileHub.close();
+        activeProfileHub = null;
+        if (activeAdminConsole != null) activeAdminConsole.close();
+        activeAdminConsole = null;
+        closeFirstRunStep2();
+        activeProfileIsAdmin = false;
         LiveRunActionReceiver.clearStopHandler(liveStopHandler);
         LiveRunNotification.cancel(this);
         if (sharedText != null) sharedText.lock();
@@ -1624,6 +1789,8 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     }
 
     @Override protected void onDestroy() {
+        pendingPairing = null;
+        pairingLinkHandler = null;
         clearWorkspace();
         if (gate != null) gate.close();
         if (files != null) files.close();

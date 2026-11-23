@@ -1,0 +1,154 @@
+<resources>
+    <!-- Assistant de première connexion -->
+    <string name="onboarding_step1_title">Connecter votre Hermes</string>
+    <string name="onboarding_step1_subtitle">Collez un lien d’association ou d’invitation pour tout configurer en un geste, ou saisissez vos identifiants manuellement.</string>
+    <string name="onboarding_paste_card_title">Connexion instantanée</string>
+    <string name="onboarding_paste_card_hint">Collez un lien hermes://pair, une invitation HTTPS ou vos accès copiés</string>
+    <string name="onboarding_paste_action">Coller le lien d’association</string>
+    <string name="onboarding_paste_clipboard_detected">Lien d’association détecté dans le presse-papiers</string>
+    <string name="onboarding_paste_clipboard_use">Utiliser le lien détecté</string>
+    <string name="onboarding_paste_empty">Le presse-papiers est vide ou ne contient pas de lien valide.</string>
+    <string name="onboarding_paste_invalid">Lien ou code non reconnu. Collez un lien d’association valide ou utilisez la configuration manuelle.</string>
+    <string name="onboarding_paste_claiming">Association avec votre serveur Hermes…</string>
+    <string name="onboarding_paste_claimed">Connecté à %1$s · profil « %2$s » prêt</string>
+    <string name="onboarding_paste_claim_failed">Impossible d’utiliser ce lien. Il est peut-être expiré ou déjà utilisé.</string>
+    <string name="onboarding_paste_confirm_title">Associer ce serveur Hermes ?</string>
+    <string name="onboarding_paste_confirm_body">Serveur : %1$s\nProfil : %2$s\nChoisissez une phrase secrète pour chiffrer ce profil sur cet appareil.</string>
+    <string name="onboarding_paste_confirm_action">Continuer</string>
+    <string name="onboarding_direct_applied">Adresse et clé détectées automatiquement. Ajoutez votre phrase secrète puis enregistrez.</string>
+    <string name="onboarding_endpoint_applied">Adresse du serveur détectée. Saisissez votre clé d’accès et votre phrase secrète.</string>
+    <string name="onboarding_manual_toggle_show">Afficher la configuration manuelle</string>
+    <string name="onboarding_manual_toggle_hide">Masquer la configuration manuelle</string>
+
+    <!-- Étape 2 : Personnalisation -->
+    <string name="onboarding_step2_title">Personnaliser votre espace</string>
+    <string name="onboarding_step2_subtitle">Ajustez vos préférences et démarrez votre première discussion en un geste.</string>
+    <string name="onboarding_display_name_label">Votre nom affiché</string>
+    <string name="onboarding_language_label">Langue</string>
+    <string name="onboarding_language_auto">Automatique</string>
+    <string name="onboarding_language_en">English</string>
+    <string name="onboarding_language_fr">Français</string>
+    <string name="onboarding_theme_label">Apparence</string>
+    <string name="onboarding_theme_auto">Système</string>
+    <string name="onboarding_theme_light">Clair</string>
+    <string name="onboarding_theme_dark">Sombre</string>
+    <string name="onboarding_lock_label">Verrouillage rapide</string>
+    <string name="onboarding_lock_immediate">Immédiat en arrière-plan</string>
+    <string name="onboarding_lock_grace">Délai de grâce (2 min)</string>
+    <string name="onboarding_starters_heading">Pour commencer</string>
+    <string name="onboarding_starters_loading">Chargement de vos raccourcis…</string>
+    <string name="onboarding_starters_empty">Votre espace Hermes est prêt.</string>
+    <string name="onboarding_finish_action">Ouvrir Hermes</string>
+    <string name="onboarding_skip_action">Plus tard</string>
+
+    <!-- Hub de profils et d’utilisateurs -->
+    <string name="profile_hub_title">Profils et appareils</string>
+    <string name="profile_hub_subtitle">Changez de profil en un geste, ajoutez un appareil ou invitez une personne.</string>
+    <string name="profile_hub_active_badge">Actif</string>
+    <string name="profile_hub_admin_badge">Admin</string>
+    <string name="profile_hub_runs_badge">%1$d tâche(s)</string>
+    <string name="profile_hub_threads_count">%1$d discussion(s)</string>
+    <string name="profile_hub_switch_action">Ouvrir</string>
+    <string name="profile_hub_edit_action">Modifier</string>
+    <string name="profile_hub_pair_device_action">Ajouter un autre appareil</string>
+    <string name="profile_hub_invite_action">Inviter quelqu’un</string>
+    <string name="profile_hub_rotate_key_action">Renouveler la clé</string>
+    <string name="profile_hub_remove_action">Retirer</string>
+    <string name="profile_hub_loading">Chargement des profils…</string>
+    <string name="profile_hub_offline_note">Affichage des profils locaux · serveur non joignable pour la gestion avancée.</string>
+    <string name="profile_hub_local_section">Sur cet appareil</string>
+    <string name="profile_hub_server_section">Sur votre serveur Hermes</string>
+
+    <!-- Partage QR & compte à rebours -->
+    <string name="profile_hub_qr_title_device">Associer un autre appareil</string>
+    <string name="profile_hub_qr_title_invite">Invitation pour %1$s</string>
+    <string name="profile_hub_qr_hint">Scannez ce code QR ou partagez le lien à usage unique sur l’autre appareil.</string>
+    <string name="profile_hub_qr_expires">Expire dans %1$s</string>
+    <string name="profile_hub_qr_expired">Ce lien a expiré. Générez-en un nouveau.</string>
+    <string name="profile_hub_qr_share_action">Partager le lien</string>
+    <string name="profile_hub_qr_copy_action">Copier le lien</string>
+    <string name="profile_hub_qr_copied">Lien d’association copié.</string>
+    <string name="profile_hub_qr_revoke_action">Révoquer</string>
+    <string name="profile_hub_qr_revoked">Lien révoqué.</string>
+    <string name="profile_hub_qr_share_subject">Lien d’association Hermes</string>
+    <string name="profile_hub_qr_unavailable">Impossible de générer le lien d’association.</string>
+
+    <!-- Formulaires du Hub (modifier / inviter / rotation / suppression) -->
+    <string name="profile_hub_edit_title">Modifier le profil</string>
+    <string name="profile_hub_edit_name_hint">Nom affiché</string>
+    <string name="profile_hub_edit_model_hint">Modèle par défaut (optionnel)</string>
+    <string name="profile_hub_edit_saved">Profil mis à jour.</string>
+    <string name="profile_hub_edit_failed">Impossible de mettre à jour le profil.</string>
+    <string name="profile_hub_invite_title">Inviter quelqu’un</string>
+    <string name="profile_hub_invite_detail">Crée un profil isolé avec sa propre clé et un lien d’invitation à usage unique valable 5 minutes.</string>
+    <string name="profile_hub_invite_slug_label">Identifiant court</string>
+    <string name="profile_hub_invite_slug_hint">alex</string>
+    <string name="profile_hub_invite_name_label">Prénom ou nom affiché</string>
+    <string name="profile_hub_invite_name_hint">Alex</string>
+    <string name="profile_hub_invite_create_action">Créer et générer le lien</string>
+    <string name="profile_hub_invite_invalid_slug">Utilisez 2 à 32 lettres minuscules, chiffres ou tirets.</string>
+    <string name="profile_hub_invite_failed">Impossible de créer cette invitation.</string>
+    <string name="profile_hub_rotate_title">Renouveler la clé de « %1$s » ?</string>
+    <string name="profile_hub_rotate_body">L’ancienne clé sera invalidée. Un lien d’association temporaire sera généré pour reconnecter les appareils.</string>
+    <string name="profile_hub_rotate_confirm">Renouveler</string>
+    <string name="profile_hub_rotate_done">Clé renouvelée.</string>
+    <string name="profile_hub_rotate_failed">Impossible de renouveler la clé.</string>
+    <string name="profile_hub_delete_title">Supprimer le profil « %1$s » ?</string>
+    <string name="profile_hub_delete_body">Saisissez l’identifiant « %1$s » pour confirmer la suppression sur le serveur et la révocation de sa clé.</string>
+    <string name="profile_hub_delete_confirm_hint">Identifiant à confirmer</string>
+    <string name="profile_hub_delete_confirm_action">Supprimer définitivement</string>
+    <string name="profile_hub_delete_done">Profil supprimé.</string>
+    <string name="profile_hub_delete_failed">Impossible de supprimer ce profil.</string>
+
+    <!-- Carte interactive d’association -->
+    <string name="card_pairing_mode_device">Association d’appareil</string>
+    <string name="card_pairing_mode_invite">Invitation profil</string>
+    <string name="card_pairing_share">Partager le lien</string>
+    <string name="card_pairing_copy">Copier le lien</string>
+    <string name="card_pairing_copied">Lien copié</string>
+    <string name="card_pairing_expires">Valable %1$s</string>
+    <string name="card_pairing_expired">Lien expiré</string>
+
+    <!-- Palette de commandes (5 nouvelles actions) -->
+    <string name="palette_act_profile_hub_title">Gérer les profils</string>
+    <string name="palette_act_profile_hub_hint">Profils, appareils associés et invitations</string>
+    <string name="palette_act_switch_profile_title">Changer de profil</string>
+    <string name="palette_act_switch_profile_hint">Basculer vers un autre profil sur cet appareil</string>
+    <string name="palette_act_pair_device_title">Ajouter un appareil</string>
+    <string name="palette_act_pair_device_hint">Générer un code QR d’association valable 5 min</string>
+    <string name="palette_act_invite_person_title">Inviter quelqu’un</string>
+    <string name="palette_act_invite_person_hint">Créer un profil isolé et un lien d’invitation</string>
+    <string name="palette_act_admin_console_title">Administration</string>
+    <string name="palette_act_admin_console_hint">Gérer les utilisateurs, les rôles et les réglages du serveur</string>
+
+    <!-- Console d’administration -->
+    <string name="admin_console_title">Administration</string>
+    <string name="admin_console_subtitle">Gérez les utilisateurs, les droits d’accès et les réglages du serveur Hermes.</string>
+    <string name="admin_console_open_action">Ouvrir l’administration</string>
+    <string name="admin_console_tab_users">Utilisateurs</string>
+    <string name="admin_console_tab_settings">Réglages du serveur</string>
+    <string name="admin_console_role_admin">Admin</string>
+    <string name="admin_console_role_member">Membre</string>
+    <string name="admin_console_invite_user_action">Inviter un utilisateur</string>
+    <string name="admin_console_grant_admin_toggle">Donner les droits d’administration</string>
+    <string name="admin_console_promote_action">Passer admin</string>
+    <string name="admin_console_demote_action">Retirer admin</string>
+    <string name="admin_console_last_admin_guard">Dernier administrateur · impossible de retirer ce rôle.</string>
+    <string name="admin_console_role_updated">Rôle mis à jour.</string>
+    <string name="admin_console_role_failed">Impossible de modifier le rôle.</string>
+    <string name="admin_console_forbidden">Accès réservé aux administrateurs de ce serveur.</string>
+    <string name="admin_console_summary">%1$d profil(s) · %2$d tâche(s) active(s) · %3$d lien(s) en cours</string>
+    <string name="admin_settings_language_label">Langue par défaut du serveur</string>
+    <string name="admin_settings_model_label">Modèle par défaut</string>
+    <string name="admin_settings_model_hint">Ex. anthropic/claude-sonnet-4-5</string>
+    <string name="admin_settings_global_runs_label">Tâches simultanées globales</string>
+    <string name="admin_settings_profile_runs_label">Tâches simultanées par profil</string>
+    <string name="admin_settings_pairing_ttl_label">Durée des liens d’association (secondes)</string>
+    <string name="admin_settings_self_pairing_label">Autoriser les membres à associer leurs appareils</string>
+    <string name="admin_settings_active_links_heading">Liens d’association actifs</string>
+    <string name="admin_settings_no_active_links">Aucun lien d’association actif.</string>
+    <string name="admin_settings_save_action">Enregistrer les réglages</string>
+    <string name="admin_settings_saved">Réglages du serveur enregistrés.</string>
+    <string name="admin_settings_save_failed">Impossible d’enregistrer les réglages du serveur.</string>
+    <string name="admin_settings_invalid_number">Vérifiez les valeurs numériques dans les limites autorisées.</string>
+</resources>

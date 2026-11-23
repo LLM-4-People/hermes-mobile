@@ -247,6 +247,111 @@ public final class HermesApi {
         return post("/api/mobile/ui/revisions/" + segment(revisionId) + "/revert", new JSONObject());
     }
 
+    /**
+     * Unauthenticated single-use pairing ticket claim ({@code POST /api/mobile/pairing/claim}).
+     * Enforces HTTPS/loopback via {@link Endpoint}, {@code Cache-Control: no-store}, and active
+     * {@code Accept-Language} / {@code X-Hermes-Lang} headers without sending any bearer token.
+     */
+    public static JSONObject claimPairing(String baseUrl, String code) throws IOException {
+        return claimPairing(baseUrl, code, Limits.defaults());
+    }
+
+    public static JSONObject claimPairing(String baseUrl, String code, Limits limits) throws IOException {
+        String cleanCode = code == null ? "" : code.trim();
+        if (!cleanCode.matches("[A-Za-z0-9._-]{8,160}")) {
+            throw new IllegalArgumentException("Invalid pairing code");
+        }
+        Limits safeLimits = limits == null ? Limits.defaults() : limits;
+        Endpoint target = new Endpoint(baseUrl);
+        byte[] encoded = ("{\"code\":\"" + cleanCode + "\"}").getBytes(StandardCharsets.UTF_8);
+        if (encoded.length > safeLimits.jsonBytes) {
+            throw new IOException("Request exceeded the byte limit");
+        }
+        HttpURLConnection http = (HttpURLConnection) target.url("/api/mobile/pairing/claim").openConnection();
+        applyCommonHeaders(http, "POST", "application/json", safeLimits);
+        try {
+            http.setRequestProperty("Content-Type", "application/json; charset=utf-8");
+            http.setDoOutput(true);
+            http.setFixedLengthStreamingMode(encoded.length);
+            try (OutputStream out = http.getOutputStream()) { out.write(encoded); }
+            checkResponseStatic(http, safeLimits);
+            try (InputStream in = http.getInputStream()) {
+                return Wire.object(Wire.read(in, safeLimits.jsonBytes));
+            }
+        } catch (IOException error) {
+            Diagnostics.event("network", "pairing_claim_failed");
+            throw error;
+        } finally {
+            disconnectSafely(http);
+        }
+    }
+
+    /** Mint a short-lived single-use pairing ticket for another device or invited user. */
+    public JSONObject createPairing(JSONObject body) throws IOException {
+        return post("/api/mobile/pairing/create", body == null ? new JSONObject() : body);
+    }
+
+    /** List active non-expired pairing ticket metadata (never returns secret codes). */
+    public JSONObject activePairings() throws IOException {
+        return get("/api/mobile/pairing/active");
+    }
+
+    /** Revoke an unused pairing ticket immediately. */
+    public JSONObject revokePairing(String ticketId) throws IOException {
+        return deleteJson("/api/mobile/pairing/" + segment(ticketId));
+    }
+
+    /** List server profiles visible to the active caller (all for admin, own only for member). */
+    public JSONObject listProfiles() throws IOException {
+        return get("/api/mobile/profiles");
+    }
+
+    /** Create an isolated server profile (admin-only; optionally mints a pairing ticket atomically). */
+    public JSONObject createProfile(JSONObject body) throws IOException {
+        return post("/api/mobile/profiles", body == null ? new JSONObject() : body);
+    }
+
+    /** Update profile display name, language, default model, badge color, or admin role. */
+    public JSONObject updateProfile(String slug, JSONObject body) throws IOException {
+        return patch("/api/mobile/profiles/" + segment(slug), body == null ? new JSONObject() : body);
+    }
+
+    /** Mint a fresh single-use pairing link for the specified profile. */
+    public JSONObject inviteProfile(String slug, JSONObject body) throws IOException {
+        return post("/api/mobile/profiles/" + segment(slug) + "/invite", body == null ? new JSONObject() : body);
+    }
+
+    /** Rotate a profile's API key (optionally returning a fresh pairing ticket). */
+    public JSONObject rotateProfileKey(String slug, JSONObject body) throws IOException {
+        return post("/api/mobile/profiles/" + segment(slug) + "/rotate-key", body == null ? new JSONObject() : body);
+    }
+
+    /** Safely offboard a server profile (admin-only; requires explicit confirmSlug == slug). */
+    public JSONObject deleteProfile(String slug, String confirmSlug) throws IOException {
+        String cleanSlug = org.llm4people.hermes.profile.GatewayAddress.normalizeProfileSlug(slug);
+        String cleanConfirm = org.llm4people.hermes.profile.GatewayAddress.normalizeProfileSlug(confirmSlug);
+        if (cleanSlug.isEmpty() || !cleanSlug.equals(cleanConfirm)) {
+            throw new IllegalArgumentException("Profile deletion requires matching confirm_slug");
+        }
+        return deleteJson("/api/mobile/profiles/" + segment(cleanSlug)
+                + "?confirm_slug=" + queryValue(cleanConfirm));
+    }
+
+    /** Fetch personalized first-run readiness, admin role flag, and localized starter prompts. */
+    public JSONObject onboardingStatus() throws IOException {
+        return get("/api/mobile/onboarding");
+    }
+
+    /** Fetch live server admin settings and summary counts (admin-only). */
+    public JSONObject adminSettings() throws IOException {
+        return get("/api/mobile/admin/settings");
+    }
+
+    /** Atomically update server admin settings (admin-only). */
+    public JSONObject updateAdminSettings(JSONObject body) throws IOException {
+        return patch("/api/mobile/admin/settings", body == null ? new JSONObject() : body);
+    }
+
     private static boolean visibleAscii(String text) {
         if (text == null || text.isEmpty()) return false;
         for (int i = 0; i < text.length(); i++) {
@@ -255,15 +360,13 @@ public final class HermesApi {
         return true;
     }
 
-    private HttpURLConnection connection(String path, String method, String accept) throws IOException {
-        if (revoked) throw new IOException("Client revoked");
-        HttpURLConnection http = (HttpURLConnection) endpoint.url(path).openConnection();
+    private static void applyCommonHeaders(HttpURLConnection http, String method, String accept, Limits limits)
+            throws IOException {
         http.setInstanceFollowRedirects(false);
         http.setUseCaches(false);
         http.setConnectTimeout(limits.connectTimeoutMs);
         http.setReadTimeout(limits.readTimeoutMs);
         http.setRequestMethod(method);
-        http.setRequestProperty("Authorization", "Bearer " + bearer);
         http.setRequestProperty("Accept", accept);
         http.setRequestProperty("Cache-Control", "no-store");
         String acceptLanguage = AppLanguage.currentAcceptLanguage();
@@ -275,6 +378,13 @@ public final class HermesApi {
             String langTag = acceptLanguage.toLowerCase(Locale.ROOT).startsWith("fr") ? "fr" : "en";
             http.setRequestProperty("X-Hermes-Lang", langTag);
         }
+    }
+
+    private HttpURLConnection connection(String path, String method, String accept) throws IOException {
+        if (revoked) throw new IOException("Client revoked");
+        HttpURLConnection http = (HttpURLConnection) endpoint.url(path).openConnection();
+        applyCommonHeaders(http, method, accept, limits);
+        http.setRequestProperty("Authorization", "Bearer " + bearer);
         return http;
     }
 
@@ -310,6 +420,10 @@ public final class HermesApi {
     }
 
     private int checkResponse(HttpURLConnection http) throws IOException {
+        return checkResponseStatic(http, limits);
+    }
+
+    private static int checkResponseStatic(HttpURLConnection http, Limits limits) throws IOException {
         int status = http.getResponseCode();
         if (status >= 200 && status < 300) return status;
         String code = "";
