@@ -94,7 +94,7 @@ public final class WorkspacePresentationTest extends InstrumentationTestCase {
                 };
                 View page = SurfaceRenderer.render(activity, proposal, new View(activity), host, () -> {});
                 showLayers(activity, layers);
-                Button navigate = findButton(page, "Voir les fils");
+                Button navigate = findButton(page, activity.getString(R.string.ws_action_threads));
                 assertNotNull(navigate);
                 navigate.performClick();
                 assertTrue(called[0]);

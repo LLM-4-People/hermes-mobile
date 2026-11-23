@@ -267,8 +267,8 @@ public final class DataTableBlock {
 
         if (model.filterable && host != null) {
             EditText search = WorkspaceForms.editor(context, false, 80);
-            search.setHint("Filtrer le tableau…");
-            search.setContentDescription("Filtrer les lignes du tableau");
+            search.setHint(org.llm4people.hermes.R.string.ws_table_filter_hint);
+            search.setContentDescription(context.getString(org.llm4people.hermes.R.string.ws_table_filter_a11y));
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
             lp.bottomMargin = Ui.dp(context, 8);
             container.addView(search, lp);
@@ -320,8 +320,12 @@ public final class DataTableBlock {
             Ui.pad(head, 10, 6);
             if (model.sortable) {
                 String state = model.sortColumn() == i
-                        ? (model.ascending() ? ", tri croissant" : ", tri décroissant") : "";
-                head.setContentDescription("Colonne " + col.label + state + ". Appuyer pour trier.");
+                        ? c.getString(model.ascending()
+                                ? org.llm4people.hermes.R.string.ws_table_sort_asc
+                                : org.llm4people.hermes.R.string.ws_table_sort_desc)
+                        : "";
+                head.setContentDescription(c.getString(org.llm4people.hermes.R.string.ws_table_column_a11y,
+                        col.label, state));
             }
             headerRow.addView(head, new LinearLayout.LayoutParams(0, -2, 1f));
         }
@@ -330,7 +334,7 @@ public final class DataTableBlock {
 
         List<List<String>> rows = model.visibleRows();
         if (rows.isEmpty()) {
-            TextView empty = Ui.text(c, "Aucune ligne correspondante.", colors.scaledSp(14));
+            TextView empty = Ui.text(c, c.getString(org.llm4people.hermes.R.string.ws_table_empty), colors.scaledSp(14));
             empty.setTextColor(colors.muted);
             Ui.pad(empty, 12, 10);
             tableBody.addView(empty);
@@ -357,7 +361,8 @@ public final class DataTableBlock {
                 rowView.setClickable(true);
                 rowView.setFocusable(true);
                 rowView.setOnClickListener(v -> host.stageDraft(model.draftForRow(row)));
-                rowView.setContentDescription(String.join(", ", row) + ". Appuyer pour préparer un brouillon.");
+                rowView.setContentDescription(c.getString(org.llm4people.hermes.R.string.ws_table_row_draft_a11y,
+                        String.join(", ", row)));
             }
             tableBody.addView(rowView);
             if (r + 1 < rows.size()) tableBody.addView(Ui.divider(c));

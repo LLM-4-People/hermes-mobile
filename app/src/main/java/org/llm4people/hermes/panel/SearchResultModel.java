@@ -1,5 +1,8 @@
 package org.llm4people.hermes.panel;
 
+import android.content.Context;
+import org.llm4people.hermes.R;
+
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
@@ -54,8 +57,8 @@ public final class SearchResultModel {
             return !threadId.isEmpty() ? threadId : sessionId;
         }
 
-        public String displayTitle() {
-            return threadTitle.isEmpty() ? "Discussion sans titre" : threadTitle;
+        public String displayTitle(Context context) {
+            return threadTitle.isEmpty() ? context.getString(R.string.ws_search_untitled_thread) : threadTitle;
         }
     }
 
@@ -99,14 +102,19 @@ public final class SearchResultModel {
         };
     }
 
-    public static String roleLabel(String role) {
-        if (role == null) return "";
+    public static int roleLabelRes(String role) {
+        if (role == null) return 0;
         return switch (role.trim().toLowerCase(Locale.ROOT)) {
-            case "user" -> "Vous";
-            case "assistant" -> "Hermes";
-            case "tool" -> "Outil";
-            default -> "";
+            case "user" -> R.string.ws_role_user;
+            case "assistant" -> R.string.ws_role_hermes;
+            case "tool" -> R.string.ws_role_tool;
+            default -> 0;
         };
+    }
+
+    public static String roleLabel(Context context, String role) {
+        int res = roleLabelRes(role);
+        return res == 0 ? "" : context.getString(res);
     }
 
     /**
@@ -143,11 +151,16 @@ public final class SearchResultModel {
     }
 
     public static String formatTimestamp(String rawTimestamp, ZoneId zone) {
+        return formatTimestamp(rawTimestamp, zone, Locale.getDefault());
+    }
+
+    public static String formatTimestamp(String rawTimestamp, ZoneId zone, Locale locale) {
         if (rawTimestamp == null || rawTimestamp.trim().isEmpty()) return "";
         String value = rawTimestamp.trim();
         ZoneId targetZone = zone == null ? ZoneId.systemDefault() : zone;
+        Locale effective = locale == null ? Locale.getDefault() : locale;
         DateTimeFormatter fmt = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM)
-                .withLocale(Locale.FRENCH);
+                .withLocale(effective);
         try {
             return OffsetDateTime.parse(value).atZoneSameInstant(targetZone).format(fmt);
         } catch (DateTimeParseException ignored) {

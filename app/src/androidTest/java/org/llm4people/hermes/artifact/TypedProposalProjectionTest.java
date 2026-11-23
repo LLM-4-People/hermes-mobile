@@ -22,10 +22,11 @@ public final class TypedProposalProjectionTest extends TestCase {
         for (String example : new String[] {FENCE, "~~~python\nprint(2)\n~~~"}) {
             JSONObject row = row(part("input_text", "Contexte\n" + example + "\nFIN-INPUT"),
                     part("input_image", ""), part("output_text", "ORIGINE\n" + FENCE + "\nFIN-OUTPUT"));
-            String context = "Contexte\n" + example + "\nFIN-INPUT\n[Image jointe]\nORIGINE\n";
+            String context = "Contexte\n" + example + "\nFIN-INPUT\n[image]\nORIGINE\n";
             assertEquals(context + FENCE + "\nFIN-OUTPUT", MessageParts.display(row));
             assertEquals(context + "FIN-OUTPUT", project(row, ""));
             assertEquals(context + "Outil de revue\nFIN-OUTPUT", project(row, "Outil de revue"));
+            assertTrue(MessageParts.display(row, "[Attached image]").contains("\n[Attached image]\n"));
         }
     }
 
@@ -35,8 +36,8 @@ public final class TypedProposalProjectionTest extends TestCase {
                 part("output_text", RAW + "\n~~~\nAprès"));
         assertEquals("Avant\n~~~hermes-workspace\n" + RAW + "\n~~~\nAprès",
                 MessageParts.eligible(row.get("content")));
-        assertEquals("Avant\n\nContexte illustratif\n[Image jointe]\nAprès", project(row, ""));
-        assertEquals("Avant\nOutil de revue\nContexte illustratif\n[Image jointe]\nAprès", project(row, "Outil de revue"));
+        assertEquals("Avant\n\nContexte illustratif\n[image]\nAprès", project(row, ""));
+        assertEquals("Avant\nOutil de revue\nContexte illustratif\n[image]\nAprès", project(row, "Outil de revue"));
         JSONObject adjacent = row(part("text", "Avant\n~~~hermes-workspace"), part("output_text", RAW),
                 part("output_text", "~~~"), part("text", "Après"));
         assertEquals("Avant\nAprès", project(adjacent, ""));

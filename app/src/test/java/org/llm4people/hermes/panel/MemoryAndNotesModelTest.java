@@ -1,6 +1,7 @@
 package org.llm4people.hermes.panel;
 
 import org.junit.Test;
+import org.llm4people.hermes.R;
 
 import java.util.List;
 
@@ -41,11 +42,12 @@ public final class MemoryAndNotesModelTest {
         assertEquals("1", bucket.filter("montreal").get(0).id());
         assertEquals(1960, bucket.remainingChars());
 
-        assertTrue(MemoryModel.describeHttpError(409, "conflict").contains("autre appareil"));
-        assertTrue(MemoryModel.describeHttpError(400, "secret_detected").contains("donnée sensible"));
-        assertTrue(MemoryModel.describeHttpError(400, "char_limit_exceeded").contains("pleine"));
-        assertTrue(MemoryModel.describeHttpError(403, "").contains("autorisation"));
-        assertTrue(MemoryModel.describeHttpError(501, "").contains("mise à jour"));
+        assertEquals(R.string.ws_memory_err_conflict, MemoryModel.describeHttpErrorRes(409, "conflict"));
+        assertEquals(R.string.ws_memory_err_secret, MemoryModel.describeHttpErrorRes(400, "secret_detected"));
+        assertEquals(R.string.ws_memory_err_full, MemoryModel.describeHttpErrorRes(400, "char_limit_exceeded"));
+        assertEquals(R.string.ws_memory_err_denied, MemoryModel.describeHttpErrorRes(403, ""));
+        assertEquals(R.string.ws_memory_err_upgrade, MemoryModel.describeHttpErrorRes(501, ""));
+        assertEquals(R.string.ws_http_rejected, MemoryModel.describeHttpErrorRes(500, ""));
     }
 
     @Test

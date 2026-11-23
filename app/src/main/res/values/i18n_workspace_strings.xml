@@ -1,0 +1,481 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Shared workspace & panel strings (French default; strict 1:1 parity with values-en). -->
+    <string name="ws_unavailable">Indisponible</string>
+    <string name="ws_apply">Appliquer</string>
+    <string name="ws_delete">Supprimer</string>
+    <string name="ws_erase">Effacer</string>
+    <string name="ws_restore">Rétablir</string>
+    <string name="ws_reset">Réinitialiser</string>
+    <string name="ws_repair">Réparer</string>
+    <string name="ws_view">Voir</string>
+    <string name="ws_yes">Oui</string>
+    <string name="ws_no">Non</string>
+    <string name="ws_none">Aucun</string>
+    <string name="ws_enabled">Activé</string>
+    <string name="ws_disabled">Désactivé</string>
+    <string name="ws_http_rejected">Hermes a refusé la demande (HTTP %1$d).</string>
+    <string name="ws_image_attached">[Image jointe]</string>
+    <string name="ws_shared_by">Par %1$s</string>
+
+    <!-- Artifact catalog & desk -->
+    <string name="ws_art_proposal_to_fix">Proposition à corriger</string>
+    <string name="ws_art_layout_titled">Disposition · %1$s</string>
+    <string name="ws_art_diff_title">Modifications</string>
+    <string name="ws_art_snippet_default">Extrait de code</string>
+    <string name="ws_art_snippet_lang">Extrait %1$s</string>
+    <string name="ws_art_screen_layouts">Dispositions des écrans</string>
+    <string name="ws_art_reset_history_action">Réinitialiser l’historique…</string>
+    <string name="ws_art_reset_history_title">Réinitialiser l’historique des modifications ?</string>
+    <string name="ws_art_reset_history_message">L’historique des modifications d’écran est illisible dans ce profil. Réinitialiser cet historique permettra d’appliquer de nouvelles propositions.</string>
+    <string name="ws_art_change_history">Historique des modifications</string>
+    <string name="ws_art_published_files">Fichiers publiés</string>
+    <string name="ws_art_empty_desk">Les extraits de code, les correctifs et les propositions de disposition de ce fil apparaîtront ici.</string>
+    <string name="ws_art_versions_suffix">%1$s · %2$d versions</string>
+    <string name="ws_art_catalog_limited">Les messages volumineux ou plus anciens restent consultables dans le fil.</string>
+    <string name="ws_art_thread_artifacts">Artefacts du fil</string>
+    <string name="ws_art_version_of">Version %1$d sur %2$d</string>
+    <string name="ws_art_version_item">Version %1$d</string>
+    <string name="ws_art_version_picker_title">Version à lire</string>
+    <string name="ws_art_target_screen">Écran concerné · %1$s</string>
+    <string name="ws_art_personal_saved_notice">Écran personnel enregistré dans ce profil.</string>
+    <string name="ws_art_replace_notice">Cette proposition remplace le contenu de cet écran.</string>
+    <string name="ws_art_apply_layout_action">Appliquer la disposition…</string>
+    <string name="ws_art_invalid_layout">Disposition invalide. Demandez à Hermes de corriger la proposition.</string>
+    <string name="ws_art_confirm_modify_title">Modifier l’écran « %1$s » ?</string>
+    <string name="ws_art_confirm_modify_message">Cette disposition sera utilisée dans ce profil. Vous pourrez l’annuler depuis l’atelier.</string>
+
+    <!-- Workspace surfaces, actions, sources, pages & renderer -->
+    <string name="ws_surface_home">Atelier</string>
+    <string name="ws_surface_threads">Fils</string>
+    <string name="ws_surface_thread">Conversation</string>
+    <string name="ws_surface_settings">Réglages</string>
+    <string name="ws_surface_reminders">Rappels</string>
+    <string name="ws_surface_artifacts">Artefacts</string>
+    <string name="ws_surface_stats">Statistiques</string>
+    <string name="ws_surface_personal">Écran personnel · %1$s</string>
+    <string name="ws_action_threads">Voir les fils</string>
+    <string name="ws_action_new_thread">Créer un fil</string>
+    <string name="ws_action_artifacts">Ouvrir les artefacts</string>
+    <string name="ws_action_models">Choisir un modèle</string>
+    <string name="ws_action_tools">Choisir les outils</string>
+    <string name="ws_action_reminders">Voir les rappels</string>
+    <string name="ws_action_stats">Voir les statistiques</string>
+    <string name="ws_action_profiles">Gérer les profils</string>
+    <string name="ws_action_notifications">Gérer les notifications</string>
+    <string name="ws_action_workspace">Ouvrir l’atelier</string>
+    <string name="ws_action_pages">Mes écrans</string>
+    <string name="ws_source_profile_label">Nom du profil</string>
+    <string name="ws_source_thread_title">Titre de la conversation</string>
+    <string name="ws_source_thread_message_count">Nombre de messages</string>
+    <string name="ws_block_nearby_fallback">Retrouvez ce guide de proximité dans la discussion d’origine.</string>
+    <string name="ws_page_removed_suffix">%1$s · supprimé</string>
+    <string name="ws_pages_repair_action">Réparer la bibliothèque…</string>
+    <string name="ws_pages_repair_partial">Les écrans et révisions lisibles seront conservés. Les données endommagées seront effacées.</string>
+    <string name="ws_pages_repair_all">La bibliothèque est illisible. Tous ses écrans personnels et leurs révisions seront effacés.</string>
+    <string name="ws_pages_repair_title">Réparer vos écrans personnels ?</string>
+    <string name="ws_pages_repair_irreversible">%1$s Cette opération est définitive.</string>
+    <string name="ws_pages_empty">Demandez à Hermes de créer un écran, puis appliquez sa proposition depuis la discussion.</string>
+    <string name="ws_pages_damaged">Les données de vos écrans personnels sont endommagées.</string>
+    <string name="ws_pages_unavailable">Bibliothèque indisponible. Rouvrez votre profil.</string>
+    <string name="ws_pages_custom_tabs">Onglets de l’atelier</string>
+    <string name="ws_surface_content_sample">%1$s · Contenu de l’écran</string>
+    <string name="ws_surface_pin_home">Épingler sur l’écran d’accueil</string>
+    <string name="ws_surface_edit_layout">Modifier la disposition</string>
+    <string name="ws_slot_notice">État</string>
+    <string name="ws_slot_transcript">Messages</string>
+    <string name="ws_slot_composer">Rédaction</string>
+    <string name="ws_surface_rev_single">\n\n%1$d révision enregistrée.</string>
+    <string name="ws_surface_rev_plural">\n\n%1$d révisions enregistrées.</string>
+    <string name="ws_surface_removed_message">Cet écran a été supprimé. Vous pouvez annuler sa suppression ou effacer sa révision.%1$s</string>
+    <string name="ws_surface_erase_rev_action">Effacer la révision…</string>
+    <string name="ws_surface_erase_rev_title">Effacer définitivement la révision ?</string>
+    <string name="ws_surface_delete_page_message">Supprimer cet écran de votre atelier ? Vous pourrez annuler cette opération.%1$s</string>
+    <string name="ws_surface_restore_message">Vous pouvez rétablir la disposition d’origine.%1$s</string>
+    <string name="ws_surface_undo_change">Annuler la modification</string>
+    <string name="ws_surface_restore_unreadable_title">Rétablir l’écran « %1$s » ?</string>
+    <string name="ws_surface_restore_unreadable_message">Sa disposition enregistrée est illisible. Rétablir cet écran effacera définitivement sa disposition et son historique dans ce profil.</string>
+    <string name="ws_surface_library_full_title">Bibliothèque pleine</string>
+    <string name="ws_surface_library_full_message">Libérez une place depuis les dispositions des écrans en effaçant une révision supprimée.</string>
+    <string name="ws_surface_unreadable_title">Disposition illisible</string>
+    <string name="ws_surface_unreadable_message">Ouvrez le menu pour rétablir l’atelier, puis choisissez l’écran concerné pour retrouver sa disposition d’origine.</string>
+    <string name="ws_surface_unavailable_title">Disposition indisponible</string>
+    <string name="ws_surface_unavailable_message">Impossible d’accéder à cette disposition. Vérifiez que le profil est déverrouillé, puis réessayez.</string>
+
+    <!-- Forms, tables, controls, metrics & sparklines -->
+    <string name="ws_form_optional_suffix">%1$s (facultatif)</string>
+    <string name="ws_form_your_answer">Votre réponse</string>
+    <string name="ws_form_choose">Choisir…</string>
+    <string name="ws_form_prepare_draft">Préparer un brouillon…</string>
+    <string name="ws_form_review_title">Relire le brouillon</string>
+    <string name="ws_form_review_message">Vous pourrez le modifier et l’envoyer depuis la conversation.</string>
+    <string name="ws_form_send_to_draft">Vers le brouillon</string>
+    <string name="ws_form_enter_message">Saisissez un message.</string>
+    <string name="ws_table_filter_hint">Filtrer le tableau…</string>
+    <string name="ws_table_filter_a11y">Filtrer les lignes du tableau</string>
+    <string name="ws_table_sort_asc">, tri croissant</string>
+    <string name="ws_table_sort_desc">, tri décroissant</string>
+    <string name="ws_table_column_a11y">Colonne %1$s%2$s. Appuyer pour trier.</string>
+    <string name="ws_table_empty">Aucune ligne correspondante.</string>
+    <string name="ws_table_row_draft_a11y">%1$s. Appuyer pour préparer un brouillon.</string>
+    <string name="ws_ctrl_chip_selected">%1$s, sélectionné</string>
+    <string name="ws_ctrl_chip_unselected">%1$s, non sélectionné</string>
+    <string name="ws_metric_delta_a11y">, variation %1$s</string>
+    <string name="ws_sparkline_bar">Graphique en barres</string>
+    <string name="ws_sparkline_line">Courbe d’évolution</string>
+    <string name="ws_sparkline_a11y">%1$s · %2$d points, minimum %3$s, maximum %4$s, dernière valeur %5$s</string>
+
+    <!-- Device actions & review dialogs -->
+    <string name="ws_dev_calendar_title">Événement d’agenda</string>
+    <string name="ws_dev_calendar_review">Vérifier l’événement</string>
+    <string name="ws_dev_calendar_open">Ouvrir l’agenda</string>
+    <string name="ws_dev_share_title">Texte à partager</string>
+    <string name="ws_dev_share_review">Vérifier le partage</string>
+    <string name="ws_dev_share_open">Choisir une application</string>
+    <string name="ws_dev_map_title">Lieu à rechercher</string>
+    <string name="ws_dev_map_review">Vérifier le lieu</string>
+    <string name="ws_dev_map_open">Ouvrir la carte</string>
+    <string name="ws_dev_osm_title">Fiche OpenStreetMap</string>
+    <string name="ws_dev_osm_review">Vérifier la source</string>
+    <string name="ws_dev_osm_open">Ouvrir OpenStreetMap</string>
+    <string name="ws_dev_alarm_title">Alarme</string>
+    <string name="ws_dev_alarm_review">Vérifier l’alarme</string>
+    <string name="ws_dev_alarm_open">Ouvrir l’horloge</string>
+    <string name="ws_dev_timer_title">Minuteur</string>
+    <string name="ws_dev_timer_review">Vérifier le minuteur</string>
+    <string name="ws_dev_timer_open">Ouvrir l’horloge</string>
+    <string name="ws_dev_dial_title">Numéro à appeler</string>
+    <string name="ws_dev_dial_review">Vérifier le numéro</string>
+    <string name="ws_dev_dial_open">Ouvrir le téléphone</string>
+    <string name="ws_dev_sms_title">Message SMS</string>
+    <string name="ws_dev_sms_review">Vérifier le message</string>
+    <string name="ws_dev_sms_open">Ouvrir la messagerie SMS</string>
+    <string name="ws_dev_email_title">Courriel</string>
+    <string name="ws_dev_email_review">Vérifier le courriel</string>
+    <string name="ws_dev_email_open">Ouvrir la messagerie</string>
+    <string name="ws_dev_contact_title">Nouveau contact</string>
+    <string name="ws_dev_contact_review">Vérifier le contact</string>
+    <string name="ws_dev_contact_open">Ouvrir les contacts</string>
+    <string name="ws_dev_nav_title">Itinéraire</string>
+    <string name="ws_dev_nav_review">Vérifier l’itinéraire</string>
+    <string name="ws_dev_nav_open">Ouvrir la navigation</string>
+    <string name="ws_dev_clip_title">Texte à copier</string>
+    <string name="ws_dev_clip_review">Vérifier avant la copie</string>
+    <string name="ws_dev_clip_open">Copier dans le presse-papiers</string>
+    <string name="ws_dev_cal_start">Début · %1$s</string>
+    <string name="ws_dev_cal_end">Fin · %1$s</string>
+    <string name="ws_dev_cal_location">Lieu · %1$s</string>
+    <string name="ws_dev_place_coords">Coordonnées du lieu · %1$s</string>
+    <string name="ws_dev_alarm_time">Heure · %1$s</string>
+    <string name="ws_dev_alarm_label">Libellé · %1$s</string>
+    <string name="ws_dev_alarm_days">Jours · %1$s</string>
+    <string name="ws_dev_timer_duration">Durée · %1$s</string>
+    <string name="ws_dev_dial_preview">Numéro · %1$s\n\nL’application téléphone s’ouvrira sans lancer l’appel automatiquement.</string>
+    <string name="ws_dev_sms_recipient">Destinataire · %1$s</string>
+    <string name="ws_dev_email_to">À · %1$s</string>
+    <string name="ws_dev_email_subject">Objet · %1$s</string>
+    <string name="ws_dev_contact_name">Nom · %1$s</string>
+    <string name="ws_dev_contact_phone">Téléphone · %1$s</string>
+    <string name="ws_dev_contact_email">Courriel · %1$s</string>
+    <string name="ws_dev_contact_org">Organisation · %1$s</string>
+    <string name="ws_dev_nav_walking">À pied</string>
+    <string name="ws_dev_nav_cycling">À vélo</string>
+    <string name="ws_dev_nav_transit">Transport en commun</string>
+    <string name="ws_dev_nav_driving">En voiture</string>
+    <string name="ws_dev_nav_mode">Mode · %1$s</string>
+    <string name="ws_dev_app_unavailable_title">Application indisponible</string>
+    <string name="ws_dev_app_unavailable_message">Aucune application disponible ne peut ouvrir cette proposition.</string>
+    <string name="ws_dev_copied">Copié dans le presse-papiers.</string>
+    <string name="ws_dev_copy_failed">Impossible de copier ce texte.</string>
+    <string name="ws_dev_time_fmt">%1$02d h %2$02d</string>
+    <string name="ws_dev_date_full_pattern">d MMMM uuuu \'à\' HH:mm:ss \'(UTC\'xxx\')\'</string>
+    <string name="ws_dev_date_short_pattern">d MMMM uuuu \'à\' HH \'h\' mm \'(UTC\'xxx\')\'</string>
+
+    <!-- Instrument comparison & preview -->
+    <string name="ws_diff_preview_unavailable">Aperçu indisponible. Rouvrez la proposition depuis la discussion.</string>
+    <string name="ws_diff_compare_unavailable">Comparaison indisponible. Rouvrez les versions depuis la discussion.</string>
+    <string name="ws_diff_identical">Ces deux versions sont identiques à l’usage.</string>
+    <string name="ws_diff_before">Avant</string>
+    <string name="ws_diff_after">Après</string>
+    <string name="ws_diff_field_added">Champ ajouté</string>
+    <string name="ws_diff_field_removed">Champ retiré</string>
+    <string name="ws_diff_field_changed">Champ modifié</string>
+    <string name="ws_diff_screen">Écran</string>
+    <string name="ws_diff_title">Titre</string>
+    <string name="ws_diff_appearance">Apparence</string>
+    <string name="ws_diff_density">Densité</string>
+    <string name="ws_diff_accent">Couleur d’accent</string>
+    <string name="ws_diff_surface_style">Style de surface</string>
+    <string name="ws_diff_section_order">Ordre des rubriques</string>
+    <string name="ws_diff_section_added">Rubrique ajoutée</string>
+    <string name="ws_diff_section_removed">Rubrique retirée</string>
+    <string name="ws_diff_section_title">Titre de la rubrique</string>
+    <string name="ws_diff_transmitted_data">Données transmises</string>
+    <string name="ws_diff_destination">Destination</string>
+    <string name="ws_diff_displayed_value">Valeur affichée</string>
+    <string name="ws_diff_text">Texte</string>
+    <string name="ws_diff_text_added">Texte ajouté</string>
+    <string name="ws_diff_text_removed">Texte retiré</string>
+    <string name="ws_diff_action_added">Action ajoutée</string>
+    <string name="ws_diff_action_removed">Action retirée</string>
+    <string name="ws_diff_action_order">Ordre des actions</string>
+    <string name="ws_diff_draft_prompt">Consigne du brouillon</string>
+    <string name="ws_diff_field_order">Ordre des champs</string>
+    <string name="ws_diff_category">Catégorie</string>
+    <string name="ws_diff_radius">Rayon de recherche</string>
+    <string name="ws_diff_radius_meters">%1$d m</string>
+    <string name="ws_diff_max_places">Nombre maximal de lieux</string>
+    <string name="ws_diff_description">Description</string>
+    <string name="ws_diff_metrics">Indicateurs</string>
+    <string name="ws_diff_chart_style">Style de graphique</string>
+    <string name="ws_diff_caption">Légende</string>
+    <string name="ws_diff_unit">Unité</string>
+    <string name="ws_diff_target">Objectif</string>
+    <string name="ws_diff_values">Série de valeurs</string>
+    <string name="ws_diff_sortable">Tri interactif</string>
+    <string name="ws_diff_filterable">Filtre interactif</string>
+    <string name="ws_diff_columns">Colonnes</string>
+    <string name="ws_diff_rows">Lignes</string>
+    <string name="ws_diff_state_id">Identifiant d’état</string>
+    <string name="ws_diff_controls">Contrôles</string>
+    <string name="ws_diff_required_suffix">%1$s obligatoire</string>
+    <string name="ws_diff_optional_suffix">%1$s facultatif</string>
+    <string name="ws_diff_osm_attribution">%1$s, selon OpenStreetMap.</string>
+    <string name="ws_diff_open_page">Ouvrir %1$s</string>
+    <string name="ws_diff_table_dims">%1$d colonnes · %2$d lignes</string>
+    <string name="ws_diff_density_compact">Compacte</string>
+    <string name="ws_diff_density_spacious">Aérée</string>
+    <string name="ws_diff_density_comfortable">Confortable</string>
+    <string name="ws_diff_style_paper">Papier</string>
+    <string name="ws_diff_style_outlined">Encadrée</string>
+    <string name="ws_diff_style_tinted">Teintée</string>
+    <string name="ws_diff_style_elevated">Relevée</string>
+    <string name="ws_diff_style_glass">Translucide</string>
+    <string name="ws_diff_theme_light">Claire</string>
+    <string name="ws_diff_theme_dark">Sombre</string>
+    <string name="ws_diff_theme_system">Système</string>
+    <string name="ws_diff_numeric_col">%1$s (numérique)</string>
+    <string name="ws_diff_slider_spec">%1$s–%2$s (pas %3$s, défaut %4$s)</string>
+    <string name="ws_diff_chips_multi">%1$s · multiple</string>
+    <string name="ws_diff_checked_default">activé par défaut</string>
+    <string name="ws_diff_unchecked_default">désactivé par défaut</string>
+    <string name="ws_diff_block_ordinal">%1$s (n° %2$d)</string>
+    <string name="ws_diff_kind_multiline">Texte long</string>
+    <string name="ws_diff_kind_choice">Choix</string>
+    <string name="ws_diff_kind_text">Texte court</string>
+
+    <!-- Live UI patch bar & ThemePalette -->
+    <string name="ws_liveui_proposal_headline">Hermes propose une amélioration de votre écran</string>
+    <string name="ws_liveui_dismiss_a11y">Ignorer cette proposition</string>
+    <string name="ws_liveui_applied_headline">Amélioration appliquée</string>
+    <string name="ws_liveui_applied_summary">%1$s · Vous pouvez revenir en arrière en un geste.</string>
+    <string name="ws_liveui_undo_a11y">Annuler la dernière modification d’écran</string>
+    <string name="ws_liveui_preview_title">Aperçu de l’amélioration</string>
+    <string name="ws_liveui_contrast_verified">Contraste vérifié (%1$s : 1)</string>
+    <string name="ws_liveui_chip_draft_a11y">%1$s, préparer un brouillon</string>
+    <string name="ws_liveui_chip_open_a11y">%1$s, ouvrir</string>
+    <string name="ws_liveui_suggested_heading">Actions rapides suggérées</string>
+    <string name="ws_liveui_history_empty">Aucune modification d’écran en cours dans ce profil.</string>
+    <string name="ws_liveui_history_revert_title">Revenir avant une modification</string>
+    <string name="ws_liveui_op_upsert_surface">Mettre à jour l’écran « %1$s »</string>
+    <string name="ws_liveui_op_remove_surface">Rétablir l’écran « %1$s »</string>
+    <string name="ws_liveui_op_upsert_tab">Ajouter l’onglet « %1$s » dans l’atelier</string>
+    <string name="ws_liveui_op_remove_tab">Retirer l’onglet « %1$s » de l’atelier</string>
+    <string name="ws_liveui_op_upsert_qa">Ajouter le raccourci « %1$s »</string>
+    <string name="ws_liveui_op_remove_qa">Retirer le raccourci « %1$s »</string>
+    <string name="ws_liveui_op_theme">Apparence : %1$s</string>
+    <string name="ws_liveui_op_reset_theme">Rétablir l’apparence par défaut</string>
+    <string name="ws_liveui_op_upsert_widget">Préparer le widget d’accueil « %1$s »</string>
+    <string name="ws_liveui_op_remove_widget">Retirer le widget d’accueil « %1$s »</string>
+    <string name="ws_liveui_summary_ops">%1$d ajustements proposés pour votre espace</string>
+    <string name="ws_liveui_summary_cards">%1$d cartes interactives</string>
+    <string name="ws_theme_dark_mode">Mode sombre</string>
+    <string name="ws_theme_light_mode">Mode clair</string>
+    <string name="ws_theme_accent">Couleur d’accent %1$s</string>
+    <string name="ws_theme_density_compact">Densité compacte</string>
+    <string name="ws_theme_density_spacious">Densité aérée</string>
+    <string name="ws_theme_text_larger">Texte agrandi</string>
+    <string name="ws_theme_text_compact">Texte compact</string>
+    <string name="ws_theme_cards_outlined">Cartes encadrées</string>
+    <string name="ws_theme_cards_elevated">Cartes relevées</string>
+    <string name="ws_theme_cards_glass">Cartes translucides</string>
+    <string name="ws_theme_cards_tinted">Cartes teintées</string>
+    <string name="ws_theme_default">Apparence par défaut</string>
+
+    <!-- Panel models: Memory, Notes, Habits, Search, Skills, Sharing, Usage, Badges, Workspace, Schedule -->
+    <string name="ws_memory_err_target">Cible mémoire invalide.</string>
+    <string name="ws_memory_err_id_missing">Identifiant d’entrée manquant.</string>
+    <string name="ws_memory_err_id_invalid">Identifiant d’entrée invalide.</string>
+    <string name="ws_memory_err_empty">Le texte ne peut pas être vide.</string>
+    <string name="ws_memory_err_surrogate">Le texte contient des caractères invalides.</string>
+    <string name="ws_memory_err_control">Le texte contient des caractères de contrôle interdits.</string>
+    <string name="ws_memory_err_limit">Le texte dépasse la limite autorisée (%1$d caractères).</string>
+    <string name="ws_memory_err_conflict">Cet élément a été modifié sur un autre appareil. La liste va être actualisée.</string>
+    <string name="ws_memory_err_secret">Enregistrement refusé : le texte semble contenir une donnée sensible ou un format non autorisé.</string>
+    <string name="ws_memory_err_full">La mémoire est pleine. Supprimez ou raccourcissez un élément existant avant d’ajouter celui-ci.</string>
+    <string name="ws_memory_err_invalid">Le texte n’a pas pu être enregistré. Vérifiez sa longueur et son contenu.</string>
+    <string name="ws_memory_err_denied">Ce profil n’a pas l’autorisation de modifier la mémoire.</string>
+    <string name="ws_memory_err_upgrade">La gestion de la mémoire nécessite une mise à jour de votre serveur Hermes.</string>
+    <string name="ws_memory_char_count">%1$d / %2$d caractères</string>
+
+    <string name="ws_badge_vision">Vision</string>
+    <string name="ws_badge_tools">Outils</string>
+    <string name="ws_badge_long_context">Long contexte (%1$s)</string>
+    <string name="ws_badge_context">Contexte %1$s</string>
+    <string name="ws_badge_reasoning">Réflexion</string>
+    <string name="ws_badge_pricing_included">Tarif · Inclus</string>
+    <string name="ws_badge_pricing_pair">Tarif · %1$s / %2$s $/M</string>
+    <string name="ws_badge_pricing_single">Tarif · %1$s $/M</string>
+    <string name="ws_unit_millions">%1$s M</string>
+    <string name="ws_unit_thousands">%1$d k</string>
+
+    <string name="ws_note_untitled">Note sans titre</string>
+    <string name="ws_note_err_title_empty">Donnez un titre à cette note.</string>
+    <string name="ws_note_err_title_long">Le titre est trop long (maximum %1$d caractères).</string>
+    <string name="ws_note_err_title_invalid">Le titre contient des caractères interdits.</string>
+    <string name="ws_note_err_body_empty">Écrivez le contenu de la note avant d’enregistrer.</string>
+    <string name="ws_note_err_body_long">La note dépasse la taille maximale autorisée.</string>
+    <string name="ws_note_draft_prompt">Appuie-toi sur la note « %1$s » pour cette demande.</string>
+    <string name="ws_habit_summarize">Résumer rapidement</string>
+    <string name="ws_habit_explain">Expliquer clairement</string>
+    <string name="ws_habit_save_note">Enregistrer en note</string>
+    <string name="ws_habit_extract">Extraire les infos clés</string>
+    <string name="ws_habit_diagnose">Diagnostiquer un problème</string>
+    <string name="ws_habit_reply">Rédiger une réponse</string>
+    <string name="ws_habit_calendar">Planifier un rappel</string>
+    <string name="ws_habit_nearby">Trouver un lieu proche</string>
+    <string name="ws_habit_draft_summarize">Peux-tu me faire un résumé clair et structuré ?</string>
+    <string name="ws_habit_draft_explain">Peux-tu m’expliquer cela simplement ?</string>
+    <string name="ws_habit_draft_save_note">Crée une note bien organisée à partir de ceci.</string>
+    <string name="ws_habit_draft_extract">Extrais les informations essentielles de ceci.</string>
+    <string name="ws_habit_draft_diagnose">Aide-moi à diagnostiquer et corriger ce problème.</string>
+    <string name="ws_habit_draft_reply">Propose-moi un brouillon de réponse claire.</string>
+    <string name="ws_habit_draft_calendar">Aide-moi à planifier ceci dans mon agenda.</string>
+
+    <string name="ws_search_untitled_thread">Discussion sans titre</string>
+    <string name="ws_role_user">Vous</string>
+    <string name="ws_role_hermes">Hermes</string>
+    <string name="ws_role_tool">Outil</string>
+
+    <string name="ws_skill_err_name_empty">Choisissez un nom pour ce savoir-faire.</string>
+    <string name="ws_skill_err_name_sep">Le nom contient un séparateur invalide.</string>
+    <string name="ws_skill_err_name_depth">Utilisez au plus un dossier (ex. travail/relecture).</string>
+    <string name="ws_skill_err_name_chars">Utilisez uniquement des lettres, chiffres, tirets ou points.</string>
+    <string name="ws_skill_err_category">La catégorie doit être un seul mot : lettres minuscules sans accent, chiffres, tirets ou points.</string>
+    <string name="ws_skill_err_desc_long">La description doit tenir en %1$d caractères (actuellement %2$d). Mettez les détails dans les instructions.</string>
+    <string name="ws_skill_err_content_empty">Ajoutez des instructions avant d’enregistrer.</string>
+    <string name="ws_skill_err_content_long">Le texte est trop volumineux pour un savoir-faire.</string>
+    <string name="ws_skill_draft_prompt">Utilise le savoir-faire « %1$s » pour cette demande.</string>
+    <string name="ws_skill_create_draft_prompt">Aide-moi à créer un nouveau savoir-faire réutilisable pour mes prochaines discussions.</string>
+    <string name="ws_skill_source_user">Personnel</string>
+    <string name="ws_skill_source_builtin">Intégré</string>
+    <string name="ws_skill_source_extension">Extension</string>
+
+    <string name="ws_share_err_kind_missing">Type d’élément manquant.</string>
+    <string name="ws_share_err_kind_unsupported">Type d’élément non pris en charge pour le partage.</string>
+    <string name="ws_share_err_perm_missing">Niveau d’accès manquant.</string>
+    <string name="ws_share_err_perm_invalid">Niveau d’accès invalide.</string>
+    <string name="ws_share_err_profile_missing">Indiquez le nom du profil destinataire sur ce serveur.</string>
+    <string name="ws_share_err_profile_invalid">Nom de profil invalide (lettres, chiffres, tirets ou points).</string>
+    <string name="ws_share_err_id_missing">Identifiant d’élément manquant.</string>
+    <string name="ws_share_err_id_invalid">Identifiant d’élément invalide.</string>
+    <string name="ws_share_err_share_id_missing">Identifiant de partage manquant.</string>
+    <string name="ws_share_err_share_id_invalid">Identifiant de partage invalide.</string>
+    <string name="ws_share_kind_item">Élément</string>
+    <string name="ws_share_kind_note">Note</string>
+    <string name="ws_share_kind_skill">Savoir-faire</string>
+    <string name="ws_share_kind_surface">Écran</string>
+    <string name="ws_share_kind_widget">Widget</string>
+    <string name="ws_share_kind_tool">Outil</string>
+    <string name="ws_share_kind_artifact">Artefact</string>
+    <string name="ws_share_kind_session">Discussion</string>
+    <string name="ws_share_filter_notes">Notes</string>
+    <string name="ws_share_filter_skills">Savoir-faire</string>
+    <string name="ws_share_filter_sessions">Discussions</string>
+    <string name="ws_share_filter_tools">Outils</string>
+    <string name="ws_share_filter_surfaces">Écrans</string>
+    <string name="ws_share_filter_widgets">Widgets</string>
+    <string name="ws_share_filter_artifacts">Artefacts</string>
+    <string name="ws_share_perm_read">Lecture seule</string>
+    <string name="ws_share_perm_edit">Modification</string>
+    <string name="ws_share_perm_clone">Copie</string>
+    <string name="ws_share_err_profile_not_found">Ce profil est introuvable sur ce serveur.</string>
+    <string name="ws_share_err_not_found">Cet élément partagé n’est plus accessible ou a été retiré.</string>
+    <string name="ws_share_err_denied">Vous n’avez pas l’autorisation de modifier ou partager cet élément.</string>
+    <string name="ws_share_err_conflict">Cet élément est déjà partagé avec ce profil.</string>
+    <string name="ws_share_err_bad_request">Vérifiez le nom du profil destinataire et le niveau d’accès choisi.</string>
+    <string name="ws_share_err_upgrade">Le partage sur ce serveur nécessite une mise à jour de Hermes.</string>
+    <string name="ws_share_binary_file">Fichier binaire</string>
+    <string name="ws_share_bytes">%1$d octets</string>
+    <string name="ws_share_draft_prompt">Voici un élément partagé (« %1$s ») à prendre en compte :\n%2$s</string>
+
+    <string name="ws_usage_seconds">%1$s s</string>
+    <string name="ws_usage_speed">%1$s jetons/s</string>
+    <string name="ws_usage_usd">%1$s USD</string>
+    <string name="ws_usage_cost_included">Compris dans le forfait</string>
+    <string name="ws_usage_cost_estimated">%1$s (estimé)</string>
+
+    <string name="ws_files_dir_prefix">Dossier · %1$s</string>
+    <string name="ws_files_ahead"> · +%1$d en avance</string>
+    <string name="ws_files_behind"> · -%1$d en retard</string>
+    <string name="ws_path_err_missing">Chemin de fichier manquant.</string>
+    <string name="ws_path_err_long">Chemin trop long.</string>
+    <string name="ws_path_err_absolute">Chemin absolu ou séparateur invalide.</string>
+    <string name="ws_path_err_non_relative">Chemin non relatif.</string>
+    <string name="ws_path_err_encoded">Encodage de chemin interdit.</string>
+    <string name="ws_path_err_control">Caractères de contrôle interdits.</string>
+    <string name="ws_path_err_empty_segment">Segment vide interdit.</string>
+    <string name="ws_path_err_traversal">Remontée de dossier interdite.</string>
+    <string name="ws_path_err_sensitive">Accès restreint à un fichier sensible.</string>
+    <string name="ws_git_modified">Modifié</string>
+    <string name="ws_git_added">Ajouté</string>
+    <string name="ws_git_deleted">Supprimé</string>
+    <string name="ws_git_renamed">Renommé</string>
+    <string name="ws_git_copied">Copié</string>
+    <string name="ws_git_conflict">Conflit</string>
+
+    <string name="ws_export_cancelled_profile_switch">Exportation annulée après le changement de profil.</string>
+    <string name="ws_export_err_format_missing">Format d’exportation manquant.</string>
+    <string name="ws_export_err_format_unsupported">Format d’exportation non pris en charge.</string>
+    <string name="ws_fork_err_message_id">Identifiant de message invalide.</string>
+    <string name="ws_fork_err_turn_id">Identifiant de tour invalide.</string>
+
+    <!-- ReminderSchedule localized phrases -->
+    <string name="ws_sched_time_fmt">%1$02d h %2$02d</string>
+    <string name="ws_sched_once">%1$s à %2$s</string>
+    <string name="ws_sched_daily">Chaque jour à %1$s</string>
+    <string name="ws_sched_weekdays">Du lundi au vendredi à %1$s</string>
+    <string name="ws_sched_weekly">Chaque %1$s à %2$s</string>
+    <string name="ws_sched_no_days">Aucun jour sélectionné</string>
+    <string name="ws_sched_custom_days">%1$s à %2$s</string>
+    <string name="ws_sched_custom_expr">Expression personnalisée</string>
+    <string name="ws_sched_interval_invalid">Intervalle invalide</string>
+    <string name="ws_sched_interval_every_min">Toutes les minutes</string>
+    <string name="ws_sched_interval_mins">Toutes les %1$d minutes</string>
+    <string name="ws_sched_interval_every_hour">Toutes les heures</string>
+    <string name="ws_sched_interval_hours">Toutes les %1$d heures</string>
+    <string name="ws_sched_interval_hours_mins">Toutes les %1$d h %2$02d</string>
+
+    <!-- CommandRegistry bilingual search keywords (stored in XML to keep Java free of hardcoded words) -->
+    <string name="palette_kw_new_thread" translatable="false">new discussion chat thread nouvelle conversation</string>
+    <string name="palette_kw_templates" translatable="false">templates workflows modeles brouillon daily</string>
+    <string name="palette_kw_notes" translatable="false">notes smart notes bloc-notes</string>
+    <string name="palette_kw_memory" translatable="false">memory memoire souvenirs brain cerveau</string>
+    <string name="palette_kw_skills" translatable="false">skills savoir-faire competences studio</string>
+    <string name="palette_kw_shared" translatable="false">shared partage famille equipe team</string>
+    <string name="palette_kw_files" translatable="false">files fichiers git diff code workspace</string>
+    <string name="palette_kw_search" translatable="false">search recherche globale trouver find</string>
+    <string name="palette_kw_reminders" translatable="false">scheduled jobs cron automations taches planifiees horaire reminders rappels schedule planning</string>
+    <string name="palette_kw_deliveries" translatable="false">deliveries inbox activite livraisons notifications</string>
+    <string name="palette_kw_ambient" translatable="false">ambient ambiant notifications calendar contacts media</string>
+    <string name="palette_kw_doctor" translatable="false">doctor sante diagnostic connexion server health</string>
+    <string name="palette_kw_updates" translatable="false">update mise a jour apk github version</string>
+    <string name="palette_kw_language" translatable="false">language langue francais english fr en</string>
+    <string name="palette_kw_security" translatable="false">security securite lock verrouiller biometrie profil</string>
+    <string name="palette_kw_profile_hub" translatable="false">profiles profils users utilisateurs hub gerer manage</string>
+    <string name="palette_kw_switch_profile" translatable="false">switch changer profil account compte</string>
+    <string name="palette_kw_pair_device" translatable="false">pair associer qr device appareil tablette</string>
+    <string name="palette_kw_invite_person" translatable="false">invite inviter user utilisateur famille equipe</string>
+    <string name="palette_kw_admin_console" translatable="false">admin administration server serveur settings users</string>
+    <string name="palette_kw_screens" translatable="false">screens ecrans atelier pages custom widgets</string>
+</resources>

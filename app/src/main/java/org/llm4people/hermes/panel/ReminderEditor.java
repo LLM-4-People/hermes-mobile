@@ -121,9 +121,8 @@ final class ReminderEditor {
         }
 
         // Localized live summary so casual users always see what they scheduled in their active language.
-        Locale locale = ReminderPanel.activeLocale(panel.activity);
         TextView preview = panel.note(scheduleControls,
-                panel.t(R.string.panel_schedule_preview, schedule.humanSummary(locale)));
+                panel.t(R.string.panel_schedule_preview, schedule.humanSummary(panel.activity)));
         preview.setTextColor(panel.activity.getColor(R.color.ink));
         preview.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
 

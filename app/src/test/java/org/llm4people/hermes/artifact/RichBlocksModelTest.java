@@ -6,6 +6,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import org.junit.Test;
+import org.llm4people.hermes.R;
 
 public final class RichBlocksModelTest {
     @Test public void sparklineNormalizesBoundsAndRejectsInvalidSeries() throws Exception {
@@ -18,14 +19,14 @@ public final class RichBlocksModelTest {
         assertEquals(0.0f, line.normalized[0], 0.001f);
         assertEquals(1.0f, line.normalized[2], 0.001f);
         assertEquals(0.6f, line.normalizedTarget(), 0.001f);
-        assertTrue(line.accessibilitySummary().contains("Courbe"));
-        assertTrue(line.accessibilitySummary().contains("ms"));
+        assertEquals(R.string.ws_sparkline_line, line.kindLabelRes());
+        assertEquals("ms", line.unit);
 
         SparklineView.Series bar = SparklineView.Series.of(
                 Arrays.asList(5.0, 10.0), "bar", "%", "", null, null, null);
         assertEquals(0.0, bar.min, 0.0001);
         assertEquals(0.5f, bar.normalized[0], 0.001f);
-        assertTrue(bar.accessibilitySummary().contains("barres"));
+        assertEquals(R.string.ws_sparkline_bar, bar.kindLabelRes());
 
         // Flat series stays finite (0.5 midpoint) without divide-by-zero.
         SparklineView.Series flat = SparklineView.Series.of(Arrays.asList(7.0, 7.0, 7.0), "line", "", "", null, null, null);
@@ -80,12 +81,13 @@ public final class RichBlocksModelTest {
 
     @Test public void metricGridFormatsUnavailableAndUnitsCleanly() {
         MetricGridBlock.Item staticMetric = new MetricGridBlock.Item("Tâches", "4", "+1", "actives", "positive", "Aujourd’hui", null);
-        assertEquals("4 actives", staticMetric.formattedValue(""));
-        assertTrue(staticMetric.accessibilityText("").contains("Tâches, 4 actives, variation +1, Aujourd’hui"));
+        assertEquals("4 actives", staticMetric.formattedValue(null, ""));
+        assertFalse(staticMetric.isUnavailable(""));
 
         MetricGridBlock.Item liveMetric = new MetricGridBlock.Item("Messages", "", "", "", "neutral", "Fil actif", "thread.messageCount");
-        assertEquals("Indisponible", liveMetric.formattedValue(""));
-        assertEquals("14", liveMetric.formattedValue("14"));
+        assertTrue(liveMetric.isUnavailable(""));
+        assertFalse(liveMetric.isUnavailable("14"));
+        assertEquals("14", liveMetric.formattedValue(null, "14"));
     }
 
     private static List<String> firstCol(List<List<String>> rows) {

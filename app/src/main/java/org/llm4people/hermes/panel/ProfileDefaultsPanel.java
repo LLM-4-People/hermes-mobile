@@ -128,7 +128,7 @@ final class ProfileDefaultsPanel {
         modelCard.addView(modelTitle);
         ModelCapabilityBadges.ModelInfo info = findModelInfo(selectedProvider, selectedModel);
         if (info != null) {
-            List<String> badges = info.badges();
+            List<String> badges = info.badges(panel.activity);
             if (!badges.isEmpty()) {
                 LinearLayout badgeRow = Ui.row(panel.activity);
                 for (String b : badges) badgeRow.addView(BrainUi.badge(panel.activity, b, true));
@@ -222,7 +222,7 @@ final class ProfileDefaultsPanel {
             return;
         }
         String[] labels = new String[models.size()];
-        for (int i = 0; i < models.size(); i++) labels[i] = models.get(i).toString();
+        for (int i = 0; i < models.size(); i++) labels[i] = models.get(i).displayText(panel.activity);
         panel.present(new AlertDialog.Builder(panel.activity)
                 .setTitle(R.string.panel_choose_model)
                 .setNegativeButton(R.string.panel_back, (d, w) -> pickProviderDialog())

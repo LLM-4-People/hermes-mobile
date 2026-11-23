@@ -30,7 +30,7 @@ final class WorkspaceBlocks {
             View guide = host == null ? null : host.nearbyGuide();
             if (guide != null) parent.addView(guide);
             else {
-                TextView unavailable = Ui.text(c, "Retrouvez ce guide de proximité dans la discussion d’origine.", colors.scaledSp(16));
+                TextView unavailable = Ui.text(c, c.getString(R.string.ws_block_nearby_fallback), colors.scaledSp(16));
                 unavailable.setTextColor(colors.ink);
                 Ui.pad(unavailable, 16, colors.blockVerticalPaddingDp);
                 parent.addView(unavailable);
@@ -44,7 +44,7 @@ final class WorkspaceBlocks {
             action(group, block.title, colors, host == null ? null : () ->
                     DeskDialogs.navigate(activity, () -> host.openWorkspace(block.page)));
         } else {
-            TextView heading = Ui.text(c, block.title, colors.scaledSp(18));
+            TextView heading = Ui.text(c, block.displayTitle(c), colors.scaledSp(18));
             heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
             heading.setTextColor(colors.ink);
             heading.setAccessibilityHeading(true);
@@ -56,7 +56,7 @@ final class WorkspaceBlocks {
                         note.setTextColor(colors.ink);
                         group.addView(note);
                     }
-                    for (String id : block.actions) action(group, WorkspaceLayout.ACTIONS.get(id), colors,
+                    for (String id : block.actions) action(group, WorkspaceLayout.actionLabel(c, id), colors,
                             host == null ? null : () -> DeskDialogs.navigate(activity, () -> host.onAction(id)));
                     break;
                 case "value":
@@ -67,7 +67,7 @@ final class WorkspaceBlocks {
                 case "device":
                     DeviceAction.CalendarEvent event = host != null && block.request instanceof DeviceAction.CalendarEvent calendar
                             ? calendar : null;
-                    TextView details = Ui.text(c, event == null ? block.request.preview() : event.title(), colors.scaledSp(16));
+                    TextView details = Ui.text(c, event == null ? block.request.preview(c) : event.title(), colors.scaledSp(16));
                     details.setTextColor(colors.ink);
                     if (host != null) {
                         details.setMaxLines(2);
@@ -75,12 +75,12 @@ final class WorkspaceBlocks {
                     }
                     group.addView(details);
                     if (event != null) {
-                        TextView start = Ui.text(c, event.startSummary(), colors.scaledSp(16));
+                        TextView start = Ui.text(c, event.startSummary(c), colors.scaledSp(16));
                         start.setTextColor(colors.muted);
                         group.addView(start);
                     }
                     if (host != null) {
-                        Button review = Ui.button(c, block.request.kind().review,
+                        Button review = Ui.button(c, block.request.kind().review(c),
                                 v -> DeviceReview.open(activity, host, v, block.request));
                         review.setTextColor(colors.accent);
                         group.addView(review);
@@ -156,13 +156,14 @@ final class WorkspaceBlocks {
         }
     }
 
-    static String sourceLabel(String source) {
-        switch (source) {
-            case "profile.label": return "Nom du profil";
-            case "thread.title": return "Titre de la conversation";
-            case "thread.messageCount": return "Nombre de messages";
-            default: throw new IllegalArgumentException("Unknown value source");
-        }
+    static String sourceLabel(Context context, String source) {
+        int res = switch (source) {
+            case "profile.label" -> R.string.ws_source_profile_label;
+            case "thread.title" -> R.string.ws_source_thread_title;
+            case "thread.messageCount" -> R.string.ws_source_thread_message_count;
+            default -> throw new IllegalArgumentException("Unknown value source");
+        };
+        return context.getString(res);
     }
 
     /** Mark and update only our bindings; writing a form never triggers a rebuild. */
@@ -173,11 +174,11 @@ final class WorkspaceBlocks {
             this.source = source;
             setTextSize(colors.scaledSp(16));
             setTextColor(colors.muted);
-            setText(sourceLabel(source));
+            setText(sourceLabel(c, source));
         }
         void refresh(ArtifactDesk.Host host) {
             String text = host.workspaceValue(source);
-            if (text == null || text.isEmpty()) text = "Indisponible";
+            if (text == null || text.isEmpty()) text = getContext().getString(R.string.ws_unavailable);
             if (text.length() > 240) text = text.substring(0, 240) + "…";
             if (!text.contentEquals(getText())) setText(text);
         }

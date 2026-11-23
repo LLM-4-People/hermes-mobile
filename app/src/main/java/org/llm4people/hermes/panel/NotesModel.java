@@ -1,5 +1,8 @@
 package org.llm4people.hermes.panel;
 
+import android.content.Context;
+import org.llm4people.hermes.R;
+
 import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -7,7 +10,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.regex.Pattern;
 
-/** Pure SSoT model for Smart Notes ("Notes intelligentes") and Habit-Adaptive Suggestions (count >= 3). */
+/** Pure SSoT model for Smart Notes and Habit-Adaptive Suggestions (count >= 3). */
 public final class NotesModel {
     public static final int MAX_TITLE_CHARS = 160;
     public static final int MAX_BODY_CHARS = 64 * 1024;
@@ -55,17 +58,19 @@ public final class NotesModel {
             return isOwner();
         }
 
-        public String displayTitle() {
-            return title.isEmpty() ? "Note sans titre" : title;
+        public String displayTitle(Context context) {
+            return title.isEmpty() ? context.getString(R.string.ws_note_untitled) : title;
         }
     }
 
     public record HabitSuggestion(
             String id,
             String label,
+            int labelRes,
             String hint,
             String routeId,
             String draftText,
+            int draftRes,
             int count) {
         public HabitSuggestion {
             id = safe(id);
@@ -76,8 +81,23 @@ public final class NotesModel {
             count = Math.max(0, count);
         }
 
+        public HabitSuggestion(String id, String label, String hint, String routeId, String draftText, int count) {
+            this(id, label, 0, hint, routeId, draftText, 0, count);
+        }
+
         public boolean isLearned() {
-            return count >= HABIT_MIN_REPETITIONS && !label.isEmpty();
+            return count >= HABIT_MIN_REPETITIONS && (!label.isEmpty() || labelRes != 0);
+        }
+
+        public String displayLabel(Context context) {
+            if (!label.isEmpty()) return label;
+            return labelRes != 0 ? context.getString(labelRes) : "";
+        }
+
+        public String resolveDraft(Context context) {
+            if (!draftText.isEmpty()) return draftText;
+            if (draftRes != 0) return context.getString(draftRes);
+            return displayLabel(context);
         }
     }
 
@@ -85,25 +105,25 @@ public final class NotesModel {
 
     public static String validateTitle(String rawTitle) {
         if (rawTitle == null || rawTitle.trim().isEmpty()) {
-            throw new IllegalArgumentException("Donnez un titre à cette note.");
+            throw new LocalizedInputException("empty_note_title", R.string.ws_note_err_title_empty);
         }
         String trimmed = rawTitle.trim();
         if (trimmed.length() > MAX_TITLE_CHARS) {
-            throw new IllegalArgumentException("Le titre est trop long (maximum " + MAX_TITLE_CHARS + " caractères).");
+            throw new LocalizedInputException("note_title_too_long", R.string.ws_note_err_title_long, MAX_TITLE_CHARS);
         }
         if (trimmed.codePoints().anyMatch(Character::isISOControl)) {
-            throw new IllegalArgumentException("Le titre contient des caractères interdits.");
+            throw new LocalizedInputException("note_title_control_char", R.string.ws_note_err_title_invalid);
         }
         return trimmed;
     }
 
     public static String validateBody(String rawBody) {
         if (rawBody == null || rawBody.trim().isEmpty()) {
-            throw new IllegalArgumentException("Écrivez le contenu de la note avant d’enregistrer.");
+            throw new LocalizedInputException("empty_note_body", R.string.ws_note_err_body_empty);
         }
         String trimmed = rawBody.trim();
         if (trimmed.length() > MAX_BODY_CHARS) {
-            throw new IllegalArgumentException("La note dépasse la taille maximale autorisée.");
+            throw new LocalizedInputException("note_body_too_long", R.string.ws_note_err_body_long);
         }
         return trimmed;
     }
@@ -144,38 +164,44 @@ public final class NotesModel {
         return Collections.unmodifiableList(learned);
     }
 
-    public static String draftPromptForNote(Note note) {
-        return "Appuie-toi sur la note « " + note.displayTitle() + " » pour cette demande.";
+    public static String draftPromptForNote(Context context, Note note) {
+        return context.getString(R.string.ws_note_draft_prompt, note.displayTitle(context));
     }
 
-    /** Convert anonymized server habit (category, action) keys into warm plain-French labels. */
-    public static String friendlyHabitLabel(String category, String action) {
+    /** Maps anonymized server habit (category, action) keys to localized string resources (0 when custom). */
+    public static int friendlyHabitLabelRes(String category, String action) {
         String key = safe(action).toLowerCase(Locale.ROOT);
         if (key.isEmpty()) key = safe(category).toLowerCase(Locale.ROOT);
         return switch (key) {
-            case "summarize", "resume", "summary" -> "Résumer rapidement";
-            case "explain", "explain_photo", "explain_code" -> "Expliquer clairement";
-            case "save_note", "create_note", "note" -> "Enregistrer en note";
-            case "extract_info", "extract" -> "Extraire les infos clés";
-            case "diagnose", "debug", "review_code" -> "Diagnostiquer un problème";
-            case "reply", "draft_reply" -> "Rédiger une réponse";
-            case "calendar", "schedule", "reminder" -> "Planifier un rappel";
-            case "nearby", "places", "find_place" -> "Trouver un lieu proche";
-            default -> key.isEmpty() ? "" : Character.toUpperCase(key.charAt(0)) + key.substring(1).replace('_', ' ');
+            case "summarize", "resume", "summary" -> R.string.ws_habit_summarize;
+            case "explain", "explain_photo", "explain_code" -> R.string.ws_habit_explain;
+            case "save_note", "create_note", "note" -> R.string.ws_habit_save_note;
+            case "extract_info", "extract" -> R.string.ws_habit_extract;
+            case "diagnose", "debug", "review_code" -> R.string.ws_habit_diagnose;
+            case "reply", "draft_reply" -> R.string.ws_habit_reply;
+            case "calendar", "schedule", "reminder" -> R.string.ws_habit_calendar;
+            case "nearby", "places", "find_place" -> R.string.ws_habit_nearby;
+            default -> 0;
         };
     }
 
-    public static String friendlyHabitDraft(String category, String action) {
+    public static String fallbackHabitKey(String category, String action) {
+        String key = safe(action).toLowerCase(Locale.ROOT);
+        if (key.isEmpty()) key = safe(category).toLowerCase(Locale.ROOT);
+        return key.isEmpty() ? "" : Character.toUpperCase(key.charAt(0)) + key.substring(1).replace('_', ' ');
+    }
+
+    public static int friendlyHabitDraftRes(String category, String action) {
         String key = safe(action).toLowerCase(Locale.ROOT);
         return switch (key) {
-            case "summarize", "resume", "summary" -> "Peux-tu me faire un résumé clair et structuré ?";
-            case "explain", "explain_photo", "explain_code" -> "Peux-tu m’expliquer cela simplement ?";
-            case "save_note", "create_note", "note" -> "Crée une note bien organisée à partir de ceci.";
-            case "extract_info", "extract" -> "Extrais les informations essentielles de ceci.";
-            case "diagnose", "debug", "review_code" -> "Aide-moi à diagnostiquer et corriger ce problème.";
-            case "reply", "draft_reply" -> "Propose-moi un brouillon de réponse claire.";
-            case "calendar", "schedule", "reminder" -> "Aide-moi à planifier ceci dans mon agenda.";
-            default -> friendlyHabitLabel(category, action);
+            case "summarize", "resume", "summary" -> R.string.ws_habit_draft_summarize;
+            case "explain", "explain_photo", "explain_code" -> R.string.ws_habit_draft_explain;
+            case "save_note", "create_note", "note" -> R.string.ws_habit_draft_save_note;
+            case "extract_info", "extract" -> R.string.ws_habit_draft_extract;
+            case "diagnose", "debug", "review_code" -> R.string.ws_habit_draft_diagnose;
+            case "reply", "draft_reply" -> R.string.ws_habit_draft_reply;
+            case "calendar", "schedule", "reminder" -> R.string.ws_habit_draft_calendar;
+            default -> friendlyHabitLabelRes(category, action);
         };
     }
 

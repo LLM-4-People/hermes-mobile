@@ -1,9 +1,11 @@
 package org.llm4people.hermes.panel;
 
-import junit.framework.TestCase;
+import android.content.Context;
+import android.test.InstrumentationTestCase;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.llm4people.hermes.R;
 import org.llm4people.hermes.net.Exchange;
 import org.llm4people.hermes.net.HermesApi;
 
@@ -11,7 +13,8 @@ import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
-public final class BrainJsonAndApiContractTest extends TestCase {
+@SuppressWarnings("deprecation")
+public final class BrainJsonAndApiContractTest extends InstrumentationTestCase {
     private static final String JSON = "Content-Type: application/json\r\n";
 
     public void testCapabilitiesMemorySearchAndNotesParsing() throws Exception {
@@ -54,7 +57,8 @@ public final class BrainJsonAndApiContractTest extends TestCase {
         // Empty valid search payload succeeds cleanly.
         assertTrue(BrainJson.parseSearchPage(new JSONObject("{\"data\":[],\"total\":0,\"query\":\"rien\"}")).hits().isEmpty());
 
-        // Habit suggestions drop count < 3 and map fork-brain (category, action) rows into plain French.
+        // Habit suggestions drop count < 3 and map fork-brain (category, action) rows into localized resources.
+        Context ctx = getInstrumentation().getTargetContext();
         List<NotesModel.HabitSuggestion> habits = BrainJson.parseHabitSuggestions(new JSONObject("""
                 {"object":"list","threshold":3,"data":[
                   {"category":"share","action":"summarize","count":2},
@@ -62,26 +66,26 @@ public final class BrainJsonAndApiContractTest extends TestCase {
                 """));
         assertEquals(1, habits.size());
         assertEquals("share:save_note", habits.get(0).id());
-        assertEquals("Enregistrer en note", habits.get(0).label());
+        assertEquals(ctx.getString(R.string.ws_habit_save_note), habits.get(0).displayLabel(ctx));
 
         // Universal share content unwraps nested content objects, text_preview, binary metadata, and spec JSON.
-        String sharedNoteText = ShareWithUserSheet.extractReadableContent(new JSONObject("""
+        String sharedNoteText = ShareWithUserSheet.extractReadableContent(ctx, new JSONObject("""
                 {"object":"hermes.share.content","share":{"share_id":"sh1"},
                  "content":{"id":"n1","title":"Courses","content":"Pain et café"}}
                 """));
         assertEquals("Pain et café", sharedNoteText);
 
-        String artifactPreview = ShareWithUserSheet.extractReadableContent(new JSONObject("""
+        String artifactPreview = ShareWithUserSheet.extractReadableContent(ctx, new JSONObject("""
                 {"object":"hermes.share.content","content":{"filename":"notes.txt","text_preview":"Ligne 1\\nLigne 2"}}
                 """));
         assertEquals("Ligne 1\nLigne 2", artifactPreview);
 
-        String binaryArtifact = ShareWithUserSheet.extractReadableContent(new JSONObject("""
+        String binaryArtifact = ShareWithUserSheet.extractReadableContent(ctx, new JSONObject("""
                 {"object":"hermes.share.content","content":{"filename":"rapport.pdf","mime_type":"application/pdf","size":4096,"is_binary":true}}
                 """));
-        assertEquals("rapport.pdf · application/pdf · 4096 octets", binaryArtifact);
+        assertEquals("rapport.pdf · application/pdf · " + ctx.getString(R.string.ws_share_bytes, 4096L), binaryArtifact);
 
-        String surfaceSpec = ShareWithUserSheet.extractReadableContent(new JSONObject("""
+        String surfaceSpec = ShareWithUserSheet.extractReadableContent(ctx, new JSONObject("""
                 {"object":"hermes.share.content","content":{"title":"Tableau météo","spec":{"kind":"widget","metric":"22°C"}}}
                 """));
         assertTrue(surfaceSpec.startsWith("Tableau météo\n\n"));
@@ -154,15 +158,16 @@ public final class BrainJsonAndApiContractTest extends TestCase {
         assertEquals(2, legacy.size());
         assertEquals("gpt-4o", legacy.get(0).toString());
 
+        Context context = getInstrumentation().getTargetContext();
         List<ModelCapabilityBadges.ModelInfo> rich = BrainJson.parseProviderModels(new JSONObject("""
                 {"slug":"anthropic","models":[
                   {"id":"claude-sonnet","capabilities":{"context_length":200000,"vision":true,"tools":true},
                    "pricing":{"input_per_1m":3.0,"output_per_1m":15.0}}]}
                 """));
         assertEquals(1, rich.size());
-        assertTrue(rich.get(0).badges().contains("Vision"));
-        assertTrue(rich.get(0).badges().contains("Outils"));
-        assertTrue(rich.get(0).badges().contains("Long contexte (200 k)"));
+        assertTrue(rich.get(0).badges(context).contains(context.getString(R.string.ws_badge_vision)));
+        assertTrue(rich.get(0).badges(context).contains(context.getString(R.string.ws_badge_tools)));
+        assertTrue(rich.get(0).badges(context).contains(context.getString(R.string.ws_badge_long_context, "200 k")));
 
         // Fork /api/model/options emits sibling `capabilities` and `pricing` maps keyed by model ID.
         List<ModelCapabilityBadges.ModelInfo> forkShape = BrainJson.parseProviderModels(new JSONObject("""
@@ -177,13 +182,13 @@ public final class BrainJsonAndApiContractTest extends TestCase {
                    "unknown-price":{"input":"","output":"","free":false}}}
                 """));
         assertEquals(3, forkShape.size());
-        assertTrue(forkShape.get(0).badges().contains("Vision"));
-        assertTrue(forkShape.get(0).badges().contains("Outils"));
-        assertTrue(forkShape.get(0).badges().contains("Long contexte (200 k)"));
-        assertTrue(forkShape.get(0).badges().contains("Réflexion"));
+        assertTrue(forkShape.get(0).badges(context).contains(context.getString(R.string.ws_badge_vision)));
+        assertTrue(forkShape.get(0).badges(context).contains(context.getString(R.string.ws_badge_tools)));
+        assertTrue(forkShape.get(0).badges(context).contains(context.getString(R.string.ws_badge_long_context, "200 k")));
+        assertTrue(forkShape.get(0).badges(context).contains(context.getString(R.string.ws_badge_reasoning)));
         assertEquals(3.0, forkShape.get(0).inputPer1mUsd(), 1e-6);
         assertEquals(15.0, forkShape.get(0).outputPer1mUsd(), 1e-6);
-        assertTrue(forkShape.get(1).badges().contains("Tarif · Inclus"));
+        assertTrue(forkShape.get(1).badges(context).contains(context.getString(R.string.ws_badge_pricing_included)));
         assertTrue(Double.isNaN(forkShape.get(2).inputPer1mUsd()));
         assertTrue(Double.isNaN(forkShape.get(2).outputPer1mUsd()));
     }
@@ -219,7 +224,8 @@ public final class BrainJsonAndApiContractTest extends TestCase {
             assertTrue(server.observed().startsWith("GET /p/travail/api/sessions/s1/export?format=markdown HTTP/1.1"));
         }
 
-        List<ThreadActionModel.TurnChoice> turns = ThreadActions.extractTurnChoices(new JSONArray("""
+        Context context = getInstrumentation().getTargetContext();
+        List<ThreadActionModel.TurnChoice> turns = ThreadActions.extractTurnChoices(context, new JSONArray("""
                 [{"id":10,"session_id":"seg-older","role":"user","content":"Question initiale"},
                  {"id":11,"role":"assistant","content":"Réponse détaillée"}]
                 """));
@@ -227,6 +233,6 @@ public final class BrainJsonAndApiContractTest extends TestCase {
         assertEquals(10L, turns.get(0).messageId());
         assertEquals("seg-older", turns.get(0).targetSessionId("seg-current"));
         assertEquals("seg-current", turns.get(1).targetSessionId("seg-current"));
-        assertEquals("Vous · Question initiale", turns.get(0).displayLabel());
+        assertEquals(context.getString(R.string.ws_role_user) + " · Question initiale", turns.get(0).displayLabel());
     }
 }

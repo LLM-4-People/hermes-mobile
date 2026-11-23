@@ -179,61 +179,60 @@ public final class CommandRegistry {
         Consumer<String> run = dispatchAction != null ? dispatchAction : ignored -> {};
         List<CommandItem> list = new ArrayList<>();
         addAction(list, context, "new_thread", R.string.palette_act_new_thread_title,
-                R.string.palette_act_new_thread_hint, "new discussion chat thread nouvelle conversation", run);
+                R.string.palette_act_new_thread_hint, R.string.palette_kw_new_thread, run);
         addAction(list, context, TemplatesPanel.ROUTE_ID, R.string.palette_act_templates_title,
-                R.string.palette_act_templates_hint, "templates workflows modeles brouillon daily", run);
+                R.string.palette_act_templates_hint, R.string.palette_kw_templates, run);
         addAction(list, context, BrainStudioRoutes.ROUTE_NOTES, R.string.palette_act_notes_title,
-                R.string.palette_act_notes_hint, "notes smart notes bloc-notes", run);
+                R.string.palette_act_notes_hint, R.string.palette_kw_notes, run);
         addAction(list, context, BrainStudioRoutes.ROUTE_MEMORY, R.string.palette_act_memory_title,
-                R.string.palette_act_memory_hint, "memory memoire souvenirs brain cerveau", run);
+                R.string.palette_act_memory_hint, R.string.palette_kw_memory, run);
         addAction(list, context, BrainStudioRoutes.ROUTE_SKILLS, R.string.palette_act_skills_title,
-                R.string.palette_act_skills_hint, "skills savoir-faire competences studio", run);
+                R.string.palette_act_skills_hint, R.string.palette_kw_skills, run);
         addAction(list, context, BrainStudioRoutes.ROUTE_SHARED_WITH_ME, R.string.palette_act_shared_title,
-                R.string.palette_act_shared_hint, "shared partage famille equipe team", run);
+                R.string.palette_act_shared_hint, R.string.palette_kw_shared, run);
         addAction(list, context, BrainStudioRoutes.ROUTE_WORKSPACE_FILES, R.string.palette_act_files_title,
-                R.string.palette_act_files_hint, "files fichiers git diff code workspace", run);
+                R.string.palette_act_files_hint, R.string.palette_kw_files, run);
         addAction(list, context, BrainStudioRoutes.ROUTE_SEARCH, R.string.palette_act_search_title,
-                R.string.palette_act_search_hint, "search recherche globale trouver find", run);
+                R.string.palette_act_search_hint, R.string.palette_kw_search, run);
         addAction(list, context, "reminders", R.string.palette_act_reminders_title,
-                R.string.palette_act_reminders_hint,
-                "scheduled jobs cron automations taches planifiees horaire reminders rappels schedule planning", run);
+                R.string.palette_act_reminders_hint, R.string.palette_kw_reminders, run);
         addAction(list, context, "deliveries", R.string.palette_act_deliveries_title,
-                R.string.palette_act_deliveries_hint, "deliveries inbox activite livraisons notifications", run);
+                R.string.palette_act_deliveries_hint, R.string.palette_kw_deliveries, run);
         addAction(list, context, AmbientAccessPanel.ROUTE_ID, R.string.palette_act_ambient_title,
-                R.string.palette_act_ambient_hint, "ambient ambiant notifications calendar contacts media", run);
+                R.string.palette_act_ambient_hint, R.string.palette_kw_ambient, run);
         addAction(list, context, CONNECTION_DOCTOR_ROUTE, R.string.palette_act_doctor_title,
-                R.string.palette_act_doctor_hint, "doctor sante diagnostic connexion server health", run);
+                R.string.palette_act_doctor_hint, R.string.palette_kw_doctor, run);
         addAction(list, context, UpdatePanel.ROUTE_ID, R.string.palette_act_updates_title,
-                R.string.palette_act_updates_hint, "update mise a jour apk github version", run);
+                R.string.palette_act_updates_hint, R.string.palette_kw_updates, run);
         addAction(list, context, "language", R.string.palette_act_language_title,
-                R.string.palette_act_language_hint, "language langue francais english fr en", run);
+                R.string.palette_act_language_hint, R.string.palette_kw_language, run);
         addAction(list, context, "security", R.string.palette_act_security_title,
-                R.string.palette_act_security_hint, "security securite lock verrouiller biometrie profil", run);
+                R.string.palette_act_security_hint, R.string.palette_kw_security, run);
         addAction(list, context, "profile_hub", R.string.palette_act_profile_hub_title,
-                R.string.palette_act_profile_hub_hint, "profiles profils users utilisateurs hub gerer manage", run);
+                R.string.palette_act_profile_hub_hint, R.string.palette_kw_profile_hub, run);
         addAction(list, context, "switch_profile", R.string.palette_act_switch_profile_title,
-                R.string.palette_act_switch_profile_hint, "switch changer profil account compte", run);
+                R.string.palette_act_switch_profile_hint, R.string.palette_kw_switch_profile, run);
         addAction(list, context, "pair_device", R.string.palette_act_pair_device_title,
-                R.string.palette_act_pair_device_hint, "pair associer qr device appareil tablette", run);
+                R.string.palette_act_pair_device_hint, R.string.palette_kw_pair_device, run);
         if (isAdmin) {
             addAction(list, context, "invite_person", R.string.palette_act_invite_person_title,
-                    R.string.palette_act_invite_person_hint, "invite inviter user utilisateur famille equipe", run);
+                    R.string.palette_act_invite_person_hint, R.string.palette_kw_invite_person, run);
             addAction(list, context, "admin_console", R.string.palette_act_admin_console_title,
-                    R.string.palette_act_admin_console_hint, "admin administration server serveur settings users", run);
+                    R.string.palette_act_admin_console_hint, R.string.palette_kw_admin_console, run);
         }
         addAction(list, context, "pages", R.string.palette_act_screens_title,
-                R.string.palette_act_screens_hint, "screens ecrans atelier pages custom widgets", run);
+                R.string.palette_act_screens_hint, R.string.palette_kw_screens, run);
         return Collections.unmodifiableList(list);
     }
 
     private static void addAction(List<CommandItem> target, Context ctx, String actionId,
-                                  int titleRes, int hintRes, String keywords, Consumer<String> dispatch) {
+                                  int titleRes, int hintRes, int keywordsRes, Consumer<String> dispatch) {
         target.add(new CommandItem(
                 "act:" + actionId,
                 CommandItem.Category.ACTION,
                 ctx.getString(titleRes),
                 ctx.getString(hintRes),
-                keywords,
+                ctx.getString(keywordsRes),
                 () -> dispatch.accept(actionId)));
     }
 
@@ -249,7 +248,7 @@ public final class CommandRegistry {
                     CommandItem.Category.TEMPLATE,
                     tpl.title,
                     tpl.subtitle,
-                    "template modele brouillon " + tpl.title,
+                    tpl.title,
                     () -> stage.accept(tpl.draft)));
         }
         return Collections.unmodifiableList(out);
@@ -272,7 +271,7 @@ public final class CommandRegistry {
                     CommandItem.Category.THREAD,
                     title,
                     t.snippet() == null ? "" : t.snippet(),
-                    "discussion thread fil",
+                    title,
                     () -> open.accept(sid)));
         }
         return Collections.unmodifiableList(new ArrayList<>(dedup.values()));

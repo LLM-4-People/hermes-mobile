@@ -148,8 +148,8 @@ final class NotesPanel {
         panel.note(habitsBox, panel.t(R.string.brain_habits_header));
         LinearLayout row = Ui.row(panel.activity);
         for (NotesModel.HabitSuggestion habit : learnedHabits) {
-            row.addView(BrainUi.chip(panel.activity, habit.label(), false, () -> {
-                String prompt = habit.draftText().isEmpty() ? habit.label() : habit.draftText();
+            row.addView(BrainUi.chip(panel.activity, habit.displayLabel(panel.activity), false, () -> {
+                String prompt = habit.resolveDraft(panel.activity);
                 panel.close();
                 stageDraft.accept(prompt);
             }));
@@ -182,7 +182,7 @@ final class NotesPanel {
     private View noteCard(NotesModel.Note note) {
         LinearLayout card = BrainUi.card(panel.activity);
         LinearLayout top = Ui.row(panel.activity);
-        TextView title = Ui.text(panel.activity, note.displayTitle(), 17);
+        TextView title = Ui.text(panel.activity, note.displayTitle(panel.activity), 17);
         title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         top.addView(title, new LinearLayout.LayoutParams(0, -2, 1));
         if (note.pinned()) top.addView(BrainUi.badge(panel.activity, panel.t(R.string.brain_memory_pinned), true));
@@ -198,9 +198,10 @@ final class NotesPanel {
         LinearLayout badges = Ui.row(panel.activity);
         if (!note.isOwner()) {
             badges.addView(BrainUi.badge(panel.activity,
-                    UniversalShareModel.permissionLabel(note.permission()), false));
+                    UniversalShareModel.permissionLabel(panel.activity, note.permission()), false));
             if (!note.ownerProfile().isEmpty()) {
-                badges.addView(BrainUi.badge(panel.activity, "Par " + note.ownerProfile(), false));
+                badges.addView(BrainUi.badge(panel.activity,
+                        panel.t(R.string.ws_shared_by, note.ownerProfile()), false));
             }
         }
         for (String tag : note.tags()) badges.addView(BrainUi.badge(panel.activity, tag, false));
@@ -212,7 +213,7 @@ final class NotesPanel {
         if (stageDraft != null && activeThread.getAsBoolean()) {
             actions.addView(Ui.button(panel.activity, panel.t(R.string.brain_skills_use_in_thread), v -> {
                 panel.close();
-                stageDraft.accept(NotesModel.draftPromptForNote(note));
+                stageDraft.accept(NotesModel.draftPromptForNote(panel.activity, note));
             }));
         }
         if (note.canEdit()) {
@@ -221,7 +222,7 @@ final class NotesPanel {
         if (note.canShare() && (capabilities.universalSharing() || capabilities.noteSharing())) {
             actions.addView(Ui.button(panel.activity, panel.t(R.string.brain_share_action),
                     v -> ShareWithUserSheet.openShareSheet(panel, UniversalShareModel.KIND_NOTE,
-                            note.id(), note.displayTitle(), this::show)));
+                            note.id(), note.displayTitle(panel.activity), this::show)));
         }
         if (note.canDelete()) {
             Button del = Ui.button(panel.activity, panel.t(R.string.panel_delete), v -> confirmDelete(note));
@@ -284,8 +285,8 @@ final class NotesPanel {
             try {
                 validTitle = NotesModel.validateTitle(titleField.getText().toString());
                 validBody = NotesModel.validateBody(bodyField.getText().toString());
-            } catch (IllegalArgumentException invalid) {
-                errorView.setText(invalid.getMessage());
+            } catch (LocalizedInputException invalid) {
+                errorView.setText(invalid.resolve(panel.activity));
                 errorView.setVisibility(View.VISIBLE);
                 return;
             }
@@ -317,7 +318,7 @@ final class NotesPanel {
         if (!note.canDelete()) return;
         panel.present(new AlertDialog.Builder(panel.activity)
                 .setTitle(R.string.panel_delete)
-                .setMessage(panel.t(R.string.panel_confirm_delete, note.displayTitle()))
+                .setMessage(panel.t(R.string.panel_confirm_delete, note.displayTitle(panel.activity)))
                 .setNegativeButton(R.string.panel_cancel, null)
                 .setPositiveButton(R.string.panel_delete, (d, w) -> {
                     panel.request(body, () -> panel.api.deleteJson("/api/notes/" + HermesApi.segment(note.id())),

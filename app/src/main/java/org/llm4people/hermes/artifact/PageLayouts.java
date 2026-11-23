@@ -102,7 +102,7 @@ final class PageLayouts {
         else account.write(KEY, pages.toString());
     }
 
-    static Map<String,String> titles(Account account, boolean includeRemoved) {
+    static Map<String,String> titles(android.content.Context context, Account account, boolean includeRemoved) {
         Map<String,String> result = new TreeMap<>();
         JSONObject pages = read(account);
         Iterator<String> ids = pages.keys();
@@ -112,12 +112,18 @@ final class PageLayouts {
             if (record == null || !WorkspaceLayout.custom(id)) continue;
             String raw = record.optString("current", "");
             if (raw.isEmpty() && !includeRemoved) continue;
-            String title = WorkspaceLayout.screenName(id);
+            String title = WorkspaceLayout.screenName(context, id);
             try { title = WorkspaceLayout.parse(raw.isEmpty() ? record.optString("previous") : raw).title; }
             catch (IOException e) { org.llm4people.hermes.Diagnostics.warning("workspace","invalid_page"); }
-            result.put(id, raw.isEmpty() ? title + " · supprimé" : title);
+            result.put(id, raw.isEmpty()
+                    ? (context != null ? context.getString(org.llm4people.hermes.R.string.ws_page_removed_suffix, title) : title)
+                    : title);
         }
         return result;
+    }
+
+    static Map<String,String> titles(Account account, boolean includeRemoved) {
+        return titles(null, account, includeRemoved);
     }
 
     static final class Full extends IllegalStateException {

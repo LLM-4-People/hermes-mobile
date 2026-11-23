@@ -172,8 +172,11 @@ public final class InteractiveControlsBlock {
                 Double.isNaN(defaultNumber) ? min : defaultNumber, options, multi, defaultSelected);
     }
 
-    static String composeSummary(String prompt, List<Control> controls, Map<String, Object> state) {
-        NumberFormat fmt = NumberFormat.getNumberInstance(Locale.FRANCE);
+    static String composeSummary(Context context, String prompt, List<Control> controls, Map<String, Object> state) {
+        Locale locale = context != null && context.getResources() != null
+                && !context.getResources().getConfiguration().getLocales().isEmpty()
+                ? context.getResources().getConfiguration().getLocales().get(0) : Locale.getDefault();
+        NumberFormat fmt = NumberFormat.getNumberInstance(locale);
         fmt.setMaximumFractionDigits(2);
         StringBuilder out = new StringBuilder(prompt == null ? "" : prompt);
         for (Control ctrl : controls) {
@@ -182,7 +185,9 @@ public final class InteractiveControlsBlock {
             switch (ctrl.kind) {
                 case "toggle", "checkbox" -> {
                     boolean checked = val instanceof Boolean b ? b : ctrl.defaultChecked;
-                    rendered = checked ? "Oui" : "Non";
+                    rendered = context.getString(checked
+                            ? org.llm4people.hermes.R.string.ws_yes
+                            : org.llm4people.hermes.R.string.ws_no);
                 }
                 case "slider" -> {
                     double num = val instanceof Number n && Double.isFinite(n.doubleValue()) ? n.doubleValue() : ctrl.defaultNumber;
@@ -190,7 +195,9 @@ public final class InteractiveControlsBlock {
                 }
                 case "chips" -> {
                     List<String> selected = asStringList(val, ctrl.defaultSelected);
-                    rendered = selected.isEmpty() ? "Aucun" : String.join(", ", selected);
+                    rendered = selected.isEmpty()
+                            ? context.getString(org.llm4people.hermes.R.string.ws_none)
+                            : String.join(", ", selected);
                 }
                 default -> rendered = "";
             }
@@ -239,8 +246,8 @@ public final class InteractiveControlsBlock {
         }
 
         if (interactive && block.prompt != null && !block.prompt.isEmpty()) {
-            Button prepare = Ui.button(c, "Préparer un brouillon…", v -> {
-                String draft = composeSummary(block.prompt, block.controls, state);
+            Button prepare = Ui.button(c, c.getString(org.llm4people.hermes.R.string.ws_form_prepare_draft), v -> {
+                String draft = composeSummary(c, block.prompt, block.controls, state);
                 WorkspaceForms.reviewDraft(activity, host, draft);
             });
             prepare.setSingleLine(false);
@@ -398,7 +405,9 @@ public final class InteractiveControlsBlock {
                 }
                 b.setBackground(bg);
                 b.setSelected(active);
-                b.setContentDescription(option + (active ? ", sélectionné" : ", non sélectionné"));
+                b.setContentDescription(c.getString(active
+                        ? org.llm4people.hermes.R.string.ws_ctrl_chip_selected
+                        : org.llm4people.hermes.R.string.ws_ctrl_chip_unselected, option));
             }
         };
 

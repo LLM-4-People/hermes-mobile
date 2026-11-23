@@ -102,7 +102,7 @@ public final class PageRecoveryTest extends InstrumentationTestCase {
             runTestOnUiThread(() -> {
                 View gallery = ArtifactDesk.pages(activity, fixture.account, host);
                 ArrayList<View> repairButtons = new ArrayList<>();
-                gallery.findViewsWithText(repairButtons, WorkspacePages.REPAIR, View.FIND_VIEWS_WITH_TEXT);
+                gallery.findViewsWithText(repairButtons, activity.getString(org.llm4people.hermes.R.string.ws_pages_repair_action), View.FIND_VIEWS_WITH_TEXT);
                 assertEquals(1, repairButtons.size());
                 assertTrue(repairButtons.get(0).isClickable());
                 AlertDialog cancel = SurfaceRenderer.controls(activity, page, host);
@@ -114,7 +114,7 @@ public final class PageRecoveryTest extends InstrumentationTestCase {
             assertFalse(changed[0]);
             runTestOnUiThread(() -> {
                 AlertDialog accept = SurfaceRenderer.controls(activity, page, host);
-                assertEquals("Réparer", accept.getButton(AlertDialog.BUTTON_POSITIVE).getText().toString());
+                assertEquals(activity.getString(org.llm4people.hermes.R.string.ws_repair), accept.getButton(AlertDialog.BUTTON_POSITIVE).getText().toString());
                 accept.getButton(AlertDialog.BUTTON_POSITIVE).performClick();
             });
             getInstrumentation().waitForIdleSync();

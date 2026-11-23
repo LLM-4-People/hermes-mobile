@@ -93,7 +93,7 @@ final class MemoryPanel {
     private void handleLoadError(Exception error) {
         if (error instanceof HermesApi.HttpError http) {
             Diagnostics.warning("memory", "load_http_error", "http_" + http.status);
-            BrainUi.liveNote(panel, body, MemoryModel.describeHttpError(http.status, http.code));
+            BrainUi.liveNote(panel, body, MemoryModel.describeHttpError(panel.activity, http.status, http.code));
             panel.action(body, R.string.panel_retry, this::load);
         } else {
             Diagnostics.warning("memory", "load_failed", error);
@@ -124,7 +124,8 @@ final class MemoryPanel {
         panel.note(body, panel.t(hintRes));
 
         LinearLayout metaRow = Ui.row(panel.activity);
-        TextView usage = Ui.text(panel.activity, MemoryModel.usageSummary(bucket.chars(), bucket.limit()), 14);
+        TextView usage = Ui.text(panel.activity,
+                MemoryModel.usageSummary(panel.activity, bucket.chars(), bucket.limit()), 14);
         usage.setTextColor(panel.activity.getColor(R.color.muted));
         metaRow.addView(usage, new LinearLayout.LayoutParams(0, -2, 1));
         metaRow.addView(Ui.button(panel.activity, panel.t(R.string.panel_refresh), v -> load()));
@@ -184,14 +185,15 @@ final class MemoryPanel {
         if (existing != null) input.setText(existing.text());
         form.addView(input);
 
-        TextView counter = panel.note(form, MemoryModel.usageSummary(input.getText().length(), bucket.limit()));
+        TextView counter = panel.note(form,
+                MemoryModel.usageSummary(panel.activity, input.getText().length(), bucket.limit()));
         TextView errorView = panel.note(form, "");
         errorView.setTextColor(panel.activity.getColor(R.color.danger));
         errorView.setVisibility(View.GONE);
         input.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
-                counter.setText(MemoryModel.usageSummary(s.length(), bucket.limit()));
+                counter.setText(MemoryModel.usageSummary(panel.activity, s.length(), bucket.limit()));
                 errorView.setVisibility(View.GONE);
             }
             @Override public void afterTextChanged(Editable s) {}
@@ -214,8 +216,8 @@ final class MemoryPanel {
             String validated;
             try {
                 validated = MemoryModel.validateEntryText(input.getText().toString(), bucket.limit());
-            } catch (IllegalArgumentException invalid) {
-                errorView.setText(invalid.getMessage());
+            } catch (LocalizedInputException invalid) {
+                errorView.setText(invalid.resolve(panel.activity));
                 errorView.setVisibility(View.VISIBLE);
                 return;
             }
@@ -343,7 +345,7 @@ final class MemoryPanel {
     private void handleMutationError(Exception error) {
         if (error instanceof HermesApi.HttpError http) {
             Diagnostics.warning("memory", "mutation_http_error", "http_" + http.status);
-            BrainUi.liveNote(panel, body, MemoryModel.describeHttpError(http.status, http.code));
+            BrainUi.liveNote(panel, body, MemoryModel.describeHttpError(panel.activity, http.status, http.code));
             if (http.status == 409) load();
         } else {
             Diagnostics.warning("memory", "mutation_failed", error);

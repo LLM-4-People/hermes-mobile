@@ -38,13 +38,16 @@ final class WorkspaceForms {
         group.setSaveFromParentEnabled(false);
         group.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS);
         for (DraftForm.Field field : form.fields) {
-            TextView label = Ui.text(c,field.label + (field.required ? "" : " (facultatif)"),15);
+            String fieldTitle = field.required
+                    ? field.label : c.getString(R.string.ws_form_optional_suffix, field.label);
+            TextView label = Ui.text(c, fieldTitle, 15);
             label.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
             label.setPadding(0, Ui.dp(c, 10), 0, Ui.dp(c, 4));
             group.addView(label);
             if (host == null) {
-                String hint = "choice".equals(field.kind) ? String.join(" · ",field.options) : "Votre réponse";
-                TextView sample = Ui.text(c,hint,16);
+                String hint = "choice".equals(field.kind)
+                        ? String.join(" · ", field.options) : c.getString(R.string.ws_form_your_answer);
+                TextView sample = Ui.text(c, hint, 16);
                 sample.setTextColor(c.getColor(R.color.muted));
                 group.addView(sample);
                 continue;
@@ -52,7 +55,7 @@ final class WorkspaceForms {
             View control;
             if ("choice".equals(field.kind)) {
                 List<String> options = new ArrayList<>();
-                options.add("Choisir…");
+                options.add(c.getString(R.string.ws_form_choose));
                 options.addAll(field.options);
                 Spinner choice = new Spinner(c);
                 ArrayAdapter<String> adapter = new ArrayAdapter<>(c,android.R.layout.simple_spinner_item,options);
@@ -78,7 +81,7 @@ final class WorkspaceForms {
         error.setTextColor(c.getColor(R.color.danger));
         error.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         group.addView(error);
-        Button prepare = Ui.button(c,"Préparer un brouillon…",v -> {
+        Button prepare = Ui.button(c, c.getString(R.string.ws_form_prepare_draft), v -> {
             Map<String,String> values = new LinkedHashMap<>();
             for (Map.Entry<String,Supplier<String>> a : answers.entrySet()) values.put(a.getKey(),a.getValue().get());
             try {
@@ -133,12 +136,13 @@ final class WorkspaceForms {
         edit.setSelection(edit.length());
         wrap.addView(edit);
         AlertDialog dialog = DeskDialogs.open(a, host, new AlertDialog.Builder(a)
-                .setTitle("Relire le brouillon").setMessage("Vous pourrez le modifier et l’envoyer depuis la conversation.")
-                .setView(wrap).setNegativeButton("Annuler", null).setPositiveButton("Vers le brouillon", null));
+                .setTitle(R.string.ws_form_review_title).setMessage(R.string.ws_form_review_message)
+                .setView(wrap).setNegativeButton(R.string.ws_cancel, null)
+                .setPositiveButton(R.string.ws_form_send_to_draft, null));
         if (dialog != null) dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
             if (!dialog.isShowing()) return;
             String text = edit.getText().toString();
-            if (VisibleText.isBlank(text)) { edit.setError("Saisissez un message."); return; }
+            if (VisibleText.isBlank(text)) { edit.setError(a.getString(R.string.ws_form_enter_message)); return; }
             DeskDialogs.navigate(a, () -> host.stageDraft(text));
         });
     }

@@ -1,7 +1,9 @@
 package org.llm4people.hermes.artifact;
 
+import android.content.Context;
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.llm4people.hermes.R;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -9,13 +11,23 @@ import java.util.function.IntFunction;
 
 /** The visible transcript and the eligible assistant source share the same original typed parts. */
 public final class MessageParts {
+    static final String DEFAULT_IMAGE_MARKER = "[image]";
+
     private MessageParts() {}
 
     public static String display(JSONObject message) {
+        return display(message, DEFAULT_IMAGE_MARKER);
+    }
+
+    public static String display(JSONObject message, Context context) {
+        return display(message, imageMarker(context));
+    }
+
+    public static String display(JSONObject message, String imageMarker) {
         Object value = message == null ? null : message.opt("content");
         if (value instanceof String text) return text;
         if (!(value instanceof JSONArray parts)) return "";
-        return assemble(parts, new StringBuilder(), null);
+        return assemble(parts, new StringBuilder(), null, normalizeImageMarker(imageMarker));
     }
 
     static String eligible(Object value) {
@@ -23,18 +35,29 @@ public final class MessageParts {
         if (!(value instanceof JSONArray parts)) return "";
         if (parts.length() > 1024) return null;
         Source source = new Source(false);
-        assemble(parts, null, source);
+        assemble(parts, null, source, DEFAULT_IMAGE_MARKER);
         return source.text == null ? null : source.text.toString();
     }
 
     public static String project(JSONObject row, Map<Integer,String> verified, IntFunction<String> description) {
+        return project(row, verified, description, DEFAULT_IMAGE_MARKER);
+    }
+
+    public static String project(JSONObject row, Map<Integer,String> verified, IntFunction<String> description,
+            Context context) {
+        return project(row, verified, description, imageMarker(context));
+    }
+
+    public static String project(JSONObject row, Map<Integer,String> verified, IntFunction<String> description,
+            String imageMarker) {
+        String marker = normalizeImageMarker(imageMarker);
         if (verified.isEmpty() || row == null || !"assistant".equals(row.optString("role"))
-                || "hidden".equals(row.optString("display_kind"))) return display(row);
+                || "hidden".equals(row.optString("display_kind"))) return display(row, marker);
         Object content = row.opt("content");
         if (content instanceof String text) return Fences.described(text, verified, description);
-        if (!(content instanceof JSONArray parts) || parts.length() > 1024) return display(row);
+        if (!(content instanceof JSONArray parts) || parts.length() > 1024) return display(row, marker);
         Source source = new Source(true);
-        String visible = assemble(parts, new StringBuilder(), source);
+        String visible = assemble(parts, new StringBuilder(), source, marker);
         if (source.text == null) return visible;
         String eligible = source.text.toString();
         Projection projection = new Projection(visible, source.spans);
@@ -43,14 +66,22 @@ public final class MessageParts {
         return projection.result();
     }
 
-    private static String assemble(JSONArray parts, StringBuilder visible, Source source) {
+    private static String imageMarker(Context context) {
+        return context == null ? DEFAULT_IMAGE_MARKER : context.getString(R.string.ws_image_attached);
+    }
+
+    private static String normalizeImageMarker(String marker) {
+        return marker == null || marker.isEmpty() ? DEFAULT_IMAGE_MARKER : marker;
+    }
+
+    private static String assemble(JSONArray parts, StringBuilder visible, Source source, String imageMarker) {
         for (int i = 0; i < parts.length(); i++) {
             JSONObject part = parts.optJSONObject(i);
             if (part == null) continue;
             String type = part.optString("type", "");
             boolean eligible = "text".equals(type) || "output_text".equals(type);
             if (!eligible && !"input_text".equals(type)) {
-                if (visible != null && type.contains("image")) visible.append("\n[Image jointe]");
+                if (visible != null && type.contains("image")) visible.append('\n').append(imageMarker);
                 continue;
             }
             Object value = part.opt("text");

@@ -41,7 +41,7 @@ public final class InstrumentPreview {
             InstrumentStateStore store = account == null ? null : InstrumentStateStore.forAccount(account);
             return SurfaceRenderer.pageContent(ctx, activity, page, host, palette, store, stateScope, false);
         } catch (IOException invalid) {
-            return status(activity, "Aperçu indisponible. Rouvrez la proposition depuis la discussion.");
+            return status(activity, activity.getString(R.string.ws_diff_preview_unavailable));
         }
     }
 
@@ -49,11 +49,11 @@ public final class InstrumentPreview {
     public static View compare(Activity activity, String previousPageJson, String nextPageJson) {
         List<InstrumentChanges.Detail> changes;
         try {
-            changes = InstrumentChanges.details(page(previousPageJson), page(nextPageJson));
+            changes = InstrumentChanges.details(activity, page(previousPageJson), page(nextPageJson));
         } catch (IOException invalid) {
-            return status(activity, "Comparaison indisponible. Rouvrez les versions depuis la discussion.");
+            return status(activity, activity.getString(R.string.ws_diff_compare_unavailable));
         }
-        if (changes.isEmpty()) return status(activity, "Ces deux versions sont identiques à l’usage.");
+        if (changes.isEmpty()) return status(activity, activity.getString(R.string.ws_diff_identical));
         LinearLayout body = Ui.column(activity);
         body.setBackgroundColor(activity.getColor(R.color.paper));
         body.setSaveFromParentEnabled(false);
@@ -98,9 +98,9 @@ public final class InstrumentPreview {
             appendOptions(context, copy, field, 0, context.getColor(R.color.muted));
         } else {
             copy.append(change.label(), new StyleSpan(Typeface.BOLD), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-            if (change.before() != null) appendValue(row, copy, pair ? "Avant" : "",
+            if (change.before() != null) appendValue(row, copy, pair ? context.getString(R.string.ws_diff_before) : "",
                     change.before(), detail.beforeField(), R.color.muted);
-            if (change.after() != null) appendValue(row, copy, pair ? "Après" : "",
+            if (change.after() != null) appendValue(row, copy, pair ? context.getString(R.string.ws_diff_after) : "",
                     change.after(), detail.afterField(), R.color.ink);
         }
         row.setLineSpacing(Ui.dp(context, 3), 1);
@@ -117,7 +117,10 @@ public final class InstrumentPreview {
         if (label.isEmpty()) {
             copy.append(value);
         } else {
-            int gutter = (int) Math.ceil(row.getPaint().measureText("Après")) + Ui.dp(c, 12);
+            float maxLabel = Math.max(
+                    row.getPaint().measureText(c.getString(R.string.ws_diff_before)),
+                    row.getPaint().measureText(c.getString(R.string.ws_diff_after)));
+            int gutter = (int) Math.ceil(maxLabel) + Ui.dp(c, 12);
             copy.append(label, new StyleSpan(Typeface.BOLD), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
             span(copy, new RelativeSizeSpan(14f / 16), start);
             copy.append('\t');

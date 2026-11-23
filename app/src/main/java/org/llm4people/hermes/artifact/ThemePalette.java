@@ -207,33 +207,40 @@ public final class ThemePalette {
                     step, values.get("style"), nightMode);
         }
 
-        public String frenchSummary() {
+        public String describe(Context context) {
             StringBuilder sb = new StringBuilder();
             if (!"system".equals(theme)) {
-                sb.append("dark".equals(theme) ? "Mode sombre" : "Mode clair");
+                sb.append(context.getString("dark".equals(theme)
+                        ? org.llm4people.hermes.R.string.ws_theme_dark_mode
+                        : org.llm4people.hermes.R.string.ws_theme_light_mode));
             }
             if (accentHex != null) {
                 if (sb.length() > 0) sb.append(" · ");
-                sb.append("Couleur d’accent ").append(accentHex);
+                sb.append(context.getString(org.llm4people.hermes.R.string.ws_theme_accent, accentHex));
             }
             if (!"comfortable".equals(density)) {
                 if (sb.length() > 0) sb.append(" · ");
-                sb.append("compact".equals(density) ? "Densité compacte" : "Densité aérée");
+                sb.append(context.getString("compact".equals(density)
+                        ? org.llm4people.hermes.R.string.ws_theme_density_compact
+                        : org.llm4people.hermes.R.string.ws_theme_density_spacious));
             }
             if (fontScaleStep != 0) {
                 if (sb.length() > 0) sb.append(" · ");
-                sb.append(fontScaleStep > 0 ? "Texte agrandi" : "Texte compact");
+                sb.append(context.getString(fontScaleStep > 0
+                        ? org.llm4people.hermes.R.string.ws_theme_text_larger
+                        : org.llm4people.hermes.R.string.ws_theme_text_compact));
             }
             if (!"paper".equals(surfaceStyle)) {
                 if (sb.length() > 0) sb.append(" · ");
-                sb.append(switch (surfaceStyle) {
-                    case "outlined" -> "Cartes encadrées";
-                    case "elevated" -> "Cartes relevées";
-                    case "glass" -> "Cartes translucides";
-                    default -> "Cartes teintées";
-                });
+                int styleRes = switch (surfaceStyle) {
+                    case "outlined" -> org.llm4people.hermes.R.string.ws_theme_cards_outlined;
+                    case "elevated" -> org.llm4people.hermes.R.string.ws_theme_cards_elevated;
+                    case "glass" -> org.llm4people.hermes.R.string.ws_theme_cards_glass;
+                    default -> org.llm4people.hermes.R.string.ws_theme_cards_tinted;
+                };
+                sb.append(context.getString(styleRes));
             }
-            return sb.length() == 0 ? "Apparence par défaut" : sb.toString();
+            return sb.length() == 0 ? context.getString(org.llm4people.hermes.R.string.ws_theme_default) : sb.toString();
         }
 
         @Override public boolean equals(Object o) {

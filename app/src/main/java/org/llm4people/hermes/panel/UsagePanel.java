@@ -106,22 +106,29 @@ final class UsagePanel {
     }
 
     private void displayLocalTiming(LinearLayout local, UsageFormatter.RunTelemetry telemetry) {
-        // Plain everyday French first
-        metric(local, R.string.brain_usage_response_time, UsageFormatter.formatResponseTime(telemetry.ttftMs()));
-        metric(local, R.string.brain_usage_speed, UsageFormatter.formatSpeed(telemetry.primarySpeedTps()));
+        metric(local, R.string.brain_usage_response_time,
+                UsageFormatter.formatResponseTime(panel.activity, telemetry.ttftMs()));
+        metric(local, R.string.brain_usage_speed,
+                UsageFormatter.formatSpeed(panel.activity, telemetry.primarySpeedTps()));
 
         LinearLayout technical = Ui.column(panel.activity);
         technical.setId(R.id.brain_usage_technical_box);
         technical.setVisibility(technicalExpanded ? View.VISIBLE : View.GONE);
-        metric(technical, R.string.panel_first_text, UsageFormatter.formatResponseTime(telemetry.ttftMs()));
-        metric(technical, R.string.brain_usage_gen_tps, UsageFormatter.formatSpeed(telemetry.pureGenerationTps()));
-        metric(technical, R.string.panel_rate, UsageFormatter.formatSpeed(telemetry.endToEndTps()));
-        metric(technical, R.string.panel_duration, UsageFormatter.formatSeconds(telemetry.elapsedMs() / 1000d));
+        metric(technical, R.string.panel_first_text,
+                UsageFormatter.formatResponseTime(panel.activity, telemetry.ttftMs()));
+        metric(technical, R.string.brain_usage_gen_tps,
+                UsageFormatter.formatSpeed(panel.activity, telemetry.pureGenerationTps()));
+        metric(technical, R.string.panel_rate,
+                UsageFormatter.formatSpeed(panel.activity, telemetry.endToEndTps()));
+        metric(technical, R.string.panel_duration,
+                UsageFormatter.formatSeconds(panel.activity, telemetry.elapsedMs() / 1000d));
         if (Double.isFinite(telemetry.reasoningTokens())) {
-            metric(technical, R.string.brain_usage_reasoning_tokens, UsageFormatter.formatCount(telemetry.reasoningTokens()));
+            metric(technical, R.string.brain_usage_reasoning_tokens,
+                    UsageFormatter.formatCount(panel.activity, telemetry.reasoningTokens()));
         }
         if (Double.isFinite(telemetry.apiCalls())) {
-            metric(technical, R.string.brain_usage_api_calls, UsageFormatter.formatCount(telemetry.apiCalls()));
+            metric(technical, R.string.brain_usage_api_calls,
+                    UsageFormatter.formatCount(panel.activity, telemetry.apiCalls()));
         }
 
         Button toggle = Ui.button(panel.activity, panel.t(technicalExpanded
@@ -138,20 +145,20 @@ final class UsagePanel {
 
     private void display(LinearLayout box, DiscussionUsage usage, BrainJson.AnalyticsSummary analytics) {
         metric(box, R.string.brain_usage_cost_known,
-                UsageFormatter.primaryCostSummary(usage.billed, usage.estimated, usage.lastStatus));
+                UsageFormatter.primaryCostSummary(panel.activity, usage.billed, usage.estimated, usage.lastStatus));
         double cache = usage.prompt > 0 ? usage.cacheRead / usage.prompt : Double.NaN;
-        metric(box, R.string.brain_usage_cache_plain, UsageFormatter.formatPercent(cache));
+        metric(box, R.string.brain_usage_cache_plain, UsageFormatter.formatPercent(panel.activity, cache));
         // Preserved cumulative counters (required by existing journeys & power inspection)
-        metric(box, R.string.panel_in, UsageFormatter.formatCount(usage.prompt));
-        metric(box, R.string.panel_out, UsageFormatter.formatCount(usage.output));
+        metric(box, R.string.panel_in, UsageFormatter.formatCount(panel.activity, usage.prompt));
+        metric(box, R.string.panel_out, UsageFormatter.formatCount(panel.activity, usage.output));
 
         if (usage.hasUnpricedCalls) panel.note(box, panel.t(R.string.panel_unpriced));
         if ("included".equals(usage.lastStatus)) panel.note(box, panel.t(R.string.panel_included));
 
         LinearLayout details = Ui.column(panel.activity);
         details.setVisibility(View.GONE);
-        metric(details, R.string.panel_cost, UsageFormatter.formatUsd(usage.billed));
-        metric(details, R.string.panel_estimate, UsageFormatter.formatUsd(usage.estimated));
+        metric(details, R.string.panel_cost, UsageFormatter.formatUsd(panel.activity, usage.billed));
+        metric(details, R.string.panel_estimate, UsageFormatter.formatUsd(panel.activity, usage.estimated));
         int source = sourceName(usage.lastSource);
         if (source != 0) panel.note(details, panel.t(R.string.panel_last_cost_source, panel.t(source)));
         if (analytics != null) {
@@ -172,19 +179,21 @@ final class UsagePanel {
     private void renderProfileAnalytics(LinearLayout box, BrainJson.AnalyticsSummary analytics) {
         panel.section(box, R.string.brain_usage_profile_analytics);
         metric(box, R.string.brain_usage_cost_known,
-                UsageFormatter.primaryCostSummary(analytics.actualCostUsd(), analytics.estimatedCostUsd(), ""));
-        metric(box, R.string.brain_usage_profile_runs, UsageFormatter.formatCount(analytics.sessions()));
+                UsageFormatter.primaryCostSummary(panel.activity, analytics.actualCostUsd(), analytics.estimatedCostUsd(), ""));
+        metric(box, R.string.brain_usage_profile_runs, UsageFormatter.formatCount(panel.activity, analytics.sessions()));
         if (Double.isFinite(analytics.apiCalls())) {
-            metric(box, R.string.brain_usage_api_calls, UsageFormatter.formatCount(analytics.apiCalls()));
+            metric(box, R.string.brain_usage_api_calls, UsageFormatter.formatCount(panel.activity, analytics.apiCalls()));
         }
         if (Double.isFinite(analytics.avgTtftMs())) {
-            metric(box, R.string.brain_usage_profile_avg_ttft, UsageFormatter.formatResponseTime(analytics.avgTtftMs()));
+            metric(box, R.string.brain_usage_profile_avg_ttft,
+                    UsageFormatter.formatResponseTime(panel.activity, analytics.avgTtftMs()));
         }
         if (Double.isFinite(analytics.avgTps())) {
-            metric(box, R.string.brain_usage_profile_avg_tps, UsageFormatter.formatSpeed(analytics.avgTps()));
+            metric(box, R.string.brain_usage_profile_avg_tps,
+                    UsageFormatter.formatSpeed(panel.activity, analytics.avgTps()));
         }
-        metric(box, R.string.panel_in, UsageFormatter.formatCount(analytics.inputTokens()));
-        metric(box, R.string.panel_out, UsageFormatter.formatCount(analytics.outputTokens()));
+        metric(box, R.string.panel_in, UsageFormatter.formatCount(panel.activity, analytics.inputTokens()));
+        metric(box, R.string.panel_out, UsageFormatter.formatCount(panel.activity, analytics.outputTokens()));
     }
 
     private static int sourceName(String source) {

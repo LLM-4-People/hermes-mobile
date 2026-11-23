@@ -82,7 +82,8 @@ final class SurfaceRenderer {
     static View preview(Context context, WorkspaceLayout layout) {
         Context c = palette(context, layout);
         ThemePalette colors = resolvePalette(c, null, layout);
-        TextView sample = Ui.text(c, WorkspaceLayout.screenName(layout.surface) + " · Contenu de l’écran", 16);
+        TextView sample = Ui.text(c, c.getString(R.string.ws_surface_content_sample,
+                WorkspaceLayout.screenName(c, layout.surface)), 16);
         Ui.pad(sample, 20, 20);
         sample.setBackgroundColor(colors.accentSurface);
         LinearLayout column = Ui.column(c);
@@ -90,7 +91,7 @@ final class SurfaceRenderer {
         title(column, layout, colors);
         for (WorkspaceLayout.Block block : layout.blocks) {
             if (block.nativeContent) {
-                if (!block.slots.isEmpty()) sample.setText(slotSummary(block));
+                if (!block.slots.isEmpty()) sample.setText(slotSummary(c, block));
                 column.addView(sample);
             } else WorkspaceBlocks.add(column, layout, block, colors, null, "", null, null);
         }
@@ -112,7 +113,7 @@ final class SurfaceRenderer {
             page.setFillViewport(true);
             LinearLayout content = pageContent(c, activity, layout, host, colors, store, stateScope, true);
             if (WorkspaceLayout.custom(layout.surface) && activity != null) {
-                Button pinHome = Ui.button(c, "Épingler sur l’écran d’accueil",
+                Button pinHome = Ui.button(c, c.getString(R.string.ws_surface_pin_home),
                         v -> HomePinBridge.offerPinSurface(activity, layout.surface, layout.title));
                 pinHome.setTextColor(colors.accent);
                 Ui.pad(pinHome, 16, 8);
@@ -125,7 +126,7 @@ final class SurfaceRenderer {
         SurfaceFrame frame = new SurfaceFrame(c);
         LinearLayout before = Ui.column(c), after = Ui.column(c);
         title(before, layout, colors);
-        Button editBtn = Ui.button(c, "Modifier la disposition", v -> manage.run());
+        Button editBtn = Ui.button(c, c.getString(R.string.ws_surface_edit_layout), v -> manage.run());
         editBtn.setTextColor(colors.accent);
         before.addView(editBtn);
         LinearLayout zone = before;
@@ -181,12 +182,12 @@ final class SurfaceRenderer {
         return "compact".equals(layout.density) ? 4 : "spacious".equals(layout.density) ? 18 : 12;
     }
 
-    private static String slotSummary(WorkspaceLayout.Block block) {
+    private static String slotSummary(Context context, WorkspaceLayout.Block block) {
         java.util.List<String> labels = new java.util.ArrayList<>();
         for (String slot : block.slots) {
-            if ("notice".equals(slot)) labels.add("État");
-            else if ("transcript".equals(slot)) labels.add("Messages");
-            else labels.add("Rédaction");
+            if ("notice".equals(slot)) labels.add(context.getString(R.string.ws_slot_notice));
+            else if ("transcript".equals(slot)) labels.add(context.getString(R.string.ws_slot_transcript));
+            else labels.add(context.getString(R.string.ws_slot_composer));
         }
         return String.join(" · ", labels);
     }
@@ -196,35 +197,39 @@ final class SurfaceRenderer {
             boolean page = WorkspaceLayout.custom(history.surface);
             boolean removed = page && history.current().isEmpty();
             AlertDialog.Builder builder = new AlertDialog.Builder(activity)
-                    .setTitle(WorkspaceLayout.screenName(history.surface)).setNegativeButton("Fermer", null);
+                    .setTitle(WorkspaceLayout.screenName(activity, history.surface))
+                    .setNegativeButton(R.string.ws_close, null);
             List<LayoutHistory.Revision> revs = history.revisions();
-            String revNote = revs.isEmpty() ? "" : "\n\n" + revs.size() + " révision" + (revs.size() > 1 ? "s" : "") + " enregistrée" + (revs.size() > 1 ? "s" : "") + ".";
+            String revNote = revs.isEmpty() ? "" : activity.getString(
+                    revs.size() == 1 ? R.string.ws_surface_rev_single : R.string.ws_surface_rev_plural, revs.size());
             if (removed) {
-                builder.setMessage("Cet écran a été supprimé. Vous pouvez annuler sa suppression ou effacer sa révision." + revNote)
-                        .setPositiveButton("Effacer la révision…", (d, w) -> DeskDialogs.open(activity,
-                                new AlertDialog.Builder(activity).setTitle("Effacer définitivement la révision ?")
-                                        .setNegativeButton("Annuler", null).setPositiveButton("Effacer", (dialog, n) ->
+                builder.setMessage(activity.getString(R.string.ws_surface_removed_message, revNote))
+                        .setPositiveButton(R.string.ws_surface_erase_rev_action, (d, w) -> DeskDialogs.open(activity,
+                                new AlertDialog.Builder(activity).setTitle(R.string.ws_surface_erase_rev_title)
+                                        .setNegativeButton(R.string.ws_cancel, null)
+                                        .setPositiveButton(R.string.ws_erase, (dialog, n) ->
                                                 change(activity, host, history::forgetRemoved))));
             } else {
-                builder.setMessage((page ? "Supprimer cet écran de votre atelier ? Vous pourrez annuler cette opération."
-                                : "Vous pouvez rétablir la disposition d’origine.") + revNote)
-                        .setPositiveButton(page ? "Supprimer" : "Rétablir", (d, w) ->
+                builder.setMessage(activity.getString(page
+                                ? R.string.ws_surface_delete_page_message : R.string.ws_surface_restore_message, revNote))
+                        .setPositiveButton(page ? R.string.ws_delete : R.string.ws_restore, (d, w) ->
                                 change(activity, host, () -> history.replace("")));
             }
-            if (history.canUndo()) builder.setNeutralButton("Annuler la modification",
+            if (history.canUndo()) builder.setNeutralButton(R.string.ws_surface_undo_change,
                     (d, w) -> change(activity, host, history::undo));
             return DeskDialogs.open(activity, builder);
         } catch (PageLayouts.Damaged damaged) {
             return WorkspacePages.confirmRecovery(activity, damaged, host);
         } catch (LayoutHistory.Unreadable e) {
             Diagnostics.warning("workspace", "read_failed");
-            String screen = WorkspaceLayout.SURFACES.get(history.surface);
+            String screen = WorkspaceLayout.SURFACES.containsKey(history.surface)
+                    ? WorkspaceLayout.screenName(activity, history.surface) : null;
             if (screen == null) return failure(activity);
             return DeskDialogs.open(activity, new AlertDialog.Builder(activity)
-                    .setTitle("Rétablir l’écran « " + screen + " » ?")
-                    .setMessage("Sa disposition enregistrée est illisible. Rétablir cet écran effacera "
-                            + "définitivement sa disposition et son historique dans ce profil.")
-                    .setNegativeButton("Annuler", null).setPositiveButton("Rétablir", (d, w) ->
+                    .setTitle(activity.getString(R.string.ws_surface_restore_unreadable_title, screen))
+                    .setMessage(R.string.ws_surface_restore_unreadable_message)
+                    .setNegativeButton(R.string.ws_cancel, null)
+                    .setPositiveButton(R.string.ws_restore, (d, w) ->
                             change(activity, host, history::resetUnreadable)));
         } catch (IllegalStateException e) { return failure(activity); }
     }
@@ -232,9 +237,10 @@ final class SurfaceRenderer {
     static void change(Activity activity, ArtifactDesk.Host host, Runnable write) {
         try { write.run(); }
         catch (PageLayouts.Full full) {
-            DeskDialogs.open(activity, new AlertDialog.Builder(activity).setTitle("Bibliothèque pleine")
-                    .setMessage("Libérez une place depuis les dispositions des écrans en effaçant une révision supprimée.")
-                    .setPositiveButton("Fermer", null));
+            DeskDialogs.open(activity, new AlertDialog.Builder(activity)
+                    .setTitle(R.string.ws_surface_library_full_title)
+                    .setMessage(R.string.ws_surface_library_full_message)
+                    .setPositiveButton(R.string.ws_close, null));
             return;
         }
         catch (PageLayouts.Damaged damaged) {
@@ -243,10 +249,10 @@ final class SurfaceRenderer {
         }
         catch (LayoutHistory.Unreadable e) {
             Diagnostics.warning("workspace", "read_failed");
-            DeskDialogs.open(activity, new AlertDialog.Builder(activity).setTitle("Disposition illisible")
-                    .setMessage("Dans le menu, choisissez « Rétablir l’atelier », puis l’écran concerné "
-                            + "pour retrouver sa disposition d’origine.")
-                    .setPositiveButton("Fermer", null));
+            DeskDialogs.open(activity, new AlertDialog.Builder(activity)
+                    .setTitle(R.string.ws_surface_unreadable_title)
+                    .setMessage(R.string.ws_surface_unreadable_message)
+                    .setPositiveButton(R.string.ws_close, null));
             return;
         } catch (IllegalStateException e) { failure(activity); return; }
         Diagnostics.event("workspace", "changed");
@@ -255,8 +261,10 @@ final class SurfaceRenderer {
 
     private static AlertDialog failure(Activity activity) {
         Diagnostics.warning("workspace", "storage_failed");
-        return DeskDialogs.open(activity, new AlertDialog.Builder(activity).setTitle("Disposition indisponible")
-                .setMessage("Impossible d’accéder à cette disposition. Vérifiez que le profil est déverrouillé, puis réessayez.").setPositiveButton("Fermer", null));
+        return DeskDialogs.open(activity, new AlertDialog.Builder(activity)
+                .setTitle(R.string.ws_surface_unavailable_title)
+                .setMessage(R.string.ws_surface_unavailable_message)
+                .setPositiveButton(R.string.ws_close, null));
     }
 
     private static final class SurfaceFrame extends LinearLayout {

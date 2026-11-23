@@ -1,5 +1,8 @@
 package org.llm4people.hermes.panel;
 
+import android.content.Context;
+import org.llm4people.hermes.R;
+
 import java.util.Locale;
 import java.util.Set;
 
@@ -51,29 +54,29 @@ public final class WorkspacePathGuard {
     public static String normalizeRelativePath(String raw, boolean allowEmptyRoot) {
         if (raw == null) {
             if (allowEmptyRoot) return "";
-            throw new IllegalArgumentException("Chemin de fichier manquant");
+            throw new LocalizedInputException("path_missing", R.string.ws_path_err_missing);
         }
         String trimmed = raw.trim();
         if (trimmed.isEmpty() || ".".equals(trimmed)) {
             if (allowEmptyRoot) return "";
-            throw new IllegalArgumentException("Chemin de fichier manquant");
+            throw new LocalizedInputException("path_missing", R.string.ws_path_err_missing);
         }
         if (trimmed.length() > MAX_PATH_LENGTH) {
-            throw new IllegalArgumentException("Chemin trop long");
+            throw new LocalizedInputException("path_too_long", R.string.ws_path_err_long);
         }
         if (trimmed.startsWith("/") || trimmed.startsWith("\\") || trimmed.indexOf('\\') >= 0) {
-            throw new IllegalArgumentException("Chemin absolu ou séparateur invalide");
+            throw new LocalizedInputException("path_absolute_or_sep", R.string.ws_path_err_absolute);
         }
         if (trimmed.contains("://") || (trimmed.length() >= 2 && trimmed.charAt(1) == ':')) {
-            throw new IllegalArgumentException("Chemin non relatif");
+            throw new LocalizedInputException("path_non_relative", R.string.ws_path_err_non_relative);
         }
         String lowerRaw = trimmed.toLowerCase(Locale.ROOT);
         if (lowerRaw.contains("%2e") || lowerRaw.contains("%2f") || lowerRaw.contains("%5c")
                 || lowerRaw.contains("%00")) {
-            throw new IllegalArgumentException("Encodage de chemin interdit");
+            throw new LocalizedInputException("path_encoded", R.string.ws_path_err_encoded);
         }
         if (trimmed.codePoints().anyMatch(cp -> cp == 0 || Character.isISOControl(cp))) {
-            throw new IllegalArgumentException("Caractères de contrôle interdits");
+            throw new LocalizedInputException("path_control", R.string.ws_path_err_control);
         }
 
         String[] parts = trimmed.split("/", -1);
@@ -83,17 +86,17 @@ public final class WorkspacePathGuard {
             if (part.isEmpty()) {
                 // Allow a single trailing slash on directory browsing only.
                 if (allowEmptyRoot && i == parts.length - 1 && normalized.length() > 0) continue;
-                throw new IllegalArgumentException("Segment vide interdit");
+                throw new LocalizedInputException("path_empty_segment", R.string.ws_path_err_empty_segment);
             }
             if (".".equals(part) || "..".equals(part)) {
-                throw new IllegalArgumentException("Remontée de dossier interdite");
+                throw new LocalizedInputException("path_traversal", R.string.ws_path_err_traversal);
             }
             if (normalized.length() > 0) normalized.append('/');
             normalized.append(part);
         }
         String clean = normalized.toString();
         if (isSensitivePath(clean)) {
-            throw new IllegalArgumentException("Accès restreint à un fichier sensible");
+            throw new LocalizedInputException("path_sensitive", R.string.ws_path_err_sensitive);
         }
         return clean;
     }
@@ -164,16 +167,21 @@ public final class WorkspacePathGuard {
         return "text";
     }
 
-    public static String gitStatusLabel(String status) {
-        if (status == null || status.trim().isEmpty()) return "";
+    public static int gitStatusLabelRes(String status) {
+        if (status == null || status.trim().isEmpty()) return 0;
         return switch (status.trim().toLowerCase(Locale.ROOT)) {
-            case "m", "modified" -> "Modifié";
-            case "a", "added", "?", "??", "untracked" -> "Ajouté";
-            case "d", "deleted" -> "Supprimé";
-            case "r", "renamed" -> "Renommé";
-            case "c", "copied" -> "Copié";
-            case "u", "unmerged", "conflict" -> "Conflit";
-            default -> "";
+            case "m", "modified" -> R.string.ws_git_modified;
+            case "a", "added", "?", "??", "untracked" -> R.string.ws_git_added;
+            case "d", "deleted" -> R.string.ws_git_deleted;
+            case "r", "renamed" -> R.string.ws_git_renamed;
+            case "c", "copied" -> R.string.ws_git_copied;
+            case "u", "unmerged", "conflict" -> R.string.ws_git_conflict;
+            default -> 0;
         };
+    }
+
+    public static String gitStatusLabel(Context context, String status) {
+        int res = gitStatusLabelRes(status);
+        return res == 0 ? "" : context.getString(res);
     }
 }

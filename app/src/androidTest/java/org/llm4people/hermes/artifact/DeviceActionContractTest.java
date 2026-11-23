@@ -1,14 +1,20 @@
 package org.llm4people.hermes.artifact;
 
+import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
 import android.provider.CalendarContract;
-import junit.framework.TestCase;
+import android.test.InstrumentationTestCase;
 import org.json.JSONObject;
+import org.llm4people.hermes.R;
 import java.io.IOException;
 import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.Locale;
 
-public class DeviceActionContractTest extends TestCase {
+@SuppressWarnings("deprecation")
+public class DeviceActionContractTest extends InstrumentationTestCase {
     static String page(String request) {
         return "{\"version\":1,\"surface\":\"page/sortie\",\"mode\":\"replace\",\"title\":\"Sortie\","
                 + "\"blocks\":[{\"request\":" + request + ",\"type\":\"device\"}]}";
@@ -22,10 +28,22 @@ public class DeviceActionContractTest extends TestCase {
     }
 
     public void testCalendarPreviewAndExactEditorPayload() throws Exception {
+        Context context = getInstrumentation().getTargetContext();
+        Locale locale = context.getResources().getConfiguration().getLocales().get(0);
+        DateTimeFormatter shortFmt = DateTimeFormatter.ofPattern(
+                context.getString(R.string.ws_dev_date_short_pattern), locale);
+        DateTimeFormatter fullFmt = DateTimeFormatter.ofPattern(
+                context.getString(R.string.ws_dev_date_full_pattern), locale);
+        OffsetDateTime start = OffsetDateTime.parse("2026-11-23T09:00:10-05:00");
+        OffsetDateTime end = OffsetDateTime.parse("2026-11-23T14:30:00Z");
+
         DeviceAction action = parse(EVENT);
-        assertEquals("23 novembre 2026 à 09 h 00 (UTC-05:00)", ((DeviceAction.CalendarEvent) action).startSummary());
-        assertEquals("Réunion ☕\n\nDébut · 23 novembre 2026 à 09:00:10 (UTC-05:00)"
-                + "\nFin · 23 novembre 2026 à 14:30:00 (UTC+00:00)\nLieu · Bureau Érable", action.preview());
+        assertEquals(start.format(shortFmt), ((DeviceAction.CalendarEvent) action).startSummary(context));
+        String expectedPreview = "Réunion ☕\n\n"
+                + context.getString(R.string.ws_dev_cal_start, start.format(fullFmt)) + "\n"
+                + context.getString(R.string.ws_dev_cal_end, end.format(fullFmt)) + "\n"
+                + context.getString(R.string.ws_dev_cal_location, "Bureau Érable");
+        assertEquals(expectedPreview, action.preview(context));
         Intent intent = action.target();
         assertEquals(Intent.ACTION_INSERT, intent.getAction());
         assertEquals(CalendarContract.Events.CONTENT_URI, intent.getData());
@@ -41,9 +59,10 @@ public class DeviceActionContractTest extends TestCase {
     }
 
     public void testExactShareTextAndEncodedMapQuery() throws Exception {
+        Context context = getInstrumentation().getTargetContext();
         String text = "  Compte rendu 👩‍💻\n\nÀ relire.  ";
         DeviceAction share = parse("{\"text\":" + JSONObject.quote(text) + ",\"kind\":\"share_text\"}");
-        assertEquals(text, share.preview());
+        assertEquals(text, share.preview(context));
         Intent send = share.target();
         assertEquals(Intent.ACTION_SEND, send.getAction());
         assertEquals("text/plain", send.getType());
@@ -55,7 +74,7 @@ public class DeviceActionContractTest extends TestCase {
         String query = "Café A & B #1? (45, -73) /été";
         DeviceAction map = parse("{\"kind\":\"map_search\",\"query\":" + JSONObject.quote(query) + "}");
         Intent view = map.target();
-        assertEquals(query, map.preview());
+        assertEquals(query, map.preview(context));
         assertEquals(Intent.ACTION_VIEW, view.getAction());
         assertEquals("geo:0,0?q=" + Uri.encode(query), view.getDataString());
         assertNull(view.getData().getFragment());
@@ -63,6 +82,7 @@ public class DeviceActionContractTest extends TestCase {
     }
 
     public void testClosedRequestShapesAndTimeOrdering() throws Exception {
+        Context context = getInstrumentation().getTargetContext();
         for (String request : new String[]{
                 "null", "[]", "{}", "{\"kind\":\"send\"}", "{\"kind\":\"share_text\",\"text\":\"  \\n\"}",
                 "{\"kind\":\"share_text\",\"text\":\"x\",\"text\":\"y\"}",
@@ -82,16 +102,17 @@ public class DeviceActionContractTest extends TestCase {
         }) rejected(page(request));
         rejected(page(EVENT).replace("\"type\":\"device\"", "\"type\":\"device\",\"title\":\"Autre contenu\""));
         rejected(page(EVENT).replace("\"type\":\"device\"", "\"type\":\"section\",\"title\":\"Autre contenu\""));
-        assertEquals(2000, parse("{\"kind\":\"share_text\",\"text\":" + JSONObject.quote(repeat(2000)) + "}").preview().length());
+        assertEquals(2000, parse("{\"kind\":\"share_text\",\"text\":" + JSONObject.quote(repeat(2000)) + "}").preview(context).length());
     }
 
     public void testPayloadRevisionsAreVisibleInComparison() throws Exception {
+        Context context = getInstrumentation().getTargetContext();
         WorkspaceLayout a = WorkspaceLayout.parse(page(EVENT));
         WorkspaceLayout b = WorkspaceLayout.parse(page(EVENT.replace("Bureau Érable", "Salle B")));
-        InstrumentChanges.Change delta = InstrumentChanges.between(a,b).get(0);
+        InstrumentChanges.Change delta = InstrumentChanges.between(context, a, b).get(0);
         assertTrue(delta.before().contains("Bureau Érable"));
         assertTrue(delta.after().contains("Salle B"));
-        assertTrue(InstrumentChanges.between(a,a).isEmpty());
+        assertTrue(InstrumentChanges.between(context, a, a).isEmpty());
     }
 
     private static String repeat(int count) { return new String(new char[count]).replace('\0', 'a'); }

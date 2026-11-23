@@ -1,5 +1,8 @@
 package org.llm4people.hermes.panel;
 
+import android.content.Context;
+import org.llm4people.hermes.R;
+
 import java.time.DateTimeException;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
@@ -9,6 +12,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.FormatStyle;
+import java.time.format.TextStyle;
 import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Objects;
@@ -238,80 +242,84 @@ public final class ReminderSchedule {
         };
     }
 
-    /** Warm, jargon-free localized summary (French or English) shown to everyday users. */
-    public String humanSummary(Locale locale) {
-        Locale effective = locale == null ? Locale.FRENCH : locale;
-        boolean french = "fr".equalsIgnoreCase(effective.getLanguage());
-        String hhmm = french
-                ? String.format(effective, "%02d h %02d", time.getHour(), time.getMinute())
+    /** Pure-Java localized summary specification referencing Android {@code @StringRes} IDs (zero hardcoded prose). */
+    public record SummarySpec(int resId, String literal, Object... args) {
+        public String resolve(Context context) {
+            if (resId == 0) return literal == null ? "" : literal;
+            return args == null || args.length == 0
+                    ? context.getString(resId)
+                    : context.getString(resId, args);
+        }
+    }
+
+    /** Pure-Java resource-ID summary for deterministic host-JVM testing and localized UI resolution. */
+    public SummarySpec summarySpec(Locale locale, String formattedTime) {
+        Locale effective = locale == null ? Locale.getDefault() : locale;
+        String hhmm = formattedTime != null ? formattedTime
                 : String.format(effective, "%02d:%02d", time.getHour(), time.getMinute());
         return switch (preset) {
-            case ONCE -> DateTimeFormatter.ofLocalizedDate(FormatStyle.LONG).withLocale(effective).format(date)
-                    + (french ? " à " : " at ") + hhmm;
-            case DAILY -> (french ? "Chaque jour à " : "Every day at ") + hhmm;
-            case WEEKDAYS -> (french ? "Du lundi au vendredi à " : "Weekdays at ") + hhmm;
-            case WEEKLY -> french
-                    ? "Chaque " + fullDayFr(weeklyDay).toLowerCase(Locale.FRENCH) + " à " + hhmm
-                    : "Every " + fullDay(weeklyDay, effective) + " at " + hhmm;
+            case ONCE -> new SummarySpec(R.string.ws_sched_once, null,
+                    DateTimeFormatter.ofLocalizedDate(FormatStyle.LONG).withLocale(effective).format(date), hhmm);
+            case DAILY -> new SummarySpec(R.string.ws_sched_daily, null, hhmm);
+            case WEEKDAYS -> new SummarySpec(R.string.ws_sched_weekdays, null, hhmm);
+            case WEEKLY -> {
+                String dayName = fullDay(weeklyDay, effective);
+                if ("fr".equalsIgnoreCase(effective.getLanguage())) {
+                    dayName = dayName.toLowerCase(effective);
+                }
+                yield new SummarySpec(R.string.ws_sched_weekly, null, dayName, hhmm);
+            }
             case CUSTOM -> {
                 if (customIntervalMode) {
-                    yield french ? formatIntervalFr(intervalMinutes) : formatIntervalEn(intervalMinutes);
+                    yield intervalSpec(intervalMinutes);
                 }
-                if (customDays.isEmpty()) yield french ? "Aucun jour sélectionné" : "No days selected";
+                if (customDays.isEmpty()) yield new SummarySpec(R.string.ws_sched_no_days, null);
                 StringBuilder sb = new StringBuilder();
                 for (DayOfWeek day : WEEK_ORDER) {
                     if (!customDays.contains(day)) continue;
                     if (sb.length() > 0) sb.append(", ");
                     sb.append(shortDay(day, effective));
                 }
-                yield sb + (french ? " à " : " at ") + hhmm;
+                yield new SummarySpec(R.string.ws_sched_custom_days, null, sb.toString(), hhmm);
             }
             case ADVANCED -> advancedExpression.isEmpty()
-                    ? (french ? "Expression personnalisée" : "Custom schedule")
-                    : advancedExpression;
+                    ? new SummarySpec(R.string.ws_sched_custom_expr, null)
+                    : new SummarySpec(0, advancedExpression);
         };
     }
 
-    public static String shortDay(DayOfWeek day, Locale locale) {
-        if (locale != null && !"fr".equalsIgnoreCase(locale.getLanguage())) {
-            return switch (day) {
-                case MONDAY -> "Mon";
-                case TUESDAY -> "Tue";
-                case WEDNESDAY -> "Wed";
-                case THURSDAY -> "Thu";
-                case FRIDAY -> "Fri";
-                case SATURDAY -> "Sat";
-                case SUNDAY -> "Sun";
-            };
-        }
-        return shortDayFr(day);
+    /** Warm, jargon-free localized summary resolved from Android string resources in the active locale. */
+    public String humanSummary(Context context) {
+        Locale locale = ReminderPanel.activeLocale(context);
+        String hhmm = context.getString(R.string.ws_sched_time_fmt, time.getHour(), time.getMinute());
+        return summarySpec(locale, hhmm).resolve(context);
     }
 
-    public static String fullDay(DayOfWeek day, Locale locale) {
-        if (locale != null && !"fr".equalsIgnoreCase(locale.getLanguage())) {
-            return switch (day) {
-                case MONDAY -> "Monday";
-                case TUESDAY -> "Tuesday";
-                case WEDNESDAY -> "Wednesday";
-                case THURSDAY -> "Thursday";
-                case FRIDAY -> "Friday";
-                case SATURDAY -> "Saturday";
-                case SUNDAY -> "Sunday";
-            };
-        }
-        return fullDayFr(day);
-    }
-
-    private static String formatIntervalEn(int minutes) {
-        if (minutes <= 0) return "Invalid interval";
-        if (minutes == 1) return "Every minute";
-        if (minutes < 60) return "Every " + minutes + " minutes";
+    public static SummarySpec intervalSpec(int minutes) {
+        if (minutes <= 0) return new SummarySpec(R.string.ws_sched_interval_invalid, null);
+        if (minutes == 1) return new SummarySpec(R.string.ws_sched_interval_every_min, null);
+        if (minutes < 60) return new SummarySpec(R.string.ws_sched_interval_mins, null, minutes);
         int hours = minutes / 60;
         int rem = minutes % 60;
         if (rem == 0) {
-            return hours == 1 ? "Every hour" : "Every " + hours + " hours";
+            return hours == 1
+                    ? new SummarySpec(R.string.ws_sched_interval_every_hour, null)
+                    : new SummarySpec(R.string.ws_sched_interval_hours, null, hours);
         }
-        return String.format(Locale.ENGLISH, "Every %dh %02dm", hours, rem);
+        return new SummarySpec(R.string.ws_sched_interval_hours_mins, null, hours, rem);
+    }
+
+    public static String shortDay(DayOfWeek day, Locale locale) {
+        Locale effective = locale == null ? Locale.getDefault() : locale;
+        String name = day.getDisplayName(TextStyle.SHORT_STANDALONE, effective);
+        if (name.endsWith(".")) name = name.substring(0, name.length() - 1);
+        return name.isEmpty() ? name : Character.toUpperCase(name.charAt(0)) + name.substring(1);
+    }
+
+    public static String fullDay(DayOfWeek day, Locale locale) {
+        Locale effective = locale == null ? Locale.getDefault() : locale;
+        String name = day.getDisplayName(TextStyle.FULL_STANDALONE, effective);
+        return name.isEmpty() ? name : Character.toUpperCase(name.charAt(0)) + name.substring(1);
     }
 
     public static boolean isValidCronOrInterval(String raw) {
@@ -333,42 +341,6 @@ public final class ReminderSchedule {
             if (!CRON_FIELD.matcher(field).matches()) return false;
         }
         return true;
-    }
-
-    public static String shortDayFr(DayOfWeek day) {
-        return switch (day) {
-            case MONDAY -> "Lun";
-            case TUESDAY -> "Mar";
-            case WEDNESDAY -> "Mer";
-            case THURSDAY -> "Jeu";
-            case FRIDAY -> "Ven";
-            case SATURDAY -> "Sam";
-            case SUNDAY -> "Dim";
-        };
-    }
-
-    public static String fullDayFr(DayOfWeek day) {
-        return switch (day) {
-            case MONDAY -> "Lundi";
-            case TUESDAY -> "Mardi";
-            case WEDNESDAY -> "Mercredi";
-            case THURSDAY -> "Jeudi";
-            case FRIDAY -> "Vendredi";
-            case SATURDAY -> "Samedi";
-            case SUNDAY -> "Dimanche";
-        };
-    }
-
-    private static String formatIntervalFr(int minutes) {
-        if (minutes <= 0) return "Intervalle invalide";
-        if (minutes == 1) return "Toutes les minutes";
-        if (minutes < 60) return "Toutes les " + minutes + " minutes";
-        int hours = minutes / 60;
-        int rem = minutes % 60;
-        if (rem == 0) {
-            return hours == 1 ? "Toutes les heures" : "Toutes les " + hours + " heures";
-        }
-        return String.format(Locale.FRENCH, "Toutes les %d h %02d", hours, rem);
     }
 
     static int toCronDay(DayOfWeek day) {
