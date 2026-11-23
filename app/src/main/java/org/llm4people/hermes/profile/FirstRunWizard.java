@@ -372,7 +372,8 @@ public final class FirstRunWizard {
                     return;
                 }
                 String name = suggestedName(result.displayName(), result.profileSlug(), result.serverUrl());
-                targets.fillFields(name, result.serverUrl(), result.profileSlug(), result.apiKey(), true);
+                String formSlug = "default".equalsIgnoreCase(result.profileSlug()) ? "" : result.profileSlug();
+                targets.fillFields(name, result.serverUrl(), formSlug, result.apiKey(), true);
                 targets.onClaimedMetadata(result);
                 showStatus(activity, statusNote,
                         activity.getString(R.string.onboarding_paste_claimed, result.serverUrl(), name),

@@ -137,6 +137,81 @@ public final class OnboardingApiContractTest {
     }
 
     @Test
+    public void modelsParseLiveGatewayListAndProfileEnvelopes() {
+        // Exact live GET /api/mobile/profiles envelope from hermes-agent api_server_profiles.py
+        List<OnboardingModels.RemoteProfile> profiles = OnboardingModels.parseProfilesMap(Map.of(
+                "object", "list",
+                "caller_profile", "default",
+                "is_admin", true,
+                "data", List.of(
+                        Map.of("slug", "default", "display_name", "Default", "preferred_language", "fr",
+                                "default_model", "gemini-2.5-pro", "badge_color", "#225c50",
+                                "active_runs", 1, "thread_count", 9, "is_admin", true, "isolated_db_ok", true),
+                        Map.of("slug", "alex", "display_name", "Alex", "preferred_language", "en",
+                                "default_model", "gemini-2.5-pro", "role", "member",
+                                "active_runs", 0, "thread_count", 2, "is_admin", false, "isolated_db_ok", true)
+                )
+        ));
+        assertEquals(2, profiles.size());
+        assertEquals("default", profiles.get(0).slug());
+        assertTrue(profiles.get(0).isAdmin());
+        assertEquals("alex", profiles.get(1).slug());
+        assertFalse(profiles.get(1).isAdmin());
+
+        // Exact live GET /api/mobile/pairing/active envelope (metadata only, ttl_remaining_seconds)
+        List<OnboardingModels.PairingTicket> tickets = OnboardingModels.parseActivePairingTicketsMap(Map.of(
+                "object", "list",
+                "data", List.of(
+                        Map.of("ticket_id", "tkt_live_1", "profile_slug", "alex", "display_name", "Alex",
+                                "mode", "invite", "created_by", "default",
+                                "created_at", 1_800_000_000L, "expires_at", 1_800_000_300L,
+                                "ttl_remaining_seconds", 240),
+                        Map.of("bad_row_without_id", true)
+                )
+        ));
+        assertEquals(1, tickets.size());
+        assertEquals("tkt_live_1", tickets.get(0).ticketId());
+        assertEquals("", tickets.get(0).code());
+        assertEquals(240, tickets.get(0).ttlSeconds());
+        assertEquals("alex", tickets.get(0).profileSlug());
+        assertEquals("invite", tickets.get(0).mode());
+
+        // Negative list envelopes stay fail-closed and return empty lists
+        assertTrue(OnboardingModels.parseProfilesMap(Map.of("object", "list", "data", List.of())).isEmpty());
+        assertTrue(OnboardingModels.parseProfilesMap(Map.of("object", "list", "data", "not-a-list")).isEmpty());
+        assertTrue(OnboardingModels.parseActivePairingTicketsMap(Map.of("object", "list", "data", List.of())).isEmpty());
+        assertTrue(OnboardingModels.parseActivePairingTicketsMap(Map.of("object", "list", "data", 42)).isEmpty());
+
+        // Exact live PATCH /api/mobile/profiles/{slug} wrapped response
+        OnboardingModels.RemoteProfile updated = OnboardingModels.parseRemoteProfileMap(Map.of(
+                "object", "hermes.mobile.profile",
+                "profile", Map.of("slug", "alex", "display_name", "Alex Updated", "preferred_language", "fr",
+                        "default_model", "gemini-2.5-pro", "is_admin", false)
+        ));
+        assertNotNull(updated);
+        assertEquals("alex", updated.slug());
+        assertEquals("Alex Updated", updated.displayName());
+        assertEquals("fr", updated.preferredLanguage());
+
+        // Default profile claim resolves to root base URL without /p/default; named profile keeps /p/<slug>
+        OnboardingModels.PairingClaim defaultClaim = OnboardingModels.parsePairingClaimMap(Map.of(
+                "server_url", "https://hermes.example.com",
+                "profile_slug", "default",
+                "display_name", "Default",
+                "api_key", "hm_live_key_1234567890"
+        ));
+        assertEquals("https://hermes.example.com", defaultClaim.resolvedEndpoint());
+
+        OnboardingModels.PairingClaim namedClaim = OnboardingModels.parsePairingClaimMap(Map.of(
+                "server_url", "https://hermes.example.com/p/alex",
+                "profile_slug", "alex",
+                "display_name", "Alex",
+                "api_key", "hm_live_key_1234567890"
+        ));
+        assertEquals("https://hermes.example.com/p/alex", namedClaim.resolvedEndpoint());
+    }
+
+    @Test
     public void claimPairingSendsNoAuthNoStoreAndDeleteProfileEnforcesConfirmSlug() throws Exception {
         AtomicReference<String> observedRequestLine = new AtomicReference<>();
         AtomicReference<Map<String, String>> observedHeaders = new AtomicReference<>();
@@ -191,6 +266,28 @@ public final class OnboardingApiContractTest {
             t3.join(3000);
             assertEquals("GET /api/mobile/admin/settings HTTP/1.1", observedRequestLine.get());
             assertEquals("no-store", observedHeaders.get().get("cache-control"));
+
+            // 5. activePairings(false) hits /api/mobile/pairing/active; activePairings(true) appends ?all=1
+            Thread t4 = serveSingle(server, 403, "Forbidden", "", "", observedRequestLine, observedHeaders);
+            try {
+                api.activePairings();
+                fail("Expected HttpError 403");
+            } catch (HermesApi.HttpError err) {
+                assertEquals(403, err.status);
+            }
+            t4.join(3000);
+            assertEquals("GET /api/mobile/pairing/active HTTP/1.1", observedRequestLine.get());
+
+            Thread t5 = serveSingle(server, 403, "Forbidden", "", "", observedRequestLine, observedHeaders);
+            try {
+                api.activePairings(true);
+                fail("Expected HttpError 403");
+            } catch (HermesApi.HttpError err) {
+                assertEquals(403, err.status);
+            }
+            t5.join(3000);
+            assertEquals("GET /api/mobile/pairing/active?all=1 HTTP/1.1", observedRequestLine.get());
+            assertEquals("Bearer member_bearer_token_12345", observedHeaders.get().get("authorization"));
         } finally {
             AppLanguage.setActiveAcceptLanguageForTest("");
         }
