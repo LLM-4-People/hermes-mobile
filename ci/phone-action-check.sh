@@ -22,7 +22,6 @@ if grep -Fxq 'package:com.google.android.calendar' <<< "$enabled"; then
   "${device[@]}" shell pm disable-user --user 0 com.google.android.calendar
 fi
 "${device[@]}" shell pm clear org.llm4people.hermes
-"${device[@]}" shell cmd locale set-app-locales org.llm4people.hermes --locales fr-FR
 
 require_receiver() {
   local expected=$1 resolved

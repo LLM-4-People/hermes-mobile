@@ -102,13 +102,17 @@ def verified_turn(gateway, provider, question, previous, *, location):
 
 
 def enter_discussion(ui):
+    s = ui.strings
+    send_btn = s["thread_send"]
+    new_thread_btn = s["thread_new_conversation"]
+
     def opened():
         tree = ui.hierarchy()
-        if (ui.node("Envoyer", tree) is not None
+        if (ui.node(send_btn, tree) is not None
                 and any(node.get("package") == APP and node.get("class") == "android.widget.EditText"
                         for node in tree.iter("node"))):
             return True
-        create = ui.node("Nouvelle conversation", tree)
+        create = ui.node(new_thread_btn, tree)
         if create is not None and create.get("class") == "android.widget.Button":
             ui.tap_node(create)
         return False
@@ -119,16 +123,17 @@ def wait_status(ui, label):
     try:
         return ui.wait(label)
     except AssertionError:
+        s = ui.strings
         root = ui.hierarchy()
         packages = sorted({node.get("package", "") for node in root.iter("node") if node.get("package")})
         markers = {
-            "consent": ui.node(CONSENT, root) is not None,
-            "searching": ui.node("Recherche de la position…", root) is not None,
-            "failed": ui.node(FAILED, root) is not None,
-            "staged": ui.node(STAGED, root) is not None,
-            "lock_screen": ui.node("Choisir un profil", root) is not None,
-            "composer": ui.node("Message à Hermes", root) is not None,
-            "send": ui.node("Envoyer", root) is not None,
+            "consent": ui.node(s.get("nearby_consent_title", CONSENT), root) is not None,
+            "searching": ui.node(s.get("nearby_status_searching", "Recherche de la position…"), root) is not None,
+            "failed": ui.node(s.get("nearby_status_failed", FAILED), root) is not None,
+            "staged": ui.node(s.get("nearby_status_staged", STAGED), root) is not None,
+            "lock_screen": ui.node(s["profile_choose_title"], root) is not None,
+            "composer": ui.node(s["thread_message_hint"], root) is not None,
+            "send": ui.node(s["thread_send"], root) is not None,
             "location_grant": location_access(ui.device),
         }
         print("Android nearby status " + json.dumps({
@@ -141,27 +146,34 @@ def wait_status(ui, label):
 
 def consent_failures(ui, fix, second, names, phrases, check_idle):
     """Start without cached fixes and cross a real app background/profile switch before delivering one."""
+    s = ui.strings
+    use_location = s.get("nearby_use_location", USE_LOCATION)
+    failed_status = s.get("nearby_status_failed", FAILED)
+    searching_status = s.get("nearby_status_searching", "Recherche de la position…")
+    staged_status = s.get("nearby_status_staged", STAGED)
+    choose_profile = s["profile_choose_title"]
+    send_btn = s["thread_send"]
     enter_discussion(ui)
     enter_message(ui)
     open_consent(ui)
-    choose_consent(ui, USE_LOCATION)
+    choose_consent(ui, use_location)
     controller = answer_android_location(ui, allow=False)
-    wait_status(ui, FAILED)
+    wait_status(ui, failed_status)
     check_idle()
 
     # Grant while the system-wide service is off. Permission alone cannot stage or send a coordinate.
     fix.enabled(False)
     open_consent(ui)
-    choose_consent(ui, USE_LOCATION)
+    choose_consent(ui, use_location)
     if answer_android_location(ui, allow=True) != controller:
         raise AssertionError("Different Android components handled the paired permission decisions")
-    wait_status(ui, FAILED)
+    wait_status(ui, failed_status)
     check_idle()
 
     fix.enabled(True)
     open_consent(ui)
-    choose_consent(ui, USE_LOCATION)
-    wait_status(ui, "Recherche de la position…")
+    choose_consent(ui, use_location)
+    wait_status(ui, searching_status)
     ui.device.shell("input", "keyevent", "HOME")
 
     def launcher_stopped_app():
@@ -178,14 +190,14 @@ def consent_failures(ui, fix, second, names, phrases, check_idle):
                             launcher_stopped_app)
     fix.publish()
     launch(ui.device, APP)
-    wait_status(ui, "Choisir un profil")
+    wait_status(ui, choose_profile)
     start_account(ui, names[1], second.endpoint, second.key, phrases[1])
     enter_discussion(ui)
-    if ui.node(STAGED) is not None:
+    if ui.node(staged_status) is not None:
         raise AssertionError("A late fix appeared in a different profile")
     check_idle()
     enter_message(ui, OTHER)
-    ui.tap("Envoyer")
+    ui.tap(send_btn)
     return controller, background
 
 
@@ -338,7 +350,9 @@ def execute(args):
         if admissions(first) or a_model.main_requests() or queries:
             raise AssertionError("Staging the first fix submitted or queried without Send")
         dismiss_ime(ui)
-        ui.tap("Envoyer")
+        s = ui.strings
+        send_btn = s["thread_send"]
+        ui.tap(send_btn)
         area = verified_turn(first, a_model, PROMPT, 0, location=True)
         eventually("one lookup through the authenticated real nearby plugin", lambda: len(queries) == 1)
         if queries[0][0] != (area["latitude"], area["longitude"]) or errors:
@@ -347,18 +361,20 @@ def execute(args):
                              distances=[111, 445, 1001], filter_cuisine="Italienne")
         picked = next(p for p in queries[0][1]["elements"] if p["tags"]["name"] == guide["selected"])
         source_url = "https://www.openstreetmap.org/" + picked["type"] + "/" + str(picked["id"])
+        open_osm = s.get("nearby_open_osm", "Ouvrir OpenStreetMap")
+        cancel_btn = s.get("device_review_cancel", "Annuler")
         tap_visible_app_until(
             ui,
             guide["source_control"],
-            lambda root: ui.node("Ouvrir OpenStreetMap", root) is not None,
+            lambda root: ui.node(open_osm, root) is not None,
             attribute="content-desc",
             description="visible OpenStreetMap source review dialog",
         )
         if not visible(ui, [guide["selected"], source_url]) or not focused(device).startswith(APP + "/"):
             raise AssertionError("The review did not show the selected source venue and canonical OSM URL")
         ui.tap_until(
-            "Annuler",
-            lambda root: ui.node("Ouvrir OpenStreetMap", root) is None,
+            cancel_btn,
+            lambda root: ui.node(open_osm, root) is None,
             description="dismissed OpenStreetMap source review dialog",
         )
         guide["reviewed_source"] = source_url
@@ -372,7 +388,7 @@ def execute(args):
         # Remembered profile consent lets the next explicit Send complete without a second tap.
         enter_message(ui, SECOND)
         fix.publish()
-        ui.tap("Envoyer")
+        ui.tap(send_btn)
         verified_turn(first, a_model, SECOND, 1, location=True)
         if len(queries) != 1 or len(admissions(second)) != 1 or errors:
             raise AssertionError("An ordinary question started another lookup or crossed profiles")
@@ -388,7 +404,7 @@ def execute(args):
         open_consent(ui)
         if len(admissions(first)) != 2 or len(queries) != 1:
             raise AssertionError("Revocation reused a cached coordinate or submitted the waiting draft")
-        choose_consent(ui, "Envoyer sans position")
+        choose_consent(ui, s.get("nearby_send_without_location", "Envoyer sans position"))
         verified_turn(first, a_model, REVOKED, 2, location=False)
         if len(queries) != 1 or errors or location_access(device):
             raise AssertionError("Explicit send without location leaked or re-acquired location")
