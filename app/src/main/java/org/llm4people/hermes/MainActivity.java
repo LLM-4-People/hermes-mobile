@@ -52,6 +52,8 @@ import org.llm4people.hermes.share.SharedMediaFlow;
 import org.llm4people.hermes.share.SharedTextFlow;
 import org.llm4people.hermes.thread.ThreadPhotoPicker;
 import org.llm4people.hermes.thread.ThreadWorkspace;
+import org.llm4people.hermes.update.UpdateCheckCoordinator;
+import org.llm4people.hermes.update.UpdatePanel;
 import org.llm4people.hermes.voice.VoiceDrafts;
 
 import java.io.IOException;
@@ -83,6 +85,8 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     private WorkspaceNavigation navigation;
     private ArtifactDesk.Host activeHost;
     private AmbientAccessPanel activeAmbientPanel;
+    private UpdatePanel activeUpdatePanel;
+    private UpdateCheckCoordinator.BadgeState updateBadge;
     private final Map<String, View> customPages = new HashMap<>();
     private SharedTextFlow sharedText;
     private SharedMediaFlow sharedMedia;
@@ -174,14 +178,30 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         shellRoutes.register(WorkspaceNavigation.ACTIVITY, (route, force) -> {
             navigation.display(route, this::leavingSurface);
             activeAmbientPanel = null;
-            shell.show(shell.activitySurface(WorkspaceDialogs.securitySummary(this, account.id)),
+            if (activeUpdatePanel != null) {
+                activeUpdatePanel.close();
+                activeUpdatePanel = null;
+            }
+            shell.show(shell.activitySurface(WorkspaceDialogs.securitySummary(this, account.id),
+                            UpdatePanel.badgeLabel(this, updateBadge)),
                     getString(R.string.nav_activity));
         });
         shellRoutes.register(AmbientAccessPanel.ROUTE_ID, (route, force) -> {
             navigation.display(route, this::leavingSurface);
+            if (activeUpdatePanel != null) {
+                activeUpdatePanel.close();
+                activeUpdatePanel = null;
+            }
             activeAmbientPanel = new AmbientAccessPanel(this, NotificationAllowlist.forAccount(account),
                     ambientCallbacks());
             shell.show(activeAmbientPanel.buildView(), getString(R.string.ambient_panel_title));
+        });
+        shellRoutes.register(UpdatePanel.ROUTE_ID, (route, force) -> {
+            navigation.display(route, this::leavingSurface);
+            activeAmbientPanel = null;
+            if (activeUpdatePanel != null) activeUpdatePanel.close();
+            activeUpdatePanel = new UpdatePanel(this);
+            shell.show(activeUpdatePanel.buildView(), getString(R.string.update_panel_title));
         });
         shellRoutes.register(WorkspaceNavigation.GALLERY, (route, force) -> {
             navigation.display(route, this::leavingSurface);
@@ -237,6 +257,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         actions.register("deliveries", () -> push.openInbox(account, deliveryActions(account)));
         actions.register("push_policy", () -> push.openPolicy(account));
         actions.register(AmbientAccessPanel.ROUTE_ID, () -> navigate(AmbientAccessPanel.ROUTE_ID));
+        actions.register(UpdatePanel.ROUTE_ID, () -> navigate(UpdatePanel.ROUTE_ID));
         actions.register("language", () -> {
             Account owner = account;
             if (notice != null) notice.dismiss();
@@ -349,6 +370,14 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                 () -> { if (account == unlocked && push != null) push.openPolicy(account); });
         AmbientAccessPanel.registerRoute(featureRoutes, this,
                 () -> { if (account == unlocked) navigate(AmbientAccessPanel.ROUTE_ID); });
+        UpdatePanel.registerRoute(featureRoutes, this,
+                () -> { if (account == unlocked) navigate(UpdatePanel.ROUTE_ID); });
+        UpdateCheckCoordinator.checkIfDueAsync(this, state -> {
+            if (account == unlocked && !isFinishing() && !isDestroyed()) {
+                updateBadge = state;
+                if (navigation != null && WorkspaceNavigation.ACTIVITY.equals(navigation.current())) render(true);
+            }
+        });
         setContentView(shell.root);
         displayDiscussion();
         files.unlock(account, api);
@@ -619,6 +648,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         if (notice != null) notice.dismiss();
         notice = null;
         if (activeAmbientPanel != null) activeAmbientPanel.dismissDialogs();
+        if (activeUpdatePanel != null) activeUpdatePanel.dismissDialogs();
         if (files != null) files.dismiss();
         if (threadActions != null) threadActions.dismiss();
         if (!keepThreadEditor) {
@@ -1040,6 +1070,8 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         HermesNotificationListener.clearSession();
         if (activeAmbientPanel != null) activeAmbientPanel.dismissDialogs();
         activeAmbientPanel = null;
+        if (activeUpdatePanel != null) activeUpdatePanel.close();
+        activeUpdatePanel = null;
         LiveRunActionReceiver.clearStopHandler(liveStopHandler);
         LiveRunNotification.cancel(this);
         if (sharedText != null) sharedText.lock();
@@ -1110,6 +1142,10 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         if (account != null && activeAmbientPanel != null
                 && navigation != null && AmbientAccessPanel.ROUTE_ID.equals(navigation.current())) {
             activeAmbientPanel.refreshAll();
+        }
+        if (account != null && activeUpdatePanel != null
+                && navigation != null && UpdatePanel.ROUTE_ID.equals(navigation.current())) {
+            activeUpdatePanel.onResume();
         }
         voice.resume();
     }

@@ -269,6 +269,10 @@ final class WorkspaceShell {
     }
 
     View activitySurface(String securitySummary) {
+        return activitySurface(securitySummary, null);
+    }
+
+    View activitySurface(String securitySummary, String updateBadge) {
         LinearLayout list = Ui.column(activity);
         ScrollView scroll = centeredScroll(list);
         subtitle(list, activity.getString(R.string.activity_subtitle));
@@ -286,6 +290,10 @@ final class WorkspaceShell {
         link(list, activity.getString(R.string.activity_usage_title),
                 activity.getString(R.string.activity_usage_hint), "stats");
         link(list, activity.getString(R.string.activity_security_title), securitySummary, "security");
+        String updateHint = updateBadge != null && !updateBadge.isEmpty()
+                ? updateBadge : activity.getString(R.string.update_route_hint);
+        link(list, activity.getString(R.string.update_route_label), updateHint,
+                org.llm4people.hermes.update.UpdatePanel.ROUTE_ID);
         return scroll;
     }
 
