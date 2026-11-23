@@ -186,7 +186,8 @@ public final class CommandRegistry {
         addAction(list, context, BrainStudioRoutes.ROUTE_SEARCH, R.string.palette_act_search_title,
                 R.string.palette_act_search_hint, "search recherche globale trouver find", run);
         addAction(list, context, "reminders", R.string.palette_act_reminders_title,
-                R.string.palette_act_reminders_hint, "reminders rappels schedule planning", run);
+                R.string.palette_act_reminders_hint,
+                "scheduled jobs cron automations taches planifiees horaire reminders rappels schedule planning", run);
         addAction(list, context, "deliveries", R.string.palette_act_deliveries_title,
                 R.string.palette_act_deliveries_hint, "deliveries inbox activite livraisons notifications", run);
         addAction(list, context, AmbientAccessPanel.ROUTE_ID, R.string.palette_act_ambient_title,

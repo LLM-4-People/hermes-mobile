@@ -238,31 +238,80 @@ public final class ReminderSchedule {
         };
     }
 
-    /** Warm, jargon-free French summary shown to everyday users. */
+    /** Warm, jargon-free localized summary (French or English) shown to everyday users. */
     public String humanSummary(Locale locale) {
         Locale effective = locale == null ? Locale.FRENCH : locale;
-        String hhmm = String.format(effective, "%02d h %02d", time.getHour(), time.getMinute());
+        boolean french = "fr".equalsIgnoreCase(effective.getLanguage());
+        String hhmm = french
+                ? String.format(effective, "%02d h %02d", time.getHour(), time.getMinute())
+                : String.format(effective, "%02d:%02d", time.getHour(), time.getMinute());
         return switch (preset) {
             case ONCE -> DateTimeFormatter.ofLocalizedDate(FormatStyle.LONG).withLocale(effective).format(date)
-                    + " à " + hhmm;
-            case DAILY -> "Chaque jour à " + hhmm;
-            case WEEKDAYS -> "Du lundi au vendredi à " + hhmm;
-            case WEEKLY -> "Chaque " + fullDayFr(weeklyDay).toLowerCase(Locale.FRENCH) + " à " + hhmm;
+                    + (french ? " à " : " at ") + hhmm;
+            case DAILY -> (french ? "Chaque jour à " : "Every day at ") + hhmm;
+            case WEEKDAYS -> (french ? "Du lundi au vendredi à " : "Weekdays at ") + hhmm;
+            case WEEKLY -> french
+                    ? "Chaque " + fullDayFr(weeklyDay).toLowerCase(Locale.FRENCH) + " à " + hhmm
+                    : "Every " + fullDay(weeklyDay, effective) + " at " + hhmm;
             case CUSTOM -> {
                 if (customIntervalMode) {
-                    yield formatIntervalFr(intervalMinutes);
+                    yield french ? formatIntervalFr(intervalMinutes) : formatIntervalEn(intervalMinutes);
                 }
-                if (customDays.isEmpty()) yield "Aucun jour sélectionné";
+                if (customDays.isEmpty()) yield french ? "Aucun jour sélectionné" : "No days selected";
                 StringBuilder sb = new StringBuilder();
                 for (DayOfWeek day : WEEK_ORDER) {
                     if (!customDays.contains(day)) continue;
                     if (sb.length() > 0) sb.append(", ");
-                    sb.append(shortDayFr(day));
+                    sb.append(shortDay(day, effective));
                 }
-                yield sb + " à " + hhmm;
+                yield sb + (french ? " à " : " at ") + hhmm;
             }
-            case ADVANCED -> advancedExpression.isEmpty() ? "Expression personnalisée" : advancedExpression;
+            case ADVANCED -> advancedExpression.isEmpty()
+                    ? (french ? "Expression personnalisée" : "Custom schedule")
+                    : advancedExpression;
         };
+    }
+
+    public static String shortDay(DayOfWeek day, Locale locale) {
+        if (locale != null && !"fr".equalsIgnoreCase(locale.getLanguage())) {
+            return switch (day) {
+                case MONDAY -> "Mon";
+                case TUESDAY -> "Tue";
+                case WEDNESDAY -> "Wed";
+                case THURSDAY -> "Thu";
+                case FRIDAY -> "Fri";
+                case SATURDAY -> "Sat";
+                case SUNDAY -> "Sun";
+            };
+        }
+        return shortDayFr(day);
+    }
+
+    public static String fullDay(DayOfWeek day, Locale locale) {
+        if (locale != null && !"fr".equalsIgnoreCase(locale.getLanguage())) {
+            return switch (day) {
+                case MONDAY -> "Monday";
+                case TUESDAY -> "Tuesday";
+                case WEDNESDAY -> "Wednesday";
+                case THURSDAY -> "Thursday";
+                case FRIDAY -> "Friday";
+                case SATURDAY -> "Saturday";
+                case SUNDAY -> "Sunday";
+            };
+        }
+        return fullDayFr(day);
+    }
+
+    private static String formatIntervalEn(int minutes) {
+        if (minutes <= 0) return "Invalid interval";
+        if (minutes == 1) return "Every minute";
+        if (minutes < 60) return "Every " + minutes + " minutes";
+        int hours = minutes / 60;
+        int rem = minutes % 60;
+        if (rem == 0) {
+            return hours == 1 ? "Every hour" : "Every " + hours + " hours";
+        }
+        return String.format(Locale.ENGLISH, "Every %dh %02dm", hours, rem);
     }
 
     public static boolean isValidCronOrInterval(String raw) {

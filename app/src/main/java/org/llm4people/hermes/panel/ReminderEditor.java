@@ -120,9 +120,10 @@ final class ReminderEditor {
             }
         }
 
-        // Plain-French live summary so casual users always see what they scheduled.
+        // Localized live summary so casual users always see what they scheduled in their active language.
+        Locale locale = ReminderPanel.activeLocale(panel.activity);
         TextView preview = panel.note(scheduleControls,
-                panel.t(R.string.panel_schedule_preview, schedule.humanSummary(Locale.FRENCH)));
+                panel.t(R.string.panel_schedule_preview, schedule.humanSummary(locale)));
         preview.setTextColor(panel.activity.getColor(R.color.ink));
         preview.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
 
@@ -181,7 +182,8 @@ final class ReminderEditor {
     }
 
     private void addDatePickerButton() {
-        DateTimeFormatter dateFmt = DateTimeFormatter.ofLocalizedDate(FormatStyle.LONG).withLocale(Locale.FRENCH);
+        DateTimeFormatter dateFmt = DateTimeFormatter.ofLocalizedDate(FormatStyle.LONG)
+                .withLocale(ReminderPanel.activeLocale(panel.activity));
         Button day = Ui.button(panel.activity, schedule.date.format(dateFmt), v -> panel.present(new DatePickerDialog(
                 panel.activity, (picker, year, month, number) -> {
                     schedule = schedule.withDate(LocalDate.of(year, month + 1, number));
@@ -193,7 +195,8 @@ final class ReminderEditor {
     }
 
     private void addTimePickerButton() {
-        DateTimeFormatter timeFmt = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(Locale.FRENCH);
+        Locale locale = ReminderPanel.activeLocale(panel.activity);
+        DateTimeFormatter timeFmt = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(locale);
         Button hour = Ui.button(panel.activity, schedule.time.format(timeFmt), v -> panel.present(new TimePickerDialog(
                 panel.activity, (picker, h, m) -> {
                     schedule = schedule.withTime(LocalTime.of(h, m));
@@ -205,6 +208,7 @@ final class ReminderEditor {
     }
 
     private void addSingleDaySelector() {
+        Locale locale = ReminderPanel.activeLocale(panel.activity);
         panel.note(scheduleControls, panel.t(R.string.panel_custom_days));
         LinearLayout row1 = Ui.row(panel.activity);
         LinearLayout row2 = Ui.row(panel.activity);
@@ -212,13 +216,13 @@ final class ReminderEditor {
             DayOfWeek day = ReminderSchedule.WEEK_ORDER[i];
             boolean chosen = schedule.weeklyDay == day;
             Button chip = Ui.button(panel.activity,
-                    (chosen ? "[" : "") + ReminderSchedule.shortDayFr(day) + (chosen ? "]" : ""),
+                    (chosen ? "[" : "") + ReminderSchedule.shortDay(day, locale) + (chosen ? "]" : ""),
                     v -> {
                         schedule = schedule.withWeeklyDay(day);
                         scheduleChanged = true;
                         renderSchedule();
                     });
-            chip.setContentDescription(ReminderSchedule.fullDayFr(day));
+            chip.setContentDescription(ReminderSchedule.fullDay(day, locale));
             chip.setSelected(chosen);
             if (chosen) chip.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
             (i < 4 ? row1 : row2).addView(chip);
@@ -257,6 +261,7 @@ final class ReminderEditor {
                 scheduleChanged = true;
             }));
         } else {
+            Locale locale = ReminderPanel.activeLocale(panel.activity);
             panel.note(scheduleControls, panel.t(R.string.panel_custom_days));
             LinearLayout row1 = Ui.row(panel.activity);
             LinearLayout row2 = Ui.row(panel.activity);
@@ -264,13 +269,13 @@ final class ReminderEditor {
                 DayOfWeek day = ReminderSchedule.WEEK_ORDER[i];
                 boolean checked = schedule.customDays.contains(day);
                 Button chip = Ui.button(panel.activity,
-                        (checked ? "✓ " : "") + ReminderSchedule.shortDayFr(day),
+                        (checked ? "✓ " : "") + ReminderSchedule.shortDay(day, locale),
                         v -> {
                             schedule = schedule.toggleCustomDay(day);
                             scheduleChanged = true;
                             renderSchedule();
                         });
-                chip.setContentDescription(ReminderSchedule.fullDayFr(day));
+                chip.setContentDescription(ReminderSchedule.fullDay(day, locale));
                 chip.setSelected(checked);
                 if (checked) chip.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
                 (i < 4 ? row1 : row2).addView(chip);

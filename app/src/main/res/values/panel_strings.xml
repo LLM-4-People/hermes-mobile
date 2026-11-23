@@ -1,7 +1,7 @@
 <resources xmlns:tools="http://schemas.android.com/tools" tools:locale="fr">
     <string name="panel_settings">Réglages de la discussion</string>
     <string name="panel_stats">Statistiques</string>
-    <string name="panel_reminders">Rappels du profil</string>
+    <string name="panel_reminders">Tâches planifiées</string>
     <string name="panel_back">Retour</string>
     <string name="panel_done">Fermer</string>
     <string name="panel_loading">Chargement…</string>
@@ -114,4 +114,24 @@
     <string name="panel_advanced_hint">Mode avancé : saisissez directement une planification (ex. 0 9 * * 1,3,5 ou 30m).</string>
     <string name="panel_schedule_preview">Résumé : %1$s</string>
     <string name="panel_expression_invalid">Vérifiez le format de l’expression horaire.</string>
+    <string name="panel_jobs_summary">%1$d active(s) · %2$d en pause · %3$d à vérifier</string>
+    <string name="panel_jobs_filter_all">Toutes (%1$d)</string>
+    <string name="panel_jobs_filter_active">Actives (%1$d)</string>
+    <string name="panel_jobs_filter_paused">En pause (%1$d)</string>
+    <string name="panel_jobs_filter_attention">Erreurs et terminées (%1$d)</string>
+    <string name="panel_jobs_filter_empty">Aucune tâche planifiée dans ce filtre.</string>
+    <string name="panel_jobs_run_now">Exécuter maintenant</string>
+    <string name="panel_jobs_running_now">Exécution lancée…</string>
+    <string name="panel_jobs_triggered">Exécution déclenchée sur le serveur.</string>
+    <string name="panel_jobs_trigger_failed">Impossible de lancer cette tâche maintenant.</string>
+    <string name="panel_jobs_details">Détails</string>
+    <string name="panel_jobs_last_run">Dernière exécution : %1$s</string>
+    <string name="panel_jobs_delivery">Livraison : %1$s</string>
+    <string name="panel_jobs_recent_runs">Exécutions récentes</string>
+    <string name="panel_jobs_no_runs">Aucune exécution enregistrée pour le moment.</string>
+    <string name="panel_jobs_run_status_running">En cours</string>
+    <string name="panel_jobs_run_status_completed">Terminée</string>
+    <string name="panel_jobs_run_status_failed">Échec</string>
+    <string name="panel_jobs_run_status_cancelled">Annulée</string>
+    <string name="panel_jobs_run_status_missed">Manquée</string>
 </resources>
