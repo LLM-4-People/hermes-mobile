@@ -770,9 +770,10 @@ public final class ThreadViews {
             int labelRes = expanded
                     ? R.string.reasoning_hide
                     : (streaming ? R.string.reasoning_streaming : R.string.reasoning_title);
+            toggle.setActivated(expanded);
             toggle.setText(context.getString(labelRes));
             toggle.setContentDescription(context.getString(
-                    expanded ? R.string.reasoning_hide_label : R.string.reasoning_show_label));
+                    expanded ? R.string.reasoning_hide : R.string.reasoning_show_label));
         }
 
         private void bindDetail() {
