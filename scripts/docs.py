@@ -166,7 +166,9 @@ def render(root, check):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--check", action="store_true", help="report drift without writing")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--check", action="store_true", help="report drift without writing")
+    mode.add_argument("--write", action="store_true", help="render outputs in place (default)")
     args = parser.parse_args()
     problems = render(ROOT, args.check)
     for problem in problems:
