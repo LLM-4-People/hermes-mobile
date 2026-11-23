@@ -16,6 +16,10 @@ public final class HermesConfig {
     public static final int DEFAULT_DIAGNOSTICS_RING_CAPACITY = 200;
     public static final int DEFAULT_THREAD_PAGE_SIZE = 40;
     public static final int DEFAULT_MAX_RECONNECTS = 5;
+    public static final String DEFAULT_UPDATE_REPO = "LLM-4-People/hermes-mobile";
+    public static final String DEFAULT_UPDATE_API_BASE = "https://api.github.com";
+    public static final long DEFAULT_UPDATE_MAX_APK_BYTES = 52_428_800L;
+    public static final long DEFAULT_UPDATE_CHECK_INTERVAL_MS = 86_400_000L;
 
     private static final HermesConfig DEFAULTS = new HermesConfig(
             DEFAULT_HTTP_CONNECT_TIMEOUT_MS,
@@ -28,7 +32,11 @@ public final class HermesConfig {
             HARD_ARTIFACT_MAX_BYTES,
             DEFAULT_DIAGNOSTICS_RING_CAPACITY,
             DEFAULT_THREAD_PAGE_SIZE,
-            DEFAULT_MAX_RECONNECTS);
+            DEFAULT_MAX_RECONNECTS,
+            DEFAULT_UPDATE_REPO,
+            DEFAULT_UPDATE_API_BASE,
+            DEFAULT_UPDATE_MAX_APK_BYTES,
+            DEFAULT_UPDATE_CHECK_INTERVAL_MS);
 
     public final int httpConnectTimeoutMs;
     public final int httpReadTimeoutMs;
@@ -41,10 +49,25 @@ public final class HermesConfig {
     public final int diagnosticsRingCapacity;
     public final int threadPageSize;
     public final int maxReconnects;
+    public final String updateRepo;
+    public final String updateApiBase;
+    public final long updateMaxApkBytes;
+    public final long updateCheckIntervalMs;
 
     public HermesConfig(int httpConnectTimeoutMs, int httpReadTimeoutMs, int httpJsonMaxBytes, int httpEventMaxBytes,
                         int nearbyTimeoutMs, int nearbyFusedGraceMs, long artifactDefaultMaxBytes,
                         long artifactHardMaxBytes, int diagnosticsRingCapacity, int threadPageSize, int maxReconnects) {
+        this(httpConnectTimeoutMs, httpReadTimeoutMs, httpJsonMaxBytes, httpEventMaxBytes,
+                nearbyTimeoutMs, nearbyFusedGraceMs, artifactDefaultMaxBytes, artifactHardMaxBytes,
+                diagnosticsRingCapacity, threadPageSize, maxReconnects,
+                DEFAULT_UPDATE_REPO, DEFAULT_UPDATE_API_BASE,
+                DEFAULT_UPDATE_MAX_APK_BYTES, DEFAULT_UPDATE_CHECK_INTERVAL_MS);
+    }
+
+    public HermesConfig(int httpConnectTimeoutMs, int httpReadTimeoutMs, int httpJsonMaxBytes, int httpEventMaxBytes,
+                        int nearbyTimeoutMs, int nearbyFusedGraceMs, long artifactDefaultMaxBytes,
+                        long artifactHardMaxBytes, int diagnosticsRingCapacity, int threadPageSize, int maxReconnects,
+                        String updateRepo, String updateApiBase, long updateMaxApkBytes, long updateCheckIntervalMs) {
         if (httpConnectTimeoutMs <= 0 || httpReadTimeoutMs <= 0 || httpJsonMaxBytes <= 0 || httpEventMaxBytes <= 0) {
             throw new IllegalArgumentException("HTTP bounds must be positive");
         }
@@ -57,6 +80,14 @@ public final class HermesConfig {
         if (diagnosticsRingCapacity <= 0 || threadPageSize <= 0 || maxReconnects < 0) {
             throw new IllegalArgumentException("Operational bounds must be valid");
         }
+        String cleanRepo = updateRepo == null ? "" : updateRepo.trim();
+        String cleanApiBase = updateApiBase == null ? "" : updateApiBase.trim();
+        if (!cleanRepo.contains("/") || cleanApiBase.isEmpty() || !cleanApiBase.startsWith("https://")) {
+            throw new IllegalArgumentException("Update repository and HTTPS API base must be valid");
+        }
+        if (updateMaxApkBytes <= 0 || updateCheckIntervalMs <= 0) {
+            throw new IllegalArgumentException("Update bounds must be positive");
+        }
         this.httpConnectTimeoutMs = httpConnectTimeoutMs;
         this.httpReadTimeoutMs = httpReadTimeoutMs;
         this.httpJsonMaxBytes = httpJsonMaxBytes;
@@ -68,6 +99,11 @@ public final class HermesConfig {
         this.diagnosticsRingCapacity = diagnosticsRingCapacity;
         this.threadPageSize = threadPageSize;
         this.maxReconnects = maxReconnects;
+        this.updateRepo = cleanRepo;
+        this.updateApiBase = cleanApiBase.endsWith("/")
+                ? cleanApiBase.substring(0, cleanApiBase.length() - 1) : cleanApiBase;
+        this.updateMaxApkBytes = updateMaxApkBytes;
+        this.updateCheckIntervalMs = updateCheckIntervalMs;
     }
 
     public static HermesConfig defaults() {
@@ -89,7 +125,11 @@ public final class HermesConfig {
                 res.getInteger(R.integer.hermes_artifact_hard_max_bytes),
                 res.getInteger(R.integer.hermes_diagnostics_ring_capacity),
                 res.getInteger(R.integer.hermes_thread_page_size),
-                res.getInteger(R.integer.hermes_max_reconnects));
+                res.getInteger(R.integer.hermes_max_reconnects),
+                res.getString(R.string.hermes_update_repo),
+                res.getString(R.string.hermes_update_api_base),
+                res.getInteger(R.integer.hermes_update_max_apk_bytes),
+                res.getInteger(R.integer.hermes_update_check_interval_ms));
     }
 
     /** Resolve the effective artifact byte limit from a gateway-advertised value without exceeding the hard ceiling. */
