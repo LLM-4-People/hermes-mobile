@@ -234,12 +234,23 @@ public final class ProfileLockPolicy {
 
     public static void setMode(Context context, String profileId, Mode mode) {
         if (context == null || profileId == null || profileId.isEmpty()) return;
-        Mode chosen = mode == null ? Mode.PASSPHRASE : mode;
         SharedPreferences prefs = prefs(context);
         synchronized (prefs) {
-            prefs.edit().putString(PREFIX + profileId, chosen.key).apply();
+            writeMode(prefs, profileId, mode);
         }
-        Diagnostics.event("security", "lock_mode_" + chosen.key);
+    }
+
+    static boolean writeMode(SharedPreferences prefs, String profileId, Mode mode) {
+        if (prefs == null || profileId == null || profileId.isEmpty()) return false;
+        Mode chosen = mode == null ? Mode.PASSPHRASE : mode;
+        try {
+            PreferenceTransaction.commit(prefs, Collections.singletonMap(PREFIX + profileId, chosen.key));
+            Diagnostics.event("security", "lock_mode_" + chosen.key);
+            return true;
+        } catch (IllegalStateException failed) {
+            Diagnostics.warning("security", "lock_mode_commit_failed");
+            return false;
+        }
     }
 
     public static void forget(Context context, String profileId) {

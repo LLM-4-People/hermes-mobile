@@ -196,6 +196,11 @@ public final class PairingLinkParser {
         if (uri.getRawUserInfo() != null) {
             throw new IllegalArgumentException("Embedded credentials are not allowed");
         }
+        String authority = uri.getRawAuthority();
+        if (authority == null || authority.trim().isEmpty()
+                || uri.getHost() == null || uri.getHost().isEmpty()) {
+            throw new IllegalArgumentException("Missing host in URL");
+        }
         Map<String, String> params = new LinkedHashMap<>();
         params.putAll(parseQuery(uri.getRawQuery()));
         if (uri.getRawFragment() != null && uri.getRawFragment().contains("=")) {

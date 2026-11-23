@@ -164,4 +164,82 @@ public final class ProfileLockPolicyTest {
         assertFalse("Cancel after successful enroll must not roll back", guard.rollbackOnce());
         assertEquals(1, rollbacks[0]);
     }
+
+    @Test
+    public void nullInputsNonAsciiDigitsAndAllRemainingSetupBlockersFailClosed() {
+        // Null & non-ASCII digit rejection
+        assertFalse(ProfileLockPolicy.isDigitsOnly(null));
+        assertFalse(ProfileLockPolicy.isDigitsOnly(""));
+        assertFalse(ProfileLockPolicy.isDigitsOnly("\u0661\u0662\u0663\u0664\u0665\u0666")); // Arabic-Indic digits
+        assertFalse(ProfileLockPolicy.isDigitsOnly("\uFF11\uFF12\uFF13\uFF14\uFF15\uFF16")); // Fullwidth digits
+        assertFalse(ProfileLockPolicy.isDigitsOnly("12345\u0666"));
+
+        assertEquals(ProfileLockPolicy.CredentialState.EMPTY, ProfileLockPolicy.evaluatePin(null, null));
+        assertEquals(ProfileLockPolicy.CredentialState.INVALID_FORMAT,
+                ProfileLockPolicy.evaluatePin("\u0661\u0662\u0663\u0664\u0665\u0666", "\u0661\u0662\u0663\u0664\u0665\u0666"));
+        assertEquals(ProfileLockPolicy.CredentialState.INVALID_FORMAT,
+                ProfileLockPolicy.evaluatePin("123456", "12345a"));
+        assertEquals(ProfileLockPolicy.CredentialState.EMPTY, ProfileLockPolicy.evaluatePassphrase(null, null));
+        assertEquals(ProfileLockPolicy.CredentialState.TOO_SHORT, ProfileLockPolicy.evaluatePassphrase("short", null));
+
+        // Null label/server/key/mode handling
+        assertEquals(ProfileLockPolicy.SetupBlocker.NAME_MISSING,
+                ProfileLockPolicy.evaluateSetupForm(null, null, null, null, null, false, null, false, null, null, null, null));
+
+        // All 6 remaining SetupBlocker variants explicitly verified
+        List<String> existing = List.of();
+        assertEquals(ProfileLockPolicy.SetupBlocker.PIN_EMPTY,
+                ProfileLockPolicy.evaluateSetupForm("Work", existing, "https://hermes.example.com", "", "sk-valid-key",
+                        false, ProfileLockPolicy.Mode.PIN, false, "", "", "", ""));
+        assertEquals(ProfileLockPolicy.SetupBlocker.PIN_INVALID,
+                ProfileLockPolicy.evaluateSetupForm("Work", existing, "https://hermes.example.com", "", "sk-valid-key",
+                        false, ProfileLockPolicy.Mode.PIN, false, "12345a", "12345a", "", ""));
+        assertEquals(ProfileLockPolicy.SetupBlocker.PIN_CONFIRM_NEEDED,
+                ProfileLockPolicy.evaluateSetupForm("Work", existing, "https://hermes.example.com", "", "sk-valid-key",
+                        false, ProfileLockPolicy.Mode.PIN, false, "123456", "", "", ""));
+        assertEquals(ProfileLockPolicy.SetupBlocker.PASSPHRASE_EMPTY,
+                ProfileLockPolicy.evaluateSetupForm("Work", existing, "https://hermes.example.com", "", "sk-valid-key",
+                        false, ProfileLockPolicy.Mode.PASSPHRASE, false, "", "", "", ""));
+        assertEquals(ProfileLockPolicy.SetupBlocker.PASSPHRASE_CONFIRM_NEEDED,
+                ProfileLockPolicy.evaluateSetupForm("Work", existing, "https://hermes.example.com", "", "sk-valid-key",
+                        false, ProfileLockPolicy.Mode.PASSPHRASE, false, "", "", "twelve-chars", ""));
+        assertEquals(ProfileLockPolicy.SetupBlocker.PASSPHRASE_MISMATCH,
+                ProfileLockPolicy.evaluateSetupForm("Work", existing, "https://hermes.example.com", "", "sk-valid-key",
+                        false, ProfileLockPolicy.Mode.PASSPHRASE, false, "", "", "twelve-chars", "twelve-charX"));
+    }
+
+    @Test
+    public void writeModeCommitsSynchronouslyAndReportsCommitFailure() {
+        boolean[] committed = {false};
+        boolean[] applied = {false};
+        boolean[] commitReturns = {true};
+        android.content.SharedPreferences.Editor editor = (android.content.SharedPreferences.Editor)
+                java.lang.reflect.Proxy.newProxyInstance(
+                        android.content.SharedPreferences.Editor.class.getClassLoader(),
+                        new Class<?>[]{android.content.SharedPreferences.Editor.class},
+                        (proxy, method, args) -> switch (method.getName()) {
+                            case "putString", "remove", "clear" -> proxy;
+                            case "commit" -> {
+                                committed[0] = true;
+                                yield commitReturns[0];
+                            }
+                            case "apply" -> {
+                                applied[0] = true;
+                                yield null;
+                            }
+                            default -> null;
+                        });
+        android.content.SharedPreferences prefs = (android.content.SharedPreferences)
+                java.lang.reflect.Proxy.newProxyInstance(
+                        android.content.SharedPreferences.class.getClassLoader(),
+                        new Class<?>[]{android.content.SharedPreferences.class},
+                        (proxy, method, args) -> "edit".equals(method.getName()) ? editor : null);
+
+        assertTrue(ProfileLockPolicy.writeMode(prefs, "p1", ProfileLockPolicy.Mode.PIN));
+        assertTrue("writeMode must commit synchronously", committed[0]);
+        assertFalse("writeMode must not use async apply()", applied[0]);
+
+        commitReturns[0] = false;
+        assertFalse(ProfileLockPolicy.writeMode(prefs, "p1", ProfileLockPolicy.Mode.BIOMETRIC));
+    }
 }

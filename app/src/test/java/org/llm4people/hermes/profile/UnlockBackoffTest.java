@@ -98,4 +98,36 @@ public final class UnlockBackoffTest {
         assertEquals("1 min", UnlockBackoff.formatRemaining(60_000L));
         assertEquals("2 min 10 s", UnlockBackoff.formatRemaining(130_000L));
     }
+
+    @Test
+    public void classCastCorruptPrefAndClockRollbackAfterRebootFailClosed() {
+        FakeClock clock = new FakeClock();
+        UnlockBackoff.Backing throwingBacking = new UnlockBackoff.Backing() {
+            @Override public String get(String key) { throw new ClassCastException("non-string stored"); }
+            @Override public void put(String key, String value) {}
+            @Override public void remove(String key) {}
+        };
+        UnlockBackoff corruptBackoff = new UnlockBackoff(throwingBacking, clock);
+        assertTrue("ClassCastException in prefs must fail closed", corruptBackoff.remainingMs("alice") > 0L);
+        assertEquals(UnlockBackoff.FREE_ATTEMPTS + 1, corruptBackoff.failureCount("alice"));
+
+        FakeBacking backing = new FakeBacking();
+        UnlockBackoff backoff = new UnlockBackoff(backing, clock);
+        backoff.recordFailure("alice");
+        backoff.recordFailure("alice");
+        assertEquals(5_000L, backoff.recordFailure("alice"));
+
+        // Different boot count with wall clock rolled back to 0 or negative must fail closed (never 0ms)
+        clock.boot = 9;
+        clock.wall = 0L;
+        assertEquals(5_000L, backoff.remainingMs("alice"));
+        clock.wall = -500L;
+        assertEquals(5_000L, backoff.remainingMs("alice"));
+
+        // Same boot with invalid negative elapsed clock and zero wall clock must also fail closed
+        clock.boot = 7;
+        clock.elapsed = -1L;
+        clock.wall = 0L;
+        assertEquals(5_000L, backoff.remainingMs("alice"));
+    }
 }

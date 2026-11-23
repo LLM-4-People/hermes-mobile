@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.text.InputFilter;
+import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
@@ -17,6 +18,8 @@ import android.widget.TextView;
 import org.llm4people.hermes.AdaptiveLayout;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
+
+import java.util.function.Consumer;
 
 /** Native, scrollable Material 3 profile forms inside the activity's inset-aware content area. */
 final class ProfileScreen {
@@ -95,9 +98,33 @@ final class ProfileScreen {
     }
 
     EditText field(String label, String hint, int type, int maxLength, boolean sensitive) {
+        return field(body, label, hint, type, maxLength, sensitive, 16);
+    }
+
+    EditText field(LinearLayout container, String label, String hint, int type, int maxLength, boolean sensitive) {
+        return field(container, label, hint, type, maxLength, sensitive, 12);
+    }
+
+    private EditText field(LinearLayout container, String label, String hint, int type, int maxLength,
+                           boolean sensitive, int topMarginDp) {
+        EditText edit = styledField(activity, container, label, hint, type, maxLength, sensitive, topMarginDp);
+        if (lastField != null) {
+            lastField.setNextFocusForwardId(edit.getId());
+            lastField.setNextFocusDownId(edit.getId());
+        }
+        lastField = edit;
+        return edit;
+    }
+
+    /** Single source of truth for Material 3 labeled form inputs across profile setup and onboarding wizard. */
+    static EditText styledField(Activity activity, LinearLayout container, String label, String hint,
+                                int type, int maxLength, boolean sensitive, int topMarginDp) {
         TextView caption = Ui.text(activity, label, 14);
         caption.setTypeface(MEDIUM);
-        add(caption, 16);
+        LinearLayout.LayoutParams capLp = new LinearLayout.LayoutParams(-1, -2);
+        capLp.topMargin = Ui.dp(activity, topMarginDp);
+        container.addView(caption, capLp);
+
         EditText edit = new EditText(activity);
         edit.setId(View.generateViewId());
         edit.setSingleLine(true);
@@ -117,13 +144,72 @@ final class ProfileScreen {
                 | (sensitive ? EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING : 0));
         edit.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO);
         caption.setLabelFor(edit.getId());
-        if (lastField != null) {
-            lastField.setNextFocusForwardId(edit.getId());
-            lastField.setNextFocusDownId(edit.getId());
-        }
-        lastField = edit;
-        add(edit, 6);
+        LinearLayout.LayoutParams editLp = new LinearLayout.LayoutParams(-1, -2);
+        editLp.topMargin = Ui.dp(activity, 6);
+        container.addView(edit, editLp);
         return edit;
+    }
+
+    /** Shared Material 3 selectable choice chip (14dp rounded ripple, >=48dp touch target, wrap-safe at 1.3x). */
+    static Button choiceChip(Activity activity, String label, View.OnClickListener listener) {
+        Button chip = new Button(activity, null, android.R.attr.borderlessButtonStyle);
+        chip.setText(label);
+        chip.setAllCaps(false);
+        chip.setTextSize(13);
+        chip.setTypeface(MEDIUM);
+        chip.setSingleLine(false);
+        chip.setMaxLines(2);
+        chip.setEllipsize(TextUtils.TruncateAt.END);
+        chip.setGravity(Gravity.CENTER);
+        chip.setStateListAnimator(null);
+        int touchMin = Ui.dp(activity, 48);
+        chip.setMinHeight(touchMin);
+        chip.setMinimumHeight(touchMin);
+        Ui.pad(chip, 10, 8);
+        chip.setOnClickListener(listener);
+        return chip;
+    }
+
+    /** Applies Material 3 selected/unselected tonal surface, border, and rounded ripple to a choice chip. */
+    static void styleChoiceChip(Activity activity, Button chip, boolean selected) {
+        GradientDrawable fill = Ui.shape(activity, Ui.BUTTON_CORNER_DP,
+                selected ? R.color.accent_surface : R.color.surface,
+                selected ? R.color.accent : R.color.line,
+                selected ? 2 : 1);
+        chip.setBackground(Ui.roundedRipple(activity, Ui.BUTTON_CORNER_DP, fill));
+        chip.setTextColor(activity.getColor(selected ? R.color.accent : R.color.ink));
+        chip.setSelected(selected);
+    }
+
+    /** Equal-width wrap-safe choice chip row sharing one consistent visual grammar across setup and wizard. */
+    static LinearLayout choiceRow(Activity activity, String[] labels, String[] values,
+                                  String initial, Consumer<String> onSelected) {
+        LinearLayout row = Ui.row(activity);
+        row.setBaselineAligned(false);
+        Button[] buttons = new Button[labels.length];
+        String[] active = {initial};
+
+        Runnable paint = () -> {
+            for (int i = 0; i < buttons.length; i++) {
+                styleChoiceChip(activity, buttons[i], values[i].equals(active[0]));
+            }
+        };
+
+        for (int i = 0; i < labels.length; i++) {
+            final String value = values[i];
+            Button chip = choiceChip(activity, labels[i], v -> {
+                active[0] = value;
+                paint.run();
+                onSelected.accept(value);
+            });
+            buttons[i] = chip;
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                    0, LinearLayout.LayoutParams.MATCH_PARENT, 1f);
+            if (i > 0) lp.setMarginStart(Ui.dp(activity, 6));
+            row.addView(chip, lp);
+        }
+        paint.run();
+        return row;
     }
 
     /**

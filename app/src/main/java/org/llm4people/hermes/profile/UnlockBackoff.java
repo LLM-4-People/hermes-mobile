@@ -88,7 +88,13 @@ public final class UnlockBackoff {
     /** Remaining lock duration in milliseconds (0 when unlocked to try). */
     public synchronized long remainingMs(String profileId) {
         if (profileId == null || profileId.isEmpty()) return 0L;
-        String raw = backing.get(PREFIX + profileId);
+        String raw;
+        try {
+            raw = backing.get(PREFIX + profileId);
+        } catch (ClassCastException corrupt) {
+            warnCorrupt();
+            return CORRUPT_COOLDOWN_MS;
+        }
         if (raw == null || raw.isEmpty()) return 0L;
         Record parsed = parse(raw);
         if (parsed == null) {
@@ -101,7 +107,13 @@ public final class UnlockBackoff {
     /** Current recorded consecutive failure count for {@code profileId}. */
     public synchronized int failureCount(String profileId) {
         if (profileId == null || profileId.isEmpty()) return 0;
-        String raw = backing.get(PREFIX + profileId);
+        String raw;
+        try {
+            raw = backing.get(PREFIX + profileId);
+        } catch (ClassCastException corrupt) {
+            warnCorrupt();
+            return FREE_ATTEMPTS + 1;
+        }
         if (raw == null || raw.isEmpty()) return 0;
         Record parsed = parse(raw);
         return parsed == null ? FREE_ATTEMPTS + 1 : parsed.failures;
@@ -149,7 +161,9 @@ public final class UnlockBackoff {
             long rem = rec.untilWallMs - nowWall;
             return rem <= 0L ? 0L : Math.min(MAX_COOLDOWN_MS, rem);
         }
-        return 0L;
+        // Clock rollback or invalid wall/monotonic clock while a cooldown deadline exists: fail closed.
+        long fallback = cooldownForFailures(rec.failures);
+        return fallback > 0L ? Math.min(MAX_COOLDOWN_MS, fallback) : CORRUPT_COOLDOWN_MS;
     }
 
     private static String encode(int failures, long untilElapsed, long untilWall, int bootCount) {

@@ -367,6 +367,25 @@ public final class QrCodeDecoderTest {
                 new int[][]{{1920, 1080}, {1280, 720}, {960, 540}, {640, 480}},
                 960, 1080.0 / 1920.0, true);
         assertArrayEquals(new int[]{960, 540}, chosenAnalysis);
+
+        // 3. Strictly prefer within-bound size (4:3 <= 1920) over oversized exact-aspect match (20:9 > 1920)
+        int[] preferWithinBound = QrScannerActivity.chooseBestSize(
+                new int[][]{{4032, 1814}, {1440, 1080}},
+                1920, 1080.0 / 2400.0, true);
+        assertArrayEquals(new int[]{1440, 1080}, preferWithinBound);
+
+        // 4. Fall back to oversized only when NO candidate fits within maxLongEdge
+        int[] fallbackOversized = QrScannerActivity.chooseBestSize(
+                new int[][]{{4032, 3024}, {3840, 2160}},
+                1920, 1080.0 / 2400.0, true);
+        assertArrayEquals(new int[]{3840, 2160}, fallbackOversized);
+
+        // 5. Safely guard null, empty, short, zero, and negative candidate entries without throwing
+        assertNull(QrScannerActivity.chooseBestSize(null, 1920, 0.5, true));
+        assertNull(QrScannerActivity.chooseBestSize(new int[0][], 1920, 0.5, true));
+        assertNull(QrScannerActivity.chooseBestSize(
+                new int[][]{null, new int[0], new int[]{640}, {0, 480}, {640, 0}, {-640, 480}},
+                1920, 0.5, true));
     }
 
     // -------------------------------------------------------------------------

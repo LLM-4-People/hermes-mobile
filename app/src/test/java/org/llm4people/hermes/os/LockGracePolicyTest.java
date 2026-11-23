@@ -106,4 +106,64 @@ public class LockGracePolicyTest {
         assertTrue(LockGracePolicy.isInternalTransitionExpired(5_000L, 4_999L, 60_000L));
         assertTrue(LockGracePolicy.isInternalTransitionExpired(1_000L, 1_001L, 0L));
     }
+
+    @Test public void sixArgOverloadNullWindowClockBackwardsAndThirtyMinuteBoundary() {
+        // Null window fails closed
+        assertTrue(LockGracePolicy.shouldLockOnReturn(null, 1_000L, 1_001L, false, false, false));
+
+        // Clock-backwards fails closed on 6-arg overload
+        assertTrue(LockGracePolicy.shouldLockOnReturn(
+                LockGracePolicy.Window.MINUTES_5, 10_000L, 9_999L, false, false, false));
+
+        // MINUTES_30 exact boundary
+        assertFalse(LockGracePolicy.shouldLockOnReturn(
+                LockGracePolicy.Window.MINUTES_30, 1_000L, 1_800_999L, false, false, false));
+        assertTrue(LockGracePolicy.shouldLockOnReturn(
+                LockGracePolicy.Window.MINUTES_30, 1_000L, 1_801_000L, false, false, false));
+    }
+
+    @Test public void corruptPrefClassCastFailsClosedAndWriteWindowCommitsSynchronously() {
+        boolean[] committed = {false};
+        boolean[] applied = {false};
+        boolean[] commitReturns = {true};
+        android.content.SharedPreferences.Editor editor = (android.content.SharedPreferences.Editor)
+                java.lang.reflect.Proxy.newProxyInstance(
+                        android.content.SharedPreferences.Editor.class.getClassLoader(),
+                        new Class<?>[]{android.content.SharedPreferences.Editor.class},
+                        (proxy, method, args) -> switch (method.getName()) {
+                            case "putString", "putInt", "putLong", "putBoolean", "putFloat", "putStringSet",
+                                    "remove", "clear" -> proxy;
+                            case "commit" -> {
+                                committed[0] = true;
+                                yield commitReturns[0];
+                            }
+                            case "apply" -> {
+                                applied[0] = true;
+                                yield null;
+                            }
+                            default -> null;
+                        });
+        android.content.SharedPreferences prefs = (android.content.SharedPreferences)
+                java.lang.reflect.Proxy.newProxyInstance(
+                        android.content.SharedPreferences.class.getClassLoader(),
+                        new Class<?>[]{android.content.SharedPreferences.class},
+                        (proxy, method, args) -> {
+                            if ("getString".equals(method.getName())) {
+                                throw new ClassCastException("stored integer instead of string");
+                            }
+                            if ("getAll".equals(method.getName())) {
+                                return java.util.Collections.singletonMap("grace.p1", 42);
+                            }
+                            if ("edit".equals(method.getName())) return editor;
+                            return null;
+                        });
+
+        assertEquals(LockGracePolicy.Window.IMMEDIATE, LockGracePolicy.readWindow(prefs, "p1"));
+        assertTrue(LockGracePolicy.writeWindow(prefs, "p1", LockGracePolicy.Window.MINUTES_5));
+        assertTrue("writeWindow must commit synchronously", committed[0]);
+        assertFalse("writeWindow must not use async apply()", applied[0]);
+
+        commitReturns[0] = false;
+        assertFalse(LockGracePolicy.writeWindow(prefs, "p1", LockGracePolicy.Window.MINUTES_15));
+    }
 }

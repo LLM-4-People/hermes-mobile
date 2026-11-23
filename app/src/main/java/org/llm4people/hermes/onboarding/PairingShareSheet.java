@@ -3,13 +3,16 @@ package org.llm4people.hermes.onboarding;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ClipData;
+import android.content.ClipDescription;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.PersistableBundle;
 import android.view.Gravity;
 import android.widget.Button;
 import android.widget.LinearLayout;
@@ -59,13 +62,21 @@ public final class PairingShareSheet implements AutoCloseable {
         return String.format(Locale.US, "%d:%02d", minutes, seconds);
     }
 
-    /** Copies a pairing link cleanly to the system clipboard. Returns true on success. */
+    /** Copies a pairing link cleanly to the system clipboard as sensitive content. Returns true on success. */
     public static boolean copyLink(Context context, String deepLink) {
         if (context == null || deepLink == null || deepLink.trim().isEmpty()) return false;
         try {
             ClipboardManager cm = context.getSystemService(ClipboardManager.class);
             if (cm == null) return false;
-            cm.setPrimaryClip(ClipData.newPlainText("Hermes", deepLink.trim()));
+            ClipData clip = ClipData.newPlainText("Hermes", deepLink.trim());
+            PersistableBundle extras = new PersistableBundle();
+            extras.putBoolean(
+                    Build.VERSION.SDK_INT >= 33
+                            ? ClipDescription.EXTRA_IS_SENSITIVE
+                            : "android.content.extra.IS_SENSITIVE",
+                    true);
+            clip.getDescription().setExtras(extras);
+            cm.setPrimaryClip(clip);
             return true;
         } catch (RuntimeException unavailable) {
             Diagnostics.warning("onboarding", "clipboard_copy_failed");

@@ -177,7 +177,22 @@ public final class BiometricVault {
         if (context == null || profileId == null || profileId.isEmpty()) return false;
         SharedPreferences prefs = prefs(context);
         synchronized (prefs) {
-            return prefs.contains(ENVELOPE_PREFIX + profileId) && prefs.contains(MODE_PREFIX + profileId);
+            return hasValidEnrollment(prefs, profileId);
+        }
+    }
+
+    static boolean hasValidEnrollment(SharedPreferences prefs, String profileId) {
+        String env = readStringOrNull(prefs, ENVELOPE_PREFIX + profileId);
+        String mode = readStringOrNull(prefs, MODE_PREFIX + profileId);
+        return env != null && !env.isEmpty() && mode != null && !mode.isEmpty();
+    }
+
+    private static String readStringOrNull(SharedPreferences prefs, String key) {
+        try {
+            return prefs.getString(key, null);
+        } catch (ClassCastException corrupt) {
+            Diagnostics.warning("biometric", "prefs_read_corrupt");
+            return null;
         }
     }
 
@@ -186,7 +201,7 @@ public final class BiometricVault {
         String storedAlias;
         SharedPreferences prefs = prefs(context);
         synchronized (prefs) {
-            storedAlias = prefs.getString(ALIAS_PREFIX + profileId, null);
+            storedAlias = readStringOrNull(prefs, ALIAS_PREFIX + profileId);
             Map<String, String> removals = new HashMap<>();
             removals.put(ENVELOPE_PREFIX + profileId, null);
             removals.put(MODE_PREFIX + profileId, null);
@@ -207,6 +222,7 @@ public final class BiometricVault {
         Objects.requireNonNull(callback);
         if (activity == null || profileId == null || profileId.isEmpty()
                 || rawPayload == null || rawPayload.length == 0) {
+            if (rawPayload != null) Arrays.fill(rawPayload, (byte) 0);
             callback.onError();
             return null;
         }
@@ -312,9 +328,10 @@ public final class BiometricVault {
         String alias;
         SharedPreferences prefs = prefs(activity);
         synchronized (prefs) {
-            encoded = prefs.getString(ENVELOPE_PREFIX + profileId, null);
-            storedMode = prefs.getString(MODE_PREFIX + profileId, null);
-            alias = prefs.getString(ALIAS_PREFIX + profileId, KEY_PREFIX + profileId);
+            encoded = readStringOrNull(prefs, ENVELOPE_PREFIX + profileId);
+            storedMode = readStringOrNull(prefs, MODE_PREFIX + profileId);
+            String storedAlias = readStringOrNull(prefs, ALIAS_PREFIX + profileId);
+            alias = storedAlias != null && !storedAlias.isEmpty() ? storedAlias : KEY_PREFIX + profileId;
         }
         if (encoded == null || storedMode == null || alias == null || alias.isEmpty()) {
             callback.onError();
@@ -488,15 +505,21 @@ public final class BiometricVault {
     }
 
     private static String storeEnvelope(Context context, String profileId, String mode,
-                                        String alias, byte[] sealed) {
+                                        String alias, byte[] sealed) throws GeneralSecurityException {
         SharedPreferences prefs = prefs(context);
         synchronized (prefs) {
-            String previousAlias = prefs.getString(ALIAS_PREFIX + profileId, KEY_PREFIX + profileId);
-            prefs.edit()
-                    .putString(ENVELOPE_PREFIX + profileId, Base64.encodeToString(sealed, Base64.NO_WRAP))
-                    .putString(MODE_PREFIX + profileId, mode)
-                    .putString(ALIAS_PREFIX + profileId, alias)
-                    .apply();
+            String storedAlias = readStringOrNull(prefs, ALIAS_PREFIX + profileId);
+            String previousAlias = storedAlias != null ? storedAlias : KEY_PREFIX + profileId;
+            Map<String, String> updates = new HashMap<>();
+            updates.put(ENVELOPE_PREFIX + profileId, Base64.encodeToString(sealed, Base64.NO_WRAP));
+            updates.put(MODE_PREFIX + profileId, mode);
+            updates.put(ALIAS_PREFIX + profileId, alias);
+            try {
+                PreferenceTransaction.commit(prefs, updates);
+            } catch (IllegalStateException commitFailed) {
+                Diagnostics.warning("biometric", "enroll_commit_failed");
+                throw new GeneralSecurityException("Biometric envelope commit failed", commitFailed);
+            }
             return previousAlias;
         }
     }
