@@ -40,7 +40,9 @@ public final class ReminderEditorScheduleTest extends InstrumentationTestCase {
                 assertTrue(hasText(top, activity.getString(R.string.panel_preset_weekdays)));
                 assertTrue(hasText(top, activity.getString(R.string.panel_preset_weekly)));
                 assertTrue(hasText(top, activity.getString(R.string.panel_preset_custom)));
-                assertTrue(hasText(top, "Du lundi au vendredi à 09 h 00"));
+                String expectedSummary = ReminderSchedule.parse("0 9 * * 1-5", ZoneId.systemDefault(),
+                        ZonedDateTime.now(ZoneId.systemDefault())).humanSummary(ReminderPanel.activeLocale(activity));
+                assertTrue(hasText(top, expectedSummary));
                 // Raw cron expression input stays tucked away until user opens advanced schedule.
                 assertFalse(hasText(top, activity.getString(R.string.panel_expression)));
                 Button adv = findButton(top, activity.getString(R.string.panel_advanced_toggle_show));

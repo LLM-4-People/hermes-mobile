@@ -1,7 +1,7 @@
 <resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
     <string name="panel_settings">Discussion settings</string>
     <string name="panel_stats">Statistics</string>
-    <string name="panel_reminders">Profile reminders</string>
+    <string name="panel_reminders">Scheduled jobs</string>
     <string name="panel_back">Back</string>
     <string name="panel_done">Close</string>
     <string name="panel_loading">Loading…</string>
@@ -114,4 +114,24 @@
     <string name="panel_source_docs">official pricing docs</string>
     <string name="panel_source_override">custom user pricing</string>
     <string name="panel_source_contract">custom contract</string>
+    <string name="panel_jobs_summary">%1$d active · %2$d paused · %3$d to review</string>
+    <string name="panel_jobs_filter_all">All (%1$d)</string>
+    <string name="panel_jobs_filter_active">Active (%1$d)</string>
+    <string name="panel_jobs_filter_paused">Paused (%1$d)</string>
+    <string name="panel_jobs_filter_attention">Issues and done (%1$d)</string>
+    <string name="panel_jobs_filter_empty">No scheduled jobs match this filter.</string>
+    <string name="panel_jobs_run_now">Run now</string>
+    <string name="panel_jobs_running_now">Starting run…</string>
+    <string name="panel_jobs_triggered">Run triggered on the server.</string>
+    <string name="panel_jobs_trigger_failed">Could not start this job right now.</string>
+    <string name="panel_jobs_details">Details</string>
+    <string name="panel_jobs_last_run">Last run: %1$s</string>
+    <string name="panel_jobs_delivery">Delivery: %1$s</string>
+    <string name="panel_jobs_recent_runs">Recent runs</string>
+    <string name="panel_jobs_no_runs">No runs recorded yet.</string>
+    <string name="panel_jobs_run_status_running">Running</string>
+    <string name="panel_jobs_run_status_completed">Completed</string>
+    <string name="panel_jobs_run_status_failed">Failed</string>
+    <string name="panel_jobs_run_status_cancelled">Cancelled</string>
+    <string name="panel_jobs_run_status_missed">Missed</string>
 </resources>

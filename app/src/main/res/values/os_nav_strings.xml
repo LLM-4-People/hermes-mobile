@@ -20,8 +20,8 @@
     <string name="brain_create_tool_hint">Demander à Hermes un formulaire ou un tableau adapté à votre besoin.</string>
 
     <string name="activity_subtitle">Retrouvez vos rappels, vos livraisons, vos alertes et le suivi de vos échanges.</string>
-    <string name="activity_reminders_title">Rappels</string>
-    <string name="activity_reminders_hint">Consulter, créer ou modifier vos rappels automatiques.</string>
+    <string name="activity_reminders_title">Tâches planifiées</string>
+    <string name="activity_reminders_hint">Voir, lancer ou modifier les tâches planifiées de votre profil.</string>
     <string name="activity_deliveries_title">Livraisons de Hermes</string>
     <string name="activity_deliveries_hint">Briefings, fichiers, mises à jour d’écran et propositions reçues.</string>
     <string name="activity_notifications_title">Notifications</string>

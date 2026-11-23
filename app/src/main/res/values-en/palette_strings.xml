@@ -25,8 +25,8 @@
     <string name="palette_act_files_hint">Browse project files and diffs</string>
     <string name="palette_act_search_title">Global search</string>
     <string name="palette_act_search_hint">Search across your discussions</string>
-    <string name="palette_act_reminders_title">Reminders</string>
-    <string name="palette_act_reminders_hint">Manage scheduled tasks</string>
+    <string name="palette_act_reminders_title">Scheduled jobs</string>
+    <string name="palette_act_reminders_hint">View, run, and manage your profile’s scheduled jobs</string>
     <string name="palette_act_deliveries_title">Deliveries inbox</string>
     <string name="palette_act_deliveries_hint">View received updates and briefings</string>
     <string name="palette_act_ambient_title">Ambient access</string>

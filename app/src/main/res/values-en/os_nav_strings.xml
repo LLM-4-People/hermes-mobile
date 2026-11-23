@@ -20,8 +20,8 @@
     <string name="brain_create_tool_hint">Ask Hermes for a form or table tailored to your need.</string>
 
     <string name="activity_subtitle">Review your reminders, deliveries, alerts, and conversation activity.</string>
-    <string name="activity_reminders_title">Reminders</string>
-    <string name="activity_reminders_hint">View, create, or edit your automatic reminders.</string>
+    <string name="activity_reminders_title">Scheduled jobs</string>
+    <string name="activity_reminders_hint">View, run, or edit scheduled jobs for your profile.</string>
     <string name="activity_deliveries_title">Hermes deliveries</string>
     <string name="activity_deliveries_hint">Briefings, files, screen updates, and incoming proposals.</string>
     <string name="activity_notifications_title">Notifications</string>
