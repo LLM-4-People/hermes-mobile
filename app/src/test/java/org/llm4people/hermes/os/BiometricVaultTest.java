@@ -126,4 +126,28 @@ public class BiometricVaultTest {
         assertEquals(0, prompts[0]);
         assertEquals(1, cleanups[0]);
     }
+
+    @Test public void enrollEarlyErrorWipesRawPayloadAndCorruptPrefsFailClosed() {
+        byte[] secret = new byte[]{1, 2, 3, 4, 5, 6, 7, 8};
+        boolean[] errored = {false};
+        assertNull(BiometricVault.enroll(null, "prof-1", "Personal", secret, new BiometricVault.EnrollmentCallback() {
+            @Override public void onEnrolled() { fail("Must not enroll with null activity"); }
+            @Override public void onCancelled() { fail("Must not cancel with null activity"); }
+            @Override public void onError() { errored[0] = true; }
+        }));
+        assertTrue(errored[0]);
+        assertArrayEquals(new byte[8], secret);
+
+        android.content.SharedPreferences corruptPrefs = (android.content.SharedPreferences)
+                java.lang.reflect.Proxy.newProxyInstance(
+                        android.content.SharedPreferences.class.getClassLoader(),
+                        new Class<?>[]{android.content.SharedPreferences.class},
+                        (proxy, method, args) -> {
+                            if ("getString".equals(method.getName())) {
+                                throw new ClassCastException("non-string stored");
+                            }
+                            return null;
+                        });
+        assertFalse(BiometricVault.hasValidEnrollment(corruptPrefs, "prof-1"));
+    }
 }

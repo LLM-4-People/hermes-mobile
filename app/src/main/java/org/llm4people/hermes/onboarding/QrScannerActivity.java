@@ -47,6 +47,7 @@ import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
+import org.llm4people.hermes.os.PermissionCenter;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -119,34 +120,49 @@ public final class QrScannerActivity extends Activity {
     }
 
     /**
-     * Pure-Java camera stream size selector prioritizing closest oriented aspect ratio to
-     * {@code targetOrientedAspect} within {@code maxLongEdge}, then preferring sharper resolution.
+     * Pure-Java camera stream size selector strictly preferring valid candidates within
+     * {@code maxLongEdge} before falling back to oversized candidates, optimizing closest oriented
+     * aspect ratio to {@code targetOrientedAspect} and then sharper resolution. Returns {@code null}
+     * when no positive valid size entry exists.
      */
     public static int[] chooseBestSize(
             int[][] candidates, int maxLongEdge, double targetOrientedAspect, boolean swapAxes) {
         if (candidates == null || candidates.length == 0) return null;
         double safeAspect = (Double.isFinite(targetOrientedAspect) && targetOrientedAspect > 0.0)
                 ? targetOrientedAspect : (9.0 / 16.0);
-        int[] best = null;
-        double bestScore = Double.POSITIVE_INFINITY;
+        int safeMaxEdge = Math.max(240, maxLongEdge);
+        int[] bestWithin = null;
+        double bestWithinScore = Double.POSITIVE_INFINITY;
+        int[] bestOversized = null;
+        double bestOversizedScore = Double.POSITIVE_INFINITY;
+        int[] firstValid = null;
         for (int[] c : candidates) {
             if (c == null || c.length < 2 || c[0] <= 0 || c[1] <= 0) continue;
+            if (firstValid == null) firstValid = c;
             int minDim = Math.min(c[0], c[1]);
             int maxDim = Math.max(c[0], c[1]);
             if (minDim < 240) continue;
             double orientedW = swapAxes ? c[1] : c[0];
             double orientedH = swapAxes ? c[0] : c[1];
             double aspectDiff = Math.abs((orientedW / orientedH) - safeAspect);
-            double edgePenalty = maxDim > maxLongEdge
-                    ? 10.0 + (maxDim - maxLongEdge) / 1000.0
-                    : (double) (maxLongEdge - maxDim) / (maxLongEdge * 20.0);
-            double score = aspectDiff * 100.0 + edgePenalty;
-            if (score < bestScore) {
-                bestScore = score;
-                best = c;
+            if (maxDim <= safeMaxEdge) {
+                double edgePenalty = (double) (safeMaxEdge - maxDim) / (safeMaxEdge * 20.0);
+                double score = aspectDiff * 100.0 + edgePenalty;
+                if (score < bestWithinScore) {
+                    bestWithinScore = score;
+                    bestWithin = c;
+                }
+            } else {
+                double edgePenalty = (double) (maxDim - safeMaxEdge) / 1000.0;
+                double score = aspectDiff * 100.0 + edgePenalty;
+                if (score < bestOversizedScore) {
+                    bestOversizedScore = score;
+                    bestOversized = c;
+                }
             }
         }
-        return best != null ? new int[]{best[0], best[1]} : new int[]{candidates[0][0], candidates[0][1]};
+        int[] chosen = bestWithin != null ? bestWithin : (bestOversized != null ? bestOversized : firstValid);
+        return chosen != null ? new int[]{chosen[0], chosen[1]} : null;
     }
 
     /** Launch the native QR scanner for result from {@code activity}. */
@@ -191,6 +207,7 @@ public final class QrScannerActivity extends Activity {
     private LinearLayout fallbackCard;
     private TextView fallbackTitle;
     private TextView fallbackDetail;
+    private Button fallbackPermBtn;
     private TextView statusText;
     private Button torchButton;
     private LinearLayout topBar;
@@ -206,6 +223,7 @@ public final class QrScannerActivity extends Activity {
     private Size previewSize;
     private Size analysisSize;
     private int sensorOrientationDeg = 90;
+    private int cameraEpoch;
     private boolean surfaceReady;
     private boolean cameraOpening;
     private boolean permissionRequested;
@@ -251,7 +269,7 @@ public final class QrScannerActivity extends Activity {
         previewContainer.setClipToPadding(true);
         previewContainer.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> {
             if ((r - l) != (or - ol) || (b - t) != (ob - ot)) {
-                applyPreviewLayout();
+                previewView.post(this::applyPreviewLayout);
             }
         });
 
@@ -282,8 +300,6 @@ public final class QrScannerActivity extends Activity {
         overlayView = new ViewfinderOverlay(this, getColor(R.color.accent));
         root.addView(overlayView, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
-
-        int touchMin = Ui.dp(this, 48);
 
         // Top bar: Close + Title + Torch (visible only when flash hardware exists)
         topBar = Ui.row(this);
@@ -340,20 +356,23 @@ public final class QrScannerActivity extends Activity {
         detailLp.topMargin = Ui.dp(this, 8);
         fallbackCard.addView(fallbackDetail, detailLp);
 
-        Button fallbackPickBtn = Ui.button(this, getString(R.string.qr_scanner_choose_image), v -> openImagePicker());
-        fallbackPickBtn.setMinHeight(touchMin);
-        fallbackPickBtn.setMinimumHeight(touchMin);
+        fallbackPermBtn = Ui.filledButton(this, getString(R.string.perm_action_allow), v -> handleCameraPermissionAction());
+        fallbackPermBtn.setVisibility(View.GONE);
+        LinearLayout.LayoutParams permLp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        permLp.topMargin = Ui.dp(this, 16);
+        fallbackCard.addView(fallbackPermBtn, permLp);
+
+        Button fallbackPickBtn = Ui.outlinedButton(this, getString(R.string.qr_scanner_choose_image), v -> openImagePicker());
         LinearLayout.LayoutParams pickLp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        pickLp.topMargin = Ui.dp(this, 16);
+        pickLp.topMargin = Ui.dp(this, 10);
         fallbackCard.addView(fallbackPickBtn, pickLp);
 
         Button fallbackCancelBtn = Ui.button(this, getString(R.string.profile_setup_cancel), v -> {
             setResult(RESULT_CANCELED);
             finish();
         });
-        fallbackCancelBtn.setMinHeight(touchMin);
-        fallbackCancelBtn.setMinimumHeight(touchMin);
         LinearLayout.LayoutParams cancelLp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         cancelLp.topMargin = Ui.dp(this, 8);
@@ -454,8 +473,18 @@ public final class QrScannerActivity extends Activity {
         } else if (!permissionRequested) {
             permissionRequested = true;
             requestPermissions(new String[]{Manifest.permission.CAMERA}, REQ_CAMERA_PERMISSION);
-        } else if (fallbackCard.getVisibility() != View.VISIBLE) {
-            showFallback(R.string.qr_scanner_permission_title, R.string.qr_scanner_permission_detail);
+        } else {
+            showFallback(R.string.qr_scanner_permission_title, R.string.qr_scanner_permission_detail, true);
+        }
+    }
+
+    private void handleCameraPermissionAction() {
+        PermissionCenter.State camState = PermissionCenter.state(this, PermissionCenter.Key.CAMERA);
+        if (camState == PermissionCenter.State.PERMANENTLY_DENIED) {
+            PermissionCenter.openAppSettings(this);
+        } else {
+            permissionRequested = true;
+            requestPermissions(new String[]{Manifest.permission.CAMERA}, REQ_CAMERA_PERMISSION);
         }
     }
 
@@ -478,6 +507,9 @@ public final class QrScannerActivity extends Activity {
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode != REQ_CAMERA_PERMISSION) return;
+        if (grantResults != null && grantResults.length > 0) {
+            PermissionCenter.recordRequested(this, PermissionCenter.Key.CAMERA);
+        }
         boolean granted = grantResults != null
                 && grantResults.length > 0
                 && grantResults[0] == PackageManager.PERMISSION_GRANTED;
@@ -487,7 +519,7 @@ public final class QrScannerActivity extends Activity {
             maybeStartCamera();
         } else {
             Diagnostics.event("qr_scanner", "camera_permission_denied");
-            showFallback(R.string.qr_scanner_permission_title, R.string.qr_scanner_permission_detail);
+            showFallback(R.string.qr_scanner_permission_title, R.string.qr_scanner_permission_detail, true);
         }
     }
 
@@ -605,24 +637,26 @@ public final class QrScannerActivity extends Activity {
         if (!surfaceReady || resultDelivered.get() || isFinishing() || isDestroyed()) return;
         if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) return;
         Handler bgHandler;
+        int openEpoch;
         synchronized (cameraLock) {
             if (cameraDevice != null || cameraOpening || cameraHandler == null) return;
             cameraOpening = true;
+            openEpoch = ++cameraEpoch;
             bgHandler = cameraHandler;
         }
 
         CameraManager manager = getSystemService(CameraManager.class);
         if (manager == null) {
-            clearCameraOpening();
-            showFallback(R.string.qr_scanner_unavailable_title, R.string.qr_scanner_unavailable_detail);
+            clearCameraOpening(openEpoch);
+            showFallback(R.string.qr_scanner_unavailable_title, R.string.qr_scanner_unavailable_detail, false);
             return;
         }
 
         String camId = selectCameraId(manager);
         if (camId == null) {
-            clearCameraOpening();
+            clearCameraOpening(openEpoch);
             Diagnostics.warning("qr_scanner", "no_camera_hardware");
-            showFallback(R.string.qr_scanner_unavailable_title, R.string.qr_scanner_unavailable_detail);
+            showFallback(R.string.qr_scanner_unavailable_title, R.string.qr_scanner_unavailable_detail, false);
             return;
         }
 
@@ -644,8 +678,8 @@ public final class QrScannerActivity extends Activity {
                     : viewportAspect;
             analysisSize = chooseAnalysisSize(map, previewOrientedAspect, swapAxes);
             if (analysisSize == null) {
-                clearCameraOpening();
-                showFallback(R.string.qr_scanner_unavailable_title, R.string.qr_scanner_unavailable_detail);
+                clearCameraOpening(openEpoch);
+                showFallback(R.string.qr_scanner_unavailable_title, R.string.qr_scanner_unavailable_detail, false);
                 return;
             }
             Size chosenPreview = previewSize != null ? previewSize : analysisSize;
@@ -663,24 +697,28 @@ public final class QrScannerActivity extends Activity {
                 mainHandler.post(configureSurface);
             }
 
+            final int sessionEpoch = openEpoch;
             manager.openCamera(camId, new CameraDevice.StateCallback() {
                 @Override
                 public void onOpened(CameraDevice device) {
                     synchronized (cameraLock) {
-                        cameraOpening = false;
-                        if (isFinishing() || isDestroyed() || cameraHandler == null || cameraDevice != null) {
+                        if (sessionEpoch != cameraEpoch || isFinishing() || isDestroyed()
+                                || cameraHandler == null || cameraDevice != null) {
+                            if (sessionEpoch == cameraEpoch) cameraOpening = false;
                             device.close();
                             return;
                         }
+                        cameraOpening = false;
                         cameraDevice = device;
                     }
-                    createCaptureSession(device);
+                    createCaptureSession(device, sessionEpoch);
                 }
 
                 @Override
                 public void onDisconnected(CameraDevice device) {
                     device.close();
                     synchronized (cameraLock) {
+                        if (sessionEpoch != cameraEpoch) return;
                         cameraOpening = false;
                         if (cameraDevice == device) cameraDevice = null;
                     }
@@ -689,31 +727,39 @@ public final class QrScannerActivity extends Activity {
                 @Override
                 public void onError(CameraDevice device, int error) {
                     device.close();
+                    boolean stale;
                     synchronized (cameraLock) {
-                        cameraOpening = false;
-                        if (cameraDevice == device) cameraDevice = null;
+                        stale = sessionEpoch != cameraEpoch;
+                        if (!stale) {
+                            cameraOpening = false;
+                            if (cameraDevice == device) cameraDevice = null;
+                        }
                     }
+                    if (stale) return;
                     Diagnostics.warning("qr_scanner", "camera_open_error_" + error);
                     mainHandler.post(() -> showFallback(
-                            R.string.qr_scanner_unavailable_title, R.string.qr_scanner_unavailable_detail));
+                            R.string.qr_scanner_unavailable_title, R.string.qr_scanner_unavailable_detail, false));
                 }
             }, bgHandler);
         } catch (CameraAccessException | RuntimeException err) {
-            clearCameraOpening();
+            clearCameraOpening(openEpoch);
             Diagnostics.warning("qr_scanner", "camera_start_failed");
-            showFallback(R.string.qr_scanner_unavailable_title, R.string.qr_scanner_unavailable_detail);
+            showFallback(R.string.qr_scanner_unavailable_title, R.string.qr_scanner_unavailable_detail, false);
         }
     }
 
-    private void clearCameraOpening() {
+    private void clearCameraOpening(int epoch) {
         synchronized (cameraLock) {
-            cameraOpening = false;
+            if (epoch == cameraEpoch) cameraOpening = false;
         }
     }
 
-    private void createCaptureSession(CameraDevice device) {
+    private void createCaptureSession(CameraDevice device, int sessionEpoch) {
         Surface previewSurface = previewView.getHolder().getSurface();
         if (previewSurface == null || !previewSurface.isValid() || analysisSize == null) {
+            synchronized (cameraLock) {
+                if (sessionEpoch != cameraEpoch) return;
+            }
             closeCamera();
             return;
         }
@@ -722,7 +768,7 @@ public final class QrScannerActivity extends Activity {
         ImageReader reader;
         synchronized (cameraLock) {
             bgHandler = cameraHandler;
-            if (bgHandler == null || cameraDevice != device) return;
+            if (sessionEpoch != cameraEpoch || bgHandler == null || cameraDevice != device) return;
             if (imageReader != null) {
                 try { imageReader.close(); } catch (RuntimeException ignored) {}
             }
@@ -742,6 +788,7 @@ public final class QrScannerActivity extends Activity {
                 builder.set(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_TORCH);
             }
             synchronized (cameraLock) {
+                if (sessionEpoch != cameraEpoch || cameraDevice != device) return;
                 previewRequestBuilder = builder;
             }
             device.createCaptureSession(
@@ -750,7 +797,7 @@ public final class QrScannerActivity extends Activity {
                         @Override
                         public void onConfigured(CameraCaptureSession session) {
                             synchronized (cameraLock) {
-                                if (cameraDevice != device || cameraHandler == null) {
+                                if (sessionEpoch != cameraEpoch || cameraDevice != device || cameraHandler == null) {
                                     session.close();
                                     return;
                                 }
@@ -765,18 +812,24 @@ public final class QrScannerActivity extends Activity {
 
                         @Override
                         public void onConfigureFailed(CameraCaptureSession session) {
+                            synchronized (cameraLock) {
+                                if (sessionEpoch != cameraEpoch) return;
+                            }
                             Diagnostics.warning("qr_scanner", "session_configure_failed");
                             closeCamera();
                             mainHandler.post(() -> showFallback(
-                                    R.string.qr_scanner_unavailable_title, R.string.qr_scanner_unavailable_detail));
+                                    R.string.qr_scanner_unavailable_title, R.string.qr_scanner_unavailable_detail, false));
                         }
                     },
                     bgHandler);
         } catch (CameraAccessException | RuntimeException err) {
+            synchronized (cameraLock) {
+                if (sessionEpoch != cameraEpoch) return;
+            }
             Diagnostics.warning("qr_scanner", "capture_session_failed");
             closeCamera();
             mainHandler.post(() -> showFallback(
-                    R.string.qr_scanner_unavailable_title, R.string.qr_scanner_unavailable_detail));
+                    R.string.qr_scanner_unavailable_title, R.string.qr_scanner_unavailable_detail, false));
         }
     }
 
@@ -862,6 +915,7 @@ public final class QrScannerActivity extends Activity {
     private void closeCamera() {
         boolean resetTorchUi;
         synchronized (cameraLock) {
+            cameraEpoch++;
             resetTorchUi = torchOn;
             torchOn = false;
             cameraOpening = false;
@@ -963,11 +1017,12 @@ public final class QrScannerActivity extends Activity {
         if (sizes == null || sizes.length == 0) return null;
         int[][] raw = new int[sizes.length][2];
         for (int i = 0; i < sizes.length; i++) {
+            if (sizes[i] == null) continue;
             raw[i][0] = sizes[i].getWidth();
             raw[i][1] = sizes[i].getHeight();
         }
         int[] best = chooseBestSize(raw, maxLongEdge, targetOrientedAspect, swapAxes);
-        return best != null ? new Size(best[0], best[1]) : sizes[0];
+        return best != null ? new Size(best[0], best[1]) : null;
     }
 
     private void deliverSuccess(String validatedRawLink, String diagEvent) {
@@ -986,10 +1041,21 @@ public final class QrScannerActivity extends Activity {
         }
     }
 
-    private void showFallback(int titleRes, int detailRes) {
+    private void showFallback(int titleRes, int detailRes, boolean permissionRecovery) {
         if (isFinishing() || isDestroyed()) return;
         fallbackTitle.setText(titleRes);
         fallbackDetail.setText(detailRes);
+        if (fallbackPermBtn != null) {
+            if (permissionRecovery) {
+                PermissionCenter.State camState = PermissionCenter.state(this, PermissionCenter.Key.CAMERA);
+                fallbackPermBtn.setText(camState == PermissionCenter.State.PERMANENTLY_DENIED
+                        ? R.string.perm_action_open_settings
+                        : R.string.perm_action_allow);
+                fallbackPermBtn.setVisibility(View.VISIBLE);
+            } else {
+                fallbackPermBtn.setVisibility(View.GONE);
+            }
+        }
         fallbackCard.setVisibility(View.VISIBLE);
         overlayView.setVisibility(View.GONE);
         bottomBar.setVisibility(View.GONE);

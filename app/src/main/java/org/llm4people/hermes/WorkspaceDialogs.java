@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.graphics.Typeface;
 import android.text.Editable;
+import android.text.InputFilter;
 import android.text.InputType;
 import android.text.TextWatcher;
 import android.view.View;
@@ -367,8 +368,11 @@ final class WorkspaceDialogs {
         first.setSingleLine(true);
         first.setSaveEnabled(false);
         first.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO);
+        first.setImeOptions(EditorInfo.IME_ACTION_NEXT | EditorInfo.IME_FLAG_NO_EXTRACT_UI
+                | EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING);
         first.setMinHeight(Ui.dp(activity, 48));
         first.setBackgroundResource(R.drawable.profile_input);
+        first.setBackgroundTintList(null);
         Ui.pad(first, 12, 9);
         LinearLayout.LayoutParams fLp = new LinearLayout.LayoutParams(-1, -2);
         fLp.topMargin = Ui.dp(activity, 10);
@@ -378,8 +382,11 @@ final class WorkspaceDialogs {
         confirm.setSingleLine(true);
         confirm.setSaveEnabled(false);
         confirm.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO);
+        confirm.setImeOptions(EditorInfo.IME_ACTION_DONE | EditorInfo.IME_FLAG_NO_EXTRACT_UI
+                | EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING);
         confirm.setMinHeight(Ui.dp(activity, 48));
         confirm.setBackgroundResource(R.drawable.profile_input);
+        confirm.setBackgroundTintList(null);
         Ui.pad(confirm, 12, 9);
         LinearLayout.LayoutParams cLp = new LinearLayout.LayoutParams(-1, -2);
         cLp.topMargin = Ui.dp(activity, 8);
@@ -404,6 +411,9 @@ final class WorkspaceDialogs {
                 int pinType = InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_VARIATION_PASSWORD;
                 first.setInputType(pinType);
                 confirm.setInputType(pinType);
+                InputFilter[] pinFilter = {new InputFilter.LengthFilter(ProfileLockPolicy.MAX_PIN_DIGITS)};
+                first.setFilters(pinFilter);
+                confirm.setFilters(pinFilter);
                 first.setHint(R.string.lock_pin_hint);
                 confirm.setHint(R.string.lock_pin_confirm_label);
                 note.setText(R.string.lock_setup_missing_pin);
@@ -413,6 +423,9 @@ final class WorkspaceDialogs {
                 int passType = InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD;
                 first.setInputType(passType);
                 confirm.setInputType(passType);
+                InputFilter[] passFilter = {new InputFilter.LengthFilter(512)};
+                first.setFilters(passFilter);
+                confirm.setFilters(passFilter);
                 first.setHint(R.string.profile_passphrase_label);
                 confirm.setHint(R.string.profile_passphrase_confirm_label);
                 note.setText(R.string.lock_setup_missing_passphrase);

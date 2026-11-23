@@ -5,11 +5,9 @@ import android.app.AlertDialog;
 import android.content.Context;
 import android.os.SystemClock;
 import android.text.Editable;
-import android.text.InputFilter;
 import android.text.InputType;
 import android.text.TextWatcher;
 import android.view.View;
-import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.EditText;
@@ -55,14 +53,6 @@ public final class ProfileGate {
         t.setDaemon(true);
         return t;
     });
-
-    enum PassphraseState {
-        EMPTY,
-        TOO_SHORT,
-        AWAITING_CONFIRM,
-        MISMATCH,
-        READY
-    }
 
     enum ProbeOutcome {
         READY,
@@ -182,6 +172,7 @@ public final class ProfileGate {
     private OnboardingModels.PairingClaim lastPairingClaim;
     private FirstRunWizard.StagedPairing stagedPairing;
     private Consumer<PairingLinkParser.ParsedInput> activeAddPairingHandler;
+    private Runnable clearVisibleSecrets;
     private int generation;
     private boolean nested;
     private boolean busy;
@@ -223,16 +214,6 @@ public final class ProfileGate {
     /** Membership check available to notification receivers while profile data is locked. */
     public static boolean contains(Context context, String id) {
         return new AccountStore(context).contains(id);
-    }
-
-    /** Pure passphrase readiness classifier (takes lengths + match flag so no String copies are required). */
-    static PassphraseState evaluatePassphrase(int length, int confirmLength, boolean matches) {
-        int safeLen = Math.max(0, length);
-        int safeConfirm = Math.max(0, confirmLength);
-        if (safeLen == 0 && safeConfirm == 0) return PassphraseState.EMPTY;
-        if (safeLen < MIN_PASSPHRASE) return PassphraseState.TOO_SHORT;
-        if (safeConfirm == 0) return PassphraseState.AWAITING_CONFIRM;
-        return matches ? PassphraseState.READY : PassphraseState.MISMATCH;
     }
 
     /** Pure in-place character comparison avoiding immutable heap Strings for sensitive fields. */
@@ -340,6 +321,7 @@ public final class ProfileGate {
     }
 
     public void lock() {
+        pendingPairing = null;
         invalidate();
         if (onOpen != null && !activity.isDestroyed() && !activity.isFinishing()) {
             if (store.profiles().isEmpty()) add(false);
@@ -350,6 +332,7 @@ public final class ProfileGate {
     /** Permanently tears down the gate on Activity destroy: cancels biometrics, revokes probes, dismisses dialogs, zeroes Account keys. */
     public void close() {
         onOpen = null;
+        pendingPairing = null;
         invalidate();
     }
 
@@ -378,12 +361,20 @@ public final class ProfileGate {
         probe.cancel(resetUi);
     }
 
+    private void wipeVisibleSecrets() {
+        Runnable wipe = clearVisibleSecrets;
+        clearVisibleSecrets = null;
+        if (wipe != null) wipe.run();
+    }
+
     private void invalidate() {
         generation++;
         busy = false;
         nested = false;
+        lastPairingClaim = null;
         stagedPairing = null;
         activeAddPairingHandler = null;
+        wipeVisibleSecrets();
         cancelBiometric();
         cancelProbe();
         if (confirmation != null) {
@@ -404,6 +395,7 @@ public final class ProfileGate {
 
     private void chooser(String message) {
         generation++;
+        wipeVisibleSecrets();
         cancelProbe();
         nested = false;
         stagedPairing = null;
@@ -641,6 +633,7 @@ public final class ProfileGate {
         screen.card(modeHeading, 10);
 
         LinearLayout modeRow = Ui.row(activity);
+        modeRow.setBaselineAligned(false);
         ProfileLockPolicy.Mode[] allModes = ProfileLockPolicy.Mode.values();
         Button[] modeButtons = new Button[allModes.length];
 
@@ -651,9 +644,9 @@ public final class ProfileGate {
         bioSlot.addView(bioInfo);
 
         LinearLayout pinSlot = Ui.column(activity);
-        EditText pin = groupedField(pinSlot, activity.getString(R.string.lock_pin_label),
+        EditText pin = screen.field(pinSlot, activity.getString(R.string.lock_pin_label),
                 activity.getString(R.string.lock_pin_hint), PIN_INPUT, ProfileLockPolicy.MAX_PIN_DIGITS, true);
-        EditText pinRepeat = groupedField(pinSlot, activity.getString(R.string.lock_pin_confirm_label),
+        EditText pinRepeat = screen.field(pinSlot, activity.getString(R.string.lock_pin_confirm_label),
                 "", PIN_INPUT, ProfileLockPolicy.MAX_PIN_DIGITS, true);
         TextView pinHint = Ui.text(activity, "", 13);
         pinHint.setTextColor(activity.getColor(R.color.muted));
@@ -663,10 +656,10 @@ public final class ProfileGate {
         pinSlot.addView(pinHint, hintLp);
 
         LinearLayout passphraseSlot = Ui.column(activity);
-        EditText phrase = groupedField(passphraseSlot, activity.getString(R.string.profile_passphrase_label),
+        EditText phrase = screen.field(passphraseSlot, activity.getString(R.string.profile_passphrase_label),
                 activity.getResources().getQuantityString(R.plurals.profile_passphrase_hint, MIN_PASSPHRASE, MIN_PASSPHRASE),
                 SECRET, 512, true);
-        EditText repeat = groupedField(passphraseSlot, activity.getString(R.string.profile_passphrase_confirm_label),
+        EditText repeat = screen.field(passphraseSlot, activity.getString(R.string.profile_passphrase_confirm_label),
                 "", SECRET, 512, true);
         TextView passphraseHint = Ui.text(activity, "", 13);
         passphraseHint.setTextColor(activity.getColor(R.color.muted));
@@ -675,10 +668,18 @@ public final class ProfileGate {
         passHintLp.topMargin = Ui.dp(activity, 4);
         passphraseSlot.addView(passphraseHint, passHintLp);
 
+        clearVisibleSecrets = () -> {
+            key.getText().clear();
+            pin.getText().clear();
+            pinRepeat.getText().clear();
+            phrase.getText().clear();
+            repeat.getText().clear();
+        };
+
         Runnable applyModeUi = () -> {
             for (int i = 0; i < allModes.length; i++) {
                 boolean activeChoice = allModes[i] == selectedMode[0];
-                styleModeChip(modeButtons[i], activeChoice);
+                ProfileScreen.styleChoiceChip(activity, modeButtons[i], activeChoice);
             }
             bioSlot.setVisibility(selectedMode[0] == ProfileLockPolicy.Mode.BIOMETRIC ? View.VISIBLE : View.GONE);
             pinSlot.setVisibility(selectedMode[0] == ProfileLockPolicy.Mode.PIN ? View.VISIBLE : View.GONE);
@@ -688,20 +689,14 @@ public final class ProfileGate {
 
         for (int i = 0; i < allModes.length; i++) {
             ProfileLockPolicy.Mode choice = allModes[i];
-            Button chip = new Button(activity, null, android.R.attr.borderlessButtonStyle);
-            chip.setText(choice.labelRes);
-            chip.setAllCaps(false);
-            chip.setTextSize(13);
-            chip.setMinHeight(Ui.dp(activity, 48));
-            chip.setMinimumHeight(Ui.dp(activity, 48));
-            chip.setPadding(Ui.dp(activity, 8), Ui.dp(activity, 8), Ui.dp(activity, 8), Ui.dp(activity, 8));
-            chip.setOnClickListener(v -> {
+            Button chip = ProfileScreen.choiceChip(activity, activity.getString(choice.labelRes), v -> {
                 if (busy) return;
                 selectedMode[0] = choice;
                 applyModeUi.run();
             });
             modeButtons[i] = chip;
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                    0, LinearLayout.LayoutParams.MATCH_PARENT, 1f);
             if (i > 0) lp.setMarginStart(Ui.dp(activity, 6));
             modeRow.addView(chip, lp);
         }
@@ -751,7 +746,6 @@ public final class ProfileGate {
                     repeat.getText());
             boolean ready = blocker == ProfileLockPolicy.SetupBlocker.READY;
             saveButton.setEnabled(!busy && ready);
-            saveButton.setAlpha((!busy && ready) ? 1.0f : 0.48f);
             if (ready) {
                 screen.setNote(readinessNote, activity.getString(R.string.lock_setup_ready), R.color.accent);
             } else {
@@ -814,6 +808,10 @@ public final class ProfileGate {
                 }
             }
             cancelProbe(true);
+            pin.getText().clear();
+            pinRepeat.getText().clear();
+            phrase.getText().clear();
+            repeat.getText().clear();
             saveProfileWithMode(screen, saveButton, label, endpoint, bearer,
                     useStaged ? activeStaged : null, chosenMode, pass,
                     clearStaged, claimedKey -> {
@@ -833,7 +831,11 @@ public final class ProfileGate {
                     }, refreshReadiness);
         });
         applyModeUi.run();
-        if (canGoBack) screen.action(activity.getString(R.string.profile_back_to_profiles), false, view -> { if (!busy) chooser(null); });
+        if (canGoBack) screen.action(activity.getString(R.string.profile_back_to_profiles), false, view -> {
+            if (busy) return;
+            wipeVisibleSecrets();
+            chooser(null);
+        });
         else screen.action(activity.getString(R.string.language_action), false,
                 view -> { if (!busy) showLanguagePicker(); });
 
@@ -877,7 +879,7 @@ public final class ProfileGate {
             Consumer<Boolean> onDone) {
         Objects.requireNonNull(nextMode, "nextMode");
         Objects.requireNonNull(onDone, "onDone");
-        if (unlocked == null || unlocked != active) {
+        if (busy || unlocked == null || unlocked != active) {
             if (nextSecret != null) Arrays.fill(nextSecret, '\0');
             onDone.accept(false);
             return null;
@@ -885,7 +887,8 @@ public final class ProfileGate {
         int epoch = generation;
         if (nextMode == ProfileLockPolicy.Mode.BIOMETRIC) {
             if (nextSecret != null) Arrays.fill(nextSecret, '\0');
-            return enrollBiometric(unlocked, new BiometricVault.EnrollmentCallback() {
+            busy = true;
+            BiometricVault.Session session = enrollBiometric(unlocked, new BiometricVault.EnrollmentCallback() {
                 @Override public void onEnrolled() {
                     char[] generated = ProfileLockPolicy.generateVaultSecret();
                     IO.execute(() -> {
@@ -896,29 +899,36 @@ public final class ProfileGate {
                             ok = true;
                         } catch (Exception err) {
                             Diagnostics.warning("security", "lock_mode_biometric_reseal_failed");
+                            BiometricVault.revoke(activity, unlocked.id);
                         } finally {
                             Arrays.fill(generated, '\0');
                         }
                         boolean finalOk = ok;
                         activity.runOnUiThread(() -> {
+                            if (epoch == generation) busy = false;
                             if (epoch == generation && active == unlocked) onDone.accept(finalOk);
                         });
                     });
                 }
 
                 @Override public void onCancelled() {
+                    if (epoch == generation) busy = false;
                     if (epoch == generation && active == unlocked) onDone.accept(false);
                 }
 
                 @Override public void onError() {
+                    if (epoch == generation) busy = false;
                     if (epoch == generation && active == unlocked) onDone.accept(false);
                 }
             });
+            if (session == null && epoch == generation) busy = false;
+            return session;
         }
         if (nextSecret == null || nextSecret.length == 0) {
             onDone.accept(false);
             return null;
         }
+        busy = true;
         ProfileLockPolicy.Mode previousMode = ProfileLockPolicy.mode(activity, unlocked.id);
         IO.execute(() -> {
             boolean ok = false;
@@ -936,6 +946,7 @@ public final class ProfileGate {
             }
             boolean finalOk = ok;
             activity.runOnUiThread(() -> {
+                if (epoch == generation) busy = false;
                 if (epoch == generation && active == unlocked) onDone.accept(finalOk);
             });
         });
@@ -1051,50 +1062,6 @@ public final class ProfileGate {
         });
     }
 
-    private EditText groupedField(
-            LinearLayout container, String label, String hint, int type, int maxLength, boolean sensitive) {
-        TextView caption = Ui.text(activity, label, 14);
-        caption.setTypeface(android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL));
-        LinearLayout.LayoutParams capLp = new LinearLayout.LayoutParams(-1, -2);
-        capLp.topMargin = Ui.dp(activity, 12);
-        container.addView(caption, capLp);
-
-        EditText edit = new EditText(activity);
-        edit.setId(View.generateViewId());
-        edit.setSingleLine(true);
-        edit.setTextSize(17);
-        edit.setInputType(type);
-        edit.setTypeface(android.graphics.Typeface.DEFAULT);
-        edit.setTextColor(activity.getColor(R.color.ink));
-        edit.setHintTextColor(activity.getColor(R.color.muted));
-        edit.setBackgroundResource(R.drawable.profile_input);
-        edit.setBackgroundTintList(null);
-        Ui.pad(edit, 12, 9);
-        edit.setHint(hint);
-        edit.setMinHeight(Ui.dp(activity, 48));
-        edit.setSaveEnabled(false);
-        edit.setFilters(new InputFilter[]{new InputFilter.LengthFilter(maxLength)});
-        edit.setImeOptions(EditorInfo.IME_ACTION_NEXT | EditorInfo.IME_FLAG_NO_EXTRACT_UI
-                | (sensitive ? EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING : 0));
-        edit.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO);
-        caption.setLabelFor(edit.getId());
-        LinearLayout.LayoutParams editLp = new LinearLayout.LayoutParams(-1, -2);
-        editLp.topMargin = Ui.dp(activity, 4);
-        container.addView(edit, editLp);
-        return edit;
-    }
-
-    private void styleModeChip(Button button, boolean selected) {
-        android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
-        bg.setCornerRadius(Ui.dp(activity, 10));
-        bg.setColor(activity.getColor(selected ? R.color.accent_surface : R.color.surface));
-        bg.setStroke(Math.max(1, Ui.dp(activity, selected ? 2 : 1)),
-                activity.getColor(selected ? R.color.accent : R.color.line));
-        button.setBackground(bg);
-        button.setTextColor(activity.getColor(selected ? R.color.accent : R.color.ink));
-        button.setSelected(selected);
-    }
-
     private String blockerMessage(ProfileLockPolicy.SetupBlocker blocker) {
         return switch (blocker) {
             case READY -> activity.getString(R.string.lock_setup_ready);
@@ -1151,10 +1118,10 @@ public final class ProfileGate {
             @Override public void afterTextChanged(Editable s) {
                 Editable primary = phrase.getText();
                 Editable confirm = repeat.getText();
-                PassphraseState state = evaluatePassphrase(primary.length(), confirm.length(), sameChars(primary, confirm));
+                ProfileLockPolicy.CredentialState state = ProfileLockPolicy.evaluatePassphrase(primary, confirm);
                 switch (state) {
                     case EMPTY -> screen.setNote(hint, "", R.color.muted);
-                    case TOO_SHORT -> screen.setNote(hint,
+                    case INVALID_FORMAT, TOO_SHORT -> screen.setNote(hint,
                             activity.getString(R.string.profile_setup_passphrase_progress,
                                     primary.length(), MIN_PASSPHRASE),
                             R.color.muted);
@@ -1251,7 +1218,6 @@ public final class ProfileGate {
         busy = true;
         int epoch = generation;
         action.setEnabled(false);
-        action.setAlpha(0.48f);
         InputMethodManager ime = (InputMethodManager) activity.getSystemService(Context.INPUT_METHOD_SERVICE);
         if (ime != null) ime.hideSoftInputFromWindow(action.getWindowToken(), 0);
         screen.status(activity.getString(staged != null
@@ -1274,6 +1240,8 @@ public final class ProfileGate {
                     Diagnostics.event("onboarding", "pairing_claimed");
                 }
                 account = store.create(label, finalEndpoint, finalBearer, pass);
+                ProfileLockPolicy.setMode(activity, account.id, lockMode);
+                LockGracePolicy.setWindow(activity, account.id, LockGracePolicy.DEFAULT_FOR_NEW_PROFILE);
             } catch (HermesApi.HttpError http) {
                 if (http.status == 410 || http.status == 404) expiredOrUsed = true;
                 Diagnostics.warning("onboarding", "pairing_claim_http_" + http.status);
@@ -1301,19 +1269,23 @@ public final class ProfileGate {
                 }
                 if (created == null) {
                     busy = false;
-                    if (finalExpired) clearStaged.run();
-                    refreshReadiness.run();
+                    String claimedKey = finalClaim != null ? finalClaim.apiKey() : null;
+                    if (claimedKey != null && !claimedKey.isEmpty()) {
+                        preserveClaimedKeyOnRollback.accept(claimedKey);
+                    } else {
+                        if (finalExpired) clearStaged.run();
+                        refreshReadiness.run();
+                    }
                     screen.status(activity.getString(finalExpired
                             ? R.string.onboarding_paste_claim_failed
                             : R.string.profile_setup_save_failed), true);
                     return;
                 }
-                ProfileLockPolicy.setMode(activity, created.id, lockMode);
-                LockGracePolicy.setWindow(activity, created.id, LockGracePolicy.DEFAULT_FOR_NEW_PROFILE);
                 if (lockMode != ProfileLockPolicy.Mode.BIOMETRIC) {
                     busy = false;
                     stagedPairing = null;
                     lastPairingClaim = finalClaim;
+                    wipeVisibleSecrets();
                     screen.status("", false);
                     opened(created);
                     return;
@@ -1356,6 +1328,7 @@ public final class ProfileGate {
                                     busy = false;
                                     stagedPairing = null;
                                     lastPairingClaim = finalClaim;
+                                    wipeVisibleSecrets();
                                     screen.status("", false);
                                     opened(created);
                                 }
@@ -1369,6 +1342,7 @@ public final class ProfileGate {
                                 }
                             });
                 } catch (java.io.IOException | RuntimeException err) {
+                    Diagnostics.warning("biometric", "enroll_start_failed", err);
                     guard.rollbackOnce();
                 }
             });
@@ -1499,6 +1473,7 @@ public final class ProfileGate {
     private void unlock(String id, String label) {
         generation++;
         int screenEpoch = generation;
+        wipeVisibleSecrets();
         cancelProbe();
         nested = true;
         activeAddPairingHandler = null;
@@ -1571,13 +1546,12 @@ public final class ProfileGate {
         activeBiometric = BiometricVault.authenticate(activity, id, label, new BiometricVault.Callback() {
             @Override public void onSuccess(byte[] payload) {
                 activeBiometric = null;
-                if (epoch != generation || activity.isFinishing() || activity.isDestroyed()) {
-                    Arrays.fill(payload, (byte) 0);
-                    return;
-                }
-                busy = false;
-                bioButton.setEnabled(true);
                 try {
+                    if (epoch != generation || activity.isFinishing() || activity.isDestroyed()) {
+                        return;
+                    }
+                    busy = false;
+                    bioButton.setEnabled(true);
                     Account unlocked = store.openBiometric(id, payload);
                     backoff.reset(id);
                     screen.status("", false);
@@ -1585,6 +1559,8 @@ public final class ProfileGate {
                 } catch (Exception error) {
                     Diagnostics.warning("biometric", "account_open_failed");
                     screen.status(activity.getString(R.string.security_biometric_failed), true);
+                } finally {
+                    if (payload != null) Arrays.fill(payload, (byte) 0);
                 }
             }
 
@@ -1599,6 +1575,10 @@ public final class ProfileGate {
                 activeBiometric = null;
                 if (epoch != generation) return;
                 busy = false;
+                if (ProfileLockPolicy.mode(activity, id) == ProfileLockPolicy.Mode.BIOMETRIC) {
+                    unlock(id, label);
+                    return;
+                }
                 bioButton.setVisibility(View.GONE);
                 screen.status(activity.getString(R.string.security_biometric_invalidated), true);
             }
@@ -1628,6 +1608,10 @@ public final class ProfileGate {
                 pinMode ? activity.getString(R.string.lock_pin_hint) : "",
                 pinMode ? PIN_INPUT : SECRET,
                 pinMode ? ProfileLockPolicy.MAX_PIN_DIGITS : 512, true);
+        clearVisibleSecrets = () -> {
+            key.getText().clear();
+            phrase.getText().clear();
+        };
         Button testButton = screen.action(activity.getString(R.string.profile_setup_test_key_action), false, null);
         TextView probeStatus = screen.liveNote("");
         testButton.setOnClickListener(view -> {
@@ -1644,9 +1628,11 @@ public final class ProfileGate {
             if (bearer == null) return;
             char[] pass = password(phrase);
             if (pass.length == 0) {
-                invalid(phrase, activity.getString(R.string.profile_setup_passphrase_required));
+                invalid(phrase, activity.getString(pinMode
+                        ? R.string.lock_pin_required : R.string.profile_setup_passphrase_required));
                 return;
             }
+            phrase.getText().clear();
             runKeyRotationProbe(screen, testButton, probeStatus, id, bearer, pass);
         });
         screen.action(activity.getString(R.string.profile_setup_rotate_save), true, view -> {
@@ -1662,15 +1648,21 @@ public final class ProfileGate {
             if (bearer == null) return;
             char[] pass = password(phrase);
             if (pass.length == 0) {
-                invalid(phrase, activity.getString(R.string.profile_setup_passphrase_required));
+                invalid(phrase, activity.getString(pinMode
+                        ? R.string.lock_pin_required : R.string.profile_setup_passphrase_required));
                 return;
             }
+            key.getText().clear();
             phrase.getText().clear();
             cancelProbe(true);
             run(screen, (Button) view, id, pass, () -> store.replaceBearer(id, pass, bearer), this::opened,
                     activity.getString(R.string.profile_setup_rotate_failed));
         });
-        screen.action(activity.getString(R.string.profile_setup_cancel), false, view -> { if (!busy) unlock(id, label); });
+        screen.action(activity.getString(R.string.profile_setup_cancel), false, view -> {
+            if (busy) return;
+            wipeVisibleSecrets();
+            unlock(id, label);
+        });
     }
 
     private String checkedBearer(EditText field) {

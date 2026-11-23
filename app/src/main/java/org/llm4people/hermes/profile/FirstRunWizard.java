@@ -5,11 +5,12 @@ import android.app.AlertDialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.graphics.Typeface;
-import android.graphics.drawable.GradientDrawable;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.InputType;
 import android.view.View;
+import android.view.inputmethod.EditorInfo;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -327,13 +328,7 @@ public final class FirstRunWizard {
             ExecutorService io,
             BooleanSupplier isCurrent,
             Step1Targets targets) {
-        LinearLayout card = Ui.column(activity);
-        Ui.pad(card, 14, 12);
-        GradientDrawable bg = new GradientDrawable();
-        bg.setCornerRadius(Ui.dp(activity, 14));
-        bg.setColor(activity.getColor(R.color.surface));
-        bg.setStroke(Math.max(1, Ui.dp(activity, 1)), activity.getColor(R.color.line));
-        card.setBackground(bg);
+        LinearLayout card = Ui.card(activity);
 
         TextView heading = Ui.text(activity, activity.getString(R.string.onboarding_paste_card_title), 16);
         heading.setTypeface(mediumTypeface());
@@ -347,7 +342,6 @@ public final class FirstRunWizard {
         subLp.topMargin = Ui.dp(activity, 4);
         card.addView(subtitle, subLp);
 
-        int touchMin = Ui.dp(activity, 48);
         TextView statusNote = Ui.text(activity, "", 13);
         statusNote.setTextColor(activity.getColor(R.color.muted));
         statusNote.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
@@ -374,41 +368,27 @@ public final class FirstRunWizard {
 
         PairingLinkParser.ParsedInput detectedClip = hasIncomingLink ? null : detectClipboardLink(activity);
         if (detectedClip != null) {
-            LinearLayout banner = Ui.column(activity);
-            Ui.pad(banner, 12, 10);
-            GradientDrawable bannerBg = new GradientDrawable();
-            bannerBg.setCornerRadius(Ui.dp(activity, 10));
-            bannerBg.setColor(activity.getColor(R.color.accent_surface));
-            banner.setBackground(bannerBg);
-
+            card.addView(Ui.divider(activity), topMargin(activity, 12));
             TextView bannerText = Ui.text(activity,
                     activity.getString(R.string.onboarding_paste_clipboard_detected), 13);
             bannerText.setTypeface(mediumTypeface());
             bannerText.setTextColor(activity.getColor(R.color.accent));
-            banner.addView(bannerText);
+            card.addView(bannerText, topMargin(activity, 10));
 
-            Button useBtn = Ui.button(activity, activity.getString(R.string.onboarding_paste_clipboard_use),
+            Button useBtn = Ui.outlinedButton(activity, activity.getString(R.string.onboarding_paste_clipboard_use),
                     v -> handleParsed.accept(detectedClip));
-            useBtn.setMinHeight(touchMin);
-            useBtn.setMinimumHeight(touchMin);
-            banner.addView(useBtn);
-
-            LinearLayout.LayoutParams bLp = new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-            bLp.topMargin = Ui.dp(activity, 10);
-            card.addView(banner, bLp);
+            card.addView(useBtn, topMargin(activity, 8));
+            card.addView(Ui.divider(activity), topMargin(activity, 12));
         }
 
-        Button scanQrBtn = Ui.button(activity, activity.getString(R.string.onboarding_scan_qr_action),
-                v -> targets.onScanQrRequested());
-        scanQrBtn.setMinHeight(touchMin);
-        scanQrBtn.setMinimumHeight(touchMin);
-        LinearLayout.LayoutParams scanLp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        scanLp.topMargin = Ui.dp(activity, 10);
-        card.addView(scanQrBtn, scanLp);
+        Button scanQrBtn = Ui.filledButton(activity, activity.getString(R.string.onboarding_scan_qr_action), v -> {
+            if (!isCurrent.getAsBoolean()) return;
+            targets.onScanQrRequested();
+        });
+        card.addView(scanQrBtn, topMargin(activity, 12));
 
-        Button pasteBtn = Ui.button(activity, activity.getString(R.string.onboarding_paste_action), v -> {
+        Button pasteBtn = Ui.outlinedButton(activity, activity.getString(R.string.onboarding_paste_action), v -> {
+            if (!isCurrent.getAsBoolean()) return;
             PairingLinkParser.ParsedInput fromClip = detectClipboardLink(activity);
             if (fromClip != null) {
                 handleParsed.accept(fromClip);
@@ -416,17 +396,8 @@ public final class FirstRunWizard {
                 showManualPasteDialog(activity, targets, handleParsed, statusNote);
             }
         });
-        pasteBtn.setMinHeight(touchMin);
-        pasteBtn.setMinimumHeight(touchMin);
-        LinearLayout.LayoutParams btnLp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        btnLp.topMargin = Ui.dp(activity, 8);
-        card.addView(pasteBtn, btnLp);
-
-        LinearLayout.LayoutParams statusLp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        statusLp.topMargin = Ui.dp(activity, 6);
-        card.addView(statusNote, statusLp);
+        card.addView(pasteBtn, topMargin(activity, 8));
+        card.addView(statusNote, topMargin(activity, 8));
 
         screen.card(card, 14);
         return handleParsed;
@@ -442,7 +413,10 @@ public final class FirstRunWizard {
         input.setMinLines(2);
         input.setMaxLines(4);
         input.setSaveEnabled(false);
-        input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+        input.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO);
+        input.setImeOptions(EditorInfo.IME_FLAG_NO_EXTRACT_UI | EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING);
+        input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE
+                | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
         Ui.pad(input, 14, 12);
 
         AlertDialog dialog = Ui.secureDialog(new AlertDialog.Builder(activity)
@@ -451,6 +425,7 @@ public final class FirstRunWizard {
                 .setNegativeButton(R.string.profile_setup_cancel, null)
                 .setPositiveButton(R.string.onboarding_paste_confirm_action, (d, w) -> {
                     String raw = input.getText().toString().trim();
+                    input.getText().clear();
                     PairingLinkParser.ParsedInput parsed = PairingLinkParser.parseOrNull(raw);
                     if (parsed == null) {
                         showStatus(activity, statusNote,
@@ -459,6 +434,7 @@ public final class FirstRunWizard {
                         onParsed.accept(parsed);
                     }
                 }));
+        dialog.setOnDismissListener(d -> input.getText().clear());
         targets.trackDialog(dialog);
     }
 
@@ -572,22 +548,19 @@ public final class FirstRunWizard {
         subtitle.setTextColor(activity.getColor(R.color.muted));
         body.addView(subtitle);
 
-        int touchMin = Ui.dp(activity, 48);
-
         // Display name
-        TextView nameLabel = sectionLabel(activity, R.string.onboarding_display_name_label);
-        body.addView(nameLabel, topMargin(activity, 14));
-        EditText nameField = new EditText(activity);
+        EditText nameField = ProfileScreen.styledField(
+                activity, body,
+                activity.getString(R.string.onboarding_display_name_label),
+                activity.getString(R.string.profile_name_hint),
+                InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES,
+                80, false, 14);
         nameField.setText(account.label);
-        nameField.setSingleLine(true);
-        nameField.setMinHeight(touchMin);
-        nameField.setSaveEnabled(false);
-        body.addView(nameField);
 
         // Language selector
         String[] selectedLang = {AppLanguage.readMode(activity).wire};
         body.addView(sectionLabel(activity, R.string.onboarding_language_label), topMargin(activity, 14));
-        body.addView(choiceRow(activity,
+        body.addView(ProfileScreen.choiceRow(activity,
                 new String[]{
                         activity.getString(R.string.onboarding_language_auto),
                         activity.getString(R.string.onboarding_language_en),
@@ -595,12 +568,12 @@ public final class FirstRunWizard {
                 },
                 new String[]{"auto", "en", "fr"},
                 selectedLang[0],
-                val -> selectedLang[0] = val));
+                val -> selectedLang[0] = val), topMargin(activity, 6));
 
         // Theme selector
         String[] selectedTheme = {"system"};
         body.addView(sectionLabel(activity, R.string.onboarding_theme_label), topMargin(activity, 14));
-        body.addView(choiceRow(activity,
+        body.addView(ProfileScreen.choiceRow(activity,
                 new String[]{
                         activity.getString(R.string.onboarding_theme_auto),
                         activity.getString(R.string.onboarding_theme_light),
@@ -611,7 +584,7 @@ public final class FirstRunWizard {
                 val -> {
                     selectedTheme[0] = val;
                     callbacks.onThemeSelected(val);
-                }));
+                }), topMargin(activity, 6));
 
         // Quick lock selector
         LockGracePolicy.Window[] selectedLock = {LockGracePolicy.window(activity, account.id)};
@@ -619,7 +592,7 @@ public final class FirstRunWizard {
                 ? "immediate"
                 : (selectedLock[0] == LockGracePolicy.Window.SCREEN_LOCK ? "screen_lock" : "grace_5m");
         body.addView(sectionLabel(activity, R.string.onboarding_lock_label), topMargin(activity, 14));
-        body.addView(choiceRow(activity,
+        body.addView(ProfileScreen.choiceRow(activity,
                 new String[]{
                         activity.getString(R.string.onboarding_lock_immediate),
                         activity.getString(R.string.onboarding_lock_5m),
@@ -631,7 +604,7 @@ public final class FirstRunWizard {
                     if ("immediate".equals(val)) selectedLock[0] = LockGracePolicy.Window.IMMEDIATE;
                     else if ("screen_lock".equals(val)) selectedLock[0] = LockGracePolicy.Window.SCREEN_LOCK;
                     else selectedLock[0] = LockGracePolicy.Window.MINUTES_5;
-                }));
+                }), topMargin(activity, 6));
 
         // Live starter prompts from GET /api/mobile/onboarding
         body.addView(sectionLabel(activity, R.string.onboarding_starters_heading), topMargin(activity, 16));
@@ -650,8 +623,12 @@ public final class FirstRunWizard {
                 case "fr" -> AppLanguage.Mode.FRENCH;
                 default -> AppLanguage.Mode.AUTO;
             };
+            String previousTag = AppLanguage.resolvedTag(activity);
+            boolean recreateForLocale = false;
             if (nextLang != AppLanguage.readMode(activity)) {
                 AppLanguage.apply(activity, nextLang);
+                String nextTag = AppLanguage.resolvedTag(activity);
+                recreateForLocale = Build.VERSION.SDK_INT < 33 && !previousTag.equals(nextTag);
             }
             String editedName = nameField.getText().toString().trim();
             String slug = extractSlugFromEndpoint(account.endpoint);
@@ -666,6 +643,9 @@ public final class FirstRunWizard {
                         Diagnostics.debug("onboarding", "profile_pref_sync_skipped");
                     }
                 });
+            }
+            if (recreateForLocale && !activity.isFinishing() && !activity.isDestroyed()) {
+                activity.recreate();
             }
         };
 
@@ -704,15 +684,13 @@ public final class FirstRunWizard {
                         return;
                     }
                     for (OnboardingModels.StarterPrompt starter : starters) {
-                        Button chip = Ui.button(activity, starter.title(), v -> {
+                        Button chip = Ui.outlinedButton(activity, starter.title(), v -> {
                             applyPrefs.run();
                             if (holder[0] != null) holder[0].dismiss();
                             callbacks.onStageStarterDraft(starter.prompt());
                             callbacks.onFinished();
                         });
-                        chip.setMinHeight(touchMin);
-                        chip.setMinimumHeight(touchMin);
-                        startersSlot.addView(chip, topMargin(activity, 6));
+                        startersSlot.addView(chip, topMargin(activity, 8));
                     }
                 });
             });
@@ -738,53 +716,5 @@ public final class FirstRunWizard {
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         lp.topMargin = Ui.dp(activity, dp);
         return lp;
-    }
-
-    private static LinearLayout choiceRow(
-            Activity activity,
-            String[] labels,
-            String[] values,
-            String initial,
-            Consumer<String> onSelected) {
-        LinearLayout row = Ui.row(activity);
-        int touchMin = Ui.dp(activity, 48);
-        Button[] buttons = new Button[labels.length];
-        String[] active = {initial};
-
-        Runnable paint = () -> {
-            for (int i = 0; i < buttons.length; i++) {
-                boolean selected = values[i].equals(active[0]);
-                GradientDrawable bg = new GradientDrawable();
-                bg.setCornerRadius(Ui.dp(activity, 10));
-                bg.setColor(activity.getColor(selected ? R.color.accent_surface : R.color.surface));
-                bg.setStroke(Math.max(1, Ui.dp(activity, 1)),
-                        activity.getColor(selected ? R.color.accent : R.color.line));
-                buttons[i].setBackground(bg);
-                buttons[i].setTextColor(activity.getColor(selected ? R.color.accent : R.color.ink));
-                buttons[i].setSelected(selected);
-            }
-        };
-
-        for (int i = 0; i < labels.length; i++) {
-            final String value = values[i];
-            Button btn = new Button(activity, null, android.R.attr.borderlessButtonStyle);
-            btn.setText(labels[i]);
-            btn.setAllCaps(false);
-            btn.setTextSize(13);
-            btn.setTypeface(mediumTypeface());
-            btn.setMinHeight(touchMin);
-            btn.setMinimumHeight(touchMin);
-            btn.setOnClickListener(v -> {
-                active[0] = value;
-                paint.run();
-                onSelected.accept(value);
-            });
-            buttons[i] = btn;
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
-            if (i > 0) lp.setMarginStart(Ui.dp(activity, 6));
-            row.addView(btn, lp);
-        }
-        paint.run();
-        return row;
     }
 }

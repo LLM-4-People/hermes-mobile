@@ -73,18 +73,18 @@ public class ProfileSetupUxTest {
     }
 
     @Test public void evaluatesLivePassphraseStrengthAndMatchStates() {
-        assertEquals(ProfileGate.PassphraseState.EMPTY,
-                ProfileGate.evaluatePassphrase(0, 0, true));
-        assertEquals(ProfileGate.PassphraseState.TOO_SHORT,
-                ProfileGate.evaluatePassphrase(8, 0, false));
-        assertEquals(ProfileGate.PassphraseState.TOO_SHORT,
-                ProfileGate.evaluatePassphrase(ProfileGate.MIN_PASSPHRASE - 1, ProfileGate.MIN_PASSPHRASE - 1, true));
-        assertEquals(ProfileGate.PassphraseState.AWAITING_CONFIRM,
-                ProfileGate.evaluatePassphrase(ProfileGate.MIN_PASSPHRASE, 0, false));
-        assertEquals(ProfileGate.PassphraseState.MISMATCH,
-                ProfileGate.evaluatePassphrase(ProfileGate.MIN_PASSPHRASE, 5, false));
-        assertEquals(ProfileGate.PassphraseState.READY,
-                ProfileGate.evaluatePassphrase(ProfileGate.MIN_PASSPHRASE, ProfileGate.MIN_PASSPHRASE, true));
+        assertEquals(ProfileLockPolicy.CredentialState.EMPTY,
+                ProfileLockPolicy.evaluatePassphrase("", ""));
+        assertEquals(ProfileLockPolicy.CredentialState.TOO_SHORT,
+                ProfileLockPolicy.evaluatePassphrase("12345678", ""));
+        assertEquals(ProfileLockPolicy.CredentialState.TOO_SHORT,
+                ProfileLockPolicy.evaluatePassphrase("short-pass!", "short-pass!"));
+        assertEquals(ProfileLockPolicy.CredentialState.AWAITING_CONFIRM,
+                ProfileLockPolicy.evaluatePassphrase("twelve-chars", ""));
+        assertEquals(ProfileLockPolicy.CredentialState.MISMATCH,
+                ProfileLockPolicy.evaluatePassphrase("twelve-chars", "other"));
+        assertEquals(ProfileLockPolicy.CredentialState.READY,
+                ProfileLockPolicy.evaluatePassphrase("twelve-chars", "twelve-chars"));
 
         assertTrue(ProfileGate.sameChars("correct horse", "correct horse"));
         assertFalse(ProfileGate.sameChars("correct horse", "correct horsE"));

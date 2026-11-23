@@ -10,8 +10,10 @@ import org.llm4people.hermes.profile.PreferenceTransaction;
 import java.util.Collections;
 
 /**
- * Per-profile auto-lock grace policy. Defaults strictly to immediate locking (0s) and always locks
- * immediately on manual lock, expiry, clock anomalies, or unknown stored values.
+ * Per-profile auto-lock grace policy. New profiles explicitly default to {@link Window#MINUTES_5}
+ * ({@link #DEFAULT_FOR_NEW_PROFILE}), while unset, corrupt, or unknown stored keys fail closed to
+ * {@link Window#IMMEDIATE} (0s). Manual lock, screen-off/device-lock, expiry, and clock anomalies
+ * always lock immediately.
  */
 public final class LockGracePolicy {
     private static final String PREFS = "hermes.os.lock_policy";
@@ -125,23 +127,39 @@ public final class LockGracePolicy {
         if (context == null || profileId == null || profileId.isEmpty()) return Window.IMMEDIATE;
         SharedPreferences prefs = prefs(context);
         synchronized (prefs) {
-            try {
-                return Window.fromKey(prefs.getString(PREFIX + profileId, Window.IMMEDIATE.key));
-            } catch (ClassCastException corrupt) {
-                Diagnostics.warning("security", "grace_read_corrupt");
-                return Window.IMMEDIATE;
-            }
+            return readWindow(prefs, profileId);
+        }
+    }
+
+    static Window readWindow(SharedPreferences prefs, String profileId) {
+        if (prefs == null || profileId == null || profileId.isEmpty()) return Window.IMMEDIATE;
+        try {
+            return Window.fromKey(prefs.getString(PREFIX + profileId, Window.IMMEDIATE.key));
+        } catch (ClassCastException corrupt) {
+            Diagnostics.warning("security", "grace_read_corrupt");
+            return Window.IMMEDIATE;
         }
     }
 
     public static void setWindow(Context context, String profileId, Window window) {
         if (context == null || profileId == null || profileId.isEmpty()) return;
-        Window chosen = window == null ? Window.IMMEDIATE : window;
         SharedPreferences prefs = prefs(context);
         synchronized (prefs) {
-            prefs.edit().putString(PREFIX + profileId, chosen.key).apply();
+            writeWindow(prefs, profileId, window);
         }
-        Diagnostics.event("security", "grace_updated");
+    }
+
+    static boolean writeWindow(SharedPreferences prefs, String profileId, Window window) {
+        if (prefs == null || profileId == null || profileId.isEmpty()) return false;
+        Window chosen = window == null ? Window.IMMEDIATE : window;
+        try {
+            PreferenceTransaction.commit(prefs, Collections.singletonMap(PREFIX + profileId, chosen.key));
+            Diagnostics.event("security", "grace_updated");
+            return true;
+        } catch (IllegalStateException failed) {
+            Diagnostics.warning("security", "grace_commit_failed");
+            return false;
+        }
     }
 
     public static void forget(Context context, String profileId) {

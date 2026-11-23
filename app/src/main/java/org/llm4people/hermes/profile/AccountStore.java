@@ -48,14 +48,21 @@ final class AccountStore {
             throws IOException, GeneralSecurityException {
         String id = UUID.randomUUID().toString();
         byte[] keys = new byte[Account.KEY_BYTES];
-        new SecureRandom().nextBytes(keys);
-        String stored = encode(id, label, endpoint, bearer, keys, pass, deviceKey(true));
-        synchronized (prefs) {
-            if (profiles().values().stream().anyMatch(label::equalsIgnoreCase))
-                throw new IllegalArgumentException("Duplicate profile name");
-            commitMembership(id, label, stored);
+        boolean transferred = false;
+        try {
+            new SecureRandom().nextBytes(keys);
+            String stored = encode(id, label, endpoint, bearer, keys, pass, deviceKey(true));
+            synchronized (prefs) {
+                if (profiles().values().stream().anyMatch(label::equalsIgnoreCase))
+                    throw new IllegalArgumentException("Duplicate profile name");
+                commitMembership(id, label, stored);
+            }
+            Account created = new Account(id, label, endpoint, bearer, vault(id), keys);
+            transferred = true;
+            return created;
+        } finally {
+            if (!transferred) Arrays.fill(keys, (byte) 0);
         }
-        return new Account(id, label, endpoint, bearer, vault(id), keys);
     }
 
     private static byte[] packPayload(String endpoint, String bearer, byte[] keys) throws IOException {
@@ -159,15 +166,22 @@ final class AccountStore {
             String endpoint = GatewayAddress.normalize(data.readUTF());
             String bearer = data.readUTF();
             byte[] keys = new byte[Account.KEY_BYTES];
-            data.readFully(keys);
-            String rotated = replacement == null ? null : encode(id, label, endpoint, replacement, keys, pass, device);
-            synchronized (prefs) {
-                if (!stored.equals(prefs.getString(id, null))) throw new IOException("Profile changed while opening");
-                if (rotated != null) {
-                    commit(Collections.singletonMap(id, rotated));
-                    bearer = replacement;
+            boolean transferred = false;
+            try {
+                data.readFully(keys);
+                String rotated = replacement == null ? null : encode(id, label, endpoint, replacement, keys, pass, device);
+                synchronized (prefs) {
+                    if (!stored.equals(prefs.getString(id, null))) throw new IOException("Profile changed while opening");
+                    if (rotated != null) {
+                        commit(Collections.singletonMap(id, rotated));
+                        bearer = replacement;
+                    }
+                    Account opened = new Account(id, label, endpoint, bearer, vault(id), keys);
+                    transferred = true;
+                    return opened;
                 }
-                return new Account(id, label, endpoint, bearer, vault(id), keys);
+            } finally {
+                if (!transferred) Arrays.fill(keys, (byte) 0);
             }
         } finally {
             Arrays.fill(plain, (byte) 0);

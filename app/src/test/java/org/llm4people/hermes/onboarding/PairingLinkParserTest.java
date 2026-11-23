@@ -139,6 +139,11 @@ public final class PairingLinkParserTest {
                 "hermes://pair?host=https://hermes.example.com&code=short",
                 "hermes://pair?host=https://hermes.example.com&code=bad$chars!12345",
                 "https://hermes.example.com\u0000/pair?code=pair_1234567890",
+                "https:///pair?code=12345678",
+                "https:///invite#code=12345678",
+                "https:///p/alice",
+                "http:///pair?code=12345678",
+                "https://",
                 "{\"host\":\"https://hermes.example.com\",\"code\":\"unterminated",
                 "a".repeat(PairingLinkParser.MAX_INPUT_CHARS + 1),
         };
