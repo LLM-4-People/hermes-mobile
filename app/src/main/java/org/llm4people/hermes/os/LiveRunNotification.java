@@ -13,10 +13,12 @@ import android.graphics.drawable.Icon;
 import android.os.Build;
 import android.os.Bundle;
 
+import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.R;
 
 import java.util.Objects;
+import java.util.function.IntFunction;
 
 /**
  * Android 16 Live Updates ongoing run notification.
@@ -190,20 +192,43 @@ public final class LiveRunNotification {
             return;
         }
         if (!allowed(app)) return;
-        Presentation model = present(context, normalized);
+        Context localized = localizedContext(context);
+        Presentation model = present(localized, normalized);
         if (model == null) {
             cancelNotificationOnly(app);
             return;
         }
         NotificationManager manager = app.getSystemService(NotificationManager.class);
         if (manager == null) return;
-        ensureChannel(app, manager);
-        Notification notification = build(app, manager, normalized, model);
+        ActionLabels labels = actionLabels(localized);
+        ensureChannel(labels.channelName(), manager);
+        Notification notification = build(app, localized, manager, normalized, model, labels);
         try {
             manager.notify(NOTIFICATION_ID, notification);
         } catch (RuntimeException error) {
             Diagnostics.warning("live_run", "notify_failed");
         }
+    }
+
+    /** Preserves an Activity's AppLanguage-wrapped context on API 28-32, wrapping ApplicationContext if passed directly. */
+    static Context localizedContext(Context context) {
+        if (context == null) return null;
+        Context app = context.getApplicationContext();
+        return (app != null && context == app) ? AppLanguage.wrapContext(app) : context;
+    }
+
+    record ActionLabels(String channelName, String openLabel, String stopLabel) {}
+
+    static ActionLabels actionLabels(Context localized) {
+        return actionLabels(localized::getString);
+    }
+
+    static ActionLabels actionLabels(IntFunction<String> strings) {
+        Objects.requireNonNull(strings, "strings");
+        return new ActionLabels(
+                strings.apply(R.string.live_run_channel_name),
+                strings.apply(R.string.live_run_action_open),
+                strings.apply(R.string.live_run_action_stop));
     }
 
     public static synchronized void cancel(Context context) {
@@ -224,8 +249,15 @@ public final class LiveRunNotification {
 
     static Notification build(Context context, NotificationManager manager,
                               Snapshot snapshot, Presentation model) {
-        PendingIntent open = OsEntryIntent.pendingIntent(context, OsEntryIntent.Target.ASK, REQUEST_OPEN);
-        Notification.Builder builder = new Notification.Builder(context, CHANNEL_ID)
+        Context app = context.getApplicationContext() != null ? context.getApplicationContext() : context;
+        Context localized = localizedContext(context);
+        return build(app, localized, manager, snapshot, model, actionLabels(localized));
+    }
+
+    static Notification build(Context appContext, Context localizedContext, NotificationManager manager,
+                              Snapshot snapshot, Presentation model, ActionLabels labels) {
+        PendingIntent open = OsEntryIntent.pendingIntent(appContext, OsEntryIntent.Target.ASK, REQUEST_OPEN);
+        Notification.Builder builder = new Notification.Builder(appContext, CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_push_notification)
                 .setContentTitle(model.title())
                 .setContentText(model.body())
@@ -235,21 +267,21 @@ public final class LiveRunNotification {
                 .setOnlyAlertOnce(true)
                 .setContentIntent(open)
                 .addAction(new Notification.Action.Builder(
-                        Icon.createWithResource(context, R.drawable.ic_push_notification),
-                        context.getString(R.string.live_run_action_open),
+                        Icon.createWithResource(appContext, R.drawable.ic_push_notification),
+                        labels.openLabel(),
                         open).build());
         if (snapshot.canStop()) {
-            Intent stopIntent = new Intent(context, LiveRunActionReceiver.class)
+            Intent stopIntent = new Intent(appContext, LiveRunActionReceiver.class)
                     .setAction(LiveRunActionReceiver.ACTION_STOP_LIVE_RUN);
-            PendingIntent stop = PendingIntent.getBroadcast(context, REQUEST_STOP, stopIntent,
+            PendingIntent stop = PendingIntent.getBroadcast(appContext, REQUEST_STOP, stopIntent,
                     PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
             builder.addAction(new Notification.Action.Builder(
-                    Icon.createWithResource(context, R.drawable.thread_stop),
-                    context.getString(R.string.live_run_action_stop),
+                    Icon.createWithResource(appContext, R.drawable.thread_stop),
+                    labels.stopLabel(),
                     stop).build());
         }
         if (Build.VERSION.SDK_INT >= 36) {
-            applyAndroid16LiveUpdate(context, manager, builder, model);
+            applyAndroid16LiveUpdate(localizedContext, manager, builder, model);
         } else {
             builder.setProgress(model.max(), model.progress(), model.indeterminate());
         }
@@ -286,10 +318,10 @@ public final class LiveRunNotification {
         }
     }
 
-    private static void ensureChannel(Context context, NotificationManager manager) {
+    private static void ensureChannel(String channelName, NotificationManager manager) {
         NotificationChannel channel = new NotificationChannel(
                 CHANNEL_ID,
-                context.getString(R.string.live_run_channel_name),
+                channelName,
                 NotificationManager.IMPORTANCE_DEFAULT);
         channel.setLockscreenVisibility(Notification.VISIBILITY_PRIVATE);
         channel.setSound(null, null);

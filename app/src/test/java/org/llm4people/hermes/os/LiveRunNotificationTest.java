@@ -1,6 +1,9 @@
 package org.llm4people.hermes.os;
 
 import org.junit.Test;
+import org.llm4people.hermes.R;
+
+import java.util.Map;
 
 import static org.junit.Assert.*;
 
@@ -95,5 +98,17 @@ public class LiveRunNotificationTest {
                 new LiveRunNotification.Snapshot(LiveRunNotification.Phase.WORKING, 0, 0, false, true, 999, 0));
         assertNotNull(clamped);
         assertEquals("99 tâches", clamped.shortCriticalText());
+    }
+
+    @Test public void actionLabelsResolveChannelOpenAndStopFromLocalizedStringLookup() {
+        Map<Integer, String> en = Map.of(
+                R.string.live_run_channel_name, "Active work",
+                R.string.live_run_action_open, "Open",
+                R.string.live_run_action_stop, "Stop");
+        LiveRunNotification.ActionLabels labels = LiveRunNotification.actionLabels(en::get);
+        assertEquals("Active work", labels.channelName());
+        assertEquals("Open", labels.openLabel());
+        assertEquals("Stop", labels.stopLabel());
+        assertNull(LiveRunNotification.localizedContext(null));
     }
 }
