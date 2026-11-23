@@ -191,12 +191,20 @@ def calendar_fields(request, zone):
     return fields
 
 
+ACTION_KEYS = {
+    "calendar_event": ("ws_dev_calendar_review", "ws_dev_calendar_open"),
+    "share_text": ("ws_dev_share_review", "ws_dev_share_open"),
+    "map_search": ("ws_dev_map_review", "ws_dev_map_open"),
+}
+
+
 def action_labels(ui, kind):
     default_prepare, default_confirm = ACTIONS[kind]
+    review_key, open_key = ACTION_KEYS[kind]
     s = ui.strings
     return (
-        s.get(f"device_action_{kind}_review", default_prepare),
-        s.get(f"device_action_{kind}_open", default_confirm),
+        s.get(review_key, default_prepare),
+        s.get(open_key, default_confirm),
     )
 
 
@@ -238,7 +246,7 @@ def back_to_page(ui, account_name, phrase, label):
 
 
 def open_review(ui, prepare, confirm, page_window, page_focus):
-    cancel = ui.strings.get("device_review_cancel", "Annuler")
+    cancel = ui.strings.get("ws_cancel", "Annuler")
 
     def opened(root):
         if root.get("package") != APP:
@@ -256,7 +264,7 @@ def open_review(ui, prepare, confirm, page_window, page_focus):
 
 
 def close_review(ui, prepare, confirm, dialog_window, dialog_focus):
-    cancel = ui.strings.get("device_review_cancel", "Annuler")
+    cancel = ui.strings.get("ws_cancel", "Annuler")
 
     def closed(root):
         if not focused(ui.device).startswith(APP + "/"):
@@ -274,8 +282,8 @@ def close_review(ui, prepare, confirm, dialog_window, dialog_focus):
 
 
 def confirm_review(ui, kind, confirm):
-    cancel = ui.strings.get("device_review_cancel", "Annuler")
-    unavailable = ui.strings.get("device_review_unavailable", "Application indisponible")
+    cancel = ui.strings.get("ws_cancel", "Annuler")
+    unavailable = ui.strings.get("ws_dev_app_unavailable_title", "Application indisponible")
 
     def submitted(root):
         if not focused(ui.device).startswith(APP + "/"):

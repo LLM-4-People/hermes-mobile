@@ -89,7 +89,7 @@ public final class PanelDataTest extends TestCase {
         JSONObject once = new JSONObject().put("kind", "once").put("run_at", original);
         for (Object wire : new Object[]{once, original}) {
             JSONObject job = new JSONObject().put("schedule", wire);
-            assertEquals(expected, ReminderPanel.scheduleLabel(job, toronto));
+            assertEquals(expected, ReminderPanel.scheduleLabel(job, toronto, Locale.FRENCH));
             assertEquals(original, PanelData.schedule(job));
         }
     }

@@ -67,7 +67,6 @@ MIGRATION_ALLOWLIST: dict[str, str] = {
     "app/src/main/java/org/llm4people/hermes/thread/ThreadPlaces.java": "Track 30A (thread i18n)",
     "app/src/main/java/org/llm4people/hermes/thread/ThreadRun.java": "Track 30A (thread i18n)",
     "app/src/main/java/org/llm4people/hermes/thread/ThreadTitles.java": "Track 30A (thread i18n)",
-    "app/src/main/java/org/llm4people/hermes/thread/ThreadViews.java": "Track 30A (thread i18n)",
     "app/src/main/java/org/llm4people/hermes/thread/ThreadWorkspace.java": "Track 30A (thread i18n)",
     "app/src/main/java/org/llm4people/hermes/thread/ToolResult.java": "Track 30A (thread i18n)",
     "app/src/main/java/org/llm4people/hermes/thread/TranscriptPage.java": "Track 30A (thread i18n)",

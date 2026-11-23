@@ -190,7 +190,7 @@ public final class DeviceJourney extends Instrumentation {
         ui.see("Aucune conversation pour ce profil.");
         ui.tap(ui.str(R.string.nav_atelier));
         ui.tap(ui.str(R.string.ws_my_screens));
-        ui.contains("Demandez à Hermes de créer un écran");
+        ui.contains(ui.str(R.string.ws_pages_empty));
         ui.absent("Diagnostic mobile");
         lock();
         forget(other, passphrase);
