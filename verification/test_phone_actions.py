@@ -6,6 +6,7 @@ from unittest.mock import Mock, patch
 from xml.etree.ElementTree import Element, SubElement
 
 from verification import phone_actions
+from verification.device.app_strings import AppStrings
 from verification.unifiedpush.ui import APP, Screen
 
 
@@ -115,7 +116,7 @@ class PhoneActionsTransitionTest(unittest.TestCase):
             raise AssertionError(f"Unexpected shell call: {args!r}")
 
         device.shell.side_effect = shell
-        ui = Screen(device, Mock())
+        ui = Screen(device, Mock(), lang="en")
         ui.hierarchy = Mock(side_effect=lambda: next(hierarchies))
 
         with (
@@ -169,34 +170,37 @@ class PhoneActionsTransitionTest(unittest.TestCase):
         self.assertEqual(focus, "Window{4444 u0 Lieu à rechercher}")
 
     def test_back_to_page_waits_for_hermes_window_and_retries_unlock_and_trial_open(self):
-        foreign = node_tree("Maps", package="com.google.android.apps.maps", window_id="2")
-        chooser = node_tree("Choisir un profil", "Actions123", window_id="3")
-        unlock = node_tree("Phrase secrète du profil", "Déverrouiller", window_id="3")
-        thread = node_tree("Essayer dans la discussion", window_id="3")
-        sheet = node_tree("En essai dans cette discussion", "Vérifier le lieu", window_id="3")
-        hierarchies = iter([
-            foreign,   # wait for APP window
-            chooser,   # APP window arrived
-            chooser,   # tap_until(account_name) attempt 1 -> tap (swallowed)
-            chooser,   # tap_until(account_name) attempt 2 -> tap
-            unlock,    # tap_until(account_name) attempt 3 -> unlocked screen visible
-            unlock,    # if ui.node("Déverrouiller") is not None
-            unlock,    # tap_until("Déverrouiller") attempt 1 -> tap
-            thread,    # tap_until("Déverrouiller") attempt 2 -> unlocked!
-            thread,    # if ui.node(label) is None
-            thread,    # and ui.node("En essai dans cette discussion") is None
-            thread,    # tap_until("Essayer dans la discussion") attempt 1 -> tap
-            sheet,     # tap_until("Essayer dans la discussion") attempt 2 -> sheet visible
-            sheet,     # ui.wait(label, scroll=True)
-        ])
-        device = Mock()
-        device.shell.side_effect = lambda *args: MAIN_ACTIVITY if args == ("dumpsys", "activity", "activities") else ""
-        ui = Screen(device, Mock())
-        ui.hierarchy = Mock(side_effect=lambda: next(hierarchies))
-        ui.field = Mock()
-        with patch("verification.unifiedpush.stack.time.sleep"):
-            phone_actions.back_to_page(ui, "Actions123", "secretphrase", "Vérifier le lieu")
-        ui.field.assert_called_once_with("Phrase secrète du profil", "secretphrase")
+        for lang in ("en", "fr"):
+            with self.subTest(lang=lang):
+                s = AppStrings.for_lang(lang)
+                foreign = node_tree("Maps", package="com.google.android.apps.maps", window_id="2")
+                chooser = node_tree(s["profile_choose_title"], "Actions123", window_id="3")
+                unlock = node_tree(s["profile_passphrase_label"], s["profile_unlock_action"], window_id="3")
+                thread = node_tree(s["instrument_try"], window_id="3")
+                sheet = node_tree(s["instrument_trial"], "Vérifier le lieu", window_id="3")
+                hierarchies = iter([
+                    foreign,   # wait for APP window
+                    chooser,   # APP window arrived
+                    chooser,   # tap_until(account_name) attempt 1 -> tap (swallowed)
+                    chooser,   # tap_until(account_name) attempt 2 -> tap
+                    unlock,    # tap_until(account_name) attempt 3 -> unlocked screen visible
+                    unlock,    # if ui.node(unlock_btn) is not None
+                    unlock,    # tap_until(unlock_btn) attempt 1 -> tap
+                    thread,    # tap_until(unlock_btn) attempt 2 -> unlocked!
+                    thread,    # if ui.node(label) is None
+                    thread,    # and ui.node(trying_status) is None
+                    thread,    # tap_until(try_in_thread) attempt 1 -> tap
+                    sheet,     # tap_until(try_in_thread) attempt 2 -> sheet visible
+                    sheet,     # ui.wait(label, scroll=True)
+                ])
+                device = Mock()
+                device.shell.side_effect = lambda *args: MAIN_ACTIVITY if args == ("dumpsys", "activity", "activities") else ""
+                ui = Screen(device, Mock(), lang=lang)
+                ui.hierarchy = Mock(side_effect=lambda: next(hierarchies))
+                ui.field = Mock()
+                with patch("verification.unifiedpush.stack.time.sleep"):
+                    phone_actions.back_to_page(ui, "Actions123", "secretphrase", "Vérifier le lieu")
+                ui.field.assert_called_once_with(s["profile_passphrase_label"], "secretphrase")
 
     def test_inbound_drafts_retries_swallowed_profile_chooser_and_confirm_taps(self):
         account = "Actionsabc"
@@ -205,41 +209,44 @@ class PhoneActionsTransitionTest(unittest.TestCase):
         second_text = "dessin à Laval"
         combined = first_text + "\n" + second_text
 
-        chooser = node_tree("Choisir un profil", account, window_id="20")
-        unlock = node_tree("Phrase secrète du profil", "Déverrouiller", window_id="20")
-        review1 = node_tree("Ajouter au brouillon ?", account, session, first_text, "Ajouter au brouillon", window_id="21")
-        composer1 = node_tree("Envoyer", first_text, window_id="20")
-        review2 = node_tree("Ajouter au brouillon ?", account, session, second_text, "Ajouter au brouillon", window_id="22")
-        composer2 = node_tree("Envoyer", combined, window_id="20")
+        for lang in ("en", "fr"):
+            with self.subTest(lang=lang):
+                s = AppStrings.for_lang(lang)
+                chooser = node_tree(s["profile_choose_title"], account, window_id="20")
+                unlock = node_tree(s["profile_passphrase_label"], s["profile_unlock_action"], window_id="20")
+                review1 = node_tree("Ajouter au brouillon ?", account, session, first_text, "Ajouter au brouillon", window_id="21")
+                composer1 = node_tree(s["thread_send"], first_text, window_id="20")
+                review2 = node_tree("Ajouter au brouillon ?", account, session, second_text, "Ajouter au brouillon", window_id="22")
+                composer2 = node_tree(s["thread_send"], combined, window_id="20")
 
-        hierarchies = iter([
-            # SEND
-            chooser, chooser, unlock,  # swallowed chooser tap, then retry
-            unlock, review1,           # unlock -> share review
-            review1,                   # visible(ui, [account, session, value])
-            review1, review1, composer1,  # swallowed confirm tap, then retry
-            composer1,                 # ui.wait(previous)
-            # PROCESS_TEXT
-            chooser, unlock,
-            unlock, review2,
-            review2,
-            review2, composer2,
-            composer2,
-        ])
-        device = Mock()
-        device.shell.return_value = "Status: ok"
-        ui = Screen(device, Mock())
-        ui.hierarchy = Mock(side_effect=lambda: next(hierarchies))
-        ui.field = Mock()
-        with patch("verification.unifiedpush.stack.time.sleep"):
-            results = phone_actions.inbound_drafts(ui, account, "secretphrase", session)
-        self.assertEqual(
-            results,
-            [
-                {"kind": "share", "source_uid": "shell", "unsent_draft": first_text},
-                {"kind": "selection", "source_uid": "shell", "unsent_draft": combined},
-            ],
-        )
+                hierarchies = iter([
+                    # SEND
+                    chooser, chooser, unlock,  # swallowed chooser tap, then retry
+                    unlock, review1,           # unlock -> share review
+                    review1,                   # visible(ui, [account, session, value])
+                    review1, review1, composer1,  # swallowed confirm tap, then retry
+                    composer1,                 # ui.wait(previous)
+                    # PROCESS_TEXT
+                    chooser, unlock,
+                    unlock, review2,
+                    review2,
+                    review2, composer2,
+                    composer2,
+                ])
+                device = Mock()
+                device.shell.return_value = "Status: ok"
+                ui = Screen(device, Mock(), lang=lang)
+                ui.hierarchy = Mock(side_effect=lambda: next(hierarchies))
+                ui.field = Mock()
+                with patch("verification.unifiedpush.stack.time.sleep"):
+                    results = phone_actions.inbound_drafts(ui, account, "secretphrase", session)
+                self.assertEqual(
+                    results,
+                    [
+                        {"kind": "share", "source_uid": "shell", "unsent_draft": first_text},
+                        {"kind": "selection", "source_uid": "shell", "unsent_draft": combined},
+                    ],
+                )
 
 
 if __name__ == "__main__":

@@ -32,6 +32,10 @@ def own_group_expander(ui, root):
     return None
 
 
+def generic_body(ui):
+    return ui.strings.get("push_notice_body", BODY)
+
+
 def presentation(ui, root, title):
     nodes = list(root.iter("node"))
     return {
@@ -42,7 +46,7 @@ def presentation(ui, root, title):
         "empty_shade": ui.node("No notifications", root) is not None,
         "app_label": ui.node(APP_LABEL, root) is not None,
         "event_title": ui.node(title, root) is not None,
-        "generic_body": ui.node(BODY, root) is not None,
+        "generic_body": ui.node(generic_body(ui), root) is not None,
     }
 
 
@@ -90,7 +94,7 @@ def current_notice(ui, title, observations=None):
     # A native row, when exposed, scopes the optional generic body to the same alert.
     row = next((r for r in root.iter("node") if r.get("resource-id") == ROW
                 and any(n is heading for n in r.iter("node"))), root)
-    bodies = [n for n in row.iter("node") if n.get("text") == BODY]
+    bodies = [n for n in row.iter("node") if n.get("text") == generic_body(ui)]
     heading_box = bounds(heading)
     body_box = bounds(bodies[0]) if len(bodies) == 1 else ()
     for name, box in [("heading_bounds", heading_box)] + ([("body_bounds", body_box)] if body_box else []):

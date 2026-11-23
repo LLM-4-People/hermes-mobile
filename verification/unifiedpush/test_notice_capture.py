@@ -32,7 +32,7 @@ def attempt_once(description, attempt):
 
 class CaptureTest(unittest.TestCase):
     def setUp(self):
-        self.ui = Screen(Mock(), Mock())
+        self.ui = Screen(Mock(), Mock(), lang="en")
         self.ui.device.shell.return_value = FOCUS
         self.ui.controls.send.return_value = b"tapped"
         self.directory = Path(self.enterContext(TemporaryDirectory()))

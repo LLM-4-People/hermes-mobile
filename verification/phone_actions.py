@@ -191,30 +191,45 @@ def calendar_fields(request, zone):
     return fields
 
 
+def action_labels(ui, kind):
+    default_prepare, default_confirm = ACTIONS[kind]
+    s = ui.strings
+    return (
+        s.get(f"device_action_{kind}_review", default_prepare),
+        s.get(f"device_action_{kind}_open", default_confirm),
+    )
+
+
 def back_to_page(ui, account_name, phrase, label):
+    s = ui.strings
+    choose_profile = s["profile_choose_title"]
+    unlock_btn = s["profile_unlock_action"]
+    passphrase_label = s["profile_passphrase_label"]
+    try_in_thread = s["instrument_try"]
+    trying_status = s["instrument_trial"]
     if not focused(ui.device).startswith(APP + "/"):
         launch(ui.device, APP)
     root = eventually(
         "Hermes window after returning from receiver",
         lambda: (tree,) if (tree := ui.hierarchy()).get("package") == APP else None,
     )[0]
-    if ui.node("Choisir un profil", root) is not None:
+    if ui.node(choose_profile, root) is not None:
         ui.tap_until(
             account_name,
-            lambda tree: ui.node("Déverrouiller", tree) is not None,
-            description="visible control Déverrouiller",
+            lambda tree: ui.node(unlock_btn, tree) is not None,
+            description="visible control " + unlock_btn,
         )
-    if ui.node("Déverrouiller") is not None:
-        ui.field("Phrase secrète du profil", phrase)
+    if ui.node(unlock_btn) is not None:
+        ui.field(passphrase_label, phrase)
         ui.tap_until(
-            "Déverrouiller",
-            lambda tree: ui.node("Déverrouiller", tree) is None,
+            unlock_btn,
+            lambda tree: ui.node(unlock_btn, tree) is None,
             description="the profile to finish unlocking",
         )
-    if ui.node(label) is None and ui.node("En essai dans cette discussion") is None:
+    if ui.node(label) is None and ui.node(trying_status) is None:
         ui.tap_until(
-            "Essayer dans la discussion",
-            lambda tree: ui.node("En essai dans cette discussion", tree) is not None
+            try_in_thread,
+            lambda tree: ui.node(trying_status, tree) is not None
             or ui.node(label, tree) is not None,
             scroll=True,
             description="trial workspace sheet",
@@ -223,10 +238,12 @@ def back_to_page(ui, account_name, phrase, label):
 
 
 def open_review(ui, prepare, confirm, page_window, page_focus):
+    cancel = ui.strings.get("device_review_cancel", "Annuler")
+
     def opened(root):
         if root.get("package") != APP:
             return None
-        if ui.node(confirm, root) is None or ui.node("Annuler", root) is None:
+        if ui.node(confirm, root) is None or ui.node(cancel, root) is None:
             return None
         if page_window and root.get("window-id") == page_window:
             return None
@@ -239,28 +256,33 @@ def open_review(ui, prepare, confirm, page_window, page_focus):
 
 
 def close_review(ui, prepare, confirm, dialog_window, dialog_focus):
+    cancel = ui.strings.get("device_review_cancel", "Annuler")
+
     def closed(root):
         if not focused(ui.device).startswith(APP + "/"):
             raise AssertionError("Cancelling the proposal left the app")
         if dialog_window and root.get("window-id") == dialog_window:
             return False
-        if ui.node("Annuler", root) is not None or ui.node(confirm, root) is not None:
+        if ui.node(cancel, root) is not None or ui.node(confirm, root) is not None:
             return False
         if ui.node(prepare, root) is None:
             return False
         current_focus = focused_window(ui.device)
         return current_focus is not None and current_focus != dialog_focus
 
-    ui.tap_until("Annuler", closed, description="review dialog to close")
+    ui.tap_until(cancel, closed, description="review dialog to close")
 
 
 def confirm_review(ui, kind, confirm):
+    cancel = ui.strings.get("device_review_cancel", "Annuler")
+    unavailable = ui.strings.get("device_review_unavailable", "Application indisponible")
+
     def submitted(root):
         if not focused(ui.device).startswith(APP + "/"):
             return True
-        if ui.node("Application indisponible", root) is not None:
+        if ui.node(unavailable, root) is not None:
             raise AssertionError("Hermes reported no available receiving application for " + kind)
-        return ui.node(confirm, root) is None and ui.node("Annuler", root) is None
+        return ui.node(confirm, root) is None and ui.node(cancel, root) is None
 
     ui.tap_until(confirm, submitted, description="review dialog " + confirm + " to submit")
 
@@ -287,7 +309,7 @@ def leave_receiver(ui, package, kind):
 
 
 def review(ui, kind, request, output, full_screen):
-    prepare, confirm = ACTIONS[kind]
+    prepare, confirm = action_labels(ui, kind)
     ui.wait(prepare, scroll=True)
     page_root = ui.hierarchy()
     page_window, page_focus = page_root.get("window-id"), focused_window(ui.device)
@@ -346,6 +368,12 @@ def review(ui, kind, request, output, full_screen):
 
 def inbound_drafts(ui, account_name, phrase, session):
     """Drive the exported activity from Android's shell UID and leave the composer unsent."""
+    s = ui.strings
+    passphrase_label = s["profile_passphrase_label"]
+    unlock_btn = s["profile_unlock_action"]
+    send_btn = s["thread_send"]
+    share_title = s.get("share_draft_title", "Ajouter au brouillon ?")
+    share_confirm = s.get("share_draft_confirm", "Ajouter au brouillon")
     previous = ""
     results = []
     for kind, action, extra, value in (
@@ -358,23 +386,23 @@ def inbound_drafts(ui, account_name, phrase, session):
             raise AssertionError("Android could not resolve the text entry")
         ui.tap_until(
             account_name,
-            lambda root: ui.node("Phrase secrète du profil", root) is not None
-            and ui.node("Déverrouiller", root) is not None,
+            lambda root: ui.node(passphrase_label, root) is not None
+            and ui.node(unlock_btn, root) is not None,
             description="profile unlock form",
         )
-        ui.field("Phrase secrète du profil", phrase)
+        ui.field(passphrase_label, phrase)
         ui.tap_until(
-            "Déverrouiller",
-            lambda root: ui.node("Ajouter au brouillon ?", root) is not None,
-            description="visible control Ajouter au brouillon ?",
+            unlock_btn,
+            lambda root: ui.node(share_title, root) is not None,
+            description="visible control " + share_title,
         )
         if not visible(ui, [account_name, session, value]):
             raise AssertionError("The share review did not identify the exact account, thread and source text")
         ui.tap_until(
-            "Ajouter au brouillon",
-            lambda root: ui.node("Ajouter au brouillon", root) is None
-            and ui.node("Envoyer", root) is not None,
-            description="visible control Envoyer",
+            share_confirm,
+            lambda root: ui.node(share_confirm, root) is None
+            and ui.node(send_btn, root) is not None,
+            description="visible control " + send_btn,
         )
         previous = previous + "\n" + value if previous else value
         ui.wait(previous)
@@ -431,14 +459,16 @@ def run(args):
         launch(dev, APP)
         account_name = "Actions" + secrets.token_hex(3)
         start_account(ui, account_name, gateway.endpoint, gateway.key, phrase)
+        s = ui.strings
+        composer_hint = s["thread_message_hint"]
         ui.tap_until(
-            "Nouvelle conversation",
-            lambda root: ui.node("Message à Hermes", root) is not None,
-            description="visible control Message à Hermes",
+            s["thread_new_conversation"],
+            lambda root: ui.node(composer_hint, root) is not None,
+            description="visible control " + composer_hint,
         )
-        if ui.controls.send("text", label="Message à Hermes", value=args.prompt) != b"applied":
+        if ui.controls.send("text", label=composer_hint, value=args.prompt) != b"applied":
             raise AssertionError("Could not type the request in the public composer")
-        ui.tap("Envoyer")
+        ui.tap(s["thread_send"])
         run_id, session_id, reply = eventually("completed Hermes run", lambda: completed(gateway), timeout=800 if args.provider_url else 90)
         def canonical_exchange():
             rows = gateway.request(f"/api/sessions/{session_id}/messages?order=latest&limit=10")["data"]
@@ -464,8 +494,8 @@ def run(args):
             json.dump(dict(receipt, assistant=reply), handle, ensure_ascii=False, indent=2)
             handle.write("\n")
         ui.tap_until(
-            "Essayer dans la discussion",
-            lambda root: ui.node("En essai dans cette discussion", root) is not None,
+            s["instrument_try"],
+            lambda root: ui.node(s["instrument_trial"], root) is not None,
             scroll=True,
             description="trial workspace sheet",
         )
@@ -473,7 +503,7 @@ def run(args):
         for request in actions:
             kind = request["kind"]
             if results:
-                back_to_page(ui, account_name, phrase, ACTIONS[kind][0])
+                back_to_page(ui, account_name, phrase, action_labels(ui, kind)[0])
             results.append(review(ui, kind, request, args.output, args.full_screens))
         inbound = inbound_drafts(ui, account_name, phrase, session_id) if args.inbound else []
         if (event_rows(dev), local_event_count(dev)) != start or admissions(gateway) != [(run_id, session_id)]:

@@ -1,0 +1,118 @@
+"""Deterministic tests for Android XML AppStrings lookup and device locale detection."""
+
+import unittest
+from unittest.mock import Mock
+
+from verification.device.app_strings import (
+    APP,
+    AppStrings,
+    detect_device_lang,
+    parse_locale_tags,
+    resolve_lang,
+)
+
+
+class AppStringsTest(unittest.TestCase):
+    def test_loads_exact_french_and_english_strings_from_android_xml(self):
+        en = AppStrings.for_lang("en")
+        fr = AppStrings.for_lang("fr")
+
+        self.assertEqual(en.lang, "en")
+        self.assertEqual(fr.lang, "fr")
+        self.assertEqual(en["profile_choose_title"], "Choose a profile")
+        self.assertEqual(fr["profile_choose_title"], "Choisir un profil")
+        self.assertEqual(en["profile_unlock_action"], "Unlock")
+        self.assertEqual(fr["profile_unlock_action"], "Déverrouiller")
+        self.assertEqual(en["thread_send"], "Send")
+        self.assertEqual(fr["thread_send"], "Envoyer")
+        self.assertEqual(en["thread_message_hint"], "Message Hermes")
+        self.assertEqual(fr["thread_message_hint"], "Message à Hermes")
+        self.assertEqual(en["instrument_create_request"],
+                         "Create a tool I can reuse in this discussion based on our conversation.")
+        self.assertEqual(fr["instrument_create_request"],
+                         "Crée un outil que je pourrai réutiliser dans cette discussion à partir de notre échange.")
+        self.assertEqual(en["top_profile_lock"], "Profile and lock")
+        self.assertEqual(fr["top_profile_lock"], "Profil et verrouillage")
+        self.assertEqual(en["security_lock_now"], "Lock profile")
+        self.assertEqual(fr["security_lock_now"], "Verrouiller le profil")
+
+    def test_missing_key_raises_without_fallback_and_returns_fallback_when_supplied(self):
+        en = AppStrings.for_lang("en")
+        with self.assertRaises(KeyError):
+            _ = en["nonexistent_test_key_xyz"]
+        with self.assertRaises(KeyError):
+            en.get("nonexistent_test_key_xyz")
+        self.assertEqual(en.get("nonexistent_test_key_xyz", "Fallback Label"), "Fallback Label")
+        self.assertEqual(en.get("thread_send", "Fallback Label"), "Send")
+
+    def test_fmt_handles_positional_and_numbered_android_placeholders(self):
+        en = AppStrings.for_lang("en")
+        fr = AppStrings.for_lang("fr")
+        self.assertIn("revue", en.fmt("instrument_revision_draft", "revue"))
+        self.assertIn("revue", fr.fmt("instrument_revision_draft", "revue"))
+
+    def test_parse_locale_tags_and_resolve_lang(self):
+        self.assertEqual(parse_locale_tags("Locales for org.llm4people.hermes for user 0 are []"), [])
+        self.assertEqual(parse_locale_tags("Locales for org.llm4people.hermes for user 0 are [fr-CA, en-US]"),
+                         ["fr-CA", "en-US"])
+        self.assertEqual(resolve_lang(["en-US"]), "en")
+        self.assertEqual(resolve_lang(["en_GB"]), "en")
+        self.assertEqual(resolve_lang(["fr-CA", "en-US"]), "fr")
+        self.assertEqual(resolve_lang(["de-DE", "en-US"]), "en")
+        self.assertEqual(resolve_lang(["de-DE"]), "fr")
+        self.assertEqual(resolve_lang([]), "en")
+
+    def test_detect_device_lang_respects_per_app_override_and_system_locale_without_french_bias(self):
+        def fake_device(responses):
+            dev = Mock()
+            dev.shell.side_effect = lambda *args: responses.get(args, "")
+            return dev
+
+        # Default CI emulator: empty per-app override, en-US system locale -> en
+        en_dev = fake_device({
+            ("cmd", "locale", "get-app-locales", APP): "Locales for org.llm4people.hermes for user 0 are []",
+            ("getprop", "persist.sys.locale"): "en-US",
+        })
+        self.assertEqual(detect_device_lang(en_dev), "en")
+
+        # French emulator: empty per-app override, fr-CA system locale -> fr
+        fr_dev = fake_device({
+            ("cmd", "locale", "get-app-locales", APP): "Locales for org.llm4people.hermes for user 0 are []",
+            ("getprop", "persist.sys.locale"): "",
+            ("getprop", "ro.product.locale"): "fr-CA",
+        })
+        self.assertEqual(detect_device_lang(fr_dev), "fr")
+
+        # Per-app override beats system locale
+        override_dev = fake_device({
+            ("cmd", "locale", "get-app-locales", APP): "Locales for org.llm4people.hermes for user 0 are [fr-FR]",
+            ("getprop", "persist.sys.locale"): "en-US",
+        })
+        self.assertEqual(detect_device_lang(override_dev), "fr")
+
+        # None or silent device defaults cleanly to en without crashing
+        self.assertEqual(detect_device_lang(None), "en")
+        self.assertEqual(detect_device_lang(fake_device({})), "en")
+
+    def test_thread_instruments_matches_localized_create_request_in_en_and_fr(self):
+        import sys
+        from pathlib import Path
+        verif_dir = str(Path(__file__).resolve().parents[1])
+        if verif_dir not in sys.path:
+            sys.path.insert(0, verif_dir)
+        import thread_instruments
+
+        for lang in ("en", "fr"):
+            with self.subTest(lang=lang):
+                create = AppStrings.for_lang(lang)["instrument_create_request"]
+                expected_prompt = create + "\n\n" + thread_instruments.GOAL
+                self.assertEqual(
+                    thread_instruments.last_user_message({"messages": [{"role": "user", "content": expected_prompt}]}),
+                    expected_prompt,
+                )
+                self.assertNotEqual(AppStrings.for_lang("en")["instrument_create_request"],
+                                    AppStrings.for_lang("fr")["instrument_create_request"])
+
+
+if __name__ == "__main__":
+    unittest.main()

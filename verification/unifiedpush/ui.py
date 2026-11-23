@@ -10,6 +10,7 @@ import subprocess
 import sys
 from xml.etree import ElementTree
 
+from verification.device.app_strings import AppStrings
 from .shade import bounds, current_notice, show_notice
 from .stack import eventually
 
@@ -24,9 +25,18 @@ def focused_window(device):
 
 
 class Screen:
-    def __init__(self, device, controls):
+    def __init__(self, device, controls, *, lang=None, strings=None):
         self.device = device
         self.controls = controls
+        self._strings = strings if strings is not None else (AppStrings.for_lang(lang) if lang is not None else None)
+
+    @property
+    def strings(self):
+        resolved = getattr(self, "_strings", None)
+        if resolved is None:
+            resolved = AppStrings.for_device(getattr(self, "device", None))
+            self._strings = resolved
+        return resolved
 
     def snapshot(self):
         tree = self.controls.send("tree")
@@ -246,48 +256,60 @@ def distributor(ui, apk, endpoint):
 
 
 def start_account(ui, label, endpoint, bearer, phrase):
+    s = ui.strings
+    connect_title = s["profile_connect_title"]
+    add_action = s["profile_add_action"]
+    choose_other = s["profile_choose_other"]
+
     def form():
         root = ui.hierarchy()
-        if ui.node("Connecter Hermes", root) is not None:
+        if ui.node(connect_title, root) is not None:
             return True
-        add = ui.node("Ajouter un profil", root)
+        add = ui.node(add_action, root)
         if add is not None:
             ui.tap_node(add)
         else:
-            choose = ui.node("Choisir un autre profil", root)
+            choose = ui.node(choose_other, root)
             if choose is not None:
                 ui.tap_node(choose)
         return False
 
     eventually("real account creation form", form)
     for name, value in [
-        ("Nom du profil", label),
-        ("Adresse du serveur", endpoint),
-        ("Clé d’accès Hermes", bearer),
-        ("Phrase secrète du profil", phrase),
-        ("Confirmer la phrase secrète", phrase),
+        (s["profile_name_label"], label),
+        (s["profile_server_label"], endpoint),
+        (s["profile_key_label"], bearer),
+        (s["profile_passphrase_label"], phrase),
+        (s["profile_passphrase_confirm_label"], phrase),
     ]:
         ui.field(name, value)
-    ui.tap("Enregistrer le profil", scroll=True)
-    ui.wait("Nouvelle conversation")
+    ui.tap(s["profile_save_action"], scroll=True)
+    ui.wait(s["thread_new_conversation"])
 
 
 def choose_ntfy(ui):
+    s = ui.strings
+    transport_title = s.get("push_transport_title", "Service de notification")
+    distributor_title = s.get("push_distributor_title", "Choisir un distributeur")
+    unified_label = s.get("push_enable_unifiedpush", "Activer avec UnifiedPush")
+    no_transport = s.get("push_no_transport", "Aucun service de notification disponible pour ce profil.")
+    no_distributor = s.get(
+        "push_no_distributor",
+        "Installez ou configurez un distributeur UnifiedPush, par exemple ntfy, puis réessayez.",
+    )
     attempts = 0
     flags = {}
 
     def choose():
         nonlocal attempts
         root = ui.hierarchy()
-        transport = ui.node("Service de notification", root) is not None
-        distributor = ui.node("Choisir un distributeur", root) is not None
-        unified = ui.node("Activer avec UnifiedPush", root)
+        transport = ui.node(transport_title, root) is not None
+        distributor = ui.node(distributor_title, root) is not None
+        unified = ui.node(unified_label, root)
         ntfy = ui.node("ntfy\n" + NTFY, root)
         unavailable = (
-            transport and ui.node("Aucun service de notification disponible pour ce profil.", root) is not None
-            or distributor and ui.node(
-                "Installez ou configurez un distributeur UnifiedPush, par exemple ntfy, puis réessayez.", root
-            ) is not None
+            transport and ui.node(no_transport, root) is not None
+            or distributor and ui.node(no_distributor, root) is not None
         )
         flags.update(transport_picker=transport, distributor_picker=distributor, unifiedpush_option=unified is not None,
                      ntfy_option=ntfy is not None, unavailable=unavailable, transport_taps=attempts)
@@ -312,9 +334,10 @@ def choose_ntfy(ui):
 
 
 def enroll(ui):
-    ui.tap("Atelier")
-    ui.tap("Notifications", scroll=True)
-    ui.tap("Activer")
+    s = ui.strings
+    ui.tap(s["nav_atelier"])
+    ui.tap(s["ws_notifications"], scroll=True)
+    ui.tap(s.get("push_enable_action", "Activer"))
     ui.allow_if_prompted()
     choose_ntfy(ui)
 
@@ -339,7 +362,8 @@ def process_absent(ui):
 
 
 def thread_screen(ui, root, title, reply):
-    return all(ui.node(label, root) is not None for label in (title, reply, "Envoyer"))
+    send = ui.strings["thread_send"]
+    return all(ui.node(label, root) is not None for label in (title, reply, send))
 
 
 def masked_notice(frame, notice):
@@ -414,13 +438,15 @@ def open_notice(ui, title, directory=None):
 
 
 def tap_notice(ui, notice_text, owner, phrase, title, reply, evidence=None):
+    s = ui.strings
+    send = s["thread_send"]
     open_notice(ui, notice_text, evidence)
     # The OS just transferred focus from SystemUI to a new process for the same app.
     # Reacquire Android's accessibility connection to its newly created secure window.
     ui.controls.reconnect()
     profile_label = ui.wait(owner).get("text")
-    ui.field("Phrase secrète du profil", phrase)
-    ui.tap("Déverrouiller")
+    ui.field(s["profile_passphrase_label"], phrase)
+    ui.tap(s["profile_unlock_action"])
 
     def opened():
         root = ui.hierarchy()
@@ -429,7 +455,7 @@ def tap_notice(ui, notice_text, owner, phrase, title, reply, evidence=None):
         if thread_screen(ui, root, title, "Absent-" + secrets.token_hex(16)):
             raise AssertionError("A different thread reply matched the opened transcript")
         if evidence:
-            visible = [ui.node(label, root).get("text") for label in (title, reply, "Envoyer")]
+            visible = [ui.node(label, root).get("text") for label in (title, reply, send)]
             with (evidence / "secure-thread-visible-controls.json").open("x") as output:
                 json.dump({"unlocked_profile": profile_label, "visible_thread_controls": visible}, output, ensure_ascii=False, indent=2)
                 output.write("\n")

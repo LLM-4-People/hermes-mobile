@@ -25,9 +25,13 @@ def dismiss_ime(ui):
 
 
 def enter_message(ui, prompt=PROMPT):
+    s = ui.strings
+    send_btn = s["thread_send"]
+    composer_hint = s["thread_message_hint"]
+
     def composer():
         tree = ui.hierarchy()
-        if ui.node("Envoyer", tree) is None:
+        if ui.node(send_btn, tree) is None:
             return None
         for node in tree.iter("node"):
             if node.get("package") == APP and node.get("class") == "android.widget.EditText":
@@ -37,13 +41,20 @@ def enter_message(ui, prompt=PROMPT):
     field = eventually("visible composer editor", composer)[0]
     current = field.get("text", "")
     if current != prompt:
-        label = current or "Message à Hermes"
+        label = current or composer_hint
         if ui.controls.send("text", label=label, value=prompt) != b"applied":
-            raise AssertionError("The public Android composer did not accept the French request")
+            raise AssertionError("The public Android composer did not accept the request")
     dismiss_ime(ui)
 
 
 def open_consent(ui):
+    s = ui.strings
+    send_btn = s["thread_send"]
+    consent_title = s.get("nearby_consent_title", CONSENT)
+    failed_status = s.get("nearby_status_failed", FAILED)
+    searching_status = s.get("nearby_status_searching", "Recherche de la position…")
+    choose_profile = s["profile_choose_title"]
+    composer_hint = s["thread_message_hint"]
     dismiss_ime(ui)
     taps = 0
     ime_dismissals = 0
@@ -52,22 +63,22 @@ def open_consent(ui):
     def opened():
         nonlocal taps, ime_dismissals, last_send_bounds
         root = ui.hierarchy()
-        if ui.node(CONSENT, root) is not None:
+        if ui.node(consent_title, root) is not None:
             return (root,)
         if ui.device.ime_shown():
             ui.device.shell("input", "keyevent", "BACK")
             ime_dismissals += 1
             return None
-        send = ui.node("Envoyer", root)
+        send = ui.node(send_btn, root)
         if send is not None:
             last_send_bounds = send.get("bounds")
             ui.tap_node(send)
             taps += 1
         return None
 
-    print("Tap Envoyer", file=sys.stderr, flush=True)
+    print("Tap " + send_btn, file=sys.stderr, flush=True)
     try:
-        tree = eventually("visible control " + CONSENT, opened)[0]
+        tree = eventually("visible control " + consent_title, opened)[0]
     except AssertionError:
         root = ui.hierarchy()
         packages = sorted({node.get("package", "") for node in root.iter("node") if node.get("package")})
@@ -78,11 +89,11 @@ def open_consent(ui):
             "taps": taps,
             "ime_dismissals": ime_dismissals,
             "send_bounds": last_send_bounds,
-            "has_send": ui.node("Envoyer", root) is not None,
-            "has_failed": ui.node(FAILED, root) is not None,
-            "has_searching": ui.node("Recherche de la position…", root) is not None,
-            "has_lock_screen": ui.node("Choisir un profil", root) is not None,
-            "has_composer": ui.node("Message à Hermes", root) is not None,
+            "has_send": ui.node(send_btn, root) is not None,
+            "has_failed": ui.node(failed_status, root) is not None,
+            "has_searching": ui.node(searching_status, root) is not None,
+            "has_lock_screen": ui.node(choose_profile, root) is not None,
+            "has_composer": ui.node(composer_hint, root) is not None,
             "location_grant": location_access(ui.device),
         }, sort_keys=True), file=sys.stderr, flush=True)
         raise
@@ -93,53 +104,62 @@ def open_consent(ui):
 
 
 def choose_consent(ui, label):
+    consent_title = ui.strings.get("nearby_consent_title", CONSENT)
     ui.tap_until(
         label,
-        lambda root: ui.node(CONSENT, root) is None,
+        lambda root: ui.node(consent_title, root) is None,
         scroll=True,
         description="dismissed location consent dialog after choosing " + label,
     )
 
 
 def stage_public_location(ui, fix, *, system_prompt=True, remember=False):
-    """Stage the approximate fix. The caller must explicitly tap Envoyer a second time."""
+    """Stage the approximate fix. The caller must explicitly tap Send a second time."""
+    s = ui.strings
     open_consent(ui)
     if remember:
-        ui.tap("Utiliser ma position pour mes prochains messages sur ce profil", scroll=True)
+        ui.tap(s.get("nearby_remember_profile", "Utiliser ma position pour mes prochains messages sur ce profil"), scroll=True)
     fix.publish()
-    choose_consent(ui, USE_LOCATION)
+    choose_consent(ui, s.get("nearby_use_location", USE_LOCATION))
     if system_prompt:
         answer_android_location(ui, allow=True)
-    ui.wait(STAGED)
+    ui.wait(s.get("nearby_status_staged", STAGED))
 
 
 def unlock(ui, label, phrase):
+    s = ui.strings
+    passphrase_label = s["profile_passphrase_label"]
+    unlock_btn = s["profile_unlock_action"]
     ui.tap_until(
         label,
-        lambda root: ui.node("Phrase secrète du profil", root) is not None,
+        lambda root: ui.node(passphrase_label, root) is not None,
         scroll=True,
         description="profile unlock form for " + label,
     )
-    ui.field("Phrase secrète du profil", phrase)
+    ui.field(passphrase_label, phrase)
     ui.tap_until(
-        "Déverrouiller",
-        lambda root: ui.node("Déverrouiller", root) is None,
+        unlock_btn,
+        lambda root: ui.node(unlock_btn, root) is None,
         scroll=True,
         description="the profile to finish unlocking",
     )
 
 
 def lock(ui):
+    s = ui.strings
+    profile_lock_btn = s["top_profile_lock"]
+    lock_now = s["security_lock_now"]
+    choose_profile = s["profile_choose_title"]
     ui.tap_until(
-        "Profil et verrouillage",
-        lambda root: ui.node("Profil et verrouillage", root) is None or ui.node("Verrouiller le profil", root) is not None,
-        description="security dialog opened from Profil et verrouillage",
+        profile_lock_btn,
+        lambda root: ui.node(profile_lock_btn, root) is None or ui.node(lock_now, root) is not None,
+        description="security dialog opened from " + profile_lock_btn,
     )
     ui.tap_until(
-        "Verrouiller le profil",
-        lambda root: ui.node("Choisir un profil", root) is not None,
+        lock_now,
+        lambda root: ui.node(choose_profile, root) is not None,
         scroll=True,
-        description="visible control Choisir un profil",
+        description="visible control " + choose_profile,
     )
 
 

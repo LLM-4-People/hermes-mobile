@@ -18,6 +18,7 @@ import tempfile
 import time
 
 from conversation_cards import admission
+from device.app_strings import AppStrings
 from device.installed import installed_apk_sha256
 from device.run import APP, DEVICE_DIR, DRIVER, Emulator, android_png_size, cleanup_all, collect_captures
 from gateway_fixture import Gateway, PINNED_REVISION, check_source
@@ -26,7 +27,7 @@ from instrument_walkthrough import write_walkthrough
 
 
 FIRST = "Relis le calcul dans facture.py."
-CREATE = "Crée un outil que je pourrai réutiliser dans cette discussion à partir de notre échange."
+CREATE = AppStrings.for_lang("fr")["instrument_create_request"]
 GOAL = "Je veux une fiche pour relire facture.py."
 FEEDBACK = "Vérifiez le calcul du total avant l’arrondi."
 REVISE = "Ajoute une priorité à mon outil de revue."
@@ -63,10 +64,10 @@ def last_user_message(body):
     return next((row.get("content") for row in reversed(body["messages"]) if row.get("role") == "user"), "")
 
 
-def response(record):
+def response(record, create_request=CREATE):
     from tests.fakes.fake_llm_provider import Text
     prompt = last_user_message(record["body"])
-    if prompt == CREATE + "\n\n" + GOAL:
+    if prompt == create_request + "\n\n" + GOAL:
         return Text(proposal(False))
     replies = {FIRST: FEEDBACK, REVISE: proposal(True), OTHER: "La réunion est prête."}
     return Text(replies.get(prompt, "Aucune proposition demandée."))
@@ -86,7 +87,7 @@ def provider_instructions(body):
     return "\n".join(parts)
 
 
-def verify_history(gateway, provider):
+def verify_history(gateway, provider, create_request=CREATE):
     history = {}
     for session in gateway.request("/api/sessions?source=api_server")["data"]:
         turns = [(role, text) for role, text in transcript(gateway, session["id"], limit=100)
@@ -98,7 +99,7 @@ def verify_history(gateway, provider):
     owner = next(sid for sid, turns in history.items() if turns[0] == ("user", FIRST))
     other = next(sid for sid in history if sid != owner)
     review = history[owner]
-    request = CREATE + "\n\n" + GOAL
+    request = create_request + "\n\n" + GOAL
     if len(review) != 6 or review[2] != ("user", request):
         raise AssertionError("The native menu request or its appended goal was lost")
     expected = [(owner, FIRST, FEEDBACK), (owner, request, proposal(False)),
@@ -225,8 +226,9 @@ def viewport(device):
                                            required_tokens=expected_tokens, label="the original display viewport"))
 
 
-def journey(args, gateway):
-    device = Emulator(args.serial, args.adb, args.adb_port)
+def journey(args, gateway, *, device=None, create_request=CREATE):
+    if device is None:
+        device = Emulator(args.serial, args.adb, args.adb_port)
     if device.shell("getprop", "ro.kernel.qemu") != "1" or DRIVER not in device.shell("pm", "list", "instrumentation"):
         raise ValueError("Install the current app and androidTest APK on a disposable emulator")
     hashes = [installed_apk_sha256(device, pkg) for pkg in (APP, APP + ".test")]
@@ -238,7 +240,7 @@ def journey(args, gateway):
     token = secrets.token_hex(5)
     folder = DEVICE_DIR + "/" + token
     spec = {"run": token, "phrase": secrets.token_hex(16), "endpoint": gateway.endpoint,
-            "key": gateway.key, "first": FIRST, "template": CREATE, "goal": GOAL, "revision": REVISE, "other": OTHER,
+            "key": gateway.key, "first": FIRST, "template": create_request, "goal": GOAL, "revision": REVISE, "other": OTHER,
             "instrumentTitle": TITLE, "form": FORM}
     with device.reverse(gateway.endpoint), device.appearance(), viewport(device):
         device.shell("run-as", APP, "mkdir", "-p", folder)
@@ -283,13 +285,15 @@ def main():
     from tests.fakes.fake_llm_provider import FakeLLMServer
 
     args.output.mkdir(parents=True, exist_ok=False)
+    device = Emulator(args.serial, args.adb, args.adb_port)
+    create_request = AppStrings.for_device(device)["instrument_create_request"]
     with ExitStack() as stack:
         root = stack.enter_context(tempfile.TemporaryDirectory(prefix="hm-thread-instrument-"))
-        provider = stack.enter_context(FakeLLMServer(response))
+        provider = stack.enter_context(FakeLLMServer(lambda rec: response(rec, create_request=create_request)))
         gateway = stack.enter_context(Gateway(Path(root) / "runtime", source, provider.base_url))
         gateway.request("/api/sessions", bearer=False, expected=401)
-        report = journey(args, gateway)
-        report["canonical_receipts"] = verify_history(gateway, provider)
+        report = journey(args, gateway, device=device, create_request=create_request)
+        report["canonical_receipts"] = verify_history(gateway, provider, create_request=create_request)
     report.update({"gateway_revision": args.revision, "canonical_review_turns": 3,
                    "unrelated_thread_turns": 1, "automatically_submitted_turns": 0})
     write_walkthrough(args.output, CAPTURES, report)
