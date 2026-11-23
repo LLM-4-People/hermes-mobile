@@ -6,6 +6,7 @@ import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.view.View;
 import android.widget.Button;
+import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.Switch;
@@ -129,19 +130,22 @@ public final class PresenceSettingsPanel {
         statusBanner.setBackground(bannerBg);
         addTop(body, statusBanner, 12);
 
+        int minTouch = Ui.dp(context, 48);
         LinearLayout quickControls = Ui.row(context);
         pauseLocationButton = Ui.button(context, context.getString(R.string.presence_pause_location), v -> toggleLocationPause());
         pauseLocationButton.setTag("presence:pause_location");
-        pauseLocationButton.setMinWidth(Ui.dp(context, 48));
+        pauseLocationButton.setMinWidth(minTouch);
+        pauseLocationButton.setMinimumWidth(minTouch);
 
         Button allOffButton = Ui.button(context, context.getString(R.string.presence_turn_all_off), v -> turnEverythingOff());
         allOffButton.setTag("presence:turn_all_off");
         allOffButton.setTextColor(context.getColor(R.color.danger));
-        allOffButton.setMinWidth(Ui.dp(context, 48));
+        allOffButton.setMinWidth(minTouch);
+        allOffButton.setMinimumWidth(minTouch);
 
         quickControls.addView(pauseLocationButton);
         quickControls.addView(allOffButton);
-        addTop(body, quickControls, 6);
+        addTop(body, horizontalRow(quickControls), 6);
 
         feedback = Ui.text(context, "", 14);
         feedback.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
@@ -227,16 +231,17 @@ public final class PresenceSettingsPanel {
         addPaletteChip(paletteRow1, AppCustomization.PalettePreset.TERRACOTTA, R.string.custom_palette_terracotta);
         addPaletteChip(paletteRow2, AppCustomization.PalettePreset.INDIGO, R.string.custom_palette_indigo);
         addPaletteChip(paletteRow2, AppCustomization.PalettePreset.PLUM, R.string.custom_palette_plum);
-        addTop(body, paletteRow1, 6);
-        addTop(body, paletteRow2, 4);
+        addTop(body, horizontalRow(paletteRow1), 6);
+        addTop(body, horizontalRow(paletteRow2), 4);
 
         addTop(body, Ui.text(context, context.getString(R.string.custom_density_label), 14), 12);
         LinearLayout densityRow = Ui.row(context);
         addDensityChip(densityRow, AppCustomization.Density.COMPACT, R.string.custom_density_compact);
         addDensityChip(densityRow, AppCustomization.Density.COMFORTABLE, R.string.custom_density_comfortable);
         addDensityChip(densityRow, AppCustomization.Density.SPACIOUS, R.string.custom_density_spacious);
-        addTop(body, densityRow, 6);
+        addTop(body, horizontalRow(densityRow), 6);
 
+        int minTouch = Ui.dp(context, 48);
         LinearLayout undoRow = Ui.row(context);
         undoButton = Ui.button(context, context.getString(R.string.custom_undo), v -> {
             AppCustomization restored = customizationStore.undo();
@@ -245,7 +250,8 @@ public final class PresenceSettingsPanel {
             refresh();
         });
         undoButton.setTag("custom:undo");
-        undoButton.setMinWidth(Ui.dp(context, 48));
+        undoButton.setMinWidth(minTouch);
+        undoButton.setMinimumWidth(minTouch);
 
         Button resetButton = Ui.button(context, context.getString(R.string.custom_reset), v -> {
             AppCustomization reset = customizationStore.resetToDefault();
@@ -254,11 +260,20 @@ public final class PresenceSettingsPanel {
             refresh();
         });
         resetButton.setTag("custom:reset");
-        resetButton.setMinWidth(Ui.dp(context, 48));
+        resetButton.setMinWidth(minTouch);
+        resetButton.setMinimumWidth(minTouch);
 
         undoRow.addView(undoButton);
         undoRow.addView(resetButton);
-        addTop(body, undoRow, 10);
+        addTop(body, horizontalRow(undoRow), 10);
+    }
+
+    private HorizontalScrollView horizontalRow(LinearLayout row) {
+        HorizontalScrollView scroll = new HorizontalScrollView(context);
+        scroll.setHorizontalScrollBarEnabled(false);
+        scroll.addView(row, new HorizontalScrollView.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        return scroll;
     }
 
     private void addPaletteChip(LinearLayout row, AppCustomization.PalettePreset preset, int labelRes) {
@@ -270,7 +285,9 @@ public final class PresenceSettingsPanel {
             refresh();
         });
         chip.setTag("custom:palette:" + preset.wire);
-        chip.setMinWidth(Ui.dp(context, 48));
+        int minTouch = Ui.dp(context, 48);
+        chip.setMinWidth(minTouch);
+        chip.setMinimumWidth(minTouch);
         row.addView(chip);
     }
 
@@ -283,7 +300,9 @@ public final class PresenceSettingsPanel {
             refresh();
         });
         chip.setTag("custom:density:" + density.wire);
-        chip.setMinWidth(Ui.dp(context, 48));
+        int minTouch = Ui.dp(context, 48);
+        chip.setMinWidth(minTouch);
+        chip.setMinimumWidth(minTouch);
         row.addView(chip);
     }
 
