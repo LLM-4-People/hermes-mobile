@@ -96,7 +96,7 @@ public final class SessionPanel implements AutoCloseable {
 
     private void mountLayout() {
         if (frame.getParent() instanceof ViewGroup parent) parent.removeView(frame);
-        View decorated = layoutHost == null ? frame :
+        View decorated = layoutHost == null || !ArtifactDesk.supportsSurface(surface) ? frame :
                 ArtifactDesk.decorate(activity, account, surface, frame, layoutHost);
         dialog.setContentView(decorated);
     }

@@ -14,7 +14,7 @@ from live_api import await_completion, transcript
 LOCATOR = "qualite/synthese"
 SUMMARY = "Relecture des références et de la conclusion."
 DRAFT = "Vérifie mon compte rendu."
-REQUEST = DRAFT + "\nUtilise la compétence « " + LOCATOR + " » pour cette demande."
+REQUEST = DRAFT + "\nUtilise le savoir-faire « " + LOCATOR + " » pour cette demande."
 MARKER = "Les étapes sont classées du constat vers la recommandation."
 ANSWER = "La fiche de relecture est ouverte."
 CAPTURES = ("01-competence-recherche.png", "02-competence-resume.png",

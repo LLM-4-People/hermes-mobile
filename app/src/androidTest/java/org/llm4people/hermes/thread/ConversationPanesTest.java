@@ -185,7 +185,7 @@ public final class ConversationPanesTest extends InstrumentationTestCase {
                     holder[0].inbox();
                     // Returning to inbox must clear stale pre-refresh rows immediately so an async
                     // reorder ([second, first]) cannot shift a row underneath an in-flight tap.
-                    immediateCount[0] = findListView(holder[0].view()).getAdapter().getCount();
+                    immediateCount[0] = dataRowCount(findListView(holder[0].view()));
                 });
                 assertEquals(0, immediateCount[0]);
                 awaitInboxCount(holder[0], 2);
@@ -208,14 +208,16 @@ public final class ConversationPanesTest extends InstrumentationTestCase {
         int[] count = {-1};
         do {
             getInstrumentation().waitForIdleSync();
-            runTestOnUiThread(() -> {
-                ListView list = findListView(workspace.view());
-                count[0] = list == null || list.getAdapter() == null ? -1 : list.getAdapter().getCount();
-            });
+            runTestOnUiThread(() -> count[0] = dataRowCount(findListView(workspace.view())));
             if (count[0] == expected) return;
             SystemClock.sleep(25);
         } while (SystemClock.uptimeMillis() < deadline);
         assertEquals(expected, count[0]);
+    }
+
+    private static int dataRowCount(ListView list) {
+        return list == null || list.getAdapter() == null ? -1
+                : Math.max(0, list.getAdapter().getCount() - list.getHeaderViewsCount() - list.getFooterViewsCount());
     }
 
     private static ListView findListView(View view) {

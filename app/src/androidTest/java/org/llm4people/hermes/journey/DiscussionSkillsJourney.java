@@ -20,15 +20,16 @@ final class DiscussionSkillsJourney {
         ui.tap("Autres actions");
         ui.tap("Modèle et outils");
         ui.tap("Compétences de Hermes");
-        ui.fill("Rechercher une compétence", "relecture");
+        ui.fill("Rechercher un savoir-faire", "relecture");
         ui.hideKeyboard();
         ui.see(fixture.getString("skill"));
         ui.absent("support/synthese");
         ui.capture("01-competence-recherche");
         ui.tap(fixture.getString("skill"));
-        ui.contains("Catégorie · qualite", fixture.getString("summary"));
+        ui.see("qualite");
+        ui.contains(fixture.getString("summary"));
         ui.capture("02-competence-resume");
-        ui.tap("Préparer le brouillon");
+        ui.tap("Utiliser dans la discussion");
         ui.see(fixture.getString("staged"));
         ui.capture("03-competence-brouillon");
     }

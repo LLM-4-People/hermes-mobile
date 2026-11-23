@@ -56,6 +56,10 @@ public final class ArtifactDesk {
         return instructions;
     }
 
+    public static boolean supportsSurface(String surface) {
+        return surface != null && (WorkspaceLayout.SURFACES.containsKey(surface) || WorkspaceLayout.custom(surface));
+    }
+
     public static View decorate(Activity activity, Account account, String surface, View nativeContent, Host host) {
         return SurfaceRenderer.decorate(activity, account, surface, nativeContent, host);
     }

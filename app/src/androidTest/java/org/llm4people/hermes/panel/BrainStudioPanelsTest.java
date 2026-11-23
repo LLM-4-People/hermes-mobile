@@ -11,6 +11,7 @@ import android.view.inspector.WindowInspector;
 import android.widget.Switch;
 import android.widget.TextView;
 import org.llm4people.hermes.R;
+import org.llm4people.hermes.artifact.ArtifactDesk;
 import org.llm4people.hermes.net.Exchange;
 import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.profile.WorkspaceAccountFixture;
@@ -41,6 +42,17 @@ public final class BrainStudioPanelsTest extends InstrumentationTestCase {
         try (Exchange legacy = new Exchange("200 OK", JSON, "{\"features\":{}}");
              WorkspaceAccountFixture profile = new WorkspaceAccountFixture(app, legacy.endpoint())) {
             SessionPanel panel = new SessionPanel(activity, new HermesApi(legacy.endpoint(), "test"), profile.account);
+            // Regression guard: brain_* surfaces are not in WorkspaceLayout.SURFACES and must mount
+            // cleanly even when MainActivity attaches a non-null ArtifactDesk.Host.
+            panel.setLayoutHost(new ArtifactDesk.Host() {
+                @Override public java.util.function.BooleanSupplier deviceActionOrigin() { return () -> false; }
+                @Override public void onAction(String id) {}
+                @Override public void onLayoutChanged() {}
+                @Override public void openWorkspace(String pageId) {}
+                @Override public void stageDraft(String text) {}
+                @Override public void threadSlots(List<String> order) {}
+                @Override public String workspaceValue(String source) { return ""; }
+            });
             try {
                 runTestOnUiThread(() -> panel.showMemory(null));
                 assertTextVisible(activity.getString(R.string.brain_memory_title));
