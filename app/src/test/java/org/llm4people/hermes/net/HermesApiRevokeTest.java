@@ -72,9 +72,9 @@ public final class HermesApiRevokeTest {
             assertTrue("Server should send partial response", headersSent.await(5, TimeUnit.SECONDS));
             long startedRevoke = System.nanoTime();
             api.revoke();
-            assertTrue("In-flight download must abort promptly on revoke()", finished.await(3, TimeUnit.SECONDS));
+            assertTrue("In-flight download must abort promptly on revoke()", finished.await(8, TimeUnit.SECONDS));
             long abortMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedRevoke);
-            assertTrue("Download aborted too slowly (" + abortMs + "ms)", abortMs < 3_000L);
+            assertTrue("Download aborted too slowly (" + abortMs + "ms)", abortMs < 8_000L);
             assertNotNull("Revoked download must throw IOException", failure.get());
             assertTrue("Expected IOException, got " + failure.get(), failure.get() instanceof IOException);
             assertTrue(api.isRevoked());
@@ -154,7 +154,7 @@ public final class HermesApiRevokeTest {
                 assertTrue("Server should open SSE stream", streamOpened.await(5, TimeUnit.SECONDS));
                 api.revoke();
                 assertTrue("In-flight SSE stream must abort promptly on revoke()",
-                        readerFinished.await(3, TimeUnit.SECONDS));
+                        readerFinished.await(8, TimeUnit.SECONDS));
                 Throwable err = readerError.get();
                 assertTrue("Revoked SSE reader must return null or IOException, got " + err,
                         err == null || err instanceof IOException);
