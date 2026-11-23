@@ -129,11 +129,12 @@ final class WorkspaceFilesPanel {
     private View entryRow(BrainJson.WorkspaceEntry entry) {
         LinearLayout card = BrainUi.card(panel.activity);
         LinearLayout top = Ui.row(panel.activity);
-        String prefix = entry.isDirectory() ? "Dossier · " : "";
-        TextView name = Ui.text(panel.activity, prefix + entry.path(), 16);
+        String displayPath = entry.isDirectory()
+                ? panel.t(R.string.ws_files_dir_prefix, entry.path()) : entry.path();
+        TextView name = Ui.text(panel.activity, displayPath, 16);
         name.setTypeface(entry.isDirectory() ? Typeface.DEFAULT_BOLD : Typeface.MONOSPACE);
         top.addView(name, new LinearLayout.LayoutParams(0, -2, 1));
-        String gitBadge = WorkspacePathGuard.gitStatusLabel(entry.gitStatus());
+        String gitBadge = WorkspacePathGuard.gitStatusLabel(panel.activity, entry.gitStatus());
         if (!gitBadge.isEmpty()) {
             top.addView(BrainUi.badge(panel.activity, gitBadge, true));
         }
@@ -216,8 +217,8 @@ final class WorkspaceFilesPanel {
         body.removeAllViews();
         if (!diff.branch().isEmpty()) {
             StringBuilder summary = new StringBuilder(panel.t(R.string.brain_files_branch, diff.branch()));
-            if (diff.ahead() > 0) summary.append(" · +").append(diff.ahead()).append(" en avance");
-            if (diff.behind() > 0) summary.append(" · -").append(diff.behind()).append(" en retard");
+            if (diff.ahead() > 0) summary.append(" · ").append(panel.t(R.string.ws_files_ahead, diff.ahead()));
+            if (diff.behind() > 0) summary.append(" · ").append(panel.t(R.string.ws_files_behind, diff.behind()));
             panel.note(body, summary.toString());
         }
         if (!diff.diffText().isEmpty()) {
@@ -235,7 +236,7 @@ final class WorkspaceFilesPanel {
             card.addView(name);
 
             LinearLayout badges = Ui.row(panel.activity);
-            String label = WorkspacePathGuard.gitStatusLabel(file.status());
+            String label = WorkspacePathGuard.gitStatusLabel(panel.activity, file.status());
             if (!label.isEmpty()) badges.addView(BrainUi.badge(panel.activity, label, false));
             badges.addView(BrainUi.badge(panel.activity, "+" + file.additions() + " / -" + file.deletions(), true));
             badges.setPaddingRelative(0, Ui.dp(panel.activity, 6), 0, 0);

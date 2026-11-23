@@ -118,7 +118,7 @@ final class WorkspaceParts {
             case "device":
                 allow(keys, "type", "request");
                 require(b.request != null);
-                b.title = b.request.kind().title;
+                b.title = b.request.kind().name();
                 break;
             case "nearby_places":
                 allow(keys, "type", "category", "radius_m", "limit");

@@ -293,59 +293,89 @@ public final class LiveUiPatch {
 
     public sealed interface Op {
         String kind();
-        String frenchDescription();
+        String describe(android.content.Context context);
+        String targetLabel();
 
         record UpsertSurface(String surface, String layoutJson, String title) implements Op {
             @Override public String kind() { return "upsert_surface"; }
-            @Override public String frenchDescription() { return "Mettre à jour l’écran « " + title + " »"; }
+            @Override public String targetLabel() { return title; }
+            @Override public String describe(android.content.Context c) {
+                return c.getString(org.llm4people.hermes.R.string.ws_liveui_op_upsert_surface, title);
+            }
         }
 
         record RemoveSurface(String surface) implements Op {
             @Override public String kind() { return "remove_surface"; }
-            @Override public String frenchDescription() {
-                String name = WorkspaceLayout.screenName(surface);
-                return "Rétablir l’écran « " + (name == null ? surface : name) + " »";
+            @Override public String targetLabel() { return surface; }
+            @Override public String describe(android.content.Context c) {
+                String name = WorkspaceLayout.screenName(c, surface);
+                return c.getString(org.llm4people.hermes.R.string.ws_liveui_op_remove_surface,
+                        name == null ? surface : name);
             }
         }
 
         record UpsertTab(CustomTab tab) implements Op {
             @Override public String kind() { return "upsert_tab"; }
-            @Override public String frenchDescription() { return "Ajouter l’onglet « " + tab.label + " » dans l’atelier"; }
+            @Override public String targetLabel() { return tab.label; }
+            @Override public String describe(android.content.Context c) {
+                return c.getString(org.llm4people.hermes.R.string.ws_liveui_op_upsert_tab, tab.label);
+            }
         }
 
         record RemoveTab(String id) implements Op {
             @Override public String kind() { return "remove_tab"; }
-            @Override public String frenchDescription() { return "Retirer l’onglet « " + id + " » de l’atelier"; }
+            @Override public String targetLabel() { return id; }
+            @Override public String describe(android.content.Context c) {
+                return c.getString(org.llm4people.hermes.R.string.ws_liveui_op_remove_tab, id);
+            }
         }
 
         record UpsertQuickAction(QuickAction action) implements Op {
             @Override public String kind() { return "upsert_quick_action"; }
-            @Override public String frenchDescription() { return "Ajouter le raccourci « " + action.label + " »"; }
+            @Override public String targetLabel() { return action.label; }
+            @Override public String describe(android.content.Context c) {
+                return c.getString(org.llm4people.hermes.R.string.ws_liveui_op_upsert_qa, action.label);
+            }
         }
 
         record RemoveQuickAction(String id) implements Op {
             @Override public String kind() { return "remove_quick_action"; }
-            @Override public String frenchDescription() { return "Retirer le raccourci « " + id + " »"; }
+            @Override public String targetLabel() { return id; }
+            @Override public String describe(android.content.Context c) {
+                return c.getString(org.llm4people.hermes.R.string.ws_liveui_op_remove_qa, id);
+            }
         }
 
         record SetThemeOverride(ThemePalette.OverrideSpec spec) implements Op {
             @Override public String kind() { return "set_theme_override"; }
-            @Override public String frenchDescription() { return "Apparence : " + spec.frenchSummary(); }
+            @Override public String targetLabel() { return spec.theme; }
+            @Override public String describe(android.content.Context c) {
+                return c.getString(org.llm4people.hermes.R.string.ws_liveui_op_theme, spec.describe(c));
+            }
         }
 
         record ResetTheme() implements Op {
             @Override public String kind() { return "clear_theme_override"; }
-            @Override public String frenchDescription() { return "Rétablir l’apparence par défaut"; }
+            @Override public String targetLabel() { return "default"; }
+            @Override public String describe(android.content.Context c) {
+                return c.getString(org.llm4people.hermes.R.string.ws_liveui_op_reset_theme);
+            }
         }
 
         record UpsertWidget(WidgetSpec widget) implements Op {
             @Override public String kind() { return "upsert_widget"; }
-            @Override public String frenchDescription() { return "Préparer le widget d’accueil « " + widget.title + " »"; }
+            @Override public String targetLabel() { return widget.title; }
+            @Override public String describe(android.content.Context c) {
+                return c.getString(org.llm4people.hermes.R.string.ws_liveui_op_upsert_widget, widget.title);
+            }
         }
 
         record RemoveWidget(String widgetId) implements Op {
             @Override public String kind() { return "remove_widget"; }
-            @Override public String frenchDescription() { return "Retirer le widget d’accueil « " + widgetId + " »"; }
+            @Override public String targetLabel() { return widgetId; }
+            @Override public String describe(android.content.Context c) {
+                return c.getString(org.llm4people.hermes.R.string.ws_liveui_op_remove_widget, widgetId);
+            }
         }
     }
 
@@ -401,7 +431,7 @@ public final class LiveUiPatch {
         this.scope = safeScope;
         this.ops = ops == null ? Collections.emptyList() : Collections.unmodifiableList(new ArrayList<>(ops));
         this.interactiveCards = safeCards;
-        this.summary = cleanSummary.isEmpty() ? defaultSummary(this.ops, safeCards) : cleanSummary;
+        this.summary = cleanSummary;
         this.suggestedActions = suggestedActions == null
                 ? Collections.emptyList()
                 : Collections.unmodifiableList(new ArrayList<>(suggestedActions));
@@ -420,15 +450,28 @@ public final class LiveUiPatch {
         return serializedJson != null && serializedJson.getBytes(StandardCharsets.UTF_8).length > MAX_PATCH_BYTES;
     }
 
-    private static String defaultSummary(List<Op> ops, List<InteractiveCardView.Spec> cards) {
-        if (ops.size() == 1) return ops.get(0).frenchDescription();
-        if (!ops.isEmpty()) return ops.size() + " ajustements proposés pour votre espace";
-        return cards.size() == 1 ? cards.get(0).title : (cards.size() + " cartes interactives");
+    public String displaySummary(android.content.Context context) {
+        if (!summary.isEmpty()) return summary;
+        if (ops.size() == 1) return ops.get(0).describe(context);
+        if (!ops.isEmpty()) {
+            return context.getString(org.llm4people.hermes.R.string.ws_liveui_summary_ops, ops.size());
+        }
+        return interactiveCards.size() == 1
+                ? interactiveCards.get(0).title
+                : context.getString(org.llm4people.hermes.R.string.ws_liveui_summary_cards, interactiveCards.size());
     }
 
+    public List<String> highlights(android.content.Context context) {
+        List<String> lines = new ArrayList<>(ops.size() + interactiveCards.size());
+        for (Op op : ops) lines.add(op.describe(context));
+        for (InteractiveCardView.Spec card : interactiveCards) lines.add(card.title);
+        return Collections.unmodifiableList(lines);
+    }
+
+    /** Legacy zero-context highlight labels for external callers; prefer {@link #highlights(android.content.Context)}. */
     public List<String> frenchHighlights() {
         List<String> lines = new ArrayList<>(ops.size() + interactiveCards.size());
-        for (Op op : ops) lines.add(op.frenchDescription());
+        for (Op op : ops) lines.add(op.targetLabel());
         for (InteractiveCardView.Spec card : interactiveCards) lines.add(card.title);
         return Collections.unmodifiableList(lines);
     }
@@ -765,11 +808,11 @@ public final class LiveUiPatch {
                         JSONObject m = srcItems.optJSONObject(i);
                         if (m == null) continue;
                         JSONObject item = new JSONObject();
-                        item.put("label", trimTo(m.optString("label", "Mesure"), 48));
+                        item.put("label", trimTo(m.optString("label", title), 48));
                         if (m.has("source") && WorkspaceLayout.SOURCES.contains(m.optString("source"))) {
                             item.put("source", m.optString("source"));
                         } else {
-                            item.put("value", trimTo(m.optString("value", "Indisponible"), 48));
+                            item.put("value", trimTo(m.optString("value", "—"), 48));
                         }
                         if (m.has("delta") && !m.optString("delta").isEmpty()) item.put("delta", trimTo(m.optString("delta"), 24));
                         if (m.has("unit") && !m.optString("unit").isEmpty()) item.put("unit", trimTo(m.optString("unit"), 16));
@@ -778,7 +821,7 @@ public final class LiveUiPatch {
                         items.put(item);
                     }
                 }
-                if (items.length() == 0) items.put(new JSONObject().put("label", title).put("value", "Indisponible"));
+                if (items.length() == 0) items.put(new JSONObject().put("label", title).put("value", "—"));
                 block.put("items", items);
             }
             case "sparkline", "bar_chart" -> {
@@ -1085,7 +1128,7 @@ public final class LiveUiPatch {
                     String surface = writtenSurfaces.get(i);
                     try {
                         surfaces.replace(surface, "rollback:" + patch.revisionId,
-                                "Annulation · " + patch.summary, priorSurfaces.get(surface));
+                                patch.summary, priorSurfaces.get(surface));
                     } catch (RuntimeException ignored) {
                         warnStateUnreadable();
                     }
@@ -1148,7 +1191,7 @@ public final class LiveUiPatch {
         private void restoreSnapshot(AppliedRevision snapshot) {
             for (Map.Entry<String, String> entry : snapshot.previousSurfaces.entrySet()) {
                 surfaces.replace(entry.getKey(), "revert:" + snapshot.revisionId,
-                        "Annulation · " + snapshot.summary, entry.getValue());
+                        snapshot.summary, entry.getValue());
             }
             tabs.clear();
             tabs.addAll(snapshot.previousTabs);

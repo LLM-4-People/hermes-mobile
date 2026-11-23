@@ -182,7 +182,7 @@ public final class BrainStudioPanelsTest extends InstrumentationTestCase {
                 runTestOnUiThread(() -> panel.showStats("s1", "s1"));
                 assertTextVisible(activity.getString(R.string.brain_usage_response_time));
                 assertTextVisible(activity.getString(R.string.brain_usage_speed));
-                assertTextVisible(UsageFormatter.UNAVAILABLE);
+                assertTextVisible(activity.getString(R.string.ws_unavailable));
                 assertTextVisible(activity.getString(R.string.brain_usage_technical_toggle));
                 assertTextVisible(activity.getString(R.string.panel_out));
             } finally {

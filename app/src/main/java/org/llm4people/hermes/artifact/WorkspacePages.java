@@ -19,16 +19,14 @@ import java.util.List;
 import java.util.Map;
 
 final class WorkspacePages {
-    static final String REPAIR = "Réparer la bibliothèque…";
-
     static AlertDialog confirmRecovery(Activity activity, PageLayouts.Damaged damaged, ArtifactDesk.Host host) {
-        String consequence = damaged.hasReadablePages()
-                ? "Les écrans et révisions lisibles seront conservés. Les données endommagées seront effacées."
-                : "La bibliothèque est illisible. Tous ses écrans personnels et leurs révisions seront effacés.";
-        return DeskDialogs.open(activity, new AlertDialog.Builder(activity).setTitle("Réparer vos écrans personnels ?")
-                .setMessage(consequence + " Cette opération est définitive.")
-                .setNegativeButton("Annuler", null)
-                .setPositiveButton("Réparer", (dialog, which) -> SurfaceRenderer.change(activity, host, damaged::recover)));
+        String consequence = activity.getString(damaged.hasReadablePages()
+                ? R.string.ws_pages_repair_partial : R.string.ws_pages_repair_all);
+        return DeskDialogs.open(activity, new AlertDialog.Builder(activity)
+                .setTitle(R.string.ws_pages_repair_title)
+                .setMessage(activity.getString(R.string.ws_pages_repair_irreversible, consequence))
+                .setNegativeButton(R.string.ws_cancel, null)
+                .setPositiveButton(R.string.ws_repair, (dialog, which) -> SurfaceRenderer.change(activity, host, damaged::recover)));
     }
 
     static View gallery(Activity a, Account account, ArtifactDesk.Host host) {
@@ -40,9 +38,8 @@ final class WorkspacePages {
         scroll.addView(list);
         mountCustomTabs(list, a, account, host, palette);
         try {
-            Map<String, String> pages = PageLayouts.titles(account, false);
-            if (pages.isEmpty()) list.addView(Ui.text(a,
-                    "Demandez à Hermes de créer un écran, puis appliquez sa proposition depuis la discussion.", 16));
+            Map<String, String> pages = PageLayouts.titles(a, account, false);
+            if (pages.isEmpty()) list.addView(Ui.text(a, a.getString(R.string.ws_pages_empty), 16));
             for (Map.Entry<String, String> entry : pages.entrySet()) {
                 Button link = Ui.button(a, entry.getValue(), v -> host.openWorkspace(entry.getKey()));
                 link.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
@@ -52,11 +49,11 @@ final class WorkspacePages {
             }
         } catch (PageLayouts.Damaged damaged) {
             Diagnostics.warning("workspace", "page_index_damaged");
-            list.addView(Ui.text(a, "Les données de vos écrans personnels sont endommagées.", 16));
-            list.addView(Ui.button(a, REPAIR, view -> confirmRecovery(a, damaged, host)));
+            list.addView(Ui.text(a, a.getString(R.string.ws_pages_damaged), 16));
+            list.addView(Ui.button(a, a.getString(R.string.ws_pages_repair_action), view -> confirmRecovery(a, damaged, host)));
         } catch (IllegalStateException error) {
             Diagnostics.warning("workspace", "page_index_unavailable");
-            list.addView(Ui.text(a, "Bibliothèque indisponible. Rouvrez votre profil.", 16));
+            list.addView(Ui.text(a, a.getString(R.string.ws_pages_unavailable), 16));
         }
         return scroll;
     }
@@ -67,7 +64,7 @@ final class WorkspacePages {
         LiveUiPatch.StateManager manager = LiveUiPatch.StateManager.forAccount(account, palette.night);
         List<LiveUiPatch.CustomTab> tabs = manager.tabs();
         if (tabs.isEmpty()) return;
-        TextView heading = Ui.text(activity, "Onglets de l’atelier", palette.scaledSp(15));
+        TextView heading = Ui.text(activity, activity.getString(R.string.ws_pages_custom_tabs), palette.scaledSp(15));
         heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         heading.setTextColor(palette.muted);
         heading.setPadding(0, 0, 0, Ui.dp(activity, 6));

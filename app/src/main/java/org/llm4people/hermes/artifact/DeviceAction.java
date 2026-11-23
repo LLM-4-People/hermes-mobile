@@ -1,5 +1,6 @@
 package org.llm4people.hermes.artifact;
 
+import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
 import android.provider.AlarmClock;
@@ -7,16 +8,19 @@ import android.provider.CalendarContract;
 import android.provider.ContactsContract;
 import android.util.JsonReader;
 import android.util.JsonToken;
+import org.llm4people.hermes.R;
 import org.llm4people.hermes.VisibleText;
 import org.llm4people.hermes.places.NearbyResult;
 
 import java.io.IOException;
 import java.io.StringReader;
 import java.time.DateTimeException;
+import java.time.DayOfWeek;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.ResolverStyle;
+import java.time.format.TextStyle;
 import java.time.temporal.ChronoField;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -37,25 +41,32 @@ public sealed interface DeviceAction {
     Pattern EMAIL_PATTERN = Pattern.compile("[^\\s@]{1,64}@[^\\s@]{1,253}\\.[^\\s@]{2,63}");
 
     enum Kind {
-        CALENDAR("Événement d’agenda", "Vérifier l’événement", "Ouvrir l’agenda"),
-        SHARE("Texte à partager", "Vérifier le partage", "Choisir une application"),
-        MAP("Lieu à rechercher", "Vérifier le lieu", "Ouvrir la carte"),
-        OSM("Fiche OpenStreetMap", "Vérifier la source", "Ouvrir OpenStreetMap"),
-        ALARM("Alarme", "Vérifier l’alarme", "Ouvrir l’horloge"),
-        TIMER("Minuteur", "Vérifier le minuteur", "Ouvrir l’horloge"),
-        DIAL("Numéro à appeler", "Vérifier le numéro", "Ouvrir le téléphone"),
-        SMS("Message SMS", "Vérifier le message", "Ouvrir Messages"),
-        EMAIL("Courriel", "Vérifier le courriel", "Ouvrir la messagerie"),
-        CONTACT("Nouveau contact", "Vérifier le contact", "Ouvrir Contacts"),
-        NAVIGATION("Itinéraire", "Vérifier l’itinéraire", "Ouvrir la navigation"),
-        CLIPBOARD("Texte à copier", "Vérifier avant la copie", "Copier dans le presse-papiers");
+        CALENDAR(R.string.ws_dev_calendar_title, R.string.ws_dev_calendar_review, R.string.ws_dev_calendar_open),
+        SHARE(R.string.ws_dev_share_title, R.string.ws_dev_share_review, R.string.ws_dev_share_open),
+        MAP(R.string.ws_dev_map_title, R.string.ws_dev_map_review, R.string.ws_dev_map_open),
+        OSM(R.string.ws_dev_osm_title, R.string.ws_dev_osm_review, R.string.ws_dev_osm_open),
+        ALARM(R.string.ws_dev_alarm_title, R.string.ws_dev_alarm_review, R.string.ws_dev_alarm_open),
+        TIMER(R.string.ws_dev_timer_title, R.string.ws_dev_timer_review, R.string.ws_dev_timer_open),
+        DIAL(R.string.ws_dev_dial_title, R.string.ws_dev_dial_review, R.string.ws_dev_dial_open),
+        SMS(R.string.ws_dev_sms_title, R.string.ws_dev_sms_review, R.string.ws_dev_sms_open),
+        EMAIL(R.string.ws_dev_email_title, R.string.ws_dev_email_review, R.string.ws_dev_email_open),
+        CONTACT(R.string.ws_dev_contact_title, R.string.ws_dev_contact_review, R.string.ws_dev_contact_open),
+        NAVIGATION(R.string.ws_dev_nav_title, R.string.ws_dev_nav_review, R.string.ws_dev_nav_open),
+        CLIPBOARD(R.string.ws_dev_clip_title, R.string.ws_dev_clip_review, R.string.ws_dev_clip_open);
 
-        public final String title, review, open;
-        Kind(String title, String review, String open) { this.title = title; this.review = review; this.open = open; }
+        public final int titleRes, reviewRes, openRes;
+        Kind(int titleRes, int reviewRes, int openRes) {
+            this.titleRes = titleRes;
+            this.reviewRes = reviewRes;
+            this.openRes = openRes;
+        }
+        public String title(Context context) { return context.getString(titleRes); }
+        public String review(Context context) { return context.getString(reviewRes); }
+        public String open(Context context) { return context.getString(openRes); }
     }
 
     Kind kind();
-    String preview();
+    String preview(Context context);
     Intent target();
     default Intent fallbackTarget() { return null; }
 
@@ -63,17 +74,25 @@ public sealed interface DeviceAction {
         private static final DateTimeFormatter WIRE = new DateTimeFormatterBuilder()
                 .appendValue(ChronoField.YEAR, 4).appendPattern("-MM-dd'T'HH:mm:ssXXX")
                 .toFormatter(Locale.ROOT).withResolverStyle(ResolverStyle.STRICT);
-        private static final DateTimeFormatter FRENCH = DateTimeFormatter.ofPattern(
-                "d MMMM uuuu 'à' HH:mm:ss '(UTC'xxx')'", Locale.FRENCH);
-        private static final DateTimeFormatter SHORT_START = DateTimeFormatter.ofPattern(
-                "d MMMM uuuu 'à' HH 'h' mm '(UTC'xxx')'", Locale.FRENCH);
 
-        String startSummary() { return start.format(SHORT_START); }
+        String startSummary(Context context) {
+            Locale loc = activeLocale(context);
+            return start.format(DateTimeFormatter.ofPattern(
+                    context.getString(R.string.ws_dev_date_short_pattern), loc));
+        }
 
         @Override public Kind kind() { return Kind.CALENDAR; }
-        @Override public String preview() {
-            return title + "\n\nDébut · " + start.format(FRENCH) + "\nFin · " + end.format(FRENCH)
-                    + (location == null ? "" : "\nLieu · " + location);
+        @Override public String preview(Context context) {
+            Locale loc = activeLocale(context);
+            DateTimeFormatter fmt = DateTimeFormatter.ofPattern(
+                    context.getString(R.string.ws_dev_date_full_pattern), loc);
+            StringBuilder out = new StringBuilder(title)
+                    .append("\n\n").append(context.getString(R.string.ws_dev_cal_start, start.format(fmt)))
+                    .append('\n').append(context.getString(R.string.ws_dev_cal_end, end.format(fmt)));
+            if (location != null) {
+                out.append('\n').append(context.getString(R.string.ws_dev_cal_location, location));
+            }
+            return out.toString();
         }
         @Override public Intent target() {
             Intent target = new Intent(Intent.ACTION_INSERT, CalendarContract.Events.CONTENT_URI)
@@ -87,7 +106,7 @@ public sealed interface DeviceAction {
 
     record ShareText(String text) implements DeviceAction {
         @Override public Kind kind() { return Kind.SHARE; }
-        @Override public String preview() { return text; }
+        @Override public String preview(Context context) { return text; }
         @Override public Intent target() {
             return new Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text);
         }
@@ -95,7 +114,7 @@ public sealed interface DeviceAction {
 
     record MapSearch(String query) implements DeviceAction {
         @Override public Kind kind() { return Kind.MAP; }
-        @Override public String preview() { return query; }
+        @Override public String preview(Context context) { return query; }
         @Override public Intent target() {
             return new Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=" + Uri.encode(query)));
         }
@@ -103,23 +122,27 @@ public sealed interface DeviceAction {
 
     record PlaceMap(NearbyResult.Place place) implements DeviceAction {
         @Override public Kind kind() { return Kind.MAP; }
-        @Override public String preview() { return place.name + "\n\nCoordonnées du lieu · " + place.coordinates(); }
+        @Override public String preview(Context context) {
+            return place.name + "\n\n" + context.getString(R.string.ws_dev_place_coords, place.coordinates());
+        }
         @Override public Intent target() { return new MapSearch(place.coordinates()).target(); }
     }
 
     record PlaceSource(NearbyResult.Place place) implements DeviceAction {
         @Override public Kind kind() { return Kind.OSM; }
-        @Override public String preview() { return place.name + "\n\n" + place.sourceUrl; }
+        @Override public String preview(Context context) { return place.name + "\n\n" + place.sourceUrl; }
         @Override public Intent target() { return new Intent(Intent.ACTION_VIEW, Uri.parse(place.sourceUrl)); }
     }
 
     record SetAlarm(int hour, int minute, String label, List<Integer> days) implements DeviceAction {
         @Override public Kind kind() { return Kind.ALARM; }
-        @Override public String preview() {
-            String time = String.format(Locale.FRENCH, "%02d h %02d", hour, minute);
-            StringBuilder out = new StringBuilder("Heure · ").append(time);
-            if (label != null) out.append("\nLibellé · ").append(label);
-            if (!days.isEmpty()) out.append("\nJours · ").append(formatDays(days));
+        @Override public String preview(Context context) {
+            String time = context.getString(R.string.ws_dev_time_fmt, hour, minute);
+            StringBuilder out = new StringBuilder(context.getString(R.string.ws_dev_alarm_time, time));
+            if (label != null) out.append('\n').append(context.getString(R.string.ws_dev_alarm_label, label));
+            if (!days.isEmpty()) {
+                out.append('\n').append(context.getString(R.string.ws_dev_alarm_days, formatDays(context, days)));
+            }
             return out.toString();
         }
         @Override public Intent target() {
@@ -135,9 +158,9 @@ public sealed interface DeviceAction {
 
     record SetTimer(int seconds, String label) implements DeviceAction {
         @Override public Kind kind() { return Kind.TIMER; }
-        @Override public String preview() {
-            String duration = formatDuration(seconds);
-            return label == null ? "Durée · " + duration : label + "\n\nDurée · " + duration;
+        @Override public String preview(Context context) {
+            String duration = context.getString(R.string.ws_dev_timer_duration, formatDuration(seconds));
+            return label == null ? duration : label + "\n\n" + duration;
         }
         @Override public Intent target() {
             Intent intent = new Intent(AlarmClock.ACTION_SET_TIMER)
@@ -150,8 +173,8 @@ public sealed interface DeviceAction {
 
     record DialDraft(String number) implements DeviceAction {
         @Override public Kind kind() { return Kind.DIAL; }
-        @Override public String preview() {
-            return "Numéro · " + number + "\n\nL’application Téléphone s’ouvrira sans lancer l’appel automatiquement.";
+        @Override public String preview(Context context) {
+            return context.getString(R.string.ws_dev_dial_preview, number);
         }
         @Override public Intent target() {
             return new Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + Uri.encode(number)));
@@ -160,8 +183,8 @@ public sealed interface DeviceAction {
 
     record SmsDraft(String recipient, String message) implements DeviceAction {
         @Override public Kind kind() { return Kind.SMS; }
-        @Override public String preview() {
-            return "Destinataire · " + recipient + "\n\n" + message;
+        @Override public String preview(Context context) {
+            return context.getString(R.string.ws_dev_sms_recipient, recipient) + "\n\n" + message;
         }
         @Override public Intent target() {
             return new Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:" + Uri.encode(recipient)))
@@ -171,9 +194,9 @@ public sealed interface DeviceAction {
 
     record EmailDraft(String recipient, String subject, String body) implements DeviceAction {
         @Override public Kind kind() { return Kind.EMAIL; }
-        @Override public String preview() {
-            StringBuilder out = new StringBuilder("À · ").append(recipient);
-            if (subject != null) out.append("\nObjet · ").append(subject);
+        @Override public String preview(Context context) {
+            StringBuilder out = new StringBuilder(context.getString(R.string.ws_dev_email_to, recipient));
+            if (subject != null) out.append('\n').append(context.getString(R.string.ws_dev_email_subject, subject));
             if (body != null) out.append("\n\n").append(body);
             return out.toString();
         }
@@ -188,12 +211,12 @@ public sealed interface DeviceAction {
 
     record InsertContact(String name, String phone, String email, String company) implements DeviceAction {
         @Override public Kind kind() { return Kind.CONTACT; }
-        @Override public String preview() {
+        @Override public String preview(Context context) {
             List<String> lines = new ArrayList<>();
-            if (name != null) lines.add("Nom · " + name);
-            if (phone != null) lines.add("Téléphone · " + phone);
-            if (email != null) lines.add("Courriel · " + email);
-            if (company != null) lines.add("Organisation · " + company);
+            if (name != null) lines.add(context.getString(R.string.ws_dev_contact_name, name));
+            if (phone != null) lines.add(context.getString(R.string.ws_dev_contact_phone, phone));
+            if (email != null) lines.add(context.getString(R.string.ws_dev_contact_email, email));
+            if (company != null) lines.add(context.getString(R.string.ws_dev_contact_org, company));
             return String.join("\n", lines);
         }
         @Override public Intent target() {
@@ -209,14 +232,14 @@ public sealed interface DeviceAction {
 
     record MapNavigation(String destination, String mode) implements DeviceAction {
         @Override public Kind kind() { return Kind.NAVIGATION; }
-        @Override public String preview() {
-            String modeLabel = switch (mode) {
-                case "walking" -> "À pied";
-                case "cycling" -> "À vélo";
-                case "transit" -> "Transport en commun";
-                default -> "En voiture";
+        @Override public String preview(Context context) {
+            int modeRes = switch (mode) {
+                case "walking" -> R.string.ws_dev_nav_walking;
+                case "cycling" -> R.string.ws_dev_nav_cycling;
+                case "transit" -> R.string.ws_dev_nav_transit;
+                default -> R.string.ws_dev_nav_driving;
             };
-            return destination + "\n\nMode · " + modeLabel;
+            return destination + "\n\n" + context.getString(R.string.ws_dev_nav_mode, context.getString(modeRes));
         }
         @Override public Intent target() {
             String code = switch (mode) {
@@ -235,7 +258,7 @@ public sealed interface DeviceAction {
 
     record CopySensitive(String text) implements DeviceAction {
         @Override public Kind kind() { return Kind.CLIPBOARD; }
-        @Override public String preview() { return text; }
+        @Override public String preview(Context context) { return text; }
         @Override public Intent target() { return null; }
     }
 
@@ -395,19 +418,37 @@ public sealed interface DeviceAction {
         return String.join(" ", parts);
     }
 
-    private static String formatDays(List<Integer> days) {
+    private static Locale activeLocale(Context context) {
+        if (context != null && context.getResources() != null
+                && context.getResources().getConfiguration() != null
+                && !context.getResources().getConfiguration().getLocales().isEmpty()) {
+            return context.getResources().getConfiguration().getLocales().get(0);
+        }
+        return Locale.getDefault();
+    }
+
+    private static String formatDays(Context context, List<Integer> days) {
+        Locale locale = activeLocale(context);
         List<String> names = new ArrayList<>(days.size());
         for (int day : days) {
-            names.add(switch (day) {
-                case 1 -> "Dim";
-                case 2 -> "Lun";
-                case 3 -> "Mar";
-                case 4 -> "Mer";
-                case 5 -> "Jeu";
-                case 6 -> "Ven";
-                case 7 -> "Sam";
-                default -> String.valueOf(day);
-            });
+            DayOfWeek dow = switch (day) {
+                case 1 -> DayOfWeek.SUNDAY;
+                case 2 -> DayOfWeek.MONDAY;
+                case 3 -> DayOfWeek.TUESDAY;
+                case 4 -> DayOfWeek.WEDNESDAY;
+                case 5 -> DayOfWeek.THURSDAY;
+                case 6 -> DayOfWeek.FRIDAY;
+                case 7 -> DayOfWeek.SATURDAY;
+                default -> null;
+            };
+            if (dow == null) {
+                names.add(String.valueOf(day));
+            } else {
+                String shortName = dow.getDisplayName(TextStyle.SHORT_STANDALONE, locale);
+                if (shortName.endsWith(".")) shortName = shortName.substring(0, shortName.length() - 1);
+                names.add(shortName.isEmpty() ? shortName
+                        : Character.toUpperCase(shortName.charAt(0)) + shortName.substring(1));
+            }
         }
         return String.join(", ", names);
     }

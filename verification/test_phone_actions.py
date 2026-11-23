@@ -30,19 +30,20 @@ def node_tree(*labels, package=APP, window_id="10"):
 
 class PhoneActionsTransitionTest(unittest.TestCase):
     def test_review_waits_for_dialog_dismissal_focus_and_retries_swallowed_reopen_tap(self):
-        page = node_tree("En essai dans cette discussion", "Vérifier le partage", window_id="10")
+        s = AppStrings.for_lang("en")
+        page = node_tree(s["instrument_trial"], s["ws_dev_share_review"], window_id="10")
         dialog1 = node_tree(
-            "Texte à partager",
+            s["ws_dev_share_title"],
             "Atelier de dessin le 12 avril à Laval.",
-            "Annuler",
-            "Choisir une application",
+            s["ws_cancel"],
+            s["ws_dev_share_open"],
             window_id="11",
         )
         dialog2 = node_tree(
-            "Texte à partager",
+            s["ws_dev_share_title"],
             "Atelier de dessin le 12 avril à Laval.",
-            "Annuler",
-            "Choisir une application",
+            s["ws_cancel"],
+            s["ws_dev_share_open"],
             window_id="12",
         )
         chooser = node_tree(
@@ -149,23 +150,27 @@ class PhoneActionsTransitionTest(unittest.TestCase):
         device = Mock()
         device.shell.return_value = MAIN_ACTIVITY
         ui = Screen(device, Mock())
-        unavailable = node_tree("Application indisponible", "Fermer", window_id="15")
+        s = ui.strings
+        unavailable = node_tree(s["ws_dev_app_unavailable_title"], s["ws_close"], window_id="15")
         ui.hierarchy = Mock(return_value=unavailable)
         with self.assertRaisesRegex(AssertionError, "no available receiving application"):
-            phone_actions.confirm_review(ui, "calendar_event", "Ouvrir l’agenda")
+            phone_actions.confirm_review(ui, "calendar_event", s["ws_dev_calendar_open"])
 
     def test_open_review_ignores_dialog_with_stale_page_window_or_focus(self):
-        page = node_tree("Vérifier le lieu", window_id="10")
-        stale_window_dialog = node_tree("Annuler", "Ouvrir la carte", window_id="10")
-        new_window_dialog = node_tree("Annuler", "Ouvrir la carte", window_id="14")
+        device = Mock()
+        ui = Screen(device, Mock())
+        s = ui.strings
+        page = node_tree(s["ws_dev_map_review"], window_id="10")
+        stale_window_dialog = node_tree(s["ws_cancel"], s["ws_dev_map_open"], window_id="10")
+        new_window_dialog = node_tree(s["ws_cancel"], s["ws_dev_map_open"], window_id="14")
         hierarchies = iter([page, stale_window_dialog, new_window_dialog, new_window_dialog])
         windows = iter([MAIN_FOCUS, "mCurrentFocus=Window{4444 u0 Lieu à rechercher}"])
-        device = Mock()
         device.shell.side_effect = lambda *args: next(windows) if args == ("dumpsys", "window") else ""
-        ui = Screen(device, Mock())
         ui.hierarchy = Mock(side_effect=lambda: next(hierarchies))
         with patch("verification.unifiedpush.stack.time.sleep"):
-            wid, focus = phone_actions.open_review(ui, "Vérifier le lieu", "Ouvrir la carte", "10", MAIN_WINDOW)
+            wid, focus = phone_actions.open_review(
+                ui, s["ws_dev_map_review"], s["ws_dev_map_open"], "10", MAIN_WINDOW
+            )
         self.assertEqual(wid, "14")
         self.assertEqual(focus, "Window{4444 u0 Lieu à rechercher}")
 

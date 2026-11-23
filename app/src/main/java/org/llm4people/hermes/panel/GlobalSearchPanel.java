@@ -188,12 +188,12 @@ final class GlobalSearchPanel {
 
     private View hitCard(SearchResultModel.Hit hit, ZoneId zone) {
         LinearLayout card = BrainUi.card(panel.activity);
-        TextView title = Ui.text(panel.activity, hit.displayTitle(), 17);
+        TextView title = Ui.text(panel.activity, hit.displayTitle(panel.activity), 17);
         title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         card.addView(title);
 
-        String speaker = SearchResultModel.roleLabel(hit.role());
-        String date = SearchResultModel.formatTimestamp(hit.timestamp(), zone);
+        String speaker = SearchResultModel.roleLabel(panel.activity, hit.role());
+        String date = SearchResultModel.formatTimestamp(hit.timestamp(), zone, ReminderPanel.activeLocale(panel.activity));
         String meta = speaker.isEmpty() ? date : date.isEmpty() ? speaker : speaker + " · " + date;
         if (!meta.isEmpty()) {
             TextView metaView = Ui.text(panel.activity, meta, 13);

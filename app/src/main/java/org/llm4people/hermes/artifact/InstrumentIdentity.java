@@ -83,13 +83,13 @@ final class InstrumentIdentity {
                 && x.required == y.required && x.options.equals(y.options);
     }
 
-    static List<String> blockLabels(List<WorkspaceLayout.Block> blocks) {
+    static List<String> blockLabels(android.content.Context context, List<WorkspaceLayout.Block> blocks) {
         List<String> titles = new ArrayList<>();
-        for (WorkspaceLayout.Block block : blocks) titles.add(block.title);
+        for (WorkspaceLayout.Block block : blocks) titles.add(block.displayTitle(context));
         List<String> labels = new ArrayList<>(titles);
         for (int i = 0; i < blocks.size(); i++) {
             if (Collections.frequency(titles, titles.get(i)) < 2) continue;
-            String detail = InstrumentChanges.describe(blocks.get(i));
+            String detail = InstrumentChanges.describe(context, blocks.get(i));
             int line = detail.indexOf('\n');
             if (line >= 0) detail = detail.substring(0, line);
             if (detail.length() > 64) detail = detail.substring(0, detail.offsetByCodePoints(0,
@@ -98,7 +98,10 @@ final class InstrumentIdentity {
         }
         List<String> qualified = new ArrayList<>(labels);
         for (int i = 0; i < labels.size(); i++) {
-            if (Collections.frequency(labels, labels.get(i)) > 1) qualified.set(i, labels.get(i) + " (n° " + (i + 1) + ")");
+            if (Collections.frequency(labels, labels.get(i)) > 1) {
+                qualified.set(i, context.getString(org.llm4people.hermes.R.string.ws_diff_block_ordinal,
+                        labels.get(i), i + 1));
+            }
         }
         // A user-authored title can itself contain a generated qualifier. A position prefix
         // on every block provides an unambiguous reading even in that case.
@@ -108,13 +111,13 @@ final class InstrumentIdentity {
         return qualified;
     }
 
-    static Map<String,String> fieldLabels(List<DraftForm.Field> fields) {
+    static Map<String,String> fieldLabels(android.content.Context context, List<DraftForm.Field> fields) {
         List<String> labels = new ArrayList<>();
         for (DraftForm.Field f : fields) labels.add(f.label);
         Map<String,String> qualified = new LinkedHashMap<>();
         for (DraftForm.Field f : fields) {
             String name = f.label;
-            if (Collections.frequency(labels, name) > 1) name += " · " + kind(f.kind);
+            if (Collections.frequency(labels, name) > 1) name += " · " + kind(context, f.kind);
             qualified.put(f.id, name);
         }
         List<String> names = new ArrayList<>(qualified.values());
@@ -125,11 +128,12 @@ final class InstrumentIdentity {
         return qualified;
     }
 
-    static String kind(String kind) {
-        return switch (kind) {
-            case "multiline" -> "Texte long";
-            case "choice" -> "Choix";
-            default -> "Texte court";
+    static String kind(android.content.Context context, String kind) {
+        int res = switch (kind) {
+            case "multiline" -> org.llm4people.hermes.R.string.ws_diff_kind_multiline;
+            case "choice" -> org.llm4people.hermes.R.string.ws_diff_kind_choice;
+            default -> org.llm4people.hermes.R.string.ws_diff_kind_text;
         };
+        return context.getString(res);
     }
 }

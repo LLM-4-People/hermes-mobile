@@ -1,6 +1,7 @@
 package org.llm4people.hermes.panel;
 
 import org.junit.Test;
+import org.llm4people.hermes.R;
 
 import java.time.ZoneId;
 
@@ -22,10 +23,10 @@ public final class SearchAndSkillStudioModelTest {
                 parsed.highlights().get(1).start(), parsed.highlights().get(1).end()));
 
         assertEquals("", SearchResultModel.parseSnippet(null).plainText());
-        assertEquals("Vous", SearchResultModel.roleLabel("user"));
-        assertEquals("Hermes", SearchResultModel.roleLabel("assistant"));
-        assertEquals("Outil", SearchResultModel.roleLabel("tool"));
-        assertEquals("", SearchResultModel.roleLabel("unknown"));
+        assertEquals(R.string.ws_role_user, SearchResultModel.roleLabelRes("user"));
+        assertEquals(R.string.ws_role_hermes, SearchResultModel.roleLabelRes("assistant"));
+        assertEquals(R.string.ws_role_tool, SearchResultModel.roleLabelRes("tool"));
+        assertEquals(0, SearchResultModel.roleLabelRes("unknown"));
         assertEquals("bonjour monde", SearchResultModel.normalizeQuery("  bonjour\u0000 monde  "));
         assertFalse(SearchResultModel.formatTimestamp("2026-11-22T14:30:00Z", ZoneId.of("America/Toronto")).isEmpty());
         assertEquals("", SearchResultModel.formatTimestamp("not-a-date", ZoneId.of("UTC")));
@@ -78,9 +79,9 @@ public final class SearchAndSkillStudioModelTest {
         state.rollback("resume", previous);
         assertTrue(state.isEnabled("resume", false));
 
-        assertEquals("Personnel", SkillStudioModel.sourceLabel("user", true));
-        assertEquals("Intégré", SkillStudioModel.sourceLabel("builtin", false));
-        assertEquals("Extension", SkillStudioModel.sourceLabel("plugin", false));
+        assertEquals(R.string.ws_skill_source_user, SkillStudioModel.sourceLabelRes("user", true));
+        assertEquals(R.string.ws_skill_source_builtin, SkillStudioModel.sourceLabelRes("builtin", false));
+        assertEquals(R.string.ws_skill_source_extension, SkillStudioModel.sourceLabelRes("plugin", false));
     }
 
     @Test
@@ -138,16 +139,18 @@ public final class SearchAndSkillStudioModelTest {
         try { UniversalShareModel.validateKind("password"); fail("Accepted invalid kind"); }
         catch (IllegalArgumentException expected) {}
 
-        assertEquals("Lecture seule", UniversalShareModel.permissionLabel("read"));
-        assertEquals("Modification", UniversalShareModel.permissionLabel("edit"));
-        assertEquals("Copie", UniversalShareModel.permissionLabel("clone"));
+        assertEquals(R.string.ws_share_perm_read, UniversalShareModel.permissionLabelRes("read"));
+        assertEquals(R.string.ws_share_perm_edit, UniversalShareModel.permissionLabelRes("edit"));
+        assertEquals(R.string.ws_share_perm_clone, UniversalShareModel.permissionLabelRes("clone"));
         assertEquals("julie", UniversalShareModel.validateTargetProfile(" julie "));
 
         for (String badProfile : new String[]{null, "", "..", "a/b", "user name", "-bad"}) {
             try { UniversalShareModel.validateTargetProfile(badProfile); fail("Accepted bad profile: " + badProfile); }
             catch (IllegalArgumentException expected) {}
         }
-        assertTrue(UniversalShareModel.describeHttpError(404, "profile_not_found").contains("introuvable"));
-        assertTrue(UniversalShareModel.describeHttpError(403, "").contains("autorisation"));
+        assertEquals(R.string.ws_share_err_profile_not_found,
+                UniversalShareModel.describeHttpErrorRes(404, "profile_not_found"));
+        assertEquals(R.string.ws_share_err_denied,
+                UniversalShareModel.describeHttpErrorRes(403, ""));
     }
 }

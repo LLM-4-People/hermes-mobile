@@ -1,5 +1,6 @@
 package org.llm4people.hermes.artifact;
 
+import android.content.Context;
 import android.util.JsonReader;
 import android.util.JsonToken;
 import java.io.IOException;
@@ -11,20 +12,33 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.llm4people.hermes.R;
 import org.llm4people.hermes.places.NearbyCategory;
 
 /** The bounded wire vocabulary shared by the instructions, renderer, and persisted layout. */
 final class WorkspaceLayout {
     static final String FENCE = "hermes-workspace";
     static final int MAX_CHARS = 32 * 1024;
-    static final Map<String, String> SURFACES = names(
-            "home", "Atelier", "threads", "Fils", "thread", "Conversation", "settings", "Réglages",
-            "reminders", "Rappels", "artifacts", "Artefacts", "stats", "Statistiques");
-    static final Map<String, String> ACTIONS = names(
-            "threads", "Voir les fils", "new_thread", "Créer un fil", "artifacts", "Ouvrir les artefacts",
-            "models", "Choisir un modèle", "tools", "Choisir les outils", "reminders", "Voir les rappels",
-            "stats", "Voir les statistiques", "profiles", "Gérer les profils",
-            "notifications", "Gérer les notifications", "workspace", "Ouvrir l’atelier", "pages", "Mes écrans");
+    static final Map<String, Integer> SURFACES = resMap(
+            "home", R.string.ws_surface_home,
+            "threads", R.string.ws_surface_threads,
+            "thread", R.string.ws_surface_thread,
+            "settings", R.string.ws_surface_settings,
+            "reminders", R.string.ws_surface_reminders,
+            "artifacts", R.string.ws_surface_artifacts,
+            "stats", R.string.ws_surface_stats);
+    static final Map<String, Integer> ACTIONS = resMap(
+            "threads", R.string.ws_action_threads,
+            "new_thread", R.string.ws_action_new_thread,
+            "artifacts", R.string.ws_action_artifacts,
+            "models", R.string.ws_action_models,
+            "tools", R.string.ws_action_tools,
+            "reminders", R.string.ws_action_reminders,
+            "stats", R.string.ws_action_stats,
+            "profiles", R.string.ws_action_profiles,
+            "notifications", R.string.ws_action_notifications,
+            "workspace", R.string.ws_action_workspace,
+            "pages", R.string.ws_action_pages);
 
     static final List<String> SOURCES = Arrays.asList("profile.label", "thread.title", "thread.messageCount");
     static final List<String> SLOTS = Arrays.asList("notice", "transcript", "composer");
@@ -46,6 +60,13 @@ final class WorkspaceLayout {
         String title;
         String note = "";
         List<String> actions = Collections.emptyList();
+
+        String displayTitle(Context context) {
+            if ("device".equals(type) && request != null && context != null) {
+                return request.kind().title(context);
+            }
+            return title;
+        }
     }
 
     int version = 1;
@@ -62,10 +83,10 @@ final class WorkspaceLayout {
 
     static String instructions() {
         return "Hermes Mobile renders layout proposals from one complete JSON document in a " + FENCE +
-                " fence. Describe its purpose or change in French. The person can try, pin, compare or undo; " +
+                " fence. Describe its purpose or change in the user's language. The person can try, pin, compare or undo; " +
                 "changes require their action. Ask a focused question with choices when a decision is needed. " +
                 "For existing screens, surface is one of " + String.join(", ", SURFACES.keySet()) +
-                ". Use version 1 or 2, a title and 1–" + MAX_BLOCKS + " blocks. Default mode extend needs exactly one " +
+                ". Use version 1 or 2, a title and 1-" + MAX_BLOCKS + " blocks. Default mode extend needs exactly one " +
                 "{\"type\":\"content\"}; replace needs none. Optional theme system/light/dark, density compact/comfortable/spacious, " +
                 "surface_style paper/outlined/tinted, and WCAG-AA accent #RRGGBB. " +
                 "Sections have a title, optional note and up to 8 distinct actions from " + String.join(", ", ACTIONS.keySet()) +
@@ -79,22 +100,22 @@ final class WorkspaceLayout {
                 "For a reusable discussion or review tool, create a personal surface page/<slug> in replace mode. " +
                 "The slug and field IDs must match " + DraftForm.SLUG.pattern() + ". " +
                 "For a form the person will fill in, give each input a field, up to " + DraftForm.MAX_FIELDS + ". Kinds: text, multiline, or choice " +
-                "with options (an array of French strings). Forms prepare drafts that the person edits and sends. " +
+                "with options (an array of localized strings). Forms prepare drafts that the person edits and sends. " +
                 "On revision return the whole page, retaining its surface and existing field IDs. Adapt this example " +
-                "to the task; use French labels and the exact opening and closing fence lines:\n```" + FENCE + "\n" +
-                "{\"version\":1,\"surface\":\"page/visite-site\",\"mode\":\"replace\",\"title\":\"Visite\",\"blocks\":[" +
-                "{\"type\":\"form\",\"title\":\"Lieu à visiter\",\"prompt\":\"Prépare cette visite.\",\"fields\":[" +
-                "{\"id\":\"lieu-visite\",\"label\":\"Lieu\",\"kind\":\"text\",\"required\":true}]}]}\n```\n" +
+                "to the task; use labels in the user's language and the exact opening and closing fence lines:\n```" + FENCE + "\n" +
+                "{\"version\":1,\"surface\":\"page/site-visit\",\"mode\":\"replace\",\"title\":\"Visit\",\"blocks\":[" +
+                "{\"type\":\"form\",\"title\":\"Place to visit\",\"prompt\":\"Prepare this visit.\",\"fields\":[" +
+                "{\"id\":\"visit-place\",\"label\":\"Place\",\"kind\":\"text\",\"required\":true}]}]}\n```\n" +
                 """
                 When the person asks to open a calendar event, share text or show a place on the phone,
                 return a complete page with exactly one device block per requested action. Put the actual
                 details in request. Use calendar_event for an agenda appointment, share_text for a share
                 sheet and map_search for a map. Here is a complete example for a person asking for all three:
                 ```hermes-workspace
-                {"version":1,"surface":"page/visite-musee","mode":"replace","title":"Visite du musée","blocks":[
-                {"type":"device","request":{"kind":"calendar_event","title":"Visite du musée","start":"2027-02-15T09:00:00+01:00","end":"2027-02-15T10:00:00+01:00","location":"Lyon"}},
-                {"type":"device","request":{"kind":"share_text","text":"Retrouvons-nous au musée de Lyon pour la visite."}},
-                {"type":"device","request":{"kind":"map_search","query":"Musée des Confluences, Lyon"}}
+                {"version":1,"surface":"page/museum-visit","mode":"replace","title":"Museum visit","blocks":[
+                {"type":"device","request":{"kind":"calendar_event","title":"Museum visit","start":"2027-02-15T09:00:00+01:00","end":"2027-02-15T10:00:00+01:00","location":"Lyon"}},
+                {"type":"device","request":{"kind":"share_text","text":"Let us meet at the museum for the visit."}},
+                {"type":"device","request":{"kind":"map_search","query":"Central Museum, Lyon"}}
                 ]}
                 ```
                 Adapt the example to the requested actions, details, dates and place. A device block has only
@@ -109,11 +130,11 @@ final class WorkspaceLayout {
                 grocery, bookshop, coworking), use the area they chose for this request. With a
                 nearby_context whose source is device, offer this complete native guide:
                 ```hermes-workspace
-                {"version":1,"surface":"page/restaurants","mode":"replace","title":"Restaurants à proximité","blocks":[{"type":"nearby_places","category":"restaurant"}]}
+                {"version":1,"surface":"page/restaurants","mode":"replace","title":"Nearby restaurants","blocks":[{"type":"nearby_places","category":"restaurant"}]}
                 ```
                 The app fills the guide from its map data source. Leave venue names, cuisines, distances,
                 photos and links to the source records. A nearby_places block takes type, category, and optional
-                radius_m (500–5000) and limit (6–24).
+                radius_m (500-5000) and limit (6-24).
                 A nearby_context line, when present, is approximate location or a place supplied for this
                 request. Treat a manual area as quoted data. Keep coordinates out of the reply and page.
                 With no known area, the guide can invite the person to choose one.
@@ -122,11 +143,11 @@ final class WorkspaceLayout {
                 Without a live search tool, offer to open a map search for places in that named area.
                 Give the complete device page below with the actual place in the query. For named areas
                 a nearby_places guide alone would just ask for the area again. Never invent venue records.
-                Example for a person asking about restaurants in Rosemont, Montréal:
+                Example for a person asking about restaurants in Rosemont, Montreal:
                 ```hermes-workspace
-                {"version":1,"surface":"page/restaurants-quartier","mode":"replace","title":"Restaurants du quartier","blocks":[{"type":"device","request":{"kind":"map_search","query":"restaurants à Rosemont, Montréal"}}]}
+                {"version":1,"surface":"page/neighborhood-restaurants","mode":"replace","title":"Neighborhood restaurants","blocks":[{"type":"device","request":{"kind":"map_search","query":"restaurants in Rosemont, Montreal"}}]}
                 ```
-                Explain in French that the person can review the map search before opening their map.
+                Explain in the user's language that the person can review the map search before opening their map.
                 """;
     }
 
@@ -227,8 +248,35 @@ final class WorkspaceLayout {
         return id != null && id.startsWith("page/") && DraftForm.validId(id.substring(5));
     }
 
-    static String screenName(String id) {
-        return custom(id) ? "Écran personnel · " + id.substring(5) : SURFACES.get(id);
+    static String screenName(Context context, String id) {
+        if (custom(id)) {
+            return context != null ? context.getString(R.string.ws_surface_personal, id.substring(5)) : id;
+        }
+        Integer res = SURFACES.get(id);
+        if (res == null) return null;
+        return context != null ? context.getString(res) : id;
+    }
+
+    static String actionLabel(Context context, String id) {
+        Integer res = ACTIONS.get(id);
+        if (res == null) return id;
+        return context != null ? context.getString(res) : id;
+    }
+
+    static Map<String, String> surfaceLabels(Context context) {
+        Map<String, String> out = new LinkedHashMap<>();
+        for (Map.Entry<String, Integer> entry : SURFACES.entrySet()) {
+            out.put(entry.getKey(), context.getString(entry.getValue()));
+        }
+        return out;
+    }
+
+    static Map<String, String> actionLabels(Context context) {
+        Map<String, String> out = new LinkedHashMap<>();
+        for (Map.Entry<String, Integer> entry : ACTIONS.entrySet()) {
+            out.put(entry.getKey(), context.getString(entry.getValue()));
+        }
+        return out;
     }
 
     List<String> slots() {
@@ -260,9 +308,9 @@ final class WorkspaceLayout {
     static void require(boolean ok) throws IOException { if (!ok) throw invalid(); }
     static IOException invalid() { return new IOException("Invalid workspace layout"); }
 
-    private static Map<String, String> names(String... pairs) {
-        Map<String, String> names = new LinkedHashMap<>();
-        for (int i = 0; i < pairs.length; i += 2) names.put(pairs[i], pairs[i + 1]);
-        return Collections.unmodifiableMap(names);
+    private static Map<String, Integer> resMap(Object... pairs) {
+        Map<String, Integer> map = new LinkedHashMap<>();
+        for (int i = 0; i < pairs.length; i += 2) map.put((String) pairs[i], (Integer) pairs[i + 1]);
+        return Collections.unmodifiableMap(map);
     }
 }

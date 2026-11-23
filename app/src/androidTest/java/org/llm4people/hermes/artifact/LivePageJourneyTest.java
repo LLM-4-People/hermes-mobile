@@ -52,7 +52,8 @@ public class LivePageJourneyTest extends InstrumentationTestCase {
             capture(activity, "13-outil-revue");
             runTestOnUiThread(() -> {
                 View page = activity.findViewById(android.R.id.content);
-                button(page,"Préparer un brouillon…").performClick();
+                String prepareDraft = activity.getString(org.llm4people.hermes.R.string.ws_form_prepare_draft);
+                button(page, prepareDraft).performClick();
                 assertTrue(hasText(page, activity.getString(org.llm4people.hermes.R.string.workspace_missing_field, "Fichier")));
                 List<View> edits = views(page,v -> v instanceof EditText);
                 assertEquals(2,edits.size());
@@ -62,15 +63,16 @@ public class LivePageJourneyTest extends InstrumentationTestCase {
                 ArtifactDesk.refreshBindings(page,host);
                 assertTrue(hasText(page,"Vérifier le parseur"));
                 assertEquals("src/Code.java",((EditText)edits.get(0)).getText().toString());
-                button(page,"Préparer un brouillon…").performClick();
+                button(page, prepareDraft).performClick();
                 assertNull(staged[0]);
             });
             getInstrumentation().waitForIdleSync();
             if (Build.VERSION.SDK_INT >= 29) {
                 capture(activity, "14-relecture-brouillon");
                 runTestOnUiThread(() -> {
+                    String toDraft = activity.getString(org.llm4people.hermes.R.string.ws_form_send_to_draft);
                     for (View root : WindowInspector.getGlobalWindowViews()) {
-                        List<View> transfer = views(root,v -> v instanceof Button && "Vers le brouillon".contentEquals(
+                        List<View> transfer = views(root,v -> v instanceof Button && toDraft.contentEquals(
                                 ((Button)v).getText()));
                         if (transfer.isEmpty()) continue;
                         EditText review = (EditText)views(root,v -> v instanceof EditText).get(0);
@@ -108,16 +110,17 @@ public class LivePageJourneyTest extends InstrumentationTestCase {
                 assertEquals(2, text.size());
                 ((EditText)text.get(0)).setText("source.java");
                 ((Spinner)views(page, v -> v instanceof Spinner).get(0)).setSelection(1);
-                button(page, "Préparer un brouillon…").performClick();
+                button(page, activity.getString(org.llm4people.hermes.R.string.ws_form_prepare_draft)).performClick();
                 assertNull(staged[0]);
                 assertNull(ArtifactDesk.page(activity, account.account, "page/revue", host));
             });
             getInstrumentation().waitForIdleSync();
             if (Build.VERSION.SDK_INT >= 29) {
                 runTestOnUiThread(() -> {
+                    String toDraft = activity.getString(org.llm4people.hermes.R.string.ws_form_send_to_draft);
                     for (View root : WindowInspector.getGlobalWindowViews()) {
                         List<View> buttons = views(root, v -> v instanceof Button
-                                && "Vers le brouillon".contentEquals(((Button)v).getText()));
+                                && toDraft.contentEquals(((Button)v).getText()));
                         if (buttons.isEmpty()) continue;
                         EditText review = (EditText)views(root, v -> v instanceof EditText).get(0);
                         assertTrue(review.getText().toString().contains("source.java"));
@@ -132,8 +135,9 @@ public class LivePageJourneyTest extends InstrumentationTestCase {
             runTestOnUiThread(() -> {
                 String raw = LiveLayoutContractTest.REVIEW;
                 View changed = InstrumentPreview.compare(activity, raw, raw.replace("Fichier", "Module"));
+                String fieldChanged = activity.getString(org.llm4people.hermes.R.string.ws_diff_field_changed);
                 assertEquals(1, views(changed, v -> v instanceof TextView && ((TextView)v).getText()
-                        .toString().contains("Champ modifié")).size());
+                        .toString().contains(fieldChanged)).size());
                 View invalid = InstrumentPreview.render(activity, "{}", host);
                 assertTrue(views(invalid, v -> v instanceof Button).isEmpty());
                 assertTrue(PageLayouts.titles(account.account, true).isEmpty());

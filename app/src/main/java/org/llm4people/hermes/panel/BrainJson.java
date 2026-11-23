@@ -481,14 +481,18 @@ final class BrainJson {
             }
             String label = PanelData.text(row, "label");
             if (label.isEmpty()) label = PanelData.text(row, "title");
-            if (label.isEmpty()) label = NotesModel.friendlyHabitLabel(category, action);
+            int labelRes = 0;
+            if (label.isEmpty()) {
+                labelRes = NotesModel.friendlyHabitLabelRes(category, action);
+                if (labelRes == 0) label = NotesModel.fallbackHabitKey(category, action);
+            }
             String hint = PanelData.text(row, "hint");
             String routeId = PanelData.text(row, "route_id");
             String draft = PanelData.text(row, "draft");
             if (draft.isEmpty()) draft = PanelData.text(row, "prompt");
-            if (draft.isEmpty()) draft = NotesModel.friendlyHabitDraft(category, action);
+            int draftRes = draft.isEmpty() ? NotesModel.friendlyHabitDraftRes(category, action) : 0;
             int count = row.optInt("count", 0);
-            list.add(new NotesModel.HabitSuggestion(id, label, hint, routeId, draft, count));
+            list.add(new NotesModel.HabitSuggestion(id, label, labelRes, hint, routeId, draft, draftRes, count));
         }
         return NotesModel.filterLearned(list);
     }

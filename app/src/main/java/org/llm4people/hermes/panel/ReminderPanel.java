@@ -209,7 +209,7 @@ final class ReminderPanel {
         header.addView(statusPill(jobState));
         card.addView(header);
 
-        String scheduleText = humanSchedule(job, zone, locale);
+        String scheduleText = humanSchedule(panel.activity, job, zone);
         if (!scheduleText.isEmpty()) {
             TextView schedView = Ui.text(panel.activity, scheduleText, 14);
             schedView.setTextColor(panel.activity.getColor(R.color.ink));
@@ -351,7 +351,7 @@ final class ReminderPanel {
     }
 
     static String scheduleLabel(JSONObject job, ZoneId zone) {
-        return scheduleLabel(job, zone, Locale.FRENCH);
+        return scheduleLabel(job, zone, Locale.getDefault());
     }
 
     static String scheduleLabel(JSONObject job, ZoneId zone, Locale locale) {
@@ -362,11 +362,11 @@ final class ReminderPanel {
     }
 
     /** Human-readable localized schedule label falling back gracefully to raw cron/interval. */
-    static String humanSchedule(JSONObject job, ZoneId zone, Locale locale) {
+    static String humanSchedule(Context context, JSONObject job, ZoneId zone) {
         String raw = PanelData.schedule(job);
         if (raw.isEmpty()) return "";
         ReminderSchedule parsed = ReminderSchedule.parse(raw, zone, ZonedDateTime.now(zone));
-        return parsed.humanSummary(locale);
+        return parsed.humanSummary(context);
     }
 
     /** Formats an ISO-8601 timestamp or epoch seconds cleanly in the active locale. */
@@ -415,7 +415,7 @@ final class ReminderPanel {
             TextView errView = panel.note(page, panel.t(R.string.panel_last_job_error, lastError));
             errView.setTextColor(panel.activity.getColor(R.color.danger));
         }
-        String friendlySchedule = humanSchedule(job, zone, locale);
+        String friendlySchedule = humanSchedule(panel.activity, job, zone);
         String rawSchedule = scheduleLabel(job, zone, locale);
         panel.note(page, panel.t(R.string.panel_saved_schedule,
                 friendlySchedule.isEmpty() ? rawSchedule : friendlySchedule));

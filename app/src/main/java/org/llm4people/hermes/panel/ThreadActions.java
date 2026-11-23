@@ -68,7 +68,7 @@ public final class ThreadActions implements Closeable {
         this.api = client;
         if (pendingExport != null && (ownerProfileId == null || !ownerProfileId.equals(pendingExport.ownerProfileId))) {
             pendingExport = null;
-            toast("Exportation annulée après le changement de profil.");
+            toast(activity.getString(R.string.ws_export_cancelled_profile_switch));
         }
         finishPendingExport();
     }
@@ -116,7 +116,7 @@ public final class ThreadActions implements Closeable {
     /** Show native "Nouvelle piste à partir d'ici" dialog letting user pick any visible turn. */
     public void showForkDialog(String sessionId, JSONArray messages, Consumer<String> openForkedThread) {
         if (api == null || sessionId == null || sessionId.isEmpty()) return;
-        List<ThreadActionModel.TurnChoice> turns = extractTurnChoices(messages);
+        List<ThreadActionModel.TurnChoice> turns = extractTurnChoices(activity, messages);
         HermesApi client = api;
         String owner = ownerProfileId;
         io.execute(() -> {
@@ -331,7 +331,7 @@ public final class ThreadActions implements Closeable {
         }
     }
 
-    static List<ThreadActionModel.TurnChoice> extractTurnChoices(JSONArray messages) {
+    static List<ThreadActionModel.TurnChoice> extractTurnChoices(android.content.Context context, JSONArray messages) {
         List<ThreadActionModel.TurnChoice> turns = new ArrayList<>();
         if (messages == null) return turns;
         for (int i = 0; i < messages.length(); i++) {
@@ -341,7 +341,7 @@ public final class ThreadActions implements Closeable {
             if (id <= 0) id = row.optLong("message_id", -1L);
             if (id <= 0) continue;
             String role = PanelData.text(row, "role");
-            String speaker = SearchResultModel.roleLabel(role);
+            String speaker = SearchResultModel.roleLabel(context, role);
             String content = PanelData.text(row, "content");
             if (content.isEmpty()) content = PanelData.text(row, "text");
             if (content.isEmpty()) continue;

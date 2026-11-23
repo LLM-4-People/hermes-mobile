@@ -222,17 +222,19 @@ def matches_map_coordinate(text, lat, lon):
 
 def map_selected(ui, title, point):
     coordinate = ",".join(format(Decimal(str(point[key])).normalize(), "f") for key in ("lat", "lon"))
+    open_map = ui.strings["ws_dev_map_open"]
+    coords_label = ui.strings.fmt("ws_dev_place_coords", coordinate)
     tap_visible_app_until(
         ui,
         "Voir sur la carte",
-        lambda root: ui.node("Ouvrir la carte", root) is not None,
+        lambda root: ui.node(open_map, root) is not None,
         description="visible map handoff review dialog",
     )
-    if not visible(ui, [title, "Coordonnées du lieu · " + coordinate]) or not focused(ui.device).startswith(APP + "/"):
+    if not visible(ui, [title, coords_label]) or not focused(ui.device).startswith(APP + "/"):
         raise AssertionError("The app did not review the source venue and coordinates before handoff")
     ui.tap_until(
-        "Ouvrir la carte",
-        lambda root: ui.node("Ouvrir la carte", root) is None,
+        open_map,
+        lambda root: ui.node(open_map, root) is None,
         description="dismissed map handoff review dialog",
     )
     deny_ids = {controller + ":id/permission_deny_button" for controller in PERMISSION_CONTROLLERS}
@@ -361,8 +363,8 @@ def execute(args):
                              distances=[111, 445, 1001], filter_cuisine="Italienne")
         picked = next(p for p in queries[0][1]["elements"] if p["tags"]["name"] == guide["selected"])
         source_url = "https://www.openstreetmap.org/" + picked["type"] + "/" + str(picked["id"])
-        open_osm = s.get("nearby_open_osm", "Ouvrir OpenStreetMap")
-        cancel_btn = s.get("device_review_cancel", "Annuler")
+        open_osm = s["ws_dev_osm_open"]
+        cancel_btn = s["ws_cancel"]
         tap_visible_app_until(
             ui,
             guide["source_control"],

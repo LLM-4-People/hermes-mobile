@@ -7,7 +7,9 @@ import sys
 import tempfile
 
 from conversation_cards import admission
+from device.app_strings import AppStrings
 from device.discussion import discussion_device, require_captures
+from device.run import Emulator
 from gateway_fixture import Gateway, PINNED_REVISION, check_source
 from live_api import await_completion, transcript
 
@@ -35,18 +37,28 @@ def seed(gateway):
         (folder / "SKILL.md").write_text(f"---\nname: synthese\ndescription: {summary}\n---\n{body}\n")
 
 
+def staged_request(strings):
+    return DRAFT + "\n" + strings.fmt("ws_skill_draft_prompt", LOCATOR)
+
+
+def make_model_reply(expected_request):
+    def reply(record):
+        from tests.fakes.fake_llm_provider import Text, ToolCall
+        messages = record["body"]["messages"]
+        if next((m["content"] for m in reversed(messages) if m["role"] == "user"), None) != expected_request:
+            return Text("Demande de démonstration différente.")
+        if messages[-1]["role"] == "user":
+            return ToolCall("skill_view", {"name": LOCATOR})
+        if messages[-1]["role"] == "tool":
+            result = json.loads(messages[-1]["content"])
+            if result.get("success") and MARKER in result.get("content", ""):
+                return Text(ANSWER)
+        return Text("La fiche demandée n’a pas été chargée.")
+    return reply
+
+
 def model_reply(record):
-    from tests.fakes.fake_llm_provider import Text, ToolCall
-    messages = record["body"]["messages"]
-    if next((m["content"] for m in reversed(messages) if m["role"] == "user"), None) != REQUEST:
-        return Text("Demande de démonstration différente.")
-    if messages[-1]["role"] == "user":
-        return ToolCall("skill_view", {"name": LOCATOR})
-    if messages[-1]["role"] == "tool":
-        result = json.loads(messages[-1]["content"])
-        if result.get("success") and MARKER in result.get("content", ""):
-            return Text(ANSWER)
-    return Text("La fiche demandée n’a pas été chargée.")
+    return make_model_reply(REQUEST)(record)
 
 
 def verify_catalog(gateway):
@@ -63,7 +75,7 @@ def verify_catalog(gateway):
         raise AssertionError("The gateway did not offer the exact loadable skill locators")
 
 
-def verify_sent(gateway, provider):
+def verify_sent(gateway, provider, expected_request=REQUEST):
     only = admission(gateway, 0)
     if only is None or admission(gateway, 1) is not None:
         raise AssertionError("Expected exactly one admitted discussion run")
@@ -71,7 +83,7 @@ def verify_sent(gateway, provider):
     if await_completion(gateway, run).get("output") != ANSWER:
         raise AssertionError("The explicit send did not load the selected skill")
     turns = transcript(gateway, sid)
-    if [t for role, t in turns if role == "user"] != [REQUEST] or ("assistant", ANSWER) not in turns:
+    if [t for role, t in turns if role == "user"] != [expected_request] or ("assistant", ANSWER) not in turns:
         raise AssertionError("The owning discussion did not preserve the exact staged request and answer")
     if len(provider.main_requests()) != 2:
         raise AssertionError("Expected one model tool call and its final response")
@@ -95,20 +107,22 @@ def main():
     args.output.mkdir(parents=True, exist_ok=True)
     if any(args.output.iterdir()):
         raise ValueError("Use an empty output directory for this run")
+    probe = Emulator(args.serial, args.adb, args.adb_port)
+    expected_request = staged_request(AppStrings.for_device(probe))
     with ExitStack() as stack:
         root = Path(stack.enter_context(tempfile.TemporaryDirectory(prefix="hm-skills-")))
-        provider = stack.enter_context(FakeLLMServer(model_reply))
+        provider = stack.enter_context(FakeLLMServer(make_model_reply(expected_request)))
         gateway = Gateway(root, source, provider.base_url)
         seed(gateway)
         stack.enter_context(gateway)
         verify_catalog(gateway)
         with discussion_device(args, gateway, skill=LOCATOR, summary=SUMMARY, marker=MARKER, draft=DRAFT,
-                               staged=REQUEST, answer=ANSWER) as (device, receipt):
+                               staged=expected_request, answer=ANSWER) as (device, receipt):
             device.phase("skills-draft")
             if admission(gateway, 0) is not None or provider.main_requests():
                 raise AssertionError("Browsing or preparing the draft already submitted a request")
             device.phase("skills-send")
-        verify_sent(gateway, provider)
+        verify_sent(gateway, provider, expected_request)
         receipt.update(gateway_revision=args.revision, selected_skill=LOCATOR, admissions_before_send=0,
                        completed_runs=1, skill_view_calls=1, result_reader_verified=True,
                        captures_sha256=require_captures(args.output, CAPTURES))

@@ -38,7 +38,8 @@ public class DeviceReviewTest extends InstrumentationTestCase {
                 TextView time = (TextView) row.getChildAt(2);
                 assertEquals(title, name.getText().toString());
                 assertEquals(title.equals("Atelier") ? 1 : 2, name.getLineCount());
-                assertEquals("23 novembre 2026 à 09 h 00 (UTC-05:00)", time.getText().toString());
+                String expectedStart = ((DeviceAction.CalendarEvent) layout.blocks.get(0).request).startSummary(context);
+                assertEquals(expectedStart, time.getText().toString());
                 assertTrue(time.getTop() >= name.getBottom());
                 for (int line = 0; line < time.getLineCount(); line++) assertEquals(0, time.getLayout().getEllipsisCount(line));
                 assertTrue(row.getChildAt(3) instanceof Button);
@@ -84,14 +85,16 @@ public class DeviceReviewTest extends InstrumentationTestCase {
                 root.addView(page);
                 activity.setContentView(root);
             });
-            ui.tapButton("Vérifier le lieu");
-            ui.see("Ouvrir la carte");
+            String reviewPlace = ui.str(org.llm4people.hermes.R.string.ws_dev_map_review);
+            String openMap = ui.str(org.llm4people.hermes.R.string.ws_dev_map_open);
+            ui.tapButton(reviewPlace);
+            ui.see(openMap);
             ui.see(QUERY);
             assertEquals(0, external.count);
-            ui.tapButton("Annuler");
+            ui.tapButton(ui.str(org.llm4people.hermes.R.string.ws_cancel));
 
-            ui.tapButton("Vérifier le lieu");
-            Button stale = ui.button("Ouvrir la carte");
+            ui.tapButton(reviewPlace);
+            Button stale = ui.button(openMap);
             runTestOnUiThread(() -> {
                 generation.incrementAndGet();
                 ArtifactDesk.refreshBindings(activity.findViewById(android.R.id.content), host);
@@ -100,8 +103,8 @@ public class DeviceReviewTest extends InstrumentationTestCase {
             driver.waitForIdleSync();
             assertEquals(0, external.count);
 
-            ui.tapButton("Vérifier le lieu");
-            ui.tapButton("Ouvrir la carte");
+            ui.tapButton(reviewPlace);
+            ui.tapButton(openMap);
             runTestOnUiThread(() -> {
                 assertEquals(1, external.count);
                 assertEquals(Intent.ACTION_VIEW, external.requested.getAction());
@@ -109,10 +112,10 @@ public class DeviceReviewTest extends InstrumentationTestCase {
                 assertEquals("Brouillon privé", draft[0].getText().toString());
                 external.missing = true;
             });
-            ui.tapButton("Vérifier le lieu");
-            ui.tapButton("Ouvrir la carte");
-            ui.see("Application indisponible");
-            ui.tapButton("Fermer");
+            ui.tapButton(reviewPlace);
+            ui.tapButton(openMap);
+            ui.see(ui.str(org.llm4people.hermes.R.string.ws_dev_app_unavailable_title));
+            ui.tapButton(ui.str(org.llm4people.hermes.R.string.ws_close));
             ui.see("Brouillon privé");
         } finally {
             driver.removeMonitor(external);

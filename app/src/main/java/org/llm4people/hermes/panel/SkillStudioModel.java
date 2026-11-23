@@ -1,5 +1,8 @@
 package org.llm4people.hermes.panel;
 
+import android.content.Context;
+import org.llm4people.hermes.R;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -82,19 +85,19 @@ public final class SkillStudioModel {
     /** Validate and lowercase a new user skill name (single slug or category/slug), rejecting traversal or control chars. */
     public static String validateNewSkillName(String rawName) {
         if (rawName == null || rawName.trim().isEmpty()) {
-            throw new IllegalArgumentException("Choisissez un nom pour ce savoir-faire.");
+            throw new LocalizedInputException("skill_name_empty", R.string.ws_skill_err_name_empty);
         }
         String normalized = rawName.trim().toLowerCase(Locale.ROOT);
         if (normalized.startsWith("/") || normalized.endsWith("/") || normalized.contains("//") || normalized.contains("\\")) {
-            throw new IllegalArgumentException("Le nom contient un séparateur invalide.");
+            throw new LocalizedInputException("skill_name_separator", R.string.ws_skill_err_name_sep);
         }
         String[] parts = normalized.split("/", -1);
         if (parts.length > 2) {
-            throw new IllegalArgumentException("Utilisez au plus un dossier (ex. travail/relecture).");
+            throw new LocalizedInputException("skill_name_depth", R.string.ws_skill_err_name_depth);
         }
         for (String part : parts) {
             if (".".equals(part) || "..".equals(part) || !VALID_SEGMENT.matcher(part).matches()) {
-                throw new IllegalArgumentException("Utilisez uniquement des lettres, chiffres, tirets ou points.");
+                throw new LocalizedInputException("skill_name_chars", R.string.ws_skill_err_name_chars);
             }
         }
         return normalized;
@@ -121,8 +124,7 @@ public final class SkillStudioModel {
         String category = sanitizeFrontmatterValue(rawCategory).toLowerCase(Locale.ROOT);
         if (category.isEmpty()) return "";
         if (!VALID_SEGMENT.matcher(category).matches()) {
-            throw new IllegalArgumentException(
-                    "La catégorie doit être un seul mot : lettres minuscules sans accent, chiffres, tirets ou points.");
+            throw new LocalizedInputException("skill_category_invalid", R.string.ws_skill_err_category);
         }
         return category;
     }
@@ -132,8 +134,8 @@ public final class SkillStudioModel {
         String description = sanitizeFrontmatterValue(rawDescription);
         int length = description.codePointCount(0, description.length());
         if (length > MAX_DESCRIPTION_CHARS) {
-            throw new IllegalArgumentException("La description doit tenir en " + MAX_DESCRIPTION_CHARS
-                    + " caractères (actuellement " + length + "). Mettez les détails dans les instructions.");
+            throw new LocalizedInputException("skill_desc_too_long_" + length,
+                    R.string.ws_skill_err_desc_long, MAX_DESCRIPTION_CHARS, length);
         }
         return description;
     }
@@ -141,10 +143,10 @@ public final class SkillStudioModel {
     /** Validate raw SKILL.md content before creating or saving. */
     public static String validateContent(String content) {
         if (content == null || content.trim().isEmpty()) {
-            throw new IllegalArgumentException("Ajoutez des instructions avant d’enregistrer.");
+            throw new LocalizedInputException("skill_content_empty", R.string.ws_skill_err_content_empty);
         }
         if (content.length() > MAX_SKILL_CONTENT_CHARS) {
-            throw new IllegalArgumentException("Le texte est trop volumineux pour un savoir-faire.");
+            throw new LocalizedInputException("skill_content_too_long", R.string.ws_skill_err_content_long);
         }
         return content;
     }
@@ -196,24 +198,28 @@ public final class SkillStudioModel {
         return clipped.isEmpty() ? head.trim() : clipped;
     }
 
-    public static String draftPromptForSkill(String skillName) {
-        return "Utilise le savoir-faire « " + safe(skillName) + " » pour cette demande.";
+    public static String draftPromptForSkill(Context context, String skillName) {
+        return context.getString(R.string.ws_skill_draft_prompt, safe(skillName));
     }
 
-    public static String draftPromptToCreateSkill() {
-        return "Aide-moi à créer un nouveau savoir-faire réutilisable pour mes prochaines discussions.";
+    public static String draftPromptToCreateSkill(Context context) {
+        return context.getString(R.string.ws_skill_create_draft_prompt);
     }
 
-    public static String sourceLabel(String source, boolean writable) {
+    public static int sourceLabelRes(String source, boolean writable) {
         if (source == null || source.trim().isEmpty()) {
-            return writable ? "Personnel" : "Intégré";
+            return writable ? R.string.ws_skill_source_user : R.string.ws_skill_source_builtin;
         }
         return switch (source.trim().toLowerCase(Locale.ROOT)) {
-            case "user", "local", "profile" -> "Personnel";
-            case "builtin", "bundled", "core" -> "Intégré";
-            case "plugin", "extension" -> "Extension";
-            default -> writable ? "Personnel" : "Intégré";
+            case "user", "local", "profile" -> R.string.ws_skill_source_user;
+            case "builtin", "bundled", "core" -> R.string.ws_skill_source_builtin;
+            case "plugin", "extension" -> R.string.ws_skill_source_extension;
+            default -> writable ? R.string.ws_skill_source_user : R.string.ws_skill_source_builtin;
         };
+    }
+
+    public static String sourceLabel(Context context, String source, boolean writable) {
+        return context.getString(sourceLabelRes(source, writable));
     }
 
     private static String sanitizeFrontmatterValue(String raw) {

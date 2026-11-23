@@ -172,8 +172,11 @@ public final class InteractiveControlsBlock {
                 Double.isNaN(defaultNumber) ? min : defaultNumber, options, multi, defaultSelected);
     }
 
-    static String composeSummary(String prompt, List<Control> controls, Map<String, Object> state) {
-        NumberFormat fmt = NumberFormat.getNumberInstance(Locale.FRANCE);
+    static String composeSummary(Context context, String prompt, List<Control> controls, Map<String, Object> state) {
+        Locale locale = context != null && context.getResources() != null
+                && !context.getResources().getConfiguration().getLocales().isEmpty()
+                ? context.getResources().getConfiguration().getLocales().get(0) : Locale.getDefault();
+        NumberFormat fmt = NumberFormat.getNumberInstance(locale);
         fmt.setMaximumFractionDigits(2);
         StringBuilder out = new StringBuilder(prompt == null ? "" : prompt);
         for (Control ctrl : controls) {
@@ -182,7 +185,9 @@ public final class InteractiveControlsBlock {
             switch (ctrl.kind) {
                 case "toggle", "checkbox" -> {
                     boolean checked = val instanceof Boolean b ? b : ctrl.defaultChecked;
-                    rendered = checked ? "Oui" : "Non";
+                    rendered = context.getString(checked
+                            ? org.llm4people.hermes.R.string.ws_yes
+                            : org.llm4people.hermes.R.string.ws_no);
                 }
                 case "slider" -> {
                     double num = val instanceof Number n && Double.isFinite(n.doubleValue()) ? n.doubleValue() : ctrl.defaultNumber;
@@ -190,7 +195,9 @@ public final class InteractiveControlsBlock {
                 }
                 case "chips" -> {
                     List<String> selected = asStringList(val, ctrl.defaultSelected);
-                    rendered = selected.isEmpty() ? "Aucun" : String.join(", ", selected);
+                    rendered = selected.isEmpty()
+                            ? context.getString(org.llm4people.hermes.R.string.ws_none)
+                            : String.join(", ", selected);
                 }
                 default -> rendered = "";
             }
@@ -239,8 +246,8 @@ public final class InteractiveControlsBlock {
         }
 
         if (interactive && block.prompt != null && !block.prompt.isEmpty()) {
-            Button prepare = Ui.button(c, "Préparer un brouillon…", v -> {
-                String draft = composeSummary(block.prompt, block.controls, state);
+            Button prepare = Ui.button(c, c.getString(org.llm4people.hermes.R.string.ws_form_prepare_draft), v -> {
+                String draft = composeSummary(c, block.prompt, block.controls, state);
                 WorkspaceForms.reviewDraft(activity, host, draft);
             });
             prepare.setSingleLine(false);
@@ -319,7 +326,7 @@ public final class InteractiveControlsBlock {
         TextView labelView = Ui.text(c, ctrl.label, colors.scaledSp(15));
         labelView.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         labelView.setTextColor(colors.ink);
-        TextView valueView = Ui.text(c, formatSliderValue(current, ctrl.unit), colors.scaledSp(15));
+        TextView valueView = Ui.text(c, formatSliderValue(c, current, ctrl.unit), colors.scaledSp(15));
         valueView.setTypeface(Typeface.MONOSPACE);
         valueView.setTextColor(colors.accent);
         header.addView(labelView, new LinearLayout.LayoutParams(0, -2, 1f));
@@ -331,14 +338,14 @@ public final class InteractiveControlsBlock {
         seek.setProgress(initialProgress);
         seek.setEnabled(interactive);
         seek.setSaveEnabled(false);
-        seek.setContentDescription(ctrl.label + ", " + formatSliderValue(current, ctrl.unit));
+        seek.setContentDescription(ctrl.label + ", " + formatSliderValue(c, current, ctrl.unit));
         if (interactive) {
             seek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
                 private boolean dragging;
 
                 @Override public void onProgressChanged(SeekBar bar, int progress, boolean fromUser) {
                     double value = Math.min(ctrl.max, ctrl.min + progress * ctrl.step);
-                    String formatted = formatSliderValue(value, ctrl.unit);
+                    String formatted = formatSliderValue(c, value, ctrl.unit);
                     valueView.setText(formatted);
                     bar.setContentDescription(ctrl.label + ", " + formatted);
                     state.put(ctrl.id, value);
@@ -398,7 +405,9 @@ public final class InteractiveControlsBlock {
                 }
                 b.setBackground(bg);
                 b.setSelected(active);
-                b.setContentDescription(option + (active ? ", sélectionné" : ", non sélectionné"));
+                b.setContentDescription(c.getString(active
+                        ? org.llm4people.hermes.R.string.ws_ctrl_chip_selected
+                        : org.llm4people.hermes.R.string.ws_ctrl_chip_unselected, option));
             }
         };
 
@@ -441,8 +450,14 @@ public final class InteractiveControlsBlock {
         group.addView(hint);
     }
 
-    private static String formatSliderValue(double value, String unit) {
-        NumberFormat fmt = NumberFormat.getNumberInstance(Locale.FRANCE);
+    private static Locale activeLocale(Context context) {
+        return context != null && context.getResources() != null
+                && !context.getResources().getConfiguration().getLocales().isEmpty()
+                ? context.getResources().getConfiguration().getLocales().get(0) : Locale.getDefault();
+    }
+
+    private static String formatSliderValue(Context context, double value, String unit) {
+        NumberFormat fmt = NumberFormat.getNumberInstance(activeLocale(context));
         fmt.setMaximumFractionDigits(2);
         return fmt.format(value) + (unit.isEmpty() ? "" : " " + unit);
     }

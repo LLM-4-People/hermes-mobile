@@ -126,7 +126,7 @@ final class SkillStudio {
         if (stageDraft != null && activeThread.getAsBoolean()) {
             actions.addView(Ui.button(panel.activity, panel.t(R.string.brain_skills_ask_hermes), v -> {
                 panel.close();
-                stageDraft.accept(SkillStudioModel.draftPromptToCreateSkill());
+                stageDraft.accept(SkillStudioModel.draftPromptToCreateSkill(panel.activity));
             }));
         }
         if (actions.getChildCount() > 0) statusBox.addView(actions);
@@ -194,7 +194,7 @@ final class SkillStudio {
         if (!skill.category.isEmpty()) badges.addView(BrainUi.badge(panel.activity, skill.category, true));
         if (studioSupported) {
             badges.addView(BrainUi.badge(panel.activity,
-                    SkillStudioModel.sourceLabel(skill.source, skill.writable), false));
+                    SkillStudioModel.sourceLabel(panel.activity, skill.source, skill.writable), false));
         }
         if (badges.getChildCount() > 0) {
             badges.setPaddingRelative(0, Ui.dp(panel.activity, 6), 0, 0);
@@ -263,7 +263,7 @@ final class SkillStudio {
         if (stageDraft != null && activeThread.getAsBoolean()) {
             builder.setPositiveButton(R.string.brain_skills_use_in_thread, (d, w) -> {
                 panel.close();
-                stageDraft.accept(SkillStudioModel.draftPromptForSkill(skill.name));
+                stageDraft.accept(SkillStudioModel.draftPromptForSkill(panel.activity, skill.name));
             });
         }
         panel.present(builder.create());
@@ -274,7 +274,7 @@ final class SkillStudio {
         LinearLayout badges = Ui.row(panel.activity);
         if (!detail.category().isEmpty()) badges.addView(BrainUi.badge(panel.activity, detail.category(), true));
         badges.addView(BrainUi.badge(panel.activity,
-                SkillStudioModel.sourceLabel(detail.source(), detail.writable()), false));
+                SkillStudioModel.sourceLabel(panel.activity, detail.source(), detail.writable()), false));
         badges.addView(BrainUi.badge(panel.activity,
                 panel.t(detail.enabled() ? R.string.brain_skills_enabled : R.string.brain_skills_disabled), detail.enabled()));
         box.addView(badges);
@@ -297,7 +297,7 @@ final class SkillStudio {
         if (stageDraft != null && activeThread.getAsBoolean()) {
             actions.addView(Ui.button(panel.activity, panel.t(R.string.brain_skills_use_in_thread), v -> {
                 panel.close();
-                stageDraft.accept(SkillStudioModel.draftPromptForSkill(detail.name()));
+                stageDraft.accept(SkillStudioModel.draftPromptForSkill(panel.activity, detail.name()));
             }));
         }
         String fullText = detail.raw().isEmpty() ? detail.body() : detail.raw();
@@ -367,8 +367,8 @@ final class SkillStudio {
                             location.name(), descField.getText().toString(), location.category(),
                             bodyField.getText().toString());
                 }
-            } catch (IllegalArgumentException invalid) {
-                TextView err = BrainUi.liveNote(panel, feedback, invalid.getMessage());
+            } catch (LocalizedInputException invalid) {
+                TextView err = BrainUi.liveNote(panel, feedback, invalid.resolve(panel.activity));
                 err.setTextColor(panel.activity.getColor(R.color.danger));
                 return;
             }
@@ -401,8 +401,8 @@ final class SkillStudio {
             String content;
             try {
                 content = SkillStudioModel.validateContent(editor.getText().toString());
-            } catch (IllegalArgumentException invalid) {
-                TextView err = BrainUi.liveNote(panel, feedback, invalid.getMessage());
+            } catch (LocalizedInputException invalid) {
+                TextView err = BrainUi.liveNote(panel, feedback, invalid.resolve(panel.activity));
                 err.setTextColor(panel.activity.getColor(R.color.danger));
                 return;
             }

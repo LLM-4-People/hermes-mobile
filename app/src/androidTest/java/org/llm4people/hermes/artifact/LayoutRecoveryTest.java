@@ -33,7 +33,8 @@ public final class LayoutRecoveryTest extends InstrumentationTestCase {
             assertEquals("{invalid history", fixture.account.read("workspace.v1.home"));
             runTestOnUiThread(() -> {
                 AlertDialog confirm = SurfaceRenderer.controls(activity, history, host);
-                assertEquals("Rétablir", confirm.getButton(AlertDialog.BUTTON_POSITIVE).getText().toString());
+                assertEquals(activity.getString(org.llm4people.hermes.R.string.ws_restore),
+                        confirm.getButton(AlertDialog.BUTTON_POSITIVE).getText().toString());
                 confirm.getButton(AlertDialog.BUTTON_POSITIVE).performClick();
             });
             getInstrumentation().waitForIdleSync();

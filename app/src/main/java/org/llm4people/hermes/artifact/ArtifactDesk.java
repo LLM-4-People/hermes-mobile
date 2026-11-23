@@ -9,6 +9,7 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import org.json.JSONArray;
 import org.llm4people.hermes.Diagnostics;
+import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.profile.Account;
 import java.io.IOException;
@@ -42,7 +43,7 @@ public final class ArtifactDesk {
         this.account = account;
         this.host = host;
         threadSelected = threadId != null && !threadId.isEmpty();
-        catalog = new ArtifactCatalog(messages == null ? new JSONArray() : messages);
+        catalog = new ArtifactCatalog(activity, messages == null ? new JSONArray() : messages);
     }
 
     public static String proposalInstructions(Account account, String threadId) {
@@ -85,12 +86,14 @@ public final class ArtifactDesk {
 
     /** Recovery is always reachable from native navigation, even after a layout has been restored. */
     public static void manage(Activity activity, Account account, Host host) {
-        Map<String,String> all = new LinkedHashMap<>(WorkspaceLayout.SURFACES);
-        AlertDialog.Builder controls = new AlertDialog.Builder(activity).setTitle("Dispositions des écrans");
+        Map<String,String> all = WorkspaceLayout.surfaceLabels(activity);
+        AlertDialog.Builder controls = new AlertDialog.Builder(activity)
+                .setTitle(R.string.ws_art_screen_layouts);
         try {
-            PageLayouts.titles(account,true).forEach((id,title) -> all.put(id, title + " (" + id.substring(5) + ")"));
+            PageLayouts.titles(activity, account, true)
+                    .forEach((id, title) -> all.put(id, title + " (" + id.substring(5) + ")"));
         } catch (PageLayouts.Damaged damaged) {
-            controls.setNeutralButton(WorkspacePages.REPAIR, (dialog, which) ->
+            controls.setNeutralButton(R.string.ws_pages_repair_action, (dialog, which) ->
                     WorkspacePages.confirmRecovery(activity, damaged, host));
         } catch (IllegalStateException error) {
             Diagnostics.warning("workspace","page_index_unavailable");
@@ -99,17 +102,17 @@ public final class ArtifactDesk {
         String[] labels = all.values().toArray(new String[0]);
         LiveUiPatch.StateManager liveUi = LiveUiPatch.StateManager.forAccount(account, ThemePalette.isNight(activity));
         if (liveUi.isCorrupted()) {
-            controls.setNeutralButton("Réinitialiser l’historique…", (d, w) ->
+            controls.setNeutralButton(R.string.ws_art_reset_history_action, (d, w) ->
                     DeskDialogs.open(activity, host, new AlertDialog.Builder(activity)
-                            .setTitle("Réinitialiser l’historique des modifications ?")
-                            .setMessage("L’historique des modifications d’écran est illisible dans ce profil. Réinitialiser cet historique permettra d’appliquer de nouvelles propositions.")
-                            .setNegativeButton("Annuler", null)
-                            .setPositiveButton("Réinitialiser", (dlg, which) -> {
+                            .setTitle(R.string.ws_art_reset_history_title)
+                            .setMessage(R.string.ws_art_reset_history_message)
+                            .setNegativeButton(R.string.ws_cancel, null)
+                            .setPositiveButton(R.string.ws_reset, (dlg, which) -> {
                                 if (!isOpen(activity, account)) return;
                                 SurfaceRenderer.change(activity, host, liveUi::resetCorrupted);
                             })));
         } else if (liveUi.canRollback()) {
-            controls.setNeutralButton("Historique des modifications", (d, w) ->
+            controls.setNeutralButton(R.string.ws_art_change_history, (d, w) ->
                     LiveUiPatchBar.showHistoryDialog(activity, liveUi, revId -> {
                         if (!isOpen(activity, account)) return;
                         List<String> revertedIds = new java.util.ArrayList<>();
@@ -135,7 +138,7 @@ public final class ArtifactDesk {
         }
         DeskDialogs.open(activity, host, controls.setItems(labels, (d, which) -> SurfaceRenderer.controls(activity,
                         new LayoutHistory(account, surfaces[which]), host))
-                .setNegativeButton("Fermer", null));
+                .setNegativeButton(R.string.ws_close, null));
     }
 
     private static boolean isOpen(Activity activity, Account account) {
@@ -173,14 +176,16 @@ public final class ArtifactDesk {
     public void show() {
         LinearLayout list = Ui.column(activity);
         Ui.pad(list, 18, 8);
-        if (threadSelected) list.addView(Ui.button(activity, "Fichiers publiés", v -> {
+        if (threadSelected) list.addView(Ui.button(activity, activity.getString(R.string.ws_art_published_files), v -> {
             DeskDialogs.navigate(activity, () -> host.onAction("published_files"));
         }));
         if (catalog.records.isEmpty()) list.addView(Ui.text(activity,
-                "Les extraits de code, les correctifs et les propositions de disposition de ce fil apparaîtront ici.", 16));
+                activity.getString(R.string.ws_art_empty_desk), 16));
         for (ArtifactCatalog.Record record : catalog.records) {
             int versions = record.versions.size();
-            String label = record.title + (versions > 1 ? " · " + versions + " versions" : "");
+            String label = versions > 1
+                    ? activity.getString(R.string.ws_art_versions_suffix, record.title, versions)
+                    : record.title;
             Button b = Ui.button(activity, label, v -> detail(record, versions - 1));
             b.setGravity(Gravity.CENTER_VERTICAL | Gravity.START);
             b.setAllCaps(false);
@@ -188,11 +193,11 @@ public final class ArtifactDesk {
             list.addView(Ui.divider(activity));
         }
         if (catalog.limited) list.addView(Ui.text(activity,
-                "Les messages volumineux ou plus anciens restent consultables dans le fil.", 14));
+                activity.getString(R.string.ws_art_catalog_limited), 14));
         ScrollView nativeList = scroll(list);
-        DeskDialogs.open(activity, new AlertDialog.Builder(activity).setTitle("Artefacts du fil")
+        DeskDialogs.open(activity, new AlertDialog.Builder(activity).setTitle(R.string.ws_art_thread_artifacts)
                 .setView(decorate(activity, account, "artifacts", nativeList, host))
-                .setNegativeButton("Fermer", null));
+                .setNegativeButton(R.string.ws_close, null));
     }
 
     private void detail(ArtifactCatalog.Record record, int version) {
@@ -201,50 +206,55 @@ public final class ArtifactDesk {
         ScrollView scroll = scroll(box);
         presentVersion(box, scroll, record, version);
         DeskDialogs.open(activity, new AlertDialog.Builder(activity).setTitle(record.title)
-                .setView(scroll).setNegativeButton("Fermer", null));
+                .setView(scroll).setNegativeButton(R.string.ws_close, null));
     }
 
     private void presentVersion(LinearLayout box, ScrollView scroll, ArtifactCatalog.Record record, int version) {
         box.removeAllViews();
         String content = record.versions.get(version);
         if (record.versions.size() > 1) {
-            String label = "Version " + (version + 1) + " sur " + record.versions.size();
+            String label = activity.getString(R.string.ws_art_version_of, version + 1, record.versions.size());
             box.addView(Ui.button(activity, label, v -> {
                 String[] options = new String[record.versions.size()];
-                for (int n = 0; n < options.length; n++) options[n] = "Version " + (n + 1);
-                DeskDialogs.open(activity, new AlertDialog.Builder(activity).setTitle("Version à lire")
+                for (int n = 0; n < options.length; n++) {
+                    options[n] = activity.getString(R.string.ws_art_version_item, n + 1);
+                }
+                DeskDialogs.open(activity, new AlertDialog.Builder(activity)
+                        .setTitle(R.string.ws_art_version_picker_title)
                         .setSingleChoiceItems(options, version, (d, n) -> {
                             d.dismiss();
                             presentVersion(box, scroll, record, n);
                             scroll.scrollTo(0, 0);
-                        }).setNegativeButton("Fermer", null));
+                        }).setNegativeButton(R.string.ws_close, null));
             }));
         }
         if (WorkspaceLayout.FENCE.equals(record.language)) {
             try {
                 WorkspaceLayout layout = WorkspaceLayout.parse(content);
-                String surface = WorkspaceLayout.screenName(layout.surface);
-                box.addView(Ui.text(activity, "Écran concerné · " + surface, 16));
-                if ("replace".equals(layout.mode)) box.addView(Ui.text(activity, WorkspaceLayout.custom(layout.surface)
-                        ? "Écran personnel enregistré dans ce profil." : "Cette proposition remplace le contenu de cet écran.", 15));
+                String surface = WorkspaceLayout.screenName(activity, layout.surface);
+                box.addView(Ui.text(activity, activity.getString(R.string.ws_art_target_screen, surface), 16));
+                if ("replace".equals(layout.mode)) box.addView(Ui.text(activity, activity.getString(
+                        WorkspaceLayout.custom(layout.surface)
+                                ? R.string.ws_art_personal_saved_notice : R.string.ws_art_replace_notice), 15));
                 box.addView(SurfaceRenderer.preview(activity, layout));
-                box.addView(Ui.button(activity, "Appliquer la disposition…",
+                box.addView(Ui.button(activity, activity.getString(R.string.ws_art_apply_layout_action),
                         v -> confirm(layout, content)));
                 return;
             } catch (IOException e) {
                 Diagnostics.warning("workspace", "proposal_rejected");
-                box.addView(Ui.text(activity,
-                        "Disposition invalide. Demandez à Hermes de corriger la proposition.", 16));
+                box.addView(Ui.text(activity, activity.getString(R.string.ws_art_invalid_layout), 16));
             }
         }
         CodeReader.contents(box, record.title, record.language, content);
     }
 
     private void confirm(WorkspaceLayout layout, String raw) {
-        String screen = WorkspaceLayout.screenName(layout.surface);
-        DeskDialogs.open(activity, new AlertDialog.Builder(activity).setTitle("Modifier l’écran « " + screen + " » ?")
-                .setMessage("Cette disposition sera utilisée dans ce profil. Vous pourrez l’annuler depuis l’atelier.")
-                .setNegativeButton("Annuler", null).setPositiveButton("Appliquer", (d, w) ->
+        String screen = WorkspaceLayout.screenName(activity, layout.surface);
+        DeskDialogs.open(activity, new AlertDialog.Builder(activity)
+                .setTitle(activity.getString(R.string.ws_art_confirm_modify_title, screen))
+                .setMessage(R.string.ws_art_confirm_modify_message)
+                .setNegativeButton(R.string.ws_cancel, null)
+                .setPositiveButton(R.string.ws_apply, (d, w) ->
                         SurfaceRenderer.change(activity, host, () -> new LayoutHistory(account, layout.surface).replace(raw))));
     }
 

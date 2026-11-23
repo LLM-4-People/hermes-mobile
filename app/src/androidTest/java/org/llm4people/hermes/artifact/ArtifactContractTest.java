@@ -25,11 +25,11 @@ public final class ArtifactContractTest extends InstrumentationTestCase {
             assertEquals("replace", layout.mode);
             pages.put(layout.surface, layout);
         }
-        assertNotNull(pages.get("page/visite-site"));
-        WorkspaceLayout.Block form = pages.get("page/visite-site").blocks.get(0);
+        assertNotNull(pages.get("page/site-visit"));
+        WorkspaceLayout.Block form = pages.get("page/site-visit").blocks.get(0);
         assertFalse(form.fields.isEmpty());
         assertFalse(form.prompt.isEmpty());
-        WorkspaceLayout actions = pages.get("page/visite-musee");
+        WorkspaceLayout actions = pages.get("page/museum-visit");
         assertNotNull(actions);
         assertEquals(3, actions.blocks.size());
         for (WorkspaceLayout.Block block : actions.blocks) assertEquals("device", block.type);
@@ -40,12 +40,12 @@ public final class ArtifactContractTest extends InstrumentationTestCase {
         assertNotNull(guide);
         assertEquals(1, guide.blocks.size());
         assertEquals("nearby_places", guide.blocks.get(0).type);
-        WorkspaceLayout named = pages.get("page/restaurants-quartier");
+        WorkspaceLayout named = pages.get("page/neighborhood-restaurants");
         assertNotNull(named);
         assertEquals(1, named.blocks.size());
         DeviceAction request = named.blocks.get(0).request;
         assertEquals(DeviceAction.Kind.MAP, request.kind());
-        assertEquals("restaurants à Rosemont, Montréal", ((DeviceAction.MapSearch) request).query());
+        assertEquals("restaurants in Rosemont, Montreal", ((DeviceAction.MapSearch) request).query());
     }
 
     public void testVocabularyAndLimits() throws Exception {
@@ -131,10 +131,14 @@ public final class ArtifactContractTest extends InstrumentationTestCase {
                 .put("text","```java file=A.java\na2\n```"))));
         rows.put(message("assistant", "```hermes-workspace\n" + EXAMPLE + "\n```"));
         rows.put(message("assistant", "```hermes-workspace\n" + EXAMPLE.replace("\"home\"", "\"thread\"") + "\n```"));
-        ArtifactCatalog catalog = new ArtifactCatalog(rows);
+        android.content.Context context = getInstrumentation().getTargetContext();
+        ArtifactCatalog catalog = new ArtifactCatalog(context, rows);
         assertFalse(catalog.limited);
         assertEquals(4, catalog.records.size());
-        assertEquals("Disposition · Conversation", catalog.records.get(0).title);
+        assertEquals(
+                context.getString(org.llm4people.hermes.R.string.ws_art_layout_titled,
+                        context.getString(org.llm4people.hermes.R.string.ws_surface_thread)),
+                catalog.records.get(0).title);
         assertEquals("A.java", catalog.records.get(2).title);
         assertEquals(2, catalog.records.get(2).versions.size());
         assertEquals("a2", catalog.records.get(2).versions.get(1));

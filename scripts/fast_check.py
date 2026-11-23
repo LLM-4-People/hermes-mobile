@@ -50,6 +50,7 @@ def build_suites(server_python, workspace_only=False, ci_only=False, with_gradle
         return [
             ("docs", [py, "-B", "scripts/docs.py", "--check"]),
             ("writing-quality", [py, "-B", "ci/check_writing_quality.py"]),
+            ("hardcoded-ui-strings", [py, "-B", "ci/check_hardcoded_ui_strings.py"]),
             *_discover_files("ci", "ci", py),
         ]
     server_py = server_python or py
@@ -65,6 +66,7 @@ def build_suites(server_python, workspace_only=False, ci_only=False, with_gradle
         suites = [
             ("docs", [py, "-B", "scripts/docs.py", "--check"]),
             ("writing-quality", [py, "-B", "ci/check_writing_quality.py"]),
+            ("hardcoded-ui-strings", [py, "-B", "ci/check_hardcoded_ui_strings.py"]),
             *_discover_files("ci", "ci", py),
             *suites,
         ]

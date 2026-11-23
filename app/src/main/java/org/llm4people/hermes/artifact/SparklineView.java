@@ -91,18 +91,23 @@ public final class SparklineView extends View {
             return span <= 0 ? 0.5f : (float) ((target - min) / span);
         }
 
-        public String accessibilitySummary() {
-            NumberFormat fmt = NumberFormat.getNumberInstance(Locale.FRANCE);
+        public int kindLabelRes() {
+            return "bar".equals(style)
+                    ? org.llm4people.hermes.R.string.ws_sparkline_bar
+                    : org.llm4people.hermes.R.string.ws_sparkline_line;
+        }
+
+        public String accessibilitySummary(Context context) {
+            Locale locale = context != null && context.getResources() != null
+                    && !context.getResources().getConfiguration().getLocales().isEmpty()
+                    ? context.getResources().getConfiguration().getLocales().get(0) : Locale.getDefault();
+            NumberFormat fmt = NumberFormat.getNumberInstance(locale);
             fmt.setMaximumFractionDigits(2);
             String suffix = unit.isEmpty() ? "" : " " + unit;
-            String kind = "bar".equals(style) ? "Graphique en barres" : "Courbe d’évolution";
-            StringBuilder sb = new StringBuilder(kind)
-                    .append(" · ").append(values.size()).append(" points, ")
-                    .append("minimum ").append(fmt.format(min)).append(suffix)
-                    .append(", maximum ").append(fmt.format(max)).append(suffix)
-                    .append(", dernière valeur ").append(fmt.format(latest)).append(suffix);
-            if (!caption.isEmpty()) sb.append(". ").append(caption);
-            return sb.toString();
+            String kind = context.getString(kindLabelRes());
+            String base = context.getString(org.llm4people.hermes.R.string.ws_sparkline_a11y,
+                    kind, values.size(), fmt.format(min) + suffix, fmt.format(max) + suffix, fmt.format(latest) + suffix);
+            return caption.isEmpty() ? base : base + ". " + caption;
         }
     }
 
@@ -152,7 +157,7 @@ public final class SparklineView extends View {
         targetPaint.setStrokeWidth(1.25f * dp);
         targetPaint.setColor(this.palette.muted);
         targetPaint.setPathEffect(new DashPathEffect(new float[]{4 * dp, 4 * dp}, 0));
-        setContentDescription(series.accessibilitySummary());
+        setContentDescription(series.accessibilitySummary(context));
         setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_YES);
     }
 

@@ -198,7 +198,12 @@ final class SessionSettings {
             @Override public View getView(int position, View convertView, android.view.ViewGroup parent) {
                 View row = super.getView(position, convertView, parent);
                 T item = getItem(position);
-                row.setContentDescription(item instanceof ModelCapabilityBadges.ModelInfo info ? info.id() : null);
+                if (item instanceof ModelCapabilityBadges.ModelInfo info) {
+                    if (row instanceof TextView tv) tv.setText(info.displayText(panel.activity));
+                    row.setContentDescription(info.id());
+                } else {
+                    row.setContentDescription(null);
+                }
                 return row;
             }
         };
@@ -227,8 +232,11 @@ final class SessionSettings {
                 String needle = s.toString().trim().toLowerCase(java.util.Locale.ROOT);
                 adapter.setNotifyOnChange(false);
                 adapter.clear();
-                for (T choice : choices)
-                    if (choice.toString().toLowerCase(java.util.Locale.ROOT).contains(needle)) adapter.add(choice);
+                for (T choice : choices) {
+                    String searchable = choice instanceof ModelCapabilityBadges.ModelInfo info
+                            ? info.displayText(panel.activity) : choice.toString();
+                    if (searchable.toLowerCase(java.util.Locale.ROOT).contains(needle)) adapter.add(choice);
+                }
                 adapter.notifyDataSetChanged();
                 restoreChoice(list, adapter.getPosition(current));
             }

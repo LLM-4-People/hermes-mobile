@@ -17,10 +17,10 @@ final class WorkspacePagesJourney {
         ui.tap(sendLabel);
         ui.contains("Voici les deux dispositions demandées.");
         ui.see(sendLabel);
-        apply("Disposition · Écran personnel · diagnostic");
+        apply(ui.str(R.string.ws_art_layout_titled, ui.str(R.string.ws_surface_personal, "diagnostic")));
         String existing = "Garder la trace.";
         ui.fill(composerHint, existing);
-        apply("Disposition · Conversation");
+        apply(ui.str(R.string.ws_art_layout_titled, ui.str(R.string.ws_surface_thread)));
         ui.see("Écriture ciblée");
         ui.see(existing);
         ui.absent(ui.str(R.string.thread_you));
@@ -28,9 +28,9 @@ final class WorkspacePagesJourney {
         ui.tap("Diagnostic mobile");
         ui.see(name);
         ui.fill("Fichier", "sample.py");
-        ui.tap("Préparer un brouillon…");
-        ui.see("Relire le brouillon");
-        ui.tap("Vers le brouillon");
+        ui.tap(ui.str(R.string.ws_form_prepare_draft));
+        ui.see(ui.str(R.string.ws_form_review_title));
+        ui.tap(ui.str(R.string.ws_form_send_to_draft));
         String staged = existing + "\nRelire ce fichier.\n\nFichier\nsample.py";
         ui.see(staged);
         ui.see(sendLabel);
@@ -51,9 +51,9 @@ final class WorkspacePagesJourney {
         ui.see(name);
         menu(ui.str(R.string.ws_restore_desk));
         ui.tap("Diagnostic mobile (diagnostic)");
-        ui.tap("Supprimer");
+        ui.tap(ui.str(R.string.ws_delete));
         pages();
-        ui.contains("Demandez à Hermes de créer un écran");
+        ui.contains(ui.str(R.string.ws_pages_empty));
         ui.absent("Diagnostic mobile");
     }
 
@@ -65,8 +65,8 @@ final class WorkspacePagesJourney {
     private void apply(String artifact) {
         menu(ui.str(R.string.ws_artifacts));
         ui.tap(artifact);
-        ui.tap("Appliquer la disposition…");
-        ui.tap("Appliquer");
+        ui.tap(ui.str(R.string.ws_art_apply_layout_action));
+        ui.tap(ui.str(R.string.ws_apply));
     }
 
     private void menu(String action) {

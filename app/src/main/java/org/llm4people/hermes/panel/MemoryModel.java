@@ -1,5 +1,8 @@
 package org.llm4people.hermes.panel;
 
+import android.content.Context;
+import org.llm4people.hermes.R;
+
 import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -68,19 +71,19 @@ public final class MemoryModel {
 
     public static String validateTarget(String target) {
         if (TARGET_MEMORY.equals(target) || TARGET_USER.equals(target)) return target;
-        throw new IllegalArgumentException("Cible mémoire invalide");
+        throw new LocalizedInputException("invalid_memory_target", R.string.ws_memory_err_target);
     }
 
     public static String validateEntryId(String id) {
         if (id == null || id.trim().isEmpty()) {
-            throw new IllegalArgumentException("Identifiant d’entrée manquant");
+            throw new LocalizedInputException("missing_entry_id", R.string.ws_memory_err_id_missing);
         }
         String trimmed = id.trim();
         if (trimmed.indexOf('/') >= 0 || trimmed.indexOf('\\') >= 0 || trimmed.equals(".") || trimmed.equals("..")) {
-            throw new IllegalArgumentException("Identifiant d’entrée invalide");
+            throw new LocalizedInputException("invalid_entry_id", R.string.ws_memory_err_id_invalid);
         }
         if (trimmed.codePoints().anyMatch(Character::isISOControl)) {
-            throw new IllegalArgumentException("Identifiant d’entrée invalide");
+            throw new LocalizedInputException("invalid_entry_id", R.string.ws_memory_err_id_invalid);
         }
         return trimmed;
     }
@@ -88,52 +91,52 @@ public final class MemoryModel {
     /** Validate text before POST/PATCH; rejects empty text, lone surrogates, control chars, or overflow. */
     public static String validateEntryText(String rawText, int maxChars) {
         if (rawText == null || rawText.trim().isEmpty()) {
-            throw new IllegalArgumentException("Le texte ne peut pas être vide.");
+            throw new LocalizedInputException("empty_entry_text", R.string.ws_memory_err_empty);
         }
         String cleaned = rawText.trim();
         if (hasLoneSurrogate(cleaned)) {
-            throw new IllegalArgumentException("Le texte contient des caractères invalides.");
+            throw new LocalizedInputException("invalid_surrogate", R.string.ws_memory_err_surrogate);
         }
         for (int i = 0; i < cleaned.length(); i++) {
             char ch = cleaned.charAt(i);
             if (ch < 32 && ch != '\n' && ch != '\t') {
-                throw new IllegalArgumentException("Le texte contient des caractères de contrôle interdits.");
+                throw new LocalizedInputException("control_char", R.string.ws_memory_err_control);
             }
         }
         int effectiveLimit = maxChars <= 0 ? DEFAULT_CHAR_LIMIT : maxChars;
         if (cleaned.length() > effectiveLimit) {
-            throw new IllegalArgumentException("Le texte dépasse la limite autorisée (" + effectiveLimit + " caractères).");
+            throw new LocalizedInputException("entry_too_long", R.string.ws_memory_err_limit, effectiveLimit);
         }
         return cleaned;
     }
 
-    /** Plain-French error message for HTTP status codes returned by /api/memory endpoints. */
-    public static String describeHttpError(int status, String code) {
-        if (status == 409) {
-            return "Cet élément a été modifié sur un autre appareil. La liste va être actualisée.";
-        }
+    /** Resource ID for HTTP status codes returned by /api/memory endpoints. */
+    public static int describeHttpErrorRes(int status, String code) {
+        if (status == 409) return R.string.ws_memory_err_conflict;
         if (status == 400 || status == 422) {
             if (code != null && (code.contains("secret") || code.contains("threat") || code.contains("injection"))) {
-                return "Enregistrement refusé : le texte semble contenir une donnée sensible ou un format non autorisé.";
+                return R.string.ws_memory_err_secret;
             }
             if (code != null && code.contains("limit")) {
-                return "La mémoire est pleine. Supprimez ou raccourcissez un élément existant avant d’ajouter celui-ci.";
+                return R.string.ws_memory_err_full;
             }
-            return "Le texte n’a pas pu être enregistré. Vérifiez sa longueur et son contenu.";
+            return R.string.ws_memory_err_invalid;
         }
-        if (status == 401 || status == 403) {
-            return "Ce profil n’a pas l’autorisation de modifier la mémoire.";
-        }
-        if (status == 404 || status == 405 || status == 501) {
-            return "La gestion de la mémoire nécessite une mise à jour de votre serveur Hermes.";
-        }
-        return "Hermes a refusé la demande (HTTP " + status + ").";
+        if (status == 401 || status == 403) return R.string.ws_memory_err_denied;
+        if (status == 404 || status == 405 || status == 501) return R.string.ws_memory_err_upgrade;
+        return R.string.ws_http_rejected;
     }
 
-    public static String usageSummary(int chars, int limit) {
+    /** Localized error message for HTTP status codes returned by /api/memory endpoints. */
+    public static String describeHttpError(Context context, int status, String code) {
+        int resId = describeHttpErrorRes(status, code);
+        return resId == R.string.ws_http_rejected ? context.getString(resId, status) : context.getString(resId);
+    }
+
+    public static String usageSummary(Context context, int chars, int limit) {
         int safeChars = Math.max(0, chars);
         int safeLimit = limit <= 0 ? DEFAULT_CHAR_LIMIT : limit;
-        return safeChars + " / " + safeLimit + " caractères";
+        return context.getString(R.string.ws_memory_char_count, safeChars, safeLimit);
     }
 
     private static boolean hasLoneSurrogate(String text) {

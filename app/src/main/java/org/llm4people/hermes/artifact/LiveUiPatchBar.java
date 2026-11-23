@@ -60,7 +60,7 @@ public final class LiveUiPatchBar extends LinearLayout {
         setBackground(bg);
         Ui.pad(this, 14, 10);
 
-        headline = Ui.text(activity, "Hermes propose une amélioration de votre écran", 15);
+        headline = Ui.text(activity, activity.getString(org.llm4people.hermes.R.string.ws_liveui_proposal_headline), 15);
         headline.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         headline.setTextColor(palette.ink);
         headline.setAccessibilityLiveRegion(ACCESSIBILITY_LIVE_REGION_POLITE);
@@ -73,13 +73,13 @@ public final class LiveUiPatchBar extends LinearLayout {
 
         LinearLayout actions = Ui.row(activity);
         actions.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
-        viewButton = actionButton("Voir", "live-ui-view", v -> openPreview());
-        applyButton = actionButton("Appliquer", "live-ui-apply", v -> applyCurrent());
-        pinButton = actionButton("Épingler sur l’écran d’accueil", "live-ui-pin-home", v -> {
+        viewButton = actionButton(activity.getString(org.llm4people.hermes.R.string.ws_view), "live-ui-view", v -> openPreview());
+        applyButton = actionButton(activity.getString(org.llm4people.hermes.R.string.ws_apply), "live-ui-apply", v -> applyCurrent());
+        pinButton = actionButton(activity.getString(org.llm4people.hermes.R.string.ws_surface_pin_home), "live-ui-pin-home", v -> {
             if (pendingWidget != null) listener.onPinWidget(pendingWidget);
         });
         pinButton.setVisibility(GONE);
-        cancelButton = actionButton("Annuler", "live-ui-cancel", v -> cancelOrRollback());
+        cancelButton = actionButton(activity.getString(org.llm4people.hermes.R.string.ws_cancel), "live-ui-cancel", v -> cancelOrRollback());
         applyButton.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         actions.addView(viewButton);
         actions.addView(applyButton);
@@ -94,13 +94,13 @@ public final class LiveUiPatchBar extends LinearLayout {
         this.pendingWidget = firstWidget(patch);
         this.appliedRevisionId = null;
         this.appliedState = false;
-        headline.setText("Hermes propose une amélioration de votre écran");
-        summary.setText(patch.summary);
+        headline.setText(org.llm4people.hermes.R.string.ws_liveui_proposal_headline);
+        summary.setText(patch.displaySummary(activity));
         viewButton.setVisibility(VISIBLE);
         applyButton.setVisibility(VISIBLE);
         pinButton.setVisibility(GONE);
-        cancelButton.setText("Annuler");
-        cancelButton.setContentDescription("Ignorer cette proposition");
+        cancelButton.setText(org.llm4people.hermes.R.string.ws_cancel);
+        cancelButton.setContentDescription(activity.getString(org.llm4people.hermes.R.string.ws_liveui_dismiss_a11y));
         setVisibility(VISIBLE);
     }
 
@@ -109,13 +109,14 @@ public final class LiveUiPatchBar extends LinearLayout {
         this.pendingWidget = firstWidget(patch);
         this.appliedRevisionId = patch.revisionId;
         this.appliedState = true;
-        headline.setText("Amélioration appliquée");
-        summary.setText(patch.summary + " · Vous pouvez revenir en arrière en un geste.");
+        headline.setText(org.llm4people.hermes.R.string.ws_liveui_applied_headline);
+        summary.setText(activity.getString(org.llm4people.hermes.R.string.ws_liveui_applied_summary,
+                patch.displaySummary(activity)));
         viewButton.setVisibility(GONE);
         applyButton.setVisibility(GONE);
         pinButton.setVisibility(pendingWidget != null ? VISIBLE : GONE);
-        cancelButton.setText("Annuler");
-        cancelButton.setContentDescription("Annuler la dernière modification d’écran");
+        cancelButton.setText(org.llm4people.hermes.R.string.ws_cancel);
+        cancelButton.setContentDescription(activity.getString(org.llm4people.hermes.R.string.ws_liveui_undo_a11y));
         setVisibility(VISIBLE);
     }
 
@@ -167,12 +168,12 @@ public final class LiveUiPatchBar extends LinearLayout {
         Context c = activity;
         LinearLayout body = Ui.column(c);
         Ui.pad(body, 18, 10);
-        TextView intro = Ui.text(c, patch.summary, 16);
+        TextView intro = Ui.text(c, patch.displaySummary(c), 16);
         intro.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         body.addView(intro);
 
         for (LiveUiPatch.Op op : patch.ops) {
-            TextView item = Ui.text(c, "• " + op.frenchDescription(), 15);
+            TextView item = Ui.text(c, "• " + op.describe(c), 15);
             item.setPadding(0, Ui.dp(c, 6), 0, Ui.dp(c, 4));
             body.addView(item);
             if (op instanceof LiveUiPatch.Op.UpsertSurface up) {
@@ -189,10 +190,10 @@ public final class LiveUiPatchBar extends LinearLayout {
         ScrollView scroll = new ScrollView(c);
         scroll.addView(body);
         DeskDialogs.open(activity, new AlertDialog.Builder(activity)
-                .setTitle("Aperçu de l’amélioration")
+                .setTitle(org.llm4people.hermes.R.string.ws_liveui_preview_title)
                 .setView(scroll)
-                .setNegativeButton("Fermer", null)
-                .setPositiveButton("Appliquer", (d, w) -> applyCurrent()));
+                .setNegativeButton(org.llm4people.hermes.R.string.ws_close, null)
+                .setPositiveButton(org.llm4people.hermes.R.string.ws_apply, (d, w) -> applyCurrent()));
     }
 
     private void addColorSwatch(LinearLayout parent, ThemePalette.OverrideSpec spec) {
@@ -207,7 +208,10 @@ public final class LiveUiPatchBar extends LinearLayout {
         swatch.setBackground(chip);
         row.addView(swatch, new LinearLayout.LayoutParams(Ui.dp(c, 28), Ui.dp(c, 28)));
         double contrast = ThemePalette.contrastRatio(preview.accent, preview.paper);
-        TextView info = Ui.text(c, "Contraste vérifié (" + String.format(java.util.Locale.FRANCE, "%.1f", contrast) + " : 1)", 14);
+        java.util.Locale locale = c.getResources().getConfiguration().getLocales().isEmpty()
+                ? java.util.Locale.getDefault() : c.getResources().getConfiguration().getLocales().get(0);
+        TextView info = Ui.text(c, c.getString(org.llm4people.hermes.R.string.ws_liveui_contrast_verified,
+                String.format(locale, "%.1f", contrast)), 14);
         info.setTextColor(preview.muted);
         info.setPaddingRelative(Ui.dp(c, 10), 0, 0, 0);
         row.addView(info);
@@ -266,9 +270,9 @@ public final class LiveUiPatchBar extends LinearLayout {
             bg.setColor(colors.accentSurface);
             bg.setStroke(Math.max(1, Ui.dp(context, 1)), colors.line);
             chip.setBackground(bg);
-            chip.setContentDescription(action.draft != null
-                    ? action.label + ", préparer un brouillon"
-                    : action.label + ", ouvrir");
+            chip.setContentDescription(context.getString(action.draft != null
+                    ? org.llm4people.hermes.R.string.ws_liveui_chip_draft_a11y
+                    : org.llm4people.hermes.R.string.ws_liveui_chip_open_a11y, action.label));
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
             lp.setMarginEnd(Ui.dp(context, 6));
             row.addView(chip, lp);
@@ -304,7 +308,8 @@ public final class LiveUiPatchBar extends LinearLayout {
                 ? ThemePalette.resolve(ThemePalette.OverrideSpec.defaults(), ThemePalette.isNight(context))
                 : palette;
         Ui.pad(container, 18, 6);
-        TextView heading = Ui.text(context, "Actions rapides suggérées", colors.scaledSp(13));
+        TextView heading = Ui.text(context,
+                context.getString(org.llm4people.hermes.R.string.ws_liveui_suggested_heading), colors.scaledSp(13));
         heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         heading.setTextColor(colors.muted);
         heading.setPadding(0, 0, 0, Ui.dp(context, 4));
@@ -331,9 +336,9 @@ public final class LiveUiPatchBar extends LinearLayout {
             bg.setColor(colors.surface);
             bg.setStroke(Math.max(1, Ui.dp(context, 1)), colors.line);
             chip.setBackground(bg);
-            chip.setContentDescription(item.draft != null
-                    ? item.label + ", préparer un brouillon"
-                    : item.label + ", ouvrir");
+            chip.setContentDescription(context.getString(item.draft != null
+                    ? org.llm4people.hermes.R.string.ws_liveui_chip_draft_a11y
+                    : org.llm4people.hermes.R.string.ws_liveui_chip_open_a11y, item.label));
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
             lp.setMarginEnd(Ui.dp(context, 6));
             row.addView(chip, lp);
@@ -349,20 +354,20 @@ public final class LiveUiPatchBar extends LinearLayout {
         List<LiveUiPatch.StateManager.AppliedRevision> revs = manager.history();
         if (revs.isEmpty()) {
             return DeskDialogs.open(activity, new AlertDialog.Builder(activity)
-                    .setTitle("Historique des modifications")
-                    .setMessage("Aucune modification d’écran en cours dans ce profil.")
-                    .setPositiveButton("Fermer", null));
+                    .setTitle(org.llm4people.hermes.R.string.ws_art_change_history)
+                    .setMessage(org.llm4people.hermes.R.string.ws_liveui_history_empty)
+                    .setPositiveButton(org.llm4people.hermes.R.string.ws_close, null));
         }
         String[] labels = new String[revs.size()];
         String[] ids = new String[revs.size()];
         for (int i = 0; i < revs.size(); i++) {
             LiveUiPatch.StateManager.AppliedRevision rev = revs.get(revs.size() - 1 - i);
-            labels[i] = rev.summary;
+            labels[i] = rev.summary.isEmpty() ? rev.revisionId : rev.summary;
             ids[i] = rev.revisionId;
         }
         return DeskDialogs.open(activity, new AlertDialog.Builder(activity)
-                .setTitle("Revenir avant une modification")
+                .setTitle(org.llm4people.hermes.R.string.ws_liveui_history_revert_title)
                 .setItems(labels, (d, which) -> onRevert.accept(ids[which]))
-                .setNegativeButton("Fermer", null));
+                .setNegativeButton(org.llm4people.hermes.R.string.ws_close, null));
     }
 }

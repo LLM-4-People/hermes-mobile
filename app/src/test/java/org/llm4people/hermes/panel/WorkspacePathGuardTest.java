@@ -1,6 +1,7 @@
 package org.llm4people.hermes.panel;
 
 import org.junit.Test;
+import org.llm4people.hermes.R;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -54,8 +55,8 @@ public final class WorkspacePathGuardTest {
         assertEquals("java", WorkspacePathGuard.inferLanguage("Main.java", ""));
         assertEquals("python", WorkspacePathGuard.inferLanguage("tool.py", null));
         assertEquals("yaml", WorkspacePathGuard.inferLanguage("file.txt", "YAML"));
-        assertEquals("Modifié", WorkspacePathGuard.gitStatusLabel("M"));
-        assertEquals("Ajouté", WorkspacePathGuard.gitStatusLabel("??"));
-        assertEquals("Supprimé", WorkspacePathGuard.gitStatusLabel("deleted"));
+        assertEquals(R.string.ws_git_modified, WorkspacePathGuard.gitStatusLabelRes("M"));
+        assertEquals(R.string.ws_git_added, WorkspacePathGuard.gitStatusLabelRes("??"));
+        assertEquals(R.string.ws_git_deleted, WorkspacePathGuard.gitStatusLabelRes("deleted"));
     }
 }

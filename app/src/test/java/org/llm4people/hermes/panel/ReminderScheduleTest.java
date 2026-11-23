@@ -1,6 +1,7 @@
 package org.llm4people.hermes.panel;
 
 import org.junit.Test;
+import org.llm4people.hermes.R;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
@@ -27,23 +28,32 @@ public final class ReminderScheduleTest {
         assertFalse(once.isRecurring());
         assertEquals("2026-11-25T09:15+01:00", once.toGatewaySchedule(PARIS));
         assertNull(once.validationError(NOW, PARIS));
-        assertTrue(once.humanSummary(Locale.FRENCH).contains("09 h 15"));
+        ReminderSchedule.SummarySpec onceSpec = once.summarySpec(Locale.FRENCH, "09 h 15");
+        assertEquals(R.string.ws_sched_once, onceSpec.resId());
+        assertEquals("09 h 15", onceSpec.args()[1]);
 
         ReminderSchedule daily = once.withPreset(ReminderSchedule.Preset.DAILY).withTime(LocalTime.of(8, 30));
         assertTrue(daily.isRecurring());
         assertEquals("30 8 * * *", daily.toGatewaySchedule(PARIS));
-        assertEquals("Chaque jour à 08 h 30", daily.humanSummary(Locale.FRENCH));
+        ReminderSchedule.SummarySpec dailySpec = daily.summarySpec(Locale.FRENCH, "08 h 30");
+        assertEquals(R.string.ws_sched_daily, dailySpec.resId());
+        assertEquals("08 h 30", dailySpec.args()[0]);
         assertNull(daily.validationError(NOW, PARIS));
 
         ReminderSchedule weekdays = once.withPreset(ReminderSchedule.Preset.WEEKDAYS).withTime(LocalTime.of(9, 0));
         assertEquals("0 9 * * 1-5", weekdays.toGatewaySchedule(PARIS));
-        assertEquals("Du lundi au vendredi à 09 h 00", weekdays.humanSummary(Locale.FRENCH));
+        ReminderSchedule.SummarySpec weekdaysSpec = weekdays.summarySpec(Locale.FRENCH, "09 h 00");
+        assertEquals(R.string.ws_sched_weekdays, weekdaysSpec.resId());
+        assertEquals("09 h 00", weekdaysSpec.args()[0]);
 
         ReminderSchedule weekly = once.withPreset(ReminderSchedule.Preset.WEEKLY)
                 .withWeeklyDay(DayOfWeek.SUNDAY)
                 .withTime(LocalTime.of(18, 45));
         assertEquals("45 18 * * 0", weekly.toGatewaySchedule(PARIS));
-        assertEquals("Chaque dimanche à 18 h 45", weekly.humanSummary(Locale.FRENCH));
+        ReminderSchedule.SummarySpec weeklySpec = weekly.summarySpec(Locale.FRENCH, "18 h 45");
+        assertEquals(R.string.ws_sched_weekly, weeklySpec.resId());
+        assertEquals("dimanche", weeklySpec.args()[0]);
+        assertEquals("18 h 45", weeklySpec.args()[1]);
 
         ReminderSchedule customDays = new ReminderSchedule(
                 ReminderSchedule.Preset.CUSTOM,
@@ -55,12 +65,16 @@ public final class ReminderScheduleTest {
                 30,
                 "");
         assertEquals("5 14 * * 1,3,5", customDays.toGatewaySchedule(PARIS));
-        assertEquals("Lun, Mer, Ven à 14 h 05", customDays.humanSummary(Locale.FRENCH));
+        ReminderSchedule.SummarySpec customDaysSpec = customDays.summarySpec(Locale.FRENCH, "14 h 05");
+        assertEquals(R.string.ws_sched_custom_days, customDaysSpec.resId());
+        assertEquals("14 h 05", customDaysSpec.args()[1]);
         assertNull(customDays.validationError(NOW, PARIS));
 
         ReminderSchedule customInterval = customDays.withCustomIntervalMode(true).withIntervalMinutes(45);
         assertEquals("45m", customInterval.toGatewaySchedule(PARIS));
-        assertEquals("Toutes les 45 minutes", customInterval.humanSummary(Locale.FRENCH));
+        ReminderSchedule.SummarySpec intervalSpec = customInterval.summarySpec(Locale.FRENCH, null);
+        assertEquals(R.string.ws_sched_interval_mins, intervalSpec.resId());
+        assertEquals(45, intervalSpec.args()[0]);
         assertNull(customInterval.validationError(NOW, PARIS));
     }
 
@@ -92,7 +106,9 @@ public final class ReminderScheduleTest {
         assertEquals(ReminderSchedule.Preset.CUSTOM, pHours.preset);
         assertTrue(pHours.customIntervalMode);
         assertEquals(120, pHours.intervalMinutes);
-        assertEquals("Toutes les 2 heures", pHours.humanSummary(Locale.FRENCH));
+        ReminderSchedule.SummarySpec hoursSpec = pHours.summarySpec(Locale.FRENCH, null);
+        assertEquals(R.string.ws_sched_interval_hours, hoursSpec.resId());
+        assertEquals(2, hoursSpec.args()[0]);
 
         ReminderSchedule pAdvanced = ReminderSchedule.parse("*/15 9-17 * * 1-5", PARIS, NOW);
         assertEquals(ReminderSchedule.Preset.ADVANCED, pAdvanced.preset);

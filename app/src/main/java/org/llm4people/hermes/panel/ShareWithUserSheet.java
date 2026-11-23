@@ -1,6 +1,7 @@
 package org.llm4people.hermes.panel;
 
 import android.app.AlertDialog;
+import android.content.Context;
 import android.graphics.Typeface;
 import android.view.View;
 import android.widget.Button;
@@ -45,7 +46,7 @@ public final class ShareWithUserSheet {
         new IncomingController(panel, stageDraft, parent).show();
     }
 
-    static String extractReadableContent(JSONObject reply) {
+    static String extractReadableContent(Context context, JSONObject reply) {
         if (reply == null) return "";
         for (String key : new String[]{"raw", "body", "content", "text", "text_preview", "markdown"}) {
             Object val = reply.opt(key);
@@ -54,7 +55,7 @@ public final class ShareWithUserSheet {
             }
         }
         if (reply.optBoolean("is_binary", false)) {
-            return formatBinarySummary(reply);
+            return formatBinarySummary(context, reply);
         }
         Object spec = reply.opt("spec");
         if (spec instanceof JSONObject || spec instanceof org.json.JSONArray) {
@@ -65,12 +66,12 @@ public final class ShareWithUserSheet {
         }
         JSONObject nestedContent = reply.optJSONObject("content");
         if (nestedContent != null) {
-            String extracted = extractReadableContent(nestedContent);
+            String extracted = extractReadableContent(context, nestedContent);
             if (!extracted.isEmpty()) return extracted;
         }
         JSONObject nestedData = reply.optJSONObject("data");
         if (nestedData != null) {
-            String extracted = extractReadableContent(nestedData);
+            String extracted = extractReadableContent(context, nestedData);
             if (!extracted.isEmpty()) return extracted;
         }
         org.json.JSONArray messages = reply.optJSONArray("messages");
@@ -79,7 +80,7 @@ public final class ShareWithUserSheet {
             for (int i = 0; i < messages.length(); i++) {
                 JSONObject row = messages.optJSONObject(i);
                 if (row == null) continue;
-                String role = SearchResultModel.roleLabel(PanelData.text(row, "role"));
+                String role = SearchResultModel.roleLabel(context, PanelData.text(row, "role"));
                 String text = PanelData.text(row, "content");
                 if (text.isEmpty()) continue;
                 if (transcript.length() > 0) transcript.append("\n\n");
@@ -92,7 +93,7 @@ public final class ShareWithUserSheet {
         return title.isEmpty() ? "" : title;
     }
 
-    private static String formatBinarySummary(JSONObject reply) {
+    private static String formatBinarySummary(Context context, JSONObject reply) {
         String filename = PanelData.text(reply, "filename");
         if (filename.isEmpty()) filename = PanelData.text(reply, "name");
         if (filename.isEmpty()) filename = PanelData.text(reply, "title");
@@ -106,9 +107,9 @@ public final class ShareWithUserSheet {
         }
         if (size >= 0) {
             if (out.length() > 0) out.append(" · ");
-            out.append(size).append(" octets");
+            out.append(context.getString(R.string.ws_share_bytes, size));
         }
-        return out.length() > 0 ? out.toString() : "Fichier binaire";
+        return out.length() > 0 ? out.toString() : context.getString(R.string.ws_share_binary_file);
     }
 
     private static String prettyPrintSpec(Object spec) {
@@ -141,7 +142,7 @@ public final class ShareWithUserSheet {
 
         void show() {
             LinearLayout page = panel.page("brain_share", R.string.brain_share_title, parent);
-            panel.note(page, UniversalShareModel.kindLabel(kind) + " · " + label);
+            panel.note(page, UniversalShareModel.kindLabel(panel.activity, kind) + " · " + label);
             body = Ui.column(panel.activity);
             page.addView(body);
             load();
@@ -183,8 +184,8 @@ public final class ShareWithUserSheet {
                 String targetProfile;
                 try {
                     targetProfile = UniversalShareModel.validateTargetProfile(profileField.getText().toString());
-                } catch (IllegalArgumentException invalid) {
-                    TextView err = BrainUi.liveNote(panel, feedback, invalid.getMessage());
+                } catch (LocalizedInputException invalid) {
+                    TextView err = BrainUi.liveNote(panel, feedback, invalid.resolve(panel.activity));
                     err.setTextColor(panel.activity.getColor(R.color.danger));
                     return;
                 }
@@ -215,7 +216,7 @@ public final class ShareWithUserSheet {
                 who.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
                 top.addView(who, new LinearLayout.LayoutParams(0, -2, 1));
                 top.addView(BrainUi.badge(panel.activity,
-                        UniversalShareModel.permissionLabel(grant.permission()), true));
+                        UniversalShareModel.permissionLabel(panel.activity, grant.permission()), true));
                 card.addView(top);
 
                 Button revoke = Ui.button(panel.activity, panel.t(R.string.brain_share_revoke),
@@ -234,7 +235,7 @@ public final class ShareWithUserSheet {
         }
 
         private View permChip(String perm) {
-            return BrainUi.chip(panel.activity, UniversalShareModel.permissionLabel(perm),
+            return BrainUi.chip(panel.activity, UniversalShareModel.permissionLabel(panel.activity, perm),
                     perm.equals(selectedPermission), () -> {
                         selectedPermission = perm;
                         renderPermissionChips();
@@ -253,7 +254,8 @@ public final class ShareWithUserSheet {
         private void handleError(Exception error, Runnable retry) {
             if (error instanceof HermesApi.HttpError http) {
                 Diagnostics.warning("sharing", "http_error", "http_" + http.status);
-                BrainUi.liveNote(panel, body, UniversalShareModel.describeHttpError(http.status, http.code));
+                BrainUi.liveNote(panel, body,
+                        UniversalShareModel.describeHttpError(panel.activity, http.status, http.code));
                 if (retry != null) panel.action(body, R.string.panel_retry, retry);
             } else {
                 Diagnostics.warning("sharing", "request_failed", error);
@@ -264,7 +266,8 @@ public final class ShareWithUserSheet {
         private void handleErrorInto(LinearLayout target, Exception error) {
             if (error instanceof HermesApi.HttpError http) {
                 Diagnostics.warning("sharing", "grant_http_error", "http_" + http.status);
-                BrainUi.liveNote(panel, target, UniversalShareModel.describeHttpError(http.status, http.code));
+                BrainUi.liveNote(panel, target,
+                        UniversalShareModel.describeHttpError(panel.activity, http.status, http.code));
             } else {
                 Diagnostics.warning("sharing", "grant_failed", error);
                 panel.failure(target, error, null);
@@ -300,13 +303,13 @@ public final class ShareWithUserSheet {
         private void renderFilters() {
             filterRow.removeAllViews();
             filterRow.addView(filterChip("", panel.t(R.string.brain_skills_all_categories)));
-            filterRow.addView(filterChip(UniversalShareModel.KIND_NOTE, "Notes"));
-            filterRow.addView(filterChip(UniversalShareModel.KIND_SKILL, "Savoir-faire"));
-            filterRow.addView(filterChip(UniversalShareModel.KIND_SESSION, "Discussions"));
-            filterRow.addView(filterChip(UniversalShareModel.KIND_TOOL, "Outils"));
-            filterRow.addView(filterChip(UniversalShareModel.KIND_SURFACE, "Écrans"));
-            filterRow.addView(filterChip(UniversalShareModel.KIND_WIDGET, "Widgets"));
-            filterRow.addView(filterChip(UniversalShareModel.KIND_ARTIFACT, "Artefacts"));
+            filterRow.addView(filterChip(UniversalShareModel.KIND_NOTE, panel.t(R.string.ws_share_filter_notes)));
+            filterRow.addView(filterChip(UniversalShareModel.KIND_SKILL, panel.t(R.string.ws_share_filter_skills)));
+            filterRow.addView(filterChip(UniversalShareModel.KIND_SESSION, panel.t(R.string.ws_share_filter_sessions)));
+            filterRow.addView(filterChip(UniversalShareModel.KIND_TOOL, panel.t(R.string.ws_share_filter_tools)));
+            filterRow.addView(filterChip(UniversalShareModel.KIND_SURFACE, panel.t(R.string.ws_share_filter_surfaces)));
+            filterRow.addView(filterChip(UniversalShareModel.KIND_WIDGET, panel.t(R.string.ws_share_filter_widgets)));
+            filterRow.addView(filterChip(UniversalShareModel.KIND_ARTIFACT, panel.t(R.string.ws_share_filter_artifacts)));
         }
 
         private View filterChip(String kind, String label) {
@@ -335,7 +338,8 @@ public final class ShareWithUserSheet {
             }, error -> {
                 if (error instanceof HermesApi.HttpError http) {
                     Diagnostics.warning("sharing", "incoming_http_error", "http_" + http.status);
-                    BrainUi.liveNote(panel, body, UniversalShareModel.describeHttpError(http.status, http.code));
+                    BrainUi.liveNote(panel, body,
+                            UniversalShareModel.describeHttpError(panel.activity, http.status, http.code));
                     panel.action(body, R.string.panel_retry, this::load);
                 } else {
                     Diagnostics.warning("sharing", "incoming_failed", error);
@@ -359,11 +363,12 @@ public final class ShareWithUserSheet {
 
                 LinearLayout badges = Ui.row(panel.activity);
                 badges.addView(BrainUi.badge(panel.activity,
-                        UniversalShareModel.kindLabel(grant.resourceKind()), true));
+                        UniversalShareModel.kindLabel(panel.activity, grant.resourceKind()), true));
                 badges.addView(BrainUi.badge(panel.activity,
-                        UniversalShareModel.permissionLabel(grant.permission()), false));
+                        UniversalShareModel.permissionLabel(panel.activity, grant.permission()), false));
                 if (!grant.ownerProfile().isEmpty()) {
-                    badges.addView(BrainUi.badge(panel.activity, "Par " + grant.ownerProfile(), false));
+                    badges.addView(BrainUi.badge(panel.activity,
+                            panel.t(R.string.ws_shared_by, grant.ownerProfile()), false));
                 }
                 badges.setPaddingRelative(0, Ui.dp(panel.activity, 6), 0, 0);
                 card.addView(badges);
@@ -385,21 +390,22 @@ public final class ShareWithUserSheet {
             panel.request(body, () -> panel.api.get("/api/shares/incoming/" + HermesApi.segment(safeId) + "/content"),
                     reply -> {
                         Diagnostics.event("sharing", "content_opened");
-                        String text = extractReadableContent(reply);
+                        String text = extractReadableContent(panel.activity, reply);
                         AlertDialog.Builder reader = CodeReader.dialog(panel.activity,
                                 grant.displayLabel(), "markdown", text);
                         if (stageDraft != null && !text.isEmpty()) {
                             reader.setPositiveButton(R.string.brain_skills_use_in_thread, (d, w) -> {
                                 panel.close();
-                                stageDraft.accept("Voici un élément partagé (« " + grant.displayLabel()
-                                        + " ») à prendre en compte :\n" + text);
+                                stageDraft.accept(panel.t(R.string.ws_share_draft_prompt,
+                                        grant.displayLabel(), text));
                             });
                         }
                         panel.present(reader.create());
                     }, error -> {
                         if (error instanceof HermesApi.HttpError http) {
                             Diagnostics.warning("sharing", "content_http_error", "http_" + http.status);
-                            BrainUi.liveNote(panel, body, UniversalShareModel.describeHttpError(http.status, http.code));
+                            BrainUi.liveNote(panel, body,
+                                    UniversalShareModel.describeHttpError(panel.activity, http.status, http.code));
                         } else {
                             Diagnostics.warning("sharing", "content_failed", error);
                             panel.failure(body, error, null);

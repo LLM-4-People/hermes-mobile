@@ -140,7 +140,7 @@ def verify_history(gateway, provider, create_request=CREATE):
             raise AssertionError("The provider did not receive a complete page with the three Android actions")
         if [{"type": "nearby_places", "category": "restaurant"}] not in named:
             raise AssertionError("The provider did not receive the source-backed restaurant guide example")
-        fallback = {"type": "device", "request": {"kind": "map_search", "query": "restaurants à Rosemont, Montréal"}}
+        fallback = {"type": "device", "request": {"kind": "map_search", "query": "restaurants in Rosemont, Montreal"}}
         if [fallback] not in named:
             raise AssertionError("The provider did not receive the named-neighborhood map-search example")
         surfaces = sorted(set(re.findall(r"\bsurface=(page/[a-z0-9_-]+)", instructions)))

@@ -48,16 +48,24 @@ public final class MetricGridBlock {
             this.source = source;
         }
 
-        public String formattedValue(String boundValue) {
-            String raw = source != null ? (boundValue == null || boundValue.isEmpty() ? "Indisponible" : boundValue)
-                    : (value.isEmpty() ? "Indisponible" : value);
-            if ("Indisponible".equals(raw) || unit.isEmpty()) return raw;
+        public String formattedValue(Context context, String boundValue) {
+            String fallback = context != null ? context.getString(org.llm4people.hermes.R.string.ws_unavailable) : "";
+            String raw = source != null ? (boundValue == null || boundValue.isEmpty() ? fallback : boundValue)
+                    : (value.isEmpty() ? fallback : value);
+            if (raw.isEmpty() || raw.equals(fallback) || unit.isEmpty()) return raw;
             return raw + " " + unit;
         }
 
-        public String accessibilityText(String boundValue) {
-            StringBuilder sb = new StringBuilder(label).append(", ").append(formattedValue(boundValue));
-            if (!delta.isEmpty()) sb.append(", variation ").append(delta);
+        public boolean isUnavailable(String boundValue) {
+            String raw = source != null ? boundValue : value;
+            return raw == null || raw.isEmpty();
+        }
+
+        public String accessibilityText(Context context, String boundValue) {
+            StringBuilder sb = new StringBuilder(label).append(", ").append(formattedValue(context, boundValue));
+            if (!delta.isEmpty()) {
+                sb.append(context.getString(org.llm4people.hermes.R.string.ws_metric_delta_a11y, delta));
+            }
             if (!provenance.isEmpty()) sb.append(", ").append(provenance);
             return sb.toString();
         }
@@ -205,9 +213,9 @@ public final class MetricGridBlock {
         }
 
         void apply(String boundValue) {
-            String display = item.formattedValue(boundValue);
+            String display = item.formattedValue(getContext(), boundValue);
             if (!display.contentEquals(getText())) setText(display);
-            setContentDescription(item.accessibilityText(boundValue));
+            setContentDescription(item.accessibilityText(getContext(), boundValue));
         }
 
         void refresh(ArtifactDesk.Host host) {

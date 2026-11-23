@@ -1,5 +1,7 @@
 package org.llm4people.hermes.panel;
 
+import org.llm4people.hermes.R;
+
 import java.text.Normalizer;
 import java.util.Locale;
 import java.util.regex.Pattern;
@@ -14,7 +16,9 @@ public final class ThreadActionModel {
 
     public record TurnChoice(long messageId, String speakerLabel, String preview, String sessionId) {
         public TurnChoice {
-            if (messageId <= 0) throw new IllegalArgumentException("Identifiant de message invalide");
+            if (messageId <= 0) {
+                throw new LocalizedInputException("invalid_message_id", R.string.ws_fork_err_message_id);
+            }
             speakerLabel = speakerLabel == null ? "" : speakerLabel.trim();
             preview = preview == null ? "" : preview.trim();
             sessionId = sessionId == null ? "" : sessionId.trim();
@@ -39,10 +43,12 @@ public final class ThreadActionModel {
     private ThreadActionModel() {}
 
     public static String validateExportFormat(String rawFormat) {
-        if (rawFormat == null) throw new IllegalArgumentException("Format d’exportation manquant");
+        if (rawFormat == null) {
+            throw new LocalizedInputException("export_format_missing", R.string.ws_export_err_format_missing);
+        }
         String lower = rawFormat.trim().toLowerCase(Locale.ROOT);
         if (FORMAT_MARKDOWN.equals(lower) || FORMAT_JSON.equals(lower)) return lower;
-        throw new IllegalArgumentException("Format d’exportation non pris en charge");
+        throw new LocalizedInputException("export_format_unsupported", R.string.ws_export_err_format_unsupported);
     }
 
     public static ExportSpec buildExportSpec(String threadTitle, String rawFormat) {
@@ -65,7 +71,9 @@ public final class ThreadActionModel {
 
     public static Long validateForkMessageId(Long upToMessageId) {
         if (upToMessageId == null) return null;
-        if (upToMessageId <= 0) throw new IllegalArgumentException("Identifiant de tour invalide");
+        if (upToMessageId <= 0) {
+            throw new LocalizedInputException("invalid_turn_id", R.string.ws_fork_err_turn_id);
+        }
         return upToMessageId;
     }
 }

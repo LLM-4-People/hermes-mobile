@@ -1,20 +1,30 @@
 package org.llm4people.hermes.artifact;
 
+import android.content.Context;
 import android.content.Intent;
 import android.provider.AlarmClock;
 import android.provider.ContactsContract;
-import junit.framework.TestCase;
+import android.test.InstrumentationTestCase;
+import org.llm4people.hermes.R;
 
 import java.io.IOException;
+import java.time.DayOfWeek;
+import java.time.format.TextStyle;
 import java.util.List;
+import java.util.Locale;
 
-public final class UniversalDeviceActionTest extends TestCase {
+@SuppressWarnings("deprecation")
+public final class UniversalDeviceActionTest extends InstrumentationTestCase {
     public void testAlarmAndTimerActionsKeepSkipUiFalse() throws Exception {
+        Context context = getInstrumentation().getTargetContext();
+        Locale locale = context.getResources().getConfiguration().getLocales().get(0);
         DeviceAction alarm = DeviceAction.parseJson(
                 "{\"kind\":\"set_alarm\",\"hour\":7,\"minute\":30,\"label\":\"Réveil\",\"days\":[2,3,4,5,6]}");
         assertEquals(DeviceAction.Kind.ALARM, alarm.kind());
-        assertTrue(alarm.preview().contains("07 h 30"));
-        assertTrue(alarm.preview().contains("Lun"));
+        String alarmPreview = alarm.preview(context);
+        assertTrue(alarmPreview, alarmPreview.contains("07") && alarmPreview.contains("30"));
+        String mon = DayOfWeek.MONDAY.getDisplayName(TextStyle.SHORT_STANDALONE, locale);
+        assertTrue(alarmPreview, alarmPreview.toLowerCase(locale).contains(mon.toLowerCase(locale).replace(".", "")));
         Intent alarmIntent = alarm.target();
         assertEquals(AlarmClock.ACTION_SET_ALARM, alarmIntent.getAction());
         assertEquals(7, alarmIntent.getIntExtra(AlarmClock.EXTRA_HOUR, -1));
@@ -25,7 +35,7 @@ public final class UniversalDeviceActionTest extends TestCase {
         DeviceAction timer = DeviceAction.parseJson(
                 "{\"kind\":\"set_timer\",\"seconds\":900,\"label\":\"Pâtes\"}");
         assertEquals(DeviceAction.Kind.TIMER, timer.kind());
-        assertTrue(timer.preview().contains("15 min"));
+        assertTrue(timer.preview(context).contains("15 min"));
         Intent timerIntent = timer.target();
         assertEquals(AlarmClock.ACTION_SET_TIMER, timerIntent.getAction());
         assertEquals(900, timerIntent.getIntExtra(AlarmClock.EXTRA_LENGTH, -1));
@@ -33,6 +43,7 @@ public final class UniversalDeviceActionTest extends TestCase {
     }
 
     public void testDialSmsEmailContactNavigationAndClipboardActions() throws Exception {
+        Context context = getInstrumentation().getTargetContext();
         DeviceAction dial = DeviceAction.parseJson("{\"kind\":\"dial_draft\",\"number\":\"+1 514-555-0100\"}");
         assertEquals(Intent.ACTION_DIAL, dial.target().getAction());
         assertTrue(dial.target().getDataString().startsWith("tel:"));
@@ -61,12 +72,12 @@ public final class UniversalDeviceActionTest extends TestCase {
         assertNotNull(nav.fallbackTarget());
         assertEquals(Intent.ACTION_VIEW, nav.fallbackTarget().getAction());
         assertTrue(nav.fallbackTarget().getDataString().startsWith("geo:0,0?q="));
-        assertTrue(nav.preview().contains("À pied"));
+        assertTrue(nav.preview(context).contains(context.getString(R.string.ws_dev_nav_walking)));
 
         DeviceAction clip = DeviceAction.parseJson("{\"kind\":\"copy_sensitive\",\"text\":\"CODE-1234\"}");
         assertEquals(DeviceAction.Kind.CLIPBOARD, clip.kind());
         assertNull(clip.target());
-        assertEquals("CODE-1234", clip.preview());
+        assertEquals("CODE-1234", clip.preview(context));
     }
 
     public void testRejectsInvalidOrUnsafeActionPayloads() {

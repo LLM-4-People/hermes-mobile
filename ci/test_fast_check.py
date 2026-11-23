@@ -44,7 +44,8 @@ class FastCheckTest(unittest.TestCase):
         self.assertNotIn("ci:test_signing", names)
         self.assertEqual(names[0], "docs")
         self.assertEqual(names[1], "writing-quality")
-        self.assertEqual(names[2:2 + len(expected_ci)], expected_ci)
+        self.assertEqual(names[2], "hardcoded-ui-strings")
+        self.assertEqual(names[3:3 + len(expected_ci)], expected_ci)
         self.assertEqual(names[-1], "gradle")
 
     def test_ci_only_runs_docs_and_every_ci_unittest_file_only(self):
@@ -54,7 +55,7 @@ class FastCheckTest(unittest.TestCase):
             for p in sorted((ROOT / "ci").glob("test_*.py"))
             if fast_check._has_unittest_cases(p)
         ]
-        self.assertEqual(names, ["docs", "writing-quality", *expected_ci])
+        self.assertEqual(names, ["docs", "writing-quality", "hardcoded-ui-strings", *expected_ci])
 
     def test_failure_in_any_suite_returns_nonzero(self):
         def fake_run(name, cmd):

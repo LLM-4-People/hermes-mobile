@@ -62,16 +62,16 @@ final class ThreadInstrumentJourney {
         ui.absent(open);
         ui.tap(ui.str(R.string.nav_atelier));
         ui.tap(ui.str(R.string.ws_my_screens));
-        ui.contains("Demandez à Hermes de créer un écran");
+        ui.contains(ui.str(R.string.ws_pages_empty));
         ui.absent(title);
         ui.tap(ui.str(R.string.nav_discussions));
         ui.tap(tryTool);
         ui.tap(pin);
         ui.see(form);
         ui.fill("Fichier", "facture.py");
-        ui.tap("Préparer un brouillon…");
-        ui.see("Relire le brouillon");
-        ui.tap("Vers le brouillon");
+        ui.tap(ui.str(R.string.ws_form_prepare_draft));
+        ui.see(ui.str(R.string.ws_form_review_title));
+        ui.tap(ui.str(R.string.ws_form_send_to_draft));
         ui.see(STAGED);
         ui.heading(first);
         ui.hideKeyboard();
@@ -81,9 +81,9 @@ final class ThreadInstrumentJourney {
         ui.see(form);
         send(revision, "La priorité est prête à comparer.");
         ui.tap(compare);
-        ui.contains("Consigne du brouillon", "Avant", "Relire ce changement.",
-                "Après", "Relire ce changement par priorité.");
-        ui.revealText("Champ ajouté", "Priorité");
+        ui.contains(ui.str(R.string.ws_diff_draft_prompt), ui.str(R.string.ws_diff_before), "Relire ce changement.",
+                ui.str(R.string.ws_diff_after), "Relire ce changement par priorité.");
+        ui.revealText(ui.str(R.string.ws_diff_field_added), "Priorité");
         ui.capture("22-comparaison-outil");
         ui.tap(tabProposed);
         String candidateFile = "facture/revue-proposee.py";
@@ -104,7 +104,7 @@ final class ThreadInstrumentJourney {
         if (!candidateFile.equals(ui.fieldText("Fichier")) || !"Élevée".equals(ui.fieldText("Priorité")))
             throw new AssertionError("Switching between revisions discarded the private candidate fields");
         ui.tap(tabDiff);
-        ui.contains("Champ ajouté", "Priorité");
+        ui.contains(ui.str(R.string.ws_diff_field_added), "Priorité");
         ui.tap(ui.str(R.string.instrument_keep));
         ui.see(form);
         ui.absent("Priorité");

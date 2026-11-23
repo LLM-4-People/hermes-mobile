@@ -16,6 +16,7 @@ import android.os.PersistableBundle;
 import android.view.View;
 import android.widget.Toast;
 import org.llm4people.hermes.Diagnostics;
+import org.llm4people.hermes.R;
 import org.llm4people.hermes.places.NearbyResult;
 
 import java.util.ArrayList;
@@ -69,11 +70,11 @@ public final class DeviceReview {
             return;
         }
         AlertDialog.Builder review = new AlertDialog.Builder(activity)
-                .setTitle(request.kind().title)
-                .setMessage(request.preview())
-                .setNegativeButton("Annuler", (dialog, which) -> fireCancelled.run())
+                .setTitle(request.kind().title(activity))
+                .setMessage(request.preview(activity))
+                .setNegativeButton(R.string.ws_cancel, (dialog, which) -> fireCancelled.run())
                 .setOnCancelListener(dialog -> fireCancelled.run())
-                .setPositiveButton(request.kind().open, (dialog, which) -> {
+                .setPositiveButton(request.kind().open(activity), (dialog, which) -> {
                     if (!((AlertDialog) dialog).isShowing() || !current.getAsBoolean()) {
                         fireUnavailable.run();
                         return;
@@ -107,9 +108,9 @@ public final class DeviceReview {
                             Diagnostics.warning("device_action", "app_unavailable", unavailable);
                         }
                         DeskDialogs.open(activity, host, new AlertDialog.Builder(activity)
-                                .setTitle("Application indisponible")
-                                .setMessage("Aucune application disponible ne peut ouvrir cette proposition.")
-                                .setPositiveButton("Fermer", null));
+                                .setTitle(R.string.ws_dev_app_unavailable_title)
+                                .setMessage(R.string.ws_dev_app_unavailable_message)
+                                .setPositiveButton(R.string.ws_close, null));
                         fireUnavailable.run();
                     }
                 });
@@ -124,19 +125,19 @@ public final class DeviceReview {
             Diagnostics.warning("device_action", "clipboard_unavailable");
             return false;
         }
-        ClipData clip = ClipData.newPlainText("Hermes Mobile", text);
+        ClipData clip = ClipData.newPlainText(activity.getString(R.string.app_name), text);
         PersistableBundle extras = new PersistableBundle();
         extras.putBoolean("android.content.extra.IS_SENSITIVE", true);
         clip.getDescription().setExtras(extras);
         try {
             clipboard.setPrimaryClip(clip);
             if (Build.VERSION.SDK_INT < 33) {
-                Toast.makeText(activity, "Copié dans le presse-papiers.", Toast.LENGTH_SHORT).show();
+                Toast.makeText(activity, R.string.ws_dev_copied, Toast.LENGTH_SHORT).show();
             }
             return true;
         } catch (RuntimeException failed) {
             Diagnostics.warning("device_action", "clipboard_copy_failed", failed);
-            Toast.makeText(activity, "Impossible de copier ce texte.", Toast.LENGTH_LONG).show();
+            Toast.makeText(activity, R.string.ws_dev_copy_failed, Toast.LENGTH_LONG).show();
             return false;
         }
     }
