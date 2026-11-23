@@ -1,10 +1,10 @@
 import unittest
 import xml.etree.ElementTree as ET
 
-from verification.nearby_journey import CONSENT, USE_LOCATION, choose_consent, open_consent
+from verification.nearby_journey import CONSENT, PROMPT, USE_LOCATION, choose_consent, enter_message, lock, open_consent
 from verification.nearby_location import (COARSE, answer_android_location, app_activity_stopped,
                                           location_access, public_city_fix)
-from verification.nearby_restaurants import enter_discussion
+from verification.nearby_restaurants import enter_discussion, matches_map_coordinate
 from verification.unifiedpush.ui import Screen
 
 
@@ -100,7 +100,9 @@ class NearbyLocationTest(unittest.TestCase):
             '<node text="Nouvelle conversation" content-desc="" resource-id="" class="android.widget.TextView" '
             'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[48,0][200,48]"/>'
             '<node text="Message à Hermes" content-desc="" resource-id="" class="android.widget.EditText" '
-            'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[12,560][240,620]"/>'
+            'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[12,560][210,620]"/>'
+            '<node text="Envoyer" content-desc="" resource-id="" class="android.widget.Button" '
+            'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[220,560][310,620]"/>'
             '</node>'
         )
         trees = iter([inbox, loading_chat, ready_chat])
@@ -118,6 +120,44 @@ class NearbyLocationTest(unittest.TestCase):
 
         enter_discussion(StubScreen())
         self.assertEqual(tapped, [("android.widget.Button", "Nouvelle conversation")])
+
+    def test_enter_discussion_and_enter_message_accept_restored_non_empty_draft(self):
+        restored_chat = ET.fromstring(
+            '<node text="" content-desc="" resource-id="" class="android.widget.FrameLayout" '
+            'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[0,0][320,640]">'
+            '<node text="Nouvelle conversation" content-desc="" resource-id="" class="android.widget.TextView" '
+            'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[48,0][200,48]"/>'
+            f'<node text="{PROMPT}" content-desc="" resource-id="" class="android.widget.EditText" '
+            'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[12,560][210,620]"/>'
+            '<node text="Envoyer" content-desc="" resource-id="" class="android.widget.Button" '
+            'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[220,560][310,620]"/>'
+            '</node>'
+        )
+        sent = []
+
+        class StubControls:
+            def send(self, *args, **kwargs):
+                sent.append((args, kwargs))
+                return b"applied"
+
+        class StubDevice:
+            def ime_shown(self):
+                return False
+
+        class StubScreen(Screen):
+            def __init__(self):
+                self.device = StubDevice()
+                self.controls = StubControls()
+
+            def hierarchy(self):
+                return restored_chat
+
+        ui = StubScreen()
+        enter_discussion(ui)
+        enter_message(ui, PROMPT)
+        self.assertEqual(sent, [])
+        enter_message(ui, "Autre question")
+        self.assertEqual(sent, [(("text",), {"label": PROMPT, "value": "Autre question"})])
 
     def test_answer_android_location_matches_google_controller_aosp_resource_id_and_scrolls(self):
         top_dialog = ET.fromstring(
@@ -248,7 +288,7 @@ class NearbyLocationTest(unittest.TestCase):
         choose_consent(StubScreen(), USE_LOCATION)
         self.assertEqual(taps, [USE_LOCATION, USE_LOCATION])
 
-    def test_open_consent_retries_send_tap_until_disclosure_dialog_appears(self):
+    def test_open_consent_dismisses_ime_and_retries_send_tap_until_disclosure_dialog_appears(self):
         composer = ET.fromstring(
             '<node text="" content-desc="" resource-id="" class="android.widget.FrameLayout" '
             'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[0,0][320,640]">'
@@ -265,8 +305,68 @@ class NearbyLocationTest(unittest.TestCase):
             'class="android.widget.TextView" package="org.llm4people.hermes" window-id="3" scrollable="false" bounds="[16,170][304,260]"/>'
             '</node>'
         )
-        trees = iter([composer, composer, consent_dialog])
-        taps = []
+        # First poll: IME reopened after PermissionController -> dismiss BACK;
+        # second & third polls: tap Envoyer until consent dialog opens.
+        trees = iter([composer, composer, composer, consent_dialog])
+        ime_states = iter([False, True, False, False, False])
+        actions = []
+
+        class StubDevice:
+            def ime_shown(self):
+                return next(ime_states)
+
+            def shell(self, *args):
+                actions.append(("shell", args))
+                return ""
+
+        class StubScreen(Screen):
+            def __init__(self):
+                self.device = StubDevice()
+
+            def hierarchy(self):
+                return next(trees)
+
+            def tap_node(self, node):
+                actions.append(("tap", node.get("text")))
+
+        open_consent(StubScreen())
+        self.assertEqual(actions, [
+            ("shell", ("input", "keyevent", "BACK")),
+            ("tap", "Envoyer"),
+            ("tap", "Envoyer"),
+        ])
+
+    def test_lock_scrolls_compact_overflow_menu_to_verrouiller_le_profil(self):
+        thread_screen = ET.fromstring(
+            '<node text="" content-desc="" resource-id="" class="android.widget.FrameLayout" '
+            'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[0,0][320,640]">'
+            '<node text="" content-desc="Autres actions" resource-id="" class="android.widget.ImageButton" '
+            'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[260,24][316,72]"/>'
+            '</node>'
+        )
+        menu_top = ET.fromstring(
+            '<node text="" content-desc="" resource-id="" class="android.widget.ListView" '
+            'package="org.llm4people.hermes" window-id="4" scrollable="true" bounds="[80,48][316,580]">'
+            '<node text="Joindre une image…" content-desc="" resource-id="" class="android.widget.TextView" '
+            'package="org.llm4people.hermes" window-id="4" scrollable="false" bounds="[88,60][308,108]"/>'
+            '</node>'
+        )
+        menu_bottom = ET.fromstring(
+            '<node text="" content-desc="" resource-id="" class="android.widget.ListView" '
+            'package="org.llm4people.hermes" window-id="4" scrollable="true" bounds="[80,48][316,580]">'
+            '<node text="Verrouiller le profil" content-desc="" resource-id="" class="android.widget.TextView" '
+            'package="org.llm4people.hermes" window-id="4" scrollable="false" bounds="[88,500][308,548]"/>'
+            '</node>'
+        )
+        profile_chooser = ET.fromstring(
+            '<node text="" content-desc="" resource-id="" class="android.widget.FrameLayout" '
+            'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[0,0][320,640]">'
+            '<node text="Choisir un profil" content-desc="" resource-id="" class="android.widget.TextView" '
+            'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[16,40][304,96]"/>'
+            '</node>'
+        )
+        trees = iter([thread_screen, menu_top, menu_top, menu_bottom, profile_chooser])
+        actions = []
 
         class StubScreen(Screen):
             def __init__(self):
@@ -275,11 +375,25 @@ class NearbyLocationTest(unittest.TestCase):
             def hierarchy(self):
                 return next(trees)
 
-            def tap_node(self, node):
-                taps.append(node.get("text"))
+            def scroll(self, root):
+                actions.append("scroll")
 
-        open_consent(StubScreen())
-        self.assertEqual(taps, ["Envoyer", "Envoyer"])
+            def tap_node(self, node):
+                actions.append(("tap", node.get("text") or node.get("content-desc")))
+
+        lock(StubScreen())
+        self.assertEqual(actions, [
+            ("tap", "Autres actions"),
+            "scroll",
+            ("tap", "Verrouiller le profil"),
+        ])
+
+    def test_matches_map_coordinate_handles_padded_decimals_and_dms_and_rejects_other_venues(self):
+        self.assertTrue(matches_map_coordinate("45.506,-73.57", 45.506, -73.57))
+        self.assertTrue(matches_map_coordinate("45.506000, -73.570000", 45.506, -73.57))
+        self.assertTrue(matches_map_coordinate('45°30\'21.6"N 73°34\'12.0"W', 45.506, -73.57))
+        self.assertFalse(matches_map_coordinate("45.511000, -73.570000", 45.506, -73.57))
+        self.assertFalse(matches_map_coordinate('45°30\'39.6"N 73°34\'12.0"W', 45.506, -73.57))
 
     def test_app_activity_stopped_waits_for_stopped_state_and_ignores_test_package(self):
         paused_dump = (

@@ -1,8 +1,11 @@
 """Public Android controls for one French, user-approved nearby restaurant conversation."""
 
+import json
 import re
+import sys
 
-from verification.nearby_location import answer_android_location
+from verification.nearby_location import answer_android_location, location_access
+from verification.phone_actions import focused
 from verification.unifiedpush.stack import eventually
 from verification.unifiedpush.ui import APP
 
@@ -15,21 +18,74 @@ FAILED = "Position indisponible · choisir un quartier ou continuer sans positio
 HEADING = "Restaurants dans la zone"
 
 
-def enter_message(ui, prompt=PROMPT):
-    ui.wait("Message à Hermes")
-    if ui.controls.send("text", label="Message à Hermes", value=prompt) != b"applied":
-        raise AssertionError("The public Android composer did not accept the French request")
+def dismiss_ime(ui):
     if ui.device.ime_shown():
         ui.device.shell("input", "keyevent", "BACK")
         eventually("soft keyboard to hide", lambda: not ui.device.ime_shown(), timeout=15)
 
 
+def enter_message(ui, prompt=PROMPT):
+    def composer():
+        tree = ui.hierarchy()
+        if ui.node("Envoyer", tree) is None:
+            return None
+        for node in tree.iter("node"):
+            if node.get("package") == APP and node.get("class") == "android.widget.EditText":
+                return (node,)
+        return None
+
+    field = eventually("visible composer editor", composer)[0]
+    current = field.get("text", "")
+    if current != prompt:
+        label = current or "Message à Hermes"
+        if ui.controls.send("text", label=label, value=prompt) != b"applied":
+            raise AssertionError("The public Android composer did not accept the French request")
+    dismiss_ime(ui)
+
+
 def open_consent(ui):
-    tree = ui.tap_until(
-        "Envoyer",
-        lambda root: root if ui.node(CONSENT, root) is not None else None,
-        description="visible control " + CONSENT,
-    )
+    dismiss_ime(ui)
+    taps = 0
+    ime_dismissals = 0
+    last_send_bounds = None
+
+    def opened():
+        nonlocal taps, ime_dismissals, last_send_bounds
+        root = ui.hierarchy()
+        if ui.node(CONSENT, root) is not None:
+            return (root,)
+        if ui.device.ime_shown():
+            ui.device.shell("input", "keyevent", "BACK")
+            ime_dismissals += 1
+            return None
+        send = ui.node("Envoyer", root)
+        if send is not None:
+            last_send_bounds = send.get("bounds")
+            ui.tap_node(send)
+            taps += 1
+        return None
+
+    print("Tap Envoyer", file=sys.stderr, flush=True)
+    try:
+        tree = eventually("visible control " + CONSENT, opened)[0]
+    except AssertionError:
+        root = ui.hierarchy()
+        packages = sorted({node.get("package", "") for node in root.iter("node") if node.get("package")})
+        print("Android open_consent " + json.dumps({
+            "focused": focused(ui.device),
+            "packages": packages,
+            "ime_shown": ui.device.ime_shown(),
+            "taps": taps,
+            "ime_dismissals": ime_dismissals,
+            "send_bounds": last_send_bounds,
+            "has_send": ui.node("Envoyer", root) is not None,
+            "has_failed": ui.node(FAILED, root) is not None,
+            "has_searching": ui.node("Recherche de la position…", root) is not None,
+            "has_lock_screen": ui.node("Choisir un profil", root) is not None,
+            "has_composer": ui.node("Message à Hermes", root) is not None,
+            "location_grant": location_access(ui.device),
+        }, sort_keys=True), file=sys.stderr, flush=True)
+        raise
     disclosed = [node.get("text", "") for node in tree.iter("node") if node.get("package") == APP]
     if not any("Hermes" in text and "OpenStreetMap" in text for text in disclosed):
         raise AssertionError("The message did not disclose both location recipients before consent")
@@ -76,12 +132,13 @@ def unlock(ui, label, phrase):
 def lock(ui):
     ui.tap_until(
         "Autres actions",
-        lambda root: ui.node("Verrouiller le profil", root) is not None,
-        description="overflow menu containing Verrouiller le profil",
+        lambda root: ui.node("Autres actions", root) is None or ui.node("Verrouiller le profil", root) is not None,
+        description="overflow menu opened from Autres actions",
     )
     ui.tap_until(
         "Verrouiller le profil",
         lambda root: ui.node("Choisir un profil", root) is not None,
+        scroll=True,
         description="visible control Choisir un profil",
     )
 
