@@ -152,31 +152,31 @@
           <article class="pillar-card">
             <div class="pillar-top">
               <span class="pillar-num">01</span>
-              <h3 data-fr="Interface adaptative, accès rapide &amp; modèles" data-en="Adaptive Shell, Quick Jump &amp; Everyday Workflows">Interface adaptative, accès rapide &amp; modèles</h3>
+              <h3 data-fr="Interface adaptative 4 onglets" data-en="Adaptive 4-Tab Phone & Tablet Shell">Interface adaptative 4 onglets</h3>
             </div>
-            <p data-fr="Barre inférieure sur téléphone (masquée au clavier sans perte de focus), rail latéral 92dp + double volet sur tablette, palette d’accès rapide (Ctrl+K) et modèles quotidiens chiffrés par profil (toujours préparés en brouillon éditable)."
-               data-en="IME-aware phone bottom bar, 92dp tablet rail and dual-pane sidebar, accent-insensitive Quick-Jump Command Palette (Ctrl+K / Cmd+K), and per-profile encrypted Everyday Workflows that strictly stage editable drafts.">Barre inférieure sur téléphone (masquée au clavier sans perte de focus), rail latéral 92dp + double volet sur tablette, palette d’accès rapide (Ctrl+K) et modèles quotidiens chiffrés par profil (toujours préparés en brouillon éditable).</p>
-            <div class="pillar-tags"><span class="tag">WorkspaceShell</span><span class="tag">CommandPalette</span><span class="tag">TemplatesPanel</span></div>
+            <p data-fr="Barre inférieure sur téléphone (masquée automatiquement à l’ouverture du clavier sans perte de focus) et rail latéral 92dp + double volet sur tablette, avec rotation et écran scindé en place."
+               data-en="Bottom navigation bar on phones (auto-hidden when the IME opens without dropping composer focus) and a 92dp NavigationRail + dual-pane layout on tablets with in-place rotation and split-screen.">Barre inférieure sur téléphone (masquée automatiquement à l’ouverture du clavier sans perte de focus) et rail latéral 92dp + double volet sur tablette, avec rotation et écran scindé en place.</p>
+            <div class="pillar-tags"><span class="tag">WorkspaceShell</span><span class="tag">AdaptiveNavBar</span><span class="tag">92dp rail</span></div>
           </article>
 
           <article class="pillar-card">
             <div class="pillar-top">
               <span class="pillar-num">02</span>
-              <h3 data-fr="Coffres chiffrés, biométrie &amp; anti-force brute" data-en="Encrypted Vaults, Biometrics &amp; Backoff">Coffres chiffrés, biométrie &amp; anti-force brute</h3>
+              <h3 data-fr="Biométrie matérielle &amp; délai de verrouillage" data-en="Hardware Biometrics &amp; Lock Grace">Biométrie matérielle &amp; délai de verrouillage</h3>
             </div>
-            <p data-fr="Coffres locaux AES-GCM par profil, biométrie matérielle AndroidKeyStore, délai exponentiel persistant après échecs de phrase secrète, révocation réseau immédiate et effacement atomique complet à l’oubli."
-               data-en="Per-profile AES-GCM local vaults, Class-3 AndroidKeyStore biometrics, persisted monotonic wrong-passphrase backoff, instant network revocation on lock, and atomic full-profile wipe on forget.">Coffres locaux AES-GCM par profil, biométrie matérielle AndroidKeyStore, délai exponentiel persistant après échecs de phrase secrète, révocation réseau immédiate et effacement atomique complet à l’oubli.</p>
-            <div class="pillar-tags"><span class="tag">BiometricVault</span><span class="tag">UnlockBackoff</span><span class="tag">FLAG_SECURE</span></div>
+            <p data-fr="Coffres locaux chiffrés par profil (phrase secrète ou biométrie AndroidKeyStore AES-GCM), nettoyage synchrone sur annulation, et fenêtre de grâce configurable avant reverrouillage."
+               data-en="Per-profile encrypted local vaults (passphrase or AndroidKeyStore AES-GCM biometrics), synchronous cancel cleanup, and configurable background lock-grace windows.">Coffres locaux chiffrés par profil (phrase secrète ou biométrie AndroidKeyStore AES-GCM), nettoyage synchrone sur annulation, et fenêtre de grâce configurable avant reverrouillage.</p>
+            <div class="pillar-tags"><span class="tag">BiometricVault</span><span class="tag">LockGracePolicy</span><span class="tag">FLAG_SECURE</span></div>
           </article>
 
           <article class="pillar-card">
             <div class="pillar-top">
               <span class="pillar-num">03</span>
-              <h3 data-fr="Tâches concurrentes &amp; diagnostic en direct" data-en="Concurrent Multi-Run &amp; Live Connection Doctor">Tâches concurrentes &amp; diagnostic en direct</h3>
+              <h3 data-fr="Intégration native Android 16" data-en="Android 16 Native OS Integration">Intégration native Android 16</h3>
             </div>
-            <p data-fr="Exécutez jusqu’à 8 discussions en parallèle par profil sans couper les flux SSE lors des changements de fil, suivez la progression dans Android 16 Live Updates, et vérifiez serveur, capacités, push et permissions dans Santé de la connexion (rapport expurgé)."
-               data-en="Run up to 8 concurrent discussions per profile without dropping live SSE streams on thread switch, monitor multi-task Android 16 Live Updates, and run 6 parallel health checks in Connection Doctor with a redacted safe report.">Exécutez jusqu’à 8 discussions en parallèle par profil sans couper les flux SSE lors des changements de fil, suivez la progression dans Android 16 Live Updates, et vérifiez serveur, capacités, push et permissions dans Santé de la connexion (rapport expurgé).</p>
-            <div class="pillar-tags"><span class="tag">ActiveRunTracker</span><span class="tag">ConnectionDoctor</span><span class="tag">Live Updates</span></div>
+            <p data-fr="Notifications de progression Live Updates, tuile Quick Settings « Demander à Hermes », raccourcis dynamiques et widgets d’écran d’accueil épinglables à la volée avec isolation stricte par profil."
+               data-en="Live Updates run-progress notifications, Quick Settings tile, dynamic app shortcuts, and on-the-fly pinned Home Screen widgets with strict per-profile ownership isolation.">Notifications de progression Live Updates, tuile Quick Settings « Demander à Hermes », raccourcis dynamiques et widgets d’écran d’accueil épinglables à la volée avec isolation stricte par profil.</p>
+            <div class="pillar-tags"><span class="tag">LiveRunNotification</span><span class="tag">HermesWidgetStore</span><span class="tag">QS Tile</span></div>
           </article>
 
           <article class="pillar-card">
@@ -242,11 +242,11 @@
           <article class="pillar-card">
             <div class="pillar-top">
               <span class="pillar-num">10</span>
-              <h3 data-fr="Un seul domaine HTTPS, performances &amp; FR / EN" data-en="Single HTTPS Host, Performance &amp; FR / EN">Un seul domaine HTTPS, performances &amp; FR / EN</h3>
+              <h3 data-fr="Un seul domaine HTTPS &amp; bilinguisme FR / EN" data-en="Single HTTPS Hostname &amp; Bilingual FR / EN">Un seul domaine HTTPS &amp; bilinguisme FR / EN</h3>
             </div>
-            <p data-fr="Une unique adresse HTTPS (/p/&lt;profil&gt;), coalescing de streaming 64ms, zéro allocation dans onDraw(), cache borné sous pression mémoire, APK release 1,83 Mio et parité stricte FR/EN (948 clés)."
-               data-en="One HTTPS hostname (/p/&lt;profile&gt;), 64ms frame-budgeted streaming coalescer, zero-alloc Canvas onDraw(), trim-aware bitmap/syntax caches, 1.83 MiB release APK, and strict 948/948 FR/EN string parity.">Une unique adresse HTTPS (/p/&lt;profil&gt;), coalescing de streaming 64ms, zéro allocation dans onDraw(), cache borné sous pression mémoire, APK release 1,83 Mio et parité stricte FR/EN (948 clés).</p>
-            <div class="pillar-tags"><span class="tag">/p/&lt;profile&gt;</span><span class="tag">948 FR/EN keys</span><span class="tag">1.83 MiB APK</span></div>
+            <p data-fr="Déployez toute une équipe ou famille sous une unique adresse HTTPS (/p/&lt;profil&gt;). L’application détecte automatiquement la langue de l’appareil (FR/EN) et la synchronise avec la passerelle."
+               data-en="Serve an entire team or household behind one HTTPS hostname (/p/&lt;profile&gt;). The app auto-detects device language (FR/EN) with 747/747 string parity and syncs preference to the gateway.">Déployez toute une équipe ou famille sous une unique adresse HTTPS (/p/&lt;profil&gt;). L’application détecte automatiquement la langue de l’appareil (FR/EN) et la synchronise avec la passerelle.</p>
+            <div class="pillar-tags"><span class="tag">/p/&lt;profile&gt;</span><span class="tag">747 FR/EN keys</span><span class="tag">Caddy TLS</span></div>
           </article>
         </div>
       </div>
@@ -392,28 +392,28 @@ docker compose -f "$HOME/.local/share/hermes-deploy/compose.json" up -d --build<
 
         <div class="facts-grid">
           <div class="fact-box">
-            <div class="fact-value">225 / 225</div>
-            <p class="fact-label" data-fr="Tests unitaires JVM (59 suites) — 0 échec" data-en="JVM unit tests (59 suites) — 0 failures">Tests unitaires JVM (59 suites) — 0 échec</p>
+            <div class="fact-value">190 / 190</div>
+            <p class="fact-label" data-fr="Tests unitaires JVM (51 suites) — 0 échec" data-en="JVM unit tests (51 suites) — 0 failures">Tests unitaires JVM (51 suites) — 0 échec</p>
           </div>
           <div class="fact-box">
-            <div class="fact-value">1.83 MiB</div>
-            <p class="fact-label" data-fr="APK Release minifié R8 avec ressources FR/EN" data-en="R8-minified Release APK with FR/EN resources">APK Release minifié R8 avec ressources FR/EN</p>
+            <div class="fact-value">145 / 145</div>
+            <p class="fact-label" data-fr="Tests instrumentés androidTest sur API 36 (50 classes)" data-en="Live API 36 androidTest instrumentation tests (50 classes)">Tests instrumentés androidTest sur API 36 (50 classes)</p>
           </div>
           <div class="fact-box">
-            <div class="fact-value">28 / 28</div>
-            <p class="fact-label" data-fr="Suites hôte fast_check.py (serveur, push, deploy, CI, docs)" data-en="Host fast_check.py suites (server, push, deploy, CI, docs)">Suites hôte fast_check.py (serveur, push, deploy, CI, docs)</p>
+            <div class="fact-value">27 / 27</div>
+            <p class="fact-label" data-fr="Suites hôte fast_check.py (serveur, push, deploy, docs)" data-en="Host fast_check.py suites (server, push, deploy, docs)">Suites hôte fast_check.py (serveur, push, deploy, docs)</p>
           </div>
           <div class="fact-box">
             <div class="fact-value">API 28–36</div>
             <p class="fact-label" data-fr="Android 9 à Android 16, zéro WebView" data-en="Android 9 through Android 16, zero WebView">Android 9 à Android 16, zéro WebView</p>
           </div>
           <div class="fact-box">
-            <div class="fact-value">948 / 948</div>
+            <div class="fact-value">747 / 747</div>
             <p class="fact-label" data-fr="Parité stricte des chaînes FR / EN" data-en="Strict FR / EN string resource key parity">Parité stricte des chaînes FR / EN</p>
           </div>
           <div class="fact-box">
-            <div class="fact-value">8×</div>
-            <p class="fact-label" data-fr="Discussions concurrentes simultanées par profil" data-en="Concurrent active discussions per profile">Discussions concurrentes simultanées par profil</p>
+            <div class="fact-value">0ae4511b</div>
+            <p class="fact-label" data-fr="Révision épinglée LLM-4-People/hermes-agent" data-en="Pinned LLM-4-People/hermes-agent revision">Révision épinglée LLM-4-People/hermes-agent</p>
           </div>
         </div>
       </div>
