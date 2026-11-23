@@ -1,6 +1,7 @@
 package org.llm4people.hermes.thread;
 
 import android.os.Handler;
+import android.os.Looper;
 
 import org.json.JSONObject;
 import org.llm4people.hermes.Diagnostics;
@@ -76,8 +77,53 @@ public final class ActiveRunTracker {
         }
     }
 
+    /** Main-looper callback dispatcher owned exclusively by {@link ActiveRunTracker}. */
+    interface CallbackPoster {
+        void post(Runnable action);
+        void clearPending();
+    }
+
+    private static final class MainLooperPoster implements CallbackPoster {
+        private Handler handler;
+
+        @Override
+        public synchronized void post(Runnable action) {
+            if (action == null) return;
+            Handler target = ensureHandler();
+            if (target != null) {
+                target.post(action);
+            }
+        }
+
+        @Override
+        public synchronized void clearPending() {
+            if (handler != null) {
+                handler.removeCallbacksAndMessages(null);
+            }
+        }
+
+        private Handler ensureHandler() {
+            if (handler == null) {
+                Looper looper = Looper.getMainLooper();
+                if (looper != null) {
+                    handler = new Handler(looper);
+                }
+            }
+            return handler;
+        }
+    }
+
+    private final CallbackPoster callbackPoster;
     private final Map<String, Entry> tasks = new LinkedHashMap<>();
     private long nextToken;
+
+    public ActiveRunTracker() {
+        this(new MainLooperPoster());
+    }
+
+    ActiveRunTracker(CallbackPoster callbackPoster) {
+        this.callbackPoster = Objects.requireNonNull(callbackPoster, "callbackPoster");
+    }
 
     /** True when {@code sessionId} is already tracked or another concurrent slot is available. */
     public synchronized boolean canStart(String sessionId) {
@@ -140,6 +186,8 @@ public final class ActiveRunTracker {
     /**
      * Detaches a live foreground run into a background SSE watcher when the user switches to another
      * discussion within the same unlocked profile. Strictly fenced by {@code expectedEpoch}.
+     * Callbacks always post onto {@link ActiveRunTracker}'s dedicated main-looper {@link Handler}
+     * (never the caller's workspace {@code main} handler) so screen switches cannot cancel them.
      */
     boolean moveToBackground(
             String sessionId,
@@ -149,7 +197,7 @@ public final class ActiveRunTracker {
             LiveRunNotification.Snapshot lastProgress,
             HermesApi api,
             ExecutorService runStreams,
-            Handler main,
+            Handler ignoredWorkspaceMain,
             IntSupplier currentEpoch,
             int expectedEpoch,
             Runnable onStateChanged) {
@@ -186,7 +234,7 @@ public final class ActiveRunTracker {
 
         RunFollower bgFollower = new RunFollower(api, runId, receipt, -1L, new RunFollower.Listener() {
             private void postIfCurrent(Runnable action) {
-                main.post(() -> {
+                dispatchBackgroundCallback(() -> {
                     if (currentEpoch.getAsInt() != expectedEpoch) return;
                     synchronized (ActiveRunTracker.this) {
                         if (tasks.get(sessionId) != entry || !entry.backgrounded || entry.bgToken != token) return;
@@ -338,6 +386,11 @@ public final class ActiveRunTracker {
             closeBackgroundHandle(entry, true);
         }
         tasks.clear();
+        callbackPoster.clearPending();
+    }
+
+    void dispatchBackgroundCallback(Runnable action) {
+        callbackPoster.post(action);
     }
 
     /** Immutable per-session active badges for rendering in the Discussions list. */

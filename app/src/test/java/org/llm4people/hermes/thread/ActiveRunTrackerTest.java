@@ -3,7 +3,10 @@ package org.llm4people.hermes.thread;
 import org.junit.Test;
 import org.llm4people.hermes.os.LiveRunNotification;
 
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -85,5 +88,42 @@ public final class ActiveRunTrackerTest {
         assertTrue(tracker.badges().isEmpty());
         assertNull(tracker.mostRecentStoppableSession());
         assertFalse(tracker.aggregateSnapshot().active());
+    }
+
+    @Test
+    public void dedicatedCallbackPosterSurvivesExternalWorkspaceClearsAndClearsOnlyOnStopAllWatchers() {
+        Deque<Runnable> trackerQueue = new ArrayDeque<>();
+        Deque<Runnable> unrelatedWorkspaceQueue = new ArrayDeque<>();
+        AtomicInteger clearCalls = new AtomicInteger();
+
+        ActiveRunTracker tracker = new ActiveRunTracker(new ActiveRunTracker.CallbackPoster() {
+            @Override public void post(Runnable action) { trackerQueue.addLast(action); }
+            @Override public void clearPending() {
+                clearCalls.incrementAndGet();
+                trackerQueue.clear();
+            }
+        });
+
+        AtomicInteger executed = new AtomicInteger();
+        tracker.dispatchBackgroundCallback(executed::incrementAndGet);
+        unrelatedWorkspaceQueue.addLast(() -> executed.addAndGet(100));
+
+        // Simulating ThreadWorkspace.switchScreen() wiping its own Handler queue must NOT drop tracker callbacks.
+        unrelatedWorkspaceQueue.clear();
+        assertEquals(1, trackerQueue.size());
+        assertEquals(0, clearCalls.get());
+        trackerQueue.removeFirst().run();
+        assertEquals(1, executed.get());
+
+        // Queuing another callback and calling stopAllWatchers() must cancel pending background callbacks.
+        tracker.markBackgrounded("s1", "r1", new LiveRunNotification.Snapshot(
+                LiveRunNotification.Phase.WORKING, 0, 0, false, true));
+        tracker.dispatchBackgroundCallback(executed::incrementAndGet);
+        assertEquals(1, trackerQueue.size());
+
+        tracker.stopAllWatchers();
+        assertEquals(1, clearCalls.get());
+        assertTrue("stopAllWatchers must clear queued background callbacks", trackerQueue.isEmpty());
+        assertEquals(1, executed.get());
     }
 }

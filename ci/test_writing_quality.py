@@ -111,6 +111,46 @@ String label = "Activité";
             self.assertEqual(len(issues), 1)
             self.assertIn("AI cliché", issues[0])
 
+    def test_android_xml_scans_plurals_and_string_arrays_and_respects_translatable_false(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            en_dir = root / "app/src/main/res/values-en"
+            en_dir.mkdir(parents=True)
+            xml_path = en_dir / "plurals_and_arrays.xml"
+            xml_path.write_text(
+                '<resources>'
+                '<plurals name="clean_runs">'
+                '  <item quantity="one">%d active task</item>'
+                '  <item quantity="other">%d active tasks</item>'
+                '</plurals>'
+                '<plurals name="dirty_runs">'
+                '  <item quantity="one">Open Activité for %d task</item>'
+                '  <item quantity="other">%d tasks running seamlessly</item>'
+                '</plurals>'
+                '<plurals name="skip_plurals" translatable="false">'
+                '  <item quantity="other">delve tapestry Activité</item>'
+                '</plurals>'
+                '<string-array name="clean_labels">'
+                '  <item>Home</item>'
+                '  <item>Activity</item>'
+                '</string-array>'
+                '<string-array name="dirty_labels">'
+                '  <item>A robust choice</item>'
+                '  <item translatable="false">tapestry skip me</item>'
+                '</string-array>'
+                '<string-array name="skip_array" translatable="false">'
+                '  <item>holistic beacon</item>'
+                '</string-array>'
+                '</resources>',
+                encoding="utf-8",
+            )
+            issues = cwq.check_android_strings_file(xml_path, root, "en")
+            self.assertEqual(len(issues), 3, f"Expected 3 issues, got: {issues}")
+            joined = "\n".join(issues)
+            self.assertIn("French leak", joined)
+            self.assertIn("seamless", joined)
+            self.assertIn("robust", joined)
+
 
 if __name__ == "__main__":
     unittest.main()

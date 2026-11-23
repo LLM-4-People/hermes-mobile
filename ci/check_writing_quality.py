@@ -248,12 +248,26 @@ def check_android_strings_file(path, root, lang):
     except ET.ParseError as err:
         return [f"{rel}: invalid XML ({err})"]
     entries = []
-    for idx, el in enumerate(tree.getroot().findall("string"), 1):
+    idx = 0
+    root_el = tree.getroot()
+    for el in root_el.findall("string"):
         if el.attrib.get("translatable") == "false":
             continue
-        text = (el.text or "").strip()
+        text = "".join(el.itertext()).strip()
         if text:
+            idx += 1
             entries.append((idx, text))
+    for container_tag in ("plurals", "string-array"):
+        for container in root_el.findall(container_tag):
+            if container.attrib.get("translatable") == "false":
+                continue
+            for item in container.findall("item"):
+                if item.attrib.get("translatable") == "false":
+                    continue
+                text = "".join(item.itertext()).strip()
+                if text:
+                    idx += 1
+                    entries.append((idx, text))
     # Individual UI strings are short; check clichés & mixed-language per string (skip doc-level em-dash density).
     for item_issue in check_text_lines(rel, entries, lang, check_em_dash=False):
         issues.append(item_issue)

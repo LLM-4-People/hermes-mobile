@@ -5,8 +5,6 @@ import android.app.AlertDialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
-import android.content.res.Configuration;
-import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Handler;
@@ -39,12 +37,6 @@ public final class ConnectionDoctorPanel {
     public static final String ROUTE_ID = "connection_doctor";
 
     private static final Typeface MEDIUM = Typeface.create("sans-serif-medium", Typeface.NORMAL);
-    private static final int AMBER_INK_DAY = Color.parseColor("#8A5300");
-    private static final int AMBER_BG_DAY = Color.parseColor("#F7EAD1");
-    private static final int AMBER_INK_NIGHT = Color.parseColor("#F2C97D");
-    private static final int AMBER_BG_NIGHT = Color.parseColor("#3A2D14");
-    private static final int DANGER_BG_DAY = Color.parseColor("#FBE9E7");
-    private static final int DANGER_BG_NIGHT = Color.parseColor("#3B1E1C");
 
     /** Optional 1-tap fix callbacks wired by the host Activity / navigation shell. */
     public interface FixHandlers {
@@ -406,18 +398,15 @@ public final class ConnectionDoctorPanel {
         int minTouch = Ui.dp(activity, 48);
         button.setMinWidth(minTouch);
         button.setMinHeight(minTouch);
+        button.setMinimumWidth(minTouch);
+        button.setMinimumHeight(minTouch);
         return button;
-    }
-
-    private boolean isNightMode() {
-        int mode = activity.getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK;
-        return mode == Configuration.UI_MODE_NIGHT_YES;
     }
 
     private int statusInkColor(DoctorCheck.Status status) {
         return switch (status) {
             case OK -> activity.getColor(R.color.accent);
-            case WARN -> isNightMode() ? AMBER_INK_NIGHT : AMBER_INK_DAY;
+            case WARN -> activity.getColor(R.color.warning);
             case ERROR -> activity.getColor(R.color.danger);
         };
     }
@@ -425,8 +414,8 @@ public final class ConnectionDoctorPanel {
     private int statusSurfaceColor(DoctorCheck.Status status) {
         return switch (status) {
             case OK -> activity.getColor(R.color.accent_surface);
-            case WARN -> isNightMode() ? AMBER_BG_NIGHT : AMBER_BG_DAY;
-            case ERROR -> isNightMode() ? DANGER_BG_NIGHT : DANGER_BG_DAY;
+            case WARN -> activity.getColor(R.color.warning_surface);
+            case ERROR -> activity.getColor(R.color.danger_surface);
         };
     }
 

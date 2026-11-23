@@ -191,18 +191,18 @@ public final class InfiniteTranscriptWindow<T> {
     public synchronized String olderQueryParams(int limit, boolean supportsKeyset) {
         int safeLimit = Math.max(1, Math.min(200, limit));
         if (supportsKeyset && oldestId != null && oldestId > 0L) {
-            return "limit=" + safeLimit + "&order=desc&before_id=" + oldestId;
+            return "limit=" + safeLimit + "&order=latest&before_id=" + oldestId;
         }
-        return "limit=" + safeLimit + "&offset=" + Math.max(0, legacyOffset) + "&order=desc";
+        return "limit=" + safeLimit + "&offset=" + Math.max(0, legacyOffset) + "&order=latest";
     }
 
     /** Builds query string for O(1) incremental delta sync or downward paging via {@code after_id}. */
     public synchronized String newerQueryParams(int limit) {
         int safeLimit = Math.max(1, Math.min(200, limit));
         if (newestId == null || newestId <= 0L) {
-            return "limit=" + safeLimit + "&order=desc";
+            return "limit=" + safeLimit + "&order=latest";
         }
-        return "limit=" + safeLimit + "&after_id=" + newestId;
+        return "limit=" + safeLimit + "&order=oldest&after_id=" + newestId;
     }
 
     public synchronized List<T> snapshot() {

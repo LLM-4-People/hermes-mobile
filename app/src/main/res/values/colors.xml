@@ -7,6 +7,9 @@
     <color name="on_accent">#FFFFFF</color>
     <color name="line">#CED4CB</color>
     <color name="danger">#9B342D</color>
+    <color name="danger_surface">#FBE9E7</color>
+    <color name="warning">#8A5300</color>
+    <color name="warning_surface">#F7EAD1</color>
     <color name="accent_surface">#DCEDE3</color>
     <color name="hermes_icon_ground">@color/accent</color>
     <color name="hermes_icon_ink">@color/on_accent</color>

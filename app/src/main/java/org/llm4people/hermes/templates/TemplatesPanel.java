@@ -202,8 +202,11 @@ public final class TemplatesPanel {
             card.addView(sub);
         }
 
+        HorizontalScrollView actionsScroll = new HorizontalScrollView(activity);
+        actionsScroll.setHorizontalScrollBarEnabled(false);
+        actionsScroll.setPaddingRelative(0, Ui.dp(activity, 4), 0, 0);
+
         LinearLayout actions = Ui.row(activity);
-        actions.setPaddingRelative(0, Ui.dp(activity, 4), 0, 0);
 
         Button useBtn = Ui.button(activity, activity.getString(R.string.templates_use_button), v -> {
             if (!canAct()) return;
@@ -231,7 +234,8 @@ public final class TemplatesPanel {
             actions.addView(deleteBtn);
         }
 
-        card.addView(actions);
+        actionsScroll.addView(actions);
+        card.addView(actionsScroll, new LinearLayout.LayoutParams(-1, -2));
         return card;
     }
 
@@ -371,7 +375,9 @@ public final class TemplatesPanel {
         field.setTextColor(activity.getColor(R.color.ink));
         field.setHintTextColor(activity.getColor(R.color.muted));
         field.setTextSize(16);
-        field.setMinHeight(Ui.dp(activity, 48));
+        int minTouch = Ui.dp(activity, 48);
+        field.setMinHeight(minTouch);
+        field.setMinimumHeight(minTouch);
         Ui.pad(field, 12, 10);
         GradientDrawable stroke = new GradientDrawable();
         stroke.setColor(activity.getColor(R.color.surface));
