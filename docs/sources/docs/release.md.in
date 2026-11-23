@@ -29,6 +29,17 @@ Open **Activity → App Updates** (**Activité → Mises à jour**) on Android (
 
 ## Publishing a New Release (Maintainers)
 
+### Label-Driven Automated SemVer Release (Recommended)
+
+Apply **one** SemVer release label (`release:patch`, `release:minor`, or `release:major`) to a PR targeting `main` before merging (conflicting `release:*` labels fail closed):
+1. When the PR merges into `main`, **Automated SemVer release** (`.github/workflows/auto-release.yml`) inspects `gradle.properties`, existing `v*` tags, and published GitHub Releases via `ci/semver_bump.py`.
+2. If `gradle.properties` on `main` is already strictly newer than every existing tag and published `versionCode`, it immediately creates and pushes annotated tag `vX.Y.Z` and dispatches **Signed Android release** (`.github/workflows/release.yml`).
+3. Otherwise, respecting `main` branch protection rulesets, it opens a clean `chore(release): vX.Y.Z` PR bumping `hermesVersionName` and `hermesVersionCode` (labeled `release:publish` + `ci`). Merging that PR creates tag `vX.Y.Z` and dispatches **Signed Android release** automatically, generating categorized release notes via `.github/release.yml`.
+
+On any pull request where you want to override smart path routing and run the full Android + emulator suite (for example on a docs or server-only PR), apply the `run-full-ci` label.
+
+### Manual Release Dispatch
+
 1. Bump `hermesVersionCode` (strictly greater than every published release) and `hermesVersionName` (SemVer, e.g. `0.2.0`) in `gradle.properties`, merge via PR into `main`, and verify `android-release` environment secrets/variables are configured (see [Verification & Signed Delivery](delivery.md#signed-release)).
 2. Either push an annotated tag matching `v<hermesVersionName>` on `main` (`git tag -a v0.2.0 -m "Release v0.2.0" && git push origin v0.2.0`) or dispatch **Signed Android release** manually from GitHub Actions on `main`.
 3. Confirm the published release at `https://github.com/{{ repository }}/releases/latest` includes `{{ release_apk }}`, `{{ checksum_file }}`, and `release.json`.

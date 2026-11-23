@@ -80,7 +80,11 @@ class CiRoutingTest(unittest.TestCase):
                 self.assertFalse(res["docs_only"])
 
     def test_release_mode_and_workflow_dispatch_always_run_full_suite(self):
-        for kwargs in ({"release_mode": True}, {"event_name": "workflow_dispatch"}):
+        for kwargs in (
+            {"release_mode": True},
+            {"event_name": "workflow_dispatch"},
+            {"pr_labels": ["docs", "run-full-ci"]},
+        ):
             with self.subTest(kwargs=kwargs):
                 res = ci_routing.classify_files(["site/index.html"], **kwargs)
                 self.assertTrue(res["run_workspace"])
@@ -88,6 +92,12 @@ class CiRoutingTest(unittest.TestCase):
                 self.assertTrue(res["run_push_acceptance"])
                 self.assertTrue(res["run_pages_check"])
                 self.assertFalse(res["docs_only"])
+
+    def test_unrelated_pr_labels_do_not_force_full_ci_on_docs_only_pr(self):
+        res = ci_routing.classify_files(["site/index.html"], pr_labels=["pages", "docs"])
+        self.assertTrue(res["docs_only"])
+        self.assertTrue(res["run_pages_check"])
+        self.assertFalse(res["run_android"])
 
     def test_git_changed_files_fails_closed_on_invalid_or_zero_sha(self):
         self.assertIsNone(ci_routing.git_changed_files(ci_routing.ZERO_SHA, "a" * 40))

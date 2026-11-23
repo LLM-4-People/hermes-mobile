@@ -16,6 +16,7 @@ import sys
 
 ZERO_SHA = "0" * 40
 SHA_RE = re.compile(r"^[0-9a-fA-F]{40}$")
+RUN_FULL_CI_LABEL = "run-full-ci"
 
 # Strictly allowlisted non-code paths that never affect Android, server, or push runtime.
 PAGES_RE = re.compile(r"^(?:site/|\.github/workflows/pages\.yml$)")
@@ -55,10 +56,11 @@ def detect_labels(paths):
     return sorted(found)
 
 
-def classify_files(paths, *, event_name="pull_request", release_mode=False):
+def classify_files(paths, *, event_name="pull_request", release_mode=False, pr_labels=()):
     """Classify changed files into fail-closed CI execution flags."""
     cleaned = [p.strip() for p in paths if p and p.strip()]
     labels = detect_labels(cleaned)
+    applied_labels = {str(lbl).strip() for lbl in (pr_labels or ()) if lbl and str(lbl).strip()}
 
     def full(reason):
         return {
@@ -76,6 +78,8 @@ def classify_files(paths, *, event_name="pull_request", release_mode=False):
         return full("release build runs full verification unconditionally")
     if event_name == "workflow_dispatch":
         return full("manual workflow_dispatch runs full verification unconditionally")
+    if RUN_FULL_CI_LABEL in applied_labels:
+        return full(f"PR carries '{RUN_FULL_CI_LABEL}' label override")
     if not cleaned:
         return full("empty or unavailable diff fails closed to full verification")
 
@@ -168,6 +172,7 @@ def main(argv=None):
     parser.add_argument("--base", default="")
     parser.add_argument("--head", default="")
     parser.add_argument("--release", action="store_true")
+    parser.add_argument("--pr-labels-json", default="[]", help="JSON array of PR label names")
     parser.add_argument("--files", nargs="*", help="Explicit changed file list (overrides git diff)")
     parser.add_argument("--github-output", type=Path, default=None)
     parser.add_argument("--step-summary", type=Path, default=None)
@@ -179,7 +184,14 @@ def main(argv=None):
     else:
         paths = git_changed_files(args.base, args.head) or []
 
-    result = classify_files(paths, event_name=args.event, release_mode=args.release)
+    try:
+        pr_labels = json.loads(args.pr_labels_json) if args.pr_labels_json else []
+    except json.JSONDecodeError:
+        pr_labels = []
+    if not isinstance(pr_labels, list):
+        pr_labels = []
+
+    result = classify_files(paths, event_name=args.event, release_mode=args.release, pr_labels=pr_labels)
 
     if args.github_output:
         with args.github_output.open("a", encoding="utf-8") as handle:

@@ -1,0 +1,122 @@
+name: Automated SemVer release
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+concurrency:
+  group: auto-release
+  cancel-in-progress: false
+
+jobs:
+  release-automation:
+    name: Plan SemVer tag or bump PR
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_BOT_TOKEN || github.token }}
+      - id: plan
+        name: Evaluate release labels and compute next SemVer (fail-closed)
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_BOT_TOKEN || github.token }}
+          PR_LABELS: ${{ toJson(github.event.pull_request.labels.*.name) }}
+        run: |
+          tags_json=$(git tag --list 'v*' | python3 -B -c 'import json, sys; print(json.dumps([l.strip() for l in sys.stdin if l.strip()]))')
+          max_code=$(python3 -B - <<'PY'
+          import json, os, subprocess
+          repo = os.environ["GITHUB_REPOSITORY"]
+          raw = subprocess.check_output(["gh", "api", f"repos/{repo}/releases?per_page=100", "--paginate", "--slurp"], text=True)
+          pages = json.loads(raw)
+          best = 0
+          for page in pages:
+              for rel in page:
+                  if rel.get("draft"):
+                      continue
+                  for asset in rel.get("assets", []):
+                      if asset.get("name") == "release.json":
+                          body = subprocess.check_output(
+                              ["gh", "api", f"repos/{repo}/releases/assets/{asset['id']}", "-H", "Accept: application/octet-stream"],
+                              text=True,
+                          )
+                          code = int(json.loads(body).get("versionCode", 0))
+                          best = max(best, code)
+          print(best)
+          PY
+          )
+          python3 -B ci/semver_bump.py \
+            --gradle-properties gradle.properties \
+            --labels-json "$PR_LABELS" \
+            --tags-json "$tags_json" \
+            --published-max-code "$max_code" \
+            --apply-bump \
+            --github-output "$GITHUB_OUTPUT"
+      - name: Create annotated SemVer tag and dispatch Signed Android release
+        if: steps.plan.outputs.mode == 'tag_and_release'
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_BOT_TOKEN || github.token }}
+          TAG: ${{ steps.plan.outputs.tag }}
+          VERSION_CODE: ${{ steps.plan.outputs.version_code }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "Release $TAG (versionCode $VERSION_CODE, from PR #$PR_NUMBER)"
+          git push origin "refs/tags/$TAG"
+          gh workflow run release.yml --repo "$GITHUB_REPOSITORY" --ref main -f "release_tag=$TAG"
+          {
+            echo "### Automated SemVer Release Dispatched"
+            echo ""
+            echo "- **Tag**: \`$TAG\` (versionCode \`$VERSION_CODE\`)"
+            echo "- **Commit**: \`$(git rev-parse HEAD)\`"
+            echo "- **Workflow**: Dispatched \`.github/workflows/release.yml\` on \`main\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Open or update ruleset-compliant version-bump PR
+        if: steps.plan.outputs.mode == 'open_bump_pr'
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_BOT_TOKEN || github.token }}
+          TAG: ${{ steps.plan.outputs.tag }}
+          VERSION_NAME: ${{ steps.plan.outputs.version_name }}
+          VERSION_CODE: ${{ steps.plan.outputs.version_code }}
+          BRANCH: ${{ steps.plan.outputs.branch }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$BRANCH"
+          git add gradle.properties
+          git commit -m "chore(release): bump Android version to $TAG (versionCode $VERSION_CODE)"
+          git push --force-with-lease origin "$BRANCH"
+          existing=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
+          body=$(cat <<EOF
+          Automated SemVer release preparation triggered by merged PR #$PR_NUMBER.
+
+          - **Next release tag**: \`$TAG\`
+          - **\`hermesVersionName\`**: \`$VERSION_NAME\`
+          - **\`hermesVersionCode\`**: \`$VERSION_CODE\`
+
+          Merging this PR into \`main\` automatically creates annotated tag \`$TAG\` and dispatches **Signed Android release** (\`.github/workflows/release.yml\`) to build, sign, attest, and publish \`Hermes-Mobile.apk\`, \`SHA256SUMS\`, and \`release.json\`.
+          EOF
+          )
+          if [[ -n "$existing" ]]; then
+            gh pr edit "$existing" --repo "$GITHUB_REPOSITORY" --title "chore(release): $TAG" --body "$body" --add-label "release:publish" --add-label "ci"
+          else
+            gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$BRANCH" --title "chore(release): $TAG" --body "$body" --label "release:publish" --label "ci"
+          fi
+          {
+            echo "### Automated Release Bump PR Ready"
+            echo ""
+            echo "- **Target tag**: \`$TAG\` (\`hermesVersionName=$VERSION_NAME\`, \`hermesVersionCode=$VERSION_CODE\`)"
+            echo "- **Branch**: \`$BRANCH\` (labeled \`release:publish\`)"
+            echo "- **Next step**: Merge the PR into \`main\` to tag \`$TAG\` and publish the signed APK release."
+          } >> "$GITHUB_STEP_SUMMARY"

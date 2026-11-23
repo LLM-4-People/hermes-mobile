@@ -1,0 +1,29 @@
+changelog:
+  exclude:
+    labels:
+      - release:publish
+  categories:
+    - title: Android App & Experience
+      labels:
+        - android
+        - enhancement
+    - title: Bug Fixes
+      labels:
+        - bug
+    - title: Push Bridge, Server & Deployment
+      labels:
+        - server
+    - title: Documentation & Showcase Portal
+      labels:
+        - docs
+        - pages
+        - documentation
+    - title: CI, Verification & Tooling
+      labels:
+        - ci
+    - title: Dependencies
+      labels:
+        - dependencies
+    - title: Other Changes
+      labels:
+        - "*"
