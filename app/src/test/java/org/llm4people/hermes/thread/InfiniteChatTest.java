@@ -265,5 +265,11 @@ public final class InfiniteChatTest {
         assertTrue(trimmedBottom.triggerNewer());
         assertFalse(trimmedBottom.atTail());
         assertTrue(trimmedBottom.showJumpPill());
+
+        // Mid-layout scroll callbacks (e.g. IME resize inside ListView.layoutChildren) must defer pill mutation.
+        assertFalse(InfiniteScrollController.shouldDeferPillUpdate(false, false));
+        assertTrue(InfiniteScrollController.shouldDeferPillUpdate(true, false));
+        assertTrue(InfiniteScrollController.shouldDeferPillUpdate(false, true));
+        assertTrue(InfiniteScrollController.shouldDeferPillUpdate(true, true));
     }
 }

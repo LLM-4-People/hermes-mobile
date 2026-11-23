@@ -5,6 +5,7 @@ import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.view.Gravity;
 import android.view.View;
+import android.view.ViewParent;
 import android.widget.AbsListView;
 import android.widget.Button;
 import android.widget.ListView;
@@ -49,6 +50,8 @@ public final class InfiniteScrollController implements AbsListView.OnScrollListe
     private boolean atTail = true;
     private int unreadCount;
     private boolean enabled = true;
+    private boolean desiredPillVisible;
+    private final Runnable applyPendingPill = this::applyPillUiNow;
 
     public InfiniteScrollController(Callbacks callbacks) {
         this(callbacks, DEFAULT_TOP_THRESHOLD, DEFAULT_BOTTOM_THRESHOLD, 0, 0);
@@ -165,7 +168,7 @@ public final class InfiniteScrollController implements AbsListView.OnScrollListe
                 callbacks.isLoadingOlder(), callbacks.isLoadingNewer());
         atTail = state.atTail();
         if (atTail) unreadCount = 0;
-        updatePillUi(state.showJumpPill());
+        updatePillUi(state.showJumpPill(), isInLayoutPass(view, jumpPill));
         if (state.triggerOlder()) {
             logEvent("prefetch_older");
             callbacks.loadOlder();
@@ -175,11 +178,46 @@ public final class InfiniteScrollController implements AbsListView.OnScrollListe
         }
     }
 
-    private void updatePillUi() {
-        updatePillUi(!atTail || callbacks.hasNewer() || unreadCount > 0);
+    /** Pure-Java deferral decision so layout-pass scroll callbacks never mutate sibling visibility mid-layout. */
+    static boolean shouldDeferPillUpdate(boolean scrollInLayout, boolean pillOrAncestorInLayout) {
+        return scrollInLayout || pillOrAncestorInLayout;
     }
 
-    private void updatePillUi(boolean visible) {
+    private static boolean isInLayoutPass(View scrollView, View pill) {
+        boolean scrollInLayout = scrollView != null && scrollView.isInLayout();
+        boolean pillOrAncestorInLayout = false;
+        if (pill != null) {
+            if (pill.isInLayout()) {
+                pillOrAncestorInLayout = true;
+            } else {
+                for (ViewParent parent = pill.getParent(); parent instanceof View pv; parent = pv.getParent()) {
+                    if (pv.isInLayout()) {
+                        pillOrAncestorInLayout = true;
+                        break;
+                    }
+                }
+            }
+        }
+        return shouldDeferPillUpdate(scrollInLayout, pillOrAncestorInLayout);
+    }
+
+    private void updatePillUi() {
+        updatePillUi(!atTail || callbacks.hasNewer() || unreadCount > 0, isInLayoutPass(null, jumpPill));
+    }
+
+    private void updatePillUi(boolean visible, boolean defer) {
+        desiredPillVisible = visible;
+        if (jumpPill == null) return;
+        if (defer) {
+            jumpPill.removeCallbacks(applyPendingPill);
+            jumpPill.post(applyPendingPill);
+            return;
+        }
+        jumpPill.removeCallbacks(applyPendingPill);
+        applyPillUiNow();
+    }
+
+    private void applyPillUiNow() {
         if (jumpPill == null) return;
         Context ctx = jumpPill.getContext();
         if (unreadCount == 1) {
@@ -192,7 +230,7 @@ public final class InfiniteScrollController implements AbsListView.OnScrollListe
             jumpPill.setText(R.string.infinite_jump_latest);
             jumpPill.setContentDescription(ctx.getString(R.string.infinite_jump_latest_cd));
         }
-        int targetVisibility = visible ? View.VISIBLE : View.GONE;
+        int targetVisibility = desiredPillVisible ? View.VISIBLE : View.GONE;
         if (jumpPill.getVisibility() != targetVisibility) {
             jumpPill.setVisibility(targetVisibility);
         }

@@ -11,6 +11,8 @@ import xml.etree.ElementTree as ET
 
 RUNNER = "org.llm4people.hermes.test/android.test.InstrumentationTestRunner"
 SHARD_RE = re.compile(r"^([0-9]+)/([0-9]+)$")
+DEFAULT_DISCOVERY_TIMEOUT_SECONDS = 120
+DEFAULT_EXECUTION_TIMEOUT_SECONDS = 600
 
 
 def shard_cases(cases, shard_spec):
@@ -123,15 +125,71 @@ def crash_summary(log):
     return "\n".join(summary)
 
 
+def in_flight_cases(output):
+    """Return (completed_count, active_cases) from raw InstrumentationTestRunner output for hang diagnostics."""
+    fields = {}
+    started = []
+    finished = set()
+    for line in output.splitlines():
+        if line.startswith("INSTRUMENTATION_STATUS: "):
+            key, _, value = line.removeprefix("INSTRUMENTATION_STATUS: ").partition("=")
+            fields[key] = value
+        elif line.startswith("INSTRUMENTATION_STATUS_CODE: "):
+            code = int(line.removeprefix("INSTRUMENTATION_STATUS_CODE: "))
+            if "class" in fields and "test" in fields:
+                case = (fields["class"], fields["test"])
+                if code == 1:
+                    started.append(case)
+                else:
+                    finished.add(case)
+            fields = {}
+    active = [case for case in started if case not in finished]
+    return len(finished), active
+
+
+def _timeout_seconds(env_var, default):
+    raw = os.environ.get(env_var, "").strip()
+    if not raw:
+        return default
+    value = int(raw)
+    if value <= 0:
+        raise ValueError(f"{env_var} must be > 0, got {raw!r}")
+    return value
+
+
 def run(serial, directory, expected):
     directory.mkdir(parents=True, exist_ok=True)
     classes = ",".join(sorted({cls for cls, _ in expected}))
-    for name, options in (("discovery", ["-e", "log", "true"]), ("execution", [])):
+    discovery_timeout = _timeout_seconds("HERMES_NATIVE_DISCOVERY_TIMEOUT_SECONDS", DEFAULT_DISCOVERY_TIMEOUT_SECONDS)
+    execution_timeout = _timeout_seconds("HERMES_NATIVE_TIMEOUT_SECONDS", DEFAULT_EXECUTION_TIMEOUT_SECONDS)
+    for name, options, timeout in (
+        ("discovery", ["-e", "log", "true"], discovery_timeout),
+        ("execution", [], execution_timeout),
+    ):
         print(f"Android framework {name} for {len(expected)} packaged tests", flush=True)
         report = directory / f"{name}.txt"
-        with report.open("w") as stream:
-            result = subprocess.run(["adb", "-s", serial, "shell", "am", "instrument", "-w", "-r",
-                                     "-e", "class", shlex.quote(classes), *options, RUNNER], stdout=stream, stderr=subprocess.STDOUT)
+        try:
+            with report.open("w") as stream:
+                result = subprocess.run(
+                    ["adb", "-s", serial, "shell", "am", "instrument", "-w", "-r",
+                     "-e", "class", shlex.quote(classes), *options, RUNNER],
+                    stdout=stream, stderr=subprocess.STDOUT, timeout=timeout)
+        except subprocess.TimeoutExpired as error:
+            output = report.read_text(errors="replace") if report.exists() else ""
+            completed, active = in_flight_cases(output)
+            active_desc = ", ".join(f"{cls}#{method}" for cls, method in active) or "none"
+            tail = "\n".join(output.splitlines()[-40:])
+            if tail:
+                print(tail, file=sys.stderr)
+            print(
+                f"Timed out during Android framework {name} after {timeout}s "
+                f"(completed {completed}/{len(expected)}, in-flight: {active_desc})",
+                file=sys.stderr,
+            )
+            raise ValueError(
+                f"Android framework {name} timed out after {timeout}s "
+                f"(completed {completed}/{len(expected)}, in-flight: {active_desc})"
+            ) from error
         output = report.read_text(errors="replace")
         try:
             result.check_returncode()

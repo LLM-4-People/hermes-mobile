@@ -311,7 +311,7 @@ public final class DeviceJourney extends Instrumentation {
         ui.absent("Exemple Python");
         lock();
         unlock(primary, fixture.getString("secondPhrase"));
-        ui.contains("Impossible de déverrouiller");
+        ui.contains(ui.str(R.string.profile_setup_unlock_failed));
         ui.absent(fixture.getString("draft"));
     }
 
@@ -363,7 +363,7 @@ public final class DeviceJourney extends Instrumentation {
         ui.tap(label);
         ui.fill(ui.str(R.string.profile_passphrase_label), passphrase);
         ui.tap(ui.str(R.string.profile_remove_action));
-        ui.tap("Retirer");
+        ui.tap(ui.str(R.string.profile_setup_remove_confirm));
         ui.see(ui.str(R.string.profile_choose_title));
         ui.absent(label);
     }
