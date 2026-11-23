@@ -115,6 +115,67 @@ public final class ConnectionDoctorTest {
         ConnectionDoctor.CapabilitiesProbe nullPayload = ConnectionDoctor.evaluateCapabilityFlags(null);
         assertTrue(nullPayload.upstreamNonFork());
         assertFalse(nullPayload.companionForkDetected());
+
+        // Companion fork exposing more than the baseline 51 flags must scale expectedCount (never render 56/51).
+        Map<String, Boolean> expandedFeatures = new LinkedHashMap<>();
+        for (int i = 0; i < 55; i++) {
+            expandedFeatures.put("feature_" + i, Boolean.TRUE);
+        }
+        expandedFeatures.put("smart_notes", Boolean.TRUE);
+        ConnectionDoctor.CapabilitiesProbe expanded = ConnectionDoctor.evaluateCapabilityFlags(expandedFeatures);
+        assertTrue(expanded.companionForkDetected());
+        assertFalse(expanded.upstreamNonFork());
+        assertEquals(56, expanded.enabledCount());
+        assertEquals(56, expanded.expectedCount());
+    }
+
+    @Test
+    public void closeRevokesAndroidProbesApiAndCapsExpectedCountAboveBaseline() {
+        org.llm4people.hermes.net.HermesApi api = new org.llm4people.hermes.net.HermesApi(
+                "https://home.example.com", "secret-token");
+        assertFalse(api.isRevoked());
+        ConnectionDoctor.AndroidProbes androidProbes = new ConnectionDoctor.AndroidProbes(null, null, api);
+        try (ConnectionDoctor doctor = new ConnectionDoctor(androidProbes)) {
+            assertFalse(api.isRevoked());
+        }
+        assertTrue("ConnectionDoctor.close() must revoke its dedicated HermesApi", api.isRevoked());
+
+        // Custom probes reporting enabledCount > expectedCount must still never emit enabled > expected.
+        AtomicInteger closedCalls = new AtomicInteger();
+        ConnectionDoctor.Probes probes = new ConnectionDoctor.Probes() {
+            @Override public String rawEndpoint() { return "https://home.example.com"; }
+            @Override public String appVersion() { return "2.1.0"; }
+            @Override public String languageTag() { return "en-US"; }
+            @Override public ConnectionDoctor.ServerProbe probeServer() {
+                return new ConnectionDoctor.ServerProbe(true, false, false, 20L);
+            }
+            @Override public ConnectionDoctor.CapabilitiesProbe probeCapabilities() {
+                return new ConnectionDoctor.CapabilitiesProbe(true, false, 56, 51, true);
+            }
+            @Override public ConnectionDoctor.PushProbe probePush() {
+                return new ConnectionDoctor.PushProbe(true, true);
+            }
+            @Override public ConnectionDoctor.UpdateProbe probeUpdates() {
+                return new ConnectionDoctor.UpdateProbe("2.1.0", false, "", true);
+            }
+            @Override public ConnectionDoctor.AmbientProbe probeAmbient() {
+                return new ConnectionDoctor.AmbientProbe(true, true);
+            }
+            @Override public ConnectionDoctor.LanguageProbe probeLanguage() {
+                return new ConnectionDoctor.LanguageProbe("en-US", "en-US, en;q=0.9", true);
+            }
+            @Override public void close() { closedCalls.incrementAndGet(); }
+        };
+        try (ConnectionDoctor doctor = new ConnectionDoctor(probes)) {
+            DoctorCheck.Report report = doctor.runAll();
+            DoctorCheck.Item caps = report.find(DoctorCheck.CheckId.CAPABILITIES);
+            assertNotNull(caps);
+            assertEquals(DoctorCheck.DetailCode.CAPABILITIES_FULL, caps.detailCode());
+            assertEquals(56, caps.capabilityCount());
+            assertEquals(56, caps.expectedCapabilities());
+            assertTrue(report.toSafeReportText().contains("count=56/56"));
+        }
+        assertEquals(1, closedCalls.get());
     }
 
     @Test

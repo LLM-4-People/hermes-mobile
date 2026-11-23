@@ -84,6 +84,7 @@ public final class ConnectionDoctor implements AutoCloseable {
         UpdateProbe probeUpdates();
         AmbientProbe probeAmbient();
         LanguageProbe probeLanguage();
+        default void close() {}
     }
 
     private final Probes probes;
@@ -143,6 +144,7 @@ public final class ConnectionDoctor implements AutoCloseable {
 
     @Override
     public void close() {
+        probes.close();
         pool.shutdownNow();
     }
 
@@ -189,7 +191,8 @@ public final class ConnectionDoctor implements AutoCloseable {
         if (!companionDetected) {
             return new CapabilitiesProbe(true, true, trueCount, DoctorCheck.EXPECTED_FORK_CAPABILITIES, false);
         }
-        return new CapabilitiesProbe(true, false, trueCount, DoctorCheck.EXPECTED_FORK_CAPABILITIES, true);
+        int expected = Math.max(DoctorCheck.EXPECTED_FORK_CAPABILITIES, trueCount);
+        return new CapabilitiesProbe(true, false, trueCount, expected, true);
     }
 
     private Future<DoctorCheck.Item> submitSafe(Callable<DoctorCheck.Item> task, DoctorCheck.Item onError) {
@@ -268,13 +271,14 @@ public final class ConnectionDoctor implements AutoCloseable {
                         DoctorCheck.DetailCode.CAPABILITIES_ERROR, -1L, 0,
                         DoctorCheck.EXPECTED_FORK_CAPABILITIES, false, "", DoctorCheck.FixAction.RETRY);
             }
-            int expected = Math.max(1, res.expectedCount());
+            int baseExpected = Math.max(1, res.expectedCount());
             if (res.upstreamNonFork() || !res.companionForkDetected()) {
                 return new DoctorCheck.Item(DoctorCheck.CheckId.CAPABILITIES, DoctorCheck.Status.WARN,
-                        DoctorCheck.DetailCode.CAPABILITIES_UPSTREAM, -1L, res.enabledCount(), expected,
+                        DoctorCheck.DetailCode.CAPABILITIES_UPSTREAM, -1L, res.enabledCount(), baseExpected,
                         false, "", DoctorCheck.FixAction.NONE);
             }
-            boolean full = res.enabledCount() >= expected;
+            int expected = Math.max(baseExpected, res.enabledCount());
+            boolean full = res.enabledCount() >= baseExpected;
             return new DoctorCheck.Item(DoctorCheck.CheckId.CAPABILITIES, DoctorCheck.Status.OK,
                     full ? DoctorCheck.DetailCode.CAPABILITIES_FULL : DoctorCheck.DetailCode.CAPABILITIES_PARTIAL,
                     -1L, res.enabledCount(), expected, true, "", DoctorCheck.FixAction.NONE);
@@ -405,8 +409,7 @@ public final class ConnectionDoctor implements AutoCloseable {
 
         @Override
         public String languageTag() {
-            Locale locale = AppLanguage.resolveLocale(AppLanguage.readMode(app),
-                    List.of(Locale.getDefault().toLanguageTag()));
+            Locale locale = AppLanguage.resolvedLocale(app);
             return locale.toLanguageTag();
         }
 
@@ -475,6 +478,13 @@ public final class ConnectionDoctor implements AutoCloseable {
             String base = tag.toLowerCase(Locale.ROOT).startsWith("en") ? AppLanguage.TAG_ENGLISH : AppLanguage.TAG_FRENCH;
             boolean synced = header != null && header.toLowerCase(Locale.ROOT).startsWith(base);
             return new LanguageProbe(tag, header == null ? "" : header, synced);
+        }
+
+        @Override
+        public void close() {
+            if (api != null) {
+                api.revoke();
+            }
         }
     }
 }

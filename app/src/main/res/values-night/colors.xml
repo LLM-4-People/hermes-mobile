@@ -7,5 +7,8 @@
     <color name="on_accent">#102F23</color>
     <color name="line">#3D4C43</color>
     <color name="danger">#FFAEA4</color>
+    <color name="danger_surface">#3B1E1C</color>
+    <color name="warning">#F2C97D</color>
+    <color name="warning_surface">#3A2D14</color>
     <color name="accent_surface">#253F34</color>
 </resources>

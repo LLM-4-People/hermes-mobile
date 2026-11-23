@@ -44,9 +44,9 @@ public final class InfiniteChatTest {
         assertFalse(window.hasNewer());
         assertEquals(Long.valueOf(99_961L), window.oldestId());
         assertEquals(Long.valueOf(100_000L), window.newestId());
-        assertEquals("limit=40&order=desc&before_id=99961", window.olderQueryParams(pageSize, true));
-        assertEquals("limit=40&offset=40&order=desc", window.olderQueryParams(pageSize, false));
-        assertEquals("limit=40&after_id=100000", window.newerQueryParams(pageSize));
+        assertEquals("limit=40&order=latest&before_id=99961", window.olderQueryParams(pageSize, true));
+        assertEquals("limit=40&offset=40&order=latest", window.olderQueryParams(pageSize, false));
+        assertEquals("limit=40&order=oldest&after_id=100000", window.newerQueryParams(pageSize));
 
         // 2. Walk backward across ALL 2,499 remaining pages (all the way to message #1 across 4 compaction segments!).
         Set<Long> seen = new HashSet<>();
@@ -100,7 +100,7 @@ public final class InfiniteChatTest {
         // 4. Snap to latest + O(1) after_id live delta append (3 new messages arrive).
         window.snapToLatest(range(99_961L, 100_000L), true, 99_961L, 100_000L, (int) totalMessages);
         assertTrue(window.atLiveTail());
-        assertEquals("limit=40&after_id=100000", window.newerQueryParams(40));
+        assertEquals("limit=40&order=oldest&after_id=100000", window.newerQueryParams(40));
 
         InfiniteTranscriptWindow.PageResult delta = window.appendNewer(range(100_001L, 100_003L), false, 100_003L, 100_003);
         assertEquals(3, delta.appendedCount());
@@ -108,6 +108,19 @@ public final class InfiniteChatTest {
         assertEquals(43, window.size());
         assertEquals(Long.valueOf(100_003L), window.newestId());
         assertTrue(window.atLiveTail());
+    }
+
+    @Test public void queryParamsFollowGatewayContractAndNeverEmitInvalidOrderDesc() {
+        InfiniteTranscriptWindow<FakeRow> empty = newWindow();
+        assertEquals("limit=40&offset=0&order=latest", empty.olderQueryParams(40, true));
+        assertEquals("limit=1&offset=0&order=latest", empty.olderQueryParams(0, false));
+        assertEquals("limit=200&order=latest", empty.newerQueryParams(500));
+        assertFalse(empty.olderQueryParams(40, true).contains("order=desc"));
+        assertFalse(empty.newerQueryParams(40).contains("order=desc"));
+
+        empty.replaceLatest(range(501L, 540L), true, 501L, 540L, 540);
+        assertEquals("limit=40&order=latest&before_id=501", empty.olderQueryParams(40, true));
+        assertEquals("limit=40&order=oldest&after_id=540", empty.newerQueryParams(40));
     }
 
     @Test public void tailCacheEnforcesLruProfileEpochFencingVaultBoundsAndFastRestore() {
