@@ -1,0 +1,65 @@
+<resources>
+    <!-- Route & panel chrome -->
+    <string name="presence_route_label">Présence &amp; apparence</string>
+    <string name="presence_route_hint">Partage optionnel, position continue, personnalisation</string>
+    <string name="presence_panel_title">Présence &amp; apparence</string>
+    <string name="presence_panel_intro">Tout est désactivé par défaut. Vous choisissez ce que votre assistant peut voir ou ajuster, et vous pouvez tout couper en un geste.</string>
+
+    <!-- Live privacy status banner -->
+    <string name="presence_status_all_off">Tout est désactivé</string>
+    <string name="presence_status_active">Partage actif : %1$s</string>
+    <string name="presence_status_tag_screen">écran ouvert</string>
+    <string name="presence_status_tag_read">messages lus</string>
+    <string name="presence_status_tag_location_coarse">position approximative</string>
+    <string name="presence_status_tag_location_precise">position précise</string>
+    <string name="presence_status_tag_location_paused">position en pause</string>
+    <string name="presence_status_tag_nudges">rappels discrets</string>
+    <string name="presence_pause_location">Mettre la position en pause</string>
+    <string name="presence_resume_location">Reprendre la position</string>
+    <string name="presence_turn_all_off">Tout désactiver</string>
+    <string name="presence_feedback_all_off">Tous les partages de présence sont désactivés.</string>
+    <string name="presence_feedback_saved">Préférences enregistrées.</string>
+    <string name="presence_feedback_location_permission">Autorisez la localisation dans Android pour activer la position continue.</string>
+
+    <!-- Privacy opt-in toggles -->
+    <string name="presence_section_sharing">Ce que votre assistant peut voir</string>
+    <string name="presence_toggle_screen_title">Écran et discussion ouverts</string>
+    <string name="presence_toggle_screen_summary">Indique l’onglet ouvert, les tâches en cours et la longueur du brouillon (sans envoyer le texte).</string>
+    <string name="presence_toggle_read_title">Messages lus sans réponse</string>
+    <string name="presence_toggle_read_summary">Signale quand un message ou une notification autorisée a été lu sans réponse après un court délai.</string>
+    <string name="presence_toggle_location_title">Position continue (optionnelle)</string>
+    <string name="presence_toggle_location_summary">Suit vos déplacements avec faible consommation de batterie. Rien n’est conservé au verrouillage.</string>
+    <string name="presence_toggle_precise_title">Précision fine de la position</string>
+    <string name="presence_toggle_precise_summary">Par défaut, seule votre zone approximative est partagée. Activez pour une position exacte.</string>
+    <string name="presence_toggle_nudges_title">Rappels discrets utiles</string>
+    <string name="presence_toggle_nudges_summary">Autorise de brèves notifications locales, limitées par heure et toujours coupées pendant les heures calmes.</string>
+
+    <!-- App customization section -->
+    <string name="custom_section_title">Apparence de l’application</string>
+    <string name="custom_section_intro">Choisissez une palette lisible et un espacement confortable pour ce profil.</string>
+    <string name="custom_palette_label">Couleur principale</string>
+    <string name="custom_palette_forest">Forêt</string>
+    <string name="custom_palette_slate">Ardoise</string>
+    <string name="custom_palette_terracotta">Terre cuite</string>
+    <string name="custom_palette_indigo">Indigo</string>
+    <string name="custom_palette_plum">Prune</string>
+    <string name="custom_palette_custom">Personnalisée</string>
+    <string name="custom_density_label">Espacement</string>
+    <string name="custom_density_compact">Compact</string>
+    <string name="custom_density_comfortable">Confortable</string>
+    <string name="custom_density_spacious">Aéré</string>
+    <string name="custom_undo">Annuler le dernier changement</string>
+    <string name="custom_reset">Rétablir par défaut</string>
+    <string name="custom_feedback_applied">Apparence mise à jour.</string>
+    <string name="custom_feedback_undone">Dernier changement annulé.</string>
+    <string name="custom_feedback_reset">Apparence par défaut rétablie.</string>
+
+    <!-- Interactive cards & deep actions -->
+    <string name="card_apply_appearance">Appliquer</string>
+    <string name="card_undo_appearance">Annuler</string>
+    <string name="card_preview_palette">Palette : %1$s</string>
+    <string name="card_preview_density">Espacement : %1$s</string>
+    <string name="card_preview_greeting">Accueil : %1$s</string>
+    <string name="deep_action_share_chooser">Partager avec…</string>
+    <string name="deep_action_nudge_channel">Rappels utiles</string>
+</resources>
