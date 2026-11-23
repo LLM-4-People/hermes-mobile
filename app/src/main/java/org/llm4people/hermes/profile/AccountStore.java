@@ -166,6 +166,7 @@ final class AccountStore {
         org.llm4people.hermes.os.HermesWidgetStore.forgetProfile(context, id);
         IncomingShare.forgetProfile(context, id);
         IncomingMediaShare.forgetProfile(context, id);
+        org.llm4people.hermes.camera.PrivateCaptureProvider.purgeAll(context);
         org.llm4people.hermes.ambient.HermesNotificationListener.clearSession();
         org.llm4people.hermes.perf.MemoryPressure.clearAll();
         commitMembership(id, null, null);

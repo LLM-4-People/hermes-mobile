@@ -168,7 +168,7 @@ public final class PresenceAndCustomizationTest {
         String locWire = presence.toWireContextJson(coarseOn, snap, t0 + 5_000L);
         assertNotNull(locWire);
         assertTrue(locWire.contains("\"opted_in\":true"));
-        assertTrue(locWire.contains("\"precision\":\"coarse\""));
+        assertTrue(locWire.contains("\"mode\":\"coarse\""));
 
         // Movement classification covers stationary / walking / transit.
         assertEquals(ContinuousLocationTracker.MovingState.STATIONARY,

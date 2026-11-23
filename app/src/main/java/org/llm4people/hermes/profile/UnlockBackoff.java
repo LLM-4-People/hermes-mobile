@@ -165,6 +165,7 @@ public final class UnlockBackoff {
             long untilWall = Long.parseLong(parts[2]);
             int boot = Integer.parseInt(parts[3]);
             if (failures < 0 || untilElapsed < 0L || untilWall < 0L) return null;
+            if (failures > FREE_ATTEMPTS && untilElapsed <= 0L && untilWall <= 0L) return null;
             return new Record(failures, untilElapsed, untilWall, boot);
         } catch (NumberFormatException corrupt) {
             return null;

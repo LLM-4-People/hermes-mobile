@@ -88,6 +88,11 @@ public final class UnlockBackoffTest {
         UnlockBackoff backoff = new UnlockBackoff(backing, clock);
         assertTrue(backoff.remainingMs("alice") > 0L);
 
+        // Tampered high-failure record with zeroed timestamps must fail closed, never return 0ms.
+        backing.put("backoff.bob", "10|0|0|7");
+        assertTrue(backoff.remainingMs("bob") > 0L);
+        assertEquals(UnlockBackoff.FREE_ATTEMPTS + 1, backoff.failureCount("bob"));
+
         assertEquals("1 s", UnlockBackoff.formatRemaining(100L));
         assertEquals("5 s", UnlockBackoff.formatRemaining(5_000L));
         assertEquals("1 min", UnlockBackoff.formatRemaining(60_000L));

@@ -252,7 +252,8 @@ public final class AppPresenceTracker {
         boolean includeScreen = policy.shareAppPresence;
         boolean includeRead = policy.shareReadWithoutReply;
         ContinuousLocationTracker.Snapshot validLoc =
-                (policy.allowsLiveLocation() && locationSnapshot != null && !locationSnapshot.isStale(nowMs))
+                (policy.allowsLiveLocation() && locationSnapshot != null && !locationSnapshot.isStale(nowMs)
+                        && (policy.preciseLocation || !locationSnapshot.precise()))
                         ? locationSnapshot : null;
         if (!includeScreen && !includeRead && validLoc == null) {
             return null;
@@ -278,28 +279,34 @@ public final class AppPresenceTracker {
                 if (rwr.inAppUnreadReply()) {
                     json.append(",\"session_id\":").append(quoteJson(rwr.sessionId()));
                     json.append(",\"message_id\":").append(quoteJson(rwr.messageId()));
-                    json.append(",\"read_age_s\":").append(rwr.readAgeSec());
+                    json.append(",\"in_app_seconds_since_read\":").append(rwr.readAgeSec());
                 }
-                json.append(",\"dismissed_notifications\":[");
+                json.append(",\"notifications\":[");
                 List<DismissedNotificationView> items = rwr.dismissedNotifications();
                 for (int i = 0; i < items.size(); i++) {
                     if (i > 0) json.append(',');
                     DismissedNotificationView item = items.get(i);
-                    json.append("{\"app\":").append(quoteJson(item.appLabel()))
+                    json.append("{\"source\":").append(quoteJson(item.appLabel()))
                             .append(",\"age_s\":").append(item.ageSec()).append('}');
                 }
                 json.append("]}");
             }
             if (validLoc != null) {
+                boolean emitPrecise = policy.preciseLocation && validLoc.precise();
+                String coordFmt = emitPrecise ? "%.5f" : "%.2f";
+                double latVal = emitPrecise ? validLoc.lat() : ContinuousLocationTracker.quantizeCoarse(validLoc.lat());
+                double lonVal = emitPrecise ? validLoc.lon() : ContinuousLocationTracker.quantizeCoarse(validLoc.lon());
+                float accVal = emitPrecise ? validLoc.accuracyM()
+                        : Math.max(ContinuousLocationTracker.COARSE_MIN_ACCURACY_M, validLoc.accuracyM());
                 json.append(",\"continuous_location\":{");
                 json.append("\"opted_in\":true");
-                json.append(",\"lat\":").append(String.format(Locale.ROOT, "%.5f", validLoc.lat()));
-                json.append(",\"lon\":").append(String.format(Locale.ROOT, "%.5f", validLoc.lon()));
-                json.append(",\"accuracy_m\":").append(Math.round(validLoc.accuracyM()));
+                json.append(",\"mode\":").append(quoteJson(emitPrecise ? "precise" : "coarse"));
+                json.append(",\"lat\":").append(String.format(Locale.ROOT, coordFmt, latVal));
+                json.append(",\"lon\":").append(String.format(Locale.ROOT, coordFmt, lonVal));
+                json.append(",\"accuracy_m\":").append(Math.round(accVal));
                 json.append(",\"place_label\":").append(quoteJson(validLoc.placeLabel()));
                 json.append(",\"moving_state\":").append(quoteJson(validLoc.movingState().wire));
                 json.append(",\"age_s\":").append(validLoc.ageSeconds(nowMs));
-                json.append(",\"precision\":").append(quoteJson(validLoc.precise() ? "precise" : "coarse"));
                 json.append('}');
             }
             json.append('}');

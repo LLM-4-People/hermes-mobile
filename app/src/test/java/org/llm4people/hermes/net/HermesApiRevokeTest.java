@@ -1,0 +1,96 @@
+package org.llm4people.hermes.net;
+
+import org.junit.Test;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.net.InetAddress;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.nio.charset.StandardCharsets;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
+/**
+ * Verifies HermesApi.revoke() immediately aborts active HTTP request/download sockets
+ * and rejects subsequent calls fail-closed.
+ */
+public final class HermesApiRevokeTest {
+
+    @Test
+    public void revokeImmediatelyAbortsInFlightDownloadAndBlocksNewCalls() throws Exception {
+        CountDownLatch headersSent = new CountDownLatch(1);
+        CountDownLatch releaseServer = new CountDownLatch(1);
+        try (ServerSocket server = new ServerSocket(0, 4, InetAddress.getByName("127.0.0.1"))) {
+            Thread responder = new Thread(() -> {
+                try (Socket client = server.accept()) {
+                    // Consume HTTP request headers minimally before sending a stalled response body.
+                    client.getInputStream().read(new byte[512]);
+                    OutputStream out = client.getOutputStream();
+                    String headers = "HTTP/1.1 200 OK\r\n"
+                            + "Content-Type: application/octet-stream\r\n"
+                            + "Content-Length: 4096\r\n\r\n";
+                    out.write(headers.getBytes(StandardCharsets.US_ASCII));
+                    out.write("partial-bytes".getBytes(StandardCharsets.UTF_8));
+                    out.flush();
+                    headersSent.countDown();
+                    releaseServer.await(10, TimeUnit.SECONDS);
+                } catch (Exception ignored) {
+                    // Socket closed by client revoke().
+                }
+            }, "hermes-api-revoke-test-server");
+            responder.setDaemon(true);
+            responder.start();
+
+            HermesApi api = new HermesApi(
+                    "http://127.0.0.1:" + server.getLocalPort(),
+                    "test-bearer-secret",
+                    new HermesApi.Limits(5_000, 15_000, 65_536, 65_536));
+
+            AtomicReference<Throwable> failure = new AtomicReference<>();
+            CountDownLatch finished = new CountDownLatch(1);
+            Thread downloader = new Thread(() -> {
+                try {
+                    api.download("/api/sessions/s1/export?format=markdown", new ByteArrayOutputStream(), 8192);
+                } catch (Throwable err) {
+                    failure.set(err);
+                } finally {
+                    finished.countDown();
+                }
+            }, "hermes-api-revoke-test-client");
+            downloader.setDaemon(true);
+            downloader.start();
+
+            assertTrue("Server should send partial response", headersSent.await(5, TimeUnit.SECONDS));
+            long startedRevoke = System.nanoTime();
+            api.revoke();
+            assertTrue("In-flight download must abort promptly on revoke()", finished.await(3, TimeUnit.SECONDS));
+            long abortMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedRevoke);
+            assertTrue("Download aborted too slowly (" + abortMs + "ms)", abortMs < 3_000L);
+            assertNotNull("Revoked download must throw IOException", failure.get());
+            assertTrue("Expected IOException, got " + failure.get(), failure.get() instanceof IOException);
+            assertTrue(api.isRevoked());
+
+            // Subsequent HTTP calls fail closed immediately.
+            try {
+                api.get("/v1/capabilities");
+                fail("Expected IOException after revoke()");
+            } catch (IOException expected) {
+                assertTrue(expected.getMessage().contains("revoked"));
+            }
+            try {
+                api.download("/api/sessions/s1/export?format=markdown", new ByteArrayOutputStream(), 1024);
+                fail("Expected IOException on download after revoke()");
+            } catch (IOException expected) {
+                assertTrue(expected.getMessage().contains("revoked"));
+            }
+            releaseServer.countDown();
+        }
+    }
+}
