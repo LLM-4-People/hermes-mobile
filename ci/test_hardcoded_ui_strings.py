@@ -144,6 +144,7 @@ class HardcodedUiStringsGuardTest(unittest.TestCase):
                 """<resources>
                     <string name="keep">Keep</string>
                     <string name="only_en">English only</string>
+                    <string name="padded"> Leading space</string>
                     <string name="cfg">Should not translate</string>
                     <string-array name="modes"><item>A</item></string-array>
                 </resources>""",
@@ -152,6 +153,7 @@ class HardcodedUiStringsGuardTest(unittest.TestCase):
             self.assertTrue(any("duplicate <string name='keep'>" in i for i in issues), issues)
             self.assertTrue(any("missing <string name='only_fr'>" in i for i in issues), issues)
             self.assertTrue(any("missing <string name='only_en'>" in i for i in issues), issues)
+            self.assertTrue(any("unquoted leading/trailing whitespace" in i and "padded" in i for i in issues), issues)
             self.assertTrue(any("translatable=\"false\"" in i and "cfg" in i for i in issues), issues)
             self.assertTrue(any("missing <plurals name='items'>" in i for i in issues), issues)
             self.assertTrue(any("string-array name='modes'" in i for i in issues), issues)

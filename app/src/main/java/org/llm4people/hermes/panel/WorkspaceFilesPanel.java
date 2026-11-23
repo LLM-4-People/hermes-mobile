@@ -217,8 +217,8 @@ final class WorkspaceFilesPanel {
         body.removeAllViews();
         if (!diff.branch().isEmpty()) {
             StringBuilder summary = new StringBuilder(panel.t(R.string.brain_files_branch, diff.branch()));
-            if (diff.ahead() > 0) summary.append(panel.t(R.string.ws_files_ahead, diff.ahead()));
-            if (diff.behind() > 0) summary.append(panel.t(R.string.ws_files_behind, diff.behind()));
+            if (diff.ahead() > 0) summary.append(" · ").append(panel.t(R.string.ws_files_ahead, diff.ahead()));
+            if (diff.behind() > 0) summary.append(" · ").append(panel.t(R.string.ws_files_behind, diff.behind()));
             panel.note(body, summary.toString());
         }
         if (!diff.diffText().isEmpty()) {

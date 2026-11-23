@@ -79,6 +79,12 @@ NON_UI_PARSER_LITERALS: set[tuple[str, str]] = {
     ("app/src/main/java/org/llm4people/hermes/onboarding/PairingLinkParser.java", "clé"),
 }
 
+# Pre-existing XML strings outside Track 30B with unquoted trailing whitespace (ratcheted).
+PREEXISTING_WHITESPACE_STRINGS: set[tuple[str, str]] = {
+    ("app/src/main/res/values/ambient_strings.xml", "ambient_draft_media"),
+    ("app/src/main/res/values-en/ambient_strings.xml", "ambient_draft_media"),
+}
+
 # French diacritics that should never appear in Java source string literals.
 FR_ACCENT_RE = re.compile(r"[éèêëàâäîïôöùûüçœæÉÈÊËÀÂÄÎÏÔÖÙÛÜÇŒÆ]")
 
@@ -551,7 +557,14 @@ def _collect_xml_resources(res_dir: Path, root: Path) -> tuple[dict[str, set[str
                     non_translatable[tag].add(name)
                 else:
                     translatable[tag].add(name)
-                    if tag == "string-array":
+                    if tag == "string":
+                        raw_text = "".join(el.itertext())
+                        if raw_text != raw_text.strip() and not (raw_text.startswith('"') and raw_text.endswith('"')):
+                            if (rel, name) not in PREEXISTING_WHITESPACE_STRINGS:
+                                issues.append(
+                                    f"{rel}: <string name={name!r}> has unquoted leading/trailing whitespace that AAPT2 strips"
+                                )
+                    elif tag == "string-array":
                         array_lengths[name] = len(el.findall("item"))
 
     return translatable, non_translatable, array_lengths, issues

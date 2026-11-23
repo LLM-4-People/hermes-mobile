@@ -326,8 +326,6 @@
     <string name="ws_badge_pricing_included">Tarif · Inclus</string>
     <string name="ws_badge_pricing_pair">Tarif · %1$s / %2$s $/M</string>
     <string name="ws_badge_pricing_single">Tarif · %1$s $/M</string>
-    <string name="ws_unit_millions">%1$s M</string>
-    <string name="ws_unit_thousands">%1$d k</string>
 
     <string name="ws_note_untitled">Note sans titre</string>
     <string name="ws_note_err_title_empty">Donnez un titre à cette note.</string>
@@ -416,8 +414,8 @@
     <string name="ws_usage_cost_estimated">%1$s (estimé)</string>
 
     <string name="ws_files_dir_prefix">Dossier · %1$s</string>
-    <string name="ws_files_ahead"> · +%1$d en avance</string>
-    <string name="ws_files_behind"> · -%1$d en retard</string>
+    <string name="ws_files_ahead">+%1$d en avance</string>
+    <string name="ws_files_behind">-%1$d en retard</string>
     <string name="ws_path_err_missing">Chemin de fichier manquant.</string>
     <string name="ws_path_err_long">Chemin trop long.</string>
     <string name="ws_path_err_absolute">Chemin absolu ou séparateur invalide.</string>
