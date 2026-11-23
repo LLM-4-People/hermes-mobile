@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 class CiRoutingTest(unittest.TestCase):
     def test_pages_only_runs_only_pages_check_and_skips_gradle_and_emulators(self):
-        for event in ("pull_request", "push"):
+        for event in ("pull_request", "merge_group", "push"):
             with self.subTest(event=event):
                 res = ci_routing.classify_files(
                     ["site/index.html", "site/assets/style.css", ".github/workflows/pages.yml"],
@@ -25,6 +25,29 @@ class CiRoutingTest(unittest.TestCase):
                 self.assertFalse(res["run_android"])
                 self.assertFalse(res["run_push_acceptance"])
                 self.assertEqual(res["labels"], ["ci", "pages"])
+
+    def test_ci_meta_docs_and_release_automation_uses_fast_path(self):
+        fast_paths = [
+            "scripts/docs.py",
+            "ci/semver_bump.py",
+            "ci/test_semver_bump.py",
+            "ci/test_docs_generator.py",
+            "ci/check_writing_quality.py",
+            "ci/test_writing_quality.py",
+            "ci/check_pages.py",
+            ".github/workflows/auto-release.yml",
+            ".github/release.yml",
+            ".github/labeler.yml",
+        ]
+        for event in ("pull_request", "merge_group"):
+            with self.subTest(event=event):
+                res = ci_routing.classify_files(fast_paths + ["README.md"], event_name=event)
+                self.assertTrue(res["run_pages_check"])
+                self.assertTrue(res["docs_only"])
+                self.assertFalse(res["run_workspace"])
+                self.assertFalse(res["run_android"])
+                self.assertFalse(res["run_push_acceptance"])
+                self.assertIn("fast path", res["reason"])
 
     def test_docs_templates_and_impeccable_only_skip_all_heavy_jobs(self):
         res = ci_routing.classify_files([
@@ -63,6 +86,10 @@ class CiRoutingTest(unittest.TestCase):
         cases = [
             ["app/src/main/java/org/llm4people/hermes/MainActivity.java", "README.md"],
             ["ci/device-check.sh"],
+            ["ci/gradle_check.py"],
+            ["ci/native_tests.py"],
+            ["ci/sign-apk.sh"],
+            ["ci/ci_routing.py"],
             ["scripts/fast_check.py"],
             ["verification/phone_actions.py"],
             [".github/workflows/checks.yml"],
@@ -70,14 +97,15 @@ class CiRoutingTest(unittest.TestCase):
             ["unknown-root-file.txt"],
             [],
         ]
-        for paths in cases:
-            with self.subTest(paths=paths):
-                res = ci_routing.classify_files(paths)
-                self.assertTrue(res["run_workspace"])
-                self.assertTrue(res["run_android"])
-                self.assertTrue(res["run_push_acceptance"])
-                self.assertTrue(res["run_pages_check"])
-                self.assertFalse(res["docs_only"])
+        for event in ("pull_request", "merge_group"):
+            for paths in cases:
+                with self.subTest(event=event, paths=paths):
+                    res = ci_routing.classify_files(paths, event_name=event)
+                    self.assertTrue(res["run_workspace"])
+                    self.assertTrue(res["run_android"])
+                    self.assertTrue(res["run_push_acceptance"])
+                    self.assertTrue(res["run_pages_check"])
+                    self.assertFalse(res["docs_only"])
 
     def test_release_mode_and_workflow_dispatch_always_run_full_suite(self):
         for kwargs in (
