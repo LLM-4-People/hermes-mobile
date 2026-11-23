@@ -1,16 +1,21 @@
 <resources>
-    <color name="paper">#F7F5EF</color>
-    <color name="surface">#FFFEFA</color>
-    <color name="ink">#172521</color>
-    <color name="muted">#53625B</color>
-    <color name="accent">#225C50</color>
+    <color name="paper">#F6F4EE</color>
+    <color name="surface">#FFFEFB</color>
+    <color name="surface_container">#EEECE3</color>
+    <color name="ink">#14231E</color>
+    <color name="muted">#4E5D56</color>
+    <color name="accent">#1B5E50</color>
     <color name="on_accent">#FFFFFF</color>
-    <color name="line">#CED4CB</color>
-    <color name="danger">#9B342D</color>
-    <color name="danger_surface">#FBE9E7</color>
-    <color name="warning">#8A5300</color>
-    <color name="warning_surface">#F7EAD1</color>
-    <color name="accent_surface">#DCEDE3</color>
+    <color name="line">#D2D7CE</color>
+    <color name="line_strong">#8E9B94</color>
+    <color name="danger">#A12E28</color>
+    <color name="danger_surface">#FCE9E7</color>
+    <color name="warning">#7D4B00</color>
+    <color name="warning_surface">#F8EBD0</color>
+    <color name="accent_surface">#D8EDE3</color>
+    <color name="disabled_surface">#E7E5DC</color>
+    <color name="disabled_ink">#55635C</color>
+    <color name="ripple">#1F1B5E50</color>
     <color name="hermes_icon_ground">@color/accent</color>
     <color name="hermes_icon_ink">@color/on_accent</color>
 </resources>

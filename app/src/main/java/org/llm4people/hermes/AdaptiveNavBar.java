@@ -4,7 +4,6 @@ import android.content.Context;
 import android.content.res.ColorStateList;
 import android.graphics.Typeface;
 import android.text.TextUtils;
-import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
 import android.view.accessibility.AccessibilityNodeInfo;
@@ -19,13 +18,14 @@ import java.util.Objects;
 import java.util.function.Consumer;
 
 /**
- * Effortless 4-destination adaptive navigation chrome.
- * Renders as a bottom bar on phones (&lt; 720dp, auto-hidden when IME is open)
- * and a calm 92dp leading navigation rail on tablets (&gt;= 720dp).
+ * Material 3 adaptive 4-destination navigation chrome.
+ * Renders as a bottom bar with 64x32dp active capsule indicators on phones (&lt; 720dp,
+ * auto-hidden when IME is open) and a calm leading navigation rail on tablets (&gt;= 720dp).
  */
 public final class AdaptiveNavBar extends LinearLayout {
     public record Destination(String route, int viewId, int iconRes, int labelRes) {}
 
+    private static final Typeface MEDIUM = Typeface.create("sans-serif-medium", Typeface.NORMAL);
     private static final Destination[] DESTINATIONS = {
             new Destination(WorkspaceNavigation.DISCUSSION, R.id.nav_tab_discussions,
                     R.drawable.ic_threads, R.string.nav_discussions),
@@ -78,7 +78,7 @@ public final class AdaptiveNavBar extends LinearLayout {
             item.pill.setBackgroundResource(active ? R.drawable.nav_indicator : 0);
             item.icon.setImageTintList(ColorStateList.valueOf(active ? activeInk : idleInk));
             item.label.setTextColor(active ? activeInk : idleInk);
-            item.label.setTypeface(Typeface.DEFAULT, active ? Typeface.BOLD : Typeface.NORMAL);
+            item.label.setTypeface(active ? MEDIUM : Typeface.DEFAULT, active ? Typeface.BOLD : Typeface.NORMAL);
         }
     }
 
@@ -99,23 +99,26 @@ public final class AdaptiveNavBar extends LinearLayout {
         boolean rail = target == AdaptiveLayout.NavChrome.RAIL;
         setOrientation(rail ? VERTICAL : HORIZONTAL);
         setGravity(rail ? Gravity.TOP | Gravity.CENTER_HORIZONTAL : Gravity.CENTER_VERTICAL);
-        int padH = Ui.dp(getContext(), rail ? 4 : 6);
-        int padV = Ui.dp(getContext(), rail ? 10 : 4);
+        int padH = Ui.dp(getContext(), rail ? 4 : 8);
+        int padV = Ui.dp(getContext(), rail ? 12 : 6);
         setPaddingRelative(padH, padV, padH, padV);
         setMinimumHeight(rail ? 0 : Ui.dp(getContext(), AdaptiveLayout.NAV_BAR_MIN_HEIGHT_DP));
         setMinimumWidth(rail ? Ui.dp(getContext(), AdaptiveLayout.NAV_RAIL_WIDTH_DP) : 0);
+        int pillW = Ui.dp(getContext(), rail ? 56 : 64);
+        int pillH = Ui.dp(getContext(), 32);
         for (ItemViews item : items.values()) {
             LinearLayout.LayoutParams params = rail
                     ? new LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT)
                     : new LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f);
             if (rail) {
-                params.topMargin = Ui.dp(getContext(), 4);
-                params.bottomMargin = Ui.dp(getContext(), 4);
+                params.topMargin = Ui.dp(getContext(), 6);
+                params.bottomMargin = Ui.dp(getContext(), 6);
             } else {
                 params.topMargin = 0;
                 params.bottomMargin = 0;
             }
             item.container.setLayoutParams(params);
+            item.pill.setLayoutParams(new LinearLayout.LayoutParams(pillW, pillH));
         }
     }
 
@@ -127,11 +130,10 @@ public final class AdaptiveNavBar extends LinearLayout {
         container.setGravity(Gravity.CENTER);
         container.setMinimumHeight(Ui.dp(context, 48));
         container.setMinimumWidth(Ui.dp(context, 48));
+        container.setPaddingRelative(Ui.dp(context, 2), Ui.dp(context, 2), Ui.dp(context, 2), Ui.dp(context, 2));
         container.setFocusable(true);
         container.setClickable(true);
-        TypedValue ripple = new TypedValue();
-        context.getTheme().resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, ripple, true);
-        container.setBackgroundResource(ripple.resourceId);
+        container.setBackground(Ui.roundedRipple(context, 16, null));
         container.setContentDescription(title);
         container.setTooltipText(title);
         container.setAccessibilityDelegate(new View.AccessibilityDelegate() {
@@ -145,9 +147,7 @@ public final class AdaptiveNavBar extends LinearLayout {
 
         LinearLayout pill = new LinearLayout(context);
         pill.setGravity(Gravity.CENTER);
-        int pillW = Ui.dp(context, 48);
-        int pillH = Ui.dp(context, 28);
-        pill.setLayoutParams(new LinearLayout.LayoutParams(pillW, pillH));
+        pill.setLayoutParams(new LinearLayout.LayoutParams(Ui.dp(context, 64), Ui.dp(context, 32)));
 
         ImageView icon = new ImageView(context);
         icon.setImageResource(dest.iconRes());
@@ -165,7 +165,7 @@ public final class AdaptiveNavBar extends LinearLayout {
         label.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         LinearLayout.LayoutParams labelParams = new LinearLayout.LayoutParams(
                 LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
-        labelParams.topMargin = Ui.dp(context, 2);
+        labelParams.topMargin = Ui.dp(context, 4);
         container.addView(label, labelParams);
 
         return new ItemViews(container, pill, icon, label);

@@ -1,0 +1,9 @@
+<resources>
+    <string name="thread_speaker_hermes">Hermes</string>
+    <string name="thread_photo_attached_cd">Image jointe : %1$s</string>
+    <string name="thread_photo_remove_cd">Retirer l’image %1$s</string>
+    <string name="thread_role_prompt_status">Suivi de la question</string>
+    <string name="thread_role_approval_result">Autorisation</string>
+    <string name="thread_tools_prefix">Outils · %1$s</string>
+    <string name="thread_action_details">Détails de l’action</string>
+</resources>

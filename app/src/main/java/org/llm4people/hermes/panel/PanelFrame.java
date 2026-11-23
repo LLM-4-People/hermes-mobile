@@ -22,6 +22,7 @@ final class PanelFrame extends FrameLayout {
         this.sheet = sheet;
         setFitsSystemWindows(true);
         setBackgroundColor(context.getColor(R.color.paper));
+        sheet.setClipToPadding(false);
         addView(sheet, new LayoutParams(-1, -1, Gravity.CENTER_HORIZONTAL));
     }
 

@@ -1,0 +1,9 @@
+<resources>
+    <string name="thread_speaker_hermes">Hermes</string>
+    <string name="thread_photo_attached_cd">Attached image: %1$s</string>
+    <string name="thread_photo_remove_cd">Remove image %1$s</string>
+    <string name="thread_role_prompt_status">Question status</string>
+    <string name="thread_role_approval_result">Approval</string>
+    <string name="thread_tools_prefix">Tools · %1$s</string>
+    <string name="thread_action_details">Action details</string>
+</resources>

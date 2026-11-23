@@ -1,18 +1,32 @@
 package org.llm4people.hermes;
 
-import android.content.Context;
 import android.app.AlertDialog;
-import android.view.WindowManager;
+import android.content.Context;
+import android.content.res.ColorStateList;
+import android.graphics.Color;
+import android.graphics.Typeface;
+import android.graphics.drawable.Drawable;
+import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.RippleDrawable;
+import android.graphics.drawable.StateListDrawable;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
+import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
-/** Shared native primitives. Dimensions follow screen density and text follows font scale. */
+/** Shared native Material 3 primitives. Dimensions follow screen density and text follows font scale. */
 public final class Ui {
+    public static final int BUTTON_CORNER_DP = 14;
+    public static final int CARD_CORNER_DP = 16;
+
     private Ui() {}
+
+    private static Typeface mediumTypeface() {
+        return Typeface.create("sans-serif-medium", Typeface.NORMAL);
+    }
 
     public static int dp(Context context, float value) {
         return Math.round(TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, value,
@@ -34,16 +48,147 @@ public final class Ui {
         return view;
     }
 
+    /** Material 3 text button with rounded ripple, distinct disabled ink and >= 48dp touch target. */
     public static Button button(Context context, String label, View.OnClickListener action) {
-        Button button = new Button(context, null, android.R.attr.borderlessButtonStyle);
-        button.setText(label);
-        button.setAllCaps(false);
-        button.setTextColor(context.getColor(R.color.accent));
-        int minTouch = dp(context, 48);
-        button.setMinHeight(minTouch);
-        button.setMinimumHeight(minTouch);
-        button.setOnClickListener(action);
+        Button button = baseButton(context, label, action);
+        button.setTextSize(14);
+        button.setTextColor(enabledDisabledInk(
+                context.getColor(R.color.accent), context.getColor(R.color.disabled_ink)));
+        button.setBackground(roundedRipple(context, BUTTON_CORNER_DP, null));
+        pad(button, 12, 8);
         return button;
+    }
+
+    /** Material 3 high-emphasis filled primary CTA button (14dp corners, muted disabled fill). */
+    public static Button filledButton(Context context, String label, View.OnClickListener action) {
+        Button button = baseButton(context, label, action);
+        button.setTextSize(15);
+        button.setTextColor(enabledDisabledInk(
+                context.getColor(R.color.on_accent), context.getColor(R.color.disabled_ink)));
+        StateListDrawable states = new StateListDrawable();
+        states.addState(new int[]{-android.R.attr.state_enabled},
+                shape(context, BUTTON_CORNER_DP, R.color.disabled_surface, R.color.line, 1));
+        states.addState(new int[]{},
+                shape(context, BUTTON_CORNER_DP, R.color.accent, 0, 0));
+        button.setBackground(roundedRipple(context, BUTTON_CORNER_DP, states));
+        pad(button, 20, 12);
+        return button;
+    }
+
+    /** Material 3 medium-emphasis tonal button (accent_surface fill, muted disabled fill). */
+    public static Button tonalButton(Context context, String label, View.OnClickListener action) {
+        Button button = baseButton(context, label, action);
+        button.setTextSize(14);
+        button.setTextColor(enabledDisabledInk(
+                context.getColor(R.color.accent), context.getColor(R.color.disabled_ink)));
+        StateListDrawable states = new StateListDrawable();
+        states.addState(new int[]{-android.R.attr.state_enabled},
+                shape(context, BUTTON_CORNER_DP, R.color.disabled_surface, R.color.line, 1));
+        states.addState(new int[]{},
+                shape(context, BUTTON_CORNER_DP, R.color.accent_surface, 0, 0));
+        button.setBackground(roundedRipple(context, BUTTON_CORNER_DP, states));
+        pad(button, 16, 10);
+        return button;
+    }
+
+    /** Material 3 outlined secondary button (surface fill + 1dp hairline outline). */
+    public static Button outlinedButton(Context context, String label, View.OnClickListener action) {
+        Button button = baseButton(context, label, action);
+        button.setTextSize(14);
+        button.setTextColor(enabledDisabledInk(
+                context.getColor(R.color.ink), context.getColor(R.color.disabled_ink)));
+        StateListDrawable states = new StateListDrawable();
+        states.addState(new int[]{-android.R.attr.state_enabled},
+                shape(context, BUTTON_CORNER_DP, R.color.disabled_surface, R.color.line, 1));
+        states.addState(new int[]{},
+                shape(context, BUTTON_CORNER_DP, R.color.surface, R.color.line, 1));
+        button.setBackground(roundedRipple(context, BUTTON_CORNER_DP, states));
+        pad(button, 16, 10);
+        return button;
+    }
+
+    /** Clean Material 3 surface card (16dp corners, 1dp hairline border, single elevation layer). */
+    public static LinearLayout card(Context context) {
+        LinearLayout layout = column(context);
+        layout.setBackground(shape(context, CARD_CORNER_DP, R.color.surface, R.color.line, 1));
+        pad(layout, 16, 14);
+        return layout;
+    }
+
+    /** Tonal surface card without stroke for calm grouping over paper. */
+    public static LinearLayout tonalCard(Context context) {
+        LinearLayout layout = column(context);
+        layout.setBackground(shape(context, CARD_CORNER_DP, R.color.surface_container, 0, 0));
+        pad(layout, 16, 14);
+        return layout;
+    }
+
+    /** Compact rounded status badge (pure typography, zero emojis). */
+    public static TextView pill(Context context, String label, int bgColorRes, int textColorRes) {
+        TextView view = text(context, label, 12);
+        view.setTypeface(mediumTypeface());
+        view.setSingleLine(true);
+        view.setTextColor(context.getColor(textColorRes));
+        view.setPaddingRelative(dp(context, 10), dp(context, 4), dp(context, 10), dp(context, 4));
+        view.setBackground(shape(context, 999, bgColorRes, 0, 0));
+        return view;
+    }
+
+    /** Circular 36dp initials monogram badge for profile cards and hubs. */
+    public static TextView avatarBadge(Context context, String name) {
+        TextView badge = new TextView(context);
+        badge.setText(initials(name));
+        badge.setTextSize(14);
+        badge.setTypeface(mediumTypeface());
+        badge.setGravity(Gravity.CENTER);
+        badge.setTextColor(context.getColor(R.color.accent));
+        GradientDrawable circle = new GradientDrawable();
+        circle.setShape(GradientDrawable.OVAL);
+        circle.setColor(context.getColor(R.color.accent_surface));
+        badge.setBackground(circle);
+        int size = dp(context, 36);
+        badge.setLayoutParams(new LinearLayout.LayoutParams(size, size));
+        badge.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        return badge;
+    }
+
+    /** Derive 1-2 uppercase initials from a display name for crisp typographic avatars. */
+    public static String initials(String name) {
+        if (name == null) return "H";
+        String trimmed = name.trim();
+        if (trimmed.isEmpty()) return "H";
+        String[] parts = trimmed.split("\\s+");
+        StringBuilder out = new StringBuilder(2);
+        for (String part : parts) {
+            if (part.isEmpty()) continue;
+            int cp = part.codePointAt(0);
+            if (Character.isLetterOrDigit(cp)) {
+                out.appendCodePoint(Character.toUpperCase(cp));
+                if (out.length() == 2) break;
+            }
+        }
+        return out.length() == 0 ? "H" : out.toString();
+    }
+
+    /** Build a rounded Material 3 RippleDrawable over optional background content. */
+    public static RippleDrawable roundedRipple(Context context, int cornerDp, Drawable content) {
+        GradientDrawable mask = new GradientDrawable();
+        mask.setColor(Color.WHITE);
+        mask.setCornerRadius(dp(context, cornerDp));
+        return new RippleDrawable(
+                ColorStateList.valueOf(context.getColor(R.color.ripple)), content, mask);
+    }
+
+    /** Build a rounded GradientDrawable using color resource IDs. */
+    public static GradientDrawable shape(
+            Context context, int cornerDp, int fillColorRes, int strokeColorRes, int strokeDp) {
+        GradientDrawable drawable = new GradientDrawable();
+        drawable.setCornerRadius(dp(context, cornerDp));
+        if (fillColorRes != 0) drawable.setColor(context.getColor(fillColorRes));
+        if (strokeColorRes != 0 && strokeDp > 0) {
+            drawable.setStroke(Math.max(1, dp(context, strokeDp)), context.getColor(strokeColorRes));
+        }
+        return drawable;
     }
 
     public static LinearLayout column(Context context) {
@@ -73,5 +218,32 @@ public final class Ui {
         line.setLayoutParams(new LinearLayout.LayoutParams(-1, Math.max(1, dp(context, 1))));
         line.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         return line;
+    }
+
+    public static View insetDivider(Context context, int startDp) {
+        View line = divider(context);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, Math.max(1, dp(context, 1)));
+        params.setMarginStart(dp(context, startDp));
+        line.setLayoutParams(params);
+        return line;
+    }
+
+    private static Button baseButton(Context context, String label, View.OnClickListener action) {
+        Button button = new Button(context, null, android.R.attr.borderlessButtonStyle);
+        button.setText(label);
+        button.setAllCaps(false);
+        button.setTypeface(mediumTypeface());
+        button.setStateListAnimator(null);
+        int minTouch = dp(context, 48);
+        button.setMinHeight(minTouch);
+        button.setMinimumHeight(minTouch);
+        button.setOnClickListener(action);
+        return button;
+    }
+
+    private static ColorStateList enabledDisabledInk(int enabledColor, int disabledColor) {
+        return new ColorStateList(
+                new int[][]{new int[]{-android.R.attr.state_enabled}, new int[]{}},
+                new int[]{disabledColor, enabledColor});
     }
 }

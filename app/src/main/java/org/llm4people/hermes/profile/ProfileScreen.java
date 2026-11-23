@@ -1,7 +1,6 @@
 package org.llm4people.hermes.profile;
 
 import android.app.Activity;
-import android.content.res.ColorStateList;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.text.InputFilter;
@@ -19,7 +18,7 @@ import org.llm4people.hermes.AdaptiveLayout;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 
-/** Native, scrollable profile forms inside the activity's inset-aware content area. */
+/** Native, scrollable Material 3 profile forms inside the activity's inset-aware content area. */
 final class ProfileScreen {
     enum BadgeTone { NEUTRAL, BIOMETRIC, COOLDOWN }
 
@@ -40,7 +39,7 @@ final class ProfileScreen {
                 int gutter = Ui.dp(activity, AdaptiveLayout.centeredGutterDp(
                         MeasureSpec.getSize(widthSpec) / density, AdaptiveLayout.PROFILE_COLUMN_MAX_DP, 22));
                 if (body.getPaddingStart() != gutter) {
-                    body.setPaddingRelative(gutter, Ui.dp(activity, 20), gutter, Ui.dp(activity, 24));
+                    body.setPaddingRelative(gutter, Ui.dp(activity, 24), gutter, Ui.dp(activity, 28));
                 }
                 super.onMeasure(widthSpec, heightSpec);
             }
@@ -49,20 +48,21 @@ final class ProfileScreen {
         scroll.setBackgroundColor(activity.getColor(R.color.paper));
         body.setFocusableInTouchMode(true);
         scroll.addView(body, new ScrollView.LayoutParams(-1, -2));
-        heading(title, 30, 0);
+        heading(title, 28, 0, true);
         if (description != null) description(description);
         activity.setContentView(scroll);
     }
 
     void section(String title, String description) {
-        add(Ui.divider(activity), 22);
-        heading(title, 20, 16);
+        add(Ui.divider(activity), 24);
+        heading(title, 19, 18, false);
         description(description);
     }
 
-    private void heading(String title, int size, int top) {
+    private void heading(String title, int size, int top, boolean display) {
         TextView heading = Ui.text(activity, title, size);
-        heading.setTypeface(MEDIUM);
+        heading.setTypeface(display ? Typeface.DEFAULT_BOLD : MEDIUM);
+        heading.setLetterSpacing(display ? -0.02f : -0.01f);
         heading.setAccessibilityHeading(true);
         add(heading, top);
     }
@@ -70,13 +70,15 @@ final class ProfileScreen {
     private void description(String text) {
         TextView detail = Ui.text(activity, text, 15);
         detail.setTextColor(activity.getColor(R.color.muted));
-        add(detail, 4);
+        detail.setLineSpacing(0f, 1.25f);
+        add(detail, 6);
     }
 
     TextView note(String text) {
         TextView caption = Ui.text(activity, text, 13);
         caption.setTextColor(activity.getColor(R.color.muted));
-        add(caption, 4);
+        caption.setLineSpacing(0f, 1.2f);
+        add(caption, 6);
         return caption;
     }
 
@@ -95,18 +97,18 @@ final class ProfileScreen {
     EditText field(String label, String hint, int type, int maxLength, boolean sensitive) {
         TextView caption = Ui.text(activity, label, 14);
         caption.setTypeface(MEDIUM);
-        add(caption, 14);
+        add(caption, 16);
         EditText edit = new EditText(activity);
         edit.setId(View.generateViewId());
         edit.setSingleLine(true);
-        edit.setTextSize(17);
+        edit.setTextSize(16);
         edit.setInputType(type);
         edit.setTypeface(Typeface.DEFAULT);
         edit.setTextColor(activity.getColor(R.color.ink));
         edit.setHintTextColor(activity.getColor(R.color.muted));
         edit.setBackgroundResource(R.drawable.profile_input);
         edit.setBackgroundTintList(null);
-        Ui.pad(edit, 12, 9);
+        Ui.pad(edit, 14, 12);
         edit.setHint(hint);
         edit.setMinHeight(Ui.dp(activity, 48));
         edit.setSaveEnabled(false);
@@ -120,30 +122,34 @@ final class ProfileScreen {
             lastField.setNextFocusDownId(edit.getId());
         }
         lastField = edit;
-        add(edit, 4);
+        add(edit, 6);
         return edit;
     }
 
     /**
      * Profile chooser row preserving the exact profile {@code label} on the clickable {@link Button}
-     * while rendering a subtle WCAG-AA status pill beside it.
+     * while pairing a crisp circular initials avatar and WCAG-AA status pill beside it.
      */
     Button profileRow(String label, String badgeText, BadgeTone tone, View.OnClickListener listener) {
         LinearLayout row = new LinearLayout(activity);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setMinimumHeight(Ui.dp(activity, 52));
-        row.setPaddingRelative(Ui.dp(activity, 14), Ui.dp(activity, 4), Ui.dp(activity, 12), Ui.dp(activity, 4));
-        GradientDrawable card = new GradientDrawable();
-        card.setCornerRadius(Ui.dp(activity, 12));
-        card.setColor(activity.getColor(R.color.surface));
-        card.setStroke(Ui.dp(activity, 1), activity.getColor(R.color.line));
-        row.setBackground(card);
+        row.setMinimumHeight(Ui.dp(activity, 60));
+        row.setPaddingRelative(Ui.dp(activity, 14), Ui.dp(activity, 8), Ui.dp(activity, 14), Ui.dp(activity, 8));
+        GradientDrawable card = Ui.shape(activity, Ui.CARD_CORNER_DP, R.color.surface, R.color.line, 1);
+        row.setBackground(Ui.roundedRipple(activity, Ui.CARD_CORNER_DP, card));
+
+        TextView avatar = Ui.avatarBadge(activity, label);
+        LinearLayout.LayoutParams avatarParams = new LinearLayout.LayoutParams(
+                Ui.dp(activity, 36), Ui.dp(activity, 36));
+        avatarParams.setMarginEnd(Ui.dp(activity, 12));
+        row.addView(avatar, avatarParams);
 
         Button button = new Button(activity);
         button.setText(label);
         button.setAllCaps(false);
         button.setBackground(null);
+        button.setStateListAnimator(null);
         button.setPaddingRelative(0, Ui.dp(activity, 8), Ui.dp(activity, 10), Ui.dp(activity, 8));
         button.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
         button.setMinHeight(Ui.dp(activity, 48));
@@ -156,24 +162,7 @@ final class ProfileScreen {
         row.addView(button, btnParams);
 
         if (badgeText != null && !badgeText.isEmpty()) {
-            TextView pill = Ui.text(activity, badgeText, 12);
-            pill.setTypeface(MEDIUM);
-            pill.setSingleLine(true);
-            pill.setPaddingRelative(Ui.dp(activity, 10), Ui.dp(activity, 4), Ui.dp(activity, 10), Ui.dp(activity, 4));
-            GradientDrawable pillBg = new GradientDrawable();
-            pillBg.setCornerRadius(Ui.dp(activity, 999));
-            if (tone == BadgeTone.BIOMETRIC) {
-                pill.setTextColor(activity.getColor(R.color.accent));
-                pillBg.setColor(activity.getColor(R.color.accent_surface));
-            } else if (tone == BadgeTone.COOLDOWN) {
-                pill.setTextColor(activity.getColor(R.color.warning));
-                pillBg.setColor(activity.getColor(R.color.warning_surface));
-            } else {
-                pill.setTextColor(activity.getColor(R.color.muted));
-                pillBg.setColor(activity.getColor(R.color.paper));
-                pillBg.setStroke(Ui.dp(activity, 1), activity.getColor(R.color.line));
-            }
-            pill.setBackground(pillBg);
+            TextView pill = buildStatusPill(badgeText, tone);
             LinearLayout.LayoutParams pillParams = new LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
             pillParams.setMarginStart(Ui.dp(activity, 8));
@@ -183,22 +172,30 @@ final class ProfileScreen {
         row.setOnClickListener(v -> {
             if (button.isEnabled()) button.performClick();
         });
-        add(row, 8);
+        add(row, 10);
         return button;
     }
 
-    Button action(String label, boolean primary, View.OnClickListener listener) {
-        Button button = primary ? new Button(activity) : Ui.button(activity, label, listener);
-        if (primary) {
-            button.setText(label);
-            button.setAllCaps(false);
-            button.setOnClickListener(listener);
-            button.setBackgroundTintList(ColorStateList.valueOf(activity.getColor(R.color.accent)));
-            button.setTextColor(activity.getColor(R.color.on_accent));
-            if (lastField != null) connectSubmission(lastField, button);
+    private TextView buildStatusPill(String badgeText, BadgeTone tone) {
+        if (tone == BadgeTone.BIOMETRIC) {
+            return Ui.pill(activity, badgeText, R.color.accent_surface, R.color.accent);
         }
-        button.setMinHeight(Ui.dp(activity, 48));
-        add(button, primary ? 20 : 8);
+        if (tone == BadgeTone.COOLDOWN) {
+            return Ui.pill(activity, badgeText, R.color.warning_surface, R.color.warning);
+        }
+        TextView pill = Ui.pill(activity, badgeText, R.color.surface_container, R.color.muted);
+        pill.setBackground(Ui.shape(activity, 999, R.color.surface_container, R.color.line, 1));
+        return pill;
+    }
+
+    Button action(String label, boolean primary, View.OnClickListener listener) {
+        Button button = primary
+                ? Ui.filledButton(activity, label, listener)
+                : Ui.button(activity, label, listener);
+        if (primary && lastField != null) {
+            connectSubmission(lastField, button);
+        }
+        add(button, primary ? 22 : 8);
         return button;
     }
 
@@ -217,8 +214,9 @@ final class ProfileScreen {
     void status(String message, boolean error) {
         if (status == null) {
             status = Ui.text(activity, "", 15);
+            status.setLineSpacing(0f, 1.25f);
             status.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
-            add(status, 12);
+            add(status, 14);
         }
         status.setTextColor(activity.getColor(error ? R.color.danger : R.color.muted));
         status.setText(message);

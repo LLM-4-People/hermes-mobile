@@ -1,14 +1,19 @@
 <resources>
-    <color name="paper">#141D19</color>
-    <color name="surface">#1C2823</color>
-    <color name="ink">#F3F2E8</color>
-    <color name="muted">#B1BEB3</color>
-    <color name="accent">#A0D7BC</color>
-    <color name="on_accent">#102F23</color>
-    <color name="line">#3D4C43</color>
-    <color name="danger">#FFAEA4</color>
-    <color name="danger_surface">#3B1E1C</color>
-    <color name="warning">#F2C97D</color>
-    <color name="warning_surface">#3A2D14</color>
-    <color name="accent_surface">#253F34</color>
+    <color name="paper">#111916</color>
+    <color name="surface">#19241F</color>
+    <color name="surface_container">#223029</color>
+    <color name="ink">#F2F1E8</color>
+    <color name="muted">#AEBCB2</color>
+    <color name="accent">#9AD7BA</color>
+    <color name="on_accent">#0E2B20</color>
+    <color name="line">#33433B</color>
+    <color name="line_strong">#5C6F65</color>
+    <color name="danger">#FFB4AA</color>
+    <color name="danger_surface">#3E1F1D</color>
+    <color name="warning">#F3CB7E</color>
+    <color name="warning_surface">#3B2D13</color>
+    <color name="accent_surface">#223D31</color>
+    <color name="disabled_surface">#1F2B25</color>
+    <color name="disabled_ink">#88988F</color>
+    <color name="ripple">#299AD7BA</color>
 </resources>
