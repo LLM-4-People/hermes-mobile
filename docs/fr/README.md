@@ -43,7 +43,7 @@
 
 ### 1. Installer l’application signée et rester à jour
 
-1. Téléchargez `hermes-mobile-v0.2.1.apk`, `SHA256SUMS` et `release.json` depuis la [dernière version publiée sur GitHub](https://github.com/LLM-4-People/hermes-mobile/releases/latest).
+1. Téléchargez `hermes-mobile-v0.2.2.apk`, `SHA256SUMS` et `release.json` depuis la [dernière version publiée sur GitHub](https://github.com/LLM-4-People/hermes-mobile/releases/latest).
 2. Une fois installée, ouvrez **Activité → Mises à jour** dans l’application : les nouvelles versions sont vérifiées par empreinte SHA-256 et certificat de signature correspondant avant l’installation Android native.
 
 ### 2. Connecter un profil sur un serveur HTTPS partagé
