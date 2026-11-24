@@ -1,6 +1,9 @@
 package org.llm4people.hermes.thread;
 
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
+import org.llm4people.hermes.Diagnostics;
 
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
@@ -17,6 +20,18 @@ import static org.junit.Assert.assertTrue;
 
 /** Pure-JVM regression tests for R5.1.1 (pageSize-aware ThreadContext.messageCount) and R5.3.3 (capture slot cleanup). */
 public final class ThreadWorkspaceR5RegressionTest {
+
+    @Before
+    public void setUpDiagnostics() {
+        Diagnostics.clear();
+        Diagnostics.setSink((level, tag, msg) -> {});
+    }
+
+    @After
+    public void tearDownDiagnostics() {
+        Diagnostics.clear();
+        Diagnostics.setSink(null);
+    }
 
     @Test
     public void messageCountUsesConfiguredPageSizeForLegacyPagination() {
@@ -54,6 +69,8 @@ public final class ThreadWorkspaceR5RegressionTest {
         assertTrue(tracked.isEmpty());
         assertEquals(List.of(slotRejected), deleted);
         assertEquals(0, workRuns.get());
+        assertTrue("Expected camera.import_rejected diagnostic warning",
+                Diagnostics.exportRedacted().contains("camera.import_rejected"));
 
         // 2) Inactive/closed/revoked worker skips work.run() AND still deletes slot in finally.
         deleted.clear();

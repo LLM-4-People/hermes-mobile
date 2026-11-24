@@ -36,8 +36,8 @@ public final class InstrumentPreview {
         Objects.requireNonNull(host);
         try {
             WorkspaceLayout page = page(pageJson);
-            Context ctx = SurfaceRenderer.palette(activity, page);
-            ThemePalette palette = SurfaceRenderer.resolvePalette(ctx, account, page);
+            ThemePalette palette = SurfaceRenderer.resolvePalette(activity, account, page);
+            Context ctx = SurfaceRenderer.palette(activity, palette);
             InstrumentStateStore store = account == null ? null : InstrumentStateStore.forAccount(account);
             return SurfaceRenderer.pageContent(ctx, activity, page, host, palette, store, stateScope, false);
         } catch (IOException invalid) {

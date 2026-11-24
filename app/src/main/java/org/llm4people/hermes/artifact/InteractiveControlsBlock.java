@@ -2,14 +2,11 @@ package org.llm4people.hermes.artifact;
 
 import android.app.Activity;
 import android.content.Context;
-import android.content.res.ColorStateList;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
-import android.graphics.drawable.RippleDrawable;
 import android.util.JsonReader;
 import android.util.JsonToken;
 import android.view.Gravity;
-import android.view.View;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.HorizontalScrollView;

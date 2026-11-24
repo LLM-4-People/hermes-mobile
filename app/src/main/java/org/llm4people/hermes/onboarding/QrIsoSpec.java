@@ -161,18 +161,6 @@ final class QrIsoSpec {
         return GF_EXP[GF_LOG[x] + 255 - GF_LOG[y]];
     }
 
-    static int gfExp(int power) {
-        int p = power % 255;
-        if (p < 0) p += 255;
-        return GF_EXP[p];
-    }
-
-    static int gfLog(int a) {
-        int x = a & 0xFF;
-        if (x == 0) throw new ArithmeticException("GF(256) log of zero");
-        return GF_LOG[x];
-    }
-
     /** Compute Reed-Solomon generator polynomial of degree {@code degree} over GF(256). */
     static byte[] reedSolomonGenerator(int degree) {
         byte[] result = new byte[degree];

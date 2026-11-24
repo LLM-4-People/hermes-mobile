@@ -2,7 +2,10 @@ package org.llm4people.hermes.push;
 
 import android.content.SharedPreferences;
 
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
+import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.HermesConfig;
 import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.profile.Account;
@@ -29,6 +32,18 @@ import static org.junit.Assert.assertTrue;
  * and rejects mismatched profiles or null arguments.
  */
 public final class MobilePushResolveTest {
+
+    @Before
+    public void setUpDiagnostics() {
+        Diagnostics.clear();
+        Diagnostics.setSink((level, tag, msg) -> {});
+    }
+
+    @After
+    public void tearDownDiagnostics() {
+        Diagnostics.clear();
+        Diagnostics.setSink(null);
+    }
 
     private static Account testAccount(String id, String endpoint) throws Exception {
         Constructor<Account> ctor = Account.class.getDeclaredConstructor(

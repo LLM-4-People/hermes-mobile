@@ -323,6 +323,47 @@ public final class ThemePaletteTest {
         }
     }
 
+    @Test public void accentSurfaceClearsAllSixForegroundTokensForInkOnlyAndCustomSurfaces() throws Exception {
+        // R6.5.1: inkHex-only overrides (#6E6E6E Day, #888888 Night) must step accentSurface so all 6 tokens clear >= 4.5:1.
+        ThemePalette.OverrideSpec dayInkOnly = ThemePalette.OverrideSpec.validated(
+                "light", null, null, null, "#6E6E6E", "comfortable", 0, "paper", false);
+        assertAllSixTokensClearAccentSurface("light ink #6E6E6E", ThemePalette.resolve(dayInkOnly, false));
+
+        ThemePalette.OverrideSpec nightInkOnly = ThemePalette.OverrideSpec.validated(
+                "dark", null, null, null, "#888888", "comfortable", 0, "paper", true);
+        assertAllSixTokensClearAccentSurface("dark ink #888888", ThemePalette.resolve(nightInkOnly, true));
+
+        // R6.5.2: custom surfaceHex tinted cards (#E0E0E0 Day, #383838 Night) must clear all 6 tokens on accentSurface.
+        ThemePalette.OverrideSpec dayCustomSurf = ThemePalette.OverrideSpec.validated(
+                "light", null, null, "#E0E0E0", null, "comfortable", 0, "tinted", false);
+        assertAllSixTokensClearAccentSurface("day surface #E0E0E0", ThemePalette.resolve(dayCustomSurf, false));
+
+        ThemePalette.OverrideSpec nightCustomSurf = ThemePalette.OverrideSpec.validated(
+                "dark", null, null, "#383838", null, "comfortable", 0, "tinted", true);
+        assertAllSixTokensClearAccentSurface("night surface #383838", ThemePalette.resolve(nightCustomSurf, true));
+
+        // Negative: low-contrast inkHex (#777777) still rejected in both Day and Night modes.
+        assertContrastRejected(() -> ThemePalette.OverrideSpec.validated(
+                "light", null, null, null, "#777777", "comfortable", 0, "paper", false));
+        assertContrastRejected(() -> ThemePalette.OverrideSpec.validated(
+                "dark", null, null, null, "#777777", "comfortable", 0, "paper", true));
+    }
+
+    private static void assertAllSixTokensClearAccentSurface(String label, ThemePalette p) {
+        assertTrue(label + ": accent vs accentSurface",
+                ThemePalette.contrastRatio(p.accent, p.accentSurface) >= ThemePalette.WCAG_AA_NORMAL);
+        assertTrue(label + ": ink vs accentSurface",
+                ThemePalette.contrastRatio(p.ink, p.accentSurface) >= ThemePalette.WCAG_AA_NORMAL);
+        assertTrue(label + ": muted vs accentSurface",
+                ThemePalette.contrastRatio(p.muted, p.accentSurface) >= ThemePalette.WCAG_AA_NORMAL);
+        assertTrue(label + ": danger vs accentSurface",
+                ThemePalette.contrastRatio(p.danger, p.accentSurface) >= ThemePalette.WCAG_AA_NORMAL);
+        assertTrue(label + ": warning vs accentSurface",
+                ThemePalette.contrastRatio(p.warning, p.accentSurface) >= ThemePalette.WCAG_AA_NORMAL);
+        assertTrue(label + ": positive vs accentSurface",
+                ThemePalette.contrastRatio(p.positive, p.accentSurface) >= ThemePalette.WCAG_AA_NORMAL);
+    }
+
     private static void assertContrastRejected(Action action) {
         try {
             action.run();

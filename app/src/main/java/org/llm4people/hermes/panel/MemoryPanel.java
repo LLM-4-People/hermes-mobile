@@ -1,7 +1,6 @@
 package org.llm4people.hermes.panel;
 
 import android.app.AlertDialog;
-import android.content.res.ColorStateList;
 import android.graphics.Typeface;
 import android.text.Editable;
 import android.text.TextWatcher;
