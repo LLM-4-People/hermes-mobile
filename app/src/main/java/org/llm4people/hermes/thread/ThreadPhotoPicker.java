@@ -16,8 +16,11 @@ import org.llm4people.hermes.profile.Account;
 
 /** The external picker can stop and lock the activity. Only the original unlocked owner may import its result. */
 public final class ThreadPhotoPicker {
+    public static final int REQUEST_CODE_MIN = 0x5000;
+    public static final int REQUEST_CODE_MAX = 0x53ff;
+
     private final Activity activity;
-    private int requestCode = 0x5000;
+    private int requestCode = REQUEST_CODE_MIN;
     private String nonce;
     private String ownerProof;
     private String threadProof;
@@ -27,7 +30,12 @@ public final class ThreadPhotoPicker {
 
     public ThreadPhotoPicker(Activity activity, Bundle state) {
         this.activity = activity;
-        if (state != null) requestCode = state.getInt("photo_request", requestCode);
+        if (state != null) {
+            int savedCode = state.getInt("photo_request", requestCode);
+            if (savedCode >= REQUEST_CODE_MIN && savedCode <= REQUEST_CODE_MAX) {
+                requestCode = savedCode;
+            }
+        }
         if (state != null && state.getString("photo_nonce") != null) {
             nonce = state.getString("photo_nonce");
             ownerProof = state.getString("photo_owner");
@@ -72,7 +80,11 @@ public final class ThreadPhotoPicker {
         threadProof = account.selectionBinding(nonce, session);
         reselect = importing = false;
         selected = null;
-        requestCode = requestCode == 0x6fff ? 0x5000 : requestCode + 1;
+        requestCode = nextRequestCode(requestCode);
+    }
+
+    public static int nextRequestCode(int current) {
+        return current < REQUEST_CODE_MIN || current >= REQUEST_CODE_MAX ? REQUEST_CODE_MIN : current + 1;
     }
 
     boolean owns(Account account, String session) {

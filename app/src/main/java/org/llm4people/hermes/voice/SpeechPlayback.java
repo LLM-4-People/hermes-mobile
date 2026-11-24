@@ -68,7 +68,7 @@ final class SpeechPlayback {
     }
 
     void stop() {
-        if (active != null) finish(null);
+        if (active != null) finish(activeCallback != null ? Failure.INTERRUPTED : null);
     }
 
     private void finish(Failure failure) {

@@ -155,4 +155,59 @@ public final class VoiceDuplexAndLocaleTest {
         session.onSentenceDone(host.spokenGens.get(0), false);
         assertEquals(DuplexVoiceSession.State.OFF, session.state());
     }
+
+    @Test public void explicitSpeechStopInterruptsDuplexWithoutAdvancingTtsOrReopeningMic() {
+        List<SpeechPlaybackTest.Fake> drivers = new ArrayList<>();
+        List<SpeechPlayback.Failure> defaultFailures = new ArrayList<>();
+        List<SpeechPlayback.Failure> perCallFailures = new ArrayList<>();
+        SpeechPlayback playback = new SpeechPlayback(() -> {
+            SpeechPlaybackTest.Fake next = new SpeechPlaybackTest.Fake();
+            drivers.add(next);
+            return next;
+        }, defaultFailures::add);
+
+        List<Integer> listens = new ArrayList<>();
+        List<String> spoken = new ArrayList<>();
+        final DuplexVoiceSession[] ref = new DuplexVoiceSession[1];
+        DuplexVoiceSession session = new DuplexVoiceSession(new DuplexVoiceSession.Callbacks() {
+            @Override public void startListening(int gen) { listens.add(gen); }
+            @Override public void stopListening() {}
+            @Override public void submitUtterance(String utterance) {}
+            @Override public void speakSentence(String sentence, int gen) {
+                spoken.add(sentence);
+                // Mirror ReplyReader.speakSentence contract.
+                playback.play(sentence, failure -> {
+                    perCallFailures.add(failure);
+                    if (failure == SpeechPlayback.Failure.UNAVAILABLE) {
+                        defaultFailures.add(failure);
+                        ref[0].onSentenceDone(gen, false);
+                    } else {
+                        ref[0].onSentenceDone(gen, failure == null);
+                    }
+                });
+            }
+            @Override public void stopSpeaking() { playback.stop(); }
+            @Override public void stateChanged(DuplexVoiceSession.State state) {}
+        });
+        ref[0] = session;
+
+        session.start();
+        assertEquals(1, listens.size());
+        session.onTranscriptFinal(listens.get(0), "Raconte une histoire.");
+        session.onReplyComplete("Première phrase. Deuxième phrase.");
+        assertEquals(DuplexVoiceSession.State.SPEAKING, session.state());
+        assertEquals(List.of("Première phrase."), spoken);
+        drivers.get(0).ready.accept(true);
+
+        // Explicit reader stop (e.g., Activity pause/lock/destroy) must stop duplex cleanly
+        // instead of advancing to the second sentence or reopening the microphone.
+        playback.stop();
+
+        assertEquals(List.of(SpeechPlayback.Failure.INTERRUPTED), perCallFailures);
+        assertTrue("Explicit stop must not trigger default TTS error callback", defaultFailures.isEmpty());
+        assertEquals(DuplexVoiceSession.State.OFF, session.state());
+        assertEquals("Second sentence must never be spoken after explicit stop",
+                List.of("Première phrase."), spoken);
+        assertEquals("Microphone must never reopen after explicit stop", 1, listens.size());
+    }
 }

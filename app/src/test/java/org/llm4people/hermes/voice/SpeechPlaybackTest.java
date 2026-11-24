@@ -136,4 +136,42 @@ public final class SpeechPlaybackTest {
         assertTrue("Default callback must not run when perCallDone is supplied", defaultFailures.isEmpty());
         assertFalse(playback.active());
     }
+
+    @Test public void explicitStopReportsInterruptedToPerCallCallbackAndNullToDefaultCallback() {
+        List<Fake> drivers = new ArrayList<>();
+        List<SpeechPlayback.Failure> defaultFailures = new ArrayList<>();
+        List<SpeechPlayback.Failure> perCallFailures = new ArrayList<>();
+        SpeechPlayback playback = new SpeechPlayback(() -> {
+            Fake next = new Fake();
+            drivers.add(next);
+            return next;
+        }, defaultFailures::add);
+
+        // 2-arg play stopped during prepare -> perCallDone gets INTERRUPTED, default callback untouched.
+        playback.play("Première phrase.", perCallFailures::add);
+        playback.stop();
+        assertEquals(List.of(SpeechPlayback.Failure.INTERRUPTED), perCallFailures);
+        assertTrue(defaultFailures.isEmpty());
+        assertTrue(drivers.get(0).closed);
+        assertFalse(playback.active());
+
+        // 2-arg play stopped mid-speech -> perCallDone gets INTERRUPTED, default callback untouched.
+        playback.play("Deuxième phrase.", perCallFailures::add);
+        drivers.get(1).ready.accept(true);
+        assertEquals(List.of("Deuxième phrase."), drivers.get(1).spoken);
+        playback.stop();
+        assertEquals(List.of(SpeechPlayback.Failure.INTERRUPTED, SpeechPlayback.Failure.INTERRUPTED), perCallFailures);
+        assertTrue(defaultFailures.isEmpty());
+        assertTrue(drivers.get(1).closed);
+        assertFalse(playback.active());
+
+        // 1-arg play stopped explicitly -> default callback still receives null (no error toast).
+        playback.play("Lecture directe.");
+        drivers.get(2).ready.accept(true);
+        playback.stop();
+        assertEquals(1, defaultFailures.size());
+        assertNull(defaultFailures.get(0));
+        assertTrue(drivers.get(2).closed);
+        assertFalse(playback.active());
+    }
 }
