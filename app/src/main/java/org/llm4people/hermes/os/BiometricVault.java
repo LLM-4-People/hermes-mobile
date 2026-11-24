@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 
@@ -78,11 +79,14 @@ public final class BiometricVault {
      * staging key, settling the attempt) runs here synchronously instead of relying on that listener.
      */
     public static final class Session {
+        private static final int STATE_ACTIVE = 0;
+        private static final int STATE_CANCELLED = 1;
+        private static final int STATE_SETTLED = 2;
+
         private final Runnable cancelPrompt;
         private final BooleanSupplier promptCanceled;
         private final Runnable cleanup;
-        private final AtomicBoolean settled = new AtomicBoolean(false);
-        private final AtomicBoolean cancelled = new AtomicBoolean(false);
+        private final AtomicInteger state = new AtomicInteger(STATE_ACTIVE);
         private final AtomicReference<Runnable> onCancelHook = new AtomicReference<>();
 
         Session(Runnable cancelPrompt, BooleanSupplier promptCanceled, Runnable cleanup) {
@@ -97,8 +101,10 @@ public final class BiometricVault {
 
         /** Registers an owner-side hook invoked once when {@link #cancel()} completes (or immediately if already canceled). */
         public Session withOnCancel(Runnable onCancel) {
-            if (onCancel == null || settled.get()) return this;
-            if (cancelled.get()) {
+            if (onCancel == null) return this;
+            int current = state.get();
+            if (current == STATE_SETTLED) return this;
+            if (current == STATE_CANCELLED) {
                 onCancel.run();
                 return this;
             }
@@ -109,9 +115,10 @@ public final class BiometricVault {
                     onCancel.run();
                 }
             });
-            if (settled.get()) {
+            int after = state.get();
+            if (after == STATE_SETTLED) {
                 onCancelHook.set(null);
-            } else if (cancelled.get()) {
+            } else if (after == STATE_CANCELLED) {
                 Runnable late = onCancelHook.getAndSet(null);
                 if (late != null) late.run();
             }
@@ -123,14 +130,14 @@ public final class BiometricVault {
          * so subsequent owner-side {@link #cancel()} calls become no-ops without firing cancel hooks.
          */
         void markSettled() {
-            settled.set(true);
-            cancelled.set(true);
-            onCancelHook.set(null);
+            if (state.compareAndSet(STATE_ACTIVE, STATE_SETTLED)) {
+                onCancelHook.set(null);
+            }
         }
 
         /** Idempotent: cancels the OS prompt and always runs cleanup + cancel hooks, even if prompt cancel throws. */
         public void cancel() {
-            if (!cancelled.compareAndSet(false, true)) return;
+            if (!state.compareAndSet(STATE_ACTIVE, STATE_CANCELLED)) return;
             try {
                 if (!promptCanceled.getAsBoolean()) cancelPrompt.run();
             } finally {
@@ -143,7 +150,7 @@ public final class BiometricVault {
             }
         }
 
-        public boolean isCanceled() { return cancelled.get() || promptCanceled.getAsBoolean(); }
+        public boolean isCanceled() { return state.get() != STATE_ACTIVE || promptCanceled.getAsBoolean(); }
     }
 
     private BiometricVault() {}

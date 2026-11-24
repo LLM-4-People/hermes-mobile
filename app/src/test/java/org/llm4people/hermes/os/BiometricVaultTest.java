@@ -226,5 +226,21 @@ public class BiometricVaultTest {
         assertEquals(1, prePrompts[0]);
         assertEquals(1, preCleanups[0]);
         assertEquals(1, preHooks[0]);
+
+        // Race control: markSettled() firing during cancel()'s cleanup must NOT clobber onCancelHook or
+        // suppress late withOnCancel() on the already-cancelled session.
+        int[] raceHooks = {0};
+        int[] raceLateHooks = {0};
+        BiometricVault.Session[] holder = new BiometricVault.Session[1];
+        holder[0] = new BiometricVault.Session(
+                () -> {},
+                () -> false,
+                () -> holder[0].markSettled());
+        holder[0].withOnCancel(() -> raceHooks[0]++);
+        holder[0].cancel();
+        assertEquals("markSettled during cleanup must not drop pending cancel hook", 1, raceHooks[0]);
+        holder[0].withOnCancel(() -> raceLateHooks[0]++);
+        assertEquals("Late withOnCancel on cancelled-then-markSettled session must still run once",
+                1, raceLateHooks[0]);
     }
 }
