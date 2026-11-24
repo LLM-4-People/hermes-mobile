@@ -287,7 +287,7 @@ final class NotesPanel {
         headerArea.addView(top);
 
         if (!note.body().isEmpty()) {
-            String preview = PlainTextSanitizer.collapseWithEllipsis(note.body(), 240);
+            String preview = PlainTextSanitizer.collapseWithEllipsis(note.body(), 241);
             if (!preview.isEmpty()) descriptionParts.add(preview);
             TextView content = Ui.text(panel.activity, note.body(), 14);
             content.setTextColor(panel.activity.getColor(R.color.muted));
