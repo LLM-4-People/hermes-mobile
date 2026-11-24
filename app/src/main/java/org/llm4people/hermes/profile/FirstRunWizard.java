@@ -42,13 +42,14 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /**
  * Zero-jargon 2-step first-run onboarding wizard integrated cleanly with {@link ProfileGate}:
  * <ul>
- *   <li>Step 1 ("Connect your Hermes"): 1-tap paste / clipboard auto-detection / {@code hermes://pair}
- *       deep-link claim with explicit user confirmation before filling credentials, while keeping
- *       every manual form field accessible and backward-compatible.</li>
+ *   <li>Step 1 ("Connect your Hermes"): 1-tap paste (reading the clipboard only on explicit tap) /
+ *       {@code hermes://pair} deep-link claim with explicit user confirmation before filling
+ *       credentials, while keeping every manual form field accessible and backward-compatible.</li>
  *   <li>Step 2 ("Make it yours"): Display name, language, appearance, quick-lock preference, and
  *       1-tap localized starter prompts from {@code GET /api/mobile/onboarding} (Editable Draft Rule).</li>
  * </ul>
@@ -393,15 +394,27 @@ public final class FirstRunWizard {
     /**
      * Attaches the Step-1 "Instant setup" card inside {@link ProfileScreen} above manual fields and
      * returns the handler to invoke once all form {@link EditText} fields are initialized.
-     * Preserves every manual form control so existing flows &amp; tests stay 100% compatible.
+     * Never reads clipboard contents during view construction; clipboard access happens strictly
+     * inside the explicit paste-button click handler.
      */
     static Consumer<PairingLinkParser.ParsedInput> attachInstantSetupCard(
             Activity activity,
             ProfileScreen screen,
-            boolean hasIncomingLink,
             ExecutorService io,
             BooleanSupplier isCurrent,
             Step1Targets targets) {
+        return attachInstantSetupCard(activity, screen, io, isCurrent, targets,
+                () -> detectClipboardLink(activity));
+    }
+
+    /** Package-private overload for deterministic clipboard-access testing. */
+    static Consumer<PairingLinkParser.ParsedInput> attachInstantSetupCard(
+            Activity activity,
+            ProfileScreen screen,
+            ExecutorService io,
+            BooleanSupplier isCurrent,
+            Step1Targets targets,
+            Supplier<PairingLinkParser.ParsedInput> clipboardReader) {
         LinearLayout card = Ui.card(activity);
 
         TextView heading = Ui.text(activity, activity.getString(R.string.onboarding_paste_card_title), 16);
@@ -443,41 +456,35 @@ public final class FirstRunWizard {
             }
         };
 
-        PairingLinkParser.ParsedInput detectedClip = hasIncomingLink ? null : detectClipboardLink(activity);
-        if (detectedClip != null) {
-            addDivider(activity, card, 12);
-            TextView bannerText = Ui.text(activity,
-                    activity.getString(R.string.onboarding_paste_clipboard_detected), 13);
-            bannerText.setTypeface(Ui.mediumTypeface());
-            bannerText.setTextColor(activity.getColor(R.color.accent));
-            card.addView(bannerText, topMargin(activity, 10));
-
-            Button useBtn = Ui.outlinedButton(activity, activity.getString(R.string.onboarding_paste_clipboard_use),
-                    v -> handleParsed.accept(detectedClip));
-            card.addView(useBtn, topMargin(activity, 8));
-            addDivider(activity, card, 12);
-        }
-
         Button scanQrBtn = Ui.filledButton(activity, activity.getString(R.string.onboarding_scan_qr_action), v -> {
             if (!isCurrent.getAsBoolean()) return;
             targets.onScanQrRequested();
         });
         card.addView(scanQrBtn, topMargin(activity, 12));
 
-        Button pasteBtn = Ui.outlinedButton(activity, activity.getString(R.string.onboarding_paste_action), v -> {
-            if (!isCurrent.getAsBoolean()) return;
-            PairingLinkParser.ParsedInput fromClip = detectClipboardLink(activity);
-            if (fromClip != null) {
-                handleParsed.accept(fromClip);
-            } else {
-                showManualPasteDialog(activity, targets, handleParsed, statusNote);
-            }
-        });
+        Button pasteBtn = Ui.outlinedButton(activity, activity.getString(R.string.onboarding_paste_action), v ->
+                handlePasteTap(isCurrent, clipboardReader, handleParsed,
+                        () -> showManualPasteDialog(activity, targets, handleParsed, statusNote)));
         card.addView(pasteBtn, topMargin(activity, 8));
         card.addView(statusNote, topMargin(activity, 8));
 
         screen.card(card, 14);
         return handleParsed;
+    }
+
+    /** Executes an explicit paste-button tap without ever reading clipboard contents when stale. */
+    static void handlePasteTap(
+            BooleanSupplier isCurrent,
+            Supplier<PairingLinkParser.ParsedInput> clipboardReader,
+            Consumer<PairingLinkParser.ParsedInput> onParsed,
+            Runnable onManualFallback) {
+        if (isCurrent == null || !isCurrent.getAsBoolean()) return;
+        PairingLinkParser.ParsedInput fromClip = clipboardReader == null ? null : clipboardReader.get();
+        if (fromClip != null) {
+            if (onParsed != null) onParsed.accept(fromClip);
+        } else if (onManualFallback != null) {
+            onManualFallback.run();
+        }
     }
 
     private static void showManualPasteDialog(
@@ -857,13 +864,6 @@ public final class FirstRunWizard {
         label.setTypeface(Ui.mediumTypeface());
         label.setAccessibilityHeading(true);
         return label;
-    }
-
-    private static void addDivider(Activity activity, LinearLayout parent, int topDp) {
-        View divider = Ui.divider(activity);
-        LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) divider.getLayoutParams();
-        lp.topMargin = Ui.dp(activity, topDp);
-        parent.addView(divider, lp);
     }
 
     private static LinearLayout.LayoutParams topMargin(Activity activity, int dp) {

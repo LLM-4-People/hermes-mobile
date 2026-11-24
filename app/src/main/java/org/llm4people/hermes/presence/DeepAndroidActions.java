@@ -34,6 +34,7 @@ import org.llm4people.hermes.os.PermissionsPanel;
 import org.llm4people.hermes.push.DeliveryItem;
 import org.llm4people.hermes.push.PushPolicy;
 import org.llm4people.hermes.settings.AppearanceSettingsPanel;
+import org.llm4people.hermes.settings.SettingsHubPanel;
 import org.llm4people.hermes.templates.TemplatesPanel;
 import org.llm4people.hermes.thread.SafeLinks;
 import org.llm4people.hermes.update.UpdatePanel;
@@ -108,7 +109,7 @@ public final class DeepAndroidActions {
         m.put("tasks", NavigateDestination.NOTES_TASKS);
         m.put("activite", NavigateDestination.NOTES_TASKS);
         m.put("activity", NavigateDestination.NOTES_TASKS);
-        m.put("settings", NavigateDestination.SETTINGS);
+        m.put(SettingsHubPanel.ROUTE_ID, NavigateDestination.SETTINGS);
         m.put("cerveau", NavigateDestination.SETTINGS);
         m.put("brain", NavigateDestination.SETTINGS);
         m.put("reglages", NavigateDestination.SETTINGS);

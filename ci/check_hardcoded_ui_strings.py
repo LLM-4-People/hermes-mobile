@@ -90,6 +90,7 @@ QUALIFIED_UI_SINK_ARGS: dict[tuple[str, str], tuple[int, ...]] = {
     ("Ui", "outlinedButton"): (1,),
     ("Ui", "pill"): (1,),
     ("Toast", "makeText"): (1,),
+    ("ClipData", "newPlainText"): (0,),
     ("screen", "section"): (0,),
     ("screen", "note"): (0,),
     ("screen", "liveNote"): (0,),

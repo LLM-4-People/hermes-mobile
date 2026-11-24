@@ -22,6 +22,7 @@ import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowInsets;
 import android.view.WindowManager;
+import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
@@ -591,6 +592,7 @@ public final class UniversalSearchSheet implements AutoCloseable {
 
         LinearLayout top = Ui.row(localized);
         top.setGravity(Gravity.CENTER_VERTICAL);
+        top.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
 
         TextView title = Ui.text(localized, item.title(), 16);
         title.setTypeface(Ui.mediumTypeface());
@@ -613,6 +615,7 @@ public final class UniversalSearchSheet implements AutoCloseable {
             sub.setMaxLines(2);
             sub.setEllipsize(TextUtils.TruncateAt.END);
             sub.setPaddingRelative(0, Ui.dp(localized, 4), 0, 0);
+            sub.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
             if (!item.snippetHighlights().isEmpty()) {
                 sub.setText(renderHighlightedSnippet(subtitle, item.snippetHighlights()));
             } else {
@@ -621,8 +624,16 @@ public final class UniversalSearchSheet implements AutoCloseable {
             row.addView(sub);
         }
 
-        row.setContentDescription(localized.getString(
-                R.string.universal_search_open_result_cd, item.title(), pillLabel));
+        String baseDesc = localized.getString(
+                R.string.universal_search_open_result_cd, item.title(), pillLabel);
+        row.setContentDescription(subtitle.isEmpty() ? baseDesc : baseDesc + ". " + subtitle);
+        row.setAccessibilityDelegate(new View.AccessibilityDelegate() {
+            @Override
+            public void onInitializeAccessibilityNodeInfo(View host, AccessibilityNodeInfo info) {
+                super.onInitializeAccessibilityNodeInfo(host, info);
+                info.setClassName(Button.class.getName());
+            }
+        });
         row.setOnClickListener(v -> dispatchResult(item));
         return row;
     }

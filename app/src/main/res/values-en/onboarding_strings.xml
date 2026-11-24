@@ -4,8 +4,6 @@
     <string name="onboarding_paste_card_hint">Scan a pairing QR code, or paste a hermes://pair link, HTTPS invite, or copied credentials</string>
     <string name="onboarding_scan_qr_action">Scan QR code</string>
     <string name="onboarding_paste_action">Paste pairing link</string>
-    <string name="onboarding_paste_clipboard_detected">Pairing link detected in clipboard</string>
-    <string name="onboarding_paste_clipboard_use">Use detected link</string>
     <string name="onboarding_paste_invalid">Link or code not recognized. Paste a valid pairing link or use manual setup.</string>
     <string name="onboarding_paste_checking">Checking pairing link…</string>
     <string name="onboarding_paste_claiming">Pairing with your Hermes server…</string>

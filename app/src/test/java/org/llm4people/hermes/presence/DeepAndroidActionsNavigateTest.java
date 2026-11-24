@@ -12,6 +12,7 @@ import org.llm4people.hermes.hub.NotesTasksPanel;
 import org.llm4people.hermes.os.PermissionsPanel;
 import org.llm4people.hermes.push.PushPolicy;
 import org.llm4people.hermes.settings.AppearanceSettingsPanel;
+import org.llm4people.hermes.settings.SettingsHubPanel;
 import org.llm4people.hermes.templates.TemplatesPanel;
 import org.llm4people.hermes.update.UpdatePanel;
 
@@ -50,7 +51,8 @@ public final class DeepAndroidActionsNavigateTest {
     @Test
     public void navigateTargetsSsotCoversAllCanonicalDestinationsAndRejectsUnknown() {
         List<String> required = List.of(
-                "discussions", NotesTasksPanel.ROUTE_ID, "tasks", AppsLauncherPanel.ROUTE_ID, "settings", "appearance",
+                "discussions", NotesTasksPanel.ROUTE_ID, "tasks", AppsLauncherPanel.ROUTE_ID,
+                SettingsHubPanel.ROUTE_ID, "appearance",
                 AppearanceSettingsPanel.ROUTE_ID,
                 PermissionsPanel.ROUTE_ID,
                 UpdatePanel.ROUTE_ID,
@@ -95,7 +97,7 @@ public final class DeepAndroidActionsNavigateTest {
         PushPolicy push = PushPolicy.defaults();
         long now = 1_000_000L;
 
-        for (String direct : List.of("notes_tasks", "apps", "settings", "appearance",
+        for (String direct : List.of("notes_tasks", "apps", SettingsHubPanel.ROUTE_ID, "appearance",
                 AppearanceSettingsPanel.ROUTE_ID, PermissionsPanel.ROUTE_ID,
                 UpdatePanel.ROUTE_ID, AmbientAccessPanel.ROUTE_ID,
                 PresenceSettingsPanel.ROUTE_ID, ConnectionDoctorPanel.ROUTE_ID,

@@ -14,6 +14,7 @@ import android.widget.PopupMenu;
 import android.widget.TextView;
 
 import org.llm4people.hermes.panel.BrainStudioRoutes;
+import org.llm4people.hermes.settings.SettingsHubPanel;
 
 import java.util.Objects;
 import java.util.function.BooleanSupplier;
@@ -96,7 +97,7 @@ final class WorkspaceShell {
 
         settingsButton = icon(R.drawable.ic_settings, activity.getString(R.string.nav_settings));
         settingsButton.setId(R.id.top_settings_action);
-        settingsButton.setOnClickListener(v -> action.accept("settings"));
+        settingsButton.setOnClickListener(v -> action.accept(SettingsHubPanel.ROUTE_ID));
         header.addView(settingsButton);
 
         moreButton = icon(R.drawable.ic_more, activity.getString(R.string.ws_more_actions));
@@ -277,13 +278,11 @@ final class WorkspaceShell {
             if (reading.getAsBoolean()) item(menu, activity.getString(R.string.read_stop_label), "stop_reading");
             else item(menu, activity.getString(R.string.read_reply_label), "read_reply");
             item(menu, activity.getString(R.string.instrument_create), "create_instrument");
-            if (pageTitle == null) {
-                item(menu, activity.getString(R.string.ws_attach_image), "attach_photo");
-                if (org.llm4people.hermes.camera.ThreadCameraCapture.isAvailable(activity)) {
-                    item(menu, activity.getString(R.string.ws_capture_photo), "capture_camera");
-                }
-                item(menu, activity.getString(R.string.ws_location_for_message), "nearby_area");
+            item(menu, activity.getString(R.string.ws_attach_image), "attach_photo");
+            if (org.llm4people.hermes.camera.ThreadCameraCapture.isAvailable(activity)) {
+                item(menu, activity.getString(R.string.ws_capture_photo), "capture_camera");
             }
+            item(menu, activity.getString(R.string.ws_location_for_message), "nearby_area");
             item(menu, activity.getString(R.string.ws_rename_discussion), "rename");
             item(menu, activity.getString(R.string.brain_thread_pin), BrainStudioRoutes.ACTION_PIN_THREAD);
             item(menu, activity.getString(R.string.brain_thread_fork), BrainStudioRoutes.ACTION_FORK_THREAD);
@@ -293,7 +292,9 @@ final class WorkspaceShell {
             item(menu, activity.getString(R.string.ws_artifacts), "artifacts");
             item(menu, activity.getString(R.string.ws_model_and_tools), "models");
             item(menu, activity.getString(R.string.ws_usage), "stats");
-            item(menu, activity.getString(R.string.ws_original_discussion_view), "native_thread");
+            if (pageTitle == null) {
+                item(menu, activity.getString(R.string.ws_original_discussion_view), "native_thread");
+            }
         } else {
             return;
         }

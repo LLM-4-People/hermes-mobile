@@ -354,4 +354,45 @@ public final class FirstRunWizardTest {
         assertEquals(1, finishApplied[0]);
         assertEquals(1, finishCount[0]);
     }
+
+    @Test public void pasteTapReadsClipboardOnlyWhenCurrentAndFallsBackWhenEmpty() {
+        assertNull(FirstRunWizard.detectClipboardLink(null));
+
+        int[] reads = {0};
+        int[] fallbacks = {0};
+        PairingLinkParser.ParsedInput[] delivered = {null};
+        PairingLinkParser.ParsedInput sample = PairingLinkParser.parse(
+                "hermes://pair?host=https%3A%2F%2Fhermes.example.com&code=abcDEF1234567890&profile=alex");
+
+        // Stale / busy screen must never read the clipboard or trigger callbacks.
+        FirstRunWizard.handlePasteTap(
+                () -> false,
+                () -> { reads[0]++; return sample; },
+                p -> delivered[0] = p,
+                () -> fallbacks[0]++);
+        assertEquals(0, reads[0]);
+        assertNull(delivered[0]);
+        assertEquals(0, fallbacks[0]);
+
+        // Explicit tap with recognized clipboard link reads once and delivers parsed input.
+        FirstRunWizard.handlePasteTap(
+                () -> true,
+                () -> { reads[0]++; return sample; },
+                p -> delivered[0] = p,
+                () -> fallbacks[0]++);
+        assertEquals(1, reads[0]);
+        assertSame(sample, delivered[0]);
+        assertEquals(0, fallbacks[0]);
+
+        // Explicit tap with empty/denied clipboard reads once and opens manual fallback.
+        delivered[0] = null;
+        FirstRunWizard.handlePasteTap(
+                () -> true,
+                () -> { reads[0]++; return null; },
+                p -> delivered[0] = p,
+                () -> fallbacks[0]++);
+        assertEquals(2, reads[0]);
+        assertNull(delivered[0]);
+        assertEquals(1, fallbacks[0]);
+    }
 }
