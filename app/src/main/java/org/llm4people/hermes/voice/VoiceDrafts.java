@@ -299,6 +299,7 @@ public final class VoiceDrafts {
                 && active.duplex == activeDuplex;
         if (activeDuplex != null && !awaitingDuplexPermission) activeDuplex.stop();
         if (optionsDialog != null) { optionsDialog.dismiss(); optionsDialog = null; }
+        if (recovery != null) recovery.dismiss();
         paused = true;
         // The system permission sheet pauses the activity. Only its pending grant can survive that pause.
         windowFocusChanged(false);
@@ -306,7 +307,7 @@ public final class VoiceDrafts {
 
     public void windowFocusChanged(boolean focused) {
         if (focused) startApprovedRecording();
-        else if ((active != null && active.phase != Phase.PERMISSION) || recovery != null) cancel();
+        else if (active != null && active.phase != Phase.PERMISSION) cancel();
     }
 
     public void resume() {

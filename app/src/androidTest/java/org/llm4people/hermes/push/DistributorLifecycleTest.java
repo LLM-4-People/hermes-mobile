@@ -64,10 +64,17 @@ public final class DistributorLifecycleTest extends InstrumentationTestCase {
                 UnifiedPush.unregister(context, device.installation);
                 store.finishRemoval(device);
             }
+            cancelBackgroundSyncJob();
         } finally {
             setFixture(oldSetting);
             super.tearDown();
         }
+    }
+
+    private void cancelBackgroundSyncJob() throws Exception {
+        JobScheduler scheduler = context.getSystemService(JobScheduler.class);
+        if (scheduler != null) scheduler.cancel(0x484d5055);
+        PushConnection.WORK.submit(() -> {}).get(10, java.util.concurrent.TimeUnit.SECONDS);
     }
 
     private PushStore.Device prepare() throws Exception {
@@ -229,6 +236,7 @@ public final class DistributorLifecycleTest extends InstrumentationTestCase {
 
     public void testUnprovenOrChangedSignerReceivesNoOldWireTokenEvenWhenRemoved() throws Exception {
         for (String pin : new String[]{"different-certificate", null}) {
+            cancelBackgroundSyncJob();
             PushStore.Device device = prepare();
             String token = register(device);
             store.getWritableDatabase().execSQL("UPDATE devices SET signer=? WHERE installation=?",
@@ -237,6 +245,7 @@ public final class DistributorLifecycleTest extends InstrumentationTestCase {
             DistributorEnrollment.reconcile(context, true, null);
             assertEquals(PushStore.REMOVING, store.forProfile(device.profile).state);
             assertTrue(outgoing.stream().noneMatch(intent -> token.equals(intent.getStringExtra("token"))));
+            cancelBackgroundSyncJob();
         }
     }
 
