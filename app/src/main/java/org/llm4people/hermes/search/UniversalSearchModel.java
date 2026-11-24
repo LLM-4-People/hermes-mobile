@@ -533,10 +533,7 @@ public final class UniversalSearchModel {
     }
 
     private static String excerpt(String raw, int maxChars) {
-        if (raw == null || raw.isEmpty()) return "";
-        String singleLine = WHITESPACE.matcher(raw.trim()).replaceAll(" ");
-        if (singleLine.length() <= maxChars) return singleLine;
-        return singleLine.substring(0, maxChars - 1).trim() + "…";
+        return PlainTextSanitizer.collapseWithEllipsis(raw, maxChars);
     }
 
     private static String safe(String value) {

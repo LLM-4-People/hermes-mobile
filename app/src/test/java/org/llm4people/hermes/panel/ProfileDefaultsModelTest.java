@@ -211,6 +211,15 @@ public final class ProfileDefaultsModelTest {
         assertEquals(ProfileDefaultsModel.SOUL_PREVIEW_MAX_CHARS, preview.length());
         assertTrue(preview.endsWith("…"));
 
+        // R15.4.2: Surrogate pair at boundary and bidi override are handled cleanly via PlainTextSanitizer.
+        String emojiBoundary = "a".repeat(ProfileDefaultsModel.SOUL_PREVIEW_MAX_CHARS - 2) + "\uD83D\uDE00tail";
+        String safeEmoji = ProfileDefaultsModel.soulPreview(emojiBoundary);
+        assertTrue(safeEmoji.length() <= ProfileDefaultsModel.SOUL_PREVIEW_MAX_CHARS);
+        assertTrue(safeEmoji.endsWith("…"));
+        assertFalse("Must never split surrogate pair at boundary",
+                Character.isHighSurrogate(safeEmoji.charAt(safeEmoji.length() - 2)));
+        assertEquals("Be concise.", ProfileDefaultsModel.soulPreview("Be\u202E\u034F concise."));
+
         assertFalse(ProfileDefaultsModel.isSoulDirty(null, ""));
         assertFalse(ProfileDefaultsModel.isSoulDirty("same", "same"));
         assertTrue(ProfileDefaultsModel.isSoulDirty("same", "changed"));

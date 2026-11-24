@@ -23,6 +23,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
 import java.util.Locale;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * Privacy-safe media and document sanitizer shared by camera capture and inbound share intake.
@@ -32,6 +33,8 @@ import java.util.Set;
 public final class CapturedMedia {
     public static final int IMAGE_PAYLOAD_LIMIT = 640 * 1024;
     public static final int IMAGE_MAX_EDGE = 1600;
+    private static final Pattern RFC6838_MIME = Pattern.compile(
+            "[a-z0-9][a-z0-9!#$&^_.+-]{0,62}/[a-z0-9][a-z0-9!#$&^_.+-]{0,62}");
     public static final Set<String> ALLOWED_DOCUMENT_MIMES = Set.of(
             "application/pdf",
             "application/json",
@@ -55,8 +58,12 @@ public final class CapturedMedia {
 
     public static boolean isAllowedMime(String rawMime) {
         if (rawMime == null) return false;
+        for (int i = 0; i < rawMime.length(); i++) {
+            char c = rawMime.charAt(i);
+            if (c < 0x20 || c == 0x7F) return false;
+        }
         String mime = rawMime.trim().toLowerCase(Locale.ROOT);
-        if (mime.isEmpty() || mime.length() > 128 || mime.contains("*")) return false;
+        if (mime.isEmpty() || mime.length() > 128 || !RFC6838_MIME.matcher(mime).matches()) return false;
         if (mime.startsWith("image/") && !mime.contains("svg")) return true;
         if (mime.startsWith("text/")) return true;
         return ALLOWED_DOCUMENT_MIMES.contains(mime);

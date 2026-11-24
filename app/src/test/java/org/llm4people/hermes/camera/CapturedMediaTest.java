@@ -18,7 +18,19 @@ public final class CapturedMediaTest {
         for (String bad : new String[]{null, "", "   ", "image/svg+xml",
                 "text/*", "image/*", "*/*",
                 "application/vnd.android.package-archive", "application/octet-stream",
-                "application/x-sh", "text/plain;".repeat(20)}) {
+                "application/x-sh", "text/plain;".repeat(20),
+                "text/plain\r\nX-Injected: evil",
+                "text/plain\r\n",
+                "\r\ntext/plain",
+                "image/png\nX-Evil: 1",
+                "image/png; charset=utf-8",
+                "text/plain; charset=utf-8",
+                "text/plain extra",
+                "image/png\u0000",
+                "text/plain\u0000",
+                "text/plain\t",
+                "image/",
+                "/png"}) {
             assertFalse("Expected rejected MIME: " + bad, CapturedMedia.isAllowedMime(bad));
         }
         assertEquals("text/markdown", CapturedMedia.resolveMime("text/*", "text/markdown"));
@@ -26,7 +38,7 @@ public final class CapturedMediaTest {
         assertEquals("application/pdf", CapturedMedia.resolveMime("*/*", "application/pdf"));
         assertEquals("image/jpeg", CapturedMedia.resolveMime("image/*", "image/jpeg"));
 
-        // R10.2.5: Always validate concrete resolver MIME even when declaredMime is concrete.
+        // R10.2.5 & R15.2.1: Always validate concrete resolver MIME and reject CRLF/param/control injection.
         assertEquals("text/plain", CapturedMedia.resolveAndValidateMime("text/plain", null));
         assertEquals("image/jpeg", CapturedMedia.resolveAndValidateMime("text/plain", "image/jpeg"));
         assertEquals("application/pdf", CapturedMedia.resolveAndValidateMime("*/*", "application/pdf"));
@@ -34,6 +46,8 @@ public final class CapturedMediaTest {
         org.junit.Assert.assertNull(CapturedMedia.resolveAndValidateMime("text/plain", "image/svg+xml"));
         org.junit.Assert.assertNull(CapturedMedia.resolveAndValidateMime("text/plain", "application/octet-stream"));
         org.junit.Assert.assertNull(CapturedMedia.resolveAndValidateMime("image/svg+xml", "text/plain"));
+        org.junit.Assert.assertNull(CapturedMedia.resolveAndValidateMime("text/plain\r\nX-Injected: evil", null));
+        org.junit.Assert.assertNull(CapturedMedia.resolveAndValidateMime("text/plain", "image/png; charset=utf-8"));
         org.junit.Assert.assertNull(CapturedMedia.resolveAndValidateMime("*/*", null));
     }
 

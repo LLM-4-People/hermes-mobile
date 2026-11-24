@@ -11,6 +11,7 @@ import org.llm4people.hermes.presence.ContinuousLocationTracker;
 import org.llm4people.hermes.templates.WorkflowTemplate;
 
 import java.io.IOException;
+import java.text.Normalizer;
 import java.util.Set;
 
 import static org.junit.Assert.assertEquals;
@@ -55,6 +56,14 @@ public final class SecretPatternsTest {
             "task-sk-1234567890abcdef",
             "eyJ\uFEFFhbGciOiJIUzI1NiJ9.payload",
             "-----BEGIN\u202E PRIVATE KEY-----",
+            "sk-\u034F1234567890abcdef",
+            "token\u034Fsk-\u034F1234567890abcdef",
+            "sk-\uFE001234567890abcdef",
+            "sk-\uFE0F1234567890abcdef",
+            "ghp_\u180BAbCdEf1234567890",
+            "sk-\uDB40\uDD001234567890abcdef",
+            "sk-\u03011234567890abcdef",
+            "Bea\u034Frer\u00A0abcdefgh12345678",
             "safe prefix ".repeat(20) + "sk-proj-1234567890abcdef"
     };
 
@@ -132,7 +141,13 @@ public final class SecretPatternsTest {
                 {"Notice", "code\u200Bo\u200Btp 123456"},
                 {"Notice", "code\u200Bc\u200Bvv 904"},
                 {"Banque", "Votre code\u00A0de\u00A0vérification\u202F: 482910"},
-                {"Alert", "Alert\u200BG-\u200B123456"}
+                {"Banque", Normalizer.normalize("Votre code de vérification est 839201", Normalizer.Form.NFD)},
+                {"Alert", "Alert\u200BG-\u200B123456"},
+                {"Alert", "o\u034Ftp 123456"},
+                {"Alert", "o\uFE00tp 123456"},
+                {"Alert", "c\uFE0Fvv 904"},
+                {"Alert", "code\u034Fotp 123456"},
+                {"Alert", "G-\uDB40\uDD00482910"}
         };
         for (String[] pair : obfuscatedCases) {
             assertTrue("containsOtpOrSecret missed: " + pair[0] + " / " + pair[1],
@@ -162,8 +177,10 @@ public final class SecretPatternsTest {
                                 "com.slack", "card", "pin", "1234", 0, false, false, false, "msg"),
                         Set.of("com.slack")));
 
-        // Ordinary words containing short-token substrings must not false-positive.
+        // Ordinary words and accented French strings must not false-positive.
         assertFalse(NotificationPrivacyGuard.containsOtpOrSecret("Alice", "Nice footprint on the trail"));
         assertFalse(NotificationPrivacyGuard.containsOtpOrSecret("Order", "Ref BG-123456 confirmed"));
+        assertFalse(NotificationPrivacyGuard.containsOtpOrSecret("Café", "Voici le résumé du café"));
+        assertFalse(NotificationPrivacyGuard.containsOtpOrSecret("Notice", "éotp hécvv"));
     }
 }

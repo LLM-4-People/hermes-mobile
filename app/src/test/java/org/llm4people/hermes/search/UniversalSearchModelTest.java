@@ -237,6 +237,26 @@ public final class UniversalSearchModelTest {
         assertEquals("n-42", notes.get(0).targetId());
         assertEquals("Ligne 1 Ligne 2", notes.get(0).subtitle());
 
+        // R15.4.2: Note excerpt strips bidi overrides and never splits surrogate pairs at boundary.
+        Map<String, Object> boundaryNotesResp = Map.of(
+                "notes", List.of(
+                        Map.of(
+                                "id", "n-43",
+                                "title", "Emoji",
+                                "content", "a".repeat(138) + "\uD83D\uDE00tail"),
+                        Map.of(
+                                "id", "n-44",
+                                "title", "Bidi",
+                                "content", "Bon\u202Ejour\u00A0monde")));
+        List<UniversalSearchModel.Result> sanitizedNotes =
+                UniversalSearchModel.parseNotesResultsMap(boundaryNotesResp, "Untitled note");
+        assertEquals(2, sanitizedNotes.size());
+        String emojiSub = sanitizedNotes.get(0).subtitle();
+        assertTrue(emojiSub.endsWith("…"));
+        assertFalse("Must never leave unpaired high surrogate",
+                Character.isHighSurrogate(emojiSub.charAt(emojiSub.length() - 2)));
+        assertEquals("Bonjour monde", sanitizedNotes.get(1).subtitle());
+
         Map<String, Object> sharesResp = Map.of(
                 "shares", List.of(
                         Map.of(

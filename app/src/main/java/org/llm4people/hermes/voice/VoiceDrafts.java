@@ -639,7 +639,11 @@ public final class VoiceDrafts {
         }
 
         void permission() {
-            if (active != this || paused || !target.visible()) return;
+            if (active != this) return;
+            if (paused || !target.visible()) {
+                abortForUnavailableTarget();
+                return;
+            }
             try {
                 if (input.permitted()) { start(); return; }
                 phase = Phase.PERMISSION;
@@ -654,7 +658,11 @@ public final class VoiceDrafts {
         }
 
         void start() {
-            if (active != this || paused || !target.visible()) { finish(0); return; }
+            if (active != this) return;
+            if (paused || !target.visible()) {
+                abortForUnavailableTarget();
+                return;
+            }
             try {
                 phase = Phase.STARTING;
                 target.icon(true, R.string.voice_finish);
@@ -738,7 +746,10 @@ public final class VoiceDrafts {
         @Override public void result(String transcript) {
             if (active != this) return;
             String phrase = transcript == null ? "" : transcript.trim();
-            if (paused || !target.visible()) { finish(0); return; }
+            if (paused || !target.visible()) {
+                abortForUnavailableTarget();
+                return;
+            }
             if (phrase.isEmpty()) {
                 DuplexBridge d = duplex;
                 int g = duplexGen;
@@ -823,6 +834,13 @@ public final class VoiceDrafts {
             partialStart = -1;
             partialEnd = -1;
             lastPartial = "";
+        }
+
+        private void abortForUnavailableTarget() {
+            DuplexBridge d = duplex;
+            int g = duplexGen;
+            finish(0);
+            if (d != null) d.session.onListenError(g, false);
         }
 
         private void finish(int status) {

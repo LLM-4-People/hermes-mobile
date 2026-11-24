@@ -40,17 +40,18 @@ public final class PlainTextSanitizer {
             int step = Character.charCount(cp);
             i += step;
             int type = Character.getType(cp);
-            if (Character.isISOControl(cp) || type == Character.FORMAT || type == Character.SURROGATE) {
+            if (Character.isISOControl(cp) || type == Character.FORMAT || type == Character.SURROGATE
+                    || cp == 0x034F) {
                 continue;
             }
             if (isAnySpace(cp)) {
                 if (out.length() > 0 && !prevSpace) {
-                    if (out.length() + 1 > maxChars) break;
+                    if (out.length() >= maxChars) break;
                     out.append(' ');
                     prevSpace = true;
                 }
             } else {
-                if (out.length() + step > maxChars) break;
+                if (step > maxChars - out.length()) break;
                 out.appendCodePoint(cp);
                 prevSpace = false;
             }
@@ -59,20 +60,21 @@ public final class PlainTextSanitizer {
     }
 
     /**
-     * Code-point-safe preview sanitizer that strips format (bidi/zero-width/Plane 14 tags) and
-     * unpaired surrogates, collapses ISO controls and Unicode whitespace/space characters to single
-     * ASCII spaces, and truncates with {@code "…"} without splitting surrogate pairs.
+     * Code-point-safe preview sanitizer that strips format (bidi/zero-width/Plane 14 tags),
+     * combining grapheme joiners ({@code U+034F}), and unpaired surrogates, collapses ISO controls
+     * and Unicode whitespace/space characters to single ASCII spaces, and truncates with {@code "…"}
+     * without splitting surrogate pairs.
      */
     public static String collapseWithEllipsis(String raw, int maxChars) {
         if (raw == null || maxChars <= 0) return "";
-        StringBuilder out = new StringBuilder(Math.min(raw.length(), maxChars + 2));
+        StringBuilder out = new StringBuilder((int) Math.min((long) raw.length(), (long) maxChars + 2L));
         boolean prevSpace = false;
         for (int i = 0; i < raw.length(); ) {
             int cp = raw.codePointAt(i);
             int step = Character.charCount(cp);
             i += step;
             int type = Character.getType(cp);
-            if (type == Character.FORMAT || type == Character.SURROGATE) {
+            if (type == Character.FORMAT || type == Character.SURROGATE || cp == 0x034F) {
                 continue;
             }
             if (Character.isISOControl(cp) || isAnySpace(cp)) {
@@ -104,6 +106,28 @@ public final class PlainTextSanitizer {
         return cp == '\n' || cp == '\r' || cp == '\t'
                 || cp == 0x0B || cp == 0x0C || cp == 0x85
                 || (cp >= 0x1C && cp <= 0x1F);
+    }
+
+    private static boolean isInvisibleMark(int cp) {
+        return cp == 0x034F
+                || (cp >= 0x180B && cp <= 0x180F)
+                || (cp >= 0xFE00 && cp <= 0xFE0F)
+                || (cp >= 0xE0100 && cp <= 0xE01EF);
+    }
+
+    private static boolean isCombiningMark(int type) {
+        return type == Character.NON_SPACING_MARK
+                || type == Character.COMBINING_SPACING_MARK
+                || type == Character.ENCLOSING_MARK;
+    }
+
+    private static boolean hasCombiningMark(String text) {
+        for (int i = 0; i < text.length(); ) {
+            int cp = text.codePointAt(i);
+            i += Character.charCount(cp);
+            if (isCombiningMark(Character.getType(cp))) return true;
+        }
+        return false;
     }
 
     static boolean isWordChar(char c) {
@@ -144,32 +168,51 @@ public final class PlainTextSanitizer {
     }
 
     /**
-     * Multi-view obfuscation-resilient text representation combining raw text, control/format-stripped
-     * text, and space-preserving normalized text with per-character stripped-separator boundary metadata.
+     * Multi-view obfuscation-resilient text representation combining raw text, control/format/
+     * invisible-mark-stripped text, space-preserving normalized text, and NFD combining-mark-stripped
+     * text with per-character stripped-separator boundary metadata.
      */
     public static final class DetectionView {
-        private static final DetectionView EMPTY = new DetectionView(null, null, null);
+        private static final DetectionView EMPTY = new DetectionView(null, null, null, null, null);
 
         private final Form raw;
         private final Form stripped;
         private final Form spaced;
+        private final Form foldedStripped;
+        private final Form foldedSpaced;
 
-        private DetectionView(Form raw, Form stripped, Form spaced) {
+        private DetectionView(Form raw, Form stripped, Form spaced, Form foldedStripped, Form foldedSpaced) {
             this.raw = raw;
             this.stripped = stripped;
             this.spaced = spaced;
+            this.foldedStripped = foldedStripped;
+            this.foldedSpaced = foldedSpaced;
         }
 
         public static DetectionView of(String raw) {
             if (raw == null || raw.isEmpty()) return EMPTY;
             Form rawForm = new Form(raw, null, null);
-            Form strippedForm = buildForm(raw, false);
-            Form spacedForm = buildForm(raw, true);
-            if (spacedForm.text.equals(strippedForm.text)
-                    && sameBoundaryFlags(spacedForm, strippedForm)) {
+            Form strippedForm = buildForm(raw, false, false);
+            Form spacedForm = buildForm(raw, true, false);
+            if (sameForm(spacedForm, strippedForm)) {
                 spacedForm = null;
             }
-            return new DetectionView(rawForm, strippedForm, spacedForm);
+            Form foldedStrippedForm = null;
+            Form foldedSpacedForm = null;
+            String nfd = Normalizer.normalize(raw, Normalizer.Form.NFD);
+            if (hasCombiningMark(nfd) || !nfd.equals(raw)) {
+                Form candidateStripped = buildForm(nfd, false, true);
+                if (!sameForm(candidateStripped, strippedForm) && !sameForm(candidateStripped, spacedForm)) {
+                    foldedStrippedForm = candidateStripped;
+                }
+                Form candidateSpaced = buildForm(nfd, true, true);
+                if (!sameForm(candidateSpaced, strippedForm)
+                        && !sameForm(candidateSpaced, spacedForm)
+                        && !sameForm(candidateSpaced, foldedStrippedForm)) {
+                    foldedSpacedForm = candidateSpaced;
+                }
+            }
+            return new DetectionView(rawForm, strippedForm, spacedForm, foldedStrippedForm, foldedSpacedForm);
         }
 
         public boolean isEmpty() {
@@ -180,7 +223,17 @@ public final class PlainTextSanitizer {
             if (raw == null) return false;
             if (raw.matches(pattern, requireStartBoundary, requireEndBoundary)) return true;
             if (stripped != null && stripped.matches(pattern, requireStartBoundary, requireEndBoundary)) return true;
-            return spaced != null && spaced.matches(pattern, requireStartBoundary, requireEndBoundary);
+            if (spaced != null && spaced.matches(pattern, requireStartBoundary, requireEndBoundary)) return true;
+            if (foldedStripped != null && foldedStripped.matches(pattern, requireStartBoundary, requireEndBoundary)) {
+                return true;
+            }
+            return foldedSpaced != null && foldedSpaced.matches(pattern, requireStartBoundary, requireEndBoundary);
+        }
+
+        private static boolean sameForm(Form a, Form b) {
+            if (a == null || b == null) return false;
+            if (!a.text.equals(b.text)) return false;
+            return sameBoundaryFlags(a, b);
         }
 
         private static boolean sameBoundaryFlags(Form a, Form b) {
@@ -191,7 +244,7 @@ public final class PlainTextSanitizer {
             return true;
         }
 
-        private static Form buildForm(String raw, boolean preserveControlWhitespace) {
+        private static Form buildForm(String raw, boolean preserveControlWhitespace, boolean stripCombiningMarks) {
             int cap = raw.length();
             StringBuilder out = new StringBuilder(cap);
             boolean[] sepBefore = new boolean[cap + 1];
@@ -206,10 +259,15 @@ public final class PlainTextSanitizer {
                 int type = Character.getType(cp);
                 boolean stripped = (Character.isISOControl(cp) && !(preserveControlWhitespace && controlWs))
                         || type == Character.FORMAT
-                        || type == Character.SURROGATE;
+                        || type == Character.SURROGATE
+                        || isInvisibleMark(cp);
                 if (stripped) {
                     pendingSep = true;
                     if (out.length() > 0) sepAfter[out.length() - 1] = true;
+                    continue;
+                }
+                if (stripCombiningMarks && isCombiningMark(type)) {
+                    // Strip ordinary combining diacritics without injecting spurious word-boundary breaks.
                     continue;
                 }
                 if (isAnySpace(cp) || (preserveControlWhitespace && controlWs)) {

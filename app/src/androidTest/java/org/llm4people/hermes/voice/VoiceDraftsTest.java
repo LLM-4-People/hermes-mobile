@@ -424,4 +424,56 @@ public final class VoiceDraftsTest extends InstrumentationTestCase {
             assertEquals("Réponse secondaire Suite", secondaryEditor.getText().toString());
         });
     }
+
+    public void testDuplexStopsCleanlyWhenTargetBecomesUnavailableDuringPermissionStartOrResult() throws Throwable {
+        runTestOnUiThread(() -> {
+            List<String> submitted = new ArrayList<>();
+            VoiceDrafts.DuplexHandle duplex = voice.bindDuplex(controls, submitted::add);
+            layout.addView(duplex.bar());
+
+            // 1. Attempt.permission() aborts when target becomes unavailable before consent click.
+            input.source = VoiceInput.Source.SYSTEM;
+            duplex.start();
+            assertEquals(DuplexVoiceSession.State.LISTENING, duplex.state());
+            editor.setEnabled(false);
+            action().performClick();
+            assertEquals(DuplexVoiceSession.State.OFF, duplex.state());
+            assertFalse(duplex.active());
+            assertEquals(View.GONE, duplex.bar().getVisibility());
+            assertEquals(0, input.recordings);
+            editor.setEnabled(true);
+            input.source = VoiceInput.Source.DEVICE;
+
+            // 2. Attempt.start() aborts when target becomes unavailable before approved recording starts.
+            input.allowed = false;
+            duplex.start();
+            assertEquals(DuplexVoiceSession.State.LISTENING, duplex.state());
+            int permCode = input.requested;
+            voice.pause();
+            input.allowed = true;
+            assertTrue(voice.permissionResult(
+                    permCode,
+                    new String[]{Manifest.permission.RECORD_AUDIO},
+                    new int[]{PackageManager.PERMISSION_GRANTED}));
+            editor.setEnabled(false);
+            voice.resume();
+            voice.windowFocusChanged(true);
+            assertEquals(DuplexVoiceSession.State.OFF, duplex.state());
+            assertFalse(duplex.active());
+            assertEquals(View.GONE, duplex.bar().getVisibility());
+            assertEquals(0, input.recordings);
+            editor.setEnabled(true);
+
+            // 3. Attempt.result() aborts when target becomes unavailable before recognition result arrives.
+            duplex.start();
+            assertEquals(DuplexVoiceSession.State.LISTENING, duplex.state());
+            assertEquals(1, input.recordings);
+            editor.setEnabled(false);
+            input.result("Bonjour");
+            assertEquals(DuplexVoiceSession.State.OFF, duplex.state());
+            assertFalse(duplex.active());
+            assertEquals(View.GONE, duplex.bar().getVisibility());
+            assertTrue(submitted.isEmpty());
+        });
+    }
 }

@@ -92,6 +92,15 @@ public final class NotesTasksModelTest {
         String compacted = NotesTasksModel.compactPreview(longText);
         assertTrue(compacted.length() <= NotesTasksModel.MAX_PREVIEW_CHARS);
         assertTrue(compacted.endsWith("…"));
+
+        // R15.4.2: Surrogate pair straddling the truncation boundary and bidi override are sanitized safely.
+        String emojiBoundary = "a".repeat(NotesTasksModel.MAX_PREVIEW_CHARS - 2) + "\uD83D\uDE00tail";
+        String safeEmoji = NotesTasksModel.compactPreview(emojiBoundary);
+        assertTrue(safeEmoji.length() <= NotesTasksModel.MAX_PREVIEW_CHARS);
+        assertTrue(safeEmoji.endsWith("…"));
+        assertFalse("Must never split surrogate pair at boundary",
+                Character.isHighSurrogate(safeEmoji.charAt(safeEmoji.length() - 2)));
+        assertEquals("Hello world", NotesTasksModel.compactPreview("Hel\u202Elo\u00A0world"));
     }
 
     @Test
