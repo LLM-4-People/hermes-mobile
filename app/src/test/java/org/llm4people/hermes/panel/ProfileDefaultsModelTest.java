@@ -117,6 +117,32 @@ public final class ProfileDefaultsModelTest {
     }
 
     @Test
+    public void disableAllPreservesNonCatalogToolsetsAndAllowsCleanRevert() {
+        ProfileDefaultsModel model = new ProfileDefaultsModel();
+        model.load(
+                "anthropic",
+                "claude-sonnet-4",
+                "auto",
+                Arrays.asList("web", "hidden_plugin"),
+                Arrays.asList("web", "files", "terminal"));
+
+        assertFalse(model.isDirty());
+        assertEquals(1, model.enabledToolsetCount());
+
+        // Disabling all visible toolsets must preserve non-catalog enabled toolsets.
+        model.disableAllToolsets();
+        assertEquals(0, model.enabledToolsetCount());
+        assertTrue(model.isDirty());
+        assertTrue(model.selectedToolsets().contains("hidden_plugin"));
+        assertFalse(model.selectedToolsets().contains("web"));
+
+        // Re-enabling the original visible toolset cleanly reverts dirty state to false.
+        model.setToolsetEnabled("web", true);
+        assertEquals(1, model.enabledToolsetCount());
+        assertFalse(model.isDirty());
+    }
+
+    @Test
     public void reasoningEffortNormalizationAndHelperResourceMappingHandleEdgeInputs() {
         assertEquals(ProfileDefaultsModel.EFFORT_AUTO, ProfileDefaultsModel.normalizeEffort(null));
         assertEquals(ProfileDefaultsModel.EFFORT_AUTO, ProfileDefaultsModel.normalizeEffort(""));

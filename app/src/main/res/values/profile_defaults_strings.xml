@@ -19,6 +19,8 @@
     <string name="profile_defaults_soul_chars">%1$d car.</string>
     <string name="profile_defaults_soul_empty">Vide</string>
     <string name="profile_defaults_soul_empty_hint">Aucune consigne personnalisée définie pour ce profil.</string>
+    <string name="profile_defaults_discard_title">Ignorer les réglages non enregistrés ?</string>
+    <string name="profile_defaults_discard_message">Vos modifications du profil n’ont pas été enregistrées.</string>
     <string name="profile_defaults_soul_discard_title">Ignorer les modifications ?</string>
     <string name="profile_defaults_soul_discard_message">Vos modifications de la personnalité ne sont pas enregistrées.</string>
     <string name="profile_defaults_soul_discard_confirm">Ignorer</string>

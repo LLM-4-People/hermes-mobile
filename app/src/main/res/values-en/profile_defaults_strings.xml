@@ -19,6 +19,8 @@
     <string name="profile_defaults_soul_chars">%1$d chars</string>
     <string name="profile_defaults_soul_empty">Empty</string>
     <string name="profile_defaults_soul_empty_hint">No custom instructions set for this profile yet.</string>
+    <string name="profile_defaults_discard_title">Discard unsaved defaults?</string>
+    <string name="profile_defaults_discard_message">Your changes to profile defaults have not been saved.</string>
     <string name="profile_defaults_soul_discard_title">Discard changes?</string>
     <string name="profile_defaults_soul_discard_message">Your edits to the assistant personality have not been saved.</string>
     <string name="profile_defaults_soul_discard_confirm">Discard</string>

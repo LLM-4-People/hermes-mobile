@@ -134,7 +134,8 @@ public final class ProfileDefaultsModel {
     }
 
     public void disableAllToolsets() {
-        selectedToolsets.clear();
+        if (availableToolsets.isEmpty()) selectedToolsets.clear();
+        else selectedToolsets.removeAll(availableToolsets);
     }
 
     public int enabledToolsetCount() {

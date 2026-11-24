@@ -47,6 +47,7 @@ final class ProfileDefaultsPanel {
 
     private LinearLayout body;
     private BrainJson.ProfileSummary summary;
+    private String soulPreviewText = "";
     private TextView statusPill;
     private Button saveButton;
     private LinearLayout saveFeedback;
@@ -61,11 +62,33 @@ final class ProfileDefaultsPanel {
     }
 
     void show() {
-        LinearLayout page = panel.page("brain_profile", R.string.brain_profile_defaults_title, parent);
+        mountMainPage();
+        load();
+    }
+
+    private void reopenMainPage() {
+        mountMainPage();
+        render();
+    }
+
+    private void mountMainPage() {
+        Runnable exitAction = parent != null ? parent : panel::close;
+        Runnable guardedBack = () -> {
+            if (!model.isDirty()) {
+                exitAction.run();
+                return;
+            }
+            panel.present(new AlertDialog.Builder(panel.activity)
+                    .setTitle(R.string.profile_defaults_discard_title)
+                    .setMessage(R.string.profile_defaults_discard_message)
+                    .setPositiveButton(R.string.profile_defaults_soul_discard_confirm, (d, w) -> exitAction.run())
+                    .setNegativeButton(R.string.profile_defaults_soul_keep_editing, null)
+                    .create());
+        };
+        LinearLayout page = panel.page("brain_profile", R.string.brain_profile_defaults_title, guardedBack);
         panel.note(page, panel.t(R.string.brain_profile_defaults_subtitle));
         body = Ui.column(panel.activity);
         page.addView(body);
-        load();
     }
 
     private void load() {
@@ -86,6 +109,7 @@ final class ProfileDefaultsPanel {
                 return;
             }
             summary = (BrainJson.ProfileSummary) payload[0];
+            soulPreviewText = summary.soulPreview();
             List<String> catalogToolsets = populateCatalogs((JSONObject) payload[1], (JSONObject) payload[2]);
             model.load(summary.defaultProvider(), summary.defaultModel(), summary.reasoningEffort(),
                     summary.enabledToolsets(), catalogToolsets);
@@ -380,7 +404,7 @@ final class ProfileDefaultsPanel {
         panel.section(body, R.string.brain_profile_soul);
         LinearLayout card = BrainUi.card(panel.activity);
 
-        String rawPreview = summary.soulPreview();
+        String rawPreview = soulPreviewText == null ? "" : soulPreviewText;
         int charCount = ProfileDefaultsModel.soulCharCount(rawPreview);
         LinearLayout topRow = Ui.row(panel.activity);
         TextView countPill = charCount > 0
@@ -591,13 +615,13 @@ final class ProfileDefaultsPanel {
         Runnable guardedBack = () -> {
             String current = editorRef[0] == null ? "" : editorRef[0].getText().toString();
             if (!ProfileDefaultsModel.isSoulDirty(initialRef[0], current)) {
-                show();
+                reopenMainPage();
                 return;
             }
             panel.present(new AlertDialog.Builder(panel.activity)
                     .setTitle(R.string.profile_defaults_soul_discard_title)
                     .setMessage(R.string.profile_defaults_soul_discard_message)
-                    .setPositiveButton(R.string.profile_defaults_soul_discard_confirm, (d, w) -> show())
+                    .setPositiveButton(R.string.profile_defaults_soul_discard_confirm, (d, w) -> reopenMainPage())
                     .setNegativeButton(R.string.profile_defaults_soul_keep_editing, null)
                     .create());
         };
@@ -643,8 +667,9 @@ final class ProfileDefaultsPanel {
                                 ok -> {
                                     soulSaving[0] = false;
                                     initialRef[0] = text;
+                                    soulPreviewText = text;
                                     Diagnostics.event("profile_defaults", "soul_saved");
-                                    show();
+                                    reopenMainPage();
                                 }, err -> {
                                     soulSaving[0] = false;
                                     if (saveBtnRef[0] != null) {
