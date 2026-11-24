@@ -1,0 +1,37 @@
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="fr">
+    <!-- Universal Search overlay -->
+    <string name="universal_search_title">Rechercher partout</string>
+    <string name="universal_search_hint">Rechercher dans vos discussions, notes, réglages…</string>
+    <string name="universal_search_close">Fermer la recherche</string>
+    <string name="universal_search_clear">Effacer la recherche</string>
+    <string name="universal_search_cat_all">Tout</string>
+    <string name="universal_search_cat_chats">Discussions</string>
+    <string name="universal_search_cat_notes">Notes</string>
+    <string name="universal_search_cat_shared">Partagés</string>
+    <string name="universal_search_cat_settings">Réglages</string>
+    <string name="universal_search_cat_tools">Outils</string>
+    <string name="universal_search_searching">Recherche sur votre serveur…</string>
+    <string name="universal_search_suggested">Accès rapide</string>
+    <string name="universal_search_empty_title">Aucun résultat</string>
+    <string name="universal_search_empty_hint">Essayez un autre mot-clé ou changez de catégorie.</string>
+    <string name="universal_search_empty_shared">Aucun élément partagé trouvé.</string>
+    <string name="universal_search_offline_local_only">Serveur hors ligne : affichage des résultats locaux.</string>
+    <string name="universal_search_error">Impossible de terminer la recherche sur le serveur.</string>
+    <string name="universal_search_open_result_cd">%1$s, %2$s</string>
+
+    <!-- Chats inline filter pills & quick starters -->
+    <string name="thread_filter_all">Toutes</string>
+    <string name="thread_filter_pinned">Épinglées</string>
+    <string name="thread_filter_shared">Partagées</string>
+    <string name="thread_filter_pinned_empty">Aucune discussion épinglée pour le moment.</string>
+    <string name="thread_filter_shared_empty">Aucune discussion partagée avec ce profil.</string>
+    <string name="thread_filter_shared_unavailable">Les discussions partagées nécessitent une mise à jour de votre serveur Hermes.</string>
+    <string name="thread_filter_shared_loading">Chargement des discussions partagées…</string>
+    <string name="thread_filter_shared_failed">Impossible de charger les discussions partagées.</string>
+    <string name="thread_shared_open_failed">Impossible d’ouvrir cette discussion partagée.</string>
+    <string name="thread_shared_use_in_new">Continuer dans une discussion</string>
+    <string name="thread_starters_templates_heading">Modèles rapides</string>
+
+    <!-- Notes reader -->
+    <string name="notes_open_note_cd">Ouvrir la note %1$s</string>
+</resources>

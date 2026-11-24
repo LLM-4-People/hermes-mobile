@@ -18,6 +18,17 @@ public final class NotesModel {
 
     private static final Pattern MARKS = Pattern.compile("\\p{M}+");
 
+    public enum FilterTab {
+        MINE(R.string.brain_notes_tab_mine),
+        SHARED(R.string.brain_notes_tab_shared);
+
+        public final int labelRes;
+
+        FilterTab(int labelRes) {
+            this.labelRes = labelRes;
+        }
+    }
+
     public record Note(
             String id,
             String title,
@@ -152,6 +163,28 @@ public final class NotesModel {
             }
         }
         return Collections.unmodifiableList(matched);
+    }
+
+    /** Filters notes by ownership tab ({@link FilterTab#MINE} vs {@link FilterTab#SHARED}) and query. */
+    public static List<Note> filterForTab(List<Note> notes, FilterTab tab, String query) {
+        if (notes == null || notes.isEmpty()) return Collections.emptyList();
+        FilterTab active = tab == null ? FilterTab.MINE : tab;
+        List<Note> scoped = new ArrayList<>(notes.size());
+        for (Note note : notes) {
+            if (note == null) continue;
+            if (active == FilterTab.MINE && note.isOwner()) {
+                scoped.add(note);
+            } else if (active == FilterTab.SHARED && !note.isOwner()) {
+                scoped.add(note);
+            }
+        }
+        return filter(scoped, query);
+    }
+
+    /** Returns the localized empty-state string resource for the active Notes filter tab. */
+    public static int emptyMessageRes(FilterTab tab, boolean unfilteredEmpty) {
+        if (!unfilteredEmpty) return R.string.brain_memory_empty_filter;
+        return tab == FilterTab.SHARED ? R.string.brain_notes_shared_empty : R.string.brain_notes_empty;
     }
 
     /** Strictly enforce count >= 3 so unlearned guesses are NEVER surfaced. */

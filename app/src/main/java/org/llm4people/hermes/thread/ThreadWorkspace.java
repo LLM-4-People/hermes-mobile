@@ -110,6 +110,11 @@ public final class ThreadWorkspace implements AutoCloseable {
     private volatile int profileEpoch;
     private int inboxOffset;
     private boolean inboxLoaded, inboxLoading, inboxFailed, inboxMore;
+    private ThreadInboxFilter.Filter inboxFilter = ThreadInboxFilter.Filter.ALL;
+    private JSONArray sharedInbox = new JSONArray();
+    private boolean sharedLoaded, sharedLoading, sharedUnavailable;
+    private int sharedLoadEpoch;
+    private int sharedOpenEpoch;
     private final ThreadTailCache tailCache = new ThreadTailCache();
     private final long tailCacheEpoch;
     private final InfiniteTranscriptWindow<JSONObject> transcriptWindow = InfiniteTranscriptWindow.forJson();
@@ -143,8 +148,8 @@ public final class ThreadWorkspace implements AutoCloseable {
         this.host = host;
         this.tailCacheEpoch = tailCache.bindProfile(account.id);
         index = new ThreadViews(activity, voice);
-        index.inbox(() -> create(UUID.randomUUID().toString(), null, index), () -> loadThreads(true),
-                this::chooseThread, () -> loadThreads(false));
+        index.inbox(() -> create(UUID.randomUUID().toString(), null, index), this::refreshActiveInbox,
+                this::chooseThread, () -> loadThreads(false), this::selectInboxFilter);
         container = new ConversationPanes(activity, index.root, () -> instruments != null && instruments.viewport.open(),
                 this::panesChanged);
         nearby = new NearbyConsent(this, account);
@@ -470,6 +475,10 @@ public final class ThreadWorkspace implements AutoCloseable {
 
     private void chooseThread(JSONObject row) {
         if (closed || !index.list.isShown()) return;
+        if (ThreadInboxFilter.isSharedRow(row)) {
+            openSharedThread(row);
+            return;
+        }
         try {
             ThreadIdentity identity = ThreadIdentity.of(row);
             if (!identity.root.equals(session)) open(identity, identity.label);
@@ -477,6 +486,104 @@ public final class ThreadWorkspace implements AutoCloseable {
             index.notice(activity.getString(R.string.thread_incomplete_server_reply),
                     activity.getString(R.string.instrument_retry), () -> loadThreads(true));
         }
+    }
+
+    private void selectInboxFilter(ThreadInboxFilter.Filter next) {
+        if (closed) return;
+        ThreadInboxFilter.Filter target = next == null ? ThreadInboxFilter.Filter.ALL : next;
+        if (inboxFilter == target) return;
+        sharedOpenEpoch++;
+        inboxFilter = target;
+        index.setInboxFilter(target);
+        if (target == ThreadInboxFilter.Filter.SHARED) {
+            paintIndex();
+            if (!sharedLoaded && !sharedLoading) {
+                loadSharedThreads();
+            } else {
+                indexNotice();
+            }
+            return;
+        }
+        paintIndex();
+        indexNotice();
+    }
+
+    private void refreshActiveInbox() {
+        if (inboxFilter == ThreadInboxFilter.Filter.SHARED) {
+            loadSharedThreads();
+        } else {
+            loadThreads(true);
+        }
+    }
+
+    private void loadSharedThreads() {
+        if (closed || sharedLoading) return;
+        sharedLoading = true;
+        sharedUnavailable = false;
+        int epoch = ++sharedLoadEpoch;
+        index.notice(activity.getString(R.string.thread_filter_shared_loading), "", null);
+        request(() -> api.get("/api/shares/incoming?resource_kind=session"),
+                data -> {
+                    if (epoch != sharedLoadEpoch) return;
+                    sharedLoading = false;
+                    sharedLoaded = true;
+                    sharedInbox = ThreadInboxFilter.parseSharedSessions(data);
+                    paintIndex();
+                    indexNotice();
+                }, failure -> {
+                    if (epoch != sharedLoadEpoch) return;
+                    sharedLoading = false;
+                    if (failure instanceof HermesApi.HttpError http
+                            && (http.status == 404 || http.status == 405 || http.status == 501)) {
+                        sharedLoaded = true;
+                        sharedUnavailable = true;
+                        sharedInbox = new JSONArray();
+                        Diagnostics.debug("threads", "shared_sessions_absent");
+                        paintIndex();
+                        indexNotice();
+                    } else {
+                        Diagnostics.warning("threads", "shared_sessions_failed", failure);
+                        if (inboxFilter == ThreadInboxFilter.Filter.SHARED) {
+                            index.notice(activity.getString(R.string.thread_filter_shared_failed),
+                                    activity.getString(R.string.instrument_retry), this::loadSharedThreads);
+                        }
+                    }
+                });
+    }
+
+    private void openSharedThread(JSONObject row) {
+        if (closed) return;
+        String shareId = ThreadInboxFilter.shareId(row);
+        if (shareId.isEmpty()) return;
+        int openEpoch = ++sharedOpenEpoch;
+        String label = ThreadData.title(activity, row);
+        index.notice(activity.getString(R.string.thread_filter_shared_loading), "", null);
+        request(() -> api.get("/api/shares/incoming/" + HermesApi.segment(shareId) + "/content"),
+                reply -> {
+                    if (closed || openEpoch != sharedOpenEpoch || inboxFilter != ThreadInboxFilter.Filter.SHARED) {
+                        return;
+                    }
+                    indexNotice();
+                    String content = ThreadInboxFilter.extractSharedContent(
+                            reply,
+                            activity.getString(R.string.thread_you),
+                            activity.getString(R.string.thread_speaker_hermes));
+                    AlertDialog.Builder reader = org.llm4people.hermes.artifact.CodeReader.dialog(
+                            activity, label, "markdown", content);
+                    if (!content.isEmpty()) {
+                        String prompt = activity.getString(R.string.ws_share_draft_prompt, label, content);
+                        reader.setPositiveButton(R.string.thread_shared_use_in_new,
+                                (d, w) -> create(UUID.randomUUID().toString(), () -> stageDraft(prompt), index));
+                    }
+                    index.show(reader);
+                }, failure -> {
+                    if (closed || openEpoch != sharedOpenEpoch || inboxFilter != ThreadInboxFilter.Filter.SHARED) {
+                        return;
+                    }
+                    Diagnostics.warning("threads", "shared_session_open_failed", failure);
+                    index.notice(activity.getString(R.string.thread_shared_open_failed),
+                            activity.getString(R.string.instrument_retry), () -> openSharedThread(row));
+                });
     }
 
     public void toggleDiscussions() {
@@ -495,14 +602,37 @@ public final class ThreadWorkspace implements AutoCloseable {
     }
 
     private void paintIndex() {
-        index.indexRows(DiscussionIndex.selectedFirst(inbox, session, remoteSession, title, firstPrompt, messageCount),
-                session, inboxMore, activeRuns.badges(), this::stopRun);
+        if (inboxFilter == ThreadInboxFilter.Filter.SHARED) {
+            index.indexRows(sharedInbox, null, false, Collections.emptyMap(), null);
+            return;
+        }
+        JSONArray visible = inboxFilter == ThreadInboxFilter.Filter.PINNED
+                ? ThreadInboxFilter.filterLocal(inbox, ThreadInboxFilter.Filter.PINNED)
+                : DiscussionIndex.selectedFirst(inbox, session, remoteSession, title, firstPrompt, messageCount);
+        index.indexRows(visible, session, inboxMore, activeRuns.badges(), this::stopRun);
         if (inboxLoading) index.paging();
     }
 
     private void indexNotice() {
-        if (!inboxWarning.isEmpty()) index.notice(inboxWarning, activity.getString(R.string.thread_recover_action), inboxRecovery);
-        else index.notice(inboxLoaded && inbox.length() == 0 && session == null
+        if (inboxFilter == ThreadInboxFilter.Filter.SHARED) {
+            if (sharedLoading) return;
+            index.notice(sharedLoaded && sharedInbox.length() == 0
+                    ? activity.getString(ThreadInboxFilter.emptyMessageRes(inboxFilter, sharedUnavailable))
+                    : "", "", null);
+            return;
+        }
+        if (!inboxWarning.isEmpty()) {
+            index.notice(inboxWarning, activity.getString(R.string.thread_recover_action), inboxRecovery);
+            return;
+        }
+        if (inboxFilter == ThreadInboxFilter.Filter.PINNED) {
+            JSONArray pinned = ThreadInboxFilter.filterLocal(inbox, ThreadInboxFilter.Filter.PINNED);
+            index.notice(inboxLoaded && pinned.length() == 0
+                    ? activity.getString(ThreadInboxFilter.emptyMessageRes(inboxFilter, false))
+                    : "", "", null);
+            return;
+        }
+        index.notice(inboxLoaded && inbox.length() == 0 && session == null
                 ? activity.getString(R.string.thread_empty_profile) : "", "", null);
     }
 
