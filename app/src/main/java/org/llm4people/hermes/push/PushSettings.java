@@ -44,6 +44,9 @@ final class PushSettings {
     private AlertDialog dialog;
     private TimePickerDialog timePicker;
     private DeliveryRouter deliveryRouter;
+    private boolean showingMainSettings;
+    private boolean displayedAllowed;
+    private boolean showingPermissionRecovery;
     private volatile boolean closed;
 
     PushSettings(Activity activity, Account account) {
@@ -67,6 +70,8 @@ final class PushSettings {
 
     private AlertDialog display(AlertDialog.Builder builder) {
         if (!current()) return null;
+        showingMainSettings = false;
+        showingPermissionRecovery = false;
         if (dialog != null) dialog.dismiss();
         dialog = Ui.secureDialog(builder);
         return dialog;
@@ -83,10 +88,35 @@ final class PushSettings {
     }
 
     void show() {
+        show(true);
+    }
+
+    private void show(boolean triggerReconcile) {
         if (!current()) return;
-        DistributorEnrollment.reconcile(activity);
         PushStore.Device device = PushStore.get(activity).forProfile(account.id);
-        if (display(settingsDialog(device, PushNotices.allowed(activity))) != null) observeState(device);
+        boolean allowed = PushNotices.allowed(activity);
+        if (display(settingsDialog(device, allowed)) != null) {
+            showingMainSettings = true;
+            displayedAllowed = allowed;
+            observeState(device);
+            if (triggerReconcile) {
+                Context app = activity.getApplicationContext();
+                PushConnection.WORK.execute(() -> DistributorEnrollment.reconcile(app));
+            }
+        }
+    }
+
+    void refreshPermissionState() {
+        if (!current() || dialog == null || !dialog.isShowing()) return;
+        boolean allowed = PushNotices.allowed(activity);
+        if (showingPermissionRecovery && allowed) {
+            showingPermissionRecovery = false;
+            discoverTransport();
+            return;
+        }
+        if (showingMainSettings && displayedAllowed != allowed) {
+            show(false);
+        }
     }
 
     AlertDialog.Builder settingsDialog(PushStore.Device device, boolean allowed) {
@@ -151,7 +181,11 @@ final class PushSettings {
             extras.addView(Ui.outlinedButton(activity, activity.getString(R.string.push_inbox_button),
                     v -> openDeliveryInbox()), stackGap(8));
         }
-        if (extras != null) builder.setView(extras);
+        if (extras != null) {
+            ScrollView scroll = new ScrollView(activity);
+            scroll.addView(extras, new ScrollView.LayoutParams(-1, -2));
+            builder.setView(scroll);
+        }
         return builder;
     }
 
@@ -375,11 +409,11 @@ final class PushSettings {
                     if (!showing(watching)) return;
                     PushStore.Device updated = store.forProfile(account.id);
                     if (displayed == null || updated == null) {
-                        if (displayed != updated) show();
+                        if (displayed != updated) show(false);
                     } else if (!displayed.installation.equals(updated.installation)
                             || !displayed.state.equals(updated.state) || displayed.repair != updated.repair
                             || !Objects.equals(displayed.failure, updated.failure)
-                            || displayed.retryScheduled() != updated.retryScheduled()) show();
+                            || displayed.retryScheduled() != updated.retryScheduled()) show(false);
                 });
             }
         };
@@ -473,22 +507,57 @@ final class PushSettings {
         PushNotices.channel(activity);
         if (Build.VERSION.SDK_INT >= 33 && activity.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
                 != PackageManager.PERMISSION_GRANTED) {
+            PermissionCenter.State state = PermissionCenter.state(activity, PermissionCenter.Key.NOTIFICATIONS);
+            if (state == PermissionCenter.State.PERMANENTLY_DENIED) {
+                showNotificationPermissionRecovery();
+                return;
+            }
             activity.requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, PERMISSION);
-        } else permissionResult();
+        } else {
+            proceedAfterPermissionCheck();
+        }
     }
 
-    void permissionResult() {
+    void permissionResult(int[] grantResults) {
         if (!current()) return;
-        if (!PushNotices.allowed(activity)) {
-            display(new AlertDialog.Builder(activity).setTitle(R.string.push_settings_allow_title)
-                    .setMessage(R.string.push_settings_allow_body)
-                    .setPositiveButton(R.string.push_settings_android_settings, (d,w) -> systemSettings())
-                    .setNegativeButton(R.string.ws_close, null));
+        if (grantResults != null && grantResults.length == 0) {
             return;
         }
+        PermissionCenter.recordCompletedPrompt(activity, PermissionCenter.Key.NOTIFICATIONS, grantResults);
+        proceedAfterPermissionCheck();
+    }
+
+    private void proceedAfterPermissionCheck() {
+        if (!current()) return;
+        if (!PushNotices.allowed(activity)) {
+            showNotificationPermissionRecovery();
+            return;
+        }
+        discoverTransport();
+    }
+
+    private void showNotificationPermissionRecovery() {
+        PermissionCenter.State state = PermissionCenter.state(activity, PermissionCenter.Key.NOTIFICATIONS);
+        AlertDialog.Builder recovery = new AlertDialog.Builder(activity)
+                .setTitle(R.string.push_settings_allow_title)
+                .setMessage(R.string.push_settings_allow_body)
+                .setNegativeButton(R.string.ws_close, null);
+        if (Build.VERSION.SDK_INT >= 33 && state != PermissionCenter.State.PERMANENTLY_DENIED) {
+            recovery.setPositiveButton(R.string.perm_action_allow, (d, w) -> begin());
+        } else {
+            recovery.setPositiveButton(R.string.perm_action_open_notification_settings, (d, w) -> systemSettings());
+        }
+        if (display(recovery) != null) {
+            showingPermissionRecovery = true;
+        }
+    }
+
+    private void discoverTransport() {
         load(activity.getString(R.string.push_settings_searching_services),
                 () -> new HermesApi(account.endpoint, account.bearer).get(PushConnection.BASE), this::chooseTransport);
     }
+
+    private record DistributorChoice(String packageName, String label, String signer) {}
 
     private void chooseTransport(JSONObject discovery) {
         PushStore.Device existing = PushStore.get(activity).forProfile(account.id);
@@ -512,25 +581,44 @@ final class PushSettings {
     }
 
     private void chooseDistributor(JSONObject discovery, long epoch) {
-        List<String> packages = DistributorEnrollment.choices(activity);
+        Context app = activity.getApplicationContext();
+        load(activity.getString(R.string.push_settings_searching_services),
+                () -> loadDistributorChoices(app),
+                choices -> showDistributorPicker(discovery, epoch, choices));
+    }
+
+    private static List<DistributorChoice> loadDistributorChoices(Context app) {
+        List<String> packages = DistributorEnrollment.choices(app);
+        List<DistributorChoice> entries = new ArrayList<>(packages.size());
+        PackageManager manager = app.getPackageManager();
+        for (String name : packages) {
+            String signer = DistributorIdentity.current(app, name);
+            String label;
+            try {
+                label = manager.getApplicationLabel(manager.getApplicationInfo(name, 0)) + "\n" + name;
+            } catch (PackageManager.NameNotFoundException gone) {
+                label = name;
+            }
+            entries.add(new DistributorChoice(name, label, signer));
+        }
+        return entries;
+    }
+
+    private void showDistributorPicker(JSONObject discovery, long epoch, List<DistributorChoice> choices) {
         AlertDialog.Builder picker = new AlertDialog.Builder(activity).setTitle(R.string.push_settings_choose_distributor)
                 .setNegativeButton(R.string.push_settings_back, (d,w) -> show());
-        if (packages.isEmpty()) {
+        if (choices == null || choices.isEmpty()) {
             picker.setMessage(R.string.push_settings_install_up);
         } else {
-            String[] labels = new String[packages.size()];
-            String[] signers = new String[packages.size()];
-            for (int i = 0; i < labels.length; i++) {
-                String name = packages.get(i);
-                signers[i] = DistributorIdentity.current(activity, name);
-                try {
-                    var manager = activity.getPackageManager();
-                    labels[i] = manager.getApplicationLabel(manager.getApplicationInfo(name, 0)) + "\n" + name;
-                } catch (PackageManager.NameNotFoundException gone) { labels[i] = name; }
-            }
-            picker.setItems(labels, (d,w) -> run(activity.getString(R.string.push_settings_registering_distributor), () ->
-                    DistributorEnrollment.enroll(activity.getApplicationContext(), account, packages.get(w), signers[w],
-                            DistributorEnrollment.vapid(discovery), epoch, this::current)));
+            String[] labels = new String[choices.size()];
+            for (int i = 0; i < choices.size(); i++) labels[i] = choices.get(i).label();
+            picker.setItems(labels, (d,w) -> {
+                DistributorChoice chosen = choices.get(w);
+                run(activity.getString(R.string.push_settings_registering_distributor), () ->
+                        DistributorEnrollment.enroll(activity.getApplicationContext(), account,
+                                chosen.packageName(), chosen.signer(),
+                                DistributorEnrollment.vapid(discovery), epoch, this::current));
+            });
         }
         display(picker);
     }

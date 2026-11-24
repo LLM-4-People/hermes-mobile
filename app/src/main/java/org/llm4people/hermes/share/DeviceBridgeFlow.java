@@ -324,6 +324,9 @@ public final class DeviceBridgeFlow {
                     editor.setHint(R.string.ambient_reply_hint);
                     editor.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
                             | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+                    editor.setImeOptions(android.view.inputmethod.EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING
+                            | android.view.inputmethod.EditorInfo.IME_FLAG_NO_EXTRACT_UI);
+                    editor.setImportantForAutofill(android.view.View.IMPORTANT_FOR_AUTOFILL_NO);
                     editor.setMinHeight(Ui.dp(hostActivity, 56));
                     editor.setTextColor(hostActivity.getColor(R.color.ink));
                     editor.setHintTextColor(hostActivity.getColor(R.color.muted));
@@ -331,9 +334,11 @@ public final class DeviceBridgeFlow {
                     editor.setFilters(new InputFilter[]{new InputFilter.LengthFilter(MAX_NOTIFICATION_REPLY_CHARS)});
                     editor.setText(draft);
                     content.addView(editor);
+                    android.widget.ScrollView scroll = new android.widget.ScrollView(hostActivity);
+                    scroll.addView(content, new android.widget.ScrollView.LayoutParams(-1, -2));
                     AlertDialog dialog = Ui.secureDialog(new AlertDialog.Builder(hostActivity)
                             .setTitle(R.string.ambient_reply_title)
-                            .setView(content)
+                            .setView(scroll)
                             .setNegativeButton(R.string.ambient_reply_cancel, (d, w) -> callback.finish(Status.DENIED, null))
                             .setOnCancelListener(d -> callback.finish(Status.DENIED, null))
                             .setPositiveButton(R.string.ambient_reply_send, (d, w) -> {

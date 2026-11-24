@@ -5,10 +5,12 @@ import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.customization.AppCustomization;
 
+import java.util.Arrays;
 import java.util.List;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public final class SettingsHubModelTest {
 
@@ -97,5 +99,30 @@ public final class SettingsHubModelTest {
                 SettingsHubModel.updateSubtitle("   ", "Version 0.3.0"));
         assertEquals("Version 0.3.0",
                 SettingsHubModel.updateSubtitle(null, "Version 0.3.0"));
+    }
+
+    @Test
+    public void filterSectionsAndCountItemsSafelyIgnoreNullSectionsAndNullItems() {
+        SettingsHubModel.SectionSpec withNullItems = new SettingsHubModel.SectionSpec(
+                "sec", "General", Arrays.asList(
+                        null,
+                        new SettingsHubModel.ItemSpec("act", 0, "Appearance", "Theme", "color"),
+                        null));
+        assertEquals(1, withNullItems.items().size());
+
+        List<SettingsHubModel.SectionSpec> mixed = Arrays.asList(null, withNullItems, null);
+        List<SettingsHubModel.SectionSpec> all = SettingsHubModel.filterSections(mixed, "");
+        assertEquals(1, all.size());
+        assertEquals(1, SettingsHubModel.countItems(mixed));
+        assertEquals(0, SettingsHubModel.countItems(null));
+
+        List<SettingsHubModel.SectionSpec> matched = SettingsHubModel.filterSections(mixed, "theme");
+        assertEquals(1, matched.size());
+        assertEquals("act", matched.get(0).items().get(0).actionId());
+
+        try {
+            all.add(withNullItems);
+            fail("filterSections must return an unmodifiable list");
+        } catch (UnsupportedOperationException expected) {}
     }
 }

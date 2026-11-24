@@ -61,9 +61,14 @@ public final class MobilePush {
         activeRouter.openDelivery(item);
     }
 
-    public void onPermissionResult(int requestCode) {
+    public void onPermissionResult(int requestCode, int[] grantResults) {
         PushSettings flow = (PushSettings) decor().getTag(R.id.push_settings_flow);
-        if (flow != null && requestCode == PushSettings.PERMISSION) flow.permissionResult();
+        if (flow != null && requestCode == PushSettings.PERMISSION) flow.permissionResult(grantResults);
+    }
+
+    public void onResume() {
+        PushSettings flow = (PushSettings) decor().getTag(R.id.push_settings_flow);
+        if (flow != null) flow.refreshPermissionState();
     }
 
     public void lock() {

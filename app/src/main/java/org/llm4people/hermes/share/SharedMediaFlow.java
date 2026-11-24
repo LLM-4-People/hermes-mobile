@@ -63,6 +63,10 @@ public final class SharedMediaFlow {
         if (ticket != null) state.putString(ShareMediaActivity.MEDIA_RECEIPT, ticket);
     }
 
+    public boolean hasPending() {
+        return ticket != null;
+    }
+
     public String requestedProfile() {
         if (ticket == null) return null;
         try { return IncomingMediaShare.owner(activity, ticket); }

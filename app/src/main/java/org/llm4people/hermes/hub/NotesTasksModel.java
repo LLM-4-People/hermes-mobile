@@ -10,6 +10,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * Pure-JVM Single Source of Truth for the living Notes &amp; Tasks hub screen.
@@ -118,6 +119,23 @@ public final class NotesTasksModel {
         return sortNotes(parsed);
     }
 
+    /** Pure-JVM parser for decoded `/api/notes` payload maps. */
+    public static List<NoteRow> parseNotesMap(Map<String, Object> response) {
+        List<?> array = extractList(response, "notes", "data");
+        if (array == null || array.isEmpty()) return Collections.emptyList();
+        List<NoteRow> parsed = new ArrayList<>(array.size());
+        for (Object item : array) {
+            if (!(item instanceof Map<?, ?> obj)) continue;
+            String id = optMapText(obj, "id", "note_id");
+            String title = optMapText(obj, "title");
+            String body = optMapText(obj, "body", "content", "snippet");
+            boolean pinned = optMapBool(obj, "pinned", false);
+            String updatedAt = optMapText(obj, "updated_at", "created_at");
+            parsed.add(new NoteRow(id, title, body, pinned, updatedAt));
+        }
+        return sortNotes(parsed);
+    }
+
     /** Compute active/paused/attention totals and order reminders (attention -> active -> paused). */
     public static ReminderOverview summarizeReminders(List<ReminderRow> raw) {
         if (raw == null || raw.isEmpty()) {
@@ -168,6 +186,27 @@ public final class NotesTasksModel {
         return summarizeReminders(rows);
     }
 
+    /** Pure-JVM parser for decoded `/api/jobs?include_disabled=true` payload maps. */
+    public static ReminderOverview parseRemindersMap(Map<String, Object> response) {
+        List<?> array = extractList(response, "jobs", "data");
+        if (array == null || array.isEmpty()) {
+            return new ReminderOverview(Collections.emptyList(), 0, 0, 0);
+        }
+        List<ReminderRow> rows = new ArrayList<>(array.size());
+        for (Object item : array) {
+            if (!(item instanceof Map<?, ?> obj)) continue;
+            String id = optMapText(obj, "id", "job_id");
+            String name = optMapText(obj, "name", "title");
+            String prompt = optMapText(obj, "prompt", "message");
+            String schedule = optMapText(obj, "schedule_display", "schedule");
+            boolean enabled = optMapBool(obj, "enabled", true);
+            String lastStatus = optMapText(obj, "last_status").toLowerCase(Locale.ROOT);
+            boolean failed = "error".equals(lastStatus) || "failed".equals(lastStatus);
+            rows.add(new ReminderRow(id, name.isEmpty() ? id : name, prompt, schedule, enabled, failed));
+        }
+        return summarizeReminders(rows);
+    }
+
     /** Filter out empty share rows and cap to {@link #MAX_VISIBLE_ITEMS}. */
     public static List<SharedRow> normalizeShares(List<SharedRow> raw) {
         if (raw == null || raw.isEmpty()) return Collections.emptyList();
@@ -195,6 +234,23 @@ public final class NotesTasksModel {
             String label = optText(obj, "label", "title", "resource_id");
             String owner = optText(obj, "owner_profile", "owner", "shared_by");
             String perm = optText(obj, "permission");
+            out.add(new SharedRow(shareId, kind, label, owner, perm));
+        }
+        return normalizeShares(out);
+    }
+
+    /** Pure-JVM parser for decoded `/api/shares/incoming` payload maps. */
+    public static List<SharedRow> parseReceivedSharesMap(Map<String, Object> response) {
+        List<?> array = extractList(response, "shares", "data");
+        if (array == null || array.isEmpty()) return Collections.emptyList();
+        List<SharedRow> out = new ArrayList<>(array.size());
+        for (Object item : array) {
+            if (!(item instanceof Map<?, ?> obj)) continue;
+            String shareId = optMapText(obj, "share_id", "id");
+            String kind = optMapText(obj, "resource_kind", "kind");
+            String label = optMapText(obj, "label", "title", "resource_id");
+            String owner = optMapText(obj, "owner_profile", "owner", "shared_by");
+            String perm = optMapText(obj, "permission");
             out.add(new SharedRow(shareId, kind, label, owner, perm));
         }
         return normalizeShares(out);
@@ -232,6 +288,35 @@ public final class NotesTasksModel {
             if (!value.isEmpty()) return value;
         }
         return "";
+    }
+
+    private static List<?> extractList(Map<String, Object> response, String primaryKey, String fallbackKey) {
+        if (response == null) return null;
+        Object primary = response.get(primaryKey);
+        if (primary instanceof List<?> list) return list;
+        Object fallback = response.get(fallbackKey);
+        return fallback instanceof List<?> list ? list : null;
+    }
+
+    private static String optMapText(Map<?, ?> obj, String... keys) {
+        for (String key : keys) {
+            Object raw = obj.get(key);
+            if (raw == null) continue;
+            String value = safe(raw instanceof String s ? s : String.valueOf(raw));
+            if (!value.isEmpty()) return value;
+        }
+        return "";
+    }
+
+    private static boolean optMapBool(Map<?, ?> obj, String key, boolean fallback) {
+        Object raw = obj.get(key);
+        if (raw instanceof Boolean b) return b;
+        if (raw instanceof String s) {
+            String lower = s.trim().toLowerCase(Locale.ROOT);
+            if ("true".equals(lower)) return true;
+            if ("false".equals(lower)) return false;
+        }
+        return fallback;
     }
 
     private static <T> List<T> limit(List<T> list, int max) {

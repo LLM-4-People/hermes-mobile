@@ -223,22 +223,22 @@ public final class AppsLauncherPanel {
         row.addView(iconCircle(R.drawable.ic_apps, 36, 20, false));
 
         LinearLayout copy = Ui.column(activity);
-        LinearLayout titleRow = Ui.row(activity);
         TextView titleView = Ui.text(activity, label, 16);
         titleView.setTypeface(MEDIUM);
+        titleView.setMaxLines(1);
+        titleView.setEllipsize(TextUtils.TruncateAt.END);
         titleView.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-        titleRow.addView(titleView, new LinearLayout.LayoutParams(0, -2, 1f));
+        copy.addView(titleView);
         TextView pill = Ui.pill(activity, countText, R.color.accent_surface, R.color.accent);
         pill.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         LinearLayout.LayoutParams pLp = new LinearLayout.LayoutParams(-2, -2);
-        pLp.setMarginStart(Ui.dp(activity, 8));
-        titleRow.addView(pill, pLp);
-        copy.addView(titleRow);
+        pLp.topMargin = Ui.dp(activity, 4);
+        copy.addView(pill, pLp);
 
         TextView detail = Ui.text(activity, activity.getString(R.string.hub_apps_templates_body), 14);
         detail.setTextColor(activity.getColor(R.color.muted));
         detail.setLineSpacing(0f, 1.2f);
-        detail.setPaddingRelative(0, Ui.dp(activity, 3), 0, 0);
+        detail.setPaddingRelative(0, Ui.dp(activity, 4), 0, 0);
         detail.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         copy.addView(detail);
         row.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));

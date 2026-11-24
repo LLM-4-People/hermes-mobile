@@ -76,7 +76,7 @@ public final class CommandPalette {
         Ui.pad(search, 12, 10);
         GradientDrawable inputBg = new GradientDrawable();
         inputBg.setColor(activity.getColor(R.color.surface));
-        inputBg.setCornerRadius(Ui.dp(activity, 8));
+        inputBg.setCornerRadius(Ui.dp(activity, Ui.BUTTON_CORNER_DP));
         inputBg.setStroke(Math.max(1, Ui.dp(activity, 1)), activity.getColor(R.color.accent));
         search.setBackground(inputBg);
         container.addView(search);
@@ -87,10 +87,19 @@ public final class CommandPalette {
         countAnnouncement.setPaddingRelative(Ui.dp(activity, 4), Ui.dp(activity, 6), 0, Ui.dp(activity, 6));
         container.addView(countAnnouncement);
 
-        ScrollView scroll = new ScrollView(activity);
+        int maxListHeightPx = Math.min(
+                Ui.dp(activity, 380),
+                Math.max(Ui.dp(activity, 180),
+                        Math.round(activity.getResources().getDisplayMetrics().heightPixels * 0.45f)));
+        ScrollView scroll = new ScrollView(activity) {
+            @Override protected void onMeasure(int widthSpec, int heightSpec) {
+                int constrained = MeasureSpec.makeMeasureSpec(maxListHeightPx, MeasureSpec.AT_MOST);
+                super.onMeasure(widthSpec, constrained);
+            }
+        };
         resultsColumn = Ui.column(activity);
         scroll.addView(resultsColumn, new ScrollView.LayoutParams(-1, -2));
-        LinearLayout.LayoutParams scrollLp = new LinearLayout.LayoutParams(-1, Ui.dp(activity, 360));
+        LinearLayout.LayoutParams scrollLp = new LinearLayout.LayoutParams(-1, -2);
         container.addView(scroll, scrollLp);
 
         renderResults("");
@@ -152,9 +161,9 @@ public final class CommandPalette {
         Ui.pad(row, 14, 10);
         GradientDrawable bg = new GradientDrawable();
         bg.setColor(activity.getColor(R.color.surface));
-        bg.setCornerRadius(Ui.dp(activity, 12));
+        bg.setCornerRadius(Ui.dp(activity, Ui.CARD_CORNER_DP));
         bg.setStroke(Math.max(1, Ui.dp(activity, 1)), activity.getColor(R.color.line));
-        row.setBackground(bg);
+        row.setBackground(Ui.roundedRipple(activity, Ui.CARD_CORNER_DP, bg));
 
         LinearLayout header = Ui.row(activity);
         header.setGravity(Gravity.CENTER_VERTICAL);

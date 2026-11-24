@@ -60,10 +60,6 @@ public final class AdaptiveNavBar extends LinearLayout {
         return chrome;
     }
 
-    public String selectedDestination() {
-        return selectedRoute;
-    }
-
     public void setSelectedRoute(String route) {
         String top = WorkspaceNavigation.topDestination(route);
         selectedRoute = top;
@@ -78,12 +74,6 @@ public final class AdaptiveNavBar extends LinearLayout {
             item.label.setTextColor(active ? activeInk : idleInk);
             item.label.setTypeface(active ? MEDIUM : Typeface.DEFAULT, active ? Typeface.BOLD : Typeface.NORMAL);
         }
-    }
-
-    public AdaptiveLayout.NavChrome updateGeometry(float widthDp, float heightDp, boolean imeVisible) {
-        AdaptiveLayout.NavChrome next = AdaptiveLayout.navigationChrome(widthDp, heightDp, imeVisible);
-        applyChrome(next);
-        return next;
     }
 
     public void applyChrome(AdaptiveLayout.NavChrome next) {
@@ -157,12 +147,12 @@ public final class AdaptiveNavBar extends LinearLayout {
         TextView label = new TextView(context);
         label.setText(title);
         label.setTextSize(12);
-        label.setMaxLines(1);
+        label.setMaxLines(2);
         label.setEllipsize(TextUtils.TruncateAt.END);
-        label.setGravity(Gravity.CENTER);
+        label.setGravity(Gravity.CENTER_HORIZONTAL);
         label.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         LinearLayout.LayoutParams labelParams = new LinearLayout.LayoutParams(
-                LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
+                LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
         labelParams.topMargin = Ui.dp(context, 4);
         container.addView(label, labelParams);
 

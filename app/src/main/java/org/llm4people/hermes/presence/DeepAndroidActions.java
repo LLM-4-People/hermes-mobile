@@ -18,20 +18,28 @@ import org.json.JSONObject;
 import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.R;
+import org.llm4people.hermes.ambient.AmbientAccessPanel;
 import org.llm4people.hermes.customization.AppCustomization;
 import org.llm4people.hermes.customization.AppCustomizationStore;
+import org.llm4people.hermes.doctor.ConnectionDoctorPanel;
 import org.llm4people.hermes.os.HermesShortcuts;
 import org.llm4people.hermes.os.HermesTileService;
 import org.llm4people.hermes.os.HermesWidgetProvider;
 import org.llm4people.hermes.os.HermesWidgetSpec;
 import org.llm4people.hermes.os.HermesWidgetStore;
+import org.llm4people.hermes.os.PermissionsPanel;
 import org.llm4people.hermes.push.DeliveryItem;
 import org.llm4people.hermes.push.PushPolicy;
+import org.llm4people.hermes.settings.AppearanceSettingsPanel;
+import org.llm4people.hermes.templates.TemplatesPanel;
+import org.llm4people.hermes.update.UpdatePanel;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -56,12 +64,86 @@ public final class DeepAndroidActions {
     public static final int MAX_NUDGE_BODY_CHARS = 180;
     public static final String NUDGE_CHANNEL_ID = "hermes_proactive_nudges";
 
-    private static final Set<String> NAVIGATE_TARGETS = Set.of(
-            "discussions", "atelier", "cerveau", "activite",
-            "thread", "template", "panel", "command_palette",
-            "memory", "notes", "shared_with_me", "search", "skills",
-            "workspace_files", "profile_defaults", "ambient", "doctor", "presence",
-            "presence_control", "workflow_templates", "connection_doctor");
+    /** Canonical Single Source of Truth destinations shared between {@link DeepAndroidActions} and {@code MainActivity}. */
+    public enum NavigateDestination {
+        DISCUSSIONS,
+        APPS,
+        NOTES_TASKS,
+        SETTINGS,
+        APPEARANCE,
+        COMMAND_PALETTE,
+        TEMPLATES,
+        THREAD,
+        AMBIENT,
+        CONNECTION_DOCTOR,
+        PERMISSIONS,
+        PRESENCE,
+        UPDATES,
+        MEMORY,
+        NOTES,
+        SHARED_WITH_ME,
+        SEARCH,
+        SKILLS,
+        WORKSPACE_FILES,
+        PROFILE_DEFAULTS,
+        TAB,
+        PANEL
+    }
+
+    private static final Map<String, NavigateDestination> NAVIGATE_TARGET_MAP = buildNavigateTargetMap();
+    public static final Set<String> NAVIGATE_TARGETS = Collections.unmodifiableSet(NAVIGATE_TARGET_MAP.keySet());
+
+    private static Map<String, NavigateDestination> buildNavigateTargetMap() {
+        Map<String, NavigateDestination> m = new LinkedHashMap<>();
+        m.put("discussions", NavigateDestination.DISCUSSIONS);
+        m.put("discussion", NavigateDestination.DISCUSSIONS);
+        m.put("apps", NavigateDestination.APPS);
+        m.put("atelier", NavigateDestination.APPS);
+        m.put("home", NavigateDestination.APPS);
+        m.put("workspace", NavigateDestination.APPS);
+        m.put("notes_tasks", NavigateDestination.NOTES_TASKS);
+        m.put("tasks", NavigateDestination.NOTES_TASKS);
+        m.put("activite", NavigateDestination.NOTES_TASKS);
+        m.put("activity", NavigateDestination.NOTES_TASKS);
+        m.put("settings", NavigateDestination.SETTINGS);
+        m.put("cerveau", NavigateDestination.SETTINGS);
+        m.put("brain", NavigateDestination.SETTINGS);
+        m.put("reglages", NavigateDestination.SETTINGS);
+        m.put("appearance", NavigateDestination.APPEARANCE);
+        m.put("apparence", NavigateDestination.APPEARANCE);
+        m.put(AppearanceSettingsPanel.ROUTE_ID, NavigateDestination.APPEARANCE);
+        m.put("command_palette", NavigateDestination.COMMAND_PALETTE);
+        m.put("template", NavigateDestination.TEMPLATES);
+        m.put("templates", NavigateDestination.TEMPLATES);
+        m.put(TemplatesPanel.ROUTE_ID, NavigateDestination.TEMPLATES);
+        m.put("thread", NavigateDestination.THREAD);
+        m.put("ambient", NavigateDestination.AMBIENT);
+        m.put(AmbientAccessPanel.ROUTE_ID, NavigateDestination.AMBIENT);
+        m.put("doctor", NavigateDestination.CONNECTION_DOCTOR);
+        m.put(ConnectionDoctorPanel.ROUTE_ID, NavigateDestination.CONNECTION_DOCTOR);
+        m.put("permissions", NavigateDestination.PERMISSIONS);
+        m.put(PermissionsPanel.ROUTE_ID, NavigateDestination.PERMISSIONS);
+        m.put("presence", NavigateDestination.PRESENCE);
+        m.put(PresenceSettingsPanel.ROUTE_ID, NavigateDestination.PRESENCE);
+        m.put("updates", NavigateDestination.UPDATES);
+        m.put(UpdatePanel.ROUTE_ID, NavigateDestination.UPDATES);
+        m.put("memory", NavigateDestination.MEMORY);
+        m.put("notes", NavigateDestination.NOTES);
+        m.put("shared_with_me", NavigateDestination.SHARED_WITH_ME);
+        m.put("search", NavigateDestination.SEARCH);
+        m.put("skills", NavigateDestination.SKILLS);
+        m.put("workspace_files", NavigateDestination.WORKSPACE_FILES);
+        m.put("profile_defaults", NavigateDestination.PROFILE_DEFAULTS);
+        m.put("tab", NavigateDestination.TAB);
+        m.put("panel", NavigateDestination.PANEL);
+        return Collections.unmodifiableMap(m);
+    }
+
+    /** Resolve any supported navigation target string to its canonical destination, or null if unsupported. */
+    public static NavigateDestination resolveNavigateDestination(String rawTarget) {
+        if (rawTarget == null) return null;
+        return NAVIGATE_TARGET_MAP.get(rawTarget.trim().toLowerCase(Locale.ROOT));
+    }
     private static final Set<String> THEME_MODES = Set.of("system", "light", "dark");
     private static final Set<String> ALLOWED_DEEP_LINK_SCHEMES =
             Set.of("https", "geo", "mailto", "tel");
@@ -275,7 +357,7 @@ public final class DeepAndroidActions {
         } else if ("template".equals(target)) {
             if (templateId.isEmpty()) return reject("missing_navigate_id");
             targetId = templateId;
-        } else if ("panel".equals(target)) {
+        } else if ("panel".equals(target) || "tab".equals(target)) {
             if (routeId.isEmpty()) return reject("missing_navigate_id");
             targetId = routeId;
         } else {

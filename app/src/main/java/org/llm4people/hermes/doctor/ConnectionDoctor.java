@@ -377,11 +377,7 @@ public final class ConnectionDoctor implements AutoCloseable {
     }
 
     private static void logWarning(String action) {
-        try {
-            Diagnostics.warning("doctor", action);
-        } catch (RuntimeException unmockedHostJvm) {
-            // Host JVM unit tests run with unmocked Android framework stubs.
-        }
+        Diagnostics.warning("doctor", action);
     }
 
     /** Live Android probe implementation reading real local state and gateway endpoints. */

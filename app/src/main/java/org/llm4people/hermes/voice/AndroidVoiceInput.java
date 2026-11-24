@@ -112,7 +112,7 @@ final class AndroidVoiceInput implements VoiceInput {
             return AppLanguage.resolvedVoiceTag(activity);
         }
         LocaleList locales = activity.getResources().getConfiguration().getLocales();
-        Locale primary = locales.isEmpty() ? Locale.FRANCE : locales.get(0);
+        Locale primary = locales.isEmpty() ? AppLanguage.resolvedLocale(activity) : locales.get(0);
         String targetLang = selectedLocale.resolveLanguage(primary);
         for (int i = 0; i < locales.size(); i++) {
             Locale candidate = locales.get(i);

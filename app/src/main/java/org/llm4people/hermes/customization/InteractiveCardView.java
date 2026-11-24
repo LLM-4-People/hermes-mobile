@@ -1,9 +1,11 @@
 package org.llm4people.hermes.customization;
 
 import android.content.Context;
+import android.content.res.ColorStateList;
 import android.content.res.Configuration;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.StateListDrawable;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
@@ -553,7 +555,7 @@ public final class InteractiveCardView extends LinearLayout {
     private void applyCardSurface(Context context) {
         GradientDrawable bg = new GradientDrawable();
         bg.setColor(context.getColor(R.color.surface));
-        bg.setCornerRadius(Ui.dp(context, 14));
+        bg.setCornerRadius(Ui.dp(context, Ui.CARD_CORNER_DP));
         bg.setStroke(Math.max(1, Ui.dp(context, 1)), context.getColor(R.color.line));
         setBackground(bg);
     }
@@ -612,7 +614,9 @@ public final class InteractiveCardView extends LinearLayout {
             chip.setAllCaps(false);
             chip.setTextSize(14);
             chip.setTypeface(mediumTypeface());
-            chip.setTextColor(context.getColor(R.color.accent));
+            chip.setTextColor(new ColorStateList(
+                    new int[][]{new int[]{-android.R.attr.state_enabled}, new int[]{}},
+                    new int[]{context.getColor(R.color.disabled_ink), context.getColor(R.color.accent)}));
             chip.setMinHeight(touchMin);
             chip.setMinimumHeight(touchMin);
             chip.setMinWidth(touchMin);
@@ -621,8 +625,8 @@ public final class InteractiveCardView extends LinearLayout {
             Ui.pad(chip, 14, 8);
             GradientDrawable bg = new GradientDrawable();
             bg.setColor(context.getColor(R.color.accent_surface));
-            bg.setCornerRadius(Ui.dp(context, 10));
-            chip.setBackground(bg);
+            bg.setCornerRadius(Ui.dp(context, Ui.BUTTON_CORNER_DP));
+            chip.setBackground(Ui.roundedRipple(context, Ui.BUTTON_CORNER_DP, bg));
             chip.setTag("pick:" + pick.id());
             chip.setOnClickListener(v -> {
                 Diagnostics.event("card", "quick_pick_draft");
@@ -672,12 +676,7 @@ public final class InteractiveCardView extends LinearLayout {
         int onAccentArgb = AppCustomization.onAccentArgb(accentArgb);
 
         LinearLayout preview = Ui.row(context);
-        Ui.pad(preview, 12, 10);
-        GradientDrawable swatchBg = new GradientDrawable();
-        swatchBg.setColor(context.getColor(R.color.paper));
-        swatchBg.setCornerRadius(Ui.dp(context, 10));
-        swatchBg.setStroke(Math.max(1, Ui.dp(context, 1)), context.getColor(R.color.line));
-        preview.setBackground(swatchBg);
+        preview.setPaddingRelative(0, Ui.dp(context, 10), 0, Ui.dp(context, 4));
 
         View swatch = new View(context);
         GradientDrawable dot = new GradientDrawable();
@@ -705,9 +704,11 @@ public final class InteractiveCardView extends LinearLayout {
         }
         preview.addView(details, new LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f));
 
-        LayoutParams previewLp = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
-        previewLp.topMargin = Ui.dp(context, 10);
-        addView(preview, previewLp);
+        View previewDivider = Ui.divider(context);
+        LayoutParams divLp = (LayoutParams) previewDivider.getLayoutParams();
+        divLp.topMargin = Ui.dp(context, 10);
+        addView(previewDivider, divLp);
+        addView(preview, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
 
         LinearLayout actions = Ui.row(context);
         int touchMin = Ui.dp(context, 48);
@@ -716,16 +717,24 @@ public final class InteractiveCardView extends LinearLayout {
         apply.setText(context.getString(R.string.card_apply_appearance));
         apply.setAllCaps(false);
         apply.setTypeface(mediumTypeface());
-        apply.setTextColor(onAccentArgb);
+        apply.setTextColor(new ColorStateList(
+                new int[][]{new int[]{-android.R.attr.state_enabled}, new int[]{}},
+                new int[]{context.getColor(R.color.disabled_ink), onAccentArgb}));
         apply.setMinHeight(touchMin);
         apply.setMinimumHeight(touchMin);
         apply.setMinWidth(touchMin);
         apply.setMinimumWidth(touchMin);
         Ui.pad(apply, 16, 8);
-        GradientDrawable applyBg = new GradientDrawable();
-        applyBg.setColor(accentArgb);
-        applyBg.setCornerRadius(Ui.dp(context, 10));
-        apply.setBackground(applyBg);
+        StateListDrawable applyStates = new StateListDrawable();
+        GradientDrawable disabledApplyBg = new GradientDrawable();
+        disabledApplyBg.setColor(context.getColor(R.color.disabled_surface));
+        disabledApplyBg.setCornerRadius(Ui.dp(context, Ui.BUTTON_CORNER_DP));
+        GradientDrawable enabledApplyBg = new GradientDrawable();
+        enabledApplyBg.setColor(accentArgb);
+        enabledApplyBg.setCornerRadius(Ui.dp(context, Ui.BUTTON_CORNER_DP));
+        applyStates.addState(new int[]{-android.R.attr.state_enabled}, disabledApplyBg);
+        applyStates.addState(new int[]{}, enabledApplyBg);
+        apply.setBackground(Ui.roundedRipple(context, Ui.BUTTON_CORNER_DP, applyStates));
         apply.setTag("card:apply");
         apply.setOnClickListener(v -> {
             Diagnostics.event("card", "customization_apply");
@@ -757,7 +766,6 @@ public final class InteractiveCardView extends LinearLayout {
     private void renderPairingInvite(Context context) {
         PairingInvite invite = spec.pairingInvite;
         if (invite == null) return;
-        int touchMin = Ui.dp(context, 48);
 
         TextView modePill = Ui.text(context,
                 context.getString("invite".equals(invite.mode())
@@ -798,39 +806,21 @@ public final class InteractiveCardView extends LinearLayout {
         addView(expView, expLp);
 
         LinearLayout actions = Ui.row(context);
-        Button share = new Button(context, null, android.R.attr.borderlessButtonStyle);
-        share.setText(context.getString(R.string.card_pairing_share));
-        share.setAllCaps(false);
-        share.setTypeface(mediumTypeface());
-        share.setTextColor(context.getColor(R.color.on_accent));
-        share.setMinHeight(touchMin);
-        share.setMinimumHeight(touchMin);
-        share.setMinWidth(touchMin);
-        share.setMinimumWidth(touchMin);
-        Ui.pad(share, 16, 8);
-        GradientDrawable shareBg = new GradientDrawable();
-        shareBg.setColor(context.getColor(R.color.accent));
-        shareBg.setCornerRadius(Ui.dp(context, 10));
-        share.setBackground(shareBg);
-        share.setTag("card:pairing_share");
-        share.setEnabled(remaining > 0L);
-        share.setOnClickListener(v -> {
+        Button share = Ui.filledButton(context, context.getString(R.string.card_pairing_share), v -> {
             Diagnostics.event("card", "pairing_share");
             PairingShareSheet.shareLink(context, invite.deepLink());
             callbacks.onSharePairingLink(spec.cardId, invite);
         });
+        share.setTag("card:pairing_share");
+        share.setEnabled(remaining > 0L);
 
-        Button copy = Ui.button(context, context.getString(R.string.card_pairing_copy), v -> {
+        Button copy = Ui.outlinedButton(context, context.getString(R.string.card_pairing_copy), v -> {
             Diagnostics.event("card", "pairing_copy");
             if (PairingShareSheet.copyLink(context, invite.deepLink())) {
                 ((Button) v).setText(context.getString(R.string.card_pairing_copied));
             }
             callbacks.onCopyPairingLink(spec.cardId, invite);
         });
-        copy.setMinHeight(touchMin);
-        copy.setMinimumHeight(touchMin);
-        copy.setMinWidth(touchMin);
-        copy.setMinimumWidth(touchMin);
         copy.setTag("card:pairing_copy");
         copy.setEnabled(remaining > 0L);
 

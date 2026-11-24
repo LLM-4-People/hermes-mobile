@@ -30,6 +30,12 @@ public final class AttachmentUploaderTest {
         assertTrue(text.contains("print('bonjour')"));
         assertTrue(text.endsWith("\r\n--HermesBoundary1234--\r\n"));
         assertEquals("/api/sessions/session-42/uploads", AttachmentUploader.uploadPath("session-42"));
+
+        CapturedMedia.Item unnamed = new CapturedMedia.Item(
+                CapturedMedia.Kind.DOCUMENT, "   ", "text/plain", content, CapturedMedia.sha256Hex(content), null);
+        String unnamedBody = new String(
+                AttachmentUploader.buildMultipartBody("HermesBoundary5678", unnamed), StandardCharsets.UTF_8);
+        assertTrue(unnamedBody.contains("filename=\"attachment\""));
     }
 
     @Test

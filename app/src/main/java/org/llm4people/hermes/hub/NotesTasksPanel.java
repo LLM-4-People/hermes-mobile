@@ -9,6 +9,7 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.Button;
+import android.widget.HorizontalScrollView;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -106,10 +107,15 @@ public final class NotesTasksPanel implements AutoCloseable {
         scroll.setClipToPadding(false);
         scroll.setTag("hub:notes_tasks");
 
+        HorizontalScrollView segmentScroll = new HorizontalScrollView(activity);
+        segmentScroll.setFillViewport(true);
+        segmentScroll.setHorizontalScrollBarEnabled(false);
+        segmentScroll.setBackground(Ui.shape(activity, Ui.CARD_CORNER_DP, R.color.surface_container, R.color.line, 1));
+        segmentScroll.setClipToOutline(true);
         segmentBar = Ui.row(activity);
-        segmentBar.setBackground(Ui.shape(activity, Ui.CARD_CORNER_DP, R.color.surface_container, R.color.line, 1));
         Ui.pad(segmentBar, 4, 4);
-        list.addView(segmentBar, new LinearLayout.LayoutParams(-1, -2));
+        segmentScroll.addView(segmentBar, new HorizontalScrollView.LayoutParams(-1, -2));
+        list.addView(segmentScroll, new LinearLayout.LayoutParams(-1, -2));
 
         contentSlot = Ui.column(activity);
         LinearLayout.LayoutParams contentLp = new LinearLayout.LayoutParams(-1, -2);
@@ -140,6 +146,7 @@ public final class NotesTasksPanel implements AutoCloseable {
     @Override public void close() {
         closed = true;
         loadGeneration++;
+        api.revoke();
         executor.shutdownNow();
     }
 
@@ -151,7 +158,8 @@ public final class NotesTasksPanel implements AutoCloseable {
     private int safeUnreadCount() {
         try {
             return deliveryInbox.unreadCount(account);
-        } catch (RuntimeException ignored) {
+        } catch (RuntimeException error) {
+            Diagnostics.warning("notes_tasks", "unread_count_failed", error);
             return 0;
         }
     }
@@ -186,7 +194,7 @@ public final class NotesTasksPanel implements AutoCloseable {
                 ? Ui.shape(activity, 12, R.color.accent, 0, 0)
                 : null;
         tab.setBackground(Ui.roundedRipple(activity, 12, fill));
-        Ui.pad(tab, 8, 10);
+        Ui.pad(tab, 12, 10);
         tab.setAccessibilityDelegate(new View.AccessibilityDelegate() {
             @Override public void onInitializeAccessibilityNodeInfo(View host, AccessibilityNodeInfo info) {
                 super.onInitializeAccessibilityNodeInfo(host, info);
@@ -195,7 +203,7 @@ public final class NotesTasksPanel implements AutoCloseable {
             }
         });
         tab.setOnClickListener(v -> selectSegment(segment));
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -2, 1f);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2, 1f);
         segmentBar.addView(tab, lp);
     }
 
@@ -376,7 +384,8 @@ public final class NotesTasksPanel implements AutoCloseable {
         List<DeliveryItem> cached;
         try {
             cached = deliveryInbox.cached(account);
-        } catch (RuntimeException ignored) {
+        } catch (RuntimeException error) {
+            Diagnostics.warning("notes_tasks", "cached_inbox_failed", error);
             cached = Collections.emptyList();
         }
         renderInbox(listSlot, cached, Collections.emptyList());
@@ -490,7 +499,16 @@ public final class NotesTasksPanel implements AutoCloseable {
                 info.setClassName(Button.class.getName());
             }
         });
-        row.setContentDescription(subtitle == null || subtitle.isEmpty() ? title : title + ". " + subtitle);
+        StringBuilder desc = new StringBuilder(title == null ? "" : title);
+        if (badge != null && !badge.isEmpty()) {
+            if (desc.length() > 0) desc.append(". ");
+            desc.append(badge);
+        }
+        if (subtitle != null && !subtitle.isEmpty()) {
+            if (desc.length() > 0) desc.append(". ");
+            desc.append(subtitle);
+        }
+        row.setContentDescription(desc.toString());
 
         row.addView(iconCircle(iconRes, 36, 20, false));
 

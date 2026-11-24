@@ -5,6 +5,7 @@ import org.llm4people.hermes.customization.AppCustomization;
 
 import java.text.NumberFormat;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -66,11 +67,12 @@ public final class AppearanceSettingsModel {
 
     /** Format contrast ratio to 1 decimal place in the active locale (e.g. "7.8" or "7,8"). */
     public static String formatContrastRatio(double ratio, Locale locale) {
-        Locale effective = locale == null ? Locale.US : locale;
+        Locale effective = locale == null ? Locale.getDefault() : locale;
+        double safeRatio = Double.isFinite(ratio) ? Math.max(1.0, ratio) : 1.0;
         NumberFormat fmt = NumberFormat.getNumberInstance(effective);
         fmt.setMinimumFractionDigits(1);
         fmt.setMaximumFractionDigits(1);
-        return fmt.format(Math.max(1.0, ratio));
+        return fmt.format(safeRatio);
     }
 
     /** Step font scale delta by +/- 5% clamped strictly to {@code [-0.15, +0.30]}. */
@@ -140,7 +142,7 @@ public final class AppearanceSettingsModel {
                 if (s != null && !s.id().equals(shortcutId)) next.add(s);
             }
         }
-        return next;
+        return Collections.unmodifiableList(next);
     }
 
     static String uniqueShortcutId(String label, Set<String> usedIds) {

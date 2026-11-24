@@ -21,6 +21,7 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 
 import org.llm4people.hermes.Diagnostics;
@@ -220,38 +221,53 @@ public final class VoiceDrafts {
         content.addView(localeHeading);
 
         VoiceLocale[] locales = VoiceLocale.values();
-        for (VoiceLocale option : locales) {
+        for (int i = 0; i < locales.length; i++) {
+            VoiceLocale option = locales[i];
             boolean current = option == selectedLocale;
-            String label = (current ? "✓ " : "") + activity.getString(option.labelRes);
+            String label = activity.getString(option.labelRes);
             Button choice = Ui.button(activity, label, v -> {
                 setLocale(option);
                 if (optionsDialog != null) optionsDialog.dismiss();
             });
             choice.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+            choice.setSelected(current);
+            choice.setTextColor(activity.getColor(current ? R.color.accent : R.color.ink));
+            choice.setBackground(Ui.roundedRipple(activity, Ui.BUTTON_CORNER_DP,
+                    current ? Ui.shape(activity, Ui.BUTTON_CORNER_DP, R.color.accent_surface, R.color.accent, 1)
+                            : Ui.shape(activity, Ui.BUTTON_CORNER_DP, R.color.surface, R.color.line, 1)));
+            Ui.pad(choice, 14, 10);
             if (current) choice.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-            content.addView(choice);
+            LinearLayout.LayoutParams choiceLp = new LinearLayout.LayoutParams(-1, -2);
+            choiceLp.topMargin = Ui.dp(activity, i == 0 ? 8 : 6);
+            content.addView(choice, choiceLp);
         }
 
         if (toggleDuplex != null) {
-            content.addView(Ui.divider(activity));
+            View divider = Ui.divider(activity);
+            LinearLayout.LayoutParams divLp = (LinearLayout.LayoutParams) divider.getLayoutParams();
+            divLp.topMargin = Ui.dp(activity, 12);
+            divLp.bottomMargin = Ui.dp(activity, 8);
+            content.addView(divider, divLp);
             TextView hint = Ui.text(activity, activity.getString(R.string.voice_duplex_hint), 14);
             hint.setTextColor(activity.getColor(R.color.muted));
-            Ui.pad(hint, 0, 8);
+            Ui.pad(hint, 0, 4);
             content.addView(hint);
-            Button duplexBtn = Ui.button(activity,
+            Button duplexBtn = Ui.tonalButton(activity,
                     activity.getString(duplexActive ? R.string.voice_duplex_stop : R.string.voice_duplex_start),
                     v -> {
                         if (optionsDialog != null) optionsDialog.dismiss();
                         toggleDuplex.run();
                     });
-            duplexBtn.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
-            duplexBtn.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-            content.addView(duplexBtn);
+            LinearLayout.LayoutParams dupLp = new LinearLayout.LayoutParams(-1, -2);
+            dupLp.topMargin = Ui.dp(activity, 8);
+            content.addView(duplexBtn, dupLp);
         }
 
+        ScrollView scroll = new ScrollView(activity);
+        scroll.addView(content, new ScrollView.LayoutParams(-1, -2));
         optionsDialog = Ui.secureDialog(new AlertDialog.Builder(activity)
                 .setTitle(R.string.voice_options_title)
-                .setView(content)
+                .setView(scroll)
                 .setNegativeButton(R.string.ws_close, null));
     }
 
@@ -283,6 +299,7 @@ public final class VoiceDrafts {
                 && active.duplex == activeDuplex;
         if (activeDuplex != null && !awaitingDuplexPermission) activeDuplex.stop();
         if (optionsDialog != null) { optionsDialog.dismiss(); optionsDialog = null; }
+        if (recovery != null) recovery.dismiss();
         paused = true;
         // The system permission sheet pauses the activity. Only its pending grant can survive that pause.
         windowFocusChanged(false);
@@ -410,10 +427,14 @@ public final class VoiceDrafts {
 
             bargeInButton = Ui.button(activity, activity.getString(R.string.voice_duplex_barge_in), v -> bargeIn());
             bargeInButton.setContentDescription(activity.getString(R.string.voice_duplex_barge_in_label));
-            bar.addView(bargeInButton);
+            LinearLayout.LayoutParams bargeLp = new LinearLayout.LayoutParams(-2, -2);
+            bargeLp.setMarginStart(Ui.dp(activity, 6));
+            bar.addView(bargeInButton, bargeLp);
 
             quitButton = Ui.button(activity, activity.getString(R.string.voice_duplex_quit), v -> stop());
-            bar.addView(quitButton);
+            LinearLayout.LayoutParams quitLp = new LinearLayout.LayoutParams(-2, -2);
+            quitLp.setMarginStart(Ui.dp(activity, 6));
+            bar.addView(quitButton, quitLp);
         }
 
         @Override public View bar() { return bar; }
