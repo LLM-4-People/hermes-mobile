@@ -6,6 +6,7 @@ import android.util.Base64;
 
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.llm4people.hermes.Diagnostics;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -28,12 +29,23 @@ public final class IncomingShare {
     }
 
     public static synchronized String pending(Context context) {
-        SharedPreferences prefs = prefs(context);
-        String id = prefs.getString("id", null);
+        return pendingFromPrefs(prefs(context), System.currentTimeMillis());
+    }
+
+    static String pendingFromPrefs(SharedPreferences prefs, long nowMs) {
+        if (prefs == null) return null;
+        String id;
+        try {
+            id = prefs.getString("id", null);
+        } catch (ClassCastException corrupt) {
+            Diagnostics.warning("share", "text_pref_corrupt");
+            clearCorrupt(prefs);
+            return null;
+        }
         if (id == null) return null;
-        long remaining = expiry(prefs) - System.currentTimeMillis();
+        long remaining = expiry(prefs) - nowMs;
         if (remaining > 0 && remaining <= LIFETIME) return id;
-        discard(context, id);
+        clearCorrupt(prefs);
         return null;
     }
 
@@ -83,25 +95,45 @@ public final class IncomingShare {
 
     public static synchronized void discard(Context context, String id) {
         SharedPreferences prefs = prefs(context);
-        if (id == null || !id.equals(prefs.getString("id", null))) return;
+        String storedId;
+        try {
+            storedId = prefs.getString("id", null);
+        } catch (ClassCastException corrupt) {
+            Diagnostics.warning("share", "text_pref_corrupt");
+            clearCorrupt(prefs);
+            return;
+        }
+        if (id == null || !id.equals(storedId)) return;
         write(prefs, null, null, null);
     }
 
     /** Discard any pending shared text envelope claimed by {@code profileId} when that profile is forgotten. */
     public static synchronized void forgetProfile(Context context, String profileId) {
         if (context == null || profileId == null || profileId.isEmpty()) return;
-        String id = pending(context);
-        if (id == null) return;
         try {
+            String id = pending(context);
+            if (id == null) return;
             if (profileId.equals(owner(context, id))) discard(context, id);
-        } catch (IllegalStateException unreadable) {
-            org.llm4people.hermes.Diagnostics.warning("share", "text_forget_read_failed", unreadable);
+        } catch (RuntimeException unreadable) {
+            Diagnostics.warning("share", "text_forget_read_failed", unreadable);
+        }
+    }
+
+    private static void clearCorrupt(SharedPreferences prefs) {
+        try {
+            write(prefs, null, null, null);
+        } catch (IllegalStateException failed) {
+            Diagnostics.warning("share", "text_corrupt_clear_failed");
         }
     }
 
     private static long expiry(SharedPreferences prefs) {
         try { return Long.parseLong(prefs.getString("expires", "0")); }
         catch (NumberFormatException invalid) { return 0; }
+        catch (ClassCastException corrupt) {
+            Diagnostics.warning("share", "text_expiry_corrupt");
+            return 0;
+        }
     }
 
     private static void write(SharedPreferences prefs, String id, String expires, String sealed) {
@@ -121,7 +153,8 @@ public final class IncomingShare {
             byte[] plain = ProfileEnvelope.decrypt(AccountStore.deviceKey(ALIAS, false), binding(id, expires), envelope, 0);
             try { return new JSONObject(new String(plain, StandardCharsets.UTF_8)); }
             finally { Arrays.fill(plain, (byte) 0); }
-        } catch (IOException | GeneralSecurityException | JSONException | IllegalArgumentException failed) {
+        } catch (IOException | GeneralSecurityException | JSONException
+                | IllegalArgumentException | ClassCastException failed) {
             throw new IllegalStateException("Shared text unavailable", failed);
         }
     }

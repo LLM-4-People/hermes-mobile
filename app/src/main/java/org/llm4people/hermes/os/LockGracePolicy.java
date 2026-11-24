@@ -141,11 +141,11 @@ public final class LockGracePolicy {
         }
     }
 
-    public static void setWindow(Context context, String profileId, Window window) {
-        if (context == null || profileId == null || profileId.isEmpty()) return;
+    public static boolean setWindow(Context context, String profileId, Window window) {
+        if (context == null || profileId == null || profileId.isEmpty()) return false;
         SharedPreferences prefs = prefs(context);
         synchronized (prefs) {
-            writeWindow(prefs, profileId, window);
+            return writeWindow(prefs, profileId, window);
         }
     }
 

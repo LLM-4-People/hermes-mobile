@@ -9,9 +9,11 @@ import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.inputmethod.EditorInfo;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -155,17 +157,16 @@ final class ProfileScreen {
         Button chip = new Button(activity, null, android.R.attr.borderlessButtonStyle);
         chip.setText(label);
         chip.setAllCaps(false);
-        chip.setTextSize(13);
+        chip.setTextSize(14);
         chip.setTypeface(MEDIUM);
-        chip.setSingleLine(false);
-        chip.setMaxLines(2);
+        chip.setSingleLine(true);
         chip.setEllipsize(TextUtils.TruncateAt.END);
         chip.setGravity(Gravity.CENTER);
         chip.setStateListAnimator(null);
         int touchMin = Ui.dp(activity, 48);
         chip.setMinHeight(touchMin);
         chip.setMinimumHeight(touchMin);
-        Ui.pad(chip, 10, 8);
+        Ui.pad(chip, 14, 10);
         chip.setOnClickListener(listener);
         return chip;
     }
@@ -179,11 +180,21 @@ final class ProfileScreen {
         chip.setBackground(Ui.roundedRipple(activity, Ui.BUTTON_CORNER_DP, fill));
         chip.setTextColor(activity.getColor(selected ? R.color.accent : R.color.ink));
         chip.setSelected(selected);
+        chip.setAccessibilityDelegate(new View.AccessibilityDelegate() {
+            @Override
+            public void onInitializeAccessibilityNodeInfo(View host, AccessibilityNodeInfo info) {
+                super.onInitializeAccessibilityNodeInfo(host, info);
+                info.setCheckable(true);
+                info.setChecked(selected);
+            }
+        });
     }
 
-    /** Equal-width wrap-safe choice chip row sharing one consistent visual grammar across setup and wizard. */
-    static LinearLayout choiceRow(Activity activity, String[] labels, String[] values,
-                                  String initial, Consumer<String> onSelected) {
+    /** Horizontally scrollable choice chip row that never clips at 1.3x+ font scales (8dp gaps). */
+    static HorizontalScrollView choiceRow(Activity activity, String[] labels, String[] values,
+                                          String initial, Consumer<String> onSelected) {
+        HorizontalScrollView scroll = new HorizontalScrollView(activity);
+        scroll.setHorizontalScrollBarEnabled(false);
         LinearLayout row = Ui.row(activity);
         row.setBaselineAligned(false);
         Button[] buttons = new Button[labels.length];
@@ -204,17 +215,18 @@ final class ProfileScreen {
             });
             buttons[i] = chip;
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                    0, LinearLayout.LayoutParams.MATCH_PARENT, 1f);
-            if (i > 0) lp.setMarginStart(Ui.dp(activity, 6));
+                    LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+            if (i > 0) lp.setMarginStart(Ui.dp(activity, 8));
             row.addView(chip, lp);
         }
         paint.run();
-        return row;
+        scroll.addView(row);
+        return scroll;
     }
 
     /**
-     * Profile chooser row preserving the exact profile {@code label} on the clickable {@link Button}
-     * while pairing a crisp circular initials avatar and WCAG-AA status pill beside it.
+     * Profile chooser row preserving the exact profile {@code label} on the single TalkBack-focusable
+     * {@link Button} while pairing a crisp circular initials avatar and WCAG-AA status pill beside it.
      */
     Button profileRow(String label, String badgeText, BadgeTone tone, View.OnClickListener listener) {
         LinearLayout row = new LinearLayout(activity);
@@ -226,6 +238,7 @@ final class ProfileScreen {
         row.setBackground(Ui.roundedRipple(activity, Ui.CARD_CORNER_DP, card));
 
         TextView avatar = Ui.avatarBadge(activity, label);
+        avatar.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         LinearLayout.LayoutParams avatarParams = new LinearLayout.LayoutParams(
                 Ui.dp(activity, 36), Ui.dp(activity, 36));
         avatarParams.setMarginEnd(Ui.dp(activity, 12));
@@ -243,12 +256,16 @@ final class ProfileScreen {
         button.setTextSize(16);
         button.setTypeface(MEDIUM);
         button.setTextColor(activity.getColor(R.color.ink));
+        if (badgeText != null && !badgeText.isEmpty()) {
+            button.setContentDescription(label + ", " + badgeText);
+        }
         button.setOnClickListener(listener);
         LinearLayout.LayoutParams btnParams = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
         row.addView(button, btnParams);
 
         if (badgeText != null && !badgeText.isEmpty()) {
             TextView pill = buildStatusPill(badgeText, tone);
+            pill.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
             LinearLayout.LayoutParams pillParams = new LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
             pillParams.setMarginStart(Ui.dp(activity, 8));
@@ -258,6 +275,8 @@ final class ProfileScreen {
         row.setOnClickListener(v -> {
             if (button.isEnabled()) button.performClick();
         });
+        row.setFocusable(false);
+        row.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         add(row, 10);
         return button;
     }

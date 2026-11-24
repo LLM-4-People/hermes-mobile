@@ -219,15 +219,41 @@ public final class PushPolicy {
         if (context == null || profileId == null || profileId.trim().isEmpty()) return defaults();
         SharedPreferences prefs = context.getApplicationContext()
                 .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-        return decode(prefs.getString(storageKey(profileId), null));
+        return loadFromPrefs(prefs, profileId);
+    }
+
+    static PushPolicy loadFromPrefs(SharedPreferences prefs, String profileId) {
+        if (prefs == null || profileId == null || profileId.trim().isEmpty()) return defaults();
+        synchronized (prefs) {
+            try {
+                return decode(prefs.getString(storageKey(profileId), null));
+            } catch (ClassCastException corrupt) {
+                Diagnostics.warning("push", "policy_read_corrupt");
+                return defaults();
+            }
+        }
     }
 
     public static void save(Context context, String profileId, PushPolicy policy) {
         if (context == null || profileId == null || profileId.trim().isEmpty() || policy == null) return;
         SharedPreferences prefs = context.getApplicationContext()
                 .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-        prefs.edit().putString(storageKey(profileId), policy.encode()).apply();
-        Diagnostics.event("push", "policy_updated");
+        saveToPrefs(prefs, profileId, policy);
+    }
+
+    static boolean saveToPrefs(SharedPreferences prefs, String profileId, PushPolicy policy) {
+        if (prefs == null || profileId == null || profileId.trim().isEmpty() || policy == null) return false;
+        synchronized (prefs) {
+            try {
+                PreferenceTransaction.commit(prefs,
+                        Collections.singletonMap(storageKey(profileId), policy.encode()));
+                Diagnostics.event("push", "policy_updated");
+                return true;
+            } catch (IllegalStateException failed) {
+                Diagnostics.warning("push", "policy_save_commit_failed");
+                return false;
+            }
+        }
     }
 
     public static void clear(Context context, String profileId) {
@@ -236,10 +262,12 @@ public final class PushPolicy {
                 .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         Map<String, String> removals = new HashMap<>();
         removals.put(storageKey(profileId), null);
-        try {
-            PreferenceTransaction.commit(prefs, removals);
-        } catch (IllegalStateException fallback) {
-            Diagnostics.warning("push", "policy_clear_commit_failed");
+        synchronized (prefs) {
+            try {
+                PreferenceTransaction.commit(prefs, removals);
+            } catch (IllegalStateException fallback) {
+                Diagnostics.warning("push", "policy_clear_commit_failed");
+            }
         }
         Diagnostics.debug("push", "policy_cleared");
     }

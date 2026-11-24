@@ -207,7 +207,8 @@ public final class AdminConsoleSheet implements AutoCloseable {
                 .setView(scroll)
                 .setPositiveButton(R.string.ws_close, null)
                 .setOnDismissListener(d -> {
-                    if (!closed) consoleDialog = null;
+                    consoleDialog = null;
+                    close();
                 }));
 
         refreshAll();
@@ -290,7 +291,8 @@ public final class AdminConsoleSheet implements AutoCloseable {
                 }
                 try {
                     loadedTickets = OnboardingModels.parseActivePairingTickets(api.activePairings(true));
-                } catch (Exception ignored) {
+                } catch (Exception err) {
+                    Diagnostics.warning("admin", "tickets_load_failed");
                     loadedTickets = Collections.emptyList();
                 }
             }
@@ -1046,6 +1048,7 @@ public final class AdminConsoleSheet implements AutoCloseable {
     }
 
     @Override public void close() {
+        if (closed) return;
         closed = true;
         api.revoke();
         io.shutdownNow();
@@ -1055,8 +1058,9 @@ public final class AdminConsoleSheet implements AutoCloseable {
         }
         dismissChildDialog();
         if (consoleDialog != null) {
-            try { consoleDialog.dismiss(); } catch (RuntimeException ignored) {}
+            AlertDialog toDismiss = consoleDialog;
             consoleDialog = null;
+            try { toDismiss.dismiss(); } catch (RuntimeException ignored) {}
         }
     }
 }

@@ -11,6 +11,7 @@ import android.view.View;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import org.json.JSONObject;
@@ -67,6 +68,33 @@ public final class ProfileGate {
 
     record SplitEndpoint(String baseUrl, String profileSlug, String composedEndpoint,
                          boolean splitApplied, boolean conflict) {}
+
+    record RollbackFields(String serverUrl, String profileSlug, String apiKey) {}
+
+    /** Pure-Java resolver restoring claimed endpoint, profile slug, and API key on local save/biometric rollback. */
+    static RollbackFields resolveRollbackFields(OnboardingModels.PairingClaim claim) {
+        if (claim == null) return null;
+        String apiKey = claim.apiKey() == null ? "" : claim.apiKey().trim();
+        if (apiKey.isEmpty()) return null;
+        String rawSlug = claim.profileSlug() == null ? "" : claim.profileSlug().trim();
+        String formSlug = rawSlug.isEmpty() || "default".equalsIgnoreCase(rawSlug) ? "" : rawSlug;
+        String baseServer = "";
+        try {
+            String resolved = claim.resolvedEndpoint();
+            if (resolved != null && !resolved.isEmpty()) {
+                SplitEndpoint split = splitPastedEndpoint(resolved, formSlug);
+                if (!split.conflict()) {
+                    baseServer = split.baseUrl();
+                    if (formSlug.isEmpty()) formSlug = split.profileSlug();
+                } else if (claim.serverUrl() != null && !claim.serverUrl().trim().isEmpty()) {
+                    baseServer = FirstRunWizard.stripTrailingProfilePath(claim.serverUrl());
+                }
+            }
+        } catch (IllegalArgumentException invalid) {
+            if (claim.serverUrl() != null) baseServer = claim.serverUrl().trim();
+        }
+        return new RollbackFields(baseServer, formSlug, apiKey);
+    }
 
     /** Thread-safe single-flight probe epoch, revocation, and UI-reset controller. */
     static final class ProbeController {
@@ -630,10 +658,14 @@ public final class ProfileGate {
 
         TextView modeHeading = Ui.text(activity, activity.getString(R.string.lock_mode_section_label), 14);
         modeHeading.setTypeface(android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL));
+        modeHeading.setAccessibilityHeading(true);
         screen.card(modeHeading, 10);
 
+        HorizontalScrollView modeScroll = new HorizontalScrollView(activity);
+        modeScroll.setHorizontalScrollBarEnabled(false);
         LinearLayout modeRow = Ui.row(activity);
         modeRow.setBaselineAligned(false);
+        modeScroll.addView(modeRow);
         ProfileLockPolicy.Mode[] allModes = ProfileLockPolicy.Mode.values();
         Button[] modeButtons = new Button[allModes.length];
 
@@ -696,11 +728,11 @@ public final class ProfileGate {
             });
             modeButtons[i] = chip;
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                    0, LinearLayout.LayoutParams.MATCH_PARENT, 1f);
-            if (i > 0) lp.setMarginStart(Ui.dp(activity, 6));
+                    LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+            if (i > 0) lp.setMarginStart(Ui.dp(activity, 8));
             modeRow.addView(chip, lp);
         }
-        screen.card(modeRow, 6);
+        screen.card(modeScroll, 6);
         screen.card(bioSlot, 10);
         screen.card(pinSlot, 4);
         screen.card(passphraseSlot, 4);
@@ -808,18 +840,22 @@ public final class ProfileGate {
                 }
             }
             cancelProbe(true);
-            pin.getText().clear();
-            pinRepeat.getText().clear();
-            phrase.getText().clear();
-            repeat.getText().clear();
             saveProfileWithMode(screen, saveButton, label, endpoint, bearer,
                     useStaged ? activeStaged : null, chosenMode, pass,
-                    clearStaged, claimedKey -> {
+                    clearStaged, claimed -> {
+                        RollbackFields restored = resolveRollbackFields(claimed);
+                        if (restored == null) return;
                         programmaticUpdate[0] = true;
                         try {
                             stagedPairing = null;
+                            if (!restored.serverUrl().isEmpty()) {
+                                server.setText(restored.serverUrl());
+                                server.setError(null);
+                            }
+                            serverProfile.setText(restored.profileSlug());
+                            serverProfile.setError(null);
                             key.setHint("");
-                            key.setText(claimedKey);
+                            key.setText(restored.apiKey());
                         } finally {
                             programmaticUpdate[0] = false;
                         }
@@ -885,6 +921,7 @@ public final class ProfileGate {
             return null;
         }
         int epoch = generation;
+        ProfileLockPolicy.Mode previousMode = ProfileLockPolicy.mode(activity, unlocked.id);
         if (nextMode == ProfileLockPolicy.Mode.BIOMETRIC) {
             if (nextSecret != null) Arrays.fill(nextSecret, '\0');
             busy = true;
@@ -893,12 +930,19 @@ public final class ProfileGate {
                     char[] generated = ProfileLockPolicy.generateVaultSecret();
                     IO.execute(() -> {
                         boolean ok = false;
+                        boolean modeCommitted = false;
                         try {
+                            if (!ProfileLockPolicy.setMode(activity, unlocked.id, ProfileLockPolicy.Mode.BIOMETRIC)) {
+                                throw new java.io.IOException("Lock mode commit failed");
+                            }
+                            modeCommitted = true;
                             store.changeLockSecret(unlocked, generated);
-                            ProfileLockPolicy.setMode(activity, unlocked.id, ProfileLockPolicy.Mode.BIOMETRIC);
                             ok = true;
                         } catch (Exception err) {
                             Diagnostics.warning("security", "lock_mode_biometric_reseal_failed");
+                            if (modeCommitted) {
+                                ProfileLockPolicy.setMode(activity, unlocked.id, previousMode);
+                            }
                             BiometricVault.revoke(activity, unlocked.id);
                         } finally {
                             Arrays.fill(generated, '\0');
@@ -929,18 +973,24 @@ public final class ProfileGate {
             return null;
         }
         busy = true;
-        ProfileLockPolicy.Mode previousMode = ProfileLockPolicy.mode(activity, unlocked.id);
         IO.execute(() -> {
             boolean ok = false;
+            boolean modeCommitted = false;
             try {
+                if (!ProfileLockPolicy.setMode(activity, unlocked.id, nextMode)) {
+                    throw new java.io.IOException("Lock mode commit failed");
+                }
+                modeCommitted = true;
                 store.changeLockSecret(unlocked, nextSecret);
-                ProfileLockPolicy.setMode(activity, unlocked.id, nextMode);
                 if (ProfileLockPolicy.shouldRevokeBiometricOnModeChange(previousMode, nextMode)) {
                     BiometricVault.revoke(activity, unlocked.id);
                 }
                 ok = true;
             } catch (Exception err) {
                 Diagnostics.warning("security", "lock_mode_reseal_failed");
+                if (modeCommitted) {
+                    ProfileLockPolicy.setMode(activity, unlocked.id, previousMode);
+                }
             } finally {
                 Arrays.fill(nextSecret, '\0');
             }
@@ -1213,7 +1263,7 @@ public final class ProfileGate {
             ProfileLockPolicy.Mode lockMode,
             char[] pass,
             Runnable clearStaged,
-            Consumer<String> preserveClaimedKeyOnRollback,
+            Consumer<OnboardingModels.PairingClaim> preserveClaimedOnRollback,
             Runnable refreshReadiness) {
         busy = true;
         int epoch = generation;
@@ -1240,13 +1290,27 @@ public final class ProfileGate {
                     Diagnostics.event("onboarding", "pairing_claimed");
                 }
                 account = store.create(label, finalEndpoint, finalBearer, pass);
-                ProfileLockPolicy.setMode(activity, account.id, lockMode);
-                LockGracePolicy.setWindow(activity, account.id, LockGracePolicy.DEFAULT_FOR_NEW_PROFILE);
+                if (!ProfileLockPolicy.setMode(activity, account.id, lockMode)) {
+                    throw new java.io.IOException("Lock mode commit failed");
+                }
+                if (!LockGracePolicy.setWindow(activity, account.id, LockGracePolicy.DEFAULT_FOR_NEW_PROFILE)) {
+                    throw new java.io.IOException("Lock grace commit failed");
+                }
             } catch (HermesApi.HttpError http) {
                 if (http.status == 410 || http.status == 404) expiredOrUsed = true;
                 Diagnostics.warning("onboarding", "pairing_claim_http_" + http.status);
             } catch (Exception err) {
                 Diagnostics.warning("profile", "profile_save_failed");
+                if (account != null) {
+                    String orphanId = account.id;
+                    account.close();
+                    account = null;
+                    try {
+                        store.forget(orphanId);
+                    } catch (java.io.IOException | RuntimeException cleanupErr) {
+                        Diagnostics.warning("profile", "profile_save_rollback_forget_failed");
+                    }
+                }
             } finally {
                 Arrays.fill(pass, '\0');
             }
@@ -1269,9 +1333,8 @@ public final class ProfileGate {
                 }
                 if (created == null) {
                     busy = false;
-                    String claimedKey = finalClaim != null ? finalClaim.apiKey() : null;
-                    if (claimedKey != null && !claimedKey.isEmpty()) {
-                        preserveClaimedKeyOnRollback.accept(claimedKey);
+                    if (resolveRollbackFields(finalClaim) != null) {
+                        preserveClaimedOnRollback.accept(finalClaim);
                     } else {
                         if (finalExpired) clearStaged.run();
                         refreshReadiness.run();
@@ -1296,7 +1359,6 @@ public final class ProfileGate {
                 guard.arm(() -> {
                     if (pendingBiometricGuard == guard) pendingBiometricGuard = null;
                     activeBiometric = null;
-                    String claimedKey = finalClaim != null ? finalClaim.apiKey() : null;
                     created.close();
                     try {
                         store.forget(created.id);
@@ -1305,8 +1367,8 @@ public final class ProfileGate {
                     }
                     if (epoch != generation || activity.isFinishing() || activity.isDestroyed()) return;
                     busy = false;
-                    if (claimedKey != null && !claimedKey.isEmpty()) {
-                        preserveClaimedKeyOnRollback.accept(claimedKey);
+                    if (resolveRollbackFields(finalClaim) != null) {
+                        preserveClaimedOnRollback.accept(finalClaim);
                     } else {
                         refreshReadiness.run();
                     }
@@ -1388,10 +1450,10 @@ public final class ProfileGate {
                 } finally {
                     opened.close();
                 }
-                backoff.reset(id);
+                safeResetBackoff(id);
             } catch (Exception ignored) {
                 Diagnostics.warning("profile", "probe_unlock_failed");
-                appliedCooldown = backoff.recordFailure(id);
+                appliedCooldown = safeRecordBackoffFailure(id);
             } finally {
                 Arrays.fill(pass, '\0');
             }
@@ -1513,6 +1575,7 @@ public final class ProfileGate {
                 pinMode ? PIN_INPUT : SECRET,
                 pinMode ? ProfileLockPolicy.MAX_PIN_DIGITS : 512,
                 true);
+        clearVisibleSecrets = () -> credential.getText().clear();
         screen.action(activity.getString(R.string.profile_unlock_action), true,
                 view -> authenticate(screen, credential, (Button) view, id, pinMode, this::opened));
         if (bioEnrolled) {
@@ -1546,17 +1609,26 @@ public final class ProfileGate {
         activeBiometric = BiometricVault.authenticate(activity, id, label, new BiometricVault.Callback() {
             @Override public void onSuccess(byte[] payload) {
                 activeBiometric = null;
+                Account unlocked = null;
+                boolean handedOff = false;
                 try {
                     if (epoch != generation || activity.isFinishing() || activity.isDestroyed()) {
                         return;
                     }
                     busy = false;
                     bioButton.setEnabled(true);
-                    Account unlocked = store.openBiometric(id, payload);
-                    backoff.reset(id);
+                    unlocked = store.openBiometric(id, payload);
+                    safeResetBackoff(id);
+                    wipeVisibleSecrets();
                     screen.status("", false);
+                    handedOff = true;
                     onSuccess.accept(unlocked);
                 } catch (Exception error) {
+                    if (unlocked != null && !handedOff) unlocked.close();
+                    if (epoch == generation) {
+                        busy = false;
+                        bioButton.setEnabled(true);
+                    }
                     Diagnostics.warning("biometric", "account_open_failed");
                     screen.status(activity.getString(R.string.security_biometric_failed), true);
                 } finally {
@@ -1595,6 +1667,7 @@ public final class ProfileGate {
 
     private void rotate(String id, String label) {
         generation++;
+        wipeVisibleSecrets();
         cancelProbe();
         nested = true;
         activeAddPairingHandler = null;
@@ -1738,8 +1811,8 @@ public final class ProfileGate {
             }
             long cooldownMs = 0L;
             if (throttleProfileId != null) {
-                if (account != null) backoff.reset(throttleProfileId);
-                else cooldownMs = backoff.recordFailure(throttleProfileId);
+                if (account != null) safeResetBackoff(throttleProfileId);
+                else cooldownMs = safeRecordBackoffFailure(throttleProfileId);
             }
             Account result = account;
             long appliedCooldown = cooldownMs;
@@ -1762,6 +1835,23 @@ public final class ProfileGate {
                 }
             });
         });
+    }
+
+    private void safeResetBackoff(String profileId) {
+        try {
+            backoff.reset(profileId);
+        } catch (IllegalStateException failed) {
+            Diagnostics.warning("profile", "backoff_reset_failed");
+        }
+    }
+
+    private long safeRecordBackoffFailure(String profileId) {
+        try {
+            return backoff.recordFailure(profileId);
+        } catch (IllegalStateException failed) {
+            Diagnostics.warning("profile", "backoff_record_failed");
+            return 0L;
+        }
     }
 
     private void opened(Account account) {

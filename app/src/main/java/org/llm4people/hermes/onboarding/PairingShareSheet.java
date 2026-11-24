@@ -7,6 +7,7 @@ import android.content.ClipDescription;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
+import android.content.res.ColorStateList;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
@@ -59,7 +60,7 @@ public final class PairingShareSheet implements AutoCloseable {
         long clamped = Math.max(0L, remainingSeconds);
         long minutes = clamped / 60L;
         long seconds = clamped % 60L;
-        return String.format(Locale.US, "%d:%02d", minutes, seconds);
+        return String.format(Locale.ROOT, "%d:%02d", minutes, seconds);
     }
 
     /** Copies a pairing link cleanly to the system clipboard as sensitive content. Returns true on success. */
@@ -108,10 +109,21 @@ public final class PairingShareSheet implements AutoCloseable {
             ExecutorService io,
             BooleanSupplier canAct,
             Runnable onRevoked) {
+        return show(activity, ticket, api, io, canAct, onRevoked, null);
+    }
+
+    public static PairingShareSheet show(
+            Activity activity,
+            OnboardingModels.PairingTicket ticket,
+            HermesApi api,
+            ExecutorService io,
+            BooleanSupplier canAct,
+            Runnable onRevoked,
+            Runnable onDismissed) {
         Objects.requireNonNull(activity, "activity");
         Objects.requireNonNull(ticket, "ticket");
         PairingShareSheet sheet = new PairingShareSheet();
-        sheet.open(activity, ticket, api, io, canAct, onRevoked);
+        sheet.open(activity, ticket, api, io, canAct, onRevoked, onDismissed);
         return sheet;
     }
 
@@ -121,7 +133,8 @@ public final class PairingShareSheet implements AutoCloseable {
             HermesApi api,
             ExecutorService io,
             BooleanSupplier canAct,
-            Runnable onRevoked) {
+            Runnable onRevoked,
+            Runnable onDismissed) {
         String link = ticket.deepLink();
         boolean isInvite = "invite".equalsIgnoreCase(ticket.mode());
         String targetName = !ticket.displayName().isEmpty() ? ticket.displayName() : ticket.profileSlug();
@@ -192,7 +205,9 @@ public final class PairingShareSheet implements AutoCloseable {
             Button revokeBtn = Ui.button(activity, activity.getString(R.string.profile_hub_qr_revoke_action), null);
             revokeBtn.setMinHeight(touchMin);
             revokeBtn.setMinimumHeight(touchMin);
-            revokeBtn.setTextColor(activity.getColor(R.color.danger));
+            revokeBtn.setTextColor(new ColorStateList(
+                    new int[][]{new int[]{-android.R.attr.state_enabled}, new int[]{}},
+                    new int[]{activity.getColor(R.color.disabled_ink), activity.getColor(R.color.danger)}));
             revokeBtn.setOnClickListener(v -> {
                 revokeBtn.setEnabled(false);
                 io.execute(() -> {
@@ -254,7 +269,11 @@ public final class PairingShareSheet implements AutoCloseable {
                 .setTitle(title)
                 .setView(scroll)
                 .setPositiveButton(R.string.ws_close, null)
-                .setOnDismissListener(d -> stopTicker()));
+                .setOnDismissListener(d -> {
+                    stopTicker();
+                    dialog = null;
+                    if (onDismissed != null) onDismissed.run();
+                }));
     }
 
     private void stopTicker() {

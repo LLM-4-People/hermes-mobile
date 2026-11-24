@@ -154,4 +154,49 @@ public final class PushPolicyTest {
             }
         }
     }
+
+    @Test
+    public void loadFailsClosedOnClassCastExceptionAndSaveCommitsSynchronously() {
+        boolean[] committed = {false};
+        boolean[] applied = {false};
+        boolean[] commitReturns = {true};
+        android.content.SharedPreferences.Editor editor = (android.content.SharedPreferences.Editor)
+                java.lang.reflect.Proxy.newProxyInstance(
+                        android.content.SharedPreferences.Editor.class.getClassLoader(),
+                        new Class<?>[]{android.content.SharedPreferences.Editor.class},
+                        (proxy, method, args) -> switch (method.getName()) {
+                            case "putString", "putInt", "putLong", "putBoolean", "putFloat", "putStringSet",
+                                    "remove", "clear" -> proxy;
+                            case "commit" -> {
+                                committed[0] = true;
+                                yield commitReturns[0];
+                            }
+                            case "apply" -> {
+                                applied[0] = true;
+                                yield null;
+                            }
+                            default -> null;
+                        });
+        android.content.SharedPreferences prefs = (android.content.SharedPreferences)
+                java.lang.reflect.Proxy.newProxyInstance(
+                        android.content.SharedPreferences.class.getClassLoader(),
+                        new Class<?>[]{android.content.SharedPreferences.class},
+                        (proxy, method, args) -> switch (method.getName()) {
+                            case "getString" -> throw new ClassCastException("corrupt int");
+                            case "getAll" -> java.util.Collections.singletonMap(PushPolicy.storageKey("p1"), 99);
+                            case "edit" -> editor;
+                            default -> null;
+                        });
+
+        assertEquals(PushPolicy.defaults(), PushPolicy.loadFromPrefs(prefs, "p1"));
+        assertTrue(Diagnostics.exportRedacted().contains("push.policy_read_corrupt"));
+
+        assertTrue(PushPolicy.saveToPrefs(prefs, "p1", PushPolicy.defaults()));
+        assertTrue("saveToPrefs must commit synchronously", committed[0]);
+        assertFalse("saveToPrefs must never use async apply()", applied[0]);
+
+        commitReturns[0] = false;
+        assertFalse(PushPolicy.saveToPrefs(prefs, "p1", PushPolicy.defaults()));
+        assertTrue(Diagnostics.exportRedacted().contains("push.policy_save_commit_failed"));
+    }
 }

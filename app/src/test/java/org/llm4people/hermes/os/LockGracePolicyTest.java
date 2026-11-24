@@ -165,5 +165,17 @@ public class LockGracePolicyTest {
 
         commitReturns[0] = false;
         assertFalse(LockGracePolicy.writeWindow(prefs, "p1", LockGracePolicy.Window.MINUTES_15));
+
+        android.content.Context ctx = new android.content.ContextWrapper(null) {
+            @Override public android.content.Context getApplicationContext() { return this; }
+            @Override public android.content.SharedPreferences getSharedPreferences(String name, int mode) {
+                return prefs;
+            }
+        };
+        assertFalse(LockGracePolicy.setWindow(null, "p1", LockGracePolicy.Window.MINUTES_5));
+        assertFalse(LockGracePolicy.setWindow(ctx, "", LockGracePolicy.Window.MINUTES_5));
+        assertFalse(LockGracePolicy.setWindow(ctx, "p1", LockGracePolicy.Window.MINUTES_15));
+        commitReturns[0] = true;
+        assertTrue(LockGracePolicy.setWindow(ctx, "p1", LockGracePolicy.Window.MINUTES_5));
     }
 }

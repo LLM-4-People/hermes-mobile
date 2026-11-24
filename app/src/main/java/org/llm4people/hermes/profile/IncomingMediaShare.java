@@ -59,11 +59,27 @@ public final class IncomingMediaShare {
 
     public static synchronized String pending(Context context) {
         SharedPreferences prefs = prefs(context);
-        String id = prefs.getString("id", null);
+        String id = pendingIdFromPrefs(prefs, System.currentTimeMillis());
         if (id == null) return null;
-        long remaining = expiry(prefs) - System.currentTimeMillis();
-        if (remaining > 0 && remaining <= LIFETIME && sealedFile(context, id).isFile()) return id;
+        if (sealedFile(context, id).isFile()) return id;
         discard(context, id);
+        return null;
+    }
+
+    static String pendingIdFromPrefs(SharedPreferences prefs, long nowMs) {
+        if (prefs == null) return null;
+        String id;
+        try {
+            id = prefs.getString("id", null);
+        } catch (ClassCastException corrupt) {
+            Diagnostics.warning("share", "media_pref_corrupt");
+            clearCorruptPrefs(prefs);
+            return null;
+        }
+        if (id == null) return null;
+        long remaining = expiry(prefs) - nowMs;
+        if (remaining > 0 && remaining <= LIFETIME) return id;
+        clearCorruptPrefs(prefs);
         return null;
     }
 
@@ -158,7 +174,15 @@ public final class IncomingMediaShare {
 
     public static synchronized void discard(Context context, String id) {
         SharedPreferences prefs = prefs(context);
-        if (id == null || !id.equals(prefs.getString("id", null))) return;
+        String storedId;
+        try {
+            storedId = prefs.getString("id", null);
+        } catch (ClassCastException corrupt) {
+            Diagnostics.warning("share", "media_pref_corrupt");
+            clearCorruptPrefs(prefs);
+            return;
+        }
+        if (id == null || !id.equals(storedId)) return;
         File blob = sealedFile(context, id);
         if (blob.exists() && !blob.delete()) {
             Diagnostics.warning("share", "media_blob_delete_failed");
@@ -172,18 +196,33 @@ public final class IncomingMediaShare {
     /** Discard any pending sealed media share claimed by {@code profileId} when that profile is forgotten. */
     public static synchronized void forgetProfile(Context context, String profileId) {
         if (context == null || profileId == null || profileId.isEmpty()) return;
-        String id = pending(context);
-        if (id == null) return;
         try {
+            String id = pending(context);
+            if (id == null) return;
             if (profileId.equals(owner(context, id))) discard(context, id);
-        } catch (IllegalStateException unreadable) {
+        } catch (RuntimeException unreadable) {
             Diagnostics.warning("share", "media_forget_read_failed", unreadable);
+        }
+    }
+
+    private static void clearCorruptPrefs(SharedPreferences prefs) {
+        Map<String, String> cleared = new HashMap<>();
+        cleared.put("id", null);
+        cleared.put("expires", null);
+        try {
+            PreferenceTransaction.commit(prefs, cleared);
+        } catch (IllegalStateException failed) {
+            Diagnostics.warning("share", "media_corrupt_clear_failed");
         }
     }
 
     private static long expiry(SharedPreferences prefs) {
         try { return Long.parseLong(prefs.getString("expires", "0")); }
         catch (NumberFormatException invalid) { return 0; }
+        catch (ClassCastException corrupt) {
+            Diagnostics.warning("share", "media_expiry_corrupt");
+            return 0;
+        }
     }
 
     private static byte[] binding(String id, long expires) {

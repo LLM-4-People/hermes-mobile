@@ -60,10 +60,14 @@ public final class FirstRunWizardTest {
         assertEquals("allison", FirstRunWizard.confirmProfileLabel("", "allison", "Default"));
         assertEquals("Allison", FirstRunWizard.formProfileName("", "allison", "Default"));
 
-        // Missing/default slug uses localized Default label — NEVER the server URL hostname!
+        // Missing/default slug uses localized Default label — NEVER the server URL hostname or hardcoded English!
         assertEquals("Default", FirstRunWizard.confirmProfileLabel("", "default", "Default"));
         assertEquals("Par défaut", FirstRunWizard.confirmProfileLabel("", "", "Par défaut"));
         assertEquals("Par défaut", FirstRunWizard.formProfileName("", "default", "Par défaut"));
+        assertEquals("", FirstRunWizard.confirmProfileLabel("", "default", null));
+        assertEquals("", FirstRunWizard.confirmProfileLabel("", "", "   "));
+        assertEquals("", FirstRunWizard.formProfileName("", "default", null));
+        assertEquals("", FirstRunWizard.formProfileName("", "", "   "));
 
         // StagedPairing preserves full subpath URL, blanks default slug, and detects drift cleanly
         FirstRunWizard.StagedPairing stagedDefault = new FirstRunWizard.StagedPairing(

@@ -28,20 +28,10 @@ public final class PairingIntent {
         }
         PairingLinkParser.ParsedInput parsed = PairingLinkParser.parseOrNull(rawUri);
         if (parsed == null || parsed.kind() != PairingLinkParser.Kind.PAIRING_TICKET) {
-            logWarning("deep_link_rejected");
+            Diagnostics.warning("onboarding", "deep_link_rejected");
             return null;
         }
-        logEvent("deep_link_received");
+        Diagnostics.event("onboarding", "deep_link_received");
         return parsed;
-    }
-
-    private static void logEvent(String event) {
-        try { Diagnostics.event("onboarding", event); }
-        catch (RuntimeException unmockedHostJvm) {}
-    }
-
-    private static void logWarning(String event) {
-        try { Diagnostics.warning("onboarding", event); }
-        catch (RuntimeException unmockedHostJvm) {}
     }
 }
