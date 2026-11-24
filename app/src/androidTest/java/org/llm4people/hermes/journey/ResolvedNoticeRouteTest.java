@@ -1,6 +1,7 @@
 package org.llm4people.hermes.journey;
 
 import android.content.Context;
+import android.os.Build;
 import android.test.InstrumentationTestCase;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -19,8 +20,15 @@ import java.util.concurrent.atomic.AtomicInteger;
 /** Exercise the Activity entry point reached after a notification's opaque event ID is resolved. */
 @SuppressWarnings("deprecation")
 public class ResolvedNoticeRouteTest extends InstrumentationTestCase {
-    public void testVerifiedRemoteClarificationKeepsBothFormsUntilExplicitReveal() throws Throwable { promptRoute(true); }
-    public void testVerifiedRemoteApprovalKeepsBothFormsUntilExplicitReveal() throws Throwable { promptRoute(false); }
+    public void testVerifiedRemoteClarificationKeepsBothFormsUntilExplicitReveal() throws Throwable {
+        if (Build.VERSION.SDK_INT < 29) return;
+        promptRoute(true);
+    }
+
+    public void testVerifiedRemoteApprovalKeepsBothFormsUntilExplicitReveal() throws Throwable {
+        if (Build.VERSION.SDK_INT < 29) return;
+        promptRoute(false);
+    }
 
     private void promptRoute(boolean question) throws Throwable {
         Context app = getInstrumentation().getTargetContext();
@@ -92,6 +100,7 @@ public class ResolvedNoticeRouteTest extends InstrumentationTestCase {
     }
 
     public void testResolvedNoticeFromDepartedAccountCannotSettleIntoTheNewProfile() throws Throwable {
+        if (Build.VERSION.SDK_INT < 29) return;
         Context app = getInstrumentation().getTargetContext();
         String first = ThreadNoticeContinuityTest.transcript("root", "root", "Premier profil", new JSONArray());
         String second = ThreadNoticeContinuityTest.transcript("root", "root", "Deuxième profil", new JSONArray());

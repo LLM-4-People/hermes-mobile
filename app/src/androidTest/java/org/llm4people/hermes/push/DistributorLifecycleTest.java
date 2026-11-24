@@ -17,6 +17,7 @@ import android.widget.Button;
 import android.widget.TextView;
 
 import org.llm4people.hermes.ActivityTestLifecycle;
+import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.R;
 import org.unifiedpush.android.connector.UnifiedPush;
 import org.unifiedpush.android.connector.FailedReason;
@@ -67,8 +68,15 @@ public final class DistributorLifecycleTest extends InstrumentationTestCase {
             }
             cancelBackgroundSyncJob();
         } finally {
-            setFixture(oldSetting);
-            super.tearDown();
+            try {
+                setFixture(oldSetting);
+            } finally {
+                try {
+                    Diagnostics.clear();
+                } finally {
+                    super.tearDown();
+                }
+            }
         }
     }
 

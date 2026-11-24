@@ -19,7 +19,7 @@ After the first form was pinned, the discussion offered **Open pinned tool** on 
 
 ## Compare the two versions
 
-The revision kept the same page and both field IDs. **Differences** shows one added required field, **Priority**. In **Proposed**, its menu offers **Today** and **Handle later**. You can inspect these choices before selecting **Adopt this version** or **Keep pinned version**.
+The revision kept the same page and both field IDs. **Changes** shows one added required field, **Priority**. In **Proposed**, its menu offers **Today** and **Handle later**. You can inspect these choices before selecting **Use this version** or **Keep pinned version**.
 
 <a href="examples/revue-des-remises/32-revision-modele-local.png"><img src="examples/revue-des-remises/32-revision-modele-local.png" width="300" alt="The changes tab lists the added priority field, its two options and the actions to adopt or keep a version."></a>
 <a href="examples/revue-des-remises/33-priorite-modele-local.png"><img src="examples/revue-des-remises/33-priorite-modele-local.png" width="300" alt="The proposed form retains both original inputs and opens the priority choice menu."></a>
