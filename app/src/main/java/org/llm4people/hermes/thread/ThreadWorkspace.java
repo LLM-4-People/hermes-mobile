@@ -13,6 +13,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.HermesConfig;
+import org.llm4people.hermes.JsonValues;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.artifact.ArtifactDesk;
 import org.llm4people.hermes.artifact.HomePinBridge;
@@ -1046,7 +1047,7 @@ public final class ThreadWorkspace implements AutoCloseable {
             int anchorShift = 0;
             if (keysetBeforeId != null) {
                 InfiniteTranscriptWindow.PageResult result = transcriptWindow.prependOlder(
-                        InfiniteTranscriptWindow.fromJsonArray(visiblePage), hasMore, cursorOldest, total >= 0 ? (int) Math.min(Integer.MAX_VALUE, total) : -1);
+                        InfiniteTranscriptWindow.fromJsonArray(visiblePage), hasMore, cursorOldest, saturatedTotal(total, -1));
                 messages = InfiniteTranscriptWindow.toJsonArray(transcriptWindow.snapshot());
                 hasMore = transcriptWindow.hasOlder();
                 prependedCount = result.prependedCount();
@@ -1054,7 +1055,7 @@ public final class ThreadWorkspace implements AutoCloseable {
             } else if (older) {
                 InfiniteTranscriptWindow.PageResult result = transcriptWindow.prependOlder(
                         InfiniteTranscriptWindow.fromJsonArray(visiblePage), hasMore, cursorOldest,
-                        total >= 0 ? (int) Math.min(Integer.MAX_VALUE, total) : -1);
+                        saturatedTotal(total, -1));
                 messages = InfiniteTranscriptWindow.toJsonArray(transcriptWindow.snapshot());
                 hasMore = transcriptWindow.hasOlder();
                 prependedCount = result.prependedCount();
@@ -1062,7 +1063,7 @@ public final class ThreadWorkspace implements AutoCloseable {
             } else {
                 messages = ThreadData.visibleMessages(ThreadData.join(page, new JSONArray()));
                 transcriptWindow.replaceLatest(InfiniteTranscriptWindow.fromJsonArray(messages), hasMore, cursorOldest, cursorNewest,
-                        total >= 0 ? (int) Math.min(Integer.MAX_VALUE, total) : messages.length());
+                        saturatedTotal(total, messages.length()));
                 messages = InfiniteTranscriptWindow.toJsonArray(transcriptWindow.snapshot());
                 hasMore = transcriptWindow.hasOlder();
             }
@@ -1081,7 +1082,7 @@ public final class ThreadWorkspace implements AutoCloseable {
             if (!older && retained == 0 && !emptyTranscript && session != null) {
                 cacheTail(session, remoteSession, title, messages, hasMore,
                         transcriptWindow.oldestId(), transcriptWindow.newestId(),
-                        total >= 0 ? (int) Math.min(Integer.MAX_VALUE, total) : messages.length());
+                        saturatedTotal(total, messages.length()));
             }
             if (retained > 0) {
                 if (anchor instanceof JSONObject previous) {
@@ -1150,7 +1151,7 @@ public final class ThreadWorkspace implements AutoCloseable {
             JSONArray visiblePage = ThreadData.visibleMessages(window.rows());
             InfiniteTranscriptWindow.PageResult result = transcriptWindow.appendNewer(
                     InfiniteTranscriptWindow.fromJsonArray(visiblePage), window.more(), cursorNewest,
-                    total >= 0 ? (int) Math.min(Integer.MAX_VALUE, total) : -1);
+                    saturatedTotal(total, -1));
             messages = InfiniteTranscriptWindow.toJsonArray(transcriptWindow.snapshot());
             hasOlderMessages = transcriptWindow.hasOlder();
             if (instruments != null) instruments.proposals(messages);
@@ -1158,13 +1159,17 @@ public final class ThreadWorkspace implements AutoCloseable {
             if (!transcriptWindow.hasNewer() && session != null && messages.length() > 0) {
                 cacheTail(session, remoteSession, title, messages, hasOlderMessages,
                         transcriptWindow.oldestId(), transcriptWindow.newestId(),
-                        total >= 0 ? (int) Math.min(Integer.MAX_VALUE, total) : messages.length());
+                        saturatedTotal(total, messages.length()));
             }
         }, e -> {
             if (requestNo != transcriptRequest) return;
             loading = false;
             error(e, this::loadNewerMessages);
         });
+    }
+
+    private static int saturatedTotal(long total, int fallback) {
+        return total >= 0 ? JsonValues.saturateInt(total) : fallback;
     }
 
     /** Release in-RAM decoded tail snapshots under OS memory pressure without bumping profileEpoch. */

@@ -166,18 +166,6 @@ public final class InteractiveCardView extends LinearLayout {
                 List<ChecklistItem> checklist,
                 List<QuickPick> quickPicks,
                 List<ToggleItem> toggles,
-                AppCustomization proposedCustomization) {
-            this(cardId, kind, title, subtitle, checklist, quickPicks, toggles, proposedCustomization, null, null);
-        }
-
-        public Spec(
-                String cardId,
-                Kind kind,
-                String title,
-                String subtitle,
-                List<ChecklistItem> checklist,
-                List<QuickPick> quickPicks,
-                List<ToggleItem> toggles,
                 AppCustomization proposedCustomization,
                 CustomizationDelta customizationDelta) {
             this(cardId, kind, title, subtitle, checklist, quickPicks, toggles,

@@ -210,6 +210,31 @@ public final class GithubReleaseClientTest {
     }
 
     @Test
+    public void selectsExactApkSha256OverUnrelatedChecksumWhenSha256SumsIsAbsent() throws Exception {
+        String base = "https://github.com/LLM-4-People/hermes-mobile/releases/download/v0.3.0/";
+        String withoutSums = "{"
+                + "\"tag_name\":\"v0.3.0\","
+                + "\"name\":\"Hermes Mobile v0.3.0\","
+                + "\"draft\":false,"
+                + "\"html_url\":\"https://github.com/LLM-4-People/hermes-mobile/releases/tag/v0.3.0\","
+                + "\"published_at\":\"2026-11-24T12:00:00Z\","
+                + "\"body\":\"Release notes\","
+                + "\"assets\":["
+                + "{\"name\":\"other.apk.sha256\",\"size\":128,\"browser_download_url\":\"" + base + "other.apk.sha256\"},"
+                + "{\"name\":\"hermes-mobile-v0.3.0.apk\",\"size\":2048,\"browser_download_url\":\"" + base + "hermes-mobile-v0.3.0.apk\"},"
+                + "{\"name\":\"hermes-mobile-v0.3.0.apk.sha256\",\"size\":128,\"browser_download_url\":\"" + base + "hermes-mobile-v0.3.0.apk.sha256\"}"
+                + "]}";
+        GithubReleaseClient.ReleaseInfo exactInfo = GithubReleaseClient.parseLatestRelease(withoutSums, 50_000_000L);
+        assertEquals("hermes-mobile-v0.3.0.apk", exactInfo.apkAssetName());
+        assertEquals("hermes-mobile-v0.3.0.apk.sha256", exactInfo.checksumAssetName());
+
+        String withSums = withoutSums.replace("]}",
+                ",{\"name\":\"SHA256SUMS\",\"size\":128,\"browser_download_url\":\"" + base + "SHA256SUMS\"}]}");
+        GithubReleaseClient.ReleaseInfo sumsInfo = GithubReleaseClient.parseLatestRelease(withSums, 50_000_000L);
+        assertEquals("SHA256SUMS", sumsInfo.checksumAssetName());
+    }
+
+    @Test
     public void rejectsUnsignedOnlyMissingChecksumDraftAndMalformedReleases() {
         String apkUrl = "https://github.com/LLM-4-People/hermes-mobile/releases/download/v1.2.0/hermes-mobile-v1.2.0-unsigned.apk";
         String sumsUrl = "https://github.com/LLM-4-People/hermes-mobile/releases/download/v1.2.0/SHA256SUMS";

@@ -36,15 +36,6 @@ public final class DeviceReview {
         open(activity, host, source, new DeviceAction.PlaceSource(place));
     }
 
-    public static void review(Activity activity, ArtifactDesk.Host host, View source, DeviceAction request) {
-        open(activity, host, source, request, null, null, null);
-    }
-
-    public static void review(Activity activity, ArtifactDesk.Host host, View source, DeviceAction request,
-                              Runnable onCompleted, Runnable onCancelled) {
-        open(activity, host, source, request, onCompleted, onCancelled, onCancelled);
-    }
-
     public static void review(Activity activity, ArtifactDesk.Host host, View source, DeviceAction request,
                               Runnable onCompleted, Runnable onCancelled, Runnable onUnavailable) {
         open(activity, host, source, request, onCompleted, onCancelled, onUnavailable);

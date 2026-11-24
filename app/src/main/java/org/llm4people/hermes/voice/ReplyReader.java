@@ -20,10 +20,6 @@ public final class ReplyReader {
     private final SpeechPlayback playback;
     private Button owner;
 
-    ReplyReader(Activity activity, Runnable cancelDictation) {
-        this(activity, cancelDictation, () -> VoiceLocale.SYSTEM);
-    }
-
     ReplyReader(Activity activity, Runnable cancelDictation, Supplier<VoiceLocale> localeSupplier) {
         this.activity = activity;
         this.cancelDictation = cancelDictation;

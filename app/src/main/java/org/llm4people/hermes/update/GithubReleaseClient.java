@@ -10,6 +10,7 @@ import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -189,7 +190,7 @@ public final class GithubReleaseClient {
         String preferredApk = preferredApkName(tagName);
         AssetCandidate chosenApk = null;
         int chosenApkPriority = -1;
-        AssetCandidate chosenChecksum = null;
+        List<AssetCandidate> checksumCandidates = new ArrayList<>();
         for (Object entry : assetsList) {
             if (!(entry instanceof Map<?, ?> assetMap)) continue;
             @SuppressWarnings("unchecked")
@@ -209,16 +210,13 @@ public final class GithubReleaseClient {
                     chosenApkPriority = priority;
                 }
             } else if (isChecksumAssetName(name) && size <= MAX_CHECKSUM_BYTES) {
-                AssetCandidate candidate = new AssetCandidate(name, downloadUrl, size, null);
-                if (chosenChecksum == null || PREFERRED_CHECKSUMS_NAME.equals(name)) {
-                    chosenChecksum = candidate;
-                }
+                checksumCandidates.add(new AssetCandidate(name, downloadUrl, size, null));
             }
         }
         if (chosenApk == null) {
             throw new IOException("No signed release APK asset within size limit");
         }
-        // Prefer exact <apkName>.sha256 if multiple checksum assets exist and SHA256SUMS was not found.
+        AssetCandidate chosenChecksum = selectChecksumAsset(checksumCandidates, chosenApk.name);
         if (chosenChecksum == null) {
             throw new IOException("Missing required SHA256SUMS or .sha256 checksum asset");
         }
@@ -235,6 +233,18 @@ public final class GithubReleaseClient {
                 chosenChecksum.name,
                 chosenChecksum.url,
                 chosenApk.digestSha256);
+    }
+
+    private static AssetCandidate selectChecksumAsset(List<AssetCandidate> candidates, String chosenApkName) {
+        if (candidates.isEmpty()) return null;
+        for (AssetCandidate candidate : candidates) {
+            if (PREFERRED_CHECKSUMS_NAME.equals(candidate.name)) return candidate;
+        }
+        String exactApkSha256 = chosenApkName + ".sha256";
+        for (AssetCandidate candidate : candidates) {
+            if (exactApkSha256.equals(candidate.name)) return candidate;
+        }
+        return candidates.get(0);
     }
 
     /**

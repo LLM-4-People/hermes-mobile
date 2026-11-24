@@ -11,13 +11,13 @@ import java.util.function.IntFunction;
  * Package-local bridge allowing thread model helpers invoked from Context-free call sites
  * to resolve localized R.string resources without hardcoded UI literals.
  */
-final class ThreadStrings {
+public final class ThreadStrings {
     private static volatile Context appContext;
     private static volatile IntFunction<String> testResolver;
 
     private ThreadStrings() {}
 
-    static void attach(Context context) {
+    public static void attach(Context context) {
         if (context != null) {
             Context app = context.getApplicationContext();
             appContext = app != null ? app : context;

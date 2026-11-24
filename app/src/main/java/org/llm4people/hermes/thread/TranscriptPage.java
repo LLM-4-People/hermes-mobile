@@ -28,10 +28,6 @@ final class TranscriptPage {
         final Style style;
         final int level;
 
-        Mark(int start, int end, Style style) {
-            this(start, end, style, 0);
-        }
-
         Mark(int start, int end, Style style, int level) {
             this.start = start;
             this.end = end;

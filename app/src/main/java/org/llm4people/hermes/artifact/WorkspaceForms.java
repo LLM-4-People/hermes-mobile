@@ -26,10 +26,6 @@ import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.VisibleText;
 
 final class WorkspaceForms {
-    static void mount(LinearLayout group, WorkspaceLayout.Block form, Activity activity, ArtifactDesk.Host host) {
-        mount(group, form, null, activity, host);
-    }
-
     static void mount(LinearLayout group, WorkspaceLayout.Block form, ThemePalette palette,
                       Activity activity, ArtifactDesk.Host host) {
         Context c = group.getContext();
