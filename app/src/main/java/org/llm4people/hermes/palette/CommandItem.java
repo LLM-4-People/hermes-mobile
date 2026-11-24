@@ -1,5 +1,7 @@
 package org.llm4people.hermes.palette;
 
+import org.llm4people.hermes.PlainTextSanitizer;
+
 import java.util.Objects;
 
 /**
@@ -31,8 +33,8 @@ public final class CommandItem {
     public CommandItem(String id, Category category, String title, String subtitle, String keywords, Runnable action) {
         String safeId = sanitize(id, 96);
         String safeTitle = sanitize(title, MAX_TITLE_CHARS);
-        if (safeId.isEmpty()) throw new IllegalArgumentException("CommandItem id required");
-        if (safeTitle.isEmpty()) throw new IllegalArgumentException("CommandItem title required");
+        if (!PlainTextSanitizer.hasVisibleText(safeId)) throw new IllegalArgumentException("CommandItem id required");
+        if (!PlainTextSanitizer.hasVisibleText(safeTitle)) throw new IllegalArgumentException("CommandItem title required");
         this.id = safeId;
         this.category = Objects.requireNonNull(category, "category");
         this.title = safeTitle;
@@ -41,29 +43,11 @@ public final class CommandItem {
         this.action = action;
     }
 
-    /** Strips control characters and collapses whitespace into clean single-line text. */
+    /** Strips control/format characters and collapses whitespace into clean single-line text. */
     static String sanitize(String raw, int maxChars) {
         if (raw == null || raw.isEmpty()) return "";
-        StringBuilder sb = new StringBuilder(Math.min(raw.length(), maxChars));
-        boolean lastSpace = true;
-        for (int i = 0; i < raw.length() && sb.length() < maxChars; ) {
-            int cp = raw.codePointAt(i);
-            int len = Character.charCount(cp);
-            if (Character.isWhitespace(cp)) {
-                if (!lastSpace && sb.length() < maxChars) {
-                    sb.append(' ');
-                    lastSpace = true;
-                }
-            } else if (!Character.isISOControl(cp) && Character.getType(cp) != Character.SURROGATE
-                    && sb.length() + len <= maxChars) {
-                sb.appendCodePoint(cp);
-                lastSpace = false;
-            }
-            i += len;
-        }
-        int end = sb.length();
-        while (end > 0 && sb.charAt(end - 1) == ' ') end--;
-        return sb.substring(0, end);
+        return PlainTextSanitizer.collapseBounded(
+                raw.replace('\t', ' ').replace('\r', ' ').replace('\n', ' '), maxChars);
     }
 
     @Override public boolean equals(Object o) {

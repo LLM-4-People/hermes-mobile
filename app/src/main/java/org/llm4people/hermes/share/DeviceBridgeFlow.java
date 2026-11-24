@@ -27,11 +27,14 @@ import org.llm4people.hermes.ambient.NotificationAllowlist;
 import org.llm4people.hermes.artifact.ArtifactDesk;
 import org.llm4people.hermes.artifact.DeviceAction;
 import org.llm4people.hermes.artifact.DeviceReview;
+import org.llm4people.hermes.artifact.ThemePalette;
+import org.llm4people.hermes.customization.AppCustomization;
 import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.presence.DeepAndroidActions;
 import org.llm4people.hermes.presence.PresencePolicy;
 import org.llm4people.hermes.profile.Account;
 import org.llm4people.hermes.push.PushPolicy;
+import org.llm4people.hermes.settings.AppearanceSettingsModel;
 
 import java.io.IOException;
 import java.time.DateTimeException;
@@ -68,7 +71,6 @@ public final class DeviceBridgeFlow {
             "android_sync_shortcuts", "android_proactive_nudge");
 
     private static final Pattern REQUEST_ID = Pattern.compile("[A-Za-z0-9_.-]{1,64}");
-    private static final int MAX_NOTIFICATION_REPLY_CHARS = 1000;
 
     public enum Status {
         COMPLETED("completed"),
@@ -322,8 +324,9 @@ public final class DeviceBridgeFlow {
                         callback.finish(Status.UNAVAILABLE, null);
                         return true;
                     }
-                    String draft = request.params().optString("text",
-                            request.params().optString("reply_text", "")).trim();
+                    String rawDraft = request.params().optString("text",
+                            request.params().optString("reply_text", ""));
+                    String draft = HermesNotificationListener.sanitizeReplyDraft(rawDraft);
                     LinearLayout content = Ui.column(hostActivity);
                     Ui.pad(content, 20, 12);
                     TextView header = Ui.text(hostActivity,
@@ -341,8 +344,8 @@ public final class DeviceBridgeFlow {
                     editor.setTextColor(hostActivity.getColor(R.color.ink));
                     editor.setHintTextColor(hostActivity.getColor(R.color.muted));
                     editor.setSaveEnabled(false);
-                    editor.setFilters(new InputFilter[]{new InputFilter.LengthFilter(MAX_NOTIFICATION_REPLY_CHARS)});
-                    editor.setText(draft);
+                    editor.setFilters(new InputFilter[]{new InputFilter.LengthFilter(HermesNotificationListener.MAX_REPLY_CHARS)});
+                    if (!draft.isEmpty()) editor.setText(draft);
                     content.addView(editor);
                     android.widget.ScrollView scroll = new android.widget.ScrollView(hostActivity);
                     scroll.addView(content, new android.widget.ScrollView.LayoutParams(-1, -2));
@@ -839,7 +842,19 @@ public final class DeviceBridgeFlow {
         trackDialog(Ui.secureDialog(dialog), once);
     }
 
-    record PreviewLine(int labelRes, String value) {}
+    record PreviewLine(int labelRes, int valueRes, String value) {
+        static PreviewLine text(int labelRes, String value) {
+            return new PreviewLine(labelRes, 0, value);
+        }
+
+        static PreviewLine resValue(int labelRes, int valueRes) {
+            return new PreviewLine(labelRes, valueRes, "");
+        }
+
+        static PreviewLine message(int messageRes) {
+            return new PreviewLine(messageRes, 0, "");
+        }
+    }
 
     static String formatParamPreview(Context context, BridgeRequest request) {
         if (context == null || request == null) return "";
@@ -849,7 +864,13 @@ public final class DeviceBridgeFlow {
         StringBuilder out = new StringBuilder();
         for (PreviewLine line : lines) {
             if (out.length() > 0) out.append('\n');
-            out.append(localized.getString(line.labelRes(), line.value()));
+            if (line.valueRes() != 0) {
+                out.append(localized.getString(line.labelRes(), localized.getString(line.valueRes())));
+            } else if (!line.value().isEmpty()) {
+                out.append(localized.getString(line.labelRes(), line.value()));
+            } else {
+                out.append(localized.getString(line.labelRes()));
+            }
         }
         return out.toString();
     }
@@ -882,10 +903,7 @@ public final class DeviceBridgeFlow {
                 addPreviewLine(lines, R.string.share_bridge_preview_label, paramText(params, "tile_label", 80));
                 addPreviewLine(lines, R.string.share_bridge_preview_summary, paramText(params, "widget_summary", 160));
             }
-            case "app_customize" -> {
-                String delta = summarizeCustomizeDeltas(params);
-                addPreviewLine(lines, R.string.share_bridge_preview_changes, delta);
-            }
+            case "app_customize" -> addCustomizePreviewLines(lines, params);
             default -> {
                 // Other actions already present dedicated review dialogs or carry no extra confirmation targets.
             }
@@ -894,7 +912,7 @@ public final class DeviceBridgeFlow {
     }
 
     private static void addPreviewLine(List<PreviewLine> lines, int labelRes, String value) {
-        if (!value.isEmpty()) lines.add(new PreviewLine(labelRes, value));
+        if (!value.isEmpty()) lines.add(PreviewLine.text(labelRes, value));
     }
 
     private static String paramText(Map<String, Object> params, String key, int maxChars) {
@@ -921,31 +939,74 @@ public final class DeviceBridgeFlow {
         return sb.toString();
     }
 
-    private static String summarizeCustomizeDeltas(Map<String, Object> params) {
-        List<String> parts = new ArrayList<>();
+    private static void addCustomizePreviewLines(List<PreviewLine> lines, Map<String, Object> params) {
         String op = paramText(params, "operation", 24).toLowerCase(Locale.ROOT);
-        if ("undo".equals(op) || "reset".equals(op)) {
-            return op;
+        if ("undo".equals(op)) {
+            lines.add(PreviewLine.message(R.string.share_bridge_preview_customize_undo));
+            return;
+        }
+        if ("reset".equals(op)) {
+            lines.add(PreviewLine.message(R.string.share_bridge_preview_customize_reset));
+            return;
         }
         String theme = paramText(params, "theme", 24);
-        if (!theme.isEmpty()) parts.add("theme=" + theme);
+        if (!theme.isEmpty()) {
+            String normTheme = theme.toLowerCase(Locale.ROOT);
+            if (ThemePalette.THEMES.contains(normTheme)) {
+                lines.add(PreviewLine.resValue(R.string.share_bridge_preview_theme,
+                        AppearanceSettingsModel.themeModeLabelRes(normTheme)));
+            } else {
+                lines.add(PreviewLine.text(R.string.share_bridge_preview_theme, theme));
+            }
+        }
         String accent = paramText(params, "accent", 32);
         if (accent.isEmpty()) accent = paramText(params, "accent_preset", 32);
-        if (!accent.isEmpty()) parts.add("accent=" + accent);
+        if (!accent.isEmpty()) {
+            AppCustomization.PalettePreset preset = AppCustomization.PalettePreset.parse(accent);
+            if (preset != null) {
+                lines.add(PreviewLine.resValue(R.string.share_bridge_preview_accent,
+                        AppearanceSettingsModel.paletteLabelRes(preset)));
+            } else {
+                lines.add(PreviewLine.text(R.string.share_bridge_preview_accent, accent));
+            }
+        }
         String hex = paramText(params, "accent_hex", 16);
-        if (!hex.isEmpty()) parts.add("accent_hex=" + hex);
-        String density = paramText(params, "density", 24);
-        if (!density.isEmpty()) parts.add("density=" + density);
+        if (!hex.isEmpty()) {
+            lines.add(PreviewLine.text(R.string.share_bridge_preview_accent_color, hex));
+        }
+        String densityRaw = paramText(params, "density", 24);
+        if (!densityRaw.isEmpty()) {
+            AppCustomization.Density density = AppCustomization.Density.parse(densityRaw);
+            if (density != null) {
+                lines.add(PreviewLine.resValue(R.string.share_bridge_preview_density,
+                        AppearanceSettingsModel.densityLabelRes(density)));
+            } else {
+                lines.add(PreviewLine.text(R.string.share_bridge_preview_density, densityRaw));
+            }
+        }
         Integer fontStep = JsonValues.parseIntOrNull(params.get("font_scale_step"));
-        if (fontStep != null) parts.add("font_scale_step=" + fontStep);
-        String startupTab = paramText(params, "startup_tab", 24);
-        if (!startupTab.isEmpty()) parts.add("startup_tab=" + startupTab);
+        if (fontStep != null && fontStep >= -3 && fontStep <= 6) {
+            lines.add(PreviewLine.text(R.string.share_bridge_preview_text_size,
+                    AppearanceSettingsModel.formatFontScalePercent(fontStep * AppearanceSettingsModel.FONT_SCALE_STEP)));
+        }
+        String startupTabRaw = paramText(params, "startup_tab", 24);
+        if (!startupTabRaw.isEmpty()) {
+            AppCustomization.StartupTab startupTab = AppCustomization.StartupTab.parse(startupTabRaw);
+            if (startupTab != null) {
+                lines.add(PreviewLine.resValue(R.string.share_bridge_preview_startup_tab,
+                        AppearanceSettingsModel.startupTabLabelRes(startupTab)));
+            } else {
+                lines.add(PreviewLine.text(R.string.share_bridge_preview_startup_tab, startupTabRaw));
+            }
+        }
         String greeting = paramText(params, "greeting", 48);
-        if (!greeting.isEmpty()) parts.add("greeting=" + greeting);
+        if (!greeting.isEmpty()) {
+            lines.add(PreviewLine.text(R.string.share_bridge_preview_greeting, greeting));
+        }
         List<?> shortcuts = JsonValues.asList(params.get("quick_shortcuts"));
-        if (shortcuts != null) parts.add("quick_shortcuts=" + shortcuts.size());
-        if (parts.isEmpty()) return "";
-        return PlainTextSanitizer.collapseWithEllipsis(String.join(", ", parts), 180);
+        if (shortcuts != null) {
+            lines.add(PreviewLine.text(R.string.share_bridge_preview_shortcuts, String.valueOf(shortcuts.size())));
+        }
     }
 
     public static int titleRes(String actionType) {

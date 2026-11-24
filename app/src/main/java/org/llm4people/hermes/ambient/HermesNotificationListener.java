@@ -40,7 +40,12 @@ import java.util.function.Consumer;
  * and ongoing system noise via {@link NotificationPrivacyGuard}. Never persists third-party bodies.
  */
 public final class HermesNotificationListener extends NotificationListenerService {
-    private static final int MAX_REPLY_CHARS = 1000;
+    public static final int MAX_REPLY_CHARS = 1000;
+
+    /** Sanitize an untrusted quick-reply draft so confirmation UI matches what {@link #sendReviewedReply} sends. */
+    public static String sanitizeReplyDraft(String rawDraft) {
+        return NotificationPrivacyGuard.sanitizeText(rawDraft, MAX_REPLY_CHARS);
+    }
 
     public enum ReplyOutcome {
         SENT,
@@ -184,7 +189,7 @@ public final class HermesNotificationListener extends NotificationListenerServic
             throw new IllegalStateException("Quick reply requires explicit user confirmation");
         }
         if (context == null || key == null || key.isEmpty()) return false;
-        String clean = NotificationPrivacyGuard.sanitizeText(replyText, MAX_REPLY_CHARS);
+        String clean = sanitizeReplyDraft(replyText);
         if (clean.isEmpty()) return false;
         ReplyHandle handle;
         synchronized (LOCK) {
@@ -249,7 +254,8 @@ public final class HermesNotificationListener extends NotificationListenerServic
         editor.setHintTextColor(activity.getColor(R.color.muted));
         editor.setSaveEnabled(false);
         editor.setFilters(new InputFilter[]{new InputFilter.LengthFilter(MAX_REPLY_CHARS)});
-        if (initialDraft != null) editor.setText(initialDraft);
+        String cleanDraft = sanitizeReplyDraft(initialDraft);
+        if (!cleanDraft.isEmpty()) editor.setText(cleanDraft);
         content.addView(editor);
 
         android.widget.ScrollView scroll = new android.widget.ScrollView(activity);

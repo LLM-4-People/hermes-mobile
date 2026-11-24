@@ -3,6 +3,8 @@ package org.llm4people.hermes;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public final class PlainTextSanitizerTest {
     @Test
@@ -74,5 +76,45 @@ public final class PlainTextSanitizerTest {
         assertEquals("hell…", PlainTextSanitizer.collapseWithEllipsis("hello world", 5));
         assertEquals("hello", PlainTextSanitizer.collapseWithEllipsis("hello   ", 5));
         assertEquals("hello", PlainTextSanitizer.collapseWithEllipsis("hello\n\t  ", 5));
+    }
+
+    @Test
+    public void hasVisibleTextAndVisibleTextIsBlankAgreeOnAllInvisibleAndVisibleInputs() {
+        String plane14Tag = "\uDB40\uDC20";
+        String supplementaryVs = new String(Character.toChars(0xE0100));
+        String[] invisible = {
+                null,
+                "",
+                "   \t\r\n  ",
+                "\u00A0\u2003\u2007\u202F\u3000",
+                "\u0000\u0007\u001F\u007F\u0085",
+                "\u200B\u200D\u202E\uFEFF",
+                plane14Tag,
+                "\u034F",
+                "\u180B\u180E\u180F",
+                "\uFE00\uFE0F",
+                supplementaryVs,
+                "\u115F\u1160\u3164\uFFA0",
+                "\uD83D",
+                "\uDC00",
+                " \u00A0\u202E\u034F\uFE0F\u115F\u3164\uD83D "
+        };
+        for (String sample : invisible) {
+            assertFalse("Expected invisible sample to be rejected", PlainTextSanitizer.hasVisibleText(sample));
+            assertTrue("Expected VisibleText.isBlank parity", VisibleText.isBlank(sample));
+        }
+
+        String[] visible = {
+                "a",
+                "é",
+                "字",
+                "\uD83D\uDE00",
+                " \u202E\u034F\uFE0F ok ",
+                "\u00A0résumé\u2003\u2708\uFE0F字" + supplementaryVs
+        };
+        for (String sample : visible) {
+            assertTrue("Expected visible sample to be accepted: " + sample, PlainTextSanitizer.hasVisibleText(sample));
+            assertFalse("Expected VisibleText.isBlank parity: " + sample, VisibleText.isBlank(sample));
+        }
     }
 }

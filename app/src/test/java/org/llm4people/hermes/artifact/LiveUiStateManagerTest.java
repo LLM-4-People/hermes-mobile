@@ -284,6 +284,23 @@ public final class LiveUiStateManagerTest {
         assertEquals("abcd\uD83D\uDE00", LiveUiPatch.trimTo("abcd\uD83D\uDE00ef", 6));
     }
 
+    @Test public void validTextRejectsCgjInvisibleLabelsAndObfuscatedForbiddenPayloads() {
+        assertFalse(LiveUiPatch.validText(null, 64));
+        assertFalse(LiveUiPatch.validText("", 64));
+        assertFalse(LiveUiPatch.validText("\u034F", 64));
+        assertFalse(LiveUiPatch.validText("Titre\u034Fvalide", 64));
+        assertFalse(LiveUiPatch.validText("\uFE0F", 64));
+        assertFalse(LiveUiPatch.validText("\u180F", 64));
+        assertFalse(LiveUiPatch.validText("\u115F\u3164", 64));
+        assertFalse(LiveUiPatch.validText("java\u034Fscript:alert(1)", 64));
+        assertFalse(LiveUiPatch.validText("java\uFE0Fscript:alert(1)", 64));
+        assertFalse(LiveUiPatch.validText("<\uFE0Fscript>alert(1)</script>", 64));
+        assertFalse(LiveUiPatch.validText("file\u180F://etc/passwd", 64));
+
+        assertTrue(LiveUiPatch.validText("Résumé du matin", 64));
+        assertTrue(LiveUiPatch.validText("☕\uFE0F Pause", 64));
+    }
+
     private static void assertThrowsIo(IoRunnable runnable) {
         try {
             runnable.run();

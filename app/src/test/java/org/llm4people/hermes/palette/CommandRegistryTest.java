@@ -68,7 +68,17 @@ public final class CommandRegistryTest {
         assertEquals("Soustitre", clean.subtitle);
         assertEquals("motcle", clean.keywords);
 
-        for (String bad : new String[]{null, "", "   \n\t "}) {
+        // R18.4.2: Strips bidi/format/Plane-14/CGJ/unpaired surrogates and collapses non-ASCII spaces.
+        CommandItem sanitized = new CommandItem("act\u202E\u034F:two", CommandItem.Category.ACTION,
+                "Bon\u202E\u200B\uDB40\uDC20jour\u00A0\u202F\u3000monde\uD83D",
+                "a".repeat(CommandItem.MAX_SUBTITLE_CHARS - 1) + "\uD83D\uDE00",
+                "clé\u034F\u00A0une", null);
+        assertEquals("act:two", sanitized.id);
+        assertEquals("Bonjour monde", sanitized.title);
+        assertEquals("a".repeat(CommandItem.MAX_SUBTITLE_CHARS - 1), sanitized.subtitle);
+        assertEquals("clé une", sanitized.keywords);
+
+        for (String bad : new String[]{null, "", "   \n\t ", "\u202E\u034F", "\u00A0", "\uFE0F", "\u115F\u3164"}) {
             try {
                 new CommandItem(bad, CommandItem.Category.ACTION, "Ok", "", "", null);
                 fail("Expected blank id rejection");

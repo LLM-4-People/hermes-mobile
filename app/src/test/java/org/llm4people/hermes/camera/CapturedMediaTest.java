@@ -60,6 +60,18 @@ public final class CapturedMediaTest {
         assertEquals("Document", CapturedMedia.sanitizeFilename("../", "Document"));
         assertEquals("Document", CapturedMedia.sanitizeFilename("..\\", "Document"));
         assertEquals("Document", CapturedMedia.sanitizeFilename("\u0000\u202E", "Document"));
+        assertEquals("Document", CapturedMedia.sanitizeFilename("\u034F", "Document"));
+        assertEquals("Document", CapturedMedia.sanitizeFilename("\u00A0", "Document"));
+        assertEquals("Document", CapturedMedia.sanitizeFilename("\uFE0F", "Document"));
+        assertEquals("Document", CapturedMedia.sanitizeFilename("\u115F\u3164", "Document"));
+        assertEquals("Document", CapturedMedia.sanitizeFilename("\uD83D", "Document"));
+        assertEquals("photo.jpg", CapturedMedia.sanitizeFilename("photo\u034F\uD83D\uDB40\uDC20.jpg", "Document"));
+        // Surrogate pair straddling index 128 must never leave an unpaired high surrogate.
+        String splitBoundary = CapturedMedia.sanitizeFilename("a".repeat(127) + "\uD83D\uDE00", "Document");
+        assertEquals("a".repeat(127), splitBoundary);
+        assertFalse(Character.isHighSurrogate(splitBoundary.charAt(splitBoundary.length() - 1)));
+        assertEquals("a".repeat(126) + "\uD83D\uDE00",
+                CapturedMedia.sanitizeFilename("a".repeat(126) + "\uD83D\uDE00", "Document"));
         assertEquals("Photo", CapturedMedia.sanitizeFilename(null, "Photo"));
         assertEquals("Photo", CapturedMedia.queryDisplayName(null, null, "Photo"));
     }

@@ -78,7 +78,10 @@ public final class DeliveryItemTest {
             }
         }
 
-        for (String badTitle : new String[]{null, "   ", "Line1\nLine2", "a".repeat(DeliveryItem.MAX_TITLE_CHARS + 1)}) {
+        for (String badTitle : new String[]{
+                null, "   ", "Line1\nLine2", "a".repeat(DeliveryItem.MAX_TITLE_CHARS + 1),
+                "Titre\u202E", "Titre\u0085", "Titre\uD83D", "Titre\u2028", "Titre\u2029", "Titre\u034F",
+                "\u00A0", "\u200B", "\u034F", "\uFE0F", "\u115F\u3164"}) {
             try {
                 new DeliveryItem(VALID_ID, DeliveryItem.Kind.NOTICE, DeliveryItem.Urgency.NORMAL,
                         badTitle, "", "{}", 1L, null, null, null, 0L);
@@ -96,13 +99,23 @@ public final class DeliveryItemTest {
             // ok
         }
 
-        try {
-            new DeliveryItem(VALID_ID, DeliveryItem.Kind.NOTICE, DeliveryItem.Urgency.NORMAL,
-                    "Titre", "", "{}", 1L, "bad\nsession", null, null, 0L);
-            fail("Expected rejection for control char in sessionId");
-        } catch (IllegalArgumentException expected) {
-            // ok
+        for (String badLink : new String[]{
+                "bad\nsession", "bad\u202Elink", "bad\u0085link", "bad\uD83Dlink",
+                "bad\u2028link", "bad\u2029link", "bad\u034Flink"}) {
+            try {
+                new DeliveryItem(VALID_ID, DeliveryItem.Kind.NOTICE, DeliveryItem.Urgency.NORMAL,
+                        "Titre", "", "{}", 1L, badLink, null, null, 0L);
+                fail("Expected rejection for unsafe link identifier");
+            } catch (IllegalArgumentException expected) {
+                // ok
+            }
         }
+        // Invisible-only optional link normalizes to null rather than persisting phantom whitespace.
+        DeliveryItem invisibleLink = new DeliveryItem(VALID_ID, DeliveryItem.Kind.NOTICE, DeliveryItem.Urgency.NORMAL,
+                "Titre", "", "{}", 1L, "\u00A0", "\uFE0F", "\u115F\u3164", 0L);
+        assertNull(invisibleLink.sessionId);
+        assertNull(invisibleLink.runId);
+        assertNull(invisibleLink.jobId);
     }
 
     @Test
@@ -161,7 +174,10 @@ public final class DeliveryItemTest {
                 "Titre", "  \u202E\u034F\n\t ", "{}", 1L, null, null, null, 0L);
         assertEquals("", invisibleSummary.summary);
 
+        assertEquals("", DeliveryItem.clampSummary("\uFE0F"));
+        assertEquals("", DeliveryItem.clampSummary("\u115F\u3164"));
         assertEquals("Fallback body", DeliveryItem.selectSummary("  \u202E\u034F\n ", "  ", "Fallback\u202E body"));
+        assertEquals("Fallback body", DeliveryItem.selectSummary("\uFE0F", "Fallback body"));
         assertEquals("Top summary", DeliveryItem.selectSummary("Top\u034F summary", "Fallback body"));
     }
 }
