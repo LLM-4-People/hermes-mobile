@@ -346,12 +346,16 @@ public final class ProfileLockPolicyTest {
         int[] modeSetCalls = {0};
         boolean lockedResult = ProfileGate.commitLockModeTransition(
                 () -> store.prepareLockSecret(lockedAccount, "123456".toCharArray(), deviceKey),
+                () -> lockedAccount.unlocked() && store.contains(lockedAccount.id),
                 () -> {
                     modeSetCalls[0]++;
                     return ProfileLockPolicy.writeMode(modePrefs, "p1", ProfileLockPolicy.Mode.PIN);
                 },
                 resealed -> store.commitLockSecret(lockedAccount, resealed),
-                () -> ProfileLockPolicy.writeMode(modePrefs, "p1", ProfileLockPolicy.Mode.PASSPHRASE),
+                () -> ProfileGate.rollbackPersistedMode(
+                        () -> store.contains(lockedAccount.id),
+                        () -> ProfileLockPolicy.writeMode(modePrefs, "p1", ProfileLockPolicy.Mode.PASSPHRASE),
+                        () -> modeData.remove("mode.p1")),
                 null,
                 null,
                 "lock_mode_reseal_failed");
@@ -382,6 +386,7 @@ public final class ProfileLockPolicyTest {
                     steps.add("prepare");
                     return store.prepareLockSecret(unlocked, newPin, deviceKey);
                 },
+                () -> unlocked.unlocked() && store.contains(unlocked.id),
                 () -> {
                     steps.add("setMode");
                     return ProfileLockPolicy.writeMode(modePrefs, "p1", ProfileLockPolicy.Mode.PIN);
@@ -392,7 +397,10 @@ public final class ProfileLockPolicyTest {
                 },
                 () -> {
                     steps.add("rollbackMode");
-                    ProfileLockPolicy.writeMode(modePrefs, "p1", ProfileLockPolicy.Mode.PASSPHRASE);
+                    ProfileGate.rollbackPersistedMode(
+                            () -> store.contains(unlocked.id),
+                            () -> ProfileLockPolicy.writeMode(modePrefs, "p1", ProfileLockPolicy.Mode.PASSPHRASE),
+                            () -> modeData.remove("mode.p1"));
                 },
                 () -> steps.add("onSuccess"),
                 () -> steps.add("onRollback"),
@@ -419,9 +427,13 @@ public final class ProfileLockPolicyTest {
         int[] biometricRevoked = {0};
         boolean commitFailed = ProfileGate.commitLockModeTransition(
                 () -> store.prepareLockSecret(unlocked, "999999".toCharArray(), deviceKey),
+                () -> unlocked.unlocked() && store.contains(unlocked.id),
                 () -> ProfileLockPolicy.writeMode(modePrefs, "p1", ProfileLockPolicy.Mode.BIOMETRIC),
                 resealed -> store.commitLockSecret(unlocked, resealed),
-                () -> ProfileLockPolicy.writeMode(modePrefs, "p1", ProfileLockPolicy.Mode.PIN),
+                () -> ProfileGate.rollbackPersistedMode(
+                        () -> store.contains(unlocked.id),
+                        () -> ProfileLockPolicy.writeMode(modePrefs, "p1", ProfileLockPolicy.Mode.PIN),
+                        () -> modeData.remove("mode.p1")),
                 null,
                 ProfileGate.shouldRevokeBiometricOnBiometricRollback(ProfileLockPolicy.Mode.PIN)
                         ? () -> biometricRevoked[0]++ : null,
@@ -432,8 +444,109 @@ public final class ProfileLockPolicyTest {
         assertEquals(1, biometricRevoked[0]);
         assertEquals("Stored envelope must stay unchanged on commit failure", storedEnvelope, indexData.get("p1"));
 
-        // (d) commitLockSecret rejects null/empty envelope and missing membership.
+        // (d) commitMode == false branch aborts without calling commitEnvelope or rollbackMode, invokes onRollback once, logs warning.
         indexCommitOk[0] = true;
+        Diagnostics.clear();
+        int[] envCalls = {0};
+        int[] rbModeCalls = {0};
+        int[] onRbCalls = {0};
+        boolean modeCommitFailed = ProfileGate.commitLockModeTransition(
+                () -> store.prepareLockSecret(unlocked, "111222".toCharArray(), deviceKey),
+                () -> unlocked.unlocked() && store.contains(unlocked.id),
+                () -> false,
+                resealed -> {
+                    envCalls[0]++;
+                    store.commitLockSecret(unlocked, resealed);
+                },
+                () -> rbModeCalls[0]++,
+                null,
+                () -> onRbCalls[0]++,
+                "lock_mode_commit_branch_failed");
+        assertFalse(modeCommitFailed);
+        assertEquals(0, envCalls[0]);
+        assertEquals(0, rbModeCalls[0]);
+        assertEquals(1, onRbCalls[0]);
+        assertTrue(Diagnostics.exportRedacted().contains("security.lock_mode_commit_branch_failed"));
+
+        // (e) Post-PBKDF2 lock race: Account closes during prepareLockSecret -> stillEligible aborts BEFORE setMode is touched,
+        //     and direct commitLockSecret on a locked account also throws IOException without writing prefs.
+        Account racedLock = new Account(
+                "p1", "Personal", "https://hermes.example.com", "sk-live-secret", null, Arrays.copyOf(rawKeys, rawKeys.length));
+        int[] racedModeCalls = {0};
+        String[] preparedForRace = {null};
+        boolean racedLockResult = ProfileGate.commitLockModeTransition(
+                () -> {
+                    String env = store.prepareLockSecret(racedLock, "777888".toCharArray(), deviceKey);
+                    preparedForRace[0] = env;
+                    racedLock.close();
+                    return env;
+                },
+                () -> racedLock.unlocked() && store.contains(racedLock.id),
+                () -> {
+                    racedModeCalls[0]++;
+                    return ProfileLockPolicy.writeMode(modePrefs, "p1", ProfileLockPolicy.Mode.BIOMETRIC);
+                },
+                resealed -> store.commitLockSecret(racedLock, resealed),
+                () -> ProfileGate.rollbackPersistedMode(
+                        () -> store.contains(racedLock.id),
+                        () -> ProfileLockPolicy.writeMode(modePrefs, "p1", ProfileLockPolicy.Mode.PIN),
+                        () -> modeData.remove("mode.p1")),
+                null,
+                null,
+                "lock_mode_reseal_failed");
+        assertFalse(racedLockResult);
+        assertEquals("setMode must not run if account locked during PBKDF2", 0, racedModeCalls[0]);
+        assertEquals(ProfileLockPolicy.Mode.PIN.key, modeData.get("mode.p1"));
+        assertEquals(storedEnvelope, indexData.get("p1"));
+        try {
+            store.commitLockSecret(racedLock, preparedForRace[0]);
+            fail("Expected IOException when committing lock secret for an already-locked account");
+        } catch (IOException expected) {
+            // ok
+        }
+        assertEquals(storedEnvelope, indexData.get("p1"));
+
+        // (f) Concurrent store.forget(id) race between commitMode and commitLockSecret:
+        //     commitLockSecret rejects non-member with IOException, and rollback forgets mode.<id> instead of leaving an orphan.
+        int[] forgetModeCalls = {0};
+        int[] restoreModeCalls = {0};
+        boolean forgetRaceResult = ProfileGate.commitLockModeTransition(
+                () -> store.prepareLockSecret(unlocked, "333444".toCharArray(), deviceKey),
+                () -> unlocked.unlocked() && store.contains(unlocked.id),
+                () -> {
+                    boolean written = ProfileLockPolicy.writeMode(modePrefs, "p1", ProfileLockPolicy.Mode.BIOMETRIC);
+                    // Simulate concurrent store.forget("p1") wiping membership right after setMode succeeded.
+                    indexData.remove("label.p1");
+                    indexData.remove("p1");
+                    return written;
+                },
+                resealed -> store.commitLockSecret(unlocked, resealed),
+                () -> ProfileGate.rollbackPersistedMode(
+                        () -> store.contains(unlocked.id),
+                        () -> {
+                            restoreModeCalls[0]++;
+                            ProfileLockPolicy.writeMode(modePrefs, "p1", ProfileLockPolicy.Mode.PIN);
+                        },
+                        () -> {
+                            forgetModeCalls[0]++;
+                            modeData.remove("mode.p1");
+                        }),
+                null,
+                null,
+                "lock_mode_reseal_failed");
+        assertFalse(forgetRaceResult);
+        assertEquals("Must not restore previousMode after profile was forgotten", 0, restoreModeCalls[0]);
+        assertEquals("Must forget orphaned mode.<id> entry when profile no longer exists", 1, forgetModeCalls[0]);
+        assertFalse("Orphaned mode.<id> must not remain in prefs", modeData.containsKey("mode.p1"));
+
+        // (g) Direct TOCTOU commitLockSecret with valid non-empty envelope on non-member throws IOException,
+        //     and null/empty envelopes throw IllegalArgumentException.
+        try {
+            store.commitLockSecret(unlocked, preparedForRace[0]);
+            fail("Expected IOException for non-member commitLockSecret with valid envelope");
+        } catch (IOException expected) {
+            // ok
+        }
         try {
             store.commitLockSecret(unlocked, "");
             fail("Expected IllegalArgumentException for empty resealed envelope");

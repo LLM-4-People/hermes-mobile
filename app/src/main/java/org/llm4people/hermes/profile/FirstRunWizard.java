@@ -42,8 +42,6 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * Zero-jargon 2-step first-run onboarding wizard integrated cleanly with {@link ProfileGate}:
@@ -57,7 +55,6 @@ import java.util.regex.Pattern;
  */
 public final class FirstRunWizard {
     public static final String COMPLETED_KEY = "onboarding_v1_done";
-    private static final Pattern ENDPOINT_SLUG = Pattern.compile("^.*/p/([^/]+)/?$");
     private static final ExecutorService PROFILE_SYNC_IO = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "hermes-onboarding-sync");
         t.setDaemon(true);
@@ -345,28 +342,14 @@ public final class FirstRunWizard {
     }
 
     static String stripTrailingProfilePath(String serverUrl) {
-        String normalized = GatewayAddress.normalize(serverUrl);
-        try {
-            URI uri = URI.create(normalized);
-            String path = uri.getRawPath();
-            if (path != null) {
-                int idx = path.toLowerCase(java.util.Locale.ROOT).lastIndexOf("/p/");
-                if (idx >= 0 && idx + 3 < path.length() && path.indexOf('/', idx + 3) < 0) {
-                    return uri.getScheme() + "://" + uri.getRawAuthority() + path.substring(0, idx);
-                }
-            }
-        } catch (IllegalArgumentException ignored) {}
-        return normalized;
+        return GatewayAddress.split(serverUrl).baseUrl();
     }
 
     /** Extracts the trailing {@code /p/<slug>} profile slug from a normalized account endpoint, or empty. */
     public static String extractSlugFromEndpoint(String endpoint) {
         if (endpoint == null || endpoint.trim().isEmpty()) return "";
         try {
-            String path = URI.create(endpoint.trim()).getRawPath();
-            if (path == null) return "";
-            Matcher m = ENDPOINT_SLUG.matcher(path);
-            return m.matches() ? GatewayAddress.normalizeProfileSlug(m.group(1)) : "";
+            return GatewayAddress.split(endpoint).profileSlug();
         } catch (IllegalArgumentException invalid) {
             return "";
         }

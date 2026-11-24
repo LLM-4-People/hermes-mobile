@@ -63,4 +63,31 @@ public class GatewayAddressTest {
         assertThrows(IllegalArgumentException.class,
                 () -> GatewayAddress.normalize("https://hermes.example.com/p/bob", "alice"));
     }
+
+    @Test public void splitSeparatesBaseUrlAndProfileSlugAcrossDirectSubpathDuplicateAndInvalidInputs() {
+        GatewayAddress.Split bare = GatewayAddress.split("https://hermes.example.com/");
+        assertEquals("https://hermes.example.com", bare.baseUrl());
+        assertEquals("", bare.profileSlug());
+
+        GatewayAddress.Split direct = GatewayAddress.split("HTTPS://HERMES.EXAMPLE.COM/p/Alice/");
+        assertEquals("https://hermes.example.com", direct.baseUrl());
+        assertEquals("alice", direct.profileSlug());
+
+        GatewayAddress.Split subpath = GatewayAddress.split("https://hermes.example.com/mobile/p/Team-1/");
+        assertEquals("https://hermes.example.com/mobile", subpath.baseUrl());
+        assertEquals("team-1", subpath.profileSlug());
+
+        GatewayAddress.Split dupPrefix = GatewayAddress.split("https://hermes.example.com/P/p/bob_2/");
+        assertEquals("https://hermes.example.com", dupPrefix.baseUrl());
+        assertEquals("bob_2", dupPrefix.profileSlug());
+
+        GatewayAddress.Split loopback = GatewayAddress.split("http://127.0.0.1:8642/p/dev");
+        assertEquals("http://127.0.0.1:8642", loopback.baseUrl());
+        assertEquals("dev", loopback.profileSlug());
+
+        assertThrows(IllegalArgumentException.class, () -> GatewayAddress.split("https://hermes.example.com/p/-bad"));
+        assertThrows(IllegalArgumentException.class, () -> GatewayAddress.split("http://remote.example.com/p/alice"));
+        assertThrows(IllegalArgumentException.class, () -> GatewayAddress.split("not-a-uri :::"));
+        assertThrows(IllegalArgumentException.class, () -> GatewayAddress.split(null));
+    }
 }

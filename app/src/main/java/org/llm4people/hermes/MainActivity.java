@@ -98,6 +98,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.BooleanSupplier;
@@ -1206,12 +1207,54 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         if (push != null) push.lock();
     }
 
+    enum WarmIntentKind {
+        PAIRING,
+        SHARED_TEXT,
+        SHARED_MEDIA,
+        OS_ENTRY,
+        PINNED_SHORTCUT,
+        PUSH_DELIVERY
+    }
+
+    /** Pure-Java SSoT policy clearing every competing pending warm-intent slot except {@code accepted}. */
+    static void clearCompetingWarmIntents(
+            WarmIntentKind accepted,
+            Runnable clearPairing,
+            Runnable clearDelivery,
+            Runnable clearOsEntry,
+            Runnable clearPinnedShortcut,
+            Runnable clearSharedText,
+            Runnable clearSharedMedia) {
+        Objects.requireNonNull(accepted, "accepted");
+        if (accepted != WarmIntentKind.PAIRING && clearPairing != null) clearPairing.run();
+        if (accepted != WarmIntentKind.PUSH_DELIVERY && clearDelivery != null) clearDelivery.run();
+        if (accepted != WarmIntentKind.OS_ENTRY && clearOsEntry != null) clearOsEntry.run();
+        if (accepted != WarmIntentKind.PINNED_SHORTCUT && clearPinnedShortcut != null) clearPinnedShortcut.run();
+        if (accepted != WarmIntentKind.SHARED_TEXT && clearSharedText != null) clearSharedText.run();
+        if (accepted != WarmIntentKind.SHARED_MEDIA && clearSharedMedia != null) clearSharedMedia.run();
+    }
+
+    private void clearCompetingWarmIntents(WarmIntentKind accepted) {
+        clearCompetingWarmIntents(
+                accepted,
+                () -> pendingPairing = null,
+                () -> delivery = null,
+                () -> pendingOsEntry = null,
+                () -> {
+                    pendingPinnedSurface = null;
+                    pendingPinnedWidget = null;
+                },
+                () -> { if (sharedText != null) sharedText.leave(); },
+                () -> { if (sharedMedia != null) sharedMedia.leave(); });
+    }
+
     @Override protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         // Android invokes onNewIntent() before onStart()/onResume(); enforce grace expiry first
         // so an expired session locks immediately and queues incoming OS intents until re-unlock.
         checkGraceOnReturn();
         if (capturePairingDeepLink(intent)) {
+            clearCompetingWarmIntents(WarmIntentKind.PAIRING);
             switch (resolvePairingDeepLinkRoute(
                     pendingPairing != null, account != null, pairingLinkHandler != null)) {
                 case DELIVER_TO_LOCKED_HANDLER -> pairingLinkHandler.accept(consumePendingPairing());
@@ -1225,12 +1268,11 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             }
             return;
         }
-        if (sharedText.receive(intent) || sharedMedia.receive(intent)) {
+        boolean receivedText = sharedText.receive(intent);
+        boolean receivedMedia = !receivedText && sharedMedia.receive(intent);
+        if (receivedText || receivedMedia) {
             setIntent(new Intent(this, MainActivity.class));
-            delivery = null;
-            pendingOsEntry = null;
-            pendingPinnedSurface = null;
-            pendingPinnedWidget = null;
+            clearCompetingWarmIntents(receivedText ? WarmIntentKind.SHARED_TEXT : WarmIntentKind.SHARED_MEDIA);
             clearWorkspace();
             unlock();
             return;
@@ -1239,25 +1281,21 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         if (entry != null) {
             setIntent(intent);
             pendingOsEntry = entry;
-            pendingPinnedSurface = null;
-            pendingPinnedWidget = null;
+            clearCompetingWarmIntents(WarmIntentKind.OS_ENTRY);
             openWarmEntry(entry.target() == OsEntryIntent.Target.WIDGET_ACTION ? entry.widgetId() : null);
             return;
         }
         if (capturePinnedShortcutIntent(intent)) {
             setIntent(intent);
+            clearCompetingWarmIntents(WarmIntentKind.PINNED_SHORTCUT);
             openWarmEntry(pendingPinnedWidget);
             return;
         }
         MobilePush.Target incoming = MobilePush.target(this, intent);
         if (incoming == null) return;
-        sharedText.leave();
-        sharedMedia.leave();
-        pendingOsEntry = null;
-        pendingPinnedSurface = null;
-        pendingPinnedWidget = null;
         setIntent(intent);
         delivery = incoming;
+        clearCompetingWarmIntents(WarmIntentKind.PUSH_DELIVERY);
         if (account != null && account.id.equals(incoming.profileId)) {
             handled(incoming);
             resolve(account, incoming);

@@ -176,7 +176,7 @@ final class AccountStore {
             throw new IllegalArgumentException("Missing resealed envelope");
         }
         synchronized (prefs) {
-            if (!hasMembershipLocked(unlocked)) {
+            if (!unlocked.unlocked() || !hasMembershipLocked(unlocked)) {
                 throw new IOException("Profile unavailable");
             }
             commit(Collections.singletonMap(unlocked.id, resealed));
