@@ -48,6 +48,7 @@ final class SkillStudio {
     private LinearLayout categoryRow;
     private LinearLayout statusBox;
     private LinearLayout listBox;
+    private String lastEmptyAnnouncement;
 
     SkillStudio(SessionPanel panel, BooleanSupplier activeThread, Consumer<String> stageDraft, Runnable parent) {
         this.panel = panel;
@@ -167,9 +168,16 @@ final class SkillStudio {
             if (selectedCategory.isEmpty() || selectedCategory.equals(item.category)) filtered.add(item);
         }
         if (filtered.isEmpty()) {
-            BrainUi.liveNote(panel, listBox, panel.t(inventory.isEmpty() ? R.string.skills_empty : R.string.skills_no_matches));
+            int msgRes = inventory.isEmpty() ? R.string.skills_empty : R.string.skills_no_matches;
+            TextView empty = panel.note(listBox, panel.t(msgRes));
+            String emptyKey = selectedCategory + ":" + msgRes;
+            if (!emptyKey.equals(lastEmptyAnnouncement)) {
+                empty.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+                lastEmptyAnnouncement = emptyKey;
+            }
             return;
         }
+        lastEmptyAnnouncement = null;
         for (SkillInventory skill : filtered) {
             listBox.addView(skillRow(skill));
         }

@@ -276,6 +276,7 @@ public final class DataTableBlock {
         LinearLayout container = Ui.column(context);
         LinearLayout tableBody = Ui.column(context);
 
+        final boolean[] wasEmpty = {false};
         if (model.filterable && host != null) {
             EditText search = WorkspaceForms.editor(context, false, 80, colors);
             search.setHint(R.string.ws_table_filter_hint);
@@ -287,7 +288,7 @@ public final class DataTableBlock {
                 @Override public void afterTextChanged(Editable s) {}
                 @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
                     model.setFilter(s.toString(), AppLanguage.resolvedLocale(context));
-                    renderTable(context, tableBody, model, colors, host);
+                    renderTable(context, tableBody, model, colors, host, wasEmpty);
                 }
             });
         }
@@ -303,12 +304,12 @@ public final class DataTableBlock {
         hScroll.addView(tableBody);
         container.addView(hScroll);
 
-        renderTable(context, tableBody, model, colors, host);
+        renderTable(context, tableBody, model, colors, host, wasEmpty);
         return container;
     }
 
     private static void renderTable(Context c, LinearLayout tableBody, Model model,
-                                    ThemePalette colors, ArtifactDesk.Host host) {
+                                    ThemePalette colors, ArtifactDesk.Host host, boolean[] wasEmpty) {
         tableBody.removeAllViews();
         int colWidth = Ui.dp(c, 128);
         LinearLayout headerRow = Ui.row(c);
@@ -332,7 +333,7 @@ public final class DataTableBlock {
             boolean activeSort = model.sortColumn() == i;
             Button head = Ui.button(c, col.label, v -> {
                 model.toggleSort(colIndex);
-                renderTable(c, tableBody, model, colors, host);
+                renderTable(c, tableBody, model, colors, host, wasEmpty);
             });
             head.setTextColor(Ui.enabledDisabledInk(activeSort ? colors.accent : colors.ink, colors.muted));
             head.setTextSize(colors.scaledSp(14));
@@ -363,10 +364,15 @@ public final class DataTableBlock {
         if (rows.isEmpty()) {
             TextView empty = Ui.text(c, c.getString(R.string.ws_table_empty), colors.scaledSp(14));
             empty.setTextColor(colors.muted);
+            if (!wasEmpty[0]) {
+                empty.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+                wasEmpty[0] = true;
+            }
             Ui.pad(empty, 12, 10);
             tableBody.addView(empty);
             return;
         }
+        wasEmpty[0] = false;
         boolean actionable = host != null && !model.draftPrompt.isEmpty();
         for (int r = 0; r < rows.size(); r++) {
             List<String> row = rows.get(r);

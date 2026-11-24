@@ -29,6 +29,7 @@
     <string name="markdown_link_unavailable">Aucune application ne peut ouvrir ce lien.</string>
     <string name="reasoning_title">Raisonnement</string>
     <string name="reasoning_streaming">Raisonnement en cours…</string>
+    <string name="reasoning_streaming_show_label">Raisonnement en cours. Afficher le raisonnement de Hermes</string>
     <string name="reasoning_hide">Masquer le raisonnement</string>
     <string name="reasoning_show_label">Afficher le raisonnement de Hermes</string>
     <string name="reasoning_read_full">Lire le raisonnement entier</string>

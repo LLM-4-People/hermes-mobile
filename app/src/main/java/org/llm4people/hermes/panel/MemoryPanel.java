@@ -30,6 +30,7 @@ final class MemoryPanel {
     private LinearLayout tabsRow;
     private LinearLayout undoSlot;
     private LinearLayout body;
+    private String lastEmptyAnnouncement;
 
     MemoryPanel(SessionPanel panel, Runnable parent) {
         this.panel = panel;
@@ -146,10 +147,17 @@ final class MemoryPanel {
         String query = filterField == null ? "" : filterField.getText().toString();
         List<MemoryModel.Entry> visible = bucket.filter(query);
         if (visible.isEmpty()) {
-            panel.note(body, panel.t(bucket.entries().isEmpty()
-                    ? R.string.brain_memory_empty : R.string.brain_memory_empty_filter));
+            int msgRes = bucket.entries().isEmpty()
+                    ? R.string.brain_memory_empty : R.string.brain_memory_empty_filter;
+            TextView empty = panel.note(body, panel.t(msgRes));
+            String emptyKey = activeTarget + ":" + msgRes;
+            if (!emptyKey.equals(lastEmptyAnnouncement)) {
+                empty.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+                lastEmptyAnnouncement = emptyKey;
+            }
             return;
         }
+        lastEmptyAnnouncement = null;
         for (MemoryModel.Entry entry : visible) {
             body.addView(entryCard(bucket, entry));
         }

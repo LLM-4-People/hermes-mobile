@@ -21,6 +21,8 @@ import android.widget.TextView;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.llm4people.hermes.ambient.AmbientAccessPanel;
+import org.llm4people.hermes.ambient.NotificationAllowlist;
 import org.llm4people.hermes.artifact.ArtifactDesk;
 import org.llm4people.hermes.artifact.DataTableBlock;
 import org.llm4people.hermes.artifact.ThemePalette;
@@ -39,6 +41,8 @@ import org.llm4people.hermes.panel.MemoryModel;
 import org.llm4people.hermes.panel.ModelCapabilityBadges;
 import org.llm4people.hermes.panel.NotesModel;
 import org.llm4people.hermes.panel.ProfileDefaultsModel;
+import org.llm4people.hermes.panel.ReminderPanel;
+import org.llm4people.hermes.panel.ScheduledJobModel;
 import org.llm4people.hermes.panel.SearchResultModel;
 import org.llm4people.hermes.panel.SessionPanel;
 import org.llm4people.hermes.panel.SkillStudioModel;
@@ -49,6 +53,8 @@ import org.llm4people.hermes.places.NearbyResult;
 import org.llm4people.hermes.places.PlaceSelection;
 import org.llm4people.hermes.profile.Account;
 import org.llm4people.hermes.profile.AdminConsoleSheet;
+import org.llm4people.hermes.profile.FirstRunWizard;
+import org.llm4people.hermes.onboarding.OnboardingModels;
 import org.llm4people.hermes.profile.ProfileGate;
 import org.llm4people.hermes.profile.ProfileLockPolicy;
 import org.llm4people.hermes.profile.WorkspaceAccountFixture;
@@ -56,6 +62,7 @@ import org.llm4people.hermes.push.DeliveryItem;
 import org.llm4people.hermes.search.UniversalSearchModel;
 import org.llm4people.hermes.search.UniversalSearchSheet;
 import org.llm4people.hermes.settings.AppearanceSettingsPanel;
+import org.llm4people.hermes.settings.SettingsHubPanel;
 import org.llm4people.hermes.thread.ThreadWorkspace;
 import org.llm4people.hermes.voice.VoiceDrafts;
 
@@ -68,6 +75,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
@@ -95,6 +103,9 @@ import java.util.function.Supplier;
  * - R17.5.1-R17.5.4: Polite live regions on NotesTasksPanel error card, AdminConsoleSheet summary &
  *   deduplicated users error card, UniversalSearchSheet offline banner & guarded empty-state transitions,
  *   and SessionSettings empty-search notice.
+ * - R18.5.1-R18.5.3: Transition-guarded polite live regions across all 8 live-filtered empty states +
+ *   SkillStudio, streaming reasoning toggle contentDescription in ThreadViews & MessageText, and
+ *   FirstRunWizard manual-paste dialog padded profile_input styling.
  */
 @SuppressWarnings("deprecation")
 public final class AccessibilityControlsRegressionTest extends InstrumentationTestCase {
@@ -1272,6 +1283,361 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                         if (ac != null) ac.close();
                         UniversalSearchSheet us = searchRef.getAndSet(null);
                         if (us != null) us.close();
+                        SessionPanel sp = sessionPanelRef.getAndSet(null);
+                        if (sp != null) sp.close();
+                    });
+                } finally {
+                    ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+                }
+            }
+        } finally {
+            Diagnostics.clear();
+        }
+    }
+
+    public void testRound18LiveRegionsReasoningAndManualPaste() throws Throwable {
+        Context context = getInstrumentation().getTargetContext();
+        AtomicReference<SessionPanel> sessionPanelRef = new AtomicReference<>();
+        AtomicReference<AmbientAccessPanel> ambientRef = new AtomicReference<>();
+        AtomicReference<AlertDialog> pasteDialogRef = new AtomicReference<>();
+        try (WorkspaceAccountFixture fixture = new WorkspaceAccountFixture(context)) {
+            MainActivity activity = launchActivity(context.getPackageName(), MainActivity.class, null);
+            try {
+                runTestOnUiThread(() -> {
+                    try {
+                        HermesApi api = new HermesApi("http://127.0.0.1:1", "tok");
+                        SessionPanel sessionPanel = new SessionPanel(activity, api, fixture.account);
+                        sessionPanelRef.set(sessionPanel);
+
+                        // R18.5.1 (1/8): SettingsHubPanel live-filtered empty state transition guard.
+                        SettingsHubPanel settingsHub = new SettingsHubPanel(activity, new SettingsHubPanel.StateProvider() {
+                            @Override public String profileName() { return "Test"; }
+                            @Override public String serverEndpoint() { return "https://example.invalid"; }
+                            @Override public String lockModeLabel() { return "PIN"; }
+                            @Override public String lockTimeoutLabel() { return "5m"; }
+                            @Override public String securitySummary() { return "Locked"; }
+                            @Override public String themeModeLabel() { return "System"; }
+                            @Override public String appearanceSummary() { return "Default"; }
+                            @Override public String languageSummary() { return "English"; }
+                            @Override public String voiceLocaleLabel() { return "English"; }
+                            @Override public String updateBadge() { return ""; }
+                            @Override public String versionName() { return "1.0"; }
+                        }, action -> {});
+                        View hubRoot = settingsHub.buildView();
+                        EditText hubSearch = findFirst(hubRoot, EditText.class);
+                        assertNotNull(hubSearch);
+                        hubSearch.setText("zzz-none-1");
+                        TextView hubEmpty1 = findTextViewWithText(hubRoot,
+                                activity.getString(R.string.settings_search_empty, "zzz-none-1"));
+                        assertNotNull(hubEmpty1);
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE, hubEmpty1.getAccessibilityLiveRegion());
+                        hubSearch.setText("zzz-none-2");
+                        TextView hubEmpty2 = findTextViewWithText(hubRoot,
+                                activity.getString(R.string.settings_search_empty, "zzz-none-2"));
+                        assertNotNull(hubEmpty2);
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_NONE, hubEmpty2.getAccessibilityLiveRegion());
+                        hubSearch.setText("");
+                        hubSearch.setText("zzz-none-3");
+                        TextView hubEmpty3 = findTextViewWithText(hubRoot,
+                                activity.getString(R.string.settings_search_empty, "zzz-none-3"));
+                        assertNotNull(hubEmpty3);
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE, hubEmpty3.getAccessibilityLiveRegion());
+
+                        // R18.5.1 (2/8): DataTableBlock filterable empty state transition guard.
+                        List<DataTableBlock.Column> cols = Collections.singletonList(
+                                new DataTableBlock.Column("name", "Name", false));
+                        DataTableBlock.Model tableModel = new DataTableBlock.Model(
+                                cols, Collections.singletonList(Collections.singletonList("Alpha")), false, true, "");
+                        Method buildTable = DataTableBlock.class.getDeclaredMethod(
+                                "build", Context.class, DataTableBlock.Model.class, ThemePalette.class, ArtifactDesk.Host.class);
+                        buildTable.setAccessible(true);
+                        View tableView = (View) buildTable.invoke(
+                                null, activity, tableModel, null, new WorkspaceHost(activity, () -> true));
+                        EditText tableFilter = findFirst(tableView, EditText.class);
+                        assertNotNull(tableFilter);
+                        String tableEmptyStr = activity.getString(R.string.ws_table_empty);
+                        tableFilter.setText("zzz");
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE,
+                                findTextViewWithText(tableView, tableEmptyStr).getAccessibilityLiveRegion());
+                        tableFilter.setText("zzzz");
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_NONE,
+                                findTextViewWithText(tableView, tableEmptyStr).getAccessibilityLiveRegion());
+                        tableFilter.setText("");
+                        tableFilter.setText("zzz");
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE,
+                                findTextViewWithText(tableView, tableEmptyStr).getAccessibilityLiveRegion());
+
+                        // R18.5.1 (3/8): NotesPanel live-filtered empty state transition guard.
+                        Class<?> notesClass = Class.forName("org.llm4people.hermes.panel.NotesPanel");
+                        Constructor<?> notesCtor = notesClass.getDeclaredConstructor(
+                                SessionPanel.class, BooleanSupplier.class, Consumer.class, Runnable.class);
+                        notesCtor.setAccessible(true);
+                        Object notesPanel = notesCtor.newInstance(
+                                sessionPanel, (BooleanSupplier) () -> true, (Consumer<String>) s -> {}, null);
+                        LinearLayout notesBody = Ui.column(activity);
+                        EditText notesFilter = new EditText(activity);
+                        setField(notesPanel, "body", notesBody);
+                        setField(notesPanel, "filterField", notesFilter);
+                        setField(notesPanel, "notes", Collections.singletonList(
+                                new NotesModel.Note("n1", "Alpha", "Body", Collections.emptyList(), false, "", "", "owner")));
+                        Method notesRender = notesClass.getDeclaredMethod("renderList");
+                        notesRender.setAccessible(true);
+                        String notesEmptyStr = activity.getString(
+                                NotesModel.emptyMessageRes(NotesModel.FilterTab.MINE, false));
+                        notesFilter.setText("zzz");
+                        notesRender.invoke(notesPanel);
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE,
+                                findTextViewWithText(notesBody, notesEmptyStr).getAccessibilityLiveRegion());
+                        notesFilter.setText("zzzz");
+                        notesRender.invoke(notesPanel);
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_NONE,
+                                findTextViewWithText(notesBody, notesEmptyStr).getAccessibilityLiveRegion());
+                        notesFilter.setText("");
+                        notesRender.invoke(notesPanel);
+                        notesFilter.setText("zzz");
+                        notesRender.invoke(notesPanel);
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE,
+                                findTextViewWithText(notesBody, notesEmptyStr).getAccessibilityLiveRegion());
+
+                        // R18.5.1 (4/8): MemoryPanel live-filtered empty state transition guard.
+                        Class<?> memClass = Class.forName("org.llm4people.hermes.panel.MemoryPanel");
+                        Constructor<?> memCtor = memClass.getDeclaredConstructor(SessionPanel.class, Runnable.class);
+                        memCtor.setAccessible(true);
+                        Object memPanel = memCtor.newInstance(sessionPanel, null);
+                        LinearLayout memBody = Ui.column(activity);
+                        EditText memFilter = new EditText(activity);
+                        MemoryModel.Bucket memBucket = new MemoryModel.Bucket(
+                                MemoryModel.TARGET_MEMORY,
+                                Collections.singletonList(new MemoryModel.Entry("e1", "Alpha memory", false)),
+                                12, MemoryModel.DEFAULT_CHAR_LIMIT, true);
+                        MemoryModel.Bucket userBucket = new MemoryModel.Bucket(
+                                MemoryModel.TARGET_USER, Collections.emptyList(), 0, MemoryModel.DEFAULT_CHAR_LIMIT, true);
+                        setField(memPanel, "undoSlot", Ui.column(activity));
+                        setField(memPanel, "body", memBody);
+                        setField(memPanel, "filterField", memFilter);
+                        setField(memPanel, "snapshot", new MemoryModel.Snapshot(memBucket, userBucket));
+                        Method memRender = memClass.getDeclaredMethod("renderEntries");
+                        memRender.setAccessible(true);
+                        String memEmptyStr = activity.getString(R.string.brain_memory_empty_filter);
+                        memFilter.setText("zzz");
+                        memRender.invoke(memPanel);
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE,
+                                findTextViewWithText(memBody, memEmptyStr).getAccessibilityLiveRegion());
+                        memFilter.setText("zzzz");
+                        memRender.invoke(memPanel);
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_NONE,
+                                findTextViewWithText(memBody, memEmptyStr).getAccessibilityLiveRegion());
+                        memFilter.setText("");
+                        memRender.invoke(memPanel);
+                        memFilter.setText("zzz");
+                        memRender.invoke(memPanel);
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE,
+                                findTextViewWithText(memBody, memEmptyStr).getAccessibilityLiveRegion());
+
+                        // R18.5.1 (5/8): ProfileDefaultsPanel toolset filter empty state transition guard.
+                        Class<?> profClass = Class.forName("org.llm4people.hermes.panel.ProfileDefaultsPanel");
+                        Constructor<?> profCtor = profClass.getDeclaredConstructor(SessionPanel.class, Runnable.class);
+                        profCtor.setAccessible(true);
+                        Object profPanel = profCtor.newInstance(sessionPanel, null);
+                        Field profModelField = profClass.getDeclaredField("model");
+                        profModelField.setAccessible(true);
+                        ProfileDefaultsModel profModel = (ProfileDefaultsModel) profModelField.get(profPanel);
+                        profModel.load("openai", "gpt-4o", "", Collections.singletonList("web"), Arrays.asList("web", "code"));
+                        LinearLayout toolsetBox = Ui.column(activity);
+                        setField(profPanel, "toolsetListContainer", toolsetBox);
+                        Method refreshToolsets = profClass.getDeclaredMethod("refreshToolsetRows");
+                        refreshToolsets.setAccessible(true);
+                        String toolsetEmptyStr = activity.getString(R.string.profile_defaults_toolsets_empty_search);
+                        setField(profPanel, "toolsetFilterQuery", "zzz");
+                        refreshToolsets.invoke(profPanel);
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE,
+                                findTextViewWithText(toolsetBox, toolsetEmptyStr).getAccessibilityLiveRegion());
+                        setField(profPanel, "toolsetFilterQuery", "zzzz");
+                        refreshToolsets.invoke(profPanel);
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_NONE,
+                                findTextViewWithText(toolsetBox, toolsetEmptyStr).getAccessibilityLiveRegion());
+                        setField(profPanel, "toolsetFilterQuery", "");
+                        refreshToolsets.invoke(profPanel);
+                        setField(profPanel, "toolsetFilterQuery", "zzz");
+                        refreshToolsets.invoke(profPanel);
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE,
+                                findTextViewWithText(toolsetBox, toolsetEmptyStr).getAccessibilityLiveRegion());
+
+                        // R18.5.1 (6/8): AmbientAccessPanel allowlist filter empty state transition guard.
+                        AmbientAccessPanel ambient = new AmbientAccessPanel(
+                                activity, NotificationAllowlist.forAccount(fixture.account), text -> {});
+                        ambientRef.set(ambient);
+                        LinearLayout allowlistBox = Ui.column(activity);
+                        setField(ambient, "allowlistContainer", allowlistBox);
+                        setField(ambient, "installedApps", Collections.singletonList(
+                                new AmbientAccessPanel.AppEntry("com.example.chat", "Chat")));
+                        Method renderAllowlist = AmbientAccessPanel.class.getDeclaredMethod("renderAllowlist");
+                        renderAllowlist.setAccessible(true);
+                        String allowEmptyStr = activity.getString(R.string.ambient_allowlist_empty);
+                        setField(ambient, "searchFilter", "zzz");
+                        renderAllowlist.invoke(ambient);
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE,
+                                findTextViewWithText(allowlistBox, allowEmptyStr).getAccessibilityLiveRegion());
+                        setField(ambient, "searchFilter", "zzzz");
+                        renderAllowlist.invoke(ambient);
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_NONE,
+                                findTextViewWithText(allowlistBox, allowEmptyStr).getAccessibilityLiveRegion());
+                        setField(ambient, "searchFilter", "");
+                        renderAllowlist.invoke(ambient);
+                        setField(ambient, "searchFilter", "zzz");
+                        renderAllowlist.invoke(ambient);
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE,
+                                findTextViewWithText(allowlistBox, allowEmptyStr).getAccessibilityLiveRegion());
+
+                        // R18.5.1 (7/8): ReminderPanel filtered jobs empty state transition guard.
+                        Constructor<ReminderPanel> remCtor = ReminderPanel.class.getDeclaredConstructor(SessionPanel.class);
+                        remCtor.setAccessible(true);
+                        ReminderPanel remPanel = remCtor.newInstance(sessionPanel);
+                        LinearLayout jobsBox = Ui.column(activity);
+                        JSONArray jobsArr = new JSONArray().put(new JSONObject()
+                                .put("id", "j1")
+                                .put("name", "Daily Brief")
+                                .put("state", "active"));
+                        Method renderJobs = ReminderPanel.class.getDeclaredMethod(
+                                "renderJobsOverview", LinearLayout.class, JSONArray.class, ZoneId.class,
+                                Locale.class, TextView.class);
+                        renderJobs.setAccessible(true);
+                        TextView jobsFeedback = Ui.text(activity, "", 14);
+                        String jobsEmptyStr = activity.getString(R.string.panel_jobs_filter_empty);
+                        setField(remPanel, "activeFilter", ScheduledJobModel.Filter.PAUSED);
+                        renderJobs.invoke(remPanel, jobsBox, jobsArr, ZoneId.of("UTC"), Locale.US, jobsFeedback);
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE,
+                                findTextViewWithText(jobsBox, jobsEmptyStr).getAccessibilityLiveRegion());
+                        renderJobs.invoke(remPanel, jobsBox, jobsArr, ZoneId.of("UTC"), Locale.US, jobsFeedback);
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_NONE,
+                                findTextViewWithText(jobsBox, jobsEmptyStr).getAccessibilityLiveRegion());
+                        setField(remPanel, "activeFilter", ScheduledJobModel.Filter.ALL);
+                        renderJobs.invoke(remPanel, jobsBox, jobsArr, ZoneId.of("UTC"), Locale.US, jobsFeedback);
+                        setField(remPanel, "activeFilter", ScheduledJobModel.Filter.PAUSED);
+                        renderJobs.invoke(remPanel, jobsBox, jobsArr, ZoneId.of("UTC"), Locale.US, jobsFeedback);
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE,
+                                findTextViewWithText(jobsBox, jobsEmptyStr).getAccessibilityLiveRegion());
+
+                        // R18.5.1 (8/8): SkillStudio empty-state transition guard prevents per-keystroke spam.
+                        Class<?> skillStudioClass = Class.forName("org.llm4people.hermes.panel.SkillStudio");
+                        Constructor<?> skillCtor = skillStudioClass.getDeclaredConstructor(
+                                SessionPanel.class, BooleanSupplier.class, Consumer.class, Runnable.class);
+                        skillCtor.setAccessible(true);
+                        Object skillStudio = skillCtor.newInstance(
+                                sessionPanel, (BooleanSupplier) () -> true, (Consumer<String>) s -> {}, null);
+                        Class<?> skillInvClass = Class.forName("org.llm4people.hermes.panel.SkillInventory");
+                        Method parseSkills = skillInvClass.getDeclaredMethod("parse", JSONObject.class);
+                        parseSkills.setAccessible(true);
+                        Object parsedSkills = parseSkills.invoke(null, new JSONObject().put("data", new JSONArray().put(
+                                new JSONObject().put("name", "deploy").put("description", "Deploy").put("category", "ops"))));
+                        LinearLayout skillListBox = Ui.column(activity);
+                        EditText skillSearch = new EditText(activity);
+                        setField(skillStudio, "listBox", skillListBox);
+                        setField(skillStudio, "searchField", skillSearch);
+                        setField(skillStudio, "inventory", parsedSkills);
+                        Method skillRender = skillStudioClass.getDeclaredMethod("renderList");
+                        skillRender.setAccessible(true);
+                        String skillsEmptyStr = activity.getString(R.string.skills_no_matches);
+                        skillSearch.setText("zzz");
+                        skillRender.invoke(skillStudio);
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE,
+                                findTextViewWithText(skillListBox, skillsEmptyStr).getAccessibilityLiveRegion());
+                        skillSearch.setText("zzzz");
+                        skillRender.invoke(skillStudio);
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_NONE,
+                                findTextViewWithText(skillListBox, skillsEmptyStr).getAccessibilityLiveRegion());
+                        skillSearch.setText("");
+                        skillRender.invoke(skillStudio);
+                        skillSearch.setText("zzz");
+                        skillRender.invoke(skillStudio);
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE,
+                                findTextViewWithText(skillListBox, skillsEmptyStr).getAccessibilityLiveRegion());
+
+                        // R18.5.2: Streaming reasoning toggle uses reasoning_streaming_show_label when collapsed.
+                        String streamingCd = activity.getString(R.string.reasoning_streaming_show_label);
+                        String finishedCd = activity.getString(R.string.reasoning_show_label);
+                        String hideCd = activity.getString(R.string.reasoning_hide);
+
+                        Class<?> msgTextClass = Class.forName("org.llm4people.hermes.thread.MessageText");
+                        Method reasoningCardMethod = msgTextClass.getDeclaredMethod(
+                                "reasoningCard", Context.class, String.class, boolean.class, Consumer.class);
+                        reasoningCardMethod.setAccessible(true);
+                        View streamingCard = (View) reasoningCardMethod.invoke(null, activity, "Step 1", true, null);
+                        Button streamingToggle = findFirst(streamingCard, Button.class);
+                        assertNotNull(streamingToggle);
+                        assertEquals(streamingCd, String.valueOf(streamingToggle.getContentDescription()));
+                        streamingToggle.performClick();
+                        assertEquals(hideCd, String.valueOf(streamingToggle.getContentDescription()));
+                        streamingToggle.performClick();
+                        assertEquals(streamingCd, String.valueOf(streamingToggle.getContentDescription()));
+
+                        View staticCard = (View) reasoningCardMethod.invoke(null, activity, "Step 1", false, null);
+                        Button staticToggle = findFirst(staticCard, Button.class);
+                        assertNotNull(staticToggle);
+                        assertEquals(finishedCd, String.valueOf(staticToggle.getContentDescription()));
+
+                        Class<?> liveCardClass = Class.forName("org.llm4people.hermes.thread.ThreadViews$LiveReasoningCard");
+                        Constructor<?> liveCardCtor = liveCardClass.getDeclaredConstructor(Context.class, Consumer.class);
+                        liveCardCtor.setAccessible(true);
+                        Object liveCard = liveCardCtor.newInstance(activity, null);
+                        Field liveToggleField = liveCardClass.getDeclaredField("toggle");
+                        liveToggleField.setAccessible(true);
+                        Button liveToggle = (Button) liveToggleField.get(liveCard);
+                        assertEquals(streamingCd, String.valueOf(liveToggle.getContentDescription()));
+                        Method liveUpdate = liveCardClass.getDeclaredMethod("update", String.class, boolean.class);
+                        liveUpdate.setAccessible(true);
+                        liveUpdate.invoke(liveCard, "Thinking...", true);
+                        assertEquals(streamingCd, String.valueOf(liveToggle.getContentDescription()));
+                        liveUpdate.invoke(liveCard, "Done.", false);
+                        assertEquals(finishedCd, String.valueOf(liveToggle.getContentDescription()));
+                        liveToggle.performClick();
+                        assertEquals(hideCd, String.valueOf(liveToggle.getContentDescription()));
+                        liveUpdate.invoke(liveCard, "More...", true);
+                        assertEquals(hideCd, String.valueOf(liveToggle.getContentDescription()));
+                        liveToggle.performClick();
+                        assertEquals(streamingCd, String.valueOf(liveToggle.getContentDescription()));
+
+                        // R18.5.3: FirstRunWizard.showManualPasteDialog uses padded profile_input EditText.
+                        Method showPaste = FirstRunWizard.class.getDeclaredMethod(
+                                "showManualPasteDialog",
+                                Activity.class, FirstRunWizard.Step1Targets.class, Consumer.class, TextView.class);
+                        showPaste.setAccessible(true);
+                        FirstRunWizard.Step1Targets targets = new FirstRunWizard.Step1Targets() {
+                            @Override public void fillFields(String n, String u, String s, String k, boolean f) {}
+                            @Override public void stagePairing(FirstRunWizard.StagedPairing staged) {}
+                            @Override public void triggerConnectionProbe(String endpoint, String bearer) {}
+                            @Override public void showInstantStatus(String message, int colorRes) {}
+                            @Override public void onClaimedMetadata(OnboardingModels.PairingClaim claim) {}
+                            @Override public void trackDialog(AlertDialog dialog) { pasteDialogRef.set(dialog); }
+                            @Override public void onScanQrRequested() {}
+                        };
+                        showPaste.invoke(null, activity, targets, (Consumer<Object>) p -> {}, Ui.text(activity, "", 14));
+                        AlertDialog pasteDialog = pasteDialogRef.get();
+                        assertNotNull("Expected manual paste AlertDialog", pasteDialog);
+                        EditText pasteInput = findFirst(pasteDialog.getWindow().getDecorView(), EditText.class);
+                        assertNotNull("Expected EditText inside manual paste dialog", pasteInput);
+                        assertTrue("EditText must be wrapped in padded LinearLayout",
+                                pasteInput.getParent() instanceof LinearLayout);
+                        LinearLayout pasteBox = (LinearLayout) pasteInput.getParent();
+                        assertTrue(pasteBox.getPaddingStart() >= Ui.dp(activity, 20));
+                        assertTrue(pasteBox.getPaddingTop() >= Ui.dp(activity, 8));
+                        assertTrue("Manual paste EditText minHeight must be >= 48dp",
+                                pasteInput.getMinimumHeight() >= Ui.dp(activity, 48));
+                        assertEquals(activity.getColor(R.color.ink), pasteInput.getCurrentTextColor());
+                        assertEquals(activity.getColor(R.color.muted), pasteInput.getCurrentHintTextColor());
+                        assertNotNull(pasteInput.getBackground());
+                        assertNull(pasteInput.getBackgroundTintList());
+                    } catch (Exception err) {
+                        throw new AssertionError(err);
+                    }
+                });
+            } finally {
+                try {
+                    runTestOnUiThread(() -> {
+                        AlertDialog dlg = pasteDialogRef.getAndSet(null);
+                        if (dlg != null && dlg.isShowing()) dlg.dismiss();
+                        AmbientAccessPanel ap = ambientRef.getAndSet(null);
+                        if (ap != null) ap.close();
                         SessionPanel sp = sessionPanelRef.getAndSet(null);
                         if (sp != null) sp.close();
                     });

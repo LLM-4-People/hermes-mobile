@@ -54,6 +54,7 @@ final class ProfileDefaultsPanel {
     private TextView toolsetCountPill;
     private LinearLayout toolsetListContainer;
     private String toolsetFilterQuery = "";
+    private String lastToolsetEmptyAnnouncement;
     private boolean saving;
 
     ProfileDefaultsPanel(SessionPanel panel, Runnable parent) {
@@ -359,10 +360,16 @@ final class ProfileDefaultsPanel {
         if (filtered.isEmpty()) {
             TextView empty = Ui.text(panel.activity, panel.t(R.string.profile_defaults_toolsets_empty_search), 14);
             empty.setTextColor(panel.activity.getColor(R.color.muted));
+            String emptyKey = "toolsets_empty";
+            if (!emptyKey.equals(lastToolsetEmptyAnnouncement)) {
+                empty.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+                lastToolsetEmptyAnnouncement = emptyKey;
+            }
             Ui.pad(empty, 4, 10);
             toolsetListContainer.addView(empty);
             return;
         }
+        lastToolsetEmptyAnnouncement = null;
         ColorStateList thumbTint = new ColorStateList(
                 new int[][]{new int[]{android.R.attr.state_checked}, new int[]{}},
                 new int[]{panel.activity.getColor(R.color.accent), panel.activity.getColor(R.color.muted)});
@@ -477,6 +484,7 @@ final class ProfileDefaultsPanel {
 
         final String[] activeProvider = {""};
         final String[] activeQuery = {""};
+        final String[] lastModelEmptyAnnouncement = {null};
         final AlertDialog[] dialogRef = {null};
 
         Runnable[] rebuild = {null};
@@ -506,10 +514,16 @@ final class ProfileDefaultsPanel {
             if (matches.isEmpty()) {
                 TextView empty = Ui.text(panel.activity, panel.t(R.string.profile_defaults_model_search_empty), 15);
                 empty.setTextColor(panel.activity.getColor(R.color.muted));
+                String emptyKey = "models_empty";
+                if (!emptyKey.equals(lastModelEmptyAnnouncement[0])) {
+                    empty.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+                    lastModelEmptyAnnouncement[0] = emptyKey;
+                }
                 Ui.pad(empty, 8, 16);
                 resultsBox.addView(empty);
                 return;
             }
+            lastModelEmptyAnnouncement[0] = null;
             LinearLayout card = Ui.column(panel.activity);
             card.setBackground(Ui.shape(panel.activity, Ui.CARD_CORNER_DP, R.color.surface, R.color.line, 1));
             card.setClipToOutline(true);
