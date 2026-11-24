@@ -1,11 +1,34 @@
 package org.llm4people.hermes.profile;
 
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
+import org.llm4people.hermes.Diagnostics;
+import org.llm4people.hermes.HermesConfig;
+import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.onboarding.PairingLinkParser;
+
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.Assert.*;
 
 public final class FirstRunWizardTest {
+
+    @Before
+    public void silenceDiagnostics() {
+        Diagnostics.clear();
+        Diagnostics.setSink((level, tag, message) -> {});
+    }
+
+    @After
+    public void resetDiagnosticsAndPendingSyncs() {
+        FirstRunWizard.revokePendingSyncs();
+        Diagnostics.clear();
+        Diagnostics.setSink(null);
+    }
     @Test public void step1PlansPairingTicketDirectCredentialsAndServerOnlyCleanly() {
         PairingLinkParser.ParsedInput ticket = PairingLinkParser.parse(
                 "hermes://pair?host=https%3A%2F%2Fhermes.example.com&code=abcDEF1234567890&profile=alex&name=Alex&mode=invite");
@@ -168,79 +191,82 @@ public final class FirstRunWizardTest {
     }
 
     @Test public void detachedProfileSyncRevokesOnLockAndCompletionWhileSessionReusePreservesApi() throws Exception {
-        org.llm4people.hermes.Diagnostics.clear();
-        org.llm4people.hermes.Diagnostics.setSink((level, tag, msg) -> {});
+        // Null / blank inputs fail closed cleanly without throwing.
+        assertFalse(FirstRunWizard.submitProfileSync(null, true, "alex", "Alex", "en")
+                .get(5, TimeUnit.SECONDS));
+        HermesApi blankSlugApi = new HermesApi(
+                "http://127.0.0.1:1", "tok", HermesApi.Limits.from(HermesConfig.defaults()));
+        assertFalse(FirstRunWizard.submitProfileSync(blankSlugApi, true, "", "Alex", "en")
+                .get(5, TimeUnit.SECONDS));
+
+        // Positive-path detached sync returns true and still revokes client in finally.
+        AtomicBoolean detachedRan = new AtomicBoolean(false);
+        HermesApi detachedOkApi = new HermesApi(
+                "http://127.0.0.1:1", "tok", HermesApi.Limits.from(HermesConfig.defaults()));
+        assertTrue(FirstRunWizard.submitProfileSync(
+                detachedOkApi, true, "alex", () -> detachedRan.set(true))
+                .get(5, TimeUnit.SECONDS));
+        assertTrue("Detached sync work must execute", detachedRan.get());
+        assertTrue("Detached sync client must be revoked in finally on success", detachedOkApi.isRevoked());
+
+        // Positive-path session-reuse sync returns true and preserves the live session API.
+        AtomicBoolean sessionRan = new AtomicBoolean(false);
+        HermesApi sessionOkApi = new HermesApi(
+                "http://127.0.0.1:1", "tok", HermesApi.Limits.from(HermesConfig.defaults()));
+        assertTrue(FirstRunWizard.submitProfileSync(
+                sessionOkApi, false, "alex", () -> sessionRan.set(true))
+                .get(5, TimeUnit.SECONDS));
+        assertTrue("Session-reuse sync work must execute", sessionRan.get());
+        assertFalse("Session API reuse must not be revoked on success", sessionOkApi.isRevoked());
+
+        // Detached sync always revokes client on completion (even on error).
+        HermesApi detachedApi = new HermesApi(
+                "http://127.0.0.1:1", "tok", HermesApi.Limits.from(HermesConfig.defaults()));
+        assertFalse(FirstRunWizard.submitProfileSync(detachedApi, true, "alex", "Alex", "en")
+                .get(5, TimeUnit.SECONDS));
+        assertTrue("Detached sync client must be revoked in finally", detachedApi.isRevoked());
+
+        // Non-detached session reuse must NOT revoke the caller's live session API on error.
+        HermesApi sessionApi = new HermesApi(
+                "http://127.0.0.1:1", "tok", HermesApi.Limits.from(HermesConfig.defaults()));
+        assertFalse(FirstRunWizard.submitProfileSync(sessionApi, false, "alex", "Alex", "en")
+                .get(5, TimeUnit.SECONDS));
+        assertFalse("Session API reuse must not be revoked by FirstRunWizard", sessionApi.isRevoked());
+
+        // In-flight detached sync is deterministically revoked by revokePendingSyncs() while blocked.
+        CountDownLatch started = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        HermesApi inFlight = new HermesApi(
+                "http://127.0.0.1:1", "tok", HermesApi.Limits.from(HermesConfig.defaults()));
+        Future<Boolean> future = FirstRunWizard.submitProfileSync(
+                inFlight, true, "alex", () -> {
+                    started.countDown();
+                    release.await(5, TimeUnit.SECONDS);
+                });
         try {
-            // Null / blank inputs fail closed cleanly without throwing.
-            assertFalse(FirstRunWizard.submitProfileSync(null, true, "alex", "Alex", "en")
-                    .get(5, java.util.concurrent.TimeUnit.SECONDS));
-            org.llm4people.hermes.net.HermesApi blankSlugApi = new org.llm4people.hermes.net.HermesApi(
-                    "http://127.0.0.1:1", "tok",
-                    org.llm4people.hermes.net.HermesApi.Limits.from(org.llm4people.hermes.HermesConfig.defaults()));
-            assertFalse(FirstRunWizard.submitProfileSync(blankSlugApi, true, "", "Alex", "en")
-                    .get(5, java.util.concurrent.TimeUnit.SECONDS));
-
-            // Detached sync always revokes client on completion (even on error).
-            org.llm4people.hermes.net.HermesApi detachedApi = new org.llm4people.hermes.net.HermesApi(
-                    "http://127.0.0.1:1", "tok",
-                    org.llm4people.hermes.net.HermesApi.Limits.from(org.llm4people.hermes.HermesConfig.defaults()));
-            assertFalse(FirstRunWizard.submitProfileSync(detachedApi, true, "alex", "Alex", "en")
-                    .get(5, java.util.concurrent.TimeUnit.SECONDS));
-            assertTrue("Detached sync client must be revoked in finally", detachedApi.isRevoked());
-
-            // Non-detached session reuse must NOT revoke the caller's live session API.
-            org.llm4people.hermes.net.HermesApi sessionApi = new org.llm4people.hermes.net.HermesApi(
-                    "http://127.0.0.1:1", "tok",
-                    org.llm4people.hermes.net.HermesApi.Limits.from(org.llm4people.hermes.HermesConfig.defaults()));
-            assertFalse(FirstRunWizard.submitProfileSync(sessionApi, false, "alex", "Alex", "en")
-                    .get(5, java.util.concurrent.TimeUnit.SECONDS));
-            assertFalse("Session API reuse must not be revoked by FirstRunWizard", sessionApi.isRevoked());
-
-            // In-flight detached sync is deterministically revoked by revokePendingSyncs() while blocked.
-            java.util.concurrent.CountDownLatch started = new java.util.concurrent.CountDownLatch(1);
-            java.util.concurrent.CountDownLatch release = new java.util.concurrent.CountDownLatch(1);
-            org.llm4people.hermes.net.HermesApi inFlight = new org.llm4people.hermes.net.HermesApi(
-                    "http://127.0.0.1:1", "tok",
-                    org.llm4people.hermes.net.HermesApi.Limits.from(org.llm4people.hermes.HermesConfig.defaults()));
-            java.util.concurrent.Future<Boolean> future = FirstRunWizard.submitProfileSync(
-                    inFlight, true, "alex", () -> {
-                        started.countDown();
-                        release.await(5, java.util.concurrent.TimeUnit.SECONDS);
-                    });
             assertTrue("Worker must enter sync block before revocation",
-                    started.await(5, java.util.concurrent.TimeUnit.SECONDS));
+                    started.await(5, TimeUnit.SECONDS));
             assertFalse("Client must remain live until revoked", inFlight.isRevoked());
             FirstRunWizard.revokePendingSyncs();
             assertTrue("revokePendingSyncs() must revoke in-flight client while worker is blocked",
                     inFlight.isRevoked());
-            release.countDown();
-            assertFalse(future.get(5, java.util.concurrent.TimeUnit.SECONDS));
-
-            // Null work fails closed cleanly.
-            assertFalse(FirstRunWizard.submitProfileSync(sessionApi, true, "alex", (FirstRunWizard.ThrowingRunnable) null)
-                    .get(5, java.util.concurrent.TimeUnit.SECONDS));
         } finally {
-            FirstRunWizard.revokePendingSyncs();
-            org.llm4people.hermes.Diagnostics.clear();
-            org.llm4people.hermes.Diagnostics.setSink(null);
+            release.countDown();
         }
+        assertFalse(future.get(5, TimeUnit.SECONDS));
+
+        // Null work fails closed cleanly.
+        assertFalse(FirstRunWizard.submitProfileSync(sessionApi, true, "alex", (FirstRunWizard.ThrowingRunnable) null)
+                .get(5, TimeUnit.SECONDS));
     }
 
     @Test public void isCompletedLogsDiagnosticWarningWhenAccountReadFails() {
-        org.llm4people.hermes.Diagnostics.clear();
-        org.llm4people.hermes.Diagnostics.setSink((level, tag, msg) -> {});
-        try {
-            // Closed account throws IllegalStateException from account.read(...)
-            Account closedAccount = new Account("p1", "Personal", "https://hermes.example.com", "secret",
-                    null, new byte[Account.KEY_BYTES]);
-            closedAccount.close();
-            assertTrue(FirstRunWizard.isCompleted(closedAccount));
-            assertTrue(org.llm4people.hermes.Diagnostics.exportRedacted()
-                    .contains("onboarding.is_completed_read_failed"));
-            assertTrue(FirstRunWizard.isCompleted(null));
-        } finally {
-            org.llm4people.hermes.Diagnostics.clear();
-            org.llm4people.hermes.Diagnostics.setSink(null);
-        }
+        // Closed account throws IllegalStateException from account.read(...)
+        Account closedAccount = new Account("p1", "Personal", "https://hermes.example.com", "secret",
+                null, new byte[Account.KEY_BYTES]);
+        closedAccount.close();
+        assertTrue(FirstRunWizard.isCompleted(closedAccount));
+        assertTrue(Diagnostics.exportRedacted().contains("onboarding.is_completed_read_failed"));
+        assertTrue(FirstRunWizard.isCompleted(null));
     }
 }

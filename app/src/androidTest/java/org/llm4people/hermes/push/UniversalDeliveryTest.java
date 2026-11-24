@@ -57,6 +57,7 @@ public final class UniversalDeliveryTest extends InstrumentationTestCase {
                 store.finishRemoval(dev);
             }
         } finally {
+            Diagnostics.clear();
             super.tearDown();
         }
     }

@@ -3,6 +3,8 @@ package org.llm4people.hermes;
 import android.app.Activity;
 import android.content.Intent;
 
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 import org.llm4people.hermes.os.LockGracePolicy;
 import org.llm4people.hermes.panel.SessionPanel;
@@ -31,6 +33,18 @@ import static org.junit.Assert.fail;
  * - R4.1.2-R4.1.5 & R4.4.3: FR/EN plurals grammar, retired workspace string removal, and stale contacts removal
  */
 public final class MainActivityR4RegressionTest {
+
+    @Before
+    public void silenceDiagnostics() {
+        Diagnostics.clear();
+        Diagnostics.setSink((level, tag, message) -> {});
+    }
+
+    @After
+    public void resetDiagnostics() {
+        Diagnostics.clear();
+        Diagnostics.setSink(null);
+    }
 
     private static String readUtf8(Path path) throws Exception {
         return new String(Files.readAllBytes(path), StandardCharsets.UTF_8);
@@ -92,6 +106,24 @@ public final class MainActivityR4RegressionTest {
     public void detachedSyncRevocationPolicyPreservesOnlyConfigChanges() {
         assertTrue(MainActivity.shouldRevokeDetachedSyncs(false));
         assertFalse(MainActivity.shouldRevokeDetachedSyncs(true));
+    }
+
+    @Test
+    public void lockedPairingHandlerReinstallsAfterLockUnlessFinishingOrDestroyed() throws Exception {
+        assertTrue(MainActivity.shouldRegisterLockedPairingHandler(true, false, false));
+        assertFalse(MainActivity.shouldRegisterLockedPairingHandler(false, false, false));
+        assertFalse(MainActivity.shouldRegisterLockedPairingHandler(true, true, false));
+        assertFalse(MainActivity.shouldRegisterLockedPairingHandler(true, false, true));
+        assertFalse(MainActivity.shouldRegisterLockedPairingHandler(true, true, true));
+
+        // When locked with handler reinstalled, warm hermes://pair delivers without re-opening setup gate.
+        assertEquals(MainActivity.PairingDeepLinkRoute.DELIVER_TO_LOCKED_HANDLER,
+                MainActivity.resolvePairingDeepLinkRoute(true, false, true));
+        assertEquals(MainActivity.PairingDeepLinkRoute.OPEN_SETUP_GATE,
+                MainActivity.resolvePairingDeepLinkRoute(true, false, false));
+
+        Method register = MainActivity.class.getDeclaredMethod("registerLockedPairingHandler");
+        assertEquals(void.class, register.getReturnType());
     }
 
     @Test
