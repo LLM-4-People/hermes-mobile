@@ -202,9 +202,11 @@ final class SessionSettings {
                 T item = getItem(position);
                 if (item instanceof ModelCapabilityBadges.ModelInfo info) {
                     if (row instanceof TextView tv) tv.setText(info.displayText(panel.activity));
-                    row.setContentDescription(info.id());
+                    row.setContentDescription(null);
+                    row.setTag(info.id());
                 } else {
                     row.setContentDescription(null);
+                    row.setTag(null);
                 }
                 return row;
             }

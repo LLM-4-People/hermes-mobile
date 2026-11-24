@@ -299,6 +299,7 @@ public final class AppearanceSettingsPanel {
 
         hexErrorText = Ui.text(activity, "", 13);
         hexErrorText.setTextColor(activity.getColor(R.color.danger));
+        hexErrorText.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         hexErrorText.setVisibility(View.GONE);
         hexErrorText.setPaddingRelative(0, Ui.dp(activity, 6), 0, 0);
         card.addView(hexErrorText);
@@ -492,6 +493,7 @@ public final class AppearanceSettingsPanel {
 
         greetingError = Ui.text(activity, "", 13);
         greetingError.setTextColor(activity.getColor(R.color.danger));
+        greetingError.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         greetingError.setVisibility(View.GONE);
         greetingError.setPaddingRelative(0, Ui.dp(activity, 4), 0, 0);
         card.addView(greetingError);

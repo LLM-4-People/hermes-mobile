@@ -2204,14 +2204,14 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         PermissionCenter.recordCompletedPrompts(this, permissions, results);
         if (PermissionCenter.isManagedRequestCode(code)) {
             if (activePermissionsPanel != null) {
-                activePermissionsPanel.onPermissionResult(code, permissions, results);
+                activePermissionsPanel.onPermissionResult(code, results);
             } else {
                 refreshSettingsHubIfVisible();
             }
             return;
         }
         if (code == AmbientAccessPanel.REQUEST_READ_CALENDAR) {
-            if (activeAmbientPanel != null) activeAmbientPanel.onPermissionResult(code, permissions, results);
+            if (activeAmbientPanel != null) activeAmbientPanel.onPermissionResult(code, results);
             return;
         }
         if (code == REQUEST_PRESENCE_NOTIFICATIONS) {

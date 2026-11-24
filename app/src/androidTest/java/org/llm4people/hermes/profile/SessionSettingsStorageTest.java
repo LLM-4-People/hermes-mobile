@@ -137,7 +137,10 @@ public final class SessionSettingsStorageTest extends InstrumentationTestCase {
                 runTestOnUiThread(() -> tapChoice(vendor));
                 CheckedTextView alpha = awaitChoice("Alpha\n" + activity.getString(R.string.ws_badge_reasoning), 2);
                 runTestOnUiThread(() -> {
-                    assertEquals("Alpha", String.valueOf(alpha.getContentDescription()));
+                    assertNull(alpha.getContentDescription());
+                    assertEquals("Alpha", String.valueOf(alpha.getTag()));
+                    assertTrue(String.valueOf(alpha.getText()).contains("Alpha"));
+                    assertTrue(String.valueOf(alpha.getText()).contains(activity.getString(R.string.ws_badge_reasoning)));
                     tapChoice(alpha);
                     assertEquals("Alpha", SessionPanel.runOptions(owner, "thread").optString("model"));
                 });

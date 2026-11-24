@@ -29,6 +29,7 @@ public final class PermissionsPanel {
     private TextView feedback;
     private LinearLayout cardsContainer;
     private PermissionCenter.Key pendingFeedbackKey;
+    private boolean pendingFeedbackWasGranted;
 
     public PermissionsPanel(Activity activity) {
         this.activity = Objects.requireNonNull(activity, "activity");
@@ -152,6 +153,8 @@ public final class PermissionsPanel {
                 activity.getString(R.string.perm_action_open_settings),
                 v -> {
                     if (!PermissionCenter.openAppSettings(activity)) {
+                        pendingFeedbackKey = null;
+                        pendingFeedbackWasGranted = false;
                         showFeedback(activity.getString(R.string.perm_settings_unavailable), true);
                     }
                 });
@@ -180,7 +183,7 @@ public final class PermissionsPanel {
     public void refresh() {
         if (cardsContainer == null) return;
         Map<PermissionCenter.Key, PermissionCenter.State> states = PermissionCenter.snapshot(activity);
-        if (shouldClearStaleFeedback(pendingFeedbackKey, states)) {
+        if (shouldClearStaleFeedback(pendingFeedbackKey, pendingFeedbackWasGranted, states)) {
             clearFeedback();
         }
         PermissionCenter.Summary summary = PermissionCenter.summarizeStates(states);
@@ -196,16 +199,22 @@ public final class PermissionsPanel {
         }
     }
 
-    /** Pure decision helper for clearing stale denial/blocked feedback once the target permission is granted. */
+    /**
+     * Pure decision helper for clearing stale permission feedback when the target permission's
+     * granted status diverges from the feedback banner (denied/blocked -> granted, or granted -> revoked).
+     */
     static boolean shouldClearStaleFeedback(
             PermissionCenter.Key pendingKey,
+            boolean pendingWasGranted,
             Map<PermissionCenter.Key, PermissionCenter.State> states) {
-        return pendingKey != null && states != null
-                && states.get(pendingKey) == PermissionCenter.State.GRANTED;
+        if (pendingKey == null || states == null) return false;
+        PermissionCenter.State current = states.get(pendingKey);
+        if (current == null) return false;
+        return pendingWasGranted != (current == PermissionCenter.State.GRANTED);
     }
 
     /** Handle a completed runtime permission prompt initiated by {@link PermissionCenter}. */
-    public void onPermissionResult(int requestCode, String[] permissions, int[] results) {
+    public void onPermissionResult(int requestCode, int[] results) {
         PermissionCenter.Key key = PermissionCenter.fromRequestCode(requestCode);
         if (key == null) return;
         if (!PermissionCenter.recordCompletedPrompt(activity, key, results)) {
@@ -216,13 +225,16 @@ public final class PermissionsPanel {
         PermissionCenter.State updated = PermissionCenter.state(activity, key);
         String label = activity.getString(titleRes(key));
         if (granted || updated == PermissionCenter.State.GRANTED) {
-            pendingFeedbackKey = null;
+            pendingFeedbackKey = key;
+            pendingFeedbackWasGranted = true;
             showFeedback(activity.getString(R.string.perm_feedback_granted, label), false);
         } else if (updated == PermissionCenter.State.PERMANENTLY_DENIED) {
             pendingFeedbackKey = key;
+            pendingFeedbackWasGranted = false;
             showFeedback(activity.getString(R.string.perm_feedback_blocked, label), true);
         } else {
             pendingFeedbackKey = key;
+            pendingFeedbackWasGranted = false;
             showFeedback(activity.getString(R.string.perm_feedback_denied, label), true);
         }
         refresh();
@@ -248,6 +260,8 @@ public final class PermissionsPanel {
         if (state != PermissionCenter.State.GRANTED && state != PermissionCenter.State.UNAVAILABLE) {
             Button action = Ui.filledButton(activity, actionLabel(key, state), v -> {
                 if (!PermissionCenter.requestOrOpenSettings(activity, key)) {
+                    pendingFeedbackKey = null;
+                    pendingFeedbackWasGranted = false;
                     showFeedback(activity.getString(R.string.perm_settings_unavailable), true);
                 }
             });
@@ -287,6 +301,7 @@ public final class PermissionsPanel {
 
     private void clearFeedback() {
         pendingFeedbackKey = null;
+        pendingFeedbackWasGranted = false;
         if (feedback == null) return;
         feedback.setText("");
         feedback.setVisibility(View.GONE);
