@@ -250,4 +250,49 @@ public final class VoiceDuplexAndLocaleTest {
         assertEquals(DuplexVoiceSession.State.LISTENING, okSession.state());
         assertEquals("Synchronous TTS success must reopen mic exactly once", 2, okListens.size());
     }
+
+    @Test public void bargeInIsBlockedWhileServerRunIsInFlightAndReEnabledOnceSettled() {
+        FakeHost host = new FakeHost();
+        DuplexVoiceSession session = new DuplexVoiceSession(host);
+        session.start();
+        assertEquals(1, host.listens.size());
+
+        // Host enters busy/in-flight run state right when the utterance submits.
+        session.onTranscriptFinal(host.listens.get(0), "Prépare mon bilan.");
+        session.setBargeInAllowed(false);
+        assertEquals(DuplexVoiceSession.State.THINKING, session.state());
+        assertFalse("Barge-in must be blocked while server run is in-flight", session.canBargeIn());
+
+        // Explicit bargeIn() during THINKING must be a no-op while run is still pending.
+        session.bargeIn();
+        assertEquals(DuplexVoiceSession.State.THINKING, session.state());
+        assertEquals(0, host.stopSpeaks);
+        assertEquals(1, host.listens.size());
+
+        // Streaming TTS starts while run is still in-flight: barge-in and RMS trigger stay gated off.
+        session.onReplyDelta("Première phrase. Deuxième phrase. ");
+        assertEquals(DuplexVoiceSession.State.SPEAKING, session.state());
+        assertFalse(session.canBargeIn());
+        session.bargeIn();
+        assertFalse(session.onRmsDuringSpeech(DuplexVoiceSession.BARGE_IN_RMS_DB + 2f));
+        assertFalse(session.onRmsDuringSpeech(DuplexVoiceSession.BARGE_IN_RMS_DB + 2f));
+        assertEquals(DuplexVoiceSession.State.SPEAKING, session.state());
+        assertEquals(0, host.stopSpeaks);
+        assertEquals(1, host.listens.size());
+
+        // Once finishTracking() clears journal.pending() and host calls ui.busy(false, false):
+        session.setBargeInAllowed(true);
+        assertTrue("Barge-in must unlock once run receipt is settled", session.canBargeIn());
+        session.bargeIn();
+        assertEquals(DuplexVoiceSession.State.LISTENING, session.state());
+        assertEquals(1, host.stopSpeaks);
+        assertEquals(2, host.listens.size());
+
+        // Stopping & restarting duplex while host still holds a pending run preserves bargeInBlocked.
+        session.setBargeInAllowed(false);
+        session.stop();
+        session.start();
+        session.onTranscriptFinal(host.listens.get(host.listens.size() - 1), "Autre question.");
+        assertFalse(session.canBargeIn());
+    }
 }

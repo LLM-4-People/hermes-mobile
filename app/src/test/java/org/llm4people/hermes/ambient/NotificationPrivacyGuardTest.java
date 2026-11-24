@@ -136,6 +136,12 @@ public final class NotificationPrivacyGuardTest {
         // R10.2.3: sanitizeText strips format/bidi/Plane 14 tags, normalizes NBSP, and never splits surrogates.
         assertEquals("Bonjour monde", NotificationPrivacyGuard.sanitizeText("Bon\u202E\uDB40\uDC20jour\u00A0monde", 32));
         assertEquals("ab…", NotificationPrivacyGuard.sanitizeText("ab😀cd", 4));
+
+        // R19.2.1: Long invisible-only Hangul filler / variation selector payloads never fabricate "…" and stay BLOCK_EMPTY.
+        assertEquals("", NotificationPrivacyGuard.sanitizeText("\u3164".repeat(520), 500));
+        assertEquals("", NotificationPrivacyGuard.sanitizeText("\uFE0F".repeat(520), 500));
+        assertEquals(NotificationPrivacyGuard.Decision.BLOCK_EMPTY,
+                NotificationPrivacyGuard.evaluate(candidate(SIGNAL, "\u3164".repeat(200), "\uFE0F".repeat(520)), ALLOWLIST));
     }
 
     private static NotificationPrivacyGuard.Candidate candidate(String pkg, String title, String text) {

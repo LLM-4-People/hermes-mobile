@@ -88,17 +88,27 @@ public final class CapturedMedia {
     public static String sanitizeFilename(String raw, String fallback) {
         if (raw != null) {
             StringBuilder out = new StringBuilder(Math.min(raw.length(), 128));
+            boolean prevVisibleBase = false;
             for (int i = 0; i < raw.length(); ) {
                 int cp = raw.codePointAt(i);
                 int step = Character.charCount(cp);
                 i += step;
                 int type = Character.getType(cp);
                 if (cp == '/' || cp == '\\' || Character.isISOControl(cp)
-                        || type == Character.FORMAT || type == Character.SURROGATE || cp == 0x034F) {
+                        || type == Character.FORMAT || type == Character.SURROGATE
+                        || PlainTextSanitizer.isStrippableInvisible(cp)) {
+                    continue;
+                }
+                if (PlainTextSanitizer.isVariationSelector(cp)) {
+                    if (!prevVisibleBase) continue;
+                    if (out.length() + step > 128) break;
+                    out.appendCodePoint(cp);
+                    prevVisibleBase = false;
                     continue;
                 }
                 if (out.length() + step > 128) break;
                 out.appendCodePoint(cp);
+                prevVisibleBase = !Character.isWhitespace(cp) && !Character.isSpaceChar(cp);
             }
             String cleaned = out.toString().trim();
             if (!cleaned.isEmpty() && !".".equals(cleaned) && !"..".equals(cleaned)

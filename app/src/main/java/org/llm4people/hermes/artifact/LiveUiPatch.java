@@ -929,16 +929,7 @@ public final class LiveUiPatch {
     static boolean validText(String s, int max) {
         if (s == null || s.isEmpty() || s.length() > max) return false;
         if (PlainTextSanitizer.DetectionView.of(s).matches(FORBIDDEN_PAYLOAD, false, false)) return false;
-        for (int i = 0; i < s.length(); ) {
-            int cp = s.codePointAt(i);
-            int kind = Character.getType(cp);
-            if (Character.isISOControl(cp) || kind == Character.FORMAT || kind == Character.SURROGATE
-                    || kind == Character.LINE_SEPARATOR || kind == Character.PARAGRAPH_SEPARATOR
-                    || cp == 0x034F) {
-                return false;
-            }
-            i += Character.charCount(cp);
-        }
+        if (PlainTextSanitizer.hasUnsafeSingleLineCodePoint(s)) return false;
         return PlainTextSanitizer.hasVisibleText(s);
     }
 

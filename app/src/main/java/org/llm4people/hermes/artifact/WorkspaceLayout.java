@@ -12,6 +12,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.llm4people.hermes.PlainTextSanitizer;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.WorkspaceNavigation;
 import org.llm4people.hermes.panel.ReminderPanel;
@@ -297,13 +298,7 @@ final class WorkspaceLayout {
         String s = in.nextString();
         require(!s.isEmpty() && s.length() <= max);
         require(!Character.isSpaceChar(s.codePointAt(0)) && !Character.isSpaceChar(s.codePointBefore(s.length())));
-        for (int i = 0; i < s.length(); ) {
-            int cp = s.codePointAt(i);
-            int kind = Character.getType(cp);
-            require(!Character.isISOControl(cp) && kind != Character.FORMAT && kind != Character.SURROGATE
-                    && kind != Character.LINE_SEPARATOR && kind != Character.PARAGRAPH_SEPARATOR);
-            i += Character.charCount(cp);
-        }
+        require(!PlainTextSanitizer.hasUnsafeSingleLineCodePoint(s));
         return s;
     }
 

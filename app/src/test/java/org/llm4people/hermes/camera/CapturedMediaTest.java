@@ -66,6 +66,12 @@ public final class CapturedMediaTest {
         assertEquals("Document", CapturedMedia.sanitizeFilename("\u115F\u3164", "Document"));
         assertEquals("Document", CapturedMedia.sanitizeFilename("\uD83D", "Document"));
         assertEquals("photo.jpg", CapturedMedia.sanitizeFilename("photo\u034F\uD83D\uDB40\uDC20.jpg", "Document"));
+        assertEquals("photo.jpg", CapturedMedia.sanitizeFilename("\u3164".repeat(140) + "photo.jpg", "Document"));
+        assertEquals("photo.jpg", CapturedMedia.sanitizeFilename("\u180Fphoto\u115F.jpg", "Document"));
+        assertEquals("photo.jpg", CapturedMedia.sanitizeFilename("\uFE0F".repeat(140) + "photo.jpg", "Document"));
+        assertEquals("☕\uFE0F.png", CapturedMedia.sanitizeFilename("☕\uFE0F\uFE0F.png", "Document"));
+        assertEquals("Document", CapturedMedia.sanitizeFilename("\u3164".repeat(140), "Document"));
+        assertEquals("Document", CapturedMedia.sanitizeFilename("\uFE0F".repeat(140), "Document"));
         // Surrogate pair straddling index 128 must never leave an unpaired high surrogate.
         String splitBoundary = CapturedMedia.sanitizeFilename("a".repeat(127) + "\uD83D\uDE00", "Document");
         assertEquals("a".repeat(127), splitBoundary);

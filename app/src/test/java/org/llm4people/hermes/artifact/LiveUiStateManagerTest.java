@@ -289,6 +289,9 @@ public final class LiveUiStateManagerTest {
         assertFalse(LiveUiPatch.validText("", 64));
         assertFalse(LiveUiPatch.validText("\u034F", 64));
         assertFalse(LiveUiPatch.validText("Titre\u034Fvalide", 64));
+        assertFalse(LiveUiPatch.validText("Titre\u3164valide", 64));
+        assertFalse(LiveUiPatch.validText("Titre\u115Fvalide", 64));
+        assertFalse(LiveUiPatch.validText("Titre\u180Fvalide", 64));
         assertFalse(LiveUiPatch.validText("\uFE0F", 64));
         assertFalse(LiveUiPatch.validText("\u180F", 64));
         assertFalse(LiveUiPatch.validText("\u115F\u3164", 64));

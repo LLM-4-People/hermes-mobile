@@ -297,15 +297,8 @@ public final class DeliveryItem {
     }
 
     private static void rejectUnsafeCodePoints(String value, String message) {
-        for (int i = 0; i < value.length(); ) {
-            int cp = value.codePointAt(i);
-            int type = Character.getType(cp);
-            if (Character.isISOControl(cp) || type == Character.FORMAT || type == Character.SURROGATE
-                    || type == Character.LINE_SEPARATOR || type == Character.PARAGRAPH_SEPARATOR
-                    || cp == 0x034F) {
-                throw new IllegalArgumentException(message);
-            }
-            i += Character.charCount(cp);
+        if (PlainTextSanitizer.hasUnsafeSingleLineCodePoint(value)) {
+            throw new IllegalArgumentException(message);
         }
     }
 
