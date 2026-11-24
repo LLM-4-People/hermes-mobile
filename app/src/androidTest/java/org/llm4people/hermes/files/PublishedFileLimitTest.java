@@ -39,11 +39,31 @@ public final class PublishedFileLimitTest extends AndroidTestCase {
             // ok
         }
 
-        // Above-ceiling server advertisement is clamped to HARD_ARTIFACT_MAX_BYTES (64 MB).
+        // Above-ceiling server advertisement is clamped by HermesConfig.resolveArtifactLimit to HARD_ARTIFACT_MAX_BYTES (64 MB).
+        long resolvedHard = HermesConfig.defaults().resolveArtifactLimit(HermesConfig.HARD_ARTIFACT_MAX_BYTES * 2);
+        assertEquals(HermesConfig.HARD_ARTIFACT_MAX_BYTES, resolvedHard);
         try {
-            new PublishedFile("/api/mobile/files/s1", row(HermesConfig.HARD_ARTIFACT_MAX_BYTES + 1),
-                    HermesConfig.HARD_ARTIFACT_MAX_BYTES * 2);
+            new PublishedFile("/api/mobile/files/s1", row(HermesConfig.HARD_ARTIFACT_MAX_BYTES + 1), resolvedHard);
             fail("Expected hard 64 MB ceiling to reject oversized file");
+        } catch (IOException expected) {
+            // ok
+        }
+
+        // Caller-resolved raised limit (> 64 MB from custom HermesConfig) is honored without re-clamping.
+        long raisedLimit = 80L * 1024 * 1024;
+        PublishedFile largeAccepted = new PublishedFile("/api/mobile/files/s1", row(70L * 1024 * 1024), raisedLimit);
+        assertEquals(70L * 1024 * 1024, largeAccepted.size);
+        try {
+            new PublishedFile("/api/mobile/files/s1", row(raisedLimit + 1), raisedLimit);
+            fail("Expected raised 80 MB bound to reject 80 MB + 1 file");
+        } catch (IOException expected) {
+            // ok
+        }
+
+        // Non-positive caller bound falls back to default 16 MB limit.
+        try {
+            new PublishedFile("/api/mobile/files/s1", row(20L * 1024 * 1024), 0L);
+            fail("Expected non-positive bound to fall back to default 16 MB limit");
         } catch (IOException expected) {
             // ok
         }

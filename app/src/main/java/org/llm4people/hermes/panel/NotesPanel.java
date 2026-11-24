@@ -259,6 +259,7 @@ final class NotesPanel {
 
     private View noteCard(NotesModel.Note note) {
         LinearLayout card = Ui.card(panel.activity);
+        card.setMinimumHeight(Ui.dp(panel.activity, 48));
         card.setBackground(Ui.roundedRipple(panel.activity, Ui.CARD_CORNER_DP,
                 Ui.shape(panel.activity, Ui.CARD_CORNER_DP, R.color.surface, R.color.line, 1)));
         card.setFocusable(true);

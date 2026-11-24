@@ -17,6 +17,7 @@ import android.widget.ScrollView;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import org.json.JSONObject;
+import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.nearby.NearbyFix;
@@ -50,6 +51,7 @@ final class NearbyConsent {
     private void refreshPreference() {
         try { remembered = owner().equals(account.read(PREF)); }
         catch (RuntimeException unavailable) {
+            Diagnostics.warning("nearby", "preference_read_failed", unavailable);
             remembered = false;
             failure = page.activity.getString(R.string.nearby_setting_unavailable);
         }
@@ -129,6 +131,7 @@ final class NearbyConsent {
     private boolean saveChoice(String mode, String area) {
         try { page.journal.nearbyDraft(mode, area); return true; }
         catch (RuntimeException unavailable) {
+            Diagnostics.warning("nearby", "choice_save_failed", unavailable);
             failure = page.activity.getString(R.string.nearby_save_choice_failed);
             refresh();
             return false;
@@ -259,6 +262,7 @@ final class NearbyConsent {
             remembered = enable;
             return true;
         } catch (RuntimeException unavailable) {
+            Diagnostics.warning("nearby", "preference_save_failed", unavailable);
             failure = page.activity.getString(R.string.nearby_save_profile_failed);
             refresh();
             return false;
@@ -278,6 +282,9 @@ final class NearbyConsent {
     private void manual() {
         long ticket = generation;
         EditText input = new EditText(page.activity);
+        int touchMin = Ui.dp(page.activity, 48);
+        input.setMinHeight(touchMin);
+        input.setMinimumHeight(touchMin);
         input.setSingleLine();
         input.setSaveEnabled(false);
         input.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS);
@@ -359,7 +366,10 @@ final class NearbyConsent {
                 permissionTicket = nextPermission();
                 onGrant = start;
                 page.activity.requestPermissions(new String[]{PERMISSION}, permissionTicket);
-            } catch (RuntimeException unavailable) { clearFailure(); }
+            } catch (RuntimeException unavailable) {
+                Diagnostics.warning("nearby", "permission_request_failed", unavailable);
+                clearFailure();
+            }
         } else clearFailure();
     }
 

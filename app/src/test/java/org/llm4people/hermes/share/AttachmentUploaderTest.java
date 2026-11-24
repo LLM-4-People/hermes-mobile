@@ -64,4 +64,16 @@ public final class AttachmentUploaderTest {
             // ok
         }
     }
+
+    @Test
+    public void honorsCallerResolvedRaisedArtifactLimitsAndDefaultsNonPositive() {
+        long twentyFourMb = 24L * 1024 * 1024;
+        long eightyMb = 80L * 1024 * 1024;
+        assertEquals(twentyFourMb, AttachmentUploader.effectiveLimit(twentyFourMb));
+        assertEquals(eightyMb, AttachmentUploader.effectiveLimit(eightyMb));
+        assertEquals(org.llm4people.hermes.HermesConfig.DEFAULT_ARTIFACT_MAX_BYTES,
+                AttachmentUploader.effectiveLimit(0L));
+        assertEquals(org.llm4people.hermes.HermesConfig.DEFAULT_ARTIFACT_MAX_BYTES,
+                AttachmentUploader.effectiveLimit(-5L));
+    }
 }

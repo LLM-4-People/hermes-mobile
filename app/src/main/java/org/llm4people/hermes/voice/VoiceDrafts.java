@@ -162,7 +162,11 @@ public final class VoiceDrafts {
                 else cancel();
             } else {
                 try { begin(this, input.preferred(), null, -1); }
-                catch (RuntimeException unavailable) { cancel(); report(R.string.voice_unavailable, 0, null); }
+                catch (RuntimeException unavailable) {
+                    Diagnostics.warning("voice", "dictation_begin_failed", unavailable);
+                    cancel();
+                    report(R.string.voice_unavailable, 0, null);
+                }
             }
         }
 
@@ -398,7 +402,10 @@ public final class VoiceDrafts {
                 model.check(recovery::update);
                 return;
             }
-        } catch (RuntimeException unavailable) { cancel(); }
+        } catch (RuntimeException unavailable) {
+            Diagnostics.warning("voice", "model_recovery_failed", unavailable);
+            cancel();
+        }
         languageFallback(target);
     }
 
@@ -591,7 +598,10 @@ public final class VoiceDrafts {
             if (recovery != this || paused || !target.visible()) return;
             update(VoiceModel.State.REQUESTED);
             try { model.download(this::update); }
-            catch (RuntimeException unavailable) { update(VoiceModel.State.FAILED); }
+            catch (RuntimeException unavailable) {
+                Diagnostics.warning("voice", "model_download_failed", unavailable);
+                update(VoiceModel.State.FAILED);
+            }
         }
     }
 
@@ -633,6 +643,7 @@ public final class VoiceDrafts {
                 target.report(R.string.voice_permission_wait, R.string.voice_cancel_short, target::cancel);
                 input.requestPermission(permissionCode);
             } catch (RuntimeException unavailable) {
+                Diagnostics.warning("voice", "permission_request_failed", unavailable);
                 finishPermissionDenied();
                 if (duplex != null) duplex.session.onListenError(duplexGen, false);
             }
@@ -648,9 +659,11 @@ public final class VoiceDrafts {
                 recording = input.open(source, this);
                 recording.start();
             } catch (SecurityException denied) {
+                Diagnostics.warning("voice", "recording_permission_denied", denied);
                 finishPermissionDenied();
                 if (duplex != null) duplex.session.onListenError(duplexGen, false);
             } catch (RuntimeException unavailable) {
+                Diagnostics.warning("voice", "recording_start_failed", unavailable);
                 finish(R.string.voice_unavailable);
                 if (duplex != null) duplex.session.onListenError(duplexGen, false);
             }
@@ -660,7 +673,10 @@ public final class VoiceDrafts {
             if (active != this || recording == null) return;
             ended();
             try { recording.stop(); }
-            catch (RuntimeException unavailable) { finish(R.string.voice_failed); }
+            catch (RuntimeException unavailable) {
+                Diagnostics.warning("voice", "recording_stop_failed", unavailable);
+                finish(R.string.voice_failed);
+            }
         }
 
         @Override public void ready() {

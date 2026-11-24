@@ -87,6 +87,11 @@ public final class CapturedMedia {
         return fallback;
     }
 
+    /** Honors the caller's pre-resolved positive artifact byte ceiling, defaulting only when {@code <= 0}. */
+    static long effectiveByteLimit(long requestedBytes) {
+        return requestedBytes > 0 ? requestedBytes : HermesConfig.defaults().artifactDefaultMaxBytes;
+    }
+
     public static Item readFromUri(ContentResolver resolver, Uri uri, String declaredMime, long maxDocumentBytes)
             throws IOException {
         if (uri == null || !ContentResolver.SCHEME_CONTENT.equals(uri.getScheme())) {
@@ -100,19 +105,24 @@ public final class CapturedMedia {
             throw new IOException("Unsupported media type");
         }
         String normalized = resolvedMime.trim().toLowerCase(Locale.ROOT);
-        long limit = HermesConfig.defaults().resolveArtifactLimit(maxDocumentBytes);
-        byte[] raw = readBounded(resolver, uri, normalized.startsWith("image/")
-                ? Math.min(limit, HermesConfig.DEFAULT_ARTIFACT_MAX_BYTES) : limit);
+        long limit = effectiveByteLimit(maxDocumentBytes);
+        byte[] raw = readBounded(resolver, uri, limit);
         String name = queryName(resolver, uri, normalized.startsWith("image/") ? "Photo.jpg" : "Document");
         if (normalized.startsWith("image/")) {
-            return stripImageExif(raw, name);
+            return stripImageExif(raw, name, limit);
         }
         return new Item(Kind.DOCUMENT, name, normalized, raw, sha256Hex(raw), null);
     }
 
     /** Re-encode a still image into fresh sRGB opaque pixels, discarding all EXIF, GPS, and ICC tags. */
     public static Item stripImageExif(byte[] source, String name) throws IOException {
-        if (source == null || source.length == 0 || source.length > HermesConfig.DEFAULT_ARTIFACT_MAX_BYTES) {
+        return stripImageExif(source, name, HermesConfig.defaults().artifactDefaultMaxBytes);
+    }
+
+    /** Re-encode a still image into fresh sRGB opaque pixels, honoring a caller-resolved byte ceiling. */
+    public static Item stripImageExif(byte[] source, String name, long maxBytes) throws IOException {
+        long limit = effectiveByteLimit(maxBytes);
+        if (source == null || source.length == 0 || source.length > limit) {
             throw new IOException("Unsupported image size");
         }
         Bitmap image = ImageDecoder.decodeBitmap(ImageDecoder.createSource(ByteBuffer.wrap(source)), (decoder, details, src) -> {

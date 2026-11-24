@@ -242,21 +242,41 @@ public final class AppCustomization {
 
     /**
      * Transitions an existing {@link ThemePalette.OverrideSpec} to {@code safeMode} ({@code system|light|dark}),
-     * adapting any active accent color for the target surface polarity so contrast always passes WCAG AA.
+     * adapting any active accent color for the target surface polarity so contrast always passes WCAG AA,
+     * clearing incompatible {@code accentInkHex} after accent adaptation, and dropping incompatible {@code inkHex}
+     * against the target polarity's default surface when no custom surface is active.
      */
     public ThemePalette.OverrideSpec adaptOverrideForThemeMode(
             ThemePalette.OverrideSpec current, String safeMode, boolean systemNight) throws IOException {
         ThemePalette.OverrideSpec base = current == null ? ThemePalette.OverrideSpec.defaults() : current;
         boolean targetNight = "dark".equals(safeMode) || ("system".equals(safeMode) && systemNight);
         String adaptedAccent = base.accentHex;
-        if (adaptedAccent != null && base.surfaceHex == null && base.accentInkHex == null) {
-            int candidate = (palette != PalettePreset.FOREST || customAccentHex != null)
-                    ? (targetNight ? darkAccentArgb() : lightAccentArgb())
-                    : ThemePalette.parseHexColor(adaptedAccent);
-            adaptedAccent = ThemePalette.formatHex(ThemePalette.adaptAccentForMode(candidate, targetNight));
+        String adaptedAccentInk = base.accentInkHex;
+        String adaptedInk = base.inkHex;
+        if (base.surfaceHex == null) {
+            if (adaptedAccent != null) {
+                int candidate = (palette != PalettePreset.FOREST || customAccentHex != null)
+                        ? (targetNight ? darkAccentArgb() : lightAccentArgb())
+                        : ThemePalette.parseHexColor(adaptedAccent);
+                int adaptedArgb = ThemePalette.adaptAccentForMode(candidate, targetNight);
+                adaptedAccent = ThemePalette.formatHex(adaptedArgb);
+                if (adaptedAccentInk != null) {
+                    int accentInkArgb = ThemePalette.parseHexColor(adaptedAccentInk);
+                    if (ThemePalette.contrastRatio(accentInkArgb, adaptedArgb) < ThemePalette.WCAG_AA_NORMAL) {
+                        adaptedAccentInk = null;
+                    }
+                }
+            }
+            if (adaptedInk != null) {
+                int targetSurface = targetNight ? ThemePalette.NIGHT_SURFACE : ThemePalette.DAY_SURFACE;
+                int inkArgb = ThemePalette.parseHexColor(adaptedInk);
+                if (ThemePalette.contrastRatio(inkArgb, targetSurface) < ThemePalette.WCAG_AA_NORMAL) {
+                    adaptedInk = null;
+                }
+            }
         }
         return ThemePalette.OverrideSpec.validated(
-                safeMode, adaptedAccent, base.accentInkHex, base.surfaceHex, base.inkHex,
+                safeMode, adaptedAccent, adaptedAccentInk, base.surfaceHex, adaptedInk,
                 base.density, base.fontScaleStep, base.surfaceStyle, systemNight);
     }
 
@@ -303,21 +323,12 @@ public final class AppCustomization {
         return contrastRatio(fgRgb, bgRgb) >= WCAG_AA_MIN_CONTRAST;
     }
 
-    /** Lifts a dark-friendly custom accent toward white until it clears WCAG AA (&gt;= 4.5:1) on dark surface. */
+    /**
+     * Lifts a dark-friendly custom accent until it clears WCAG AA (&gt;= 4.5:1) against BOTH
+     * dark paper/surface AND its own foreground label ({@link #onAccentArgb(int)}).
+     */
     public static int liftForDarkSurface(int rgb) {
-        if (meetsWcagAa(rgb, DARK_SURFACE_RGB)) return rgb;
-        int r = (rgb >> 16) & 0xFF;
-        int g = (rgb >> 8) & 0xFF;
-        int b = rgb & 0xFF;
-        for (int step = 1; step <= 20; step++) {
-            double t = step / 20.0;
-            int nr = (int) Math.round(r + (255 - r) * t);
-            int ng = (int) Math.round(g + (255 - g) * t);
-            int nb = (int) Math.round(b + (255 - b) * t);
-            int candidate = (nr << 16) | (ng << 8) | nb;
-            if (meetsWcagAa(candidate, DARK_SURFACE_RGB)) return candidate;
-        }
-        return WHITE_RGB;
+        return ThemePalette.adaptAccentForMode(0xFF000000 | (rgb & 0xFFFFFF), true) & 0xFFFFFF;
     }
 
     public static String sanitizePlainText(String raw, int maxChars) {

@@ -179,7 +179,7 @@ public final class ThemePaletteTest {
         assertTrue(ThemePalette.contrastRatio(inkNight.ink, inkNight.surface) >= ThemePalette.WCAG_AA_NORMAL);
     }
 
-    @Test public void singleColorOverrideStillRejectsUnreadableAndExplicitModeMismatch() {
+    @Test public void singleColorOverrideStillRejectsUnreadableAndExplicitModeMismatch() throws Exception {
         for (boolean night : new boolean[]{false, true}) {
             // Neither day nor night ink reaches 4.5:1 on mid grey, and grey ink fails on both surfaces.
             assertContrastRejected(() -> ThemePalette.OverrideSpec.validated(
@@ -187,9 +187,84 @@ public final class ThemePaletteTest {
             assertContrastRejected(() -> ThemePalette.OverrideSpec.validated(
                     "system", null, null, null, "#808080", "comfortable", 0, "paper", night));
         }
-        // An explicit light theme stays strict: its day ink is unreadable on a dark surface.
+        // Surface-only override uses bestInk(effSurface) in both explicit and system modes, matching resolve().
+        ThemePalette.OverrideSpec darkSurfaceInLight = ThemePalette.OverrideSpec.validated(
+                "light", null, null, "#1C2823", null, "comfortable", 0, "paper", false);
+        ThemePalette resolvedDarkSurface = ThemePalette.resolve(darkSurfaceInLight, false);
+        assertEquals(ThemePalette.NIGHT_INK, resolvedDarkSurface.ink);
+        assertTrue(ThemePalette.contrastRatio(resolvedDarkSurface.ink, resolvedDarkSurface.surface) >= ThemePalette.WCAG_AA_NORMAL);
+
+        // Explicit mode mismatch on ink-only or explicit surface+ink pair is strictly rejected.
         assertContrastRejected(() -> ThemePalette.OverrideSpec.validated(
-                "light", null, null, "#1C2823", null, "comfortable", 0, "paper", true));
+                "light", null, null, null, "#F2F1E8", "comfortable", 0, "paper", false));
+        assertContrastRejected(() -> ThemePalette.OverrideSpec.validated(
+                "light", null, null, "#1C2823", "#14231E", "comfortable", 0, "paper", false));
+        assertContrastRejected(() -> ThemePalette.OverrideSpec.validated(
+                "light", null, null, "#777777", null, "comfortable", 0, "paper", false));
+    }
+
+    @Test public void liftForDarkSurfaceClearsWcagAaAgainstBothDarkSurfaceAndOnAccent() {
+        for (String hex : new String[]{"#0000AA", "#0011EE", "#1B5E50", "#000000", "#8E3B2E"}) {
+            int rgb = org.llm4people.hermes.customization.AppCustomization.parseRgb(hex);
+            int liftedRgb = org.llm4people.hermes.customization.AppCustomization.liftForDarkSurface(rgb);
+            int liftedArgb = 0xFF000000 | liftedRgb;
+            int onAccent = org.llm4people.hermes.customization.AppCustomization.onAccentArgb(liftedArgb);
+            assertTrue("Dark surface contrast failed for " + hex,
+                    ThemePalette.contrastRatio(liftedArgb, ThemePalette.NIGHT_SURFACE) >= ThemePalette.WCAG_AA_NORMAL);
+            assertTrue("Dark paper contrast failed for " + hex,
+                    ThemePalette.contrastRatio(liftedArgb, ThemePalette.NIGHT_PAPER) >= ThemePalette.WCAG_AA_NORMAL);
+            assertTrue("On-accent contrast failed for " + hex,
+                    ThemePalette.contrastRatio(onAccent, liftedArgb) >= ThemePalette.WCAG_AA_NORMAL);
+        }
+    }
+
+    @Test public void adaptOverrideForThemeModeHandlesAccentInkSurfaceOnlyAndInkOnlyCases() throws Exception {
+        org.llm4people.hermes.customization.AppCustomization defaults =
+                org.llm4people.hermes.customization.AppCustomization.defaults();
+
+        // Case A (negative/invalidation): light accent + white accentInk switching to dark adapts accent
+        // and clears incompatible white accentInk instead of throwing ContrastException.
+        ThemePalette.OverrideSpec lightWithAccentInk = ThemePalette.OverrideSpec.validated(
+                "light", "#1B4D89", "#FFFFFF", null, null, "comfortable", 0, "paper", false);
+        ThemePalette.OverrideSpec adaptedDarkA = defaults.adaptOverrideForThemeMode(lightWithAccentInk, "dark", true);
+        assertEquals("dark", adaptedDarkA.theme);
+        assertNotNull(adaptedDarkA.accentHex);
+        assertNull("Incompatible white accentInk must be cleared after lifting accent for dark", adaptedDarkA.accentInkHex);
+        ThemePalette resolvedA = ThemePalette.resolve(adaptedDarkA, true);
+        assertTrue(ThemePalette.contrastRatio(resolvedA.accent, resolvedA.surface) >= ThemePalette.WCAG_AA_NORMAL);
+        assertTrue(ThemePalette.contrastRatio(resolvedA.onAccent, resolvedA.accent) >= ThemePalette.WCAG_AA_NORMAL);
+
+        // Case A (positive/preservation): compatible accentInk stays preserved when mode keeps same polarity.
+        ThemePalette.OverrideSpec stayedLightA = defaults.adaptOverrideForThemeMode(lightWithAccentInk, "light", false);
+        assertEquals("#FFFFFF", stayedLightA.accentInkHex);
+
+        // Case B: surfaceHex-only override survives transitions to both light and dark modes.
+        ThemePalette.OverrideSpec darkSurfaceOnly = ThemePalette.OverrideSpec.validated(
+                "system", null, null, "#1C2823", null, "comfortable", 0, "paper", true);
+        ThemePalette.OverrideSpec surfaceInLight = defaults.adaptOverrideForThemeMode(darkSurfaceOnly, "light", false);
+        assertEquals("light", surfaceInLight.theme);
+        assertEquals("#1C2823", surfaceInLight.surfaceHex);
+        assertNull(surfaceInLight.inkHex);
+        assertEquals(ThemePalette.NIGHT_INK, ThemePalette.resolve(surfaceInLight, false).ink);
+
+        // Case C (negative/drop): light-mode dark ink drops when switching to dark; dark-mode light ink drops when switching to light.
+        ThemePalette.OverrideSpec lightInkOnly = ThemePalette.OverrideSpec.validated(
+                "light", null, null, null, "#1A1917", "comfortable", 0, "paper", false);
+        ThemePalette.OverrideSpec droppedDarkInk = defaults.adaptOverrideForThemeMode(lightInkOnly, "dark", true);
+        assertEquals("dark", droppedDarkInk.theme);
+        assertNull("Dark ink failing WCAG AA on night surface must be dropped", droppedDarkInk.inkHex);
+        assertTrue(ThemePalette.contrastRatio(
+                ThemePalette.resolve(droppedDarkInk, true).ink, ThemePalette.NIGHT_SURFACE) >= ThemePalette.WCAG_AA_NORMAL);
+
+        ThemePalette.OverrideSpec darkInkOnly = ThemePalette.OverrideSpec.validated(
+                "dark", null, null, null, "#F2F1E8", "comfortable", 0, "paper", true);
+        ThemePalette.OverrideSpec droppedLightInk = defaults.adaptOverrideForThemeMode(darkInkOnly, "light", false);
+        assertEquals("light", droppedLightInk.theme);
+        assertNull("Light ink failing WCAG AA on day surface must be dropped", droppedLightInk.inkHex);
+
+        // Case C (positive/preserve): inkHex that passes WCAG AA on target polarity stays intact.
+        ThemePalette.OverrideSpec preservedLightInk = defaults.adaptOverrideForThemeMode(lightInkOnly, "light", false);
+        assertEquals("#1A1917", preservedLightInk.inkHex);
     }
 
     private static void assertContrastRejected(Action action) {

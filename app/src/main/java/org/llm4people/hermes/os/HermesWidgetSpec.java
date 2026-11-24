@@ -176,9 +176,8 @@ public final class HermesWidgetSpec {
 
     public String formattedItemLine(Item item) {
         if (item == null) return "";
-        String prefix = template == Template.QUICK_ACTIONS ? "› " : "";
-        if (item.value() == null || item.value().isEmpty()) return prefix + item.label();
-        return prefix + item.label() + " · " + item.value();
+        if (item.value() == null || item.value().isEmpty()) return item.label();
+        return item.label() + " · " + item.value();
     }
 
     /** Pure Java lossless persistence codec usable identically on Android and host JVM tests. */

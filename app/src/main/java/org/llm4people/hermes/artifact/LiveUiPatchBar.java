@@ -207,11 +207,17 @@ public final class LiveUiPatchBar extends LinearLayout {
         Context c = parent.getContext();
         ThemePalette preview = ThemePalette.resolve(spec, ThemePalette.isNight(c));
         LinearLayout row = Ui.row(c);
-        Ui.pad(row, 0, 6);
+        GradientDrawable container = new GradientDrawable();
+        container.setCornerRadius(Ui.dp(c, Ui.BUTTON_CORNER_DP));
+        container.setColor(preview.surface);
+        container.setStroke(Math.max(1, Ui.dp(c, 1)), preview.line);
+        row.setBackground(container);
+        Ui.pad(row, 12, 10);
         View swatch = new View(c);
         GradientDrawable chip = new GradientDrawable();
         chip.setCornerRadius(Ui.dp(c, 6));
         chip.setColor(preview.accent);
+        chip.setStroke(Math.max(1, Ui.dp(c, 1)), preview.line);
         swatch.setBackground(chip);
         row.addView(swatch, new LinearLayout.LayoutParams(Ui.dp(c, 28), Ui.dp(c, 28)));
         double contrast = ThemePalette.contrastRatio(preview.accent, preview.paper);
@@ -221,7 +227,10 @@ public final class LiveUiPatchBar extends LinearLayout {
         info.setTextColor(preview.muted);
         info.setPaddingRelative(Ui.dp(c, 10), 0, 0, 0);
         row.addView(info);
-        parent.addView(row);
+        LinearLayout.LayoutParams rowLp = new LinearLayout.LayoutParams(-1, -2);
+        rowLp.topMargin = Ui.dp(c, 4);
+        rowLp.bottomMargin = Ui.dp(c, 4);
+        parent.addView(row, rowLp);
     }
 
     private Button actionButton(String label, String tag, OnClickListener click) {

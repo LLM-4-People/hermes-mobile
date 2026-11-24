@@ -657,7 +657,8 @@ public final class InteractiveCardView extends LinearLayout {
     private void renderCustomizationPreview(Context context) {
         AppCustomization proposed = spec.proposedCustomization;
         boolean night = org.llm4people.hermes.artifact.ThemePalette.isNight(context);
-        int accentArgb = night ? proposed.darkAccentArgb() : proposed.lightAccentArgb();
+        int rawAccent = night ? proposed.darkAccentArgb() : proposed.lightAccentArgb();
+        int accentArgb = org.llm4people.hermes.artifact.ThemePalette.adaptAccentForMode(rawAccent, night);
         int onAccentArgb = AppCustomization.onAccentArgb(accentArgb);
 
         LinearLayout preview = Ui.row(context);

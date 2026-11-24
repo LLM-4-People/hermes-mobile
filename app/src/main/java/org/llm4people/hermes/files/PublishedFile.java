@@ -17,8 +17,12 @@ final class PublishedFile {
         this(threadPath, row, HermesConfig.defaults().artifactDefaultMaxBytes);
     }
 
+    static long effectiveBound(long maxBytes) {
+        return maxBytes > 0 ? maxBytes : HermesConfig.defaults().artifactDefaultMaxBytes;
+    }
+
     PublishedFile(String threadPath, JSONObject row, long maxBytes) throws JSONException, IOException {
-        long bound = HermesConfig.defaults().resolveArtifactLimit(maxBytes);
+        long bound = effectiveBound(maxBytes);
         String id = row.getString("id");
         name = row.getString("name");
         mime = row.getString("mime");

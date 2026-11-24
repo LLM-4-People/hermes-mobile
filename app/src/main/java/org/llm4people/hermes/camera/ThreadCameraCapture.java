@@ -3,6 +3,7 @@ package org.llm4people.hermes.camera;
 import android.app.Activity;
 import android.content.ActivityNotFoundException;
 import android.content.ClipData;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
@@ -142,21 +143,40 @@ public final class ThreadCameraCapture {
 
     Uri pendingSlot() { return pendingSlot; }
 
-    /** Consume and EXIF-strip the captured photo only if the unlocked profile and thread still match. */
-    public CapturedMedia.Item consumeIfReady(Account account, String sessionId) throws IOException {
+    /**
+     * Synchronously claims the ready private capture slot on the UI thread when owned by
+     * {@code account}/{@code sessionId}. Clears and deletes the slot on owner/thread mismatch;
+     * atomically clears instance fields on match so the caller owns reading and deleting the slot.
+     */
+    public Uri claimReadySlot(Account account, String sessionId) {
         if (!readyToImport || pendingSlot == null || account == null || sessionId == null) return null;
         if (!owns(account, sessionId)) {
             clear();
             return null;
         }
         Uri slot = pendingSlot;
+        pendingSlot = null;
+        nonce = ownerProof = threadProof = null;
+        readyToImport = false;
+        return slot;
+    }
+
+    /** Worker-safe reader that EXIF-strips a previously claimed private slot and always deletes it. */
+    public static CapturedMedia.Item readAndDeleteSlot(Context context, Uri slot) throws IOException {
+        if (context == null || slot == null) return null;
         try {
-            return CapturedMedia.readFromUri(activity.getContentResolver(), slot, "image/jpeg",
-                    HermesConfig.load(activity).artifactDefaultMaxBytes);
+            return CapturedMedia.readFromUri(context.getContentResolver(), slot, "image/jpeg",
+                    HermesConfig.load(context).artifactDefaultMaxBytes);
         } finally {
-            PrivateCaptureProvider.deleteSlot(activity, slot);
-            clear();
+            PrivateCaptureProvider.deleteSlot(context, slot);
         }
+    }
+
+    /** Consume and EXIF-strip the captured photo only if the unlocked profile and thread still match. */
+    public CapturedMedia.Item consumeIfReady(Account account, String sessionId) throws IOException {
+        Uri slot = claimReadySlot(account, sessionId);
+        if (slot == null) return null;
+        return readAndDeleteSlot(activity, slot);
     }
 
     boolean owns(Account account, String sessionId) {

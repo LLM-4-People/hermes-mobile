@@ -63,11 +63,15 @@ public final class AttachmentUploader {
         return out.toByteArray();
     }
 
+    static long effectiveLimit(long maxArtifactBytes) {
+        return maxArtifactBytes > 0 ? maxArtifactBytes : HermesConfig.defaults().artifactDefaultMaxBytes;
+    }
+
     public static UploadReceipt upload(
             MultipartTransport transport, String sessionId, CapturedMedia.Item item, long maxArtifactBytes)
             throws IOException {
         if (transport == null || item == null) throw new IllegalArgumentException("Missing upload inputs");
-        long bound = HermesConfig.defaults().resolveArtifactLimit(maxArtifactBytes);
+        long bound = effectiveLimit(maxArtifactBytes);
         if (item.size() <= 0 || item.size() > bound) {
             Diagnostics.warning("share", "upload_exceeds_limit");
             throw new IOException("Attachment exceeds configured size limit");

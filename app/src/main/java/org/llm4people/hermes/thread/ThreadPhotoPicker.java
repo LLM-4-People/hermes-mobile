@@ -10,6 +10,7 @@ import java.util.UUID;
 import android.provider.MediaStore;
 import android.widget.Toast;
 
+import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.profile.Account;
 
@@ -59,6 +60,7 @@ public final class ThreadPhotoPicker {
             activity.startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT)
                     .addCategory(Intent.CATEGORY_OPENABLE).setType("image/*"), requestCode);
         } catch (ActivityNotFoundException | SecurityException unavailable) {
+            Diagnostics.warning("photo_picker", "picker_unavailable", unavailable);
             clear();
             Toast.makeText(activity, R.string.thread_photo_picker_unavailable, Toast.LENGTH_LONG).show();
         }
