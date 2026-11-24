@@ -79,7 +79,7 @@ final class ReminderPanel {
         page.addView(jobsSection, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
 
-        page.addView(Ui.divider(panel.activity), cardMargins());
+        addDivider(page, 10, 4);
         panel.note(page, panel.t(MobilePush.isEnabled(panel.activity, panel.account.id)
                 ? R.string.panel_push_on : R.string.panel_push_off));
         Button pushBtn = Ui.outlinedButton(panel.activity, panel.t(R.string.panel_push),
@@ -399,7 +399,7 @@ final class ReminderPanel {
             TextView promptView = Ui.text(panel.activity, prompt, 15);
             promptView.setTextColor(panel.activity.getColor(R.color.ink));
             metaCard.addView(promptView);
-            metaCard.addView(Ui.divider(panel.activity), cardMargins());
+            addDivider(metaCard, 10, 4);
         }
         addMetaLine(metaCard, panel.t(R.string.panel_job_state, stateLabel(jobState)), R.color.ink);
         String lastError = PanelData.text(job, "last_error");
@@ -592,6 +592,14 @@ final class ReminderPanel {
     }
 
     private static String path(JSONObject job) { return JOBS + "/" + HermesApi.segment(PanelData.text(job, "id")); }
+
+    private void addDivider(LinearLayout parent, int topDp, int bottomDp) {
+        View divider = Ui.divider(panel.activity);
+        LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) divider.getLayoutParams();
+        lp.topMargin = Ui.dp(panel.activity, topDp);
+        lp.bottomMargin = Ui.dp(panel.activity, bottomDp);
+        parent.addView(divider, lp);
+    }
 
     private void edit(JSONObject job) { new ReminderEditor(panel, this, job).show(); }
 

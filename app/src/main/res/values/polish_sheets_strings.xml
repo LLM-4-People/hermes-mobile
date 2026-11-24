@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="fr">
     <string name="profile_hub_local_empty">Aucun autre profil enregistré sur cet appareil.</string>
     <string name="admin_console_users_empty">Aucun utilisateur enregistré sur ce serveur.</string>
     <string name="admin_console_users_load_failed">Impossible de charger la liste des utilisateurs.</string>

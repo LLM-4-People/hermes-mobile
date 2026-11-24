@@ -191,7 +191,7 @@ final class PushSettings {
         for (int i = 0; i < categories.length; i++) {
             DeliveryItem.Category category = categories[i];
             if (i > 0) {
-                categoriesCard.addView(Ui.insetDivider(activity, 16), stackGap(8));
+                addInsetDivider(categoriesCard, 8);
             }
             Switch toggle = styledSwitch(category.label(activity), state[0].isCategoryEnabled(category));
             toggle.setOnCheckedChangeListener((btn, checked) -> {
@@ -244,7 +244,7 @@ final class PushSettings {
         quietHint.setTextColor(activity.getColor(R.color.muted));
         quietCard.addView(quietHint, stackGap(2));
 
-        quietCard.addView(Ui.insetDivider(activity, 16), stackGap(10));
+        addInsetDivider(quietCard, 10);
         startButton.setOnClickListener(v -> openQuietTimePicker(state[0].quietStartMinute, picked -> {
             state[0] = state[0].withQuietHours(state[0].quietHoursEnabled, picked,
                     state[0].quietEndMinute, state[0].allowHighUrgencyDuringQuietHours);
@@ -260,7 +260,7 @@ final class PushSettings {
         quietCard.addView(startButton, stackGap(10));
         quietCard.addView(endButton, stackGap(8));
 
-        quietCard.addView(Ui.insetDivider(activity, 16), stackGap(10));
+        addInsetDivider(quietCard, 10);
         highToggle.setOnCheckedChangeListener((btn, checked) -> {
             state[0] = state[0].withQuietHours(state[0].quietHoursEnabled, state[0].quietStartMinute,
                     state[0].quietEndMinute, checked);
@@ -279,6 +279,13 @@ final class PushSettings {
                 .setView(scroll)
                 .setNegativeButton(R.string.push_settings_back, (d, w) -> show())
                 .setPositiveButton(R.string.ws_close, null));
+    }
+
+    private void addInsetDivider(LinearLayout parent, int topDp) {
+        View divider = Ui.insetDivider(activity, 16);
+        LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) divider.getLayoutParams();
+        lp.topMargin = Ui.dp(activity, topDp);
+        parent.addView(divider, lp);
     }
 
     private void openQuietTimePicker(int initialMinute, java.util.function.IntConsumer onPicked) {

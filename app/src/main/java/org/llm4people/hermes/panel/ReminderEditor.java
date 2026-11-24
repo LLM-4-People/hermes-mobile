@@ -122,7 +122,7 @@ final class ReminderEditor {
         addPresetButton(ReminderSchedule.Preset.WEEKLY, R.string.panel_preset_weekly);
         addPresetButton(ReminderSchedule.Preset.CUSTOM, R.string.panel_preset_custom);
 
-        scheduleControls.addView(Ui.divider(panel.activity), topMargin(12));
+        addDivider(scheduleControls, 12);
 
         switch (schedule.preset) {
             case ONCE -> {
@@ -156,7 +156,7 @@ final class ReminderEditor {
         scheduleControls.addView(previewCard, topMargin(12));
 
         // Optional collapsible advanced mode tucked cleanly away from casual users.
-        scheduleControls.addView(Ui.divider(panel.activity), topMargin(12));
+        addDivider(scheduleControls, 12);
         Button advancedBtn = Ui.outlinedButton(panel.activity,
                 panel.t(advancedOpen ? R.string.panel_advanced_toggle_hide : R.string.panel_advanced_toggle_show),
                 v -> {
@@ -391,6 +391,13 @@ final class ReminderEditor {
         if (job == null) PanelData.put(changes, "deliver", "local");
         clearError();
         owner.submit(job, changes, status, save);
+    }
+
+    private void addDivider(LinearLayout parent, int topDp) {
+        View divider = Ui.divider(panel.activity);
+        LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) divider.getLayoutParams();
+        lp.topMargin = Ui.dp(panel.activity, topDp);
+        parent.addView(divider, lp);
     }
 
     private static int parseInterval(String raw) {
