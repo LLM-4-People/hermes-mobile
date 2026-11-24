@@ -503,9 +503,22 @@ class DeviceGateTest(unittest.TestCase):
         self.assertIn("did not become ready", failed.stderr)
         self.assertFalse(any("install" in cmd for cmd in calls))
 
+        self.trace.write_text("")
+        null_focus, calls = self.gate(
+            suite="native",
+            include_handoff=False,
+            FIXTURE_WINDOW_DUMP="mCurrentFocus=null",
+            EMULATOR_READY_MAX_ATTEMPTS="3",
+        )
+        self.assertEqual(null_focus.returncode, 1)
+        self.assertIn("did not become ready", null_focus.stderr)
+        self.assertFalse(any("install" in cmd for cmd in calls))
+
     def test_emulator_sdk_helper_retries_corrupt_zip_cleans_installer_and_fails_when_exhausted(self):
         sdk_root = self.root / "fake-sdk"
+        nested_pkg = "system-images;android-36;google_apis;x86_64"
         (sdk_root / "emulator/.installer").mkdir(parents=True)
+        (sdk_root / "system-images/android-36/google_apis/x86_64/.installer").mkdir(parents=True)
         (sdk_root / ".temp").mkdir(parents=True)
         counter = self.root / "sdk-attempts.txt"
         fake_sdkmanager = self.root / "bin/fake-sdkmanager"
@@ -532,10 +545,14 @@ class DeviceGateTest(unittest.TestCase):
             "SDK_COUNTER": str(counter),
             "SDK_FAIL_UNTIL": "1",
         }
-        ok = subprocess.run(["bash", GATE.with_name("emulator-sdk.sh"), "emulator"], env=env, text=True, capture_output=True)
+        ok = subprocess.run(
+            ["bash", GATE.with_name("emulator-sdk.sh"), "emulator", nested_pkg],
+            env=env, text=True, capture_output=True,
+        )
         self.assertEqual(ok.returncode, 0, ok.stderr)
         self.assertEqual(counter.read_text(), "2")
         self.assertFalse((sdk_root / "emulator/.installer").exists())
+        self.assertFalse((sdk_root / "system-images/android-36/google_apis/x86_64/.installer").exists())
         self.assertFalse((sdk_root / ".temp").exists())
 
         counter.unlink()

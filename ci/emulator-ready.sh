@@ -18,7 +18,7 @@ wait_emulator_ready() {
       pm_ready=$(adb -s "$serial" shell pm path android 2>/dev/null | tr -d '\r' || true)
       if [[ "$pm_ready" == package:* ]]; then
         window_ready=$(adb -s "$serial" shell dumpsys window 2>/dev/null || true)
-        if grep -q "mCurrentFocus=" <<< "$window_ready"; then
+        if grep -Eq 'mCurrentFocus=Window\{' <<< "$window_ready"; then
           break
         fi
       fi
@@ -26,7 +26,7 @@ wait_emulator_ready() {
     sleep "$poll_interval"
   done
 
-  if [[ "$boot_completed" != "1" || "$pm_ready" != package:* ]] || ! grep -q "mCurrentFocus=" <<< "$window_ready"; then
+  if [[ "$boot_completed" != "1" || "$pm_ready" != package:* ]] || ! grep -Eq 'mCurrentFocus=Window\{' <<< "$window_ready"; then
     echo "Emulator $serial did not become ready (boot_completed=${boot_completed:-?}, pm=${pm_ready:-?})." >&2
     return 1
   fi

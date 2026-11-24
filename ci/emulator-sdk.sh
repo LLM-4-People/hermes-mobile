@@ -23,7 +23,7 @@ install_sdk_packages() {
     return 2
   fi
 
-  local attempt output status licenses
+  local attempt output status licenses pkg rel
   licenses=$(printf 'y\n%.0s' {1..64})
   for ((attempt = 1; attempt <= max_attempts; attempt++)); do
     set +e
@@ -35,8 +35,13 @@ install_sdk_packages() {
     fi
     echo "sdkmanager install attempt ${attempt}/${max_attempts} failed for: ${packages[*]}" >&2
     printf '%s\n' "$output" | tail -n 20 >&2
-    rm -rf "$sdk_root/.temp" "$sdk_root/emulator/.installer" "$sdk_root/platform-tools/.installer" \
-      "$sdk_root/platforms/.installer" "$sdk_root/build-tools/.installer" "$sdk_root/system-images/.installer"
+    rm -rf "$sdk_root/.temp"
+    for pkg in "${packages[@]}"; do
+      rel=${pkg//;/'/'}
+      if [[ -n "$rel" && "$rel" != /* && "$rel" != *".."* ]]; then
+        rm -rf "$sdk_root/$rel/.installer"
+      fi
+    done
     if (( attempt < max_attempts )); then
       sleep "$retry_delay"
     fi

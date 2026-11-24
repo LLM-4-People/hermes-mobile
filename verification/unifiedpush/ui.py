@@ -406,7 +406,7 @@ def choose_ntfy(ui):
                 ui.tap_node(back_btn)
                 reenable_taps += 1
                 last_reenable_tap = now
-            elif enable_btn is not None and attempts > 0 and reenable_taps < 2 and cooldown_elapsed(last_reenable_tap, now):
+            elif enable_btn is not None and (attempts > 0 or reenable_taps > 0) and reenable_taps < 2 and cooldown_elapsed(last_reenable_tap, now):
                 # Recover if a transitioning dialog backdrop dismissed the transport picker back to PushSettings.
                 ui.tap_node(enable_btn)
                 reenable_taps += 1

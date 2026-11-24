@@ -130,19 +130,22 @@ class EnrollmentTest(unittest.TestCase):
                 ui = Screen(None, None, lang=lang)
                 s = ui.strings
                 transport1, up1 = dialog(s["push_settings_service_title"], s["push_settings_enable_up"])
-                back_to_settings, enable_btn = dialog(s["push_settings_title"], s["push_settings_enable"])
+                back_to_settings1, enable_btn1 = dialog(s["push_settings_title"], s["push_settings_enable"])
+                back_to_settings2, enable_btn2 = dialog(s["push_settings_title"], s["push_settings_enable"])
                 transport2, up2 = dialog(s["push_settings_service_title"], s["push_settings_enable_up"])
                 dist, ntfy = dialog(s["push_settings_choose_distributor"], "ntfy\n" + NTFY)
                 dismissed = Element("node")
-                ui.hierarchy = Mock(side_effect=[transport1, back_to_settings, transport2, dist, dismissed])
+                ui.hierarchy = Mock(
+                    side_effect=[transport1, back_to_settings1, back_to_settings2, transport2, dist, dismissed]
+                )
                 ui.tap_node = Mock()
                 step = TAP_RETRY_COOLDOWN_SECONDS + 0.5
-                clock = [step * i for i in range(1, 7)]
+                clock = [step * i for i in range(1, 8)]
                 with patch("verification.unifiedpush.stack.time.sleep"), patch(
                     "verification.unifiedpush.ui.monotonic", side_effect=clock
                 ):
                     choose_ntfy(ui)
                 self.assertEqual(
                     ui.tap_node.call_args_list,
-                    [call(up1), call(enable_btn), call(up2), call(ntfy)],
+                    [call(up1), call(enable_btn1), call(enable_btn2), call(up2), call(ntfy)],
                 )
