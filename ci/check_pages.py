@@ -3,7 +3,7 @@
 from html.parser import HTMLParser
 from pathlib import Path
 import sys
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -29,9 +29,13 @@ class _AssetParser(HTMLParser):
         self.refs = []
         self.img_issues = []
         self.image_refs = []
+        self.ids = set()
 
     def handle_starttag(self, tag, attrs):
         attr_map = dict(attrs)
+        elem_id = (attr_map.get("id") or "").strip()
+        if elem_id:
+            self.ids.add(elem_id)
         if tag == "img":
             src = (attr_map.get("src") or "").strip()
             if not src:
@@ -107,6 +111,7 @@ def validate_site(site_dir):
         problems.append("No HTML files found under site/")
         return problems
 
+    parsed_pages = {}
     for html_file in html_files:
         content = html_file.read_text(encoding="utf-8")
         rel_html = html_file.relative_to(site_root).as_posix()
@@ -117,8 +122,13 @@ def validate_site(site_dir):
         for issue in parser.img_issues:
             problems.append(f"site/{rel_html}: {issue}")
         problems.extend(_check_language_assets(rel_html, parser.image_refs))
+        parsed_pages[html_file.resolve()] = (rel_html, parser)
+
+    for html_file in html_files:
+        resolved_html = html_file.resolve()
+        rel_html, parser = parsed_pages[resolved_html]
         for tag, attr, raw in parser.refs:
-            if not raw or raw.startswith("#"):
+            if not raw:
                 continue
             parts = urlsplit(raw)
             if parts.scheme in EXTERNAL_SCHEMES:
@@ -126,8 +136,13 @@ def validate_site(site_dir):
             if parts.scheme:
                 problems.append(f"site/{rel_html}: unsupported URL scheme in <{tag} {attr}={raw!r}>")
                 continue
+            fragment = unquote(parts.fragment)
             ref_path = parts.path
             if not ref_path:
+                if fragment and fragment not in parser.ids:
+                    problems.append(
+                        f"site/{rel_html}: broken anchor fragment <{tag} {attr}={raw!r}> (missing id={fragment!r})"
+                    )
                 continue
             if ref_path.startswith("/"):
                 candidate = (site_root / ref_path.lstrip("/")).resolve()
@@ -142,6 +157,14 @@ def validate_site(site_dir):
                 candidate = candidate / "index.html"
             if not candidate.is_file():
                 problems.append(f"site/{rel_html}: broken local reference <{tag} {attr}={raw!r}>")
+                continue
+            if fragment:
+                target_entry = parsed_pages.get(candidate.resolve())
+                if target_entry is not None and fragment not in target_entry[1].ids:
+                    problems.append(
+                        f"site/{rel_html}: broken cross-page anchor fragment <{tag} {attr}={raw!r}> "
+                        f"(missing id={fragment!r} in site/{target_entry[0]})"
+                    )
     return problems
 
 

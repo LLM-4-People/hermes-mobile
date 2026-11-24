@@ -1,5 +1,7 @@
 package org.llm4people.hermes.ambient;
 
+import org.llm4people.hermes.JsonValues;
+
 import java.util.Objects;
 
 /**
@@ -57,12 +59,12 @@ public final class AmbientNotification {
 
     public String toSanitizedJson() {
         return "{"
-                + "\"key\":" + AmbientJson.quote(key)
-                + ",\"package\":" + AmbientJson.quote(packageName)
-                + ",\"app\":" + AmbientJson.quote(displaySource())
-                + ",\"sender\":" + AmbientJson.quote(displaySender())
-                + ",\"title\":" + AmbientJson.quote(title)
-                + ",\"text\":" + AmbientJson.quote(text)
+                + "\"key\":" + JsonValues.quote(key)
+                + ",\"package\":" + JsonValues.quote(packageName)
+                + ",\"app\":" + JsonValues.quote(displaySource())
+                + ",\"sender\":" + JsonValues.quote(displaySender())
+                + ",\"title\":" + JsonValues.quote(title)
+                + ",\"text\":" + JsonValues.quote(text)
                 + ",\"posted_at_ms\":" + postedAtMillis
                 + ",\"replyable\":" + replyable
                 + "}";

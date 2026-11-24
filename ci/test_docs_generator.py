@@ -170,6 +170,43 @@ class CheckPagesIntegrityTest(unittest.TestCase):
             )
             self.assertEqual(check_pages.validate_site(root), [])
 
+    def test_validates_same_page_and_cross_page_anchor_fragments(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _scaffold_minimal_site(root)
+            (root / "en/docs/index.html").write_text(
+                '<!DOCTYPE html><html lang="en"><h2 id="install">Install</h2></html>\n',
+                encoding="utf-8",
+            )
+            # Valid same-page, bare '#', and cross-page fragments pass cleanly.
+            (root / "en/index.html").write_text(
+                '<!DOCTYPE html><html lang="en">'
+                '<a href="#">Top</a>'
+                '<a href="#features">Features</a>'
+                '<a href="docs/#install">Install docs</a>'
+                '<section id="features"></section>'
+                "</html>\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(check_pages.validate_site(root), [])
+
+            # Broken same-page and cross-page fragments both fail closed.
+            (root / "en/index.html").write_text(
+                '<!DOCTYPE html><html lang="en">'
+                '<a href="#missing-section">Broken local</a>'
+                '<a href="docs/#no-such-anchor">Broken cross-page</a>'
+                "</html>\n",
+                encoding="utf-8",
+            )
+            joined = "\n".join(check_pages.validate_site(root))
+            self.assertIn("broken anchor fragment", joined)
+            self.assertIn("#missing-section", joined)
+            self.assertIn("broken cross-page anchor fragment", joined)
+            self.assertIn("#no-such-anchor", joined)
+
+        # Live repository site/ passes full integrity + anchor validation.
+        self.assertEqual(check_pages.validate_site(ROOT / "site"), [])
+
 
 if __name__ == "__main__":
     unittest.main()

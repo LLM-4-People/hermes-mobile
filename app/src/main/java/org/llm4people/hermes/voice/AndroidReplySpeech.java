@@ -85,14 +85,6 @@ final class AndroidReplySpeech implements SpeechPlayback.Driver {
         }) == TextToSpeech.SUCCESS;
     }
 
-    static boolean installedFrench(Voice voice) {
-        return installedForLanguage(voice, AppLanguage.TAG_FRENCH);
-    }
-
-    static boolean installedVoice(Voice voice, String languageCode) {
-        return installedForLanguage(voice, languageCode);
-    }
-
     static boolean installedForLanguage(Voice voice, String languageTag) {
         return voice != null && languageTag != null && !languageTag.isEmpty()
                 && voice.getLocale() != null && languageTag.equalsIgnoreCase(voice.getLocale().getLanguage())

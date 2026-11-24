@@ -274,50 +274,75 @@ public final class AppLanguageTest {
                     new java.util.concurrent.atomic.AtomicInteger(0);
             java.util.concurrent.atomic.AtomicBoolean overlapDetected =
                     new java.util.concurrent.atomic.AtomicBoolean(false);
+            java.util.concurrent.atomic.AtomicReference<Throwable> workerError =
+                    new java.util.concurrent.atomic.AtomicReference<>();
 
-            Thread refreshThread = new Thread(() -> AppLanguage.refreshFromSupplier(() -> {
-                if (concurrentLockHolders.incrementAndGet() != 1) overlapDetected.set(true);
+            Thread refreshThread = new Thread(() -> {
                 try {
-                    AppLanguage.Mode mode = stored.get();
-                    refreshInsideLock.countDown();
-                    try {
-                        assertTrue(releaseRefresh.await(5, java.util.concurrent.TimeUnit.SECONDS));
-                    } catch (InterruptedException interrupted) {
-                        Thread.currentThread().interrupt();
-                        throw new AssertionError(interrupted);
-                    }
-                    return mode;
-                } finally {
-                    concurrentLockHolders.decrementAndGet();
+                    AppLanguage.refreshFromSupplier(() -> {
+                        if (concurrentLockHolders.incrementAndGet() != 1) overlapDetected.set(true);
+                        try {
+                            AppLanguage.Mode mode = stored.get();
+                            refreshInsideLock.countDown();
+                            try {
+                                assertTrue(releaseRefresh.await(5, java.util.concurrent.TimeUnit.SECONDS));
+                            } catch (InterruptedException interrupted) {
+                                Thread.currentThread().interrupt();
+                                throw new AssertionError(interrupted);
+                            }
+                            return mode;
+                        } finally {
+                            concurrentLockHolders.decrementAndGet();
+                        }
+                    }, systemTags);
+                } catch (Throwable err) {
+                    workerError.compareAndSet(null, err);
                 }
-            }, systemTags), "test-refresh-first");
+            }, "test-refresh-first");
+            refreshThread.setDaemon(true);
 
             Thread applyThread = new Thread(() -> {
-                applyStarted.countDown();
-                AppLanguage.applyWithWriter(AppLanguage.Mode.ENGLISH, () -> {
-                    if (concurrentLockHolders.incrementAndGet() != 1) overlapDetected.set(true);
-                    try {
-                        stored.set(AppLanguage.Mode.ENGLISH);
-                    } finally {
-                        concurrentLockHolders.decrementAndGet();
-                    }
-                }, systemTags);
+                try {
+                    applyStarted.countDown();
+                    AppLanguage.applyWithWriter(AppLanguage.Mode.ENGLISH, () -> {
+                        if (concurrentLockHolders.incrementAndGet() != 1) overlapDetected.set(true);
+                        try {
+                            stored.set(AppLanguage.Mode.ENGLISH);
+                        } finally {
+                            concurrentLockHolders.decrementAndGet();
+                        }
+                    }, systemTags);
+                } catch (Throwable err) {
+                    workerError.compareAndSet(null, err);
+                }
             }, "test-apply-second");
+            applyThread.setDaemon(true);
 
-            refreshThread.start();
-            assertTrue(refreshInsideLock.await(5, java.util.concurrent.TimeUnit.SECONDS));
-            applyThread.start();
-            assertTrue(applyStarted.await(5, java.util.concurrent.TimeUnit.SECONDS));
-            // Wait deterministically until applyThread blocks on STATE_LOCK (BLOCKED state).
-            long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(5);
-            while (applyThread.getState() != Thread.State.BLOCKED && System.nanoTime() < deadline) {
-                Thread.yield();
+            try {
+                refreshThread.start();
+                assertTrue(refreshInsideLock.await(5, java.util.concurrent.TimeUnit.SECONDS));
+                applyThread.start();
+                assertTrue(applyStarted.await(5, java.util.concurrent.TimeUnit.SECONDS));
+                // Wait deterministically until applyThread blocks on STATE_LOCK (BLOCKED state).
+                long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(5);
+                while (applyThread.getState() != Thread.State.BLOCKED && System.nanoTime() < deadline) {
+                    Thread.yield();
+                }
+                assertEquals("apply() must block on STATE_LOCK while refreshRuntime() holds it",
+                        Thread.State.BLOCKED, applyThread.getState());
+                releaseRefresh.countDown();
+                refreshThread.join(5_000);
+                applyThread.join(5_000);
+            } finally {
+                releaseRefresh.countDown();
+                joinOrInterruptWorker(refreshThread);
+                joinOrInterruptWorker(applyThread);
             }
-            assertEquals("apply() must block on STATE_LOCK while refreshRuntime() holds it",
-                    Thread.State.BLOCKED, applyThread.getState());
-            releaseRefresh.countDown();
-            refreshThread.join(5_000);
-            applyThread.join(5_000);
+            assertFalse("refreshThread must have terminated cleanly", refreshThread.isAlive());
+            assertFalse("applyThread must have terminated cleanly", applyThread.isAlive());
+            if (workerError.get() != null) {
+                throw new AssertionError("Worker thread failed in Case 1", workerError.get());
+            }
             assertFalse("apply() must not interleave inside refreshRuntime()", overlapDetected.get());
             assertEquals("Final Accept-Language must reflect ENGLISH, never stale FRENCH",
                     "en-US, en;q=0.9", AppLanguage.currentAcceptLanguage());
@@ -331,45 +356,84 @@ public final class AppLanguageTest {
             java.util.concurrent.CountDownLatch releaseApply = new java.util.concurrent.CountDownLatch(1);
             java.util.concurrent.atomic.AtomicReference<AppLanguage.Mode> observedByRefresh =
                     new java.util.concurrent.atomic.AtomicReference<>();
+            java.util.concurrent.atomic.AtomicReference<Throwable> workerError2 =
+                    new java.util.concurrent.atomic.AtomicReference<>();
 
-            Thread applyFirst = new Thread(() -> AppLanguage.applyWithWriter(AppLanguage.Mode.ENGLISH, () -> {
-                applyInsideLock.countDown();
+            Thread applyFirst = new Thread(() -> {
                 try {
-                    assertTrue(releaseApply.await(5, java.util.concurrent.TimeUnit.SECONDS));
-                } catch (InterruptedException interrupted) {
-                    Thread.currentThread().interrupt();
-                    throw new AssertionError(interrupted);
+                    AppLanguage.applyWithWriter(AppLanguage.Mode.ENGLISH, () -> {
+                        applyInsideLock.countDown();
+                        try {
+                            assertTrue(releaseApply.await(5, java.util.concurrent.TimeUnit.SECONDS));
+                        } catch (InterruptedException interrupted) {
+                            Thread.currentThread().interrupt();
+                            throw new AssertionError(interrupted);
+                        }
+                        stored.set(AppLanguage.Mode.ENGLISH);
+                    }, systemTags);
+                } catch (Throwable err) {
+                    workerError2.compareAndSet(null, err);
                 }
-                stored.set(AppLanguage.Mode.ENGLISH);
-            }, systemTags), "test-apply-first");
+            }, "test-apply-first");
+            applyFirst.setDaemon(true);
 
             Thread refreshSecond = new Thread(() -> {
-                refreshAttempted.countDown();
-                AppLanguage.refreshFromSupplier(() -> {
-                    AppLanguage.Mode seen = stored.get();
-                    observedByRefresh.set(seen);
-                    return seen;
-                }, systemTags);
+                try {
+                    refreshAttempted.countDown();
+                    AppLanguage.refreshFromSupplier(() -> {
+                        AppLanguage.Mode seen = stored.get();
+                        observedByRefresh.set(seen);
+                        return seen;
+                    }, systemTags);
+                } catch (Throwable err) {
+                    workerError2.compareAndSet(null, err);
+                }
             }, "test-refresh-second");
+            refreshSecond.setDaemon(true);
 
-            applyFirst.start();
-            assertTrue(applyInsideLock.await(5, java.util.concurrent.TimeUnit.SECONDS));
-            refreshSecond.start();
-            assertTrue(refreshAttempted.await(5, java.util.concurrent.TimeUnit.SECONDS));
-            long deadline2 = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(5);
-            while (refreshSecond.getState() != Thread.State.BLOCKED && System.nanoTime() < deadline2) {
-                Thread.yield();
+            try {
+                applyFirst.start();
+                assertTrue(applyInsideLock.await(5, java.util.concurrent.TimeUnit.SECONDS));
+                refreshSecond.start();
+                assertTrue(refreshAttempted.await(5, java.util.concurrent.TimeUnit.SECONDS));
+                long deadline2 = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(5);
+                while (refreshSecond.getState() != Thread.State.BLOCKED && System.nanoTime() < deadline2) {
+                    Thread.yield();
+                }
+                assertEquals("refreshRuntime() must block on STATE_LOCK while apply() holds it",
+                        Thread.State.BLOCKED, refreshSecond.getState());
+                releaseApply.countDown();
+                applyFirst.join(5_000);
+                refreshSecond.join(5_000);
+            } finally {
+                releaseApply.countDown();
+                joinOrInterruptWorker(applyFirst);
+                joinOrInterruptWorker(refreshSecond);
             }
-            assertEquals("refreshRuntime() must block on STATE_LOCK while apply() holds it",
-                    Thread.State.BLOCKED, refreshSecond.getState());
-            releaseApply.countDown();
-            applyFirst.join(5_000);
-            refreshSecond.join(5_000);
+            assertFalse("applyFirst must have terminated cleanly", applyFirst.isAlive());
+            assertFalse("refreshSecond must have terminated cleanly", refreshSecond.isAlive());
+            if (workerError2.get() != null) {
+                throw new AssertionError("Worker thread failed in Case 2", workerError2.get());
+            }
             assertEquals("refreshRuntime() must observe post-apply ENGLISH mode",
                     AppLanguage.Mode.ENGLISH, observedByRefresh.get());
             assertEquals("en-US, en;q=0.9", AppLanguage.currentAcceptLanguage());
         } finally {
             AppLanguage.setActiveAcceptLanguageForTest(previousRaw);
+        }
+    }
+
+    private static void joinOrInterruptWorker(Thread worker) {
+        if (worker == null || worker.getState() == Thread.State.NEW) return;
+        try {
+            worker.join(2_000);
+            if (worker.isAlive()) {
+                worker.interrupt();
+                worker.join(2_000);
+            }
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            worker.interrupt();
         }
     }
 

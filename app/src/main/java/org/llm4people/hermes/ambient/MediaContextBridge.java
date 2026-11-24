@@ -11,6 +11,7 @@ import android.media.session.MediaController;
 import android.media.session.MediaSessionManager;
 import android.media.session.PlaybackState;
 import org.llm4people.hermes.Diagnostics;
+import org.llm4people.hermes.JsonValues;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 
@@ -86,12 +87,12 @@ public final class MediaContextBridge {
 
         public String toSanitizedJson() {
             return "{"
-                    + "\"package\":" + AmbientJson.quote(packageName)
-                    + ",\"app\":" + AmbientJson.quote(appLabel)
-                    + ",\"title\":" + AmbientJson.quote(title)
-                    + ",\"artist\":" + AmbientJson.quote(artist)
-                    + ",\"album\":" + AmbientJson.quote(album)
-                    + ",\"state\":" + AmbientJson.quote(playbackKind.name().toLowerCase(java.util.Locale.ROOT))
+                    + "\"package\":" + JsonValues.quote(packageName)
+                    + ",\"app\":" + JsonValues.quote(appLabel)
+                    + ",\"title\":" + JsonValues.quote(title)
+                    + ",\"artist\":" + JsonValues.quote(artist)
+                    + ",\"album\":" + JsonValues.quote(album)
+                    + ",\"state\":" + JsonValues.quote(playbackKind.name().toLowerCase(java.util.Locale.ROOT))
                     + ",\"position_ms\":" + positionMs
                     + ",\"duration_ms\":" + durationMs
                     + "}";
