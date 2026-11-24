@@ -30,7 +30,7 @@
     <string name="palette_act_deliveries_title">Deliveries inbox</string>
     <string name="palette_act_deliveries_hint">View received updates and briefings</string>
     <string name="palette_act_ambient_title">Ambient access</string>
-    <string name="palette_act_ambient_hint">Notifications, calendar, contacts, and media</string>
+    <string name="palette_act_ambient_hint">Notifications, calendar, and media</string>
     <string name="palette_act_doctor_title">Connection health</string>
     <string name="palette_act_doctor_hint">Check server, alerts, and permissions</string>
     <string name="palette_act_updates_title">App updates</string>

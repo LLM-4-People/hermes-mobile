@@ -61,6 +61,7 @@ public final class SessionPanel implements AutoCloseable {
         new SkillBrowser(this, activeOwner, stageDraft, null).show();
     }
     public void showReminders() { new ReminderPanel(this).show(); }
+    public void showCreateReminder() { new ReminderPanel(this).create(); }
     public void showReminder(String jobId) { new ReminderPanel(this).open(jobId); }
     public void showMemory(Runnable parent) { new MemoryPanel(this, parent).show(); }
     public void showNotes(BooleanSupplier activeThread, Consumer<String> stageDraft, Runnable parent) {

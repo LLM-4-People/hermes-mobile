@@ -48,15 +48,23 @@ public final class PermissionsPanel {
                 open));
     }
 
-    /** Format a concise live summary line for Activity hub or Connection Doctor cards. */
+    /** Format a concise live summary line for Settings or Connection Doctor cards. */
     public static String summaryLine(Context context) {
         Objects.requireNonNull(context, "context");
-        PermissionCenter.Summary summary = PermissionCenter.summarize(context);
+        return formatSummary(context, PermissionCenter.summarize(context));
+    }
+
+    static String formatSummary(Context context, PermissionCenter.Summary summary) {
+        String allowed = context.getResources().getQuantityString(
+                R.plurals.perm_count_allowed, summary.allowed(), summary.allowed());
+        String off = context.getResources().getQuantityString(
+                R.plurals.perm_count_off, summary.off(), summary.off());
         if (summary.blocked() > 0) {
-            return context.getString(R.string.perm_summary_with_blocked,
-                    summary.allowed(), summary.blocked(), summary.off());
+            String blocked = context.getResources().getQuantityString(
+                    R.plurals.perm_count_blocked, summary.blocked(), summary.blocked());
+            return allowed + " · " + blocked + " · " + off;
         }
-        return context.getString(R.string.perm_summary_counts, summary.allowed(), summary.off());
+        return allowed + " · " + off;
     }
 
     /**
@@ -173,13 +181,7 @@ public final class PermissionsPanel {
         Map<PermissionCenter.Key, PermissionCenter.State> states = PermissionCenter.snapshot(activity);
         PermissionCenter.Summary summary = PermissionCenter.summarizeStates(states);
         if (summaryText != null) {
-            if (summary.blocked() > 0) {
-                summaryText.setText(activity.getString(R.string.perm_summary_with_blocked,
-                        summary.allowed(), summary.blocked(), summary.off()));
-            } else {
-                summaryText.setText(activity.getString(R.string.perm_summary_counts,
-                        summary.allowed(), summary.off()));
-            }
+            summaryText.setText(formatSummary(activity, summary));
         }
         cardsContainer.removeAllViews();
         for (Map.Entry<PermissionCenter.Key, PermissionCenter.State> entry : states.entrySet()) {

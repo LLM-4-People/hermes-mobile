@@ -59,7 +59,10 @@
     <string name="hub_reminders_error">Impossible de charger vos rappels pour le moment.</string>
     <string name="hub_reminders_active_pill">%1$d actif(s)</string>
     <string name="hub_reminders_paused_pill">%1$d en pause</string>
-    <string name="hub_reminders_attention_pill">%1$d à vérifier</string>
+    <plurals name="hub_reminders_attention_pill">
+        <item quantity="one">%1$d à vérifier</item>
+        <item quantity="other">%1$d à vérifier</item>
+    </plurals>
     <string name="hub_inbox_deliveries_heading">Livraisons récentes</string>
     <string name="hub_inbox_shared_heading">Partagés avec vous</string>
     <string name="hub_inbox_unread_pill">Nouveau</string>
@@ -77,7 +80,10 @@
     <string name="hub_apps_screens_empty_body">Demandez à Hermes de créer un formulaire, un suivi ou un tableau de bord adapté à votre besoin.</string>
     <string name="hub_apps_create_tool">Créer un outil</string>
     <string name="hub_apps_workflows_section">Modèles réutilisables</string>
-    <string name="hub_apps_templates_count">%1$d modèle(s) prêts à l’emploi</string>
+    <plurals name="hub_apps_templates_count">
+        <item quantity="one">%1$d modèle prêt à l’emploi</item>
+        <item quantity="other">%1$d modèles prêts à l’emploi</item>
+    </plurals>
     <string name="hub_apps_templates_body">Démarrez une tâche récurrente en un geste avec un brouillon modifiable.</string>
 
     <string name="settings_lang_auto">Automatique (%1$s)</string>

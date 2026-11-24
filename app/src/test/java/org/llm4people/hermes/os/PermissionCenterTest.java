@@ -198,22 +198,27 @@ public final class PermissionCenterTest {
         if (!Files.isDirectory(base)) {
             base = Path.of("app/src/main/res");
         }
-        Set<String> frKeys = loadStringNames(base.resolve("values/permissions_strings.xml"));
-        Set<String> enKeys = loadStringNames(base.resolve("values-en/permissions_strings.xml"));
+        Set<String> frKeys = loadResourceNames(base.resolve("values/permissions_strings.xml"), "string");
+        Set<String> enKeys = loadResourceNames(base.resolve("values-en/permissions_strings.xml"), "string");
         assertFalse("Expected non-empty permissions_strings.xml", frKeys.isEmpty());
-        assertEquals("FR and EN permissions_strings.xml must have 1:1 key parity", frKeys, enKeys);
+        assertEquals("FR and EN permissions_strings.xml must have 1:1 string key parity", frKeys, enKeys);
+
+        Set<String> frPlurals = loadResourceNames(base.resolve("values/permissions_strings.xml"), "plurals");
+        Set<String> enPlurals = loadResourceNames(base.resolve("values-en/permissions_strings.xml"), "plurals");
+        assertEquals(Set.of("perm_count_allowed", "perm_count_blocked", "perm_count_off"), frPlurals);
+        assertEquals("FR and EN permissions_strings.xml must have 1:1 plurals key parity", frPlurals, enPlurals);
     }
 
-    private static Set<String> loadStringNames(Path xmlPath) throws Exception {
+    private static Set<String> loadResourceNames(Path xmlPath, String tagName) throws Exception {
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
         Document doc = factory.newDocumentBuilder().parse(xmlPath.toFile());
-        NodeList nodes = doc.getElementsByTagName("string");
+        NodeList nodes = doc.getElementsByTagName(tagName);
         Set<String> names = new HashSet<>();
         for (int i = 0; i < nodes.getLength(); i++) {
             Element el = (Element) nodes.item(i);
             String name = el.getAttribute("name");
-            assertFalse("Empty string name in " + xmlPath, name.isEmpty());
-            assertTrue("Duplicate string key " + name + " in " + xmlPath, names.add(name));
+            assertFalse("Empty " + tagName + " name in " + xmlPath, name.isEmpty());
+            assertTrue("Duplicate " + tagName + " key " + name + " in " + xmlPath, names.add(name));
             assertFalse("Empty value for " + name + " in " + xmlPath, el.getTextContent().trim().isEmpty());
         }
         return names;

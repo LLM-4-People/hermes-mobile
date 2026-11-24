@@ -1,7 +1,6 @@
 <resources xmlns:tools="http://schemas.android.com/tools" tools:locale="fr">
     <string name="ws_discussions">Discussions</string>
     <string name="ws_discussion">Discussion</string>
-    <string name="ws_desk">Atelier</string>
     <string name="ws_more_actions">Autres actions</string>
     <string name="ws_reply_hermes">Répondre à Hermes</string>
     <string name="ws_artifacts">Artefacts</string>
@@ -9,8 +8,6 @@
     <string name="ws_usage">Utilisation</string>
     <string name="ws_my_screens">Mes écrans</string>
     <string name="ws_all_discussions">Toutes les discussions</string>
-    <string name="ws_reminders">Rappels</string>
-    <string name="ws_lock_profile">Verrouiller le profil</string>
     <string name="ws_back_previous">Revenir à l’écran précédent</string>
     <string name="ws_hide_discussions">Masquer les discussions</string>
     <string name="ws_show_discussions">Afficher les discussions</string>

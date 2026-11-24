@@ -134,11 +134,11 @@ public final class AdaptiveNavShellTest extends InstrumentationTestCase {
                 assertTrue(titles.contains(activity.getString(R.string.ws_model_and_tools)));
                 assertTrue(titles.contains(activity.getString(R.string.ws_artifacts)));
                 assertFalse("Rappels belongs in Notes & tasks tab",
-                        titles.contains(activity.getString(R.string.ws_reminders)));
+                        titles.contains(activity.getString(R.string.activity_reminders_title)));
                 assertFalse("Mes écrans belongs in Apps tab",
                         titles.contains(activity.getString(R.string.ws_my_screens)));
                 assertFalse("Verrouiller belongs in Settings hero card",
-                        titles.contains(activity.getString(R.string.ws_lock_profile)));
+                        titles.contains(activity.getString(R.string.security_lock_now)));
                 shell.dismissMenu();
             });
         } finally {

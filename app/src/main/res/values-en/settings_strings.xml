@@ -59,7 +59,10 @@
     <string name="hub_reminders_error">Unable to load your reminders right now.</string>
     <string name="hub_reminders_active_pill">%1$d active</string>
     <string name="hub_reminders_paused_pill">%1$d paused</string>
-    <string name="hub_reminders_attention_pill">%1$d needs attention</string>
+    <plurals name="hub_reminders_attention_pill">
+        <item quantity="one">%1$d needs attention</item>
+        <item quantity="other">%1$d need attention</item>
+    </plurals>
     <string name="hub_inbox_deliveries_heading">Recent deliveries</string>
     <string name="hub_inbox_shared_heading">Shared with you</string>
     <string name="hub_inbox_unread_pill">New</string>
@@ -77,7 +80,10 @@
     <string name="hub_apps_screens_empty_body">Ask Hermes to build a custom form, tracker, or dashboard for you.</string>
     <string name="hub_apps_create_tool">Create tool</string>
     <string name="hub_apps_workflows_section">Reusable workflows</string>
-    <string name="hub_apps_templates_count">%1$d ready-to-use templates</string>
+    <plurals name="hub_apps_templates_count">
+        <item quantity="one">%1$d ready-to-use template</item>
+        <item quantity="other">%1$d ready-to-use templates</item>
+    </plurals>
     <string name="hub_apps_templates_body">Start recurring work in one tap with an editable draft.</string>
 
     <string name="settings_lang_auto">Automatic (%1$s)</string>

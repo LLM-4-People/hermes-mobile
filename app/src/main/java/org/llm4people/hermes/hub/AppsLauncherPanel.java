@@ -184,7 +184,7 @@ public final class AppsLauncherPanel {
         card.setClipToOutline(true);
 
         int count = Math.max(0, state.templateCount());
-        String countText = activity.getString(R.string.hub_apps_templates_count, count);
+        String countText = activity.getResources().getQuantityString(R.plurals.hub_apps_templates_count, count, count);
         LinearLayout row = Ui.row(activity);
         row.setMinimumHeight(Ui.dp(activity, 64));
         row.setPaddingRelative(Ui.dp(activity, 16), Ui.dp(activity, 14), Ui.dp(activity, 14), Ui.dp(activity, 14));

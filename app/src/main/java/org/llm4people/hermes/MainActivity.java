@@ -169,7 +169,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             if (Intent.ACTION_SCREEN_OFF.equals(intent.getAction())) {
                 screenLockedWhileBackgrounded = true;
                 clearInternalTransition();
-                if (account != null) {
+                if (shouldLockOnScreenOff(gate != null)) {
                     Diagnostics.event("security", "screen_off_locked");
                     lock();
                 }
@@ -178,7 +178,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     };
     private boolean imeVisible;
     private final Runnable graceExpiry = () -> {
-        if (account != null && backgroundedAtElapsedMs >= 0L) {
+        if (gate != null && backgroundedAtElapsedMs >= 0L) {
             Diagnostics.event("security", "grace_expired");
             lock();
         }
@@ -473,7 +473,6 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             if (threads.remoteSessionId() != null) files.show(threads.remoteSessionId());
         });
         actions.register("workspace", () -> navigate(WorkspaceNavigation.HOME));
-        actions.register("brain", this::openSettingsHub);
         actions.register("reminders", () -> panels.showReminders());
         actions.register("notifications", () -> push.settings(account, deliveryActions(account)));
         actions.register("command_palette", this::openCommandPalette);
@@ -507,10 +506,6 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             notice = WorkspaceDialogs.showSecurity(this, account, gate, this::lock, () -> {
                 refreshSettingsHubIfVisible();
             }, () -> notice = null);
-        });
-        actions.register("skills", () -> {
-            Account owner = account;
-            panels.showSkills(() -> account == owner && !isFinishing(), this::stageDraft);
         });
         actions.register("stats", () -> panels.showStats(threads.sessionId(), threads.remoteSessionId()));
         actions.register("tools", () -> openThreadAction("tools"));
@@ -754,7 +749,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             }
 
             @Override public void createReminder() {
-                if (account == owner && panels != null) panels.showReminders();
+                if (account == owner && panels != null) panels.showCreateReminder();
             }
 
             @Override public void openAllReminders() {
@@ -2345,6 +2340,23 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         return screenLockedWhileBackgrounded || (km != null && km.isDeviceLocked());
     }
 
+    /** Pure-Java lock guard for screen-off: wipes active session OR pending ProfileGate setup secrets. */
+    static boolean shouldLockOnScreenOff(boolean hasGate) {
+        return hasGate;
+    }
+
+    /** Pure-Java lock guard for internal-transition return: wipes unlocked OR setup-screen secrets when locked/expired. */
+    static boolean shouldLockOnInternalTransitionReturn(boolean hasGate, boolean deviceLocked, boolean expired) {
+        return hasGate && (deviceLocked || expired);
+    }
+
+    /** Pure-Java timeout SSoT for internal transitions (active profile grace window or default setup ceiling). */
+    static long internalTransitionTimeoutMs(LockGracePolicy.Window accountWindow) {
+        return accountWindow != null
+                ? LockGracePolicy.internalTransitionTimeoutMillis(accountWindow)
+                : LockGracePolicy.INTERNAL_TRANSITION_MAX_MS;
+    }
+
     private void checkGraceOnReturn() {
         boolean deviceLocked = isDeviceLockedNow();
         screenLockedWhileBackgrounded = false;
@@ -2352,11 +2364,10 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         if (internalActivityTransition) {
             long startedAt = internalTransitionAtMs;
             clearInternalTransition();
-            long timeoutMs = account != null
-                    ? LockGracePolicy.internalTransitionTimeoutMillis(LockGracePolicy.window(this, account.id))
-                    : LockGracePolicy.INTERNAL_TRANSITION_MAX_MS;
+            long timeoutMs = internalTransitionTimeoutMs(
+                    account != null ? LockGracePolicy.window(this, account.id) : null);
             boolean expired = LockGracePolicy.isInternalTransitionExpired(startedAt, now, timeoutMs);
-            if (account != null && (deviceLocked || expired)) {
+            if (shouldLockOnInternalTransitionReturn(gate != null, deviceLocked, expired)) {
                 Diagnostics.event("security", "internal_transition_locked");
                 lock();
             } else {
@@ -2385,13 +2396,11 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         }
         boolean deviceLocked = isDeviceLockedNow();
         if (internalActivityTransition && !deviceLocked) {
-            if (account != null) {
-                backgroundedAtElapsedMs = SystemClock.elapsedRealtime();
-                long timeoutMs = LockGracePolicy.internalTransitionTimeoutMillis(
-                        LockGracePolicy.window(this, account.id));
-                main.removeCallbacks(graceExpiry);
-                main.postDelayed(graceExpiry, timeoutMs);
-            }
+            backgroundedAtElapsedMs = SystemClock.elapsedRealtime();
+            long timeoutMs = internalTransitionTimeoutMs(
+                    account != null ? LockGracePolicy.window(this, account.id) : null);
+            main.removeCallbacks(graceExpiry);
+            main.postDelayed(graceExpiry, timeoutMs);
             return;
         }
         if (account == null) {

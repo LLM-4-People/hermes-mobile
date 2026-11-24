@@ -465,7 +465,7 @@
     <string name="palette_kw_search" translatable="false">search recherche globale trouver find</string>
     <string name="palette_kw_reminders" translatable="false">scheduled jobs cron automations taches planifiees horaire reminders rappels schedule planning</string>
     <string name="palette_kw_deliveries" translatable="false">deliveries inbox activite livraisons notifications</string>
-    <string name="palette_kw_ambient" translatable="false">ambient ambiant notifications calendar contacts media</string>
+    <string name="palette_kw_ambient" translatable="false">ambient ambiant notifications calendar media</string>
     <string name="palette_kw_doctor" translatable="false">doctor sante diagnostic connexion server health</string>
     <string name="palette_kw_updates" translatable="false">update mise a jour apk github version</string>
     <string name="palette_kw_language" translatable="false">language langue francais english fr en</string>

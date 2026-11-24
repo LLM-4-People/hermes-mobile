@@ -16,22 +16,36 @@ public final class AppLanguageResourcesTest extends InstrumentationTestCase {
         Context base = getInstrumentation().getTargetContext();
 
         Context fr = localized(base, Locale.FRENCH);
-        assertEquals("Atelier", fr.getString(R.string.ws_desk));
+        assertEquals("Discussions", fr.getString(R.string.ws_discussions));
         assertEquals("Envoyer", fr.getString(R.string.thread_send));
         assertEquals("Compétences de Hermes", fr.getString(R.string.skills_title));
         assertEquals("Dicter", fr.getString(R.string.voice_dictate));
         assertEquals("Réglages de la discussion", fr.getString(R.string.panel_settings));
         assertEquals("Quelques idées pour commencer", fr.getString(R.string.starter_heading));
         assertEquals("12 caractères minimum", fr.getResources().getQuantityString(R.plurals.profile_passphrase_hint, 12, 12));
+        assertEquals("0 autorisée", fr.getResources().getQuantityString(R.plurals.perm_count_allowed, 0, 0));
+        assertEquals("1 autorisée", fr.getResources().getQuantityString(R.plurals.perm_count_allowed, 1, 1));
+        assertEquals("2 autorisées", fr.getResources().getQuantityString(R.plurals.perm_count_allowed, 2, 2));
+        assertEquals("1 bloquée", fr.getResources().getQuantityString(R.plurals.perm_count_blocked, 1, 1));
+        assertEquals("2 bloquées", fr.getResources().getQuantityString(R.plurals.perm_count_blocked, 2, 2));
+        assertEquals("1 modèle prêt à l’emploi", fr.getResources().getQuantityString(R.plurals.hub_apps_templates_count, 1, 1));
+        assertEquals("3 modèles prêts à l’emploi", fr.getResources().getQuantityString(R.plurals.hub_apps_templates_count, 3, 3));
+        assertEquals("2 à vérifier", fr.getResources().getQuantityString(R.plurals.hub_reminders_attention_pill, 2, 2));
 
         Context en = localized(base, Locale.ENGLISH);
-        assertEquals("Workspace", en.getString(R.string.ws_desk));
+        assertEquals("Discussions", en.getString(R.string.ws_discussions));
         assertEquals("Send", en.getString(R.string.thread_send));
         assertEquals("Hermes skills", en.getString(R.string.skills_title));
         assertEquals("Dictate", en.getString(R.string.voice_dictate));
         assertEquals("Discussion settings", en.getString(R.string.panel_settings));
         assertEquals("A few ideas to get started", en.getString(R.string.starter_heading));
         assertEquals("At least 12 characters", en.getResources().getQuantityString(R.plurals.profile_passphrase_hint, 12, 12));
+        assertEquals("1 allowed", en.getResources().getQuantityString(R.plurals.perm_count_allowed, 1, 1));
+        assertEquals("2 blocked", en.getResources().getQuantityString(R.plurals.perm_count_blocked, 2, 2));
+        assertEquals("1 ready-to-use template", en.getResources().getQuantityString(R.plurals.hub_apps_templates_count, 1, 1));
+        assertEquals("3 ready-to-use templates", en.getResources().getQuantityString(R.plurals.hub_apps_templates_count, 3, 3));
+        assertEquals("1 needs attention", en.getResources().getQuantityString(R.plurals.hub_reminders_attention_pill, 1, 1));
+        assertEquals("2 need attention", en.getResources().getQuantityString(R.plurals.hub_reminders_attention_pill, 2, 2));
     }
 
     public void testModeSwitchingUpdatesAcceptLanguageAndCapabilityGatedProfileSync() throws Exception {
