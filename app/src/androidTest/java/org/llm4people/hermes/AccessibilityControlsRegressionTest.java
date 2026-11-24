@@ -5,7 +5,9 @@ import android.app.AlertDialog;
 import android.app.Dialog;
 import android.content.Context;
 import android.content.res.ColorStateList;
+import android.graphics.drawable.RippleDrawable;
 import android.test.InstrumentationTestCase;
+import android.text.format.Formatter;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.accessibility.AccessibilityNodeInfo;
@@ -13,6 +15,7 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.RadioButton;
+import android.widget.Switch;
 import android.widget.TextView;
 
 import org.json.JSONArray;
@@ -30,8 +33,11 @@ import org.llm4people.hermes.palette.CommandRegistry;
 import org.llm4people.hermes.panel.ModelCapabilityBadges;
 import org.llm4people.hermes.panel.NotesModel;
 import org.llm4people.hermes.panel.ProfileDefaultsModel;
+import org.llm4people.hermes.panel.SearchResultModel;
 import org.llm4people.hermes.panel.SessionPanel;
+import org.llm4people.hermes.panel.SkillStudioModel;
 import org.llm4people.hermes.panel.UniversalShareModel;
+import org.llm4people.hermes.panel.WorkspacePathGuard;
 import org.llm4people.hermes.places.NearbyGuide;
 import org.llm4people.hermes.places.NearbyResult;
 import org.llm4people.hermes.places.PlaceSelection;
@@ -48,6 +54,7 @@ import java.lang.ref.WeakReference;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -69,6 +76,9 @@ import java.util.function.Consumer;
  * - R14.5.1-R14.5.6: TalkBack container roles (via Ui.setButtonRole SSoT), complete
  *   contentDescription, hidden decorative/redundant children, and non-nested clickables across
  *   AppsLauncherPanel, NotesPanel, CommandPalette, ProfileDefaultsPanel, DataTableBlock, and NearbyGuide.
+ * - R15.5.1-R15.5.3 & R15.4.6: TalkBack container roles, zero nested clickables, sibling Switch,
+ *   localized pluralized diff descriptions, and roundedRipple/stateful disabled ink across
+ *   GlobalSearchPanel, SkillStudio, WorkspaceFilesPanel, and WorkspaceForms.
  */
 @SuppressWarnings("deprecation")
 public final class AccessibilityControlsRegressionTest extends InstrumentationTestCase {
@@ -632,6 +642,237 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                                 View.IMPORTANT_FOR_ACCESSIBILITY_NO,
                                 venueTop.getChildAt(i).getImportantForAccessibility());
                     }
+                } catch (Exception err) {
+                    throw new AssertionError(err);
+                }
+            });
+        } finally {
+            try {
+                runTestOnUiThread(() -> {
+                    SessionPanel sp = sessionPanelRef.getAndSet(null);
+                    if (sp != null) sp.close();
+                });
+            } finally {
+                ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+            }
+        }
+    }
+
+    public void testRound15TalkBackPanelsAndWorkspaceFormsPolish() throws Throwable {
+        Context context = getInstrumentation().getTargetContext();
+        MainActivity activity = launchActivity(context.getPackageName(), MainActivity.class, null);
+        AtomicReference<SessionPanel> sessionPanelRef = new AtomicReference<>();
+        try (WorkspaceAccountFixture fixture = new WorkspaceAccountFixture(context)) {
+            runTestOnUiThread(() -> {
+                try {
+                    HermesApi api = new HermesApi("http://127.0.0.1:1", "tok");
+                    SessionPanel sessionPanel = new SessionPanel(activity, api, fixture.account);
+                    sessionPanelRef.set(sessionPanel);
+                    int minTouchPx = Ui.dp(activity, 48);
+
+                    // R15.5.1: GlobalSearchPanel hitCard eliminates nested Button, uses Button role & composite description.
+                    Class<?> searchPanelClass = Class.forName("org.llm4people.hermes.panel.GlobalSearchPanel");
+                    Constructor<?> searchCtor = searchPanelClass.getDeclaredConstructor(
+                            SessionPanel.class, Consumer.class, Runnable.class);
+                    searchCtor.setAccessible(true);
+                    Object searchPanel = searchCtor.newInstance(sessionPanel, (Consumer<String>) id -> {}, null);
+                    Method hitCardMethod = searchPanelClass.getDeclaredMethod(
+                            "hitCard", SearchResultModel.Hit.class, ZoneId.class);
+                    hitCardMethod.setAccessible(true);
+
+                    SearchResultModel.Hit clickableHit = new SearchResultModel.Hit(
+                            "s-1", "t-1", "Release Checklist", "m-1", "assistant",
+                            new SearchResultModel.HighlightedSnippet("Ship v2 after smoke tests", Collections.emptyList()),
+                            "2026-11-24T12:00:00Z");
+                    ViewGroup hitCard = (ViewGroup) hitCardMethod.invoke(searchPanel, clickableHit, ZoneId.of("UTC"));
+                    assertTrue("Clickable search hit card must be clickable", hitCard.isClickable());
+                    assertTrue("Search hit card minHeight must be >= 48dp", hitCard.getMinimumHeight() >= minTouchPx);
+                    assertButtonAccessibilityRole(hitCard);
+                    assertNoClickableDescendants(hitCard);
+                    assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS,
+                            hitCard.getChildAt(0).getImportantForAccessibility());
+                    String hitCd = String.valueOf(hitCard.getContentDescription());
+                    assertTrue(hitCd.contains("Release Checklist"));
+                    assertTrue(hitCd.contains("Ship v2 after smoke tests"));
+                    assertTrue(hitCd.contains(activity.getString(R.string.brain_search_open_thread)));
+
+                    // Negative case: hit without target session stays non-clickable and keeps text accessible.
+                    SearchResultModel.Hit nonClickableHit = new SearchResultModel.Hit(
+                            "", "", "Orphan Hit", "m-2", "user",
+                            new SearchResultModel.HighlightedSnippet("No session target", Collections.emptyList()),
+                            "");
+                    ViewGroup readOnlyHit = (ViewGroup) hitCardMethod.invoke(searchPanel, nonClickableHit, ZoneId.of("UTC"));
+                    assertFalse("Hit without session target must not be clickable", readOnlyHit.isClickable());
+                    assertTrue("Non-clickable hit children must remain accessible",
+                            readOnlyHit.getChildAt(0).getImportantForAccessibility()
+                                    != View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
+
+                    // R15.5.2: SkillStudio skillRow keeps outer card non-clickable, separates detailArea and Switch sibling.
+                    Class<?> skillStudioClass = Class.forName("org.llm4people.hermes.panel.SkillStudio");
+                    Constructor<?> skillCtor = skillStudioClass.getDeclaredConstructor(
+                            SessionPanel.class, BooleanSupplier.class, Consumer.class, Runnable.class);
+                    skillCtor.setAccessible(true);
+                    Object skillStudio = skillCtor.newInstance(
+                            sessionPanel, (BooleanSupplier) () -> true, (Consumer<String>) s -> {}, null);
+                    setField(skillStudio, "studioSupported", true);
+
+                    Class<?> skillInvClass = Class.forName("org.llm4people.hermes.panel.SkillInventory");
+                    Method parseSkills = skillInvClass.getDeclaredMethod("parse", JSONObject.class);
+                    parseSkills.setAccessible(true);
+                    JSONObject skillPayload = new JSONObject().put("data", new JSONArray().put(
+                            new JSONObject()
+                                    .put("name", "deploy-helper")
+                                    .put("description", "Automates staging deploys")
+                                    .put("category", "ops")
+                                    .put("source", "user")
+                                    .put("writable", true)
+                                    .put("enabled", true)));
+                    @SuppressWarnings("unchecked")
+                    List<?> parsedSkills = (List<?>) parseSkills.invoke(null, skillPayload);
+                    Object skill = parsedSkills.get(0);
+
+                    Method skillRowMethod = skillStudioClass.getDeclaredMethod("skillRow", skillInvClass);
+                    skillRowMethod.setAccessible(true);
+                    ViewGroup skillCard = (ViewGroup) skillRowMethod.invoke(skillStudio, skill);
+                    assertFalse("Outer SkillStudio card must not be clickable", skillCard.isClickable());
+                    ViewGroup skillRowContainer = (ViewGroup) skillCard.getChildAt(0);
+                    assertEquals("Expected detailArea + Switch sibling when studioSupported",
+                            2, skillRowContainer.getChildCount());
+                    ViewGroup detailArea = (ViewGroup) skillRowContainer.getChildAt(0);
+                    assertTrue("Skill detailArea must be clickable", detailArea.isClickable());
+                    assertTrue("Skill detailArea minHeight must be >= 48dp", detailArea.getMinimumHeight() >= minTouchPx);
+                    assertButtonAccessibilityRole(detailArea);
+                    assertNoClickableDescendants(detailArea);
+                    assertEquals(2, detailArea.getChildCount());
+                    assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS,
+                            detailArea.getChildAt(0).getImportantForAccessibility());
+                    assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS,
+                            detailArea.getChildAt(1).getImportantForAccessibility());
+                    String detailCd = String.valueOf(detailArea.getContentDescription());
+                    assertTrue(detailCd.contains("deploy-helper"));
+                    assertTrue(detailCd.contains("Automates staging deploys"));
+                    assertTrue(detailCd.contains("ops"));
+                    assertTrue(detailCd.contains(SkillStudioModel.sourceLabel(activity, "user", true)));
+
+                    assertTrue("Second sibling must be Switch", skillRowContainer.getChildAt(1) instanceof Switch);
+                    Switch toggle = (Switch) skillRowContainer.getChildAt(1);
+                    assertTrue("Switch minHeight must be >= 48dp", toggle.getMinimumHeight() >= minTouchPx);
+                    assertTrue("Switch minWidth must be >= 48dp", toggle.getMinimumWidth() >= minTouchPx);
+                    assertTrue(String.valueOf(toggle.getContentDescription())
+                            .contains(activity.getString(R.string.brain_skills_enabled)));
+
+                    // Read-only catalog mode: no Switch sibling, detailArea still has Button role and no nested clickables.
+                    setField(skillStudio, "studioSupported", false);
+                    ViewGroup readOnlySkillCard = (ViewGroup) skillRowMethod.invoke(skillStudio, skill);
+                    ViewGroup readOnlyRow = (ViewGroup) readOnlySkillCard.getChildAt(0);
+                    assertEquals(1, readOnlyRow.getChildCount());
+                    assertButtonAccessibilityRole(readOnlyRow.getChildAt(0));
+                    assertNoClickableDescendants((ViewGroup) readOnlyRow.getChildAt(0));
+
+                    // R15.5.3: WorkspaceFilesPanel entryRow & renderDiff composite descriptions + hidden children + Button role.
+                    Class<?> filesPanelClass = Class.forName("org.llm4people.hermes.panel.WorkspaceFilesPanel");
+                    Constructor<?> filesCtor = filesPanelClass.getDeclaredConstructor(
+                            SessionPanel.class, String.class, BooleanSupplier.class, Consumer.class, Runnable.class);
+                    filesCtor.setAccessible(true);
+                    Object filesPanel = filesCtor.newInstance(
+                            sessionPanel, "sess-1", (BooleanSupplier) () -> true, (Consumer<String>) s -> {}, null);
+                    LinearLayout filesBody = Ui.column(activity);
+                    setField(filesPanel, "body", filesBody);
+
+                    Class<?> entryClass = Class.forName("org.llm4people.hermes.panel.BrainJson$WorkspaceEntry");
+                    Constructor<?> entryCtor = entryClass.getDeclaredConstructor(
+                            String.class, String.class, long.class, String.class, String.class);
+                    entryCtor.setAccessible(true);
+                    Object fileEntry = entryCtor.newInstance("src/App.java", "file", 2048L, "java", "M");
+                    Method entryRowMethod = filesPanelClass.getDeclaredMethod("entryRow", entryClass);
+                    entryRowMethod.setAccessible(true);
+                    ViewGroup entryCard = (ViewGroup) entryRowMethod.invoke(filesPanel, fileEntry);
+                    assertTrue("Workspace entry card must be clickable", entryCard.isClickable());
+                    assertButtonAccessibilityRole(entryCard);
+                    assertNoClickableDescendants(entryCard);
+                    assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS,
+                            entryCard.getChildAt(0).getImportantForAccessibility());
+                    String entryCd = String.valueOf(entryCard.getContentDescription());
+                    assertTrue(entryCd.contains("src/App.java"));
+                    assertTrue(entryCd.contains(Formatter.formatShortFileSize(activity, 2048L)));
+                    assertTrue(entryCd.contains(WorkspacePathGuard.gitStatusLabel(activity, "M")));
+
+                    Class<?> diffFileClass = Class.forName("org.llm4people.hermes.panel.BrainJson$DiffFile");
+                    Constructor<?> diffFileCtor = diffFileClass.getDeclaredConstructor(
+                            String.class, String.class, int.class, int.class);
+                    diffFileCtor.setAccessible(true);
+                    Object modDiff = diffFileCtor.newInstance("src/Main.java", "M", 3, 1);
+                    Object addOnlyDiff = diffFileCtor.newInstance("src/New.java", "A", 5, 0);
+
+                    Class<?> wsDiffClass = Class.forName("org.llm4people.hermes.panel.BrainJson$WorkspaceDiff");
+                    Constructor<?> wsDiffCtor = wsDiffClass.getDeclaredConstructor(
+                            String.class, int.class, int.class, List.class, String.class);
+                    wsDiffCtor.setAccessible(true);
+                    Object wsDiff = wsDiffCtor.newInstance("", 0, 0, Arrays.asList(modDiff, addOnlyDiff), "");
+                    Method renderDiffMethod = filesPanelClass.getDeclaredMethod("renderDiff", wsDiffClass);
+                    renderDiffMethod.setAccessible(true);
+                    renderDiffMethod.invoke(filesPanel, wsDiff);
+
+                    assertEquals(2, filesBody.getChildCount());
+                    ViewGroup modCard = (ViewGroup) filesBody.getChildAt(0);
+                    assertButtonAccessibilityRole(modCard);
+                    assertNoClickableDescendants(modCard);
+                    assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS,
+                            modCard.getChildAt(0).getImportantForAccessibility());
+                    String modCd = String.valueOf(modCard.getContentDescription());
+                    assertTrue(modCd.contains("src/Main.java"));
+                    assertTrue(modCd.contains(WorkspacePathGuard.gitStatusLabel(activity, "M")));
+                    assertTrue(modCd.contains(activity.getResources().getQuantityString(R.plurals.diff_lines_added, 3, 3)));
+                    assertTrue(modCd.contains(activity.getResources().getQuantityString(R.plurals.diff_lines_removed, 1, 1)));
+
+                    ViewGroup addCard = (ViewGroup) filesBody.getChildAt(1);
+                    String addCd = String.valueOf(addCard.getContentDescription());
+                    assertTrue(addCd.contains("src/New.java"));
+                    assertTrue(addCd.contains(activity.getResources().getQuantityString(R.plurals.diff_lines_added, 5, 5)));
+                    assertFalse("Zero deletions must not be announced in diff contentDescription",
+                            addCd.contains(activity.getResources().getQuantityString(R.plurals.diff_lines_removed, 0, 0)));
+
+                    // R15.4.6: WorkspaceForms prepare button uses roundedRipple with mask & stateful enabledDisabledInk.
+                    Class<?> blockClass = Class.forName("org.llm4people.hermes.artifact.WorkspaceLayout$Block");
+                    Constructor<?> blockCtor = blockClass.getDeclaredConstructor();
+                    blockCtor.setAccessible(true);
+                    Object formBlock = blockCtor.newInstance();
+                    setField(formBlock, "type", "form");
+                    setField(formBlock, "prompt", "Prepare a draft");
+
+                    Class<?> fieldClass = Class.forName("org.llm4people.hermes.artifact.DraftForm$Field");
+                    Constructor<?> fieldCtor = fieldClass.getDeclaredConstructor();
+                    fieldCtor.setAccessible(true);
+                    Object textField = fieldCtor.newInstance();
+                    setField(textField, "id", "topic");
+                    setField(textField, "label", "Topic");
+                    setField(textField, "kind", "text");
+                    setField(textField, "required", true);
+                    setField(formBlock, "fields", Collections.singletonList(textField));
+
+                    ThemePalette palette = ThemePalette.resolve(
+                            ThemePalette.OverrideSpec.defaults(), ThemePalette.isNight(activity));
+                    LinearLayout formGroup = Ui.column(activity);
+                    WorkspaceHost host = new WorkspaceHost(activity, () -> true);
+                    Class<?> formsClass = Class.forName("org.llm4people.hermes.artifact.WorkspaceForms");
+                    Method mountForm = formsClass.getDeclaredMethod(
+                            "mount", LinearLayout.class, blockClass, ThemePalette.class, Activity.class, ArtifactDesk.Host.class);
+                    mountForm.setAccessible(true);
+                    mountForm.invoke(null, formGroup, formBlock, palette, activity, host);
+
+                    Button prepare = findFirst(formGroup, Button.class);
+                    assertNotNull("Expected prepare Button in mounted WorkspaceForms", prepare);
+                    assertTrue("Prepare button must use RippleDrawable", prepare.getBackground() instanceof RippleDrawable);
+                    RippleDrawable ripple = (RippleDrawable) prepare.getBackground();
+                    assertNotNull("Ui.roundedRipple must supply a bounded ripple mask",
+                            ripple.findDrawableByLayerId(android.R.id.mask));
+                    ColorStateList prepareColors = prepare.getTextColors();
+                    assertNotNull(prepareColors);
+                    assertTrue("Prepare button text colors must be stateful", prepareColors.isStateful());
+                    assertEquals(palette.accent,
+                            prepareColors.getColorForState(new int[]{android.R.attr.state_enabled}, 0));
+                    assertEquals(palette.muted,
+                            prepareColors.getColorForState(new int[]{-android.R.attr.state_enabled}, 0));
                 } catch (Exception err) {
                     throw new AssertionError(err);
                 }

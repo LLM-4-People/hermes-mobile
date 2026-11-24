@@ -3,9 +3,7 @@ package org.llm4people.hermes.artifact;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
-import android.content.res.ColorStateList;
 import android.graphics.drawable.GradientDrawable;
-import android.graphics.drawable.RippleDrawable;
 import android.text.InputFilter;
 import android.text.InputType;
 import android.view.View;
@@ -99,11 +97,11 @@ final class WorkspaceForms {
             }
         });
         prepare.setSingleLine(false);
-        prepare.setTextColor(colors.accent);
         GradientDrawable fill = new GradientDrawable();
         fill.setColor(colors.accentSurface);
-        fill.setCornerRadius(Ui.dp(c, 8));
-        prepare.setBackground(new RippleDrawable(ColorStateList.valueOf(colors.line), fill, null));
+        fill.setCornerRadius(Ui.dp(c, Ui.BUTTON_CORNER_DP));
+        prepare.setBackground(Ui.roundedRipple(c, Ui.BUTTON_CORNER_DP, fill));
+        prepare.setTextColor(Ui.enabledDisabledInk(colors.accent, colors.muted));
         Ui.pad(prepare, 16, 8);
         LinearLayout.LayoutParams place = new LinearLayout.LayoutParams(-2, -2);
         place.topMargin = Ui.dp(c, 8);

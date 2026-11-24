@@ -6,7 +6,6 @@ import android.graphics.Typeface;
 import android.text.TextUtils;
 import android.text.format.Formatter;
 import android.view.View;
-import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -17,6 +16,8 @@ import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.artifact.CodeReader;
 import org.llm4people.hermes.net.HermesApi;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
@@ -139,24 +140,31 @@ final class WorkspaceFilesPanel {
     private View entryRow(BrainJson.WorkspaceEntry entry) {
         LinearLayout card = interactiveCard();
         LinearLayout top = Ui.row(panel.activity);
+        top.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
         LinearLayout copy = Ui.column(panel.activity);
+        List<String> descriptionParts = new ArrayList<>();
         String displayPath = entry.isDirectory()
                 ? panel.t(R.string.ws_files_dir_prefix, entry.path()) : entry.path();
+        descriptionParts.add(displayPath);
         TextView name = Ui.text(panel.activity, displayPath, 16);
         name.setTypeface(entry.isDirectory() ? Typeface.DEFAULT_BOLD : Typeface.MONOSPACE);
         copy.addView(name);
         if (!entry.isDirectory() && entry.sizeBytes() > 0) {
-            TextView size = Ui.text(panel.activity, Formatter.formatShortFileSize(panel.activity, entry.sizeBytes()), 13);
+            String sizeText = Formatter.formatShortFileSize(panel.activity, entry.sizeBytes());
+            descriptionParts.add(sizeText);
+            TextView size = Ui.text(panel.activity, sizeText, 13);
             size.setTextColor(panel.activity.getColor(R.color.muted));
             copy.addView(size);
         }
         top.addView(copy, new LinearLayout.LayoutParams(0, -2, 1));
         String gitBadge = WorkspacePathGuard.gitStatusLabel(panel.activity, entry.gitStatus());
         if (!gitBadge.isEmpty()) {
+            descriptionParts.add(gitBadge);
             top.addView(BrainUi.badge(panel.activity, gitBadge, true));
         }
         top.addView(forwardChevron(), chevronParams());
         card.addView(top);
+        card.setContentDescription(String.join(". ", descriptionParts));
         card.setOnClickListener(v -> {
             if (entry.isDirectory()) loadTree(entry.path());
             else openFile(entry.path());
@@ -272,20 +280,35 @@ final class WorkspaceFilesPanel {
         for (BrainJson.DiffFile file : diff.files()) {
             LinearLayout card = interactiveCard();
             LinearLayout row = Ui.row(panel.activity);
+            row.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
             LinearLayout copy = Ui.column(panel.activity);
+            List<String> descriptionParts = new ArrayList<>();
+            descriptionParts.add(file.path());
             TextView name = Ui.text(panel.activity, file.path(), 15);
             name.setTypeface(Typeface.MONOSPACE);
             copy.addView(name);
 
             LinearLayout badges = Ui.row(panel.activity);
             String label = WorkspacePathGuard.gitStatusLabel(panel.activity, file.status());
-            if (!label.isEmpty()) badges.addView(BrainUi.badge(panel.activity, label, false));
+            if (!label.isEmpty()) {
+                descriptionParts.add(label);
+                badges.addView(BrainUi.badge(panel.activity, label, false));
+            }
+            if (file.additions() > 0) {
+                descriptionParts.add(panel.activity.getResources().getQuantityString(
+                        R.plurals.diff_lines_added, file.additions(), file.additions()));
+            }
+            if (file.deletions() > 0) {
+                descriptionParts.add(panel.activity.getResources().getQuantityString(
+                        R.plurals.diff_lines_removed, file.deletions(), file.deletions()));
+            }
             badges.addView(BrainUi.badge(panel.activity, "+" + file.additions() + " / -" + file.deletions(), true));
             copy.addView(BrainUi.chipBar(panel.activity, badges));
 
             row.addView(copy, new LinearLayout.LayoutParams(0, -2, 1));
             row.addView(forwardChevron(), chevronParams());
             card.addView(row);
+            card.setContentDescription(String.join(". ", descriptionParts));
             card.setOnClickListener(v -> openFileDiff(file.path()));
             body.addView(card);
         }
@@ -297,12 +320,8 @@ final class WorkspaceFilesPanel {
         card.setBackground(Ui.roundedRipple(panel.activity, Ui.CARD_CORNER_DP,
                 Ui.shape(panel.activity, Ui.CARD_CORNER_DP, R.color.surface, R.color.line, 1)));
         card.setFocusable(true);
-        card.setAccessibilityDelegate(new View.AccessibilityDelegate() {
-            @Override public void onInitializeAccessibilityNodeInfo(View host, AccessibilityNodeInfo info) {
-                super.onInitializeAccessibilityNodeInfo(host, info);
-                info.setClassName(Button.class.getName());
-            }
-        });
+        card.setClickable(true);
+        Ui.setButtonRole(card);
         return card;
     }
 
