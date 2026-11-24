@@ -394,6 +394,36 @@ public final class ProfileGate {
         if (wipe != null) wipe.run();
     }
 
+    private void dismissConfirmation() {
+        AlertDialog toDismiss = confirmation;
+        confirmation = null;
+        if (toDismiss != null) {
+            try { toDismiss.dismiss(); } catch (RuntimeException ignored) {}
+        }
+    }
+
+    /** Executes all screen-transition cleanup actions best-effort so one failure never leaks subsequent state. */
+    static void runScreenCleanup(Runnable... actions) {
+        if (actions == null) return;
+        for (Runnable action : actions) {
+            if (action == null) continue;
+            try {
+                action.run();
+            } catch (RuntimeException err) {
+                Diagnostics.warning("profile", "screen_cleanup_failed", err);
+            }
+        }
+    }
+
+    private int beginScreen(boolean canNavigateBack) {
+        generation++;
+        busy = false;
+        nested = canNavigateBack;
+        activeAddPairingHandler = null;
+        runScreenCleanup(this::wipeVisibleSecrets, this::cancelBiometric, this::cancelProbe, this::dismissConfirmation);
+        return generation;
+    }
+
     private void invalidate() {
         generation++;
         busy = false;
@@ -401,13 +431,7 @@ public final class ProfileGate {
         lastPairingClaim = null;
         stagedPairing = null;
         activeAddPairingHandler = null;
-        wipeVisibleSecrets();
-        cancelBiometric();
-        cancelProbe();
-        if (confirmation != null) {
-            confirmation.dismiss();
-            confirmation = null;
-        }
+        runScreenCleanup(this::wipeVisibleSecrets, this::cancelBiometric, this::cancelProbe, this::dismissConfirmation);
         if (active != null) {
             active.close();
             active = null;
@@ -416,17 +440,13 @@ public final class ProfileGate {
 
     /** Tracked like every gate dialog so lock, switch and close dismiss it. */
     private void showLanguagePicker() {
-        if (confirmation != null) confirmation.dismiss();
+        dismissConfirmation();
         confirmation = AppLanguage.showPicker(activity, null);
     }
 
     private void chooser(String message) {
-        generation++;
-        wipeVisibleSecrets();
-        cancelProbe();
-        nested = false;
+        beginScreen(false);
         stagedPairing = null;
-        activeAddPairingHandler = null;
         ProfileScreen screen = new ProfileScreen(activity, activity.getString(R.string.profile_choose_title), null);
         boolean bioAvailable = BiometricVault.availability(activity) != BiometricVault.Availability.UNAVAILABLE;
         store.profiles().forEach((id, label) -> {
@@ -452,13 +472,9 @@ public final class ProfileGate {
     }
 
     private void add(boolean canGoBack) {
-        generation++;
-        int screenEpoch = generation;
-        cancelProbe();
-        nested = canGoBack;
+        int screenEpoch = beginScreen(canGoBack);
         lastPairingClaim = null;
         stagedPairing = null;
-        activeAddPairingHandler = null;
         PairingLinkParser.ParsedInput incomingLink = pendingPairing;
         pendingPairing = null;
         ProfileScreen screen = new ProfileScreen(
@@ -1532,12 +1548,7 @@ public final class ProfileGate {
     }
 
     private void unlock(String id, String label) {
-        generation++;
-        int screenEpoch = generation;
-        wipeVisibleSecrets();
-        cancelProbe();
-        nested = true;
-        activeAddPairingHandler = null;
+        int screenEpoch = beginScreen(true);
         ProfileLockPolicy.Mode lockMode = ProfileLockPolicy.mode(activity, id);
         boolean bioAvailable = BiometricVault.availability(activity) != BiometricVault.Availability.UNAVAILABLE;
         boolean bioEnrolled = bioAvailable && BiometricVault.isEnrolled(activity, id);
@@ -1665,11 +1676,7 @@ public final class ProfileGate {
     }
 
     private void rotate(String id, String label) {
-        generation++;
-        wipeVisibleSecrets();
-        cancelProbe();
-        nested = true;
-        activeAddPairingHandler = null;
+        beginScreen(true);
         boolean pinMode = ProfileLockPolicy.mode(activity, id) == ProfileLockPolicy.Mode.PIN;
         ProfileScreen screen = new ProfileScreen(activity,
                 activity.getString(R.string.profile_replace_key),
@@ -1778,6 +1785,7 @@ public final class ProfileGate {
             }
             store.forget(id);
         } catch (java.io.IOException | RuntimeException ex) {
+            Diagnostics.warning("profile", "forget_failed", ex);
             screen.status(activity.getString(R.string.profile_setup_remove_failed), true);
             return;
         }

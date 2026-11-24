@@ -33,6 +33,7 @@ public final class ShareMediaActivity extends Activity {
     public static final String MEDIA_RECEIPT = "org.llm4people.hermes.MEDIA_SHARE_RECEIPT";
 
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    private AlertDialog activeDialog;
     private String waiting;
 
     @Override protected void attachBaseContext(Context newBase) {
@@ -110,6 +111,7 @@ public final class ShareMediaActivity extends Activity {
     }
 
     @Override protected void onDestroy() {
+        dismissDialog();
         worker.shutdownNow();
         super.onDestroy();
     }
@@ -141,9 +143,23 @@ public final class ShareMediaActivity extends Activity {
         return out;
     }
 
+    private void showDialog(AlertDialog.Builder builder) {
+        dismissDialog();
+        if (isFinishing() || isDestroyed()) return;
+        activeDialog = Ui.secureDialog(builder);
+    }
+
+    private void dismissDialog() {
+        AlertDialog current = activeDialog;
+        activeDialog = null;
+        if (current != null) {
+            try { current.dismiss(); } catch (RuntimeException ignored) {}
+        }
+    }
+
     private void busy(String previous) {
         waiting = previous;
-        Ui.secureDialog(new AlertDialog.Builder(this)
+        showDialog(new AlertDialog.Builder(this)
                 .setTitle(R.string.share_pending_title)
                 .setMessage(R.string.share_pending_media_body)
                 .setPositiveButton(R.string.share_pending_resume, (d, w) -> review(previous))
@@ -153,7 +169,7 @@ public final class ShareMediaActivity extends Activity {
 
     private void unavailable(String message) {
         setIntent(new Intent());
-        Ui.secureDialog(new AlertDialog.Builder(this)
+        showDialog(new AlertDialog.Builder(this)
                 .setTitle(R.string.share_unavailable_title)
                 .setMessage(message)
                 .setPositiveButton(R.string.ws_close, (d, w) -> finish())

@@ -9,6 +9,7 @@ import com.google.firebase.messaging.FirebaseMessaging;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.llm4people.hermes.Diagnostics;
+import org.llm4people.hermes.HermesConfig;
 import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.profile.Account;
 
@@ -78,16 +79,25 @@ final class PushConnection {
         }
     }
 
+    static HermesApi.Limits apiLimits(Context context) {
+        return HermesApi.Limits.from(HermesConfig.load(context));
+    }
+
+    static long fcmTokenTimeoutMs(Context context) {
+        return HermesConfig.load(context).httpReadTimeoutMs;
+    }
+
     private static String token(Context context, PushConfig config) throws Exception {
         int availability = com.google.android.gms.common.GoogleApiAvailabilityLight.getInstance()
                 .isGooglePlayServicesAvailable(context);
         if (availability != com.google.android.gms.common.ConnectionResult.SUCCESS) throw new MissingPlayServices();
         configure(context, config);
-        return Tasks.await(FirebaseMessaging.getInstance().getToken(), 45, TimeUnit.SECONDS);
+        return Tasks.await(FirebaseMessaging.getInstance().getToken(),
+                fcmTokenTimeoutMs(context), TimeUnit.MILLISECONDS);
     }
 
     static void enroll(Context context, Account account, PushConfig config, long before, BooleanSupplier current) throws Exception {
-        HermesApi api = new HermesApi(account.endpoint, account.bearer);
+        HermesApi api = new HermesApi(account.endpoint, account.bearer, apiLimits(context));
         if (!current.getAsBoolean()) return;
         String token = token(context, config);
         PushStore store = PushStore.get(context);
@@ -106,7 +116,7 @@ final class PushConnection {
 
     static void remove(Context context, PushStore.Device device, String bearer) throws Exception {
         if (device.unified()) DistributorEnrollment.unregister(context, device);
-        new HermesApi(device.endpoint, bearer).delete(device.path());
+        new HermesApi(device.endpoint, bearer, apiLimits(context)).delete(device.path());
         PushStore.get(context).finishRemoval(device);
         releaseIfEmpty(context);
     }
@@ -128,7 +138,8 @@ final class PushConnection {
                     DistributorEnrollment.sync(context, device);
                 } else {
                     String token = token(context, device.config);
-                    new HermesApi(device.endpoint, device.managementKey()).put(device.path(), fcmRegistration(token));
+                    new HermesApi(device.endpoint, device.managementKey(), apiLimits(context))
+                            .put(device.path(), fcmRegistration(token));
                     store.enable(device);
                 }
             } catch (HermesApi.HttpError failure) {

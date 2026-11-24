@@ -46,8 +46,13 @@ final class PushHistory {
     }
 
     static Page load(Context context, Account account, long cursor, Locale locale) throws IOException {
-        JSONObject response = new HermesApi(account.endpoint, account.bearer)
-                .get(PushConnection.BASE + "/events?after=" + cursor + "&limit=25");
+        HermesApi api = new HermesApi(account.endpoint, account.bearer, PushConnection.apiLimits(context));
+        return load(context, api, cursor, locale);
+    }
+
+    static Page load(Context context, HermesApi api, long cursor, Locale locale) throws IOException {
+        if (api == null || api.isRevoked()) throw new IOException("Push history client closed");
+        JSONObject response = api.get(PushConnection.BASE + "/events?after=" + cursor + "&limit=25");
         return new Page(context, response, cursor, locale);
     }
 }

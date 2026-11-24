@@ -70,6 +70,70 @@ public final class CorruptSharePrefsFailClosedTest {
         assertTrue("Expired media share must delete its sealed .enc blob", "receipt-expired".equals(expiredDeletedId[0]));
     }
 
+    @Test
+    public void atomicMediaWriteAndOrphanSweepHandleCommitFailureAndCorruptRecovery() throws Exception {
+        java.io.File dir = java.nio.file.Files.createTempDirectory("hermes-media-share-test").toFile();
+        try {
+            byte[] payload = new byte[]{1, 2, 3, 4, 5};
+
+            // 1. Happy path: writes atomically, removes .tmp, keeps final .enc
+            IncomingMediaShare.writeSealedAtomically(dir, "good-1", payload, () -> {}, true);
+            java.io.File goodFile = new java.io.File(dir, "good-1.enc");
+            java.io.File goodTmp = new java.io.File(dir, "good-1.enc.tmp");
+            assertTrue(goodFile.isFile());
+            assertTrue(!goodTmp.exists());
+
+            // 2. Commit failure on create(): removes both .tmp and target .enc cleanly
+            boolean threw = false;
+            try {
+                IncomingMediaShare.writeSealedAtomically(dir, "failed-create", payload, () -> {
+                    throw new IllegalStateException("commit failed");
+                }, true);
+            } catch (IllegalStateException expected) {
+                threw = true;
+            }
+            assertTrue(threw);
+            assertTrue("New receipt .enc must be deleted when pref commit fails",
+                    !new java.io.File(dir, "failed-create.enc").exists());
+            assertTrue(!new java.io.File(dir, "failed-create.enc.tmp").exists());
+
+            // 3. Commit failure on existing receipt update (deleteTargetOnCommitFailure=false) preserves target .enc
+            boolean updateThrew = false;
+            try {
+                IncomingMediaShare.writeSealedAtomically(dir, "good-1", payload, () -> {
+                    throw new IllegalStateException("update commit failed");
+                }, false);
+            } catch (IllegalStateException expected) {
+                updateThrew = true;
+            }
+            assertTrue(updateThrew);
+            assertTrue(goodFile.isFile());
+
+            // 4. Orphan sweep preserves activeId.enc while deleting stale .enc and .enc.tmp files
+            java.nio.file.Files.write(new java.io.File(dir, "stale-1.enc").toPath(), payload);
+            java.nio.file.Files.write(new java.io.File(dir, "stale-2.enc.tmp").toPath(), payload);
+            int removedKeepActive = IncomingMediaShare.sweepOrphanedBlobs(dir, "good-1");
+            assertTrue(removedKeepActive == 2);
+            assertTrue(goodFile.isFile());
+            assertTrue(!new java.io.File(dir, "stale-1.enc").exists());
+            assertTrue(!new java.io.File(dir, "stale-2.enc.tmp").exists());
+
+            // 5. Corrupt-pref sweep deletes everything when activeId is null
+            boolean[] corruptSwept = {false};
+            boolean[] corruptCommitted = {false};
+            SharedPreferences corruptPrefs = corruptPrefs("id", 77, corruptCommitted);
+            assertNull(IncomingMediaShare.pendingIdFromPrefs(corruptPrefs, 1_000_000L, null, () -> {
+                corruptSwept[0] = true;
+                IncomingMediaShare.sweepOrphanedBlobs(dir, null);
+            }));
+            assertTrue(corruptSwept[0]);
+            assertTrue(!goodFile.exists());
+        } finally {
+            IncomingMediaShare.sweepOrphanedBlobs(dir, null);
+            dir.delete();
+        }
+    }
+
     private static SharedPreferences validPrefs(String idValue, String expiresValue, boolean[] committed) {
         SharedPreferences.Editor editor = editorProxy(committed);
         Map<String, Object> snapshot = new HashMap<>();

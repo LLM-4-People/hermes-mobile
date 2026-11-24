@@ -40,6 +40,7 @@ final class PushSettings {
     static final int PERMISSION = 6801;
     private final Activity activity;
     private final Account account;
+    private final HermesApi api;
     private final DeliveryRouter.Actions deliveryActions;
     private AlertDialog dialog;
     private TimePickerDialog timePicker;
@@ -56,14 +57,27 @@ final class PushSettings {
     PushSettings(Activity activity, Account account, DeliveryRouter.Actions deliveryActions) {
         this.activity = activity;
         this.account = account;
+        this.api = account == null ? null
+                : new HermesApi(account.endpoint, account.bearer, PushConnection.apiLimits(activity));
         this.deliveryActions = deliveryActions;
+    }
+
+    HermesApi ownedApi() {
+        return api;
     }
 
     void close() {
         closed = true;
+        if (api != null) api.revoke();
         if (timePicker != null) { timePicker.dismiss(); timePicker = null; }
-        if (deliveryRouter != null) { deliveryRouter.dismiss(); deliveryRouter = null; }
+        dismissDeliveryRouter();
         if (dialog != null) dialog.dismiss();
+    }
+
+    private void dismissDeliveryRouter() {
+        DeliveryRouter currentRouter = deliveryRouter;
+        deliveryRouter = null;
+        if (currentRouter != null) currentRouter.dismiss();
     }
 
     private boolean current() { return !closed && !activity.isFinishing() && !activity.isDestroyed(); }
@@ -72,6 +86,7 @@ final class PushSettings {
         if (!current()) return null;
         showingMainSettings = false;
         showingPermissionRecovery = false;
+        dismissDeliveryRouter();
         if (dialog != null) dialog.dismiss();
         dialog = Ui.secureDialog(builder);
         return dialog;
@@ -334,8 +349,9 @@ final class PushSettings {
 
     private void openDeliveryInbox() {
         if (!current() || account == null) return;
+        dismissDeliveryRouter();
         if (dialog != null) dialog.dismiss();
-        HermesApi api = new HermesApi(account.endpoint, account.bearer);
+        HermesApi routerApi = new HermesApi(account.endpoint, account.bearer, PushConnection.apiLimits(activity));
         DeliveryRouter.Actions wired = new DeliveryRouter.Actions() {
             @Override public void openDiscussion(String sessionId, String runId) {
                 if (deliveryActions != null) deliveryActions.openDiscussion(sessionId, runId);
@@ -359,10 +375,11 @@ final class PushSettings {
                 if (deliveryActions != null) deliveryActions.openReminder(jobId, sessionId);
             }
             @Override public void openPushPolicy() {
+                dismissDeliveryRouter();
                 showPolicyDialog();
             }
         };
-        deliveryRouter = new DeliveryRouter(activity, account, api, new DeliveryInbox(), wired);
+        deliveryRouter = new DeliveryRouter(activity, account, routerApi, new DeliveryInbox(), wired);
         deliveryRouter.showInbox();
     }
 
@@ -431,7 +448,7 @@ final class PushSettings {
         PushConnection.WORK.execute(() -> {
             try {
                 if (!current()) return;
-                PushHistory.Page page = PushHistory.load(activity, account, cursor, locale);
+                PushHistory.Page page = PushHistory.load(activity, api, cursor, locale);
                 finishProgress(progress, () -> {
                     AlertDialog.Builder list = new AlertDialog.Builder(activity)
                             .setTitle(R.string.push_settings_history_title)
@@ -554,7 +571,10 @@ final class PushSettings {
 
     private void discoverTransport() {
         load(activity.getString(R.string.push_settings_searching_services),
-                () -> new HermesApi(account.endpoint, account.bearer).get(PushConnection.BASE), this::chooseTransport);
+                () -> {
+                    if (api == null || api.isRevoked()) throw new java.io.IOException("Push settings closed");
+                    return api.get(PushConnection.BASE);
+                }, this::chooseTransport);
     }
 
     private record DistributorChoice(String packageName, String label, String signer) {}

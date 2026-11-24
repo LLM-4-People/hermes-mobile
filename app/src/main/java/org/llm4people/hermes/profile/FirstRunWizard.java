@@ -22,10 +22,12 @@ import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.HermesConfig;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
+import org.llm4people.hermes.artifact.ThemePalette;
 import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.onboarding.OnboardingModels;
 import org.llm4people.hermes.onboarding.PairingLinkParser;
 import org.llm4people.hermes.os.LockGracePolicy;
+import org.llm4people.hermes.settings.AppThemeMode;
 
 import java.net.URI;
 import java.util.List;
@@ -129,6 +131,23 @@ public final class FirstRunWizard {
         void onThemeSelected(String themeMode);
         void onStageStarterDraft(String draftText);
         void onFinished();
+    }
+
+    /** Pure-Java commit plan for Step 2 preventing mid-dialog theme recreation and double recreates. */
+    record Step2CommitPlan(boolean applyThemeCallback, boolean recreateForLocale) {}
+
+    static Step2CommitPlan planStep2Commit(
+            String initialTheme,
+            String selectedTheme,
+            boolean currentActivityNight,
+            boolean systemNight,
+            boolean localeWillRecreate) {
+        String normalizedInitial = AppThemeMode.normalize(initialTheme);
+        String normalizedSelected = AppThemeMode.normalize(selectedTheme);
+        boolean themeChanged = !normalizedSelected.equals(normalizedInitial);
+        boolean themeWillRecreate = themeChanged
+                && AppThemeMode.willRecreateOnModeChange(currentActivityNight, normalizedSelected, systemNight);
+        return new Step2CommitPlan(themeChanged, localeWillRecreate && !themeWillRecreate);
     }
 
     private FirstRunWizard() {}
@@ -562,8 +581,9 @@ public final class FirstRunWizard {
                 selectedLang[0],
                 val -> selectedLang[0] = val), topMargin(activity, 6));
 
-        // Theme selector
-        String[] selectedTheme = {"system"};
+        // Theme selector (staged locally until Finish/Starter commit so tapping chips never recreates mid-dialog)
+        String initialTheme = AppThemeMode.readMode(activity);
+        String[] selectedTheme = {initialTheme};
         body.addView(sectionLabel(activity, R.string.onboarding_theme_label), topMargin(activity, 14));
         body.addView(ProfileScreen.choiceRow(activity,
                 new String[]{
@@ -573,10 +593,7 @@ public final class FirstRunWizard {
                 },
                 new String[]{"system", "light", "dark"},
                 selectedTheme[0],
-                val -> {
-                    selectedTheme[0] = val;
-                    callbacks.onThemeSelected(val);
-                }), topMargin(activity, 6));
+                val -> selectedTheme[0] = val), topMargin(activity, 6));
 
         // Quick lock selector
         LockGracePolicy.Window[] selectedLock = {LockGracePolicy.window(activity, account.id)};
@@ -636,7 +653,16 @@ public final class FirstRunWizard {
                     }
                 });
             }
-            if (recreateForLocale && !activity.isFinishing() && !activity.isDestroyed()) {
+            Step2CommitPlan commitPlan = planStep2Commit(
+                    initialTheme,
+                    selectedTheme[0],
+                    ThemePalette.isNight(activity),
+                    AppThemeMode.isSystemNight(),
+                    recreateForLocale);
+            if (commitPlan.applyThemeCallback()) {
+                callbacks.onThemeSelected(selectedTheme[0]);
+            }
+            if (commitPlan.recreateForLocale() && !activity.isFinishing() && !activity.isDestroyed()) {
                 activity.recreate();
             }
         };

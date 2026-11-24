@@ -16,7 +16,9 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -52,15 +54,22 @@ public final class IncomingMediaShare {
         return context.getSharedPreferences(ALIAS, Context.MODE_PRIVATE);
     }
 
+    private static File blobDir(Context context) {
+        return new File(context.getCacheDir(), BLOB_DIR);
+    }
+
     private static File sealedFile(Context context, String id) {
-        File dir = new File(context.getCacheDir(), BLOB_DIR);
-        return new File(dir, id + ".enc");
+        return new File(blobDir(context), id + ".enc");
     }
 
     public static synchronized String pending(Context context) {
         SharedPreferences prefs = prefs(context);
         String id = pendingIdFromPrefs(prefs, System.currentTimeMillis(),
-                expiredId -> deleteSealedBlob(context, expiredId));
+                expiredId -> {
+                    deleteSealedBlob(context, expiredId);
+                    sweepOrphanedBlobs(context, null);
+                },
+                () -> sweepOrphanedBlobs(context, null));
         if (id == null) return null;
         if (sealedFile(context, id).isFile()) return id;
         discard(context, id);
@@ -68,11 +77,17 @@ public final class IncomingMediaShare {
     }
 
     static String pendingIdFromPrefs(SharedPreferences prefs, long nowMs) {
-        return pendingIdFromPrefs(prefs, nowMs, null);
+        return pendingIdFromPrefs(prefs, nowMs, null, null);
     }
 
     static String pendingIdFromPrefs(SharedPreferences prefs, long nowMs,
                                      java.util.function.Consumer<String> onDeleteBlob) {
+        return pendingIdFromPrefs(prefs, nowMs, onDeleteBlob, null);
+    }
+
+    static String pendingIdFromPrefs(SharedPreferences prefs, long nowMs,
+                                     java.util.function.Consumer<String> onDeleteBlob,
+                                     Runnable onCorruptSweep) {
         if (prefs == null) return null;
         String id;
         try {
@@ -80,6 +95,7 @@ public final class IncomingMediaShare {
         } catch (ClassCastException corrupt) {
             Diagnostics.warning("share", "media_pref_corrupt");
             clearCorruptPrefs(prefs);
+            if (onCorruptSweep != null) onCorruptSweep.run();
             return null;
         }
         if (id == null) return null;
@@ -88,6 +104,29 @@ public final class IncomingMediaShare {
         if (onDeleteBlob != null) onDeleteBlob.accept(id);
         clearCorruptPrefs(prefs);
         return null;
+    }
+
+    static int sweepOrphanedBlobs(Context context, String activeId) {
+        if (context == null) return 0;
+        return sweepOrphanedBlobs(blobDir(context), activeId);
+    }
+
+    static int sweepOrphanedBlobs(File dir, String activeId) {
+        if (dir == null || !dir.isDirectory()) return 0;
+        File[] files = dir.listFiles();
+        if (files == null) return 0;
+        String expected = (activeId != null && !activeId.isEmpty()) ? activeId + ".enc" : null;
+        int removed = 0;
+        for (File file : files) {
+            if (!file.isFile()) continue;
+            if (expected != null && expected.equals(file.getName())) continue;
+            if (file.delete()) {
+                removed++;
+            } else {
+                Diagnostics.warning("share", "media_orphan_delete_failed");
+            }
+        }
+        return removed;
     }
 
     private static void deleteSealedBlob(Context context, String id) {
@@ -119,7 +158,7 @@ public final class IncomingMediaShare {
                 array.put(row);
             }
             JSONObject payload = new JSONObject().put("items", array);
-            save(context, id, expires, payload);
+            save(context, id, expires, payload, true);
             return id;
         } catch (JSONException invalid) {
             throw new IllegalStateException(invalid);
@@ -143,7 +182,7 @@ public final class IncomingMediaShare {
             } catch (JSONException invalid) {
                 throw new IllegalStateException(invalid);
             }
-            save(context, id, expiry(prefs(context)), data);
+            save(context, id, expiry(prefs(context)), data, false);
         }
         JSONArray rows = data.optJSONArray("items");
         if (rows == null || rows.length() == 0) return null;
@@ -183,7 +222,7 @@ public final class IncomingMediaShare {
         } catch (JSONException invalid) {
             throw new IllegalStateException(invalid);
         }
-        save(context, id, expiry(prefs(context)), data);
+        save(context, id, expiry(prefs(context)), data, false);
         return true;
     }
 
@@ -195,10 +234,12 @@ public final class IncomingMediaShare {
         } catch (ClassCastException corrupt) {
             Diagnostics.warning("share", "media_pref_corrupt");
             clearCorruptPrefs(prefs);
+            sweepOrphanedBlobs(context, null);
             return;
         }
         if (id == null || !id.equals(storedId)) return;
         deleteSealedBlob(context, id);
+        sweepOrphanedBlobs(context, null);
         Map<String, String> cleared = new HashMap<>();
         cleared.put("id", null);
         cleared.put("expires", null);
@@ -210,8 +251,15 @@ public final class IncomingMediaShare {
         if (context == null || profileId == null || profileId.isEmpty()) return;
         try {
             String id = pending(context);
-            if (id == null) return;
-            if (profileId.equals(owner(context, id))) discard(context, id);
+            if (id == null) {
+                sweepOrphanedBlobs(context, null);
+                return;
+            }
+            if (profileId.equals(owner(context, id))) {
+                discard(context, id);
+            } else {
+                sweepOrphanedBlobs(context, id);
+            }
         } catch (RuntimeException unreadable) {
             Diagnostics.warning("share", "media_forget_read_failed", unreadable);
         }
@@ -241,28 +289,54 @@ public final class IncomingMediaShare {
         return (ALIAS + "\n" + id + "\n" + expires).getBytes(StandardCharsets.UTF_8);
     }
 
-    private static void save(Context context, String id, long expires, JSONObject value) {
+    private static void save(Context context, String id, long expires, JSONObject value, boolean isNewReceipt) {
         byte[] plain = value.toString().getBytes(StandardCharsets.UTF_8);
         try {
             byte[] sealed = ProfileEnvelope.encrypt(AccountStore.deviceKey(ALIAS, true), binding(id, expires), plain);
-            File target = sealedFile(context, id);
-            File dir = target.getParentFile();
-            if (dir != null && !dir.isDirectory() && !dir.mkdirs()) {
-                throw new IOException("Cannot create sealed media cache dir");
-            }
-            try (FileOutputStream out = new FileOutputStream(target)) {
-                out.write(sealed);
-                out.getFD().sync();
-            }
             Map<String, String> meta = new HashMap<>();
             meta.put("id", id);
             meta.put("expires", Long.toString(expires));
-            PreferenceTransaction.commit(prefs(context), meta);
+            writeSealedAtomically(blobDir(context), id, sealed,
+                    () -> PreferenceTransaction.commit(prefs(context), meta), isNewReceipt);
         } catch (IOException | GeneralSecurityException failed) {
             Diagnostics.warning("share", "media_seal_failed", failed);
             throw new IllegalStateException("Media share encryption failed", failed);
         } finally {
             Arrays.fill(plain, (byte) 0);
+        }
+    }
+
+    /** Writes sealed bytes via synced temp file + atomic rename, cleaning up temp/orphan files on failure. */
+    static void writeSealedAtomically(File dir, String id, byte[] sealed,
+                                      Runnable commitMeta, boolean deleteTargetOnCommitFailure) throws IOException {
+        if (dir != null && !dir.isDirectory() && !dir.mkdirs()) {
+            throw new IOException("Cannot create sealed media cache dir");
+        }
+        File target = new File(dir, id + ".enc");
+        File tmp = new File(dir, id + ".enc.tmp");
+        try {
+            try (FileOutputStream out = new FileOutputStream(tmp)) {
+                out.write(sealed);
+                out.getFD().sync();
+            }
+            try {
+                Files.move(tmp.toPath(), target.toPath(),
+                        StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } catch (AtomicMoveNotSupportedException fallback) {
+                Files.move(tmp.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            }
+        } finally {
+            if (tmp.exists() && !tmp.delete()) {
+                Diagnostics.warning("share", "media_tmp_delete_failed");
+            }
+        }
+        try {
+            commitMeta.run();
+        } catch (RuntimeException commitFailed) {
+            if (deleteTargetOnCommitFailure && target.exists() && !target.delete()) {
+                Diagnostics.warning("share", "media_blob_delete_failed");
+            }
+            throw commitFailed;
         }
     }
 

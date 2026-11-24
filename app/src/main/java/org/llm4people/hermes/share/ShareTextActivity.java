@@ -20,6 +20,7 @@ public final class ShareTextActivity extends Activity {
     static final String REVIEW = "org.llm4people.hermes.REVIEW_SHARED_TEXT";
     static final String RECEIPT = "org.llm4people.hermes.SHARE_RECEIPT";
 
+    private AlertDialog activeDialog;
     private String waiting;
 
     @Override protected void attachBaseContext(Context newBase) {
@@ -54,15 +55,34 @@ public final class ShareTextActivity extends Activity {
         unavailable(message);
     }
 
+    @Override protected void onDestroy() {
+        dismissDialog();
+        super.onDestroy();
+    }
+
     @Override protected void onSaveInstanceState(Bundle state) {
         super.onSaveInstanceState(state);
         state.clear();
         if (waiting != null) state.putString(RECEIPT, waiting);
     }
 
+    private void showDialog(AlertDialog.Builder builder) {
+        dismissDialog();
+        if (isFinishing() || isDestroyed()) return;
+        activeDialog = Ui.secureDialog(builder);
+    }
+
+    private void dismissDialog() {
+        AlertDialog current = activeDialog;
+        activeDialog = null;
+        if (current != null) {
+            try { current.dismiss(); } catch (RuntimeException ignored) {}
+        }
+    }
+
     private void busy(String previous) {
         waiting = previous;
-        Ui.secureDialog(new AlertDialog.Builder(this).setTitle(R.string.share_pending_title)
+        showDialog(new AlertDialog.Builder(this).setTitle(R.string.share_pending_title)
                 .setMessage(R.string.share_pending_text_body)
                 .setPositiveButton(R.string.share_pending_resume, (d,w) -> review(previous))
                 .setNegativeButton(R.string.ws_close, (d,w) -> finish()).setOnCancelListener(d -> finish()));
@@ -70,7 +90,7 @@ public final class ShareTextActivity extends Activity {
 
     private void unavailable(String message) {
         setIntent(new Intent());
-        Ui.secureDialog(new AlertDialog.Builder(this).setTitle(R.string.share_unavailable_title).setMessage(message)
+        showDialog(new AlertDialog.Builder(this).setTitle(R.string.share_unavailable_title).setMessage(message)
                 .setPositiveButton(R.string.ws_close, (d,w) -> finish()).setOnCancelListener(d -> finish()));
     }
 
