@@ -161,14 +161,17 @@ public final class FirstRunWizard {
             String selectedTheme,
             boolean currentActivityNight,
             boolean systemNight,
-            boolean localeWillRecreate) {
+            boolean localeChanged,
+            boolean needsManualLocaleRecreate) {
         String normalizedInitial = AppThemeMode.normalize(initialTheme);
         String normalizedSelected = AppThemeMode.normalize(selectedTheme);
         boolean themeChanged = !normalizedSelected.equals(normalizedInitial);
         boolean themeWillRecreate = themeChanged
                 && AppThemeMode.willRecreateOnModeChange(currentActivityNight, normalizedSelected, systemNight);
-        return new Step2CommitPlan(themeChanged, localeWillRecreate && !themeWillRecreate,
-                themeWillRecreate || localeWillRecreate);
+        return new Step2CommitPlan(
+                themeChanged,
+                localeChanged && needsManualLocaleRecreate && !themeWillRecreate,
+                themeWillRecreate || localeChanged);
     }
 
     /** Submit onboarding profile patch, tracking & revoking detached clients so lock/forget aborts them. */
@@ -696,11 +699,11 @@ public final class FirstRunWizard {
                 default -> AppLanguage.Mode.AUTO;
             };
             String previousTag = AppLanguage.resolvedTag(activity);
-            boolean recreateForLocale = false;
+            boolean localeChanged = false;
             if (nextLang != AppLanguage.readMode(activity)) {
                 AppLanguage.apply(activity, nextLang);
                 String nextTag = AppLanguage.resolvedTag(activity);
-                recreateForLocale = Build.VERSION.SDK_INT < 33 && !previousTag.equals(nextTag);
+                localeChanged = !previousTag.equals(nextTag);
             }
             String editedName = nameField.getText().toString().trim();
             String slug = extractSlugFromEndpoint(account.endpoint);
@@ -709,7 +712,8 @@ public final class FirstRunWizard {
                     selectedTheme[0],
                     ThemePalette.isNight(activity),
                     AppThemeMode.isSystemNight(),
-                    recreateForLocale);
+                    localeChanged,
+                    Build.VERSION.SDK_INT < 33);
             if (api != null && !api.isRevoked() && !slug.isEmpty()) {
                 boolean detached = commitPlan.willRecreate();
                 HermesApi syncClient = detached

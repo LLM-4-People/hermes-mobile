@@ -514,9 +514,11 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                 notice.dismiss();
                 notice = null;
             }
-            activeSecurityDialog = WorkspaceDialogs.showSecurity(this, account, gate, this::lock, () -> {
-                refreshSettingsHubIfVisible();
-            }, () -> activeSecurityDialog = null);
+            final AutoCloseable[] ref = new AutoCloseable[1];
+            ref[0] = WorkspaceDialogs.showSecurity(this, account, gate, this::lock,
+                    this::refreshSettingsHubIfVisible,
+                    () -> { if (activeSecurityDialog == ref[0]) activeSecurityDialog = null; });
+            activeSecurityDialog = ref[0];
         });
         actions.register("stats", () -> panels.showStats(threads.sessionId(), threads.remoteSessionId()));
         actions.register("tools", () -> openThreadAction("tools"));

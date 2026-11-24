@@ -2,7 +2,6 @@ package org.llm4people.hermes;
 
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.text.Editable;
 import android.text.InputFilter;
 import android.text.InputType;
 import android.view.View;

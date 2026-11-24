@@ -124,37 +124,44 @@ public final class FirstRunWizardTest {
     }
 
     @Test public void step2CommitPlanDefersThemeAndPreventsDoubleRecreate() {
-        // Unchanged theme: never invokes theme callback, preserves locale recreate if needed
-        FirstRunWizard.Step2CommitPlan unchanged = FirstRunWizard.planStep2Commit(
-                "system", "system", false, false, true);
-        assertFalse(unchanged.applyThemeCallback());
-        assertTrue(unchanged.recreateForLocale());
-        assertTrue(unchanged.willRecreate());
+        // API < 33 unchanged theme + locale change: manual locale recreate + detached sync (willRecreate=true)
+        FirstRunWizard.Step2CommitPlan unchangedApi32 = FirstRunWizard.planStep2Commit(
+                "system", "system", false, false, true, true);
+        assertFalse(unchangedApi32.applyThemeCallback());
+        assertTrue(unchangedApi32.recreateForLocale());
+        assertTrue(unchangedApi32.willRecreate());
 
-        // Switching light -> dark in day mode triggers theme recreate -> suppress redundant locale recreate
+        // API 33+ unchanged theme + locale change: OS LocaleManager recreates -> no manual recreate, but willRecreate=true
+        FirstRunWizard.Step2CommitPlan unchangedApi33 = FirstRunWizard.planStep2Commit(
+                "system", "system", false, false, true, false);
+        assertFalse(unchangedApi33.applyThemeCallback());
+        assertFalse(unchangedApi33.recreateForLocale());
+        assertTrue(unchangedApi33.willRecreate());
+
+        // Switching light -> dark in day mode triggers theme recreate -> suppress redundant manual locale recreate
         FirstRunWizard.Step2CommitPlan darkRecreates = FirstRunWizard.planStep2Commit(
-                "light", "dark", false, false, true);
+                "light", "dark", false, false, true, true);
         assertTrue(darkRecreates.applyThemeCallback());
         assertFalse(darkRecreates.recreateForLocale());
         assertTrue(darkRecreates.willRecreate());
 
-        // Switching system -> light when already in day mode does NOT recreate for theme -> keep locale recreate
+        // Switching system -> light when already in day mode does NOT recreate for theme -> keep manual locale recreate
         FirstRunWizard.Step2CommitPlan samePolarity = FirstRunWizard.planStep2Commit(
-                "system", "light", false, false, true);
+                "system", "light", false, false, true, true);
         assertTrue(samePolarity.applyThemeCallback());
         assertTrue(samePolarity.recreateForLocale());
         assertTrue(samePolarity.willRecreate());
 
-        // Same polarity with no locale recreate -> willRecreate is false (session api reused)
+        // Same polarity with no locale change -> willRecreate is false (session api reused)
         FirstRunWizard.Step2CommitPlan noRecreate = FirstRunWizard.planStep2Commit(
-                "system", "light", false, false, false);
+                "system", "light", false, false, false, false);
         assertTrue(noRecreate.applyThemeCallback());
         assertFalse(noRecreate.recreateForLocale());
         assertFalse(noRecreate.willRecreate());
 
         // Null/garbage theme inputs normalize safely to system
         FirstRunWizard.Step2CommitPlan badInputs = FirstRunWizard.planStep2Commit(
-                null, "invalid_theme", false, false, false);
+                null, "invalid_theme", false, false, false, false);
         assertFalse(badInputs.applyThemeCallback());
         assertFalse(badInputs.recreateForLocale());
         assertFalse(badInputs.willRecreate());
