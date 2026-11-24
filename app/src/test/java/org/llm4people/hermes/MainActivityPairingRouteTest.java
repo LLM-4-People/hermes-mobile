@@ -160,4 +160,50 @@ public final class MainActivityPairingRouteTest {
         org.junit.Assert.assertThrows(NullPointerException.class, () ->
                 MainActivity.clearCompetingWarmIntents(null, null, null, null, null, null, null));
     }
+
+    @Test
+    public void qrPairingAcceptanceClearsAllCompetingWarmIntentSlotsAndLocksOnlyWhenUnlocked() {
+        boolean[] pairing = {true};
+        boolean[] delivery = {true};
+        boolean[] osEntry = {true};
+        boolean[] pinnedShortcut = {true};
+        boolean[] sharedText = {true};
+        boolean[] sharedMedia = {true};
+        java.util.List<String> steps = new java.util.ArrayList<>();
+
+        MainActivity.handleAcceptedQrPairing(
+                () -> {
+                    steps.add("clearCompeting");
+                    MainActivity.clearCompetingWarmIntents(
+                            MainActivity.WarmIntentKind.PAIRING,
+                            () -> pairing[0] = false,
+                            () -> delivery[0] = false,
+                            () -> osEntry[0] = false,
+                            () -> pinnedShortcut[0] = false,
+                            () -> sharedText[0] = false,
+                            () -> sharedMedia[0] = false);
+                },
+                () -> steps.add("resetIntent"),
+                true,
+                () -> steps.add("lock"),
+                () -> steps.add("openAddWithPairing"));
+
+        assertEquals(java.util.List.of("clearCompeting", "resetIntent", "lock", "openAddWithPairing"), steps);
+        assertTrue(pairing[0]);
+        assertFalse(delivery[0]);
+        assertFalse(osEntry[0]);
+        assertFalse(pinnedShortcut[0]);
+        assertFalse(sharedText[0]);
+        assertFalse(sharedMedia[0]);
+
+        // When already locked, handleAcceptedQrPairing skips lock() while still clearing competing intents and resetting intent.
+        java.util.List<String> lockedSteps = new java.util.ArrayList<>();
+        MainActivity.handleAcceptedQrPairing(
+                () -> lockedSteps.add("clearCompeting"),
+                () -> lockedSteps.add("resetIntent"),
+                false,
+                () -> lockedSteps.add("lock"),
+                () -> lockedSteps.add("openAddWithPairing"));
+        assertEquals(java.util.List.of("clearCompeting", "resetIntent", "openAddWithPairing"), lockedSteps);
+    }
 }

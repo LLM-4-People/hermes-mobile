@@ -2132,13 +2132,29 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         back();
     }
 
+    static void handleAcceptedQrPairing(
+            Runnable clearCompetingIntents,
+            Runnable resetIntent,
+            boolean hasUnlockedAccount,
+            Runnable lockWorkspace,
+            Runnable openAddWithPairing) {
+        if (clearCompetingIntents != null) clearCompetingIntents.run();
+        if (resetIntent != null) resetIntent.run();
+        if (hasUnlockedAccount && lockWorkspace != null) lockWorkspace.run();
+        if (openAddWithPairing != null) openAddWithPairing.run();
+    }
+
     @Override protected void onActivityResult(int code, int result, Intent data) {
         checkGraceOnReturn();
         if (code == QrScannerActivity.REQUEST_CODE) {
             PairingLinkParser.ParsedInput scanned = QrScannerActivity.extractScannedPairing(result, data);
             if (scanned != null && gate != null) {
-                if (account != null) lock();
-                gate.openAddWithPairing(scanned);
+                handleAcceptedQrPairing(
+                        () -> clearCompetingWarmIntents(WarmIntentKind.PAIRING),
+                        () -> setIntent(new Intent(this, MainActivity.class)),
+                        account != null,
+                        this::lock,
+                        () -> gate.openAddWithPairing(scanned));
             }
             return;
         }

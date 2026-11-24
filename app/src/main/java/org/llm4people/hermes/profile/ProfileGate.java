@@ -715,6 +715,7 @@ public final class ProfileGate {
             repeat.getText().clear();
         };
 
+        Button[] saveButtonRef = new Button[1];
         Runnable applyModeUi = () -> {
             for (int i = 0; i < allModes.length; i++) {
                 boolean activeChoice = allModes[i] == selectedMode[0];
@@ -723,6 +724,7 @@ public final class ProfileGate {
             bioSlot.setVisibility(selectedMode[0] == ProfileLockPolicy.Mode.BIOMETRIC ? View.VISIBLE : View.GONE);
             pinSlot.setVisibility(selectedMode[0] == ProfileLockPolicy.Mode.PIN ? View.VISIBLE : View.GONE);
             passphraseSlot.setVisibility(selectedMode[0] == ProfileLockPolicy.Mode.PASSPHRASE ? View.VISIBLE : View.GONE);
+            ProfileScreen.configureLockModeFocus(selectedMode[0], key, pin, phrase, saveButtonRef[0]);
             if (refreshReadinessRef[0] != null) refreshReadinessRef[0].run();
         };
 
@@ -766,6 +768,8 @@ public final class ProfileGate {
 
         TextView readinessNote = screen.liveNote("");
         Button saveButton = screen.action(activity.getString(R.string.profile_save_action), true, null);
+        saveButtonRef[0] = saveButton;
+        ProfileScreen.connectSubmission(pinRepeat, saveButton);
         Runnable refreshReadiness = () -> {
             FirstRunWizard.StagedPairing activeStaged = stagedPairing;
             boolean hasStaged = activeStaged != null
