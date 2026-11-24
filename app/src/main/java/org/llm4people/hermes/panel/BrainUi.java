@@ -15,7 +15,7 @@ import android.widget.TextView;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 
-/** Shared native Material-free paper/ink/teal widgets for Brain Studio panels (DRY, DESIGN.md SSoT). */
+/** Shared native Material 3 paper/ink/teal widgets for Brain & Profile panels (DRY, Ui token SSoT). */
 final class BrainUi {
     private BrainUi() {}
 
@@ -24,6 +24,7 @@ final class BrainUi {
         if (id != 0) field.setId(id);
         field.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
         field.setSingleLine();
+        field.setTextSize(15);
         field.setImeOptions(EditorInfo.IME_ACTION_SEARCH | EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING
                 | EditorInfo.IME_FLAG_NO_FULLSCREEN | EditorInfo.IME_FLAG_NO_EXTRACT_UI);
         field.setSaveEnabled(false);
@@ -34,7 +35,7 @@ final class BrainUi {
         field.setBackgroundResource(R.drawable.profile_input);
         field.setBackgroundTintList(null);
         field.setMinHeight(Ui.dp(context, 48));
-        Ui.pad(field, 12, 8);
+        Ui.pad(field, 14, 10);
         return field;
     }
 
@@ -43,6 +44,8 @@ final class BrainUi {
         field.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE
                 | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
         field.setMinLines(minLines);
+        field.setTextSize(16);
+        field.setLineSpacing(0f, 1.25f);
         field.setGravity(Gravity.TOP | Gravity.START);
         field.setSaveEnabled(false);
         field.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS);
@@ -51,18 +54,13 @@ final class BrainUi {
         field.setHintTextColor(context.getColor(R.color.muted));
         field.setBackgroundResource(R.drawable.profile_input);
         field.setBackgroundTintList(null);
-        Ui.pad(field, 12, 10);
+        Ui.pad(field, 14, 12);
         return field;
     }
 
+    /** Material 3 surface card (16dp corners, 1dp hairline border) with 6dp vertical breathing room. */
     static LinearLayout card(Context context) {
-        LinearLayout card = Ui.column(context);
-        GradientDrawable bg = new GradientDrawable();
-        bg.setColor(context.getColor(R.color.surface));
-        bg.setCornerRadius(Ui.dp(context, 12));
-        bg.setStroke(Math.max(1, Ui.dp(context, 1)), context.getColor(R.color.line));
-        card.setBackground(bg);
-        Ui.pad(card, 14, 12);
+        LinearLayout card = Ui.card(context);
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, -2);
         params.setMargins(0, Ui.dp(context, 6), 0, Ui.dp(context, 6));
         card.setLayoutParams(params);
@@ -71,39 +69,35 @@ final class BrainUi {
 
     static LinearLayout tintedBanner(Context context) {
         LinearLayout banner = Ui.row(context);
-        GradientDrawable bg = new GradientDrawable();
-        bg.setColor(context.getColor(R.color.accent_surface));
-        bg.setCornerRadius(Ui.dp(context, 10));
-        banner.setBackground(bg);
-        Ui.pad(banner, 12, 8);
+        banner.setBackground(Ui.shape(context, Ui.BUTTON_CORNER_DP, R.color.accent_surface, 0, 0));
+        Ui.pad(banner, 14, 10);
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, -2);
         params.setMargins(0, Ui.dp(context, 6), 0, Ui.dp(context, 6));
         banner.setLayoutParams(params);
         return banner;
     }
 
+    /** Material 3 choice chip (14dp rounded ripple, >= 48dp touch target, wrap-safe at 1.3x font scale). */
     static Button chip(Context context, String label, boolean selected, Runnable onClick) {
         Button chip = new Button(context, null, android.R.attr.borderlessButtonStyle);
         chip.setText(label);
         chip.setAllCaps(false);
         chip.setTextSize(14);
-        chip.setMinHeight(Ui.dp(context, 48));
+        chip.setMaxLines(2);
+        chip.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        chip.setStateListAnimator(null);
+        int minTouch = Ui.dp(context, 48);
+        chip.setMinHeight(minTouch);
+        chip.setMinimumHeight(minTouch);
         chip.setMinWidth(0);
         chip.setMinimumWidth(0);
         chip.setSelected(selected);
-        GradientDrawable bg = new GradientDrawable();
-        bg.setCornerRadius(Ui.dp(context, 8));
-        if (selected) {
-            bg.setColor(context.getColor(R.color.accent));
-            chip.setTextColor(context.getColor(R.color.on_accent));
-            chip.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        } else {
-            bg.setColor(context.getColor(R.color.surface));
-            bg.setStroke(Math.max(1, Ui.dp(context, 1)), context.getColor(R.color.line));
-            chip.setTextColor(context.getColor(R.color.ink));
-        }
-        chip.setBackground(bg);
-        Ui.pad(chip, 12, 6);
+        GradientDrawable bg = selected
+                ? Ui.shape(context, Ui.BUTTON_CORNER_DP, R.color.accent, 0, 0)
+                : Ui.shape(context, Ui.BUTTON_CORNER_DP, R.color.surface, R.color.line, 1);
+        chip.setTextColor(context.getColor(selected ? R.color.on_accent : R.color.ink));
+        chip.setBackground(Ui.roundedRipple(context, Ui.BUTTON_CORNER_DP, bg));
+        Ui.pad(chip, 14, 8);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
         lp.setMarginEnd(Ui.dp(context, 8));
         chip.setLayoutParams(lp);
@@ -122,16 +116,14 @@ final class BrainUi {
         return scroll;
     }
 
+    /** Capsule status pill backed by Ui.pill (999dp radius, crisp WCAG-AA contrast). */
     static TextView badge(Context context, String label, boolean accent) {
-        TextView view = Ui.text(context, label, 13);
-        view.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        GradientDrawable bg = new GradientDrawable();
-        bg.setCornerRadius(Ui.dp(context, 6));
-        bg.setColor(context.getColor(accent ? R.color.accent_surface : R.color.paper));
-        if (!accent) bg.setStroke(Math.max(1, Ui.dp(context, 1)), context.getColor(R.color.line));
-        view.setBackground(bg);
-        view.setTextColor(context.getColor(accent ? R.color.accent : R.color.muted));
-        Ui.pad(view, 8, 3);
+        TextView view = Ui.pill(context, label,
+                accent ? R.color.accent_surface : R.color.surface_container,
+                accent ? R.color.accent : R.color.muted);
+        if (!accent) {
+            view.setBackground(Ui.shape(context, 999, R.color.surface_container, R.color.line, 1));
+        }
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
         lp.setMarginEnd(Ui.dp(context, 6));
         view.setLayoutParams(lp);
