@@ -75,9 +75,14 @@ public final class NearbyConsentTest extends InstrumentationTestCase {
                                                     "brief", "Brief matin", "Fais le point du matin.")));
                     starters.applyCustomization(custom);
                     workspace.applyAppCustomization(custom);
-                    measureAndLayout(list,
-                            org.llm4people.hermes.Ui.dp(activity, 360),
-                            org.llm4people.hermes.Ui.dp(activity, 780));
+                    int w = org.llm4people.hermes.Ui.dp(activity, 360);
+                    int h = org.llm4people.hermes.Ui.dp(activity, 780);
+                    // First layout fires ThreadStarters' OnLayoutChangeListener -> alignEmptyList() ->
+                    // ListView.setStackFromBottom(true) -> resetList() before View.layout() clears
+                    // PFLAG_FORCE_LAYOUT; forceLayout() + second layout mounts the header synchronously.
+                    measureAndLayout(list, w, h);
+                    list.forceLayout();
+                    measureAndLayout(list, w, h);
 
                     android.widget.Button shortcutChip = findButtonByText(list, "Brief matin");
                     assertNotNull("Expected custom composer shortcut chip", shortcutChip);
