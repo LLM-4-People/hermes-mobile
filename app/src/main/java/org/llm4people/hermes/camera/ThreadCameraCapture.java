@@ -32,8 +32,11 @@ public final class ThreadCameraCapture {
     private static final String STATE_SLOT = "camera_slot";
     private static final String STATE_READY = "camera_ready";
 
+    public static final int REQUEST_CODE_MIN = 0x5400;
+    public static final int REQUEST_CODE_MAX = 0x57ff;
+
     private final Activity activity;
-    private int requestCode = 0x5400;
+    private int requestCode = REQUEST_CODE_MIN;
     private String nonce;
     private String ownerProof;
     private String threadProof;
@@ -43,7 +46,10 @@ public final class ThreadCameraCapture {
     public ThreadCameraCapture(Activity activity, Bundle state) {
         this.activity = activity;
         if (state != null) {
-            requestCode = state.getInt(STATE_CODE, requestCode);
+            int savedCode = state.getInt(STATE_CODE, requestCode);
+            if (savedCode >= REQUEST_CODE_MIN && savedCode <= REQUEST_CODE_MAX) {
+                requestCode = savedCode;
+            }
             nonce = state.getString(STATE_NONCE);
             ownerProof = state.getString(STATE_OWNER);
             threadProof = state.getString(STATE_THREAD);
@@ -99,7 +105,7 @@ public final class ThreadCameraCapture {
             nonce = UUID.randomUUID().toString();
             ownerProof = account.selectionBinding(nonce, "");
             threadProof = account.selectionBinding(nonce, sessionId);
-            requestCode = requestCode == 0x57ff ? 0x5400 : requestCode + 1;
+            requestCode = nextRequestCode(requestCode);
 
             activity.startActivityForResult(buildCaptureIntent(pendingSlot), requestCode);
             Diagnostics.event("camera", "capture_launched");
@@ -110,6 +116,10 @@ public final class ThreadCameraCapture {
             Toast.makeText(activity, R.string.camera_unavailable, Toast.LENGTH_LONG).show();
             return false;
         }
+    }
+
+    public static int nextRequestCode(int current) {
+        return current < REQUEST_CODE_MIN || current >= REQUEST_CODE_MAX ? REQUEST_CODE_MIN : current + 1;
     }
 
     public boolean onActivityResult(int code, int resultCode) {

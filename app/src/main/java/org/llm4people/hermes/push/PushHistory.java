@@ -7,7 +7,6 @@ import org.json.JSONObject;
 import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.net.HermesApi;
-import org.llm4people.hermes.profile.Account;
 
 import java.io.IOException;
 import java.text.DateFormat;
@@ -43,11 +42,6 @@ final class PushHistory {
                 labels.add(time > 0 ? title + "\n" + dates.format(new Date(time * 1000)) : title);
             }
         }
-    }
-
-    static Page load(Context context, Account account, long cursor, Locale locale) throws IOException {
-        HermesApi api = new HermesApi(account.endpoint, account.bearer, PushConnection.apiLimits(context));
-        return load(context, api, cursor, locale);
     }
 
     static Page load(Context context, HermesApi api, long cursor, Locale locale) throws IOException {

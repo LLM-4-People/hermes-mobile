@@ -199,16 +199,6 @@ public final class MediaContextBridge {
         });
     }
 
-    /** Tri-state variant distinguishing APPLIED, FAILED, and CANCELLED for Device Bridge handoffs. */
-    public static AlertDialog showControlConfirmationOutcome(
-            Activity activity,
-            boolean optInEnabled,
-            NowPlaying track,
-            ControlAction action,
-            Consumer<ControlOutcome> onResult) {
-        return showControlConfirmationOutcome(activity, () -> optInEnabled, track, action, onResult);
-    }
-
     /** Tri-state variant re-evaluating live opt-in at confirmation time before dispatching. */
     public static AlertDialog showControlConfirmationOutcome(
             Activity activity,

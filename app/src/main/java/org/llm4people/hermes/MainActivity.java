@@ -2304,8 +2304,8 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         if (photoPicker != null) photoPicker.interruptImport();
         if (shell != null) shell.dismissMenu();
         if (voice != null) {
-            voice.reader().stop();
             voice.cancel();
+            voice.reader().stop();
         }
         dismissOverlays();
         if (files != null) files.lock();
@@ -2538,8 +2538,8 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         }
         clearWorkspace(shouldRevokeDetachedSyncs(changingConfig));
         if (voice != null) {
-            voice.reader().stop();
             voice.cancel();
+            voice.reader().stop();
         }
         if (gate != null) gate.close();
         if (files != null) files.close();

@@ -301,15 +301,15 @@ public final class VoiceDrafts {
     }
 
     public void pause() {
-        reader.stop();
+        paused = true;
         boolean awaitingDuplexPermission = active != null
                 && active.phase == Phase.PERMISSION
                 && active.duplex != null
                 && active.duplex == activeDuplex;
         if (activeDuplex != null && !awaitingDuplexPermission) activeDuplex.stop();
+        reader.stop();
         if (optionsDialog != null) { optionsDialog.dismiss(); optionsDialog = null; }
         if (recovery != null) recovery.dismiss();
-        paused = true;
         // The system permission sheet pauses the activity. Only its pending grant can survive that pause.
         windowFocusChanged(false);
     }

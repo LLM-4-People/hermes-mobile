@@ -124,11 +124,6 @@ public final class CapturedMedia {
         return new Item(Kind.DOCUMENT, name, normalized, raw, sha256Hex(raw), null);
     }
 
-    /** Re-encode a still image into fresh sRGB opaque pixels, discarding all EXIF, GPS, and ICC tags. */
-    public static Item stripImageExif(byte[] source, String name) throws IOException {
-        return stripImageExif(source, name, HermesConfig.defaults().artifactDefaultMaxBytes);
-    }
-
     /** Re-encode a still image into fresh sRGB opaque pixels, honoring a caller-resolved byte ceiling. */
     public static Item stripImageExif(byte[] source, String name, long maxBytes) throws IOException {
         long limit = effectiveByteLimit(maxBytes);
