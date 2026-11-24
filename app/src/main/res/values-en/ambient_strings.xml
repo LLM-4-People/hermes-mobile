@@ -10,7 +10,7 @@
     <string name="ambient_status_off">Off for this profile</string>
     <string name="ambient_onboarding_title">Enable on Android 13 to 16</string>
     <string name="ambient_onboarding_detail">For an app installed outside a store, Android protects this access in two quick steps:</string>
-    <string name="ambient_step_restricted">1. Open app info (⋮ → Allow restricted settings)</string>
+    <string name="ambient_step_restricted">1. Open app info (options menu, then allow restricted settings)</string>
     <string name="ambient_step_listener">2. Open Android notification access</string>
     <string name="ambient_settings_unavailable">Unable to open this settings screen on this device.</string>
     <string name="ambient_section_toggles">Permissions for this profile</string>
@@ -21,6 +21,7 @@
     <string name="ambient_toggle_device_context">Include device status (battery, network, time, language)</string>
     <string name="ambient_section_allowlist">Allowed apps</string>
     <string name="ambient_allowlist_hint">Filter by app name…</string>
+    <string name="ambient_allowlist_loading">Loading apps…</string>
     <string name="ambient_allowlist_empty">No apps match this search.</string>
     <string name="ambient_allowlist_protected">Banking apps, password managers, 2FA codes, and Hermes itself are always excluded.</string>
     <string name="ambient_section_digest">Recent notifications (in memory only)</string>

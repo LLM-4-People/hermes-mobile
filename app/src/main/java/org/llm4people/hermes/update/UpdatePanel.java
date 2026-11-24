@@ -7,18 +7,20 @@ import android.content.Intent;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.graphics.Typeface;
-import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
+import android.text.TextUtils;
 import android.view.View;
 import android.widget.Button;
+import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
+import org.llm4people.hermes.AdaptiveLayout;
 import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.HermesConfig;
@@ -65,10 +67,12 @@ public final class UpdatePanel {
         return t;
     });
 
+    private TextView statusPill;
     private TextView statusTitle;
     private TextView statusMeta;
     private TextView checksumBadge;
     private TextView notesHeading;
+    private LinearLayout notesCard;
     private TextView notesBody;
     private TextView feedback;
     private ProgressBar progressBar;
@@ -136,22 +140,28 @@ public final class UpdatePanel {
 
     /** Build the scrollable paper/ink/teal TalkBack-accessible update view. */
     public View buildView() {
-        ScrollView scroll = new ScrollView(activity);
-        scroll.setFillViewport(true);
-        scroll.setBackgroundColor(activity.getColor(R.color.paper));
-
         LinearLayout body = Ui.column(activity);
-        Ui.pad(body, 20, 18);
+        ScrollView scroll = new ScrollView(activity) {
+            @Override protected void onMeasure(int widthSpec, int heightSpec) {
+                float density = getResources().getDisplayMetrics().density;
+                int gutter = Ui.dp(activity, AdaptiveLayout.centeredGutterDp(
+                        MeasureSpec.getSize(widthSpec) / density, AdaptiveLayout.READING_COLUMN_MAX_DP, 20));
+                int top = Ui.dp(activity, 16);
+                int bottom = Ui.dp(activity, 24);
+                if (body.getPaddingStart() != gutter || body.getPaddingTop() != top) {
+                    body.setPaddingRelative(gutter, top, gutter, bottom);
+                }
+                super.onMeasure(widthSpec, heightSpec);
+            }
+        };
+        scroll.setFillViewport(true);
+        scroll.setClipToPadding(false);
+        scroll.setBackgroundColor(activity.getColor(R.color.paper));
         scroll.addView(body, new ScrollView.LayoutParams(-1, -2));
-
-        TextView title = Ui.text(activity, activity.getString(R.string.update_panel_title), 24);
-        title.setTypeface(mediumTypeface());
-        title.setAccessibilityHeading(true);
-        body.addView(title);
 
         TextView subtitle = Ui.text(activity, activity.getString(R.string.update_panel_subtitle), 15);
         subtitle.setTextColor(activity.getColor(R.color.muted));
-        subtitle.setPaddingRelative(0, Ui.dp(activity, 4), 0, Ui.dp(activity, 12));
+        subtitle.setPaddingRelative(0, 0, 0, Ui.dp(activity, 12));
         body.addView(subtitle);
 
         String installedDisplay = installedDisplayVersion();
@@ -161,13 +171,14 @@ public final class UpdatePanel {
         installedLabel.setPaddingRelative(0, 0, 0, Ui.dp(activity, 14));
         body.addView(installedLabel);
 
-        LinearLayout card = Ui.column(activity);
-        Ui.pad(card, 16, 14);
-        GradientDrawable cardBg = new GradientDrawable();
-        cardBg.setColor(activity.getColor(R.color.surface));
-        cardBg.setCornerRadius(Ui.dp(activity, 12));
-        cardBg.setStroke(Math.max(1, Ui.dp(activity, 1)), activity.getColor(R.color.line));
-        card.setBackground(cardBg);
+        LinearLayout card = Ui.card(activity);
+
+        statusPill = Ui.pill(activity, "", R.color.surface_container, R.color.muted);
+        statusPill.setEllipsize(TextUtils.TruncateAt.END);
+        statusPill.setVisibility(View.GONE);
+        LinearLayout.LayoutParams statusPillLp = new LinearLayout.LayoutParams(-2, -2);
+        statusPillLp.bottomMargin = Ui.dp(activity, 8);
+        card.addView(statusPill, statusPillLp);
 
         statusTitle = Ui.text(activity, activity.getString(R.string.update_status_unchecked), 17);
         statusTitle.setTypeface(mediumTypeface());
@@ -180,14 +191,9 @@ public final class UpdatePanel {
         statusMeta.setVisibility(View.GONE);
         card.addView(statusMeta);
 
-        checksumBadge = Ui.text(activity, activity.getString(R.string.update_checksum_badge), 13);
-        checksumBadge.setTextColor(activity.getColor(R.color.accent));
-        checksumBadge.setTypeface(mediumTypeface());
-        GradientDrawable pillBg = new GradientDrawable();
-        pillBg.setColor(activity.getColor(R.color.accent_surface));
-        pillBg.setCornerRadius(Ui.dp(activity, 8));
-        checksumBadge.setBackground(pillBg);
-        Ui.pad(checksumBadge, 10, 4);
+        checksumBadge = Ui.pill(activity, activity.getString(R.string.update_checksum_badge),
+                R.color.accent_surface, R.color.accent);
+        checksumBadge.setEllipsize(TextUtils.TruncateAt.END);
         LinearLayout.LayoutParams badgeLp = new LinearLayout.LayoutParams(-2, -2);
         badgeLp.topMargin = Ui.dp(activity, 8);
         checksumBadge.setVisibility(View.GONE);
@@ -207,47 +213,64 @@ public final class UpdatePanel {
         feedback.setVisibility(View.GONE);
         card.addView(feedback);
 
-        permissionButton = Ui.button(activity, activity.getString(R.string.perm_action_open_install_settings),
+        int gap = Ui.dp(activity, 8);
+
+        installButton = Ui.filledButton(activity, activity.getString(R.string.update_download_install_action),
+                v -> downloadOrInstall());
+        installButton.setVisibility(View.GONE);
+        LinearLayout.LayoutParams installLp = new LinearLayout.LayoutParams(-1, -2);
+        installLp.topMargin = Ui.dp(activity, 12);
+        card.addView(installButton, installLp);
+
+        permissionButton = Ui.outlinedButton(activity, activity.getString(R.string.perm_action_open_install_settings),
                 v -> openInstallPermissionSettings());
         permissionButton.setTag("update:open_install_permission");
         permissionButton.setVisibility(View.GONE);
-        card.addView(permissionButton);
+        LinearLayout.LayoutParams permLp = new LinearLayout.LayoutParams(-2, -2);
+        permLp.topMargin = gap;
+        card.addView(permissionButton, permLp);
 
         LinearLayout actions = Ui.row(activity);
-        LinearLayout.LayoutParams actionsLp = new LinearLayout.LayoutParams(-1, -2);
-        actionsLp.topMargin = Ui.dp(activity, 10);
-
-        checkButton = Ui.button(activity, activity.getString(R.string.update_check_action), v -> checkNow());
+        checkButton = Ui.tonalButton(activity, activity.getString(R.string.update_check_action), v -> checkNow());
         actions.addView(checkButton);
 
-        installButton = Ui.button(activity, activity.getString(R.string.update_download_install_action),
-                v -> downloadOrInstall());
-        installButton.setVisibility(View.GONE);
-        actions.addView(installButton);
-
-        cancelButton = Ui.button(activity, activity.getString(R.string.update_cancel_action),
+        cancelButton = Ui.outlinedButton(activity, activity.getString(R.string.update_cancel_action),
                 v -> cancelActiveDownload());
         cancelButton.setVisibility(View.GONE);
-        actions.addView(cancelButton);
-        card.addView(actions, actionsLp);
+        LinearLayout.LayoutParams cancelLp = new LinearLayout.LayoutParams(-2, -2);
+        cancelLp.setMarginStart(gap);
+        actions.addView(cancelButton, cancelLp);
+
+        HorizontalScrollView actionsScroll = new HorizontalScrollView(activity);
+        actionsScroll.setHorizontalScrollBarEnabled(false);
+        actionsScroll.addView(actions, new HorizontalScrollView.LayoutParams(-2, -2));
+        LinearLayout.LayoutParams actionsLp = new LinearLayout.LayoutParams(-1, -2);
+        actionsLp.topMargin = Ui.dp(activity, 10);
+        card.addView(actionsScroll, actionsLp);
 
         githubButton = Ui.button(activity, activity.getString(R.string.update_open_github_action),
                 v -> openOnGitHub());
-        card.addView(githubButton);
+        LinearLayout.LayoutParams githubLp = new LinearLayout.LayoutParams(-2, -2);
+        githubLp.topMargin = gap;
+        card.addView(githubButton, githubLp);
 
         body.addView(card, new LinearLayout.LayoutParams(-1, -2));
 
         notesHeading = Ui.text(activity, activity.getString(R.string.update_notes_heading), 17);
         notesHeading.setTypeface(mediumTypeface());
         notesHeading.setAccessibilityHeading(true);
-        notesHeading.setPaddingRelative(0, Ui.dp(activity, 18), 0, Ui.dp(activity, 6));
+        notesHeading.setPaddingRelative(0, Ui.dp(activity, 18), 0, Ui.dp(activity, 8));
         notesHeading.setVisibility(View.GONE);
         body.addView(notesHeading);
 
+        notesCard = Ui.tonalCard(activity);
+        notesCard.setVisibility(View.GONE);
         notesBody = Ui.text(activity, "", 14);
         notesBody.setTextColor(activity.getColor(R.color.ink));
-        notesBody.setVisibility(View.GONE);
-        body.addView(notesBody);
+        notesBody.setLineSpacing(0f, 1.25f);
+        notesBody.setTextIsSelectable(true);
+        notesCard.addView(notesBody, new LinearLayout.LayoutParams(-1, -2));
+        body.addView(notesCard, new LinearLayout.LayoutParams(-1, -2));
 
         return scroll;
     }
@@ -324,6 +347,18 @@ public final class UpdatePanel {
     private void renderReleaseState(GithubReleaseClient.ReleaseInfo release) {
         String installed = installedVersionName(activity);
         boolean newer = release.isNewerThan(installed);
+        if (statusPill != null) {
+            if (newer) {
+                statusPill.setText(activity.getString(R.string.update_badge_available, release.tagName()));
+                statusPill.setTextColor(activity.getColor(R.color.accent));
+                statusPill.setBackground(Ui.shape(activity, 999, R.color.accent_surface, 0, 0));
+            } else {
+                statusPill.setText(R.string.doctor_badge_ok);
+                statusPill.setTextColor(activity.getColor(R.color.muted));
+                statusPill.setBackground(Ui.shape(activity, 999, R.color.surface_container, 0, 0));
+            }
+            statusPill.setVisibility(View.VISIBLE);
+        }
         statusTitle.setText(newer
                 ? activity.getString(R.string.update_available_title, release.tagName())
                 : activity.getString(R.string.update_up_to_date_title, installedDisplayVersion()));
@@ -348,7 +383,7 @@ public final class UpdatePanel {
         feedback.setVisibility(View.GONE);
 
         notesHeading.setVisibility(View.VISIBLE);
-        notesBody.setVisibility(View.VISIBLE);
+        if (notesCard != null) notesCard.setVisibility(View.VISIBLE);
         notesBody.setText(release.notes().isEmpty()
                 ? activity.getString(R.string.update_notes_empty)
                 : release.notes());

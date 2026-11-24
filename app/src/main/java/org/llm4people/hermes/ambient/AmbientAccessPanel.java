@@ -8,17 +8,23 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.graphics.Typeface;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.Editable;
 import android.text.InputType;
 import android.text.TextWatcher;
+import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.inputmethod.EditorInfo;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.Switch;
 import android.widget.TextView;
+import org.llm4people.hermes.AdaptiveLayout;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.RouteRegistry;
@@ -31,6 +37,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 /**
@@ -75,10 +86,39 @@ public final class AmbientAccessPanel {
 
     public record AppEntry(String packageName, String label) {}
 
+    public enum StatusBadgeState {
+        OFF,
+        ACTIVE,
+        WAITING
+    }
+
+    /** Pure-Java classifier for the Ambient live status pill across OFF, ACTIVE, and WAITING states. */
+    public static StatusBadgeState resolveStatusBadge(
+            boolean notificationsEnabled, boolean mediaEnabled, boolean listenerEnabled) {
+        if (!notificationsEnabled && !mediaEnabled) return StatusBadgeState.OFF;
+        return listenerEnabled ? StatusBadgeState.ACTIVE : StatusBadgeState.WAITING;
+    }
+
     private final Activity activity;
     private final NotificationAllowlist allowlist;
     private final ActionCallbacks callbacks;
+    private final Handler main = new Handler(Looper.getMainLooper());
+    private final ExecutorService appLoader = createAppLoader();
+
+    private static ExecutorService createAppLoader() {
+        ThreadPoolExecutor executor = new ThreadPoolExecutor(
+                1, 1, 10L, TimeUnit.SECONDS, new LinkedBlockingQueue<>(), r -> {
+            Thread t = new Thread(r, "hermes-ambient-apps");
+            t.setDaemon(true);
+            return t;
+        });
+        executor.allowCoreThreadTimeOut(true);
+        return executor;
+    }
     private List<AppEntry> installedApps;
+    private Future<?> appLoadTask;
+    private boolean loadingApps;
+    private volatile boolean closed;
     private LinearLayout allowlistContainer;
     private LinearLayout digestContainer;
     private LinearLayout mediaContainer;
@@ -145,36 +185,43 @@ public final class AmbientAccessPanel {
 
     /** Build the full scrollable native panel view for mounting in any activity/host container. */
     public View buildView() {
-        ScrollView scroll = new ScrollView(activity);
-        scroll.setFillViewport(true);
-        scroll.setBackgroundColor(activity.getColor(R.color.paper));
-
         LinearLayout body = Ui.column(activity);
-        Ui.pad(body, 20, 18);
+        ScrollView scroll = new ScrollView(activity) {
+            @Override protected void onMeasure(int widthSpec, int heightSpec) {
+                float density = getResources().getDisplayMetrics().density;
+                int gutter = Ui.dp(activity, AdaptiveLayout.centeredGutterDp(
+                        MeasureSpec.getSize(widthSpec) / density, AdaptiveLayout.READING_COLUMN_MAX_DP, 20));
+                int top = Ui.dp(activity, 16);
+                int bottom = Ui.dp(activity, 24);
+                if (body.getPaddingStart() != gutter || body.getPaddingTop() != top) {
+                    body.setPaddingRelative(gutter, top, gutter, bottom);
+                }
+                super.onMeasure(widthSpec, heightSpec);
+            }
+        };
+        scroll.setFillViewport(true);
+        scroll.setClipToPadding(false);
+        scroll.setBackgroundColor(activity.getColor(R.color.paper));
         scroll.addView(body, new ScrollView.LayoutParams(-1, -2));
 
-        TextView title = Ui.text(activity, activity.getString(R.string.ambient_panel_title), 24);
-        title.setTypeface(mediumTypeface());
-        title.setAccessibilityHeading(true);
-        body.addView(title);
-
         TextView intro = mutedNote(activity.getString(R.string.ambient_panel_intro));
-        addTop(body, intro, 6);
+        body.addView(intro);
 
-        statusBadge = Ui.text(activity, "", 14);
-        statusBadge.setTypeface(mediumTypeface());
-        Ui.pad(statusBadge, 12, 8);
-        statusBadge.setBackgroundColor(activity.getColor(R.color.accent_surface));
-        addTop(body, statusBadge, 12);
+        statusBadge = Ui.pill(activity, "", R.color.surface_container, R.color.muted);
+        LinearLayout.LayoutParams badgeLp = new LinearLayout.LayoutParams(-2, -2);
+        badgeLp.topMargin = Ui.dp(activity, 12);
+        body.addView(statusBadge, badgeLp);
 
         feedback = Ui.text(activity, "", 14);
         feedback.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         feedback.setVisibility(View.GONE);
         addTop(body, feedback, 8);
 
-        feedbackAction = Ui.button(activity, "", null);
+        feedbackAction = Ui.tonalButton(activity, "", null);
         feedbackAction.setVisibility(View.GONE);
-        addTop(body, feedbackAction, 4);
+        LinearLayout.LayoutParams feedbackActionLp = new LinearLayout.LayoutParams(-2, -2);
+        feedbackActionLp.topMargin = Ui.dp(activity, 6);
+        body.addView(feedbackAction, feedbackActionLp);
 
         buildOnboardingSection(body);
         buildTogglesSection(body);
@@ -185,7 +232,10 @@ public final class AmbientAccessPanel {
         refreshAll();
         scroll.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
             @Override public void onViewAttachedToWindow(View v) {}
-            @Override public void onViewDetachedFromWindow(View v) { dismissDialogs(); }
+            @Override public void onViewDetachedFromWindow(View v) {
+                cancelAppLoad();
+                dismissDialogs();
+            }
         });
         return scroll;
     }
@@ -197,6 +247,22 @@ public final class AmbientAccessPanel {
         if (dialog != null && dialog.isShowing()) {
             dialog.dismiss();
         }
+    }
+
+    /** Cancel background app inventory loading and release dialogs cleanly. */
+    public void close() {
+        closed = true;
+        cancelAppLoad();
+        dismissDialogs();
+        appLoader.shutdownNow();
+    }
+
+    private void cancelAppLoad() {
+        Future<?> task = appLoadTask;
+        appLoadTask = null;
+        if (task != null) task.cancel(true);
+        loadingApps = false;
+        main.removeCallbacksAndMessages(null);
     }
 
     private void trackDialog(AlertDialog dialog) {
@@ -332,21 +398,30 @@ public final class AmbientAccessPanel {
 
     private void buildOnboardingSection(LinearLayout body) {
         addSectionHeader(body, R.string.ambient_onboarding_title, R.string.ambient_onboarding_detail);
-        Button step1 = Ui.button(activity, activity.getString(R.string.ambient_step_restricted), v -> {
+        LinearLayout card = Ui.tonalCard(activity);
+        Button step1 = Ui.tonalButton(activity, activity.getString(R.string.ambient_step_restricted), v -> {
             if (!openAppInfoSettings(activity)) showFeedback(R.string.ambient_settings_unavailable, true);
         });
-        addTop(body, step1, 6);
-        Button step2 = Ui.button(activity, activity.getString(R.string.ambient_step_listener), v -> {
+        step1.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+        card.addView(step1, new LinearLayout.LayoutParams(-1, -2));
+
+        Button step2 = Ui.outlinedButton(activity, activity.getString(R.string.ambient_step_listener), v -> {
             if (!openNotificationListenerSettings(activity)) showFeedback(R.string.ambient_settings_unavailable, true);
         });
-        addTop(body, step2, 2);
+        step2.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+        LinearLayout.LayoutParams step2Lp = new LinearLayout.LayoutParams(-1, -2);
+        step2Lp.topMargin = Ui.dp(activity, 8);
+        card.addView(step2, step2Lp);
+
+        addTop(body, card, 10);
     }
 
     private void buildTogglesSection(LinearLayout body) {
         addSectionHeader(body, R.string.ambient_section_toggles, 0);
         NotificationAllowlist.Settings initial = allowlist.settings();
+        LinearLayout card = Ui.card(activity);
 
-        notificationsSwitch = addSwitch(body, R.string.ambient_toggle_notifications, initial.notificationsEnabled(), checked -> {
+        notificationsSwitch = addSwitch(card, false, R.string.ambient_toggle_notifications, initial.notificationsEnabled(), checked -> {
             if (!checked) dismissDialogs();
             NotificationAllowlist.Settings cur = allowlist.settings();
             allowlist.saveSettings(new NotificationAllowlist.Settings(
@@ -354,7 +429,7 @@ public final class AmbientAccessPanel {
                     cur.contactsEnabled(), cur.deviceContextEnabled()));
             refreshAll();
         });
-        mediaSwitch = addSwitch(body, R.string.ambient_toggle_media, initial.mediaEnabled(), checked -> {
+        mediaSwitch = addSwitch(card, true, R.string.ambient_toggle_media, initial.mediaEnabled(), checked -> {
             if (!checked) dismissDialogs();
             NotificationAllowlist.Settings cur = allowlist.settings();
             allowlist.saveSettings(new NotificationAllowlist.Settings(
@@ -362,7 +437,7 @@ public final class AmbientAccessPanel {
                     cur.contactsEnabled(), cur.deviceContextEnabled()));
             refreshAll();
         });
-        calendarSwitch = addSwitch(body, R.string.ambient_toggle_calendar, initial.calendarEnabled(), checked -> {
+        calendarSwitch = addSwitch(card, true, R.string.ambient_toggle_calendar, initial.calendarEnabled(), checked -> {
             if (checked && !CalendarContextReader.hasPermission(activity)) {
                 saveCalendarSetting(false);
                 PermissionCenter.State st = PermissionCenter.state(activity, PermissionCenter.Key.CALENDAR);
@@ -384,7 +459,7 @@ public final class AmbientAccessPanel {
             if (checked) clearFeedback();
             refreshAll();
         });
-        contactsSwitch = addSwitch(body, R.string.ambient_toggle_contacts, initial.contactsEnabled(), checked -> {
+        contactsSwitch = addSwitch(card, true, R.string.ambient_toggle_contacts, initial.contactsEnabled(), checked -> {
             if (checked && !ContactsContextReader.hasPermission(activity)) {
                 saveContactsSetting(false);
                 PermissionCenter.State st = PermissionCenter.state(activity, PermissionCenter.Key.CONTACTS);
@@ -406,13 +481,14 @@ public final class AmbientAccessPanel {
             if (checked) clearFeedback();
             refreshAll();
         });
-        deviceContextSwitch = addSwitch(body, R.string.ambient_toggle_device_context, initial.deviceContextEnabled(), checked -> {
+        deviceContextSwitch = addSwitch(card, true, R.string.ambient_toggle_device_context, initial.deviceContextEnabled(), checked -> {
             NotificationAllowlist.Settings cur = allowlist.settings();
             allowlist.saveSettings(new NotificationAllowlist.Settings(
                     cur.notificationsEnabled(), cur.mediaEnabled(), cur.calendarEnabled(),
                     cur.contactsEnabled(), checked));
             refreshAll();
         });
+        addTop(body, card, 10);
     }
 
     private void buildAllowlistSection(LinearLayout body) {
@@ -420,8 +496,16 @@ public final class AmbientAccessPanel {
         EditText search = new EditText(activity);
         search.setHint(R.string.ambient_allowlist_hint);
         search.setSingleLine(true);
+        search.setSaveEnabled(false);
+        search.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO);
+        search.setImeOptions(EditorInfo.IME_ACTION_SEARCH
+                | EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING | EditorInfo.IME_FLAG_NO_EXTRACT_UI);
         search.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+        search.setBackgroundResource(R.drawable.profile_input);
+        search.setBackgroundTintList(null);
+        Ui.pad(search, 12, 8);
         search.setMinHeight(Ui.dp(activity, 48));
+        search.setMinimumHeight(Ui.dp(activity, 48));
         search.setTextColor(activity.getColor(R.color.ink));
         search.setHintTextColor(activity.getColor(R.color.muted));
         search.addTextChangedListener(new TextWatcher() {
@@ -432,43 +516,62 @@ public final class AmbientAccessPanel {
                 renderAllowlist();
             }
         });
-        addTop(body, search, 8);
+        addTop(body, search, 10);
 
-        allowlistContainer = Ui.column(activity);
-        addTop(body, allowlistContainer, 6);
+        allowlistContainer = Ui.card(activity);
+        addTop(body, allowlistContainer, 10);
     }
 
     private void buildMediaSection(LinearLayout body) {
         addSectionHeader(body, R.string.ambient_section_media, 0);
         mediaContainer = Ui.column(activity);
-        addTop(body, mediaContainer, 6);
+        addTop(body, mediaContainer, 8);
     }
 
     private void buildDigestSection(LinearLayout body) {
         addSectionHeader(body, R.string.ambient_section_digest, 0);
         digestContainer = Ui.column(activity);
-        addTop(body, digestContainer, 6);
+        addTop(body, digestContainer, 8);
     }
 
     private void updateStatusBadge(NotificationAllowlist.Settings settings) {
+        if (statusBadge == null) return;
         boolean listenerOn = HermesNotificationListener.isListenerEnabled(activity);
-        boolean anyListenerFeature = settings.notificationsEnabled() || settings.mediaEnabled();
-        if (!anyListenerFeature) {
-            statusBadge.setText(R.string.ambient_status_off);
-            statusBadge.setTextColor(activity.getColor(R.color.muted));
-        } else if (listenerOn) {
-            statusBadge.setText(R.string.ambient_status_active);
-            statusBadge.setTextColor(activity.getColor(R.color.accent));
-        } else {
-            statusBadge.setText(R.string.ambient_status_waiting);
-            statusBadge.setTextColor(activity.getColor(R.color.danger));
+        StatusBadgeState badgeState = resolveStatusBadge(
+                settings.notificationsEnabled(), settings.mediaEnabled(), listenerOn);
+        int textRes;
+        int bgRes;
+        int inkRes;
+        switch (badgeState) {
+            case ACTIVE -> {
+                textRes = R.string.ambient_status_active;
+                bgRes = R.color.accent_surface;
+                inkRes = R.color.accent;
+            }
+            case WAITING -> {
+                textRes = R.string.ambient_status_waiting;
+                bgRes = R.color.danger_surface;
+                inkRes = R.color.danger;
+            }
+            default -> {
+                textRes = R.string.ambient_status_off;
+                bgRes = R.color.surface_container;
+                inkRes = R.color.muted;
+            }
         }
+        statusBadge.setText(textRes);
+        statusBadge.setTextColor(activity.getColor(inkRes));
+        statusBadge.setBackground(Ui.shape(activity, 999, bgRes, 0, 0));
     }
 
     private void renderAllowlist() {
         if (allowlistContainer == null) return;
         allowlistContainer.removeAllViews();
-        if (installedApps == null) installedApps = loadLaunchableApps();
+        if (installedApps == null) {
+            allowlistContainer.addView(mutedNote(activity.getString(R.string.ambient_allowlist_loading)));
+            startLoadLaunchableAppsIfNeeded();
+            return;
+        }
         List<AppEntry> visible = filterSelectableApps(installedApps, searchFilter);
         if (visible.isEmpty()) {
             allowlistContainer.addView(mutedNote(activity.getString(R.string.ambient_allowlist_empty)));
@@ -477,6 +580,13 @@ public final class AmbientAccessPanel {
         Set<String> allowed = allowlist.allowedPackages();
         int limit = Math.min(visible.size(), 40);
         for (int i = 0; i < limit; i++) {
+            if (i > 0) {
+                View divider = Ui.insetDivider(activity, 16);
+                LinearLayout.LayoutParams divLp = (LinearLayout.LayoutParams) divider.getLayoutParams();
+                divLp.topMargin = Ui.dp(activity, 4);
+                divLp.bottomMargin = Ui.dp(activity, 4);
+                allowlistContainer.addView(divider, divLp);
+            }
             AppEntry app = visible.get(i);
             Switch toggle = new Switch(activity);
             toggle.setText(app.label());
@@ -493,8 +603,24 @@ public final class AmbientAccessPanel {
                     btn.setChecked(!checked);
                 }
             });
-            allowlistContainer.addView(toggle);
+            allowlistContainer.addView(toggle, new LinearLayout.LayoutParams(-1, -2));
         }
+    }
+
+    private void startLoadLaunchableAppsIfNeeded() {
+        if (closed || loadingApps || installedApps != null) return;
+        loadingApps = true;
+        appLoadTask = appLoader.submit(() -> {
+            List<AppEntry> loaded = loadLaunchableApps();
+            if (Thread.currentThread().isInterrupted() || closed) return;
+            main.post(() -> {
+                loadingApps = false;
+                appLoadTask = null;
+                if (closed || activity.isFinishing() || activity.isDestroyed()) return;
+                installedApps = loaded;
+                renderAllowlist();
+            });
+        });
     }
 
     private void renderMedia(NotificationAllowlist.Settings settings) {
@@ -506,9 +632,12 @@ public final class AmbientAccessPanel {
             mediaContainer.addView(mutedNote(activity.getString(R.string.ambient_media_empty)));
             return;
         }
+        LinearLayout card = Ui.card(activity);
         TextView track = Ui.text(activity, current.displayTrack(), 15);
         track.setTypeface(mediumTypeface());
-        mediaContainer.addView(track);
+        card.addView(track);
+
+        int gap = Ui.dp(activity, 8);
         LinearLayout actions = Ui.row(activity);
         MediaContextBridge.ControlAction toggleAction =
                 current.playbackKind() == MediaContextBridge.PlaybackKind.PLAYING
@@ -517,16 +646,21 @@ public final class AmbientAccessPanel {
         int toggleLabel = toggleAction == MediaContextBridge.ControlAction.PAUSE
                 ? R.string.ambient_media_pause
                 : R.string.ambient_media_play;
-        actions.addView(Ui.button(activity, activity.getString(R.string.ambient_media_previous),
+        actions.addView(Ui.outlinedButton(activity, activity.getString(R.string.ambient_media_previous),
                 v -> confirmMediaControl(current, MediaContextBridge.ControlAction.PREVIOUS)));
-        actions.addView(Ui.button(activity, activity.getString(toggleLabel),
-                v -> confirmMediaControl(current, toggleAction)));
-        actions.addView(Ui.button(activity, activity.getString(R.string.ambient_media_next),
-                v -> confirmMediaControl(current, MediaContextBridge.ControlAction.NEXT)));
-        mediaContainer.addView(actions);
-        mediaContainer.addView(Ui.button(activity, activity.getString(R.string.ambient_media_add_to_thread),
+        addRowButton(actions, Ui.tonalButton(activity, activity.getString(toggleLabel),
+                v -> confirmMediaControl(current, toggleAction)), gap);
+        addRowButton(actions, Ui.outlinedButton(activity, activity.getString(R.string.ambient_media_next),
+                v -> confirmMediaControl(current, MediaContextBridge.ControlAction.NEXT)), gap);
+        addTop(card, horizontalRow(actions), 10);
+
+        Button addDraft = Ui.outlinedButton(activity, activity.getString(R.string.ambient_media_add_to_thread),
                 v -> callbacks.stageDraft(activity.getString(
-                        R.string.ambient_draft_media, current.title(), current.artist()))));
+                        R.string.ambient_draft_media, current.title(), current.artist())));
+        LinearLayout.LayoutParams draftLp = new LinearLayout.LayoutParams(-2, -2);
+        draftLp.topMargin = Ui.dp(activity, 8);
+        card.addView(addDraft, draftLp);
+        mediaContainer.addView(card, new LinearLayout.LayoutParams(-1, -2));
     }
 
     private void renderDigest() {
@@ -537,10 +671,9 @@ public final class AmbientAccessPanel {
             digestContainer.addView(mutedNote(activity.getString(R.string.ambient_digest_empty)));
             return;
         }
+        int gap = Ui.dp(activity, 8);
         for (AmbientNotification item : items) {
-            LinearLayout card = Ui.column(activity);
-            Ui.pad(card, 12, 10);
-            card.setBackgroundColor(activity.getColor(R.color.surface));
+            LinearLayout card = Ui.card(activity);
 
             TextView header = Ui.text(activity, item.displaySource() + " · " + item.displaySender(), 14);
             header.setTypeface(mediumTypeface());
@@ -548,43 +681,58 @@ public final class AmbientAccessPanel {
 
             TextView content = Ui.text(activity, item.displayBody(), 14);
             content.setTextColor(activity.getColor(R.color.muted));
+            content.setPaddingRelative(0, Ui.dp(activity, 4), 0, 0);
             card.addView(content);
 
             LinearLayout row1 = Ui.row(activity);
-            row1.addView(Ui.button(activity, activity.getString(R.string.ambient_action_summarize),
+            row1.addView(Ui.tonalButton(activity, activity.getString(R.string.ambient_action_summarize),
                     v -> callbacks.stageDraft(activity.getString(
                             R.string.ambient_draft_summarize, item.displaySource(), item.displaySender(), item.displayBody()))));
-            row1.addView(Ui.button(activity, activity.getString(R.string.ambient_action_note),
+            addRowButton(row1, Ui.outlinedButton(activity, activity.getString(R.string.ambient_action_note),
                     v -> callbacks.createNote(
                             item.displaySource() + " · " + item.displaySender(),
                             item.displayBody(),
                             activity.getString(
-                                    R.string.ambient_draft_note, item.displaySource(), item.displaySender(), item.displayBody()))));
-            card.addView(row1);
+                                    R.string.ambient_draft_note, item.displaySource(), item.displaySender(), item.displayBody()))), gap);
+            addTop(card, horizontalRow(row1), 10);
 
             LinearLayout row2 = Ui.row(activity);
-            row2.addView(Ui.button(activity, activity.getString(R.string.ambient_action_calendar),
+            row2.addView(Ui.outlinedButton(activity, activity.getString(R.string.ambient_action_calendar),
                     v -> callbacks.addToCalendar(
                             item.displaySource() + " · " + item.displaySender(),
                             item.displayBody(),
                             activity.getString(
                                     R.string.ambient_draft_calendar, item.displaySource(), item.displaySender(), item.displayBody()))));
             if (item.replyable) {
-                row2.addView(Ui.button(activity, activity.getString(R.string.ambient_action_reply),
-                        v -> confirmQuickReply(item)));
+                addRowButton(row2, Ui.outlinedButton(activity, activity.getString(R.string.ambient_action_reply),
+                        v -> confirmQuickReply(item)), gap);
             } else {
-                row2.addView(Ui.button(activity, activity.getString(R.string.ambient_action_reply),
+                addRowButton(row2, Ui.outlinedButton(activity, activity.getString(R.string.ambient_action_reply),
                         v -> callbacks.stageDraft(activity.getString(
-                                R.string.ambient_draft_reply, item.displaySource(), item.displaySender(), item.displayBody()))));
+                                R.string.ambient_draft_reply, item.displaySource(), item.displaySender(), item.displayBody()))), gap);
             }
-            row2.addView(Ui.button(activity, activity.getString(R.string.ambient_action_dismiss), v -> {
+            addRowButton(row2, Ui.button(activity, activity.getString(R.string.ambient_action_dismiss), v -> {
                 HermesNotificationListener.dismiss(item.key);
                 renderDigest();
-            }));
-            card.addView(row2);
+            }), gap);
+            addTop(card, horizontalRow(row2), 8);
 
-            addTop(digestContainer, card, 8);
+            addTop(digestContainer, card, 10);
         }
+    }
+
+    private HorizontalScrollView horizontalRow(LinearLayout row) {
+        HorizontalScrollView scroll = new HorizontalScrollView(activity);
+        scroll.setHorizontalScrollBarEnabled(false);
+        scroll.addView(row, new HorizontalScrollView.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        return scroll;
+    }
+
+    private static void addRowButton(LinearLayout row, Button button, int gapPx) {
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
+        if (row.getChildCount() > 0) lp.setMarginStart(gapPx);
+        row.addView(button, lp);
     }
 
     private void confirmMediaControl(MediaContextBridge.NowPlaying current, MediaContextBridge.ControlAction action) {
@@ -652,7 +800,15 @@ public final class AmbientAccessPanel {
         if (detailRes != 0) addTop(parent, mutedNote(activity.getString(detailRes)), 4);
     }
 
-    private Switch addSwitch(LinearLayout parent, int labelRes, boolean initial, Consumer<Boolean> onToggle) {
+    private Switch addSwitch(
+            LinearLayout card, boolean withDivider, int labelRes, boolean initial, Consumer<Boolean> onToggle) {
+        if (withDivider) {
+            View divider = Ui.insetDivider(activity, 16);
+            LinearLayout.LayoutParams divLp = (LinearLayout.LayoutParams) divider.getLayoutParams();
+            divLp.topMargin = Ui.dp(activity, 4);
+            divLp.bottomMargin = Ui.dp(activity, 4);
+            card.addView(divider, divLp);
+        }
         Switch toggle = new Switch(activity);
         toggle.setText(labelRes);
         toggle.setTextColor(activity.getColor(R.color.ink));
@@ -661,7 +817,7 @@ public final class AmbientAccessPanel {
         toggle.setOnCheckedChangeListener((buttonView, isChecked) -> {
             if (!binding) onToggle.accept(isChecked);
         });
-        addTop(parent, toggle, 4);
+        card.addView(toggle, new LinearLayout.LayoutParams(-1, -2));
         return toggle;
     }
 

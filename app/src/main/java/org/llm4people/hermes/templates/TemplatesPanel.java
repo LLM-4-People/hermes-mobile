@@ -3,8 +3,8 @@ package org.llm4people.hermes.templates;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
+import android.content.res.ColorStateList;
 import android.graphics.Typeface;
-import android.graphics.drawable.GradientDrawable;
 import android.text.InputFilter;
 import android.text.InputType;
 import android.view.Gravity;
@@ -16,6 +16,7 @@ import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import org.llm4people.hermes.AdaptiveLayout;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.RouteRegistry;
@@ -36,7 +37,16 @@ import java.util.function.Consumer;
 public final class TemplatesPanel {
     public static final String ROUTE_ID = "workflow_templates";
     public static final int MAX_STARTER_CHIPS = 4;
-    private static final Typeface MEDIUM = Typeface.create("sans-serif-medium", Typeface.NORMAL);
+    private static volatile Typeface mediumTypeface;
+
+    private static Typeface mediumTypeface() {
+        Typeface cached = mediumTypeface;
+        if (cached == null) {
+            cached = Typeface.create("sans-serif-medium", Typeface.NORMAL);
+            mediumTypeface = cached;
+        }
+        return cached;
+    }
 
     private final Activity activity;
     private final TemplateStore store;
@@ -95,12 +105,8 @@ public final class TemplatesPanel {
                 }
             });
             chip.setContentDescription(context.getString(R.string.templates_chip_cd, tpl.title));
-            chip.setTextColor(context.getColor(R.color.accent));
-            GradientDrawable bg = new GradientDrawable();
-            bg.setCornerRadius(Ui.dp(context, 12));
-            bg.setColor(context.getColor(R.color.accent_surface));
-            bg.setStroke(Math.max(1, Ui.dp(context, 1)), context.getColor(R.color.line));
-            chip.setBackground(bg);
+            chip.setBackground(Ui.roundedRipple(context, Ui.BUTTON_CORNER_DP,
+                    Ui.shape(context, Ui.BUTTON_CORNER_DP, R.color.accent_surface, R.color.line, 1)));
             Ui.pad(chip, 14, 8);
             chip.setMinimumHeight(Ui.dp(context, 48));
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
@@ -113,25 +119,31 @@ public final class TemplatesPanel {
     }
 
     public View buildView() {
-        ScrollView scroll = new ScrollView(activity);
-        scroll.setFillViewport(true);
-        scroll.setBackgroundColor(activity.getColor(R.color.paper));
-
         LinearLayout body = Ui.column(activity);
-        Ui.pad(body, 20, 18);
+        ScrollView scroll = new ScrollView(activity) {
+            @Override protected void onMeasure(int widthSpec, int heightSpec) {
+                float density = getResources().getDisplayMetrics().density;
+                int gutter = Ui.dp(activity, AdaptiveLayout.centeredGutterDp(
+                        MeasureSpec.getSize(widthSpec) / density, AdaptiveLayout.READING_COLUMN_MAX_DP, 20));
+                int top = Ui.dp(activity, 16);
+                int bottom = Ui.dp(activity, 24);
+                if (body.getPaddingStart() != gutter || body.getPaddingTop() != top) {
+                    body.setPaddingRelative(gutter, top, gutter, bottom);
+                }
+                super.onMeasure(widthSpec, heightSpec);
+            }
+        };
+        scroll.setFillViewport(true);
+        scroll.setClipToPadding(false);
+        scroll.setBackgroundColor(activity.getColor(R.color.paper));
         scroll.addView(body, new ScrollView.LayoutParams(-1, -2));
-
-        TextView title = Ui.text(activity, activity.getString(R.string.templates_panel_title), 24);
-        title.setTypeface(MEDIUM);
-        title.setAccessibilityHeading(true);
-        body.addView(title);
 
         TextView subtitle = Ui.text(activity, activity.getString(R.string.templates_panel_subtitle), 15);
         subtitle.setTextColor(activity.getColor(R.color.muted));
-        subtitle.setPaddingRelative(0, Ui.dp(activity, 4), 0, Ui.dp(activity, 14));
+        subtitle.setPaddingRelative(0, 0, 0, Ui.dp(activity, 14));
         body.addView(subtitle);
 
-        Button createBtn = filledPrimaryButton(activity.getString(R.string.templates_new_button),
+        Button createBtn = Ui.filledButton(activity, activity.getString(R.string.templates_new_button),
                 v -> openEditorDialog(null));
         LinearLayout.LayoutParams btnLp = new LinearLayout.LayoutParams(-1, -2);
         btnLp.bottomMargin = Ui.dp(activity, 18);
@@ -183,16 +195,10 @@ public final class TemplatesPanel {
     }
 
     private LinearLayout templateCard(WorkflowTemplate tpl) {
-        LinearLayout card = Ui.column(activity);
-        Ui.pad(card, 16, 14);
-        GradientDrawable bg = new GradientDrawable();
-        bg.setColor(activity.getColor(R.color.surface));
-        bg.setCornerRadius(Ui.dp(activity, 12));
-        bg.setStroke(Math.max(1, Ui.dp(activity, 1)), activity.getColor(R.color.line));
-        card.setBackground(bg);
+        LinearLayout card = Ui.card(activity);
 
         TextView heading = Ui.text(activity, tpl.title, 17);
-        heading.setTypeface(MEDIUM);
+        heading.setTypeface(mediumTypeface());
         card.addView(heading);
 
         if (!tpl.subtitle.isEmpty()) {
@@ -204,34 +210,31 @@ public final class TemplatesPanel {
 
         HorizontalScrollView actionsScroll = new HorizontalScrollView(activity);
         actionsScroll.setHorizontalScrollBarEnabled(false);
-        actionsScroll.setPaddingRelative(0, Ui.dp(activity, 4), 0, 0);
+        actionsScroll.setPaddingRelative(0, Ui.dp(activity, 6), 0, 0);
 
+        int gap = Ui.dp(activity, 8);
         LinearLayout actions = Ui.row(activity);
 
-        Button useBtn = Ui.button(activity, activity.getString(R.string.templates_use_button), v -> {
+        Button useBtn = Ui.tonalButton(activity, activity.getString(R.string.templates_use_button), v -> {
             if (!canAct()) return;
             Diagnostics.event("templates", tpl.builtIn ? "builtin_staged" : "custom_staged");
             stageDraft.accept(tpl.draft);
         });
-        useBtn.setTypeface(MEDIUM);
-        GradientDrawable pillBg = new GradientDrawable();
-        pillBg.setColor(activity.getColor(R.color.accent_surface));
-        pillBg.setCornerRadius(Ui.dp(activity, 12));
-        useBtn.setBackground(pillBg);
-        Ui.pad(useBtn, 14, 8);
         actions.addView(useBtn);
 
         if (!tpl.builtIn) {
-            Button editBtn = Ui.button(activity, activity.getString(R.string.templates_edit_button),
+            Button editBtn = Ui.outlinedButton(activity, activity.getString(R.string.templates_edit_button),
                     v -> openEditorDialog(tpl));
-            Ui.pad(editBtn, 12, 8);
-            actions.addView(editBtn);
+            LinearLayout.LayoutParams editLp = new LinearLayout.LayoutParams(-2, -2);
+            editLp.setMarginStart(gap);
+            actions.addView(editBtn, editLp);
 
             Button deleteBtn = Ui.button(activity, activity.getString(R.string.templates_delete_button),
                     v -> confirmDelete(tpl));
-            deleteBtn.setTextColor(activity.getColor(R.color.danger));
-            Ui.pad(deleteBtn, 12, 8);
-            actions.addView(deleteBtn);
+            deleteBtn.setTextColor(dangerInk(activity));
+            LinearLayout.LayoutParams deleteLp = new LinearLayout.LayoutParams(-2, -2);
+            deleteLp.setMarginStart(gap);
+            actions.addView(deleteBtn, deleteLp);
         }
 
         actionsScroll.addView(actions);
@@ -251,6 +254,8 @@ public final class TemplatesPanel {
                 activity.getString(R.string.templates_field_title_hint),
                 WorkflowTemplate.MAX_TITLE_CHARS,
                 false);
+        titleInput.setId(View.generateViewId());
+        titleLbl.setLabelFor(titleInput.getId());
         if (existing != null) titleInput.setText(existing.title);
 
         TextView subLbl = fieldLabel(activity.getString(R.string.templates_field_subtitle));
@@ -258,6 +263,8 @@ public final class TemplatesPanel {
                 activity.getString(R.string.templates_field_subtitle_hint),
                 WorkflowTemplate.MAX_SUBTITLE_CHARS,
                 false);
+        subInput.setId(View.generateViewId());
+        subLbl.setLabelFor(subInput.getId());
         if (existing != null) subInput.setText(existing.subtitle);
 
         TextView draftLbl = fieldLabel(activity.getString(R.string.templates_field_draft));
@@ -265,6 +272,8 @@ public final class TemplatesPanel {
                 activity.getString(R.string.templates_field_draft_hint),
                 WorkflowTemplate.MAX_DRAFT_CHARS,
                 true);
+        draftInput.setId(View.generateViewId());
+        draftLbl.setLabelFor(draftInput.getId());
         if (existing != null) draftInput.setText(existing.draft);
 
         TextView errorView = Ui.text(activity, "", 14);
@@ -351,7 +360,7 @@ public final class TemplatesPanel {
 
     private TextView sectionHeading(String text) {
         TextView view = Ui.text(activity, text, 15);
-        view.setTypeface(MEDIUM);
+        view.setTypeface(mediumTypeface());
         view.setTextColor(activity.getColor(R.color.muted));
         view.setAccessibilityHeading(true);
         view.setPaddingRelative(0, Ui.dp(activity, 4), 0, Ui.dp(activity, 8));
@@ -360,7 +369,7 @@ public final class TemplatesPanel {
 
     private TextView fieldLabel(String text) {
         TextView view = Ui.text(activity, text, 14);
-        view.setTypeface(MEDIUM);
+        view.setTypeface(mediumTypeface());
         view.setPaddingRelative(0, Ui.dp(activity, 10), 0, Ui.dp(activity, 4));
         return view;
     }
@@ -379,11 +388,8 @@ public final class TemplatesPanel {
         field.setMinHeight(minTouch);
         field.setMinimumHeight(minTouch);
         Ui.pad(field, 12, 10);
-        GradientDrawable stroke = new GradientDrawable();
-        stroke.setColor(activity.getColor(R.color.surface));
-        stroke.setCornerRadius(Ui.dp(activity, 8));
-        stroke.setStroke(Math.max(1, Ui.dp(activity, 1)), activity.getColor(R.color.muted));
-        field.setBackground(stroke);
+        field.setBackgroundResource(R.drawable.profile_input);
+        field.setBackgroundTintList(null);
         if (multiline) {
             field.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
                     | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
@@ -398,16 +404,10 @@ public final class TemplatesPanel {
         return field;
     }
 
-    private Button filledPrimaryButton(String label, View.OnClickListener click) {
-        Button button = Ui.button(activity, label, click);
-        button.setTextColor(activity.getColor(R.color.on_accent));
-        button.setTypeface(MEDIUM);
-        GradientDrawable bg = new GradientDrawable();
-        bg.setColor(activity.getColor(R.color.accent));
-        bg.setCornerRadius(Ui.dp(activity, 12));
-        button.setBackground(bg);
-        Ui.pad(button, 16, 10);
-        return button;
+    private static ColorStateList dangerInk(Context context) {
+        return new ColorStateList(
+                new int[][]{new int[]{-android.R.attr.state_enabled}, new int[]{}},
+                new int[]{context.getColor(R.color.disabled_ink), context.getColor(R.color.danger)});
     }
 
     private LinearLayout.LayoutParams cardLayoutParams() {

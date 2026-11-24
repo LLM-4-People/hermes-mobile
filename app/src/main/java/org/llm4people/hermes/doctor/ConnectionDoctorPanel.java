@@ -5,8 +5,8 @@ import android.app.AlertDialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
+import android.content.res.ColorStateList;
 import android.graphics.Typeface;
-import android.graphics.drawable.GradientDrawable;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.View;
@@ -16,6 +16,7 @@ import android.widget.ProgressBar;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
+import org.llm4people.hermes.AdaptiveLayout;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.RouteRegistry;
@@ -37,7 +38,16 @@ import java.util.concurrent.Executors;
 public final class ConnectionDoctorPanel {
     public static final String ROUTE_ID = "connection_doctor";
 
-    private static final Typeface MEDIUM = Typeface.create("sans-serif-medium", Typeface.NORMAL);
+    private static volatile Typeface mediumTypeface;
+
+    private static Typeface mediumTypeface() {
+        Typeface cached = mediumTypeface;
+        if (cached == null) {
+            cached = Typeface.create("sans-serif-medium", Typeface.NORMAL);
+            mediumTypeface = cached;
+        }
+        return cached;
+    }
 
     /** Optional 1-tap fix callbacks wired by the host Activity / navigation shell. */
     public interface FixHandlers {
@@ -111,27 +121,33 @@ public final class ConnectionDoctorPanel {
 
     /** Build the scrollable paper/ink/teal TalkBack-accessible Connection Doctor view. */
     public View buildView() {
-        ScrollView scroll = new ScrollView(activity);
-        scroll.setFillViewport(true);
-        scroll.setBackgroundColor(activity.getColor(R.color.paper));
-
         LinearLayout body = Ui.column(activity);
-        Ui.pad(body, 20, 18);
+        ScrollView scroll = new ScrollView(activity) {
+            @Override protected void onMeasure(int widthSpec, int heightSpec) {
+                float density = getResources().getDisplayMetrics().density;
+                int gutter = Ui.dp(activity, AdaptiveLayout.centeredGutterDp(
+                        MeasureSpec.getSize(widthSpec) / density, AdaptiveLayout.READING_COLUMN_MAX_DP, 20));
+                int top = Ui.dp(activity, 16);
+                int bottom = Ui.dp(activity, 24);
+                if (body.getPaddingStart() != gutter || body.getPaddingTop() != top) {
+                    body.setPaddingRelative(gutter, top, gutter, bottom);
+                }
+                super.onMeasure(widthSpec, heightSpec);
+            }
+        };
+        scroll.setFillViewport(true);
+        scroll.setClipToPadding(false);
+        scroll.setBackgroundColor(activity.getColor(R.color.paper));
         scroll.addView(body, new ScrollView.LayoutParams(-1, -2));
-
-        TextView title = Ui.text(activity, activity.getString(R.string.doctor_panel_title), 24);
-        title.setTypeface(MEDIUM);
-        title.setAccessibilityHeading(true);
-        body.addView(title);
 
         TextView subtitle = Ui.text(activity, activity.getString(R.string.doctor_panel_subtitle), 15);
         subtitle.setTextColor(activity.getColor(R.color.muted));
-        subtitle.setPaddingRelative(0, Ui.dp(activity, 4), 0, Ui.dp(activity, 14));
+        subtitle.setPaddingRelative(0, 0, 0, Ui.dp(activity, 14));
         body.addView(subtitle);
 
-        LinearLayout summaryCard = createCard();
+        LinearLayout summaryCard = Ui.card(activity);
         summaryTitle = Ui.text(activity, activity.getString(R.string.doctor_status_running), 18);
-        summaryTitle.setTypeface(MEDIUM);
+        summaryTitle.setTypeface(mediumTypeface());
         summaryTitle.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         summaryCard.addView(summaryTitle);
 
@@ -147,16 +163,16 @@ public final class ConnectionDoctorPanel {
         progressLp.topMargin = Ui.dp(activity, 10);
         summaryCard.addView(progressBar, progressLp);
 
-        rerunButton = minTargetButton(activity.getString(R.string.doctor_rerun_action), v -> runChecks());
+        rerunButton = Ui.tonalButton(activity, activity.getString(R.string.doctor_rerun_action), v -> runChecks());
         LinearLayout.LayoutParams rerunLp = new LinearLayout.LayoutParams(-2, -2);
-        rerunLp.topMargin = Ui.dp(activity, 8);
+        rerunLp.topMargin = Ui.dp(activity, 10);
         summaryCard.addView(rerunButton, rerunLp);
 
         body.addView(summaryCard, new LinearLayout.LayoutParams(-1, -2));
 
-        LinearLayout permissionsCard = createCard();
+        LinearLayout permissionsCard = Ui.card(activity);
         TextView permTitle = Ui.text(activity, activity.getString(R.string.doctor_permissions_card_title), 16);
-        permTitle.setTypeface(MEDIUM);
+        permTitle.setTypeface(mediumTypeface());
         permissionsCard.addView(permTitle);
 
         permissionsSummary = Ui.text(activity, PermissionsPanel.summaryLine(activity), 14);
@@ -164,11 +180,11 @@ public final class ConnectionDoctorPanel {
         permissionsSummary.setPaddingRelative(0, Ui.dp(activity, 4), 0, 0);
         permissionsCard.addView(permissionsSummary);
 
-        Button openPerms = minTargetButton(activity.getString(R.string.doctor_fix_permissions),
+        Button openPerms = Ui.outlinedButton(activity, activity.getString(R.string.doctor_fix_permissions),
                 v -> fixHandlers.openPermissions());
         openPerms.setTag("doctor:open_permissions");
         LinearLayout.LayoutParams openPermsLp = new LinearLayout.LayoutParams(-2, -2);
-        openPermsLp.topMargin = Ui.dp(activity, 6);
+        openPermsLp.topMargin = Ui.dp(activity, 10);
         permissionsCard.addView(openPerms, openPermsLp);
 
         LinearLayout.LayoutParams permCardLp = new LinearLayout.LayoutParams(-1, -2);
@@ -211,13 +227,14 @@ public final class ConnectionDoctorPanel {
         }
         if (summaryTitle != null && latestReport == null) {
             summaryTitle.setText(R.string.doctor_status_running);
+            summaryTitle.setTextColor(activity.getColor(R.color.ink));
         }
         runner.execute(() -> {
             DoctorCheck.Report report = null;
             try {
                 report = doctor.runAll();
             } catch (RuntimeException error) {
-                Diagnostics.warning("doctor", "run_all_failed");
+                Diagnostics.warning("doctor", "run_all_failed", error);
             }
             final DoctorCheck.Report completed = report;
             postUi(() -> {
@@ -231,10 +248,24 @@ public final class ConnectionDoctorPanel {
                 }
                 if (completed != null) {
                     latestReport = completed;
+                    if (feedback != null) feedback.setVisibility(View.GONE);
                     renderReport(completed);
+                } else {
+                    renderRunFailure();
                 }
             });
         });
+    }
+
+    private void renderRunFailure() {
+        if (summaryTitle != null) {
+            summaryTitle.setText(R.string.doctor_status_problem);
+            summaryTitle.setTextColor(activity.getColor(R.color.danger));
+        }
+        if (summaryCounts != null && latestReport == null) {
+            summaryCounts.setVisibility(View.GONE);
+        }
+        showFeedback(activity.getString(R.string.doctor_check_server_unreachable), true);
     }
 
     /** Return the latest redacted diagnostic report, or null if not finished yet. */
@@ -269,18 +300,23 @@ public final class ConnectionDoctorPanel {
     }
 
     private void buildTechnicalSection(LinearLayout body) {
-        technicalToggle = minTargetButton(activity.getString(R.string.doctor_technical_show), v -> {
+        technicalToggle = Ui.button(activity, activity.getString(R.string.doctor_technical_show), v -> {
             technicalExpanded = !technicalExpanded;
             technicalBox.setVisibility(technicalExpanded ? View.VISIBLE : View.GONE);
+            technicalToggle.setActivated(technicalExpanded);
             technicalToggle.setText(technicalExpanded
                     ? R.string.doctor_technical_hide
                     : R.string.doctor_technical_show);
         });
+        technicalToggle.setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.ic_prompt_disclosure, 0, 0, 0);
+        technicalToggle.setCompoundDrawablePadding(Ui.dp(activity, 8));
+        technicalToggle.setCompoundDrawableTintList(ColorStateList.valueOf(activity.getColor(R.color.accent)));
+        technicalToggle.setActivated(false);
         LinearLayout.LayoutParams toggleLp = new LinearLayout.LayoutParams(-2, -2);
         toggleLp.topMargin = Ui.dp(activity, 14);
         body.addView(technicalToggle, toggleLp);
 
-        technicalBox = createCard();
+        technicalBox = Ui.tonalCard(activity);
         technicalBox.setVisibility(View.GONE);
 
         TextView privacyNote = Ui.text(activity, activity.getString(R.string.doctor_technical_privacy_note), 13);
@@ -302,14 +338,15 @@ public final class ConnectionDoctorPanel {
         technicalReportPreview = Ui.text(activity, "", 12);
         technicalReportPreview.setTypeface(Typeface.MONOSPACE);
         technicalReportPreview.setTextColor(activity.getColor(R.color.muted));
-        technicalReportPreview.setPaddingRelative(0, Ui.dp(activity, 8), 0, Ui.dp(activity, 6));
+        technicalReportPreview.setPaddingRelative(0, Ui.dp(activity, 8), 0, Ui.dp(activity, 10));
         technicalBox.addView(technicalReportPreview);
 
-        copyReportButton = minTargetButton(activity.getString(R.string.doctor_copy_report_action), v -> copySafeReport());
+        copyReportButton = Ui.outlinedButton(activity, activity.getString(R.string.doctor_copy_report_action),
+                v -> copySafeReport());
         technicalBox.addView(copyReportButton, new LinearLayout.LayoutParams(-2, -2));
 
         LinearLayout.LayoutParams boxLp = new LinearLayout.LayoutParams(-1, -2);
-        boxLp.topMargin = Ui.dp(activity, 6);
+        boxLp.topMargin = Ui.dp(activity, 8);
         body.addView(technicalBox, boxLp);
     }
 
@@ -321,7 +358,7 @@ public final class ConnectionDoctorPanel {
             case ERROR -> R.string.doctor_status_problem;
         };
         summaryTitle.setText(summaryRes);
-        summaryTitle.setTextColor(statusInkColor(overall));
+        summaryTitle.setTextColor(activity.getColor(statusInkColorRes(overall)));
 
         summaryCounts.setText(activity.getString(R.string.doctor_summary_counts,
                 report.count(DoctorCheck.Status.OK),
@@ -347,20 +384,14 @@ public final class ConnectionDoctorPanel {
     }
 
     private LinearLayout buildCheckCard(DoctorCheck.Item item) {
-        LinearLayout card = createCard();
+        LinearLayout card = Ui.card(activity);
 
-        TextView badge = Ui.text(activity, badgeText(item.status()), 12);
-        badge.setTypeface(MEDIUM);
-        badge.setTextColor(statusInkColor(item.status()));
-        GradientDrawable pill = new GradientDrawable();
-        pill.setColor(statusSurfaceColor(item.status()));
-        pill.setCornerRadius(Ui.dp(activity, 8));
-        badge.setBackground(pill);
-        Ui.pad(badge, 10, 4);
+        TextView badge = Ui.pill(activity, badgeText(item.status()),
+                statusSurfaceColorRes(item.status()), statusInkColorRes(item.status()));
         card.addView(badge, new LinearLayout.LayoutParams(-2, -2));
 
         TextView title = Ui.text(activity, checkTitle(item.id()), 16);
-        title.setTypeface(MEDIUM);
+        title.setTypeface(mediumTypeface());
         title.setPaddingRelative(0, Ui.dp(activity, 8), 0, 0);
         card.addView(title);
 
@@ -370,9 +401,9 @@ public final class ConnectionDoctorPanel {
         card.addView(detail);
 
         if (item.fixAction() != DoctorCheck.FixAction.NONE) {
-            Button fix = minTargetButton(fixLabel(item.fixAction()), v -> dispatchFix(item.fixAction()));
+            Button fix = Ui.tonalButton(activity, fixLabel(item.fixAction()), v -> dispatchFix(item.fixAction()));
             LinearLayout.LayoutParams fixLp = new LinearLayout.LayoutParams(-2, -2);
-            fixLp.topMargin = Ui.dp(activity, 6);
+            fixLp.topMargin = Ui.dp(activity, 10);
             card.addView(fix, fixLp);
         }
 
@@ -417,40 +448,19 @@ public final class ConnectionDoctorPanel {
         feedback.setVisibility(View.VISIBLE);
     }
 
-    private LinearLayout createCard() {
-        LinearLayout card = Ui.column(activity);
-        Ui.pad(card, 16, 14);
-        GradientDrawable bg = new GradientDrawable();
-        bg.setColor(activity.getColor(R.color.surface));
-        bg.setCornerRadius(Ui.dp(activity, 12));
-        bg.setStroke(Math.max(1, Ui.dp(activity, 1)), activity.getColor(R.color.line));
-        card.setBackground(bg);
-        return card;
-    }
-
-    private Button minTargetButton(String label, View.OnClickListener action) {
-        Button button = Ui.button(activity, label, action);
-        int minTouch = Ui.dp(activity, 48);
-        button.setMinWidth(minTouch);
-        button.setMinHeight(minTouch);
-        button.setMinimumWidth(minTouch);
-        button.setMinimumHeight(minTouch);
-        return button;
-    }
-
-    private int statusInkColor(DoctorCheck.Status status) {
+    private static int statusInkColorRes(DoctorCheck.Status status) {
         return switch (status) {
-            case OK -> activity.getColor(R.color.accent);
-            case WARN -> activity.getColor(R.color.warning);
-            case ERROR -> activity.getColor(R.color.danger);
+            case OK -> R.color.accent;
+            case WARN -> R.color.warning;
+            case ERROR -> R.color.danger;
         };
     }
 
-    private int statusSurfaceColor(DoctorCheck.Status status) {
+    private static int statusSurfaceColorRes(DoctorCheck.Status status) {
         return switch (status) {
-            case OK -> activity.getColor(R.color.accent_surface);
-            case WARN -> activity.getColor(R.color.warning_surface);
-            case ERROR -> activity.getColor(R.color.danger_surface);
+            case OK -> R.color.accent_surface;
+            case WARN -> R.color.warning_surface;
+            case ERROR -> R.color.danger_surface;
         };
     }
 
