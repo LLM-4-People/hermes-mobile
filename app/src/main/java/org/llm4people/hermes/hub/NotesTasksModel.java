@@ -1,7 +1,7 @@
 package org.llm4people.hermes.hub;
 
-import org.json.JSONArray;
 import org.json.JSONObject;
+import org.llm4people.hermes.JsonValues;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.push.DeliveryItem;
 
@@ -101,22 +101,7 @@ public final class NotesTasksModel {
 
     /** Parse `/api/notes` response into pinned-first, preview-normalized note rows. */
     public static List<NoteRow> parseNotes(JSONObject response) {
-        if (response == null) return Collections.emptyList();
-        JSONArray array = response.optJSONArray("notes");
-        if (array == null) array = response.optJSONArray("data");
-        if (array == null || array.length() == 0) return Collections.emptyList();
-        List<NoteRow> parsed = new ArrayList<>(array.length());
-        for (int i = 0; i < array.length(); i++) {
-            JSONObject obj = array.optJSONObject(i);
-            if (obj == null) continue;
-            String id = optText(obj, "id", "note_id");
-            String title = optText(obj, "title");
-            String body = optText(obj, "body", "content", "snippet");
-            boolean pinned = obj.optBoolean("pinned", false);
-            String updatedAt = optText(obj, "updated_at", "created_at");
-            parsed.add(new NoteRow(id, title, body, pinned, updatedAt));
-        }
-        return sortNotes(parsed);
+        return parseNotesMap(JsonValues.toMap(response));
     }
 
     /** Pure-JVM parser for decoded `/api/notes` payload maps. */
@@ -125,7 +110,8 @@ public final class NotesTasksModel {
         if (array == null || array.isEmpty()) return Collections.emptyList();
         List<NoteRow> parsed = new ArrayList<>(array.size());
         for (Object item : array) {
-            if (!(item instanceof Map<?, ?> obj)) continue;
+            Map<?, ?> obj = JsonValues.asMap(item);
+            if (obj == null) continue;
             String id = optMapText(obj, "id", "note_id");
             String title = optMapText(obj, "title");
             String body = optMapText(obj, "body", "content", "snippet");
@@ -164,26 +150,7 @@ public final class NotesTasksModel {
 
     /** Parse `/api/jobs?include_disabled=true` response into active/paused/attention overview + rows. */
     public static ReminderOverview parseReminders(JSONObject response) {
-        if (response == null) return new ReminderOverview(Collections.emptyList(), 0, 0, 0);
-        JSONArray array = response.optJSONArray("jobs");
-        if (array == null) array = response.optJSONArray("data");
-        if (array == null || array.length() == 0) {
-            return new ReminderOverview(Collections.emptyList(), 0, 0, 0);
-        }
-        List<ReminderRow> rows = new ArrayList<>(array.length());
-        for (int i = 0; i < array.length(); i++) {
-            JSONObject obj = array.optJSONObject(i);
-            if (obj == null) continue;
-            String id = optText(obj, "id", "job_id");
-            String name = optText(obj, "name", "title");
-            String prompt = optText(obj, "prompt", "message");
-            String schedule = optText(obj, "schedule_display", "schedule");
-            boolean enabled = obj.optBoolean("enabled", true);
-            String lastStatus = optText(obj, "last_status").toLowerCase(Locale.ROOT);
-            boolean failed = "error".equals(lastStatus) || "failed".equals(lastStatus);
-            rows.add(new ReminderRow(id, name.isEmpty() ? id : name, prompt, schedule, enabled, failed));
-        }
-        return summarizeReminders(rows);
+        return parseRemindersMap(JsonValues.toMap(response));
     }
 
     /** Pure-JVM parser for decoded `/api/jobs?include_disabled=true` payload maps. */
@@ -194,7 +161,8 @@ public final class NotesTasksModel {
         }
         List<ReminderRow> rows = new ArrayList<>(array.size());
         for (Object item : array) {
-            if (!(item instanceof Map<?, ?> obj)) continue;
+            Map<?, ?> obj = JsonValues.asMap(item);
+            if (obj == null) continue;
             String id = optMapText(obj, "id", "job_id");
             String name = optMapText(obj, "name", "title");
             String prompt = optMapText(obj, "prompt", "message");
@@ -221,22 +189,7 @@ public final class NotesTasksModel {
 
     /** Parse `/api/shares/incoming` response cleanly, tolerating missing or partial rows. */
     public static List<SharedRow> parseReceivedShares(JSONObject response) {
-        if (response == null) return Collections.emptyList();
-        JSONArray array = response.optJSONArray("shares");
-        if (array == null) array = response.optJSONArray("data");
-        if (array == null || array.length() == 0) return Collections.emptyList();
-        List<SharedRow> out = new ArrayList<>(array.length());
-        for (int i = 0; i < array.length(); i++) {
-            JSONObject obj = array.optJSONObject(i);
-            if (obj == null) continue;
-            String shareId = optText(obj, "share_id", "id");
-            String kind = optText(obj, "resource_kind", "kind");
-            String label = optText(obj, "label", "title", "resource_id");
-            String owner = optText(obj, "owner_profile", "owner", "shared_by");
-            String perm = optText(obj, "permission");
-            out.add(new SharedRow(shareId, kind, label, owner, perm));
-        }
-        return normalizeShares(out);
+        return parseReceivedSharesMap(JsonValues.toMap(response));
     }
 
     /** Pure-JVM parser for decoded `/api/shares/incoming` payload maps. */
@@ -245,7 +198,8 @@ public final class NotesTasksModel {
         if (array == null || array.isEmpty()) return Collections.emptyList();
         List<SharedRow> out = new ArrayList<>(array.size());
         for (Object item : array) {
-            if (!(item instanceof Map<?, ?> obj)) continue;
+            Map<?, ?> obj = JsonValues.asMap(item);
+            if (obj == null) continue;
             String shareId = optMapText(obj, "share_id", "id");
             String kind = optMapText(obj, "resource_kind", "kind");
             String label = optMapText(obj, "label", "title", "resource_id");
@@ -281,21 +235,10 @@ public final class NotesTasksModel {
         return collapsed.substring(0, MAX_PREVIEW_CHARS - 1).trim() + "…";
     }
 
-    private static String optText(JSONObject obj, String... keys) {
-        for (String key : keys) {
-            if (!obj.has(key) || obj.isNull(key)) continue;
-            String value = safe(obj.optString(key, ""));
-            if (!value.isEmpty()) return value;
-        }
-        return "";
-    }
-
     private static List<?> extractList(Map<String, Object> response, String primaryKey, String fallbackKey) {
         if (response == null) return null;
-        Object primary = response.get(primaryKey);
-        if (primary instanceof List<?> list) return list;
-        Object fallback = response.get(fallbackKey);
-        return fallback instanceof List<?> list ? list : null;
+        List<?> primary = JsonValues.asList(response.get(primaryKey));
+        return primary != null ? primary : JsonValues.asList(response.get(fallbackKey));
     }
 
     private static String optMapText(Map<?, ?> obj, String... keys) {

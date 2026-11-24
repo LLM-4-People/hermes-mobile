@@ -68,6 +68,9 @@ class WritingQualityTest(unittest.TestCase):
             ("End-to-End Encrypted Vault", "en"),
             ("Pin to Home Screen?", "en"),
             ("Ouvrir Les Réglages Rapides", "fr"),
+            ("Ouvrir un Atelier et les réglages", "fr"),
+            ("Ouvrir l’Atelier et les réglages", "fr"),
+            ("Ouvrir le Cerveau des réglages", "fr"),
         ]
         for text, lang in title_case_samples:
             offenders = cwq.check_sentence_case(text, lang)
@@ -82,7 +85,7 @@ class WritingQualityTest(unittest.TestCase):
             ("1. Open app info (⋮ → Allow restricted settings)", "en"),
             ("Language / Langue", "en"),
             ("Langue / Language", "fr"),
-            ("Ouvrir l’Atelier et les réglages Android sur Wi-Fi", "fr"),
+            ("Ouvrir les réglages d’Android et d’Hermes sur Wi-Fi", "fr"),
             ("Notifications chiffrées via UnifiedPush et Firebase", "fr"),
         ]
         for text, lang in valid_sentence_case:

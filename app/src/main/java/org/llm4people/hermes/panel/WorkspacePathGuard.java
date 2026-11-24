@@ -105,8 +105,9 @@ public final class WorkspacePathGuard {
     public static boolean isSensitivePath(String normalizedPath) {
         if (normalizedPath == null || normalizedPath.isEmpty()) return false;
         String lower = normalizedPath.toLowerCase(Locale.ROOT);
-        if (lower.equals(".git") || lower.startsWith(".git/") || lower.contains("/.git/")) return true;
-        if (lower.startsWith(".ssh/") || lower.contains("/.ssh/")) return true;
+        for (String segment : lower.split("/")) {
+            if (".git".equals(segment) || ".ssh".equals(segment)) return true;
+        }
         int slash = lower.lastIndexOf('/');
         String base = slash >= 0 ? lower.substring(slash + 1) : lower;
         if (SENSITIVE_FILENAMES.contains(base)) return true;

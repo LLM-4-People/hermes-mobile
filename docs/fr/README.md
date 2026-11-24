@@ -8,7 +8,7 @@
 
 **Hermes Mobile** est un client Android natif (API 28 à 36, Java, zéro WebView, APK signé d’environ 1,9 Mo) conçu pour discuter, programmer, valider des actions, lancer plusieurs tâches simultanées et personnaliser votre espace avec votre propre serveur Hermes. L’application suit automatiquement la langue de votre téléphone (**français** ou **anglais**), offre un changement en un geste et synchronise cette préférence avec votre serveur.
 
-> **Serveur compagnon requis :** Hermes Mobile fonctionne avec notre branche compagnon **[LLM-4-People/hermes-agent](https://github.com/LLM-4-People/hermes-agent)**, qui fournit l’hébergement multi-profils sur un seul nom de domaine (`/p/{profil}`), l’exécution simultanée de plusieurs tâches par utilisateur, les modifications d’interface en direct, les notifications privées, l’espace Cerveau, les aperçus visuels de modifications et le pont d’actions Android.
+> **Serveur compagnon requis :** Hermes Mobile fonctionne avec notre branche compagnon **[LLM-4-People/hermes-agent](https://github.com/LLM-4-People/hermes-agent)**, qui fournit l’hébergement multi-profils sur un seul nom de domaine (`/p/{profil}`), l’exécution simultanée de plusieurs tâches par utilisateur, les modifications d’interface en direct, les notifications privées, les notes, la recherche et le partage entre profils, les aperçus visuels de modifications et le pont d’actions Android.
 
 ## Aperçu sur appareil réel
 
