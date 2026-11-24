@@ -19,6 +19,7 @@ import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.JsonValues;
 import org.llm4people.hermes.SecretPatterns;
 import org.llm4people.hermes.customization.InteractiveCardView;
+import org.llm4people.hermes.panel.ReminderPanel;
 import org.llm4people.hermes.places.NearbyCategory;
 import org.llm4people.hermes.profile.Account;
 
@@ -233,13 +234,13 @@ public final class LiveUiPatch {
         public final boolean homeScreenSafe;
 
         public WidgetSpec(String widgetId, String title, String subtitle, String template,
-                          List<WidgetItem> items, String accentHex, boolean homeScreenSafe, boolean nightMode) throws IOException {
-            this(widgetId, title, subtitle, template, items, accentHex, null, homeScreenSafe, nightMode);
+                          List<WidgetItem> items, String accentHex, boolean homeScreenSafe) throws IOException {
+            this(widgetId, title, subtitle, template, items, accentHex, null, homeScreenSafe);
         }
 
         public WidgetSpec(String widgetId, String title, String subtitle, String template,
                           List<WidgetItem> items, String accentHex, String accentInkHex,
-                          boolean homeScreenSafe, boolean nightMode) throws IOException {
+                          boolean homeScreenSafe) throws IOException {
             if (!homeScreenSafe) throw new IOException("Widget must explicitly opt in with home_screen_safe: true");
             if (!validSafeId(widgetId)) throw new IOException("Invalid widget_id");
             if (!validText(title, 80)) throw new IOException("Invalid widget title");
@@ -382,10 +383,10 @@ public final class LiveUiPatch {
                 Collections.emptyList(), requiresApply, MAX_OPS);
     }
 
-    private LiveUiPatch(String revisionId, String parentRevisionId, String scope, String summary,
-                        List<Op> ops, List<SuggestedAction> suggestedActions,
-                        List<InteractiveCardView.Spec> interactiveCards, boolean requiresApply,
-                        int maxOps) throws IOException {
+    LiveUiPatch(String revisionId, String parentRevisionId, String scope, String summary,
+                List<Op> ops, List<SuggestedAction> suggestedActions,
+                List<InteractiveCardView.Spec> interactiveCards, boolean requiresApply,
+                int maxOps) throws IOException {
         if (!validRevisionId(revisionId)) throw new IOException("Invalid revision id");
         if (parentRevisionId != null && !parentRevisionId.isEmpty() && !validRevisionId(parentRevisionId)) {
             throw new IOException("Invalid parent revision id");
@@ -562,7 +563,7 @@ public final class LiveUiPatch {
                         if (prompt != null && !prompt.isEmpty()) {
                             out.add(new SuggestedAction(id, label, kind, prompt, null, null, null));
                         } else {
-                            out.add(new SuggestedAction(id, label, kind, null, null, "reminders", null));
+                            out.add(new SuggestedAction(id, label, kind, null, null, ReminderPanel.ROUTE_ID, null));
                         }
                     }
                     case "save_memory", "save_skill", "prompt" -> {
@@ -754,8 +755,7 @@ public final class LiveUiPatch {
                         items,
                         obj.has("accent_hex") && !obj.isNull("accent_hex") ? obj.optString("accent_hex", "") : null,
                         obj.has("accent_ink_hex") && !obj.isNull("accent_ink_hex") ? obj.optString("accent_ink_hex", "") : null,
-                        true,
-                        nightMode)));
+                        true)));
             }
             case "remove_widget" -> {
                 allowOnly(keys, "op", "widget_id");
@@ -1274,14 +1274,14 @@ public final class LiveUiPatch {
                     }
                     case "WDG" -> {
                         if (parts.length != 2 || widgets.size() >= MAX_WIDGETS) throw new IOException("Bad widget row");
-                        widgets.add(decodeWidget(unesc(parts[1]), nightMode));
+                        widgets.add(decodeWidget(unesc(parts[1])));
                     }
                     case "REV" -> {
                         if ((parts.length != 7 && parts.length != 8) || history.size() >= MAX_HISTORY) {
                             throw new IOException("Bad revision row");
                         }
                         List<WidgetSpec> prevWidgets = parts.length == 8
-                                ? decodeWidgets(unesc(parts[7]), nightMode) : Collections.emptyList();
+                                ? decodeWidgets(unesc(parts[7])) : Collections.emptyList();
                         history.add(new AppliedRevision(
                                 unesc(parts[1]), unesc(parts[2]),
                                 decodeMap(unesc(parts[4])),
@@ -1309,7 +1309,7 @@ public final class LiveUiPatch {
                     + "|" + esc(items.toString());
         }
 
-        private static WidgetSpec decodeWidget(String raw, boolean nightMode) throws IOException {
+        private static WidgetSpec decodeWidget(String raw) throws IOException {
             String[] p = raw.split("\\|", -1);
             if (p.length != 6 && p.length != 7) throw new IOException("Bad widget encoding");
             boolean hasInk = p.length == 7;
@@ -1333,7 +1333,7 @@ public final class LiveUiPatch {
                 }
             }
             return new WidgetSpec(unesc(p[0]), unesc(p[1]), unesc(p[2]), unesc(p[3]),
-                    items, accent.isEmpty() ? null : accent, accentInk.isEmpty() ? null : accentInk, true, nightMode);
+                    items, accent.isEmpty() ? null : accent, accentInk.isEmpty() ? null : accentInk, true);
         }
 
         private static String encodeWidgets(List<WidgetSpec> list) {
@@ -1345,10 +1345,10 @@ public final class LiveUiPatch {
             return sb.toString();
         }
 
-        private static List<WidgetSpec> decodeWidgets(String raw, boolean nightMode) throws IOException {
+        private static List<WidgetSpec> decodeWidgets(String raw) throws IOException {
             List<WidgetSpec> list = new ArrayList<>();
             if (raw.isEmpty()) return list;
-            for (String part : raw.split(";", -1)) list.add(decodeWidget(unesc(part), nightMode));
+            for (String part : raw.split(";", -1)) list.add(decodeWidget(unesc(part)));
             return list;
         }
 

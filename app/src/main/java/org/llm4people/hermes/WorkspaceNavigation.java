@@ -7,11 +7,13 @@ import org.llm4people.hermes.settings.SettingsHubPanel;
 import java.util.ArrayDeque;
 
 /** The unlocked account's live navigation stack. Returning to a route unwinds to its first entry. */
-final class WorkspaceNavigation {
-    static final String DISCUSSION = "discussion";
+public final class WorkspaceNavigation {
+    public static final String DISCUSSION = "discussion";
     static final String NOTES_TASKS = NotesTasksPanel.ROUTE_ID;
     static final String APPS = AppsLauncherPanel.ROUTE_ID;
-    static final String SETTINGS = SettingsHubPanel.ROUTE_ID, GALLERY = "pages", COMPOSER = "composer";
+    static final String SETTINGS = SettingsHubPanel.ROUTE_ID;
+    public static final String GALLERY = "pages";
+    static final String COMPOSER = "composer";
     static final String HOME = APPS;
     private final ArrayDeque<String> routes = new ArrayDeque<>();
 

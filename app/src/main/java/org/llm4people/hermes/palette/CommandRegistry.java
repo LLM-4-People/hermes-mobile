@@ -2,10 +2,13 @@ package org.llm4people.hermes.palette;
 
 import android.content.Context;
 import android.view.KeyEvent;
+import org.llm4people.hermes.PlainTextSanitizer;
 import org.llm4people.hermes.R;
+import org.llm4people.hermes.WorkspaceNavigation;
 import org.llm4people.hermes.ambient.AmbientAccessPanel;
 import org.llm4people.hermes.doctor.ConnectionDoctorPanel;
 import org.llm4people.hermes.panel.BrainStudioRoutes;
+import org.llm4people.hermes.panel.ReminderPanel;
 import org.llm4people.hermes.push.DeliveryRouter;
 import org.llm4people.hermes.settings.AppearanceSettingsPanel;
 import org.llm4people.hermes.settings.SettingsHubPanel;
@@ -13,7 +16,6 @@ import org.llm4people.hermes.templates.TemplatesPanel;
 import org.llm4people.hermes.templates.WorkflowTemplate;
 import org.llm4people.hermes.update.UpdatePanel;
 
-import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -72,18 +74,13 @@ public final class CommandRegistry {
     public static String normalize(String raw) {
         if (raw == null || raw.isEmpty()) return "";
         String bounded = raw.length() > MAX_QUERY_CHARS * 2 ? raw.substring(0, MAX_QUERY_CHARS * 2) : raw;
-        String decomposed = Normalizer.normalize(bounded, Normalizer.Form.NFD);
-        StringBuilder sb = new StringBuilder(decomposed.length());
+        String folded = PlainTextSanitizer.foldAccents(bounded);
+        StringBuilder sb = new StringBuilder(folded.length());
         boolean lastSpace = true;
-        for (int i = 0; i < decomposed.length(); i++) {
-            char c = decomposed.charAt(i);
-            int type = Character.getType(c);
-            if (type == Character.NON_SPACING_MARK || type == Character.COMBINING_SPACING_MARK
-                    || type == Character.ENCLOSING_MARK) {
-                continue;
-            }
+        for (int i = 0; i < folded.length(); i++) {
+            char c = folded.charAt(i);
             if (Character.isLetterOrDigit(c)) {
-                sb.append(Character.toLowerCase(c));
+                sb.append(c);
                 lastSpace = false;
             } else if (!lastSpace) {
                 sb.append(' ');
@@ -196,7 +193,7 @@ public final class CommandRegistry {
                 R.string.palette_act_files_hint, R.string.palette_kw_files, run);
         addAction(list, context, BrainStudioRoutes.ROUTE_SEARCH, R.string.palette_act_search_title,
                 R.string.palette_act_search_hint, R.string.palette_kw_search, run);
-        addAction(list, context, "reminders", R.string.palette_act_reminders_title,
+        addAction(list, context, ReminderPanel.ROUTE_ID, R.string.palette_act_reminders_title,
                 R.string.palette_act_reminders_hint, R.string.palette_kw_reminders, run);
         addAction(list, context, DeliveryRouter.ROUTE_DELIVERIES, R.string.palette_act_deliveries_title,
                 R.string.palette_act_deliveries_hint, R.string.palette_kw_deliveries, run);
@@ -226,7 +223,7 @@ public final class CommandRegistry {
             addAction(list, context, "admin_console", R.string.palette_act_admin_console_title,
                     R.string.palette_act_admin_console_hint, R.string.palette_kw_admin_console, run);
         }
-        addAction(list, context, "pages", R.string.palette_act_screens_title,
+        addAction(list, context, WorkspaceNavigation.GALLERY, R.string.palette_act_screens_title,
                 R.string.palette_act_screens_hint, R.string.palette_kw_screens, run);
         return Collections.unmodifiableList(list);
     }

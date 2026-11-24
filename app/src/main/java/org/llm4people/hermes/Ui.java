@@ -26,19 +26,59 @@ public final class Ui {
     public static final int CARD_CORNER_DP = 16;
 
     private static Typeface mediumTypeface;
-    private static final View.AccessibilityDelegate BUTTON_ROLE_DELEGATE = new View.AccessibilityDelegate() {
-        @Override public void onInitializeAccessibilityNodeInfo(View host, AccessibilityNodeInfo info) {
-            super.onInitializeAccessibilityNodeInfo(host, info);
-            info.setClassName(Button.class.getName());
-        }
-    };
+
+    /** Lazy holder so host-JVM tests calling null-safe helpers never trigger Android View stub init. */
+    private static final class AccessibilityDelegates {
+        static final View.AccessibilityDelegate BUTTON_ROLE = new View.AccessibilityDelegate() {
+            @Override public void onInitializeAccessibilityNodeInfo(View host, AccessibilityNodeInfo info) {
+                super.onInitializeAccessibilityNodeInfo(host, info);
+                info.setClassName(Button.class.getName());
+            }
+        };
+        static final View.AccessibilityDelegate SELECTABLE_BUTTON_ROLE = new View.AccessibilityDelegate() {
+            @Override public void onInitializeAccessibilityNodeInfo(View host, AccessibilityNodeInfo info) {
+                super.onInitializeAccessibilityNodeInfo(host, info);
+                info.setClassName(Button.class.getName());
+                info.setSelected(host.isSelected());
+            }
+        };
+        static final View.AccessibilityDelegate CHECKABLE_CHECKED = new View.AccessibilityDelegate() {
+            @Override public void onInitializeAccessibilityNodeInfo(View host, AccessibilityNodeInfo info) {
+                super.onInitializeAccessibilityNodeInfo(host, info);
+                info.setCheckable(true);
+                info.setChecked(true);
+            }
+        };
+        static final View.AccessibilityDelegate CHECKABLE_UNCHECKED = new View.AccessibilityDelegate() {
+            @Override public void onInitializeAccessibilityNodeInfo(View host, AccessibilityNodeInfo info) {
+                super.onInitializeAccessibilityNodeInfo(host, info);
+                info.setCheckable(true);
+                info.setChecked(false);
+            }
+        };
+    }
 
     private Ui() {}
 
     /** Announce a custom clickable container (row/card) with Android Button role using one shared delegate. */
     public static void setButtonRole(View view) {
         if (view != null) {
-            view.setAccessibilityDelegate(BUTTON_ROLE_DELEGATE);
+            view.setAccessibilityDelegate(AccessibilityDelegates.BUTTON_ROLE);
+        }
+    }
+
+    /** Announce a selectable custom button (nav tab, segment pill, chip) with Button role + host selection state. */
+    public static void setSelectableButtonRole(View view) {
+        if (view != null) {
+            view.setAccessibilityDelegate(AccessibilityDelegates.SELECTABLE_BUTTON_ROLE);
+        }
+    }
+
+    /** Announce a checkable chip/toggle button's checked state using two shared static delegates. */
+    public static void setCheckableState(View view, boolean checked) {
+        if (view != null) {
+            view.setAccessibilityDelegate(
+                    checked ? AccessibilityDelegates.CHECKABLE_CHECKED : AccessibilityDelegates.CHECKABLE_UNCHECKED);
         }
     }
 

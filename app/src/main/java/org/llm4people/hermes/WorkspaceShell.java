@@ -272,7 +272,7 @@ final class WorkspaceShell {
             if (overflow == closed) overflow = null;
         });
         if (customMenuAllowed) {
-            item(menu, activity.getString(R.string.ws_my_screens), "pages");
+            item(menu, activity.getString(R.string.ws_my_screens), WorkspaceNavigation.GALLERY);
             item(menu, activity.getString(R.string.ws_restore_desk), "restore");
         } else if (isDiscussionSurface() && threadTitle != null) {
             if (reading.getAsBoolean()) item(menu, activity.getString(R.string.read_stop_label), "stop_reading");

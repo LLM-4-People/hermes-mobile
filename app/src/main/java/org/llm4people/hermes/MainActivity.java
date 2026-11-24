@@ -45,6 +45,7 @@ import org.llm4people.hermes.onboarding.PairingIntent;
 import org.llm4people.hermes.onboarding.PairingLinkParser;
 import org.llm4people.hermes.onboarding.QrScannerActivity;
 import org.llm4people.hermes.os.HermesShortcuts;
+import org.llm4people.hermes.os.HermesWidgetProvider;
 import org.llm4people.hermes.os.HermesWidgetSpec;
 import org.llm4people.hermes.os.HermesWidgetStore;
 import org.llm4people.hermes.os.LiveRunActionReceiver;
@@ -56,6 +57,7 @@ import org.llm4people.hermes.os.PermissionsPanel;
 import org.llm4people.hermes.palette.CommandPalette;
 import org.llm4people.hermes.palette.CommandRegistry;
 import org.llm4people.hermes.panel.BrainStudioRoutes;
+import org.llm4people.hermes.panel.ReminderPanel;
 import org.llm4people.hermes.panel.SessionPanel;
 import org.llm4people.hermes.panel.ShareWithUserSheet;
 import org.llm4people.hermes.panel.ThreadActions;
@@ -211,7 +213,11 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         } else {
             registerReceiver(screenOffReceiver, new android.content.IntentFilter(Intent.ACTION_SCREEN_OFF));
         }
-        notifications.execute(() -> HermesShortcuts.publish(getApplicationContext()));
+        notifications.execute(() -> {
+            Context app = getApplicationContext();
+            HermesShortcuts.publish(app);
+            HermesWidgetProvider.refresh(app);
+        });
         voice = new VoiceDrafts(this);
         push = new MobilePush(this);
         files = new PublishedFiles(this);
@@ -472,7 +478,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         actions.register("nav_settings", this::openSettingsHub);
         actions.register(SettingsHubPanel.ROUTE_ID, this::openSettingsHub);
         actions.register(SettingsHubPanel.ACTION_VOICE_OPTIONS, () -> voice.openOptionsDialog(null, false));
-        actions.register("pages", () -> navigate(WorkspaceNavigation.GALLERY));
+        actions.register(WorkspaceNavigation.GALLERY, () -> navigate(WorkspaceNavigation.GALLERY));
         actions.register("nearby_area", () -> { if (threads != null) threads.editNearbyArea(); });
         actions.register("attach_photo", () -> photoPicker.launch(account, threads));
         actions.register("capture_camera", () -> {
@@ -492,7 +498,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             if (threads.remoteSessionId() != null) files.show(threads.remoteSessionId());
         });
         actions.register("workspace", () -> navigate(WorkspaceNavigation.HOME));
-        actions.register("reminders", () -> panels.showReminders());
+        actions.register(ReminderPanel.ROUTE_ID, () -> panels.showReminders());
         actions.register("notifications", () -> push.settings(account, deliveryActions(account)));
         actions.register("command_palette", this::openCommandPalette);
         actions.register("language", () -> {
@@ -869,7 +875,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             }
 
             @Override public void openScreensGallery() {
-                if (account == owner) onAction("pages");
+                if (account == owner) onAction(WorkspaceNavigation.GALLERY);
             }
 
             @Override public void pinHomeWidget() {
@@ -1494,10 +1500,10 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                 "command_palette", getString(R.string.palette_title),
                 "", "", UniversalSearchModel.Category.TOOLS));
         extra.add(new UniversalSearchEntries.ToolRef(
-                "pages", getString(R.string.nav_apps) + " · " + getString(R.string.ws_my_screens),
+                WorkspaceNavigation.GALLERY, getString(R.string.nav_apps) + " · " + getString(R.string.ws_my_screens),
                 "", "", UniversalSearchModel.Category.TOOLS));
         extra.add(new UniversalSearchEntries.ToolRef(
-                "reminders", getString(R.string.activity_reminders_title),
+                ReminderPanel.ROUTE_ID, getString(R.string.activity_reminders_title),
                 getString(R.string.activity_reminders_hint), "", UniversalSearchModel.Category.TOOLS));
         extra.add(new UniversalSearchEntries.ToolRef(
                 DeliveryRouter.ROUTE_DELIVERIES, getString(R.string.activity_deliveries_title),

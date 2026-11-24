@@ -9,7 +9,6 @@ import android.text.InputType;
 import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.View;
-import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.inputmethod.EditorInfo;
 import android.widget.Button;
 import android.widget.EditText;
@@ -224,14 +223,7 @@ public final class AdminConsoleSheet implements AutoCloseable {
                 selected ? 2 : 1)));
         btn.setTextColor(activity.getColor(selected ? R.color.accent : R.color.ink));
         btn.setSelected(selected);
-        btn.setAccessibilityDelegate(new View.AccessibilityDelegate() {
-            @Override
-            public void onInitializeAccessibilityNodeInfo(View host, AccessibilityNodeInfo info) {
-                super.onInitializeAccessibilityNodeInfo(host, info);
-                info.setCheckable(true);
-                info.setChecked(selected);
-            }
-        });
+        Ui.setCheckableState(btn, selected);
     }
 
     private Button tabButton(String label, Runnable onClick) {

@@ -10,7 +10,6 @@ import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.inputmethod.EditorInfo;
 import android.widget.Button;
 import android.widget.EditText;
@@ -168,14 +167,7 @@ final class ProfileScreen {
         chip.setBackground(Ui.roundedRipple(activity, Ui.BUTTON_CORNER_DP, fill));
         chip.setTextColor(activity.getColor(selected ? R.color.accent : R.color.ink));
         chip.setSelected(selected);
-        chip.setAccessibilityDelegate(new View.AccessibilityDelegate() {
-            @Override
-            public void onInitializeAccessibilityNodeInfo(View host, AccessibilityNodeInfo info) {
-                super.onInitializeAccessibilityNodeInfo(host, info);
-                info.setCheckable(true);
-                info.setChecked(selected);
-            }
-        });
+        Ui.setCheckableState(chip, selected);
     }
 
     /** Horizontally scrollable choice chip row that never clips at 1.3x+ font scales (8dp gaps). */

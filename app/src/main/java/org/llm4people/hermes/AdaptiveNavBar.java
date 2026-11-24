@@ -6,8 +6,6 @@ import android.graphics.Typeface;
 import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.View;
-import android.view.accessibility.AccessibilityNodeInfo;
-import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -121,13 +119,7 @@ public final class AdaptiveNavBar extends LinearLayout {
         container.setBackground(Ui.roundedRipple(context, 16, null));
         container.setContentDescription(title);
         container.setTooltipText(title);
-        container.setAccessibilityDelegate(new View.AccessibilityDelegate() {
-            @Override public void onInitializeAccessibilityNodeInfo(View host, AccessibilityNodeInfo info) {
-                super.onInitializeAccessibilityNodeInfo(host, info);
-                info.setClassName(Button.class.getName());
-                info.setSelected(host.isSelected());
-            }
-        });
+        Ui.setSelectableButtonRole(container);
         container.setOnClickListener(v -> onSelect.accept(dest.route()));
 
         LinearLayout pill = new LinearLayout(context);

@@ -13,6 +13,7 @@ import android.os.LocaleList;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.llm4people.hermes.net.HermesApi;
+import org.llm4people.hermes.os.HermesWidgetProvider;
 import org.llm4people.hermes.panel.BrainCapabilities;
 
 import java.io.IOException;
@@ -182,6 +183,7 @@ public final class AppLanguage {
             }
         }
         refreshRuntime(target);
+        HermesWidgetProvider.refresh(context);
         Diagnostics.event("locale", "mode_" + target.wire);
     }
 
@@ -205,7 +207,12 @@ public final class AppLanguage {
     }
 
     private static void refreshRuntime(Mode mode) {
-        Locale resolved = resolveLocale(mode, systemLanguageTags());
+        refreshRuntime(mode, systemLanguageTags());
+    }
+
+    /** Host-JVM testable helper updating cached Accept-Language for a mode and system locale list. */
+    static void refreshRuntime(Mode mode, List<String> systemTags) {
+        Locale resolved = resolveLocale(mode, systemTags);
         activeAcceptLanguage = formatAcceptLanguage(resolved);
     }
 

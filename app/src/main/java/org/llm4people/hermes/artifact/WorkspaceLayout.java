@@ -13,6 +13,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.llm4people.hermes.R;
+import org.llm4people.hermes.WorkspaceNavigation;
+import org.llm4people.hermes.panel.ReminderPanel;
 import org.llm4people.hermes.places.NearbyCategory;
 
 /** The bounded wire vocabulary shared by the instructions, renderer, and persisted layout. */
@@ -24,7 +26,7 @@ final class WorkspaceLayout {
             "threads", R.string.ws_surface_threads,
             "thread", R.string.ws_surface_thread,
             "settings", R.string.ws_surface_settings,
-            "reminders", R.string.ws_surface_reminders,
+            ReminderPanel.ROUTE_ID, R.string.ws_surface_reminders,
             "artifacts", R.string.ws_surface_artifacts,
             "stats", R.string.ws_surface_stats);
     static final Map<String, Integer> ACTIONS = resMap(
@@ -33,12 +35,12 @@ final class WorkspaceLayout {
             "artifacts", R.string.ws_action_artifacts,
             "models", R.string.ws_action_models,
             "tools", R.string.ws_action_tools,
-            "reminders", R.string.ws_action_reminders,
+            ReminderPanel.ROUTE_ID, R.string.ws_action_reminders,
             "stats", R.string.ws_action_stats,
             "profiles", R.string.ws_action_profiles,
             "notifications", R.string.ws_action_notifications,
             "workspace", R.string.ws_action_workspace,
-            "pages", R.string.ws_action_pages);
+            WorkspaceNavigation.GALLERY, R.string.ws_action_pages);
 
     static final List<String> SOURCES = Arrays.asList("profile.label", "thread.title", "thread.messageCount");
     static final List<String> SLOTS = Arrays.asList("notice", "transcript", "composer");

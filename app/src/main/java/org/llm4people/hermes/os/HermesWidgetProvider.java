@@ -64,7 +64,7 @@ public final class HermesWidgetProvider extends AppWidgetProvider {
             if (HermesWidgetSpec.validWidgetId(widgetId)) {
                 refreshWidget(context, widgetId);
             } else {
-                refresh(context, runActive);
+                refresh(context);
             }
         }
     }
@@ -84,6 +84,11 @@ public final class HermesWidgetProvider extends AppWidgetProvider {
         for (int id : appWidgetIds) {
             store.unbindInstance(id);
         }
+    }
+
+    /** Refreshes all widget instances while preserving the latest {@code runActive} state. */
+    public static void refresh(Context context) {
+        refresh(context, runActive);
     }
 
     public static void refresh(Context context, boolean active) {
