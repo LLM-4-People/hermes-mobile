@@ -20,11 +20,7 @@ public final class ActionRegistry {
     public boolean dispatch(String id) {
         Runnable handler = id == null ? null : actions.get(id);
         if (handler == null) {
-            try {
-                Diagnostics.warning("workspace", "unknown_action");
-            } catch (RuntimeException unmockedHostJvm) {
-                // Host JVM unit tests run against unmocked Android framework stubs.
-            }
+            Diagnostics.warning("workspace", "unknown_action");
             return false;
         }
         handler.run();

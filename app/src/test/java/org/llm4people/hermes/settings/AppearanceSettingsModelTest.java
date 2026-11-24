@@ -54,6 +54,12 @@ public final class AppearanceSettingsModelTest {
 
         assertEquals("7.8", AppearanceSettingsModel.formatContrastRatio(7.84, Locale.US));
         assertEquals("7,8", AppearanceSettingsModel.formatContrastRatio(7.84, Locale.FRANCE));
+        assertEquals("1.0", AppearanceSettingsModel.formatContrastRatio(Double.NaN, Locale.US));
+        assertEquals("1.0", AppearanceSettingsModel.formatContrastRatio(Double.POSITIVE_INFINITY, Locale.US));
+        assertEquals("1.0", AppearanceSettingsModel.formatContrastRatio(Double.NEGATIVE_INFINITY, Locale.US));
+        assertEquals("1.0", AppearanceSettingsModel.formatContrastRatio(0.2, Locale.US));
+        assertEquals(AppearanceSettingsModel.formatContrastRatio(5.0, Locale.getDefault()),
+                AppearanceSettingsModel.formatContrastRatio(5.0, null));
     }
 
     @Test
@@ -114,6 +120,11 @@ public final class AppearanceSettingsModelTest {
         List<AppCustomization.ComposerShortcut> removed = AppearanceSettingsModel.removeShortcut(list, "summarize");
         assertEquals(AppCustomization.MAX_COMPOSER_SHORTCUTS - 1, removed.size());
         assertFalse(removed.stream().anyMatch(s -> "summarize".equals(s.id())));
+        try {
+            removed.add(first);
+            fail("removeShortcut must return an unmodifiable list");
+        } catch (UnsupportedOperationException expected) {}
+        assertTrue(AppearanceSettingsModel.removeShortcut(null, "summarize").isEmpty());
     }
 
     @Test

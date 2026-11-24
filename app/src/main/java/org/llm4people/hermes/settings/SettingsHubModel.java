@@ -36,7 +36,15 @@ public final class SettingsHubModel {
         public SectionSpec {
             id = id == null ? "" : id.trim();
             title = title == null ? "" : title.trim();
-            items = items == null ? Collections.emptyList() : Collections.unmodifiableList(new ArrayList<>(items));
+            if (items == null || items.isEmpty()) {
+                items = Collections.emptyList();
+            } else {
+                List<ItemSpec> clean = new ArrayList<>(items.size());
+                for (ItemSpec item : items) {
+                    if (item != null) clean.add(item);
+                }
+                items = Collections.unmodifiableList(clean);
+            }
         }
     }
 
@@ -65,13 +73,21 @@ public final class SettingsHubModel {
     public static List<SectionSpec> filterSections(List<SectionSpec> sections, String rawQuery) {
         if (sections == null || sections.isEmpty()) return Collections.emptyList();
         String normalized = CommandRegistry.normalize(rawQuery);
-        if (normalized.isEmpty()) return Collections.unmodifiableList(sections);
+        if (normalized.isEmpty()) {
+            List<SectionSpec> clean = new ArrayList<>(sections.size());
+            for (SectionSpec section : sections) {
+                if (section != null) clean.add(section);
+            }
+            return Collections.unmodifiableList(clean);
+        }
         String[] tokens = normalized.split(" ");
         List<SectionSpec> out = new ArrayList<>();
         for (SectionSpec section : sections) {
+            if (section == null) continue;
             String sectionNorm = CommandRegistry.normalize(section.title());
             List<ItemSpec> matched = new ArrayList<>();
             for (ItemSpec item : section.items()) {
+                if (item == null) continue;
                 String haystack = sectionNorm + " "
                         + CommandRegistry.normalize(item.title()) + " "
                         + CommandRegistry.normalize(item.subtitle()) + " "
@@ -91,7 +107,11 @@ public final class SettingsHubModel {
     public static int countItems(List<SectionSpec> sections) {
         if (sections == null) return 0;
         int total = 0;
-        for (SectionSpec section : sections) total += section.items().size();
+        for (SectionSpec section : sections) {
+            if (section != null && section.items() != null) {
+                total += section.items().size();
+            }
+        }
         return total;
     }
 

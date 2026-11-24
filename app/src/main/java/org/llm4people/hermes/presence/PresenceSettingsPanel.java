@@ -751,8 +751,10 @@ public final class PresenceSettingsPanel {
     }
 
     private void addTop(LinearLayout parent, View child, int topDp) {
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        LinearLayout.LayoutParams lp = child.getLayoutParams() instanceof LinearLayout.LayoutParams existing
+                ? existing
+                : new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         lp.topMargin = Ui.dp(context, topDp);
         parent.addView(child, lp);
     }

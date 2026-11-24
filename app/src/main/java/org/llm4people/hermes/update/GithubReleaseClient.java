@@ -350,13 +350,11 @@ public final class GithubReleaseClient {
     }
 
     private static void logEvent(String action) {
-        try { Diagnostics.event("update", action); }
-        catch (RuntimeException unmockedHostJvm) {}
+        Diagnostics.event("update", action);
     }
 
     private static void logWarning(String action) {
-        try { Diagnostics.warning("update", action); }
-        catch (RuntimeException unmockedHostJvm) {}
+        Diagnostics.warning("update", action);
     }
 
     private record AssetCandidate(String name, String url, long size, String digestSha256) {}

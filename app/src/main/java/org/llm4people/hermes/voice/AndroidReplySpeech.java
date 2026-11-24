@@ -63,7 +63,8 @@ final class AndroidReplySpeech implements SpeechPlayback.Driver {
             preferred = AppLanguage.resolvedLocale(context);
             activeLanguage = AppLanguage.resolvedTag(context);
         } else {
-            Locale systemLocale = context.getResources().getConfiguration().getLocales().get(0);
+            android.os.LocaleList locales = context.getResources().getConfiguration().getLocales();
+            Locale systemLocale = locales.isEmpty() ? AppLanguage.resolvedLocale(context) : locales.get(0);
             activeLanguage = selected.resolveLanguage(systemLocale);
             preferred = Locale.forLanguageTag(selected.resolveTag(systemLocale));
         }

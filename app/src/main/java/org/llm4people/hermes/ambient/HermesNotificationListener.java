@@ -241,6 +241,9 @@ public final class HermesNotificationListener extends NotificationListenerServic
         editor.setHint(R.string.ambient_reply_hint);
         editor.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
                 | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+        editor.setImeOptions(android.view.inputmethod.EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING
+                | android.view.inputmethod.EditorInfo.IME_FLAG_NO_EXTRACT_UI);
+        editor.setImportantForAutofill(android.view.View.IMPORTANT_FOR_AUTOFILL_NO);
         editor.setMinHeight(Ui.dp(activity, 56));
         editor.setTextColor(activity.getColor(R.color.ink));
         editor.setHintTextColor(activity.getColor(R.color.muted));
@@ -249,9 +252,12 @@ public final class HermesNotificationListener extends NotificationListenerServic
         if (initialDraft != null) editor.setText(initialDraft);
         content.addView(editor);
 
+        android.widget.ScrollView scroll = new android.widget.ScrollView(activity);
+        scroll.addView(content, new android.widget.ScrollView.LayoutParams(-1, -2));
+
         AlertDialog.Builder builder = new AlertDialog.Builder(activity)
                 .setTitle(R.string.ambient_reply_title)
-                .setView(content)
+                .setView(scroll)
                 .setNegativeButton(R.string.ambient_reply_cancel, (d, w) -> {
                     if (onResult != null) onResult.accept(ReplyOutcome.CANCELLED);
                 })

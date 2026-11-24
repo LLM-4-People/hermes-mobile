@@ -1,5 +1,7 @@
 package org.llm4people.hermes.ambient;
 
+import java.util.Locale;
+
 /** Minimal pure-Java JSON string escaper shared across host JVM and Android ambient payloads. */
 final class AmbientJson {
     private AmbientJson() {}
@@ -20,7 +22,7 @@ final class AmbientJson {
                 case '\t' -> out.append("\\t");
                 default -> {
                     if (c < 0x20) {
-                        out.append(String.format("\\u%04x", (int) c));
+                        out.append(String.format(Locale.ROOT, "\\u%04x", (int) c));
                     } else {
                         out.append(c);
                     }

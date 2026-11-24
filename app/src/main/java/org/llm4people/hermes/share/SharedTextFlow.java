@@ -57,6 +57,10 @@ public final class SharedTextFlow {
         if (pending != null) state.putString(ShareTextActivity.RECEIPT, pending);
     }
 
+    public boolean hasPending() {
+        return ticket != null || cleanupTicket != null;
+    }
+
     public String requestedProfile() {
         try { return IncomingShare.owner(activity, ticket != null ? ticket : cleanupTicket); }
         catch (RuntimeException unavailable) {

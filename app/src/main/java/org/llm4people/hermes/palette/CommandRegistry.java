@@ -4,6 +4,7 @@ import android.content.Context;
 import android.view.KeyEvent;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.ambient.AmbientAccessPanel;
+import org.llm4people.hermes.doctor.ConnectionDoctorPanel;
 import org.llm4people.hermes.panel.BrainStudioRoutes;
 import org.llm4people.hermes.settings.AppearanceSettingsPanel;
 import org.llm4people.hermes.settings.SettingsHubPanel;
@@ -29,7 +30,6 @@ import java.util.function.Consumer;
 public final class CommandRegistry {
     public static final int MAX_QUERY_CHARS = 128;
     public static final int MAX_RESULTS = 40;
-    public static final String CONNECTION_DOCTOR_ROUTE = "connection_doctor";
 
     public record RecentThread(String sessionId, String title, String snippet) {}
 
@@ -202,7 +202,7 @@ public final class CommandRegistry {
                 R.string.palette_act_deliveries_hint, R.string.palette_kw_deliveries, run);
         addAction(list, context, AmbientAccessPanel.ROUTE_ID, R.string.palette_act_ambient_title,
                 R.string.palette_act_ambient_hint, R.string.palette_kw_ambient, run);
-        addAction(list, context, CONNECTION_DOCTOR_ROUTE, R.string.palette_act_doctor_title,
+        addAction(list, context, ConnectionDoctorPanel.ROUTE_ID, R.string.palette_act_doctor_title,
                 R.string.palette_act_doctor_hint, R.string.palette_kw_doctor, run);
         addAction(list, context, UpdatePanel.ROUTE_ID, R.string.palette_act_updates_title,
                 R.string.palette_act_updates_hint, R.string.palette_kw_updates, run);

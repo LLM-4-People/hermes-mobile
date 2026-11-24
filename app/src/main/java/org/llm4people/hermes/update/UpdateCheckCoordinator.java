@@ -76,7 +76,7 @@ public final class UpdateCheckCoordinator {
             store.save(nowMs, latest.tagName());
             return badgeFor(latest.tagName(), installedVersion);
         } catch (IOException | RuntimeException offline) {
-            logDebug("silent_check_skipped");
+            Diagnostics.debug("update", "silent_check_skipped");
             return cachedBadge(installedVersion);
         }
     }
@@ -99,11 +99,6 @@ public final class UpdateCheckCoordinator {
         ReleaseVersion current = ReleaseVersion.parseOrNull(installedVersion);
         boolean available = latest != null && current != null && latest.isNewerThan(current);
         return new BadgeState(available, available ? latestTag.trim() : "", installedVersion == null ? "" : installedVersion);
-    }
-
-    private static void logDebug(String action) {
-        try { Diagnostics.event("update", action); }
-        catch (RuntimeException unmockedHostJvm) {}
     }
 
     private static final class PrefsThrottleStore implements ThrottleStore {

@@ -147,12 +147,10 @@ public final class TemplateStore {
     }
 
     private static void logEvent(String action) {
-        try { Diagnostics.event("templates", action); }
-        catch (RuntimeException unmockedHostJvm) {}
+        Diagnostics.event("templates", action);
     }
 
     private static void logWarning(String action) {
-        try { Diagnostics.warning("templates", action); }
-        catch (RuntimeException unmockedHostJvm) {}
+        Diagnostics.warning("templates", action);
     }
 }

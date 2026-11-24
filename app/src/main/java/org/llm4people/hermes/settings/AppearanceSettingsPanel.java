@@ -179,16 +179,17 @@ public final class AppearanceSettingsPanel {
     private void renderPreview() {
         previewSlot.removeAllViews();
         AppCustomization custom = store.current();
-        boolean systemNight = ThemePalette.isNight(activity);
-        boolean previewNight = AppearanceSettingsModel.THEME_DARK.equals(activeThemeMode)
-                || (AppearanceSettingsModel.THEME_SYSTEM.equals(activeThemeMode) && systemNight);
+        boolean previewNight = AppThemeMode.resolveNight(activeThemeMode, ThemePalette.isNight(activity));
 
         int bgColor = previewNight ? ThemePalette.NIGHT_SURFACE : ThemePalette.DAY_SURFACE;
         int borderColor = previewNight ? ThemePalette.NIGHT_LINE : ThemePalette.DAY_LINE;
         int inkColor = previewNight ? ThemePalette.NIGHT_INK : ThemePalette.DAY_INK;
         int mutedColor = previewNight ? ThemePalette.NIGHT_MUTED : ThemePalette.DAY_MUTED;
-        int accentColor = previewNight ? custom.darkAccentArgb() : custom.lightAccentArgb();
-        int onAccentColor = AppCustomization.onAccentArgb(accentColor);
+        int rawAccent = previewNight ? custom.darkAccentArgb() : custom.lightAccentArgb();
+        int accentColor = (custom.palette == AppCustomization.PalettePreset.FOREST && custom.customAccentHex == null)
+                ? (previewNight ? ThemePalette.NIGHT_ACCENT : ThemePalette.DAY_ACCENT)
+                : ThemePalette.adaptAccentForMode(rawAccent, previewNight);
+        int onAccentColor = ThemePalette.bestOnAccent(accentColor);
 
         int padH = Math.round(16 * custom.density.spacingMultiplier);
         int padV = Math.round(14 * custom.density.spacingMultiplier);
@@ -348,12 +349,15 @@ public final class AppearanceSettingsPanel {
         if (paletteSwatchesSlot == null) return;
         paletteSwatchesSlot.removeAllViews();
         AppCustomization current = store.current();
-        boolean night = ThemePalette.isNight(activity);
+        boolean previewNight = AppThemeMode.resolveNight(activeThemeMode, ThemePalette.isNight(activity));
         SettingsWrapLayout swatches = new SettingsWrapLayout(activity, 8, 8);
         for (AppCustomization.PalettePreset preset : AppearanceSettingsModel.CURATED_PRESETS) {
             boolean selected = current.palette == preset;
-            int swatchColor = 0xFF000000 | AppCustomization.parseRgb(
-                    night ? preset.darkAccentHex : preset.lightAccentHex);
+            int rawSwatch = 0xFF000000 | AppCustomization.parseRgb(
+                    previewNight ? preset.darkAccentHex : preset.lightAccentHex);
+            int swatchColor = preset == AppCustomization.PalettePreset.FOREST
+                    ? (previewNight ? ThemePalette.NIGHT_ACCENT : ThemePalette.DAY_ACCENT)
+                    : ThemePalette.adaptAccentForMode(rawSwatch, previewNight);
             swatches.addView(choiceChip(
                     activity.getString(AppearanceSettingsModel.paletteLabelRes(preset)),
                     selected,

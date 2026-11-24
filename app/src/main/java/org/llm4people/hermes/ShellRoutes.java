@@ -37,11 +37,7 @@ public final class ShellRoutes {
             fallback.render(route, force);
             return true;
         }
-        try {
-            Diagnostics.warning("navigation", "unknown_route");
-        } catch (RuntimeException unmockedHostJvm) {
-            // Host JVM unit tests run against unmocked Android framework stubs.
-        }
+        Diagnostics.warning("navigation", "unknown_route");
         return false;
     }
 }

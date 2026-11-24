@@ -78,6 +78,7 @@ import org.llm4people.hermes.push.MobilePush;
 import org.llm4people.hermes.search.UniversalSearchEntries;
 import org.llm4people.hermes.search.UniversalSearchModel;
 import org.llm4people.hermes.search.UniversalSearchSheet;
+import org.llm4people.hermes.settings.AppThemeMode;
 import org.llm4people.hermes.settings.AppearanceSettingsPanel;
 import org.llm4people.hermes.settings.SettingsHubModel;
 import org.llm4people.hermes.settings.SettingsHubPanel;
@@ -187,12 +188,13 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     });
 
     @Override protected void attachBaseContext(Context newBase) {
-        super.attachBaseContext(AppLanguage.wrapContext(newBase));
+        super.attachBaseContext(AppThemeMode.wrapContext(AppLanguage.wrapContext(newBase)));
     }
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
         AppLanguage.refreshRuntime(this);
+        AppThemeMode.applyStoredOnStartup(this);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
         // Saved view hierarchies may contain composer or password text. Only Account storage
         // can restore private state; an OS recreation always comes back through the gate.
@@ -240,9 +242,6 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
 
     /** Extensibility hook for feature modules registering additional destinations. */
     public ShellRoutes shellRoutes() { return shellRoutes; }
-
-    /** Extensibility hook for feature modules registering additional workspace actions. */
-    public ActionRegistry actionRegistry() { return actions; }
 
     /** Peek at a pending {@code hermes://pair} deep link awaiting explicit user confirmation. */
     public PairingLinkParser.ParsedInput pendingPairing() { return pendingPairing; }
@@ -357,7 +356,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         });
         shellRoutes.register(AmbientAccessPanel.ROUTE_ID, (route, force) -> {
             navigation.display(route, this::leavingSurface);
-            if (activeAmbientPanel != null) activeAmbientPanel.dismissDialogs();
+            if (activeAmbientPanel != null) activeAmbientPanel.close();
             activeAmbientPanel = new AmbientAccessPanel(this, NotificationAllowlist.forAccount(account),
                     ambientCallbacks());
             shell.show(activeAmbientPanel.buildView(), getString(R.string.ambient_panel_title));
@@ -458,9 +457,6 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         actions.register("nav_tasks", () -> switchTab(WorkspaceNavigation.NOTES_TASKS));
         actions.register("nav_apps", () -> switchTab(WorkspaceNavigation.APPS));
         actions.register("nav_settings", this::openSettingsHub);
-        actions.register("nav_atelier", () -> switchTab(WorkspaceNavigation.APPS));
-        actions.register("nav_brain", this::openSettingsHub);
-        actions.register("nav_activity", () -> switchTab(WorkspaceNavigation.NOTES_TASKS));
         actions.register(SettingsHubPanel.ROUTE_ID, this::openSettingsHub);
         actions.register(AppearanceSettingsPanel.ROUTE_ID, () -> navigate(AppearanceSettingsPanel.ROUTE_ID));
         actions.register(SettingsHubPanel.ACTION_VOICE_OPTIONS, () -> voice.openOptionsDialog(null, false));
@@ -653,15 +649,20 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                 || pendingPinnedSurface != null
                 || pendingPinnedWidget != null
                 || pendingOsEntry != null
+                || sharedText.hasPending()
+                || sharedMedia.hasPending()
                 || sharedText.requestedProfile() != null
                 || sharedMedia.requestedProfile() != null;
         if (freshClaim != null && freshClaim.onboarding() != null) {
             activeProfileIsAdmin = freshClaim.onboarding().isAdmin();
             try { unlocked.write("is_admin_hint", activeProfileIsAdmin ? "1" : "0"); }
-            catch (RuntimeException ignored) {}
+            catch (RuntimeException error) { Diagnostics.warning("profile", "admin_hint_write_failed", error); }
         } else {
             try { activeProfileIsAdmin = "1".equals(unlocked.read("is_admin_hint")); }
-            catch (RuntimeException ignored) { activeProfileIsAdmin = false; }
+            catch (RuntimeException error) {
+                Diagnostics.warning("profile", "admin_hint_read_failed", error);
+                activeProfileIsAdmin = false;
+            }
         }
         if (freshClaim != null && !FirstRunWizard.isCompleted(unlocked)) {
             closeFirstRunStep2();
@@ -898,19 +899,23 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         };
     }
 
-    private void capturePinnedShortcutIntent(Intent intent) {
-        if (intent == null || !Intent.ACTION_VIEW.equals(intent.getAction())) return;
+    private boolean capturePinnedShortcutIntent(Intent intent) {
+        if (intent == null || !Intent.ACTION_VIEW.equals(intent.getAction())) return false;
         String surfaceId = intent.getStringExtra(HomePinBridge.EXTRA_SURFACE_ID);
         if (HomePinBridge.isValidSurfaceId(surfaceId)) {
             pendingPinnedSurface = surfaceId;
             pendingPinnedWidget = null;
-            return;
+            pendingOsEntry = null;
+            return true;
         }
         String widgetId = intent.getStringExtra(HomePinBridge.EXTRA_WIDGET_ID);
         if (HermesWidgetSpec.validWidgetId(widgetId)) {
             pendingPinnedWidget = widgetId;
             pendingPinnedSurface = null;
+            pendingOsEntry = null;
+            return true;
         }
+        return false;
     }
 
     private void dispatchPendingOsEntry() {
@@ -1000,11 +1005,12 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                 String deliveryId = event.optString("event_id", "");
                 if (deliveryId.isEmpty()) deliveryId = event.optString("delivery_id", "");
                 final String targetId = deliveryId;
+                final HermesApi client = activeApi;
+                if (client == null) return;
                 notifications.execute(() -> {
                     try {
                         DeliveryItem fetched = new org.llm4people.hermes.push.DeliveryInbox().fetchOne(
-                                owner, new HermesApi(owner.endpoint, owner.bearer,
-                                        HermesApi.Limits.from(HermesConfig.load(this))), targetId);
+                                owner, client, targetId);
                         runOnUiThread(() -> {
                             if (owner == account && request == noticeRequest && !isFinishing()) {
                                 push.openDelivery(owner, fetched, deliveryActions(owner));
@@ -1147,7 +1153,10 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     private void dismissOverlays(boolean keepThreadEditor) {
         if (notice != null) notice.dismiss();
         notice = null;
-        if (activeAmbientPanel != null) activeAmbientPanel.dismissDialogs();
+        if (activeAmbientPanel != null) {
+            activeAmbientPanel.close();
+            activeAmbientPanel = null;
+        }
         if (activePresencePanel != null) activePresencePanel.dismissDialogs();
         if (activeUpdatePanel != null) activeUpdatePanel.dismissDialogs();
         if (activeDoctorPanel != null) activeDoctorPanel.dismissDialogs();
@@ -1165,6 +1174,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         if (files != null) files.dismiss();
         if (threadActions != null) threadActions.dismiss();
         if (!keepThreadEditor) {
+            if (voice != null) voice.cancel();
             if (threads != null) threads.dismissDialogs();
             ArtifactDesk.dismiss(this);
         }
@@ -1210,8 +1220,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             openWarmEntry(entry.target() == OsEntryIntent.Target.WIDGET_ACTION ? entry.widgetId() : null);
             return;
         }
-        capturePinnedShortcutIntent(intent);
-        if (pendingPinnedSurface != null || pendingPinnedWidget != null) {
+        if (capturePinnedShortcutIntent(intent)) {
             setIntent(intent);
             openWarmEntry(pendingPinnedWidget);
             return;
@@ -1220,6 +1229,9 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         if (incoming == null) return;
         sharedText.leave();
         sharedMedia.leave();
+        pendingOsEntry = null;
+        pendingPinnedSurface = null;
+        pendingPinnedWidget = null;
         setIntent(intent);
         delivery = incoming;
         if (account != null && account.id.equals(incoming.profileId)) {
@@ -1233,7 +1245,10 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
 
     /** A warm widget tap owned by another profile switches profiles like a push does, instead of being dropped. */
     private void openWarmEntry(String widgetId) {
-        if (account == null || threads == null) return;
+        if (account == null || threads == null) {
+            if (widgetId != null && gate != null) unlock();
+            return;
+        }
         String owner = widgetId == null ? null : new HermesWidgetStore(this).ownerForWidget(widgetId);
         if (owner != null && !owner.equals(account.id)) {
             lock();
@@ -1260,11 +1275,6 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
 
     private BrainStudioRoutes.Handlers brainHandlers() {
         return new BrainStudioRoutes.Handlers() {
-            private Runnable returnToHub() {
-                RouteRegistry current = featureRoutes;
-                return current == null ? null : () -> panels.showBrainHub(current);
-            }
-
             private BooleanSupplier activeThreadCheck() {
                 ThreadWorkspace origin = threads;
                 String currentSession = origin == null ? null : origin.sessionId();
@@ -1507,7 +1517,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                         if (account == owner) {
                             activeProfileIsAdmin = resolvedAdmin;
                             try { owner.write("is_admin_hint", resolvedAdmin ? "1" : "0"); }
-                            catch (RuntimeException ignored) {}
+                            catch (RuntimeException error) { Diagnostics.warning("profile", "admin_hint_write_failed", error); }
                         }
                     }
                 });
@@ -1662,7 +1672,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         shell.dismissMenu();
         voice.reader().stop();
         if (activeAmbientPanel != null) {
-            activeAmbientPanel.dismissDialogs();
+            activeAmbientPanel.close();
             activeAmbientPanel = null;
         }
         if (activePresencePanel != null) {
@@ -1853,7 +1863,9 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             AppCustomization saved = AppCustomizationStore.forAccount(owner).current();
             ThemePalette.OverrideSpec updated = saved.adaptOverrideForThemeMode(current, safeMode, night);
             ThemePalette.save(owner, updated);
-            onLayoutChanged();
+            if (!AppThemeMode.applyAndRecreateIfNeeded(this, safeMode)) {
+                onLayoutChanged();
+            }
             return true;
         } catch (IOException | RuntimeException failed) {
             Diagnostics.warning("customization", "theme_mode_sync_failed");
@@ -1863,108 +1875,100 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
 
     private boolean navigateFromDeepAction(Account owner, String targetKind, String targetId) {
         if (account != owner || isFinishing() || isDestroyed()) return false;
-        String kind = targetKind == null ? "" : targetKind.trim().toLowerCase(java.util.Locale.ROOT);
+        DeepAndroidActions.NavigateDestination dest = DeepAndroidActions.resolveNavigateDestination(targetKind);
+        if (dest == null) return false;
         String id = targetId == null ? "" : targetId.trim();
-        switch (kind) {
-            case "discussions", "discussion" -> {
+        return switch (dest) {
+            case DISCUSSIONS -> {
                 switchTab(WorkspaceNavigation.DISCUSSION);
-                return true;
+                yield true;
             }
-            case "atelier", "home", "workspace", "apps" -> {
+            case APPS -> {
                 switchTab(WorkspaceNavigation.APPS);
-                return true;
+                yield true;
             }
-            case "activite", "activity", "notes_tasks", "tasks" -> {
+            case NOTES_TASKS -> {
                 switchTab(WorkspaceNavigation.NOTES_TASKS);
-                return true;
+                yield true;
             }
-            case "cerveau", "brain", "settings", "reglages" -> {
+            case SETTINGS -> {
                 navigate(WorkspaceNavigation.SETTINGS);
-                return true;
+                yield true;
             }
-            case "appearance", "apparence", AppearanceSettingsPanel.ROUTE_ID -> {
+            case APPEARANCE -> {
                 navigate(AppearanceSettingsPanel.ROUTE_ID);
-                return true;
+                yield true;
             }
-            case "command_palette" -> {
+            case COMMAND_PALETTE -> {
                 openCommandPalette();
-                return true;
+                yield true;
             }
-            case "template", "templates", TemplatesPanel.ROUTE_ID -> {
+            case TEMPLATES -> {
                 navigate(TemplatesPanel.ROUTE_ID);
-                return true;
+                yield true;
             }
-            case "thread" -> {
-                if (threads == null) return false;
+            case THREAD -> {
+                if (threads == null) yield false;
                 displayDiscussion();
                 if (!id.isEmpty()) threads.open(id);
-                return true;
+                yield true;
             }
-            case "ambient", AmbientAccessPanel.ROUTE_ID -> {
+            case AMBIENT -> {
                 navigate(AmbientAccessPanel.ROUTE_ID);
-                return true;
+                yield true;
             }
-            case "doctor", ConnectionDoctorPanel.ROUTE_ID -> {
+            case CONNECTION_DOCTOR -> {
                 navigate(ConnectionDoctorPanel.ROUTE_ID);
-                return true;
+                yield true;
             }
-            case "permissions", PermissionsPanel.ROUTE_ID -> {
+            case PERMISSIONS -> {
                 navigate(PermissionsPanel.ROUTE_ID);
-                return true;
+                yield true;
             }
-            case "presence", PresenceSettingsPanel.ROUTE_ID -> {
+            case PRESENCE -> {
                 navigate(PresenceSettingsPanel.ROUTE_ID);
-                return true;
+                yield true;
             }
-            case "updates", UpdatePanel.ROUTE_ID -> {
+            case UPDATES -> {
                 navigate(UpdatePanel.ROUTE_ID);
-                return true;
+                yield true;
             }
-            case "memory" -> {
-                if (panels == null) return false;
+            case MEMORY -> {
+                if (panels == null) yield false;
                 brainHandlers().openMemory();
-                return true;
+                yield true;
             }
-            case "notes" -> {
-                if (panels == null) return false;
+            case NOTES -> {
+                if (panels == null) yield false;
                 brainHandlers().openNotes();
-                return true;
+                yield true;
             }
-            case "shared_with_me" -> {
-                if (panels == null) return false;
+            case SHARED_WITH_ME -> {
+                if (panels == null) yield false;
                 brainHandlers().openSharedWithMe();
-                return true;
+                yield true;
             }
-            case "search" -> {
-                if (panels == null) return false;
-                brainHandlers().openGlobalSearch();
-                return true;
+            case SEARCH -> {
+                openUniversalSearch();
+                yield true;
             }
-            case "skills" -> {
-                if (panels == null) return false;
+            case SKILLS -> {
+                if (panels == null) yield false;
                 brainHandlers().openSkillStudio();
-                return true;
+                yield true;
             }
-            case "workspace_files" -> {
-                if (panels == null) return false;
+            case WORKSPACE_FILES -> {
+                if (panels == null) yield false;
                 brainHandlers().openWorkspaceFiles();
-                return true;
+                yield true;
             }
-            case "profile_defaults" -> {
-                if (panels == null) return false;
+            case PROFILE_DEFAULTS -> {
+                if (panels == null) yield false;
                 brainHandlers().openProfileDefaults();
-                return true;
+                yield true;
             }
-            case "tab" -> {
-                return !id.isEmpty() && navigateFromDeepAction(owner, id, "");
-            }
-            case "panel" -> {
-                return !id.isEmpty() && navigateFromDeepAction(owner, id, "");
-            }
-            default -> {
-                return false;
-            }
-        }
+            case TAB, PANEL -> !id.isEmpty() && navigateFromDeepAction(owner, id, "");
+        };
     }
 
     @Override public void discussionPanes(boolean canToggle, boolean listVisible) {
@@ -2110,7 +2114,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             return;
         }
         if (threads != null && threads.nearbyPermission(code, permissions, results)) return;
-        if (!voice.permissionResult(code, permissions, results)) push.onPermissionResult(code);
+        if (!voice.permissionResult(code, permissions, results)) push.onPermissionResult(code, results);
     }
 
     private void clearGraceTimer() {
@@ -2126,7 +2130,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         presenceTracker.clearOnLock();
         locationTracker.stopAndWipe();
         HermesNotificationListener.clearSession();
-        if (activeAmbientPanel != null) activeAmbientPanel.dismissDialogs();
+        if (activeAmbientPanel != null) activeAmbientPanel.close();
         activeAmbientPanel = null;
         if (activePresencePanel != null) activePresencePanel.close();
         activePresencePanel = null;
@@ -2159,7 +2163,10 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         if (sharedMedia != null) sharedMedia.lock();
         if (photoPicker != null) photoPicker.interruptImport();
         if (shell != null) shell.dismissMenu();
-        if (voice != null) voice.reader().stop();
+        if (voice != null) {
+            voice.reader().stop();
+            voice.cancel();
+        }
         dismissOverlays();
         if (files != null) files.lock();
         if (threadActions != null) threadActions.lock();
@@ -2247,6 +2254,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             activeDoctorPanel.refresh();
         }
         refreshActiveHubIfVisible();
+        if (push != null) push.onResume();
         voice.resume();
     }
 
@@ -2372,6 +2380,10 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         pendingPairing = null;
         pairingLinkHandler = null;
         clearWorkspace();
+        if (voice != null) {
+            voice.reader().stop();
+            voice.cancel();
+        }
         if (gate != null) gate.close();
         if (files != null) files.close();
         if (threadActions != null) threadActions.close();

@@ -46,7 +46,7 @@ public final class AttachmentUploader {
         if (item == null || item.bytes() == null || item.bytes().length == 0) {
             throw new IllegalArgumentException("Empty attachment");
         }
-        String safeName = CapturedMedia.sanitizeFilename(item.name(), "fichier")
+        String safeName = CapturedMedia.sanitizeFilename(item.name(), "attachment")
                 .replace("\"", "_")
                 .replace("\r", "")
                 .replace("\n", "");
