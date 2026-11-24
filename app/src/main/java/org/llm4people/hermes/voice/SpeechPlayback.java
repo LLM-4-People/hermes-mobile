@@ -38,10 +38,10 @@ final class SpeechPlayback {
             notifyDone(perCallDone, Failure.EMPTY);
             return;
         }
+        activeCallback = perCallDone;
         try {
             Driver owner = factory.get();
             active = owner;
-            activeCallback = perCallDone;
             owner.prepare(ready -> {
                 if (owner != active) return;
                 if (ready) next(owner, chunks, 0);

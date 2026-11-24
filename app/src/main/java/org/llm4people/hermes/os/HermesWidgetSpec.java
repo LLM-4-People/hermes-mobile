@@ -6,6 +6,7 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.llm4people.hermes.R;
+import org.llm4people.hermes.SecretPatterns;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -30,8 +31,6 @@ public final class HermesWidgetSpec {
 
     private static final Pattern ID_PATTERN = Pattern.compile("[a-zA-Z0-9._-]{1,64}");
     private static final Pattern HEX_COLOR = Pattern.compile("#[0-9A-Fa-f]{6}");
-    private static final Pattern SECRET_PATTERN = Pattern.compile(
-            "(?i)(bearer\\s+[a-z0-9._\\-]{8,}|sk-[a-z0-9]{12,}|ghp_[a-z0-9]{12,}|eyJ[a-zA-Z0-9_\\-]{12,}|-----BEGIN )");
 
     public enum Template {
         METRIC("metric"),
@@ -115,39 +114,50 @@ public final class HermesWidgetSpec {
     }
 
     public static boolean containsSecretLikePattern(String text) {
-        return text != null && SECRET_PATTERN.matcher(text).find();
+        return SecretPatterns.containsCredential(text);
     }
 
-    /** Strips control/bidi chars, redacts secret-like patterns, and bounds length for home-screen safety. */
+    /** Strips control/format/surrogate code points, redacts secret-like patterns, and bounds length for home-screen safety. */
     public static String sanitizeHomeText(String raw, int maxChars) {
-        if (raw == null) return "";
+        if (raw == null || maxChars <= 0) return "";
+        if (SecretPatterns.containsCredential(raw)) return "";
         StringBuilder out = new StringBuilder();
-        for (int i = 0; i < raw.length(); i++) {
-            char c = raw.charAt(i);
-            if (Character.isISOControl(c) || isBidiControl(c)) continue;
-            out.append(c);
+        for (int i = 0; i < raw.length(); ) {
+            int cp = raw.codePointAt(i);
+            i += Character.charCount(cp);
+            int type = Character.getType(cp);
+            if (Character.isISOControl(cp) || type == Character.FORMAT || type == Character.SURROGATE) continue;
+            out.appendCodePoint(cp);
         }
         String trimmed = out.toString().trim();
-        if (trimmed.isEmpty() || containsSecretLikePattern(trimmed)) return "";
-        return trimmed.length() <= maxChars ? trimmed : trimmed.substring(0, maxChars).trim();
+        if (trimmed.isEmpty() || SecretPatterns.containsCredential(trimmed)) return "";
+        return truncateCodePoints(trimmed, maxChars);
     }
 
     public static String sanitizeDraft(String raw) {
         if (raw == null) return "";
+        if (SecretPatterns.containsCredential(raw)) return "";
         StringBuilder out = new StringBuilder();
-        for (int i = 0; i < raw.length(); i++) {
-            char c = raw.charAt(i);
-            if ((Character.isISOControl(c) && c != '\n') || isBidiControl(c)) continue;
-            out.append(c);
+        for (int i = 0; i < raw.length(); ) {
+            int cp = raw.codePointAt(i);
+            i += Character.charCount(cp);
+            int type = Character.getType(cp);
+            if ((Character.isISOControl(cp) && cp != '\n')
+                    || type == Character.FORMAT || type == Character.SURROGATE) continue;
+            out.appendCodePoint(cp);
         }
         String trimmed = out.toString().trim();
-        if (trimmed.isEmpty() || containsSecretLikePattern(trimmed)) return "";
-        return trimmed.length() <= MAX_DRAFT_CHARS ? trimmed : trimmed.substring(0, MAX_DRAFT_CHARS).trim();
+        if (trimmed.isEmpty() || SecretPatterns.containsCredential(trimmed)) return "";
+        return truncateCodePoints(trimmed, MAX_DRAFT_CHARS);
     }
 
-    private static boolean isBidiControl(char c) {
-        return (c >= '\u202A' && c <= '\u202E') || (c >= '\u2066' && c <= '\u2069')
-                || c == '\u200E' || c == '\u200F' || c == '\u061C';
+    private static String truncateCodePoints(String text, int maxChars) {
+        if (text.length() <= maxChars) return text;
+        int end = maxChars;
+        if (end > 0 && Character.isHighSurrogate(text.charAt(end - 1))) {
+            end--;
+        }
+        return text.substring(0, end).trim();
     }
 
     /**

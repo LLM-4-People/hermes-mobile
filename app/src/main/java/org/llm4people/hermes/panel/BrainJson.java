@@ -4,6 +4,7 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.llm4people.hermes.Diagnostics;
+import org.llm4people.hermes.JsonValues;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -102,8 +103,8 @@ final class BrainJson {
                 }
             }
         }
-        int chars = bucket.optInt("chars", 0);
-        int limit = bucket.optInt("limit", MemoryModel.DEFAULT_CHAR_LIMIT);
+        int chars = JsonValues.parseNonNegativeInt(bucket.opt("chars"), 0);
+        int limit = JsonValues.parseInt(bucket.opt("limit"), MemoryModel.DEFAULT_CHAR_LIMIT);
         boolean enabled = bucket.optBoolean("enabled", true);
         return new MemoryModel.Bucket(target, entries, chars, limit, enabled);
     }
@@ -137,7 +138,7 @@ final class BrainJson {
         if (data.length() > 0 && hits.isEmpty() && skipped == data.length()) {
             throw new JSONException("All search rows malformed");
         }
-        int total = response.optInt("total", hits.size());
+        int total = JsonValues.parseNonNegativeInt(response.opt("total"), hits.size());
         String query = PanelData.text(response, "query");
         boolean hasMore = response.has("has_more")
                 ? response.optBoolean("has_more", false)
@@ -213,7 +214,7 @@ final class BrainJson {
         if (path.isEmpty()) throw new JSONException("Missing workspace file path");
         String safePath = WorkspacePathGuard.normalizeRelativePath(path, false);
         String language = WorkspacePathGuard.inferLanguage(safePath, PanelData.text(response, "language"));
-        int totalLines = Math.max(0, response.optInt("total_lines", 0));
+        int totalLines = JsonValues.parseNonNegativeInt(response.opt("total_lines"), 0);
         boolean truncated = response.optBoolean("truncated", false);
         String content = extractFileContent(response);
         if (content.length() > WorkspacePathGuard.MAX_FILE_CHARS) truncated = true;
@@ -240,8 +241,8 @@ final class BrainJson {
     static WorkspaceDiff parseWorkspaceDiff(JSONObject response) throws JSONException {
         if (response == null) throw new JSONException("Empty workspace diff");
         String branch = PanelData.text(response, "branch");
-        int ahead = Math.max(0, response.optInt("ahead", 0));
-        int behind = Math.max(0, response.optInt("behind", 0));
+        int ahead = JsonValues.parseNonNegativeInt(response.opt("ahead"), 0);
+        int behind = JsonValues.parseNonNegativeInt(response.opt("behind"), 0);
         JSONArray rows = response.optJSONArray("files");
         List<DiffFile> files = new ArrayList<>();
         if (rows != null) {
@@ -258,8 +259,8 @@ final class BrainJson {
                     continue;
                 }
                 String status = PanelData.text(row, "status");
-                int adds = Math.max(0, row.optInt("additions", 0));
-                int dels = Math.max(0, row.optInt("deletions", 0));
+                int adds = JsonValues.parseNonNegativeInt(row.opt("additions"), 0);
+                int dels = JsonValues.parseNonNegativeInt(row.opt("deletions"), 0);
                 files.add(new DiffFile(safePath, status, adds, dels));
             }
         }
@@ -337,10 +338,11 @@ final class BrainJson {
 
     private static int optIntWithFallback(JSONObject primary, JSONObject secondary, String key) {
         if (primary != null && !primary.isNull(key)) {
-            int val = primary.optInt(key, 0);
+            int val = JsonValues.parseNonNegativeInt(primary.opt(key), 0);
             if (val > 0) return val;
         }
-        return secondary != null && !secondary.isNull(key) ? secondary.optInt(key, 0) : 0;
+        return secondary != null && !secondary.isNull(key)
+                ? JsonValues.parseNonNegativeInt(secondary.opt(key), 0) : 0;
     }
 
     private static boolean optBoolWithFallback(JSONObject primary, JSONObject secondary, String key) {
@@ -372,8 +374,8 @@ final class BrainJson {
                     Double.NaN, Double.NaN, Double.NaN, Double.NaN, Double.NaN, Double.NaN, Double.NaN);
         }
         int periodDays = response.has("period_days")
-                ? response.optInt("period_days", requestedDays)
-                : response.optInt("days", requestedDays);
+                ? JsonValues.parseInt(response.opt("period_days"), requestedDays)
+                : JsonValues.parseInt(response.opt("days"), requestedDays);
         JSONObject totals = response.optJSONObject("totals") != null ? response.optJSONObject("totals") : response;
         return new AnalyticsSummary(
                 periodDays,
@@ -491,7 +493,7 @@ final class BrainJson {
             String draft = PanelData.text(row, "draft");
             if (draft.isEmpty()) draft = PanelData.text(row, "prompt");
             int draftRes = draft.isEmpty() ? NotesModel.friendlyHabitDraftRes(category, action) : 0;
-            int count = row.optInt("count", 0);
+            int count = JsonValues.parseNonNegativeInt(row.opt("count"), 0);
             list.add(new NotesModel.HabitSuggestion(id, label, labelRes, hint, routeId, draft, draftRes, count));
         }
         return NotesModel.filterLearned(list);

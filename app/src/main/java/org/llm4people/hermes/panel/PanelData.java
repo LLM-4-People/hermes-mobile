@@ -3,6 +3,7 @@ package org.llm4people.hermes.panel;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.llm4people.hermes.JsonValues;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.Map;
@@ -112,7 +113,10 @@ final class PanelData {
         switch (text(parsed, "kind")) {
             case "once": return text(parsed, "run_at");
             case "cron": return text(parsed, "expr");
-            case "interval": return parsed.optInt("minutes", 0) > 0 ? parsed.optInt("minutes") + "m" : "";
+            case "interval": {
+                int minutes = JsonValues.parseInt(parsed.opt("minutes"), 0);
+                return minutes > 0 ? minutes + "m" : "";
+            }
             default: return "";
         }
     }

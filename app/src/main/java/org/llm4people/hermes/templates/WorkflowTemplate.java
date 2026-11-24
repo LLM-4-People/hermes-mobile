@@ -2,6 +2,7 @@ package org.llm4people.hermes.templates;
 
 import android.content.Context;
 import org.llm4people.hermes.R;
+import org.llm4people.hermes.SecretPatterns;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -23,9 +24,6 @@ public final class WorkflowTemplate {
     public static final int MAX_STORAGE_CHARS = 64 * 1024;
 
     private static final Pattern ID_PATTERN = Pattern.compile("[a-z0-9][a-z0-9_-]{0,47}");
-    private static final Pattern SECRET_PATTERN = Pattern.compile(
-            "(?i)(?:\\bsk-[A-Za-z0-9_-]{12,}|\\bgh[pousr]_[A-Za-z0-9_]{12,}|\\bBearer\\s+[A-Za-z0-9._-]{16,}"
-                    + "|\\beyJ[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}|-----BEGIN\\s+[A-Z ]*PRIVATE KEY-----)");
 
     public static final class SecretRejectedException extends IOException {
         public SecretRejectedException() {
@@ -60,7 +58,7 @@ public final class WorkflowTemplate {
     }
 
     public static boolean looksLikeSecret(String text) {
-        return text != null && SECRET_PATTERN.matcher(text).find();
+        return SecretPatterns.containsCredential(text);
     }
 
     static String validateSingleLine(String raw, int maxChars, boolean required) throws IOException {

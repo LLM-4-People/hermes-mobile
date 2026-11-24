@@ -6,14 +6,12 @@ import org.llm4people.hermes.presence.PresencePolicy;
 
 import java.util.List;
 import java.util.Set;
-import java.util.regex.Pattern;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public final class DeviceBridgeCapabilitiesTest {
-    private static final Pattern JARGON = Pattern.compile("\\b(json|sse|prompt|endpoint|token|toolset|cron|yaml)\\b");
     private static final Set<String> FORK_PR18_ALLOWLIST = Set.of(
             "camera", "location_coarse", "nearby_osm",
             "calendar_draft", "alarm_timer", "maps_handoff",

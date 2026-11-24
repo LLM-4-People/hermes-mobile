@@ -179,6 +179,16 @@ public final class VisualDiffPromptCardTest extends InstrumentationTestCase {
         assertEquals("@@ -1 +1 @@", nonFinite.lines().get(0).text());
     }
 
+    public void testRunDecisionsConfirmedReplySaturatesResolvedCount() throws Exception {
+        // 4_294_967_296L saturates to Integer.MAX_VALUE (> 0 -> confirmed); -4_294_967_200L saturates to MIN_VALUE (<= 0 -> unconfirmed).
+        assertTrue(RunDecisions.isConfirmedReply("run-1", "p-1", new JSONObject()
+                .put("run_id", "run-1").put("prompt_id", "p-1").put("resolved", 4_294_967_296L)));
+        assertFalse(RunDecisions.isConfirmedReply("run-1", "p-1", new JSONObject()
+                .put("run_id", "run-1").put("prompt_id", "p-1").put("resolved", -4_294_967_200L)));
+        assertFalse(RunDecisions.isConfirmedReply("run-1", "p-1", new JSONObject()
+                .put("run_id", "run-1").put("prompt_id", "p-1").put("resolved", "NaN")));
+    }
+
     private static View findExact(View view, String label) {
         if (view instanceof TextView tv && tv.isShown() && label.contentEquals(tv.getText())) return tv;
         if (view instanceof ViewGroup g) {

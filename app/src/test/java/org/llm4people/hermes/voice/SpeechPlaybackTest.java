@@ -1,6 +1,9 @@
 package org.llm4people.hermes.voice;
 
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
+import org.llm4people.hermes.Diagnostics;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -9,6 +12,18 @@ import java.util.function.Consumer;
 import static org.junit.Assert.*;
 
 public final class SpeechPlaybackTest {
+    @Before
+    public void setUpDiagnostics() {
+        Diagnostics.clear();
+        Diagnostics.setSink((level, tag, message) -> {});
+    }
+
+    @After
+    public void tearDownDiagnostics() {
+        Diagnostics.clear();
+        Diagnostics.setSink(null);
+    }
+
     static final class Fake implements SpeechPlayback.Driver {
         Consumer<Boolean> ready;
         Consumer<Boolean> done;
@@ -106,5 +121,19 @@ public final class SpeechPlaybackTest {
             assertFalse(privateOrTechnical, text.contains(privateOrTechnical));
         assertEquals("", SpokenText.prose("<analysis>analyse inachevée"));
         assertEquals("", SpokenText.prose("~~~java\ncode sans fin"));
+    }
+
+    @Test public void factoryExceptionNotifiesPerCallDoneAndDoesNotInvokeDefaultCallback() {
+        List<SpeechPlayback.Failure> defaultFailures = new ArrayList<>();
+        List<SpeechPlayback.Failure> perCallFailures = new ArrayList<>();
+        SpeechPlayback playback = new SpeechPlayback(() -> {
+            throw new IllegalStateException("TTS binder unavailable");
+        }, defaultFailures::add);
+
+        playback.play("Bonjour", perCallFailures::add);
+
+        assertEquals(List.of(SpeechPlayback.Failure.UNAVAILABLE), perCallFailures);
+        assertTrue("Default callback must not run when perCallDone is supplied", defaultFailures.isEmpty());
+        assertFalse(playback.active());
     }
 }

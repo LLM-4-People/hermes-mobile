@@ -1,5 +1,8 @@
 package org.llm4people.hermes.ambient;
 
+import org.llm4people.hermes.PlainTextSanitizer;
+import org.llm4people.hermes.SecretPatterns;
+
 import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -89,9 +92,7 @@ public final class NotificationPrivacyGuard {
     private static final Pattern GOOGLE_OTP = Pattern.compile("(?:^|[^A-Za-z0-9])G-\\d{5,8}(?:$|[^A-Za-z0-9])");
 
     private static final Pattern SECRET_LABEL = Pattern.compile(
-            "(?i)(?:\\bcvv\\b|\\bcvc\\b|card\\s+pin|nip\\s+de\\s+carte|"
-                    + "private\\s+key|cl[ée]\\s+priv[ée]e|bearer\\s+[A-Za-z0-9._-]{16,}|"
-                    + "sk-[A-Za-z0-9]{12,}|ghp_[A-Za-z0-9]{12,}|eyJ[A-Za-z0-9_-]{12,}|-----BEGIN\\s+)");
+            "(?i)(?:\\bcvv\\b|\\bcvc\\b|card\\s+pin|nip\\s+de\\s+carte|private\\s+key|cl[ée]\\s+priv[ée]e)");
 
     private NotificationPrivacyGuard() {}
 
@@ -110,13 +111,23 @@ public final class NotificationPrivacyGuard {
 
     /** True when title or text looks like an OTP/2FA code, recovery phrase, temporary password, or API/JWT secret. */
     public static boolean containsOtpOrSecret(String title, String text) {
+        if (SecretPatterns.containsCredential(title) || SecretPatterns.containsCredential(text)) {
+            return true;
+        }
         String combined = ((title == null ? "" : title) + "\n" + (text == null ? "" : text)).trim();
         if (combined.isEmpty()) return false;
-        if (GOOGLE_OTP.matcher(combined).find()) return true;
-        if (SECRET_LABEL.matcher(combined).find()) return true;
+        if (SecretPatterns.containsCredential(combined)) return true;
+        if (matchesOtpOrLabel(combined)) return true;
+        String collapsed = PlainTextSanitizer.collapseBounded(combined, combined.length());
+        return !collapsed.isEmpty() && matchesOtpOrLabel(collapsed);
+    }
+
+    private static boolean matchesOtpOrLabel(String text) {
+        if (GOOGLE_OTP.matcher(text).find()) return true;
+        if (SECRET_LABEL.matcher(text).find()) return true;
         // Every phrase in OTP_KEYWORDS is an explicit OTP/2FA/temporary-password/do-not-share indicator;
         // hard-block immediately even when the secret/code is alphanumeric (no numeric CODE_TOKEN required).
-        return OTP_KEYWORDS.matcher(combined).find();
+        return OTP_KEYWORDS.matcher(text).find();
     }
 
     /** Evaluate a notification candidate against hard blocks and the active profile's allowlist. */
@@ -152,7 +163,8 @@ public final class NotificationPrivacyGuard {
         if (cleanTitle.isEmpty() && cleanText.isEmpty()) {
             return Decision.BLOCK_EMPTY;
         }
-        if (containsOtpOrSecret(cleanTitle, cleanText)) {
+        if (containsOtpOrSecret(candidate.title(), candidate.text())
+                || containsOtpOrSecret(cleanTitle, cleanText)) {
             return Decision.BLOCK_OTP_OR_SECRET;
         }
         return Decision.ALLOW;
