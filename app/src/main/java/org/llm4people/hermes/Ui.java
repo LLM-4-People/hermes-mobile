@@ -13,6 +13,7 @@ import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
 import android.view.WindowManager;
+import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -25,8 +26,21 @@ public final class Ui {
     public static final int CARD_CORNER_DP = 16;
 
     private static Typeface mediumTypeface;
+    private static final View.AccessibilityDelegate BUTTON_ROLE_DELEGATE = new View.AccessibilityDelegate() {
+        @Override public void onInitializeAccessibilityNodeInfo(View host, AccessibilityNodeInfo info) {
+            super.onInitializeAccessibilityNodeInfo(host, info);
+            info.setClassName(Button.class.getName());
+        }
+    };
 
     private Ui() {}
+
+    /** Announce a custom clickable container (row/card) with Android Button role using one shared delegate. */
+    public static void setButtonRole(View view) {
+        if (view != null) {
+            view.setAccessibilityDelegate(BUTTON_ROLE_DELEGATE);
+        }
+    }
 
     /** Cached medium-weight sans-serif typeface shared across native UI surfaces (lazy for host-JVM safety). */
     public static Typeface mediumTypeface() {

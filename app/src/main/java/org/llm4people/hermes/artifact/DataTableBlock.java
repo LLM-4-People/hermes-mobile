@@ -367,6 +367,7 @@ public final class DataTableBlock {
             tableBody.addView(empty);
             return;
         }
+        boolean actionable = host != null && !model.draftPrompt.isEmpty();
         for (int r = 0; r < rows.size(); r++) {
             List<String> row = rows.get(r);
             LinearLayout rowView = Ui.row(c);
@@ -382,12 +383,16 @@ public final class DataTableBlock {
                 }
                 cell.setMinWidth(colWidth);
                 Ui.pad(cell, 10, 8);
+                if (actionable) {
+                    cell.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+                }
                 rowView.addView(cell, new LinearLayout.LayoutParams(0, -2, 1f));
             }
-            if (host != null && !model.draftPrompt.isEmpty()) {
+            if (actionable) {
                 rowView.setBackground(Ui.roundedRipple(c, 0, null));
                 rowView.setClickable(true);
                 rowView.setFocusable(true);
+                Ui.setButtonRole(rowView);
                 rowView.setOnClickListener(v -> host.stageDraft(model.draftForRow(row)));
                 rowView.setContentDescription(c.getString(R.string.ws_table_row_draft_a11y,
                         String.join(", ", row)));

@@ -4,8 +4,6 @@ import android.app.Activity;
 import android.content.res.ColorStateList;
 import android.text.TextUtils;
 import android.view.View;
-import android.view.accessibility.AccessibilityNodeInfo;
-import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -192,14 +190,10 @@ public final class AppsLauncherPanel {
         row.setClickable(true);
         row.setBackground(Ui.roundedRipple(activity, 0, null));
         row.setOnClickListener(v -> callbacks.openTemplates());
-        row.setAccessibilityDelegate(new View.AccessibilityDelegate() {
-            @Override public void onInitializeAccessibilityNodeInfo(View host, AccessibilityNodeInfo info) {
-                super.onInitializeAccessibilityNodeInfo(host, info);
-                info.setClassName(Button.class.getName());
-            }
-        });
+        Ui.setButtonRole(row);
         String label = activity.getString(R.string.templates_route_label);
-        row.setContentDescription(label + ". " + countText);
+        String detailText = activity.getString(R.string.hub_apps_templates_body);
+        row.setContentDescription(label + ". " + countText + ". " + detailText);
 
         row.addView(Ui.iconCircle(activity, R.drawable.ic_apps, 36, 20, false));
 
@@ -216,7 +210,7 @@ public final class AppsLauncherPanel {
         pLp.topMargin = Ui.dp(activity, 4);
         copy.addView(pill, pLp);
 
-        TextView detail = Ui.text(activity, activity.getString(R.string.hub_apps_templates_body), 14);
+        TextView detail = Ui.text(activity, detailText, 14);
         detail.setTextColor(activity.getColor(R.color.muted));
         detail.setLineSpacing(0f, 1.2f);
         detail.setPaddingRelative(0, Ui.dp(activity, 4), 0, 0);
@@ -245,12 +239,7 @@ public final class AppsLauncherPanel {
         row.setBackground(Ui.roundedRipple(activity, 0, null));
         row.setOnClickListener(v -> callbacks.openScreen(entry.pageId()));
         row.setContentDescription(entry.title());
-        row.setAccessibilityDelegate(new View.AccessibilityDelegate() {
-            @Override public void onInitializeAccessibilityNodeInfo(View host, AccessibilityNodeInfo info) {
-                super.onInitializeAccessibilityNodeInfo(host, info);
-                info.setClassName(Button.class.getName());
-            }
-        });
+        Ui.setButtonRole(row);
 
         row.addView(Ui.iconCircle(activity, R.drawable.ic_widgets, 36, 20, false));
 

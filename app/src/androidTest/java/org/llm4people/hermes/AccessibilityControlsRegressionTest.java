@@ -11,15 +11,30 @@ import android.view.ViewGroup;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.widget.RadioButton;
+import android.widget.TextView;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 import org.llm4people.hermes.artifact.ArtifactDesk;
 import org.llm4people.hermes.artifact.DataTableBlock;
 import org.llm4people.hermes.artifact.ThemePalette;
+import org.llm4people.hermes.hub.AppsLauncherModel;
+import org.llm4people.hermes.hub.AppsLauncherPanel;
 import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.os.BiometricVault;
+import org.llm4people.hermes.palette.CommandItem;
+import org.llm4people.hermes.palette.CommandPalette;
+import org.llm4people.hermes.palette.CommandRegistry;
+import org.llm4people.hermes.panel.ModelCapabilityBadges;
+import org.llm4people.hermes.panel.NotesModel;
+import org.llm4people.hermes.panel.ProfileDefaultsModel;
+import org.llm4people.hermes.panel.SessionPanel;
 import org.llm4people.hermes.panel.UniversalShareModel;
+import org.llm4people.hermes.places.NearbyGuide;
+import org.llm4people.hermes.places.NearbyResult;
+import org.llm4people.hermes.places.PlaceSelection;
 import org.llm4people.hermes.profile.Account;
 import org.llm4people.hermes.profile.ProfileGate;
 import org.llm4people.hermes.profile.ProfileLockPolicy;
@@ -30,6 +45,7 @@ import org.llm4people.hermes.thread.ThreadWorkspace;
 import org.llm4people.hermes.voice.VoiceDrafts;
 
 import java.lang.ref.WeakReference;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -38,6 +54,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 
 /**
  * Instrumentation regression tests for accessibility polish:
@@ -48,6 +66,9 @@ import java.util.concurrent.atomic.AtomicReference;
  * - R8.5.3: Security lock-mode RadioButtons use a stateful ColorStateList with disabled_ink.
  * - R13.5.1: UniversalSearchSheet result rows include non-empty subtitles in contentDescription,
  *   hide redundant children from accessibility, and expose Button class name.
+ * - R14.5.1-R14.5.6: TalkBack container roles (via Ui.setButtonRole SSoT), complete
+ *   contentDescription, hidden decorative/redundant children, and non-nested clickables across
+ *   AppsLauncherPanel, NotesPanel, CommandPalette, ProfileDefaultsPanel, DataTableBlock, and NearbyGuide.
  */
 @SuppressWarnings("deprecation")
 public final class AccessibilityControlsRegressionTest extends InstrumentationTestCase {
@@ -349,6 +370,284 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
         }
     }
 
+    public void testTalkBackContainerRolesAndHiddenChildrenAcrossPanels() throws Throwable {
+        Context context = getInstrumentation().getTargetContext();
+        MainActivity activity = launchActivity(context.getPackageName(), MainActivity.class, null);
+        AtomicReference<SessionPanel> sessionPanelRef = new AtomicReference<>();
+        try (WorkspaceAccountFixture fixture = new WorkspaceAccountFixture(context)) {
+            runTestOnUiThread(() -> {
+                try {
+                    // Null-safety on Ui.setButtonRole SSoT.
+                    Ui.setButtonRole(null);
+
+                    // R14.5.1: AppsLauncherPanel workflows row & custom screen row.
+                    AppsLauncherPanel launcher = new AppsLauncherPanel(
+                            activity,
+                            new AppsLauncherPanel.StateProvider() {
+                                @Override public String voiceLocaleLabel() { return "English"; }
+                                @Override public List<AppsLauncherModel.ScreenEntry> screens() {
+                                    return Collections.singletonList(
+                                            new AppsLauncherModel.ScreenEntry("dashboard", "Morning Brief", true));
+                                }
+                                @Override public int templateCount() { return 3; }
+                            },
+                            new AppsLauncherPanel.Callbacks() {
+                                @Override public void startVoiceChat() {}
+                                @Override public void openVoiceOptions() {}
+                                @Override public void openScreen(String pageId) {}
+                                @Override public void createTool() {}
+                                @Override public void openScreensGallery() {}
+                                @Override public void pinHomeWidget() {}
+                                @Override public void restoreDefaults() {}
+                                @Override public void openTemplates() {}
+                            });
+                    launcher.buildView();
+
+                    Field workflowsSlotField = AppsLauncherPanel.class.getDeclaredField("workflowsSlot");
+                    workflowsSlotField.setAccessible(true);
+                    ViewGroup workflowsSlot = (ViewGroup) workflowsSlotField.get(launcher);
+                    assertNotNull("Expected workflowsSlot on AppsLauncherPanel", workflowsSlot);
+                    ViewGroup workflowsCard = (ViewGroup) workflowsSlot.getChildAt(1);
+                    ViewGroup workflowsRow = (ViewGroup) workflowsCard.getChildAt(0);
+                    String expectedWorkflowsLabel = activity.getString(R.string.templates_route_label);
+                    String expectedWorkflowsCount = activity.getResources()
+                            .getQuantityString(R.plurals.hub_apps_templates_count, 3, 3);
+                    String expectedWorkflowsBody = activity.getString(R.string.hub_apps_templates_body);
+                    assertEquals(expectedWorkflowsLabel + ". " + expectedWorkflowsCount + ". " + expectedWorkflowsBody,
+                            String.valueOf(workflowsRow.getContentDescription()));
+                    assertButtonAccessibilityRole(workflowsRow);
+                    List<TextView> workflowTexts = new ArrayList<>();
+                    collect(workflowsRow, TextView.class, workflowTexts);
+                    assertEquals(3, workflowTexts.size());
+                    for (TextView tv : workflowTexts) {
+                        assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_NO, tv.getImportantForAccessibility());
+                    }
+
+                    Method buildScreenRow = AppsLauncherPanel.class.getDeclaredMethod(
+                            "buildScreenRow", AppsLauncherModel.ScreenEntry.class);
+                    buildScreenRow.setAccessible(true);
+                    ViewGroup screenRow = (ViewGroup) buildScreenRow.invoke(
+                            launcher, new AppsLauncherModel.ScreenEntry("dashboard", "Morning Brief", true));
+                    assertEquals("Morning Brief", String.valueOf(screenRow.getContentDescription()));
+                    assertButtonAccessibilityRole(screenRow);
+                    assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_NO,
+                            screenRow.getChildAt(1).getImportantForAccessibility());
+
+                    // Shared SessionPanel fixture for NotesPanel & ProfileDefaultsPanel.
+                    HermesApi api = new HermesApi("http://127.0.0.1:1", "tok");
+                    SessionPanel sessionPanel = new SessionPanel(activity, api, fixture.account);
+                    sessionPanelRef.set(sessionPanel);
+
+                    // R14.5.2: NotesPanel noteCard avoids nested clickables and exposes complete headerArea description.
+                    Class<?> notesPanelClass = Class.forName("org.llm4people.hermes.panel.NotesPanel");
+                    Constructor<?> notesCtor = notesPanelClass.getDeclaredConstructor(
+                            SessionPanel.class, BooleanSupplier.class, Consumer.class, Runnable.class);
+                    notesCtor.setAccessible(true);
+                    Object notesPanel = notesCtor.newInstance(
+                            sessionPanel, (BooleanSupplier) () -> true, (Consumer<String>) s -> {}, null);
+                    Method noteCardMethod = notesPanelClass.getDeclaredMethod("noteCard", NotesModel.Note.class);
+                    noteCardMethod.setAccessible(true);
+
+                    String longBody = "A".repeat(260);
+                    NotesModel.Note ownedPinned = new NotesModel.Note(
+                            "n-1", "Sprint Goals", longBody, Arrays.asList("work", "q4"),
+                            true, "2026-11-24T00:00:00Z", "", "owner");
+                    ViewGroup ownedCard = (ViewGroup) noteCardMethod.invoke(notesPanel, ownedPinned);
+                    assertFalse("Outer note card must not be clickable", ownedCard.isClickable());
+                    assertEquals("Expected headerArea and actions sibling inside note card", 2, ownedCard.getChildCount());
+                    ViewGroup headerArea = (ViewGroup) ownedCard.getChildAt(0);
+                    assertTrue("Dedicated headerArea must be clickable", headerArea.isClickable());
+                    assertButtonAccessibilityRole(headerArea);
+                    assertNoClickableDescendants(headerArea);
+                    String ownedCd = String.valueOf(headerArea.getContentDescription());
+                    assertTrue(ownedCd.contains(activity.getString(R.string.notes_open_note_cd, "Sprint Goals")));
+                    assertTrue(ownedCd.contains(activity.getString(R.string.brain_memory_pinned)));
+                    assertTrue(ownedCd.contains("A".repeat(240) + "…"));
+                    assertTrue(ownedCd.contains("work"));
+                    assertTrue(ownedCd.contains("q4"));
+                    assertEquals(3, headerArea.getChildCount());
+                    assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS,
+                            headerArea.getChildAt(0).getImportantForAccessibility());
+                    assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_NO,
+                            headerArea.getChildAt(1).getImportantForAccessibility());
+                    assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS,
+                            headerArea.getChildAt(2).getImportantForAccessibility());
+                    List<Button> ownedActions = new ArrayList<>();
+                    collect(ownedCard.getChildAt(1), Button.class, ownedActions);
+                    assertTrue("Action buttons must live in sibling container outside headerArea",
+                            ownedActions.size() >= 2);
+
+                    NotesModel.Note sharedNote = new NotesModel.Note(
+                            "n-2", "Team Handbook", "Onboarding checklist", Collections.emptyList(),
+                            false, "2026-11-24T00:00:00Z", "alice", "edit");
+                    ViewGroup sharedCard = (ViewGroup) noteCardMethod.invoke(notesPanel, sharedNote);
+                    assertFalse("Shared note outer card must not be clickable", sharedCard.isClickable());
+                    ViewGroup sharedHeader = (ViewGroup) sharedCard.getChildAt(0);
+                    assertButtonAccessibilityRole(sharedHeader);
+                    assertNoClickableDescendants(sharedHeader);
+                    String sharedCd = String.valueOf(sharedHeader.getContentDescription());
+                    assertTrue(sharedCd.contains(activity.getString(R.string.notes_open_note_cd, "Team Handbook")));
+                    assertTrue(sharedCd.contains(UniversalShareModel.permissionLabel(activity, "edit")));
+                    assertTrue(sharedCd.contains(activity.getString(R.string.ws_shared_by, "alice")));
+                    assertTrue(sharedCd.contains("Onboarding checklist"));
+
+                    // R14.5.3: CommandPalette rowView hides header & subtitle and announces Button role.
+                    CommandPalette palette = new CommandPalette(activity, new CommandRegistry(), () -> true);
+                    Method rowViewMethod = CommandPalette.class.getDeclaredMethod("rowView", CommandItem.class);
+                    rowViewMethod.setAccessible(true);
+                    CommandItem withSub = new CommandItem(
+                            "cmd-1", CommandItem.Category.ACTION, "New Chat", "Start a fresh conversation", "", () -> {});
+                    ViewGroup paletteRow = (ViewGroup) rowViewMethod.invoke(palette, withSub);
+                    assertButtonAccessibilityRole(paletteRow);
+                    assertEquals(2, paletteRow.getChildCount());
+                    assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS,
+                            paletteRow.getChildAt(0).getImportantForAccessibility());
+                    assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_NO,
+                            paletteRow.getChildAt(1).getImportantForAccessibility());
+                    assertEquals("New Chat, " + activity.getString(R.string.palette_cat_action)
+                                    + ", Start a fresh conversation",
+                            String.valueOf(paletteRow.getContentDescription()));
+
+                    CommandItem bareItem = new CommandItem(
+                            "cmd-2", CommandItem.Category.SCREEN, "Notes", "", "", () -> {});
+                    ViewGroup barePaletteRow = (ViewGroup) rowViewMethod.invoke(palette, bareItem);
+                    assertButtonAccessibilityRole(barePaletteRow);
+                    assertEquals(1, barePaletteRow.getChildCount());
+                    assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS,
+                            barePaletteRow.getChildAt(0).getImportantForAccessibility());
+
+                    // R14.5.4: ProfileDefaultsPanel buildPickerModelRow hides copy & activePill and announces Button role.
+                    Class<?> profilePanelClass = Class.forName("org.llm4people.hermes.panel.ProfileDefaultsPanel");
+                    Constructor<?> profileCtor = profilePanelClass.getDeclaredConstructor(
+                            SessionPanel.class, Runnable.class);
+                    profileCtor.setAccessible(true);
+                    Object profilePanel = profileCtor.newInstance(sessionPanel, null);
+                    Field modelField = profilePanelClass.getDeclaredField("model");
+                    modelField.setAccessible(true);
+                    ProfileDefaultsModel profileModel = (ProfileDefaultsModel) modelField.get(profilePanel);
+                    profileModel.load("openai", "gpt-4o", "", Collections.emptyList(), Collections.emptyList());
+
+                    Method buildPickerRow = profilePanelClass.getDeclaredMethod(
+                            "buildPickerModelRow", ProfileDefaultsModel.ModelOption.class, Runnable.class);
+                    buildPickerRow.setAccessible(true);
+                    ProfileDefaultsModel.ModelOption selectedOpt = new ProfileDefaultsModel.ModelOption(
+                            "openai", "OpenAI", ModelCapabilityBadges.ModelInfo.minimal("gpt-4o"));
+                    ViewGroup selectedModelRow = (ViewGroup) buildPickerRow.invoke(
+                            profilePanel, selectedOpt, (Runnable) () -> {});
+                    assertButtonAccessibilityRole(selectedModelRow);
+                    assertEquals(2, selectedModelRow.getChildCount());
+                    assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS,
+                            selectedModelRow.getChildAt(0).getImportantForAccessibility());
+                    assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_NO,
+                            selectedModelRow.getChildAt(1).getImportantForAccessibility());
+                    assertEquals("gpt-4o, OpenAI, " + activity.getString(R.string.profile_defaults_selected_badge),
+                            String.valueOf(selectedModelRow.getContentDescription()));
+
+                    ProfileDefaultsModel.ModelOption otherOpt = new ProfileDefaultsModel.ModelOption(
+                            "anthropic", "Anthropic", ModelCapabilityBadges.ModelInfo.minimal("claude-sonnet"));
+                    ViewGroup otherModelRow = (ViewGroup) buildPickerRow.invoke(
+                            profilePanel, otherOpt, (Runnable) () -> {});
+                    assertButtonAccessibilityRole(otherModelRow);
+                    assertEquals(1, otherModelRow.getChildCount());
+                    assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS,
+                            otherModelRow.getChildAt(0).getImportantForAccessibility());
+
+                    // R14.5.5: DataTableBlock actionable row hides cell TextViews & exposes Button role;
+                    // non-actionable row preserves cell accessibility.
+                    List<DataTableBlock.Column> cols = Arrays.asList(
+                            new DataTableBlock.Column("name", "Name", false),
+                            new DataTableBlock.Column("count", "Count", true));
+                    List<List<String>> tableRows = Collections.singletonList(Arrays.asList("Alpha", "42"));
+                    WorkspaceHost host = new WorkspaceHost(activity, () -> true);
+                    Method buildTable = DataTableBlock.class.getDeclaredMethod(
+                            "build", Context.class, DataTableBlock.Model.class, ThemePalette.class, ArtifactDesk.Host.class);
+                    buildTable.setAccessible(true);
+
+                    DataTableBlock.Model actionableModel = new DataTableBlock.Model(cols, tableRows, false, false, "Review");
+                    View actionableTable = (View) buildTable.invoke(null, activity, actionableModel, null, host);
+                    ViewGroup actionableRow = findClickableRow(actionableTable);
+                    assertNotNull("Expected clickable actionable row in DataTableBlock", actionableRow);
+                    assertButtonAccessibilityRole(actionableRow);
+                    assertEquals(activity.getString(R.string.ws_table_row_draft_a11y, "Alpha, 42"),
+                            String.valueOf(actionableRow.getContentDescription()));
+                    assertEquals(2, actionableRow.getChildCount());
+                    for (int i = 0; i < actionableRow.getChildCount(); i++) {
+                        assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_NO,
+                                actionableRow.getChildAt(i).getImportantForAccessibility());
+                    }
+
+                    DataTableBlock.Model readOnlyModel = new DataTableBlock.Model(cols, tableRows, false, false, "");
+                    View readOnlyTable = (View) buildTable.invoke(null, activity, readOnlyModel, null, host);
+                    assertNull("Non-actionable DataTableBlock must not mark data rows clickable",
+                            findClickableRow(readOnlyTable));
+                    List<TextView> readOnlyCells = new ArrayList<>();
+                    collect(readOnlyTable, TextView.class, readOnlyCells);
+                    boolean foundVisibleAlpha = false;
+                    for (TextView tv : readOnlyCells) {
+                        if ("Alpha".equals(String.valueOf(tv.getText()))) {
+                            assertTrue("Non-actionable cell must remain accessible",
+                                    tv.getImportantForAccessibility() != View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+                            foundVisibleAlpha = true;
+                        }
+                    }
+                    assertTrue("Expected Alpha cell in non-actionable DataTableBlock", foundVisibleAlpha);
+
+                    // R14.5.6: NearbyGuide Venue.top hides marker, name, and dist and exposes Button role.
+                    JSONObject placeJson = new JSONObject()
+                            .put("osm_type", "node")
+                            .put("osm_id", 1)
+                            .put("name", "Cafe Test")
+                            .put("latitude", 45.5)
+                            .put("longitude", -73.5)
+                            .put("distance_m", 120);
+                    JSONObject nearbyJson = new JSONObject()
+                            .put("source", "OpenStreetMap")
+                            .put("attribution", "© OpenStreetMap contributors")
+                            .put("source_date", "2026-01-01T00:00:00Z")
+                            .put("category", "cafe")
+                            .put("radius_m", 1500)
+                            .put("limit", 12)
+                            .put("places", new JSONArray().put(placeJson));
+                    NearbyResult result = NearbyResult.parse(activity, nearbyJson);
+                    NearbyGuide guide = new NearbyGuide(activity, new NearbyGuide.Actions() {
+                        @Override public void locate() {}
+                        @Override public void manual() {}
+                        @Override public void select(int index, boolean toggleDetails) {}
+                        @Override public void list(boolean all) {}
+                        @Override public void cuisine() {}
+                        @Override public void compare() {}
+                        @Override public void map(View clicked, NearbyResult.Place place) {}
+                        @Override public void source(View clicked, NearbyResult.Place place) {}
+                    });
+                    guide.bind(new NearbyGuide.State(
+                            NearbyGuide.Phase.READY, result, 45.5, -73.5, 10.0, new PlaceSelection(result)));
+                    ViewGroup venueTop = guide.findViewWithTag("places-row-node/1");
+                    assertNotNull("Expected venue row places-row-node/1 in NearbyGuide", venueTop);
+                    assertButtonAccessibilityRole(venueTop);
+                    assertNotNull(venueTop.getContentDescription());
+                    assertTrue(venueTop.getContentDescription().toString().contains("Cafe Test"));
+                    assertEquals(3, venueTop.getChildCount());
+                    for (int i = 0; i < venueTop.getChildCount(); i++) {
+                        assertEquals("NearbyGuide venue child " + i + " must be hidden from accessibility",
+                                View.IMPORTANT_FOR_ACCESSIBILITY_NO,
+                                venueTop.getChildAt(i).getImportantForAccessibility());
+                    }
+                } catch (Exception err) {
+                    throw new AssertionError(err);
+                }
+            });
+        } finally {
+            try {
+                runTestOnUiThread(() -> {
+                    SessionPanel sp = sessionPanelRef.getAndSet(null);
+                    if (sp != null) sp.close();
+                });
+            } finally {
+                ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+            }
+        }
+    }
+
     @SuppressWarnings("unchecked")
     private static AlertDialog findLatestDeskDialog(Activity activity) throws Exception {
         Class<?> deskDialogs = Class.forName("org.llm4people.hermes.artifact.DeskDialogs");
@@ -378,6 +677,26 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
         } finally {
             info.recycle();
         }
+    }
+
+    private static void assertNoClickableDescendants(ViewGroup parent) {
+        for (int i = 0; i < parent.getChildCount(); i++) {
+            View child = parent.getChildAt(i);
+            assertFalse("Unexpected clickable descendant inside clickable container: " + child,
+                    child.isClickable());
+            if (child instanceof ViewGroup group) {
+                assertNoClickableDescendants(group);
+            }
+        }
+    }
+
+    private static ViewGroup findClickableRow(View root) {
+        List<LinearLayout> layouts = new ArrayList<>();
+        collect(root, LinearLayout.class, layouts);
+        for (LinearLayout layout : layouts) {
+            if (layout.isClickable()) return layout;
+        }
+        return null;
     }
 
     private static <T extends View> T findFirst(View root, Class<T> type) {
