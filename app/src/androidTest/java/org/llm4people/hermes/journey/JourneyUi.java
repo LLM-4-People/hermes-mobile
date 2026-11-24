@@ -239,20 +239,31 @@ public final class JourneyUi {
 
     void showPendingControl(String expected) {
         String reveal = activity.getString(org.llm4people.hermes.R.string.ws_reply_hermes);
+        Supplier<View> revealLocator = () -> find(window(), v -> v.isEnabled() && named(v, reveal)
+                && v.getGlobalVisibleRect(new Rect()));
         View target = until(expected + " or " + reveal, () -> {
             View root = window();
             View prompt = find(root, v -> v instanceof TextView text
                     && text.getText().toString().contains(expected) && v.getGlobalVisibleRect(new Rect()));
-            return prompt != null ? prompt : find(root, v -> v.isEnabled() && named(v, reveal)
-                    && v.getGlobalVisibleRect(new Rect()));
+            return prompt != null ? prompt : revealLocator.get();
         });
-        if (main(() -> named(target, reveal))) tap(target, reveal);
+        if (main(() -> named(target, reveal))) tap(target, revealLocator, reveal);
     }
 
     void tapInListRow(String anchor, String label) {
-        View target = until(label + " in the row containing " + anchor,
-                () -> findInListRow(anchor, v -> v.isEnabled() && named(v, label)));
-        tap(target, label);
+        Supplier<View> locator = () -> findInListRow(anchor, v -> v.isEnabled() && named(v, label));
+        View target = until(label + " in the row containing " + anchor, locator);
+        tap(target, locator, label);
+    }
+
+    int windowCount() {
+        return main(() -> WindowInspector.getGlobalWindowViews().size());
+    }
+
+    void waitForWindowDismissed(int previousWindowCount, String description) {
+        if (previousWindowCount <= 1) return;
+        until(description, () -> WindowInspector.getGlobalWindowViews().size() < previousWindowCount
+                && window() != null ? Boolean.TRUE : null);
     }
 
     void containsInListRow(String anchor, String fragment) {

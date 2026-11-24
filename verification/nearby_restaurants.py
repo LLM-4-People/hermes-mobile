@@ -17,12 +17,12 @@ from verification.device.run import Emulator
 from verification.gateway_fixture import Gateway, PINNED_REVISION, check_source
 from verification.nearby_capture import captures
 from verification.nearby_fixture import overpass, PLACES
-from verification.nearby_journey import (PROMPT, choose_consent, dismiss_ime,
+from verification.nearby_journey import (PROMPT, choose_consent,
                                           ensure_unlocked, enter_message, lock, open_consent, stage_public_location,
                                           tap_visible_app_until, unlock, verify_guide)
 from verification.nearby_location import (COARSE, PERMISSION_CONTROLLERS, answer_android_location,
                                           app_activity_stopped, location_access, public_city_fix)
-from verification.phone_actions import MAPS, admissions, assert_offline, focused, visible
+from verification.phone_actions import MAPS, admissions, assert_offline, focused, send_composer_message, visible
 from verification.unifiedpush.editor import editor
 from verification.unifiedpush.stack import eventually
 from verification.unifiedpush.ui import APP, Screen, launch, start_account
@@ -152,7 +152,6 @@ def consent_failures(ui, fix, second, names, phrases, check_idle):
     searching_status = s["nearby_locating"]
     staged_status = s["nearby_approx_attached"]
     choose_profile = s["profile_choose_title"]
-    send_btn = s["thread_send"]
     enter_discussion(ui)
     enter_message(ui)
     open_consent(ui)
@@ -211,7 +210,7 @@ def consent_failures(ui, fix, second, names, phrases, check_idle):
         raise AssertionError("A late fix appeared in a different profile")
     check_idle()
     enter_message(ui, OTHER)
-    ui.tap(send_btn)
+    send_composer_message(ui, OTHER)
     return controller, background
 
 
@@ -365,10 +364,8 @@ def execute(args):
         stage_public_location(ui, fix, system_prompt=False, remember=True)
         if admissions(first) or a_model.main_requests() or queries:
             raise AssertionError("Staging the first fix submitted or queried without Send")
-        dismiss_ime(ui)
         s = ui.strings
-        send_btn = s["thread_send"]
-        ui.tap(send_btn)
+        send_composer_message(ui, PROMPT)
         area = verified_turn(first, a_model, PROMPT, 0, location=True)
         eventually("one lookup through the authenticated real nearby plugin", lambda: len(queries) == 1)
         if queries[0][0] != (area["latitude"], area["longitude"]) or errors:
@@ -404,7 +401,7 @@ def execute(args):
         # Remembered profile consent lets the next explicit Send complete without a second tap.
         enter_message(ui, SECOND)
         fix.publish()
-        ui.tap(send_btn)
+        send_composer_message(ui, SECOND)
         verified_turn(first, a_model, SECOND, 1, location=True)
         if len(queries) != 1 or len(admissions(second)) != 1 or errors:
             raise AssertionError("An ordinary question started another lookup or crossed profiles")

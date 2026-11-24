@@ -257,7 +257,9 @@ public final class DeviceJourney extends Instrumentation {
         ui.tap(ui.str(R.string.ws_art_snippet_lang, "python"));
         ui.contains("return n * n");
         ui.capture("04-artefact");
+        int codeReaderWindows = ui.windowCount();
         ui.tap(ui.str(R.string.ws_close));
+        ui.waitForWindowDismissed(codeReaderWindows, "code reader dialog to dismiss");
         ui.tap(ui.str(R.string.ws_close));
         send("Disposition de vérification", "Raccourcis de vérification");
         menu(ui.str(R.string.ws_artifacts));

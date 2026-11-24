@@ -171,7 +171,7 @@ components:
 
 The conversation reads down one margin. A small speaker name introduces each turn, and a pending question stands out against the paper as a bordered surface. The person can answer where the question appears and still see the message composer below.
 
-The same paper, ink and teal carry through to the atelier. A person can ask Hermes for a review form, try it in the conversation that produced it and pin it there for later. Its fields prepare an editable message. Technical views make their units, scope and available actions legible in the user's language (English or French).
+The same paper, ink and teal carry through to every workspace screen and tool. A person can ask Hermes for a review form, try it in the conversation that produced it and pin it there for later. Its fields prepare an editable message. Technical views make their units, scope and available actions legible in the user's language (English or French).
 
 **Key Characteristics:**
 
@@ -216,7 +216,7 @@ A thin outline and a change from paper to surface bring a question forward. Ordi
 
 ## Shapes
 
-Use 14–16 dp corners on cards, pending prompts, and suggested answers, with a 1 dp line outlining raised surfaces (`surface` `#FFFEFB` by day, `#19241F` at night). Profile fields, dialogs, and buttons use a 12 dp radius with a 1 dp muted outline that becomes a 2 dp accent outline (`#1B5E50` by day, `#9AD7BA` at night) on focus. The floating message composer uses a 24 dp capsule enclosing the text field, 48 dp microphone, and circular accent Send/Stop button; active navigation pills use a 16 dp full-capsule indicator.
+Use 14–16 dp corners on cards, pending prompts, and suggested answers, with a 1 dp line outlining raised surfaces (`surface` `#FFFEFB` by day, `#19241F` at night). Buttons use a 14 dp radius (`Ui.BUTTON_CORNER_DP = 14`), while profile text fields and dialogs use a 12 dp radius with a 1 dp muted outline that becomes a 2 dp accent outline (`#1B5E50` by day, `#9AD7BA` at night) on focus. The floating message composer uses a 24 dp capsule enclosing the text field, 48 dp microphone, and circular accent Send/Stop button; active navigation pills use a 16 dp full-capsule indicator.
 
 ## Components
 

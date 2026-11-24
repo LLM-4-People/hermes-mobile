@@ -43,7 +43,6 @@ CI_META_RE = re.compile(
     r"|ci/check_pages\.py$"
     r"|\.github/workflows/auto-release\.yml$"
     r"|\.github/release\.yml$"
-    r"|\.github/labeler\.yml$"
     r")"
 )
 SERVER_ONLY_RE = re.compile(r"^(?:server/|deploy/)")

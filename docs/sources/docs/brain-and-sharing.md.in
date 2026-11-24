@@ -1,24 +1,24 @@
-# Brain studio and universal same-server sharing
+# Notes, search, power tools, and same-server sharing
 
-The **Brain** tab gives you direct, everyday-language control over what Hermes remembers, knows, searches, and shares on your server—without editing raw configuration files or leaving Android.
+**Notes & tasks**, top-bar **Universal search**, inline **Shared** filters, and the **Settings** power-user sections give you direct, everyday-language control over what Hermes remembers, knows, searches, and shares on your server—without editing raw configuration files or leaving Android.
 
-> **Requires companion fork:** Brain studio endpoints (`/api/memory`, `/api/notes`, `/api/habits`, `/api/shares`, `/api/search`, `/api/skills`, `/api/workspace`, `/api/profile/defaults`) require [{{ fork_repository }}]({{ fork_url }}).
+> **Requires companion fork:** Memory, notes, habits, sharing, search, skills, workspace files, and profile defaults endpoints (`/api/memory`, `/api/notes`, `/api/habits`, `/api/shares`, `/api/search`, `/api/skills`, `/api/workspace`, `/api/profile/defaults`) require [{{ fork_repository }}]({{ fork_url }}).
 
-## Brain studio modules
+## Everyday notes, universal search, and settings tools
 
-1. **Hermes Memory (`MEMORY.md` & `USER.md`)**
+1. **Hermes memory (`MEMORY.md` & `USER.md`, in Settings → Assistant & AI)**
    - Inspect what Hermes remembers about your projects and preferences, add or edit entries directly, and save safely with server-side revision checks.
-2. **AI Smart Notes**
-   - Capture structured Markdown notes with tags and full-text filtering, pin your own notes (`owner`-gated), or stage a note directly into the active discussion draft.
-3. **Pattern-Gated Habits (`>= 3` occurrences)**
+2. **Smart notes (in Notes & tasks)**
+   - Capture structured Markdown notes with tags and full-text filtering, switch between **My notes** and **Shared** inline, pin your own notes (`owner`-gated), or stage a note directly into the active discussion draft.
+3. **Pattern-gated habits (`>= 3` occurrences)**
    - Hermes only suggests a reusable habit or recurring automation after observing a real pattern **at least 3 times**. Review each suggestion in plain language and accept, customize, or dismiss it.
-4. **Global Full-Text Search (FTS5)**
-   - Search across your profile’s entire conversation history with server-side SQLite FTS5 ranking, highlighted snippets rendered cleanly in native text views, and incremental pagination (`has_more` / **Show more**).
-5. **Skill Studio**
+4. **Universal search (top-bar Search on every screen)**
+   - Search instantly across local screens, settings, tools, and server-side SQLite FTS5 conversation history, smart notes, and shared items in one `FLAG_SECURE` overlay with category filter chips and incremental pagination.
+5. **Skills (in Settings → Assistant & AI)**
    - Browse enabled skills on your gateway, inspect summaries and instructions, create or update reusable skills (validated against the fork’s 60-character description budget and lowercase single-segment category rules), or stage a skill into your current draft.
-6. **Workspace Files & Git Diffs**
+6. **Workspace files & Git diffs (in Settings → Workspace & system)**
    - Browse the active thread’s workspace directory on the gateway, read source files in the syntax-highlighted `CodeReader`, inspect live Git diffs, or reference files in your next message.
-7. **Profile Defaults & Language Sync**
+7. **Profile defaults & language sync (in Settings)**
    - Set your default provider, model, and capabilities for the unlocked profile. Changing the app language (**Auto / French / English**) asynchronously syncs `preferred_language` (`PATCH /api/profile/defaults`) and sends `Accept-Language` and `user_language` so Hermes replies in your language.
 
 ## Thread power actions
@@ -42,4 +42,4 @@ Because all users on a deployment share **one single HTTPS hostname** (`/p/<prof
 | `artifact` | Named code, diff, or published file artifacts |
 | `session` | Conversation snapshots and discussions |
 
-Open **Share on this server** from a supported item to grant or revoke access via `/api/shares/outgoing`, and open **Brain → Shared with me** to filter incoming items (`/api/shares/incoming`) by kind, preview them safely, or stage them into your own workspace.
+Open **Share on this server** from a supported item to grant or revoke access via `/api/shares/outgoing`. Incoming shared items (`/api/shares/incoming`) appear directly inline via the **Shared** filter in **Chats**, the **Shared** filter in **Notes & tasks**, **Notes & tasks → Inbox**, and top-bar **Universal search**, where you can preview them safely or stage them into your own workspace.

@@ -170,6 +170,15 @@ jobs:
             pr_url=$(gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$BRANCH" --title "chore(release): $TAG" --body "$body" --label "release:publish" --label "ci")
             pr_num="${pr_url##*/}"
           fi
+          open_release_prs_json=$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --limit 50 --json number,headRefName)
+          mapfile -t superseded_prs < <(
+            python3 -B ci/semver_bump.py --superseded-prs-json "$open_release_prs_json" --target-tag "$TAG"
+          )
+          for old_pr in "${superseded_prs[@]}"; do
+            [[ -n "$old_pr" && "$old_pr" != "$pr_num" ]] || continue
+            gh pr close "$old_pr" --repo "$GITHUB_REPOSITORY" --delete-branch \
+              --comment "Superseded by newer pending release PR #$pr_num (\`$TAG\`)." || true
+          done
           gh pr merge "$pr_num" --repo "$GITHUB_REPOSITORY" --auto --squash || true
           if [[ "$USE_BOT_TOKEN" == "0" ]]; then
             # PRs created with GITHUB_TOKEN do not trigger on:pull_request workflows; dispatch checks explicitly.

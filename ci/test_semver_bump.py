@@ -1,5 +1,8 @@
 """Deterministic positive and negative tests for SemVer release planning and code-driven automation."""
 
+from contextlib import redirect_stdout
+import io
+import json
 from pathlib import Path
 import tempfile
 import unittest
@@ -170,6 +173,29 @@ class SemverBumpTest(unittest.TestCase):
             pending_release_tags=["v0.3.0"],
         )
         self.assertEqual(stale_pending["tag"], "v0.3.1")
+
+    def test_find_superseded_release_prs_selects_only_lower_version_release_prs(self):
+        open_prs = [
+            {"number": 41, "headRefName": "release/v0.2.2"},
+            {"number": 42, "headRefName": "release/v0.3.0"},
+            {"number": 43, "headRefName": "release/v1.0.0"},
+            {"number": 44, "headRefName": "release/v0.2.1"},
+            {"number": 45, "headRefName": "fix/release-v0.1.0"},
+            {"number": 46, "headRefName": "release/not-semver"},
+            {"number": 47, "headRefName": "release/v0.2.3-01"},
+            {"number": True, "headRefName": "release/v0.1.0"},
+        ]
+        self.assertEqual(
+            semver_bump.find_superseded_release_prs(open_prs, "v0.3.0"),
+            [41, 44],
+        )
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = semver_bump.main(["--superseded-prs-json", json.dumps(open_prs), "--target-tag", "v0.3.0"])
+        self.assertEqual(rc, 0)
+        self.assertEqual(buf.getvalue().splitlines(), ["41", "44"])
+        with self.assertRaises(ValueError):
+            semver_bump.main(["--superseded-prs-json", "[]"])
 
     def test_plan_release_tags_immediately_for_first_untagged_version_and_opens_bump_pr_afterward(self):
         # First release (no tags yet, gradle.properties = 0.1.0 / code 1): tag & release immediately

@@ -36,7 +36,7 @@ from verification.gateway_fixture import Gateway, PINNED_REVISION, check_source
 from verification.unifiedpush.editor import editor
 from verification.unifiedpush.shade import bounds
 from verification.unifiedpush.stack import eventually
-from verification.unifiedpush.ui import APP, Screen, focused_window, launch, start_account
+from verification.unifiedpush.ui import APP, TAP_RETRY_COOLDOWN_SECONDS, Screen, focused_window, launch, start_account
 
 
 PROMPT = (
@@ -418,6 +418,31 @@ def inbound_drafts(ui, account_name, phrase, session):
     return results
 
 
+def send_composer_message(ui, prompt):
+    """Dismiss the soft keyboard and tap Send with retry until the composer clears or a run starts."""
+    s = ui.strings
+    send_btn = s["thread_send"]
+    stop_btn = s["thread_stop"]
+    if ui.device.ime_shown():
+        ui.device.shell("input", "keyevent", "BACK")
+        eventually("soft keyboard to hide", lambda: not ui.device.ime_shown(), timeout=15)
+
+    def submitted(root):
+        if ui.node(stop_btn, root) is not None:
+            return True
+        for node in root.iter("node"):
+            if node.get("package") == APP and node.get("class") == "android.widget.EditText":
+                return node.get("text", "") != prompt
+        return False
+
+    ui.tap_until(
+        send_btn,
+        submitted,
+        description="composer cleared or run started after tapping " + send_btn,
+        retry_interval=TAP_RETRY_COOLDOWN_SECONDS,
+    )
+
+
 def run(args):
     source = args.source.resolve()
     check_source(source, PINNED_REVISION)
@@ -476,7 +501,7 @@ def run(args):
         )
         if ui.controls.send("text", label=composer_hint, value=args.prompt) != b"applied":
             raise AssertionError("Could not type the request in the public composer")
-        ui.tap(s["thread_send"])
+        send_composer_message(ui, args.prompt)
         run_id, session_id, reply = eventually("completed Hermes run", lambda: completed(gateway), timeout=800 if args.provider_url else 90)
         def canonical_exchange():
             rows = gateway.request(f"/api/sessions/{session_id}/messages?order=latest&limit=10")["data"]

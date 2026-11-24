@@ -1,6 +1,6 @@
 # Zero-root ambient intelligence
 
-{{ project }} includes an optional, zero-root **Ambient intelligence** panel under **Activity** that lets Hermes help with selected third-party notifications, media playback, and opt-in device context—while staying **fail-closed and completely OFF by default**.
+{{ project }} includes an optional, zero-root **Ambient context** panel under **Settings → Ambient context** that lets Hermes help with selected third-party notifications, media playback, and opt-in device context—while staying **fail-closed and completely OFF by default**.
 
 ## Opt-in and privacy boundaries
 
@@ -18,7 +18,7 @@
 
 Each sanitized entry in your profile’s live digest offers explicit, user-confirmed actions:
 - **Summarize in discussions:** Stage a prompt in your active discussion composer (never auto-sent).
-- **Save to smart notes:** Turn an important message into a structured note in the Brain tab.
+- **Save to smart notes:** Turn an important message into a structured note in **Notes & tasks**.
 - **Add to calendar:** Open Android’s calendar editor pre-filled with the event details for review.
 - **Reviewed quick-reply:** Draft a reply with Hermes, inspect the exact outgoing text in a confirmation dialog, and explicitly approve before Android invokes the notification’s `RemoteInput` action.
 - **Dismiss:** Remove the entry from the local digest buffer.

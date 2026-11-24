@@ -79,6 +79,13 @@ class HardcodedUiStringsGuardTest(unittest.TestCase):
                         else setText("Bypassed after else");
                         return setTitle("Bypassed after return");
                     }
+                    void osSurfaces(android.widget.RemoteViews rv, android.content.pm.ShortcutInfo.Builder sb, android.service.quicksettings.Tile tile) {
+                        rv.setTextViewText(1, "Widget title text");
+                        sb.setShortLabel("Quick Ask");
+                        sb.setLongLabel("Open Hermes quickly");
+                        tile.setLabel("Hermes Tile");
+                        new NotificationChannel("ch_id", "Live updates", 3);
+                    }
                 }
                 """,
             )
@@ -98,6 +105,11 @@ class HardcodedUiStringsGuardTest(unittest.TestCase):
                 "Primary label",
                 "Bypassed after else",
                 "Bypassed after return",
+                "Widget title text",
+                "Quick Ask",
+                "Open Hermes quickly",
+                "Hermes Tile",
+                "Live updates",
             ]
             for snippet in expected_snippets:
                 self.assertTrue(any(snippet in i for i in issues), f"Missing finding for {snippet!r}: {issues}")
@@ -172,9 +184,9 @@ class HardcodedUiStringsGuardTest(unittest.TestCase):
                     </plurals>
                     <plurals name="files">
                         <item quantity="one">%1$d file</item>
-                        <item quantity="other">%1$d files</item>
+                        <item quantity="other"> %1$d files</item>
                     </plurals>
-                    <string-array name="modes"><item>A</item></string-array>
+                    <string-array name="modes"><item>A </item></string-array>
                 </resources>""",
             )
             issues = guard.check_xml_parity(root)
@@ -182,6 +194,8 @@ class HardcodedUiStringsGuardTest(unittest.TestCase):
             self.assertTrue(any("missing <string name='only_fr'>" in i for i in issues), issues)
             self.assertTrue(any("missing <string name='only_en'>" in i for i in issues), issues)
             self.assertTrue(any("unquoted leading/trailing whitespace" in i and "padded" in i for i in issues), issues)
+            self.assertTrue(any("<plurals name='files' quantity='other'> has unquoted leading/trailing whitespace" in i for i in issues), issues)
+            self.assertTrue(any("<string-array name='modes'> item[0] has unquoted leading/trailing whitespace" in i for i in issues), issues)
             self.assertTrue(any("translatable=\"false\"" in i and "cfg" in i for i in issues), issues)
             self.assertTrue(any("missing <plurals name='items'>" in i for i in issues), issues)
             self.assertTrue(any("string-array name='modes'" in i for i in issues), issues)

@@ -88,6 +88,20 @@
           "oklch(95% 0.0008 95.1)"
         ]
       },
+      "surface-container": {
+        "role": "neutral",
+        "displayName": "Tonal surface container",
+        "tonalRamp": [
+          "oklch(15% 0.0052 95.0)",
+          "oklch(27% 0.0086 95.0)",
+          "oklch(38% 0.0106 95.0)",
+          "oklch(50% 0.0114 95.0)",
+          "oklch(62% 0.0106 95.0)",
+          "oklch(74% 0.0083 95.0)",
+          "oklch(85% 0.0052 95.0)",
+          "oklch(95% 0.0018 95.0)"
+        ]
+      },
       "ink": {
         "role": "neutral",
         "displayName": "Green-black ink",
@@ -214,6 +228,20 @@
           "oklch(95% 0.0030 167.4)"
         ]
       },
+      "surface-container-night": {
+        "role": "neutral",
+        "displayName": "Dark tonal surface container",
+        "tonalRamp": [
+          "oklch(15% 0.0108 164.0)",
+          "oklch(27% 0.0178 164.0)",
+          "oklch(38% 0.0221 164.0)",
+          "oklch(50% 0.0238 164.0)",
+          "oklch(62% 0.0221 164.0)",
+          "oklch(74% 0.0173 164.0)",
+          "oklch(85% 0.0108 164.0)",
+          "oklch(95% 0.0037 164.0)"
+        ]
+      },
       "ink-night": {
         "role": "neutral",
         "displayName": "Warm white ink",
@@ -262,6 +290,10 @@
         "displayName": "Panel title",
         "purpose": "Names a full-screen panel."
       },
+      "starter-title": {
+        "displayName": "Starter heading",
+        "purpose": "Welcomes the person to an empty discussion before the first turn."
+      },
       "toolbar-title": {
         "displayName": "Top bar title",
         "purpose": "Identifies the current discussion or workspace page."
@@ -303,6 +335,10 @@
       {
         "name": "Side-by-side thread tool",
         "value": "640px"
+      },
+      {
+        "name": "Tablet navigation rail and two-pane discussions",
+        "value": "720px"
       }
     ]
   },
@@ -313,7 +349,7 @@
       "refersTo": "profile-submit",
       "description": "A filled action submits the profile form.",
       "html": "<button class=\"ds-profile\" lang=\"fr\">Déverrouiller</button>",
-      "css": ".ds-profile {font:500 14px Roboto, sans-serif;min-height:48px;border:0;cursor:pointer;} .ds-profile:hover {filter:brightness(.96);} .ds-profile:active {filter:brightness(.9);} .ds-profile:focus-visible {outline:2px solid #1B5E50;outline-offset:2px;} .ds-profile {width:100%;background:#1B5E50;color:#FFFFFF;padding:12px 16px;border-radius:12px;}"
+      "css": ".ds-profile {font:500 14px Roboto, sans-serif;min-height:48px;border:0;cursor:pointer;} .ds-profile:hover {filter:brightness(.96);} .ds-profile:active {filter:brightness(.9);} .ds-profile:focus-visible {outline:2px solid #1B5E50;outline-offset:2px;} .ds-profile {width:100%;background:#1B5E50;color:#FFFFFF;padding:12px 16px;border-radius:14px;}"
     },
     {
       "name": "Text action",
@@ -321,7 +357,7 @@
       "refersTo": "text-action",
       "description": "The common borderless action, shown here in the statistics panel.",
       "html": "<button class=\"ds-text\" lang=\"fr\">Actualiser</button>",
-      "css": ".ds-text {font:500 14px Roboto, sans-serif;min-height:48px;border:0;cursor:pointer;} .ds-text:hover {filter:brightness(.96);} .ds-text:active {filter:brightness(.9);} .ds-text:focus-visible {outline:2px solid #1B5E50;outline-offset:2px;} .ds-text {background:transparent;color:#1B5E50;padding:0 12px;border-radius:12px;} .ds-text:hover,.ds-text:active {background:#F6F4EE;}"
+      "css": ".ds-text {font:500 14px Roboto, sans-serif;min-height:48px;border:0;cursor:pointer;} .ds-text:hover {filter:brightness(.96);} .ds-text:active {filter:brightness(.9);} .ds-text:focus-visible {outline:2px solid #1B5E50;outline-offset:2px;} .ds-text {background:transparent;color:#1B5E50;padding:0 12px;border-radius:14px;} .ds-text:hover,.ds-text:active {background:#F6F4EE;}"
     },
     {
       "name": "Suggested answer",
@@ -343,7 +379,7 @@
       "name": "Workspace destination",
       "kind": "nav",
       "refersTo": "workspace-link",
-      "description": "The title and chevron belong to one destination in the atelier.",
+      "description": "The title and chevron belong to one destination in the workspace.",
       "html": "<button class=\"ds-link\" lang=\"fr\">Mes écrans<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path fill=\"currentColor\" d=\"M9,5l7,7l-7,7l-1.4,-1.4l5.6,-5.6l-5.6,-5.6z\"/></svg></button>",
       "css": ".ds-link {font:500 14px Roboto, sans-serif;min-height:48px;border:0;cursor:pointer;} .ds-link:hover {filter:brightness(.96);} .ds-link:active {filter:brightness(.9);} .ds-link:focus-visible {outline:2px solid #1B5E50;outline-offset:2px;} .ds-link {width:100%;min-height:53px;display:flex;align-items:center;justify-content:space-between;padding:0;background:#F6F4EE;color:#14231E;border-bottom:1px solid #D2D7CE;font-size:16px;font-weight:400;} .ds-link svg {width:18px;height:18px;}"
     },
@@ -382,7 +418,7 @@
   ],
   "narrative": {
     "northStar": "A paper workspace for conversation",
-    "overview": "The conversation reads down one margin. A small speaker name introduces each turn, and a pending question stands out against the paper as a bordered surface. The person can answer where the question appears and still see the message composer below.\n\nThe same paper, ink and teal carry through to the atelier. A person can ask Hermes for a review form, try it in the conversation that produced it and pin it there for later. Its fields prepare an editable message. Technical views make their units, scope and available actions legible in the user's language (English or French).",
+    "overview": "The conversation reads down one margin. A small speaker name introduces each turn, and a pending question stands out against the paper as a bordered surface. The person can answer where the question appears and still see the message composer below.\n\nThe same paper, ink and teal carry through to every workspace screen and tool. A person can ask Hermes for a review form, try it in the conversation that produced it and pin it there for later. Its fields prepare an editable message. Technical views make their units, scope and available actions legible in the user's language (English or French).",
     "keyCharacteristics": [
       "One reading column for speakers, messages and decisions.",
       "A quiet teal action color shared by text buttons, choices and the microphone.",

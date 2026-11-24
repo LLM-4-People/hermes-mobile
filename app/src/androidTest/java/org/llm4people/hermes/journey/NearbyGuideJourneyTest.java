@@ -74,10 +74,12 @@ public final class NearbyGuideJourneyTest extends InstrumentationTestCase {
                 ui.see("Mae Sri Thai");
                 ui.tap("Mae Sri Thai");
                 ui.see("224 Milton Street");
-                ui.tap(activity.getString(R.string.places_guide_compare));
+                ui.tapUntil(activity.getString(R.string.places_guide_compare),
+                        activity.getString(R.string.places_compare_with, "Mae Sri Thai"));
                 ui.tap("Tiamo · " + activity.getString(R.string.places_distance_meters, "222"));
                 ui.see(distanceGap8m);
-                ui.tap(activity.getString(R.string.places_guide_cuisine));
+                ui.tapUntil(activity.getString(R.string.places_guide_cuisine),
+                        activity.getString(R.string.places_choose_cuisine));
                 ui.tap(activity.getString(R.string.places_cuisine_asian));
                 String oneOfThree = activity.getString(R.string.places_guide_count_of,
                         activity.getResources().getQuantityString(R.plurals.places_guide_count, 1, 1), 3);

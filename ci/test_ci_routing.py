@@ -37,7 +37,6 @@ class CiRoutingTest(unittest.TestCase):
             "ci/check_pages.py",
             ".github/workflows/auto-release.yml",
             ".github/release.yml",
-            ".github/labeler.yml",
         ]
         for event in ("pull_request", "merge_group"):
             with self.subTest(event=event):

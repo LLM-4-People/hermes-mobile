@@ -67,10 +67,10 @@
         <nav class="docs-nav">
           <a href="#quickstart" class="is-active">Quickstart and signed APK</a>
           <a href="#multi-profile">QR pairing and multi-profile</a>
-          <a href="#palette-templates">Command palette and templates</a>
+          <a href="#palette-templates">Universal search and templates</a>
           <a href="#connection-doctor">Live connection doctor</a>
           <a href="#concurrency">Concurrent tasks and performance</a>
-          <a href="#brain-sharing">Brain studio and sharing</a>
+          <a href="#brain-sharing">Notes, inline sharing, and tools</a>
           <a href="#live-ui">Live UI and home widgets</a>
           <a href="#security">Security, Landlock, and push</a>
           <a href="#build">Build and verify locally</a>

@@ -29,9 +29,10 @@ def apk_certificate(tools, apk):
     return fingerprints[0].lower()
 
 
+_SEMVER_PRE_ID = r"(?:0|[1-9][0-9]*|(?:[0-9]*[A-Za-z][0-9A-Za-z]*|[0-9]+-[0-9A-Za-z]+)(?:-[0-9A-Za-z]+)*)"
 SEMVER_PATTERN = re.compile(
-    r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)"
-    r"(?:-[0-9A-Za-z]+(?:-[0-9A-Za-z]+)*(?:\.[0-9A-Za-z]+(?:-[0-9A-Za-z]+)*)*)?"
+    rf"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)"
+    rf"(?:-{_SEMVER_PRE_ID}(?:\.{_SEMVER_PRE_ID})*)?"
 )
 
 
