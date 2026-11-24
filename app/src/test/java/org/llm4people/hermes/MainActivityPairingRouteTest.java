@@ -72,4 +72,92 @@ public final class MainActivityPairingRouteTest {
         }
         assertTrue("Expected .MainActivity in AndroidManifest.xml", foundMain);
     }
+
+    @Test
+    public void clearCompetingWarmIntentsClearsAllCompetingSlotsAcrossEveryTransition() {
+        class PendingSlots {
+            boolean pairing = true;
+            boolean delivery = true;
+            boolean osEntry = true;
+            boolean pinnedShortcut = true;
+            boolean sharedText = true;
+            boolean sharedMedia = true;
+
+            void accept(MainActivity.WarmIntentKind kind) {
+                MainActivity.clearCompetingWarmIntents(
+                        kind,
+                        () -> pairing = false,
+                        () -> delivery = false,
+                        () -> osEntry = false,
+                        () -> pinnedShortcut = false,
+                        () -> sharedText = false,
+                        () -> sharedMedia = false);
+            }
+        }
+
+        // text -> media: sharedText and all other pending intents cleared; sharedMedia preserved.
+        PendingSlots textToMedia = new PendingSlots();
+        textToMedia.accept(MainActivity.WarmIntentKind.SHARED_MEDIA);
+        assertFalse(textToMedia.sharedText);
+        assertTrue(textToMedia.sharedMedia);
+        assertFalse(textToMedia.pairing);
+        assertFalse(textToMedia.delivery);
+        assertFalse(textToMedia.osEntry);
+        assertFalse(textToMedia.pinnedShortcut);
+
+        // media -> text: sharedMedia and all other pending intents cleared; sharedText preserved.
+        PendingSlots mediaToText = new PendingSlots();
+        mediaToText.accept(MainActivity.WarmIntentKind.SHARED_TEXT);
+        assertTrue(mediaToText.sharedText);
+        assertFalse(mediaToText.sharedMedia);
+        assertFalse(mediaToText.pairing);
+        assertFalse(mediaToText.delivery);
+        assertFalse(mediaToText.osEntry);
+        assertFalse(mediaToText.pinnedShortcut);
+
+        // share/delivery -> pairing: all competing intents cleared; pairing preserved.
+        PendingSlots toPairing = new PendingSlots();
+        toPairing.accept(MainActivity.WarmIntentKind.PAIRING);
+        assertTrue(toPairing.pairing);
+        assertFalse(toPairing.delivery);
+        assertFalse(toPairing.osEntry);
+        assertFalse(toPairing.pinnedShortcut);
+        assertFalse(toPairing.sharedText);
+        assertFalse(toPairing.sharedMedia);
+
+        // delivery/share -> widget/shortcut (OS_ENTRY and PINNED_SHORTCUT).
+        PendingSlots toOsEntry = new PendingSlots();
+        toOsEntry.accept(MainActivity.WarmIntentKind.OS_ENTRY);
+        assertTrue(toOsEntry.osEntry);
+        assertFalse(toOsEntry.pinnedShortcut);
+        assertFalse(toOsEntry.delivery);
+        assertFalse(toOsEntry.pairing);
+        assertFalse(toOsEntry.sharedText);
+        assertFalse(toOsEntry.sharedMedia);
+
+        PendingSlots toPinned = new PendingSlots();
+        toPinned.accept(MainActivity.WarmIntentKind.PINNED_SHORTCUT);
+        assertTrue(toPinned.pinnedShortcut);
+        assertFalse(toPinned.osEntry);
+        assertFalse(toPinned.delivery);
+        assertFalse(toPinned.pairing);
+        assertFalse(toPinned.sharedText);
+        assertFalse(toPinned.sharedMedia);
+
+        // text/media/widget/pairing -> push: all competing intents cleared; delivery preserved.
+        PendingSlots toPush = new PendingSlots();
+        toPush.accept(MainActivity.WarmIntentKind.PUSH_DELIVERY);
+        assertTrue(toPush.delivery);
+        assertFalse(toPush.pairing);
+        assertFalse(toPush.osEntry);
+        assertFalse(toPush.pinnedShortcut);
+        assertFalse(toPush.sharedText);
+        assertFalse(toPush.sharedMedia);
+
+        // Null callbacks are tolerated cleanly; null kind fails closed.
+        MainActivity.clearCompetingWarmIntents(
+                MainActivity.WarmIntentKind.PAIRING, null, null, null, null, null, null);
+        org.junit.Assert.assertThrows(NullPointerException.class, () ->
+                MainActivity.clearCompetingWarmIntents(null, null, null, null, null, null, null));
+    }
 }

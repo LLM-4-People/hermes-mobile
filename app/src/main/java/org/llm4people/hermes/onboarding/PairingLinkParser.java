@@ -27,7 +27,6 @@ public final class PairingLinkParser {
 
     private static final Pattern PAIRING_CODE = Pattern.compile("[A-Za-z0-9._-]{8,160}");
     private static final Pattern TRAILING_PAIR_PATH = Pattern.compile("^(.*?)/(?:pair|invite)/?$", Pattern.CASE_INSENSITIVE);
-    private static final Pattern TRAILING_PROFILE_PATH = Pattern.compile("^(.*)/p/([^/]+)$");
     private static final Pattern URL_TOKEN = Pattern.compile("(?:hermes://[^\\s\"'<>]+|https?://[^\\s\"'<>]+)", Pattern.CASE_INSENSITIVE);
 
     public enum Kind {
@@ -359,18 +358,13 @@ public final class PairingLinkParser {
     private record SplitHost(String baseUrl, String slug) {}
 
     private static SplitHost splitHostAndSlug(String rawHost, String explicitProfile) {
-        String normalized = GatewayAddress.normalize(rawHost);
+        GatewayAddress.Split split = GatewayAddress.split(rawHost);
         String slug = GatewayAddress.normalizeProfileSlug(explicitProfile);
-        URI uri = URI.create(normalized);
-        String path = uri.getRawPath();
-        Matcher trailing = TRAILING_PROFILE_PATH.matcher(path);
-        if (!trailing.matches()) {
-            return new SplitHost(normalized, slug);
+        if (split.profileSlug().isEmpty()) {
+            return new SplitHost(split.baseUrl(), slug);
         }
-        String extracted = GatewayAddress.normalizeProfileSlug(trailing.group(2));
-        String baseWithoutProfile = uri.getScheme() + "://" + uri.getRawAuthority() + trailing.group(1);
-        if (slug.isEmpty() || slug.equalsIgnoreCase(extracted)) {
-            return new SplitHost(baseWithoutProfile, extracted);
+        if (slug.isEmpty() || slug.equalsIgnoreCase(split.profileSlug())) {
+            return new SplitHost(split.baseUrl(), split.profileSlug());
         }
         throw new IllegalArgumentException("Conflicting profile slug in host and parameters");
     }

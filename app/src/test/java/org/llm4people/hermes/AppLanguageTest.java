@@ -129,8 +129,7 @@ public final class AppLanguageTest {
                     while (!server.isClosed()) {
                         try (java.net.Socket s = server.accept()) {
                             java.io.BufferedReader reader = new java.io.BufferedReader(
-                                    new java.io.InputStreamReader(s.getInputStream(),
-                                            java.nio.charset.StandardCharsets.US_ASCII));
+                                    new java.io.InputStreamReader(s.getInputStream(), StandardCharsets.US_ASCII));
                             String headerLine;
                             while ((headerLine = reader.readLine()) != null && !headerLine.isEmpty()) {
                                 // Drain HTTP request line and headers before responding or releasing latch.
@@ -140,7 +139,7 @@ public final class AppLanguageTest {
                                 // First real request: immediate empty 503 response.
                                 java.io.OutputStream out = s.getOutputStream();
                                 out.write("HTTP/1.1 503 Service Unavailable\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
-                                        .getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+                                        .getBytes(StandardCharsets.US_ASCII));
                                 out.flush();
                             } else {
                                 // Second request: hold socket open until revoked.

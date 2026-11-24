@@ -26,7 +26,6 @@ import org.llm4people.hermes.onboarding.OnboardingModels;
 import org.llm4people.hermes.onboarding.PairingLinkParser;
 import org.llm4people.hermes.os.BiometricVault;
 import org.llm4people.hermes.os.LockGracePolicy;
-import java.net.URI;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
@@ -34,8 +33,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /** Local authentication flow. Its owner must discard gateway clients and account references on lock. */
 public final class ProfileGate {
@@ -43,7 +40,6 @@ public final class ProfileGate {
     private static final int TEXT = InputType.TYPE_CLASS_TEXT;
     private static final int SECRET = TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD;
     private static final int PIN_INPUT = InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_VARIATION_PASSWORD;
-    private static final Pattern TRAILING_PROFILE_PATH = Pattern.compile("^(.*)/p/([^/]+)$");
     private static final ExecutorService IO = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "hermes-profile-io");
         t.setDaemon(true);
@@ -262,31 +258,26 @@ public final class ProfileGate {
      * explicit conflicts without silently overwriting a different user-entered slug.
      */
     static SplitEndpoint splitPastedEndpoint(String serverInput, String currentSlug) {
-        String normalizedBase = GatewayAddress.normalize(serverInput);
+        GatewayAddress.Split split = GatewayAddress.split(serverInput);
         String trimmedSlug = currentSlug == null ? "" : currentSlug.trim();
-        URI uri = URI.create(normalizedBase);
-        String origin = uri.getScheme() + "://" + uri.getRawAuthority();
-        String path = uri.getRawPath();
-        Matcher matcher = TRAILING_PROFILE_PATH.matcher(path);
-        if (!matcher.matches()) {
+        if (split.profileSlug().isEmpty()) {
             if (trimmedSlug.isEmpty()) {
-                return new SplitEndpoint(normalizedBase, "", normalizedBase, false, false);
+                return new SplitEndpoint(split.baseUrl(), "", split.baseUrl(), false, false);
             }
             String slug = GatewayAddress.normalizeProfileSlug(trimmedSlug);
-            String composed = GatewayAddress.normalize(normalizedBase, slug);
-            return new SplitEndpoint(normalizedBase, slug, composed, false, false);
+            String composed = GatewayAddress.normalize(split.baseUrl(), slug);
+            return new SplitEndpoint(split.baseUrl(), slug, composed, false, false);
         }
-        String rawExtracted = matcher.group(2);
-        String extractedSlug = GatewayAddress.normalizeProfileSlug(rawExtracted);
-        String baseWithoutProfile = origin + matcher.group(1);
-        String composed = origin + matcher.group(1) + "/p/" + extractedSlug;
+        String extractedSlug = split.profileSlug();
+        String composed = split.baseUrl() + "/p/" + extractedSlug;
         if (trimmedSlug.isEmpty()) {
-            return new SplitEndpoint(baseWithoutProfile, extractedSlug, composed, true, false);
+            return new SplitEndpoint(split.baseUrl(), extractedSlug, composed, true, false);
         }
         String normalizedCurrent = GatewayAddress.normalizeProfileSlug(trimmedSlug);
         if (normalizedCurrent.equalsIgnoreCase(extractedSlug)) {
-            return new SplitEndpoint(baseWithoutProfile, extractedSlug, composed, true, false);
+            return new SplitEndpoint(split.baseUrl(), extractedSlug, composed, true, false);
         }
+        String normalizedBase = GatewayAddress.normalize(serverInput);
         return new SplitEndpoint(normalizedBase, normalizedCurrent, "", false, true);
     }
 
@@ -943,10 +934,12 @@ public final class ProfileGate {
 
     /**
      * Executes a two-phase lock-mode transition: prepares the slow PBKDF2-resealed envelope before
-     * modifying persisted lock mode, then commits lock mode and envelope back-to-back with rollback on failure.
+     * modifying persisted lock mode, re-checks eligibility immediately before mutating mode, then
+     * commits lock mode and envelope back-to-back with rollback on failure.
      */
     static boolean commitLockModeTransition(
             ThrowingSupplier<String> prepareEnvelope,
+            BooleanSupplier stillEligible,
             BooleanSupplier commitMode,
             ThrowingConsumer<String> commitEnvelope,
             Runnable rollbackMode,
@@ -956,6 +949,9 @@ public final class ProfileGate {
         boolean modeCommitted = false;
         try {
             String resealed = prepareEnvelope.get();
+            if (stillEligible != null && !stillEligible.getAsBoolean()) {
+                throw new java.io.IOException("Profile no longer active");
+            }
             if (!commitMode.getAsBoolean()) {
                 throw new java.io.IOException("Lock mode commit failed");
             }
@@ -970,6 +966,18 @@ public final class ProfileGate {
             }
             if (onRollback != null) onRollback.run();
             return false;
+        }
+    }
+
+    /** Restores previous lock mode only if the profile still exists; otherwise removes any orphaned mode entry. */
+    static void rollbackPersistedMode(
+            BooleanSupplier profileStillExists,
+            Runnable restorePreviousMode,
+            Runnable forgetMode) {
+        if (profileStillExists != null && profileStillExists.getAsBoolean()) {
+            if (restorePreviousMode != null) restorePreviousMode.run();
+        } else if (forgetMode != null) {
+            forgetMode.run();
         }
     }
 
@@ -999,9 +1007,13 @@ public final class ProfileGate {
                         try {
                             ok = commitLockModeTransition(
                                     () -> store.prepareLockSecret(unlocked, generated),
+                                    () -> unlocked.unlocked() && store.contains(unlocked.id),
                                     () -> ProfileLockPolicy.setMode(activity, unlocked.id, ProfileLockPolicy.Mode.BIOMETRIC),
                                     resealed -> store.commitLockSecret(unlocked, resealed),
-                                    () -> ProfileLockPolicy.setMode(activity, unlocked.id, previousMode),
+                                    () -> rollbackPersistedMode(
+                                            () -> store.contains(unlocked.id),
+                                            () -> ProfileLockPolicy.setMode(activity, unlocked.id, previousMode),
+                                            () -> ProfileLockPolicy.forget(activity, unlocked.id)),
                                     null,
                                     shouldRevokeBiometricOnBiometricRollback(previousMode)
                                             ? () -> BiometricVault.revoke(activity, unlocked.id) : null,
@@ -1046,9 +1058,13 @@ public final class ProfileGate {
             try {
                 ok = commitLockModeTransition(
                         () -> store.prepareLockSecret(unlocked, nextSecret),
+                        () -> unlocked.unlocked() && store.contains(unlocked.id),
                         () -> ProfileLockPolicy.setMode(activity, unlocked.id, nextMode),
                         resealed -> store.commitLockSecret(unlocked, resealed),
-                        () -> ProfileLockPolicy.setMode(activity, unlocked.id, previousMode),
+                        () -> rollbackPersistedMode(
+                                () -> store.contains(unlocked.id),
+                                () -> ProfileLockPolicy.setMode(activity, unlocked.id, previousMode),
+                                () -> ProfileLockPolicy.forget(activity, unlocked.id)),
                         ProfileLockPolicy.shouldRevokeBiometricOnModeChange(previousMode, nextMode)
                                 ? () -> BiometricVault.revoke(activity, unlocked.id) : null,
                         null,

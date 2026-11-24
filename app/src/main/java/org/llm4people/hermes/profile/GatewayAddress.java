@@ -11,7 +11,27 @@ public final class GatewayAddress {
     private static final Pattern PROFILE_SLUG = Pattern.compile("[a-z0-9](?:[a-z0-9_-]{0,30}[a-z0-9])?");
     private static final Pattern TRAILING_PROFILE = Pattern.compile("^(.*)/p/([^/]+)$");
 
+    /** Split representation of a normalized gateway endpoint into its base server URL and optional profile slug. */
+    public record Split(String baseUrl, String profileSlug) {}
+
     private GatewayAddress() {}
+
+    /**
+     * Normalize a gateway URL and split any trailing {@code /p/<profile>} segment into
+     * {@code (baseUrl, profileSlug)}. When no trailing profile segment is present, {@code profileSlug} is {@code ""}.
+     */
+    public static Split split(String input) {
+        String normalized = normalize(input);
+        URI uri = URI.create(normalized);
+        String path = uri.getRawPath();
+        Matcher existing = TRAILING_PROFILE.matcher(path);
+        if (!existing.matches()) {
+            return new Split(normalized, "");
+        }
+        String slug = normalizeProfileSlug(existing.group(2));
+        String baseWithoutProfile = uri.getScheme() + "://" + uri.getRawAuthority() + existing.group(1);
+        return new Split(baseWithoutProfile, slug);
+    }
 
     /** Normalize a direct gateway base URL (with optional {@code /p/<profile>} path prefix). */
     public static String normalize(String input) {
