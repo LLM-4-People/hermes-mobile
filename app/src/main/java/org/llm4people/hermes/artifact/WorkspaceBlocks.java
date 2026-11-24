@@ -87,7 +87,7 @@ final class WorkspaceBlocks {
                     }
                     break;
                 case "form":
-                    WorkspaceForms.mount(group, block, activity, host);
+                    WorkspaceForms.mount(group, block, colors, activity, host);
                     break;
                 case "metric_grid":
                     if (!block.note.isEmpty()) {

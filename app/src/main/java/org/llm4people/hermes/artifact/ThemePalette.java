@@ -413,13 +413,14 @@ public final class ThemePalette {
     }
 
     /**
-     * Text contrast for a surface/ink override. With theme="system" a single color is paired with the
-     * counterpart that {@link #resolve} will actually use in either mode, so validation never depends on the
-     * mode at apply time and a persisted override cannot become "corrupted" after a day/night switch.
+     * Text contrast for a surface/ink override. When only {@code surfaceHex} is specified, pairs it with
+     * {@link #bestInk(int)} to match {@link #resolve(OverrideSpec, boolean)} regardless of theme mode;
+     * with {@code theme="system"} and {@code inkHex} only, validates against either default surface so
+     * a persisted override cannot become unreadable across day/night switches.
      */
     private static double textContrast(String surfaceHex, String inkHex, int effSurface, int effInk, boolean system) {
         if (surfaceHex != null && inkHex != null) return contrastRatio(effInk, effSurface);
-        if (system && surfaceHex != null) return contrastRatio(bestInk(effSurface), effSurface);
+        if (surfaceHex != null) return contrastRatio(bestInk(effSurface), effSurface);
         if (system) return Math.max(contrastRatio(effInk, DAY_SURFACE), contrastRatio(effInk, NIGHT_SURFACE));
         return contrastRatio(effInk, effSurface);
     }

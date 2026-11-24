@@ -27,11 +27,19 @@ import org.llm4people.hermes.VisibleText;
 
 final class WorkspaceForms {
     static void mount(LinearLayout group, WorkspaceLayout.Block form, Activity activity, ArtifactDesk.Host host) {
+        mount(group, form, null, activity, host);
+    }
+
+    static void mount(LinearLayout group, WorkspaceLayout.Block form, ThemePalette palette,
+                      Activity activity, ArtifactDesk.Host host) {
         Context c = group.getContext();
+        ThemePalette colors = palette == null
+                ? ThemePalette.resolve(ThemePalette.OverrideSpec.defaults(), ThemePalette.isNight(c))
+                : palette;
         Map<String,Supplier<String>> answers = new LinkedHashMap<>();
         Map<String,View> controls = new LinkedHashMap<>();
-        TextView prompt = Ui.text(c, form.prompt, 16);
-        prompt.setTextColor(c.getColor(R.color.muted));
+        TextView prompt = Ui.text(c, form.prompt, colors.scaledSp(16));
+        prompt.setTextColor(colors.muted);
         prompt.setPadding(0, Ui.dp(c, 3), 0, 0);
         group.addView(prompt);
         group.setSaveFromParentEnabled(false);
@@ -39,15 +47,16 @@ final class WorkspaceForms {
         for (DraftForm.Field field : form.fields) {
             String fieldTitle = field.required
                     ? field.label : c.getString(R.string.ws_form_optional_suffix, field.label);
-            TextView label = Ui.text(c, fieldTitle, 15);
+            TextView label = Ui.text(c, fieldTitle, colors.scaledSp(15));
             label.setTypeface(Ui.mediumTypeface());
+            label.setTextColor(colors.ink);
             label.setPadding(0, Ui.dp(c, 10), 0, Ui.dp(c, 4));
             group.addView(label);
             if (host == null) {
                 String hint = "choice".equals(field.kind)
                         ? String.join(" · ", field.options) : c.getString(R.string.ws_form_your_answer);
-                TextView sample = Ui.text(c, hint, 16);
-                sample.setTextColor(c.getColor(R.color.muted));
+                TextView sample = Ui.text(c, hint, colors.scaledSp(16));
+                sample.setTextColor(colors.muted);
                 group.addView(sample);
                 continue;
             }
@@ -64,7 +73,7 @@ final class WorkspaceForms {
                 answers.put(field.id, () -> choice.getSelectedItemPosition() > 0 ? (String)choice.getSelectedItem() : "");
                 control = choice;
             } else {
-                EditText input = editor(c, "multiline".equals(field.kind), DraftForm.MAX_INPUT);
+                EditText input = editor(c, "multiline".equals(field.kind), DraftForm.MAX_INPUT, colors);
                 answers.put(field.id, () -> input.getText().toString());
                 control = input;
             }
@@ -75,9 +84,9 @@ final class WorkspaceForms {
             controls.put(field.id,control);
         }
         if (host == null) return;
-        TextView error = Ui.text(c,"",15);
+        TextView error = Ui.text(c,"",colors.scaledSp(15));
         error.setVisibility(View.GONE);
-        error.setTextColor(c.getColor(R.color.danger));
+        error.setTextColor(colors.danger);
         error.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         group.addView(error);
         Button prepare = Ui.button(c, c.getString(R.string.ws_form_prepare_draft), v -> {
@@ -94,10 +103,11 @@ final class WorkspaceForms {
             }
         });
         prepare.setSingleLine(false);
+        prepare.setTextColor(colors.accent);
         GradientDrawable fill = new GradientDrawable();
-        fill.setColor(c.getColor(R.color.accent_surface));
+        fill.setColor(colors.accentSurface);
         fill.setCornerRadius(Ui.dp(c, 8));
-        prepare.setBackground(new RippleDrawable(ColorStateList.valueOf(c.getColor(R.color.line)), fill, null));
+        prepare.setBackground(new RippleDrawable(ColorStateList.valueOf(colors.line), fill, null));
         Ui.pad(prepare, 16, 8);
         LinearLayout.LayoutParams place = new LinearLayout.LayoutParams(-2, -2);
         place.topMargin = Ui.dp(c, 8);
@@ -105,17 +115,31 @@ final class WorkspaceForms {
     }
 
     static EditText editor(Context c, boolean multiline, int limit) {
+        return editor(c, multiline, limit, null);
+    }
+
+    static EditText editor(Context c, boolean multiline, int limit, ThemePalette colors) {
         EditText text = new EditText(c);
         text.setSingleLine(!multiline);
         int kind = InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS;
         if (multiline) kind |= InputType.TYPE_TEXT_FLAG_MULTI_LINE;
         text.setInputType(kind);
         text.setMinHeight(Ui.dp(c,48));
-        text.setBackgroundResource(R.drawable.profile_input);
-        text.setBackgroundTintList(null);
+        if (colors != null) {
+            GradientDrawable bg = new GradientDrawable();
+            bg.setCornerRadius(Ui.dp(c, Ui.BUTTON_CORNER_DP));
+            bg.setColor(colors.surface);
+            bg.setStroke(Math.max(1, Ui.dp(c, 1)), colors.line);
+            text.setBackground(bg);
+            text.setTextColor(colors.ink);
+            text.setHintTextColor(colors.muted);
+        } else {
+            text.setBackgroundResource(R.drawable.profile_input);
+            text.setBackgroundTintList(null);
+            text.setTextColor(c.getColor(R.color.ink));
+        }
         Ui.pad(text,12,9);
         text.setMaxLines(multiline ? 8 : 1);
-        text.setTextColor(c.getColor(R.color.ink));
         text.setImeOptions(EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING | EditorInfo.IME_FLAG_NO_EXTRACT_UI);
         text.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS);
         text.setSaveEnabled(false);

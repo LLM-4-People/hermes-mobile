@@ -333,6 +333,9 @@ public final class InteractiveControlsBlock {
         group.addView(header);
 
         SeekBar seek = new SeekBar(c);
+        int touchMin = Ui.dp(c, 48);
+        seek.setMinimumHeight(touchMin);
+        seek.setPaddingRelative(seek.getPaddingStart(), Ui.dp(c, 12), seek.getPaddingEnd(), Ui.dp(c, 12));
         seek.setMax(steps);
         seek.setProgress(initialProgress);
         seek.setEnabled(interactive);
@@ -363,7 +366,7 @@ public final class InteractiveControlsBlock {
                 }
             });
         }
-        group.addView(seek);
+        group.addView(seek, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, touchMin));
         if (!ctrl.description.isEmpty()) addHint(group, ctrl.description, colors);
     }
 

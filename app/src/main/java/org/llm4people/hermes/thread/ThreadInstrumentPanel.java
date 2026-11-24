@@ -16,6 +16,7 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.artifact.ArtifactDesk;
@@ -88,8 +89,15 @@ final class ThreadInstrumentPanel {
     private void readState() {
         damaged = null;
         try { state = store.state(); }
-        catch (ThreadInstruments.Damaged broken) { state = null; damaged = broken; }
-        catch (IllegalStateException unreadable) { state = null; }
+        catch (ThreadInstruments.Damaged broken) {
+            Diagnostics.warning("instrument", "state_damaged", broken);
+            state = null;
+            damaged = broken;
+        }
+        catch (IllegalStateException unreadable) {
+            Diagnostics.warning("instrument", "state_unreadable", unreadable);
+            state = null;
+        }
         dock();
     }
 
@@ -99,7 +107,10 @@ final class ThreadInstrumentPanel {
             for (Pin pin : store.proposals(rows)) {
                 byMessage.computeIfAbsent(pin.messageId, ignored -> new ArrayList<>()).add(pin);
             }
-        } catch (IllegalStateException unavailable) { readState(); }
+        } catch (IllegalStateException unavailable) {
+            Diagnostics.warning("instrument", "proposals_read_failed", unavailable);
+            readState();
+        }
         places.reconcile();
         if (displayed != null && !displayed.sameSource(pinned()) && !present(displayed)) {
             close();
@@ -112,7 +123,11 @@ final class ThreadInstrumentPanel {
         // Reparse the admitted row and match its exact source bytes and segment to the current transcript.
         List<Pin> verified;
         try { verified = store.proposals(new JSONArray().put(verifiedRow)); }
-        catch (IllegalStateException unreadable) { readState(); return; }
+        catch (IllegalStateException unreadable) {
+            Diagnostics.warning("instrument", "admitted_guide_read_failed", unreadable);
+            readState();
+            return;
+        }
         for (Pin source : verified) {
             if (source.nearbyPlaces && present(source)) { places.admitted(runId, source, approvedArea); return; }
         }
@@ -393,7 +408,11 @@ final class ThreadInstrumentPanel {
         try { state = write.get(); }
         catch (ThreadInstruments.Conflict changed) { recover(R.string.instrument_changed); return; }
         catch (IllegalArgumentException gone) { recover(R.string.instrument_no_source); return; }
-        catch (IllegalStateException unavailable) { recover(R.string.instrument_unavailable); return; }
+        catch (IllegalStateException unavailable) {
+            Diagnostics.warning("instrument", "state_mutate_failed", unavailable);
+            recover(R.string.instrument_unavailable);
+            return;
+        }
         if (pinned() == null) close();
         else show(pinned(), false);
         dock();
@@ -409,7 +428,11 @@ final class ThreadInstrumentPanel {
                     if (!current() || !viewport.isShown()) return;
                     try { state = store.recover(expected); }
                     catch (ThreadInstruments.Conflict changed) { recover(R.string.instrument_changed); return; }
-                    catch (IllegalStateException unavailable) { recover(R.string.instrument_unavailable); return; }
+                    catch (IllegalStateException unavailable) {
+                        Diagnostics.warning("instrument", "state_recover_failed", unavailable);
+                        recover(R.string.instrument_unavailable);
+                        return;
+                    }
                     damaged = null;
                     close();
                     discard();

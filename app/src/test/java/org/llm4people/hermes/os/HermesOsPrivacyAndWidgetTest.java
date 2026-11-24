@@ -207,6 +207,17 @@ public class HermesOsPrivacyAndWidgetTest {
             // ok
         }
 
+        // Quick actions render clean labels without Unicode "› " prefix (native drawable is attached in provider).
+        HermesWidgetSpec quickSpec = new HermesWidgetSpec(
+                "quick_nav", "Actions", "", HermesWidgetSpec.Template.QUICK_ACTIONS,
+                Arrays.asList(
+                        new HermesWidgetSpec.Item("Ouvrir", "", "Ouvre le résumé"),
+                        new HermesWidgetSpec.Item("Rappels", "2", "Montre les rappels")),
+                "#1B5E50", true, "profile-a");
+        assertEquals("Ouvrir", quickSpec.formattedItemLine(quickSpec.items.get(0)));
+        assertEquals("Rappels · 2", quickSpec.formattedItemLine(quickSpec.items.get(1)));
+        assertFalse(quickSpec.formattedItemLine(quickSpec.items.get(0)).startsWith("›"));
+
         // HomePinBridge preserves checked boolean cleanly without prepending "✓ ".
         org.llm4people.hermes.artifact.LiveUiPatch.WidgetSpec liveSpec =
                 new org.llm4people.hermes.artifact.LiveUiPatch.WidgetSpec(

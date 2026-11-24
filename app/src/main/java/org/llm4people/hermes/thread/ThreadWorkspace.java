@@ -349,9 +349,12 @@ public final class ThreadWorkspace implements AutoCloseable {
     }
 
     public boolean importCapturedPhoto(ThreadCameraCapture capture, Account owner) {
-        if (closed || capture == null || !capture.isReady() || owner == null || session == null) return false;
+        if (closed || capture == null || owner == null || session == null) return false;
         String targetSession = session;
-        request(() -> capture.consumeIfReady(owner, targetSession), item -> {
+        android.net.Uri slot = capture.claimReadySlot(owner, targetSession);
+        if (slot == null) return false;
+        android.content.Context appContext = activity.getApplicationContext();
+        request(() -> ThreadCameraCapture.readAndDeleteSlot(appContext, slot), item -> {
             if (item != null && targetSession.equals(session)) {
                 attachMedia(Collections.singletonList(item));
             }
@@ -471,6 +474,7 @@ public final class ThreadWorkspace implements AutoCloseable {
         String last;
         try { last = account.read("last-thread"); }
         catch (RuntimeException unavailable) {
+            Diagnostics.warning("threads", "last_thread_read_failed", unavailable);
             inbox(activity.getString(R.string.thread_last_unreadable), null);
             return;
         }
@@ -839,6 +843,7 @@ public final class ThreadWorkspace implements AutoCloseable {
             account.write("last-thread", id);
         }
         catch (RuntimeException unavailable) {
+            Diagnostics.warning("threads", "last_thread_write_failed", unavailable);
             inbox(activity.getString(R.string.thread_selection_save_retry), null);
             return;
         }
@@ -904,6 +909,9 @@ public final class ThreadWorkspace implements AutoCloseable {
         String id = session;
         String target = remoteSession;
         EditText input = new EditText(activity);
+        int touchMin = org.llm4people.hermes.Ui.dp(activity, 48);
+        input.setMinHeight(touchMin);
+        input.setMinimumHeight(touchMin);
         input.setSingleLine();
         input.setSaveEnabled(false);
         input.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO);
@@ -911,7 +919,10 @@ public final class ThreadWorkspace implements AutoCloseable {
                 | android.view.inputmethod.EditorInfo.IME_FLAG_NO_EXTRACT_UI);
         input.setText(title);
         input.selectAll();
-        screen.show(new AlertDialog.Builder(activity).setTitle(R.string.thread_rename_title).setView(input)
+        android.widget.LinearLayout box = org.llm4people.hermes.Ui.column(activity);
+        org.llm4people.hermes.Ui.pad(box, 20, 8);
+        box.addView(input);
+        screen.show(new AlertDialog.Builder(activity).setTitle(R.string.thread_rename_title).setView(box)
                 .setNegativeButton(R.string.ws_cancel, null)
                 .setPositiveButton(R.string.thread_rename_confirm, (d, w) -> {
                     if (closed || !id.equals(session)) return;

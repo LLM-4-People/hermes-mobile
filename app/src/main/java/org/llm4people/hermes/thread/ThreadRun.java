@@ -7,6 +7,7 @@ import android.provider.Settings;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.llm4people.hermes.AppLanguage;
+import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.HermesConfig;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.VisibleText;
@@ -103,6 +104,7 @@ final class ThreadRun {
             if (options == null) throw new IllegalStateException("Missing session settings");
         }
         catch (RuntimeException unreadable) {
+            Diagnostics.warning("threads", "session_options_read_failed", unreadable);
             ui.stopDuplex();
             ui.notice(page.activity.getString(R.string.thread_settings_unreadable), "", null);
             return;

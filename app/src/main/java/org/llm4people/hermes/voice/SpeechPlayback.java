@@ -1,5 +1,7 @@
 package org.llm4people.hermes.voice;
 
+import org.llm4people.hermes.Diagnostics;
+
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -46,6 +48,7 @@ final class SpeechPlayback {
                 else finish(Failure.UNAVAILABLE);
             });
         } catch (RuntimeException unavailable) {
+            Diagnostics.warning("voice", "playback_start_failed", unavailable);
             finish(Failure.UNAVAILABLE);
         }
     }
@@ -59,6 +62,7 @@ final class SpeechPlayback {
                 else next(owner, chunks, index + 1);
             });
         } catch (RuntimeException unavailable) {
+            Diagnostics.warning("voice", "playback_speak_failed", unavailable);
             finish(Failure.INTERRUPTED);
         }
     }

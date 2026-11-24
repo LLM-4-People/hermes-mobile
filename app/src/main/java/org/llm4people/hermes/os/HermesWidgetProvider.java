@@ -175,6 +175,7 @@ public final class HermesWidgetProvider extends AppWidgetProvider {
         views.setOnClickPendingIntent(R.id.widget_dynamic_root,
                 OsEntryIntent.widgetActionPendingIntent(context, safe.widgetId, -1, baseCode));
         boolean checklist = safe.template == HermesWidgetSpec.Template.CHECKLIST;
+        boolean quickActions = safe.template == HermesWidgetSpec.Template.QUICK_ACTIONS;
         for (int i = 0; i < ITEM_VIEW_IDS.length; i++) {
             int viewId = ITEM_VIEW_IDS[i];
             if (i < safe.items.size()) {
@@ -190,6 +191,9 @@ public final class HermesWidgetProvider extends AppWidgetProvider {
                             item.checked() ? R.string.widget_checklist_item_checked_cd
                                     : R.string.widget_checklist_item_unchecked_cd,
                             line));
+                } else if (quickActions) {
+                    views.setTextViewCompoundDrawablesRelative(viewId, 0, 0, R.drawable.ic_navigate_forward, 0);
+                    views.setContentDescription(viewId, line);
                 } else {
                     views.setTextViewCompoundDrawablesRelative(viewId, 0, 0, 0, 0);
                     views.setContentDescription(viewId, line);

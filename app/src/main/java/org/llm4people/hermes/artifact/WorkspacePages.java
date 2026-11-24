@@ -39,7 +39,11 @@ final class WorkspacePages {
         mountCustomTabs(list, a, account, host, palette);
         try {
             Map<String, String> pages = PageLayouts.titles(a, account, false);
-            if (pages.isEmpty()) list.addView(Ui.text(a, a.getString(R.string.ws_pages_empty), 16));
+            if (pages.isEmpty()) {
+                TextView empty = Ui.text(a, a.getString(R.string.ws_pages_empty), palette.scaledSp(16));
+                empty.setTextColor(palette.ink);
+                list.addView(empty);
+            }
             for (Map.Entry<String, String> entry : pages.entrySet()) {
                 Button link = Ui.button(a, entry.getValue(), v -> host.openWorkspace(entry.getKey()));
                 link.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
@@ -49,11 +53,17 @@ final class WorkspacePages {
             }
         } catch (PageLayouts.Damaged damaged) {
             Diagnostics.warning("workspace", "page_index_damaged");
-            list.addView(Ui.text(a, a.getString(R.string.ws_pages_damaged), 16));
-            list.addView(Ui.button(a, a.getString(R.string.ws_pages_repair_action), view -> confirmRecovery(a, damaged, host)));
+            TextView msg = Ui.text(a, a.getString(R.string.ws_pages_damaged), palette.scaledSp(16));
+            msg.setTextColor(palette.ink);
+            list.addView(msg);
+            Button repair = Ui.button(a, a.getString(R.string.ws_pages_repair_action), view -> confirmRecovery(a, damaged, host));
+            repair.setTextColor(palette.accent);
+            list.addView(repair);
         } catch (IllegalStateException error) {
             Diagnostics.warning("workspace", "page_index_unavailable");
-            list.addView(Ui.text(a, a.getString(R.string.ws_pages_unavailable), 16));
+            TextView msg = Ui.text(a, a.getString(R.string.ws_pages_unavailable), palette.scaledSp(16));
+            msg.setTextColor(palette.ink);
+            list.addView(msg);
         }
         return scroll;
     }

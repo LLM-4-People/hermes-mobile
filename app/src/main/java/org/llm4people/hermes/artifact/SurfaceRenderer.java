@@ -134,9 +134,9 @@ final class SurfaceRenderer {
             if (block.nativeContent) zone = after;
             else WorkspaceBlocks.add(zone, layout, block, colors, store, stateScope, activity, host);
         }
-        frame.addRegion(before);
+        frame.addRegion(before, colors.paper);
         frame.addView(nativeContent, new LinearLayout.LayoutParams(-1, 0, 1));
-        if (after.getChildCount() != 0) frame.addRegion(after);
+        if (after.getChildCount() != 0) frame.addRegion(after, colors.paper);
         return frame;
     }
 
@@ -269,9 +269,9 @@ final class SurfaceRenderer {
 
     private static final class SurfaceFrame extends LinearLayout {
         SurfaceFrame(Context context) { super(context); setOrientation(VERTICAL); }
-        void addRegion(LinearLayout content) {
+        void addRegion(LinearLayout content, int backgroundColor) {
             ScrollView scroll = new ScrollView(getContext());
-            scroll.setBackgroundColor(getContext().getColor(R.color.paper));
+            scroll.setBackgroundColor(backgroundColor);
             scroll.addView(content);
             addView(scroll, new LayoutParams(-1, -2));
         }

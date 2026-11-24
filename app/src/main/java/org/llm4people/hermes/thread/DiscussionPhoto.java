@@ -40,9 +40,13 @@ final class DiscussionPhoto {
         return read(resolver, uri, SOURCE_LIMIT);
     }
 
+    static long effectiveSourceLimit(long maxSourceBytes) {
+        return maxSourceBytes > 0 ? maxSourceBytes : SOURCE_LIMIT;
+    }
+
     static DiscussionPhoto read(ContentResolver resolver, Uri uri, long maxSourceBytes) throws IOException {
         if (!ContentResolver.SCHEME_CONTENT.equals(uri.getScheme())) throw new IOException();
-        long limit = HermesConfig.defaults().resolveArtifactLimit(maxSourceBytes);
+        long limit = effectiveSourceLimit(maxSourceBytes);
         byte[] source;
         try (InputStream input = resolver.openInputStream(uri)) {
             if (input == null) throw new IOException();
@@ -63,7 +67,7 @@ final class DiscussionPhoto {
     }
 
     static DiscussionPhoto fromBytes(byte[] source, String name, long maxSourceBytes) throws IOException {
-        long limit = HermesConfig.defaults().resolveArtifactLimit(maxSourceBytes);
+        long limit = effectiveSourceLimit(maxSourceBytes);
         if (source.length == 0 || source.length > limit) throw new IOException("Unsupported image size");
         Bitmap image = ImageDecoder.decodeBitmap(ImageDecoder.createSource(ByteBuffer.wrap(source)), (decoder, details, src) -> {
             int width = details.getSize().getWidth(), height = details.getSize().getHeight();

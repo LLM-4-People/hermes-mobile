@@ -12,6 +12,7 @@ import android.speech.RecognitionSupportCallback;
 import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
 
+import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.HermesConfig;
 
 import java.util.List;
@@ -70,7 +71,10 @@ final class AndroidVoiceModel implements VoiceModel {
             @Override public void onError(int error) {
                 if (error == SpeechRecognizer.ERROR_CANNOT_LISTEN_TO_DOWNLOAD_EVENTS && observer != null) {
                     try { unmonitoredDownload(); }
-                    catch (RuntimeException unavailable) { terminal(State.FAILED); }
+                    catch (RuntimeException unavailable) {
+                        Diagnostics.warning("voice", "model_unmonitored_download_failed", unavailable);
+                        terminal(State.FAILED);
+                    }
                 } else terminal(State.FAILED);
             }
         });
