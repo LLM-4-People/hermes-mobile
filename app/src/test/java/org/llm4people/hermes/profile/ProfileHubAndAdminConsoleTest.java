@@ -1,14 +1,35 @@
 package org.llm4people.hermes.profile;
 
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
+import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.onboarding.OnboardingModels;
 import org.llm4people.hermes.onboarding.PairingShareSheet;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.AbstractExecutorService;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.*;
 
 public final class ProfileHubAndAdminConsoleTest {
+    @Before
+    public void silenceDiagnostics() {
+        Diagnostics.clear();
+        Diagnostics.setSink((level, tag, message) -> {});
+    }
+
+    @After
+    public void restoreDiagnostics() {
+        Diagnostics.clear();
+        Diagnostics.setSink(null);
+    }
     @Test public void avatarInitialsSlugSuggestionAndValidationHandleAccentsAndHostileInput() {
         assertEquals("JD", ProfileHubSheet.avatarInitials("Jean Dupont"));
         assertEquals("A", ProfileHubSheet.avatarInitials("alex"));
@@ -92,5 +113,67 @@ public final class ProfileHubAndAdminConsoleTest {
                 AdminConsoleSheet.resolveUsersLoadState(false, true));
         assertEquals(AdminConsoleSheet.UsersLoadState.ERROR,
                 AdminConsoleSheet.resolveUsersLoadState(false, false));
+    }
+
+    @Test public void postCloseExecutorGuardsPreventRejectedExecutionAcrossSheets() {
+        AtomicInteger runs = new AtomicInteger();
+        ExecutorService direct = new AbstractExecutorService() {
+            private volatile boolean shutdown;
+            @Override public void shutdown() { shutdown = true; }
+            @Override public List<Runnable> shutdownNow() { shutdown = true; return Collections.emptyList(); }
+            @Override public boolean isShutdown() { return shutdown; }
+            @Override public boolean isTerminated() { return shutdown; }
+            @Override public boolean awaitTermination(long timeout, TimeUnit unit) { return true; }
+            @Override public void execute(Runnable command) {
+                if (shutdown) throw new RejectedExecutionException("shutdown");
+                command.run();
+            }
+        };
+
+        // Live open sheet submits cleanly.
+        assertTrue(AdminConsoleSheet.submitTask(false, direct, runs::incrementAndGet, "admin"));
+        assertTrue(PairingShareSheet.submitRevoke(false, direct, runs::incrementAndGet));
+        assertEquals(2, runs.get());
+
+        // Closed flag or null args fail closed without touching executor.
+        assertFalse(AdminConsoleSheet.submitTask(true, direct, runs::incrementAndGet, "admin"));
+        assertFalse(AdminConsoleSheet.submitTask(false, null, runs::incrementAndGet, "profile_hub"));
+        assertFalse(AdminConsoleSheet.submitTask(false, direct, null, "admin"));
+        assertFalse(PairingShareSheet.submitRevoke(true, direct, runs::incrementAndGet));
+        assertFalse(PairingShareSheet.submitRevoke(false, null, runs::incrementAndGet));
+        assertFalse(PairingShareSheet.submitRevoke(false, direct, null));
+        assertEquals(2, runs.get());
+
+        // Post-shutdown executor returns false cleanly without throwing RejectedExecutionException.
+        direct.shutdownNow();
+        assertFalse(AdminConsoleSheet.submitTask(false, direct, runs::incrementAndGet, "admin"));
+        assertFalse(AdminConsoleSheet.submitTask(false, direct, runs::incrementAndGet, "profile_hub"));
+        assertFalse(PairingShareSheet.submitRevoke(false, direct, runs::incrementAndGet));
+
+        ExecutorService realPool = Executors.newSingleThreadExecutor();
+        realPool.shutdownNow();
+        assertFalse(AdminConsoleSheet.submitTask(false, realPool, runs::incrementAndGet, "admin"));
+        assertFalse(PairingShareSheet.submitRevoke(false, realPool, runs::incrementAndGet));
+        assertEquals(2, runs.get());
+
+        // Simulated concurrent close race where isShutdown() was false but execute() rejects.
+        ExecutorService racingPool = new AbstractExecutorService() {
+            @Override public void shutdown() {}
+            @Override public List<Runnable> shutdownNow() { return Collections.emptyList(); }
+            @Override public boolean isShutdown() { return false; }
+            @Override public boolean isTerminated() { return false; }
+            @Override public boolean awaitTermination(long timeout, TimeUnit unit) { return true; }
+            @Override public void execute(Runnable command) { throw new RejectedExecutionException("raced"); }
+        };
+        assertFalse(AdminConsoleSheet.submitTask(false, racingPool, runs::incrementAndGet, "admin"));
+        assertTrue(Diagnostics.exportRedacted().contains("admin.io_submit_rejected"));
+
+        Diagnostics.clear();
+        assertFalse(AdminConsoleSheet.submitTask(false, racingPool, runs::incrementAndGet, "profile_hub"));
+        assertTrue(Diagnostics.exportRedacted().contains("profile_hub.io_submit_rejected"));
+
+        Diagnostics.clear();
+        assertFalse(PairingShareSheet.submitRevoke(false, racingPool, runs::incrementAndGet));
+        assertTrue(Diagnostics.exportRedacted().contains("onboarding.pairing_revoke_rejected"));
     }
 }

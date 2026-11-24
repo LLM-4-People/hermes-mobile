@@ -1,15 +1,38 @@
 package org.llm4people.hermes.profile;
 
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
+import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.os.BiometricVault;
 
+import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.Assert.*;
 
 /** Pure-JVM verification suite for Track 31 multi-mode lock policy and setup form save guard. */
 public final class ProfileLockPolicyTest {
+    @Before
+    public void silenceDiagnostics() {
+        Diagnostics.clear();
+        Diagnostics.setSink((level, tag, message) -> {});
+    }
+
+    @After
+    public void restoreDiagnostics() {
+        Diagnostics.clear();
+        Diagnostics.setSink(null);
+    }
 
     @Test
     public void defaultLockModeAndKeyParsingStayFailClosed() {
@@ -295,6 +318,171 @@ public final class ProfileLockPolicyTest {
                         "https://chat.example.com/mobile", "allison", "Allison",
                         "   ", "fr", "", 0, null);
         assertNull(ProfileGate.resolveRollbackFields(blankKey));
+    }
+
+    @Test
+    public void twoPhaseLockSecretPrepareAndCommitPreventsModeCorruptionAndRollsBackOnFailure() throws Exception {
+        Map<String, String> indexData = new HashMap<>();
+        indexData.put("label.p1", "Personal");
+        indexData.put("p1", "initial-envelope");
+        boolean[] indexCommitOk = {true};
+        android.content.SharedPreferences indexPrefs = mapPrefs(indexData, indexCommitOk);
+
+        Map<String, String> modeData = new HashMap<>();
+        modeData.put("mode.p1", ProfileLockPolicy.Mode.PASSPHRASE.key);
+        boolean[] modeCommitOk = {true};
+        android.content.SharedPreferences modePrefs = mapPrefs(modeData, modeCommitOk);
+
+        AccountStore store = new AccountStore(null, indexPrefs);
+        SecretKey deviceKey = new SecretKeySpec(new byte[32], "AES");
+
+        byte[] rawKeys = new byte[Account.KEY_BYTES];
+        for (int i = 0; i < rawKeys.length; i++) rawKeys[i] = (byte) (i + 1);
+
+        // (a) Locked/closed Account throws inside prepareLockSecret BEFORE ProfileLockPolicy.setMode is touched.
+        Account lockedAccount = new Account(
+                "p1", "Personal", "https://hermes.example.com", "sk-live-secret", null, Arrays.copyOf(rawKeys, rawKeys.length));
+        lockedAccount.close();
+        int[] modeSetCalls = {0};
+        boolean lockedResult = ProfileGate.commitLockModeTransition(
+                () -> store.prepareLockSecret(lockedAccount, "123456".toCharArray(), deviceKey),
+                () -> {
+                    modeSetCalls[0]++;
+                    return ProfileLockPolicy.writeMode(modePrefs, "p1", ProfileLockPolicy.Mode.PIN);
+                },
+                resealed -> store.commitLockSecret(lockedAccount, resealed),
+                () -> ProfileLockPolicy.writeMode(modePrefs, "p1", ProfileLockPolicy.Mode.PASSPHRASE),
+                null,
+                null,
+                "lock_mode_reseal_failed");
+        assertFalse(lockedResult);
+        assertEquals("ProfileLockPolicy.setMode must never be called when prepareLockSecret fails", 0, modeSetCalls[0]);
+        assertEquals(ProfileLockPolicy.Mode.PASSPHRASE.key, modeData.get("mode.p1"));
+        assertEquals("initial-envelope", indexData.get("p1"));
+
+        // Missing profile membership also fails inside prepareLockSecret before setMode is touched.
+        Account orphan = new Account(
+                "missing", "Orphan", "https://hermes.example.com", "sk-live-secret", null, Arrays.copyOf(rawKeys, rawKeys.length));
+        try {
+            store.prepareLockSecret(orphan, "123456".toCharArray(), deviceKey);
+            fail("Expected IOException for missing profile membership");
+        } catch (IOException expected) {
+            // ok
+        } finally {
+            orphan.close();
+        }
+
+        // (b) Unlocked Account prepares resealed envelope, commits mode + envelope in order, and decrypts cleanly.
+        Account unlocked = new Account(
+                "p1", "Personal", "https://hermes.example.com", "sk-live-secret", null, Arrays.copyOf(rawKeys, rawKeys.length));
+        List<String> steps = new ArrayList<>();
+        char[] newPin = "654321".toCharArray();
+        boolean ok = ProfileGate.commitLockModeTransition(
+                () -> {
+                    steps.add("prepare");
+                    return store.prepareLockSecret(unlocked, newPin, deviceKey);
+                },
+                () -> {
+                    steps.add("setMode");
+                    return ProfileLockPolicy.writeMode(modePrefs, "p1", ProfileLockPolicy.Mode.PIN);
+                },
+                resealed -> {
+                    steps.add("commitEnvelope");
+                    store.commitLockSecret(unlocked, resealed);
+                },
+                () -> {
+                    steps.add("rollbackMode");
+                    ProfileLockPolicy.writeMode(modePrefs, "p1", ProfileLockPolicy.Mode.PASSPHRASE);
+                },
+                () -> steps.add("onSuccess"),
+                () -> steps.add("onRollback"),
+                "lock_mode_reseal_failed");
+        assertTrue(ok);
+        assertEquals(List.of("prepare", "setMode", "commitEnvelope", "onSuccess"), steps);
+        assertEquals(ProfileLockPolicy.Mode.PIN.key, modeData.get("mode.p1"));
+        String storedEnvelope = indexData.get("p1");
+        assertNotNull(storedEnvelope);
+        assertNotEquals("initial-envelope", storedEnvelope);
+
+        byte[] opened = ProfileEnvelope.open(
+                deviceKey, "p1", "Personal", newPin, Base64.getDecoder().decode(storedEnvelope));
+        try (DataInputStream in = new DataInputStream(new ByteArrayInputStream(opened))) {
+            assertEquals("https://hermes.example.com", in.readUTF());
+            assertEquals("sk-live-secret", in.readUTF());
+            byte[] recoveredKeys = new byte[Account.KEY_BYTES];
+            in.readFully(recoveredKeys);
+            assertArrayEquals(rawKeys, recoveredKeys);
+        }
+
+        // (c) Commit failure rolls back persisted mode cleanly to previousMode (and triggers onRollback).
+        indexCommitOk[0] = false;
+        int[] biometricRevoked = {0};
+        boolean commitFailed = ProfileGate.commitLockModeTransition(
+                () -> store.prepareLockSecret(unlocked, "999999".toCharArray(), deviceKey),
+                () -> ProfileLockPolicy.writeMode(modePrefs, "p1", ProfileLockPolicy.Mode.BIOMETRIC),
+                resealed -> store.commitLockSecret(unlocked, resealed),
+                () -> ProfileLockPolicy.writeMode(modePrefs, "p1", ProfileLockPolicy.Mode.PIN),
+                null,
+                ProfileGate.shouldRevokeBiometricOnBiometricRollback(ProfileLockPolicy.Mode.PIN)
+                        ? () -> biometricRevoked[0]++ : null,
+                "lock_mode_biometric_reseal_failed");
+        assertFalse(commitFailed);
+        assertEquals("Mode must roll back to PIN on envelope commit failure",
+                ProfileLockPolicy.Mode.PIN.key, modeData.get("mode.p1"));
+        assertEquals(1, biometricRevoked[0]);
+        assertEquals("Stored envelope must stay unchanged on commit failure", storedEnvelope, indexData.get("p1"));
+
+        // (d) commitLockSecret rejects null/empty envelope and missing membership.
+        indexCommitOk[0] = true;
+        try {
+            store.commitLockSecret(unlocked, "");
+            fail("Expected IllegalArgumentException for empty resealed envelope");
+        } catch (IllegalArgumentException expected) {
+            // ok
+        }
+        try {
+            store.commitLockSecret(unlocked, null);
+            fail("Expected IllegalArgumentException for null resealed envelope");
+        } catch (IllegalArgumentException expected) {
+            // ok
+        }
+        unlocked.close();
+    }
+
+    private static android.content.SharedPreferences mapPrefs(Map<String, String> backing, boolean[] commitOk) {
+        return (android.content.SharedPreferences) java.lang.reflect.Proxy.newProxyInstance(
+                android.content.SharedPreferences.class.getClassLoader(),
+                new Class<?>[]{android.content.SharedPreferences.class},
+                (proxy, method, args) -> switch (method.getName()) {
+                    case "getString" -> backing.getOrDefault((String) args[0], (String) args[1]);
+                    case "contains" -> backing.containsKey((String) args[0]);
+                    case "getAll" -> new HashMap<>(backing);
+                    case "edit" -> {
+                        Map<String, String> pending = new HashMap<>();
+                        List<String> removals = new ArrayList<>();
+                        yield java.lang.reflect.Proxy.newProxyInstance(
+                                android.content.SharedPreferences.Editor.class.getClassLoader(),
+                                new Class<?>[]{android.content.SharedPreferences.Editor.class},
+                                (edProxy, edMethod, edArgs) -> switch (edMethod.getName()) {
+                                    case "putString" -> {
+                                        pending.put((String) edArgs[0], (String) edArgs[1]);
+                                        yield edProxy;
+                                    }
+                                    case "remove" -> {
+                                        removals.add((String) edArgs[0]);
+                                        yield edProxy;
+                                    }
+                                    case "commit" -> {
+                                        if (!commitOk[0]) yield false;
+                                        for (String r : removals) backing.remove(r);
+                                        backing.putAll(pending);
+                                        yield true;
+                                    }
+                                    default -> edProxy;
+                                });
+                    }
+                    default -> null;
+                });
     }
 
     private static android.content.Context contextStub(android.content.SharedPreferences prefs) {

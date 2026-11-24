@@ -27,6 +27,7 @@ import org.llm4people.hermes.net.HermesApi;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.function.BooleanSupplier;
 
 /**
@@ -194,8 +195,9 @@ public final class PairingShareSheet implements AutoCloseable {
             revokeBtn.setMinimumHeight(touchMin);
             revokeBtn.setTextColor(Ui.dangerInk(activity));
             revokeBtn.setOnClickListener(v -> {
+                if (closed || io.isShutdown()) return;
                 revokeBtn.setEnabled(false);
-                io.execute(() -> {
+                if (!submitRevoke(closed, io, () -> {
                     boolean ok = false;
                     try {
                         if (!api.isRevoked()) {
@@ -217,7 +219,9 @@ public final class PairingShareSheet implements AutoCloseable {
                             revokeBtn.setEnabled(true);
                         }
                     });
-                });
+                })) {
+                    revokeBtn.setEnabled(true);
+                }
             });
             LinearLayout.LayoutParams revLp = new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
@@ -255,10 +259,23 @@ public final class PairingShareSheet implements AutoCloseable {
                 .setView(scroll)
                 .setPositiveButton(R.string.ws_close, null)
                 .setOnDismissListener(d -> {
+                    closed = true;
                     stopTicker();
                     dialog = null;
                     if (onDismissed != null) onDismissed.run();
                 }));
+    }
+
+    /** Pure-JVM testable executor submission guard preventing post-close RejectedExecutionException. */
+    public static boolean submitRevoke(boolean isClosed, ExecutorService io, Runnable task) {
+        if (isClosed || io == null || io.isShutdown() || task == null) return false;
+        try {
+            io.execute(task);
+            return true;
+        } catch (RejectedExecutionException rejected) {
+            Diagnostics.warning("onboarding", "pairing_revoke_rejected", rejected);
+            return false;
+        }
     }
 
     private void stopTicker() {

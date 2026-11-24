@@ -38,6 +38,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
@@ -629,7 +630,6 @@ public final class FirstRunWizard {
         Objects.requireNonNull(account, "account");
         Objects.requireNonNull(callbacks, "callbacks");
         Handler main = new Handler(Looper.getMainLooper());
-        boolean[] closed = {false};
 
         ScrollView scroll = new ScrollView(activity);
         LinearLayout body = Ui.column(activity);
@@ -746,59 +746,127 @@ public final class FirstRunWizard {
         };
 
         AlertDialog[] holder = new AlertDialog[1];
+        Step2Session session = new Step2Session(
+                canAct,
+                () -> {
+                    if (holder[0] != null) {
+                        AlertDialog toDismiss = holder[0];
+                        holder[0] = null;
+                        try { toDismiss.dismiss(); } catch (RuntimeException ignored) {}
+                    }
+                },
+                () -> holder[0] = null,
+                callbacks::onFinished);
         AlertDialog dialog = Ui.secureDialog(new AlertDialog.Builder(activity)
                 .setTitle(R.string.onboarding_step2_title)
                 .setView(scroll)
-                .setNegativeButton(R.string.onboarding_skip_action, (d, w) -> {
-                    markCompleted(account);
-                    callbacks.onFinished();
-                })
-                .setPositiveButton(R.string.onboarding_finish_action, (d, w) -> {
-                    applyPrefs.run();
-                    callbacks.onFinished();
-                }));
+                .setNegativeButton(R.string.onboarding_skip_action, (d, w) ->
+                        session.onSkip(() -> markCompleted(account)))
+                .setPositiveButton(R.string.onboarding_finish_action, (d, w) ->
+                        session.onFinish(applyPrefs))
+                .setOnDismissListener(d -> session.onDismiss()));
         holder[0] = dialog;
 
-        if (api != null && io != null && !api.isRevoked()) {
-            io.execute(() -> {
-                OnboardingModels.OnboardingStatus status = null;
-                try {
-                    status = OnboardingModels.parseOnboardingStatus(api.onboardingStatus());
-                } catch (Exception ignored) {
-                    Diagnostics.debug("onboarding", "status_fetch_skipped");
-                }
-                OnboardingModels.OnboardingStatus loaded = status;
-                main.post(() -> {
-                    if (closed[0] || !canAct.getAsBoolean() || activity.isFinishing() || activity.isDestroyed()) return;
-                    startersSlot.removeAllViews();
-                    List<OnboardingModels.StarterPrompt> starters = loaded == null ? List.of() : loaded.starters();
-                    if (starters.isEmpty()) {
-                        TextView ready = Ui.text(activity,
-                                activity.getString(R.string.onboarding_starters_empty), 13);
-                        ready.setTextColor(activity.getColor(R.color.muted));
-                        startersSlot.addView(ready);
-                        return;
+        if (api != null && io != null && !api.isRevoked() && !io.isShutdown()) {
+            try {
+                io.execute(() -> {
+                    OnboardingModels.OnboardingStatus status = null;
+                    try {
+                        status = OnboardingModels.parseOnboardingStatus(api.onboardingStatus());
+                    } catch (Exception ignored) {
+                        Diagnostics.debug("onboarding", "status_fetch_skipped");
                     }
-                    for (OnboardingModels.StarterPrompt starter : starters) {
-                        Button chip = Ui.outlinedButton(activity, starter.title(), v -> {
-                            applyPrefs.run();
-                            if (holder[0] != null) holder[0].dismiss();
-                            callbacks.onStageStarterDraft(starter.prompt());
-                            callbacks.onFinished();
-                        });
-                        startersSlot.addView(chip, topMargin(activity, 8));
-                    }
+                    OnboardingModels.OnboardingStatus loaded = status;
+                    main.post(() -> {
+                        if (session.isClosed() || !canAct.getAsBoolean()
+                                || activity.isFinishing() || activity.isDestroyed()) return;
+                        startersSlot.removeAllViews();
+                        List<OnboardingModels.StarterPrompt> starters = loaded == null ? List.of() : loaded.starters();
+                        if (starters.isEmpty()) {
+                            TextView ready = Ui.text(activity,
+                                    activity.getString(R.string.onboarding_starters_empty), 13);
+                            ready.setTextColor(activity.getColor(R.color.muted));
+                            startersSlot.addView(ready);
+                            return;
+                        }
+                        for (OnboardingModels.StarterPrompt starter : starters) {
+                            Button chip = Ui.outlinedButton(activity, starter.title(), v ->
+                                    session.onStarter(applyPrefs, () -> callbacks.onStageStarterDraft(starter.prompt())));
+                            startersSlot.addView(chip, topMargin(activity, 8));
+                        }
+                    });
                 });
-            });
+            } catch (RejectedExecutionException rejected) {
+                Diagnostics.warning("onboarding", "step2_starters_submit_rejected", rejected);
+            }
         }
 
-        return () -> {
-            closed[0] = true;
-            if (holder[0] != null) {
-                try { holder[0].dismiss(); } catch (RuntimeException ignored) {}
-                holder[0] = null;
-            }
-        };
+        return session::close;
+    }
+
+    /** Pure-JVM testable lifecycle fence for Step 2 dialog actions, dismiss, and close. */
+    static final class Step2Session {
+        private final BooleanSupplier canAct;
+        private final Runnable dismissDialog;
+        private final Runnable clearHolder;
+        private final Runnable onFinished;
+        private boolean closed;
+        private boolean finishedNotified;
+
+        Step2Session(
+                BooleanSupplier canAct,
+                Runnable dismissDialog,
+                Runnable clearHolder,
+                Runnable onFinished) {
+            this.canAct = canAct == null ? () -> true : canAct;
+            this.dismissDialog = dismissDialog == null ? () -> {} : dismissDialog;
+            this.clearHolder = clearHolder == null ? () -> {} : clearHolder;
+            this.onFinished = onFinished == null ? () -> {} : onFinished;
+        }
+
+        boolean isClosed() {
+            return closed;
+        }
+
+        void onSkip(Runnable markCompleted) {
+            if (closed || !canAct.getAsBoolean()) return;
+            closed = true;
+            if (markCompleted != null) markCompleted.run();
+            notifyFinishedOnce();
+        }
+
+        void onFinish(Runnable applyPrefs) {
+            if (closed || !canAct.getAsBoolean()) return;
+            closed = true;
+            if (applyPrefs != null) applyPrefs.run();
+            notifyFinishedOnce();
+        }
+
+        void onStarter(Runnable applyPrefs, Runnable stageDraft) {
+            if (closed || !canAct.getAsBoolean()) return;
+            closed = true;
+            if (applyPrefs != null) applyPrefs.run();
+            dismissDialog.run();
+            if (stageDraft != null) stageDraft.run();
+            notifyFinishedOnce();
+        }
+
+        void onDismiss() {
+            closed = true;
+            clearHolder.run();
+            notifyFinishedOnce();
+        }
+
+        void close() {
+            closed = true;
+            dismissDialog.run();
+        }
+
+        private void notifyFinishedOnce() {
+            if (finishedNotified) return;
+            finishedNotified = true;
+            onFinished.run();
+        }
     }
 
     private static TextView sectionLabel(Activity activity, int resId) {
