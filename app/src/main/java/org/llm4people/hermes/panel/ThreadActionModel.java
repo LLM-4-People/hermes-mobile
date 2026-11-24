@@ -32,7 +32,7 @@ public final class ThreadActionModel {
         }
 
         public String displayLabel() {
-            String snippet = preview.length() > 80 ? preview.substring(0, 77) + "…" : preview;
+            String snippet = PlainTextSanitizer.collapseWithEllipsis(preview, 80);
             return speakerLabel.isEmpty() ? snippet : speakerLabel + " · " + snippet;
         }
     }

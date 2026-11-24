@@ -57,4 +57,41 @@ public final class QrScannerActivityTest {
         assertTrue("Failed toggle-off must revert to on",
                 QrScannerActivity.resolveTorchAfterApply(true, false, false));
     }
+
+    @Test
+    public void deferredTorchUiSyncReadsLiveSynchronizedStateAfterResetAndReenable() {
+        assertFalse(QrScannerActivity.currentTorchEnabled(false, false));
+        assertFalse(QrScannerActivity.currentTorchEnabled(false, true));
+        assertFalse(QrScannerActivity.currentTorchEnabled(true, false));
+        assertTrue(QrScannerActivity.currentTorchEnabled(true, true));
+
+        // Simulate closeCamera() resetting torchOn=false and posting a UI refresh runnable,
+        // followed by camera reopen + user re-enabling torch BEFORE the posted runnable flushes.
+        Object lock = new Object();
+        boolean[] flashAvailable = {true};
+        boolean[] torchOn = {false};
+        boolean[] renderedButtonOn = {false};
+
+        Runnable deferredUiRefresh = () -> {
+            final boolean liveEnabled;
+            synchronized (lock) {
+                liveEnabled = QrScannerActivity.currentTorchEnabled(flashAvailable[0], torchOn[0]);
+            }
+            renderedButtonOn[0] = liveEnabled;
+        };
+
+        // Before flush, user re-enables torch on reopened camera.
+        synchronized (lock) {
+            torchOn[0] = QrScannerActivity.nextTorchState(flashAvailable[0], torchOn[0]);
+        }
+        deferredUiRefresh.run();
+        assertTrue("Deferred refresh must observe live re-enabled torch state", renderedButtonOn[0]);
+
+        // If flash becomes unavailable before flush, deferred refresh reflects false.
+        synchronized (lock) {
+            flashAvailable[0] = false;
+        }
+        deferredUiRefresh.run();
+        assertFalse("Deferred refresh must stay false when flash is unavailable", renderedButtonOn[0]);
+    }
 }

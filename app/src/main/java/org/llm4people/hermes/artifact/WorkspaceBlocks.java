@@ -9,6 +9,7 @@ import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import org.llm4people.hermes.PlainTextSanitizer;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 
@@ -179,11 +180,14 @@ final class WorkspaceBlocks {
             setText(sourceLabel(c, source));
         }
         void refresh(ArtifactDesk.Host host) {
-            String text = host.workspaceValue(source);
-            if (text == null || text.isEmpty()) text = getContext().getString(R.string.ws_unavailable);
-            if (text.length() > 240) text = text.substring(0, 240) + "…";
+            String text = formatValueText(host.workspaceValue(source), getContext().getString(R.string.ws_unavailable));
             if (!text.contentEquals(getText())) setText(text);
         }
+    }
+
+    static String formatValueText(String raw, String fallback) {
+        String cleaned = PlainTextSanitizer.collapseWithEllipsis(raw, 241);
+        return cleaned.isEmpty() ? fallback : cleaned;
     }
 
     static void refresh(View root, ArtifactDesk.Host host) {

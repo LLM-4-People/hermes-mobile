@@ -91,8 +91,18 @@ public final class HermesWidgetProvider extends AppWidgetProvider {
         refresh(context, runActive);
     }
 
+    /** Refreshes all widget instances using a context explicitly localized for {@code mode}. */
+    public static void refresh(Context context, AppLanguage.Mode mode) {
+        if (context == null) return;
+        refreshInternal(AppLanguage.localizedContext(context, mode), runActive, true);
+    }
+
     public static void refresh(Context context, boolean active) {
         runActive = active;
+        refreshInternal(context, active, false);
+    }
+
+    private static void refreshInternal(Context context, boolean active, boolean preLocalized) {
         if (context == null) return;
         try {
             AppWidgetManager manager = AppWidgetManager.getInstance(context);
@@ -101,7 +111,7 @@ public final class HermesWidgetProvider extends AppWidgetProvider {
             if (ids == null || ids.length == 0) return;
             HermesWidgetStore store = new HermesWidgetStore(context);
             for (int id : ids) {
-                updateOne(context, manager, store, id);
+                updateOne(context, manager, store, id, active, preLocalized);
             }
         } catch (RuntimeException error) {
             Diagnostics.warning("os", "widget_refresh_failed");
@@ -125,12 +135,18 @@ public final class HermesWidgetProvider extends AppWidgetProvider {
 
     private static void updateOne(Context context, AppWidgetManager manager,
                                   HermesWidgetStore store, int appWidgetId) {
+        updateOne(context, manager, store, appWidgetId, runActive, false);
+    }
+
+    private static void updateOne(Context context, AppWidgetManager manager,
+                                  HermesWidgetStore store, int appWidgetId,
+                                  boolean active, boolean preLocalized) {
         if (manager == null) return;
         try {
             HermesWidgetSpec bound = store.specForInstance(appWidgetId);
             RemoteViews views = bound != null
-                    ? buildDynamicViews(context, bound)
-                    : buildDefaultViews(context, runActive);
+                    ? buildDynamicViews(context, bound, preLocalized)
+                    : buildDefaultViews(context, active, preLocalized);
             manager.updateAppWidget(appWidgetId, views);
         } catch (RuntimeException error) {
             Diagnostics.warning("os", "widget_update_failed");
@@ -138,7 +154,11 @@ public final class HermesWidgetProvider extends AppWidgetProvider {
     }
 
     static RemoteViews buildDefaultViews(Context context, boolean active) {
-        Context localized = AppLanguage.wrapContext(context);
+        return buildDefaultViews(context, active, false);
+    }
+
+    static RemoteViews buildDefaultViews(Context context, boolean active, boolean preLocalized) {
+        Context localized = preLocalized ? context : AppLanguage.localizedContext(context, null);
         RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.hermes_widget);
         views.setTextViewText(R.id.widget_title, localized.getString(R.string.widget_title));
         views.setTextViewText(R.id.widget_status, localized.getString(statusTextRes(active)));
@@ -154,7 +174,11 @@ public final class HermesWidgetProvider extends AppWidgetProvider {
     }
 
     static RemoteViews buildDynamicViews(Context context, HermesWidgetSpec rawSpec) {
-        Context localized = AppLanguage.wrapContext(context);
+        return buildDynamicViews(context, rawSpec, false);
+    }
+
+    static RemoteViews buildDynamicViews(Context context, HermesWidgetSpec rawSpec, boolean preLocalized) {
+        Context localized = preLocalized ? context : AppLanguage.localizedContext(context, null);
         HermesWidgetSpec safe = rawSpec.redactedForHomeScreen(localized);
         RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.hermes_widget_dynamic);
         views.setTextViewText(R.id.widget_dynamic_title, safe.title);

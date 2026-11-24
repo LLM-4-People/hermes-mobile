@@ -193,36 +193,68 @@ public final class AppLanguageTest {
 
     @Test
     public void refreshRuntimeUpdatesModeAutoAcceptLanguageAndLifecycleHooksExist() throws Exception {
-        String previous = AppLanguage.currentAcceptLanguage();
+        String previousRaw = AppLanguage.rawActiveAcceptLanguageForTest();
         try {
-            AppLanguage.refreshRuntime(AppLanguage.Mode.AUTO, Collections.singletonList("en-CA"));
+            // Cold-start bootstrap from empty cache updates header without falsely reporting a change.
+            AppLanguage.setActiveAcceptLanguageForTest("");
+            assertFalse("Cold-start bootstrap must not report locale change",
+                    AppLanguage.refreshRuntime(AppLanguage.Mode.AUTO, Collections.singletonList("en-CA")));
             assertEquals("en-CA, en;q=0.9", AppLanguage.currentAcceptLanguage());
 
-            AppLanguage.refreshRuntime(AppLanguage.Mode.AUTO, Collections.singletonList("fr-CA"));
+            // Same effective language tag (en-CA -> en-US) is a no-op for OS surface refresh.
+            assertFalse("Unchanged effective tag must return false",
+                    AppLanguage.refreshRuntime(AppLanguage.Mode.AUTO, Collections.singletonList("en-US")));
+            assertEquals("en-US, en;q=0.9", AppLanguage.currentAcceptLanguage());
+
+            // Effective language switch (en -> fr) returns true so PushApplication refreshes widgets/shortcuts.
+            assertTrue("Effective language switch en -> fr must return true",
+                    AppLanguage.refreshRuntime(AppLanguage.Mode.AUTO, Collections.singletonList("fr-CA")));
             assertEquals("fr-CA, fr;q=0.9", AppLanguage.currentAcceptLanguage());
 
-            AppLanguage.refreshRuntime(AppLanguage.Mode.AUTO, Collections.singletonList("es-ES"));
+            // Unsupported system locale falls back to fr (same effective tag -> false).
+            assertFalse("fr-CA -> es-ES fallback keeps fr tag",
+                    AppLanguage.refreshRuntime(AppLanguage.Mode.AUTO, Collections.singletonList("es-ES")));
             assertEquals("fr", AppLanguage.currentAcceptLanguage());
 
-            AppLanguage.refreshRuntime(AppLanguage.Mode.ENGLISH, Collections.singletonList("fr-CA"));
+            // Explicit mode overrides report change only when effective tag changes.
+            assertTrue("fr -> ENGLISH override must return true",
+                    AppLanguage.refreshRuntime(AppLanguage.Mode.ENGLISH, Collections.singletonList("fr-CA")));
             assertEquals("en", AppLanguage.currentAcceptLanguage());
+            assertFalse("Repeated ENGLISH override must return false",
+                    AppLanguage.refreshRuntime(AppLanguage.Mode.ENGLISH, Collections.singletonList("fr-CA")));
 
-            AppLanguage.refreshRuntime(AppLanguage.Mode.FRENCH, Collections.singletonList("en-US"));
+            assertTrue("en -> FRENCH override must return true",
+                    AppLanguage.refreshRuntime(AppLanguage.Mode.FRENCH, Collections.singletonList("en-US")));
             assertEquals("fr", AppLanguage.currentAcceptLanguage());
         } finally {
-            AppLanguage.setActiveAcceptLanguageForTest(previous);
+            AppLanguage.setActiveAcceptLanguageForTest(previousRaw);
         }
+        assertEquals("R16.8.3: raw activeAcceptLanguage must be restored without freezing Locale.getDefault()",
+                previousRaw, AppLanguage.rawActiveAcceptLanguageForTest());
 
-        // R15.1.2: PushApplication overrides onConfigurationChanged(Configuration).
+        // R16.1.1 & R16.1.2: localizedContext, PushApplication.onConfigurationChanged, widget & shortcut overloads.
+        assertEquals(null, AppLanguage.localizedContext(null, AppLanguage.Mode.FRENCH));
+        java.lang.reflect.Method localizedContext = AppLanguage.class
+                .getMethod("localizedContext", android.content.Context.class, AppLanguage.Mode.class);
+        assertEquals(android.content.Context.class, localizedContext.getReturnType());
+
         java.lang.reflect.Method onConfig = org.llm4people.hermes.push.PushApplication.class
                 .getDeclaredMethod("onConfigurationChanged", android.content.res.Configuration.class);
         assertEquals(void.class, onConfig.getReturnType());
 
-        // R15.1.1: HermesWidgetProvider exposes null-safe 1-arg refresh(Context).
         java.lang.reflect.Method refresh = org.llm4people.hermes.os.HermesWidgetProvider.class
                 .getMethod("refresh", android.content.Context.class);
         assertEquals(void.class, refresh.getReturnType());
+        java.lang.reflect.Method refreshWithMode = org.llm4people.hermes.os.HermesWidgetProvider.class
+                .getMethod("refresh", android.content.Context.class, AppLanguage.Mode.class);
+        assertEquals(void.class, refreshWithMode.getReturnType());
         org.llm4people.hermes.os.HermesWidgetProvider.refresh(null);
+        org.llm4people.hermes.os.HermesWidgetProvider.refresh(null, AppLanguage.Mode.ENGLISH);
+
+        java.lang.reflect.Method publishWithMode = org.llm4people.hermes.os.HermesShortcuts.class
+                .getMethod("publish", android.content.Context.class, AppLanguage.Mode.class);
+        assertEquals(void.class, publishWithMode.getReturnType());
+        org.llm4people.hermes.os.HermesShortcuts.publish(null, AppLanguage.Mode.ENGLISH);
     }
 
     private static File locateResRoot() {

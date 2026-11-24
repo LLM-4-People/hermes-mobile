@@ -4,6 +4,7 @@ import android.content.Context;
 
 import org.json.JSONArray;
 import org.llm4people.hermes.HermesConfig;
+import org.llm4people.hermes.PlainTextSanitizer;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.artifact.MessageParts;
 import org.json.JSONException;
@@ -148,13 +149,18 @@ final class ThreadData {
     static String failureDetail(JSONObject status, String bearer) {
         String detail = string(status, "error");
         if (detail.isEmpty()) detail = string(status, "turn_exit_reason");
-        if (!bearer.isEmpty()) detail = detail.replace(bearer, "•••");
+        return sanitizeFailureDetail(detail, bearer);
+    }
+
+    static String sanitizeFailureDetail(String detail, String bearer) {
+        if (detail == null || detail.isEmpty()) return "";
+        String safe = detail;
+        if (bearer != null && !bearer.isEmpty()) safe = safe.replace(bearer, "•••");
         // Hermes redacts the error before egress. Keep common auth fragments out of the UI
         // even when a custom provider echoed its request headers or included a token in a URL.
-        detail = detail.replaceAll("(?i)data:image/[^, ]{1,40},[a-zA-Z0-9+/=_-]+", "[image]")
-                .replaceAll("(?i)(bearer\\s+|(?:api[_-]?key|access_token|token|password|secret)\\s*[=:]\\s*)[^\\s&;,]+", "$1•••")
-                .replaceAll("[\\p{Cntrl}\\p{Cf}]+", " ").trim();
-        return detail.length() <= 500 ? detail : detail.substring(0, 500) + "…";
+        safe = safe.replaceAll("(?i)data:image/[^, ]{1,40},[a-zA-Z0-9+/=_-]+", "[image]")
+                .replaceAll("(?i)(bearer\\s+|(?:api[_-]?key|access_token|token|password|secret)\\s*[=:]\\s*)[^\\s&;,]+", "$1•••");
+        return PlainTextSanitizer.collapseWithEllipsis(safe, 501);
     }
 
     static boolean terminal(String status) {
