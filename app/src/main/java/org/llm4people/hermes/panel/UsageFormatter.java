@@ -128,10 +128,6 @@ public final class UsageFormatter {
         return primaryCostSpec(billedUsd, estimatedUsd, costStatus, AppLanguage.resolvedLocale(context)).resolve(context);
     }
 
-    public static double safeMetric(double raw) {
-        return Double.isFinite(raw) && raw >= 0 ? raw : Double.NaN;
-    }
-
     private static Locale effective(Locale locale) {
         return locale == null ? Locale.getDefault() : locale;
     }

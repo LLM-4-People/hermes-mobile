@@ -45,16 +45,20 @@ public final class HomePinBridgeTest {
         assertEquals("#1E5B78", osSpec.accentHex);
         assertTrue(osSpec.homeScreenSafe);
         assertEquals(HermesWidgetSpec.MAX_ITEMS, osSpec.items.size());
-        assertEquals("✓ Appeler le dentiste", osSpec.items.get(0).label());
+        assertEquals("Appeler le dentiste", osSpec.items.get(0).label());
+        assertTrue(osSpec.items.get(0).checked());
         assertEquals("09h", osSpec.items.get(0).value());
         assertEquals("Rappelle-moi d’appeler le dentiste", osSpec.items.get(0).actionDraft());
         assertEquals("Envoyer le devis", osSpec.items.get(1).label());
+        assertFalse(osSpec.items.get(1).checked());
 
         // Lossless codec round-trip into HermesWidgetStore format.
         HermesWidgetSpec decoded = HermesWidgetSpec.decode(osSpec.encode());
         assertEquals(osSpec.widgetId, decoded.widgetId);
         assertEquals(osSpec.title, decoded.title);
         assertEquals(osSpec.items.size(), decoded.items.size());
+        assertTrue(decoded.items.get(0).checked());
+        assertFalse(decoded.items.get(1).checked());
     }
 
     @Test

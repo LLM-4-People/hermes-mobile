@@ -230,6 +230,29 @@ public class ProfileSetupUxTest {
         assertEquals(2, resets.get());
     }
 
+    @Test public void screenTransitionCleanupRunsAllActionsEvenWhenOneThrows() {
+        org.llm4people.hermes.Diagnostics.clear();
+        org.llm4people.hermes.Diagnostics.setSink((level, tag, msg) -> {});
+        try {
+            AtomicInteger ran = new AtomicInteger();
+            ProfileGate.runScreenCleanup(
+                    ran::incrementAndGet,
+                    () -> { throw new IllegalStateException("dialog already detached"); },
+                    null,
+                    ran::incrementAndGet,
+                    ran::incrementAndGet);
+            assertEquals("Every remaining cleanup step must execute even if an earlier step throws",
+                    3, ran.get());
+            assertTrue(org.llm4people.hermes.Diagnostics.exportRedacted().contains("profile.screen_cleanup_failed"));
+
+            // Null array is a safe no-op.
+            ProfileGate.runScreenCleanup((Runnable[]) null);
+        } finally {
+            org.llm4people.hermes.Diagnostics.clear();
+            org.llm4people.hermes.Diagnostics.setSink(null);
+        }
+    }
+
     private static final class LoopbackStatusServer implements AutoCloseable {
         private final ServerSocket socket;
         private final Thread worker;

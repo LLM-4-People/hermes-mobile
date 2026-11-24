@@ -9,17 +9,23 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import org.json.JSONArray;
 import org.llm4people.hermes.Diagnostics;
+import org.llm4people.hermes.HermesConfig;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
+import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.profile.Account;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BooleanSupplier;
 
 /** Native, profile-scoped artifact reader. Construct from the current ordered transcript. */
 public final class ArtifactDesk {
+    private static final Set<HermesApi> ACTIVE_REVERTS = ConcurrentHashMap.newKeySet();
     public interface Host {
         BooleanSupplier deviceActionOrigin();
         /** Only a verified proposal in its originating discussion can mount a nearby guide. */
@@ -90,7 +96,26 @@ public final class ArtifactDesk {
         WorkspaceBlocks.refresh(root,host);
     }
 
-    public static void dismiss(Activity activity) { DeskDialogs.dismiss(activity); }
+    public static void dismiss(Activity activity) {
+        revokeAll();
+        DeskDialogs.dismiss(activity);
+    }
+
+    /** Revokes any in-flight live-UI gateway revert clients on lock, profile switch, or destroy. */
+    public static void revokeAll() {
+        for (HermesApi client : new ArrayList<>(ACTIVE_REVERTS)) {
+            ACTIVE_REVERTS.remove(client);
+            client.revoke();
+        }
+    }
+
+    static void trackRevertClientForTest(HermesApi client) {
+        if (client != null) ACTIVE_REVERTS.add(client);
+    }
+
+    static int activeRevertCountForTest() {
+        return ACTIVE_REVERTS.size();
+    }
     public static void dismissReviews(Activity activity, Host owner) {
         if (owner != null) DeskDialogs.dismiss(activity, owner);
     }
@@ -143,7 +168,7 @@ public final class ArtifactDesk {
                             }
                         });
                         if (!revertedIds.isEmpty() && isOpen(activity, account)) {
-                            syncGatewayReverts(account, revertedIds);
+                            syncGatewayReverts(activity, account, revertedIds);
                         }
                     }));
         }
@@ -162,26 +187,41 @@ public final class ArtifactDesk {
         }
     }
 
-    private static void syncGatewayReverts(Account account, List<String> revisionIds) {
+    private static void syncGatewayReverts(android.content.Context context, Account account, List<String> revisionIds) {
         if (account == null || revisionIds == null || revisionIds.isEmpty()) return;
         String endpoint = account.endpoint;
         String bearer = account.bearer;
+        HermesApi.Limits limits = HermesApi.Limits.from(HermesConfig.load(context));
         List<String> ordered = List.copyOf(revisionIds);
+        final HermesApi api = new HermesApi(endpoint, bearer, limits);
+        ACTIVE_REVERTS.add(api);
         Thread worker = new Thread(() -> {
-            org.llm4people.hermes.net.HermesApi api = new org.llm4people.hermes.net.HermesApi(endpoint, bearer);
-            for (String revisionId : ordered) {
-                if (revisionId == null || revisionId.isEmpty()) continue;
-                try {
-                    api.revertMobileUiRevision(revisionId);
-                    Diagnostics.event("live_ui", "server_reverted");
-                } catch (IOException | IllegalArgumentException e) {
-                    Diagnostics.event("live_ui", "server_revert_skipped");
-                    break;
+            try {
+                if (api.isRevoked()) return;
+                for (String revisionId : ordered) {
+                    if (api.isRevoked()) break;
+                    if (revisionId == null || revisionId.isEmpty()) continue;
+                    try {
+                        api.revertMobileUiRevision(revisionId);
+                        Diagnostics.event("live_ui", "server_reverted");
+                    } catch (IOException | IllegalArgumentException e) {
+                        Diagnostics.event("live_ui", "server_revert_skipped");
+                        break;
+                    }
                 }
+            } finally {
+                ACTIVE_REVERTS.remove(api);
+                api.revoke();
             }
         }, "hermes-ui-revert");
         worker.setDaemon(true);
-        worker.start();
+        try {
+            worker.start();
+        } catch (RuntimeException | Error failed) {
+            ACTIVE_REVERTS.remove(api);
+            api.revoke();
+            throw failed;
+        }
     }
 
     public void show() {

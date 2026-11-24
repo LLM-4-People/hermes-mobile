@@ -4,8 +4,6 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import org.llm4people.hermes.net.HermesApi;
 
-import java.time.Instant;
-import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -176,32 +174,7 @@ public final class ScheduledJobModel {
 
     /** Parses either numeric epoch seconds/millis or ISO-8601 timestamps into epoch seconds (or 0). */
     public static long parseEpochSeconds(Object value) {
-        if (value instanceof Number n) {
-            double d = n.doubleValue();
-            if (!Double.isFinite(d) || d <= 0d) return 0L;
-            long raw = (long) d;
-            return raw > 10_000_000_000L ? raw / 1000L : raw;
-        }
-        if (value instanceof String s && !s.trim().isEmpty()) {
-            String trimmed = s.trim();
-            try {
-                return OffsetDateTime.parse(trimmed).toEpochSecond();
-            } catch (RuntimeException ignored) {
-                try {
-                    return Instant.parse(trimmed).getEpochSecond();
-                } catch (RuntimeException ignored2) {
-                    try {
-                        double d = Double.parseDouble(trimmed);
-                        if (!Double.isFinite(d) || d <= 0d) return 0L;
-                        long raw = (long) d;
-                        return raw > 10_000_000_000L ? raw / 1000L : raw;
-                    } catch (NumberFormatException ignored3) {
-                        return 0L;
-                    }
-                }
-            }
-        }
-        return 0L;
+        return org.llm4people.hermes.EpochTimestamps.parseEpochSeconds(value);
     }
 
     private static String normalizeRunStatus(String raw, boolean isActive) {

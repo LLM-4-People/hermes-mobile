@@ -12,6 +12,7 @@ import android.widget.RemoteViews;
 import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.R;
+import org.llm4people.hermes.artifact.ThemePalette;
 
 import java.util.List;
 
@@ -157,7 +158,9 @@ public final class HermesWidgetProvider extends AppWidgetProvider {
         views.setTextViewText(R.id.widget_dynamic_badge, badgeForTemplate(localized, safe.template));
         if (safe.accentHex != null) {
             try {
-                views.setTextColor(R.id.widget_dynamic_badge, Color.parseColor(safe.accentHex));
+                int adapted = ThemePalette.adaptAccentForMode(
+                        Color.parseColor(safe.accentHex), ThemePalette.isNight(localized));
+                views.setTextColor(R.id.widget_dynamic_badge, adapted);
             } catch (IllegalArgumentException ignored) {
                 // Keep default theme accent color.
             }
@@ -171,12 +174,26 @@ public final class HermesWidgetProvider extends AppWidgetProvider {
         int baseCode = REQUEST_DYNAMIC_BASE + Math.abs(safe.widgetId.hashCode() % 1000) * 10;
         views.setOnClickPendingIntent(R.id.widget_dynamic_root,
                 OsEntryIntent.widgetActionPendingIntent(context, safe.widgetId, -1, baseCode));
+        boolean checklist = safe.template == HermesWidgetSpec.Template.CHECKLIST;
         for (int i = 0; i < ITEM_VIEW_IDS.length; i++) {
             int viewId = ITEM_VIEW_IDS[i];
             if (i < safe.items.size()) {
                 HermesWidgetSpec.Item item = safe.items.get(i);
+                String line = safe.formattedItemLine(item);
                 views.setViewVisibility(viewId, View.VISIBLE);
-                views.setTextViewText(viewId, safe.formattedItemLine(item));
+                views.setTextViewText(viewId, line);
+                if (checklist) {
+                    views.setTextViewCompoundDrawablesRelative(viewId,
+                            item.checked() ? R.drawable.ic_widget_check_checked : R.drawable.ic_widget_check_unchecked,
+                            0, 0, 0);
+                    views.setContentDescription(viewId, localized.getString(
+                            item.checked() ? R.string.widget_checklist_item_checked_cd
+                                    : R.string.widget_checklist_item_unchecked_cd,
+                            line));
+                } else {
+                    views.setTextViewCompoundDrawablesRelative(viewId, 0, 0, 0, 0);
+                    views.setContentDescription(viewId, line);
+                }
                 views.setOnClickPendingIntent(viewId,
                         OsEntryIntent.widgetActionPendingIntent(context, safe.widgetId, i, baseCode + i + 1));
             } else {

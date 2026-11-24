@@ -190,7 +190,6 @@ PROPER_WORDS = {
     "Samsung",
     "Linux",
     "Landlock",
-    "Cosign",
     "Windows",
     "Docker",
     "Tailscale",

@@ -97,10 +97,21 @@ final class NearbyConsent {
 
     /** Reconciles stale blocked-location failures after the user grants location permission in Android settings. */
     void reconcilePermissionState() {
-        if (granted() && !failure.isEmpty()) {
+        reconcilePermissionState(granted());
+    }
+
+    void reconcilePermissionState(boolean permissionGranted) {
+        if (permissionGranted && !failure.isEmpty()) {
             failure = "";
             refresh();
         }
+    }
+
+    String failureForTest() { return failure; }
+
+    void setFailureForTest(String message) {
+        failure = message == null ? "" : message;
+        refresh();
     }
 
     void restore() {
@@ -199,6 +210,10 @@ final class NearbyConsent {
         items.addView(Ui.text(page.activity, disclosure, 15));
         CheckBox remember = new CheckBox(page.activity);
         remember.setText(R.string.nearby_always_profile);
+        remember.setTextColor(page.activity.getColor(R.color.ink));
+        int touchMin = Ui.dp(page.activity, 48);
+        remember.setMinHeight(touchMin);
+        remember.setMinimumHeight(touchMin);
         remember.setChecked(remembered);
         if (editable) {
             items.addView(remember);

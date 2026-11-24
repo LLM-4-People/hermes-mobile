@@ -53,7 +53,11 @@ public final class HermesWidgetSpec {
         }
     }
 
-    public record Item(String label, String value, String actionDraft) {}
+    public record Item(String label, String value, String actionDraft, boolean checked) {
+        public Item(String label, String value, String actionDraft) {
+            this(label, value, actionDraft, false);
+        }
+    }
 
     public final String widgetId;
     public final String title;
@@ -88,7 +92,7 @@ public final class HermesWidgetSpec {
                 if (label.isEmpty()) continue;
                 String value = sanitizeHomeText(item.value(), MAX_VALUE_CHARS);
                 String draft = sanitizeDraft(item.actionDraft());
-                safeItems.add(new Item(label, value, draft));
+                safeItems.add(new Item(label, value, draft, item.checked()));
             }
         }
         this.items = Collections.unmodifiableList(safeItems);
@@ -172,11 +176,7 @@ public final class HermesWidgetSpec {
 
     public String formattedItemLine(Item item) {
         if (item == null) return "";
-        String prefix = switch (template) {
-            case CHECKLIST -> "☐ ";
-            case QUICK_ACTIONS -> "› ";
-            default -> "";
-        };
+        String prefix = template == Template.QUICK_ACTIONS ? "› " : "";
         if (item.value() == null || item.value().isEmpty()) return prefix + item.label();
         return prefix + item.label() + " · " + item.value();
     }
@@ -196,7 +196,8 @@ public final class HermesWidgetSpec {
             out.append('\n')
                     .append(b64(item.label())).append('\t')
                     .append(b64(item.value())).append('\t')
-                    .append(b64(item.actionDraft()));
+                    .append(b64(item.actionDraft())).append('\t')
+                    .append(item.checked() ? '1' : '0');
         }
         return out.toString();
     }
@@ -232,8 +233,15 @@ public final class HermesWidgetSpec {
         List<Item> items = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
             String[] cols = lines[headerLines + i].split("\t", -1);
-            if (cols.length != 3) throw new IllegalArgumentException("Malformed item row");
-            items.add(new Item(unb64(cols[0]), unb64(cols[1]), unb64(cols[2])));
+            if (cols.length != 3 && cols.length != 4) throw new IllegalArgumentException("Malformed item row");
+            boolean checked = false;
+            if (cols.length == 4) {
+                if (!"0".equals(cols[3]) && !"1".equals(cols[3])) {
+                    throw new IllegalArgumentException("Invalid item checked flag");
+                }
+                checked = "1".equals(cols[3]);
+            }
+            items.add(new Item(unb64(cols[0]), unb64(cols[1]), unb64(cols[2]), checked));
         }
         return new HermesWidgetSpec(id, title, subtitle, template, items,
                 accent.isEmpty() ? null : accent, safe, owner.isEmpty() ? null : owner);
@@ -265,6 +273,7 @@ public final class HermesWidgetSpec {
                 row.put("label", item.label());
                 if (!item.value().isEmpty()) row.put("value", item.value());
                 if (!item.actionDraft().isEmpty()) row.put("action_draft", item.actionDraft());
+                if (item.checked()) row.put("checked", true);
                 array.put(row);
             }
             obj.put("items", array);
@@ -293,7 +302,8 @@ public final class HermesWidgetSpec {
                 items.add(new Item(
                         row.optString("label", ""),
                         row.optString("value", ""),
-                        row.optString("action_draft", "")));
+                        row.optString("action_draft", ""),
+                        row.optBoolean("checked", false)));
             }
         }
         return new HermesWidgetSpec(id, title, subtitle, template, items, accent, safe, owner);

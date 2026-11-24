@@ -101,6 +101,7 @@ public final class SharedTextFlow {
             target = entry == null ? session : entry.confirmedThread();
             imported = workspace.containsShare(target, key);
         } catch (RuntimeException unavailable) {
+            Diagnostics.warning("share", "text_verify_failed", unavailable);
             failed(activity.getString(R.string.share_text_verify_failed));
             return;
         }
@@ -136,6 +137,7 @@ public final class SharedTextFlow {
                     }
                     if (!workspace.appendShare(session, key, text)) return;
                 } catch (RuntimeException unavailable) {
+                    Diagnostics.warning("share", "text_confirm_failed", unavailable);
                     failed(activity.getString(R.string.share_text_confirm_failed));
                     return;
                 }
@@ -159,6 +161,7 @@ public final class SharedTextFlow {
             IncomingShare.discard(activity, key);
             cleanupTicket = null;
         } catch (RuntimeException unavailable) {
+            Diagnostics.warning("share", "text_cleanup_failed", unavailable);
             Account account = owner;
             dialog = Ui.secureDialog(new AlertDialog.Builder(activity).setTitle(R.string.share_text_added_title)
                     .setMessage(R.string.share_text_cleanup_body)
@@ -193,7 +196,11 @@ public final class SharedTextFlow {
 
     private void cancel() {
         try { IncomingShare.discard(activity, ticket); }
-        catch (RuntimeException failure) { failed(activity.getString(R.string.share_cleanup_failed)); return; }
+        catch (RuntimeException failure) {
+            Diagnostics.warning("share", "text_cancel_cleanup_failed", failure);
+            failed(activity.getString(R.string.share_cleanup_failed));
+            return;
+        }
         ticket = null;
         dismiss();
     }

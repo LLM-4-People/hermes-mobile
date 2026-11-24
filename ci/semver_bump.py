@@ -47,14 +47,41 @@ SHIPPABLE_GRADLE_PREFIXES = (
 )
 
 
-def parse_semver(raw):
-    """Parse a strict SemVer string (with optional leading 'v') into (major, minor, patch)."""
+def _canonical_version(raw):
+    """Validate and return the canonical SemVer string without leading 'v'."""
     match = SEMVER_RE.fullmatch(str(raw).strip())
     if not match:
         raise ValueError(f"Invalid semantic version: {raw!r}")
-    core = match.group(1).split("-", 1)[0]
+    return match.group(1)
+
+
+def parse_semver(raw):
+    """Parse a strict SemVer string (with optional leading 'v') into (major, minor, patch)."""
+    core = _canonical_version(raw).split("-", 1)[0]
     major, minor, patch = core.split(".")
     return int(major), int(minor), int(patch)
+
+
+def semver_sort_key(raw):
+    """Return a SemVer 2.0.0 precedence sort key matching Android ReleaseVersion.java.
+
+    Layout: (major, minor, patch, 1 if final else 0, pre_ids) where numeric pre-release
+    identifiers sort as (0, int(ident)) ahead of alphanumeric identifiers (1, ident).
+    """
+    canonical = _canonical_version(raw)
+    if "-" in canonical:
+        core, pre = canonical.split("-", 1)
+        pre_ids = tuple(
+            (0, int(ident)) if ident.isdigit() else (1, ident)
+            for ident in pre.split(".")
+        )
+        is_final = 0
+    else:
+        core = canonical
+        pre_ids = ()
+        is_final = 1
+    major, minor, patch = (int(part) for part in core.split("."))
+    return (major, minor, patch, is_final, pre_ids)
 
 
 def format_semver(parts):
@@ -233,16 +260,17 @@ def plan_release(
     if action is None:
         return {"mode": "none"}
 
-    current_tuple = parse_semver(current_name)
+    current_canonical = _canonical_version(current_name)
+    current_key = semver_sort_key(current_canonical)
     tag_set = {t.strip() for t in existing_tags if t and t.strip()}
     parsed_tags = []
     for tag in tag_set:
         try:
-            parsed_tags.append(parse_semver(tag))
+            parsed_tags.append((semver_sort_key(tag), tag))
         except ValueError:
             continue
-    highest_tag = max(parsed_tags) if parsed_tags else None
-    current_tag = f"v{current_name}"
+    highest_key, highest_tag_str = max(parsed_tags, key=lambda item: item[0]) if parsed_tags else (None, None)
+    current_tag = f"v{current_canonical}"
 
     if action == "publish":
         if current_tag in tag_set:
@@ -251,14 +279,14 @@ def plan_release(
             raise ValueError(
                 f"hermesVersionCode ({current_code}) must exceed published max ({published_max_code})"
             )
-        if highest_tag is not None and current_tuple <= highest_tag:
+        if highest_key is not None and current_key <= highest_key:
             raise ValueError(
-                f"hermesVersionName ({current_name}) must exceed latest tag v{format_semver(highest_tag)}"
+                f"hermesVersionName ({current_name}) must exceed latest tag {highest_tag_str}"
             )
         return {
             "mode": "tag_and_release",
             "tag": current_tag,
-            "version_name": current_name,
+            "version_name": current_canonical,
             "version_code": current_code,
         }
 
@@ -268,30 +296,31 @@ def plan_release(
     if (
         current_tag not in tag_set
         and current_code > published_max_code
-        and (highest_tag is None or current_tuple > highest_tag)
+        and (highest_key is None or current_key > highest_key)
     ):
         return {
             "mode": "tag_and_release",
             "tag": current_tag,
-            "version_name": current_name,
+            "version_name": current_canonical,
             "version_code": current_code,
         }
 
-    base_tuple = max(current_tuple, highest_tag) if highest_tag is not None else current_tuple
+    base_key = max(current_key, highest_key) if highest_key is not None else current_key
     effective_bump = highest_bump(action, unreleased_titles)
-    next_name = bump_semver(format_semver(base_tuple), effective_bump)
-    next_tuple = parse_semver(next_name)
+    next_name = bump_semver(format_semver(base_key[:3]), effective_bump)
+    next_key = semver_sort_key(next_name)
 
     # Never downgrade below an already-open release/v* PR targeting a higher unreleased version.
     for raw_pending in pending_release_tags or ():
         try:
-            pending_tuple = parse_semver(raw_pending)
+            pending_canonical = _canonical_version(raw_pending)
+            pending_key = semver_sort_key(pending_canonical)
         except ValueError:
             continue
-        pending_tag = f"v{format_semver(pending_tuple)}"
-        if pending_tuple > next_tuple and pending_tag not in tag_set:
-            next_tuple = pending_tuple
-            next_name = format_semver(pending_tuple)
+        pending_tag = f"v{pending_canonical}"
+        if pending_key > next_key and pending_tag not in tag_set:
+            next_key = pending_key
+            next_name = pending_canonical
 
     next_code = max(current_code, published_max_code) + 1
     next_tag = f"v{next_name}"
@@ -308,7 +337,7 @@ def plan_release(
 
 def find_superseded_release_prs(open_prs, target_tag):
     """Return sorted PR numbers of open release/v* PRs whose SemVer is strictly lower than target_tag."""
-    target_tuple = parse_semver(target_tag)
+    target_key = semver_sort_key(target_tag)
     superseded = []
     for pr in open_prs or ():
         if not isinstance(pr, dict):
@@ -318,10 +347,10 @@ def find_superseded_release_prs(open_prs, target_tag):
             continue
         candidate_tag = head[len("release/"):]
         try:
-            candidate_tuple = parse_semver(candidate_tag)
+            candidate_key = semver_sort_key(candidate_tag)
         except ValueError:
             continue
-        if candidate_tuple < target_tuple:
+        if candidate_key < target_key:
             number = pr.get("number")
             if isinstance(number, int) and not isinstance(number, bool):
                 superseded.append(number)

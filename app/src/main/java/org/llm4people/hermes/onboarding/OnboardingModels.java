@@ -479,24 +479,7 @@ public final class OnboardingModels {
     }
 
     private static long parseEpochSeconds(Object value) {
-        if (value instanceof Number n) {
-            long raw = n.longValue();
-            return raw > 10_000_000_000L ? raw / 1000L : Math.max(0L, raw);
-        }
-        if (value instanceof String s && !s.trim().isEmpty()) {
-            String trimmed = s.trim();
-            try {
-                return java.time.Instant.parse(trimmed).getEpochSecond();
-            } catch (RuntimeException ignored) {
-                try {
-                    long parsed = Long.parseLong(trimmed);
-                    return parsed > 10_000_000_000L ? parsed / 1000L : Math.max(0L, parsed);
-                } catch (NumberFormatException ignored2) {
-                    return 0L;
-                }
-            }
-        }
-        return 0L;
+        return org.llm4people.hermes.EpochTimestamps.parseEpochSeconds(value);
     }
 
     private static String cleanText(String raw, int maxChars) {

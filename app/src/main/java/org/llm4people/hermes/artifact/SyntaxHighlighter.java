@@ -580,6 +580,7 @@ public final class SyntaxHighlighter {
             int pageEnd = pageOffset + pageText.length();
             int matchBg = context.getColor(R.color.syntax_search_match_bg);
             int currentBg = context.getColor(R.color.syntax_search_current_bg);
+            int matchInk = context.getColor(R.color.ink);
             for (int i = 0; i < matches.size(); i++) {
                 SearchMatch m = matches.get(i);
                 if (m.end <= pageOffset) continue;
@@ -588,6 +589,8 @@ public final class SyntaxHighlighter {
                 int e = Math.min(pageText.length(), m.end - pageOffset);
                 if (s < e) {
                     spanned.setSpan(new BackgroundColorSpan(i == activeMatchIndex ? currentBg : matchBg),
+                            s, e, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                    spanned.setSpan(new ForegroundColorSpan(matchInk),
                             s, e, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
                 }
             }

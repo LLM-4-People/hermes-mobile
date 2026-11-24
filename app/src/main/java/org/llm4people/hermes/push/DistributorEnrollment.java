@@ -79,7 +79,7 @@ final class DistributorEnrollment {
             device = PushStore.get(context).prepareUnified(account.id, account.endpoint, distributor, signer, vapid);
         }
         // Reserve before the callback. The full profile bearer never enters the background service.
-        new HermesApi(account.endpoint, account.bearer).put(device.path(),
+        new HermesApi(account.endpoint, account.bearer, PushConnection.apiLimits(context)).put(device.path(),
                 new JSONObject().put("provider", PROVIDER).put("management_key", device.managementKey()));
         synchronized (PushConnection.class) {
             PushStore.Device stored = PushStore.get(context).forInstallation(device.installation);
@@ -179,7 +179,7 @@ final class DistributorEnrollment {
         }
         String json = DeviceSecret.open(device.subscription, device.subscriptionBinding());
         try {
-            new HermesApi(device.endpoint, device.managementKey()).put(device.path(),
+            new HermesApi(device.endpoint, device.managementKey(), PushConnection.apiLimits(context)).put(device.path(),
                     new JSONObject().put("provider", PROVIDER).put("subscription", new JSONObject(json)));
             synchronized (PushConnection.class) {
                 PushStore store = PushStore.get(context);

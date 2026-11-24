@@ -3,5 +3,6 @@
     <string name="infinite_jump_latest_one">1 nouveau</string>
     <string name="infinite_jump_latest_unread">%1$d nouveaux</string>
     <string name="infinite_jump_latest_cd">Revenir aux messages les plus récents</string>
+    <string name="infinite_jump_latest_one_cd">Revenir aux messages les plus récents (1 nouveau)</string>
     <string name="infinite_jump_latest_unread_cd">Revenir aux messages les plus récents (%1$d nouveaux)</string>
 </resources>

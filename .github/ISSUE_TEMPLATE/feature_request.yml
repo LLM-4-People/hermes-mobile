@@ -17,9 +17,9 @@ body:
       label: Target workspace / pillar
       options:
         - Discussions, Coding & Voice
-        - Atelier, Live UI & Widgets
-        - Brain Studio & Universal Sharing
-        - Activity, Push & Ambient Intelligence
+        - Apps, Live UI & Widgets
+        - Notes, Search & Universal Sharing
+        - Settings, Push & Ambient Intelligence
         - Single-Host Multi-Profile Deploy & Companion Fork
         - Developer Experience & Verification
     validations:

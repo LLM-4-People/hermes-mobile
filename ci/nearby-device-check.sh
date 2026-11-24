@@ -11,6 +11,7 @@ adb -s "$serial" install -r -t "$app"
 adb -s "$serial" install -r -t "$tests"
 adb -s "$serial" shell pm clear org.llm4people.hermes.test
 adb -s "$serial" shell pm clear org.llm4people.hermes
+disable_emulator_network "$serial"
 resolved=$(adb -s "$serial" shell cmd package resolve-activity --brief --user 0 \
   -a android.intent.action.VIEW -d 'geo:0,0?q=Montreal' | tail -n 1)
 if [[ "$resolved" != com.google.android.apps.maps/* ]]; then

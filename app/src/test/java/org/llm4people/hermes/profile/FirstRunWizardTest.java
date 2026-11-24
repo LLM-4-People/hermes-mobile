@@ -122,4 +122,30 @@ public final class FirstRunWizardTest {
         assertFalse(FirstRunWizard.isRejectedPairingError(404, null));
         assertFalse(FirstRunWizard.isRejectedPairingError(500, "pairing_internal"));
     }
+
+    @Test public void step2CommitPlanDefersThemeAndPreventsDoubleRecreate() {
+        // Unchanged theme: never invokes theme callback, preserves locale recreate if needed
+        FirstRunWizard.Step2CommitPlan unchanged = FirstRunWizard.planStep2Commit(
+                "system", "system", false, false, true);
+        assertFalse(unchanged.applyThemeCallback());
+        assertTrue(unchanged.recreateForLocale());
+
+        // Switching light -> dark in day mode triggers theme recreate -> suppress redundant locale recreate
+        FirstRunWizard.Step2CommitPlan darkRecreates = FirstRunWizard.planStep2Commit(
+                "light", "dark", false, false, true);
+        assertTrue(darkRecreates.applyThemeCallback());
+        assertFalse(darkRecreates.recreateForLocale());
+
+        // Switching system -> light when already in day mode does NOT recreate for theme -> keep locale recreate
+        FirstRunWizard.Step2CommitPlan samePolarity = FirstRunWizard.planStep2Commit(
+                "system", "light", false, false, true);
+        assertTrue(samePolarity.applyThemeCallback());
+        assertTrue(samePolarity.recreateForLocale());
+
+        // Null/garbage theme inputs normalize safely to system
+        FirstRunWizard.Step2CommitPlan badInputs = FirstRunWizard.planStep2Commit(
+                null, "invalid_theme", false, false, false);
+        assertFalse(badInputs.applyThemeCallback());
+        assertFalse(badInputs.recreateForLocale());
+    }
 }

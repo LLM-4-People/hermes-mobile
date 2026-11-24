@@ -10,4 +10,6 @@
     <string name="home_pin_shortcut_unsupported_body">Your current home screen launcher does not support pinning shortcuts directly.</string>
     <string name="home_pin_widget_fallback_title">Add from home screen</string>
     <string name="home_pin_widget_fallback_body">Your launcher does not support direct widget pinning. You can create a shortcut or add the Hermes widget by long-pressing the home screen.</string>
+    <string name="widget_checklist_item_checked_cd">%1$s, checked</string>
+    <string name="widget_checklist_item_unchecked_cd">%1$s, unchecked</string>
 </resources>

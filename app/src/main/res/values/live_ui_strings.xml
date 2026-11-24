@@ -10,4 +10,6 @@
     <string name="home_pin_shortcut_unsupported_body">Votre écran d’accueil actuel ne permet pas d’épingler un raccourci directement.</string>
     <string name="home_pin_widget_fallback_title">Ajout depuis l’écran d’accueil</string>
     <string name="home_pin_widget_fallback_body">Votre lanceur ne propose pas l’épinglage direct de widget. Vous pouvez créer un raccourci direct ou ajouter le widget Hermes depuis un appui long sur l’écran d’accueil.</string>
+    <string name="widget_checklist_item_checked_cd">%1$s, cochée</string>
+    <string name="widget_checklist_item_unchecked_cd">%1$s, non cochée</string>
 </resources>
