@@ -110,4 +110,26 @@ public final class SecretPatternsTest {
         assertEquals("ab", HermesWidgetSpec.sanitizeHomeText("a\uD83Db", 10));
         assertEquals("ab\ncd", HermesWidgetSpec.sanitizeDraft("a\u200Bb\nc\uDB40\uDC20d"));
     }
+
+    @Test
+    public void notificationPrivacyGuardDetectsObfuscatedOtpAndSecretLabelsWithoutTitleFusion() {
+        String[][] obfuscatedCases = {
+                {"Alert", "G-\u200B123456"},
+                {"Notice", "c\u200Bvv 123"},
+                {"Alert", "o\u200Btp 123456"},
+                {"Notice", "card\u200B\npin 1234"},
+                {"Alert", "c\nvv 123"},
+                {"card", "pin 1234"}
+        };
+        for (String[] pair : obfuscatedCases) {
+            assertTrue("containsOtpOrSecret missed: " + pair[0] + " / " + pair[1],
+                    NotificationPrivacyGuard.containsOtpOrSecret(pair[0], pair[1]));
+            assertEquals("evaluate allowed: " + pair[0] + " / " + pair[1],
+                    NotificationPrivacyGuard.Decision.BLOCK_OTP_OR_SECRET,
+                    NotificationPrivacyGuard.evaluate(
+                            new NotificationPrivacyGuard.Candidate(
+                                    "com.slack", pair[0], pair[1], 0, false, false, false, "msg"),
+                            Set.of("com.slack")));
+        }
+    }
 }

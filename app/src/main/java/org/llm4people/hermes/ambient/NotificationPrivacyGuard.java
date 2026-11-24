@@ -114,12 +114,30 @@ public final class NotificationPrivacyGuard {
         if (SecretPatterns.containsCredential(title) || SecretPatterns.containsCredential(text)) {
             return true;
         }
+        if (matchesOtpOrLabelWithNormalization(title) || matchesOtpOrLabelWithNormalization(text)) {
+            return true;
+        }
         String combined = ((title == null ? "" : title) + "\n" + (text == null ? "" : text)).trim();
         if (combined.isEmpty()) return false;
         if (SecretPatterns.containsCredential(combined)) return true;
         if (matchesOtpOrLabel(combined)) return true;
-        String collapsed = PlainTextSanitizer.collapseBounded(combined, combined.length());
-        return !collapsed.isEmpty() && matchesOtpOrLabel(collapsed);
+        String spaced = ((title == null ? "" : title) + " " + (text == null ? "" : text))
+                .replace('\n', ' ').replace('\r', ' ').replace('\t', ' ');
+        String spacedCollapsed = PlainTextSanitizer.collapseBounded(spaced, spaced.length());
+        return !spacedCollapsed.isEmpty() && matchesOtpOrLabel(spacedCollapsed);
+    }
+
+    private static boolean matchesOtpOrLabelWithNormalization(String value) {
+        if (value == null || value.isEmpty()) return false;
+        if (matchesOtpOrLabel(value)) return true;
+        String collapsed = PlainTextSanitizer.collapseBounded(value, value.length());
+        if (!collapsed.isEmpty() && matchesOtpOrLabel(collapsed)) return true;
+        if (value.indexOf('\n') >= 0 || value.indexOf('\r') >= 0 || value.indexOf('\t') >= 0) {
+            String spaced = value.replace('\n', ' ').replace('\r', ' ').replace('\t', ' ');
+            String spacedCollapsed = PlainTextSanitizer.collapseBounded(spaced, spaced.length());
+            return !spacedCollapsed.isEmpty() && matchesOtpOrLabel(spacedCollapsed);
+        }
+        return false;
     }
 
     private static boolean matchesOtpOrLabel(String text) {
