@@ -180,6 +180,69 @@ public final class VisualDiffPromptCardTest extends InstrumentationTestCase {
         assertEquals("@@ -1 +1 @@", nonFinite.lines().get(0).text());
     }
 
+    public void testSummaryHeaderAndAccessibleDescriptionIncludeRiskAndHideDuplicateChildren() throws Throwable {
+        runTestOnUiThread(() -> {
+            try {
+                // 1. High / medium / low risk with path and stats.
+                String[][] cases = {
+                        {"high", activity.getString(R.string.diff_risk_high)},
+                        {"medium", activity.getString(R.string.diff_risk_medium)},
+                        {"low", activity.getString(R.string.diff_risk_low)}
+                };
+                String addedOne = activity.getResources().getQuantityString(R.plurals.diff_lines_added, 1, 1);
+                String removedOne = activity.getResources().getQuantityString(R.plurals.diff_lines_removed, 1, 1);
+                for (String[] entry : cases) {
+                    JSONObject prompt = new JSONObject().put("preview", new JSONObject()
+                            .put("risk", entry[0])
+                            .put("diff", new JSONObject()
+                                    .put("path", "src/Risk.java")
+                                    .put("additions", 1)
+                                    .put("deletions", 1)
+                                    .put("hunks", new JSONArray().put(new JSONObject()
+                                            .put("old_start", 1).put("new_start", 1)
+                                            .put("lines", new JSONArray().put("-old").put("+new"))))));
+                    DiffRenderer.DiffModel model = DiffRenderer.parse(prompt);
+                    assertNotNull(model);
+                    String expected = "src/Risk.java, " + entry[1] + ", " + addedOne + ", " + removedOne;
+                    assertEquals(expected, DiffRenderer.statsAccessibleDescription(activity, model));
+
+                    ViewGroup header = (ViewGroup) DiffRenderer.summaryHeader(activity, model);
+                    assertEquals(expected, String.valueOf(header.getContentDescription()));
+                    assertEquals(2, header.getChildCount());
+                    assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS,
+                            header.getChildAt(0).getImportantForAccessibility());
+                    assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_NO,
+                            header.getChildAt(1).getImportantForAccessibility());
+                }
+
+                // 2. Risk-only model (no path, no stats) still announces risk.
+                DiffRenderer.DiffModel riskOnly = new DiffRenderer.DiffModel(
+                        "", "", "", "", "high", 0, 0, false, java.util.Collections.emptyList(), "");
+                String highLabel = activity.getString(R.string.diff_risk_high);
+                assertEquals(highLabel, DiffRenderer.statsAccessibleDescription(activity, riskOnly));
+                ViewGroup riskHeader = (ViewGroup) DiffRenderer.summaryHeader(activity, riskOnly);
+                assertEquals(highLabel, String.valueOf(riskHeader.getContentDescription()));
+                assertEquals(1, riskHeader.getChildCount());
+                assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS,
+                        riskHeader.getChildAt(0).getImportantForAccessibility());
+
+                // 3. Empty risk omits risk from accessible description cleanly.
+                DiffRenderer.DiffModel noRisk = new DiffRenderer.DiffModel(
+                        "src/Plain.java", "", "", "", "", 1, 0, false, java.util.Collections.emptyList(), "");
+                String expectedNoRisk = "src/Plain.java, " + addedOne;
+                assertEquals(expectedNoRisk, DiffRenderer.statsAccessibleDescription(activity, noRisk));
+                ViewGroup plainHeader = (ViewGroup) DiffRenderer.summaryHeader(activity, noRisk);
+                assertEquals(expectedNoRisk, String.valueOf(plainHeader.getContentDescription()));
+                assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS,
+                        plainHeader.getChildAt(0).getImportantForAccessibility());
+                assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_NO,
+                        plainHeader.getChildAt(1).getImportantForAccessibility());
+            } catch (Exception err) {
+                throw new AssertionError(err);
+            }
+        });
+    }
+
     public void testRunDecisionsConfirmedReplySaturatesResolvedCount() throws Exception {
         // 4_294_967_296L saturates to Integer.MAX_VALUE (> 0 -> confirmed); -4_294_967_200L saturates to MIN_VALUE (<= 0 -> unconfirmed).
         assertTrue(RunDecisions.isConfirmedReply("run-1", "p-1", new JSONObject()

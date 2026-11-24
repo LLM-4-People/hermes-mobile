@@ -328,7 +328,7 @@ public final class LiveUiPatchBar extends LinearLayout {
         TextView heading = Ui.text(context,
                 context.getString(R.string.ws_liveui_suggested_heading), colors.scaledSp(13));
         heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        heading.setTextColor(colors.muted);
+        heading.setTextColor(context.getColor(R.color.muted));
         heading.setPadding(0, 0, 0, Ui.dp(context, 4));
         container.addView(heading);
 

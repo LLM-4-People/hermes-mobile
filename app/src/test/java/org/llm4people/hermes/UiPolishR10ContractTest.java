@@ -147,5 +147,14 @@ public final class UiPolishR10ContractTest {
         String studio = read("src/main/java/org/llm4people/hermes/panel/SkillStudio.java");
         assertTrue(studio.contains("toggle.setMinWidth(minTouch)"));
         assertTrue(studio.contains("toggle.setMinimumWidth(minTouch)"));
+
+        // R12.5.1 / R12.4.4 / R12.4.5 contracts.
+        String patchBar = read("src/main/java/org/llm4people/hermes/artifact/LiveUiPatchBar.java");
+        assertTrue(patchBar.contains("heading.setTextColor(context.getColor(R.color.muted));"));
+        assertFalse(patchBar.contains("heading.setTextColor(colors.muted);"));
+        String surfaceRenderer = read("src/main/java/org/llm4people/hermes/artifact/SurfaceRenderer.java");
+        assertFalse(surfaceRenderer.contains("ArtifactDesk.Host host, boolean showTitle)"));
+        String nearbyGuide = read("src/main/java/org/llm4people/hermes/places/NearbyGuide.java");
+        assertFalse(nearbyGuide.contains("public static String distance(int meters)"));
     }
 }

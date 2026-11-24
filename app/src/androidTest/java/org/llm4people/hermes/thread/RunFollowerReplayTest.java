@@ -1,6 +1,6 @@
 package org.llm4people.hermes.thread;
 
-import junit.framework.TestCase;
+import android.test.InstrumentationTestCase;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.llm4people.hermes.net.Exchange;
@@ -9,7 +9,12 @@ import org.llm4people.hermes.net.HermesApi;
 import java.util.ArrayList;
 import java.util.List;
 
-public class RunFollowerReplayTest extends TestCase {
+@SuppressWarnings("deprecation")
+public class RunFollowerReplayTest extends InstrumentationTestCase {
+    @Override protected void setUp() throws Exception {
+        super.setUp();
+        ThreadStrings.attach(getInstrumentation().getTargetContext());
+    }
     public void testNewSnapshotConfirmsLivePromptsAndRejectsReplayedSettledRequests() throws Exception {
         JSONObject previous = prompt("old");
         JSONObject oldApproval = prompt("old-approval").put("kind", "approval");

@@ -17,6 +17,7 @@ import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.RadioButton;
 import android.widget.Switch;
+import android.widget.TextView;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -24,6 +25,8 @@ import org.llm4people.hermes.artifact.ArtifactDesk;
 import org.llm4people.hermes.artifact.DataTableBlock;
 import org.llm4people.hermes.artifact.InstrumentStateStore;
 import org.llm4people.hermes.artifact.InteractiveControlsBlock;
+import org.llm4people.hermes.artifact.LiveUiPatch;
+import org.llm4people.hermes.artifact.LiveUiPatchBar;
 import org.llm4people.hermes.artifact.MessageParts;
 import org.llm4people.hermes.artifact.ThemePalette;
 import org.llm4people.hermes.artifact.ThreadInstruments;
@@ -186,33 +189,43 @@ public final class UiPolishR10RegressionTest extends InstrumentationTestCase {
         Method spoken = panelCls.getDeclaredMethod("spoken", Context.class, JSONObject.class, List.class);
         spoken.setAccessible(true);
 
-        for (Locale locale : new Locale[]{Locale.FRENCH, Locale.ENGLISH}) {
-            Context ctx = localized(base, locale);
-            String expectedMarker = ctx.getString(R.string.ws_image_attached);
-            String expectedSpoken = ctx.getString(R.string.instrument_spoken, "Demo");
-            assertEquals(Locale.FRENCH.equals(locale) ? "[Image jointe]" : "[Image attached]", expectedMarker);
+        AppLanguage.Mode originalMode = AppLanguage.readMode(base);
+        if (originalMode != AppLanguage.Mode.AUTO) {
+            AppLanguage.apply(base, AppLanguage.Mode.AUTO);
+        }
+        try {
+            for (Locale locale : new Locale[]{Locale.FRENCH, Locale.ENGLISH}) {
+                Context ctx = localized(base, locale);
+                String expectedMarker = ctx.getString(R.string.ws_image_attached);
+                String expectedSpoken = ctx.getString(R.string.instrument_spoken, "Demo");
+                assertEquals(Locale.FRENCH.equals(locale) ? "[Image jointe]" : "[Image attached]", expectedMarker);
 
-            String content = (String) tdContent.invoke(null, ctx, row);
-            assertTrue("ThreadData.content should localize image marker for " + locale,
-                    content.contains(expectedMarker));
-            assertFalse("ThreadData.content should not emit raw [image] for " + locale,
-                    content.contains("[image]"));
+                String content = (String) tdContent.invoke(null, ctx, row);
+                assertTrue("ThreadData.content should localize image marker for " + locale,
+                        content.contains(expectedMarker));
+                assertFalse("ThreadData.content should not emit raw [image] for " + locale,
+                        content.contains("[image]"));
 
-            String spokenNoProposals = (String) spoken.invoke(null, ctx, row, Collections.emptyList());
-            assertTrue("ThreadInstrumentPanel.spoken (no proposals) should localize image marker for " + locale,
-                    spokenNoProposals.contains(expectedMarker));
+                String spokenNoProposals = (String) spoken.invoke(null, ctx, row, Collections.emptyList());
+                assertTrue("ThreadInstrumentPanel.spoken (no proposals) should localize image marker for " + locale,
+                        spokenNoProposals.contains(expectedMarker));
 
-            String spokenWithProposal = (String) spoken.invoke(null, ctx, row, proposals);
-            assertTrue("ThreadInstrumentPanel.spoken should include localized spoken label for " + locale,
-                    spokenWithProposal.contains(expectedSpoken));
-            assertTrue("ThreadInstrumentPanel.spoken should localize image marker for " + locale,
-                    spokenWithProposal.contains(expectedMarker));
+                String spokenWithProposal = (String) spoken.invoke(null, ctx, row, proposals);
+                assertTrue("ThreadInstrumentPanel.spoken should include localized spoken label for " + locale,
+                        spokenWithProposal.contains(expectedSpoken));
+                assertTrue("ThreadInstrumentPanel.spoken should localize image marker for " + locale,
+                        spokenWithProposal.contains(expectedMarker));
 
-            String projectedProse = MessageParts.project(
-                    row, Collections.singletonMap(0, pageJson), ignored -> "", ctx);
-            assertTrue("MessageParts.project prose should localize image marker for " + locale,
-                    projectedProse.contains(expectedMarker));
-            assertFalse(projectedProse.contains("[image]"));
+                String projectedProse = MessageParts.project(
+                        row, Collections.singletonMap(0, pageJson), ignored -> "", ctx);
+                assertTrue("MessageParts.project prose should localize image marker for " + locale,
+                        projectedProse.contains(expectedMarker));
+                assertFalse(projectedProse.contains("[image]"));
+            }
+        } finally {
+            if (originalMode != AppLanguage.Mode.AUTO) {
+                AppLanguage.apply(base, originalMode);
+            }
         }
     }
 
@@ -488,6 +501,22 @@ public final class UiPolishR10RegressionTest extends InstrumentationTestCase {
                     assertTrue("SkillStudio Switch minimumWidth >= 48dp", skillToggle.getMinimumWidth() >= min48);
                     assertTrue("SkillStudio Switch minHeight >= 48dp", skillToggle.getMinHeight() >= min48);
                     assertTrue("SkillStudio Switch minimumHeight >= 48dp", skillToggle.getMinimumHeight() >= min48);
+
+                    // 11. LiveUiPatchBar.suggestedActionsStrip heading keeps WCAG AA contrast under opposite-polarity palette (R12.5.1)
+                    ThemePalette oppositePalette = ThemePalette.resolve(
+                            ThemePalette.OverrideSpec.defaults(), !ThemePalette.isNight(activity));
+                    LiveUiPatch.SuggestedAction suggestion = new LiveUiPatch.SuggestedAction(
+                            "Summarize", "Summarize this.", null, null);
+                    ViewGroup strip = (ViewGroup) LiveUiPatchBar.suggestedActionsStrip(
+                            activity, Collections.singletonList(suggestion), oppositePalette,
+                            s -> {}, s -> {}, s -> {});
+                    TextView stripHeading = (TextView) strip.getChildAt(0);
+                    int hostPaper = activity.getColor(R.color.paper);
+                    int hostMuted = activity.getColor(R.color.muted);
+                    assertEquals("Suggested actions heading must use host R.color.muted over transparent container",
+                            hostMuted, stripHeading.getCurrentTextColor());
+                    assertTrue("Suggested actions heading must maintain >= 4.5:1 WCAG AA contrast on host paper",
+                            ThemePalette.contrastRatio(stripHeading.getCurrentTextColor(), hostPaper) >= 4.5d);
                 } catch (Exception err) {
                     throw new AssertionError(err);
                 }

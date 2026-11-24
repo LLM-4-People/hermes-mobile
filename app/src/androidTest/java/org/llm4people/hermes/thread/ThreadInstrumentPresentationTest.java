@@ -5,6 +5,7 @@ import android.test.InstrumentationTestCase;
 import android.widget.TextView;
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.artifact.ThreadInstruments;
 import org.llm4people.hermes.profile.WorkspaceAccountFixture;
@@ -56,7 +57,7 @@ public final class ThreadInstrumentPresentationTest extends InstrumentationTestC
             ThreadInstruments store = new ThreadInstruments(profile.account, "root");
             List<ThreadInstruments.Pin> proposals = store.proposals(new JSONArray().put(row));
             assertEquals(1, proposals.size());
-            String spoken = context.getString(R.string.instrument_spoken, "Carnet de voyage");
+            String spoken = AppLanguage.wrapContext(context).getString(R.string.instrument_spoken, "Carnet de voyage");
             assertEquals(prefix + spoken + "\nÀ vous de choisir.",
                     ThreadInstrumentPanel.spoken(context, row, proposals));
 
