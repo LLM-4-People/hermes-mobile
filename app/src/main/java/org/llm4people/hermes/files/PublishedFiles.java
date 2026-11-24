@@ -130,7 +130,8 @@ public final class PublishedFiles implements Closeable {
                 .putExtra(Intent.EXTRA_TITLE, item.name);
         selection = new Selection(owner, item);
         try { activity.startActivityForResult(request, SAVE); }
-        catch (ActivityNotFoundException e) {
+        catch (ActivityNotFoundException | SecurityException unavailable) {
+            Diagnostics.warning("files", "picker_unavailable", unavailable);
             selection = null;
             toast(activity.getString(R.string.files_picker_unavailable));
         }

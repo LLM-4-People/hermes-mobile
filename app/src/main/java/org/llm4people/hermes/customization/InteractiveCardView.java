@@ -13,9 +13,9 @@ import android.widget.LinearLayout;
 import android.widget.Switch;
 import android.widget.TextView;
 
-import org.json.JSONArray;
 import org.json.JSONObject;
 import org.llm4people.hermes.Diagnostics;
+import org.llm4people.hermes.JsonValues;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.onboarding.PairingLinkParser;
@@ -314,138 +314,31 @@ public final class InteractiveCardView extends LinearLayout {
                 case PAIRING_INVITE -> {
                     Object nested = raw.get("pairing");
                     Map<String, Object> src = nested instanceof Map<?, ?> m ? (Map<String, Object>) m : raw;
-                    String mode = str(src.get("mode"));
-                    String link = str(src.containsKey("deep_link") ? src.get("deep_link") : src.get("link"));
+                    String rawMode = str(src.get("mode"));
+                    String mode = rawMode.isEmpty() ? "device" : rawMode;
+                    Object rawLink = src.get("deep_link") != null ? src.get("deep_link") : src.get("link");
+                    String link = str(rawLink);
                     String slug = str(src.get("profile_slug"));
                     String displayName = str(src.get("display_name"));
                     long expiresAt = parseLongVal(src.get("expires_at"));
-                    int ttl = (int) parseLongVal(src.get("ttl_seconds"));
+                    int ttl = parseTtlSeconds(src.get("ttl_seconds"), 300);
                     yield pairingInvite(id, title, subtitle,
                             new PairingInvite(mode, link, slug, displayName, expiresAt, ttl));
                 }
             };
         }
 
-        /** Android JSONObject fail-closed parser matching canonical Track 9A {@code interactive_cards} schema. */
+        /** Android JSONObject fail-closed parser delegating directly to {@link #fromMap(Map)} via {@link JsonValues}. */
         public static Spec fromJson(JSONObject obj) {
             if (obj == null) throw new IllegalArgumentException("Missing card JSON");
-            String id = obj.optString("id", "");
-            Kind kind = Kind.parse(obj.optString("kind", ""));
-            if (kind == null) throw new IllegalArgumentException("Unknown card kind");
-            String title = obj.optString("title", "");
-            String subtitle = obj.optString("subtitle", "");
-            return switch (kind) {
-                case CHECKLIST -> {
-                    List<ChecklistItem> items = new ArrayList<>();
-                    JSONArray arr = obj.optJSONArray("items");
-                    if (arr != null) {
-                        for (int i = 0; i < arr.length() && items.size() < MAX_CHECKLIST_ITEMS; i++) {
-                            JSONObject item = arr.optJSONObject(i);
-                            if (item == null) continue;
-                            items.add(new ChecklistItem(
-                                    item.optString("id", ""),
-                                    item.optString("label", ""),
-                                    item.optBoolean("checked", false)));
-                        }
-                    }
-                    yield checklist(id, title, subtitle, items);
-                }
-                case QUICK_PICKS -> {
-                    List<QuickPick> picks = new ArrayList<>();
-                    JSONArray arr = obj.optJSONArray("items");
-                    if (arr != null) {
-                        for (int i = 0; i < arr.length() && picks.size() < MAX_QUICK_PICKS; i++) {
-                            JSONObject item = arr.optJSONObject(i);
-                            if (item == null) continue;
-                            picks.add(new QuickPick(
-                                    item.optString("id", ""),
-                                    item.optString("label", ""),
-                                    item.optString("draft", "")));
-                        }
-                    }
-                    yield quickPicks(id, title, subtitle, picks);
-                }
-                case TOGGLES -> {
-                    List<ToggleItem> items = new ArrayList<>();
-                    JSONArray arr = obj.optJSONArray("items");
-                    if (arr != null) {
-                        for (int i = 0; i < arr.length() && items.size() < MAX_TOGGLES; i++) {
-                            JSONObject item = arr.optJSONObject(i);
-                            if (item == null) continue;
-                            items.add(new ToggleItem(
-                                    item.optString("id", ""),
-                                    item.optString("label", ""),
-                                    item.optString("description", ""),
-                                    item.optBoolean("enabled", false)));
-                        }
-                    }
-                    yield toggles(id, title, subtitle, items);
-                }
-                case CUSTOMIZATION_PREVIEW -> {
-                    JSONObject cust = obj.optJSONObject("customization");
-                    if (cust == null) throw new IllegalArgumentException("Missing customization JSON");
-                    AppCustomization.PalettePreset preset = null;
-                    String customHex = null;
-                    boolean hasAccentHex = cust.has("accent_hex") && !cust.isNull("accent_hex");
-                    boolean hasAccent = (cust.has("accent") && !cust.isNull("accent"))
-                            || (cust.has("accent_preset") && !cust.isNull("accent_preset"));
-                    if (hasAccentHex) {
-                        String accentHex = cust.optString("accent_hex", "");
-                        preset = AppCustomization.PalettePreset.CUSTOM;
-                        customHex = AppCustomization.validateCustomAccentHex(accentHex);
-                    } else if (hasAccent) {
-                        String accentRaw = cust.has("accent") && !cust.isNull("accent")
-                                ? cust.optString("accent", "") : cust.optString("accent_preset", "");
-                        preset = AppCustomization.PalettePreset.parse(accentRaw);
-                        if (preset == null) throw new IllegalArgumentException("Invalid accent");
-                    }
-                    AppCustomization.Density density = null;
-                    if (cust.has("density") && !cust.isNull("density")) {
-                        density = AppCustomization.Density.parse(cust.optString("density", ""));
-                        if (density == null) throw new IllegalArgumentException("Invalid density");
-                    }
-                    Float fontDelta = null;
-                    if (cust.has("font_scale_step") && !cust.isNull("font_scale_step")) {
-                        fontDelta = parseFontScaleStep(cust.opt("font_scale_step"));
-                    }
-                    AppCustomization.StartupTab tab = null;
-                    if (cust.has("startup_tab") && !cust.isNull("startup_tab")) {
-                        tab = AppCustomization.StartupTab.parse(cust.optString("startup_tab", ""));
-                        if (tab == null) throw new IllegalArgumentException("Invalid startup tab");
-                    }
-                    String greeting = null;
-                    if (cust.has("greeting") && !cust.isNull("greeting")) {
-                        greeting = AppCustomization.sanitizePlainText(
-                                cust.optString("greeting", ""), AppCustomization.MAX_GREETING_CHARS);
-                    }
-                    String themeMode = null;
-                    if (cust.has("theme") && !cust.isNull("theme")) {
-                        themeMode = parseThemeMode(cust.optString("theme", ""));
-                    }
-                    CustomizationDelta delta = new CustomizationDelta(
-                            preset, customHex, density, fontDelta, tab, greeting, themeMode);
-                    yield customizationPreview(id, title, subtitle, delta);
-                }
-                case PAIRING_INVITE -> {
-                    JSONObject src = obj.optJSONObject("pairing");
-                    if (src == null) src = obj;
-                    String mode = src.optString("mode", "device");
-                    String link = src.has("deep_link") ? src.optString("deep_link", "") : src.optString("link", "");
-                    String slug = src.optString("profile_slug", "");
-                    String displayName = src.optString("display_name", "");
-                    long expiresAt = parseLongVal(src.opt("expires_at"));
-                    int ttl = src.optInt("ttl_seconds", 300);
-                    yield pairingInvite(id, title, subtitle,
-                            new PairingInvite(mode, link, slug, displayName, expiresAt, ttl));
-                }
-            };
+            return fromMap(JsonValues.toMap(obj));
         }
 
         private static CustomizationDelta parseCustomizationDeltaMap(Map<String, Object> m) {
             AppCustomization.PalettePreset preset = null;
             String customHex = null;
             Object rawAccentHex = m.get("accent_hex");
-            Object rawAccent = m.containsKey("accent") ? m.get("accent") : m.get("accent_preset");
+            Object rawAccent = m.get("accent") != null ? m.get("accent") : m.get("accent_preset");
             if (rawAccentHex != null) {
                 preset = AppCustomization.PalettePreset.CUSTOM;
                 customHex = AppCustomization.validateCustomAccentHex(str(rawAccentHex));
@@ -867,5 +760,23 @@ public final class InteractiveCardView extends LinearLayout {
 
     private static long parseLongVal(Object value) {
         return org.llm4people.hermes.EpochTimestamps.parseEpochSeconds(value);
+    }
+
+    private static int parseTtlSeconds(Object value, int defaultSeconds) {
+        if (value == null) return defaultSeconds;
+        if (value instanceof Number n) {
+            double d = n.doubleValue();
+            return Double.isFinite(d) ? (int) Math.round(d) : defaultSeconds;
+        }
+        if (value instanceof String s) {
+            String trimmed = s.trim();
+            if (trimmed.isEmpty()) return defaultSeconds;
+            try {
+                return Integer.parseInt(trimmed);
+            } catch (NumberFormatException ignored) {
+                return defaultSeconds;
+            }
+        }
+        return defaultSeconds;
     }
 }

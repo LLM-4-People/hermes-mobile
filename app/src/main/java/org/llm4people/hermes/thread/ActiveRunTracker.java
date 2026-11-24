@@ -323,6 +323,7 @@ public final class ActiveRunTracker {
             logEvent("bg_run_detached");
             return true;
         } catch (RuntimeException rejected) {
+            logWarning("bg_detach_rejected");
             synchronized (this) {
                 if (tasks.get(sessionId) == entry && entry.bgToken == token) {
                     tasks.remove(sessionId);

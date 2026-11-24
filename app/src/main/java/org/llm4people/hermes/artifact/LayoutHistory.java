@@ -128,38 +128,6 @@ final class LayoutHistory {
         });
     }
 
-    /** Reverts atomically to the state saved right before revisionId. */
-    boolean revertTo(String revisionId) {
-        boolean[] reverted = {false};
-        update(old -> {
-            JSONArray stack = old.optJSONArray("revisions");
-            if (stack == null || stack.length() == 0) return old;
-            int found = -1;
-            for (int i = stack.length() - 1; i >= 0; i--) {
-                JSONObject item = stack.optJSONObject(i);
-                if (item != null && revisionId.equals(item.optString("id", ""))) {
-                    found = i;
-                    break;
-                }
-            }
-            if (found < 0) return old;
-            String targetRaw = stack.optJSONObject(found).optString("raw", "");
-            reverted[0] = true;
-            try {
-                JSONArray remaining = new JSONArray();
-                for (int i = 0; i < found; i++) remaining.put(stack.get(i));
-                if (targetRaw.isEmpty() && remaining.length() == 0) return null;
-                JSONObject next = new JSONObject().put("current", targetRaw);
-                if (remaining.length() > 0) {
-                    next.put("previous", remaining.optJSONObject(remaining.length() - 1).optString("raw", ""));
-                    next.put("revisions", remaining);
-                }
-                return next;
-            } catch (JSONException e) { throw new IllegalStateException(e); }
-        });
-        return reverted[0];
-    }
-
     /** Discard only an explicitly selected native surface that is still unreadable at confirmation. */
     void resetUnreadable() {
         if (!WorkspaceLayout.SURFACES.containsKey(surface)) throw new IllegalStateException("Not a native screen");

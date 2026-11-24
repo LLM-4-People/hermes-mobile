@@ -277,7 +277,7 @@ public final class DataTableBlock {
         LinearLayout tableBody = Ui.column(context);
 
         if (model.filterable && host != null) {
-            EditText search = WorkspaceForms.editor(context, false, 80);
+            EditText search = WorkspaceForms.editor(context, false, 80, colors);
             search.setHint(org.llm4people.hermes.R.string.ws_table_filter_hint);
             search.setContentDescription(context.getString(org.llm4people.hermes.R.string.ws_table_filter_a11y));
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
@@ -349,7 +349,7 @@ public final class DataTableBlock {
             headerRow.addView(head, new LinearLayout.LayoutParams(0, -2, 1f));
         }
         tableBody.addView(headerRow);
-        tableBody.addView(Ui.divider(c));
+        tableBody.addView(themedDivider(c, colors));
 
         List<List<String>> rows = model.visibleRows(AppLanguage.resolvedLocale(c));
         if (rows.isEmpty()) {
@@ -385,7 +385,13 @@ public final class DataTableBlock {
                         String.join(", ", row)));
             }
             tableBody.addView(rowView);
-            if (r + 1 < rows.size()) tableBody.addView(Ui.divider(c));
+            if (r + 1 < rows.size()) tableBody.addView(themedDivider(c, colors));
         }
+    }
+
+    private static View themedDivider(Context c, ThemePalette colors) {
+        View divider = Ui.divider(c);
+        divider.setBackgroundColor(colors.line);
+        return divider;
     }
 }

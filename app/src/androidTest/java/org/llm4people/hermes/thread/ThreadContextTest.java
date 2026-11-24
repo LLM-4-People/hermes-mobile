@@ -63,6 +63,10 @@ public class ThreadContextTest extends TestCase {
         assertEquals(43L, ThreadContext.messageCount(-1, 4, 43));
         assertEquals(0L, ThreadContext.messageCount(-1, 0, 0));
         assertEquals(3L, ThreadContext.messageCount(-1, 3, 3));
+        assertEquals(-1L, ThreadContext.messageCount(-1, 20, 20, 20));
+        assertEquals(19L, ThreadContext.messageCount(-1, 19, 19, 20));
+        assertEquals(40L, ThreadContext.messageCount(-1, 40, 40, 60));
+        assertEquals(-1L, ThreadContext.messageCount(-1, 60, 60, 60));
         page.getJSONObject("pagination").put("total", 4);
         assertEquals(-1L, ThreadContext.visibleTotal(page));
         page.getJSONObject("pagination").put("visible_only", false);

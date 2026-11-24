@@ -85,7 +85,7 @@ public final class ThreadWorkspace implements AutoCloseable {
     private final Account account;
     private final VoiceDrafts voice;
     private final ConversationPanes container;
-    private final ThreadViews index;
+    final ThreadViews index;
     ThreadViews screen;
     ThreadJournal journal;
     final NearbyConsent nearby;
@@ -177,7 +177,6 @@ public final class ThreadWorkspace implements AutoCloseable {
     }
 
     public void editNearbyArea() { nearby.show(null); }
-    public void chooseGuideArea(BooleanSupplier current, Consumer<JSONObject> selected) { nearby.chooseGuide(current, selected); }
     public boolean nearbyPermission(int code, String[] permissions, int[] results) {
         return nearby.permissionResult(code, permissions, results);
     }
@@ -195,7 +194,12 @@ public final class ThreadWorkspace implements AutoCloseable {
     public View view() { return container; }
     public void dismissDialogs() {
         deviceBridge.dismissDialogs();
+        dismissAllDialogs();
+    }
+
+    private void dismissAllDialogs() {
         if (screen != null) screen.dismiss();
+        if (index != null && index != screen) index.dismiss();
     }
     public String sessionId() { return session; }
     public String remoteSessionId() { return remoteSession; }
@@ -348,23 +352,76 @@ public final class ThreadWorkspace implements AutoCloseable {
         screen.focusComposer();
     }
 
+    private final java.util.Set<android.net.Uri> inFlightCaptureSlots =
+            java.util.concurrent.ConcurrentHashMap.newKeySet();
+
     public boolean importCapturedPhoto(ThreadCameraCapture capture, Account owner) {
         if (closed || capture == null || owner == null || session == null) return false;
         String targetSession = session;
         android.net.Uri slot = capture.claimReadySlot(owner, targetSession);
         if (slot == null) return false;
         android.content.Context appContext = activity.getApplicationContext();
-        request(() -> ThreadCameraCapture.readAndDeleteSlot(appContext, slot), item -> {
-            if (item != null && targetSession.equals(session)) {
-                attachMedia(Collections.singletonList(item));
-            }
-        }, failure -> {
-            Diagnostics.warning("camera", "import_failed", failure);
-            if (screen != null) {
-                screen.notice(activity.getString(R.string.thread_camera_read_failed), "", null);
-            }
-        });
-        return true;
+        int generationAtStart = generation;
+        int epochAtStart = profileEpoch;
+        return submitCapturedSlot(slot, workers, inFlightCaptureSlots,
+                () -> !closed && epochAtStart == profileEpoch && (api == null || !api.isRevoked()),
+                () -> {
+                    CapturedMedia.Item item = ThreadCameraCapture.readAndDeleteSlot(appContext, slot);
+                    deliver(generationAtStart, epochAtStart, () -> {
+                        if (item != null && targetSession.equals(session)) {
+                            attachMedia(Collections.singletonList(item));
+                        }
+                    });
+                },
+                failure -> deliver(generationAtStart, epochAtStart, () -> {
+                    Diagnostics.warning("camera", "import_failed", failure);
+                    if (screen != null) {
+                        screen.notice(activity.getString(R.string.thread_camera_read_failed), "", null);
+                    }
+                }),
+                uri -> org.llm4people.hermes.camera.PrivateCaptureProvider.deleteSlot(appContext, uri));
+    }
+
+    interface SlotWork { void run() throws Exception; }
+
+    static <T> boolean submitCapturedSlot(
+            T slot,
+            ExecutorService executor,
+            java.util.Set<T> tracked,
+            BooleanSupplier active,
+            SlotWork work,
+            Consumer<Exception> onFailure,
+            Consumer<T> deleter) {
+        if (slot == null || executor == null || tracked == null || deleter == null) return false;
+        tracked.add(slot);
+        try {
+            executor.execute(() -> {
+                try {
+                    if (active == null || !active.getAsBoolean()) return;
+                    if (work != null) work.run();
+                } catch (Exception failure) {
+                    if (onFailure != null) onFailure.accept(failure);
+                } finally {
+                    tracked.remove(slot);
+                    deleter.accept(slot);
+                }
+            });
+            return true;
+        } catch (java.util.concurrent.RejectedExecutionException rejected) {
+            tracked.remove(slot);
+            deleter.accept(slot);
+            Diagnostics.warning("camera", "import_rejected", rejected);
+            return false;
+        }
+    }
+
+    static <T> void drainCaptureSlots(java.util.Set<T> tracked, Consumer<T> deleter) {
+        if (tracked == null || deleter == null) return;
+        for (java.util.Iterator<T> it = tracked.iterator(); it.hasNext(); ) {
+            T slot = it.next();
+            it.remove();
+            deleter.accept(slot);
+        }
     }
 
     public void refreshClipboardPill() {
@@ -775,7 +832,6 @@ public final class ThreadWorkspace implements AutoCloseable {
     private volatile int noticeRequest;
 
     public void open(String id) { openNotice(id, null, null); }
-    public void openQuestion(String id, String runId) { openNotice(id, runId, "question_requested"); }
 
     public void cancelNotice() { ++noticeRequest; }
 
@@ -1039,7 +1095,7 @@ public final class ThreadWorkspace implements AutoCloseable {
             }
             if (journal.pending() == null) screen.notice("", "", null);
             long previousCount = messageCount;
-            messageCount = ThreadContext.messageCount(total, page.length(), messages.length());
+            messageCount = ThreadContext.messageCount(total, page.length(), messages.length(), pageSize);
             boolean receivedTitle = data.has("thread_title");
             if (receivedTitle) legacyTitleTip = null;
             if (receivedTitle && titleVersion == metadataRequest)
@@ -1176,7 +1232,7 @@ public final class ThreadWorkspace implements AutoCloseable {
             ++generation;
             main.removeCallbacksAndMessages(null);
             activeRuns.stopAllWatchers();
-            if (screen != null) screen.dismiss();
+            dismissAllDialogs();
             if (instruments != null) { instruments.retire(); instruments = null; }
             try {
                 if (run != null) run.detach();
@@ -1197,7 +1253,7 @@ public final class ThreadWorkspace implements AutoCloseable {
         if (!closed) {
             ++generation;
             main.removeCallbacksAndMessages(null);
-            if (screen != null) screen.dismiss();
+            dismissAllDialogs();
             if (instruments != null) { instruments.retire(); instruments = null; }
             try {
                 if (run != null) handedOff = run.detachForThreadSwitch();
@@ -1240,8 +1296,12 @@ public final class ThreadWorkspace implements AutoCloseable {
         try { onBackground(); }
         finally {
             closed = true;
+            dismissAllDialogs();
             if (journal != null) journal.retire();
             workers.shutdownNow();
+            android.content.Context appContext = activity.getApplicationContext();
+            drainCaptureSlots(inFlightCaptureSlots,
+                    uri -> org.llm4people.hermes.camera.PrivateCaptureProvider.deleteSlot(appContext, uri));
             runStreams.shutdownNow();
             drafts.shutdownNow();
             index.indexRows(new JSONArray(), null, false);
@@ -1326,11 +1386,6 @@ public final class ThreadWorkspace implements AutoCloseable {
                 catch (IllegalStateException e) { storageError(); }
             }
         });
-    }
-
-    void invalidReply(Runnable retry) {
-        screen.notice(activity.getString(R.string.thread_incomplete_server_reply),
-                activity.getString(R.string.instrument_retry), retry);
     }
 
     void error(Exception error, Runnable retry) {

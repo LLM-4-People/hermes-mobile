@@ -267,6 +267,62 @@ public final class ThemePaletteTest {
         assertEquals("#1A1917", preservedLightInk.inkHex);
     }
 
+    @Test public void accentSurfaceTintAndBorderlineInkAndCustomSurfaceSemanticTokensClearWcagAa() throws Exception {
+        // R5.5.1: adaptAccentForMode and resolve() guarantee accent vs accentSurface AND ink vs accentSurface >= 4.5:1.
+        for (String hex : new String[]{"#2E7D32", "#8E3B2E", "#0000AA", "#1B4D89", "#4338CA", "#92400E"}) {
+            int raw = ThemePalette.parseHexColor(hex);
+            for (boolean night : new boolean[]{false, true}) {
+                int adapted = ThemePalette.adaptAccentForMode(raw, night);
+                int paper = night ? ThemePalette.NIGHT_PAPER : ThemePalette.DAY_PAPER;
+                int tinted = ThemePalette.blendTint(adapted, paper, night ? 0.20f : 0.14f);
+                assertTrue("Adapted accent vs tinted accentSurface failed for " + hex + " night=" + night,
+                        ThemePalette.contrastRatio(adapted, tinted) >= ThemePalette.WCAG_AA_NORMAL);
+                ThemePalette.OverrideSpec spec = ThemePalette.OverrideSpec.validated(
+                        night ? "dark" : "light", ThemePalette.formatHex(adapted),
+                        "comfortable", 0, "paper", night);
+                ThemePalette resolved = ThemePalette.resolve(spec, night);
+                assertTrue("Resolved accent vs accentSurface failed for " + hex,
+                        ThemePalette.contrastRatio(resolved.accent, resolved.accentSurface) >= ThemePalette.WCAG_AA_NORMAL);
+                assertTrue("Resolved ink vs accentSurface failed for " + hex,
+                        ThemePalette.contrastRatio(resolved.ink, resolved.accentSurface) >= ThemePalette.WCAG_AA_NORMAL);
+            }
+        }
+
+        // R5.5.2 (negative): #727272 passes DAY_SURFACE (4.77:1) but fails DAY_PAPER (4.39:1) -> MUST be rejected.
+        assertTrue(ThemePalette.contrastRatio(0xFF727272, ThemePalette.DAY_SURFACE) >= ThemePalette.WCAG_AA_NORMAL);
+        assertTrue(ThemePalette.contrastRatio(0xFF727272, ThemePalette.DAY_PAPER) < ThemePalette.WCAG_AA_NORMAL);
+        assertContrastRejected(() -> ThemePalette.OverrideSpec.validated(
+                "light", null, null, null, "#727272", "comfortable", 0, "paper", false));
+        assertContrastRejected(() -> ThemePalette.OverrideSpec.validated(
+                "system", null, null, null, "#727272", "comfortable", 0, "paper", false));
+
+        // R5.5.2 (custom surface semantic adaptation): mid-dark #3A3A3A and warm light #D8C8A8 must adapt
+        // muted, default accent, danger, warning, positive, and accentSurface to >= 4.5:1 against paper.
+        for (String customSurface : new String[]{"#3A3A3A", "#D8C8A8", "#1C2823", "#FAF8F5"}) {
+            ThemePalette.OverrideSpec surfSpec = ThemePalette.OverrideSpec.validated(
+                    "system", null, null, customSurface, null, "comfortable", 0, "paper", false);
+            ThemePalette resolved = ThemePalette.resolve(surfSpec, false);
+            assertTrue("ink contrast on " + customSurface,
+                    ThemePalette.contrastRatio(resolved.ink, resolved.paper) >= ThemePalette.WCAG_AA_NORMAL);
+            assertTrue("muted contrast on " + customSurface,
+                    ThemePalette.contrastRatio(resolved.muted, resolved.paper) >= ThemePalette.WCAG_AA_NORMAL);
+            assertTrue("accent contrast on " + customSurface,
+                    ThemePalette.contrastRatio(resolved.accent, resolved.paper) >= ThemePalette.WCAG_AA_NORMAL);
+            assertTrue("onAccent contrast on " + customSurface,
+                    ThemePalette.contrastRatio(resolved.onAccent, resolved.accent) >= ThemePalette.WCAG_AA_NORMAL);
+            assertTrue("accent vs accentSurface contrast on " + customSurface,
+                    ThemePalette.contrastRatio(resolved.accent, resolved.accentSurface) >= ThemePalette.WCAG_AA_NORMAL);
+            assertTrue("ink vs accentSurface contrast on " + customSurface,
+                    ThemePalette.contrastRatio(resolved.ink, resolved.accentSurface) >= ThemePalette.WCAG_AA_NORMAL);
+            assertTrue("danger contrast on " + customSurface,
+                    ThemePalette.contrastRatio(resolved.danger, resolved.paper) >= ThemePalette.WCAG_AA_NORMAL);
+            assertTrue("warning contrast on " + customSurface,
+                    ThemePalette.contrastRatio(resolved.warning, resolved.paper) >= ThemePalette.WCAG_AA_NORMAL);
+            assertTrue("positive contrast on " + customSurface,
+                    ThemePalette.contrastRatio(resolved.positive, resolved.paper) >= ThemePalette.WCAG_AA_NORMAL);
+        }
+    }
+
     private static void assertContrastRejected(Action action) {
         try {
             action.run();

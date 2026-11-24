@@ -80,12 +80,13 @@ final class SurfaceRenderer {
     }
 
     static View preview(Context context, WorkspaceLayout layout) {
-        Context c = palette(context, layout);
-        ThemePalette colors = resolvePalette(c, null, layout);
+        ThemePalette colors = resolvePalette(context, null, layout);
+        Context c = palette(context, colors);
         TextView sample = Ui.text(c, c.getString(R.string.ws_surface_content_sample,
                 WorkspaceLayout.screenName(c, layout.surface)), 16);
         Ui.pad(sample, 20, 20);
         sample.setBackgroundColor(colors.accentSurface);
+        sample.setTextColor(colors.ink);
         LinearLayout column = Ui.column(c);
         column.setBackgroundColor(colors.paper);
         title(column, layout, colors);
@@ -106,7 +107,7 @@ final class SurfaceRenderer {
     static View render(Activity activity, WorkspaceLayout layout, View nativeContent,
                        ArtifactDesk.Host host, ThemePalette colors, InstrumentStateStore store,
                        String stateScope, Runnable manage) {
-        Context c = palette(activity, layout);
+        Context c = palette(activity, colors);
         if ("replace".equals(layout.mode)) {
             ScrollView page = new ScrollView(c);
             page.setBackgroundColor(colors.paper);
@@ -159,12 +160,18 @@ final class SurfaceRenderer {
     }
 
     static Context palette(Context context, WorkspaceLayout layout) {
-        if ("system".equals(layout.theme)) return context;
+        return palette(context, resolvePalette(context, null, layout));
+    }
+
+    static Context palette(Context context, ThemePalette colors) {
+        if (colors == null) return context;
+        boolean darkSurface = ThemePalette.relativeLuminance(colors.paper) < 0.2;
+        if (darkSurface == ThemePalette.isNight(context)) return context;
         Configuration config = new Configuration(context.getResources().getConfiguration());
-        int mode = "dark".equals(layout.theme) ? Configuration.UI_MODE_NIGHT_YES : Configuration.UI_MODE_NIGHT_NO;
+        int mode = darkSurface ? Configuration.UI_MODE_NIGHT_YES : Configuration.UI_MODE_NIGHT_NO;
         config.uiMode = (config.uiMode & ~Configuration.UI_MODE_NIGHT_MASK) | mode;
         return new android.view.ContextThemeWrapper(context.createConfigurationContext(config),
-                mode == Configuration.UI_MODE_NIGHT_YES ? android.R.style.Theme_Material_NoActionBar
+                darkSurface ? android.R.style.Theme_Material_NoActionBar
                         : android.R.style.Theme_Material_Light_NoActionBar);
     }
 
