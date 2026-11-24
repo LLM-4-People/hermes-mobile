@@ -64,6 +64,7 @@ public final class SettingsHubPanel {
     private LinearLayout bannerSlot;
     private LinearLayout sectionsSlot;
     private String currentQuery = "";
+    private String lastEmptyAnnouncement;
 
     public SettingsHubPanel(Activity activity, StateProvider state, Consumer<String> onAction) {
         this.activity = Objects.requireNonNull(activity, "activity");
@@ -232,10 +233,16 @@ public final class SettingsHubPanel {
             TextView empty = Ui.text(activity,
                     activity.getString(R.string.settings_search_empty, currentQuery.trim()), 15);
             empty.setTextColor(activity.getColor(R.color.muted));
+            String emptyKey = "settings_search_empty";
+            if (!emptyKey.equals(lastEmptyAnnouncement)) {
+                empty.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+                lastEmptyAnnouncement = emptyKey;
+            }
             emptyCard.addView(empty);
             sectionsSlot.addView(emptyCard, lp);
             return;
         }
+        lastEmptyAnnouncement = null;
         for (SettingsHubModel.SectionSpec section : filtered) {
             TextView heading = Ui.text(activity, section.title(), 18);
             heading.setTypeface(Ui.mediumTypeface());

@@ -44,6 +44,7 @@ final class NotesPanel {
     private LinearLayout tabsRow;
     private LinearLayout habitsBox;
     private LinearLayout body;
+    private String lastEmptyAnnouncement;
 
     NotesPanel(SessionPanel panel, BooleanSupplier activeThread, Consumer<String> stageDraft, Runnable parent) {
         this.panel = panel;
@@ -247,9 +248,16 @@ final class NotesPanel {
         String query = filterField == null ? "" : filterField.getText().toString();
         List<NotesModel.Note> visible = NotesModel.filterForTab(notes, activeTab, query);
         if (visible.isEmpty()) {
-            panel.note(body, panel.t(NotesModel.emptyMessageRes(activeTab, notes.isEmpty())));
+            int msgRes = NotesModel.emptyMessageRes(activeTab, notes.isEmpty());
+            TextView empty = panel.note(body, panel.t(msgRes));
+            String emptyKey = activeTab.name() + ":" + msgRes;
+            if (!emptyKey.equals(lastEmptyAnnouncement)) {
+                empty.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+                lastEmptyAnnouncement = emptyKey;
+            }
             return;
         }
+        lastEmptyAnnouncement = null;
         int cardGap = Ui.dp(panel.activity, 10);
         for (int i = 0; i < visible.size(); i++) {
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);

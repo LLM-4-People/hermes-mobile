@@ -120,6 +120,7 @@ public final class AmbientAccessPanel {
     private PermissionCenter.Key pendingDenialKey;
     private AlertDialog activeDialog;
     private String searchFilter = "";
+    private String lastAllowlistEmptyAnnouncement;
 
     /** Pure-Java fail-closed reconciliation of Ambient Calendar opt-in against live permission. */
     public static NotificationAllowlist.Settings reconcilePermissions(
@@ -557,15 +558,23 @@ public final class AmbientAccessPanel {
         if (closed || allowlistContainer == null) return;
         allowlistContainer.removeAllViews();
         if (installedApps == null) {
+            lastAllowlistEmptyAnnouncement = null;
             allowlistContainer.addView(mutedNote(activity.getString(R.string.ambient_allowlist_loading)));
             startLoadLaunchableAppsIfNeeded();
             return;
         }
         List<AppEntry> visible = filterSelectableApps(installedApps, searchFilter);
         if (visible.isEmpty()) {
-            allowlistContainer.addView(mutedNote(activity.getString(R.string.ambient_allowlist_empty)));
+            TextView empty = mutedNote(activity.getString(R.string.ambient_allowlist_empty));
+            String emptyKey = "allowlist_empty";
+            if (!emptyKey.equals(lastAllowlistEmptyAnnouncement)) {
+                empty.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+                lastAllowlistEmptyAnnouncement = emptyKey;
+            }
+            allowlistContainer.addView(empty);
             return;
         }
+        lastAllowlistEmptyAnnouncement = null;
         Set<String> allowed = readAllowedPackagesSafely(allowlist);
         if (allowed == null) {
             onStoreClosed();

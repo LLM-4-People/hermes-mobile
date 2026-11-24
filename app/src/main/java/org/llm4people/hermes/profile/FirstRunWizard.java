@@ -492,8 +492,15 @@ public final class FirstRunWizard {
             Step1Targets targets,
             Consumer<PairingLinkParser.ParsedInput> onParsed,
             TextView statusNote) {
+        LinearLayout box = Ui.column(activity);
+        Ui.pad(box, 20, 8);
         EditText input = new EditText(activity);
         input.setHint(R.string.onboarding_paste_card_hint);
+        input.setTextColor(activity.getColor(R.color.ink));
+        input.setHintTextColor(activity.getColor(R.color.muted));
+        input.setBackgroundResource(R.drawable.profile_input);
+        input.setBackgroundTintList(null);
+        input.setMinHeight(Ui.dp(activity, 48));
         input.setMinLines(2);
         input.setMaxLines(4);
         input.setSaveEnabled(false);
@@ -502,10 +509,11 @@ public final class FirstRunWizard {
         input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE
                 | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
         Ui.pad(input, 14, 12);
+        box.addView(input, new LinearLayout.LayoutParams(-1, -2));
 
         AlertDialog dialog = Ui.secureDialog(new AlertDialog.Builder(activity)
                 .setTitle(R.string.onboarding_paste_action)
-                .setView(input)
+                .setView(box)
                 .setNegativeButton(R.string.profile_setup_cancel, null)
                 .setPositiveButton(R.string.onboarding_paste_confirm_action, (d, w) -> {
                     String raw = input.getText().toString().trim();

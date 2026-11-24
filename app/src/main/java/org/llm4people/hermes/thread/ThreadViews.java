@@ -898,7 +898,7 @@ public final class ThreadViews {
             toggle = Ui.button(context, context.getString(R.string.reasoning_streaming), null);
             toggle.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
             toggle.setTextSize(14);
-            toggle.setContentDescription(context.getString(R.string.reasoning_show_label));
+            toggle.setContentDescription(context.getString(R.string.reasoning_streaming_show_label));
             PromptButtons.icon(toggle, R.drawable.ic_prompt_disclosure);
             toggle.setOnClickListener(v -> {
                 expanded = !expanded;
@@ -925,7 +925,8 @@ public final class ThreadViews {
             toggle.setActivated(expanded);
             toggle.setText(context.getString(labelRes));
             toggle.setContentDescription(context.getString(
-                    expanded ? R.string.reasoning_hide : R.string.reasoning_show_label));
+                    expanded ? R.string.reasoning_hide
+                            : (streaming ? R.string.reasoning_streaming_show_label : R.string.reasoning_show_label)));
         }
 
         private void bindDetail() {

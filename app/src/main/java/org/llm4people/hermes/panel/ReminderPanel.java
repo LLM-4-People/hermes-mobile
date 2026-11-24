@@ -38,6 +38,7 @@ public final class ReminderPanel {
     static final String JOBS = "/api/jobs";
     private final SessionPanel panel;
     private ScheduledJobModel.Filter activeFilter = ScheduledJobModel.Filter.ALL;
+    private String lastEmptyAnnouncement;
 
     ReminderPanel(SessionPanel panel) { this.panel = panel; }
 
@@ -101,6 +102,7 @@ public final class ReminderPanel {
         summaryView.setTextColor(panel.activity.getColor(R.color.ink));
 
         if (summary.total() == 0) {
+            lastEmptyAnnouncement = null;
             panel.note(container, panel.t(R.string.panel_no_reminder));
             return;
         }
@@ -133,7 +135,14 @@ public final class ReminderPanel {
             shown++;
         }
         if (shown == 0) {
-            panel.note(container, panel.t(R.string.panel_jobs_filter_empty));
+            TextView empty = panel.note(container, panel.t(R.string.panel_jobs_filter_empty));
+            String emptyKey = "jobs_filter_empty:" + activeFilter.name();
+            if (!emptyKey.equals(lastEmptyAnnouncement)) {
+                empty.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+                lastEmptyAnnouncement = emptyKey;
+            }
+        } else {
+            lastEmptyAnnouncement = null;
         }
     }
 

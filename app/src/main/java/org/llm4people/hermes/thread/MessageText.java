@@ -377,10 +377,12 @@ final class MessageText {
         LinearLayout contentBox = Ui.column(context);
         contentBox.setVisibility(View.GONE);
         String collapsedLabel = context.getString(streaming ? R.string.reasoning_streaming : R.string.reasoning_title);
+        String collapsedDescription = context.getString(
+                streaming ? R.string.reasoning_streaming_show_label : R.string.reasoning_show_label);
         Button toggle = Ui.button(context, collapsedLabel, null);
         toggle.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
         toggle.setTextSize(14);
-        toggle.setContentDescription(context.getString(R.string.reasoning_show_label));
+        toggle.setContentDescription(collapsedDescription);
         PromptButtons.icon(toggle, R.drawable.ic_prompt_disclosure);
         toggle.setOnClickListener(v -> {
             boolean opening = contentBox.getVisibility() == View.GONE;
@@ -404,7 +406,7 @@ final class MessageText {
             contentBox.setVisibility(opening ? View.VISIBLE : View.GONE);
             toggle.setActivated(opening);
             toggle.setText(opening ? context.getString(R.string.reasoning_hide) : collapsedLabel);
-            toggle.setContentDescription(context.getString(opening ? R.string.reasoning_hide : R.string.reasoning_show_label));
+            toggle.setContentDescription(opening ? context.getString(R.string.reasoning_hide) : collapsedDescription);
         });
         card.addView(toggle);
         card.addView(contentBox);
