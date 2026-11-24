@@ -600,7 +600,7 @@ public final class ProfileGate {
                 activity.getString(R.string.profile_server_slug_label),
                 activity.getString(R.string.profile_server_slug_hint),
                 TEXT | InputType.TYPE_TEXT_VARIATION_URI, 64, false);
-        TextView endpointPreview = screen.liveNote(activity.getString(R.string.profile_server_slug_help));
+        TextView endpointPreview = screen.note(activity.getString(R.string.profile_server_slug_help));
         watchEndpointPreview(screen, server, serverProfile, endpointPreview);
         EditText key = screen.field(activity.getString(R.string.profile_key_label), "", SECRET, 8192, true);
         Runnable clearStaged = () -> {
@@ -695,7 +695,6 @@ public final class ProfileGate {
                 "", PIN_INPUT, ProfileLockPolicy.MAX_PIN_DIGITS, true);
         TextView pinHint = Ui.text(activity, "", 13);
         pinHint.setTextColor(activity.getColor(R.color.muted));
-        pinHint.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         LinearLayout.LayoutParams hintLp = new LinearLayout.LayoutParams(-1, -2);
         hintLp.topMargin = Ui.dp(activity, 4);
         pinSlot.addView(pinHint, hintLp);
@@ -708,7 +707,6 @@ public final class ProfileGate {
                 "", SECRET, 512, true);
         TextView passphraseHint = Ui.text(activity, "", 13);
         passphraseHint.setTextColor(activity.getColor(R.color.muted));
-        passphraseHint.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         LinearLayout.LayoutParams passHintLp = new LinearLayout.LayoutParams(-1, -2);
         passHintLp.topMargin = Ui.dp(activity, 4);
         passphraseSlot.addView(passphraseHint, passHintLp);
@@ -725,7 +723,7 @@ public final class ProfileGate {
         Runnable applyModeUi = () -> {
             for (int i = 0; i < allModes.length; i++) {
                 boolean activeChoice = allModes[i] == selectedMode[0];
-                ProfileScreen.styleChoiceChip(activity, modeButtons[i], activeChoice);
+                Ui.styleChoiceChip(modeButtons[i], activeChoice);
             }
             bioSlot.setVisibility(selectedMode[0] == ProfileLockPolicy.Mode.BIOMETRIC ? View.VISIBLE : View.GONE);
             pinSlot.setVisibility(selectedMode[0] == ProfileLockPolicy.Mode.PIN ? View.VISIBLE : View.GONE);
@@ -736,7 +734,7 @@ public final class ProfileGate {
 
         for (int i = 0; i < allModes.length; i++) {
             ProfileLockPolicy.Mode choice = allModes[i];
-            Button chip = ProfileScreen.choiceChip(activity, activity.getString(choice.labelRes), v -> {
+            Button chip = Ui.choiceChip(activity, activity.getString(choice.labelRes), v -> {
                 if (busy) return;
                 selectedMode[0] = choice;
                 applyModeUi.run();
@@ -1233,6 +1231,28 @@ public final class ProfileGate {
         };
     }
 
+    /** Pure-JVM live-region policy for PIN/passphrase hints: announce discrete states, never per-keystroke progress. */
+    static boolean shouldAnnounceCredentialState(ProfileLockPolicy.CredentialState state) {
+        return state == ProfileLockPolicy.CredentialState.READY
+                || state == ProfileLockPolicy.CredentialState.MISMATCH
+                || state == ProfileLockPolicy.CredentialState.INVALID_FORMAT;
+    }
+
+    private void updateCredentialHint(
+            ProfileScreen screen,
+            TextView hint,
+            ProfileLockPolicy.CredentialState state,
+            String text,
+            int colorRes) {
+        int mode = shouldAnnounceCredentialState(state)
+                ? View.ACCESSIBILITY_LIVE_REGION_POLITE
+                : View.ACCESSIBILITY_LIVE_REGION_NONE;
+        if (hint.getAccessibilityLiveRegion() != mode) {
+            hint.setAccessibilityLiveRegion(mode);
+        }
+        screen.setNote(hint, text, colorRes);
+    }
+
     private void watchPinStrength(ProfileScreen screen, EditText pin, EditText repeat, TextView hint, Runnable onChange) {
         TextWatcher watcher = new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
@@ -1242,17 +1262,17 @@ public final class ProfileGate {
                 Editable confirm = repeat.getText();
                 ProfileLockPolicy.CredentialState state = ProfileLockPolicy.evaluatePin(primary, confirm);
                 switch (state) {
-                    case EMPTY -> screen.setNote(hint, "", R.color.muted);
-                    case INVALID_FORMAT -> screen.setNote(hint,
+                    case EMPTY -> updateCredentialHint(screen, hint, state, "", R.color.muted);
+                    case INVALID_FORMAT -> updateCredentialHint(screen, hint, state,
                             activity.getString(R.string.lock_pin_digits_only), R.color.danger);
-                    case TOO_SHORT -> screen.setNote(hint,
+                    case TOO_SHORT -> updateCredentialHint(screen, hint, state,
                             activity.getString(R.string.lock_pin_progress,
                                     primary.length(), ProfileLockPolicy.MIN_PIN_DIGITS), R.color.muted);
-                    case AWAITING_CONFIRM -> screen.setNote(hint,
+                    case AWAITING_CONFIRM -> updateCredentialHint(screen, hint, state,
                             activity.getString(R.string.lock_pin_confirm_needed), R.color.muted);
-                    case MISMATCH -> screen.setNote(hint,
+                    case MISMATCH -> updateCredentialHint(screen, hint, state,
                             activity.getString(R.string.lock_pin_mismatch), R.color.danger);
-                    case READY -> screen.setNote(hint,
+                    case READY -> updateCredentialHint(screen, hint, state,
                             activity.getString(R.string.lock_pin_ready), R.color.accent);
                 }
                 if (onChange != null) onChange.run();
@@ -1271,18 +1291,19 @@ public final class ProfileGate {
                 Editable confirm = repeat.getText();
                 ProfileLockPolicy.CredentialState state = ProfileLockPolicy.evaluatePassphrase(primary, confirm);
                 switch (state) {
-                    case EMPTY -> screen.setNote(hint, "", R.color.muted);
-                    case INVALID_FORMAT, TOO_SHORT -> screen.setNote(hint,
+                    case EMPTY -> updateCredentialHint(screen, hint, state, "", R.color.muted);
+                    case INVALID_FORMAT, TOO_SHORT -> updateCredentialHint(screen, hint,
+                            ProfileLockPolicy.CredentialState.TOO_SHORT,
                             activity.getString(R.string.profile_setup_passphrase_progress,
                                     primary.length(), MIN_PASSPHRASE),
                             R.color.muted);
-                    case AWAITING_CONFIRM -> screen.setNote(hint,
+                    case AWAITING_CONFIRM -> updateCredentialHint(screen, hint, state,
                             activity.getString(R.string.profile_setup_passphrase_confirm_needed),
                             R.color.muted);
-                    case MISMATCH -> screen.setNote(hint,
+                    case MISMATCH -> updateCredentialHint(screen, hint, state,
                             activity.getString(R.string.profile_setup_passphrase_mismatch_live),
                             R.color.danger);
-                    case READY -> screen.setNote(hint,
+                    case READY -> updateCredentialHint(screen, hint, state,
                             activity.getString(R.string.profile_setup_passphrase_ready),
                             R.color.accent);
                 }

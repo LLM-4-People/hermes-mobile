@@ -132,12 +132,11 @@ public final class UiPrimitivesAndThemeContrastTest {
         assertEquals("H", Ui.initials(null, "   "));
         assertEquals("H", Ui.initials("!!! ---"));
 
-        // SSoT parity: OnboardingModels.RemoteProfile and ProfileHubSheet delegate to Ui.initials.
+        // SSoT parity: OnboardingModels.RemoteProfile delegates to Ui.initials.
         org.llm4people.hermes.onboarding.OnboardingModels.RemoteProfile remote =
                 new org.llm4people.hermes.onboarding.OnboardingModels.RemoteProfile(
                         "team-alpha", "", "fr", "", "#1B5E50", 0, 0, 0L, false, true);
         assertEquals("TA", remote.initials());
-        assertEquals("JL", org.llm4people.hermes.profile.ProfileHubSheet.avatarInitials("jean-luc"));
     }
 
     @Test

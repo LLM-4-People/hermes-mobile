@@ -294,10 +294,7 @@ final class WorkspaceDialogs {
         first.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO);
         first.setImeOptions(EditorInfo.IME_ACTION_NEXT | EditorInfo.IME_FLAG_NO_EXTRACT_UI
                 | EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING);
-        first.setMinHeight(Ui.dp(activity, 48));
-        first.setBackgroundResource(R.drawable.profile_input);
-        first.setBackgroundTintList(null);
-        Ui.pad(first, 12, 9);
+        Ui.styleDialogInput(activity, first);
         LinearLayout.LayoutParams fLp = new LinearLayout.LayoutParams(-1, -2);
         fLp.topMargin = Ui.dp(activity, 10);
         form.addView(first, fLp);
@@ -308,10 +305,7 @@ final class WorkspaceDialogs {
         confirm.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO);
         confirm.setImeOptions(EditorInfo.IME_ACTION_DONE | EditorInfo.IME_FLAG_NO_EXTRACT_UI
                 | EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING);
-        confirm.setMinHeight(Ui.dp(activity, 48));
-        confirm.setBackgroundResource(R.drawable.profile_input);
-        confirm.setBackgroundTintList(null);
-        Ui.pad(confirm, 12, 9);
+        Ui.styleDialogInput(activity, confirm);
         LinearLayout.LayoutParams cLp = new LinearLayout.LayoutParams(-1, -2);
         cLp.topMargin = Ui.dp(activity, 8);
         form.addView(confirm, cLp);

@@ -4,7 +4,6 @@ import android.app.Activity;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.text.InputFilter;
-import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
@@ -80,10 +79,19 @@ final class ProfileScreen {
         return caption;
     }
 
+    /** Pure-JVM change guard for live-region notes: returns normalized text only when it differs from {@code current}. */
+    static String changedNoteText(CharSequence current, String next) {
+        String normalized = next == null ? "" : next;
+        return current != null && normalized.contentEquals(current) ? null : normalized;
+    }
+
     void setNote(TextView target, String text, int colorRes) {
         if (target == null) return;
         target.setTextColor(activity.getColor(colorRes));
-        target.setText(text == null ? "" : text);
+        String changed = changedNoteText(target.getText(), text);
+        if (changed != null) {
+            target.setText(changed);
+        }
     }
 
     EditText field(String label, String hint, int type, int maxLength, boolean sensitive) {
@@ -139,37 +147,6 @@ final class ProfileScreen {
         return edit;
     }
 
-    /** Shared Material 3 selectable choice chip (14dp rounded ripple, >=48dp touch target, wrap-safe at 1.3x). */
-    static Button choiceChip(Activity activity, String label, View.OnClickListener listener) {
-        Button chip = new Button(activity, null, android.R.attr.borderlessButtonStyle);
-        chip.setText(label);
-        chip.setAllCaps(false);
-        chip.setTextSize(14);
-        chip.setTypeface(Ui.mediumTypeface());
-        chip.setSingleLine(true);
-        chip.setEllipsize(TextUtils.TruncateAt.END);
-        chip.setGravity(Gravity.CENTER);
-        chip.setStateListAnimator(null);
-        int touchMin = Ui.dp(activity, 48);
-        chip.setMinHeight(touchMin);
-        chip.setMinimumHeight(touchMin);
-        Ui.pad(chip, 14, 10);
-        chip.setOnClickListener(listener);
-        return chip;
-    }
-
-    /** Applies Material 3 selected/unselected tonal surface, border, and rounded ripple to a choice chip. */
-    static void styleChoiceChip(Activity activity, Button chip, boolean selected) {
-        GradientDrawable fill = Ui.shape(activity, Ui.BUTTON_CORNER_DP,
-                selected ? R.color.accent_surface : R.color.surface,
-                selected ? R.color.accent : R.color.line,
-                selected ? 2 : 1);
-        chip.setBackground(Ui.roundedRipple(activity, Ui.BUTTON_CORNER_DP, fill));
-        chip.setTextColor(activity.getColor(selected ? R.color.accent : R.color.ink));
-        chip.setSelected(selected);
-        Ui.setCheckableState(chip, selected);
-    }
-
     /** Horizontally scrollable choice chip row that never clips at 1.3x+ font scales (8dp gaps). */
     static HorizontalScrollView choiceRow(Activity activity, String[] labels, String[] values,
                                           String initial, Consumer<String> onSelected) {
@@ -182,13 +159,13 @@ final class ProfileScreen {
 
         Runnable paint = () -> {
             for (int i = 0; i < buttons.length; i++) {
-                styleChoiceChip(activity, buttons[i], values[i].equals(active[0]));
+                Ui.styleChoiceChip(buttons[i], values[i].equals(active[0]));
             }
         };
 
         for (int i = 0; i < labels.length; i++) {
             final String value = values[i];
-            Button chip = choiceChip(activity, labels[i], v -> {
+            Button chip = Ui.choiceChip(activity, labels[i], v -> {
                 active[0] = value;
                 paint.run();
                 onSelected.accept(value);
@@ -202,6 +179,17 @@ final class ProfileScreen {
         paint.run();
         scroll.addView(row);
         return scroll;
+    }
+
+    /** Shared auto/en/fr language choice chip row backed by {@link #choiceRow}. */
+    static HorizontalScrollView languageChoiceRow(Activity activity, String initial, Consumer<String> onSelected) {
+        String[] labels = {
+                activity.getString(R.string.onboarding_language_auto),
+                activity.getString(R.string.onboarding_language_en),
+                activity.getString(R.string.onboarding_language_fr)
+        };
+        String[] codes = {"auto", "en", "fr"};
+        return choiceRow(activity, labels, codes, initial, onSelected);
     }
 
     /**
@@ -340,7 +328,10 @@ final class ProfileScreen {
             add(status, 14);
         }
         status.setTextColor(activity.getColor(error ? R.color.danger : R.color.muted));
-        status.setText(message);
+        String changed = changedNoteText(status.getText(), message);
+        if (changed != null) {
+            status.setText(changed);
+        }
     }
 
     void card(View view, int top) {

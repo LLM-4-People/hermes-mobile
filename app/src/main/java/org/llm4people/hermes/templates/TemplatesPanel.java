@@ -354,15 +354,9 @@ public final class TemplatesPanel {
         field.setImeOptions(EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING | EditorInfo.IME_FLAG_NO_EXTRACT_UI);
         field.setFilters(new InputFilter[]{new InputFilter.LengthFilter(maxChars)});
         field.setHint(hint);
-        field.setTextColor(activity.getColor(R.color.ink));
-        field.setHintTextColor(activity.getColor(R.color.muted));
         field.setTextSize(16);
-        int minTouch = Ui.dp(activity, 48);
-        field.setMinHeight(minTouch);
-        field.setMinimumHeight(minTouch);
-        Ui.pad(field, 12, 10);
-        field.setBackgroundResource(R.drawable.profile_input);
-        field.setBackgroundTintList(null);
+        Ui.styleDialogInput(activity, field);
+        field.setMinHeight(Ui.dp(activity, 48));
         if (multiline) {
             field.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
                     | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
