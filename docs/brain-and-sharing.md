@@ -9,7 +9,7 @@
 1. **Hermes memory (`MEMORY.md` & `USER.md`, in Settings → Assistant & AI)**
    - Inspect what Hermes remembers about your projects and preferences, add or edit entries directly, and save safely with server-side revision checks.
 2. **Smart notes (in Notes & tasks)**
-   - Capture structured Markdown notes with tags and full-text filtering, switch between **My notes** and **Shared** inline, pin your own notes (`owner`-gated), or stage a note directly into the active discussion draft.
+   - Capture structured Markdown notes with tags and full-text filtering, switch between **My notes** and **Shared with me** inline, pin your own notes (`owner`-gated), or stage a note directly into the active discussion draft.
 3. **Pattern-gated habits (`>= 3` occurrences)**
    - Hermes only suggests a reusable habit or recurring automation after observing a real pattern **at least 3 times**. Review each suggestion in plain language and accept, customize, or dismiss it.
 4. **Universal search (top-bar Search on every screen)**
@@ -42,6 +42,6 @@ Because all users on a deployment share **one single HTTPS hostname** (`/p/<prof
 | `artifact` | Named code, diff, or published file artifacts |
 | `session` | Conversation snapshots and discussions |
 
-Open **Share on this server** from a supported item to grant or revoke access via `/api/shares/outgoing`. Incoming shared items (`/api/shares/incoming`) appear directly inline via the **Shared** filter in **Discussions**, the **Shared** filter in **Notes & tasks**, **Notes & tasks → Inbox**, and top-bar **Universal search**, where you can preview them safely or stage them into your own workspace.
+Open **Share on this server** from a supported item to grant or revoke access via `/api/shares/outgoing`. Incoming shared items (`/api/shares/incoming`) appear directly inline via the **Shared** filter in **Discussions**, the **Shared with me** filter in **Notes & tasks**, **Notes & tasks → Inbox**, and top-bar **Universal search**, where you can preview them safely or stage them into your own workspace.
 
 <!-- Generated from docs/sources/docs/brain-and-sharing.md.in by scripts/docs.py. -->

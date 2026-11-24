@@ -131,7 +131,7 @@ adb install -r hermes-mobile-v0.2.1.apk</code></div>
 
         <section id="brain-sharing" class="doc-section">
           <h2>6. Notes, inline sharing, and power tools</h2>
-          <p>Switch cleanly between <strong>Discussions</strong> (with inline <strong>All · Pinned · Shared</strong> filters), <strong>Notes &amp; Tasks</strong> (live Notes with <strong>My notes · Shared</strong> filters, Reminders, and Inbox), and <strong>Apps</strong> (Hands-free Voice, Custom Screens, and Templates). Power tools (Hermes memory <code>MEMORY.md</code> and <code>USER.md</code>, skills, workspace files, Git diffs, and <strong>Appearance Studio</strong>) live inside the top-bar <strong>Settings Hub</strong>.</p>
+          <p>Switch cleanly between <strong>Discussions</strong> (with inline <strong>All · Pinned · Shared</strong> filters), <strong>Notes &amp; Tasks</strong> (live Notes with <strong>My notes · Shared with me</strong> filters, Reminders, and Inbox), and <strong>Apps</strong> (Hands-free Voice, Custom Screens, and Templates). Power tools (Hermes memory <code>MEMORY.md</code> and <code>USER.md</code>, skills, workspace files, Git diffs, and <strong>Appearance Studio</strong>) live inside the top-bar <strong>Settings Hub</strong>.</p>
           <p>Share 7 resource kinds (notes, skills, custom surfaces, widgets, tools, artifacts, and threads) selectively with other profiles on the same server without exposing your private workspace.</p>
         </section>
 
@@ -144,7 +144,7 @@ adb install -r hermes-mobile-v0.2.1.apk</code></div>
           <h2>8. Security, Landlock isolation, and zero-leak push</h2>
           <ul>
             <li><strong>Profile vault hardening and multi-mode lock:</strong> Per-profile Android Keystore AES-256-GCM encryption, Biometrics / 6 to 12 digit PIN / 12+ character passphrase lock modes, smart 5-minute default auto-lock grace (configurable), persisted backoff, <code>FLAG_SECURE</code> overlays, atomic profile wipe, and session-epoch fencing on async callbacks.</li>
-            <li><strong>Permissions center (Settings &gt; Permissions):</strong> Inspect every optional Android permission (notifications, microphone, camera, approximate location, calendar, notification access, package installs) with 1-tap <strong>Allow</strong> or <strong>Open settings</strong> actions and zero silent prompts.</li>
+            <li><strong>Permissions center (Settings &gt; Permissions):</strong> Inspect every optional Android permission (notifications, microphone, camera, approximate location, calendar, notification access, package installs) with 1-tap <strong>Allow</strong> or <strong>Open Android settings</strong> actions and zero silent prompts.</li>
             <li><strong>Server kernel isolation:</strong> On the companion server, Linux kernel Landlock LSM physically blocks subprocesses from reading sibling profile directories (<code>EACCES</code>), while non-admin profiles exclude <code>terminal</code> and <code>code_execution</code> by default.</li>
             <li><strong>Ambient privacy off by default:</strong> Optional context signals start completely disabled per profile, with a fail-closed privacy filter blocking OTP codes, password managers, banking apps, and lockscreen secrets before content enters memory.</li>
             <li><strong>Zero-leak closed-app push:</strong> Firebase Cloud Messaging or self-hosted UnifiedPush (ntfy + RFC 8291 Web Push) carry opaque routing metadata only so messages stay on your server until unlock.</li>
