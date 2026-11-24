@@ -1,22 +1,19 @@
 package org.llm4people.hermes.panel;
 
 import android.content.Context;
+import org.llm4people.hermes.PlainTextSanitizer;
 import org.llm4people.hermes.R;
 
-import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-import java.util.regex.Pattern;
 
 /** Pure SSoT model for Smart Notes and Habit-Adaptive Suggestions (count >= 3). */
 public final class NotesModel {
     public static final int MAX_TITLE_CHARS = 160;
     public static final int MAX_BODY_CHARS = 64 * 1024;
     public static final int HABIT_MIN_REPETITIONS = 3;
-
-    private static final Pattern MARKS = Pattern.compile("\\p{M}+");
 
     public enum FilterTab {
         MINE(R.string.brain_notes_tab_mine),
@@ -246,8 +243,7 @@ public final class NotesModel {
     }
 
     private static String fold(String value) {
-        return MARKS.matcher(Normalizer.normalize(value, Normalizer.Form.NFD))
-                .replaceAll("").toLowerCase(Locale.ROOT);
+        return PlainTextSanitizer.foldAccents(value);
     }
 
     private static String safe(String value) {

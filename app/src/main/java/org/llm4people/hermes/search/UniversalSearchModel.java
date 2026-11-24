@@ -2,11 +2,11 @@ package org.llm4people.hermes.search;
 
 import org.json.JSONObject;
 import org.llm4people.hermes.JsonValues;
+import org.llm4people.hermes.PlainTextSanitizer;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.panel.SearchResultModel;
 import org.llm4people.hermes.panel.UniversalShareModel;
 
-import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -24,7 +24,6 @@ public final class UniversalSearchModel {
     public static final int MAX_LOCAL_SUGGESTIONS = 12;
     public static final int MAX_REMOTE_SESSION_HITS = 20;
 
-    private static final Pattern COMBINING_MARKS = Pattern.compile("\\p{M}+");
     private static final Pattern WHITESPACE = Pattern.compile("\\s+");
 
     public enum Category {
@@ -211,11 +210,7 @@ public final class UniversalSearchModel {
 
     /** Accent- and case-insensitive normalization for matching FR/EN queries. */
     public static String fold(String raw) {
-        if (raw == null || raw.isEmpty()) return "";
-        return COMBINING_MARKS.matcher(Normalizer.normalize(raw, Normalizer.Form.NFD))
-                .replaceAll("")
-                .toLowerCase(Locale.ROOT)
-                .trim();
+        return PlainTextSanitizer.foldAccents(raw).trim();
     }
 
     /**

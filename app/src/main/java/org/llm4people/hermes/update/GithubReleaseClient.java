@@ -28,7 +28,6 @@ public final class GithubReleaseClient {
     public static final int MAX_CHECKSUM_BYTES = 65_536;
     private static final int MAX_RELEASE_JSON_BYTES = 512 * 1024;
     private static final Pattern REPO_PATTERN = Pattern.compile("[A-Za-z0-9._-]{1,64}/[A-Za-z0-9._-]{1,100}");
-    private static final Pattern SHA256_HEX = Pattern.compile("[0-9a-f]{64}");
     private static final Set<String> ALLOWED_HOSTS = Set.of(
             "github.com",
             "objects.githubusercontent.com",
@@ -258,13 +257,13 @@ public final class GithubReleaseClient {
             int space = findWhitespace(line);
             if (space < 0) {
                 String lower = line.toLowerCase(Locale.ROOT);
-                if (SHA256_HEX.matcher(lower).matches()) {
+                if (ApkUpdateInstaller.isValidSha256Hex(lower)) {
                     bareSingleHash = lower;
                 }
                 continue;
             }
             String hash = line.substring(0, space).toLowerCase(Locale.ROOT);
-            if (!SHA256_HEX.matcher(hash).matches()) continue;
+            if (!ApkUpdateInstaller.isValidSha256Hex(hash)) continue;
             String rest = line.substring(space).trim();
             if (rest.startsWith("*")) rest = rest.substring(1).trim();
             if (target.equals(basename(rest))) {
@@ -316,7 +315,7 @@ public final class GithubReleaseClient {
         String lower = raw.trim().toLowerCase(Locale.ROOT);
         if (!lower.startsWith("sha256:")) return null;
         String hex = lower.substring("sha256:".length());
-        return SHA256_HEX.matcher(hex).matches() ? hex : null;
+        return ApkUpdateInstaller.isValidSha256Hex(hex) ? hex : null;
     }
 
     private static String basename(String path) {

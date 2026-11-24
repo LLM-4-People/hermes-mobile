@@ -79,12 +79,16 @@ public final class ApkUpdateInstaller {
 
     private ApkUpdateInstaller() {}
 
+    static boolean isValidSha256Hex(String value) {
+        return value != null && SHA256_HEX.matcher(value).matches();
+    }
+
     /** Constant-time equality check over normalized lowercase 64-character SHA-256 hex strings. */
     public static boolean constantTimeHexEquals(String expectedHex, String actualHex) {
         if (expectedHex == null || actualHex == null) return false;
         String a = expectedHex.trim().toLowerCase(Locale.ROOT);
         String b = actualHex.trim().toLowerCase(Locale.ROOT);
-        if (!SHA256_HEX.matcher(a).matches() || !SHA256_HEX.matcher(b).matches()) return false;
+        if (!isValidSha256Hex(a) || !isValidSha256Hex(b)) return false;
         return MessageDigest.isEqual(a.getBytes(StandardCharsets.UTF_8), b.getBytes(StandardCharsets.UTF_8));
     }
 
@@ -137,7 +141,7 @@ public final class ApkUpdateInstaller {
         if (!UpdateApkProvider.isValidFileName(finalFileName)) {
             throw new IllegalArgumentException("Invalid APK filename");
         }
-        if (expectedSha256 == null || !SHA256_HEX.matcher(expectedSha256.trim().toLowerCase(Locale.ROOT)).matches()) {
+        if (expectedSha256 == null || !isValidSha256Hex(expectedSha256.trim().toLowerCase(Locale.ROOT))) {
             throw new VerificationException(VerificationException.Reason.CHECKSUM_MISMATCH, "Missing valid SHA-256");
         }
         if (maxApkBytes <= 0) throw new IllegalArgumentException("maxApkBytes must be positive");

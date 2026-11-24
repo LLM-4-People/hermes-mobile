@@ -145,11 +145,10 @@ public final class ShareMediaActivity extends Activity {
         return host;
     }
 
-    private static boolean isAllowedInboundUri(Context context, Uri uri) {
-        if (uri == null || !"content".equals(uri.getScheme())) return false;
+    static boolean isAllowedInboundUri(Context context, Uri uri) {
+        if (context == null || uri == null || !"content".equals(uri.getScheme())) return false;
         String authority = uri.getAuthority();
         if (authority == null || authority.trim().isEmpty()) return false;
-        if (context == null) return true;
         if (isSelfOwnedAuthority(context.getPackageName(), authority)) return false;
         PackageManager pm = context.getPackageManager();
         if (pm != null) {
