@@ -333,16 +333,6 @@ public final class AmbientAccessPanel {
         }
     }
 
-    /** Open Android App Info so the user can allow restricted settings on Android 13-16. */
-    public static boolean openAppInfoSettings(Context context) {
-        return PermissionCenter.openAppSettings(context);
-    }
-
-    /** Open Android's Notification Access screen so the user can enable the listener. */
-    public static boolean openNotificationListenerSettings(Context context) {
-        return PermissionCenter.openNotificationListenerSettings(context);
-    }
-
     /** Handle Calendar runtime permission outcomes with fail-closed persistence and 1-tap recovery. */
     public void onPermissionResult(int requestCode, int[] results) {
         if (closed || requestCode != REQUEST_READ_CALENDAR) return;
@@ -411,13 +401,13 @@ public final class AmbientAccessPanel {
         addSectionHeader(body, R.string.ambient_onboarding_title, R.string.ambient_onboarding_detail);
         LinearLayout card = Ui.tonalCard(activity);
         Button step1 = Ui.tonalButton(activity, activity.getString(R.string.ambient_step_restricted), v -> {
-            if (!openAppInfoSettings(activity)) showFeedback(R.string.ambient_settings_unavailable, true);
+            if (!PermissionCenter.openAppSettings(activity)) showFeedback(R.string.ambient_settings_unavailable, true);
         });
         step1.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
         card.addView(step1, new LinearLayout.LayoutParams(-1, -2));
 
         Button step2 = Ui.outlinedButton(activity, activity.getString(R.string.ambient_step_listener), v -> {
-            if (!openNotificationListenerSettings(activity)) showFeedback(R.string.ambient_settings_unavailable, true);
+            if (!PermissionCenter.openNotificationListenerSettings(activity)) showFeedback(R.string.ambient_settings_unavailable, true);
         });
         step2.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
         LinearLayout.LayoutParams step2Lp = new LinearLayout.LayoutParams(-1, -2);

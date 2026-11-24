@@ -87,11 +87,11 @@ public final class SettingsHubModelTest {
         assertEquals(R.string.settings_lang_fr, SettingsHubModel.resolvedLanguageNameRes("fr"));
         assertEquals(R.string.settings_lang_fr, SettingsHubModel.resolvedLanguageNameRes(null));
 
-        assertEquals(R.string.appearance_theme_dark, SettingsHubModel.themeModeLabelRes("dark"));
+        assertEquals(R.string.appearance_theme_dark, AppearanceSettingsModel.themeModeLabelRes("dark"));
         assertEquals(R.string.appearance_palette_indigo,
-                SettingsHubModel.paletteLabelRes(AppCustomization.PalettePreset.INDIGO));
+                AppearanceSettingsModel.paletteLabelRes(AppCustomization.PalettePreset.INDIGO));
         assertEquals(R.string.appearance_density_spacious,
-                SettingsHubModel.densityLabelRes(AppCustomization.Density.SPACIOUS));
+                AppearanceSettingsModel.densityLabelRes(AppCustomization.Density.SPACIOUS));
 
         assertEquals("Update 0.4.0 available",
                 SettingsHubModel.updateSubtitle("Update 0.4.0 available", "Version 0.3.0"));

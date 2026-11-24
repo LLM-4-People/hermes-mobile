@@ -935,6 +935,8 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
     public void testRound16DelegatesLiveRegionsAndPrimaryRipple() throws Throwable {
         Context context = getInstrumentation().getTargetContext();
         AtomicReference<SessionPanel> sessionPanelRef = new AtomicReference<>();
+        AtomicReference<Dialog> notesDialogRef = new AtomicReference<>();
+        AtomicReference<Dialog> memoryDialogRef = new AtomicReference<>();
         AtomicReference<ThreadWorkspace> workspaceRef = new AtomicReference<>();
         AtomicReference<VoiceDrafts> voiceRef = new AtomicReference<>();
         try (WorkspaceAccountFixture fixture = new WorkspaceAccountFixture(context)) {
@@ -1006,11 +1008,13 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                     notesOpenEditor.setAccessible(true);
                     notesOpenEditor.invoke(notesPanel, new Object[]{null});
                     Dialog notesDialog = (Dialog) childDialogField.get(sessionPanel);
+                    notesDialogRef.set(notesDialog);
                     assertNotNull("Expected NotesPanel editor dialog", notesDialog);
                     TextView notesError = findDangerErrorTextView(notesDialog.getWindow().getDecorView(), dangerColor);
                     assertNotNull("Expected danger errorView in NotesPanel editor", notesError);
                     assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE, notesError.getAccessibilityLiveRegion());
                     notesDialog.dismiss();
+                    notesDialogRef.set(null);
 
                     Class<?> memoryPanelClass = Class.forName("org.llm4people.hermes.panel.MemoryPanel");
                     Constructor<?> memoryCtor = memoryPanelClass.getDeclaredConstructor(
@@ -1024,11 +1028,13 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                             MemoryModel.TARGET_MEMORY, Collections.emptyList(), 0, MemoryModel.DEFAULT_CHAR_LIMIT, true);
                     memoryOpenEditor.invoke(memoryPanel, bucket, null);
                     Dialog memoryDialog = (Dialog) childDialogField.get(sessionPanel);
+                    memoryDialogRef.set(memoryDialog);
                     assertNotNull("Expected MemoryPanel editor dialog", memoryDialog);
                     TextView memoryError = findDangerErrorTextView(memoryDialog.getWindow().getDecorView(), dangerColor);
                     assertNotNull("Expected danger errorView in MemoryPanel editor", memoryError);
                     assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE, memoryError.getAccessibilityLiveRegion());
                     memoryDialog.dismiss();
+                    memoryDialogRef.set(null);
 
                     // R16.5.1: ThreadInstrumentPanel.primary uses Ui.roundedRipple mask, stateful ink & Gravity.CENTER.
                     VoiceDrafts voice = new VoiceDrafts(activity);
@@ -1082,6 +1088,10 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
             } finally {
                 try {
                     runTestOnUiThread(() -> {
+                        Dialog nd = notesDialogRef.getAndSet(null);
+                        if (nd != null && nd.isShowing()) nd.dismiss();
+                        Dialog md = memoryDialogRef.getAndSet(null);
+                        if (md != null && md.isShowing()) md.dismiss();
                         SessionPanel sp = sessionPanelRef.getAndSet(null);
                         if (sp != null) sp.close();
                         ThreadWorkspace ws = workspaceRef.getAndSet(null);
@@ -1638,6 +1648,255 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                         if (dlg != null && dlg.isShowing()) dlg.dismiss();
                         AmbientAccessPanel ap = ambientRef.getAndSet(null);
                         if (ap != null) ap.close();
+                        SessionPanel sp = sessionPanelRef.getAndSet(null);
+                        if (sp != null) sp.close();
+                    });
+                } finally {
+                    ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+                }
+            }
+        } finally {
+            Diagnostics.clear();
+        }
+    }
+
+    public void testRound19LiveRegionGuardsFocusStabilityAndSessionPanelClose() throws Throwable {
+        Context context = getInstrumentation().getTargetContext();
+        AtomicReference<SessionPanel> sessionPanelRef = new AtomicReference<>();
+        AtomicReference<UniversalSearchSheet> searchRef = new AtomicReference<>();
+        AtomicReference<Dialog> childDialogRef = new AtomicReference<>();
+        try (WorkspaceAccountFixture fixture = new WorkspaceAccountFixture(context)) {
+            MainActivity activity = launchActivity(context.getPackageName(), MainActivity.class, null);
+            try {
+                runTestOnUiThread(() -> {
+                    try {
+                        HermesApi api = new HermesApi("http://127.0.0.1:1", "tok");
+                        SessionPanel sessionPanel = new SessionPanel(activity, api, fixture.account);
+                        sessionPanelRef.set(sessionPanel);
+
+                        // R19.5.1: MemoryPanel guards disabled-bucket notice & undo banner across filter keystrokes,
+                        // and preserves the "Restored" confirmation in undoSlot.
+                        Class<?> memoryPanelClass = Class.forName("org.llm4people.hermes.panel.MemoryPanel");
+                        Constructor<?> memoryCtor = memoryPanelClass.getDeclaredConstructor(
+                                SessionPanel.class, Runnable.class);
+                        memoryCtor.setAccessible(true);
+                        Object memoryPanel = memoryCtor.newInstance(sessionPanel, null);
+                        EditText memFilter = new EditText(activity);
+                        LinearLayout undoSlot = Ui.column(activity);
+                        LinearLayout memBody = Ui.column(activity);
+                        setField(memoryPanel, "filterField", memFilter);
+                        setField(memoryPanel, "undoSlot", undoSlot);
+                        setField(memoryPanel, "body", memBody);
+
+                        MemoryModel.Entry entry = new MemoryModel.Entry("e1", "Alpha note", false);
+                        MemoryModel.Bucket disabledMemory = new MemoryModel.Bucket(
+                                MemoryModel.TARGET_MEMORY, Collections.singletonList(entry),
+                                10, MemoryModel.DEFAULT_CHAR_LIMIT, false);
+                        MemoryModel.Bucket enabledUser = new MemoryModel.Bucket(
+                                MemoryModel.TARGET_USER, Collections.singletonList(entry),
+                                10, MemoryModel.DEFAULT_CHAR_LIMIT, true);
+                        setField(memoryPanel, "snapshot", new MemoryModel.Snapshot(disabledMemory, enabledUser));
+
+                        Method renderEntries = memoryPanelClass.getDeclaredMethod("renderEntries");
+                        renderEntries.setAccessible(true);
+                        Method renderUndoBanner = memoryPanelClass.getDeclaredMethod("renderUndoBanner");
+                        renderUndoBanner.setAccessible(true);
+
+                        String disabledText = activity.getString(R.string.brain_memory_disabled);
+                        renderEntries.invoke(memoryPanel);
+                        TextView disabled1 = findTextViewWithText(memBody, disabledText);
+                        assertNotNull("Expected disabled notice on first render", disabled1);
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE,
+                                disabled1.getAccessibilityLiveRegion());
+
+                        // Filter keystroke on same disabled bucket must NOT re-announce.
+                        memFilter.setText("a");
+                        renderEntries.invoke(memoryPanel);
+                        TextView disabled2 = findTextViewWithText(memBody, disabledText);
+                        assertNotNull(disabled2);
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_NONE,
+                                disabled2.getAccessibilityLiveRegion());
+
+                        // Switching to an enabled bucket resets the guard so returning announces again.
+                        setField(memoryPanel, "activeTarget", MemoryModel.TARGET_USER);
+                        renderEntries.invoke(memoryPanel);
+                        setField(memoryPanel, "activeTarget", MemoryModel.TARGET_MEMORY);
+                        renderEntries.invoke(memoryPanel);
+                        TextView disabled3 = findTextViewWithText(memBody, disabledText);
+                        assertNotNull(disabled3);
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE,
+                                disabled3.getAccessibilityLiveRegion());
+
+                        // Undo banner renders once with POLITE and retains the exact view instance across keystrokes.
+                        setField(memoryPanel, "lastDeleted",
+                                new MemoryModel.DeletedEntry(MemoryModel.TARGET_MEMORY, entry));
+                        renderEntries.invoke(memoryPanel);
+                        assertEquals(1, undoSlot.getChildCount());
+                        View undoBanner1 = undoSlot.getChildAt(0);
+                        TextView deletedMsg = findTextViewWithText(
+                                undoBanner1, activity.getString(R.string.brain_memory_deleted_banner));
+                        assertNotNull(deletedMsg);
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE,
+                                deletedMsg.getAccessibilityLiveRegion());
+
+                        memFilter.setText("al");
+                        renderEntries.invoke(memoryPanel);
+                        assertEquals(1, undoSlot.getChildCount());
+                        assertSame("Filter keystroke must not rebuild/re-announce undoSlot",
+                                undoBanner1, undoSlot.getChildAt(0));
+
+                        // After undo clears lastDeleted and shows "Restored", subsequent filter edits preserve it.
+                        setField(memoryPanel, "lastDeleted", null);
+                        renderUndoBanner.invoke(memoryPanel);
+                        assertEquals(0, undoSlot.getChildCount());
+                        Class<?> brainUiClass = Class.forName("org.llm4people.hermes.panel.BrainUi");
+                        Method liveNote = brainUiClass.getDeclaredMethod(
+                                "liveNote", SessionPanel.class, LinearLayout.class, String.class);
+                        liveNote.setAccessible(true);
+                        String restoredStr = activity.getString(R.string.brain_memory_restored);
+                        liveNote.invoke(null, sessionPanel, undoSlot, restoredStr);
+                        memFilter.setText("alp");
+                        renderEntries.invoke(memoryPanel);
+                        assertNotNull("Filter keystroke must not wipe Restored confirmation",
+                                findTextViewWithText(undoSlot, restoredStr));
+
+                        // R19.5.2: UniversalSearchSheet preserves degraded offline banner & Retry focus on chip/space edits.
+                        UniversalSearchModel.LocalEntry localSample =
+                                UniversalSearchModel.LocalEntry.tool("settings", "Settings", "Preferences", "");
+                        UniversalSearchSheet sheet = UniversalSearchSheet.show(
+                                activity, null, Collections.singletonList(localSample),
+                                new UniversalSearchSheet.Callbacks() {
+                                    @Override public void openThread(String id, String title) {}
+                                    @Override public void openNote(String noteId) {}
+                                    @Override public void openSharedItem(UniversalSearchModel.Result item) {}
+                                    @Override public void runAction(String actionId) {}
+                                    @Override public void onDismissed() {}
+                                });
+                        searchRef.set(sheet);
+                        Field sessionField = UniversalSearchSheet.class.getDeclaredField("session");
+                        sessionField.setAccessible(true);
+                        UniversalSearchModel.SearchSession searchSession =
+                                (UniversalSearchModel.SearchSession) sessionField.get(sheet);
+                        Field statusSlotField = UniversalSearchSheet.class.getDeclaredField("statusSlot");
+                        statusSlotField.setAccessible(true);
+                        LinearLayout statusSlot = (LinearLayout) statusSlotField.get(sheet);
+                        Method renderResults = UniversalSearchSheet.class.getDeclaredMethod("renderResults");
+                        renderResults.setAccessible(true);
+
+                        int ep1 = searchSession.setQuery("zzz");
+                        searchSession.acceptRemote(ep1, Collections.emptyList(), null, null, true);
+                        renderResults.invoke(sheet);
+                        assertEquals(1, statusSlot.getChildCount());
+                        View offlineBanner1 = statusSlot.getChildAt(0);
+                        Button retryBtn1 = findFirst(offlineBanner1, Button.class);
+                        assertNotNull("Expected Retry button in offline banner", retryBtn1);
+                        TextView offlineMsg1 = findTextViewWithText(
+                                offlineBanner1, activity.getString(R.string.universal_search_offline_local_only));
+                        assertNotNull(offlineMsg1);
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE,
+                                offlineMsg1.getAccessibilityLiveRegion());
+
+                        // Category chip switch & trailing-space edit keep the exact banner + Retry button instances.
+                        searchSession.setCategory(UniversalSearchModel.Category.CHATS);
+                        renderResults.invoke(sheet);
+                        assertSame(offlineBanner1, statusSlot.getChildAt(0));
+                        assertSame(retryBtn1, findFirst(statusSlot, Button.class));
+
+                        searchSession.setQuery("zzz ");
+                        renderResults.invoke(sheet);
+                        assertSame(offlineBanner1, statusSlot.getChildAt(0));
+                        assertSame(retryBtn1, findFirst(statusSlot, Button.class));
+
+                        // Leaving degraded state resets the guard so a later failure announces politely again.
+                        searchSession.setQuery("");
+                        renderResults.invoke(sheet);
+                        assertEquals(0, statusSlot.getChildCount());
+                        int ep2 = searchSession.setQuery("yyy");
+                        searchSession.acceptRemote(ep2, Collections.emptyList(), null, null, true);
+                        renderResults.invoke(sheet);
+                        TextView offlineMsg2 = findTextViewWithText(
+                                statusSlot, activity.getString(R.string.universal_search_offline_local_only));
+                        assertNotNull(offlineMsg2);
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE,
+                                offlineMsg2.getAccessibilityLiveRegion());
+
+                        // R19.5.3: AppearanceSettingsPanel retains persistent text-size controls + POLITE valuePill.
+                        AppCustomizationStore store = new AppCustomizationStore(new AppCustomizationStore.Backing() {
+                            private String raw;
+                            @Override public String read() { return raw; }
+                            @Override public void write(String value) { raw = value; }
+                            @Override public void remove() { raw = null; }
+                        });
+                        AppearanceSettingsPanel appearance = new AppearanceSettingsPanel(
+                                activity, store, "system", new AppearanceSettingsPanel.Listener() {
+                                    @Override public void onCustomizationChanged(AppCustomization customization) {}
+                                    @Override public void onThemeModeChanged(String themeMode) {}
+                                });
+                        appearance.buildView();
+                        Field minusField = AppearanceSettingsPanel.class.getDeclaredField("textSizeMinusBtn");
+                        Field pillField = AppearanceSettingsPanel.class.getDeclaredField("textSizeValuePill");
+                        Field plusField = AppearanceSettingsPanel.class.getDeclaredField("textSizePlusBtn");
+                        minusField.setAccessible(true);
+                        pillField.setAccessible(true);
+                        plusField.setAccessible(true);
+                        Button minusBtn = (Button) minusField.get(appearance);
+                        TextView valuePill = (TextView) pillField.get(appearance);
+                        Button plusBtn = (Button) plusField.get(appearance);
+                        assertNotNull(minusBtn);
+                        assertNotNull(valuePill);
+                        assertNotNull(plusBtn);
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE,
+                                valuePill.getAccessibilityLiveRegion());
+                        String initialLabel = String.valueOf(valuePill.getText());
+                        assertTrue(plusBtn.isEnabled());
+                        assertTrue(minusBtn.isEnabled());
+
+                        plusBtn.performClick();
+                        assertSame(minusBtn, minusField.get(appearance));
+                        assertSame(valuePill, pillField.get(appearance));
+                        assertSame(plusBtn, plusField.get(appearance));
+                        assertFalse("Value pill text must update after + tap",
+                                initialLabel.equals(String.valueOf(valuePill.getText())));
+
+                        minusBtn.performClick();
+                        assertSame(minusBtn, minusField.get(appearance));
+                        assertSame(valuePill, pillField.get(appearance));
+                        assertSame(plusBtn, plusField.get(appearance));
+                        assertEquals(initialLabel, String.valueOf(valuePill.getText()));
+
+                        for (int i = 0; i < 10 && minusBtn.isEnabled(); i++) {
+                            minusBtn.performClick();
+                        }
+                        assertFalse("Minus button must disable at minimum font scale", minusBtn.isEnabled());
+                        assertSame(minusBtn, minusField.get(appearance));
+
+                        // R19.8.1: SessionPanel.close() dismisses child dialog even when parent dialog == null.
+                        Method memoryOpenEditor = memoryPanelClass.getDeclaredMethod(
+                                "openEditor", MemoryModel.Bucket.class, MemoryModel.Entry.class);
+                        memoryOpenEditor.setAccessible(true);
+                        memoryOpenEditor.invoke(memoryPanel, enabledUser, null);
+                        Field childField = SessionPanel.class.getDeclaredField("child");
+                        childField.setAccessible(true);
+                        Dialog openChild = (Dialog) childField.get(sessionPanel);
+                        childDialogRef.set(openChild);
+                        assertNotNull("Expected child dialog presented with dialog == null", openChild);
+                        assertTrue(openChild.isShowing());
+                        sessionPanel.close();
+                        assertFalse("SessionPanel.close() must dismiss child even when dialog == null",
+                                openChild.isShowing());
+                        assertNull(childField.get(sessionPanel));
+                        childDialogRef.set(null);
+                    } catch (Exception err) {
+                        throw new AssertionError(err);
+                    }
+                });
+            } finally {
+                try {
+                    runTestOnUiThread(() -> {
+                        Dialog child = childDialogRef.getAndSet(null);
+                        if (child != null && child.isShowing()) child.dismiss();
+                        UniversalSearchSheet sheet = searchRef.getAndSet(null);
+                        if (sheet != null) sheet.close();
                         SessionPanel sp = sessionPanelRef.getAndSet(null);
                         if (sp != null) sp.close();
                     });

@@ -85,6 +85,8 @@ public final class UniversalSearchSheet implements AutoCloseable {
     private LinearLayout statusSlot;
     private LinearLayout resultsContainer;
     private Runnable pendingDebounce;
+    private boolean offlineBannerAnnounced;
+    private LinearLayout offlineBannerView;
     private String lastEmptyAnnouncement;
     private volatile boolean closed;
     private volatile Boolean sessionSearchSupported;
@@ -495,8 +497,10 @@ public final class UniversalSearchSheet implements AutoCloseable {
 
     private void renderStatus() {
         if (statusSlot == null) return;
-        statusSlot.removeAllViews();
         if (session.isRemoteLoading()) {
+            offlineBannerAnnounced = false;
+            offlineBannerView = null;
+            statusSlot.removeAllViews();
             LinearLayout row = Ui.row(localized);
             row.setGravity(Gravity.CENTER_VERTICAL);
             row.setPaddingRelative(Ui.dp(localized, 4), 0, Ui.dp(localized, 4), Ui.dp(localized, 12));
@@ -510,6 +514,10 @@ public final class UniversalSearchSheet implements AutoCloseable {
             row.addView(label);
             statusSlot.addView(row);
         } else if (session.isRemoteDegraded() && !session.activeQuery().isEmpty()) {
+            if (offlineBannerView != null && offlineBannerView.getParent() == statusSlot) {
+                return;
+            }
+            statusSlot.removeAllViews();
             LinearLayout banner = Ui.row(localized);
             banner.setGravity(Gravity.CENTER_VERTICAL);
             banner.setBackground(Ui.shape(localized, Ui.BUTTON_CORNER_DP,
@@ -517,7 +525,10 @@ public final class UniversalSearchSheet implements AutoCloseable {
             Ui.pad(banner, 14, 10);
             TextView msg = Ui.text(localized, localized.getString(R.string.universal_search_offline_local_only), 13);
             msg.setTextColor(localized.getColor(R.color.warning));
-            msg.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+            if (!offlineBannerAnnounced) {
+                msg.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+                offlineBannerAnnounced = true;
+            }
             banner.addView(msg, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
             Button retry = Ui.button(localized, localized.getString(R.string.panel_retry),
                     v -> triggerRemoteNow(session.epoch(), session.activeQuery()));
@@ -526,6 +537,11 @@ public final class UniversalSearchSheet implements AutoCloseable {
                     ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
             lp.bottomMargin = Ui.dp(localized, 14);
             statusSlot.addView(banner, lp);
+            offlineBannerView = banner;
+        } else {
+            offlineBannerAnnounced = false;
+            offlineBannerView = null;
+            statusSlot.removeAllViews();
         }
     }
 

@@ -26,10 +26,12 @@ final class MemoryPanel {
     private String activeTarget = MemoryModel.TARGET_MEMORY;
     private MemoryModel.Snapshot snapshot;
     private MemoryModel.DeletedEntry lastDeleted;
+    private MemoryModel.DeletedEntry renderedUndoEntry;
     private EditText filterField;
     private LinearLayout tabsRow;
     private LinearLayout undoSlot;
     private LinearLayout body;
+    private String lastDisabledAnnouncement;
     private String lastEmptyAnnouncement;
 
     MemoryPanel(SessionPanel panel, Runnable parent) {
@@ -104,9 +106,18 @@ final class MemoryPanel {
     }
 
     private void renderUndoBanner() {
-        undoSlot.removeAllViews();
+        if (undoSlot == null) return;
         MemoryModel.DeletedEntry deleted = lastDeleted;
-        if (deleted == null) return;
+        if (deleted == null) {
+            if (renderedUndoEntry != null) {
+                renderedUndoEntry = null;
+                undoSlot.removeAllViews();
+            }
+            return;
+        }
+        if (deleted == renderedUndoEntry && undoSlot.getChildCount() > 0) return;
+        renderedUndoEntry = deleted;
+        undoSlot.removeAllViews();
         LinearLayout banner = BrainUi.tintedBanner(panel.activity);
         TextView msg = Ui.text(panel.activity, panel.t(R.string.brain_memory_deleted_banner), 15);
         msg.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
@@ -134,8 +145,13 @@ final class MemoryPanel {
         body.addView(metaRow);
 
         if (!bucket.enabled()) {
-            BrainUi.liveNote(panel, body, panel.t(R.string.brain_memory_disabled));
+            TextView disabled = panel.note(body, panel.t(R.string.brain_memory_disabled));
+            if (!activeTarget.equals(lastDisabledAnnouncement)) {
+                disabled.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+                lastDisabledAnnouncement = activeTarget;
+            }
         } else {
+            lastDisabledAnnouncement = null;
             int addLabel = MemoryModel.TARGET_USER.equals(activeTarget)
                     ? R.string.brain_memory_add_user : R.string.brain_memory_add_hermes;
             Button addBtn = Ui.filledButton(panel.activity, panel.t(addLabel), v -> openEditor(bucket, null));
@@ -377,6 +393,7 @@ final class MemoryPanel {
                     BrainUi.liveNote(panel, undoSlot, panel.t(R.string.brain_memory_restored));
                 }, error -> {
                     lastDeleted = deleted;
+                    renderUndoBanner();
                     handleMutationError(error);
                 });
     }

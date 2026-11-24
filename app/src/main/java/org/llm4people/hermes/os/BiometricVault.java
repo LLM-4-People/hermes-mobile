@@ -81,6 +81,7 @@ public final class BiometricVault {
         private final Runnable cancelPrompt;
         private final BooleanSupplier promptCanceled;
         private final Runnable cleanup;
+        private final AtomicBoolean settled = new AtomicBoolean(false);
         private final AtomicBoolean cancelled = new AtomicBoolean(false);
         private final AtomicReference<Runnable> onCancelHook = new AtomicReference<>();
 
@@ -96,7 +97,7 @@ public final class BiometricVault {
 
         /** Registers an owner-side hook invoked once when {@link #cancel()} completes (or immediately if already canceled). */
         public Session withOnCancel(Runnable onCancel) {
-            if (onCancel == null) return this;
+            if (onCancel == null || settled.get()) return this;
             if (cancelled.get()) {
                 onCancel.run();
                 return this;
@@ -108,11 +109,23 @@ public final class BiometricVault {
                     onCancel.run();
                 }
             });
-            if (cancelled.get()) {
+            if (settled.get()) {
+                onCancelHook.set(null);
+            } else if (cancelled.get()) {
                 Runnable late = onCancelHook.getAndSet(null);
                 if (late != null) late.run();
             }
             return this;
+        }
+
+        /**
+         * Marks the OS prompt as settled (succeeded, errored, or user-canceled via prompt callback)
+         * so subsequent owner-side {@link #cancel()} calls become no-ops without firing cancel hooks.
+         */
+        void markSettled() {
+            settled.set(true);
+            cancelled.set(true);
+            onCancelHook.set(null);
         }
 
         /** Idempotent: cancels the OS prompt and always runs cleanup + cancel hooks, even if prompt cancel throws. */
@@ -265,11 +278,6 @@ public final class BiometricVault {
         // Stage enrollment under a fresh keystore alias so cancel/failure never corrupts an existing enrollment.
         String stagingAlias = KEY_PREFIX + profileId + "." + UUID.randomUUID();
         AtomicBoolean settled = new AtomicBoolean(false);
-        Runnable cleanupCancel = () -> {
-            Arrays.fill(payloadCopy, (byte) 0);
-            deleteKeyAlias(stagingAlias);
-            if (settled.compareAndSet(false, true)) callback.onCancelled();
-        };
         try {
             boolean combined = Build.VERSION.SDK_INT >= 30
                     && mode == Availability.STRONG
@@ -277,10 +285,6 @@ public final class BiometricVault {
             boolean strongCrypto = mode == Availability.STRONG && !combined;
             String modeKey = combined ? MODE_COMBINED : (strongCrypto ? MODE_STRONG : MODE_CREDENTIAL);
             SecretKey key = generateKey(stagingAlias, modeKey);
-            BiometricPrompt prompt = buildPrompt(activity,
-                    activity.getString(R.string.security_biometric_enroll_title),
-                    activity.getString(R.string.security_biometric_enroll_subtitle),
-                    modeKey, cleanupCancel);
             CancellationSignal signal = new CancellationSignal();
             Session session = Session.of(signal, () -> {
                 if (settled.compareAndSet(false, true)) {
@@ -288,6 +292,18 @@ public final class BiometricVault {
                     deleteKeyAlias(stagingAlias);
                 }
             });
+            Runnable cleanupCancel = () -> {
+                Arrays.fill(payloadCopy, (byte) 0);
+                deleteKeyAlias(stagingAlias);
+                if (settled.compareAndSet(false, true)) {
+                    session.markSettled();
+                    callback.onCancelled();
+                }
+            };
+            BiometricPrompt prompt = buildPrompt(activity,
+                    activity.getString(R.string.security_biometric_enroll_title),
+                    activity.getString(R.string.security_biometric_enroll_subtitle),
+                    modeKey, cleanupCancel);
             BiometricPrompt.AuthenticationCallback auth = new BiometricPrompt.AuthenticationCallback() {
                 @Override public void onAuthenticationSucceeded(BiometricPrompt.AuthenticationResult result) {
                     // A success already queued on the executor must not seal secrets after lock/cancel.
@@ -297,6 +313,7 @@ public final class BiometricVault {
                         deleteKeyAlias(stagingAlias);
                         return;
                     }
+                    session.markSettled();
                     try {
                         Cipher cipher = strongCrypto && result.getCryptoObject() != null
                                 ? result.getCryptoObject().getCipher()
@@ -322,6 +339,7 @@ public final class BiometricVault {
                     Arrays.fill(payloadCopy, (byte) 0);
                     deleteKeyAlias(stagingAlias);
                     if (!settled.compareAndSet(false, true)) return;
+                    session.markSettled();
                     if (isUserCancel(errorCode)) callback.onCancelled();
                     else {
                         Diagnostics.warning("biometric", "enroll_auth_error");
@@ -383,16 +401,22 @@ public final class BiometricVault {
                 callback.onInvalidated();
                 return null;
             }
+            CancellationSignal signal = new CancellationSignal();
+            Session session = Session.of(signal, () -> settled.set(true));
             BiometricPrompt prompt = buildPrompt(activity,
                     activity.getString(R.string.security_biometric_prompt_title, label),
                     activity.getString(R.string.security_biometric_prompt_subtitle),
-                    storedMode, () -> { if (settled.compareAndSet(false, true)) callback.onCancelled(); });
-            CancellationSignal signal = new CancellationSignal();
-            Session session = Session.of(signal, () -> settled.set(true));
+                    storedMode, () -> {
+                        if (settled.compareAndSet(false, true)) {
+                            session.markSettled();
+                            callback.onCancelled();
+                        }
+                    });
             BiometricPrompt.AuthenticationCallback auth = new BiometricPrompt.AuthenticationCallback() {
                 @Override public void onAuthenticationSucceeded(BiometricPrompt.AuthenticationResult result) {
                     // Never decrypt key material for a prompt the owner has already cancelled.
                     if (session.isCanceled() || !settled.compareAndSet(false, true)) return;
+                    session.markSettled();
                     try {
                         Cipher cipher = strongCrypto && result.getCryptoObject() != null
                                 ? result.getCryptoObject().getCipher()
@@ -412,6 +436,7 @@ public final class BiometricVault {
 
                 @Override public void onAuthenticationError(int errorCode, CharSequence errString) {
                     if (!settled.compareAndSet(false, true)) return;
+                    session.markSettled();
                     if (isUserCancel(errorCode)) callback.onCancelled();
                     else {
                         Diagnostics.warning("biometric", "unlock_auth_error");

@@ -308,6 +308,8 @@ public final class SessionPanel implements AutoCloseable {
             dialog.setOnDismissListener(null);
             dialog.dismiss();
             teardown();
+        } else if (child != null || worker != null) {
+            teardown();
         }
     }
 }

@@ -2,7 +2,6 @@ package org.llm4people.hermes.settings;
 
 import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.R;
-import org.llm4people.hermes.customization.AppCustomization;
 import org.llm4people.hermes.palette.CommandRegistry;
 
 import java.net.URI;
@@ -133,21 +132,6 @@ public final class SettingsHubModel {
     public static int resolvedLanguageNameRes(String resolvedTag) {
         return AppLanguage.TAG_ENGLISH.equalsIgnoreCase(resolvedTag)
                 ? R.string.settings_lang_en : R.string.settings_lang_fr;
-    }
-
-    /** Resolve the localized label resource for a theme mode wire value. */
-    public static int themeModeLabelRes(String themeMode) {
-        return AppearanceSettingsModel.themeModeLabelRes(themeMode);
-    }
-
-    /** Resolve the localized label resource for an {@link AppCustomization.PalettePreset}. */
-    public static int paletteLabelRes(AppCustomization.PalettePreset preset) {
-        return AppearanceSettingsModel.paletteLabelRes(preset);
-    }
-
-    /** Resolve the localized label resource for an {@link AppCustomization.Density}. */
-    public static int densityLabelRes(AppCustomization.Density density) {
-        return AppearanceSettingsModel.densityLabelRes(density);
     }
 
     /** Build a safe version subtitle, preferring a live update badge when an update is ready. */
