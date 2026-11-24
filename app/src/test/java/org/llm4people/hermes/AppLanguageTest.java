@@ -257,6 +257,122 @@ public final class AppLanguageTest {
         org.llm4people.hermes.os.HermesShortcuts.publish(null, AppLanguage.Mode.ENGLISH);
     }
 
+    @Test
+    public void applyAndRefreshRuntimeSerializeUnderStateLockWithoutStaleClobbering() throws Exception {
+        String previousRaw = AppLanguage.rawActiveAcceptLanguageForTest();
+        List<String> systemTags = Collections.singletonList("en-US");
+        try {
+            // Case 1: Refresh enters STATE_LOCK first reading FRENCH; concurrent apply(ENGLISH) must
+            // block until refresh finishes and then win with ENGLISH (never overwritten by stale FRENCH).
+            java.util.concurrent.atomic.AtomicReference<AppLanguage.Mode> stored =
+                    new java.util.concurrent.atomic.AtomicReference<>(AppLanguage.Mode.FRENCH);
+            AppLanguage.setActiveAcceptLanguageForTest("fr");
+            java.util.concurrent.CountDownLatch refreshInsideLock = new java.util.concurrent.CountDownLatch(1);
+            java.util.concurrent.CountDownLatch applyStarted = new java.util.concurrent.CountDownLatch(1);
+            java.util.concurrent.CountDownLatch releaseRefresh = new java.util.concurrent.CountDownLatch(1);
+            java.util.concurrent.atomic.AtomicInteger concurrentLockHolders =
+                    new java.util.concurrent.atomic.AtomicInteger(0);
+            java.util.concurrent.atomic.AtomicBoolean overlapDetected =
+                    new java.util.concurrent.atomic.AtomicBoolean(false);
+
+            Thread refreshThread = new Thread(() -> AppLanguage.refreshFromSupplier(() -> {
+                if (concurrentLockHolders.incrementAndGet() != 1) overlapDetected.set(true);
+                try {
+                    AppLanguage.Mode mode = stored.get();
+                    refreshInsideLock.countDown();
+                    try {
+                        assertTrue(releaseRefresh.await(5, java.util.concurrent.TimeUnit.SECONDS));
+                    } catch (InterruptedException interrupted) {
+                        Thread.currentThread().interrupt();
+                        throw new AssertionError(interrupted);
+                    }
+                    return mode;
+                } finally {
+                    concurrentLockHolders.decrementAndGet();
+                }
+            }, systemTags), "test-refresh-first");
+
+            Thread applyThread = new Thread(() -> {
+                applyStarted.countDown();
+                AppLanguage.applyWithWriter(AppLanguage.Mode.ENGLISH, () -> {
+                    if (concurrentLockHolders.incrementAndGet() != 1) overlapDetected.set(true);
+                    try {
+                        stored.set(AppLanguage.Mode.ENGLISH);
+                    } finally {
+                        concurrentLockHolders.decrementAndGet();
+                    }
+                }, systemTags);
+            }, "test-apply-second");
+
+            refreshThread.start();
+            assertTrue(refreshInsideLock.await(5, java.util.concurrent.TimeUnit.SECONDS));
+            applyThread.start();
+            assertTrue(applyStarted.await(5, java.util.concurrent.TimeUnit.SECONDS));
+            // Wait deterministically until applyThread blocks on STATE_LOCK (BLOCKED state).
+            long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(5);
+            while (applyThread.getState() != Thread.State.BLOCKED && System.nanoTime() < deadline) {
+                Thread.yield();
+            }
+            assertEquals("apply() must block on STATE_LOCK while refreshRuntime() holds it",
+                    Thread.State.BLOCKED, applyThread.getState());
+            releaseRefresh.countDown();
+            refreshThread.join(5_000);
+            applyThread.join(5_000);
+            assertFalse("apply() must not interleave inside refreshRuntime()", overlapDetected.get());
+            assertEquals("Final Accept-Language must reflect ENGLISH, never stale FRENCH",
+                    "en-US, en;q=0.9", AppLanguage.currentAcceptLanguage());
+
+            // Case 2: apply(ENGLISH) holds STATE_LOCK while refresh attempts concurrently; refresh must
+            // block until apply(ENGLISH) persists ENGLISH and therefore observe ENGLISH, not stale FRENCH.
+            stored.set(AppLanguage.Mode.FRENCH);
+            AppLanguage.setActiveAcceptLanguageForTest("fr");
+            java.util.concurrent.CountDownLatch applyInsideLock = new java.util.concurrent.CountDownLatch(1);
+            java.util.concurrent.CountDownLatch refreshAttempted = new java.util.concurrent.CountDownLatch(1);
+            java.util.concurrent.CountDownLatch releaseApply = new java.util.concurrent.CountDownLatch(1);
+            java.util.concurrent.atomic.AtomicReference<AppLanguage.Mode> observedByRefresh =
+                    new java.util.concurrent.atomic.AtomicReference<>();
+
+            Thread applyFirst = new Thread(() -> AppLanguage.applyWithWriter(AppLanguage.Mode.ENGLISH, () -> {
+                applyInsideLock.countDown();
+                try {
+                    assertTrue(releaseApply.await(5, java.util.concurrent.TimeUnit.SECONDS));
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    throw new AssertionError(interrupted);
+                }
+                stored.set(AppLanguage.Mode.ENGLISH);
+            }, systemTags), "test-apply-first");
+
+            Thread refreshSecond = new Thread(() -> {
+                refreshAttempted.countDown();
+                AppLanguage.refreshFromSupplier(() -> {
+                    AppLanguage.Mode seen = stored.get();
+                    observedByRefresh.set(seen);
+                    return seen;
+                }, systemTags);
+            }, "test-refresh-second");
+
+            applyFirst.start();
+            assertTrue(applyInsideLock.await(5, java.util.concurrent.TimeUnit.SECONDS));
+            refreshSecond.start();
+            assertTrue(refreshAttempted.await(5, java.util.concurrent.TimeUnit.SECONDS));
+            long deadline2 = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(5);
+            while (refreshSecond.getState() != Thread.State.BLOCKED && System.nanoTime() < deadline2) {
+                Thread.yield();
+            }
+            assertEquals("refreshRuntime() must block on STATE_LOCK while apply() holds it",
+                    Thread.State.BLOCKED, refreshSecond.getState());
+            releaseApply.countDown();
+            applyFirst.join(5_000);
+            refreshSecond.join(5_000);
+            assertEquals("refreshRuntime() must observe post-apply ENGLISH mode",
+                    AppLanguage.Mode.ENGLISH, observedByRefresh.get());
+            assertEquals("en-US, en;q=0.9", AppLanguage.currentAcceptLanguage());
+        } finally {
+            AppLanguage.setActiveAcceptLanguageForTest(previousRaw);
+        }
+    }
+
     private static File locateResRoot() {
         File direct = new File("src/main/res");
         if (direct.isDirectory()) return direct;

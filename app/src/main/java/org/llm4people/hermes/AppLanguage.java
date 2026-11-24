@@ -28,6 +28,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /**
  * Single Source of Truth for bilingual French/English auto-detection, per-app override,
@@ -38,6 +39,7 @@ public final class AppLanguage {
     public static final String TAG_ENGLISH = "en";
     private static final String PREFS = "hermes.app.locale.v1";
     private static final String KEY_MODE = "mode";
+    private static final Object STATE_LOCK = new Object();
     private static final ExecutorService SYNC_EXECUTOR = Executors.newSingleThreadExecutor(runnable -> {
         Thread thread = new Thread(runnable, "hermes-locale-sync");
         thread.setDaemon(true);
@@ -149,7 +151,9 @@ public final class AppLanguage {
     }
 
     public static void setActiveAcceptLanguageForTest(String header) {
-        activeAcceptLanguage = header == null ? "" : header.trim();
+        synchronized (STATE_LOCK) {
+            activeAcceptLanguage = header == null ? "" : header.trim();
+        }
     }
 
     /** Read the persisted or Android 13+ system per-app language mode. */
@@ -173,22 +177,31 @@ public final class AppLanguage {
     public static void apply(Context context, Mode mode) {
         if (context == null) return;
         Mode target = mode == null ? Mode.AUTO : mode;
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-                .edit()
-                .putString(KEY_MODE, target.wire)
-                .apply();
-        if (Build.VERSION.SDK_INT >= 33) {
-            LocaleManager manager = context.getSystemService(LocaleManager.class);
-            if (manager != null) {
-                LocaleList next = target == Mode.AUTO
-                        ? LocaleList.getEmptyLocaleList()
-                        : LocaleList.forLanguageTags(target.wire);
-                manager.setApplicationLocales(next);
+        applyWithWriter(target, () -> {
+            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                    .edit()
+                    .putString(KEY_MODE, target.wire)
+                    .apply();
+            if (Build.VERSION.SDK_INT >= 33) {
+                LocaleManager manager = context.getSystemService(LocaleManager.class);
+                if (manager != null) {
+                    LocaleList next = target == Mode.AUTO
+                            ? LocaleList.getEmptyLocaleList()
+                            : LocaleList.forLanguageTags(target.wire);
+                    manager.setApplicationLocales(next);
+                }
             }
-        }
-        refreshRuntime(target);
+        }, systemLanguageTags());
         HermesWidgetProvider.refresh(context, target);
         Diagnostics.event("locale", "mode_" + target.wire);
+    }
+
+    /** Serializes mode persistence + runtime cache update under {@link #STATE_LOCK}. */
+    static void applyWithWriter(Mode target, Runnable persistMode, List<String> systemTags) {
+        synchronized (STATE_LOCK) {
+            persistMode.run();
+            refreshRuntime(target, systemTags);
+        }
     }
 
     /**
@@ -211,8 +224,11 @@ public final class AppLanguage {
     /** Wrap an Activity base context on API 28-32 so explicit French/English overrides load matching resources. */
     public static Context wrapContext(Context base) {
         if (base == null) return null;
-        Mode mode = readMode(base);
-        refreshRuntime(mode);
+        Mode mode;
+        synchronized (STATE_LOCK) {
+            mode = readMode(base);
+            refreshRuntime(mode, systemLanguageTags());
+        }
         if (Build.VERSION.SDK_INT >= 33 || mode == Mode.AUTO) {
             return base;
         }
@@ -229,21 +245,26 @@ public final class AppLanguage {
      * compared to the previously cached runtime tag.
      */
     public static boolean refreshRuntime(Context context) {
-        return refreshRuntime(readMode(context));
+        return refreshFromSupplier(() -> readMode(context), systemLanguageTags());
     }
 
-    private static boolean refreshRuntime(Mode mode) {
-        return refreshRuntime(mode, systemLanguageTags());
+    /** Serializes mode read + runtime cache update under {@link #STATE_LOCK}. */
+    static boolean refreshFromSupplier(Supplier<Mode> modeReader, List<String> systemTags) {
+        synchronized (STATE_LOCK) {
+            return refreshRuntime(modeReader.get(), systemTags);
+        }
     }
 
     /** Host-JVM testable helper updating cached Accept-Language and reporting effective tag changes. */
     static boolean refreshRuntime(Mode mode, List<String> systemTags) {
-        String previousTag = effectiveTagFromHeader(activeAcceptLanguage);
-        Locale resolved = resolveLocale(mode, systemTags);
-        String nextHeader = formatAcceptLanguage(resolved);
-        String nextTag = effectiveTagFromHeader(nextHeader);
-        activeAcceptLanguage = nextHeader;
-        return !previousTag.isEmpty() && !previousTag.equals(nextTag);
+        synchronized (STATE_LOCK) {
+            String previousTag = effectiveTagFromHeader(activeAcceptLanguage);
+            Locale resolved = resolveLocale(mode, systemTags);
+            String nextHeader = formatAcceptLanguage(resolved);
+            String nextTag = effectiveTagFromHeader(nextHeader);
+            activeAcceptLanguage = nextHeader;
+            return !previousTag.isEmpty() && !previousTag.equals(nextTag);
+        }
     }
 
     private static String effectiveTagFromHeader(String header) {
@@ -268,10 +289,12 @@ public final class AppLanguage {
     }
 
     public static String acceptLanguageHeader(Context context) {
-        Locale resolved = resolvedLocale(context);
-        String header = formatAcceptLanguage(resolved);
-        activeAcceptLanguage = header;
-        return header;
+        synchronized (STATE_LOCK) {
+            Locale resolved = resolvedLocale(context);
+            String header = formatAcceptLanguage(resolved);
+            activeAcceptLanguage = header;
+            return header;
+        }
     }
 
     private static List<String> systemLanguageTags() {
