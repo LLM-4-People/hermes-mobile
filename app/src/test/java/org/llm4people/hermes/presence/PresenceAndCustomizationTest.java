@@ -220,7 +220,7 @@ public final class PresenceAndCustomizationTest {
                 .withPalette(AppCustomization.PalettePreset.CUSTOM, "#1B4D3E")
                 .withDensity(AppCustomization.Density.SPACIOUS)
                 .withFontScaleDelta(0.10f)
-                .withStartupTab(AppCustomization.StartupTab.ATELIER)
+                .withStartupTab(AppCustomization.StartupTab.APPS)
                 .withCompanionGreeting("Bonjour Jacob")
                 .withComposerShortcuts(List.of(
                         new AppCustomization.ComposerShortcut("plan", "Plan du jour", "Aide-moi à planifier ma journée")));
@@ -540,7 +540,7 @@ public final class PresenceAndCustomizationTest {
         AppCustomization existing = AppCustomization.defaults()
                 .withPalette(AppCustomization.PalettePreset.PLUM, null)
                 .withFontScaleDelta(0.15f)
-                .withStartupTab(AppCustomization.StartupTab.CERVEAU)
+                .withStartupTab(AppCustomization.StartupTab.NOTES_TASKS)
                 .withCompanionGreeting("Salut Jacob")
                 .withComposerShortcuts(List.of(new AppCustomization.ComposerShortcut("s1", "Note", "Prends note")));
         InteractiveCardView.Spec partial = InteractiveCardView.Spec.fromMap(Map.of(
@@ -552,7 +552,7 @@ public final class PresenceAndCustomizationTest {
         assertEquals(AppCustomization.Density.COMPACT, merged.density);
         assertEquals(AppCustomization.PalettePreset.PLUM, merged.palette);
         assertEquals(0.15f, merged.fontScaleDelta, 0.001f);
-        assertEquals(AppCustomization.StartupTab.CERVEAU, merged.startupTab);
+        assertEquals(AppCustomization.StartupTab.NOTES_TASKS, merged.startupTab);
         assertEquals("Salut Jacob", merged.companionGreeting);
         assertEquals(1, merged.composerShortcuts.size());
 

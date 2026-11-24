@@ -36,6 +36,9 @@ import org.llm4people.hermes.customization.AppCustomization;
 import org.llm4people.hermes.customization.AppCustomizationStore;
 import org.llm4people.hermes.doctor.ConnectionDoctorPanel;
 import org.llm4people.hermes.files.PublishedFiles;
+import org.llm4people.hermes.hub.AppsLauncherModel;
+import org.llm4people.hermes.hub.AppsLauncherPanel;
+import org.llm4people.hermes.hub.NotesTasksPanel;
 import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.onboarding.OnboardingModels;
 import org.llm4people.hermes.onboarding.PairingIntent;
@@ -68,9 +71,13 @@ import org.llm4people.hermes.profile.AdminConsoleSheet;
 import org.llm4people.hermes.profile.FirstRunWizard;
 import org.llm4people.hermes.profile.ProfileGate;
 import org.llm4people.hermes.profile.ProfileHubSheet;
+import org.llm4people.hermes.profile.ProfileLockPolicy;
 import org.llm4people.hermes.push.DeliveryItem;
 import org.llm4people.hermes.push.DeliveryRouter;
 import org.llm4people.hermes.push.MobilePush;
+import org.llm4people.hermes.settings.AppearanceSettingsPanel;
+import org.llm4people.hermes.settings.SettingsHubModel;
+import org.llm4people.hermes.settings.SettingsHubPanel;
 import org.llm4people.hermes.share.SharedMediaFlow;
 import org.llm4people.hermes.share.SharedTextFlow;
 import org.llm4people.hermes.templates.TemplateStore;
@@ -123,6 +130,10 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     private ConnectionDoctorPanel activeDoctorPanel;
     private PermissionsPanel activePermissionsPanel;
     private TemplatesPanel activeTemplatesPanel;
+    private NotesTasksPanel activeNotesTasksPanel;
+    private AppsLauncherPanel activeAppsPanel;
+    private SettingsHubPanel activeSettingsPanel;
+    private AppearanceSettingsPanel activeAppearancePanel;
     private CommandPalette activePalette;
     private ProfileHubSheet activeProfileHub;
     private AdminConsoleSheet activeAdminConsole;
@@ -275,20 +286,69 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     private void registerBuiltInRoutes() {
         shellRoutes.register(WorkspaceNavigation.DISCUSSION, (route, force) -> renderDiscussion(false, force));
         shellRoutes.register(WorkspaceNavigation.COMPOSER, (route, force) -> renderDiscussion(true, force));
-        shellRoutes.register(WorkspaceNavigation.HOME, (route, force) -> {
-            navigation.display(route, this::leavingSurface);
-            shell.show(ArtifactDesk.decorate(this, account, "home", shell.desk(account.label), activeHost),
-                    getString(R.string.ws_desk));
+        shellRoutes.register(WorkspaceNavigation.NOTES_TASKS, (route, force) -> {
+            boolean changed = navigation.display(route, this::leavingSurface);
+            if (!changed && activeNotesTasksPanel != null) {
+                activeNotesTasksPanel.refresh();
+                return;
+            }
+            if (activeNotesTasksPanel != null) activeNotesTasksPanel.close();
+            Account owner = account;
+            HermesApi hubApi = new HermesApi(owner.endpoint, owner.bearer,
+                    HermesApi.Limits.from(HermesConfig.load(this)));
+            activeNotesTasksPanel = new NotesTasksPanel(
+                    this,
+                    owner,
+                    hubApi,
+                    () -> account == owner && !isFinishing() && !isDestroyed(),
+                    notesTasksCallbacks(owner));
+            shell.show(activeNotesTasksPanel.buildView(), getString(R.string.hub_tasks_title));
         });
-        shellRoutes.register(WorkspaceNavigation.BRAIN, (route, force) -> {
-            navigation.display(route, this::leavingSurface);
-            shell.show(shell.brain(), getString(R.string.nav_brain));
+        shellRoutes.register(WorkspaceNavigation.APPS, (route, force) -> {
+            boolean changed = navigation.display(route, this::leavingSurface);
+            if (!changed && !force && activeAppsPanel != null) {
+                activeAppsPanel.refresh();
+                return;
+            }
+            Account owner = account;
+            activeAppsPanel = new AppsLauncherPanel(this, appsStateProvider(owner), appsCallbacks(owner));
+            View nativeApps = activeAppsPanel.buildView();
+            View decorated = ArtifactDesk.decorate(this, owner, "home", nativeApps, activeHost);
+            shell.show(decorated, getString(R.string.hub_apps_title), decorated != nativeApps);
         });
-        shellRoutes.register(WorkspaceNavigation.ACTIVITY, (route, force) -> {
-            navigation.display(route, this::leavingSurface);
-            shell.show(shell.activitySurface(WorkspaceDialogs.securitySummary(this, account.id),
-                            UpdatePanel.badgeLabel(this, updateBadge)),
-                    getString(R.string.nav_activity));
+        shellRoutes.register(WorkspaceNavigation.SETTINGS, (route, force) -> {
+            boolean changed = navigation.display(route, this::leavingSurface);
+            if (!changed && activeSettingsPanel != null) {
+                activeSettingsPanel.refresh();
+                return;
+            }
+            Account owner = account;
+            activeSettingsPanel = new SettingsHubPanel(this, settingsStateProvider(owner), this::onAction);
+            shell.show(activeSettingsPanel.buildView(), getString(R.string.settings_panel_title));
+        });
+        shellRoutes.register(AppearanceSettingsPanel.ROUTE_ID, (route, force) -> {
+            boolean changed = navigation.display(route, this::leavingSurface);
+            if (!changed && activeAppearancePanel != null) {
+                activeAppearancePanel.syncThemeMode(ThemePalette.load(account, ThemePalette.isNight(this)).theme);
+                activeAppearancePanel.refreshAll();
+                return;
+            }
+            if (activeAppearancePanel != null) activeAppearancePanel.dismissDialogs();
+            Account owner = account;
+            String initialTheme = ThemePalette.load(owner, ThemePalette.isNight(this)).theme;
+            activeAppearancePanel = new AppearanceSettingsPanel(
+                    this,
+                    AppCustomizationStore.forAccount(owner),
+                    initialTheme,
+                    new AppearanceSettingsPanel.Listener() {
+                        @Override public void onCustomizationChanged(AppCustomization customization) {
+                            if (account == owner) applyAppCustomization(owner, customization, true);
+                        }
+                        @Override public void onThemeModeChanged(String themeMode) {
+                            if (account == owner) applyThemeModeOverride(owner, themeMode);
+                        }
+                    });
+            shell.show(activeAppearancePanel.buildView(), getString(R.string.appearance_panel_title));
         });
         shellRoutes.register(AmbientAccessPanel.ROUTE_ID, (route, force) -> {
             navigation.display(route, this::leavingSurface);
@@ -369,7 +429,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         });
         shellRoutes.register(WorkspaceNavigation.GALLERY, (route, force) -> {
             navigation.display(route, this::leavingSurface);
-            shell.show(ArtifactDesk.pages(this, account, activeHost), getString(R.string.ws_my_screens));
+            shell.show(ArtifactDesk.pages(this, account, activeHost), getString(R.string.ws_my_screens), true);
         });
         shellRoutes.setFallback((route, force) -> {
             View page = customPages.get(route);
@@ -380,7 +440,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             } else {
                 navigation.display(route, this::leavingSurface);
                 customPages.put(route, page);
-                shell.show(page, getString(R.string.ws_custom_screen));
+                shell.show(page, getString(R.string.ws_custom_screen), true);
                 ArtifactDesk.refreshBindings(page, activeHost);
             }
         });
@@ -390,9 +450,15 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         actions.register("previous", this::back);
         actions.register("return", this::displayDiscussion);
         actions.register("nav_discussions", () -> switchTab(WorkspaceNavigation.DISCUSSION));
-        actions.register("nav_atelier", () -> switchTab(WorkspaceNavigation.HOME));
-        actions.register("nav_brain", () -> switchTab(WorkspaceNavigation.BRAIN));
-        actions.register("nav_activity", () -> switchTab(WorkspaceNavigation.ACTIVITY));
+        actions.register("nav_tasks", () -> switchTab(WorkspaceNavigation.NOTES_TASKS));
+        actions.register("nav_apps", () -> switchTab(WorkspaceNavigation.APPS));
+        actions.register("nav_settings", this::openSettingsHub);
+        actions.register("nav_atelier", () -> switchTab(WorkspaceNavigation.APPS));
+        actions.register("nav_brain", this::openSettingsHub);
+        actions.register("nav_activity", () -> switchTab(WorkspaceNavigation.NOTES_TASKS));
+        actions.register(SettingsHubPanel.ROUTE_ID, this::openSettingsHub);
+        actions.register(AppearanceSettingsPanel.ROUTE_ID, () -> navigate(AppearanceSettingsPanel.ROUTE_ID));
+        actions.register(SettingsHubPanel.ACTION_VOICE_OPTIONS, () -> voice.openOptionsDialog(null, false));
         actions.register("pages", () -> navigate(WorkspaceNavigation.GALLERY));
         actions.register("nearby_area", () -> { if (threads != null) threads.editNearbyArea(); });
         actions.register("attach_photo", () -> photoPicker.launch(account, threads));
@@ -436,6 +502,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                     HermesApi syncApi = new HermesApi(owner.endpoint, owner.bearer,
                             HermesApi.Limits.from(HermesConfig.load(this)));
                     AppLanguage.syncToServerAsync(syncApi, selected);
+                    refreshSettingsHubIfVisible();
                 }
             });
         });
@@ -457,7 +524,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             if (account == null) return;
             if (notice != null) notice.dismiss();
             notice = WorkspaceDialogs.showSecurity(this, account, gate, this::lock, () -> {
-                if (navigation != null && WorkspaceNavigation.ACTIVITY.equals(navigation.current())) render(true);
+                refreshSettingsHubIfVisible();
             }, () -> notice = null);
         });
         actions.register("skills", () -> {
@@ -566,16 +633,25 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                 () -> { if (account == unlocked) navigate(TemplatesPanel.ROUTE_ID); });
         UpdatePanel.registerRoute(featureRoutes, this,
                 () -> { if (account == unlocked) navigate(UpdatePanel.ROUTE_ID); });
+        AppearanceSettingsPanel.registerRoute(featureRoutes, this,
+                () -> { if (account == unlocked) navigate(AppearanceSettingsPanel.ROUTE_ID); });
         UpdateCheckCoordinator.checkIfDueAsync(this, state -> {
             if (account == unlocked && !isFinishing() && !isDestroyed()) {
                 updateBadge = state;
-                if (navigation != null && WorkspaceNavigation.ACTIVITY.equals(navigation.current())) render(true);
+                refreshSettingsHubIfVisible();
             }
         });
         setContentView(shell.root);
         displayDiscussion();
         files.unlock(account, api);
         OnboardingModels.PairingClaim freshClaim = gate.consumeFreshPairingClaim();
+        boolean hasStartupOverride = freshClaim != null
+                || delivery != null
+                || pendingPinnedSurface != null
+                || pendingPinnedWidget != null
+                || pendingOsEntry != null
+                || sharedText.requestedProfile() != null
+                || sharedMedia.requestedProfile() != null;
         if (freshClaim != null && freshClaim.onboarding() != null) {
             activeProfileIsAdmin = freshClaim.onboarding().isAdmin();
             try { unlocked.write("is_admin_hint", activeProfileIsAdmin ? "1" : "0"); }
@@ -616,6 +692,207 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             if (unlocked.id.equals(target.profileId)) resolve(unlocked, target);
         }
         dispatchPendingOsEntry();
+        if (!hasStartupOverride && savedCustom.startupTab != AppCustomization.StartupTab.CHATS
+                && WorkspaceNavigation.DISCUSSION.equals(navigation.current())) {
+            switchTab(startupDestination(savedCustom.startupTab));
+        }
+    }
+
+    private static String startupDestination(AppCustomization.StartupTab tab) {
+        if (tab == null) return WorkspaceNavigation.DISCUSSION;
+        return switch (tab) {
+            case NOTES_TASKS -> WorkspaceNavigation.NOTES_TASKS;
+            case APPS -> WorkspaceNavigation.APPS;
+            case CHATS -> WorkspaceNavigation.DISCUSSION;
+        };
+    }
+
+    private void openSettingsHub() {
+        if (navigation != null && WorkspaceNavigation.SETTINGS.equals(navigation.current())) {
+            if (activeSettingsPanel != null) {
+                activeSettingsPanel.scrollToTop();
+                activeSettingsPanel.refresh();
+            }
+            return;
+        }
+        navigate(WorkspaceNavigation.SETTINGS);
+    }
+
+    private void refreshSettingsHubIfVisible() {
+        if (account != null && activeSettingsPanel != null && navigation != null
+                && WorkspaceNavigation.SETTINGS.equals(navigation.current())) {
+            activeSettingsPanel.refresh();
+        }
+    }
+
+    private void refreshActiveHubIfVisible() {
+        refreshSettingsHubIfVisible();
+        if (account == null || navigation == null) return;
+        String current = navigation.current();
+        if (WorkspaceNavigation.NOTES_TASKS.equals(current) && activeNotesTasksPanel != null) {
+            activeNotesTasksPanel.refresh();
+        } else if (WorkspaceNavigation.APPS.equals(current) && activeAppsPanel != null) {
+            activeAppsPanel.refresh();
+        }
+    }
+
+    private NotesTasksPanel.Callbacks notesTasksCallbacks(Account owner) {
+        return new NotesTasksPanel.Callbacks() {
+            private BooleanSupplier activeThreadCheck() {
+                ThreadWorkspace origin = threads;
+                String currentSession = origin == null ? null : origin.sessionId();
+                return () -> origin != null && threads == origin && currentSession != null
+                        && currentSession.equals(origin.sessionId());
+            }
+
+            @Override public void createNote() {
+                if (account == owner && panels != null) {
+                    panels.showCreateNote("", "", activeThreadCheck(), MainActivity.this::stageDraft, null);
+                }
+            }
+
+            @Override public void openAllNotes() {
+                if (account == owner && panels != null) {
+                    panels.showNotes(activeThreadCheck(), MainActivity.this::stageDraft, null);
+                }
+            }
+
+            @Override public void createReminder() {
+                if (account == owner && panels != null) panels.showReminders();
+            }
+
+            @Override public void openAllReminders() {
+                if (account == owner && panels != null) panels.showReminders();
+            }
+
+            @Override public void openReminder(String jobId) {
+                if (account == owner && panels != null) panels.showReminder(jobId);
+            }
+
+            @Override public void openFullInbox() {
+                if (account == owner && push != null) push.openInbox(owner, deliveryActions(owner));
+            }
+
+            @Override public void openDelivery(DeliveryItem item) {
+                if (account == owner && push != null && item != null) {
+                    push.openDelivery(owner, item, deliveryActions(owner));
+                }
+            }
+
+            @Override public void openSharedWithMe() {
+                if (account == owner && panels != null) {
+                    panels.showSharedWithMe(MainActivity.this::stageDraft, null);
+                }
+            }
+        };
+    }
+
+    private AppsLauncherPanel.StateProvider appsStateProvider(Account owner) {
+        return new AppsLauncherPanel.StateProvider() {
+            @Override public String voiceLocaleLabel() {
+                return voice == null ? "" : getString(voice.locale().labelRes);
+            }
+
+            @Override public List<AppsLauncherModel.ScreenEntry> screens() {
+                LiveUiPatch.StateManager manager = LiveUiPatch.StateManager.forAccount(
+                        owner, ThemePalette.isNight(MainActivity.this));
+                return AppsLauncherModel.mergeScreens(
+                        ArtifactDesk.savedPageTitles(MainActivity.this, owner),
+                        manager.tabs());
+            }
+
+            @Override public int templateCount() {
+                return TemplateStore.forAccount(owner).allTemplates(MainActivity.this).size();
+            }
+        };
+    }
+
+    private AppsLauncherPanel.Callbacks appsCallbacks(Account owner) {
+        return new AppsLauncherPanel.Callbacks() {
+            @Override public void startVoiceChat() {
+                if (account != owner || threads == null) return;
+                displayDiscussion();
+                if (threads.sessionId() != null) threads.startDictation();
+                else threads.newThread(threads::startDictation);
+            }
+
+            @Override public void openVoiceOptions() {
+                if (account == owner) onAction(SettingsHubPanel.ACTION_VOICE_OPTIONS);
+            }
+
+            @Override public void openScreen(String pageId) {
+                if (account == owner) openWorkspace(pageId);
+            }
+
+            @Override public void createTool() {
+                if (account == owner) onAction("create_instrument");
+            }
+
+            @Override public void openScreensGallery() {
+                if (account == owner) onAction("pages");
+            }
+
+            @Override public void pinHomeWidget() {
+                if (account == owner) onAction("pin_widget");
+            }
+
+            @Override public void restoreDefaults() {
+                if (account == owner) onAction("restore");
+            }
+
+            @Override public void openTemplates() {
+                if (account == owner) onAction(TemplatesPanel.ROUTE_ID);
+            }
+        };
+    }
+
+    private SettingsHubPanel.StateProvider settingsStateProvider(Account owner) {
+        return new SettingsHubPanel.StateProvider() {
+            @Override public String profileName() {
+                return owner.label;
+            }
+            @Override public String serverEndpoint() {
+                return owner.endpoint;
+            }
+            @Override public String lockModeLabel() {
+                return getString(ProfileLockPolicy.mode(MainActivity.this, owner.id).labelRes);
+            }
+            @Override public String lockTimeoutLabel() {
+                return getString(LockGracePolicy.window(MainActivity.this, owner.id).labelRes);
+            }
+            @Override public String securitySummary() {
+                return WorkspaceDialogs.securitySummary(MainActivity.this, owner.id);
+            }
+            @Override public String themeModeLabel() {
+                String mode = ThemePalette.load(owner, ThemePalette.isNight(MainActivity.this)).theme;
+                return getString(SettingsHubModel.themeModeLabelRes(mode));
+            }
+            @Override public String appearanceSummary() {
+                AppCustomization custom = AppCustomizationStore.forAccount(owner).current();
+                return SettingsHubModel.formatAppearanceSummary(
+                        themeModeLabel(),
+                        getString(SettingsHubModel.paletteLabelRes(custom.palette)),
+                        getString(SettingsHubModel.densityLabelRes(custom.density)));
+            }
+            @Override public String languageSummary() {
+                AppLanguage.Mode mode = AppLanguage.readMode(MainActivity.this);
+                if (mode == AppLanguage.Mode.AUTO) {
+                    String resolved = getString(SettingsHubModel.resolvedLanguageNameRes(
+                            AppLanguage.resolvedTag(MainActivity.this)));
+                    return getString(R.string.settings_lang_auto, resolved);
+                }
+                return getString(SettingsHubModel.languageModeLabelRes(mode));
+            }
+            @Override public String voiceLocaleLabel() {
+                return voice == null ? "" : getString(voice.locale().labelRes);
+            }
+            @Override public String updateBadge() {
+                return UpdatePanel.badgeLabel(MainActivity.this, updateBadge);
+            }
+            @Override public String versionName() {
+                return UpdatePanel.installedVersionName(MainActivity.this);
+            }
+        };
     }
 
     private void capturePinnedShortcutIntent(Intent intent) {
@@ -673,8 +950,8 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                 if (threads.sessionId() != null) threads.startDictation();
                 else threads.newThread(threads::startDictation);
             }
-            case ATELIER -> switchTab(WorkspaceNavigation.HOME);
-            case ACTIVITY -> switchTab(WorkspaceNavigation.ACTIVITY);
+            case ATELIER -> switchTab(WorkspaceNavigation.APPS);
+            case ACTIVITY -> switchTab(WorkspaceNavigation.NOTES_TASKS);
             case WIDGET_ACTION -> {
                 String draft = new HermesWidgetStore(this)
                         .draftForAction(request.widgetId(), request.itemIndex(), account.id);
@@ -872,6 +1149,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         if (activeUpdatePanel != null) activeUpdatePanel.dismissDialogs();
         if (activeDoctorPanel != null) activeDoctorPanel.dismissDialogs();
         if (activeTemplatesPanel != null) activeTemplatesPanel.dismissDialogs();
+        if (activeAppearancePanel != null) activeAppearancePanel.dismissDialogs();
         if (activePalette != null) activePalette.dismiss();
         activePalette = null;
         if (activeProfileHub != null) activeProfileHub.close();
@@ -995,22 +1273,22 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                 return tip != null && !tip.isEmpty() ? tip : threads.sessionId();
             }
 
-            @Override public void openMemory() { panels.showMemory(returnToHub()); }
+            @Override public void openMemory() { panels.showMemory(null); }
 
             @Override public void openNotes() {
-                panels.showNotes(activeThreadCheck(), MainActivity.this::stageDraft, returnToHub());
+                panels.showNotes(activeThreadCheck(), MainActivity.this::stageDraft, null);
             }
 
             @Override public void openSharedWithMe() {
-                panels.showSharedWithMe(MainActivity.this::stageDraft, returnToHub());
+                panels.showSharedWithMe(MainActivity.this::stageDraft, null);
             }
 
             @Override public void openGlobalSearch() {
-                panels.showGlobalSearch(id -> { displayDiscussion(); threads.open(id); }, returnToHub());
+                panels.showGlobalSearch(id -> { displayDiscussion(); threads.open(id); }, null);
             }
 
             @Override public void openSkillStudio() {
-                panels.showSkillStudio(activeThreadCheck(), MainActivity.this::stageDraft, returnToHub());
+                panels.showSkillStudio(activeThreadCheck(), MainActivity.this::stageDraft, null);
             }
 
             @Override public void openWorkspaceFiles() {
@@ -1020,10 +1298,10 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                             getString(R.string.ws_choose_discussion_files_body));
                     return;
                 }
-                panels.showWorkspaceFiles(session, activeThreadCheck(), MainActivity.this::stageDraft, returnToHub());
+                panels.showWorkspaceFiles(session, activeThreadCheck(), MainActivity.this::stageDraft, null);
             }
 
-            @Override public void openProfileDefaults() { panels.showProfileDefaults(returnToHub()); }
+            @Override public void openProfileDefaults() { panels.showProfileDefaults(null); }
 
             @Override public void togglePinThread() {
                 String remote = activeRemoteSessionId();
@@ -1319,6 +1597,16 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             activeTemplatesPanel.close();
             activeTemplatesPanel = null;
         }
+        if (activeNotesTasksPanel != null) {
+            activeNotesTasksPanel.close();
+            activeNotesTasksPanel = null;
+        }
+        activeAppsPanel = null;
+        activeSettingsPanel = null;
+        if (activeAppearancePanel != null) {
+            activeAppearancePanel.dismissDialogs();
+            activeAppearancePanel = null;
+        }
     }
 
     private void renderDiscussion(boolean composer, boolean force) {
@@ -1497,16 +1785,20 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                 switchTab(WorkspaceNavigation.DISCUSSION);
                 return true;
             }
-            case "atelier", "home", "workspace" -> {
-                switchTab(WorkspaceNavigation.HOME);
+            case "atelier", "home", "workspace", "apps" -> {
+                switchTab(WorkspaceNavigation.APPS);
                 return true;
             }
-            case "cerveau", "brain" -> {
-                switchTab(WorkspaceNavigation.BRAIN);
+            case "activite", "activity", "notes_tasks", "tasks" -> {
+                switchTab(WorkspaceNavigation.NOTES_TASKS);
                 return true;
             }
-            case "activite", "activity" -> {
-                switchTab(WorkspaceNavigation.ACTIVITY);
+            case "cerveau", "brain", "settings", "reglages" -> {
+                navigate(WorkspaceNavigation.SETTINGS);
+                return true;
+            }
+            case "appearance", "apparence", AppearanceSettingsPanel.ROUTE_ID -> {
+                navigate(AppearanceSettingsPanel.ROUTE_ID);
                 return true;
             }
             case "command_palette" -> {
@@ -1681,8 +1973,8 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         if (PermissionCenter.isManagedRequestCode(code)) {
             if (activePermissionsPanel != null) {
                 activePermissionsPanel.onPermissionResult(code, permissions, results);
-            } else if (navigation != null && WorkspaceNavigation.ACTIVITY.equals(navigation.current())) {
-                render(true);
+            } else {
+                refreshSettingsHubIfVisible();
             }
             return;
         }
@@ -1760,6 +2052,12 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         activePermissionsPanel = null;
         if (activeTemplatesPanel != null) activeTemplatesPanel.close();
         activeTemplatesPanel = null;
+        if (activeNotesTasksPanel != null) activeNotesTasksPanel.close();
+        activeNotesTasksPanel = null;
+        activeAppsPanel = null;
+        activeSettingsPanel = null;
+        if (activeAppearancePanel != null) activeAppearancePanel.dismissDialogs();
+        activeAppearancePanel = null;
         if (activePalette != null) activePalette.dismiss();
         activePalette = null;
         if (activeProfileHub != null) activeProfileHub.close();
@@ -1819,6 +2117,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         super.onWindowFocusChanged(focused);
         if (voice != null) voice.windowFocusChanged(focused);
         if (focused && threads != null) threads.refreshClipboardPill();
+        if (focused) refreshActiveHubIfVisible();
     }
 
     @Override protected void onStart() {
@@ -1858,9 +2157,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                 && navigation != null && ConnectionDoctorPanel.ROUTE_ID.equals(navigation.current())) {
             activeDoctorPanel.refresh();
         }
-        if (account != null && navigation != null && WorkspaceNavigation.ACTIVITY.equals(navigation.current())) {
-            render(true);
-        }
+        refreshActiveHubIfVisible();
         voice.resume();
     }
 

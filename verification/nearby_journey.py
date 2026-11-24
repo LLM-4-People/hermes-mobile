@@ -158,13 +158,13 @@ def ensure_unlocked(ui, label, phrase):
     """Unlock the named profile if returning to the lock screen, or continue if auto-lock grace kept it open."""
     s = ui.strings
     choose_profile = s["profile_choose_title"]
-    profile_lock_btn = s["top_profile_lock"]
+    settings_btn = s["nav_settings"]
 
     def ready():
         root = ui.hierarchy()
         if ui.node(choose_profile, root) is not None:
             return ("locked",)
-        if ui.node(profile_lock_btn, root) is not None:
+        if ui.node(settings_btn, root) is not None:
             return ("open",)
         return None
 
@@ -175,13 +175,13 @@ def ensure_unlocked(ui, label, phrase):
 
 def lock(ui):
     s = ui.strings
-    profile_lock_btn = s["top_profile_lock"]
+    settings_btn = s["nav_settings"]
     lock_now = s["security_lock_now"]
     choose_profile = s["profile_choose_title"]
     ui.tap_until(
-        profile_lock_btn,
-        lambda root: ui.node(profile_lock_btn, root) is None or ui.node(lock_now, root) is not None,
-        description="security dialog opened from " + profile_lock_btn,
+        settings_btn,
+        lambda root: ui.node(settings_btn, root) is None or ui.node(lock_now, root) is not None,
+        description="Settings opened from " + settings_btn,
     )
     ui.tap_until(
         lock_now,

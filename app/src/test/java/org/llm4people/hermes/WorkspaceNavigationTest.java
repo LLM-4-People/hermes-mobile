@@ -83,26 +83,37 @@ public class WorkspaceNavigationTest {
         assertEquals("", host.workspaceValue("profile.label"));
     }
 
-    @Test public void fourDestinationTabSwitchingKeepsDiscussionsAsBackRoot() {
+    @Test public void primaryDestinationTabSwitchingKeepsDiscussionsAsBackRoot() {
         WorkspaceNavigation nav = new WorkspaceNavigation();
         assertEquals(WorkspaceNavigation.DISCUSSION, WorkspaceNavigation.topDestination(null));
         assertEquals(WorkspaceNavigation.DISCUSSION, WorkspaceNavigation.topDestination(WorkspaceNavigation.COMPOSER));
-        assertEquals(WorkspaceNavigation.HOME, WorkspaceNavigation.topDestination(WorkspaceNavigation.GALLERY));
-        assertEquals(WorkspaceNavigation.HOME, WorkspaceNavigation.topDestination("page/custom"));
-        assertEquals(WorkspaceNavigation.BRAIN, WorkspaceNavigation.topDestination(WorkspaceNavigation.BRAIN));
-        assertEquals(WorkspaceNavigation.ACTIVITY, WorkspaceNavigation.topDestination(WorkspaceNavigation.ACTIVITY));
-        assertEquals(WorkspaceNavigation.ACTIVITY, WorkspaceNavigation.topDestination(AmbientAccessPanel.ROUTE_ID));
-        assertEquals(WorkspaceNavigation.ACTIVITY, WorkspaceNavigation.topDestination(
+        assertEquals(WorkspaceNavigation.NOTES_TASKS, WorkspaceNavigation.topDestination(WorkspaceNavigation.NOTES_TASKS));
+        assertEquals(WorkspaceNavigation.APPS, WorkspaceNavigation.topDestination(WorkspaceNavigation.APPS));
+        assertEquals(WorkspaceNavigation.APPS, WorkspaceNavigation.topDestination(WorkspaceNavigation.GALLERY));
+        assertEquals(WorkspaceNavigation.APPS, WorkspaceNavigation.topDestination(
+                org.llm4people.hermes.templates.TemplatesPanel.ROUTE_ID));
+        assertEquals(WorkspaceNavigation.APPS, WorkspaceNavigation.topDestination("page/custom"));
+        assertEquals(WorkspaceNavigation.SETTINGS, WorkspaceNavigation.topDestination(WorkspaceNavigation.SETTINGS));
+        assertEquals(WorkspaceNavigation.SETTINGS, WorkspaceNavigation.topDestination(
+                org.llm4people.hermes.settings.AppearanceSettingsPanel.ROUTE_ID));
+        assertEquals(WorkspaceNavigation.SETTINGS, WorkspaceNavigation.topDestination(AmbientAccessPanel.ROUTE_ID));
+        assertEquals(WorkspaceNavigation.SETTINGS, WorkspaceNavigation.topDestination(
+                org.llm4people.hermes.presence.PresenceSettingsPanel.ROUTE_ID));
+        assertEquals(WorkspaceNavigation.SETTINGS, WorkspaceNavigation.topDestination(
                 org.llm4people.hermes.os.PermissionsPanel.ROUTE_ID));
-        assertEquals(WorkspaceNavigation.ACTIVITY, WorkspaceNavigation.topDestination(
+        assertEquals(WorkspaceNavigation.SETTINGS, WorkspaceNavigation.topDestination(
                 org.llm4people.hermes.update.UpdatePanel.ROUTE_ID));
+        assertEquals(WorkspaceNavigation.SETTINGS, WorkspaceNavigation.topDestination(
+                org.llm4people.hermes.doctor.ConnectionDoctorPanel.ROUTE_ID));
 
-        nav.selectTab(WorkspaceNavigation.HOME);
-        assertEquals(WorkspaceNavigation.HOME, nav.current());
-        nav.selectTab(WorkspaceNavigation.BRAIN);
-        assertEquals(WorkspaceNavigation.BRAIN, nav.current());
-        nav.selectTab(WorkspaceNavigation.ACTIVITY);
-        assertEquals(WorkspaceNavigation.ACTIVITY, nav.current());
+        nav.selectTab(WorkspaceNavigation.NOTES_TASKS);
+        assertEquals(WorkspaceNavigation.NOTES_TASKS, nav.current());
+        nav.selectTab(WorkspaceNavigation.APPS);
+        assertEquals(WorkspaceNavigation.APPS, nav.current());
+        nav.open(WorkspaceNavigation.SETTINGS);
+        assertEquals(WorkspaceNavigation.SETTINGS, nav.current());
+        assertTrue(nav.back());
+        assertEquals(WorkspaceNavigation.APPS, nav.current());
         assertTrue(nav.back());
         assertEquals(WorkspaceNavigation.DISCUSSION, nav.current());
         assertFalse(nav.back());

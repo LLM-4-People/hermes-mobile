@@ -121,20 +121,39 @@ public final class AdaptiveLifecycleTest extends InstrumentationTestCase {
                 assertEquals(activity.getString(R.string.ws_show_discussions), leading.getContentDescription());
                 assertFalse(leading.isActivated());
 
-                View desk = shell.desk("Profil test");
+                org.llm4people.hermes.hub.AppsLauncherPanel appsPanel = new org.llm4people.hermes.hub.AppsLauncherPanel(
+                        activity,
+                        new org.llm4people.hermes.hub.AppsLauncherPanel.StateProvider() {
+                            @Override public String voiceLocaleLabel() { return "Français"; }
+                            @Override public List<org.llm4people.hermes.hub.AppsLauncherModel.ScreenEntry> screens() {
+                                return java.util.Collections.emptyList();
+                            }
+                            @Override public int templateCount() { return 2; }
+                        },
+                        new org.llm4people.hermes.hub.AppsLauncherPanel.Callbacks() {
+                            @Override public void startVoiceChat() {}
+                            @Override public void openVoiceOptions() {}
+                            @Override public void openScreen(String pageId) {}
+                            @Override public void createTool() {}
+                            @Override public void openScreensGallery() {}
+                            @Override public void pinHomeWidget() {}
+                            @Override public void restoreDefaults() {}
+                            @Override public void openTemplates() {}
+                        });
+                View hub = appsPanel.buildView();
                 int wide = Ui.dp(activity, 1200);
                 int tall = Ui.dp(activity, 800);
-                desk.measure(View.MeasureSpec.makeMeasureSpec(wide, View.MeasureSpec.EXACTLY),
+                hub.measure(View.MeasureSpec.makeMeasureSpec(wide, View.MeasureSpec.EXACTLY),
                         View.MeasureSpec.makeMeasureSpec(tall, View.MeasureSpec.EXACTLY));
-                desk.layout(0, 0, wide, tall);
-                View list = ((ScrollView) desk).getChildAt(0);
+                hub.layout(0, 0, wide, tall);
+                View list = ((ScrollView) hub).getChildAt(0);
                 assertEquals(Ui.dp(activity, 260), list.getPaddingStart(), 2);
 
                 int narrow = Ui.dp(activity, 360);
-                desk.measure(View.MeasureSpec.makeMeasureSpec(narrow, View.MeasureSpec.EXACTLY),
+                hub.measure(View.MeasureSpec.makeMeasureSpec(narrow, View.MeasureSpec.EXACTLY),
                         View.MeasureSpec.makeMeasureSpec(tall, View.MeasureSpec.EXACTLY));
-                desk.layout(0, 0, narrow, tall);
-                assertEquals(Ui.dp(activity, 22), list.getPaddingStart(), 2);
+                hub.layout(0, 0, narrow, tall);
+                assertEquals(Ui.dp(activity, 20), list.getPaddingStart(), 2);
             });
         } finally {
             runTestOnUiThread(activity::finish);

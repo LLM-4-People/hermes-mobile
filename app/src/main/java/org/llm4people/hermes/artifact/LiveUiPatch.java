@@ -121,9 +121,9 @@ public final class LiveUiPatch {
             if (destination == null) return null;
             return switch (destination) {
                 case "discussions" -> "nav_discussions";
-                case "atelier" -> "nav_atelier";
-                case "cerveau" -> "nav_brain";
-                case "activite" -> "nav_activity";
+                case "atelier" -> "nav_apps";
+                case "cerveau" -> "nav_settings";
+                case "activite" -> "nav_tasks";
                 default -> null;
             };
         }

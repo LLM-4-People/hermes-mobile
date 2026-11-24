@@ -121,7 +121,7 @@ public final class BrainStudioRoutes {
 
         registry.register(new RouteRegistry.Destination(
                 ROUTE_PROFILE_DEFAULTS,
-                RouteRegistry.Section.CERVEAU,
+                RouteRegistry.Section.SETTINGS,
                 text.get(R.string.brain_route_profile_label, ROUTE_PROFILE_DEFAULTS),
                 text.get(R.string.brain_route_profile_hint, ""),
                 0,

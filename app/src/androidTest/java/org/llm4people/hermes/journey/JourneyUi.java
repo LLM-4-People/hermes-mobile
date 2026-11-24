@@ -281,14 +281,14 @@ public final class JourneyUi {
         see(expectedLabel);
     }
 
-    /** Single Source of Truth profile lock transition across all journeys. */
+    /** Single Source of Truth profile lock transition across all journeys (top-bar Settings -> Lock profile). */
     public void lockProfile() {
         String chooseProfile = str(R.string.profile_choose_title);
         if (has(chooseProfile)) return;
-        String lockButton = str(R.string.top_profile_lock);
+        String settingsButton = str(R.string.nav_settings);
         String lockNow = str(R.string.security_lock_now);
         if (!has(lockNow)) {
-            tapUntil(lockButton, lockNow);
+            tapUntil(settingsButton, lockNow);
         }
         tapUntil(lockNow, chooseProfile);
     }

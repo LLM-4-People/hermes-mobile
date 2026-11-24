@@ -1,9 +1,13 @@
 <resources>
     <item name="adaptive_nav_bar" type="id" />
     <item name="nav_tab_discussions" type="id" />
+    <item name="nav_tab_tasks" type="id" />
+    <item name="nav_tab_apps" type="id" />
     <item name="nav_tab_atelier" type="id" />
     <item name="nav_tab_brain" type="id" />
     <item name="nav_tab_activity" type="id" />
     <item name="top_search_action" type="id" />
+    <item name="top_settings_action" type="id" />
     <item name="top_profile_lock_action" type="id" />
+    <item name="settings_row_notifications" type="id" />
 </resources>

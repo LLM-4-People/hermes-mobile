@@ -21,7 +21,8 @@ public final class RouteRegistry {
         DISCUSSIONS,
         ATELIER,
         CERVEAU,
-        ACTIVITE
+        ACTIVITE,
+        SETTINGS
     }
 
     public record Destination(

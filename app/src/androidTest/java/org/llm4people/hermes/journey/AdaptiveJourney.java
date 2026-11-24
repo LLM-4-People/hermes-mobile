@@ -83,8 +83,9 @@ final class AdaptiveJourney {
             ui.capture("31-adaptatif-rotation");
 
             ui.hideKeyboard();
-            ui.tap(ui.str(R.string.nav_activity));
-            ui.tap(ui.str(R.string.activity_reminders_title));
+            ui.tap(ui.str(R.string.nav_notes_tasks));
+            ui.tap(ui.str(R.string.hub_seg_reminders));
+            ui.tap(ui.str(R.string.hub_manage_reminders));
             ui.tap(ui.str(R.string.panel_new_reminder));
             String reminderDraft = "Rappel adaptatif " + fixture.optString("run", "test");
             String titleLabel = ui.str(R.string.panel_name);
@@ -124,8 +125,9 @@ final class AdaptiveJourney {
         matrix.put("largeText", state);
         ui.capture("32-adaptatif-grands-caracteres");
         ui.hideKeyboard();
-        ui.tap(ui.str(R.string.nav_activity));
-        ui.tap(ui.str(R.string.activity_reminders_title));
+        ui.tap(ui.str(R.string.nav_notes_tasks));
+        ui.tap(ui.str(R.string.hub_seg_reminders));
+        ui.tap(ui.str(R.string.hub_manage_reminders));
         ui.tap(ui.str(R.string.panel_new_reminder));
         EditText title = ui.field(ui.str(R.string.panel_name));
         int minTarget = ui.main(() -> Math.round(activity.getResources().getDisplayMetrics().density * 48));

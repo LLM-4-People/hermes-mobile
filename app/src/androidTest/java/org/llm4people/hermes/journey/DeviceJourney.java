@@ -188,7 +188,7 @@ public final class DeviceJourney extends Instrumentation {
         lock();
         profile(other, "secondEndpoint", "secondKey", passphrase);
         ui.see(ui.str(R.string.thread_empty_profile));
-        ui.tap(ui.str(R.string.nav_atelier));
+        ui.tap(ui.str(R.string.nav_apps));
         ui.tap(ui.str(R.string.ws_my_screens));
         ui.contains(ui.str(R.string.ws_pages_empty));
         ui.absent("Diagnostic mobile");
@@ -264,15 +264,15 @@ public final class DeviceJourney extends Instrumentation {
         ui.tap(ui.str(R.string.ws_art_layout_titled, ui.str(R.string.ws_surface_home)));
         ui.tap(ui.str(R.string.ws_art_apply_layout_action));
         ui.tap(ui.str(R.string.ws_apply));
-        ui.tap(ui.str(R.string.nav_atelier));
+        ui.tap(ui.str(R.string.nav_apps));
         ui.see("Raccourcis de vérification");
         ui.capture("05-atelier-personnalise");
         menu(ui.str(R.string.ws_restore_desk));
         ui.tap(ui.str(R.string.ws_surface_home));
         ui.tap(ui.str(R.string.ws_surface_undo_change));
-        ui.see(ui.str(R.string.ws_workspace));
+        ui.see(ui.str(R.string.hub_apps_screens_section));
         ui.absent("Raccourcis de vérification");
-        ui.tap(ui.str(R.string.ws_resume_discussion));
+        ui.tap(ui.str(R.string.nav_discussions));
 
         menu(ui.str(R.string.ws_model_and_tools));
         ui.see(ui.str(R.string.panel_tools));
@@ -319,8 +319,9 @@ public final class DeviceJourney extends Instrumentation {
         String name = "Rappel " + fixture.getString("run");
         String scheduled = ui.str(R.string.panel_job_state, ui.str(R.string.panel_scheduled));
         String paused = ui.str(R.string.panel_job_state, ui.str(R.string.panel_paused));
-        ui.tap(ui.str(R.string.nav_activity));
-        ui.tap(ui.str(R.string.activity_reminders_title));
+        ui.tap(ui.str(R.string.nav_notes_tasks));
+        ui.tap(ui.str(R.string.hub_seg_reminders));
+        ui.tap(ui.str(R.string.hub_manage_reminders));
         ui.tap(ui.str(R.string.panel_new_reminder));
         ui.fill(ui.str(R.string.panel_name), name);
         ui.fill(ui.str(R.string.panel_prompt), "Relire la fonction carré.");
@@ -351,8 +352,8 @@ public final class DeviceJourney extends Instrumentation {
         ui.contains("Réponse du fournisseur Atelier.");
         ui.usableComposer();
         ui.capture("10-discussion-nuit-grands-caracteres");
-        ui.tap(ui.str(R.string.nav_atelier));
-        ui.see(ui.str(R.string.ws_workspace));
+        ui.tap(ui.str(R.string.nav_apps));
+        ui.see(ui.str(R.string.hub_apps_screens_section));
         ui.capture("11-atelier-nuit-grands-caracteres");
         lock();
         forget(primary, fixture.getString("phrase"));

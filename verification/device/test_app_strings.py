@@ -33,6 +33,12 @@ class AppStringsTest(unittest.TestCase):
                          "Crée un outil que je pourrai réutiliser dans cette discussion à partir de notre échange.")
         self.assertEqual(en["top_profile_lock"], "Profile and lock")
         self.assertEqual(fr["top_profile_lock"], "Profil et verrouillage")
+        self.assertEqual(en["nav_settings"], "Settings")
+        self.assertEqual(fr["nav_settings"], "Réglages")
+        self.assertEqual(en["nav_notes_tasks"], "Notes & tasks")
+        self.assertEqual(fr["nav_notes_tasks"], "Notes et tâches")
+        self.assertEqual(en["nav_apps"], "Apps")
+        self.assertEqual(fr["nav_apps"], "Apps")
         self.assertEqual(en["security_lock_now"], "Lock profile")
         self.assertEqual(fr["security_lock_now"], "Verrouiller le profil")
 

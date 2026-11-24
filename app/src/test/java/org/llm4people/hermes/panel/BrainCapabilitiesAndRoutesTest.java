@@ -79,7 +79,7 @@ public final class BrainCapabilitiesAndRoutesTest {
         assertEquals(1, legacyDestinations.size());
         assertEquals(BrainStudioRoutes.ROUTE_SKILLS, legacyDestinations.get(0).id());
 
-        // Upgraded gateway unlocks all Cerveau destinations.
+        // Upgraded gateway unlocks all Cerveau destinations — and NEVER includes Profile Settings!
         BrainCapabilities full = BrainCapabilities.fromFlags(Map.of(
                 BrainCapabilities.MEMORY_API, true,
                 BrainCapabilities.SMART_NOTES, true,
@@ -88,7 +88,16 @@ public final class BrainCapabilitiesAndRoutesTest {
                 BrainCapabilities.WORKSPACE_BROWSER, true,
                 BrainCapabilities.PROFILE_DEFAULTS, true));
         List<RouteRegistry.Destination> upgraded = registry.destinationsIn(RouteRegistry.Section.CERVEAU, full.asSet());
-        assertEquals(7, upgraded.size());
+        assertEquals(6, upgraded.size());
+        for (RouteRegistry.Destination dest : upgraded) {
+            assertFalse("Profile defaults must NOT live in Cerveau",
+                    BrainStudioRoutes.ROUTE_PROFILE_DEFAULTS.equals(dest.id()));
+        }
+        List<RouteRegistry.Destination> settingsRoutes =
+                registry.destinationsIn(RouteRegistry.Section.SETTINGS, full.asSet());
+        assertEquals(1, settingsRoutes.size());
+        assertEquals(BrainStudioRoutes.ROUTE_PROFILE_DEFAULTS, settingsRoutes.get(0).id());
+        assertTrue(registry.destinationsIn(RouteRegistry.Section.SETTINGS, BrainCapabilities.empty().asSet()).isEmpty());
 
         assertTrue(registry.dispatch(BrainStudioRoutes.ROUTE_MEMORY));
         assertTrue(registry.dispatch(BrainStudioRoutes.ROUTE_NOTES));
