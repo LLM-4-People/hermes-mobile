@@ -1,6 +1,9 @@
 package org.llm4people.hermes.thread;
 
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
+import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.os.LiveRunNotification;
 
@@ -16,6 +19,18 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public final class ActiveRunTrackerTest {
+
+    @Before
+    public void silenceDiagnostics() {
+        Diagnostics.clear();
+        Diagnostics.setSink((level, tag, message) -> {});
+    }
+
+    @After
+    public void resetDiagnostics() {
+        Diagnostics.clear();
+        Diagnostics.setSink(null);
+    }
     @Test
     public void tracksFivePlusConcurrentRunsWithoutMixingAndEnforcesBound() {
         ActiveRunTracker tracker = new ActiveRunTracker();

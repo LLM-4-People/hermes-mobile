@@ -1,6 +1,9 @@
 package org.llm4people.hermes.push;
 
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
+import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.HermesConfig;
 import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.profile.Account;
@@ -11,11 +14,25 @@ import java.util.Locale;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
 /** Pure-JVM regression tests for PushConnection config limits/timeouts, PushHistory revocation, and PushSettings lifecycle. */
 public final class PushConnectionConfigAndSettingsTest {
+
+    @Before
+    public void silenceDiagnostics() {
+        Diagnostics.clear();
+        Diagnostics.setSink((level, tag, message) -> {});
+    }
+
+    @After
+    public void resetDiagnostics() {
+        Diagnostics.clear();
+        Diagnostics.setSink(null);
+    }
 
     @Test
     public void pushConnectionDerivesApiLimitsAndFcmTimeoutFromHermesConfig() {
@@ -62,6 +79,37 @@ public final class PushConnectionConfigAndSettingsTest {
             assertThrows(IOException.class, () -> DistributorEnrollment.enroll(null, account, null, "pkg", "sig", "vapid", 0L, () -> true));
             assertThrows(IOException.class, () -> PushConnection.remove(null, null, owned));
             assertThrows(IOException.class, () -> PushConnection.remove(null, null, (HermesApi) null));
+        } finally {
+            account.close();
+        }
+    }
+
+    @Test
+    public void pushSettingsRetainsSuppliedDeliveryActionsAndDefaultsToNull() throws Exception {
+        java.lang.reflect.Constructor<Account> ctor = Account.class.getDeclaredConstructor(
+                String.class, String.class, String.class, String.class,
+                android.content.SharedPreferences.class, byte[].class);
+        ctor.setAccessible(true);
+        Account account = ctor.newInstance(
+                "profile-2", "Work", "https://hermes.example.com", "bearer-token",
+                null, new byte[64]);
+        try {
+            PushSettings withoutActions = new PushSettings(null, account);
+            try {
+                assertNull("2-arg PushSettings must default deliveryActions to null",
+                        withoutActions.deliveryActions());
+            } finally {
+                withoutActions.close();
+            }
+
+            DeliveryRouter.Actions actions = new DeliveryRouter.Actions() {};
+            PushSettings withActions = new PushSettings(null, account, actions);
+            try {
+                assertSame("3-arg PushSettings must retain the supplied DeliveryRouter.Actions",
+                        actions, withActions.deliveryActions());
+            } finally {
+                withActions.close();
+            }
         } finally {
             account.close();
         }

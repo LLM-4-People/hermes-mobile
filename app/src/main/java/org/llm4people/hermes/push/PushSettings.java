@@ -66,6 +66,10 @@ final class PushSettings {
         return api;
     }
 
+    DeliveryRouter.Actions deliveryActions() {
+        return deliveryActions;
+    }
+
     void close() {
         closed = true;
         if (api != null) api.revoke();

@@ -1,6 +1,9 @@
 package org.llm4people.hermes.doctor;
 
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
+import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.HermesConfig;
 import org.llm4people.hermes.RouteRegistry;
 
@@ -19,6 +22,18 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 public final class ConnectionDoctorTest {
+
+    @Before
+    public void silenceDiagnostics() {
+        Diagnostics.clear();
+        Diagnostics.setSink((level, tag, message) -> {});
+    }
+
+    @After
+    public void resetDiagnostics() {
+        Diagnostics.clear();
+        Diagnostics.setSink(null);
+    }
 
     @Test
     public void sanitizeHostStripsCredentialsPathsQueriesAndRejectsUnsafeSchemes() {

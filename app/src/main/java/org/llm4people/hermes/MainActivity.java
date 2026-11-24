@@ -255,6 +255,17 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         this.pairingLinkHandler = handler;
     }
 
+    /** Pure-Java guard: reinstall locked pairing handler after lock only while activity remains active. */
+    static boolean shouldRegisterLockedPairingHandler(boolean hasGate, boolean finishing, boolean destroyed) {
+        return hasGate && !finishing && !destroyed;
+    }
+
+    private void registerLockedPairingHandler() {
+        setPairingLinkHandler(parsed -> {
+            if (gate != null && account == null) gate.openAddWithPairing(parsed);
+        });
+    }
+
     enum PairingDeepLinkRoute {
         NONE,
         DELIVER_TO_LOCKED_HANDLER,
@@ -570,9 +581,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                 : sharedText.requestedProfile() != null ? sharedText.requestedProfile()
                 : sharedMedia.requestedProfile() != null ? sharedMedia.requestedProfile()
                 : widgetOwner;
-        setPairingLinkHandler(parsed -> {
-            if (gate != null && account == null) gate.openAddWithPairing(parsed);
-        });
+        registerLockedPairingHandler();
         PairingLinkParser.ParsedInput incomingPairing = consumePendingPairing();
         if (incomingPairing != null) {
             gate.setPendingPairing(incomingPairing);
@@ -1512,6 +1521,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                     @Override public void onSwitchProfile(String profileId) {
                         if (account != owner) return;
                         clearWorkspace();
+                        registerLockedPairingHandler();
                         gate.start(profileId, MainActivity.this::opened);
                     }
                     @Override public void onAddProfile() {
@@ -2269,6 +2279,9 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             clearWorkspace();
         } finally {
             gate.lock();
+            if (shouldRegisterLockedPairingHandler(gate != null, isFinishing(), isDestroyed())) {
+                registerLockedPairingHandler();
+            }
         }
     }
 

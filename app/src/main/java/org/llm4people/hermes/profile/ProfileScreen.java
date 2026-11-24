@@ -7,6 +7,7 @@ import android.text.InputFilter;
 import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.KeyEvent;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.accessibility.AccessibilityNodeInfo;
@@ -216,21 +217,6 @@ final class ProfileScreen {
      * {@link Button} while pairing a crisp circular initials avatar and WCAG-AA status pill beside it.
      */
     Button profileRow(String label, String badgeText, BadgeTone tone, View.OnClickListener listener) {
-        LinearLayout row = new LinearLayout(activity);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setMinimumHeight(Ui.dp(activity, 60));
-        row.setPaddingRelative(Ui.dp(activity, 14), Ui.dp(activity, 8), Ui.dp(activity, 14), Ui.dp(activity, 8));
-        GradientDrawable card = Ui.shape(activity, Ui.CARD_CORNER_DP, R.color.surface, R.color.line, 1);
-        row.setBackground(Ui.roundedRipple(activity, Ui.CARD_CORNER_DP, card));
-
-        TextView avatar = Ui.avatarBadge(activity, label);
-        avatar.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-        LinearLayout.LayoutParams avatarParams = new LinearLayout.LayoutParams(
-                Ui.dp(activity, 36), Ui.dp(activity, 36));
-        avatarParams.setMarginEnd(Ui.dp(activity, 12));
-        row.addView(avatar, avatarParams);
-
         Button button = new Button(activity);
         button.setText(label);
         button.setAllCaps(false);
@@ -247,6 +233,27 @@ final class ProfileScreen {
             button.setContentDescription(label + ", " + badgeText);
         }
         button.setOnClickListener(listener);
+
+        LinearLayout row = new LinearLayout(activity) {
+            @Override
+            public boolean onInterceptTouchEvent(MotionEvent ev) {
+                return button.isEnabled();
+            }
+        };
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setMinimumHeight(Ui.dp(activity, 60));
+        row.setPaddingRelative(Ui.dp(activity, 14), Ui.dp(activity, 8), Ui.dp(activity, 14), Ui.dp(activity, 8));
+        GradientDrawable card = Ui.shape(activity, Ui.CARD_CORNER_DP, R.color.surface, R.color.line, 1);
+        row.setBackground(Ui.roundedRipple(activity, Ui.CARD_CORNER_DP, card));
+
+        TextView avatar = Ui.avatarBadge(activity, label);
+        avatar.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        LinearLayout.LayoutParams avatarParams = new LinearLayout.LayoutParams(
+                Ui.dp(activity, 36), Ui.dp(activity, 36));
+        avatarParams.setMarginEnd(Ui.dp(activity, 12));
+        row.addView(avatar, avatarParams);
+
         LinearLayout.LayoutParams btnParams = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
         row.addView(button, btnParams);
 

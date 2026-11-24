@@ -1,8 +1,11 @@
 package org.llm4people.hermes.update;
 
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.HermesConfig;
 
 import java.io.ByteArrayInputStream;
@@ -26,6 +29,18 @@ import static org.junit.Assert.fail;
 public final class GithubReleaseClientTest {
     @Rule
     public final TemporaryFolder tmp = new TemporaryFolder();
+
+    @Before
+    public void silenceDiagnostics() {
+        Diagnostics.clear();
+        Diagnostics.setSink((level, tag, message) -> {});
+    }
+
+    @After
+    public void resetDiagnostics() {
+        Diagnostics.clear();
+        Diagnostics.setSink(null);
+    }
 
     private static String sha256(byte[] data) throws Exception {
         return ApkUpdateInstaller.toHex(MessageDigest.getInstance("SHA-256").digest(data));
