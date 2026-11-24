@@ -228,30 +228,55 @@ public final class BrainStudioPanelsTest extends InstrumentationTestCase {
                   {"id":"n-1","title":"Plan produit","content":"Contenu détaillé de la note cible","tags":["produit"],"pinned":false,"permission":"owner"},
                   {"id":"n-2","title":"Courses","content":"Pain et lait","tags":[],"pinned":false,"permission":"owner"}]}
                 """;
-        // 1) Matching initialNoteId opens reader once; 2) unknown/blank IDs render list cleanly;
+        // 1) Matching initialNoteId opens reader once and does NOT reopen on refresh (one-shot);
+        // 2) unknown/blank IDs render list cleanly with no reader dialog;
         // 3) server 500 error keeps error + Retry visible even when typing in the filter field.
         try (MultiStatusServer gateway = new MultiStatusServer(
-                new String[]{"200 OK", "200 OK", "200 OK", "200 OK", "200 OK", "200 OK", "200 OK", "500 Internal Server Error"},
-                new String[]{caps, notesJson, caps, notesJson, caps, notesJson, caps, "{\"error\":\"boom\"}"});
+                new String[]{
+                        "200 OK", "200 OK",
+                        "200 OK", "200 OK",
+                        "200 OK", "200 OK",
+                        "200 OK", "200 OK",
+                        "200 OK", "500 Internal Server Error"
+                },
+                new String[]{
+                        caps, notesJson,
+                        caps, notesJson,
+                        caps, notesJson,
+                        caps, notesJson,
+                        caps, "{\"error\":\"boom\"}"
+                });
              WorkspaceAccountFixture profile = new WorkspaceAccountFixture(app, gateway.endpoint())) {
             SessionPanel panel = new SessionPanel(activity, new HermesApi(gateway.endpoint(), "test"), profile.account);
             try {
-                // Positive: initialNoteId opens target note reader directly.
+                // Positive + one-shot: initialNoteId opens target note reader directly, then closing reader
+                // and refreshing must NOT re-open the reader dialog.
                 runTestOnUiThread(() -> panel.showNotes(() -> true, draft -> {}, null, "n-1"));
                 assertTextVisible("Contenu détaillé de la note cible");
+                clickVisibleButton(activity.getString(R.string.ws_close));
+                assertTextNotVisible("Contenu détaillé de la note cible");
+                clickVisibleButton(activity.getString(R.string.panel_refresh));
+                assertTextVisible("Plan produit");
+                assertTextNotVisible("Contenu détaillé de la note cible");
+                runTestOnUiThread(panel::close);
 
                 // Negative: unknown initialNoteId shows notes list without opening reader or crashing.
                 runTestOnUiThread(() -> panel.showNotes(() -> true, draft -> {}, null, "missing-id"));
                 assertTextVisible("Plan produit");
                 assertTextVisible("Courses");
+                assertTextNotVisible("Contenu détaillé de la note cible");
+                runTestOnUiThread(panel::close);
 
-                // Negative: blank initialNoteId renders list cleanly.
+                // Negative: blank initialNoteId renders list cleanly without opening reader.
                 runTestOnUiThread(() -> panel.showNotes(() -> true, draft -> {}, null, "   "));
                 assertTextVisible("Plan produit");
+                assertTextNotVisible("Contenu détaillé de la note cible");
+                runTestOnUiThread(panel::close);
 
                 // Negative: HTTP 500 failure + Retry stays visible when user types in filter field.
                 runTestOnUiThread(() -> panel.showNotes(() -> true, draft -> {}, null, "n-1"));
                 assertTextVisible(activity.getString(R.string.panel_retry));
+                assertTextNotVisible("Contenu détaillé de la note cible");
                 runTestOnUiThread(() -> {
                     for (View root : WindowInspector.getGlobalWindowViews()) {
                         View filter = root.findViewById(R.id.brain_notes_filter);
@@ -268,6 +293,39 @@ public final class BrainStudioPanelsTest extends InstrumentationTestCase {
         } finally {
             runTestOnUiThread(activity::finish);
         }
+    }
+
+    private void clickVisibleButton(String label) throws Throwable {
+        boolean[] clicked = {false};
+        runTestOnUiThread(() -> {
+            for (View root : WindowInspector.getGlobalWindowViews()) {
+                for (android.widget.Button btn : findAll(root, android.widget.Button.class)) {
+                    if (btn.isShown() && btn.getText() != null && label.equals(btn.getText().toString())) {
+                        btn.performClick();
+                        clicked[0] = true;
+                        return;
+                    }
+                }
+            }
+        });
+        assertTrue("Expected clickable button: " + label, clicked[0]);
+        getInstrumentation().waitForIdleSync();
+    }
+
+    private void assertTextNotVisible(String unexpected) throws Throwable {
+        getInstrumentation().waitForIdleSync();
+        boolean[] found = {false};
+        runTestOnUiThread(() -> {
+            for (View root : WindowInspector.getGlobalWindowViews()) {
+                for (TextView tv : findAll(root, TextView.class)) {
+                    if (tv.isShown() && tv.getText() != null && tv.getText().toString().contains(unexpected)) {
+                        found[0] = true;
+                        return;
+                    }
+                }
+            }
+        });
+        assertFalse("Unexpected visible text: " + unexpected, found[0]);
     }
 
     private void assertTextVisible(String expected) throws Throwable {

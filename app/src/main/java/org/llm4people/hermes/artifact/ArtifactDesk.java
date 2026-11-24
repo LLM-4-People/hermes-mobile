@@ -193,10 +193,11 @@ public final class ArtifactDesk {
         String bearer = account.bearer;
         HermesApi.Limits limits = HermesApi.Limits.from(HermesConfig.load(context));
         List<String> ordered = List.copyOf(revisionIds);
+        final HermesApi api = new HermesApi(endpoint, bearer, limits);
+        ACTIVE_REVERTS.add(api);
         Thread worker = new Thread(() -> {
-            HermesApi api = new HermesApi(endpoint, bearer, limits);
-            ACTIVE_REVERTS.add(api);
             try {
+                if (api.isRevoked()) return;
                 for (String revisionId : ordered) {
                     if (api.isRevoked()) break;
                     if (revisionId == null || revisionId.isEmpty()) continue;
@@ -214,7 +215,13 @@ public final class ArtifactDesk {
             }
         }, "hermes-ui-revert");
         worker.setDaemon(true);
-        worker.start();
+        try {
+            worker.start();
+        } catch (RuntimeException | Error failed) {
+            ACTIVE_REVERTS.remove(api);
+            api.revoke();
+            throw failed;
+        }
     }
 
     public void show() {

@@ -44,12 +44,22 @@ public final class NearbyConsentTest extends InstrumentationTestCase {
             runTestOnUiThread(() -> {
                 ThreadWorkspace workspace = new ThreadWorkspace(activity, null, fixture.account, null, new VoiceDrafts(activity));
                 try {
-                    // Stale failure reconciles safely whether permission is granted or denied (no crash).
+                    // Positive + negative NearbyConsent.reconcilePermissionState assertions.
+                    workspace.nearby.setFailureForTest("Location blocked");
+                    workspace.nearby.reconcilePermissionState(false);
+                    assertEquals("Denied state must preserve failure banner",
+                            "Location blocked", workspace.nearby.failureForTest());
+                    workspace.nearby.reconcilePermissionState(true);
+                    assertEquals("Granted state must clear stale failure banner",
+                            "", workspace.nearby.failureForTest());
+                    // Delegated no-arg entry point remains safe with no active failure.
                     workspace.reconcileNearbyPermission();
+                    assertEquals("", workspace.nearby.failureForTest());
 
                     // ThreadStarters.applyCustomization updates heading, stages shortcut drafts (Editable Draft Rule),
                     // and resets cleanly to default heading on null/empty customization.
                     android.widget.ListView list = new android.widget.ListView(activity);
+                    activity.setContentView(list);
                     String[] staged = {""};
                     ThreadStarters starters = new ThreadStarters(list, text -> staged[0] = text);
                     starters.show(true);
@@ -67,13 +77,16 @@ public final class NearbyConsentTest extends InstrumentationTestCase {
                     assertNotNull("Expected custom composer shortcut chip", shortcutChip);
                     assertNotNull("Expected custom greeting heading", findTextViewByText(list, "Bonjour équipe"));
 
+                    // Editable Draft Rule: tapping shortcut chip stages draft text directly.
+                    shortcutChip.performClick();
+                    assertEquals("Fais le point du matin.", staged[0]);
+
                     // Resetting customization restores default heading and hides custom shortcuts.
                     starters.applyCustomization(null);
                     assertNull("Custom shortcut chip should disappear when customization resets",
                             findButtonByText(list, "Brief matin"));
                     assertNotNull("Default starter heading should be restored",
                             findTextViewByText(list, activity.getString(org.llm4people.hermes.R.string.starter_heading)));
-                    assertEquals("", staged[0]);
                 } finally { workspace.close(); }
             });
         } finally { runTestOnUiThread(activity::finish); }
