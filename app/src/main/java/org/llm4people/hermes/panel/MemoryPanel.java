@@ -1,6 +1,7 @@
 package org.llm4people.hermes.panel;
 
 import android.app.AlertDialog;
+import android.content.res.ColorStateList;
 import android.graphics.Typeface;
 import android.text.Editable;
 import android.text.TextWatcher;
@@ -9,6 +10,7 @@ import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import org.json.JSONObject;
 import org.llm4people.hermes.Diagnostics;
@@ -18,7 +20,7 @@ import org.llm4people.hermes.net.HermesApi;
 
 import java.util.List;
 
-/** Native Memory Inspector & Editor for MEMORY.md ("Ce que Hermes retient") and USER.md ("À propos de vous"). */
+/** Native Memory Inspector & Editor for MEMORY.md and USER.md. */
 final class MemoryPanel {
     private final SessionPanel panel;
     private final Runnable parent;
@@ -128,7 +130,7 @@ final class MemoryPanel {
                 MemoryModel.usageSummary(panel.activity, bucket.chars(), bucket.limit()), 14);
         usage.setTextColor(panel.activity.getColor(R.color.muted));
         metaRow.addView(usage, new LinearLayout.LayoutParams(0, -2, 1));
-        metaRow.addView(Ui.button(panel.activity, panel.t(R.string.panel_refresh), v -> load()));
+        metaRow.addView(Ui.outlinedButton(panel.activity, panel.t(R.string.panel_refresh), v -> load()));
         body.addView(metaRow);
 
         if (!bucket.enabled()) {
@@ -136,7 +138,10 @@ final class MemoryPanel {
         } else {
             int addLabel = MemoryModel.TARGET_USER.equals(activeTarget)
                     ? R.string.brain_memory_add_user : R.string.brain_memory_add_hermes;
-            panel.action(body, addLabel, () -> openEditor(bucket, null));
+            Button addBtn = Ui.filledButton(panel.activity, panel.t(addLabel), v -> openEditor(bucket, null));
+            LinearLayout.LayoutParams addLp = new LinearLayout.LayoutParams(-1, -2);
+            addLp.setMargins(0, Ui.dp(panel.activity, 8), 0, Ui.dp(panel.activity, 8));
+            body.addView(addBtn, addLp);
         }
 
         String query = filterField == null ? "" : filterField.getText().toString();
@@ -159,23 +164,39 @@ final class MemoryPanel {
             card.addView(badges);
         }
         TextView text = Ui.text(panel.activity, entry.text(), 16);
+        text.setLineSpacing(0f, 1.2f);
         text.setTextIsSelectable(true);
         Ui.pad(text, 0, 4);
         card.addView(text);
 
         if (bucket.enabled()) {
             LinearLayout actions = Ui.row(panel.activity);
-            actions.addView(Ui.button(panel.activity, panel.t(R.string.panel_edit), v -> openEditor(bucket, entry)));
-            actions.addView(Ui.button(panel.activity,
+            int gap = Ui.dp(panel.activity, 8);
+            Button edit = Ui.button(panel.activity, panel.t(R.string.panel_edit), v -> openEditor(bucket, entry));
+            LinearLayout.LayoutParams editLp = new LinearLayout.LayoutParams(-2, -2);
+            editLp.setMarginEnd(gap);
+            actions.addView(edit, editLp);
+
+            Button pin = Ui.button(panel.activity,
                     panel.t(entry.pinned() ? R.string.brain_memory_unpin : R.string.brain_memory_pin_toggle),
-                    v -> togglePin(bucket.target(), entry)));
+                    v -> togglePin(bucket.target(), entry));
+            LinearLayout.LayoutParams pinLp = new LinearLayout.LayoutParams(-2, -2);
+            pinLp.setMarginEnd(gap);
+            actions.addView(pin, pinLp);
+
             Button del = Ui.button(panel.activity, panel.t(R.string.panel_delete),
                     v -> confirmDelete(bucket.target(), entry));
-            del.setTextColor(panel.activity.getColor(R.color.danger));
+            del.setTextColor(dangerInk());
             actions.addView(del);
-            card.addView(actions);
+            card.addView(BrainUi.chipBar(panel.activity, actions));
         }
         return card;
+    }
+
+    private ColorStateList dangerInk() {
+        return new ColorStateList(
+                new int[][]{new int[]{-android.R.attr.state_enabled}, new int[]{}},
+                new int[]{panel.activity.getColor(R.color.disabled_ink), panel.activity.getColor(R.color.danger)});
     }
 
     private void openEditor(MemoryModel.Bucket bucket, MemoryModel.Entry existing) {
@@ -202,6 +223,7 @@ final class MemoryPanel {
         CheckBox pinBox = new CheckBox(panel.activity);
         pinBox.setMinHeight(Ui.dp(panel.activity, 48));
         pinBox.setText(R.string.brain_memory_pin_toggle);
+        pinBox.setTextColor(panel.activity.getColor(R.color.ink));
         pinBox.setChecked(existing != null && existing.pinned());
         form.addView(pinBox);
 
@@ -232,29 +254,40 @@ final class MemoryPanel {
     }
 
     private void confirmDiffAndPatch(String target, MemoryModel.Entry existing, String updatedText, boolean pinned) {
+        ScrollView scroll = new ScrollView(panel.activity);
+        scroll.setFillViewport(true);
         LinearLayout diff = Ui.column(panel.activity);
-        Ui.pad(diff, 18, 10);
+        Ui.pad(diff, 16, 12);
+
+        LinearLayout beforeCard = Ui.tonalCard(panel.activity);
         TextView beforeTitle = Ui.text(panel.activity, panel.t(R.string.brain_memory_before), 13);
         beforeTitle.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         beforeTitle.setTextColor(panel.activity.getColor(R.color.muted));
-        diff.addView(beforeTitle);
+        beforeCard.addView(beforeTitle);
         TextView beforeText = Ui.text(panel.activity, existing.text(), 15);
         beforeText.setTextColor(panel.activity.getColor(R.color.muted));
+        beforeText.setLineSpacing(0f, 1.2f);
         Ui.pad(beforeText, 0, 4);
-        diff.addView(beforeText);
-        diff.addView(Ui.divider(panel.activity));
+        beforeCard.addView(beforeText);
+        diff.addView(beforeCard, new LinearLayout.LayoutParams(-1, -2));
+
+        LinearLayout afterCard = Ui.card(panel.activity);
         TextView afterTitle = Ui.text(panel.activity, panel.t(R.string.brain_memory_after), 13);
         afterTitle.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         afterTitle.setTextColor(panel.activity.getColor(R.color.accent));
-        afterTitle.setPaddingRelative(0, Ui.dp(panel.activity, 8), 0, 0);
-        diff.addView(afterTitle);
+        afterCard.addView(afterTitle);
         TextView afterText = Ui.text(panel.activity, updatedText, 16);
+        afterText.setLineSpacing(0f, 1.2f);
         Ui.pad(afterText, 0, 4);
-        diff.addView(afterText);
+        afterCard.addView(afterText);
+        LinearLayout.LayoutParams afterLp = new LinearLayout.LayoutParams(-1, -2);
+        afterLp.topMargin = Ui.dp(panel.activity, 10);
+        diff.addView(afterCard, afterLp);
 
+        scroll.addView(diff, new ScrollView.LayoutParams(-1, -2));
         panel.present(new AlertDialog.Builder(panel.activity)
                 .setTitle(R.string.brain_memory_confirm_save_title)
-                .setView(diff)
+                .setView(scroll)
                 .setNegativeButton(R.string.panel_cancel, null)
                 .setPositiveButton(R.string.brain_memory_confirm_save_action,
                         (d, w) -> commitPatch(target, existing.id(), updatedText, pinned))
