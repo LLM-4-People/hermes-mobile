@@ -93,13 +93,13 @@ public final class ConnectionDoctorPanel {
         this.fixHandlers = fixHandlers != null ? fixHandlers : new FixHandlers() {};
     }
 
-    /** Register this panel in {@link RouteRegistry} under {@link RouteRegistry.Section#ACTIVITE}. */
+    /** Register this panel in {@link RouteRegistry} under {@link RouteRegistry.Section#SETTINGS}. */
     public static RouteRegistry registerRoute(RouteRegistry registry, Context context, Runnable open) {
         Objects.requireNonNull(registry, "registry");
         Objects.requireNonNull(context, "context");
         return registry.register(new RouteRegistry.Destination(
                 ROUTE_ID,
-                RouteRegistry.Section.ACTIVITE,
+                RouteRegistry.Section.SETTINGS,
                 context.getString(R.string.doctor_route_label),
                 context.getString(R.string.doctor_route_hint),
                 0,

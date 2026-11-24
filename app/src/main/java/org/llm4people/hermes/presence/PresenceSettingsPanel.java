@@ -122,13 +122,13 @@ public final class PresenceSettingsPanel {
         this.listener = listener == null ? new Listener() {} : listener;
     }
 
-    /** Registers this panel cleanly under {@link RouteRegistry.Section#ACTIVITE}. */
+    /** Registers this panel cleanly under {@link RouteRegistry.Section#SETTINGS}. */
     public static RouteRegistry registerRoute(RouteRegistry registry, Context context, Runnable open) {
         Objects.requireNonNull(registry, "registry");
         Objects.requireNonNull(context, "context");
         return registry.register(new RouteRegistry.Destination(
                 ROUTE_ID,
-                RouteRegistry.Section.ACTIVITE,
+                RouteRegistry.Section.SETTINGS,
                 context.getString(R.string.presence_route_label),
                 context.getString(R.string.presence_route_hint),
                 0,

@@ -2,12 +2,10 @@ package org.llm4people.hermes.settings;
 
 import android.app.Activity;
 import android.content.res.ColorStateList;
-import android.graphics.drawable.GradientDrawable;
 import android.text.Editable;
 import android.text.InputType;
 import android.text.TextUtils;
 import android.text.TextWatcher;
-import android.view.Gravity;
 import android.view.View;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.inputmethod.EditorInfo;
@@ -279,23 +277,7 @@ public final class SettingsHubPanel {
         row.setContentDescription(item.subtitle().isEmpty()
                 ? item.title() : item.title() + ". " + item.subtitle());
 
-        LinearLayout iconCircle = new LinearLayout(activity);
-        iconCircle.setGravity(Gravity.CENTER);
-        GradientDrawable circleBg = new GradientDrawable();
-        circleBg.setShape(GradientDrawable.OVAL);
-        circleBg.setColor(activity.getColor(R.color.accent_surface));
-        iconCircle.setBackground(circleBg);
-        iconCircle.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-        int circlePx = Ui.dp(activity, 36);
-        ImageView icon = new ImageView(activity);
-        icon.setImageResource(item.iconRes());
-        icon.setImageTintList(ColorStateList.valueOf(activity.getColor(R.color.accent)));
-        icon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-        int iconPx = Ui.dp(activity, 20);
-        iconCircle.addView(icon, new LinearLayout.LayoutParams(iconPx, iconPx));
-        LinearLayout.LayoutParams iconLp = new LinearLayout.LayoutParams(circlePx, circlePx);
-        iconLp.setMarginEnd(Ui.dp(activity, 12));
-        row.addView(iconCircle, iconLp);
+        row.addView(Ui.iconCircle(activity, item.iconRes(), 36, 20, false));
 
         LinearLayout copy = Ui.column(activity);
         TextView title = Ui.text(activity, item.title(), 16);

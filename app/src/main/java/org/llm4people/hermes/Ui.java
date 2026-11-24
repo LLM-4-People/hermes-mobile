@@ -14,6 +14,7 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -278,6 +279,28 @@ public final class Ui {
         params.setMarginStart(dp(context, startDp));
         line.setLayoutParams(params);
         return line;
+    }
+
+    /** Decorative circular icon badge shared across Apps, Notes &amp; Tasks, and Settings rows. */
+    public static LinearLayout iconCircle(Context context, int iconRes, int circleDp, int iconDp, boolean filled) {
+        LinearLayout circle = new LinearLayout(context);
+        circle.setGravity(Gravity.CENTER);
+        GradientDrawable bg = new GradientDrawable();
+        bg.setShape(GradientDrawable.OVAL);
+        bg.setColor(context.getColor(filled ? R.color.accent : R.color.accent_surface));
+        circle.setBackground(bg);
+        circle.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        ImageView icon = new ImageView(context);
+        icon.setImageResource(iconRes);
+        icon.setImageTintList(ColorStateList.valueOf(context.getColor(filled ? R.color.on_accent : R.color.accent)));
+        icon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        int iconPx = dp(context, iconDp);
+        circle.addView(icon, new LinearLayout.LayoutParams(iconPx, iconPx));
+        int circlePx = dp(context, circleDp);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(circlePx, circlePx);
+        lp.setMarginEnd(dp(context, 12));
+        circle.setLayoutParams(lp);
+        return circle;
     }
 
     private static Button baseButton(Context context, String label, View.OnClickListener action) {

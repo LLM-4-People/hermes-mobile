@@ -61,7 +61,7 @@ public final class BrainStudioRoutes {
 
         registry.register(new RouteRegistry.Destination(
                 ROUTE_MEMORY,
-                RouteRegistry.Section.CERVEAU,
+                RouteRegistry.Section.SETTINGS,
                 text.get(R.string.brain_route_memory_label, ROUTE_MEMORY),
                 text.get(R.string.brain_route_memory_hint, ""),
                 0,
@@ -71,7 +71,7 @@ public final class BrainStudioRoutes {
 
         registry.register(new RouteRegistry.Destination(
                 ROUTE_NOTES,
-                RouteRegistry.Section.CERVEAU,
+                RouteRegistry.Section.NOTES_TASKS,
                 text.get(R.string.brain_route_notes_label, ROUTE_NOTES),
                 text.get(R.string.brain_route_notes_hint, ""),
                 0,
@@ -81,7 +81,7 @@ public final class BrainStudioRoutes {
 
         registry.register(new RouteRegistry.Destination(
                 ROUTE_SHARED_WITH_ME,
-                RouteRegistry.Section.CERVEAU,
+                RouteRegistry.Section.NOTES_TASKS,
                 text.get(R.string.brain_route_shared_label, ROUTE_SHARED_WITH_ME),
                 text.get(R.string.brain_route_shared_hint, ""),
                 0,
@@ -91,7 +91,7 @@ public final class BrainStudioRoutes {
 
         registry.register(new RouteRegistry.Destination(
                 ROUTE_SEARCH,
-                RouteRegistry.Section.CERVEAU,
+                RouteRegistry.Section.SETTINGS,
                 text.get(R.string.brain_route_search_label, ROUTE_SEARCH),
                 text.get(R.string.brain_route_search_hint, ""),
                 0,
@@ -101,7 +101,7 @@ public final class BrainStudioRoutes {
 
         registry.register(new RouteRegistry.Destination(
                 ROUTE_SKILLS,
-                RouteRegistry.Section.CERVEAU,
+                RouteRegistry.Section.SETTINGS,
                 text.get(R.string.brain_route_skills_label, ROUTE_SKILLS),
                 text.get(R.string.brain_route_skills_hint, ""),
                 0,
@@ -111,7 +111,7 @@ public final class BrainStudioRoutes {
 
         registry.register(new RouteRegistry.Destination(
                 ROUTE_WORKSPACE_FILES,
-                RouteRegistry.Section.CERVEAU,
+                RouteRegistry.Section.SETTINGS,
                 text.get(R.string.brain_route_files_label, ROUTE_WORKSPACE_FILES),
                 text.get(R.string.brain_route_files_hint, ""),
                 0,

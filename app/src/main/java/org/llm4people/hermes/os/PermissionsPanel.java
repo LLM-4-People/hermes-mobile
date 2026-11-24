@@ -33,13 +33,13 @@ public final class PermissionsPanel {
         this.activity = Objects.requireNonNull(activity, "activity");
     }
 
-    /** Register this panel in {@link RouteRegistry} under {@link RouteRegistry.Section#ACTIVITE}. */
+    /** Register this panel in {@link RouteRegistry} under {@link RouteRegistry.Section#SETTINGS}. */
     public static RouteRegistry registerRoute(RouteRegistry registry, Context context, Runnable open) {
         Objects.requireNonNull(registry, "registry");
         Objects.requireNonNull(context, "context");
         return registry.register(new RouteRegistry.Destination(
                 ROUTE_ID,
-                RouteRegistry.Section.ACTIVITE,
+                RouteRegistry.Section.SETTINGS,
                 context.getString(R.string.perm_route_label),
                 context.getString(R.string.perm_route_hint),
                 0,
@@ -309,7 +309,6 @@ public final class PermissionsPanel {
             case MICROPHONE -> R.string.perm_microphone_title;
             case LOCATION, PRECISE_LOCATION -> R.string.perm_location_title;
             case CALENDAR -> R.string.perm_calendar_title;
-            case CONTACTS -> R.string.perm_contacts_title;
             case NOTIFICATION_ACCESS -> R.string.perm_notification_access_title;
             case INSTALL_UPDATES -> R.string.perm_install_updates_title;
         };
@@ -322,7 +321,6 @@ public final class PermissionsPanel {
             case MICROPHONE -> R.string.perm_microphone_desc;
             case LOCATION, PRECISE_LOCATION -> R.string.perm_location_desc;
             case CALENDAR -> R.string.perm_calendar_desc;
-            case CONTACTS -> R.string.perm_contacts_desc;
             case NOTIFICATION_ACCESS -> R.string.perm_notification_access_desc;
             case INSTALL_UPDATES -> R.string.perm_install_updates_desc;
         };

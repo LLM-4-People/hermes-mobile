@@ -111,7 +111,7 @@ public final class PermissionCenterTest {
         states.put(PermissionCenter.Key.MICROPHONE, PermissionCenter.State.PERMANENTLY_DENIED);
         states.put(PermissionCenter.Key.LOCATION, PermissionCenter.State.DENIED);
         states.put(PermissionCenter.Key.CALENDAR, PermissionCenter.State.UNAVAILABLE);
-        states.put(PermissionCenter.Key.CONTACTS, PermissionCenter.State.GRANTED);
+        states.put(PermissionCenter.Key.NOTIFICATION_ACCESS, PermissionCenter.State.GRANTED);
 
         PermissionCenter.Summary summary = PermissionCenter.summarizeStates(states);
         assertEquals(2, summary.allowed());
@@ -130,14 +130,13 @@ public final class PermissionCenterTest {
     }
 
     @Test
-    public void panelKeysIncludeAllEightUserFacingPermissions() {
-        assertEquals(8, PermissionCenter.PANEL_KEYS.size());
+    public void panelKeysIncludeAllSevenUserFacingPermissions() {
+        assertEquals(7, PermissionCenter.PANEL_KEYS.size());
         assertTrue(PermissionCenter.PANEL_KEYS.contains(PermissionCenter.Key.NOTIFICATIONS));
         assertTrue(PermissionCenter.PANEL_KEYS.contains(PermissionCenter.Key.CAMERA));
         assertTrue(PermissionCenter.PANEL_KEYS.contains(PermissionCenter.Key.MICROPHONE));
         assertTrue(PermissionCenter.PANEL_KEYS.contains(PermissionCenter.Key.LOCATION));
         assertTrue(PermissionCenter.PANEL_KEYS.contains(PermissionCenter.Key.CALENDAR));
-        assertTrue(PermissionCenter.PANEL_KEYS.contains(PermissionCenter.Key.CONTACTS));
         assertTrue(PermissionCenter.PANEL_KEYS.contains(PermissionCenter.Key.NOTIFICATION_ACCESS));
         assertTrue(PermissionCenter.PANEL_KEYS.contains(PermissionCenter.Key.INSTALL_UPDATES));
         assertFalse(PermissionCenter.PANEL_KEYS.contains(PermissionCenter.Key.PRECISE_LOCATION));

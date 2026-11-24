@@ -19,9 +19,8 @@ public final class RouteRegistry {
 
     public enum Section {
         DISCUSSIONS,
-        ATELIER,
-        CERVEAU,
-        ACTIVITE,
+        NOTES_TASKS,
+        APPS,
         SETTINGS
     }
 

@@ -34,7 +34,7 @@ public final class RouteRegistryTest {
                 "discussions", RouteRegistry.Section.DISCUSSIONS, "Discussions", "Vos échanges", 0, true, null,
                 hits::incrementAndGet));
         registry.register(new RouteRegistry.Destination(
-                "memory", RouteRegistry.Section.CERVEAU, "Mémoire", "Souvenirs", 0, true, "memory_api",
+                "memory", RouteRegistry.Section.SETTINGS, "Mémoire", "Souvenirs", 0, true, "memory_api",
                 () -> hits.addAndGet(10)));
 
         List<RouteRegistry.Destination> withoutCap = registry.primaryDestinations(Set.of());
@@ -57,7 +57,7 @@ public final class RouteRegistryTest {
     public void rejectsDuplicateOrMalformedIdentifiers() {
         RouteRegistry registry = new RouteRegistry();
         RouteRegistry.Destination dest = new RouteRegistry.Destination(
-                "atelier", RouteRegistry.Section.ATELIER, "Atelier", "", 0, true, null, () -> {});
+                "apps", RouteRegistry.Section.APPS, "Apps", "", 0, true, null, () -> {});
         registry.register(dest);
 
         try {
@@ -67,7 +67,7 @@ public final class RouteRegistryTest {
             // ok
         }
         try {
-            new RouteRegistry.Destination("INVALID ID!", RouteRegistry.Section.ATELIER, "X", "", 0, false, null, () -> {});
+            new RouteRegistry.Destination("INVALID ID!", RouteRegistry.Section.APPS, "X", "", 0, false, null, () -> {});
             fail("Expected invalid route id rejection");
         } catch (IllegalArgumentException expected) {
             // ok
@@ -78,5 +78,16 @@ public final class RouteRegistryTest {
         } catch (IllegalArgumentException expected) {
             // ok
         }
+    }
+
+    @Test
+    public void sectionTaxonomyMatchesModernFourTabShell() {
+        assertEquals(
+                List.of(
+                        RouteRegistry.Section.DISCUSSIONS,
+                        RouteRegistry.Section.NOTES_TASKS,
+                        RouteRegistry.Section.APPS,
+                        RouteRegistry.Section.SETTINGS),
+                List.of(RouteRegistry.Section.values()));
     }
 }

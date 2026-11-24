@@ -2,9 +2,7 @@ package org.llm4people.hermes.hub;
 
 import android.app.Activity;
 import android.content.res.ColorStateList;
-import android.graphics.drawable.GradientDrawable;
 import android.text.TextUtils;
-import android.view.Gravity;
 import android.view.View;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.Button;
@@ -93,7 +91,7 @@ public final class AppsLauncherPanel {
         card.setTag("apps:voice_hero");
 
         LinearLayout header = Ui.row(activity);
-        header.addView(iconCircle(R.drawable.ic_voice_settings, 44, 22, true));
+        header.addView(Ui.iconCircle(activity, R.drawable.ic_voice_settings, 44, 22, true));
 
         LinearLayout copy = Ui.column(activity);
         TextView title = Ui.text(activity, activity.getString(R.string.hub_apps_voice_title), 18);
@@ -140,7 +138,7 @@ public final class AppsLauncherPanel {
         if (screens == null || screens.isEmpty()) {
             LinearLayout empty = Ui.row(activity);
             Ui.pad(empty, 16, 16);
-            empty.addView(iconCircle(R.drawable.ic_widgets, 40, 20, false));
+            empty.addView(Ui.iconCircle(activity, R.drawable.ic_widgets, 40, 20, false));
             LinearLayout copy = Ui.column(activity);
             TextView title = Ui.text(activity, activity.getString(R.string.hub_apps_screens_empty_title), 16);
             title.setTypeface(Ui.mediumTypeface());
@@ -203,7 +201,7 @@ public final class AppsLauncherPanel {
         String label = activity.getString(R.string.templates_route_label);
         row.setContentDescription(label + ". " + countText);
 
-        row.addView(iconCircle(R.drawable.ic_apps, 36, 20, false));
+        row.addView(Ui.iconCircle(activity, R.drawable.ic_apps, 36, 20, false));
 
         LinearLayout copy = Ui.column(activity);
         TextView titleView = Ui.text(activity, label, 16);
@@ -254,7 +252,7 @@ public final class AppsLauncherPanel {
             }
         });
 
-        row.addView(iconCircle(R.drawable.ic_widgets, 36, 20, false));
+        row.addView(Ui.iconCircle(activity, R.drawable.ic_widgets, 36, 20, false));
 
         TextView title = Ui.text(activity, entry.title(), 16);
         title.setTypeface(Ui.mediumTypeface());
@@ -280,26 +278,5 @@ public final class AppsLauncherPanel {
         heading.setPaddingRelative(Ui.dp(activity, 4), Ui.dp(activity, 20), 0, Ui.dp(activity, 8));
         heading.setAccessibilityHeading(true);
         parent.addView(heading);
-    }
-
-    private LinearLayout iconCircle(int iconRes, int circleDp, int iconDp, boolean filled) {
-        LinearLayout circle = new LinearLayout(activity);
-        circle.setGravity(Gravity.CENTER);
-        GradientDrawable bg = new GradientDrawable();
-        bg.setShape(GradientDrawable.OVAL);
-        bg.setColor(activity.getColor(filled ? R.color.accent : R.color.accent_surface));
-        circle.setBackground(bg);
-        circle.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-        ImageView icon = new ImageView(activity);
-        icon.setImageResource(iconRes);
-        icon.setImageTintList(ColorStateList.valueOf(activity.getColor(filled ? R.color.on_accent : R.color.accent)));
-        icon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-        int iconPx = Ui.dp(activity, iconDp);
-        circle.addView(icon, new LinearLayout.LayoutParams(iconPx, iconPx));
-        int circlePx = Ui.dp(activity, circleDp);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(circlePx, circlePx);
-        lp.setMarginEnd(Ui.dp(activity, 12));
-        circle.setLayoutParams(lp);
-        return circle;
     }
 }

@@ -23,13 +23,13 @@ public final class UpdatePanelTest extends InstrumentationTestCase {
     public void testRouteRegistrationProviderSecurityAndUiRender() throws Throwable {
         Context context = getInstrumentation().getTargetContext();
 
-        // 1. Route registration under ACTIVITE.
+        // 1. Route registration under SETTINGS.
         RouteRegistry registry = new RouteRegistry();
         AtomicBoolean opened = new AtomicBoolean(false);
         UpdatePanel.registerRoute(registry, context, () -> opened.set(true));
-        List<RouteRegistry.Destination> activite = registry.destinationsIn(RouteRegistry.Section.ACTIVITE, Set.of());
-        assertEquals(1, activite.size());
-        assertEquals(UpdatePanel.ROUTE_ID, activite.get(0).id());
+        List<RouteRegistry.Destination> settings = registry.destinationsIn(RouteRegistry.Section.SETTINGS, Set.of());
+        assertEquals(1, settings.size());
+        assertEquals(UpdatePanel.ROUTE_ID, settings.get(0).id());
         assertTrue(registry.dispatch(UpdatePanel.ROUTE_ID));
         assertTrue(opened.get());
 

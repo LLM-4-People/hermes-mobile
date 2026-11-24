@@ -44,6 +44,7 @@ public final class NotesTasksPanel implements AutoCloseable {
     public interface Callbacks {
         void createNote();
         void openAllNotes();
+        void openNote(String noteId);
         void createReminder();
         void openAllReminders();
         void openReminder(String jobId);
@@ -257,7 +258,10 @@ public final class NotesTasksPanel implements AutoCloseable {
             String title = note.title().isEmpty() ? activity.getString(R.string.brain_notes_title) : note.title();
             String badge = note.pinned() ? activity.getString(R.string.hub_notes_pinned) : null;
             group.addView(buildItemRow(R.drawable.ic_note, title, note.preview(), badge,
-                    R.color.accent_surface, R.color.accent, callbacks::openAllNotes));
+                    R.color.accent_surface, R.color.accent, () -> {
+                        if (!note.id().isEmpty()) callbacks.openNote(note.id());
+                        else callbacks.openAllNotes();
+                    }));
         }
         slot.addView(group, new LinearLayout.LayoutParams(-1, -2));
     }
@@ -493,7 +497,7 @@ public final class NotesTasksPanel implements AutoCloseable {
         }
         row.setContentDescription(desc.toString());
 
-        row.addView(iconCircle(iconRes, 36, 20, false));
+        row.addView(Ui.iconCircle(activity, iconRes, 36, 20, false));
 
         LinearLayout copy = Ui.column(activity);
         LinearLayout titleRow = Ui.row(activity);
@@ -533,27 +537,6 @@ public final class NotesTasksPanel implements AutoCloseable {
         return row;
     }
 
-    private LinearLayout iconCircle(int iconRes, int circleDp, int iconDp, boolean filled) {
-        LinearLayout circle = new LinearLayout(activity);
-        circle.setGravity(Gravity.CENTER);
-        GradientDrawable bg = new GradientDrawable();
-        bg.setShape(GradientDrawable.OVAL);
-        bg.setColor(activity.getColor(filled ? R.color.accent : R.color.accent_surface));
-        circle.setBackground(bg);
-        circle.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-        ImageView icon = new ImageView(activity);
-        icon.setImageResource(iconRes);
-        icon.setImageTintList(ColorStateList.valueOf(activity.getColor(filled ? R.color.on_accent : R.color.accent)));
-        icon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-        int iconPx = Ui.dp(activity, iconDp);
-        circle.addView(icon, new LinearLayout.LayoutParams(iconPx, iconPx));
-        int circlePx = Ui.dp(activity, circleDp);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(circlePx, circlePx);
-        lp.setMarginEnd(Ui.dp(activity, 12));
-        circle.setLayoutParams(lp);
-        return circle;
-    }
-
     private void showLoadingCard(LinearLayout slot) {
         slot.removeAllViews();
         LinearLayout card = Ui.tonalCard(activity);
@@ -573,7 +556,7 @@ public final class NotesTasksPanel implements AutoCloseable {
         slot.removeAllViews();
         LinearLayout card = Ui.card(activity);
         LinearLayout header = Ui.row(activity);
-        header.addView(iconCircle(iconRes, 40, 22, false));
+        header.addView(Ui.iconCircle(activity, iconRes, 40, 22, false));
         TextView titleView = Ui.text(activity, title, 16);
         titleView.setTypeface(Ui.mediumTypeface());
         header.addView(titleView, new LinearLayout.LayoutParams(0, -2, 1f));

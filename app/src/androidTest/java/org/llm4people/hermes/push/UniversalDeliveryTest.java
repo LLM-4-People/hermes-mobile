@@ -264,9 +264,10 @@ public final class UniversalDeliveryTest extends InstrumentationTestCase {
 
         RouteRegistry registry = new RouteRegistry();
         DeliveryRouter.registerRoutes(registry, () -> {}, () -> {});
-        assertEquals(2, registry.destinationsIn(RouteRegistry.Section.ACTIVITE, null).size());
-        assertNotNull(registry.destination("activite/livraisons"));
-        assertNotNull(registry.destination("activite/preferences_notifications"));
+        assertEquals(1, registry.destinationsIn(RouteRegistry.Section.NOTES_TASKS, null).size());
+        assertEquals(1, registry.destinationsIn(RouteRegistry.Section.SETTINGS, null).size());
+        assertNotNull(registry.destination(DeliveryRouter.ROUTE_DELIVERIES));
+        assertNotNull(registry.destination(DeliveryRouter.ROUTE_PUSH_POLICY));
     }
 
     private StatusBarNotification awaitNotification(String tag) {

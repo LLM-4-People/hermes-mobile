@@ -2,7 +2,7 @@
 <resources xmlns:tools="http://schemas.android.com/tools" tools:locale="fr">
     <string name="ambient_listener_label">Accès aux notifications Hermes</string>
     <string name="ambient_route_label">Contexte du téléphone</string>
-    <string name="ambient_route_hint">Notifications choisies, médias en cours, agenda et état de l’appareil</string>
+    <string name="ambient_route_hint">Notifications choisies, médias en cours et agenda</string>
     <string name="ambient_panel_title">Contexte du téléphone</string>
     <string name="ambient_panel_intro">Tout est désactivé par défaut. Vous choisissez exactement quelles informations locales partager avec ce profil. Les codes de vérification, banques et gestionnaires de mots de passe sont toujours bloqués.</string>
     <string name="ambient_status_active">Accès actif</string>
@@ -17,8 +17,6 @@
     <string name="ambient_toggle_notifications">Lire les notifications d’applications choisies</string>
     <string name="ambient_toggle_media">Lire les médias en cours (titre et lecture)</string>
     <string name="ambient_toggle_calendar">Lire l’agenda à venir (7 jours, titres et horaires seulement)</string>
-    <string name="ambient_toggle_contacts">Chercher un contact sur demande</string>
-    <string name="ambient_toggle_device_context">Inclure l’état de l’appareil (batterie, réseau, heure, langue)</string>
     <string name="ambient_section_allowlist">Applications autorisées</string>
     <string name="ambient_allowlist_hint">Filtrer par nom d’application…</string>
     <string name="ambient_allowlist_loading">Chargement des applications…</string>

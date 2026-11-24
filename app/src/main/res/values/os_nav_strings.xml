@@ -2,7 +2,6 @@
     <string name="nav_discussions">Discussions</string>
 
     <string name="top_search">Rechercher</string>
-    <string name="top_profile_lock">Profil et verrouillage</string>
 
     <string name="brain_skills_hint">Parcourir les savoir-faire prêts à l’emploi de votre assistant.</string>
 
@@ -58,10 +57,10 @@
     <string name="shortcut_new_long">Démarrer une nouvelle discussion</string>
     <string name="shortcut_dictate_short">Dicter</string>
     <string name="shortcut_dictate_long">Dicter un message à Hermes</string>
-    <string name="shortcut_atelier_short">Atelier</string>
-    <string name="shortcut_atelier_long">Ouvrir l’Atelier</string>
-    <string name="shortcut_activity_short">Activité</string>
-    <string name="shortcut_activity_long">Voir les rappels et l’activité</string>
+    <string name="shortcut_atelier_short">Apps</string>
+    <string name="shortcut_atelier_long">Ouvrir les apps</string>
+    <string name="shortcut_activity_short">Notes et tâches</string>
+    <string name="shortcut_activity_long">Voir les notes, rappels et livraisons</string>
 
     <string name="widget_title">Hermes</string>
     <string name="widget_description">Accès rapide privé à Hermes pour écrire ou dicter une question.</string>

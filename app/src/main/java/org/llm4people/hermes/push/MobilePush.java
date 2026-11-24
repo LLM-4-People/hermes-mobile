@@ -7,6 +7,7 @@ import android.net.Uri;
 import android.view.View;
 
 import org.json.JSONObject;
+import org.llm4people.hermes.HermesConfig;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.profile.Account;
@@ -50,14 +51,18 @@ public final class MobilePush {
     public void openInbox(Account account, DeliveryRouter.Actions actions) {
         lock();
         activeRouter = new DeliveryRouter(activity, account,
-                new HermesApi(account.endpoint, account.bearer), new DeliveryInbox(), actions);
+                new HermesApi(account.endpoint, account.bearer,
+                        HermesApi.Limits.from(HermesConfig.load(activity))),
+                new DeliveryInbox(), actions);
         activeRouter.showInbox();
     }
 
     public void openDelivery(Account account, DeliveryItem item, DeliveryRouter.Actions actions) {
         lock();
         activeRouter = new DeliveryRouter(activity, account,
-                new HermesApi(account.endpoint, account.bearer), new DeliveryInbox(), actions);
+                new HermesApi(account.endpoint, account.bearer,
+                        HermesApi.Limits.from(HermesConfig.load(activity))),
+                new DeliveryInbox(), actions);
         activeRouter.openDelivery(item);
     }
 
@@ -113,8 +118,12 @@ public final class MobilePush {
         public final String profileId, eventId, kind;
 
         private Target(PushStore.Device owner, String event, String kind) {
-            this.profileId = owner.profile;
-            this.eventId = event;
+            this(owner.profile, event, kind);
+        }
+
+        Target(String profileId, String eventId, String kind) {
+            this.profileId = profileId;
+            this.eventId = eventId;
             this.kind = kind;
         }
     }
@@ -149,13 +158,26 @@ public final class MobilePush {
     }
 
     public static JSONObject resolve(Account account, Target target) throws IOException {
-        if (target == null || !target.profileId.equals(account.id)) throw new IOException("profile mismatch");
-        HermesApi api = new HermesApi(account.endpoint, account.bearer);
+        return resolve(account, null, target);
+    }
+
+    /**
+     * Resolve a tapped notification target against the server. Callers with an active session
+     * {@link HermesApi} should pass it so lock, profile switch, or activity destroy revokes
+     * in-flight resolution immediately.
+     */
+    public static JSONObject resolve(Account account, HermesApi api, Target target) throws IOException {
+        if (account == null || target == null || !target.profileId.equals(account.id)) {
+            throw new IOException("profile mismatch");
+        }
+        HermesApi client = api != null
+                ? api
+                : new HermesApi(account.endpoint, account.bearer, HermesApi.Limits.from(HermesConfig.defaults()));
         boolean isDelivery = DeliveryItem.Kind.fromWire(target.kind) != null;
         String path = isDelivery
                 ? deliveryPath(target.eventId)
                 : PushConnection.BASE + "/events/" + target.eventId;
-        JSONObject response = api.get(path);
+        JSONObject response = client.get(path);
         JSONObject event = isDelivery && response.optJSONObject("delivery") != null
                 ? response.optJSONObject("delivery") : response;
         String resolvedId = event.optString("event_id", "");

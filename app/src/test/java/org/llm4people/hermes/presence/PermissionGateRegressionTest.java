@@ -78,38 +78,33 @@ public final class PermissionGateRegressionTest {
     }
 
     @Test
-    public void ambientReconcileFailsClosedForRevokedCalendarAndContacts() {
-        NotificationAllowlist.Settings allOn =
-                new NotificationAllowlist.Settings(true, true, true, true, true);
+    public void ambientReconcileFailsClosedForRevokedCalendarAndRetiredFlags() {
+        NotificationAllowlist.Settings active =
+                new NotificationAllowlist.Settings(true, true, true, false, false);
 
-        // Both granted preserves all settings unchanged.
-        assertEquals(allOn, AmbientAccessPanel.reconcilePermissions(allOn, true, true));
+        // Calendar permission granted preserves active settings unchanged.
+        assertEquals(active, AmbientAccessPanel.reconcilePermissions(active, true));
 
-        // Revoked Calendar forces calendarEnabled=false without disturbing other opt-ins.
-        NotificationAllowlist.Settings noCal = AmbientAccessPanel.reconcilePermissions(allOn, false, true);
+        // Revoked Calendar forces calendarEnabled=false without disturbing notifications or media.
+        NotificationAllowlist.Settings noCal = AmbientAccessPanel.reconcilePermissions(active, false);
         assertFalse(noCal.calendarEnabled());
-        assertTrue(noCal.contactsEnabled());
         assertTrue(noCal.notificationsEnabled());
         assertTrue(noCal.mediaEnabled());
-        assertTrue(noCal.deviceContextEnabled());
+        assertFalse(noCal.contactsEnabled());
+        assertFalse(noCal.deviceContextEnabled());
 
-        // Revoked Contacts forces contactsEnabled=false without disturbing Calendar.
-        NotificationAllowlist.Settings noContacts = AmbientAccessPanel.reconcilePermissions(allOn, true, false);
-        assertTrue(noContacts.calendarEnabled());
-        assertFalse(noContacts.contactsEnabled());
-
-        // Both revoked forces both false.
-        NotificationAllowlist.Settings neither = AmbientAccessPanel.reconcilePermissions(allOn, false, false);
-        assertFalse(neither.calendarEnabled());
-        assertFalse(neither.contactsEnabled());
-        assertTrue(neither.notificationsEnabled());
+        // Legacy stored contacts/device_context flags are cleared fail-closed even when calendar is granted.
+        NotificationAllowlist.Settings legacyAllOn =
+                new NotificationAllowlist.Settings(true, true, true, true, true);
+        NotificationAllowlist.Settings cleaned = AmbientAccessPanel.reconcilePermissions(legacyAllOn, true);
+        assertTrue(cleaned.notificationsEnabled());
+        assertTrue(cleaned.mediaEnabled());
+        assertTrue(cleaned.calendarEnabled());
+        assertFalse(cleaned.contactsEnabled());
+        assertFalse(cleaned.deviceContextEnabled());
 
         // Null settings fail closed to all-false.
-        NotificationAllowlist.Settings fromNull = AmbientAccessPanel.reconcilePermissions(null, true, true);
-        assertFalse(fromNull.notificationsEnabled());
-        assertFalse(fromNull.mediaEnabled());
-        assertFalse(fromNull.calendarEnabled());
-        assertFalse(fromNull.contactsEnabled());
-        assertFalse(fromNull.deviceContextEnabled());
+        NotificationAllowlist.Settings fromNull = AmbientAccessPanel.reconcilePermissions(null, true);
+        assertEquals(NotificationAllowlist.Settings.ALL_OFF, fromNull);
     }
 }

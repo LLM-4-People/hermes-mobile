@@ -46,7 +46,6 @@ public final class PermissionCenter {
         LOCATION("location", Manifest.permission.ACCESS_COARSE_LOCATION, 4304, false),
         PRECISE_LOCATION("precise_location", Manifest.permission.ACCESS_FINE_LOCATION, 4305, false),
         CALENDAR("calendar", Manifest.permission.READ_CALENDAR, 4306, false),
-        CONTACTS("contacts", Manifest.permission.READ_CONTACTS, 4307, false),
         NOTIFICATION_ACCESS("notification_access", null, 0, true),
         INSTALL_UPDATES("install_updates", null, 0, true);
 
@@ -63,14 +62,13 @@ public final class PermissionCenter {
         }
     }
 
-    /** The 8 user-facing permissions displayed in {@link PermissionsPanel}. */
+    /** The 7 user-facing permissions displayed in {@link PermissionsPanel}. */
     public static final List<Key> PANEL_KEYS = Collections.unmodifiableList(Arrays.asList(
             Key.NOTIFICATIONS,
             Key.CAMERA,
             Key.MICROPHONE,
             Key.LOCATION,
             Key.CALENDAR,
-            Key.CONTACTS,
             Key.NOTIFICATION_ACCESS,
             Key.INSTALL_UPDATES
     ));

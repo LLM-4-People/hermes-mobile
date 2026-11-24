@@ -23,13 +23,13 @@ public final class TemplatesPanelTest extends InstrumentationTestCase {
     public void testRouteRegistrationBuiltInsStarterStripAndEncryptedProfileIsolation() throws Throwable {
         Context context = getInstrumentation().getTargetContext();
 
-        // 1. Route registration under ATELIER.
+        // 1. Route registration under APPS.
         RouteRegistry registry = new RouteRegistry();
         AtomicBoolean opened = new AtomicBoolean(false);
         TemplatesPanel.registerRoute(registry, context, () -> opened.set(true));
-        List<RouteRegistry.Destination> atelier = registry.destinationsIn(RouteRegistry.Section.ATELIER, Set.of());
-        assertEquals(1, atelier.size());
-        assertEquals(TemplatesPanel.ROUTE_ID, atelier.get(0).id());
+        List<RouteRegistry.Destination> apps = registry.destinationsIn(RouteRegistry.Section.APPS, Set.of());
+        assertEquals(1, apps.size());
+        assertEquals(TemplatesPanel.ROUTE_ID, apps.get(0).id());
         assertTrue(registry.dispatch(TemplatesPanel.ROUTE_ID));
         assertTrue(opened.get());
 

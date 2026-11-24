@@ -30,8 +30,6 @@
     <string name="perm_location_desc">Rechercher des lieux à proximité ou partager votre zone uniquement quand vous l’activez.</string>
     <string name="perm_calendar_title">Agenda</string>
     <string name="perm_calendar_desc">Fournir le contexte de vos rendez-vous lorsque l’accès ambiant est activé.</string>
-    <string name="perm_contacts_title">Contacts</string>
-    <string name="perm_contacts_desc">Reconnaître les noms de contacts uniquement lorsque l’option contacts est activée.</string>
     <string name="perm_notification_access_title">Accès aux notifications</string>
     <string name="perm_notification_access_desc">Lire les notifications des applications autorisées pour créer des résumés ou des brouillons.</string>
     <string name="perm_install_updates_title">Installation des mises à jour</string>
@@ -47,7 +45,6 @@
     <string name="perm_settings_unavailable">Impossible d’ouvrir cet écran de réglages sur cet appareil.</string>
 
     <string name="perm_ambient_calendar_denied">L’autorisation agenda est manquante. Autorisez l’agenda ou ouvrez les réglages Android pour activer ce contexte.</string>
-    <string name="perm_ambient_contacts_denied">L’autorisation contacts est manquante. Autorisez les contacts ou ouvrez les réglages Android pour activer ce contexte.</string>
     <string name="perm_location_blocked">L’accès à la position est bloqué par Android. Ouvrez les réglages Android pour l’autoriser.</string>
     <string name="perm_precise_location_unavailable">Cette version d’Hermes utilise uniquement la position approximative par choix de confidentialité.</string>
     <string name="perm_update_install_still_off">L’autorisation d’installation d’applications inconnues est encore désactivée. Ouvrez les réglages pour installer cette mise à jour.</string>

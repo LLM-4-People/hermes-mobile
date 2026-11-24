@@ -47,10 +47,7 @@ public final class AppearanceSettingsModel {
 
     /** Normalize any theme wire string into {@code system|light|dark}. */
     public static String normalizeThemeMode(String raw) {
-        if (raw == null) return THEME_SYSTEM;
-        String lower = raw.trim().toLowerCase(Locale.ROOT);
-        if (THEME_LIGHT.equals(lower) || THEME_DARK.equals(lower)) return lower;
-        return THEME_SYSTEM;
+        return AppThemeMode.normalize(raw);
     }
 
     /** Evaluate a user-typed custom hex color against WCAG 2.1 AA (4.5:1 on light surface). */
