@@ -73,24 +73,25 @@ public final class UiPolishR10RegressionTest extends InstrumentationTestCase {
         Context c = AppLanguage.wrapContext(raw);
 
         Object oldNearby = parseLayout("""
-                {"version":1,"surface":"page/explore","mode":"replace","title":"Explore","blocks":[
-                  {"type":"nearby_places","title":"Places","category":"cafe","radius_m":1500,"limit":12}
+                {"version":2,"surface":"page/explore","mode":"replace","title":"Explore","blocks":[
+                  {"type":"nearby_places","category":"cafe","radius_m":1500,"limit":12}
                 ]}""");
         Object nextNearby = parseLayout("""
-                {"version":1,"surface":"page/explore","mode":"replace","title":"Explore","blocks":[
-                  {"type":"nearby_places","title":"Places","category":"pharmacy","radius_m":1500,"limit":12}
+                {"version":2,"surface":"page/explore","mode":"replace","title":"Explore","blocks":[
+                  {"type":"nearby_places","category":"pharmacy","radius_m":1500,"limit":12}
                 ]}""");
         List<?> nearbyDiffs = invokeInstrumentChangesBetween(c, oldNearby, nextNearby);
-        assertEquals(1, nearbyDiffs.size());
-        assertEquals(NearbyCategory.CAFE.label(c), recordAccessor(nearbyDiffs.get(0), "before"));
-        assertEquals(NearbyCategory.PHARMACY.label(c), recordAccessor(nearbyDiffs.get(0), "after"));
+        Object categoryChange = findChangeByLabel(nearbyDiffs, c.getString(R.string.ws_diff_category));
+        assertNotNull("Expected localized category change row", categoryChange);
+        assertEquals(NearbyCategory.CAFE.label(c), recordAccessor(categoryChange, "before"));
+        assertEquals(NearbyCategory.PHARMACY.label(c), recordAccessor(categoryChange, "after"));
 
         Object oldSpark = parseLayout("""
-                {"version":1,"surface":"page/trend","mode":"replace","title":"Trend","blocks":[
+                {"version":2,"surface":"page/trend","mode":"replace","title":"Trend","blocks":[
                   {"type":"sparkline","title":"Activity","style":"line","values":[1,2,3]}
                 ]}""");
         Object nextSpark = parseLayout("""
-                {"version":1,"surface":"page/trend","mode":"replace","title":"Trend","blocks":[
+                {"version":2,"surface":"page/trend","mode":"replace","title":"Trend","blocks":[
                   {"type":"sparkline","title":"Activity","style":"bar","values":[1,2,3]}
                 ]}""");
         List<?> sparkDiffs = invokeInstrumentChangesBetween(c, oldSpark, nextSpark);
@@ -99,11 +100,11 @@ public final class UiPolishR10RegressionTest extends InstrumentationTestCase {
         assertEquals(c.getString(R.string.ws_sparkline_bar), recordAccessor(sparkDiffs.get(0), "after"));
 
         Object oldMetric = parseLayout("""
-                {"version":1,"surface":"page/kpi","mode":"replace","title":"KPI","blocks":[
+                {"version":2,"surface":"page/kpi","mode":"replace","title":"KPI","blocks":[
                   {"type":"metric_grid","title":"Stats","items":[{"label":"Who","source":"profile.label"}]}
                 ]}""");
         Object nextMetric = parseLayout("""
-                {"version":1,"surface":"page/kpi","mode":"replace","title":"KPI","blocks":[
+                {"version":2,"surface":"page/kpi","mode":"replace","title":"KPI","blocks":[
                   {"type":"metric_grid","title":"Stats","items":[{"label":"Who","source":"thread.title"}]}
                 ]}""");
         List<?> metricDiffs = invokeInstrumentChangesBetween(c, oldMetric, nextMetric);
@@ -117,14 +118,14 @@ public final class UiPolishR10RegressionTest extends InstrumentationTestCase {
         assertTrue(metricDesc.contains(c.getString(R.string.ws_source_profile_label)));
 
         Object oldControls = parseLayout("""
-                {"version":1,"surface":"page/ctrl","mode":"replace","title":"Ctrl","blocks":[
+                {"version":2,"surface":"page/ctrl","mode":"replace","title":"Ctrl","blocks":[
                   {"type":"controls","title":"Options","controls":[
                     {"id":"t1","label":"One","kind":"toggle","default":false},
                     {"id":"c1","label":"Two","kind":"checkbox","default":false}
                   ]}
                 ]}""");
         Object nextControls = parseLayout("""
-                {"version":1,"surface":"page/ctrl","mode":"replace","title":"Ctrl","blocks":[
+                {"version":2,"surface":"page/ctrl","mode":"replace","title":"Ctrl","blocks":[
                   {"type":"controls","title":"Options","controls":[
                     {"id":"s1","label":"Three","kind":"slider","min":0,"max":10,"step":1,"default":5},
                     {"id":"h1","label":"Four","kind":"chips","options":["A","B"],"default":"A"}
@@ -180,7 +181,9 @@ public final class UiPolishR10RegressionTest extends InstrumentationTestCase {
                     Object threadViews = tvCtor.newInstance(activity, voice);
 
                     JSONObject prompt = new JSONObject()
-                            .put("kind", "question")
+                            .put("kind", "clarify")
+                            .put("prompt_id", "q-r10")
+                            .put("execution_generation", 1)
                             .put("question", "Pick options")
                             .put("multi_select", true)
                             .put("choices", new JSONArray().put("Option A").put("Option B"));
@@ -193,10 +196,10 @@ public final class UiPolishR10RegressionTest extends InstrumentationTestCase {
                     assertNotNull("Expected multi-select CheckBox in PromptCard", multiCheck);
                     assertStatefulColors("PromptQuestion CheckBox", multiCheck.getTextColors(), ink, disabledInk);
 
-                    Method conversation = threadViewsCls.getDeclaredMethod("conversation",
-                            Runnable.class, Runnable.class, Runnable.class, Runnable.class, Runnable.class);
-                    conversation.setAccessible(true);
-                    conversation.invoke(threadViews, (Runnable) () -> {}, (Runnable) () -> {},
+                    Method chatMethod = threadViewsCls.getDeclaredMethod("chat",
+                            String.class, Consumer.class, Runnable.class, Runnable.class, Runnable.class);
+                    chatMethod.setAccessible(true);
+                    chatMethod.invoke(threadViews, "", (Consumer<String>) s -> {},
                             (Runnable) () -> {}, (Runnable) () -> {}, (Runnable) () -> {});
                     Field stopField = threadViewsCls.getDeclaredField("stop");
                     stopField.setAccessible(true);
@@ -275,10 +278,11 @@ public final class UiPolishR10RegressionTest extends InstrumentationTestCase {
                             .put("radius_m", 1500)
                             .put("limit", 12)
                             .put("places", new JSONArray().put(new JSONObject()
-                                    .put("id", "node/1")
+                                    .put("osm_type", "node")
+                                    .put("osm_id", 1)
                                     .put("name", "Cafe Test")
-                                    .put("lat", 45.5)
-                                    .put("lon", -73.5)
+                                    .put("latitude", 45.5)
+                                    .put("longitude", -73.5)
                                     .put("distance_m", 120)));
                     NearbyResult nearbyResult = NearbyResult.parse(activity, nearbyJson);
                     NearbyGuide guide = new NearbyGuide(activity, new NearbyGuide.Actions() {
@@ -300,7 +304,7 @@ public final class UiPolishR10RegressionTest extends InstrumentationTestCase {
 
                     // 6. InteractiveControlsBlock disabled preview stateful colors & StateListDrawable (R10.5.3)
                     Object ctrlLayout = parseLayout("""
-                            {"version":1,"surface":"page/ctrl-ui","mode":"replace","title":"Controls","blocks":[
+                            {"version":2,"surface":"page/ctrl-ui","mode":"replace","title":"Controls","blocks":[
                               {"type":"controls","title":"Prefs","controls":[
                                 {"id":"sw1","label":"Switch","kind":"toggle","default":true},
                                 {"id":"cb1","label":"Check","kind":"checkbox","default":false},
@@ -399,6 +403,13 @@ public final class UiPolishR10RegressionTest extends InstrumentationTestCase {
         Method m = cls.getDeclaredMethod("describe", Context.class, blockCls);
         m.setAccessible(true);
         return (String) m.invoke(null, c, block);
+    }
+
+    private static Object findChangeByLabel(List<?> changes, String expectedLabel) throws Exception {
+        for (Object change : changes) {
+            if (expectedLabel.equals(recordAccessor(change, "label"))) return change;
+        }
+        return null;
     }
 
     private static Object recordAccessor(Object target, String name) throws Exception {
