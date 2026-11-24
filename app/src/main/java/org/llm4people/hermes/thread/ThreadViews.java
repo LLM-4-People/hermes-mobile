@@ -121,7 +121,7 @@ public final class ThreadViews {
         list.setDivider(null);
         list.setClipToPadding(false);
         notice = Ui.column(activity);
-        notice.setBackground(Ui.shape(activity, Ui.CARD_CORNER_DP, R.color.warning_surface, 0, 0));
+        notice.setBackground(Ui.shape(activity, Ui.CARD_CORNER_DP, R.color.surface_container, 0, 0));
         Ui.pad(notice, 14, 10);
         noticeSlot = Ui.column(activity);
         LinearLayout.LayoutParams noticeLp = new LinearLayout.LayoutParams(-1, -2);
@@ -945,6 +945,8 @@ public final class ThreadViews {
 
     void notice(String message, String label, Runnable action) {
         notice.setVisibility(message.isEmpty() ? View.GONE : View.VISIBLE);
+        notice.setBackground(Ui.shape(activity, Ui.CARD_CORNER_DP,
+                action != null ? R.color.warning_surface : R.color.surface_container, 0, 0));
         status.setText(message);
         remedy.setVisibility(action == null ? View.GONE : View.VISIBLE);
         remedy.setText(label);

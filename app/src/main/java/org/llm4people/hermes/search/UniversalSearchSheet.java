@@ -115,7 +115,7 @@ public final class UniversalSearchSheet implements AutoCloseable {
     }
 
     private void present() {
-        dialog = new Dialog(activity, android.R.style.Theme_DeviceDefault_NoActionBar);
+        dialog = new Dialog(activity, R.style.Theme_Hermes);
         Window window = dialog.getWindow();
         if (window != null) {
             window.addFlags(WindowManager.LayoutParams.FLAG_SECURE);
@@ -359,10 +359,10 @@ public final class UniversalSearchSheet implements AutoCloseable {
     private void prefetchRemoteCatalog() {
         if (closed || api == null || catalogLoaded) return;
         io.execute(() -> {
-            if (closed) return;
+            if (closed || catalogLoaded) return;
             CatalogFetch fetch = fetchCatalogSafe();
             if (closed) return;
-            catalogLoaded = true;
+            catalogLoaded = !fetch.degraded;
             main.post(() -> {
                 if (closed) return;
                 session.updateRemoteCatalog(fetch.notes, fetch.shared);

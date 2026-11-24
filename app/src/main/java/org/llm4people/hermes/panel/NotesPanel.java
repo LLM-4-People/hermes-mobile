@@ -230,6 +230,8 @@ final class NotesPanel {
 
     private View noteCard(NotesModel.Note note) {
         LinearLayout card = Ui.card(panel.activity);
+        card.setBackground(Ui.roundedRipple(panel.activity, Ui.CARD_CORNER_DP,
+                Ui.shape(panel.activity, Ui.CARD_CORNER_DP, R.color.surface, R.color.line, 1)));
         card.setFocusable(true);
         card.setClickable(true);
         card.setContentDescription(panel.t(R.string.notes_open_note_cd, note.displayTitle(panel.activity)));
@@ -284,27 +286,36 @@ final class NotesPanel {
         }
 
         LinearLayout actions = Ui.row(panel.activity);
+        int actionGap = Ui.dp(panel.activity, 8);
         if (stageDraft != null && activeThread.getAsBoolean()) {
-            actions.addView(Ui.button(panel.activity, panel.t(R.string.brain_skills_use_in_thread), v -> {
+            addActionButton(actions, Ui.button(panel.activity, panel.t(R.string.brain_skills_use_in_thread), v -> {
                 panel.close();
                 stageDraft.accept(NotesModel.draftPromptForNote(panel.activity, note));
-            }));
+            }), actionGap);
         }
         if (note.canEdit()) {
-            actions.addView(Ui.button(panel.activity, panel.t(R.string.panel_edit), v -> openEditor(note)));
+            addActionButton(actions, Ui.button(panel.activity, panel.t(R.string.panel_edit), v -> openEditor(note)), actionGap);
         }
         if (note.canShare() && (capabilities.universalSharing() || capabilities.noteSharing())) {
-            actions.addView(Ui.button(panel.activity, panel.t(R.string.brain_share_action),
+            addActionButton(actions, Ui.button(panel.activity, panel.t(R.string.brain_share_action),
                     v -> ShareWithUserSheet.openShareSheet(panel, UniversalShareModel.KIND_NOTE,
-                            note.id(), note.displayTitle(panel.activity), this::show)));
+                            note.id(), note.displayTitle(panel.activity), this::show)), actionGap);
         }
         if (note.canDelete()) {
             Button del = Ui.button(panel.activity, panel.t(R.string.panel_delete), v -> confirmDelete(note));
-            del.setTextColor(panel.activity.getColor(R.color.danger));
-            actions.addView(del);
+            del.setTextColor(new android.content.res.ColorStateList(
+                    new int[][]{new int[]{-android.R.attr.state_enabled}, new int[]{}},
+                    new int[]{panel.activity.getColor(R.color.disabled_ink), panel.activity.getColor(R.color.danger)}));
+            addActionButton(actions, del, actionGap);
         }
         if (actions.getChildCount() > 0) card.addView(BrainUi.chipBar(panel.activity, actions));
         return card;
+    }
+
+    private static void addActionButton(LinearLayout actions, Button button, int gapPx) {
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
+        if (actions.getChildCount() > 0) lp.setMarginStart(gapPx);
+        actions.addView(button, lp);
     }
 
     private void openReader(NotesModel.Note note) {

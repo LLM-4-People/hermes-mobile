@@ -114,6 +114,7 @@ public final class ThreadWorkspace implements AutoCloseable {
     private JSONArray sharedInbox = new JSONArray();
     private boolean sharedLoaded, sharedLoading, sharedUnavailable;
     private int sharedLoadEpoch;
+    private int sharedOpenEpoch;
     private final ThreadTailCache tailCache = new ThreadTailCache();
     private final long tailCacheEpoch;
     private final InfiniteTranscriptWindow<JSONObject> transcriptWindow = InfiniteTranscriptWindow.forJson();
@@ -491,6 +492,7 @@ public final class ThreadWorkspace implements AutoCloseable {
         if (closed) return;
         ThreadInboxFilter.Filter target = next == null ? ThreadInboxFilter.Filter.ALL : next;
         if (inboxFilter == target) return;
+        sharedOpenEpoch++;
         inboxFilter = target;
         index.setInboxFilter(target);
         if (target == ThreadInboxFilter.Filter.SHARED) {
@@ -550,12 +552,17 @@ public final class ThreadWorkspace implements AutoCloseable {
     }
 
     private void openSharedThread(JSONObject row) {
+        if (closed) return;
         String shareId = ThreadInboxFilter.shareId(row);
         if (shareId.isEmpty()) return;
+        int openEpoch = ++sharedOpenEpoch;
         String label = ThreadData.title(activity, row);
         index.notice(activity.getString(R.string.thread_filter_shared_loading), "", null);
         request(() -> api.get("/api/shares/incoming/" + HermesApi.segment(shareId) + "/content"),
                 reply -> {
+                    if (closed || openEpoch != sharedOpenEpoch || inboxFilter != ThreadInboxFilter.Filter.SHARED) {
+                        return;
+                    }
                     indexNotice();
                     String content = ThreadInboxFilter.extractSharedContent(
                             reply,
@@ -570,6 +577,9 @@ public final class ThreadWorkspace implements AutoCloseable {
                     }
                     index.show(reader);
                 }, failure -> {
+                    if (closed || openEpoch != sharedOpenEpoch || inboxFilter != ThreadInboxFilter.Filter.SHARED) {
+                        return;
+                    }
                     Diagnostics.warning("threads", "shared_session_open_failed", failure);
                     index.notice(activity.getString(R.string.thread_shared_open_failed),
                             activity.getString(R.string.instrument_retry), () -> openSharedThread(row));

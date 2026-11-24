@@ -216,4 +216,40 @@ public final class UniversalSearchModelTest {
         assertTrue(UniversalSearchModel.parseNotesResultsMap(null, "Untitled").isEmpty());
         assertTrue(UniversalSearchModel.parseSharedResultsMap(null).isEmpty());
     }
+
+    @Test
+    public void uiContractsEnforceThemeHermesOfflineRetryEpochAndNoticePolarity() throws Exception {
+        java.nio.file.Path cwd = java.nio.file.Path.of("").toAbsolutePath();
+        java.nio.file.Path root = java.nio.file.Files.isDirectory(cwd.resolve("app/src/main/java"))
+                ? cwd : cwd.getParent();
+
+        String sheet = readUtf8(root.resolve(
+                "app/src/main/java/org/llm4people/hermes/search/UniversalSearchSheet.java"));
+        assertTrue(sheet.contains("new Dialog(activity, R.style.Theme_Hermes)"));
+        assertFalse(sheet.contains("Theme_DeviceDefault_NoActionBar"));
+        assertTrue(sheet.contains("catalogLoaded = !fetch.degraded;"));
+        assertFalse(sheet.contains("catalogLoaded = true;"));
+
+        String model = readUtf8(root.resolve(
+                "app/src/main/java/org/llm4people/hermes/search/UniversalSearchModel.java"));
+        assertTrue(model.contains("private volatile int epoch;"));
+
+        String threadViews = readUtf8(root.resolve(
+                "app/src/main/java/org/llm4people/hermes/thread/ThreadViews.java"));
+        assertTrue(threadViews.contains("action != null ? R.color.warning_surface : R.color.surface_container"));
+
+        String threadWorkspace = readUtf8(root.resolve(
+                "app/src/main/java/org/llm4people/hermes/thread/ThreadWorkspace.java"));
+        assertTrue(threadWorkspace.contains("int openEpoch = ++sharedOpenEpoch;"));
+        assertTrue(threadWorkspace.contains("if (closed || openEpoch != sharedOpenEpoch || inboxFilter != ThreadInboxFilter.Filter.SHARED)"));
+
+        String notesPanel = readUtf8(root.resolve(
+                "app/src/main/java/org/llm4people/hermes/panel/NotesPanel.java"));
+        assertTrue(notesPanel.contains("Ui.roundedRipple(panel.activity, Ui.CARD_CORNER_DP"));
+        assertTrue(notesPanel.contains("R.color.disabled_ink), panel.activity.getColor(R.color.danger)"));
+    }
+
+    private static String readUtf8(java.nio.file.Path path) throws Exception {
+        return new String(java.nio.file.Files.readAllBytes(path), java.nio.charset.StandardCharsets.UTF_8);
+    }
 }

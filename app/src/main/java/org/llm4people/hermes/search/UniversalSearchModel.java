@@ -127,7 +127,7 @@ public final class UniversalSearchModel {
         private final List<LocalEntry> localEntries;
         private String activeQuery = "";
         private Category activeCategory = Category.ALL;
-        private int epoch;
+        private volatile int epoch;
         private boolean remoteLoading;
         private boolean remoteDegraded;
         private List<Result> remoteSessionHits = Collections.emptyList();
