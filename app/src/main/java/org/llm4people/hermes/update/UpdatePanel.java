@@ -39,7 +39,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Native bilingual GitHub release update panel mounted under Activité ({@link #ROUTE_ID}).
+ * Native bilingual GitHub release update panel mounted under Settings ({@link #ROUTE_ID}).
  * Checks GitHub Releases without transmitting profile data, displays release notes, APK size,
  * and verified SHA-256 status, downloads and verifies checksum + signing certificate off the UI
  * thread, and hands off to the native Android package installer.
@@ -106,7 +106,7 @@ public final class UpdatePanel {
                 open));
     }
 
-    /** Format the non-intrusive Activité badge text when a newer signed release is available, or null. */
+    /** Format the non-intrusive Settings badge text when a newer signed release is available, or null. */
     public static String badgeLabel(Context context, UpdateCheckCoordinator.BadgeState state) {
         if (context == null || state == null || !state.updateAvailable() || state.latestTag().isEmpty()) {
             return null;

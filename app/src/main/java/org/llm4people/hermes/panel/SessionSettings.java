@@ -432,7 +432,7 @@ final class SessionSettings {
         view.setText(label);
         view.setTextSize(16);
         view.setSingleLine(false);
-        view.setTextColor(panel.activity.getColor(enabled ? R.color.ink : R.color.muted));
+        view.setTextColor(Ui.enabledDisabledInk(panel.activity, R.color.ink));
         view.setButtonTintList(panel.activity.getColorStateList(R.color.discussion_tool_check));
         view.setChecked(checked);
         view.setEnabled(enabled);

@@ -1,6 +1,7 @@
 package org.llm4people.hermes.artifact;
 
 import android.content.Context;
+import android.content.res.ColorStateList;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.text.Editable;
@@ -24,6 +25,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import org.llm4people.hermes.AppLanguage;
+import org.llm4people.hermes.R;
 import java.util.Set;
 import org.llm4people.hermes.Ui;
 
@@ -97,7 +99,6 @@ public final class DataTableBlock {
 
         public int sortColumn() { return sortColumn; }
         public boolean ascending() { return ascending; }
-        public String filterQuery() { return filterQuery; }
 
         public void toggleSort(int columnIndex) {
             if (!sortable || columnIndex < 0 || columnIndex >= columns.size()) return;
@@ -278,7 +279,7 @@ public final class DataTableBlock {
 
         if (model.filterable && host != null) {
             EditText search = WorkspaceForms.editor(context, false, 80, colors);
-            search.setHint(org.llm4people.hermes.R.string.ws_table_filter_hint);
+            search.setHint(R.string.ws_table_filter_hint);
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
             lp.bottomMargin = Ui.dp(context, 8);
             container.addView(search, lp);
@@ -316,35 +317,48 @@ public final class DataTableBlock {
         for (int i = 0; i < model.columns.size(); i++) {
             int colIndex = i;
             Column col = model.columns.get(i);
+            int gravity = (col.numeric ? Gravity.END : Gravity.START) | Gravity.CENTER_VERTICAL;
+            if (!model.sortable) {
+                TextView head = Ui.text(c, col.label, colors.scaledSp(14));
+                head.setTextColor(colors.ink);
+                head.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+                head.setGravity(gravity);
+                head.setMinimumWidth(colWidth);
+                head.setMinWidth(colWidth);
+                head.setMinimumHeight(Ui.dp(c, 48));
+                Ui.pad(head, 10, 6);
+                headerRow.addView(head, new LinearLayout.LayoutParams(0, -2, 1f));
+                continue;
+            }
             boolean activeSort = model.sortColumn() == i;
             Button head = Ui.button(c, col.label, v -> {
                 model.toggleSort(colIndex);
                 renderTable(c, tableBody, model, colors, host);
             });
-            head.setEnabled(model.sortable);
-            head.setTextColor(activeSort ? colors.accent : colors.ink);
+            head.setTextColor(new ColorStateList(
+                    new int[][]{new int[]{-android.R.attr.state_enabled}, new int[]{}},
+                    new int[]{colors.muted, activeSort ? colors.accent : colors.ink}));
             head.setTextSize(colors.scaledSp(14));
             head.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
             head.setCompoundDrawablesRelativeWithIntrinsicBounds(0, 0,
                     activeSort ? (model.ascending() ? android.R.drawable.arrow_up_float : android.R.drawable.arrow_down_float) : 0,
                     0);
             if (activeSort) {
-                head.setCompoundDrawableTintList(android.content.res.ColorStateList.valueOf(colors.accent));
+                head.setCompoundDrawableTintList(new ColorStateList(
+                        new int[][]{new int[]{-android.R.attr.state_enabled}, new int[]{}},
+                        new int[]{colors.muted, colors.accent}));
                 head.setCompoundDrawablePadding(Ui.dp(c, 4));
             }
-            head.setGravity((col.numeric ? Gravity.END : Gravity.START) | Gravity.CENTER_VERTICAL);
+            head.setGravity(gravity);
             head.setMinimumWidth(colWidth);
             head.setMinWidth(colWidth);
             Ui.pad(head, 10, 6);
-            if (model.sortable) {
-                String state = model.sortColumn() == i
-                        ? c.getString(model.ascending()
-                                ? org.llm4people.hermes.R.string.ws_table_sort_asc
-                                : org.llm4people.hermes.R.string.ws_table_sort_desc)
-                        : "";
-                head.setContentDescription(c.getString(org.llm4people.hermes.R.string.ws_table_column_a11y,
-                        col.label, state));
-            }
+            String state = activeSort
+                    ? c.getString(model.ascending()
+                            ? R.string.ws_table_sort_asc
+                            : R.string.ws_table_sort_desc)
+                    : "";
+            head.setContentDescription(c.getString(R.string.ws_table_column_a11y, col.label, state));
             headerRow.addView(head, new LinearLayout.LayoutParams(0, -2, 1f));
         }
         tableBody.addView(headerRow);
@@ -352,7 +366,7 @@ public final class DataTableBlock {
 
         List<List<String>> rows = model.visibleRows(AppLanguage.resolvedLocale(c));
         if (rows.isEmpty()) {
-            TextView empty = Ui.text(c, c.getString(org.llm4people.hermes.R.string.ws_table_empty), colors.scaledSp(14));
+            TextView empty = Ui.text(c, c.getString(R.string.ws_table_empty), colors.scaledSp(14));
             empty.setTextColor(colors.muted);
             Ui.pad(empty, 12, 10);
             tableBody.addView(empty);
@@ -380,7 +394,7 @@ public final class DataTableBlock {
                 rowView.setClickable(true);
                 rowView.setFocusable(true);
                 rowView.setOnClickListener(v -> host.stageDraft(model.draftForRow(row)));
-                rowView.setContentDescription(c.getString(org.llm4people.hermes.R.string.ws_table_row_draft_a11y,
+                rowView.setContentDescription(c.getString(R.string.ws_table_row_draft_a11y,
                         String.join(", ", row)));
             }
             tableBody.addView(rowView);

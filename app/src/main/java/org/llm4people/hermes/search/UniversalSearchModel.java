@@ -69,11 +69,6 @@ public final class UniversalSearchModel {
             return new LocalEntry("chat:" + safeId, Category.CHATS, title, preview, "", safeId, "", recent);
         }
 
-        public static LocalEntry note(String noteId, String title, String preview) {
-            String safeId = safe(noteId);
-            return new LocalEntry("note:" + safeId, Category.NOTES, title, preview, "", safeId, "", false);
-        }
-
         public static LocalEntry setting(String actionId, String title, String subtitle, String keywords) {
             String safeAction = safe(actionId);
             return new LocalEntry("setting:" + safeAction, Category.SETTINGS, title, subtitle, keywords, "", safeAction, false);

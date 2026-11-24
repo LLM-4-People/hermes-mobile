@@ -231,7 +231,6 @@ public final class InfiniteTranscriptWindow<T> {
     }
 
     public synchronized int size() { return rows.size(); }
-    public synchronized int maxWindowRows() { return maxWindowRows; }
     public synchronized boolean isEmpty() { return rows.isEmpty(); }
     public synchronized boolean hasOlder() { return hasOlder; }
     public synchronized boolean hasNewer() { return hasNewer; }
@@ -239,7 +238,6 @@ public final class InfiniteTranscriptWindow<T> {
     public synchronized Long oldestId() { return oldestId; }
     public synchronized Long newestId() { return newestId; }
     public synchronized int totalCount() { return totalCount; }
-    public synchronized int legacyOffset() { return legacyOffset; }
 
     private int trimTopIfNeeded() {
         int trimmed = 0;

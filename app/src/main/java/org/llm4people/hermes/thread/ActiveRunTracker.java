@@ -134,10 +134,6 @@ public final class ActiveRunTracker {
         return tasks.size();
     }
 
-    public synchronized boolean isActive(String sessionId) {
-        return sessionId != null && tasks.containsKey(sessionId);
-    }
-
     /** Update or remove the foreground session's run progress. Pure and deterministic for JVM tests. */
     public synchronized boolean updateForeground(String sessionId, String runId, LiveRunNotification.Snapshot next) {
         if (sessionId == null || sessionId.isEmpty()) return false;

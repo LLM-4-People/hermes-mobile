@@ -45,10 +45,6 @@ public final class HermesWidgetProvider extends AppWidgetProvider {
         return active ? R.string.widget_status_working : R.string.widget_status_private;
     }
 
-    public static String statusText(Context context, boolean active) {
-        return AppLanguage.wrapContext(context).getString(statusTextRes(active));
-    }
-
     @Override public void onReceive(Context context, Intent intent) {
         super.onReceive(context, intent);
         if (context == null || intent == null || intent.getAction() == null) return;

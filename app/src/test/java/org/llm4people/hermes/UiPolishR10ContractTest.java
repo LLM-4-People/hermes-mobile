@@ -1,0 +1,112 @@
+package org.llm4people.hermes;
+
+import org.junit.Test;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+
+/**
+ * Pure-JVM regression contract tests for Triple-Check Round 10 PR 3:
+ * - R10.1.1 / R10.5.6: InstrumentChanges localized labels & FR/EN string keys (no raw wire tokens / Unicode arrow).
+ * - R10.4.4: Zero redundant org.llm4people.hermes.R FQNs in InteractiveControlsBlock, DataTableBlock, LiveUiPatchBar.
+ * - R10.4.5: All 21 confirmed zero-caller production declarations stay removed.
+ * - R10.7.1: All 7 Javadocs accurately reflect RouteRegistry.Section mounts (Apps / Notes & Tasks / Settings).
+ */
+public final class UiPolishR10ContractTest {
+
+    private static String read(String relPath) throws IOException {
+        Path direct = Paths.get(relPath);
+        Path target = Files.exists(direct) ? direct : Paths.get("app", relPath);
+        return new String(Files.readAllBytes(target), StandardCharsets.UTF_8);
+    }
+
+    @Test
+    public void instrumentChangesAndStringsLocalizeAllDiffValues() throws IOException {
+        String changes = read("src/main/java/org/llm4people/hermes/artifact/InstrumentChanges.java");
+        assertFalse("InstrumentChanges must not hardcode raw 'source=' prefix", changes.contains("\"source=\""));
+        assertFalse("InstrumentChanges must not hardcode raw Unicode arrow", changes.contains("\" → \""));
+        assertTrue(changes.contains("R.string.ws_diff_section_renamed"));
+        assertTrue(changes.contains("NearbyCategory.fromId("));
+        assertTrue(changes.contains("kindLabelRes()"));
+        assertTrue(changes.contains("WorkspaceBlocks.sourceLabel("));
+        assertTrue(changes.contains("R.string.ws_diff_ctrl_toggle"));
+        assertTrue(changes.contains("R.string.ws_diff_ctrl_checkbox"));
+        assertTrue(changes.contains("R.string.ws_diff_ctrl_slider"));
+        assertTrue(changes.contains("R.string.ws_diff_ctrl_chips"));
+
+        String fr = read("src/main/res/values/i18n_workspace_strings.xml");
+        String en = read("src/main/res/values-en/i18n_workspace_strings.xml");
+        for (String key : new String[]{
+                "ws_diff_section_renamed",
+                "ws_diff_ctrl_toggle",
+                "ws_diff_ctrl_checkbox",
+                "ws_diff_ctrl_slider",
+                "ws_diff_ctrl_chips"
+        }) {
+            assertTrue("FR missing " + key, fr.contains("name=\"" + key + "\""));
+            assertTrue("EN missing " + key, en.contains("name=\"" + key + "\""));
+        }
+    }
+
+    @Test
+    public void noMaskedRImportFqnsInArtifactViews() throws IOException {
+        for (String rel : new String[]{
+                "src/main/java/org/llm4people/hermes/artifact/InteractiveControlsBlock.java",
+                "src/main/java/org/llm4people/hermes/artifact/DataTableBlock.java",
+                "src/main/java/org/llm4people/hermes/artifact/LiveUiPatchBar.java"
+        }) {
+            String src = read(rel);
+            assertTrue(rel + " must import org.llm4people.hermes.R",
+                    src.contains("import org.llm4people.hermes.R;"));
+            assertFalse(rel + " must not use redundant org.llm4people.hermes.R. FQN",
+                    src.contains("org.llm4people.hermes.R."));
+        }
+    }
+
+    @Test
+    public void deadDeclarationsRemainRemoved() throws IOException {
+        assertFalse(read("src/main/java/org/llm4people/hermes/panel/SearchResultModel.java").contains("MAX_LIMIT"));
+        assertFalse(read("src/main/java/org/llm4people/hermes/os/HermesWidgetProvider.java").contains("String statusText("));
+        assertFalse(read("src/main/java/org/llm4people/hermes/thread/ThreadData.java").contains("int pageSize("));
+        assertFalse(read("src/main/java/org/llm4people/hermes/customization/AppCustomizationStore.java").contains("void wipe("));
+        assertFalse(read("src/main/java/org/llm4people/hermes/customization/AppCustomizationStore.java").contains("#wipe("));
+        assertFalse(read("src/main/java/org/llm4people/hermes/presence/PresencePolicy.java").contains("void wipe("));
+        assertFalse(read("src/main/java/org/llm4people/hermes/search/UniversalSearchModel.java").contains("LocalEntry note("));
+        assertFalse(read("src/main/java/org/llm4people/hermes/thread/LiveTranscript.java").contains("coalescer("));
+        assertFalse(read("src/main/java/org/llm4people/hermes/camera/ThreadCameraCapture.java").contains("Uri pendingSlot("));
+        assertFalse(read("src/main/java/org/llm4people/hermes/artifact/DataTableBlock.java").contains("String filterQuery("));
+        assertFalse(read("src/main/java/org/llm4people/hermes/push/PushPolicy.java").contains("enabledCategories()"));
+        assertFalse(read("src/main/java/org/llm4people/hermes/thread/InfiniteTranscriptWindow.java").contains("int maxWindowRows()"));
+        assertFalse(read("src/main/java/org/llm4people/hermes/thread/InfiniteTranscriptWindow.java").contains("int legacyOffset()"));
+        assertFalse(read("src/main/java/org/llm4people/hermes/thread/TranscriptCellCache.java").contains("int capacity()"));
+        assertFalse(read("src/main/java/org/llm4people/hermes/presence/AppPresenceTracker.java").contains("long currentEpoch()"));
+        assertFalse(read("src/main/java/org/llm4people/hermes/presence/AppPresenceTracker.java").contains("String boundProfileId()"));
+        assertFalse(read("src/main/java/org/llm4people/hermes/presence/PresenceSettingsPanel.java").contains("PresencePolicy currentPolicy()"));
+        assertFalse(read("src/main/java/org/llm4people/hermes/perf/StreamCoalescer.java").contains("StreamCoalescer(Consumer<String>"));
+        assertFalse(read("src/main/java/org/llm4people/hermes/perf/StreamCoalescer.java").contains("long frameBudgetMs()"));
+        assertFalse(read("src/main/java/org/llm4people/hermes/thread/ActiveRunTracker.java").contains("boolean isActive("));
+        assertFalse(read("src/main/java/org/llm4people/hermes/thread/ThreadTailCache.java").contains("String activeProfileId()"));
+        assertFalse(read("src/main/java/org/llm4people/hermes/onboarding/QrCodeView.java").contains("QrCodeMatrix matrix()"));
+    }
+
+    @Test
+    public void sectionJavadocsMatchRouteRegistry() throws IOException {
+        assertTrue(read("src/main/java/org/llm4people/hermes/templates/TemplatesPanel.java").contains("under Apps"));
+        assertTrue(read("src/main/java/org/llm4people/hermes/update/UpdatePanel.java").contains("under Settings"));
+        assertTrue(read("src/main/java/org/llm4people/hermes/update/UpdatePanel.java").contains("non-intrusive Settings badge"));
+        assertTrue(read("src/main/java/org/llm4people/hermes/update/UpdateCheckCoordinator.java").contains("badge state for Settings"));
+        assertTrue(read("src/main/java/org/llm4people/hermes/doctor/ConnectionDoctorPanel.java").contains("under Settings"));
+        assertTrue(read("src/main/java/org/llm4people/hermes/push/DeliveryRouter.java")
+                .contains("Native delivery inbox (Notes &amp; Tasks) and push policy (Settings)"));
+        assertTrue(read("src/main/java/org/llm4people/hermes/panel/NotesPanel.java").contains("under Notes &amp; Tasks"));
+        String share = read("src/main/java/org/llm4people/hermes/panel/ShareWithUserSheet.java");
+        assertTrue(share.contains("Custom Screens/Tools (Apps)"));
+        assertTrue(share.contains("under Notes &amp; Tasks"));
+    }
+}

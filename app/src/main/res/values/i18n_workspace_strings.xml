@@ -209,6 +209,7 @@
     <string name="ws_diff_section_added">Rubrique ajoutée</string>
     <string name="ws_diff_section_removed">Rubrique retirée</string>
     <string name="ws_diff_section_title">Titre de la rubrique</string>
+    <string name="ws_diff_section_renamed">%1$s vers %2$s</string>
     <string name="ws_diff_transmitted_data">Données transmises</string>
     <string name="ws_diff_destination">Destination</string>
     <string name="ws_diff_displayed_value">Valeur affichée</string>
@@ -258,6 +259,10 @@
     <string name="ws_diff_chips_multi">%1$s · multiple</string>
     <string name="ws_diff_checked_default">activé par défaut</string>
     <string name="ws_diff_unchecked_default">désactivé par défaut</string>
+    <string name="ws_diff_ctrl_toggle">Interrupteur</string>
+    <string name="ws_diff_ctrl_checkbox">Case à cocher</string>
+    <string name="ws_diff_ctrl_slider">Curseur</string>
+    <string name="ws_diff_ctrl_chips">Choix</string>
     <string name="ws_diff_block_ordinal">%1$s (n° %2$d)</string>
     <string name="ws_diff_kind_multiline">Texte long</string>
     <string name="ws_diff_kind_choice">Choix</string>

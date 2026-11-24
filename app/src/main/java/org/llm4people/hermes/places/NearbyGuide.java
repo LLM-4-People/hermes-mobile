@@ -342,9 +342,7 @@ public final class NearbyGuide extends LinearLayout {
             top.setMinimumHeight(dp(48));
             top.setTag("places-row-" + place.id);
             top.setFocusable(true);
-            android.util.TypedValue appearance = new android.util.TypedValue();
-            getContext().getTheme().resolveAttribute(android.R.attr.selectableItemBackground, appearance, true);
-            top.setForeground(getContext().getDrawable(appearance.resourceId));
+            top.setForeground(Ui.roundedRipple(getContext(), 7, null));
             marker = text(Integer.toString(index + 1), 14, R.color.muted);
             marker.setTypeface(Ui.mediumTypeface());
             marker.setFontFeatureSettings("tnum");

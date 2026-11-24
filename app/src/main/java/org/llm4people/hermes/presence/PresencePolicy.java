@@ -174,17 +174,6 @@ public final class PresencePolicy {
         Diagnostics.event("presence", "policy_saved");
     }
 
-    /** Atomic removal during profile forget/wipe. */
-    public static void wipe(Account account) {
-        if (account == null) return;
-        try {
-            account.remove(VAULT_KEY);
-            Diagnostics.debug("presence", "policy_wiped");
-        } catch (RuntimeException ignoredIfLocked) {
-            Diagnostics.warning("presence", "policy_wipe_skipped");
-        }
-    }
-
     private static int clamp(int value, int min, int max) {
         return Math.max(min, Math.min(max, value));
     }

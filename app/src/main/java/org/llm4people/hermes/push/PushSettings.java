@@ -219,7 +219,7 @@ final class PushSettings {
         Switch toggle = new Switch(activity);
         toggle.setText(label);
         toggle.setTextSize(15);
-        toggle.setTextColor(activity.getColor(R.color.ink));
+        toggle.setTextColor(Ui.enabledDisabledInk(activity, R.color.ink));
         toggle.setChecked(checked);
         toggle.setMinHeight(Ui.dp(activity, 48));
         return toggle;
@@ -279,7 +279,6 @@ final class PushSettings {
             startButton.setEnabled(enabled);
             endButton.setEnabled(enabled);
             highToggle.setEnabled(enabled);
-            highToggle.setTextColor(activity.getColor(enabled ? R.color.ink : R.color.disabled_ink));
             highHint.setTextColor(activity.getColor(enabled ? R.color.muted : R.color.disabled_ink));
         };
 

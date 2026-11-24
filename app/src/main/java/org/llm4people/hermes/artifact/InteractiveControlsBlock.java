@@ -2,8 +2,10 @@ package org.llm4people.hermes.artifact;
 
 import android.app.Activity;
 import android.content.Context;
+import android.content.res.ColorStateList;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.StateListDrawable;
 import android.util.JsonReader;
 import android.util.JsonToken;
 import android.view.Gravity;
@@ -182,8 +184,8 @@ public final class InteractiveControlsBlock {
                 case "toggle", "checkbox" -> {
                     boolean checked = val instanceof Boolean b ? b : ctrl.defaultChecked;
                     rendered = context.getString(checked
-                            ? org.llm4people.hermes.R.string.ws_yes
-                            : org.llm4people.hermes.R.string.ws_no);
+                            ? R.string.ws_yes
+                            : R.string.ws_no);
                 }
                 case "slider" -> {
                     double num = val instanceof Number n && Double.isFinite(n.doubleValue()) ? n.doubleValue() : ctrl.defaultNumber;
@@ -192,7 +194,7 @@ public final class InteractiveControlsBlock {
                 case "chips" -> {
                     List<String> selected = asStringList(val, ctrl.defaultSelected);
                     rendered = selected.isEmpty()
-                            ? context.getString(org.llm4people.hermes.R.string.ws_none)
+                            ? context.getString(R.string.ws_none)
                             : String.join(", ", selected);
                 }
                 default -> rendered = "";
@@ -242,7 +244,7 @@ public final class InteractiveControlsBlock {
         }
 
         if (interactive && block.prompt != null && !block.prompt.isEmpty()) {
-            Button prepare = Ui.button(c, c.getString(org.llm4people.hermes.R.string.ws_form_prepare_draft), v -> {
+            Button prepare = Ui.button(c, c.getString(R.string.ws_form_prepare_draft), v -> {
                 String draft = composeSummary(c, block.prompt, block.controls, state);
                 WorkspaceForms.reviewDraft(activity, host, draft);
             });
@@ -251,12 +253,18 @@ public final class InteractiveControlsBlock {
             fill.setColor(colors.accentSurface);
             fill.setCornerRadius(Ui.dp(c, Ui.BUTTON_CORNER_DP));
             prepare.setBackground(Ui.roundedRipple(c, Ui.BUTTON_CORNER_DP, fill));
-            prepare.setTextColor(colors.accent);
+            prepare.setTextColor(statefulColor(colors.accent, colors.muted));
             Ui.pad(prepare, 16, 8);
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
             lp.topMargin = Ui.dp(c, 10);
             group.addView(prepare, lp);
         }
+    }
+
+    private static ColorStateList statefulColor(int enabledColor, int disabledColor) {
+        return new ColorStateList(
+                new int[][]{new int[]{-android.R.attr.state_enabled}, new int[]{}},
+                new int[]{disabledColor, enabledColor});
     }
 
     private static void addToggle(LinearLayout group, Control ctrl, Map<String, Object> state,
@@ -268,7 +276,7 @@ public final class InteractiveControlsBlock {
         Switch sw = new Switch(c);
         sw.setText(ctrl.label);
         sw.setTextSize(colors.scaledSp(16));
-        sw.setTextColor(colors.ink);
+        sw.setTextColor(statefulColor(colors.ink, colors.muted));
         sw.setMinHeight(Ui.dp(c, 48));
         sw.setChecked(checked);
         sw.setEnabled(interactive);
@@ -292,7 +300,7 @@ public final class InteractiveControlsBlock {
         CheckBox box = new CheckBox(c);
         box.setText(ctrl.label);
         box.setTextSize(colors.scaledSp(16));
-        box.setTextColor(colors.ink);
+        box.setTextColor(statefulColor(colors.ink, colors.muted));
         box.setMinHeight(Ui.dp(c, 48));
         box.setChecked(checked);
         box.setEnabled(interactive);
@@ -388,25 +396,34 @@ public final class InteractiveControlsBlock {
         List<Button> chipButtons = new ArrayList<>();
         List<String> mutableSelected = new ArrayList<>(selected);
         Runnable restyle = () -> {
+            int radiusPx = Ui.dp(c, Ui.BUTTON_CORNER_DP);
+            int strokePx = Math.max(1, Ui.dp(c, 1));
             for (int i = 0; i < ctrl.options.size(); i++) {
                 String option = ctrl.options.get(i);
                 boolean active = mutableSelected.contains(option);
                 Button b = chipButtons.get(i);
-                GradientDrawable bg = new GradientDrawable();
-                bg.setCornerRadius(Ui.dp(c, Ui.BUTTON_CORNER_DP));
+                GradientDrawable enabledBg = new GradientDrawable();
+                enabledBg.setCornerRadius(radiusPx);
                 if (active) {
-                    bg.setColor(colors.accent);
-                    b.setTextColor(colors.onAccent);
+                    enabledBg.setColor(colors.accent);
+                    b.setTextColor(statefulColor(colors.onAccent, colors.muted));
                 } else {
-                    bg.setColor(colors.surface);
-                    bg.setStroke(Math.max(1, Ui.dp(c, 1)), colors.line);
-                    b.setTextColor(colors.ink);
+                    enabledBg.setColor(colors.surface);
+                    enabledBg.setStroke(strokePx, colors.line);
+                    b.setTextColor(statefulColor(colors.ink, colors.muted));
                 }
-                b.setBackground(Ui.roundedRipple(c, Ui.BUTTON_CORNER_DP, bg));
+                GradientDrawable disabledBg = new GradientDrawable();
+                disabledBg.setCornerRadius(radiusPx);
+                disabledBg.setColor(colors.surface);
+                disabledBg.setStroke(strokePx, colors.line);
+                StateListDrawable states = new StateListDrawable();
+                states.addState(new int[]{-android.R.attr.state_enabled}, disabledBg);
+                states.addState(new int[]{}, enabledBg);
+                b.setBackground(Ui.roundedRipple(c, Ui.BUTTON_CORNER_DP, states));
                 b.setSelected(active);
                 b.setContentDescription(c.getString(active
-                        ? org.llm4people.hermes.R.string.ws_ctrl_chip_selected
-                        : org.llm4people.hermes.R.string.ws_ctrl_chip_unselected, option));
+                        ? R.string.ws_ctrl_chip_selected
+                        : R.string.ws_ctrl_chip_unselected, option));
             }
         };
 

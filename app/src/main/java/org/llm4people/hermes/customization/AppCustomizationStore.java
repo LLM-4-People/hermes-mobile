@@ -9,7 +9,7 @@ import java.util.Objects;
 
 /**
  * Encrypted per-profile persistence for {@link AppCustomization} with a bounded 1-tap Undo stack,
- * Reset-to-default, fail-closed corruption handling, and atomic {@link #wipe(Account)} for forget.
+ * Reset-to-default, and fail-closed corruption handling (cleared automatically with the profile vault on forget).
  * Testable directly on the host JVM via {@link Backing}.
  */
 public final class AppCustomizationStore {
@@ -77,17 +77,6 @@ public final class AppCustomizationStore {
         persistLocked();
         Diagnostics.event("customization", "reset");
         return current;
-    }
-
-    /** Atomic removal of encrypted customization state during profile forget/wipe. */
-    public static void wipe(Account account) {
-        if (account == null) return;
-        try {
-            account.remove(VAULT_KEY);
-            Diagnostics.debug("customization", "wiped");
-        } catch (RuntimeException skippedIfLocked) {
-            Diagnostics.warning("customization", "wipe_skipped");
-        }
     }
 
     public synchronized void clearAll() {

@@ -137,8 +137,6 @@ public final class ThreadCameraCapture {
         return buildCaptureIntent(slot);
     }
 
-    Uri pendingSlot() { return pendingSlot; }
-
     /**
      * Synchronously claims the ready private capture slot on the UI thread when owned by
      * {@code account}/{@code sessionId}. Clears and deletes the slot on owner/thread mismatch;

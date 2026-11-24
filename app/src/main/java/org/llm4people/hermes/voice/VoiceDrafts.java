@@ -112,6 +112,7 @@ public final class VoiceDrafts {
             TypedValue background = new TypedValue();
             activity.getTheme().resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, background, true);
             button.setBackgroundResource(background.resourceId);
+            button.setImageTintList(Ui.enabledDisabledInk(activity, R.color.accent));
             int size = Ui.dp(activity, 48);
             button.setLayoutParams(new LinearLayout.LayoutParams(size, size));
             button.setOnClickListener(v -> pressed());

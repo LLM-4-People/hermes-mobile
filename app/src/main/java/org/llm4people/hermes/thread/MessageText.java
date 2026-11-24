@@ -6,13 +6,10 @@ import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
-import android.content.res.ColorStateList;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Typeface;
-import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
-import android.graphics.drawable.RippleDrawable;
 import android.net.Uri;
 import android.text.Layout;
 import android.text.SpannableStringBuilder;
@@ -407,6 +404,7 @@ final class MessageText {
             contentBox.setVisibility(opening ? View.VISIBLE : View.GONE);
             toggle.setActivated(opening);
             toggle.setText(opening ? context.getString(R.string.reasoning_hide) : collapsedLabel);
+            toggle.setContentDescription(context.getString(opening ? R.string.reasoning_hide : R.string.reasoning_show_label));
         });
         card.addView(toggle);
         card.addView(contentBox);
@@ -439,8 +437,8 @@ final class MessageText {
             }
         });
         if (count == 1 && first.displayEnd == page.text.length()) {
-            action.setBackground(new RippleDrawable(ColorStateList.valueOf(context.getColor(R.color.line)),
-                    new ColorDrawable(context.getColor(R.color.surface)), null));
+            action.setBackground(Ui.roundedRipple(context, Ui.BUTTON_CORNER_DP,
+                    Ui.shape(context, Ui.BUTTON_CORNER_DP, R.color.surface, 0, 0)));
             Ui.pad(action, 10, 4);
         }
         action.setSingleLine(false);

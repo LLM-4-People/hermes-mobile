@@ -17,9 +17,6 @@ import java.util.Set;
 final class ThreadData {
     static final int PAGE = HermesConfig.DEFAULT_THREAD_PAGE_SIZE;
 
-    static int pageSize(Context context) {
-        return HermesConfig.load(context).threadPageSize;
-    }
     static String path(String session) {
         return "/api/sessions/" + HermesApi.segment(session);
     }

@@ -20,7 +20,7 @@ import java.util.function.Consumer;
 
 /**
  * ONE reusable plain-French Same-Server Sharing Sheet & "Partagé avec moi" Inbox.
- * Works uniformly across Notes, Savoir-faire (Skills), Outils/Surfaces Atelier, Widgets, Artefacts, and Discussions.
+ * Works uniformly across Notes, Savoir-faire (Skills), Custom Screens/Tools (Apps), Widgets, Artefacts, and Discussions.
  * Capability-gated on features.universal_sharing.
  */
 public final class ShareWithUserSheet {
@@ -41,7 +41,7 @@ public final class ShareWithUserSheet {
         new OutgoingController(panel, safeKind, safeId, displayLabel, parent).show();
     }
 
-    /** Open the "Partagé avec moi" section inside Cerveau listing all incoming same-server shares. */
+    /** Open the "Partagé avec moi" section under Notes &amp; Tasks listing all incoming same-server shares. */
     public static void showSharedWithMe(SessionPanel panel, Consumer<String> stageDraft, Runnable parent) {
         new IncomingController(panel, stageDraft, parent).show();
     }
