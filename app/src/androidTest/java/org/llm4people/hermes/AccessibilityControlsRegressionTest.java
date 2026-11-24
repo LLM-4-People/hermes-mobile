@@ -256,11 +256,12 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
 
     public void testReviewDraftAndThreadRenameDialogEditTextsPreserveHintWhenCleared() throws Throwable {
         Context context = getInstrumentation().getTargetContext();
-        MainActivity activity = launchActivity(context.getPackageName(), MainActivity.class, null);
         AtomicReference<ThreadWorkspace> workspaceRef = new AtomicReference<>();
         AtomicReference<VoiceDrafts> voiceRef = new AtomicReference<>();
         try (WorkspaceAccountFixture fixture = new WorkspaceAccountFixture(context)) {
-            runTestOnUiThread(() -> {
+            MainActivity activity = launchActivity(context.getPackageName(), MainActivity.class, null);
+            try {
+                runTestOnUiThread(() -> {
                 try {
                     // 1. WorkspaceForms.reviewDraft() EditText retains ws_form_enter_message hint when cleared.
                     WorkspaceHost host = new WorkspaceHost(activity, () -> true);
@@ -316,31 +317,35 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                     throw new AssertionError(err);
                 }
             });
-        } finally {
-            try {
-                runTestOnUiThread(() -> {
-                    ArtifactDesk.dismiss(activity);
-                    ThreadWorkspace workspace = workspaceRef.getAndSet(null);
-                    if (workspace != null) workspace.close();
-                    VoiceDrafts voice = voiceRef.getAndSet(null);
-                    if (voice != null) {
-                        voice.reader().stop();
-                        voice.cancel();
-                    }
-                });
             } finally {
-                ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+                try {
+                    runTestOnUiThread(() -> {
+                        ArtifactDesk.dismiss(activity);
+                        ThreadWorkspace workspace = workspaceRef.getAndSet(null);
+                        if (workspace != null) workspace.close();
+                        VoiceDrafts voice = voiceRef.getAndSet(null);
+                        if (voice != null) {
+                            voice.reader().stop();
+                            voice.cancel();
+                        }
+                    });
+                } finally {
+                    ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+                }
             }
+        } finally {
+            Diagnostics.clear();
         }
     }
 
     public void testSecurityLockModeRadioButtonsUseStatefulEnabledDisabledInk() throws Throwable {
         Context context = getInstrumentation().getTargetContext();
-        Activity activity = launchActivity(context.getPackageName(), MainActivity.class, null);
         AtomicReference<ProfileGate> gateRef = new AtomicReference<>();
         AtomicReference<AlertDialog> dialogRef = new AtomicReference<>();
         try (WorkspaceAccountFixture fixture = new WorkspaceAccountFixture(context)) {
-            runTestOnUiThread(() -> {
+            Activity activity = launchActivity(context.getPackageName(), MainActivity.class, null);
+            try {
+                runTestOnUiThread(() -> {
                 try {
                     ProfileGate gate = new ProfileGate(activity);
                     gateRef.set(gate);
@@ -375,26 +380,30 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                     throw new AssertionError(err);
                 }
             });
-        } finally {
-            try {
-                runTestOnUiThread(() -> {
-                    AlertDialog dialog = dialogRef.getAndSet(null);
-                    if (dialog != null && dialog.isShowing()) dialog.dismiss();
-                    ProfileGate gate = gateRef.getAndSet(null);
-                    if (gate != null) gate.close();
-                });
             } finally {
-                ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+                try {
+                    runTestOnUiThread(() -> {
+                        AlertDialog dialog = dialogRef.getAndSet(null);
+                        if (dialog != null && dialog.isShowing()) dialog.dismiss();
+                        ProfileGate gate = gateRef.getAndSet(null);
+                        if (gate != null) gate.close();
+                    });
+                } finally {
+                    ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+                }
             }
+        } finally {
+            Diagnostics.clear();
         }
     }
 
     public void testTalkBackContainerRolesAndHiddenChildrenAcrossPanels() throws Throwable {
         Context context = getInstrumentation().getTargetContext();
-        MainActivity activity = launchActivity(context.getPackageName(), MainActivity.class, null);
         AtomicReference<SessionPanel> sessionPanelRef = new AtomicReference<>();
         try (WorkspaceAccountFixture fixture = new WorkspaceAccountFixture(context)) {
-            runTestOnUiThread(() -> {
+            MainActivity activity = launchActivity(context.getPackageName(), MainActivity.class, null);
+            try {
+                runTestOnUiThread(() -> {
                 try {
                     // Null-safety on Ui.setButtonRole SSoT.
                     Ui.setButtonRole(null);
@@ -655,24 +664,28 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                     throw new AssertionError(err);
                 }
             });
-        } finally {
-            try {
-                runTestOnUiThread(() -> {
-                    SessionPanel sp = sessionPanelRef.getAndSet(null);
-                    if (sp != null) sp.close();
-                });
             } finally {
-                ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+                try {
+                    runTestOnUiThread(() -> {
+                        SessionPanel sp = sessionPanelRef.getAndSet(null);
+                        if (sp != null) sp.close();
+                    });
+                } finally {
+                    ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+                }
             }
+        } finally {
+            Diagnostics.clear();
         }
     }
 
     public void testRound15TalkBackPanelsAndWorkspaceFormsPolish() throws Throwable {
         Context context = getInstrumentation().getTargetContext();
-        MainActivity activity = launchActivity(context.getPackageName(), MainActivity.class, null);
         AtomicReference<SessionPanel> sessionPanelRef = new AtomicReference<>();
         try (WorkspaceAccountFixture fixture = new WorkspaceAccountFixture(context)) {
-            runTestOnUiThread(() -> {
+            MainActivity activity = launchActivity(context.getPackageName(), MainActivity.class, null);
+            try {
+                runTestOnUiThread(() -> {
                 try {
                     HermesApi api = new HermesApi("http://127.0.0.1:1", "tok");
                     SessionPanel sessionPanel = new SessionPanel(activity, api, fixture.account);
@@ -886,26 +899,30 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                     throw new AssertionError(err);
                 }
             });
-        } finally {
-            try {
-                runTestOnUiThread(() -> {
-                    SessionPanel sp = sessionPanelRef.getAndSet(null);
-                    if (sp != null) sp.close();
-                });
             } finally {
-                ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+                try {
+                    runTestOnUiThread(() -> {
+                        SessionPanel sp = sessionPanelRef.getAndSet(null);
+                        if (sp != null) sp.close();
+                    });
+                } finally {
+                    ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+                }
             }
+        } finally {
+            Diagnostics.clear();
         }
     }
 
     public void testRound16DelegatesLiveRegionsAndPrimaryRipple() throws Throwable {
         Context context = getInstrumentation().getTargetContext();
-        MainActivity activity = launchActivity(context.getPackageName(), MainActivity.class, null);
         AtomicReference<SessionPanel> sessionPanelRef = new AtomicReference<>();
         AtomicReference<ThreadWorkspace> workspaceRef = new AtomicReference<>();
         AtomicReference<VoiceDrafts> voiceRef = new AtomicReference<>();
         try (WorkspaceAccountFixture fixture = new WorkspaceAccountFixture(context)) {
-            runTestOnUiThread(() -> {
+            MainActivity activity = launchActivity(context.getPackageName(), MainActivity.class, null);
+            try {
+                runTestOnUiThread(() -> {
                 try {
                     // R16.8.4: Null-safety on Ui accessibility delegate helpers.
                     Ui.setSelectableButtonRole(null);
@@ -1044,22 +1061,25 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                     throw new AssertionError(err);
                 }
             });
-        } finally {
-            try {
-                runTestOnUiThread(() -> {
-                    SessionPanel sp = sessionPanelRef.getAndSet(null);
-                    if (sp != null) sp.close();
-                    ThreadWorkspace ws = workspaceRef.getAndSet(null);
-                    if (ws != null) ws.close();
-                    VoiceDrafts voice = voiceRef.getAndSet(null);
-                    if (voice != null) {
-                        voice.reader().stop();
-                        voice.cancel();
-                    }
-                });
             } finally {
-                ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+                try {
+                    runTestOnUiThread(() -> {
+                        SessionPanel sp = sessionPanelRef.getAndSet(null);
+                        if (sp != null) sp.close();
+                        ThreadWorkspace ws = workspaceRef.getAndSet(null);
+                        if (ws != null) ws.close();
+                        VoiceDrafts voice = voiceRef.getAndSet(null);
+                        if (voice != null) {
+                            voice.reader().stop();
+                            voice.cancel();
+                        }
+                    });
+                } finally {
+                    ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+                }
             }
+        } finally {
+            Diagnostics.clear();
         }
     }
 
