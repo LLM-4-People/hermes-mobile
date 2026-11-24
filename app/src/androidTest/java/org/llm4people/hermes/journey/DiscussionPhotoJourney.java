@@ -166,7 +166,9 @@ final class DiscussionPhotoJourney {
             }
             if (attempt < MAX_PICKER_ATTEMPTS && SystemClock.elapsedRealtime() < overallDeadline) {
                 dismissPicker(automation);
-                SystemClock.sleep(750);
+                awaitPickerCondition(automation, 2_000L, root ->
+                        root == null || root.getPackageName() == null
+                                || !isSystemPicker(root.getPackageName().toString()));
             }
         }
         throw new AssertionError("System picker did not show the generated blue and yellow thumbnail ("
@@ -213,7 +215,8 @@ final class DiscussionPhotoJourney {
                         if (!bannerDismissed && dismissPrivacyBanner(root)) {
                             bannerDismissed = true;
                             diagnostics.bannerDismissed = true;
-                            SystemClock.sleep(300);
+                            awaitPickerCondition(automation, 1_500L, nextRoot ->
+                                    nextRoot == null || !hasPrivacyNotice(nextRoot));
                             continue;
                         }
                         if (!expanded && shouldExpandBottomSheet(root, pixels, now - pickerSeenSince)) {
@@ -224,7 +227,7 @@ final class DiscussionPhotoJourney {
                         if (!scrolled && expanded && scrollClippedPhotoGrid(root, pixels)) {
                             scrolled = true;
                             diagnostics.scrolled = true;
-                            SystemClock.sleep(300);
+                            waitForAccessibilityIdle(automation);
                             continue;
                         }
                         if (isPickerEmpty(root)) {
@@ -253,13 +256,16 @@ final class DiscussionPhotoJourney {
         return false;
     }
 
-    private static boolean dismissPrivacyBanner(AccessibilityNodeInfo root) {
-        boolean hasPrivacyNotice = find(root, node -> {
+    private static boolean hasPrivacyNotice(AccessibilityNodeInfo root) {
+        return find(root, node -> {
             String label = nodeLabel(node).toLowerCase(Locale.ROOT);
             return label.contains("only have access") || label.contains("only access the photos")
                     || label.contains("accès uniquement") || label.contains("accès qu");
         }) != null;
-        if (!hasPrivacyNotice) return false;
+    }
+
+    private static boolean dismissPrivacyBanner(AccessibilityNodeInfo root) {
+        if (!hasPrivacyNotice(root)) return false;
         AccessibilityNodeInfo dismiss = find(root, node -> {
             String label = nodeLabel(node).toLowerCase(Locale.ROOT);
             return node.isClickable() && ("dismiss".equals(label) || "ignorer".equals(label));
@@ -312,8 +318,32 @@ final class DiscussionPhotoJourney {
             SystemClock.sleep(20);
         }
         injectTouch(automation, downTime, downTime + (steps + 1) * 20L, MotionEvent.ACTION_UP, x, endY);
-        SystemClock.sleep(300);
+        int initialTop = bounds.top;
+        awaitPickerCondition(automation, 1_500L, nextRoot -> {
+            AccessibilityNodeInfo nextHandle = nextRoot == null ? null : findSheetHandle(nextRoot);
+            if (nextHandle == null) return true;
+            Rect nextBounds = new Rect();
+            nextHandle.getBoundsInScreen(nextBounds);
+            return nextBounds.top < initialTop - 12;
+        });
         return true;
+    }
+
+    private static void waitForAccessibilityIdle(UiAutomation automation) {
+        try {
+            automation.waitForIdle(150L, 1_000L);
+        } catch (java.util.concurrent.TimeoutException ignored) {
+            // Best-effort idle wait; the outer polling loop re-evaluates accessibility state immediately.
+        }
+    }
+
+    private static void awaitPickerCondition(UiAutomation automation, long timeoutMs,
+                                             java.util.function.Predicate<AccessibilityNodeInfo> ready) {
+        long deadline = SystemClock.elapsedRealtime() + timeoutMs;
+        while (SystemClock.elapsedRealtime() < deadline) {
+            if (ready.test(automation.getRootInActiveWindow())) return;
+            SystemClock.sleep(50);
+        }
     }
 
     private static boolean scrollClippedPhotoGrid(AccessibilityNodeInfo root, Bitmap pixels) {

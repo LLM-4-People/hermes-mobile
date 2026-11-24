@@ -66,6 +66,13 @@ class PublishTest(unittest.TestCase):
             ({"apk": None}, "disagrees with expected"),
             ({"tag": "v9.9.9"}, "tag disagrees with versionName"),
             ({"versionName": ""}, "Missing versionName"),
+            ({"versionName": "1.2.3-..", "tag": "v1.2.3-..", "apk": "hermes-mobile-v1.2.3-...apk"}, "semantic release version"),
+            ({"versionName": "1.2.3--", "tag": "v1.2.3--", "apk": "hermes-mobile-v1.2.3--.apk"}, "semantic release version"),
+            ({"versionName": "01.2.3", "tag": "v01.2.3", "apk": "hermes-mobile-v01.2.3.apk"}, "semantic release version"),
+            ({"sourceCommit": "b" * 40}, "identifies a different commit"),
+            ({"versionCode": "3"}, "Invalid Android versionCode"),
+            ({"versionCode": True}, "Invalid Android versionCode"),
+            ({"versionCode": 0}, "Invalid Android versionCode"),
         ):
             with self.subTest(bad_update=bad_update):
                 data = json.loads(manifest.read_text())

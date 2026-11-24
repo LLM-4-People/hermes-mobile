@@ -316,8 +316,12 @@ public final class GithubReleaseClientTest {
                 "https://github.com/LLM-4-People/hermes-mobile/releases/download/v1.5.0/SHA256SUMS");
 
         AtomicInteger networkCalls = new AtomicInteger(0);
+        AtomicBoolean offline = new AtomicBoolean(false);
         GithubReleaseClient client = new GithubReleaseClient(HermesConfig.defaults(), (url, accept, max) -> {
             networkCalls.incrementAndGet();
+            if (offline.get()) {
+                throw new IOException("Offline / unreachable");
+            }
             return new GithubReleaseClient.Response(200, null, releaseJson.getBytes(StandardCharsets.UTF_8));
         });
 
@@ -347,10 +351,100 @@ public final class GithubReleaseClientTest {
         assertFalse(coordinator.cachedBadge("1.5.0").updateAvailable());
         assertFalse(coordinator.cachedBadge(null).updateAvailable());
 
-        // After 24h interval: triggers fresh check.
+        // After 24h interval while offline: degrades silently without throwing and preserves cached badge.
+        offline.set(true);
         long t1 = t0 + HermesConfig.DEFAULT_UPDATE_CHECK_INTERVAL_MS;
         assertTrue(coordinator.isDue(t1));
-        assertNotNull(coordinator.checkIfDue(t1, "0.1.0"));
+        UpdateCheckCoordinator.BadgeState degraded = coordinator.checkIfDue(t1, "0.1.0");
+        assertNotNull(degraded);
+        assertTrue(degraded.updateAvailable());
+        assertEquals("v1.5.0", degraded.latestTag());
         assertEquals(2, networkCalls.get());
+
+        // Fresh store offline also degrades silently with updateAvailable == false.
+        UpdateCheckCoordinator.ThrottleStore emptyStore = new UpdateCheckCoordinator.ThrottleStore() {
+            long last;
+            String tag = "";
+            @Override public long lastCheckMs() { return last; }
+            @Override public String latestTag() { return tag; }
+            @Override public void save(long lastCheckMs, String latestTag) { last = lastCheckMs; tag = latestTag; }
+        };
+        UpdateCheckCoordinator coldOffline = new UpdateCheckCoordinator(HermesConfig.defaults(), emptyStore, client);
+        UpdateCheckCoordinator.BadgeState coldBadge = coldOffline.checkIfDue(t1, "0.1.0");
+        assertFalse(coldBadge.updateAvailable());
+        assertEquals(3, networkCalls.get());
+    }
+
+    @Test
+    public void rejectsNon200MalformedJsonChecksumErrorsAndRedirectCapExceeded() throws Exception {
+        // 1. Non-200 HTTP response fails closed.
+        GithubReleaseClient status503 = new GithubReleaseClient(HermesConfig.defaults(),
+                (url, accept, max) -> new GithubReleaseClient.Response(503, null, "down".getBytes(StandardCharsets.UTF_8)));
+        try {
+            status503.fetchLatestRelease();
+            fail("Expected IOException on HTTP 503");
+        } catch (IOException expected) {
+            assertTrue(expected.getMessage().contains("503"));
+        }
+
+        // 2. Malformed JSON response fails closed.
+        GithubReleaseClient badJson = new GithubReleaseClient(HermesConfig.defaults(),
+                (url, accept, max) -> new GithubReleaseClient.Response(200, null, "{not-json".getBytes(StandardCharsets.UTF_8)));
+        try {
+            badJson.fetchLatestRelease();
+            fail("Expected IOException on malformed JSON");
+        } catch (IOException expected) {
+            // ok
+        }
+
+        // 3. Redirect cap (>5 hops) fails closed.
+        GithubReleaseClient redirectLoop = new GithubReleaseClient(HermesConfig.defaults(),
+                (url, accept, max) -> new GithubReleaseClient.Response(
+                        302, "https://api.github.com/repos/LLM-4-People/hermes-mobile/releases/latest", new byte[0]));
+        try {
+            redirectLoop.fetchLatestRelease();
+            fail("Expected IOException when redirect cap is exceeded");
+        } catch (IOException expected) {
+            assertTrue(expected.getMessage().toLowerCase().contains("redirect"));
+        }
+
+        // 4. fetchExpectedSha256 fails on non-200, missing entry, and API digest mismatch.
+        String h1 = "0123456789abcdef".repeat(4);
+        String h2 = "fedcba9876543210".repeat(4);
+        String sumsUrl = "https://github.com/LLM-4-People/hermes-mobile/releases/download/v1.5.0/SHA256SUMS";
+        GithubReleaseClient.ReleaseInfo rel = GithubReleaseClient.parseLatestRelease(
+                validReleaseJson("v1.5.0", "hermes-mobile-v1.5.0.apk",
+                        "https://github.com/LLM-4-People/hermes-mobile/releases/download/v1.5.0/hermes-mobile-v1.5.0.apk",
+                        1024, h1, "SHA256SUMS", sumsUrl),
+                50_000_000L);
+
+        GithubReleaseClient sums500 = new GithubReleaseClient(HermesConfig.defaults(),
+                (url, accept, max) -> new GithubReleaseClient.Response(500, null, new byte[0]));
+        try {
+            sums500.fetchExpectedSha256(rel);
+            fail("Expected IOException on SHA256SUMS HTTP 500");
+        } catch (IOException expected) {
+            assertTrue(expected.getMessage().contains("500"));
+        }
+
+        GithubReleaseClient sumsMissing = new GithubReleaseClient(HermesConfig.defaults(),
+                (url, accept, max) -> new GithubReleaseClient.Response(
+                        200, null, (h1 + "  unrelated.apk\n").getBytes(StandardCharsets.UTF_8)));
+        try {
+            sumsMissing.fetchExpectedSha256(rel);
+            fail("Expected IOException when SHA256SUMS omits APK");
+        } catch (IOException expected) {
+            assertTrue(expected.getMessage().contains("does not list"));
+        }
+
+        GithubReleaseClient sumsConflict = new GithubReleaseClient(HermesConfig.defaults(),
+                (url, accept, max) -> new GithubReleaseClient.Response(
+                        200, null, (h2 + "  hermes-mobile-v1.5.0.apk\n").getBytes(StandardCharsets.UTF_8)));
+        try {
+            sumsConflict.fetchExpectedSha256(rel);
+            fail("Expected IOException when SHA256SUMS disagrees with GitHub asset digest");
+        } catch (IOException expected) {
+            assertTrue(expected.getMessage().contains("disagrees"));
+        }
     }
 }

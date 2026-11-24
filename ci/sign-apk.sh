@@ -8,12 +8,7 @@ umask 077
 unsigned=${1:?Expected unsigned APK path}
 out=${2:?Expected output directory}
 repo_root=$(cd "$(dirname "$0")/.." && pwd)
-version_name=$(sed -n 's/^hermesVersionName=//p' "$repo_root/gradle.properties" | head -n 1 | tr -d '\r')
-if [[ ! "$version_name" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
-  echo "Invalid or missing hermesVersionName in gradle.properties." >&2
-  exit 1
-fi
-name="hermes-mobile-v${version_name}.apk"
+name=$(python3 -B "$(dirname "$0")/release_metadata.py" --apk-name-from-gradle "$repo_root/gradle.properties")
 private=$(mktemp -d)
 trap 'rm -rf "$private"' EXIT
 mkdir -p "$out"

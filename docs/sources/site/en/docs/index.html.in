@@ -97,7 +97,7 @@ adb install -r {{ release_apk }}</code></div>
             <li>Deploy the companion server and run <code>python3 scripts/mobile_setup.py --invite alex --qr</code> on the host to create an isolated profile and a single-use 5-minute pairing ticket.</li>
             <li>On Android, open <strong>Connect your Hermes</strong> and tap <strong>Paste pairing link</strong> or open the <code>hermes://pair</code> deep link. Confirm the target host before claiming, or fill in host, profile slug, and access key manually.</li>
             <li>The first profile acts as admin with an in-app <strong>Admin console</strong> for inviting members, rotating keys, setting concurrency caps, and revoking active tickets.</li>
-            <li>Protect the local device vault with a passphrase and optionally enable Class-3 biometrics in <strong>Activity &gt; Security</strong>.</li>
+            <li>Protect the local device vault with your choice of <strong>Biometrics / device lock</strong>, a <strong>6 to 12 digit PIN</strong>, or a <strong>12+ character passphrase</strong> (with a smart 5-minute default auto-lock grace, configurable in <strong>Activity &gt; Security</strong>) and manage optional Android capabilities in <strong>Activity &gt; Permissions</strong>.</li>
           </ol>
         </section>
 
@@ -143,7 +143,8 @@ adb install -r {{ release_apk }}</code></div>
         <section id="security" class="doc-section">
           <h2>8. Security, Landlock isolation, and zero-leak push</h2>
           <ul>
-            <li><strong>Profile vault hardening:</strong> Per-profile Android Keystore AES-256-GCM encryption, persisted passphrase backoff, <code>FLAG_SECURE</code> overlays, atomic profile wipe, and session-epoch fencing on async callbacks.</li>
+            <li><strong>Profile vault hardening and multi-mode lock:</strong> Per-profile Android Keystore AES-256-GCM encryption, Biometrics / 6 to 12 digit PIN / 12+ character passphrase lock modes, smart 5-minute default auto-lock grace (configurable), persisted backoff, <code>FLAG_SECURE</code> overlays, atomic profile wipe, and session-epoch fencing on async callbacks.</li>
+            <li><strong>Permissions center (Activity &gt; Permissions):</strong> Inspect every optional Android permission (notifications, microphone, camera, approximate location, notification access, package installs) with 1-tap <strong>Allow</strong> or <strong>Open settings</strong> actions and zero silent prompts.</li>
             <li><strong>Server kernel isolation:</strong> On the companion server, Linux kernel Landlock LSM physically blocks subprocesses from reading sibling profile directories (<code>EACCES</code>), while non-admin profiles exclude <code>terminal</code> and <code>code_execution</code> by default.</li>
             <li><strong>Ambient privacy off by default:</strong> Optional context signals start completely disabled per profile, with a fail-closed privacy filter blocking OTP codes, password managers, banking apps, and lockscreen secrets before content enters memory.</li>
             <li><strong>Zero-leak closed-app push:</strong> Firebase Cloud Messaging or self-hosted UnifiedPush (ntfy + RFC 8291 Web Push) carry opaque routing metadata only so messages stay on your server until unlock.</li>

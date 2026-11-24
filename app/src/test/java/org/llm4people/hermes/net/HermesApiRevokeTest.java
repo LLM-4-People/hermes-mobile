@@ -27,7 +27,7 @@ public final class HermesApiRevokeTest {
 
     @Test
     public void revokeImmediatelyAbortsInFlightDownloadAndBlocksNewCalls() throws Exception {
-        CountDownLatch headersSent = new CountDownLatch(1);
+        CountDownLatch chunkReceived = new CountDownLatch(1);
         CountDownLatch releaseServer = new CountDownLatch(1);
         try (ServerSocket server = new ServerSocket(0, 4, InetAddress.getByName("127.0.0.1"))) {
             Thread responder = new Thread(() -> {
@@ -35,13 +35,14 @@ public final class HermesApiRevokeTest {
                     // Consume HTTP request headers minimally before sending a stalled response body.
                     client.getInputStream().read(new byte[512]);
                     OutputStream out = client.getOutputStream();
+                    // Omit Content-Length + set Connection: close to avoid OpenJDK KeepAliveStream/MeteredStream
+                    // readLock deadlock when disconnect() races with a blocked read().
                     String headers = "HTTP/1.1 200 OK\r\n"
                             + "Content-Type: application/octet-stream\r\n"
-                            + "Content-Length: 4096\r\n\r\n";
+                            + "Connection: close\r\n\r\n";
                     out.write(headers.getBytes(StandardCharsets.US_ASCII));
                     out.write("partial-bytes".getBytes(StandardCharsets.UTF_8));
                     out.flush();
-                    headersSent.countDown();
                     releaseServer.await(10, TimeUnit.SECONDS);
                 } catch (Exception ignored) {
                     // Socket closed by client revoke().
@@ -55,11 +56,19 @@ public final class HermesApiRevokeTest {
                     "test-bearer-secret",
                     new HermesApi.Limits(5_000, 15_000, 65_536, 65_536));
 
+            OutputStream signalingSink = new ByteArrayOutputStream() {
+                @Override
+                public synchronized void write(byte[] b, int off, int len) {
+                    super.write(b, off, len);
+                    if (len > 0) chunkReceived.countDown();
+                }
+            };
+
             AtomicReference<Throwable> failure = new AtomicReference<>();
             CountDownLatch finished = new CountDownLatch(1);
             Thread downloader = new Thread(() -> {
                 try {
-                    api.download("/api/sessions/s1/export?format=markdown", new ByteArrayOutputStream(), 8192);
+                    api.download("/api/sessions/s1/export?format=markdown", signalingSink, 8192);
                 } catch (Throwable err) {
                     failure.set(err);
                 } finally {
@@ -69,7 +78,7 @@ public final class HermesApiRevokeTest {
             downloader.setDaemon(true);
             downloader.start();
 
-            assertTrue("Server should send partial response", headersSent.await(5, TimeUnit.SECONDS));
+            assertTrue("Client should receive initial partial chunk", chunkReceived.await(5, TimeUnit.SECONDS));
             long startedRevoke = System.nanoTime();
             api.revoke();
             assertTrue("In-flight download must abort promptly on revoke()", finished.await(8, TimeUnit.SECONDS));
@@ -93,6 +102,58 @@ public final class HermesApiRevokeTest {
                 assertTrue(expected.getMessage().contains("revoked"));
             }
             releaseServer.countDown();
+        }
+    }
+
+    @Test
+    public void revokedDownloadNeverReturnsPartialBytesOnCleanEof() throws Exception {
+        CountDownLatch serverClosed = new CountDownLatch(1);
+        try (ServerSocket server = new ServerSocket(0, 4, InetAddress.getByName("127.0.0.1"))) {
+            Thread responder = new Thread(() -> {
+                try (Socket client = server.accept()) {
+                    client.getInputStream().read(new byte[512]);
+                    OutputStream out = client.getOutputStream();
+                    String headers = "HTTP/1.1 200 OK\r\n"
+                            + "Content-Type: application/octet-stream\r\n"
+                            + "Connection: close\r\n\r\n";
+                    out.write(headers.getBytes(StandardCharsets.US_ASCII));
+                    out.write("partial-bytes".getBytes(StandardCharsets.UTF_8));
+                    out.flush();
+                } catch (Exception ignored) {
+                } finally {
+                    serverClosed.countDown();
+                }
+            }, "hermes-api-clean-eof-server");
+            responder.setDaemon(true);
+            responder.start();
+
+            HermesApi api = new HermesApi(
+                    "http://127.0.0.1:" + server.getLocalPort(),
+                    "test-bearer-secret",
+                    new HermesApi.Limits(5_000, 15_000, 65_536, 65_536));
+
+            OutputStream revokingSink = new ByteArrayOutputStream() {
+                @Override
+                public synchronized void write(byte[] b, int off, int len) {
+                    super.write(b, off, len);
+                    // Wait for the server to finish its clean FIN close so the next read() hits EOF (-1),
+                    // then revoke the client so post-loop revocation MUST throw rather than returning partial bytes.
+                    try {
+                        serverClosed.await(5, TimeUnit.SECONDS);
+                    } catch (InterruptedException ignored) {
+                        Thread.currentThread().interrupt();
+                    }
+                    api.revoke();
+                }
+            };
+
+            try {
+                api.download("/api/sessions/s1/export?format=markdown", revokingSink, 8192);
+                fail("Revoked download must throw IOException even if stream reaches clean EOF");
+            } catch (IOException expected) {
+                assertTrue(api.isRevoked());
+                assertNotNull(expected.getMessage());
+            }
         }
     }
 

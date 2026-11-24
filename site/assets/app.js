@@ -307,17 +307,24 @@
       return res.json();
     }).then(function (release) {
       if (!release || !release.tag_name) return;
+      var tag = String(release.tag_name).replace(/[^A-Za-z0-9._+-]/g, '');
+      var expectedApk = 'hermes-mobile-' + tag + '.apk';
       var apkUrl = release.html_url || 'https://github.com/LLM-4-People/hermes-mobile/releases/latest';
       if (Array.isArray(release.assets)) {
+        var fallbackApkUrl = null;
         for (var i = 0; i < release.assets.length; i++) {
           var asset = release.assets[i];
-          if (asset && typeof asset.name === 'string' && /\.apk$/i.test(asset.name) && asset.browser_download_url) {
+          if (!asset || typeof asset.name !== 'string' || !asset.browser_download_url) continue;
+          if (!/\.apk$/i.test(asset.name) || /unsigned/i.test(asset.name)) continue;
+          if (asset.name === expectedApk) {
             apkUrl = asset.browser_download_url;
+            fallbackApkUrl = null;
             break;
           }
+          if (!fallbackApkUrl) fallbackApkUrl = asset.browser_download_url;
         }
+        if (fallbackApkUrl) apkUrl = fallbackApkUrl;
       }
-      var tag = String(release.tag_name).replace(/[^A-Za-z0-9._+-]/g, '');
       links.forEach(function (a) {
         // Update href and metadata without mutating visible button text width (zero CLS).
         a.setAttribute('href', apkUrl);

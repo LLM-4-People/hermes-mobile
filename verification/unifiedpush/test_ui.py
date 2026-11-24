@@ -4,7 +4,16 @@ import unittest
 from unittest.mock import Mock, call, patch
 from xml.etree.ElementTree import Element, SubElement
 
-from .ui import Screen, focused_window, start_account
+from .ui import (
+    NTFY,
+    PERMISSION_ALLOW_IDS,
+    Screen,
+    TAP_RETRY_COOLDOWN_SECONDS,
+    enroll,
+    focused_window,
+    open_notifications_settings,
+    start_account,
+)
 
 
 def tree(*specs, package="org.llm4people.hermes", window_id="10"):
@@ -111,22 +120,142 @@ class ScreenUiTest(unittest.TestCase):
             with self.subTest(lang=lang):
                 ui = Screen(Mock(), Mock(), lang=lang)
                 s = ui.strings
-                push_dialog = tree({"text": "Fermer", "bounds": "[20,260][120,310]"})
+                push_dialog = tree({"text": s["ws_close"], "bounds": "[20,260][120,310]"})
                 workspace = tree({"content-desc": s["top_profile_lock"], "bounds": "[200,10][260,70]"})
                 security = tree({"text": s["security_lock_now"], "bounds": "[20,100][280,150]"})
                 chooser = tree({"text": s["profile_add_action"], "bounds": "[20,200][280,250]"})
                 connect = tree({"text": s["profile_connect_title"], "bounds": "[20,40][280,90]"})
-                ui.hierarchy = Mock(side_effect=[push_dialog, workspace, security, chooser, connect])
+                save_form = tree({"text": s["profile_save_action"], "bounds": "[20,500][280,550]"})
+                opened_ws = tree({"text": s["thread_new_conversation"], "bounds": "[20,80][280,130]"})
+                ui.hierarchy = Mock(side_effect=[push_dialog, workspace, security, chooser, connect, save_form, save_form, opened_ws])
                 ui.tap_node = Mock()
                 ui.field = Mock()
-                ui.tap = Mock()
-                ui.wait = Mock()
                 with patch("verification.unifiedpush.stack.time.sleep"):
                     start_account(ui, "Alt", "https://example.test", "secret-key", "correct-horse-battery")
-                self.assertEqual(ui.tap_node.call_count, 4)
+                # 4 navigation taps (close, profile_lock, lock_now, add_action) + 2 save taps (1st swallowed, 2nd succeeds).
+                self.assertEqual(ui.tap_node.call_count, 6)
                 self.assertEqual(ui.field.call_count, 5)
-                ui.tap.assert_called_once_with(s["profile_save_action"], scroll=True)
-                ui.wait.assert_called_once_with(s["thread_new_conversation"])
+
+    def test_enroll_retries_swallowed_enable_tap_and_transitions_in_en_and_fr(self):
+        for lang in ("en", "fr"):
+            with self.subTest(lang=lang):
+                ui = Screen(Mock(), Mock(), lang=lang)
+                s = ui.strings
+                home = tree({"text": s["nav_atelier"], "bounds": "[100,580][180,630]"})
+                atelier = tree({"text": s["ws_notifications"], "bounds": "[20,180][300,230]"})
+                notif_dialog = tree({"text": s["push_settings_enable"], "bounds": "[20,300][300,350]"})
+                transport_picker = tree(
+                    {"text": s["push_settings_service_title"], "bounds": "[20,80][300,130]"},
+                    {"text": s["push_settings_enable_up"], "bounds": "[20,200][300,250]"},
+                )
+                distributor_picker = tree(
+                    {"text": s["push_settings_choose_distributor"], "bounds": "[20,80][300,130]"},
+                    {"text": "ntfy\n" + NTFY, "bounds": "[20,200][300,260]"},
+                )
+                enrolled = tree({"text": s["push_settings_disable"], "bounds": "[20,300][300,350]"})
+                # Swallowed taps on Enable (2nd poll after cooldown) and on ntfy option (still on distributor_picker).
+                ui.hierarchy = Mock(side_effect=[
+                    home, atelier,
+                    atelier, notif_dialog,
+                    notif_dialog, notif_dialog, transport_picker,
+                    transport_picker, distributor_picker, distributor_picker, enrolled,  # choose_ntfy() loop
+                ])
+                tapped = []
+                ui.tap_node = Mock(side_effect=lambda node: tapped.append(node.get("text")))
+                step = TAP_RETRY_COOLDOWN_SECONDS + 0.5
+                clock = [step * index for index in range(1, 20)]
+                with patch("verification.unifiedpush.stack.time.sleep"), patch(
+                    "verification.unifiedpush.ui.monotonic", side_effect=clock
+                ):
+                    enroll(ui)
+                self.assertEqual(tapped, [
+                    s["nav_atelier"],
+                    s["ws_notifications"],
+                    s["push_settings_enable"],
+                    s["push_settings_enable"],
+                    s["push_settings_enable_up"],
+                    "ntfy\n" + NTFY,
+                    "ntfy\n" + NTFY,
+                ])
+
+    def test_enroll_handles_permission_prompt_without_double_tap_or_transition_scroll(self):
+        for lang in ("en", "fr"):
+            with self.subTest(lang=lang):
+                ui = Screen(Mock(), Mock(), lang=lang)
+                s = ui.strings
+                home = tree({"text": s["nav_atelier"], "bounds": "[100,580][180,630]"})
+                atelier = tree(
+                    {"scrollable": "true", "bounds": "[0,60][320,580]"},
+                    {"text": s["ws_notifications"], "bounds": "[20,180][300,230]"},
+                )
+                notif_dialog = tree({"text": s["push_settings_enable"], "bounds": "[20,300][300,350]"})
+                # Transient frame after tapping Enable while Android launches PermissionController.
+                transition_frame = tree({"scrollable": "true", "bounds": "[0,60][320,580]"})
+                perm_dialog = tree({"resource-id": PERMISSION_ALLOW_IDS[0], "bounds": "[20,400][300,450]"})
+                searching_dialog = tree({"text": s["push_settings_searching_services"], "bounds": "[20,250][300,300]"})
+                transport_picker = tree(
+                    {"text": s["push_settings_service_title"], "bounds": "[20,80][300,130]"},
+                    {"text": s["push_settings_enable_up"], "bounds": "[20,200][300,250]"},
+                )
+                distributor_picker = tree(
+                    {"text": s["push_settings_choose_distributor"], "bounds": "[20,80][300,130]"},
+                    {"text": "ntfy\n" + NTFY, "bounds": "[20,200][300,260]"},
+                )
+                enrolled = tree({"text": s["push_settings_disable"], "bounds": "[20,300][300,350]"})
+                ui.hierarchy = Mock(side_effect=[
+                    home, atelier,
+                    atelier, notif_dialog,
+                    notif_dialog, transition_frame, perm_dialog,  # tap_until(enable)
+                    perm_dialog, perm_dialog, searching_dialog,  # choose_ntfy: tap allow ONCE, debounce 0.1s dismissal
+                    transport_picker, distributor_picker, enrolled,
+                ])
+                tapped = []
+                ui.tap_node = Mock(side_effect=lambda node: tapped.append(node.get("text") or node.get("resource-id")))
+                ui.scroll = Mock()
+                # Rapid 0.1s ticks: Enable and permission_allow_button must NOT be double-tapped!
+                clock = [10.0 + 0.1 * index for index in range(20)]
+                with patch("verification.unifiedpush.stack.time.sleep"), patch(
+                    "verification.unifiedpush.ui.monotonic", side_effect=clock
+                ):
+                    enroll(ui)
+                ui.scroll.assert_not_called()
+                self.assertEqual(tapped, [
+                    s["nav_atelier"],
+                    s["ws_notifications"],
+                    s["push_settings_enable"],
+                    PERMISSION_ALLOW_IDS[0],
+                    s["push_settings_enable_up"],
+                    "ntfy\n" + NTFY,
+                ])
+
+    def test_open_notifications_settings_scrolls_when_notifications_is_below_the_fold(self):
+        for lang in ("en", "fr"):
+            with self.subTest(lang=lang):
+                ui = Screen(Mock(), Mock(), lang=lang)
+                s = ui.strings
+                thread_view = tree({"text": s["nav_atelier"], "bounds": "[100,580][180,630]"})
+                atelier_top = tree(
+                    {"scrollable": "true", "bounds": "[0,60][320,580]"},
+                    {"text": s["ws_model_and_tools"], "bounds": "[20,100][300,150]"},
+                    {"text": s["ws_workspace"], "bounds": "[20,200][300,240]"},
+                )
+                atelier_scrolled = tree(
+                    {"scrollable": "true", "bounds": "[0,60][320,580]"},
+                    {"text": s["ws_notifications"], "bounds": "[20,400][300,450]"},
+                )
+                notif_dialog = tree({"text": s["push_settings_disable"], "bounds": "[20,300][300,350]"})
+                ui.hierarchy = Mock(side_effect=[
+                    thread_view, atelier_top,
+                    atelier_top, atelier_scrolled, notif_dialog,
+                ])
+                scrolled = []
+                tapped = []
+                ui.scroll = Mock(side_effect=lambda root: scrolled.append(root))
+                ui.tap_node = Mock(side_effect=lambda node: tapped.append(node.get("text")))
+                with patch("verification.unifiedpush.stack.time.sleep"):
+                    open_notifications_settings(ui, s["push_settings_disable"])
+                self.assertEqual(len(scrolled), 1)
+                self.assertEqual(tapped, [s["nav_atelier"], s["ws_notifications"]])
 
 
 if __name__ == "__main__":

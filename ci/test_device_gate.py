@@ -47,6 +47,8 @@ if sys.argv[3:] == ["shell", "dumpsys", "connectivity"]:
     print("Active default network: none")
 if sys.argv[3:] == ["shell", "settings", "get", "global", "airplane_mode_on"]:
     print("1")
+if sys.argv[3:] == ["shell", "settings", "get", "global", "wifi_on"]:
+    print("0")
 if sys.argv[1:] == ["get-serialno"]:
     print(os.environ.get("FIXTURE_ADB_SERIAL", "emulator-fixture"))
 if Path(sys.argv[0]).name == "dexdump":
