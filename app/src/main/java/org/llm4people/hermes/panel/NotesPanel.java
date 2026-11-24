@@ -418,6 +418,7 @@ final class NotesPanel {
         if (ownerControls) form.addView(pinBox);
         TextView errorView = panel.note(form, "");
         errorView.setTextColor(panel.activity.getColor(R.color.danger));
+        errorView.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         errorView.setVisibility(View.GONE);
 
         ScrollView scroll = new ScrollView(panel.activity);

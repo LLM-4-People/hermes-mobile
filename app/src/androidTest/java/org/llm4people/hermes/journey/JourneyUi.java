@@ -26,6 +26,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -86,6 +87,7 @@ public final class JourneyUi {
 
     static boolean named(View v, String name) {
         if (name.contentEquals(v.getContentDescription() == null ? "" : v.getContentDescription())) return true;
+        if (v.getTag() != null && Objects.equals(String.valueOf(v.getTag()), name)) return true;
         if (!(v instanceof TextView text)) return false;
         return name.contentEquals(text.getText()) ||
                 (text.getHint() != null && name.contentEquals(text.getHint()));

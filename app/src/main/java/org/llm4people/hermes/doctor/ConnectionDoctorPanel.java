@@ -78,10 +78,6 @@ public final class ConnectionDoctorPanel {
     private boolean busy;
     private boolean closed;
 
-    public ConnectionDoctorPanel(Activity activity, Account account, HermesApi api) {
-        this(activity, account, api, null);
-    }
-
     public ConnectionDoctorPanel(Activity activity, Account account, HermesApi api, FixHandlers fixHandlers) {
         this(activity, ConnectionDoctor.forAndroid(Objects.requireNonNull(activity, "activity"), account, api),
                 fixHandlers);

@@ -8,6 +8,7 @@ import android.content.res.ColorStateList;
 import android.graphics.drawable.RippleDrawable;
 import android.test.InstrumentationTestCase;
 import android.text.format.Formatter;
+import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.accessibility.AccessibilityNodeInfo;
@@ -23,6 +24,9 @@ import org.json.JSONObject;
 import org.llm4people.hermes.artifact.ArtifactDesk;
 import org.llm4people.hermes.artifact.DataTableBlock;
 import org.llm4people.hermes.artifact.ThemePalette;
+import org.llm4people.hermes.artifact.ThreadInstruments;
+import org.llm4people.hermes.customization.AppCustomization;
+import org.llm4people.hermes.customization.AppCustomizationStore;
 import org.llm4people.hermes.hub.AppsLauncherModel;
 import org.llm4people.hermes.hub.AppsLauncherPanel;
 import org.llm4people.hermes.net.HermesApi;
@@ -30,6 +34,7 @@ import org.llm4people.hermes.os.BiometricVault;
 import org.llm4people.hermes.palette.CommandItem;
 import org.llm4people.hermes.palette.CommandPalette;
 import org.llm4people.hermes.palette.CommandRegistry;
+import org.llm4people.hermes.panel.MemoryModel;
 import org.llm4people.hermes.panel.ModelCapabilityBadges;
 import org.llm4people.hermes.panel.NotesModel;
 import org.llm4people.hermes.panel.ProfileDefaultsModel;
@@ -47,6 +52,7 @@ import org.llm4people.hermes.profile.ProfileLockPolicy;
 import org.llm4people.hermes.profile.WorkspaceAccountFixture;
 import org.llm4people.hermes.search.UniversalSearchModel;
 import org.llm4people.hermes.search.UniversalSearchSheet;
+import org.llm4people.hermes.settings.AppearanceSettingsPanel;
 import org.llm4people.hermes.thread.ThreadWorkspace;
 import org.llm4people.hermes.voice.VoiceDrafts;
 
@@ -79,6 +85,9 @@ import java.util.function.Consumer;
  * - R15.5.1-R15.5.3 & R15.4.6: TalkBack container roles, zero nested clickables, sibling Switch,
  *   localized pluralized diff descriptions, and roundedRipple/stateful disabled ink across
  *   GlobalSearchPanel, SkillStudio, WorkspaceFilesPanel, and WorkspaceForms.
+ * - R16.8.4, R16.5.3 & R16.5.1: Runtime AccessibilityNodeInfo assertions for Ui.setSelectableButtonRole
+ *   and Ui.setCheckableState, polite live regions on inline validation errors (AppearanceSettingsPanel,
+ *   NotesPanel, MemoryPanel), and ThreadInstrumentPanel.primary roundedRipple + stateful disabled ink.
  */
 @SuppressWarnings("deprecation")
 public final class AccessibilityControlsRegressionTest extends InstrumentationTestCase {
@@ -247,11 +256,12 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
 
     public void testReviewDraftAndThreadRenameDialogEditTextsPreserveHintWhenCleared() throws Throwable {
         Context context = getInstrumentation().getTargetContext();
-        MainActivity activity = launchActivity(context.getPackageName(), MainActivity.class, null);
         AtomicReference<ThreadWorkspace> workspaceRef = new AtomicReference<>();
         AtomicReference<VoiceDrafts> voiceRef = new AtomicReference<>();
         try (WorkspaceAccountFixture fixture = new WorkspaceAccountFixture(context)) {
-            runTestOnUiThread(() -> {
+            MainActivity activity = launchActivity(context.getPackageName(), MainActivity.class, null);
+            try {
+                runTestOnUiThread(() -> {
                 try {
                     // 1. WorkspaceForms.reviewDraft() EditText retains ws_form_enter_message hint when cleared.
                     WorkspaceHost host = new WorkspaceHost(activity, () -> true);
@@ -307,31 +317,35 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                     throw new AssertionError(err);
                 }
             });
-        } finally {
-            try {
-                runTestOnUiThread(() -> {
-                    ArtifactDesk.dismiss(activity);
-                    ThreadWorkspace workspace = workspaceRef.getAndSet(null);
-                    if (workspace != null) workspace.close();
-                    VoiceDrafts voice = voiceRef.getAndSet(null);
-                    if (voice != null) {
-                        voice.reader().stop();
-                        voice.cancel();
-                    }
-                });
             } finally {
-                ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+                try {
+                    runTestOnUiThread(() -> {
+                        ArtifactDesk.dismiss(activity);
+                        ThreadWorkspace workspace = workspaceRef.getAndSet(null);
+                        if (workspace != null) workspace.close();
+                        VoiceDrafts voice = voiceRef.getAndSet(null);
+                        if (voice != null) {
+                            voice.reader().stop();
+                            voice.cancel();
+                        }
+                    });
+                } finally {
+                    ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+                }
             }
+        } finally {
+            Diagnostics.clear();
         }
     }
 
     public void testSecurityLockModeRadioButtonsUseStatefulEnabledDisabledInk() throws Throwable {
         Context context = getInstrumentation().getTargetContext();
-        Activity activity = launchActivity(context.getPackageName(), MainActivity.class, null);
         AtomicReference<ProfileGate> gateRef = new AtomicReference<>();
         AtomicReference<AlertDialog> dialogRef = new AtomicReference<>();
         try (WorkspaceAccountFixture fixture = new WorkspaceAccountFixture(context)) {
-            runTestOnUiThread(() -> {
+            Activity activity = launchActivity(context.getPackageName(), MainActivity.class, null);
+            try {
+                runTestOnUiThread(() -> {
                 try {
                     ProfileGate gate = new ProfileGate(activity);
                     gateRef.set(gate);
@@ -366,26 +380,30 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                     throw new AssertionError(err);
                 }
             });
-        } finally {
-            try {
-                runTestOnUiThread(() -> {
-                    AlertDialog dialog = dialogRef.getAndSet(null);
-                    if (dialog != null && dialog.isShowing()) dialog.dismiss();
-                    ProfileGate gate = gateRef.getAndSet(null);
-                    if (gate != null) gate.close();
-                });
             } finally {
-                ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+                try {
+                    runTestOnUiThread(() -> {
+                        AlertDialog dialog = dialogRef.getAndSet(null);
+                        if (dialog != null && dialog.isShowing()) dialog.dismiss();
+                        ProfileGate gate = gateRef.getAndSet(null);
+                        if (gate != null) gate.close();
+                    });
+                } finally {
+                    ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+                }
             }
+        } finally {
+            Diagnostics.clear();
         }
     }
 
     public void testTalkBackContainerRolesAndHiddenChildrenAcrossPanels() throws Throwable {
         Context context = getInstrumentation().getTargetContext();
-        MainActivity activity = launchActivity(context.getPackageName(), MainActivity.class, null);
         AtomicReference<SessionPanel> sessionPanelRef = new AtomicReference<>();
         try (WorkspaceAccountFixture fixture = new WorkspaceAccountFixture(context)) {
-            runTestOnUiThread(() -> {
+            MainActivity activity = launchActivity(context.getPackageName(), MainActivity.class, null);
+            try {
+                runTestOnUiThread(() -> {
                 try {
                     // Null-safety on Ui.setButtonRole SSoT.
                     Ui.setButtonRole(null);
@@ -646,24 +664,28 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                     throw new AssertionError(err);
                 }
             });
-        } finally {
-            try {
-                runTestOnUiThread(() -> {
-                    SessionPanel sp = sessionPanelRef.getAndSet(null);
-                    if (sp != null) sp.close();
-                });
             } finally {
-                ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+                try {
+                    runTestOnUiThread(() -> {
+                        SessionPanel sp = sessionPanelRef.getAndSet(null);
+                        if (sp != null) sp.close();
+                    });
+                } finally {
+                    ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+                }
             }
+        } finally {
+            Diagnostics.clear();
         }
     }
 
     public void testRound15TalkBackPanelsAndWorkspaceFormsPolish() throws Throwable {
         Context context = getInstrumentation().getTargetContext();
-        MainActivity activity = launchActivity(context.getPackageName(), MainActivity.class, null);
         AtomicReference<SessionPanel> sessionPanelRef = new AtomicReference<>();
         try (WorkspaceAccountFixture fixture = new WorkspaceAccountFixture(context)) {
-            runTestOnUiThread(() -> {
+            MainActivity activity = launchActivity(context.getPackageName(), MainActivity.class, null);
+            try {
+                runTestOnUiThread(() -> {
                 try {
                     HermesApi api = new HermesApi("http://127.0.0.1:1", "tok");
                     SessionPanel sessionPanel = new SessionPanel(activity, api, fixture.account);
@@ -877,15 +899,187 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                     throw new AssertionError(err);
                 }
             });
+            } finally {
+                try {
+                    runTestOnUiThread(() -> {
+                        SessionPanel sp = sessionPanelRef.getAndSet(null);
+                        if (sp != null) sp.close();
+                    });
+                } finally {
+                    ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+                }
+            }
         } finally {
+            Diagnostics.clear();
+        }
+    }
+
+    public void testRound16DelegatesLiveRegionsAndPrimaryRipple() throws Throwable {
+        Context context = getInstrumentation().getTargetContext();
+        AtomicReference<SessionPanel> sessionPanelRef = new AtomicReference<>();
+        AtomicReference<ThreadWorkspace> workspaceRef = new AtomicReference<>();
+        AtomicReference<VoiceDrafts> voiceRef = new AtomicReference<>();
+        try (WorkspaceAccountFixture fixture = new WorkspaceAccountFixture(context)) {
+            MainActivity activity = launchActivity(context.getPackageName(), MainActivity.class, null);
             try {
                 runTestOnUiThread(() -> {
-                    SessionPanel sp = sessionPanelRef.getAndSet(null);
-                    if (sp != null) sp.close();
-                });
+                try {
+                    // R16.8.4: Null-safety on Ui accessibility delegate helpers.
+                    Ui.setSelectableButtonRole(null);
+                    Ui.setCheckableState(null, true);
+                    Ui.setCheckableState(null, false);
+
+                    // R16.8.4: Ui.setSelectableButtonRole announces Button role + dynamic host.isSelected().
+                    LinearLayout selectableTab = Ui.row(activity);
+                    Ui.setSelectableButtonRole(selectableTab);
+                    selectableTab.setSelected(false);
+                    assertSelectableButtonNode(selectableTab, false);
+                    selectableTab.setSelected(true);
+                    assertSelectableButtonNode(selectableTab, true);
+
+                    // R16.8.4: Ui.setCheckableState announces checkable=true and toggled checked state.
+                    Button checkableChip = Ui.button(activity, "Filter", v -> {});
+                    Ui.setCheckableState(checkableChip, true);
+                    assertCheckableNode(checkableChip, true);
+                    Ui.setCheckableState(checkableChip, false);
+                    assertCheckableNode(checkableChip, false);
+
+                    // R16.5.3: AppearanceSettingsPanel inline validation errors announce politely.
+                    AppCustomizationStore store = new AppCustomizationStore(new AppCustomizationStore.Backing() {
+                        private String raw;
+                        @Override public String read() { return raw; }
+                        @Override public void write(String value) { raw = value; }
+                        @Override public void remove() { raw = null; }
+                    });
+                    AppearanceSettingsPanel appearance = new AppearanceSettingsPanel(
+                            activity, store, "system", new AppearanceSettingsPanel.Listener() {
+                                @Override public void onCustomizationChanged(AppCustomization customization) {}
+                                @Override public void onThemeModeChanged(String themeMode) {}
+                            });
+                    appearance.buildView();
+                    Field hexErrField = AppearanceSettingsPanel.class.getDeclaredField("hexErrorText");
+                    hexErrField.setAccessible(true);
+                    TextView hexErrorText = (TextView) hexErrField.get(appearance);
+                    assertNotNull("Expected hexErrorText on AppearanceSettingsPanel", hexErrorText);
+                    assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE,
+                            hexErrorText.getAccessibilityLiveRegion());
+                    Field greetErrField = AppearanceSettingsPanel.class.getDeclaredField("greetingError");
+                    greetErrField.setAccessible(true);
+                    TextView greetingError = (TextView) greetErrField.get(appearance);
+                    assertNotNull("Expected greetingError on AppearanceSettingsPanel", greetingError);
+                    assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE,
+                            greetingError.getAccessibilityLiveRegion());
+
+                    // R16.5.3: NotesPanel & MemoryPanel editor dialog validation errorViews announce politely.
+                    HermesApi api = new HermesApi("http://127.0.0.1:1", "tok");
+                    SessionPanel sessionPanel = new SessionPanel(activity, api, fixture.account);
+                    sessionPanelRef.set(sessionPanel);
+                    Field childDialogField = SessionPanel.class.getDeclaredField("child");
+                    childDialogField.setAccessible(true);
+                    int dangerColor = activity.getColor(R.color.danger);
+
+                    Class<?> notesPanelClass = Class.forName("org.llm4people.hermes.panel.NotesPanel");
+                    Constructor<?> notesCtor = notesPanelClass.getDeclaredConstructor(
+                            SessionPanel.class, BooleanSupplier.class, Consumer.class, Runnable.class);
+                    notesCtor.setAccessible(true);
+                    Object notesPanel = notesCtor.newInstance(
+                            sessionPanel, (BooleanSupplier) () -> true, (Consumer<String>) s -> {}, null);
+                    Method notesOpenEditor = notesPanelClass.getDeclaredMethod("openEditor", NotesModel.Note.class);
+                    notesOpenEditor.setAccessible(true);
+                    notesOpenEditor.invoke(notesPanel, new Object[]{null});
+                    Dialog notesDialog = (Dialog) childDialogField.get(sessionPanel);
+                    assertNotNull("Expected NotesPanel editor dialog", notesDialog);
+                    TextView notesError = findDangerErrorTextView(notesDialog.getWindow().getDecorView(), dangerColor);
+                    assertNotNull("Expected danger errorView in NotesPanel editor", notesError);
+                    assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE, notesError.getAccessibilityLiveRegion());
+                    notesDialog.dismiss();
+
+                    Class<?> memoryPanelClass = Class.forName("org.llm4people.hermes.panel.MemoryPanel");
+                    Constructor<?> memoryCtor = memoryPanelClass.getDeclaredConstructor(
+                            SessionPanel.class, Runnable.class);
+                    memoryCtor.setAccessible(true);
+                    Object memoryPanel = memoryCtor.newInstance(sessionPanel, null);
+                    Method memoryOpenEditor = memoryPanelClass.getDeclaredMethod(
+                            "openEditor", MemoryModel.Bucket.class, MemoryModel.Entry.class);
+                    memoryOpenEditor.setAccessible(true);
+                    MemoryModel.Bucket bucket = new MemoryModel.Bucket(
+                            MemoryModel.TARGET_MEMORY, Collections.emptyList(), 0, MemoryModel.DEFAULT_CHAR_LIMIT, true);
+                    memoryOpenEditor.invoke(memoryPanel, bucket, null);
+                    Dialog memoryDialog = (Dialog) childDialogField.get(sessionPanel);
+                    assertNotNull("Expected MemoryPanel editor dialog", memoryDialog);
+                    TextView memoryError = findDangerErrorTextView(memoryDialog.getWindow().getDecorView(), dangerColor);
+                    assertNotNull("Expected danger errorView in MemoryPanel editor", memoryError);
+                    assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE, memoryError.getAccessibilityLiveRegion());
+                    memoryDialog.dismiss();
+
+                    // R16.5.1: ThreadInstrumentPanel.primary uses Ui.roundedRipple mask, stateful ink & Gravity.CENTER.
+                    VoiceDrafts voice = new VoiceDrafts(activity);
+                    voiceRef.set(voice);
+                    ThreadWorkspace workspace = new ThreadWorkspace(
+                            activity, api, fixture.account, new ThreadWorkspace.Host() {
+                                @Override public void selected(String sessionId, String title) {}
+                                @Override public void pendingChanged() {}
+                                @Override public JSONObject options(String sessionId) { return new JSONObject(); }
+                                @Override public void timing(String sessionId, long firstTextMillis,
+                                                             long elapsedMillis, long outputTokens) {}
+                            }, voice);
+                    workspaceRef.set(workspace);
+                    Field indexField = ThreadWorkspace.class.getDeclaredField("index");
+                    indexField.setAccessible(true);
+                    setField(workspace, "screen", indexField.get(workspace));
+
+                    Class<?> tipClass = Class.forName("org.llm4people.hermes.thread.ThreadInstrumentPanel");
+                    Constructor<?> tipCtor = tipClass.getDeclaredConstructor(
+                            ThreadWorkspace.class, ThreadInstruments.class, ArtifactDesk.Host.class);
+                    tipCtor.setAccessible(true);
+                    Object tip = tipCtor.newInstance(
+                            workspace, new ThreadInstruments(fixture.account, "s-r16"),
+                            new WorkspaceHost(activity, () -> true));
+                    LinearLayout controlsRow = Ui.row(activity);
+                    setField(tip, "controls", controlsRow);
+                    Method primaryMethod = tipClass.getDeclaredMethod("primary", int.class, Runnable.class);
+                    primaryMethod.setAccessible(true);
+                    primaryMethod.invoke(tip, R.string.panel_save, (Runnable) () -> {});
+
+                    assertEquals(1, controlsRow.getChildCount());
+                    assertTrue(controlsRow.getChildAt(0) instanceof Button);
+                    Button primaryBtn = (Button) controlsRow.getChildAt(0);
+                    assertEquals(Gravity.CENTER, primaryBtn.getGravity());
+                    assertTrue("Primary button must use RippleDrawable",
+                            primaryBtn.getBackground() instanceof RippleDrawable);
+                    RippleDrawable primaryRipple = (RippleDrawable) primaryBtn.getBackground();
+                    assertNotNull("Ui.roundedRipple must supply a bounded ripple mask",
+                            primaryRipple.findDrawableByLayerId(android.R.id.mask));
+                    ColorStateList primaryInk = primaryBtn.getTextColors();
+                    assertNotNull(primaryInk);
+                    assertTrue("Primary button text colors must be stateful", primaryInk.isStateful());
+                    assertEquals(activity.getColor(R.color.on_accent),
+                            primaryInk.getColorForState(new int[]{android.R.attr.state_enabled}, 0));
+                    assertEquals(activity.getColor(R.color.disabled_ink),
+                            primaryInk.getColorForState(new int[]{-android.R.attr.state_enabled}, 0));
+                } catch (Exception err) {
+                    throw new AssertionError(err);
+                }
+            });
             } finally {
-                ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+                try {
+                    runTestOnUiThread(() -> {
+                        SessionPanel sp = sessionPanelRef.getAndSet(null);
+                        if (sp != null) sp.close();
+                        ThreadWorkspace ws = workspaceRef.getAndSet(null);
+                        if (ws != null) ws.close();
+                        VoiceDrafts voice = voiceRef.getAndSet(null);
+                        if (voice != null) {
+                            voice.reader().stop();
+                            voice.cancel();
+                        }
+                    });
+                } finally {
+                    ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+                }
             }
+        } finally {
+            Diagnostics.clear();
         }
     }
 
@@ -918,6 +1112,39 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
         } finally {
             info.recycle();
         }
+    }
+
+    private static void assertSelectableButtonNode(View view, boolean expectedSelected) {
+        AccessibilityNodeInfo info = AccessibilityNodeInfo.obtain();
+        try {
+            view.onInitializeAccessibilityNodeInfo(info);
+            assertEquals(Button.class.getName(), String.valueOf(info.getClassName()));
+            assertEquals(expectedSelected, info.isSelected());
+        } finally {
+            info.recycle();
+        }
+    }
+
+    private static void assertCheckableNode(View view, boolean expectedChecked) {
+        AccessibilityNodeInfo info = AccessibilityNodeInfo.obtain();
+        try {
+            view.onInitializeAccessibilityNodeInfo(info);
+            assertTrue("Expected checkable AccessibilityNodeInfo", info.isCheckable());
+            assertEquals(expectedChecked, info.isChecked());
+        } finally {
+            info.recycle();
+        }
+    }
+
+    private static TextView findDangerErrorTextView(View root, int dangerColor) {
+        List<TextView> views = new ArrayList<>();
+        collect(root, TextView.class, views);
+        for (TextView tv : views) {
+            if (tv.getClass() == TextView.class && tv.getCurrentTextColor() == dangerColor) {
+                return tv;
+            }
+        }
+        return null;
     }
 
     private static void assertNoClickableDescendants(ViewGroup parent) {

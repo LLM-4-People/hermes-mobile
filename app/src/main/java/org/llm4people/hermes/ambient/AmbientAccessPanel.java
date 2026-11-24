@@ -58,12 +58,10 @@ public final class AmbientAccessPanel {
     public static final String ROUTE_ID = "ambient_intelligence";
     public static final int REQUEST_READ_CALENDAR = 4201;
 
-    public interface DraftSink {
-        void stageDraft(String text);
-    }
-
     /** Optional richer callbacks wiring 1-tap digest actions into Discussions, Smart Notes, and Calendar. */
-    public interface ActionCallbacks extends DraftSink {
+    public interface ActionCallbacks {
+        void stageDraft(String text);
+
         default void createNote(String title, String body, String fallbackDraft) {
             stageDraft(fallbackDraft);
         }
@@ -142,12 +140,6 @@ public final class AmbientAccessPanel {
                 cal,
                 false,
                 false);
-    }
-
-    public AmbientAccessPanel(Activity activity, NotificationAllowlist allowlist, DraftSink draftSink) {
-        this(activity, allowlist, draftSink instanceof ActionCallbacks ac
-                ? ac
-                : (draftSink == null ? text -> {} : draftSink::stageDraft));
     }
 
     public AmbientAccessPanel(Activity activity, NotificationAllowlist allowlist, ActionCallbacks callbacks) {
@@ -351,7 +343,7 @@ public final class AmbientAccessPanel {
     }
 
     /** Handle Calendar runtime permission outcomes with fail-closed persistence and 1-tap recovery. */
-    public void onPermissionResult(int requestCode, String[] permissions, int[] results) {
+    public void onPermissionResult(int requestCode, int[] results) {
         if (closed || requestCode != REQUEST_READ_CALENDAR) return;
         PermissionCenter.recordCompletedPrompt(activity, PermissionCenter.Key.CALENDAR, results);
         boolean granted = PermissionCenter.isCompletedResult(results)

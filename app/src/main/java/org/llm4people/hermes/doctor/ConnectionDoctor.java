@@ -110,19 +110,6 @@ public final class ConnectionDoctor implements AutoCloseable {
         });
     }
 
-    public ConnectionDoctor(Probes probes, long timeoutMs) {
-        HermesConfig defaults = HermesConfig.defaults();
-        this.probes = Objects.requireNonNull(probes, "probes");
-        this.timeoutMs = Math.max(250L, timeoutMs);
-        this.slowLatencyThresholdMs = Math.max(1L, defaults.slowLatencyThresholdMs);
-        this.expectedForkCapabilities = Math.max(1, defaults.expectedForkCapabilities);
-        this.pool = Executors.newFixedThreadPool(WORKER_THREADS, runnable -> {
-            Thread thread = new Thread(runnable, "hermes-doctor-" + THREAD_SEQ.incrementAndGet());
-            thread.setDaemon(true);
-            return thread;
-        });
-    }
-
     /** Create a live Android ConnectionDoctor bound to the active profile, gateway API, and {@link HermesConfig}. */
     public static ConnectionDoctor forAndroid(Context context, Account account, HermesApi api) {
         Context app = context.getApplicationContext();

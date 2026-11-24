@@ -9,11 +9,11 @@ import java.util.Map;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-/** Pure-JVM regression tests for {@link PermissionsPanel} stale denial/blocked feedback clearing (R15.3.3). */
+/** Pure-JVM regression tests for {@link PermissionsPanel} bidirectional stale-feedback clearing (R16.3.2). */
 public final class PermissionsPanelTest {
 
     @Test
-    public void shouldClearStaleFeedbackReturnsTrueOnlyWhenPendingKeyBecomesGranted() {
+    public void shouldClearStaleFeedbackHandlesBothDeniedToGrantedAndGrantedToRevokedTransitions() {
         Map<PermissionCenter.Key, PermissionCenter.State> states = new EnumMap<>(PermissionCenter.Key.class);
         states.put(PermissionCenter.Key.CAMERA, PermissionCenter.State.GRANTED);
         states.put(PermissionCenter.Key.MICROPHONE, PermissionCenter.State.PERMANENTLY_DENIED);
@@ -21,19 +21,28 @@ public final class PermissionsPanelTest {
         states.put(PermissionCenter.Key.NOTIFICATIONS, PermissionCenter.State.NOT_REQUESTED);
         states.put(PermissionCenter.Key.CALENDAR, PermissionCenter.State.UNAVAILABLE);
 
-        // Positive: pending key is now GRANTED -> clear stale error banner.
-        assertTrue(PermissionsPanel.shouldClearStaleFeedback(PermissionCenter.Key.CAMERA, states));
+        // Direction 1: denied/blocked banner clears once permission becomes GRANTED, stays otherwise.
+        assertTrue(PermissionsPanel.shouldClearStaleFeedback(PermissionCenter.Key.CAMERA, false, states));
+        assertFalse(PermissionsPanel.shouldClearStaleFeedback(PermissionCenter.Key.MICROPHONE, false, states));
+        assertFalse(PermissionsPanel.shouldClearStaleFeedback(PermissionCenter.Key.LOCATION, false, states));
+        assertFalse(PermissionsPanel.shouldClearStaleFeedback(PermissionCenter.Key.NOTIFICATIONS, false, states));
+        assertFalse(PermissionsPanel.shouldClearStaleFeedback(PermissionCenter.Key.CALENDAR, false, states));
 
-        // Negative: pending key is still denied/blocked/off/unavailable -> keep feedback visible.
-        assertFalse(PermissionsPanel.shouldClearStaleFeedback(PermissionCenter.Key.MICROPHONE, states));
-        assertFalse(PermissionsPanel.shouldClearStaleFeedback(PermissionCenter.Key.LOCATION, states));
-        assertFalse(PermissionsPanel.shouldClearStaleFeedback(PermissionCenter.Key.NOTIFICATIONS, states));
-        assertFalse(PermissionsPanel.shouldClearStaleFeedback(PermissionCenter.Key.CALENDAR, states));
+        // Direction 2: granted banner clears once permission is revoked/unavailable, stays while GRANTED.
+        assertFalse(PermissionsPanel.shouldClearStaleFeedback(PermissionCenter.Key.CAMERA, true, states));
+        assertTrue(PermissionsPanel.shouldClearStaleFeedback(PermissionCenter.Key.MICROPHONE, true, states));
+        assertTrue(PermissionsPanel.shouldClearStaleFeedback(PermissionCenter.Key.LOCATION, true, states));
+        assertTrue(PermissionsPanel.shouldClearStaleFeedback(PermissionCenter.Key.NOTIFICATIONS, true, states));
+        assertTrue(PermissionsPanel.shouldClearStaleFeedback(PermissionCenter.Key.CALENDAR, true, states));
 
-        // Negative: null/missing/empty inputs are safe no-ops.
-        assertFalse(PermissionsPanel.shouldClearStaleFeedback(null, states));
-        assertFalse(PermissionsPanel.shouldClearStaleFeedback(PermissionCenter.Key.CAMERA, null));
-        assertFalse(PermissionsPanel.shouldClearStaleFeedback(PermissionCenter.Key.CAMERA, Collections.emptyMap()));
-        assertFalse(PermissionsPanel.shouldClearStaleFeedback(PermissionCenter.Key.NOTIFICATION_ACCESS, states));
+        // Negative: null/missing/empty inputs are safe no-ops in both directions.
+        assertFalse(PermissionsPanel.shouldClearStaleFeedback(null, false, states));
+        assertFalse(PermissionsPanel.shouldClearStaleFeedback(null, true, states));
+        assertFalse(PermissionsPanel.shouldClearStaleFeedback(PermissionCenter.Key.CAMERA, false, null));
+        assertFalse(PermissionsPanel.shouldClearStaleFeedback(PermissionCenter.Key.CAMERA, true, null));
+        assertFalse(PermissionsPanel.shouldClearStaleFeedback(PermissionCenter.Key.CAMERA, false, Collections.emptyMap()));
+        assertFalse(PermissionsPanel.shouldClearStaleFeedback(PermissionCenter.Key.CAMERA, true, Collections.emptyMap()));
+        assertFalse(PermissionsPanel.shouldClearStaleFeedback(PermissionCenter.Key.NOTIFICATION_ACCESS, false, states));
+        assertFalse(PermissionsPanel.shouldClearStaleFeedback(PermissionCenter.Key.NOTIFICATION_ACCESS, true, states));
     }
 }

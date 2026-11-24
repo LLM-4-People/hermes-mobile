@@ -397,12 +397,10 @@ final class ThreadInstrumentPanel {
 
     private void primary(int label, Runnable task) {
         Button b = control(label, task);
-        android.graphics.drawable.GradientDrawable fill = new android.graphics.drawable.GradientDrawable();
-        fill.setColor(activity.getColor(R.color.accent));
-        fill.setCornerRadius(Ui.dp(activity, 8));
-        b.setBackground(new android.graphics.drawable.RippleDrawable(
-                android.content.res.ColorStateList.valueOf(activity.getColor(R.color.accent_surface)), fill, null));
-        b.setTextColor(activity.getColor(R.color.on_accent));
+        b.setBackground(Ui.roundedRipple(activity, Ui.BUTTON_CORNER_DP,
+                Ui.shape(activity, Ui.BUTTON_CORNER_DP, R.color.accent, 0, 0)));
+        b.setTextColor(Ui.enabledDisabledInk(
+                activity.getColor(R.color.on_accent), activity.getColor(R.color.disabled_ink)));
         b.setGravity(Gravity.CENTER);
     }
 

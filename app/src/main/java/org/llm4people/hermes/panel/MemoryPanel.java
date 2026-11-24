@@ -203,6 +203,7 @@ final class MemoryPanel {
                 MemoryModel.usageSummary(panel.activity, input.getText().length(), bucket.limit()));
         TextView errorView = panel.note(form, "");
         errorView.setTextColor(panel.activity.getColor(R.color.danger));
+        errorView.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         errorView.setVisibility(View.GONE);
         input.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
