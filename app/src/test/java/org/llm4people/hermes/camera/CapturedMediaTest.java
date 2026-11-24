@@ -72,6 +72,9 @@ public final class CapturedMediaTest {
         assertEquals("☕\uFE0F.png", CapturedMedia.sanitizeFilename("☕\uFE0F\uFE0F.png", "Document"));
         assertEquals("Document", CapturedMedia.sanitizeFilename("\u3164".repeat(140), "Document"));
         assertEquals("Document", CapturedMedia.sanitizeFilename("\uFE0F".repeat(140), "Document"));
+        // R20.2.3: Strips Unicode line/paragraph separators (U+2028 / U+2029).
+        assertEquals("photo.jpg", CapturedMedia.sanitizeFilename("photo\u2028\u2029.jpg", "Document"));
+        assertEquals("Document", CapturedMedia.sanitizeFilename("\u2028\u2029", "Document"));
         // Surrogate pair straddling index 128 must never leave an unpaired high surrogate.
         String splitBoundary = CapturedMedia.sanitizeFilename("a".repeat(127) + "\uD83D\uDE00", "Document");
         assertEquals("a".repeat(127), splitBoundary);

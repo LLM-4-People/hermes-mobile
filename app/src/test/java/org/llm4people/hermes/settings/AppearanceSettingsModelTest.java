@@ -22,11 +22,11 @@ public final class AppearanceSettingsModelTest {
 
     @Test
     public void themeModeNormalizationRejectsUnknownValuesToSystem() {
-        assertEquals("system", AppearanceSettingsModel.normalizeThemeMode(null));
-        assertEquals("system", AppearanceSettingsModel.normalizeThemeMode(""));
-        assertEquals("system", AppearanceSettingsModel.normalizeThemeMode("sepia"));
-        assertEquals("light", AppearanceSettingsModel.normalizeThemeMode(" LIGHT "));
-        assertEquals("dark", AppearanceSettingsModel.normalizeThemeMode("Dark"));
+        assertEquals("system", AppThemeMode.normalize(null));
+        assertEquals("system", AppThemeMode.normalize(""));
+        assertEquals("system", AppThemeMode.normalize("sepia"));
+        assertEquals("light", AppThemeMode.normalize(" LIGHT "));
+        assertEquals("dark", AppThemeMode.normalize("Dark"));
     }
 
     @Test

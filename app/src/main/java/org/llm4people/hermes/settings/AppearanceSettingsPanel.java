@@ -81,7 +81,7 @@ public final class AppearanceSettingsPanel {
             Listener listener) {
         this.activity = Objects.requireNonNull(activity, "activity");
         this.store = Objects.requireNonNull(store, "store");
-        this.activeThemeMode = AppearanceSettingsModel.normalizeThemeMode(initialThemeMode);
+        this.activeThemeMode = AppThemeMode.normalize(initialThemeMode);
         this.listener = Objects.requireNonNull(listener, "listener");
     }
 
@@ -126,7 +126,7 @@ public final class AppearanceSettingsPanel {
     }
 
     public void syncThemeMode(String themeMode) {
-        activeThemeMode = AppearanceSettingsModel.normalizeThemeMode(themeMode);
+        activeThemeMode = AppThemeMode.normalize(themeMode);
     }
 
     public void dismissDialogs() {

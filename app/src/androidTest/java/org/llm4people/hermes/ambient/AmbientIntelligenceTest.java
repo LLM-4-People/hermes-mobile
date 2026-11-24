@@ -73,7 +73,7 @@ public final class AmbientIntelligenceTest extends InstrumentationTestCase {
                         "k1", "org.thoughtcrime.securesms", "Signal", "Marie",
                         "Marie", "On déjeune ensemble ?", System.currentTimeMillis(), true, "Répondre");
                 AlertDialog replyDialog = HermesNotificationListener.showQuickReplyConfirmation(
-                        activity, sample, "Avec plaisir !", outcome::set);
+                        activity, sample, "Avec plaisir !", () -> true, outcome::set);
                 replyDialogRef.set(replyDialog);
                 assertTrue((replyDialog.getWindow().getAttributes().flags
                         & WindowManager.LayoutParams.FLAG_SECURE) != 0);
@@ -84,7 +84,7 @@ public final class AmbientIntelligenceTest extends InstrumentationTestCase {
                         "com.example.music", "Music", "Clair de Lune", "Debussy", "",
                         MediaContextBridge.PlaybackKind.PLAYING, 0, 120000);
                 AlertDialog mediaDialog = MediaContextBridge.showControlConfirmation(
-                        activity, false, track, MediaContextBridge.ControlAction.PAUSE, null);
+                        activity, () -> false, track, MediaContextBridge.ControlAction.PAUSE, null);
                 mediaDialogRef.set(mediaDialog);
                 assertTrue((mediaDialog.getWindow().getAttributes().flags
                         & WindowManager.LayoutParams.FLAG_SECURE) != 0);

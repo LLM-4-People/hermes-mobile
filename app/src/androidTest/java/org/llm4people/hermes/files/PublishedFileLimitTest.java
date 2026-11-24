@@ -67,5 +67,20 @@ public final class PublishedFileLimitTest extends AndroidTestCase {
         } catch (IOException expected) {
             // ok
         }
+
+        // R20.4.2: Rejects unsafe single-line codepoints (CGJ, Hangul fillers, separators, surrogates) & invisible-only names.
+        for (String badName : new String[]{
+                "rapport\u034F.pdf", "rapport\u3164.pdf", "rapport\u180F.pdf",
+                "rapport\u2028.pdf", "rapport\u2029.pdf", "rapport\uD83D.pdf",
+                "\uFE0F", "\u00A0"}) {
+            try {
+                new PublishedFile("/api/mobile/files/s1", row(1024).put("name", badName));
+                fail("Expected unsafe PublishedFile name to be rejected");
+            } catch (IOException expected) {
+                // ok
+            }
+        }
+        PublishedFile emojiName = new PublishedFile("/api/mobile/files/s1", row(1024).put("name", "rapport ☕\uFE0F.pdf"));
+        assertEquals("rapport ☕\uFE0F.pdf", emojiName.name);
     }
 }

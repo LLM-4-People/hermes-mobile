@@ -289,11 +289,7 @@ public final class DeliveryItem {
 
     private static long readEpochSec(JSONObject raw, String field) {
         if (!raw.has(field) || raw.isNull(field)) return 0L;
-        return parseEpochSecValue(raw.opt(field));
-    }
-
-    static long parseEpochSecValue(Object value) {
-        return EpochTimestamps.parseEpochSeconds(value);
+        return EpochTimestamps.parseEpochSeconds(raw.opt(field));
     }
 
     private static void rejectUnsafeCodePoints(String value, String message) {

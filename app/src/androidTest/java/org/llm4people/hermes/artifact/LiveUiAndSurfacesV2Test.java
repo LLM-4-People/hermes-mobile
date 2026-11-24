@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Locale;
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.llm4people.hermes.SecretPatterns;
 import org.llm4people.hermes.customization.InteractiveCardView;
 import org.llm4people.hermes.profile.Account;
 import org.llm4people.hermes.profile.WorkspaceAccountFixture;
@@ -531,10 +532,26 @@ public final class LiveUiAndSurfacesV2Test extends InstrumentationTestCase {
     }
 
     public void testLiveUiPatchDelegatesSecretDetectionAndSaturatesMapCompassParams() throws Exception {
-        assertTrue(LiveUiPatch.containsSecret("sk-\u200B1234567890abcdef"));
-        assertTrue(LiveUiPatch.containsSecret("gho_AbCdEf1234567890"));
-        assertTrue(LiveUiPatch.containsSecret("eyJhbGciOiJIUzI1NiJ9.payload"));
-        assertFalse(LiveUiPatch.containsSecret("Mon tableau du jour"));
+        assertTrue(SecretPatterns.containsCredential("sk-\u200B1234567890abcdef"));
+        assertTrue(SecretPatterns.containsCredential("gho_AbCdEf1234567890"));
+        assertTrue(SecretPatterns.containsCredential("eyJhbGciOiJIUzI1NiJ9.payload"));
+        assertFalse(SecretPatterns.containsCredential("Mon tableau du jour"));
+
+        // R20.2.1: WorkspaceLayout.label rejects variation-selector-only invisible labels.
+        for (String invisibleTitle : new String[]{"\uFE0F", "\uDB40\uDD00"}) {
+            try {
+                WorkspaceLayout.parse(new JSONObject()
+                        .put("version", 2)
+                        .put("surface", "page/invis")
+                        .put("mode", "replace")
+                        .put("title", invisibleTitle)
+                        .put("blocks", new JSONArray())
+                        .toString());
+                fail("Expected invisible WorkspaceLayout title to be rejected");
+            } catch (IOException expected) {
+                // ok
+            }
+        }
 
         // map_compass overflow radius_m / limit must saturate cleanly (and fail WorkspaceLayout bounds instead of wrapping).
         JSONObject overflowCompass = new JSONObject()

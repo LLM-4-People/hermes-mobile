@@ -57,10 +57,6 @@ public final class WorkflowTemplate {
         return id;
     }
 
-    public static boolean looksLikeSecret(String text) {
-        return SecretPatterns.containsCredential(text);
-    }
-
     static String validateSingleLine(String raw, int maxChars, boolean required) throws IOException {
         if (raw == null) {
             if (required) throw new IOException("Required template text missing");
@@ -81,7 +77,7 @@ public final class WorkflowTemplate {
             }
             i += Character.charCount(cp);
         }
-        if (looksLikeSecret(trimmed)) throw new SecretRejectedException();
+        if (SecretPatterns.containsCredential(trimmed)) throw new SecretRejectedException();
         return trimmed;
     }
 
@@ -98,7 +94,7 @@ public final class WorkflowTemplate {
             }
             i += Character.charCount(cp);
         }
-        if (looksLikeSecret(normalized)) throw new SecretRejectedException();
+        if (SecretPatterns.containsCredential(normalized)) throw new SecretRejectedException();
         return normalized;
     }
 

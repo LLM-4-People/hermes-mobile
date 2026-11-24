@@ -62,10 +62,17 @@ public class HermesOsPrivacyAndWidgetTest {
         assertEquals("", HermesWidgetSpec.sanitizeHomeText("sk-1234567890abcdef", 48));
         assertEquals("", HermesWidgetSpec.sanitizeHomeText("eyJhbGciOiJIUzI1NiJ9.payload", 48));
         assertEquals("Bonjour", HermesWidgetSpec.sanitizeHomeText("Bon\u202Ejour\n", 48));
-        // Draft actions must also reject secret-like tokens.
+        // R20.4.2: Standalone invisible fillers & unattached variation selectors never yield phantom widget text.
+        assertEquals("", HermesWidgetSpec.sanitizeHomeText("\u3164".repeat(48), 48));
+        assertEquals("", HermesWidgetSpec.sanitizeHomeText("\uFE0F".repeat(48), 48));
+        assertEquals("", HermesWidgetSpec.sanitizeHomeText("\u034F\u180F\u00A0", 48));
+        assertEquals("☕\uFE0F Pause", HermesWidgetSpec.sanitizeHomeText("\u3164\uFE0F☕\uFE0F\uFE0F Pause", 48));
+        // Draft actions must also reject secret-like tokens and invisible-only text while preserving newlines.
         assertEquals("", HermesWidgetSpec.sanitizeDraft("Bearer abcdefgh12345678"));
         assertEquals("", HermesWidgetSpec.sanitizeDraft("sk-1234567890abcdef"));
         assertEquals("", HermesWidgetSpec.sanitizeDraft("ghp_1234567890abcdef1234567890"));
+        assertEquals("", HermesWidgetSpec.sanitizeDraft("\u3164\u034F\uFE0F\u2028\u2029"));
+        assertEquals("Ligne 1\nLigne 2 ☕\uFE0F", HermesWidgetSpec.sanitizeDraft("\u3164Ligne 1\n\uFE0FLigne\u034F 2 ☕\uFE0F\uFE0F\u2028"));
         assertEquals("Prépare ma journée", HermesWidgetSpec.sanitizeDraft("Prépare ma journée"));
 
         // Invalid IDs, blank titles, and unsupported templates must fail cleanly.

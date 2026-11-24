@@ -2,7 +2,8 @@ package org.llm4people.hermes.files;
 
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.llm4people.hermes.HermesConfig;
+import org.llm4people.hermes.PlainTextSanitizer;
+import org.llm4people.hermes.camera.CapturedMedia;
 import org.llm4people.hermes.net.HermesApi;
 import java.io.IOException;
 import java.security.MessageDigest;
@@ -13,11 +14,11 @@ final class PublishedFile {
     final long size;
 
     PublishedFile(String threadPath, JSONObject row) throws JSONException, IOException {
-        this(threadPath, row, HermesConfig.defaults().artifactDefaultMaxBytes);
+        this(threadPath, row, CapturedMedia.effectiveByteLimit(0L));
     }
 
     static long effectiveBound(long maxBytes) {
-        return maxBytes > 0 ? maxBytes : HermesConfig.defaults().artifactDefaultMaxBytes;
+        return CapturedMedia.effectiveByteLimit(maxBytes);
     }
 
     PublishedFile(String threadPath, JSONObject row, long maxBytes) throws JSONException, IOException {
@@ -29,7 +30,8 @@ final class PublishedFile {
         hash = row.getString("sha256");
         if (!id.matches("[0-9a-f]{32}") || !hash.matches("[0-9a-f]{64}") ||
                 name.isEmpty() || name.length() > 240 || name.indexOf('/') >= 0 || name.indexOf('\\') >= 0 ||
-                name.codePoints().anyMatch(c -> Character.isISOControl(c) || Character.getType(c) == Character.FORMAT) ||
+                PlainTextSanitizer.hasUnsafeSingleLineCodePoint(name) ||
+                !PlainTextSanitizer.hasVisibleText(name) ||
                 !mime.matches("[A-Za-z0-9!#$&^_.+-]+/[A-Za-z0-9!#$&^_.+-]+") ||
                 size < 0 || size > bound) throw new IOException("Invalid file metadata");
         path = threadPath + "/" + HermesApi.segment(id);

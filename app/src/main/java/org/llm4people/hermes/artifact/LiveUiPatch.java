@@ -205,7 +205,9 @@ public final class LiveUiPatch {
             if (!safeVal.isEmpty() && !validText(safeVal, 80)) throw new IOException("Invalid widget item value");
             String safeDraft = actionDraft == null || actionDraft.isEmpty() ? null : actionDraft;
             if (safeDraft != null && !validText(safeDraft, 240)) throw new IOException("Invalid widget action draft");
-            if (containsSecret(label) || containsSecret(safeVal) || (safeDraft != null && containsSecret(safeDraft))) {
+            if (SecretPatterns.containsCredential(label)
+                    || SecretPatterns.containsCredential(safeVal)
+                    || (safeDraft != null && SecretPatterns.containsCredential(safeDraft))) {
                 throw new IOException("Widget item contains secret-like material");
             }
             this.label = label;
@@ -247,7 +249,9 @@ public final class LiveUiPatch {
             if (!validText(title, 80)) throw new IOException("Invalid widget title");
             String safeSub = subtitle == null ? "" : subtitle;
             if (!safeSub.isEmpty() && !validText(safeSub, 120)) throw new IOException("Invalid widget subtitle");
-            if (containsSecret(title) || containsSecret(safeSub)) throw new IOException("Widget text contains secret-like material");
+            if (SecretPatterns.containsCredential(title) || SecretPatterns.containsCredential(safeSub)) {
+                throw new IOException("Widget text contains secret-like material");
+            }
             if (template == null || !WIDGET_TEMPLATES.contains(template)) throw new IOException("Invalid widget template");
             if (items == null || items.size() > MAX_WIDGET_ITEMS) throw new IOException("Invalid widget items");
             String normalizedAccent = null;
@@ -920,10 +924,6 @@ public final class LiveUiPatch {
         if (!Arrays.asList(allowed).containsAll(keys)) {
             throw new IOException("Unexpected field in ui.patch op");
         }
-    }
-
-    static boolean containsSecret(String s) {
-        return SecretPatterns.containsCredential(s);
     }
 
     static boolean validText(String s, int max) {

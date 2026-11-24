@@ -1,6 +1,7 @@
 package org.llm4people.hermes.push;
 
 import org.junit.Test;
+import org.llm4people.hermes.EpochTimestamps;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -133,19 +134,19 @@ public final class DeliveryItemTest {
 
     @Test
     public void parsesEpochSecondsEpochMillisAndIso8601WireTimestampsAndRejectsInvalid() {
-        assertEquals(1700000000L, DeliveryItem.parseEpochSecValue(1700000000L));
-        assertEquals(1700000000L, DeliveryItem.parseEpochSecValue(1700000000000L));
-        assertEquals(1700000000L, DeliveryItem.parseEpochSecValue("1700000000"));
-        assertEquals(1700000000L, DeliveryItem.parseEpochSecValue("1700000000000"));
-        assertEquals(1795357800L, DeliveryItem.parseEpochSecValue("2026-11-22T14:30:00Z"));
-        assertEquals(1795357800L, DeliveryItem.parseEpochSecValue("2026-11-22T09:30:00-05:00"));
+        assertEquals(1700000000L, EpochTimestamps.parseEpochSeconds(1700000000L));
+        assertEquals(1700000000L, EpochTimestamps.parseEpochSeconds(1700000000000L));
+        assertEquals(1700000000L, EpochTimestamps.parseEpochSeconds("1700000000"));
+        assertEquals(1700000000L, EpochTimestamps.parseEpochSeconds("1700000000000"));
+        assertEquals(1795357800L, EpochTimestamps.parseEpochSeconds("2026-11-22T14:30:00Z"));
+        assertEquals(1795357800L, EpochTimestamps.parseEpochSeconds("2026-11-22T09:30:00-05:00"));
 
-        assertEquals(0L, DeliveryItem.parseEpochSecValue(null));
-        assertEquals(0L, DeliveryItem.parseEpochSecValue(""));
-        assertEquals(0L, DeliveryItem.parseEpochSecValue("not-a-timestamp"));
-        assertEquals(0L, DeliveryItem.parseEpochSecValue(-500L));
-        assertEquals(0L, DeliveryItem.parseEpochSecValue(Double.NaN));
-        assertEquals(0L, DeliveryItem.parseEpochSecValue(Double.POSITIVE_INFINITY));
+        assertEquals(0L, EpochTimestamps.parseEpochSeconds(null));
+        assertEquals(0L, EpochTimestamps.parseEpochSeconds(""));
+        assertEquals(0L, EpochTimestamps.parseEpochSeconds("not-a-timestamp"));
+        assertEquals(0L, EpochTimestamps.parseEpochSeconds(-500L));
+        assertEquals(0L, EpochTimestamps.parseEpochSeconds(Double.NaN));
+        assertEquals(0L, EpochTimestamps.parseEpochSeconds(Double.POSITIVE_INFINITY));
     }
 
     @Test
