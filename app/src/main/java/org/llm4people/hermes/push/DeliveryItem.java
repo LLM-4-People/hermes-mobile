@@ -96,7 +96,6 @@ public final class DeliveryItem {
         }
 
         public String label(Context context) { return AppLanguage.wrapContext(context).getString(labelRes); }
-        public String lockscreenNoticeTitle(Context context) { return AppLanguage.wrapContext(context).getString(lockscreenNoticeTitleRes); }
         public String primaryAction(Context context) { return AppLanguage.wrapContext(context).getString(primaryActionRes); }
 
         public static Kind fromWire(String raw) {

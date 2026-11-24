@@ -133,10 +133,6 @@ public final class ThreadCameraCapture {
         return readyToImport && pendingSlot != null;
     }
 
-    public boolean isReadyFor(Account account, String sessionId) {
-        return isReady() && account != null && sessionId != null && owns(account, sessionId);
-    }
-
     public static Intent captureIntentFor(Uri slot) {
         return buildCaptureIntent(slot);
     }
@@ -170,13 +166,6 @@ public final class ThreadCameraCapture {
         } finally {
             PrivateCaptureProvider.deleteSlot(context, slot);
         }
-    }
-
-    /** Consume and EXIF-strip the captured photo only if the unlocked profile and thread still match. */
-    public CapturedMedia.Item consumeIfReady(Account account, String sessionId) throws IOException {
-        Uri slot = claimReadySlot(account, sessionId);
-        if (slot == null) return null;
-        return readAndDeleteSlot(activity, slot);
     }
 
     boolean owns(Account account, String sessionId) {

@@ -1,7 +1,10 @@
 package org.llm4people.hermes.onboarding;
 
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 import org.llm4people.hermes.AppLanguage;
+import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.net.HermesApi;
 
 import java.io.BufferedReader;
@@ -26,6 +29,18 @@ import static org.junit.Assert.*;
  */
 public final class OnboardingApiContractTest {
 
+    @Before
+    public void setUpDiagnostics() {
+        Diagnostics.clear();
+        Diagnostics.setSink((level, tag, message) -> {});
+    }
+
+    @After
+    public void tearDownDiagnostics() {
+        Diagnostics.clear();
+        Diagnostics.setSink(null);
+    }
+
     @Test
     public void parsePairingTicketSaturatesExtremeTtlSecondsWithoutIntOverflow() {
         Map<String, Object> base = new LinkedHashMap<>();
@@ -46,6 +61,150 @@ public final class OnboardingApiContractTest {
         // -4_294_967_200L previously wrapped to +96 on narrow (int) cast; must clamp to 0.
         base.put("ttl_seconds", -4_294_967_200L);
         assertEquals(0, OnboardingModels.parsePairingTicketMap(base).ttlSeconds());
+
+        base.put("ttl_seconds", Double.NaN);
+        assertEquals(0, OnboardingModels.parsePairingTicketMap(base).ttlSeconds());
+
+        base.put("ttl_seconds", Double.POSITIVE_INFINITY);
+        assertEquals(0, OnboardingModels.parsePairingTicketMap(base).ttlSeconds());
+    }
+
+    @Test
+    public void allOnboardingParsersSaturateOverflowNegativeAndNonFiniteNumbers() {
+        // 1. parsePairingInspectMap
+        Map<String, Object> inspect = new LinkedHashMap<>();
+        inspect.put("valid", true);
+        inspect.put("server_url", "https://hermes.example.com");
+        inspect.put("profile_slug", "alex");
+        inspect.put("ttl_remaining_seconds", 4_294_967_296L);
+        assertEquals(Integer.MAX_VALUE, OnboardingModels.parsePairingInspectMap(inspect).ttlRemainingSeconds());
+        inspect.put("ttl_remaining_seconds", Long.MAX_VALUE);
+        assertEquals(Integer.MAX_VALUE, OnboardingModels.parsePairingInspectMap(inspect).ttlRemainingSeconds());
+        inspect.put("ttl_remaining_seconds", -4_294_967_200L);
+        assertEquals(0, OnboardingModels.parsePairingInspectMap(inspect).ttlRemainingSeconds());
+        inspect.put("ttl_remaining_seconds", Double.NaN);
+        assertEquals(0, OnboardingModels.parsePairingInspectMap(inspect).ttlRemainingSeconds());
+        inspect.put("ttl_remaining_seconds", Double.POSITIVE_INFINITY);
+        assertEquals(0, OnboardingModels.parsePairingInspectMap(inspect).ttlRemainingSeconds());
+
+        // 2. parseOnboardingStatusMap
+        Map<String, Object> status = new LinkedHashMap<>();
+        status.put("ready", true);
+        status.put("active_capabilities", 4_294_967_296L);
+        status.put("endpoint_count", 3_000_000_000L);
+        OnboardingModels.OnboardingStatus parsedStatus = OnboardingModels.parseOnboardingStatusMap(status);
+        assertEquals(Integer.MAX_VALUE, parsedStatus.activeCapabilities());
+        assertEquals(Integer.MAX_VALUE, parsedStatus.endpointCount());
+
+        status.put("active_capabilities", -4_294_967_200L);
+        status.put("endpoint_count", Double.NaN);
+        parsedStatus = OnboardingModels.parseOnboardingStatusMap(status);
+        assertEquals(0, parsedStatus.activeCapabilities());
+        assertEquals(0, parsedStatus.endpointCount());
+
+        status.put("active_capabilities", Double.POSITIVE_INFINITY);
+        status.put("endpoint_count", Long.MAX_VALUE);
+        parsedStatus = OnboardingModels.parseOnboardingStatusMap(status);
+        assertEquals(0, parsedStatus.activeCapabilities());
+        assertEquals(Integer.MAX_VALUE, parsedStatus.endpointCount());
+
+        // 3. parseAdminSettingsMap
+        Map<String, Object> settings = new LinkedHashMap<>();
+        settings.put("max_concurrent_runs", 4_294_967_296L);
+        settings.put("per_profile_concurrent_limit", Long.MAX_VALUE);
+        settings.put("pairing_ttl_seconds", 4_294_967_296L);
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("profile_count", 4_294_967_296L);
+        summary.put("active_runs_count", 3_000_000_000L);
+        summary.put("active_pairing_tickets", Long.MAX_VALUE);
+        summary.put("active_capabilities", -4_294_967_200L);
+        summary.put("endpoint_count", Double.NaN);
+        OnboardingModels.AdminSettings adminHigh = OnboardingModels.parseAdminSettingsMap(
+                Map.of("settings", settings, "summary", summary));
+        assertEquals(OnboardingModels.AdminSettings.MAX_CONCURRENT_RUNS, adminHigh.maxConcurrentRuns());
+        assertEquals(OnboardingModels.AdminSettings.MAX_PER_PROFILE_RUNS, adminHigh.perProfileConcurrentLimit());
+        assertEquals(OnboardingModels.AdminSettings.MAX_PAIRING_TTL_SEC, adminHigh.pairingTtlSeconds());
+        assertEquals(Integer.MAX_VALUE, adminHigh.profileCount());
+        assertEquals(Integer.MAX_VALUE, adminHigh.activeRunsCount());
+        assertEquals(Integer.MAX_VALUE, adminHigh.activePairingTickets());
+        assertEquals(0, adminHigh.activeCapabilities());
+        assertEquals(0, adminHigh.endpointCount());
+
+        Map<String, Object> settingsNonFinite = new LinkedHashMap<>();
+        settingsNonFinite.put("max_concurrent_runs", Double.NaN);
+        settingsNonFinite.put("per_profile_concurrent_limit", Double.POSITIVE_INFINITY);
+        settingsNonFinite.put("pairing_ttl_seconds", -4_294_967_200L);
+        Map<String, Object> summaryNonFinite = new LinkedHashMap<>();
+        summaryNonFinite.put("profile_count", Double.POSITIVE_INFINITY);
+        summaryNonFinite.put("active_runs_count", Double.NaN);
+        summaryNonFinite.put("active_pairing_tickets", -4_294_967_200L);
+        summaryNonFinite.put("active_capabilities", 4_294_967_296L);
+        summaryNonFinite.put("endpoint_count", Long.MAX_VALUE);
+        OnboardingModels.AdminSettings adminFallback = OnboardingModels.parseAdminSettingsMap(
+                Map.of("settings", settingsNonFinite, "summary", summaryNonFinite));
+        assertEquals(32, adminFallback.maxConcurrentRuns());
+        assertEquals(12, adminFallback.perProfileConcurrentLimit());
+        assertEquals(OnboardingModels.AdminSettings.MIN_PAIRING_TTL_SEC, adminFallback.pairingTtlSeconds());
+        assertEquals(0, adminFallback.profileCount());
+        assertEquals(0, adminFallback.activeRunsCount());
+        assertEquals(0, adminFallback.activePairingTickets());
+        assertEquals(Integer.MAX_VALUE, adminFallback.activeCapabilities());
+        assertEquals(Integer.MAX_VALUE, adminFallback.endpointCount());
+
+        // 4. parseRemoteProfileMap
+        Map<String, Object> profile = new LinkedHashMap<>();
+        profile.put("slug", "alex");
+        profile.put("active_runs", 4_294_967_296L);
+        profile.put("thread_count", Long.MAX_VALUE);
+        OnboardingModels.RemoteProfile rpHigh = OnboardingModels.parseRemoteProfileMap(profile);
+        assertNotNull(rpHigh);
+        assertEquals(Integer.MAX_VALUE, rpHigh.activeRuns());
+        assertEquals(Integer.MAX_VALUE, rpHigh.threadCount());
+
+        profile.put("active_runs", -4_294_967_200L);
+        profile.put("thread_count", Double.NaN);
+        OnboardingModels.RemoteProfile rpLow = OnboardingModels.parseRemoteProfileMap(profile);
+        assertNotNull(rpLow);
+        assertEquals(0, rpLow.activeRuns());
+        assertEquals(0, rpLow.threadCount());
+
+        profile.put("active_runs", Double.POSITIVE_INFINITY);
+        profile.put("thread_count", 3_000_000_000L);
+        OnboardingModels.RemoteProfile rpInf = OnboardingModels.parseRemoteProfileMap(profile);
+        assertNotNull(rpInf);
+        assertEquals(0, rpInf.activeRuns());
+        assertEquals(Integer.MAX_VALUE, rpInf.threadCount());
+
+        // 5. parsePairingClaimMap -> extractCapabilityCount (Number + Map active_capabilities + Map count)
+        Map<String, Object> claim = new LinkedHashMap<>();
+        claim.put("server_url", "https://hermes.example.com");
+        claim.put("profile_slug", "alex");
+        claim.put("api_key", "hm_live_key_1234567890");
+
+        claim.put("capabilities_summary", 4_294_967_296L);
+        assertEquals(Integer.MAX_VALUE, OnboardingModels.parsePairingClaimMap(claim).activeCapabilities());
+        claim.put("capabilities_summary", -4_294_967_200L);
+        assertEquals(0, OnboardingModels.parsePairingClaimMap(claim).activeCapabilities());
+        claim.put("capabilities_summary", Double.NaN);
+        assertEquals(0, OnboardingModels.parsePairingClaimMap(claim).activeCapabilities());
+        claim.put("capabilities_summary", Double.POSITIVE_INFINITY);
+        assertEquals(0, OnboardingModels.parsePairingClaimMap(claim).activeCapabilities());
+
+        // 3_000_000_000L previously narrowed to negative int -1294967296 on (int) count!
+        claim.put("capabilities_summary", Map.of("active_capabilities", 3_000_000_000L));
+        assertEquals(Integer.MAX_VALUE, OnboardingModels.parsePairingClaimMap(claim).activeCapabilities());
+        claim.put("capabilities_summary", Map.of("active_capabilities", 4_294_967_296L));
+        assertEquals(Integer.MAX_VALUE, OnboardingModels.parsePairingClaimMap(claim).activeCapabilities());
+        claim.put("capabilities_summary", Map.of("active_capabilities", Long.MAX_VALUE));
+        assertEquals(Integer.MAX_VALUE, OnboardingModels.parsePairingClaimMap(claim).activeCapabilities());
+        claim.put("capabilities_summary", Map.of("active_capabilities", Double.NaN, "count", 7));
+        assertEquals(7, OnboardingModels.parsePairingClaimMap(claim).activeCapabilities());
+        claim.put("capabilities_summary", Map.of("count", 4_294_967_296L));
+        assertEquals(Integer.MAX_VALUE, OnboardingModels.parsePairingClaimMap(claim).activeCapabilities());
+        claim.put("capabilities_summary", Map.of("count", -4_294_967_200L));
+        assertEquals(0, OnboardingModels.parsePairingClaimMap(claim).activeCapabilities());
+        claim.put("capabilities_summary", Map.of("count", Double.POSITIVE_INFINITY));
+        assertEquals(0, OnboardingModels.parsePairingClaimMap(claim).activeCapabilities());
     }
 
     @Test

@@ -40,10 +40,6 @@ public final class AppPresenceTracker {
             List<DismissedNotificationView> dismissedNotifications) {
         public static final ReadWithoutReplyState NONE =
                 new ReadWithoutReplyState(false, "", "", 0L, Collections.emptyList());
-
-        public boolean hasAnySignal() {
-            return inAppUnreadReply || !dismissedNotifications.isEmpty();
-        }
     }
 
     public record DismissedNotificationView(String appLabel, long ageSec) {}

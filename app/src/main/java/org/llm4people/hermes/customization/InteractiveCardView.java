@@ -321,7 +321,7 @@ public final class InteractiveCardView extends LinearLayout {
                     String slug = str(src.get("profile_slug"));
                     String displayName = str(src.get("display_name"));
                     long expiresAt = parseLongVal(src.get("expires_at"));
-                    int ttl = parseTtlSeconds(src.get("ttl_seconds"), 300);
+                    int ttl = JsonValues.parseInt(src.get("ttl_seconds"), 300);
                     yield pairingInvite(id, title, subtitle,
                             new PairingInvite(mode, link, slug, displayName, expiresAt, ttl));
                 }
@@ -760,36 +760,5 @@ public final class InteractiveCardView extends LinearLayout {
 
     private static long parseLongVal(Object value) {
         return org.llm4people.hermes.EpochTimestamps.parseEpochSeconds(value);
-    }
-
-    private static int parseTtlSeconds(Object value, int defaultSeconds) {
-        if (value == null) return defaultSeconds;
-        if (value instanceof Number n) {
-            if (value instanceof Long || value instanceof Integer
-                    || value instanceof Short || value instanceof Byte) {
-                return saturateInt(n.longValue());
-            }
-            double d = n.doubleValue();
-            return Double.isFinite(d) ? saturateInt(Math.round(d)) : defaultSeconds;
-        }
-        if (value instanceof String s) {
-            String trimmed = s.trim();
-            if (trimmed.isEmpty()) return defaultSeconds;
-            try {
-                return saturateInt(Long.parseLong(trimmed));
-            } catch (NumberFormatException notLong) {
-                try {
-                    double parsed = Double.parseDouble(trimmed);
-                    return Double.isFinite(parsed) ? saturateInt(Math.round(parsed)) : defaultSeconds;
-                } catch (NumberFormatException ignored) {
-                    return defaultSeconds;
-                }
-            }
-        }
-        return defaultSeconds;
-    }
-
-    private static int saturateInt(long value) {
-        return (int) Math.max(Integer.MIN_VALUE, Math.min(Integer.MAX_VALUE, value));
     }
 }

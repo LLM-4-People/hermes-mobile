@@ -371,8 +371,6 @@
 
     <string name="ws_share_err_kind_missing">Missing item type.</string>
     <string name="ws_share_err_kind_unsupported">Item type is not supported for sharing.</string>
-    <string name="ws_share_err_perm_missing">Missing access level.</string>
-    <string name="ws_share_err_perm_invalid">Invalid access level.</string>
     <string name="ws_share_err_profile_missing">Enter the recipient profile name on this server.</string>
     <string name="ws_share_err_profile_invalid">Invalid profile name (letters, digits, hyphens, or dots).</string>
     <string name="ws_share_err_id_missing">Missing item identifier.</string>

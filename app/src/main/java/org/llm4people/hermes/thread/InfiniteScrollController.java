@@ -109,11 +109,6 @@ public final class InfiniteScrollController implements AbsListView.OnScrollListe
         return pill;
     }
 
-    public void attachJumpPill(Button existing) {
-        this.jumpPill = existing;
-        updatePillUi();
-    }
-
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
     }
@@ -136,18 +131,6 @@ public final class InfiniteScrollController implements AbsListView.OnScrollListe
 
     public boolean isAtTail() { return atTail; }
     public int unreadCount() { return unreadCount; }
-
-    /**
-     * Preserves the exact top visible row and pixel offset when {@code prependedCount} older rows
-     * are inserted above the current viewport — eliminating scroll jumps during upward infinite scroll.
-     */
-    public static void preserveAnchorAfterPrepend(ListView list, int prependedCount) {
-        if (list == null || prependedCount <= 0) return;
-        int firstPos = list.getFirstVisiblePosition();
-        View firstChild = list.getChildCount() > 0 ? list.getChildAt(0) : null;
-        int topOffset = firstChild == null ? 0 : firstChild.getTop();
-        list.setSelectionFromTop(firstPos + prependedCount, topOffset);
-    }
 
     @Override public void onScrollStateChanged(AbsListView view, int scrollState) {}
 

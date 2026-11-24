@@ -19,6 +19,7 @@ import android.widget.TextView;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.llm4people.hermes.Diagnostics;
+import org.llm4people.hermes.JsonValues;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.artifact.CodeReader;
@@ -115,8 +116,12 @@ public final class DiffRenderer {
                 parsedHunks.add(new HunkInput(oldStart, newStart, lines));
             }
         }
-        int additions = diff.has("additions") && diff.opt("additions") instanceof Number n ? Math.max(0, n.intValue()) : -1;
-        int deletions = diff.has("deletions") && diff.opt("deletions") instanceof Number n ? Math.max(0, n.intValue()) : -1;
+        Integer parsedAdditions = diff.has("additions") && diff.opt("additions") instanceof Number
+                ? JsonValues.parseIntOrNull(diff.opt("additions")) : null;
+        Integer parsedDeletions = diff.has("deletions") && diff.opt("deletions") instanceof Number
+                ? JsonValues.parseIntOrNull(diff.opt("deletions")) : null;
+        int additions = parsedAdditions != null ? Math.max(0, parsedAdditions) : -1;
+        int deletions = parsedDeletions != null ? Math.max(0, parsedDeletions) : -1;
         String rawPatch = stringOf(diff, "patch");
         if (parsedHunks.isEmpty() && !rawPatch.isEmpty()) {
             return parseUnified(path, language, rawPatch, title, summary, risk, remoteTruncated);

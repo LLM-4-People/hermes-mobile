@@ -16,7 +16,6 @@ public final class BrainCapabilities {
     public static final String SESSION_FORK_AT_TURN = "session_fork_at_turn";
     public static final String SESSION_EXPORT = "session_export";
     public static final String USAGE_ANALYTICS = "usage_analytics";
-    public static final String RUN_METRICS_V2 = "run_metrics_v2";
     public static final String SMART_NOTES = "smart_notes";
     public static final String NOTE_SHARING = "note_sharing";
     public static final String UNIVERSAL_SHARING = "universal_sharing";
@@ -69,7 +68,6 @@ public final class BrainCapabilities {
     public boolean sessionForkAtTurn() { return supports(SESSION_FORK_AT_TURN); }
     public boolean sessionExport() { return supports(SESSION_EXPORT); }
     public boolean usageAnalytics() { return supports(USAGE_ANALYTICS); }
-    public boolean runMetricsV2() { return supports(RUN_METRICS_V2); }
     public boolean smartNotes() { return supports(SMART_NOTES); }
     public boolean noteSharing() { return supports(NOTE_SHARING) || supports(UNIVERSAL_SHARING); }
     public boolean universalSharing() { return supports(UNIVERSAL_SHARING); }

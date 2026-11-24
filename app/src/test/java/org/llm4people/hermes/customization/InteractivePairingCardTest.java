@@ -94,6 +94,26 @@ public final class InteractivePairingCardTest {
         pairing.put("ttl_seconds", "-4294967200");
         assertEquals(0, InteractiveCardView.Spec.fromMap(raw).pairingInvite.ttlSeconds());
 
+        // R7.8.6: Floating-point, decimal, scientific-notation, and non-finite ttl_seconds values.
+        pairing.put("ttl_seconds", 4_294_967_296.0d);
+        assertEquals(900, InteractiveCardView.Spec.fromMap(raw).pairingInvite.ttlSeconds());
+        pairing.put("ttl_seconds", Double.NaN);
+        assertEquals(300, InteractiveCardView.Spec.fromMap(raw).pairingInvite.ttlSeconds());
+        pairing.put("ttl_seconds", Double.POSITIVE_INFINITY);
+        assertEquals(300, InteractiveCardView.Spec.fromMap(raw).pairingInvite.ttlSeconds());
+        pairing.put("ttl_seconds", Double.NEGATIVE_INFINITY);
+        assertEquals(300, InteractiveCardView.Spec.fromMap(raw).pairingInvite.ttlSeconds());
+        pairing.put("ttl_seconds", "180.6");
+        assertEquals(181, InteractiveCardView.Spec.fromMap(raw).pairingInvite.ttlSeconds());
+        pairing.put("ttl_seconds", "1e20");
+        assertEquals(900, InteractiveCardView.Spec.fromMap(raw).pairingInvite.ttlSeconds());
+        pairing.put("ttl_seconds", "-1e20");
+        assertEquals(0, InteractiveCardView.Spec.fromMap(raw).pairingInvite.ttlSeconds());
+        pairing.put("ttl_seconds", "NaN");
+        assertEquals(300, InteractiveCardView.Spec.fromMap(raw).pairingInvite.ttlSeconds());
+        pairing.put("ttl_seconds", "Infinity");
+        assertEquals(300, InteractiveCardView.Spec.fromMap(raw).pairingInvite.ttlSeconds());
+
         // Customization preview: accent: null must fall back cleanly to accent_preset.
         Map<String, Object> cust = new LinkedHashMap<>();
         cust.put("accent", null);

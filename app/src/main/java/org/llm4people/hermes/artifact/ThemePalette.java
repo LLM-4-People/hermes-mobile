@@ -19,7 +19,6 @@ import org.llm4people.hermes.profile.Account;
  */
 public final class ThemePalette {
     public static final double WCAG_AA_NORMAL = 4.5;
-    public static final double WCAG_AA_LARGE = 3.0;
 
     // DESIGN.md day tokens (synced with res/values/colors.xml)
     public static final int DAY_PAPER = 0xFFF6F4EE;

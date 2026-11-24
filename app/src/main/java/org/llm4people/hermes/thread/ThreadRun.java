@@ -17,6 +17,7 @@ import org.llm4people.hermes.ambient.NotificationAllowlist;
 import org.llm4people.hermes.camera.CapturedMedia;
 import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.os.LiveRunNotification;
+import org.llm4people.hermes.panel.BrainCapabilities;
 import org.llm4people.hermes.perf.StreamCoalescer;
 import org.llm4people.hermes.presence.PresencePolicy;
 import org.llm4people.hermes.share.AttachmentUploader;
@@ -191,8 +192,10 @@ final class ThreadRun {
                 uncertain();
                 return;
             }
-            boolean ignoresToolsets = body.has("allowed_toolsets") && !features.optBoolean("run_toolset_selection");
-            boolean ignoresExclusions = body.has("excluded_tools") && !features.optBoolean("run_tool_exclusions");
+            boolean ignoresToolsets = body.has("allowed_toolsets")
+                    && !features.optBoolean(BrainCapabilities.RUN_TOOLSET_SELECTION);
+            boolean ignoresExclusions = body.has("excluded_tools")
+                    && !features.optBoolean(BrainCapabilities.RUN_TOOL_EXCLUSIONS);
             if (ignoresToolsets || ignoresExclusions) {
                 admissionFinished();
                 reportProgress(LiveRunNotification.Snapshot.idle());

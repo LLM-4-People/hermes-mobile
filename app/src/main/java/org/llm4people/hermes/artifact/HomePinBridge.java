@@ -276,14 +276,6 @@ public final class HomePinBridge {
         return false;
     }
 
-    public static void notifyWidgetUpdated(Activity activity, String widgetId) {
-        if (activity == null || widgetId == null || widgetId.isEmpty()) return;
-        if (HermesWidgetSpec.validWidgetId(widgetId)) {
-            HermesWidgetProvider.refreshWidget(activity.getApplicationContext(), widgetId);
-        }
-        broadcastWidgetUpdated(activity, widgetId);
-    }
-
     private static void broadcastWidgetUpdated(Context context, String widgetId) {
         if (context == null || widgetId == null || widgetId.isEmpty()) return;
         Intent update = new Intent(ACTION_WIDGET_UPDATED)

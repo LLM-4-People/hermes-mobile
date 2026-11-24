@@ -14,6 +14,7 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.llm4people.hermes.Diagnostics;
+import org.llm4people.hermes.JsonValues;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.VisibleText;
@@ -252,8 +253,10 @@ public final class DeviceBridgeFlow {
 
     static int resolveCalendarDays(JSONObject params) {
         if (params == null) return CalendarContextReader.DEFAULT_WINDOW_DAYS;
-        Integer ahead = params.has("days_ahead") && params.opt("days_ahead") instanceof Number n ? n.intValue() : null;
-        Integer legacy = params.has("days") && params.opt("days") instanceof Number n ? n.intValue() : null;
+        Integer ahead = params.has("days_ahead") && params.opt("days_ahead") instanceof Number
+                ? JsonValues.parseIntOrNull(params.opt("days_ahead")) : null;
+        Integer legacy = params.has("days") && params.opt("days") instanceof Number
+                ? JsonValues.parseIntOrNull(params.opt("days")) : null;
         return resolveCalendarDays(ahead, legacy);
     }
 

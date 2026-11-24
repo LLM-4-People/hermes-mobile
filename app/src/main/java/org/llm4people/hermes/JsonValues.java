@@ -84,6 +84,60 @@ public final class JsonValues {
         return val instanceof String s ? s.trim() : "";
     }
 
+    /** Clamps a 64-bit integer to {@code [Integer.MIN_VALUE, Integer.MAX_VALUE]} without 32-bit wrap-around. */
+    public static int saturateInt(long value) {
+        return (int) Math.max(Integer.MIN_VALUE, Math.min(Integer.MAX_VALUE, value));
+    }
+
+    /**
+     * Parses a numeric value (or integral/floating numeric string) into a saturated {@code int},
+     * returning {@code null} when missing, non-numeric, or non-finite ({@code NaN}/{@code ±Infinity}).
+     */
+    public static Integer parseIntOrNull(Object value) {
+        if (isNull(value)) return null;
+        if (value instanceof Number n) {
+            if (value instanceof Long || value instanceof Integer
+                    || value instanceof Short || value instanceof Byte) {
+                return saturateInt(n.longValue());
+            }
+            double d = n.doubleValue();
+            return Double.isFinite(d) ? saturateInt(Math.round(d)) : null;
+        }
+        if (value instanceof String s) {
+            String trimmed = s.trim();
+            if (trimmed.isEmpty()) return null;
+            try {
+                return saturateInt(Long.parseLong(trimmed));
+            } catch (NumberFormatException notLong) {
+                try {
+                    double parsed = Double.parseDouble(trimmed);
+                    return Double.isFinite(parsed) ? saturateInt(Math.round(parsed)) : null;
+                } catch (NumberFormatException ignored) {
+                    return null;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Parses a numeric value (or numeric string) into a saturated {@code int}, returning
+     * {@code defaultValue} when missing, non-numeric, or non-finite.
+     */
+    public static int parseInt(Object value, int defaultValue) {
+        Integer parsed = parseIntOrNull(value);
+        return parsed != null ? parsed : defaultValue;
+    }
+
+    /**
+     * Parses a numeric value (or numeric string) into a non-negative saturated {@code int}
+     * ({@code >= 0}), returning {@code Math.max(0, defaultValue)} when missing, non-numeric, or non-finite.
+     */
+    public static int parseNonNegativeInt(Object value, int defaultValue) {
+        Integer parsed = parseIntOrNull(value);
+        return parsed != null ? Math.max(0, parsed) : Math.max(0, defaultValue);
+    }
+
     /** Escapes {@code raw} as an RFC 8259 JSON string literal (or {@code "null"} when null). */
     public static String quote(String raw) {
         if (raw == null) return "null";

@@ -40,11 +40,6 @@ public final class QrCodeView extends View {
         setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_YES);
     }
 
-    public void setMatrix(QrCodeMatrix matrix) {
-        this.matrix = matrix;
-        invalidate();
-    }
-
     public boolean setPayload(String payload) {
         try {
             this.matrix = QrCodeMatrix.encode(payload);
