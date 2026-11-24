@@ -41,4 +41,14 @@ public final class PlainTextSanitizerTest {
         // Plane 14 tag space U+E0020 (\uDB40\uDC20) is supplementary Character.FORMAT and must be stripped.
         assertEquals("sk-123", PlainTextSanitizer.collapseBounded("sk-\uDB40\uDC20123", 16));
     }
+
+    @Test
+    public void collapsesUnicodeSpaceCharsAndEllipsisNeverSplitsSurrogates() {
+        assertEquals("a b c d", PlainTextSanitizer.collapseBounded("a\u00A0b\u2007c\u202Fd", 32));
+        assertEquals("Bonjour monde", PlainTextSanitizer.collapseWithEllipsis("Bon\u202E\uDB40\uDC20jour\u00A0\u202Fmonde", 32));
+        assertEquals("ab…", PlainTextSanitizer.collapseWithEllipsis("ab😀cd", 4));
+        assertEquals("ab😀…", PlainTextSanitizer.collapseWithEllipsis("ab😀cd", 5));
+        assertEquals("ab", PlainTextSanitizer.collapseWithEllipsis("a\uD83Db", 10));
+        assertEquals("…", PlainTextSanitizer.collapseWithEllipsis("hello", 1));
+    }
 }

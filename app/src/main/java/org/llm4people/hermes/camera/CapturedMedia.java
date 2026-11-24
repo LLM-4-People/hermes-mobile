@@ -92,19 +92,29 @@ public final class CapturedMedia {
         return requestedBytes > 0 ? requestedBytes : HermesConfig.defaults().artifactDefaultMaxBytes;
     }
 
+    static String resolveAndValidateMime(String declaredMime, String resolverMime) {
+        String declared = declaredMime == null ? "" : declaredMime.trim();
+        if (!declared.isEmpty() && !declared.endsWith("/*") && !isAllowedMime(declared)) {
+            return null;
+        }
+        String queried = resolverMime == null ? "" : resolverMime.trim();
+        if (!queried.isEmpty() && !queried.endsWith("/*")) {
+            return isAllowedMime(queried) ? queried.toLowerCase(Locale.ROOT) : null;
+        }
+        String resolved = resolveMime(declaredMime, queried);
+        return isAllowedMime(resolved) ? resolved.trim().toLowerCase(Locale.ROOT) : null;
+    }
+
     public static Item readFromUri(ContentResolver resolver, Uri uri, String declaredMime, long maxDocumentBytes)
             throws IOException {
         if (uri == null || !ContentResolver.SCHEME_CONTENT.equals(uri.getScheme())) {
             throw new IOException("Only content:// URIs are accepted");
         }
-        String resolvedMime = resolveMime(declaredMime,
-                (declaredMime == null || declaredMime.trim().isEmpty() || declaredMime.trim().endsWith("/*"))
-                        ? resolver.getType(uri) : null);
-        if (!isAllowedMime(resolvedMime)) {
+        String normalized = resolveAndValidateMime(declaredMime, resolver.getType(uri));
+        if (normalized == null) {
             Diagnostics.warning("capture", "mime_rejected");
             throw new IOException("Unsupported media type");
         }
-        String normalized = resolvedMime.trim().toLowerCase(Locale.ROOT);
         long limit = effectiveByteLimit(maxDocumentBytes);
         byte[] raw = readBounded(resolver, uri, limit);
         String name = queryName(resolver, uri, normalized.startsWith("image/") ? "Photo.jpg" : "Document");

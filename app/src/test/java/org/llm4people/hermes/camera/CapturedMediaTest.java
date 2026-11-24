@@ -25,6 +25,16 @@ public final class CapturedMediaTest {
         assertEquals("text/plain", CapturedMedia.resolveMime("text/*", null));
         assertEquals("application/pdf", CapturedMedia.resolveMime("*/*", "application/pdf"));
         assertEquals("image/jpeg", CapturedMedia.resolveMime("image/*", "image/jpeg"));
+
+        // R10.2.5: Always validate concrete resolver MIME even when declaredMime is concrete.
+        assertEquals("text/plain", CapturedMedia.resolveAndValidateMime("text/plain", null));
+        assertEquals("image/jpeg", CapturedMedia.resolveAndValidateMime("text/plain", "image/jpeg"));
+        assertEquals("application/pdf", CapturedMedia.resolveAndValidateMime("*/*", "application/pdf"));
+        org.junit.Assert.assertNull(CapturedMedia.resolveAndValidateMime("text/plain", "application/vnd.android.package-archive"));
+        org.junit.Assert.assertNull(CapturedMedia.resolveAndValidateMime("text/plain", "image/svg+xml"));
+        org.junit.Assert.assertNull(CapturedMedia.resolveAndValidateMime("text/plain", "application/octet-stream"));
+        org.junit.Assert.assertNull(CapturedMedia.resolveAndValidateMime("image/svg+xml", "text/plain"));
+        org.junit.Assert.assertNull(CapturedMedia.resolveAndValidateMime("*/*", null));
     }
 
     @Test

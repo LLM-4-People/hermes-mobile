@@ -4,8 +4,11 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.content.pm.ProviderInfo;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Process;
 import android.view.WindowManager;
 
 import org.llm4people.hermes.AppLanguage;
@@ -22,6 +25,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -56,7 +60,7 @@ public final class ShareMediaActivity extends Activity {
                 return;
             }
             Intent incoming = getIntent();
-            List<Uri> uris = extractUris(incoming);
+            List<Uri> uris = extractUris(this, incoming);
             String declaredMime = incoming == null ? null : incoming.getType();
             if (uris.isEmpty() || uris.size() > IncomingMediaShare.MAX_ITEMS) {
                 setIntent(new Intent());
@@ -123,8 +127,42 @@ public final class ShareMediaActivity extends Activity {
         if (waiting != null) state.putString(MEDIA_RECEIPT, waiting);
     }
 
+    static boolean isSelfOwnedAuthority(String packageName, String authority) {
+        if (packageName == null || packageName.isEmpty() || authority == null || authority.isEmpty()) {
+            return false;
+        }
+        String host = stripUserAndPort(authority).trim().toLowerCase(Locale.ROOT);
+        String pkg = packageName.trim().toLowerCase(Locale.ROOT);
+        return !pkg.isEmpty() && (host.equals(pkg) || host.startsWith(pkg + "."));
+    }
+
+    private static String stripUserAndPort(String authority) {
+        String host = authority;
+        int at = host.lastIndexOf('@');
+        if (at >= 0) host = host.substring(at + 1);
+        int colon = host.indexOf(':');
+        if (colon >= 0) host = host.substring(0, colon);
+        return host;
+    }
+
+    private static boolean isAllowedInboundUri(Context context, Uri uri) {
+        if (uri == null || !"content".equals(uri.getScheme())) return false;
+        String authority = uri.getAuthority();
+        if (authority == null || authority.trim().isEmpty()) return false;
+        if (context == null) return true;
+        if (isSelfOwnedAuthority(context.getPackageName(), authority)) return false;
+        PackageManager pm = context.getPackageManager();
+        if (pm != null) {
+            ProviderInfo info = pm.resolveContentProvider(stripUserAndPort(authority), 0);
+            if (info != null && info.applicationInfo != null && info.applicationInfo.uid == Process.myUid()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     @SuppressWarnings("deprecation")
-    static List<Uri> extractUris(Intent intent) {
+    static List<Uri> extractUris(Context context, Intent intent) {
         if (intent == null) return Collections.emptyList();
         // Prevent untrusted Parcelable deserialization from third-party callers.
         intent.setExtrasClassLoader(null);
@@ -132,12 +170,12 @@ public final class ShareMediaActivity extends Activity {
         List<Uri> out = new ArrayList<>();
         if (Intent.ACTION_SEND.equals(action)) {
             Uri single = intent.getParcelableExtra(Intent.EXTRA_STREAM);
-            if (single != null && "content".equals(single.getScheme())) out.add(single);
+            if (isAllowedInboundUri(context, single)) out.add(single);
         } else if (Intent.ACTION_SEND_MULTIPLE.equals(action)) {
             ArrayList<Uri> many = intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM);
             if (many != null) {
                 for (Uri u : many) {
-                    if (u != null && "content".equals(u.getScheme())) out.add(u);
+                    if (isAllowedInboundUri(context, u)) out.add(u);
                 }
             }
         }
