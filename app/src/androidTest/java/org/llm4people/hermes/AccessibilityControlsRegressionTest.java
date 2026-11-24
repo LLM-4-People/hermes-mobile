@@ -1412,6 +1412,7 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                                 12, MemoryModel.DEFAULT_CHAR_LIMIT, true);
                         MemoryModel.Bucket userBucket = new MemoryModel.Bucket(
                                 MemoryModel.TARGET_USER, Collections.emptyList(), 0, MemoryModel.DEFAULT_CHAR_LIMIT, true);
+                        setField(memPanel, "undoSlot", Ui.column(activity));
                         setField(memPanel, "body", memBody);
                         setField(memPanel, "filterField", memFilter);
                         setField(memPanel, "snapshot", new MemoryModel.Snapshot(memBucket, userBucket));
@@ -1501,18 +1502,19 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                                 "renderJobsOverview", LinearLayout.class, JSONArray.class, ZoneId.class,
                                 Locale.class, TextView.class);
                         renderJobs.setAccessible(true);
+                        TextView jobsFeedback = Ui.text(activity, "", 14);
                         String jobsEmptyStr = activity.getString(R.string.panel_jobs_filter_empty);
                         setField(remPanel, "activeFilter", ScheduledJobModel.Filter.PAUSED);
-                        renderJobs.invoke(remPanel, jobsBox, jobsArr, ZoneId.of("UTC"), Locale.US, null);
+                        renderJobs.invoke(remPanel, jobsBox, jobsArr, ZoneId.of("UTC"), Locale.US, jobsFeedback);
                         assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE,
                                 findTextViewWithText(jobsBox, jobsEmptyStr).getAccessibilityLiveRegion());
-                        renderJobs.invoke(remPanel, jobsBox, jobsArr, ZoneId.of("UTC"), Locale.US, null);
+                        renderJobs.invoke(remPanel, jobsBox, jobsArr, ZoneId.of("UTC"), Locale.US, jobsFeedback);
                         assertEquals(View.ACCESSIBILITY_LIVE_REGION_NONE,
                                 findTextViewWithText(jobsBox, jobsEmptyStr).getAccessibilityLiveRegion());
                         setField(remPanel, "activeFilter", ScheduledJobModel.Filter.ALL);
-                        renderJobs.invoke(remPanel, jobsBox, jobsArr, ZoneId.of("UTC"), Locale.US, null);
+                        renderJobs.invoke(remPanel, jobsBox, jobsArr, ZoneId.of("UTC"), Locale.US, jobsFeedback);
                         setField(remPanel, "activeFilter", ScheduledJobModel.Filter.PAUSED);
-                        renderJobs.invoke(remPanel, jobsBox, jobsArr, ZoneId.of("UTC"), Locale.US, null);
+                        renderJobs.invoke(remPanel, jobsBox, jobsArr, ZoneId.of("UTC"), Locale.US, jobsFeedback);
                         assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE,
                                 findTextViewWithText(jobsBox, jobsEmptyStr).getAccessibilityLiveRegion());
 
