@@ -228,8 +228,13 @@ public final class BrainStudioPanelsTest extends InstrumentationTestCase {
                   {"id":"n-1","title":"Plan produit","content":"Contenu détaillé de la note cible","tags":["produit"],"pinned":false,"permission":"owner"},
                   {"id":"n-2","title":"Courses","content":"Pain et lait","tags":[],"pinned":false,"permission":"owner"}]}
                 """;
-        // 1) Matching initialNoteId opens reader once and does NOT reopen on refresh (one-shot);
-        // 2) unknown/blank IDs render list cleanly with no reader dialog;
+        String refreshedNotesJson = """
+                {"notes":[
+                  {"id":"n-1","title":"Plan produit v2","content":"Contenu détaillé de la note cible","tags":["produit"],"pinned":false,"permission":"owner"},
+                  {"id":"n-2","title":"Courses","content":"Pain et lait","tags":[],"pinned":false,"permission":"owner"}]}
+                """;
+        // 1) Matching initialNoteId opens CodeReader once and does NOT reopen on refresh (one-shot);
+        // 2) unknown/blank IDs render list cleanly with no CodeReader dialog;
         // 3) server 500 error keeps error + Retry visible even when typing in the filter field.
         try (MultiStatusServer gateway = new MultiStatusServer(
                 new String[]{
@@ -241,42 +246,44 @@ public final class BrainStudioPanelsTest extends InstrumentationTestCase {
                 },
                 new String[]{
                         caps, notesJson,
-                        caps, notesJson,
+                        caps, refreshedNotesJson,
                         caps, notesJson,
                         caps, notesJson,
                         caps, "{\"error\":\"boom\"}"
                 });
              WorkspaceAccountFixture profile = new WorkspaceAccountFixture(app, gateway.endpoint())) {
             SessionPanel panel = new SessionPanel(activity, new HermesApi(gateway.endpoint(), "test"), profile.account);
+            String readerMarker = activity.getString(R.string.code_copy_content);
             try {
-                // Positive + one-shot: initialNoteId opens target note reader directly, then closing reader
-                // and refreshing must NOT re-open the reader dialog.
+                // Positive + one-shot: initialNoteId opens target note CodeReader dialog directly;
+                // dismissing ONLY the CodeReader dialog and refreshing must NOT re-open CodeReader.
                 runTestOnUiThread(() -> panel.showNotes(() -> true, draft -> {}, null, "n-1"));
+                assertTextVisible(readerMarker);
                 assertTextVisible("Contenu détaillé de la note cible");
-                clickVisibleButton(activity.getString(R.string.ws_close));
-                assertTextNotVisible("Contenu détaillé de la note cible");
+                clickVisibleButtonInWindow(readerMarker, activity.getString(R.string.ws_close));
+                waitUntilTextNotVisible(readerMarker);
                 clickVisibleButton(activity.getString(R.string.panel_refresh));
-                assertTextVisible("Plan produit");
-                assertTextNotVisible("Contenu détaillé de la note cible");
+                assertTextVisible("Plan produit v2");
+                assertTextNotVisible(readerMarker);
                 runTestOnUiThread(panel::close);
 
-                // Negative: unknown initialNoteId shows notes list without opening reader or crashing.
+                // Negative: unknown initialNoteId shows notes list without opening CodeReader or crashing.
                 runTestOnUiThread(() -> panel.showNotes(() -> true, draft -> {}, null, "missing-id"));
                 assertTextVisible("Plan produit");
                 assertTextVisible("Courses");
-                assertTextNotVisible("Contenu détaillé de la note cible");
+                assertTextNotVisible(readerMarker);
                 runTestOnUiThread(panel::close);
 
-                // Negative: blank initialNoteId renders list cleanly without opening reader.
+                // Negative: blank initialNoteId renders list cleanly without opening CodeReader.
                 runTestOnUiThread(() -> panel.showNotes(() -> true, draft -> {}, null, "   "));
                 assertTextVisible("Plan produit");
-                assertTextNotVisible("Contenu détaillé de la note cible");
+                assertTextNotVisible(readerMarker);
                 runTestOnUiThread(panel::close);
 
                 // Negative: HTTP 500 failure + Retry stays visible when user types in filter field.
                 runTestOnUiThread(() -> panel.showNotes(() -> true, draft -> {}, null, "n-1"));
                 assertTextVisible(activity.getString(R.string.panel_retry));
-                assertTextNotVisible("Contenu détaillé de la note cible");
+                assertTextNotVisible(readerMarker);
                 runTestOnUiThread(() -> {
                     for (View root : WindowInspector.getGlobalWindowViews()) {
                         View filter = root.findViewById(R.id.brain_notes_filter);
@@ -287,6 +294,7 @@ public final class BrainStudioPanelsTest extends InstrumentationTestCase {
                     }
                 });
                 assertTextVisible(activity.getString(R.string.panel_retry));
+                assertTextNotVisible(readerMarker);
             } finally {
                 runTestOnUiThread(panel::close);
             }
@@ -296,36 +304,72 @@ public final class BrainStudioPanelsTest extends InstrumentationTestCase {
     }
 
     private void clickVisibleButton(String label) throws Throwable {
-        boolean[] clicked = {false};
-        runTestOnUiThread(() -> {
-            for (View root : WindowInspector.getGlobalWindowViews()) {
-                for (android.widget.Button btn : findAll(root, android.widget.Button.class)) {
-                    if (btn.isShown() && btn.getText() != null && label.equals(btn.getText().toString())) {
-                        btn.performClick();
-                        clicked[0] = true;
-                        return;
+        clickVisibleButtonInWindow(null, label);
+    }
+
+    private void clickVisibleButtonInWindow(String windowMarker, String label) throws Throwable {
+        long deadline = SystemClock.elapsedRealtime() + 8000;
+        while (SystemClock.elapsedRealtime() < deadline) {
+            boolean[] clicked = {false};
+            runTestOnUiThread(() -> {
+                List<View> roots = WindowInspector.getGlobalWindowViews();
+                for (int i = roots.size() - 1; i >= 0; i--) {
+                    View root = roots.get(i);
+                    if (windowMarker != null && !windowContainsText(root, windowMarker)) continue;
+                    for (android.widget.Button btn : findAll(root, android.widget.Button.class)) {
+                        if (btn.isShown() && btn.getText() != null
+                                && label.equalsIgnoreCase(btn.getText().toString().trim())) {
+                            btn.performClick();
+                            clicked[0] = true;
+                            return;
+                        }
                     }
                 }
+            });
+            if (clicked[0]) {
+                getInstrumentation().waitForIdleSync();
+                return;
             }
-        });
-        assertTrue("Expected clickable button: " + label, clicked[0]);
-        getInstrumentation().waitForIdleSync();
+            SystemClock.sleep(100);
+        }
+        fail("Expected clickable button: " + label);
+    }
+
+    private void waitUntilTextNotVisible(String unexpected) throws Throwable {
+        long deadline = SystemClock.elapsedRealtime() + 8000;
+        while (SystemClock.elapsedRealtime() < deadline) {
+            getInstrumentation().waitForIdleSync();
+            if (!isTextVisibleNow(unexpected)) return;
+            SystemClock.sleep(100);
+        }
+        fail("Unexpected visible text remained: " + unexpected);
     }
 
     private void assertTextNotVisible(String unexpected) throws Throwable {
         getInstrumentation().waitForIdleSync();
+        assertFalse("Unexpected visible text: " + unexpected, isTextVisibleNow(unexpected));
+    }
+
+    private boolean isTextVisibleNow(String needle) throws Throwable {
         boolean[] found = {false};
         runTestOnUiThread(() -> {
             for (View root : WindowInspector.getGlobalWindowViews()) {
-                for (TextView tv : findAll(root, TextView.class)) {
-                    if (tv.isShown() && tv.getText() != null && tv.getText().toString().contains(unexpected)) {
-                        found[0] = true;
-                        return;
-                    }
+                if (windowContainsText(root, needle)) {
+                    found[0] = true;
+                    return;
                 }
             }
         });
-        assertFalse("Unexpected visible text: " + unexpected, found[0]);
+        return found[0];
+    }
+
+    private static boolean windowContainsText(View root, String needle) {
+        for (TextView tv : findAll(root, TextView.class)) {
+            if (tv.isShown() && tv.getText() != null && tv.getText().toString().contains(needle)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void assertTextVisible(String expected) throws Throwable {
