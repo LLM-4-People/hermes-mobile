@@ -1,10 +1,15 @@
 package org.llm4people.hermes;
 
+import org.llm4people.hermes.hub.AppsLauncherPanel;
+import org.llm4people.hermes.hub.NotesTasksPanel;
+
 import java.util.ArrayDeque;
 
 /** The unlocked account's live navigation stack. Returning to a route unwinds to its first entry. */
 final class WorkspaceNavigation {
-    static final String DISCUSSION = "discussion", NOTES_TASKS = "notes_tasks", APPS = "apps";
+    static final String DISCUSSION = "discussion";
+    static final String NOTES_TASKS = NotesTasksPanel.ROUTE_ID;
+    static final String APPS = AppsLauncherPanel.ROUTE_ID;
     static final String SETTINGS = "settings", GALLERY = "pages", COMPOSER = "composer";
     static final String HOME = APPS;
     private final ArrayDeque<String> routes = new ArrayDeque<>();

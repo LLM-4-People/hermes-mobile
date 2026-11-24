@@ -70,11 +70,6 @@ public final class OsEntryIntent {
                 PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
     }
 
-    public static Target parse(Intent intent) {
-        Request parsed = parseRequest(intent);
-        return parsed == null ? null : parsed.target();
-    }
-
     public static Request parseRequest(Intent intent) {
         if (intent == null || !ACTION_ENTRY.equals(intent.getAction())) return null;
         Target target = Target.parse(intent.getStringExtra(EXTRA_TARGET));

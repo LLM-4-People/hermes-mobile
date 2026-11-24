@@ -1,3 +1,25 @@
+import java.io.StringWriter
+import java.nio.charset.StandardCharsets
+import java.nio.file.Files
+import java.util.Locale
+import javax.xml.XMLConstants
+import javax.xml.parsers.DocumentBuilderFactory
+import javax.xml.transform.OutputKeys
+import javax.xml.transform.TransformerFactory
+import javax.xml.transform.dom.DOMSource
+import javax.xml.transform.stream.StreamResult
+import org.gradle.api.DefaultTask
+import org.gradle.api.file.DirectoryProperty
+import org.gradle.api.tasks.CacheableTask
+import org.gradle.api.tasks.InputDirectory
+import org.gradle.api.tasks.OutputDirectory
+import org.gradle.api.tasks.PathSensitive
+import org.gradle.api.tasks.PathSensitivity
+import org.gradle.api.tasks.TaskAction
+import org.w3c.dom.Element
+import org.w3c.dom.NamedNodeMap
+import org.w3c.dom.Node
+
 plugins {
     alias(libs.plugins.android.application)
 }
@@ -63,6 +85,119 @@ android {
             maxParallelForks = Math.max(1, Runtime.runtime.availableProcessors().intdiv(2))
         }
     }
+}
+
+@CacheableTask
+abstract class GenerateFrenchValuesTask extends DefaultTask {
+    private static final String TOOLS_NS = 'http://schemas.android.com/tools'
+    private static final String XMLNS_NS = 'http://www.w3.org/2000/xmlns/'
+    private static final Set<String> TRANSLATABLE_TAGS = ['string', 'plurals', 'string-array'] as Set
+
+    @InputDirectory
+    @PathSensitive(PathSensitivity.RELATIVE)
+    abstract DirectoryProperty getInputValuesDir()
+
+    @OutputDirectory
+    abstract DirectoryProperty getOutputResDir()
+
+    @TaskAction
+    void generate() {
+        File outRoot = outputResDir.get().asFile
+        if (outRoot.exists()) {
+            outRoot.deleteDir()
+        }
+        File frDir = new File(outRoot, 'values-fr')
+        if (!frDir.mkdirs() && !frDir.isDirectory()) {
+            throw new IllegalStateException("Unable to create generated resource directory: ${frDir}")
+        }
+
+        DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance()
+        dbf.setNamespaceAware(true)
+        dbf.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true)
+        dbf.setFeature('http://apache.org/xml/features/disallow-doctype-decl', true)
+        dbf.setExpandEntityReferences(false)
+        def builder = dbf.newDocumentBuilder()
+
+        TransformerFactory tf = TransformerFactory.newInstance()
+        tf.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true)
+
+        File inDir = inputValuesDir.get().asFile
+        File[] rawFiles = inDir.listFiles { File dir, String name -> name.endsWith('.xml') }
+        List<File> xmlFiles = rawFiles == null ? [] : rawFiles.sort { it.name }
+
+        for (File source : xmlFiles) {
+            def inDoc = builder.parse(source)
+            Element inRoot = inDoc.getDocumentElement()
+            if (inRoot == null || 'resources' != inRoot.getTagName()) {
+                continue
+            }
+
+            List<Element> kept = []
+            def children = inRoot.getChildNodes()
+            for (int i = 0; i < children.getLength(); i++) {
+                Node node = children.item(i)
+                if (node.getNodeType() != Node.ELEMENT_NODE) {
+                    continue
+                }
+                Element el = (Element) node
+                if (TRANSLATABLE_TAGS.contains(el.getTagName()) && 'false' != el.getAttribute('translatable')) {
+                    kept.add(el)
+                }
+            }
+            if (kept.isEmpty()) {
+                continue
+            }
+
+            def outDoc = builder.newDocument()
+            outDoc.setXmlStandalone(true)
+            Element outRootEl = outDoc.createElement('resources')
+            outRootEl.setAttributeNS(XMLNS_NS, 'xmlns:tools', TOOLS_NS)
+            NamedNodeMap attrs = inRoot.getAttributes()
+            for (int i = 0; i < attrs.getLength(); i++) {
+                Node attr = attrs.item(i)
+                String attrName = attr.getNodeName()
+                if ('xmlns:tools' == attrName || 'tools:locale' == attrName) {
+                    continue
+                }
+                if (attr.getNamespaceURI() != null) {
+                    outRootEl.setAttributeNS(attr.getNamespaceURI(), attrName, attr.getNodeValue())
+                } else {
+                    outRootEl.setAttribute(attrName, attr.getNodeValue())
+                }
+            }
+            outRootEl.setAttributeNS(TOOLS_NS, 'tools:locale', 'fr')
+            outDoc.appendChild(outRootEl)
+
+            for (Element el : kept) {
+                outRootEl.appendChild(outDoc.createTextNode('\n    '))
+                outRootEl.appendChild(outDoc.importNode(el, true))
+            }
+            outRootEl.appendChild(outDoc.createTextNode('\n'))
+
+            def transformer = tf.newTransformer()
+            transformer.setOutputProperty(OutputKeys.ENCODING, 'UTF-8')
+            transformer.setOutputProperty(OutputKeys.INDENT, 'no')
+            transformer.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, 'no')
+            StringWriter writer = new StringWriter()
+            transformer.transform(new DOMSource(outDoc), new StreamResult(writer))
+            String normalized = writer.toString()
+                    .replace('\r\n', '\n')
+                    .replace('\r', '\n')
+                    .replaceFirst('\\?>\\s*<resources', '?>\n<resources')
+            if (!normalized.endsWith('\n')) {
+                normalized = normalized + '\n'
+            }
+            Files.write(new File(frDir, source.name).toPath(), normalized.getBytes(StandardCharsets.UTF_8))
+        }
+    }
+}
+
+androidComponents.onVariants(androidComponents.selector().all()) { variant ->
+    String capName = variant.name.substring(0, 1).toUpperCase(Locale.ROOT) + variant.name.substring(1)
+    def frTask = tasks.register("generate${capName}FrenchValues", GenerateFrenchValuesTask) {
+        inputValuesDir.set(layout.projectDirectory.dir('src/main/res/values'))
+    }
+    variant.sources.res.addGeneratedSourceDirectory(frTask) { it.outputResDir }
 }
 
 def frameworkTestLibraries = androidComponents.sdkComponents.sdkDirectory.map { location ->

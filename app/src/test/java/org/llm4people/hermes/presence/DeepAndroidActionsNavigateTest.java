@@ -7,6 +7,8 @@ import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.ambient.AmbientAccessPanel;
 import org.llm4people.hermes.customization.AppCustomizationStore;
 import org.llm4people.hermes.doctor.ConnectionDoctorPanel;
+import org.llm4people.hermes.hub.AppsLauncherPanel;
+import org.llm4people.hermes.hub.NotesTasksPanel;
 import org.llm4people.hermes.os.PermissionsPanel;
 import org.llm4people.hermes.push.PushPolicy;
 import org.llm4people.hermes.settings.AppearanceSettingsPanel;
@@ -48,7 +50,7 @@ public final class DeepAndroidActionsNavigateTest {
     @Test
     public void navigateTargetsSsotCoversAllCanonicalDestinationsAndRejectsUnknown() {
         List<String> required = List.of(
-                "discussions", "notes_tasks", "tasks", "apps", "settings", "appearance",
+                "discussions", NotesTasksPanel.ROUTE_ID, "tasks", AppsLauncherPanel.ROUTE_ID, "settings", "appearance",
                 AppearanceSettingsPanel.ROUTE_ID,
                 PermissionsPanel.ROUTE_ID,
                 UpdatePanel.ROUTE_ID,
