@@ -325,15 +325,25 @@ public final class UiPolishR10RegressionTest extends InstrumentationTestCase {
                             palette, null, "test", activity, null);
                     Switch ctrlSwitch = findFirst(ctrlContainer, Switch.class);
                     CheckBox ctrlCheck = findFirst(ctrlContainer, CheckBox.class);
-                    Button ctrlChip = findFirst(ctrlContainer, Button.class);
+                    List<Button> allCtrlButtons = new ArrayList<>();
+                    collect(ctrlContainer, Button.class, allCtrlButtons);
+                    Button activeChip = null;
+                    Button inactiveChip = null;
+                    for (Button b : allCtrlButtons) {
+                        if (b.getClass() != Button.class) continue;
+                        if ("A".contentEquals(b.getText())) activeChip = b;
+                        else if ("B".contentEquals(b.getText())) inactiveChip = b;
+                    }
                     assertNotNull(ctrlSwitch);
                     assertNotNull(ctrlCheck);
-                    assertNotNull(ctrlChip);
+                    assertNotNull("Expected active chip Button 'A'", activeChip);
+                    assertNotNull("Expected inactive chip Button 'B'", inactiveChip);
                     assertStatefulColors("InteractiveControls Switch", ctrlSwitch.getTextColors(), palette.ink, palette.muted);
                     assertStatefulColors("InteractiveControls CheckBox", ctrlCheck.getTextColors(), palette.ink, palette.muted);
-                    assertStatefulColors("InteractiveControls active Chip", ctrlChip.getTextColors(), palette.onAccent, palette.muted);
-                    assertRoundedRipple("InteractiveControls Chip ripple", ctrlChip.getBackground());
-                    RippleDrawable chipRipple = (RippleDrawable) ctrlChip.getBackground();
+                    assertStatefulColors("InteractiveControls active Chip", activeChip.getTextColors(), palette.onAccent, palette.muted);
+                    assertStatefulColors("InteractiveControls inactive Chip", inactiveChip.getTextColors(), palette.ink, palette.muted);
+                    assertRoundedRipple("InteractiveControls active Chip ripple", activeChip.getBackground());
+                    RippleDrawable chipRipple = (RippleDrawable) activeChip.getBackground();
                     assertTrue("Chip ripple content should be StateListDrawable",
                             chipRipple.getDrawable(0) instanceof StateListDrawable);
 
