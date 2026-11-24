@@ -8,6 +8,7 @@ import java.lang.reflect.Method;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.llm4people.hermes.ActivityTestLifecycle;
+import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.MainActivity;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.net.Exchange;
@@ -20,8 +21,6 @@ public final class NearbyGuideJourneyTest extends InstrumentationTestCase {
     public void testHistoricalGuideWaitsForVerifiedTurnThenFiltersAndComparesWithoutSending() throws Throwable {
         if (Build.VERSION.SDK_INT < 29) return;
         Context context = getInstrumentation().getTargetContext();
-        MainActivity activity = (MainActivity) getInstrumentation().startActivitySync(context.getPackageManager()
-                .getLaunchIntentForPackage(context.getPackageName()));
         String page = "{\"version\":1,\"surface\":\"page/restaurants\",\"mode\":\"replace\",\"title\":\"À table\","
                 + "\"blocks\":[{\"type\":\"nearby_places\",\"category\":\"restaurant\"}]}";
         JSONObject assistant = new JSONObject().put("role","assistant").put("id",12).put("session_id","root")
@@ -37,70 +36,76 @@ public final class NearbyGuideJourneyTest extends InstrumentationTestCase {
                  {"name":"Mae Sri Thai","osm_type":"node","osm_id":6732094290,"latitude":45.5104122,"longitude":-73.5726866,"distance_m":214,"cuisine":"asian","address":"224 Milton Street"},
                  {"name":"Tiamo","osm_type":"node","osm_id":12194959181,"latitude":45.5083743,"longitude":-73.5716569,"distance_m":222,"cuisine":"italian"}]}
                 """;
-        try (Exchange server = new Exchange("200 OK", "Content-Type: application/json\r\n", transcript, data);
-             WorkspaceAccountFixture fixture = new WorkspaceAccountFixture(context, server.endpoint())) {
-            String instrumentKey = "thread.instrument.v1.root";
-            android.content.SharedPreferences encrypted = context.getSharedPreferences(
-                    "workspace.test." + fixture.account.id, Context.MODE_PRIVATE);
-            fixture.account.write(instrumentKey, "{}");
-            assertEquals(1, encrypted.getAll().size());
-            String instrumentSlot = encrypted.getAll().keySet().iterator().next();
-            fixture.account.remove(instrumentKey);
-            fixture.account.write("last-thread", "root");
-            Method open = MainActivity.class.getDeclaredMethod("opened", Account.class);
-            open.setAccessible(true);
-            Field workspace = MainActivity.class.getDeclaredField("threads");
-            workspace.setAccessible(true);
-            try {
-                runTestOnUiThread(() -> {
-                    try { open.invoke(activity, fixture.account); }
-                    catch (ReflectiveOperationException error) { throw new AssertionError(error); }
-                });
-                JourneyUi ui = new JourneyUi(getInstrumentation(), activity, context.getCacheDir());
-                String useApproxArea = activity.getString(R.string.places_guide_use_approx_area);
-                String distanceGap8m = activity.getString(R.string.places_guide_distance_gap,
-                        activity.getString(R.string.places_distance_meters, "8"));
-                ui.see(useApproxArea);
-                ThreadWorkspace origin = (ThreadWorkspace) workspace.get(activity);
-                runTestOnUiThread(() -> {
-                    activity.nearbyGuide(null, "root", "run", assistant, area);
-                    activity.nearbyGuide(origin, "other", "run", assistant, area);
-                    activity.nearbyGuide(origin, "root", "run", changed, area);
-                });
-                ui.see(useApproxArea);
-                runTestOnUiThread(() -> {
-                    activity.nearbyGuide(origin, "root", "run", assistant, area);
-                    activity.nearbyGuide(origin, "root", "run", assistant, area);
-                });
-                ui.see("Mae Sri Thai");
-                ui.tap("Mae Sri Thai");
-                ui.see("224 Milton Street");
-                ui.tapUntil(activity.getString(R.string.places_guide_compare),
-                        activity.getString(R.string.places_compare_with, "Mae Sri Thai"));
-                ui.tap("Tiamo · " + activity.getString(R.string.places_distance_meters, "222"));
-                ui.see(distanceGap8m);
-                ui.tapUntil(activity.getString(R.string.places_guide_cuisine),
-                        activity.getString(R.string.places_choose_cuisine));
-                ui.tap(activity.getString(R.string.places_cuisine_asian));
-                String oneOfThree = activity.getString(R.string.places_guide_count_of,
-                        activity.getResources().getQuantityString(R.plurals.places_guide_count, 1, 1), 3);
-                ui.contains(oneOfThree);
-                ui.see(activity.getString(R.string.places_guide_place_row_desc, 2, "Mae Sri Thai",
-                        activity.getString(R.string.places_distance_meters, "214"),
-                        activity.getString(R.string.places_guide_collapse_details)));
-                ui.absent(distanceGap8m);
-                ui.absent(activity.getString(R.string.places_guide_compare_edit_desc));
-                // The persisted instrument can become unreadable between transcript hydration and run completion.
-                assertTrue(encrypted.edit().putInt(instrumentSlot, 3).commit());
-                runTestOnUiThread(() -> activity.nearbyGuide(origin, "root", "later-run", assistant, area));
-                ui.see(activity.getString(R.string.instrument_repair));
-                assertEquals(3, encrypted.getInt(instrumentSlot, 0));
-                String observed = server.observed();
-                assertEquals(1, observed.split("POST /p/travail/api/mobile/places/nearby ",-1).length - 1);
-                assertTrue(observed.contains("Authorization: Bearer fixture"));
-                assertFalse(observed.contains("accuracy_m"));
-                assertFalse(observed.contains("/v1/runs"));
-            } finally { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
+        try {
+            try (Exchange server = new Exchange("200 OK", "Content-Type: application/json\r\n", transcript, data);
+                 WorkspaceAccountFixture fixture = new WorkspaceAccountFixture(context, server.endpoint())) {
+                String instrumentKey = "thread.instrument.v1.root";
+                android.content.SharedPreferences encrypted = context.getSharedPreferences(
+                        "workspace.test." + fixture.account.id, Context.MODE_PRIVATE);
+                fixture.account.write(instrumentKey, "{}");
+                assertEquals(1, encrypted.getAll().size());
+                String instrumentSlot = encrypted.getAll().keySet().iterator().next();
+                fixture.account.remove(instrumentKey);
+                fixture.account.write("last-thread", "root");
+                Method open = MainActivity.class.getDeclaredMethod("opened", Account.class);
+                open.setAccessible(true);
+                Field workspace = MainActivity.class.getDeclaredField("threads");
+                workspace.setAccessible(true);
+                MainActivity activity = (MainActivity) getInstrumentation().startActivitySync(context.getPackageManager()
+                        .getLaunchIntentForPackage(context.getPackageName()));
+                try {
+                    runTestOnUiThread(() -> {
+                        try { open.invoke(activity, fixture.account); }
+                        catch (ReflectiveOperationException error) { throw new AssertionError(error); }
+                    });
+                    JourneyUi ui = new JourneyUi(getInstrumentation(), activity, context.getCacheDir());
+                    String useApproxArea = activity.getString(R.string.places_guide_use_approx_area);
+                    String distanceGap8m = activity.getString(R.string.places_guide_distance_gap,
+                            activity.getString(R.string.places_distance_meters, "8"));
+                    ui.see(useApproxArea);
+                    ThreadWorkspace origin = (ThreadWorkspace) workspace.get(activity);
+                    runTestOnUiThread(() -> {
+                        activity.nearbyGuide(null, "root", "run", assistant, area);
+                        activity.nearbyGuide(origin, "other", "run", assistant, area);
+                        activity.nearbyGuide(origin, "root", "run", changed, area);
+                    });
+                    ui.see(useApproxArea);
+                    runTestOnUiThread(() -> {
+                        activity.nearbyGuide(origin, "root", "run", assistant, area);
+                        activity.nearbyGuide(origin, "root", "run", assistant, area);
+                    });
+                    ui.see("Mae Sri Thai");
+                    ui.tap("Mae Sri Thai");
+                    ui.see("224 Milton Street");
+                    ui.tapUntil(activity.getString(R.string.places_guide_compare),
+                            activity.getString(R.string.places_compare_with, "Mae Sri Thai"));
+                    ui.tap("Tiamo · " + activity.getString(R.string.places_distance_meters, "222"));
+                    ui.see(distanceGap8m);
+                    ui.tapUntil(activity.getString(R.string.places_guide_cuisine),
+                            activity.getString(R.string.places_choose_cuisine));
+                    ui.tap(activity.getString(R.string.places_cuisine_asian));
+                    String oneOfThree = activity.getString(R.string.places_guide_count_of,
+                            activity.getResources().getQuantityString(R.plurals.places_guide_count, 1, 1), 3);
+                    ui.contains(oneOfThree);
+                    ui.see(activity.getString(R.string.places_guide_place_row_desc, 2, "Mae Sri Thai",
+                            activity.getString(R.string.places_distance_meters, "214"),
+                            activity.getString(R.string.places_guide_collapse_details)));
+                    ui.absent(distanceGap8m);
+                    ui.absent(activity.getString(R.string.places_guide_compare_edit_desc));
+                    // The persisted instrument can become unreadable between transcript hydration and run completion.
+                    assertTrue(encrypted.edit().putInt(instrumentSlot, 3).commit());
+                    runTestOnUiThread(() -> activity.nearbyGuide(origin, "root", "later-run", assistant, area));
+                    ui.see(activity.getString(R.string.instrument_repair));
+                    assertEquals(3, encrypted.getInt(instrumentSlot, 0));
+                    String observed = server.observed();
+                    assertEquals(1, observed.split("POST /p/travail/api/mobile/places/nearby ",-1).length - 1);
+                    assertTrue(observed.contains("Authorization: Bearer fixture"));
+                    assertFalse(observed.contains("accuracy_m"));
+                    assertFalse(observed.contains("/v1/runs"));
+                } finally { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
+            }
+        } finally {
+            Diagnostics.clear();
         }
     }
 }

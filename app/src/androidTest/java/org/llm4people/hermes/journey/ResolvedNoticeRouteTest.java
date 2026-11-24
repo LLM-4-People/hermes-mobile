@@ -5,6 +5,7 @@ import android.test.InstrumentationTestCase;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.llm4people.hermes.ActivityTestLifecycle;
+import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.MainActivity;
 import org.llm4people.hermes.artifact.ThreadInstruments;
 import org.llm4people.hermes.net.Exchange;
@@ -23,7 +24,6 @@ public class ResolvedNoticeRouteTest extends InstrumentationTestCase {
 
     private void promptRoute(boolean question) throws Throwable {
         Context app = getInstrumentation().getTargetContext();
-        MainActivity activity = launch(app);
         String kind = question ? "question_requested" : "approval_requested";
         JSONObject event = event("intermediate", kind);
         JSONObject prompt = new JSONObject().put("prompt_id", "confirmation").put("execution_generation", 3)
@@ -40,87 +40,102 @@ public class ResolvedNoticeRouteTest extends InstrumentationTestCase {
                 .put("pending_controls", new JSONArray().put(prompt)).toString();
         CountDownLatch releaseEvents = new CountDownLatch(1);
         AtomicInteger requestCount = new AtomicInteger();
-        try (Exchange gateway = new Exchange("200 OK", "Content-Type: application/json\r\n", () -> {
-                    if (requestCount.incrementAndGet() == 6) await(releaseEvents);
-                }, before, live, live, live, live, live);
-             WorkspaceAccountFixture profile = new WorkspaceAccountFixture(app, gateway.endpoint())) {
-            profile.account.write("last-thread", "root");
-            ThreadInstruments store = new ThreadInstruments(profile.account, "root");
-            store.pin(store.state(), store.proposals(rows).get(0), rows);
-            runTestOnUiThread(() -> opened(activity, profile.account));
-            JourneyUi ui = new JourneyUi(getInstrumentation(), activity, app.getCacheDir());
-            String compare = activity.getString(org.llm4people.hermes.R.string.instrument_compare);
-            String composerHint = activity.getString(org.llm4people.hermes.R.string.thread_message_hint);
-            String tabProposed = activity.getString(org.llm4people.hermes.R.string.instrument_tab_next_role);
-            String tabPinned = activity.getString(org.llm4people.hermes.R.string.instrument_tab_pin_role);
-            String replyBtn = activity.getString(org.llm4people.hermes.R.string.ws_reply_hermes);
-            ui.see(compare);
-            ui.fill(composerHint, "Demain à midi");
-            ui.tap(compare);
-            ui.tap(tabProposed);
-            ui.fill("Fichier", "proposition.py");
-            ui.tap(tabPinned);
-            ui.fill("Fichier", "origine.py");
-            runTestOnUiThread(() -> activity.openPushEvent(profile.account, event));
-            ui.see(replyBtn);
-            assertEquals("origine.py", ui.fieldText("Fichier"));
-            ui.tap(tabProposed);
-            assertEquals("proposition.py", ui.fieldText("Fichier"));
-            ui.tap(replyBtn);
-            ui.see(question ? "Quelle date ?" : activity.getString(org.llm4people.hermes.R.string.prompt_approve_title));
-            assertEquals("Demain à midi", ui.fieldText(composerHint));
-            releaseEvents.countDown();
-            String wire = gateway.observed();
-            runTestOnUiThread(() -> activity.onAction("profiles"));
-            assertTrue(wire.contains("/intermediate/messages?order=latest&limit=0"));
-            assertTrue(wire.contains("/v1/runs/remote "));
-            assertTrue(wire.contains("/v1/runs/remote/events"));
-            assertTrue(wire.contains("Authorization: Bearer " + profile.account.bearer));
-            assertFalse(wire.contains("POST "));
+        try {
+            try (Exchange gateway = new Exchange("200 OK", "Content-Type: application/json\r\n", () -> {
+                        if (requestCount.incrementAndGet() == 6) await(releaseEvents);
+                    }, before, live, live, live, live, live);
+                 WorkspaceAccountFixture profile = new WorkspaceAccountFixture(app, gateway.endpoint())) {
+                MainActivity activity = launch(app);
+                try {
+                    profile.account.write("last-thread", "root");
+                    ThreadInstruments store = new ThreadInstruments(profile.account, "root");
+                    store.pin(store.state(), store.proposals(rows).get(0), rows);
+                    runTestOnUiThread(() -> opened(activity, profile.account));
+                    JourneyUi ui = new JourneyUi(getInstrumentation(), activity, app.getCacheDir());
+                    String compare = activity.getString(org.llm4people.hermes.R.string.instrument_compare);
+                    String composerHint = activity.getString(org.llm4people.hermes.R.string.thread_message_hint);
+                    String tabProposed = activity.getString(org.llm4people.hermes.R.string.instrument_tab_next_role);
+                    String tabPinned = activity.getString(org.llm4people.hermes.R.string.instrument_tab_pin_role);
+                    String replyBtn = activity.getString(org.llm4people.hermes.R.string.ws_reply_hermes);
+                    ui.see(compare);
+                    ui.fill(composerHint, "Demain à midi");
+                    ui.tap(compare);
+                    ui.tap(tabProposed);
+                    ui.fill("Fichier", "proposition.py");
+                    ui.tap(tabPinned);
+                    ui.fill("Fichier", "origine.py");
+                    runTestOnUiThread(() -> activity.openPushEvent(profile.account, event));
+                    ui.see(replyBtn);
+                    assertEquals("origine.py", ui.fieldText("Fichier"));
+                    ui.tap(tabProposed);
+                    assertEquals("proposition.py", ui.fieldText("Fichier"));
+                    ui.tap(replyBtn);
+                    ui.see(question ? "Quelle date ?" : activity.getString(org.llm4people.hermes.R.string.prompt_approve_title));
+                    assertEquals("Demain à midi", ui.fieldText(composerHint));
+                    releaseEvents.countDown();
+                    String wire = gateway.observed();
+                    runTestOnUiThread(() -> activity.onAction("profiles"));
+                    assertTrue(wire.contains("/intermediate/messages?order=latest&limit=0"));
+                    assertTrue(wire.contains("/v1/runs/remote "));
+                    assertTrue(wire.contains("/v1/runs/remote/events"));
+                    assertTrue(wire.contains("Authorization: Bearer " + profile.account.bearer));
+                    assertFalse(wire.contains("POST "));
+                } finally {
+                    releaseEvents.countDown();
+                    ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+                }
+            }
         } finally {
             releaseEvents.countDown();
-            ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+            Diagnostics.clear();
         }
     }
 
     public void testResolvedNoticeFromDepartedAccountCannotSettleIntoTheNewProfile() throws Throwable {
         Context app = getInstrumentation().getTargetContext();
-        MainActivity activity = launch(app);
         String first = ThreadNoticeContinuityTest.transcript("root", "root", "Premier profil", new JSONArray());
         String second = ThreadNoticeContinuityTest.transcript("root", "root", "Deuxième profil", new JSONArray());
         CountDownLatch entered = new CountDownLatch(1), release = new CountDownLatch(1);
         AtomicInteger requests = new AtomicInteger();
-        try (Exchange oldGateway = new Exchange("200 OK", "", () -> {
-                    if (requests.incrementAndGet() == 2) { entered.countDown(); await(release); }
-                }, first, first);
-             Exchange newGateway = new Exchange("200 OK", "", second);
-             WorkspaceAccountFixture old = new WorkspaceAccountFixture(app, oldGateway.endpoint());
-             WorkspaceAccountFixture next = new WorkspaceAccountFixture(app, newGateway.endpoint())) {
-            // Each account has a discussion with the same root ID.
-            old.account.write("last-thread", "root");
-            next.account.write("last-thread", "root");
-            runTestOnUiThread(() -> opened(activity, old.account));
-            JourneyUi ui = new JourneyUi(getInstrumentation(), activity, app.getCacheDir());
-            String composerHint = activity.getString(org.llm4people.hermes.R.string.thread_message_hint);
-            ui.see("Premier profil");
-            ui.fill(composerHint, "Privé au premier profil");
-            JSONObject late = event("intermediate", "run_completed");
-            runTestOnUiThread(() -> activity.openPushEvent(old.account, late));
-            assertTrue(entered.await(5, TimeUnit.SECONDS));
-            runTestOnUiThread(() -> { activity.onAction("profiles"); opened(activity, next.account); });
-            ui.see("Deuxième profil");
-            assertEquals("", ui.fieldText(composerHint));
-            ui.fill(composerHint, "Texte du deuxième profil");
-            release.countDown();
-            oldGateway.observed();
-            runTestOnUiThread(() -> activity.openPushEvent(old.account, late));
-            getInstrumentation().waitForIdleSync();
-            ui.see("Deuxième profil");
-            assertEquals("Texte du deuxième profil", ui.fieldText(composerHint));
-            assertEquals(1, newGateway.observed().split("GET ", -1).length - 1);
+        try {
+            try (Exchange oldGateway = new Exchange("200 OK", "", () -> {
+                        if (requests.incrementAndGet() == 2) { entered.countDown(); await(release); }
+                    }, first, first);
+                 Exchange newGateway = new Exchange("200 OK", "", second);
+                 WorkspaceAccountFixture old = new WorkspaceAccountFixture(app, oldGateway.endpoint());
+                 WorkspaceAccountFixture next = new WorkspaceAccountFixture(app, newGateway.endpoint())) {
+                MainActivity activity = launch(app);
+                try {
+                    // Each account has a discussion with the same root ID.
+                    old.account.write("last-thread", "root");
+                    next.account.write("last-thread", "root");
+                    runTestOnUiThread(() -> opened(activity, old.account));
+                    JourneyUi ui = new JourneyUi(getInstrumentation(), activity, app.getCacheDir());
+                    String composerHint = activity.getString(org.llm4people.hermes.R.string.thread_message_hint);
+                    ui.see("Premier profil");
+                    ui.fill(composerHint, "Privé au premier profil");
+                    JSONObject late = event("intermediate", "run_completed");
+                    runTestOnUiThread(() -> activity.openPushEvent(old.account, late));
+                    assertTrue(entered.await(5, TimeUnit.SECONDS));
+                    runTestOnUiThread(() -> { activity.onAction("profiles"); opened(activity, next.account); });
+                    ui.see("Deuxième profil");
+                    assertEquals("", ui.fieldText(composerHint));
+                    ui.fill(composerHint, "Texte du deuxième profil");
+                    release.countDown();
+                    oldGateway.observed();
+                    runTestOnUiThread(() -> activity.openPushEvent(old.account, late));
+                    getInstrumentation().waitForIdleSync();
+                    ui.see("Deuxième profil");
+                    assertEquals("Texte du deuxième profil", ui.fieldText(composerHint));
+                    assertEquals(1, newGateway.observed().split("GET ", -1).length - 1);
+                } finally {
+                    release.countDown();
+                    ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+                }
+            }
         } finally {
             release.countDown();
-            ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+            Diagnostics.clear();
         }
     }
 

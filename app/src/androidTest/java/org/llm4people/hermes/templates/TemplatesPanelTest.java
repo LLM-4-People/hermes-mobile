@@ -7,6 +7,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import org.llm4people.hermes.ActivityTestLifecycle;
+import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.MainActivity;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.RouteRegistry;
@@ -40,52 +41,64 @@ public final class TemplatesPanelTest extends InstrumentationTestCase {
         AtomicReference<String> staged = new AtomicReference<>();
         int minTouchPx = Ui.dp(context, 48);
 
-        Activity activity = launchActivity(context.getPackageName(), MainActivity.class, null);
-        try (WorkspaceAccountFixture first = new WorkspaceAccountFixture(context);
-             WorkspaceAccountFixture second = new WorkspaceAccountFixture(context)) {
-            TemplateStore storeA = TemplateStore.forAccount(first.account);
-            TemplateStore storeB = TemplateStore.forAccount(second.account);
+        try {
+            try (WorkspaceAccountFixture first = new WorkspaceAccountFixture(context);
+                 WorkspaceAccountFixture second = new WorkspaceAccountFixture(context)) {
+                Activity activity = launchActivity(context.getPackageName(), MainActivity.class, null);
+                AtomicReference<TemplatesPanel> panelRef = new AtomicReference<>();
+                try {
+                    TemplateStore storeA = TemplateStore.forAccount(first.account);
+                    TemplateStore storeB = TemplateStore.forAccount(second.account);
 
-            WorkflowTemplate customA = storeA.saveCustom(null, "Revue hebdo", "Vendredi", "Résume ma semaine.");
-            assertEquals(1, storeA.listCustom().size());
-            assertTrue("Profile B must not see Profile A's templates", storeB.listCustom().isEmpty());
+                    WorkflowTemplate customA = storeA.saveCustom(null, "Revue hebdo", "Vendredi", "Résume ma semaine.");
+                    assertEquals(1, storeA.listCustom().size());
+                    assertTrue("Profile B must not see Profile A's templates", storeB.listCustom().isEmpty());
 
-            // Wipe cleans up encrypted custom templates cleanly on profile forget.
-            TemplateStore.wipe(first.account);
-            assertTrue(storeA.listCustom().isEmpty());
+                    // Wipe cleans up encrypted custom templates cleanly on profile forget.
+                    TemplateStore.wipe(first.account);
+                    assertTrue(storeA.listCustom().isEmpty());
 
-            storeA.saveCustom(null, customA.title, customA.subtitle, customA.draft);
-            AtomicReference<TemplatesPanel> panelRef = new AtomicReference<>();
-            runTestOnUiThread(() -> {
-                View strip = TemplatesPanel.starterStrip(activity, builtIns, staged::set);
-                List<Button> chips = collectButtons(strip);
-                assertEquals(TemplatesPanel.MAX_STARTER_CHIPS, chips.size());
-                for (Button chip : chips) {
-                    assertTrue("Starter chip must be >= 48dp", chip.getMinimumHeight() >= minTouchPx);
+                    storeA.saveCustom(null, customA.title, customA.subtitle, customA.draft);
+                    runTestOnUiThread(() -> {
+                        View strip = TemplatesPanel.starterStrip(activity, builtIns, staged::set);
+                        List<Button> chips = collectButtons(strip);
+                        assertEquals(TemplatesPanel.MAX_STARTER_CHIPS, chips.size());
+                        for (Button chip : chips) {
+                            assertTrue("Starter chip must be >= 48dp", chip.getMinimumHeight() >= minTouchPx);
+                        }
+                        chips.get(0).performClick();
+                        assertEquals(builtIns.get(0).draft, staged.get());
+
+                        staged.set(null);
+                        TemplatesPanel panel = new TemplatesPanel(activity, first.account, staged::set, () -> true);
+                        panelRef.set(panel);
+                        View panelView = panel.buildView();
+                        List<Button> buttons = collectButtons(panelView);
+                        assertTrue(buttons.size() >= 7);
+                        String useLabel = activity.getString(R.string.templates_use_button);
+                        Button firstUse = null;
+                        for (Button b : buttons) {
+                            assertTrue("Panel button must be >= 48dp", b.getMinHeight() >= minTouchPx);
+                            if (useLabel.equals(b.getText().toString()) && firstUse == null) firstUse = b;
+                        }
+                        assertNotNull(firstUse);
+                        firstUse.performClick();
+                        assertEquals(builtIns.get(0).draft, staged.get());
+                    });
+                    getInstrumentation().waitForIdleSync();
+                } finally {
+                    try {
+                        TemplatesPanel panel = panelRef.getAndSet(null);
+                        if (panel != null) {
+                            runTestOnUiThread(panel::close);
+                        }
+                    } finally {
+                        ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+                    }
                 }
-                chips.get(0).performClick();
-                assertEquals(builtIns.get(0).draft, staged.get());
-
-                staged.set(null);
-                TemplatesPanel panel = new TemplatesPanel(activity, first.account, staged::set, () -> true);
-                panelRef.set(panel);
-                View panelView = panel.buildView();
-                List<Button> buttons = collectButtons(panelView);
-                assertTrue(buttons.size() >= 7);
-                String useLabel = activity.getString(R.string.templates_use_button);
-                Button firstUse = null;
-                for (Button b : buttons) {
-                    assertTrue("Panel button must be >= 48dp", b.getMinHeight() >= minTouchPx);
-                    if (useLabel.equals(b.getText().toString()) && firstUse == null) firstUse = b;
-                }
-                assertNotNull(firstUse);
-                firstUse.performClick();
-                assertEquals(builtIns.get(0).draft, staged.get());
-                panel.close();
-            });
-            getInstrumentation().waitForIdleSync();
+            }
         } finally {
-            ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+            Diagnostics.clear();
         }
     }
 

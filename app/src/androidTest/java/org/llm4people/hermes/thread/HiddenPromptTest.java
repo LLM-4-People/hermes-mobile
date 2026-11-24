@@ -14,6 +14,7 @@ import android.widget.TextView;
 import org.json.JSONObject;
 import org.json.JSONArray;
 import org.llm4people.hermes.ActivityTestLifecycle;
+import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.MainActivity;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.net.Exchange;
@@ -37,83 +38,95 @@ public class HiddenPromptTest extends InstrumentationTestCase {
     public void testOmittedTranscriptAndReplacementKeepPendingResponseInProtectedChrome() throws Throwable {
         Context context = getInstrumentation().getTargetContext();
         Intent launch = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
-        MainActivity activity = (MainActivity) getInstrumentation().startActivitySync(launch);
-        try (WorkspaceAccountFixture profile = new WorkspaceAccountFixture(context)) {
-            runTestOnUiThread(() -> {
-                try { checkSurfaces(activity, profile.account); }
-                catch (Exception failure) { throw new AssertionError(failure); }
-            });
+        try {
+            try (WorkspaceAccountFixture profile = new WorkspaceAccountFixture(context)) {
+                MainActivity activity = (MainActivity) getInstrumentation().startActivitySync(launch);
+                try {
+                    runTestOnUiThread(() -> {
+                        try { checkSurfaces(activity, profile.account); }
+                        catch (Exception failure) { throw new AssertionError(failure); }
+                    });
+                } finally {
+                    ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+                }
+            }
         } finally {
-            ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+            Diagnostics.clear();
         }
     }
 
     public void testReadingHistoryOffersAnInPlaceResponseUntilTheCurrentCardIsVisible() throws Throwable {
         Context context = getInstrumentation().getTargetContext();
         Intent launch = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
-        MainActivity activity = (MainActivity) getInstrumentation().startActivitySync(launch);
         JSONArray history = new JSONArray();
         for (int i = 0; i < ThreadData.PAGE; ++i)
             history.put(new JSONObject().put("id", "line-" + i).put("role", "user").put("content", "Message de lecture " + i));
         String transcript = new JSONObject().put("data", history).put("session_id", "discussion")
                 .put("thread_title", "Discussion").put("pagination", new JSONObject()
                         .put("visible_only", true).put("total", history.length())).toString();
-        try (Exchange gateway = new Exchange("200 OK", "Content-Type: application/json\r\n",
-                     transcript, "{\"data\":[],\"has_more\":false}");
-             WorkspaceAccountFixture profile = new WorkspaceAccountFixture(context, gateway.endpoint())) {
-            ThreadWorkspace page = main(() -> selectThread(activity, profile.account));
-            ListView list = page.screen.list;
-            String tail = history.getJSONObject(history.length() - 1).getString("content");
-            awaitUi(list, "hydrated transcript tail", () -> list.isLaidOut() && !list.isLayoutRequested()
-                    && page.messages().length() == history.length() && visibleText(list, tail));
-            RunDecisions actions = main(() -> {
-                page.screen.displayDraft("Mon brouillon");
-                page.journal.observe("pending-approval");
-                RunDecisions decisions = new RunDecisions(page);
-                decisions.observe(RunAction.capture(page.journal, page::token));
-                return decisions;
-            });
-            Button reveal = main(() -> button(activity, activity.getWindow().getDecorView()));
-            JSONObject anchor = history.getJSONObject(6);
-            String label = anchor.getString("content");
-            int position = main(() -> {
-                for (int i = 0; i < list.getCount(); ++i) {
-                    if (list.getItemAtPosition(i) instanceof JSONObject row && anchor.getString("id").equals(row.opt("id"))) {
-                        list.setSelectionFromTop(i, 0);
-                        return i;
-                    }
+        try {
+            try (Exchange gateway = new Exchange("200 OK", "Content-Type: application/json\r\n",
+                         transcript, "{\"data\":[],\"has_more\":false}");
+                 WorkspaceAccountFixture profile = new WorkspaceAccountFixture(context, gateway.endpoint())) {
+                MainActivity activity = (MainActivity) getInstrumentation().startActivitySync(launch);
+                try {
+                    ThreadWorkspace page = main(() -> selectThread(activity, profile.account));
+                    ListView list = page.screen.list;
+                    String tail = history.getJSONObject(history.length() - 1).getString("content");
+                    awaitUi(list, "hydrated transcript tail", () -> list.isLaidOut() && !list.isLayoutRequested()
+                            && page.messages().length() == history.length() && visibleText(list, tail));
+                    RunDecisions actions = main(() -> {
+                        page.screen.displayDraft("Mon brouillon");
+                        page.journal.observe("pending-approval");
+                        RunDecisions decisions = new RunDecisions(page);
+                        decisions.observe(RunAction.capture(page.journal, page::token));
+                        return decisions;
+                    });
+                    Button reveal = main(() -> button(activity, activity.getWindow().getDecorView()));
+                    JSONObject anchor = history.getJSONObject(6);
+                    String label = anchor.getString("content");
+                    int position = main(() -> {
+                        for (int i = 0; i < list.getCount(); ++i) {
+                            if (list.getItemAtPosition(i) instanceof JSONObject row && anchor.getString("id").equals(row.opt("id"))) {
+                                list.setSelectionFromTop(i, 0);
+                                return i;
+                            }
+                        }
+                        throw new AssertionError("Missing seeded message " + label);
+                    });
+                    awaitUi(list, label + " at the top", () -> list.getFirstVisiblePosition() == position
+                            && visibleText(list.getChildAt(0), label));
+                    int top = main(() -> list.getChildAt(0).getTop());
+                    JSONObject prompt = new JSONObject().put("prompt_id", "decision").put("kind", "approval")
+                            .put("execution_generation", 1).put("description", "Partager le fichier")
+                            .put("choices", new JSONArray().put("once").put("deny"));
+                    runTestOnUiThread(() -> {
+                        page.screen.rows(history, false, true, 0);
+                        actions.present(Collections.singletonList(prompt));
+                    });
+                    awaitUi(list, "response action over the reading position", reveal::isShown);
+                    assertEquals(position, (int) main(list::getFirstVisiblePosition));
+                    assertTrue(main(() -> visibleText(list.getChildAt(0), label)));
+                    assertEquals(top, (int) main(() -> list.getChildAt(0).getTop()));
+                    assertTrue(main(reveal::performClick));
+                    awaitUi(list, "visible approval", () -> !reveal.isShown()
+                            && visibleText(list, activity.getString(R.string.share_bridge_deny)));
+                    assertEquals("Mon brouillon", main(page.screen::draft));
+                    runTestOnUiThread(() -> list.setSelectionFromTop(position, 0));
+                    awaitUi(list, "response action after scrolling back", () -> reveal.isShown()
+                            && visibleText(list.getChildAt(0), label));
+                    runTestOnUiThread(() -> actions.present(Collections.emptyList()));
+                    awaitUi(list, "settled response action", () -> !reveal.isShown());
+                    runTestOnUiThread(() -> activity.onAction("previous"));
+                    assertNull(main(page::sessionId)); // One Back from the original route returns directly to the inbox.
+                    assertTrue(gateway.observed().contains("/api/sessions/discussion/messages?"));
+                    runTestOnUiThread(() -> activity.onAction("profiles"));
+                } finally {
+                    ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
                 }
-                throw new AssertionError("Missing seeded message " + label);
-            });
-            awaitUi(list, label + " at the top", () -> list.getFirstVisiblePosition() == position
-                    && visibleText(list.getChildAt(0), label));
-            int top = main(() -> list.getChildAt(0).getTop());
-            JSONObject prompt = new JSONObject().put("prompt_id", "decision").put("kind", "approval")
-                    .put("execution_generation", 1).put("description", "Partager le fichier")
-                    .put("choices", new JSONArray().put("once").put("deny"));
-            runTestOnUiThread(() -> {
-                page.screen.rows(history, false, true, 0);
-                actions.present(Collections.singletonList(prompt));
-            });
-            awaitUi(list, "response action over the reading position", reveal::isShown);
-            assertEquals(position, (int) main(list::getFirstVisiblePosition));
-            assertTrue(main(() -> visibleText(list.getChildAt(0), label)));
-            assertEquals(top, (int) main(() -> list.getChildAt(0).getTop()));
-            assertTrue(main(reveal::performClick));
-            awaitUi(list, "visible approval", () -> !reveal.isShown()
-                    && visibleText(list, activity.getString(R.string.share_bridge_deny)));
-            assertEquals("Mon brouillon", main(page.screen::draft));
-            runTestOnUiThread(() -> list.setSelectionFromTop(position, 0));
-            awaitUi(list, "response action after scrolling back", () -> reveal.isShown()
-                    && visibleText(list.getChildAt(0), label));
-            runTestOnUiThread(() -> actions.present(Collections.emptyList()));
-            awaitUi(list, "settled response action", () -> !reveal.isShown());
-            runTestOnUiThread(() -> activity.onAction("previous"));
-            assertNull(main(page::sessionId)); // One Back from the original route returns directly to the inbox.
-            assertTrue(gateway.observed().contains("/api/sessions/discussion/messages?"));
-            runTestOnUiThread(() -> activity.onAction("profiles"));
+            }
         } finally {
-            ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+            Diagnostics.clear();
         }
     }
 

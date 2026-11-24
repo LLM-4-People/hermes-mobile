@@ -9,6 +9,7 @@ import android.widget.EditText;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.llm4people.hermes.ActivityTestLifecycle;
+import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.MainActivity;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
@@ -31,63 +32,71 @@ public class InstrumentPromptTest extends InstrumentationTestCase {
 
     public void testActiveQuestionWaitsForExplicitCompactRevealAndSurvivesWidthChanges() throws Throwable {
         Context context = getInstrumentation().getTargetContext();
-        activity = (MainActivity)getInstrumentation().startActivitySync(
-                context.getPackageManager().getLaunchIntentForPackage(context.getPackageName()));
-        String respond = activity.getString(R.string.ws_reply_hermes);
-        String openLabel = activity.getString(R.string.instrument_open_pin);
-        try (WorkspaceAccountFixture profile = new WorkspaceAccountFixture(context)) {
-            runTestOnUiThread(() -> {
-                try { open(profile.account); }
-                catch (Exception failure) { throw new AssertionError(failure); }
-                activity.onAction("native_thread");
-                width(320);
-            });
-            idle();
-            runTestOnUiThread(() -> {
-                click(openLabel);
-                form = visibleField(page.screen.instruments.viewport);
-                assertNotNull(form);
-                form.setText("facture.py");
-                actions.present(Collections.singletonList(prompt));
-                page.screen.live("Question", "", true);
-                assertTrue(page.screen.instruments.viewport.open());
-                assertFalse(page.screen.list.isShown());
-                assertTrue(button(respond).isShown());
-                width(720);
-            });
-            idle();
-            runTestOnUiThread(() -> {
-                assertTrue(page.screen.instruments.viewport.wide());
-                assertTrue(page.screen.list.isShown());
-                assertFalse(button(respond).isShown());
-                assertTrue(form.isShown());
-                width(320);
-            });
-            idle();
-            runTestOnUiThread(() -> {
-                assertTrue(button(respond).isShown());
-                click(respond);
-                assertTrue(page.screen.list.isShown());
-                assertFalse(button(respond).isShown());
-                assertEquals("Demain matin", page.screen.draft());
-                click(openLabel);
-                assertSame(form, visibleField(page.screen.instruments.viewport));
-                assertEquals("facture.py", form.getText().toString());
-                actions.present(Collections.emptyList());
-                assertFalse(button(respond).isShown());
-                // A layout omitting the entire native transcript requires the normal native-route fallback.
-                profile.account.write("workspace.v1.thread", ThreadData.put(new JSONObject(), "current", ARRANGED).toString());
-                activity.onAction("return");
-                activity.onLayoutChanged();
-                actions.present(Collections.singletonList(prompt));
-                assertTrue(button(respond).isShown());
-                click(respond);
-                assertTrue(page.screen.list.isShown());
-                assertFalse(button(respond).isShown());
-                assertTrue(page.screen.promptRows.visible());
-                assertEquals("Demain matin", page.screen.draft());
-            });
-        } finally { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
+        try {
+            try (WorkspaceAccountFixture profile = new WorkspaceAccountFixture(context)) {
+                activity = (MainActivity)getInstrumentation().startActivitySync(
+                        context.getPackageManager().getLaunchIntentForPackage(context.getPackageName()));
+                try {
+                    String respond = activity.getString(R.string.ws_reply_hermes);
+                    String openLabel = activity.getString(R.string.instrument_open_pin);
+                    runTestOnUiThread(() -> {
+                        try { open(profile.account); }
+                        catch (Exception failure) { throw new AssertionError(failure); }
+                        activity.onAction("native_thread");
+                        width(320);
+                    });
+                    idle();
+                    runTestOnUiThread(() -> {
+                        click(openLabel);
+                        form = visibleField(page.screen.instruments.viewport);
+                        assertNotNull(form);
+                        form.setText("facture.py");
+                        actions.present(Collections.singletonList(prompt));
+                        page.screen.live("Question", "", true);
+                        assertTrue(page.screen.instruments.viewport.open());
+                        assertFalse(page.screen.list.isShown());
+                        assertTrue(button(respond).isShown());
+                        width(720);
+                    });
+                    idle();
+                    runTestOnUiThread(() -> {
+                        assertTrue(page.screen.instruments.viewport.wide());
+                        assertTrue(page.screen.list.isShown());
+                        assertFalse(button(respond).isShown());
+                        assertTrue(form.isShown());
+                        width(320);
+                    });
+                    idle();
+                    runTestOnUiThread(() -> {
+                        assertTrue(button(respond).isShown());
+                        click(respond);
+                        assertTrue(page.screen.list.isShown());
+                        assertFalse(button(respond).isShown());
+                        assertEquals("Demain matin", page.screen.draft());
+                        click(openLabel);
+                        assertSame(form, visibleField(page.screen.instruments.viewport));
+                        assertEquals("facture.py", form.getText().toString());
+                        actions.present(Collections.emptyList());
+                        assertFalse(button(respond).isShown());
+                        // A layout omitting the entire native transcript requires the normal native-route fallback.
+                        profile.account.write("workspace.v1.thread", ThreadData.put(new JSONObject(), "current", ARRANGED).toString());
+                        activity.onAction("return");
+                        activity.onLayoutChanged();
+                        actions.present(Collections.singletonList(prompt));
+                        assertTrue(button(respond).isShown());
+                        click(respond);
+                        assertTrue(page.screen.list.isShown());
+                        assertFalse(button(respond).isShown());
+                        assertTrue(page.screen.promptRows.visible());
+                        assertEquals("Demain matin", page.screen.draft());
+                    });
+                } finally {
+                    ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+                }
+            }
+        } finally {
+            Diagnostics.clear();
+        }
     }
 
     private void open(Account account) throws Exception {

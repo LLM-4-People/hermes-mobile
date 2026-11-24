@@ -39,71 +39,76 @@ public final class WorkspaceSecurityDialogTest extends InstrumentationTestCase {
     public void testShowSecurityClosesParentAndChildDialogSynchronouslyAndEnforcesFlagSecure() throws Throwable {
         if (Build.VERSION.SDK_INT < 29) return;
         Context context = getInstrumentation().getTargetContext();
-        Activity activity = launchActivity(context.getPackageName(), MainActivity.class, null);
         AtomicReference<AutoCloseable> handleRef = new AtomicReference<>();
         AtomicReference<ProfileGate> gateRef = new AtomicReference<>();
         AtomicBoolean dismissed = new AtomicBoolean(false);
-        String parentTitle = activity.getString(R.string.security_dialog_title);
-        String changeModeLabel = activity.getString(R.string.security_lock_mode_change);
-        String childSaveLabel = activity.getString(R.string.security_lock_mode_save);
-
-        try (WorkspaceAccountFixture fixture = new WorkspaceAccountFixture(context)) {
-            runTestOnUiThread(() -> {
-                ProfileGate gate = new ProfileGate(activity);
-                gateRef.set(gate);
-                handleRef.set(WorkspaceDialogs.showSecurity(
-                        activity, fixture.account, gate, () -> {}, () -> {}, () -> dismissed.set(true)));
-            });
-            getInstrumentation().waitForIdleSync();
-
-            View parentWindow = waitForWindowContaining(parentTitle, 3000L);
-            assertNotNull("Expected security parent dialog window", parentWindow);
-            runTestOnUiThread(() -> assertWindowSecure(parentWindow));
-
-            // Tap "Change lock mode" to open the nested child dialog.
-            runTestOnUiThread(() -> {
-                Button changeBtn = findButton(parentWindow, changeModeLabel);
-                assertNotNull("Expected Change lock mode button inside security dialog", changeBtn);
-                assertTrue(changeBtn.performClick());
-            });
-            getInstrumentation().waitForIdleSync();
-
-            View childWindow = waitForWindowContaining(childSaveLabel, 3000L);
-            assertNotNull("Expected Change lock mode child dialog window", childWindow);
-            assertNotSame(parentWindow, childWindow);
-            runTestOnUiThread(() -> assertWindowSecure(childWindow));
-
-            // Synchronously close handle (as MainActivity.dismissOverlays() does on lock/destroy).
-            runTestOnUiThread(() -> {
-                AutoCloseable handle = handleRef.getAndSet(null);
-                assertNotNull(handle);
+        try {
+            try (WorkspaceAccountFixture fixture = new WorkspaceAccountFixture(context)) {
+                Activity activity = launchActivity(context.getPackageName(), MainActivity.class, null);
                 try {
-                    handle.close();
-                } catch (Exception err) {
-                    throw new AssertionError(err);
-                }
-            });
-            getInstrumentation().waitForIdleSync();
+                    String parentTitle = activity.getString(R.string.security_dialog_title);
+                    String changeModeLabel = activity.getString(R.string.security_lock_mode_change);
+                    String childSaveLabel = activity.getString(R.string.security_lock_mode_save);
+                    runTestOnUiThread(() -> {
+                        ProfileGate gate = new ProfileGate(activity);
+                        gateRef.set(gate);
+                        handleRef.set(WorkspaceDialogs.showSecurity(
+                                activity, fixture.account, gate, () -> {}, () -> {}, () -> dismissed.set(true)));
+                    });
+                    getInstrumentation().waitForIdleSync();
 
-            assertTrue("Expected parent dialog window to dismiss",
-                    waitUntilWindowGone(parentTitle, 3000L));
-            assertTrue("Expected child dialog window to dismiss",
-                    waitUntilWindowGone(childSaveLabel, 3000L));
-            assertTrue("Expected onDismissed callback to execute",
-                    waitUntil(dismissed::get, 3000L));
-        } finally {
-            try {
-                runTestOnUiThread(() -> {
-                    AutoCloseable handle = handleRef.getAndSet(null);
-                    if (handle != null) {
-                        try { handle.close(); } catch (Exception ignored) {}
+                    View parentWindow = waitForWindowContaining(parentTitle, 3000L);
+                    assertNotNull("Expected security parent dialog window", parentWindow);
+                    runTestOnUiThread(() -> assertWindowSecure(parentWindow));
+
+                    // Tap "Change lock mode" to open the nested child dialog.
+                    runTestOnUiThread(() -> {
+                        Button changeBtn = findButton(parentWindow, changeModeLabel);
+                        assertNotNull("Expected Change lock mode button inside security dialog", changeBtn);
+                        assertTrue(changeBtn.performClick());
+                    });
+                    getInstrumentation().waitForIdleSync();
+
+                    View childWindow = waitForWindowContaining(childSaveLabel, 3000L);
+                    assertNotNull("Expected Change lock mode child dialog window", childWindow);
+                    assertNotSame(parentWindow, childWindow);
+                    runTestOnUiThread(() -> assertWindowSecure(childWindow));
+
+                    // Synchronously close handle (as MainActivity.dismissOverlays() does on lock/destroy).
+                    runTestOnUiThread(() -> {
+                        AutoCloseable handle = handleRef.getAndSet(null);
+                        assertNotNull(handle);
+                        try {
+                            handle.close();
+                        } catch (Exception err) {
+                            throw new AssertionError(err);
+                        }
+                    });
+                    getInstrumentation().waitForIdleSync();
+
+                    assertTrue("Expected parent dialog window to dismiss",
+                            waitUntilWindowGone(parentTitle, 3000L));
+                    assertTrue("Expected child dialog window to dismiss",
+                            waitUntilWindowGone(childSaveLabel, 3000L));
+                    assertTrue("Expected onDismissed callback to execute",
+                            waitUntil(dismissed::get, 3000L));
+                } finally {
+                    try {
+                        runTestOnUiThread(() -> {
+                            AutoCloseable handle = handleRef.getAndSet(null);
+                            if (handle != null) {
+                                try { handle.close(); } catch (Exception ignored) {}
+                            }
+                            ProfileGate gate = gateRef.getAndSet(null);
+                            if (gate != null) gate.close();
+                        });
+                    } finally {
+                        ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
                     }
-                    ProfileGate gate = gateRef.getAndSet(null);
-                    if (gate != null) gate.close();
-                });
-            } finally {
-                ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+                }
             }
+        } finally {
+            Diagnostics.clear();
         }
     }
 
