@@ -6,6 +6,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Color;
+import android.os.Build;
 import android.view.View;
 import android.widget.RemoteViews;
 
@@ -13,6 +14,7 @@ import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.artifact.ThemePalette;
+import org.llm4people.hermes.settings.AppThemeMode;
 
 import java.util.List;
 
@@ -158,9 +160,15 @@ public final class HermesWidgetProvider extends AppWidgetProvider {
         views.setTextViewText(R.id.widget_dynamic_badge, badgeForTemplate(localized, safe.template));
         if (safe.accentHex != null) {
             try {
-                int adapted = ThemePalette.adaptAccentForMode(
-                        Color.parseColor(safe.accentHex), ThemePalette.isNight(localized));
-                views.setTextColor(R.id.widget_dynamic_badge, adapted);
+                int raw = Color.parseColor(safe.accentHex);
+                int dayColor = ThemePalette.adaptAccentForMode(raw, false);
+                int nightColor = ThemePalette.adaptAccentForMode(raw, true);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    views.setColorInt(R.id.widget_dynamic_badge, "setTextColor", dayColor, nightColor);
+                } else {
+                    views.setTextColor(R.id.widget_dynamic_badge,
+                            AppThemeMode.isSystemNight() ? nightColor : dayColor);
+                }
             } catch (IllegalArgumentException ignored) {
                 // Keep default theme accent color.
             }

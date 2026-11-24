@@ -24,10 +24,15 @@ final class ThreadContext {
     }
 
     static long messageCount(long total, int rawPageSize, int distinctRowsLoaded) {
+        return messageCount(total, rawPageSize, distinctRowsLoaded, ThreadData.PAGE);
+    }
+
+    static long messageCount(long total, int rawPageSize, int distinctRowsLoaded, int pageSize) {
         if (total >= 0) return total;
+        int effectivePage = pageSize > 0 ? pageSize : ThreadData.PAGE;
         // Old servers give only segment counts. We can count a completed, deduplicated
         // transcript but a full page can still have an unknown number of predecessors.
-        return rawPageSize < ThreadData.PAGE ? distinctRowsLoaded : -1;
+        return rawPageSize < effectivePage ? distinctRowsLoaded : -1;
     }
 
     static String legacyTitle(String root, String tip, Read read) throws IOException {

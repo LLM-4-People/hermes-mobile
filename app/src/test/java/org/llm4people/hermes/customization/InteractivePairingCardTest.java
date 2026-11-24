@@ -53,4 +53,46 @@ public final class InteractivePairingCardTest {
             } catch (IllegalArgumentException expected) {}
         }
     }
+
+    @Test public void fromMapHandlesNullFallbacksAndTtlSecondsDefaultsCleanly() {
+        String validLink = "hermes://pair?host=https%3A%2F%2Fhermes.example.com&code=InviteCode987654&profile=alex&mode=invite";
+
+        // deep_link: null must fall back to link; missing/null ttl_seconds defaults to 300; missing mode defaults to device.
+        Map<String, Object> pairing = new LinkedHashMap<>();
+        pairing.put("mode", null);
+        pairing.put("deep_link", null);
+        pairing.put("link", validLink);
+        pairing.put("profile_slug", "alex");
+        pairing.put("ttl_seconds", null);
+
+        Map<String, Object> raw = new LinkedHashMap<>();
+        raw.put("id", "card_pair_nulls");
+        raw.put("kind", "pairing_invite");
+        raw.put("title", "Invite");
+        raw.put("pairing", pairing);
+
+        InteractiveCardView.Spec parsed = InteractiveCardView.Spec.fromMap(raw);
+        assertEquals("device", parsed.pairingInvite.mode());
+        assertEquals(validLink, parsed.pairingInvite.deepLink());
+        assertEquals(300, parsed.pairingInvite.ttlSeconds());
+
+        // Numeric and string ttl_seconds parse cleanly; invalid string falls back to 300.
+        pairing.put("ttl_seconds", "180");
+        assertEquals(180, InteractiveCardView.Spec.fromMap(raw).pairingInvite.ttlSeconds());
+        pairing.put("ttl_seconds", "not-a-number");
+        assertEquals(300, InteractiveCardView.Spec.fromMap(raw).pairingInvite.ttlSeconds());
+
+        // Customization preview: accent: null must fall back cleanly to accent_preset.
+        Map<String, Object> cust = new LinkedHashMap<>();
+        cust.put("accent", null);
+        cust.put("accent_preset", "slate");
+        Map<String, Object> custCard = new LinkedHashMap<>();
+        custCard.put("id", "card_cust_nulls");
+        custCard.put("kind", "customization_preview");
+        custCard.put("title", "Palette");
+        custCard.put("customization", cust);
+
+        InteractiveCardView.Spec custSpec = InteractiveCardView.Spec.fromMap(custCard);
+        assertEquals(AppCustomization.PalettePreset.SLATE, custSpec.customizationDelta.palette());
+    }
 }

@@ -127,7 +127,7 @@ public final class ThemePalette {
                 normalizedInk = formatHex(effInk);
             }
             if (normalizedSurface != null || normalizedInk != null) {
-                double textContrast = textContrast(normalizedSurface, normalizedInk, effSurface, effInk,
+                double textContrast = textContrast(normalizedSurface, normalizedInk, effSurface, effPaper, effInk,
                         "system".equals(safeTheme));
                 if (textContrast < WCAG_AA_NORMAL) {
                     throw new ContrastException("Text/surface contrast below WCAG AA (4.5:1)", textContrast);
@@ -267,21 +267,22 @@ public final class ThemePalette {
     public final String surfaceStyle;
     public final OverrideSpec spec;
 
-    private ThemePalette(boolean night, boolean darkSurface, int paper, int surface, int ink, int accent,
-                         int onAccent, int accentSurface, OverrideSpec spec) {
+    private ThemePalette(boolean night, boolean darkSurface, int paper, int surface, int ink, int muted,
+                         int accent, int onAccent, int accentSurface, int danger, int warning, int positive,
+                         OverrideSpec spec) {
         this.night = night;
         this.spec = spec;
         this.paper = paper;
         this.surface = surface;
         this.ink = ink;
-        this.muted = darkSurface ? NIGHT_MUTED : DAY_MUTED;
+        this.muted = muted;
         this.accent = accent;
         this.onAccent = onAccent;
         this.accentSurface = accentSurface;
         this.line = darkSurface ? NIGHT_LINE : DAY_LINE;
-        this.danger = darkSurface ? NIGHT_DANGER : DAY_DANGER;
-        this.warning = darkSurface ? NIGHT_WARNING : DAY_WARNING;
-        this.positive = darkSurface ? NIGHT_POSITIVE : DAY_POSITIVE;
+        this.danger = danger;
+        this.warning = warning;
+        this.positive = positive;
         this.blockVerticalPaddingDp = switch (spec.density) {
             case "compact" -> 5;
             case "spacious" -> 18;
@@ -383,28 +384,69 @@ public final class ThemePalette {
         }
     }
 
-    /**
-     * Adapts a valid day-authored accent for night mode (or vice versa) when theme == "system",
-     * preserving hue while guaranteeing WCAG AA >= 4.5:1 on paper, surface, and onAccent.
-     */
-    public static int adaptAccentForMode(int accentArgb, boolean targetNight) {
+    private static boolean accentPassesModeAndTint(int accentArgb, boolean targetNight) {
         try {
             validateAccentContrast(accentArgb, targetNight);
-            return accentArgb;
-        } catch (ContrastException needsShift) {
-            int targetAnchor = targetNight ? 0xFFFFFFFF : 0xFF000000;
-            for (int step = 1; step <= 20; step++) {
-                float weight = step / 20f;
-                int candidate = blendTint(targetAnchor, accentArgb, weight);
-                try {
-                    validateAccentContrast(candidate, targetNight);
-                    return candidate;
-                } catch (ContrastException ignored) {
-                    // continue shifting luminance while preserving hue
-                }
-            }
-            return targetNight ? NIGHT_ACCENT : DAY_ACCENT;
+        } catch (ContrastException failed) {
+            return false;
         }
+        int paper = targetNight ? NIGHT_PAPER : DAY_PAPER;
+        int tinted = blendTint(accentArgb, paper, targetNight ? 0.20f : 0.14f);
+        return contrastRatio(accentArgb, tinted) >= WCAG_AA_NORMAL;
+    }
+
+    /**
+     * Adapts a valid day-authored accent for night mode (or vice versa) when theme == "system",
+     * preserving hue while guaranteeing WCAG AA >= 4.5:1 on paper, surface, tinted accentSurface, and onAccent.
+     */
+    public static int adaptAccentForMode(int accentArgb, boolean targetNight) {
+        if (accentPassesModeAndTint(accentArgb, targetNight)) return accentArgb;
+        int targetAnchor = targetNight ? 0xFFFFFFFF : 0xFF000000;
+        for (int step = 1; step <= 20; step++) {
+            float weight = step / 20f;
+            int candidate = blendTint(targetAnchor, accentArgb, weight);
+            if (accentPassesModeAndTint(candidate, targetNight)) return candidate;
+        }
+        return targetNight ? NIGHT_ACCENT : DAY_ACCENT;
+    }
+
+    private static int adaptColorAgainstSurface(int colorArgb, int surfaceArgb, int fallbackInk) {
+        if (contrastRatio(colorArgb, surfaceArgb) >= WCAG_AA_NORMAL) return colorArgb;
+        int anchor = relativeLuminance(fallbackInk) >= relativeLuminance(surfaceArgb) ? 0xFFFFFFFF : 0xFF000000;
+        for (int step = 1; step <= 20; step++) {
+            int candidate = blendTint(anchor, colorArgb, step / 20f);
+            if (contrastRatio(candidate, surfaceArgb) >= WCAG_AA_NORMAL) return candidate;
+        }
+        return fallbackInk;
+    }
+
+    private static int adaptAccentAgainstSurface(int colorArgb, int surfaceArgb, int fallbackInk) {
+        if (contrastRatio(colorArgb, surfaceArgb) >= WCAG_AA_NORMAL
+                && contrastRatio(bestOnAccent(colorArgb), colorArgb) >= WCAG_AA_NORMAL) {
+            return colorArgb;
+        }
+        int anchor = relativeLuminance(fallbackInk) >= relativeLuminance(surfaceArgb) ? 0xFFFFFFFF : 0xFF000000;
+        for (int step = 1; step <= 20; step++) {
+            int candidate = blendTint(anchor, colorArgb, step / 20f);
+            if (contrastRatio(candidate, surfaceArgb) >= WCAG_AA_NORMAL
+                    && contrastRatio(bestOnAccent(candidate), candidate) >= WCAG_AA_NORMAL) {
+                return candidate;
+            }
+        }
+        return fallbackInk;
+    }
+
+    private static int safeAccentSurface(int accent, int paper, int ink, boolean darkSurface) {
+        float initial = darkSurface ? 0.20f : 0.14f;
+        for (int step = 20; step >= 0; step--) {
+            float weight = initial * (step / 20f);
+            int candidate = blendTint(accent, paper, weight);
+            if (contrastRatio(accent, candidate) >= WCAG_AA_NORMAL
+                    && contrastRatio(ink, candidate) >= WCAG_AA_NORMAL) {
+                return candidate;
+            }
+        }
+        return paper;
     }
 
     /** Higher-contrast design ink (day or night) for a custom surface; keeps surface-only overrides mode-invariant. */
@@ -415,14 +457,21 @@ public final class ThemePalette {
     /**
      * Text contrast for a surface/ink override. When only {@code surfaceHex} is specified, pairs it with
      * {@link #bestInk(int)} to match {@link #resolve(OverrideSpec, boolean)} regardless of theme mode;
-     * with {@code theme="system"} and {@code inkHex} only, validates against either default surface so
-     * a persisted override cannot become unreadable across day/night switches.
+     * when {@code inkHex} is specified without a custom surface, enforces WCAG AA against BOTH surface
+     * and paper (in at least one polarity for {@code theme="system"} or the active polarity otherwise).
      */
-    private static double textContrast(String surfaceHex, String inkHex, int effSurface, int effInk, boolean system) {
-        if (surfaceHex != null && inkHex != null) return contrastRatio(effInk, effSurface);
+    private static double textContrast(String surfaceHex, String inkHex, int effSurface, int effPaper,
+                                       int effInk, boolean system) {
+        if (surfaceHex != null && inkHex != null) {
+            return Math.min(contrastRatio(effInk, effSurface), contrastRatio(effInk, effPaper));
+        }
         if (surfaceHex != null) return contrastRatio(bestInk(effSurface), effSurface);
-        if (system) return Math.max(contrastRatio(effInk, DAY_SURFACE), contrastRatio(effInk, NIGHT_SURFACE));
-        return contrastRatio(effInk, effSurface);
+        if (system) {
+            double dayMin = Math.min(contrastRatio(effInk, DAY_SURFACE), contrastRatio(effInk, DAY_PAPER));
+            double nightMin = Math.min(contrastRatio(effInk, NIGHT_SURFACE), contrastRatio(effInk, NIGHT_PAPER));
+            return Math.max(dayMin, nightMin);
+        }
+        return Math.min(contrastRatio(effInk, effSurface), contrastRatio(effInk, effPaper));
     }
 
     public static ThemePalette resolve(OverrideSpec spec, boolean systemNight) {
@@ -444,14 +493,30 @@ public final class ThemePalette {
         } else if (safe.inkHex != null) {
             try {
                 int customInk = parseHexColor(safe.inkHex);
-                if (contrastRatio(customInk, surface) >= WCAG_AA_NORMAL) ink = customInk;
+                if (contrastRatio(customInk, surface) >= WCAG_AA_NORMAL
+                        && contrastRatio(customInk, paper) >= WCAG_AA_NORMAL) {
+                    ink = customInk;
+                }
             } catch (IOException ignored) {}
         }
 
         boolean darkSurface = relativeLuminance(paper) < 0.2;
+        int muted = darkSurface ? NIGHT_MUTED : DAY_MUTED;
+        int danger = darkSurface ? NIGHT_DANGER : DAY_DANGER;
+        int warning = darkSurface ? NIGHT_WARNING : DAY_WARNING;
+        int positive = darkSurface ? NIGHT_POSITIVE : DAY_POSITIVE;
         int accent = darkSurface ? NIGHT_ACCENT : DAY_ACCENT;
         int onAccent = darkSurface ? NIGHT_ON_ACCENT : DAY_ON_ACCENT;
         int accentSurface = darkSurface ? NIGHT_ACCENT_SURFACE : DAY_ACCENT_SURFACE;
+        if (safe.surfaceHex != null) {
+            muted = adaptColorAgainstSurface(muted, paper, ink);
+            danger = adaptColorAgainstSurface(danger, paper, ink);
+            warning = adaptColorAgainstSurface(warning, paper, ink);
+            positive = adaptColorAgainstSurface(positive, paper, ink);
+            accent = adaptAccentAgainstSurface(accent, paper, ink);
+            onAccent = bestOnAccent(accent);
+            accentSurface = safeAccentSurface(accent, paper, ink, darkSurface);
+        }
         if (safe.accentHex != null) {
             try {
                 int candidate = parseHexColor(safe.accentHex);
@@ -459,18 +524,22 @@ public final class ThemePalette {
                     accent = candidate;
                     onAccent = safe.accentInkHex != null ? parseHexColor(safe.accentInkHex) : bestOnAccent(candidate);
                     if (contrastRatio(onAccent, accent) < WCAG_AA_NORMAL) onAccent = bestOnAccent(accent);
+                } else if (safe.surfaceHex != null) {
+                    accent = adaptAccentAgainstSurface(candidate, paper, ink);
+                    onAccent = bestOnAccent(accent);
                 } else {
                     accent = adaptAccentForMode(candidate, darkSurface);
                     onAccent = safe.accentInkHex != null && accent == candidate
                             ? parseHexColor(safe.accentInkHex) : bestOnAccent(accent);
                     if (contrastRatio(onAccent, accent) < WCAG_AA_NORMAL) onAccent = bestOnAccent(accent);
                 }
-                accentSurface = blendTint(accent, paper, darkSurface ? 0.20f : 0.14f);
+                accentSurface = safeAccentSurface(accent, paper, ink, darkSurface);
             } catch (IOException ignored) {
                 // Fall back to DESIGN.md default accent.
             }
         }
-        return new ThemePalette(night, darkSurface, paper, surface, ink, accent, onAccent, accentSurface, safe);
+        return new ThemePalette(night, darkSurface, paper, surface, ink, muted,
+                accent, onAccent, accentSurface, danger, warning, positive, safe);
     }
 
     public static boolean isNight(Context context) {

@@ -138,7 +138,9 @@ final class WorkspaceBlocks {
             }
         }
         parent.addView(group);
-        parent.addView(Ui.divider(c));
+        View divider = Ui.divider(c);
+        divider.setBackgroundColor(colors.line);
+        parent.addView(divider);
     }
 
     private static void action(LinearLayout group, String label, ThemePalette colors, Runnable action) {

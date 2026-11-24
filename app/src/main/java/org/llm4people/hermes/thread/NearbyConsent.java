@@ -308,10 +308,6 @@ final class NearbyConsent {
         });
     }
 
-    void chooseGuide(BooleanSupplier current, Consumer<JSONObject> chosen) {
-        chooseGuide(current, NearbyCategory.RESTAURANT, chosen);
-    }
-
     void chooseGuide(BooleanSupplier current, NearbyCategory category, Consumer<JSONObject> chosen) {
         if (!current.getAsBoolean() || page.screen == null) return;
         NearbyCategory activeCat = category == null ? NearbyCategory.RESTAURANT : category;

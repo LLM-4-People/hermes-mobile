@@ -269,8 +269,10 @@ public final class AppCustomization {
             }
             if (adaptedInk != null) {
                 int targetSurface = targetNight ? ThemePalette.NIGHT_SURFACE : ThemePalette.DAY_SURFACE;
+                int targetPaper = targetNight ? ThemePalette.NIGHT_PAPER : ThemePalette.DAY_PAPER;
                 int inkArgb = ThemePalette.parseHexColor(adaptedInk);
-                if (ThemePalette.contrastRatio(inkArgb, targetSurface) < ThemePalette.WCAG_AA_NORMAL) {
+                if (ThemePalette.contrastRatio(inkArgb, targetSurface) < ThemePalette.WCAG_AA_NORMAL
+                        || ThemePalette.contrastRatio(inkArgb, targetPaper) < ThemePalette.WCAG_AA_NORMAL) {
                     adaptedInk = null;
                 }
             }

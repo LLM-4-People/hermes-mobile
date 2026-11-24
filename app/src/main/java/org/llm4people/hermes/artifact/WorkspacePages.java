@@ -49,7 +49,9 @@ final class WorkspacePages {
                 link.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
                 link.setTextColor(palette.accent);
                 list.addView(link);
-                list.addView(Ui.divider(a));
+                View divider = Ui.divider(a);
+                divider.setBackgroundColor(palette.line);
+                list.addView(divider);
             }
         } catch (PageLayouts.Damaged damaged) {
             Diagnostics.warning("workspace", "page_index_damaged");
