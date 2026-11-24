@@ -92,6 +92,33 @@ public final class Android16OsIntegrationTest extends InstrumentationTestCase {
                     HermesWidgetSpec.Template.QUICK_ACTIONS,
                     List.of(new HermesWidgetSpec.Item("Nouvelle note", "", "Crée une note")),
                     "#225C50", true);
+            RemoteViews colored = HermesWidgetProvider.buildDynamicViews(context, safe);
+            assertNotNull(colored);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                android.content.res.Configuration dayCfg = new android.content.res.Configuration(
+                        context.getResources().getConfiguration());
+                dayCfg.uiMode = (dayCfg.uiMode & ~android.content.res.Configuration.UI_MODE_NIGHT_MASK)
+                        | android.content.res.Configuration.UI_MODE_NIGHT_NO;
+                Context dayCtx = context.createConfigurationContext(dayCfg);
+                android.view.View dayView = colored.apply(dayCtx, new android.widget.FrameLayout(dayCtx));
+                android.widget.TextView dayBadge = dayView.findViewById(R.id.widget_dynamic_badge);
+                assertNotNull(dayBadge);
+                assertEquals(
+                        org.llm4people.hermes.artifact.ThemePalette.adaptAccentForMode(0xFF225C50, false),
+                        dayBadge.getCurrentTextColor());
+
+                android.content.res.Configuration nightCfg = new android.content.res.Configuration(
+                        context.getResources().getConfiguration());
+                nightCfg.uiMode = (nightCfg.uiMode & ~android.content.res.Configuration.UI_MODE_NIGHT_MASK)
+                        | android.content.res.Configuration.UI_MODE_NIGHT_YES;
+                Context nightCtx = context.createConfigurationContext(nightCfg);
+                android.view.View nightView = colored.apply(nightCtx, new android.widget.FrameLayout(nightCtx));
+                android.widget.TextView nightBadge = nightView.findViewById(R.id.widget_dynamic_badge);
+                assertNotNull(nightBadge);
+                assertEquals(
+                        org.llm4people.hermes.artifact.ThemePalette.adaptAccentForMode(0xFF225C50, true),
+                        nightBadge.getCurrentTextColor());
+            }
             HermesWidgetSpec fromJson = HermesWidgetSpec.fromJson(safe.toJson());
             assertEquals("Tableau Hermes", fromJson.title);
             assertEquals(HermesWidgetSpec.Template.QUICK_ACTIONS, fromJson.template);

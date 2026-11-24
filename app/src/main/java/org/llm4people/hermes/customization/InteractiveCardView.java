@@ -765,18 +765,31 @@ public final class InteractiveCardView extends LinearLayout {
     private static int parseTtlSeconds(Object value, int defaultSeconds) {
         if (value == null) return defaultSeconds;
         if (value instanceof Number n) {
+            if (value instanceof Long || value instanceof Integer
+                    || value instanceof Short || value instanceof Byte) {
+                return saturateInt(n.longValue());
+            }
             double d = n.doubleValue();
-            return Double.isFinite(d) ? (int) Math.round(d) : defaultSeconds;
+            return Double.isFinite(d) ? saturateInt(Math.round(d)) : defaultSeconds;
         }
         if (value instanceof String s) {
             String trimmed = s.trim();
             if (trimmed.isEmpty()) return defaultSeconds;
             try {
-                return Integer.parseInt(trimmed);
-            } catch (NumberFormatException ignored) {
-                return defaultSeconds;
+                return saturateInt(Long.parseLong(trimmed));
+            } catch (NumberFormatException notLong) {
+                try {
+                    double parsed = Double.parseDouble(trimmed);
+                    return Double.isFinite(parsed) ? saturateInt(Math.round(parsed)) : defaultSeconds;
+                } catch (NumberFormatException ignored) {
+                    return defaultSeconds;
+                }
             }
         }
         return defaultSeconds;
+    }
+
+    private static int saturateInt(long value) {
+        return (int) Math.max(Integer.MIN_VALUE, Math.min(Integer.MAX_VALUE, value));
     }
 }

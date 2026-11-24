@@ -15,7 +15,6 @@ import org.llm4people.hermes.Ui;
 
 /** Only the transcript viewport adapts. The real composer and its selection stay attached. */
 final class InstrumentViewport extends LinearLayout {
-    static final int SPLIT_DP = AdaptiveLayout.SPLIT_TOOL_DP;
     private final ListView transcript;
     private final LinearLayout dock;
     private final TextView dockTitle;

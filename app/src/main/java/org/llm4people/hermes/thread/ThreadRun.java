@@ -737,7 +737,6 @@ final class ThreadRun {
                     lastProgress,
                     page.api,
                     page.runStreams,
-                    page.main,
                     page::profileEpoch,
                     page.profileEpoch(),
                     page::publishRunProgress);

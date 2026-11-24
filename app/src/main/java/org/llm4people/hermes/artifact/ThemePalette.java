@@ -436,13 +436,23 @@ public final class ThemePalette {
         return fallbackInk;
     }
 
-    private static int safeAccentSurface(int accent, int paper, int ink, boolean darkSurface) {
+    private static boolean allTokensClearSurface(int surfaceArgb, int accent, int ink,
+                                                 int muted, int danger, int warning, int positive) {
+        return contrastRatio(accent, surfaceArgb) >= WCAG_AA_NORMAL
+                && contrastRatio(ink, surfaceArgb) >= WCAG_AA_NORMAL
+                && contrastRatio(muted, surfaceArgb) >= WCAG_AA_NORMAL
+                && contrastRatio(danger, surfaceArgb) >= WCAG_AA_NORMAL
+                && contrastRatio(warning, surfaceArgb) >= WCAG_AA_NORMAL
+                && contrastRatio(positive, surfaceArgb) >= WCAG_AA_NORMAL;
+    }
+
+    private static int safeAccentSurface(int accent, int paper, int ink, int muted,
+                                         int danger, int warning, int positive, boolean darkSurface) {
         float initial = darkSurface ? 0.20f : 0.14f;
         for (int step = 20; step >= 0; step--) {
             float weight = initial * (step / 20f);
             int candidate = blendTint(accent, paper, weight);
-            if (contrastRatio(accent, candidate) >= WCAG_AA_NORMAL
-                    && contrastRatio(ink, candidate) >= WCAG_AA_NORMAL) {
+            if (allTokensClearSurface(candidate, accent, ink, muted, danger, warning, positive)) {
                 return candidate;
             }
         }
@@ -515,7 +525,6 @@ public final class ThemePalette {
             positive = adaptColorAgainstSurface(positive, paper, ink);
             accent = adaptAccentAgainstSurface(accent, paper, ink);
             onAccent = bestOnAccent(accent);
-            accentSurface = safeAccentSurface(accent, paper, ink, darkSurface);
         }
         if (safe.accentHex != null) {
             try {
@@ -533,10 +542,13 @@ public final class ThemePalette {
                             ? parseHexColor(safe.accentInkHex) : bestOnAccent(accent);
                     if (contrastRatio(onAccent, accent) < WCAG_AA_NORMAL) onAccent = bestOnAccent(accent);
                 }
-                accentSurface = safeAccentSurface(accent, paper, ink, darkSurface);
             } catch (IOException ignored) {
                 // Fall back to DESIGN.md default accent.
             }
+        }
+        if (safe.surfaceHex != null || safe.accentHex != null || safe.inkHex != null
+                || !allTokensClearSurface(accentSurface, accent, ink, muted, danger, warning, positive)) {
+            accentSurface = safeAccentSurface(accent, paper, ink, muted, danger, warning, positive, darkSurface);
         }
         return new ThemePalette(night, darkSurface, paper, surface, ink, muted,
                 accent, onAccent, accentSurface, danger, warning, positive, safe);

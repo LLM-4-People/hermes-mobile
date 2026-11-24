@@ -159,10 +159,6 @@ final class SurfaceRenderer {
         return body;
     }
 
-    static Context palette(Context context, WorkspaceLayout layout) {
-        return palette(context, resolvePalette(context, null, layout));
-    }
-
     static Context palette(Context context, ThemePalette colors) {
         if (colors == null) return context;
         boolean darkSurface = ThemePalette.relativeLuminance(colors.paper) < 0.2;

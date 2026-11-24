@@ -82,6 +82,18 @@ public final class InteractivePairingCardTest {
         pairing.put("ttl_seconds", "not-a-number");
         assertEquals(300, InteractiveCardView.Spec.fromMap(raw).pairingInvite.ttlSeconds());
 
+        // R6.4.1: Extreme 64-bit ttl_seconds saturate instead of overflowing 32-bit int wrap-around.
+        pairing.put("ttl_seconds", 4_294_967_296L);
+        assertEquals(900, InteractiveCardView.Spec.fromMap(raw).pairingInvite.ttlSeconds());
+        pairing.put("ttl_seconds", Long.MAX_VALUE);
+        assertEquals(900, InteractiveCardView.Spec.fromMap(raw).pairingInvite.ttlSeconds());
+        pairing.put("ttl_seconds", -4_294_967_200L);
+        assertEquals(0, InteractiveCardView.Spec.fromMap(raw).pairingInvite.ttlSeconds());
+        pairing.put("ttl_seconds", "4294967296");
+        assertEquals(900, InteractiveCardView.Spec.fromMap(raw).pairingInvite.ttlSeconds());
+        pairing.put("ttl_seconds", "-4294967200");
+        assertEquals(0, InteractiveCardView.Spec.fromMap(raw).pairingInvite.ttlSeconds());
+
         // Customization preview: accent: null must fall back cleanly to accent_preset.
         Map<String, Object> cust = new LinkedHashMap<>();
         cust.put("accent", null);

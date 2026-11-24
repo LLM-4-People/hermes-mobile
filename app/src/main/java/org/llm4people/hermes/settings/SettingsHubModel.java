@@ -9,7 +9,6 @@ import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 
 /**
  * Pure-JVM Single Source of Truth for {@link SettingsHubPanel} host redaction, live summary tokens,

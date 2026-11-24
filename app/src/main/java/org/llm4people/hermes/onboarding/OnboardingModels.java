@@ -180,7 +180,7 @@ public final class OnboardingModels {
         String code = str(map.get("code")).trim();
         long expiresAt = parseEpochSeconds(map.get("expires_at"));
         Object rawTtl = map.containsKey("ttl_seconds") ? map.get("ttl_seconds") : map.get("ttl_remaining_seconds");
-        int ttl = Math.max(0, (int) num(rawTtl, 0L));
+        int ttl = (int) Math.max(0L, Math.min(Integer.MAX_VALUE, num(rawTtl, 0L)));
         String deepLink = str(map.get("deep_link")).trim();
         String slug = safeSlug(str(map.get("profile_slug")));
         String displayName = cleanText(str(map.get("display_name")), 64);

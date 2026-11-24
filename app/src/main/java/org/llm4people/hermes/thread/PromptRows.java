@@ -2,7 +2,6 @@ package org.llm4people.hermes.thread;
 
 import android.graphics.Rect;
 import android.view.View;
-import android.widget.AbsListView;
 import android.widget.ListView;
 import org.llm4people.hermes.Ui;
 import org.json.JSONObject;

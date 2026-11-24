@@ -1,6 +1,9 @@
 package org.llm4people.hermes.net;
 
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
+import org.llm4people.hermes.Diagnostics;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -25,6 +28,18 @@ import static org.junit.Assert.fail;
  * and rejects subsequent calls fail-closed.
  */
 public final class HermesApiRevokeTest {
+
+    @Before
+    public void setUpDiagnostics() {
+        Diagnostics.clear();
+        Diagnostics.setSink((level, tag, msg) -> {});
+    }
+
+    @After
+    public void tearDownDiagnostics() {
+        Diagnostics.clear();
+        Diagnostics.setSink(null);
+    }
 
     @Test
     public void limitsCarriesConfiguredArtifactByteCeilingAndPostMultipartEnforcesIt() {

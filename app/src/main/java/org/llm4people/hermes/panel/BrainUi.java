@@ -1,7 +1,6 @@
 package org.llm4people.hermes.panel;
 
 import android.content.Context;
-import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.text.InputType;
 import android.view.Gravity;

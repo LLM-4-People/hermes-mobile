@@ -27,6 +27,28 @@ import static org.junit.Assert.*;
 public final class OnboardingApiContractTest {
 
     @Test
+    public void parsePairingTicketSaturatesExtremeTtlSecondsWithoutIntOverflow() {
+        Map<String, Object> base = new LinkedHashMap<>();
+        base.put("ticket_id", "tkt_sat");
+        base.put("code", "pair_AbCdEf1234567890");
+        base.put("expires_at", 1_800_000_300L);
+        base.put("deep_link", "hermes://pair?host=https%3A%2F%2Fhermes.example.com&code=pair_AbCdEf1234567890");
+        base.put("profile_slug", "alex");
+        base.put("mode", "invite");
+
+        // 2^32 previously wrapped to 0 on narrow (int) cast; must saturate to Integer.MAX_VALUE.
+        base.put("ttl_seconds", 4_294_967_296L);
+        assertEquals(Integer.MAX_VALUE, OnboardingModels.parsePairingTicketMap(base).ttlSeconds());
+
+        base.put("ttl_seconds", Long.MAX_VALUE);
+        assertEquals(Integer.MAX_VALUE, OnboardingModels.parsePairingTicketMap(base).ttlSeconds());
+
+        // -4_294_967_200L previously wrapped to +96 on narrow (int) cast; must clamp to 0.
+        base.put("ttl_seconds", -4_294_967_200L);
+        assertEquals(0, OnboardingModels.parsePairingTicketMap(base).ttlSeconds());
+    }
+
+    @Test
     public void modelsParsePairingTicketClaimProfilesOnboardingAndAdminSettings() {
         OnboardingModels.PairingTicket ticket = OnboardingModels.parsePairingTicketMap(Map.of(
                 "ticket_id", "tkt_001",

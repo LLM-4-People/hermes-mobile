@@ -9,7 +9,6 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
 final class PublishedFile {
-    static final long MAX_BYTES = HermesConfig.DEFAULT_ARTIFACT_MAX_BYTES;
     final String name, mime, path, hash;
     final long size;
 
