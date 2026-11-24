@@ -3,7 +3,10 @@
 set -euo pipefail
 # shellcheck source=ci/emulator-offline.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/emulator-offline.sh"
+# shellcheck source=ci/emulator-ready.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/emulator-ready.sh"
 serial=$(adb get-serialno)
+wait_emulator_ready "$serial"
 app_apk=${1:?expected the packaged Hermes APK}
 device=(adb -s "$serial")
 calendar_apk="$RUNNER_TEMP/calendar-25-foss-release.apk"

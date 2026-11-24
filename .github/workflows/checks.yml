@@ -223,8 +223,10 @@ jobs:
           arch: x86_64
           avd-name: hermes-ci
           force-avd-creation: false
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-save
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-load -no-snapshot-save -camera-back none -camera-front none -memory 3072
           disable-animations: true
+          disable-spellchecker: true
+          emulator-boot-timeout: 300
           script: ci/device-check.sh
       - name: Retain instrumentation reports (shard 1/2)
         if: ${{ !cancelled() }}
@@ -271,8 +273,10 @@ jobs:
           arch: x86_64
           avd-name: hermes-ci
           force-avd-creation: false
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-save
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-load -no-snapshot-save -camera-back none -camera-front none -memory 3072
           disable-animations: true
+          disable-spellchecker: true
+          emulator-boot-timeout: 300
           script: ci/device-check.sh
       - name: Retain instrumentation reports (shard 2/2)
         if: ${{ !cancelled() }}
@@ -333,8 +337,10 @@ jobs:
           arch: x86_64
           avd-name: hermes-ci
           force-avd-creation: false
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-save
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-load -no-snapshot-save -camera-back none -camera-front none -memory 3072
           disable-animations: true
+          disable-spellchecker: true
+          emulator-boot-timeout: 300
           script: ci/device-check.sh
       - name: Retain device journey captures
         if: ${{ !cancelled() }}
@@ -395,8 +401,10 @@ jobs:
           arch: x86_64
           avd-name: hermes-ci
           force-avd-creation: false
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-save
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-load -no-snapshot-save -camera-back none -camera-front none -memory 3072
           disable-animations: true
+          disable-spellchecker: true
+          emulator-boot-timeout: 300
           script: ci/device-check.sh
       - name: Retain the offline walkthrough, screenshots and gateway receipt
         if: ${{ !cancelled() }}
@@ -459,8 +467,10 @@ jobs:
           arch: x86_64
           avd-name: hermes-ci
           force-avd-creation: false
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-save
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-load -no-snapshot-save -camera-back none -camera-front none -memory 3072
           disable-animations: true
+          disable-spellchecker: true
+          emulator-boot-timeout: 300
           script: bash ci/phone-action-check.sh app/build/outputs/apk/debug/app-debug.apk
       - name: Retain Android phone action receipts and receiver captures
         if: ${{ !cancelled() }}
@@ -511,8 +521,10 @@ jobs:
           arch: x86_64
           avd-name: hermes-ci
           force-avd-creation: false
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-save
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-load -no-snapshot-save -camera-back none -camera-front none -memory 3072
           disable-animations: true
+          disable-spellchecker: true
+          emulator-boot-timeout: 300
           script: bash ci/nearby-device-check.sh
       - name: Retain Android nearby restaurant guide evidence
         if: ${{ !cancelled() }}

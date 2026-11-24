@@ -662,6 +662,7 @@ final class PushSettings {
         AlertDialog waiting = display(new AlertDialog.Builder(activity)
                 .setTitle(R.string.push_settings_title).setMessage(progress));
         if (waiting == null) return;
+        waiting.setCanceledOnTouchOutside(false);
         PushConnection.WORK.execute(() -> {
             try {
                 if (!current()) return;

@@ -45,5 +45,5 @@ runs:
         echo "sdk=$sdk" >> "$GITHUB_OUTPUT"
         echo "tools=$ANDROID_HOME/build-tools/$tools" >> "$GITHUB_OUTPUT"
         if [[ ! -d "$ANDROID_HOME/platforms/android-$sdk" || ! -d "$ANDROID_HOME/build-tools/$tools" ]]; then
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-$sdk" "build-tools;$tools" > /dev/null
+          bash ci/emulator-sdk.sh "platforms;android-$sdk" "build-tools;$tools"
         fi

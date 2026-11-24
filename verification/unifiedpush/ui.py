@@ -335,29 +335,39 @@ def choose_ntfy(ui):
     transport_title = s["push_settings_service_title"]
     distributor_title = s["push_settings_choose_distributor"]
     unified_label = s["push_settings_enable_up"]
+    enable_label = s["push_settings_enable"]
+    back_label = s["push_settings_back"]
+    connection_failed = s["push_settings_connection_failed"]
     no_transport = s["push_settings_no_service"]
     no_distributor = s["push_settings_install_up"]
     allow_blocked = s["push_settings_allow_title"]
     searching_label = s["push_settings_searching_services"]
     attempts = 0
     distributor_taps = 0
+    reenable_taps = 0
     last_permission_tap = None
     last_transport_tap = None
     last_distributor_tap = None
+    last_reenable_tap = None
     flags = {}
 
     def cooldown_elapsed(last_tap, now):
         return last_tap is None or now - last_tap >= TAP_RETRY_COOLDOWN_SECONDS
 
     def choose():
-        nonlocal attempts, distributor_taps, last_permission_tap, last_transport_tap, last_distributor_tap
+        nonlocal attempts, distributor_taps, reenable_taps
+        nonlocal last_permission_tap, last_transport_tap, last_distributor_tap, last_reenable_tap
         root = ui.hierarchy()
         now = monotonic()
         transport = ui.node(transport_title, root) is not None
         distributor = ui.node(distributor_title, root) is not None
         unified = ui.node(unified_label, root)
         ntfy = ui.node("ntfy\n" + NTFY, root)
+        enable_btn = ui.node(enable_label, root)
+        back_btn = ui.node(back_label, root)
+        error_dialog = ui.node(connection_failed, root) is not None
         permission_prompt = ui.permission_allow_node(root) is not None
+        searching = ui.node(searching_label, root) is not None
         unavailable = (
             transport and ui.node(no_transport, root) is not None
             or distributor and ui.node(no_distributor, root) is not None
@@ -371,7 +381,7 @@ def choose_ntfy(ui):
             transport_taps=attempts,
             permission_prompt=permission_prompt,
             permission_blocked=ui.node(allow_blocked, root) is not None,
-            searching=ui.node(searching_label, root) is not None,
+            searching=searching,
         )
         if unavailable:
             raise AssertionError("The application reported no available transport or distributor")
@@ -389,9 +399,19 @@ def choose_ntfy(ui):
                 attempts += 1
                 last_transport_tap = now
                 flags["transport_taps"] = attempts
-        elif not transport and cooldown_elapsed(last_permission_tap, now):
-            if ui.allow_if_prompted(root):
+        elif not transport and not searching:
+            if cooldown_elapsed(last_permission_tap, now) and ui.allow_if_prompted(root):
                 last_permission_tap = now
+            elif error_dialog and back_btn is not None and reenable_taps < 2 and cooldown_elapsed(last_reenable_tap, now):
+                ui.tap_node(back_btn)
+                reenable_taps += 1
+                last_reenable_tap = now
+            elif enable_btn is not None and (attempts > 0 or reenable_taps > 0) and reenable_taps < 2 and cooldown_elapsed(last_reenable_tap, now):
+                # Recover if a transitioning dialog backdrop dismissed the transport picker back to PushSettings.
+                ui.tap_node(enable_btn)
+                reenable_taps += 1
+                attempts = 0
+                last_reenable_tap = now
         return None
 
     try:

@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # Run on a clean hosted emulator. Evidence contains only generic labels and synthetic controls.
 set -euo pipefail
+# shellcheck source=ci/emulator-ready.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/emulator-ready.sh"
 serial=$(adb get-serialno)
+wait_emulator_ready "$serial"
 packages=$(adb -s "$serial" shell pm list packages | tr -d '\r')
 if grep -Eq '^package:(com\.google\.android\.(gms|gsf)|com\.android\.vending)$' <<< "$packages"; then
   echo "Use the reviewed AOSP phone image for the Google-free delivery test." >&2

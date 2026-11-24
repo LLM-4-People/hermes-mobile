@@ -157,6 +157,37 @@ def _timeout_seconds(env_var, default):
     return value
 
 
+def timeout_diagnostics(serial):
+    """Collect privacy-safe focus, resumed activity, and crash summary when instrumentation hangs."""
+    lines = []
+    for label, cmd, pattern in (
+        ("window_focus", ["adb", "-s", serial, "shell", "dumpsys", "window"], r"mCurrentFocus=[^\r\n]+"),
+        (
+            "resumed_activity",
+            ["adb", "-s", serial, "shell", "dumpsys", "activity", "activities"],
+            r"(?:topResumedActivity|mResumedActivity)\s*[:=][^\r\n]+",
+        ),
+    ):
+        try:
+            proc = subprocess.run(cmd, capture_output=True, text=True, errors="replace", timeout=15)
+        except (OSError, subprocess.SubprocessError):
+            continue
+        match = re.search(pattern, proc.stdout or "")
+        if match:
+            lines.append(f"{label}: {match.group(0).strip()}")
+    try:
+        crash = subprocess.run(
+            ["adb", "-s", serial, "logcat", "-d", "-b", "crash", "-v", "raw", "AndroidRuntime:E", "*:S"],
+            capture_output=True, text=True, errors="replace", timeout=15,
+        )
+        summary = crash_summary(crash.stdout or "")
+        if summary:
+            lines.append("crash_summary:\n" + summary)
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return "\n".join(lines)
+
+
 def run(serial, directory, expected):
     directory.mkdir(parents=True, exist_ok=True)
     classes = ",".join(sorted({cls for cls, _ in expected}))
@@ -181,6 +212,10 @@ def run(serial, directory, expected):
             tail = "\n".join(output.splitlines()[-40:])
             if tail:
                 print(tail, file=sys.stderr)
+            diag = timeout_diagnostics(serial)
+            if diag:
+                (directory / "timeout-diag.txt").write_text(diag + "\n")
+                print(diag, file=sys.stderr)
             print(
                 f"Timed out during Android framework {name} after {timeout}s "
                 f"(completed {completed}/{len(expected)}, in-flight: {active_desc})",

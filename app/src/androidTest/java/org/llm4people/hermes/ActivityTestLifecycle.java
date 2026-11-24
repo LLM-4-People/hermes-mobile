@@ -16,7 +16,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 @SuppressWarnings("deprecation")
 public final class ActivityTestLifecycle {
-    private static final long DESTROY_TIMEOUT_MS = 5_000L;
+    // Exceeds AOSP ActivityTaskSupervisor.IDLE_TIMEOUT (10_000 ms) so cold-start activity
+    // teardown never spuriously fails while polling at POLL_STEP_MS keeps fast tests ~20 ms.
+    private static final long DESTROY_TIMEOUT_MS = 15_000L;
     private static final long POLL_STEP_MS = 10L;
 
     private ActivityTestLifecycle() {}

@@ -82,6 +82,6 @@ async def verify(home):
 
 
 if __name__ == "__main__":
-    with tempfile.TemporaryDirectory() as directory:
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as directory:
         os.environ["HERMES_HOME"] = directory
         asyncio.run(verify(Path(directory)))
