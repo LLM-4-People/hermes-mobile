@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<paths>
-    <!-- Verified update packages downloaded into app-private cache/updates/ for UpdateApkProvider. -->
-    <cache-path name="verified_updates" path="updates/" />
-</paths>

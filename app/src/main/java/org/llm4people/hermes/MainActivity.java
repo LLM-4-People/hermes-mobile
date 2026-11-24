@@ -605,6 +605,9 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         shell.setImeVisible(imeVisible);
         panels = new SessionPanel(this, api, account);
         panels.setLayoutHost(activeHost);
+        panels.setOpenNotifications(() -> {
+            if (account == unlocked && push != null) push.settings(account, deliveryActions(account));
+        });
         threads = new ThreadWorkspace(this, api, account, this, voice);
         threads.setInstrumentHost(activeHost);
         threads.applyAppCustomization(savedCustom);
@@ -613,7 +616,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         featureRoutes = BrainStudioRoutes.register(new RouteRegistry(), this, brainHandlers());
         DeliveryRouter.registerRoutes(featureRoutes, this,
                 () -> { if (account == unlocked && push != null) push.openInbox(account, deliveryActions(account)); },
-                () -> { if (account == unlocked && push != null) push.openPolicy(account); });
+                () -> { if (account == unlocked && push != null) push.openPolicy(account, deliveryActions(account)); });
         AmbientAccessPanel.registerRoute(featureRoutes, this,
                 () -> { if (account == unlocked) navigate(AmbientAccessPanel.ROUTE_ID); });
         PresenceSettingsPanel.registerRoute(featureRoutes, this,
@@ -1099,7 +1102,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             }
 
             @Override public void openPushPolicy() {
-                if (owner == account && push != null) push.openPolicy(owner);
+                if (owner == account && push != null) push.openPolicy(owner, deliveryActions(owner));
             }
         };
     }
@@ -2180,7 +2183,20 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         backgroundedAtElapsedMs = -1L;
     }
 
+    /** Pure-Java SSoT policy: revoke detached syncs on every workspace teardown except config changes. */
+    static boolean shouldRevokeDetachedSyncs(boolean changingConfigurations) {
+        return !changingConfigurations;
+    }
+
     private void clearWorkspace() {
+        clearWorkspace(true);
+    }
+
+    private void clearWorkspace(boolean revokeDetachedSyncs) {
+        if (revokeDetachedSyncs) {
+            FirstRunWizard.revokePendingSyncs();
+            AppLanguage.revokePendingSyncs();
+        }
         clearGraceTimer();
         clearInternalTransition();
         MemoryPressure.clearAll();
@@ -2250,8 +2266,6 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
 
     private void lock() {
         try {
-            FirstRunWizard.revokePendingSyncs();
-            AppLanguage.revokePendingSyncs();
             clearWorkspace();
         } finally {
             gate.lock();
@@ -2449,14 +2463,11 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         } catch (IllegalArgumentException ignored) {}
         pendingPairing = null;
         pairingLinkHandler = null;
-        if (!isChangingConfigurations()) {
-            FirstRunWizard.revokePendingSyncs();
-            AppLanguage.revokePendingSyncs();
-            if (cameraCapture != null && isFinishing()) {
-                cameraCapture.clear();
-            }
+        boolean changingConfig = isChangingConfigurations();
+        if (!changingConfig && cameraCapture != null && isFinishing()) {
+            cameraCapture.clear();
         }
-        clearWorkspace();
+        clearWorkspace(shouldRevokeDetachedSyncs(changingConfig));
         if (voice != null) {
             voice.reader().stop();
             voice.cancel();

@@ -196,31 +196,29 @@ public final class FirstRunWizardTest {
                     .get(5, java.util.concurrent.TimeUnit.SECONDS));
             assertFalse("Session API reuse must not be revoked by FirstRunWizard", sessionApi.isRevoked());
 
-            // In-flight detached sync is revoked immediately by revokePendingSyncs().
-            java.util.concurrent.CountDownLatch accepted = new java.util.concurrent.CountDownLatch(1);
+            // In-flight detached sync is deterministically revoked by revokePendingSyncs() while blocked.
+            java.util.concurrent.CountDownLatch started = new java.util.concurrent.CountDownLatch(1);
             java.util.concurrent.CountDownLatch release = new java.util.concurrent.CountDownLatch(1);
-            try (java.net.ServerSocket server = new java.net.ServerSocket(
-                    0, 2, java.net.InetAddress.getByName("127.0.0.1"))) {
-                Thread holder = new Thread(() -> {
-                    try (java.net.Socket s = server.accept()) {
-                        accepted.countDown();
+            org.llm4people.hermes.net.HermesApi inFlight = new org.llm4people.hermes.net.HermesApi(
+                    "http://127.0.0.1:1", "tok",
+                    org.llm4people.hermes.net.HermesApi.Limits.from(org.llm4people.hermes.HermesConfig.defaults()));
+            java.util.concurrent.Future<Boolean> future = FirstRunWizard.submitProfileSync(
+                    inFlight, true, "alex", () -> {
+                        started.countDown();
                         release.await(5, java.util.concurrent.TimeUnit.SECONDS);
-                    } catch (Exception ignored) {}
-                }, "test-onboarding-sync-hold");
-                holder.setDaemon(true);
-                holder.start();
+                    });
+            assertTrue("Worker must enter sync block before revocation",
+                    started.await(5, java.util.concurrent.TimeUnit.SECONDS));
+            assertFalse("Client must remain live until revoked", inFlight.isRevoked());
+            FirstRunWizard.revokePendingSyncs();
+            assertTrue("revokePendingSyncs() must revoke in-flight client while worker is blocked",
+                    inFlight.isRevoked());
+            release.countDown();
+            assertFalse(future.get(5, java.util.concurrent.TimeUnit.SECONDS));
 
-                org.llm4people.hermes.net.HermesApi inFlight = new org.llm4people.hermes.net.HermesApi(
-                        "http://127.0.0.1:" + server.getLocalPort(), "tok",
-                        org.llm4people.hermes.net.HermesApi.Limits.from(org.llm4people.hermes.HermesConfig.defaults()));
-                java.util.concurrent.Future<Boolean> future = FirstRunWizard.submitProfileSync(
-                        inFlight, true, "alex", "Alex", "en");
-                // Revoke immediately (either before or during request) — must mark client revoked.
-                FirstRunWizard.revokePendingSyncs();
-                assertTrue("revokePendingSyncs() must revoke tracked detached client", inFlight.isRevoked());
-                release.countDown();
-                assertFalse(future.get(5, java.util.concurrent.TimeUnit.SECONDS));
-            }
+            // Null work fails closed cleanly.
+            assertFalse(FirstRunWizard.submitProfileSync(sessionApi, true, "alex", (FirstRunWizard.ThrowingRunnable) null)
+                    .get(5, java.util.concurrent.TimeUnit.SECONDS));
         } finally {
             FirstRunWizard.revokePendingSyncs();
             org.llm4people.hermes.Diagnostics.clear();

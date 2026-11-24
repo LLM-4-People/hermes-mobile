@@ -71,6 +71,9 @@ class WritingQualityTest(unittest.TestCase):
             ("Ouvrir un Atelier et les réglages", "fr"),
             ("Ouvrir l’Atelier et les réglages", "fr"),
             ("Ouvrir le Cerveau des réglages", "fr"),
+            ("L’Atelier des réglages", "fr"),
+            ("D’Autres options", "fr"),
+            ("L’Auto-update intégré", "fr"),
         ]
         for text, lang in title_case_samples:
             offenders = cwq.check_sentence_case(text, lang)
@@ -87,6 +90,9 @@ class WritingQualityTest(unittest.TestCase):
             ("Langue / Language", "fr"),
             ("Ouvrir les réglages d’Android et d’Hermes sur Wi-Fi", "fr"),
             ("Notifications chiffrées via UnifiedPush et Firebase", "fr"),
+            ("L’atelier des réglages", "fr"),
+            ("D’Android et d’Hermes", "fr"),
+            ("L’API locale", "fr"),
         ]
         for text, lang in valid_sentence_case:
             offenders = cwq.check_sentence_case(text, lang)

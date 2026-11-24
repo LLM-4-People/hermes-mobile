@@ -128,6 +128,13 @@ public final class AppLanguageTest {
                 Thread responder = new Thread(() -> {
                     while (!server.isClosed()) {
                         try (java.net.Socket s = server.accept()) {
+                            java.io.BufferedReader reader = new java.io.BufferedReader(
+                                    new java.io.InputStreamReader(s.getInputStream(),
+                                            java.nio.charset.StandardCharsets.US_ASCII));
+                            String headerLine;
+                            while ((headerLine = reader.readLine()) != null && !headerLine.isEmpty()) {
+                                // Drain HTTP request line and headers before responding or releasing latch.
+                            }
                             int n = hits.incrementAndGet();
                             if (n == 1) {
                                 // First real request: immediate empty 503 response.
