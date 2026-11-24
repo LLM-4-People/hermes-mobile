@@ -24,19 +24,14 @@ public final class AmbientIntelligenceTest extends InstrumentationTestCase {
         RouteRegistry registry = new RouteRegistry();
         AtomicBoolean opened = new AtomicBoolean(false);
         AmbientAccessPanel.registerRoute(registry, context, () -> opened.set(true));
-        List<RouteRegistry.Destination> activite = registry.destinationsIn(RouteRegistry.Section.ACTIVITE, Set.of());
-        assertEquals(1, activite.size());
-        assertEquals(AmbientAccessPanel.ROUTE_ID, activite.get(0).id());
+        List<RouteRegistry.Destination> settings = registry.destinationsIn(RouteRegistry.Section.SETTINGS, Set.of());
+        assertEquals(1, settings.size());
+        assertEquals(AmbientAccessPanel.ROUTE_ID, settings.get(0).id());
         assertTrue(registry.dispatch(AmbientAccessPanel.ROUTE_ID));
         assertTrue(opened.get());
 
-        // Opt-in readers stay strictly empty/null when disabled.
-        assertNull(DeviceContextSnapshot.capture(context, false));
-        DeviceContextSnapshot.Snapshot snap = DeviceContextSnapshot.capture(context, true);
-        assertNotNull(snap);
-        assertFalse(snap.localIsoDateTime().isEmpty());
+        // Opt-in readers stay strictly empty when disabled.
         assertTrue(CalendarContextReader.readUpcoming(context, false, 7).isEmpty());
-        assertTrue(ContactsContextReader.search(context, false, "alice", 5).isEmpty());
 
         // Filter excludes hard-blocked banking/password/self apps from selectable list.
         List<AmbientAccessPanel.AppEntry> filtered = AmbientAccessPanel.filterSelectableApps(List.of(

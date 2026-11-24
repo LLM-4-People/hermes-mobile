@@ -56,21 +56,7 @@ public final class CalendarContextReaderTest {
     }
 
     @Test
-    public void contactsReaderRequiresExplicitQueryAndCapsResultsAndMediaSelectsPlayingSession() {
-        assertEquals("", ContactsContextReader.normalizeQuery(""));
-        assertEquals("", ContactsContextReader.normalizeQuery("a"));
-        assertEquals("Alice", ContactsContextReader.normalizeQuery("  Alice\n "));
-
-        List<ContactsContextReader.ContactMatch> raw = new ArrayList<>();
-        raw.add(new ContactsContextReader.ContactMatch("Alice Tremblay", true));
-        raw.add(new ContactsContextReader.ContactMatch("alice tremblay", true));
-        for (int i = 0; i < 15; i++) {
-            raw.add(new ContactsContextReader.ContactMatch("Personne " + i, i % 2 == 0));
-        }
-        List<ContactsContextReader.ContactMatch> bounded = ContactsContextReader.boundMatches(raw, 50);
-        assertEquals(ContactsContextReader.MAX_RESULTS, bounded.size());
-        assertEquals("Alice Tremblay", bounded.get(0).displayName());
-
+    public void mediaSelectsPlayingSessionAndFailsClosedOnMissingTarget() {
         MediaContextBridge.NowPlaying paused = new MediaContextBridge.NowPlaying(
                 "com.example.podcast", "Podcasts", "Episode 1", "Host", "",
                 MediaContextBridge.PlaybackKind.PAUSED, 1000, 60000);

@@ -32,7 +32,6 @@ import java.time.DateTimeException;
 import java.time.OffsetDateTime;
 import java.util.Date;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -40,6 +39,9 @@ import java.util.Objects;
  * Zero raw JSON dumps: every pushed item renders in plain everyday French with reviewed native actions.
  */
 public final class DeliveryRouter {
+    public static final String ROUTE_DELIVERIES = "deliveries";
+    public static final String ROUTE_PUSH_POLICY = "push_policy";
+
     public interface Actions {
         default void openDiscussion(String sessionId, String runId) {}
         default void openPublishedFile(String sessionId, String fileId, String filename) {}
@@ -69,23 +71,23 @@ public final class DeliveryRouter {
         this.actions = actions == null ? new Actions() {} : actions;
     }
 
-    /** Plug Activité delivery routes into the shared RouteRegistry with zero switch-table edits. */
+    /** Plug delivery and notification-policy routes into the shared RouteRegistry. */
     public static void registerRoutes(RouteRegistry registry, Runnable openInbox, Runnable openPolicy) {
         registerRoutes(registry, null, openInbox, openPolicy);
     }
 
-    /** Localized overload plugging Activité delivery routes into the shared RouteRegistry. */
+    /** Localized overload plugging delivery and notification-policy routes into the shared RouteRegistry. */
     public static void registerRoutes(RouteRegistry registry, Context context,
                                       Runnable openInbox, Runnable openPolicy) {
         Objects.requireNonNull(registry, "registry");
         Context localized = context == null ? null : AppLanguage.wrapContext(context);
-        String deliveriesLabel = localized == null ? "activite/livraisons" : localized.getString(R.string.push_route_deliveries_label);
+        String deliveriesLabel = localized == null ? ROUTE_DELIVERIES : localized.getString(R.string.push_route_deliveries_label);
         String deliveriesHint = localized == null ? "" : localized.getString(R.string.push_route_deliveries_hint);
-        String policyLabel = localized == null ? "activite/preferences_notifications" : localized.getString(R.string.push_route_policy_label);
+        String policyLabel = localized == null ? ROUTE_PUSH_POLICY : localized.getString(R.string.push_route_policy_label);
         String policyHint = localized == null ? "" : localized.getString(R.string.push_route_policy_hint);
         registry.register(new RouteRegistry.Destination(
-                "activite/livraisons",
-                RouteRegistry.Section.ACTIVITE,
+                ROUTE_DELIVERIES,
+                RouteRegistry.Section.NOTES_TASKS,
                 deliveriesLabel,
                 deliveriesHint,
                 R.drawable.ic_push_notification,
@@ -93,8 +95,8 @@ public final class DeliveryRouter {
                 null,
                 Objects.requireNonNull(openInbox, "openInbox")));
         registry.register(new RouteRegistry.Destination(
-                "activite/preferences_notifications",
-                RouteRegistry.Section.ACTIVITE,
+                ROUTE_PUSH_POLICY,
+                RouteRegistry.Section.SETTINGS,
                 policyLabel,
                 policyHint,
                 R.drawable.ic_push_notification,

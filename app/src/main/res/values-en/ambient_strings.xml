@@ -2,7 +2,7 @@
 <resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
     <string name="ambient_listener_label">Hermes notification access</string>
     <string name="ambient_route_label">Phone context</string>
-    <string name="ambient_route_hint">Selected notifications, now playing, calendar agenda, and device status</string>
+    <string name="ambient_route_hint">Selected notifications, now playing, and calendar agenda</string>
     <string name="ambient_panel_title">Phone context</string>
     <string name="ambient_panel_intro">Everything is off by default. You choose exactly which local information to share with this profile. Verification codes, banking apps, and password managers are always blocked.</string>
     <string name="ambient_status_active">Access active</string>
@@ -17,8 +17,6 @@
     <string name="ambient_toggle_notifications">Read notifications from selected apps</string>
     <string name="ambient_toggle_media">Read now playing media (track and playback)</string>
     <string name="ambient_toggle_calendar">Read upcoming calendar (7 days, titles and times only)</string>
-    <string name="ambient_toggle_contacts">Search contacts only when asked</string>
-    <string name="ambient_toggle_device_context">Include device status (battery, network, time, language)</string>
     <string name="ambient_section_allowlist">Allowed apps</string>
     <string name="ambient_allowlist_hint">Filter by app name…</string>
     <string name="ambient_allowlist_loading">Loading apps…</string>

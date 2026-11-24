@@ -19,6 +19,7 @@ import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.ambient.AmbientAccessPanel;
+import org.llm4people.hermes.artifact.ThemePalette;
 import org.llm4people.hermes.customization.AppCustomization;
 import org.llm4people.hermes.customization.AppCustomizationStore;
 import org.llm4people.hermes.doctor.ConnectionDoctorPanel;
@@ -144,7 +145,6 @@ public final class DeepAndroidActions {
         if (rawTarget == null) return null;
         return NAVIGATE_TARGET_MAP.get(rawTarget.trim().toLowerCase(Locale.ROOT));
     }
-    private static final Set<String> THEME_MODES = Set.of("system", "light", "dark");
     private static final Set<String> ALLOWED_DEEP_LINK_SCHEMES =
             Set.of("https", "geo", "mailto", "tel");
     private static final Pattern SAFE_PACKAGE =
@@ -391,7 +391,7 @@ public final class DeepAndroidActions {
             String themeMode = null;
             if (params.containsKey("theme") && params.get("theme") != null) {
                 String normalizedTheme = str(params.get("theme")).trim().toLowerCase(Locale.ROOT);
-                if (!THEME_MODES.contains(normalizedTheme)) return reject("invalid_theme_mode");
+                if (!ThemePalette.THEMES.contains(normalizedTheme)) return reject("invalid_theme_mode");
                 themeMode = normalizedTheme;
             }
             AppCustomization current = customizationStore.current();

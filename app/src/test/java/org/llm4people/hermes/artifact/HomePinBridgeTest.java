@@ -92,8 +92,8 @@ public final class HomePinBridgeTest {
         DeliveryRouter.registerRoutes(registry, deliveriesOpened::incrementAndGet, policyOpened::incrementAndGet);
 
         assertTrue(registry.dispatch(BrainStudioRoutes.ROUTE_MEMORY));
-        assertTrue(registry.dispatch("activite/livraisons"));
-        assertTrue(registry.dispatch("activite/preferences_notifications"));
+        assertTrue(registry.dispatch(DeliveryRouter.ROUTE_DELIVERIES));
+        assertTrue(registry.dispatch(DeliveryRouter.ROUTE_PUSH_POLICY));
         assertEquals(1, memoryOpened.get());
         assertEquals(1, deliveriesOpened.get());
         assertEquals(1, policyOpened.get());

@@ -73,13 +73,14 @@ public final class BrainCapabilitiesAndRoutesTest {
             @Override public void shareThread() { calls.add("share"); }
         });
 
-        // Legacy gateway with empty capabilities still exposes Savoir-faire (degrades to read-only).
-        List<RouteRegistry.Destination> legacyDestinations =
-                registry.destinationsIn(RouteRegistry.Section.CERVEAU, BrainCapabilities.empty().asSet());
-        assertEquals(1, legacyDestinations.size());
-        assertEquals(BrainStudioRoutes.ROUTE_SKILLS, legacyDestinations.get(0).id());
+        // Legacy gateway with empty capabilities still exposes Skills under SETTINGS (degrades to read-only).
+        List<RouteRegistry.Destination> legacySettings =
+                registry.destinationsIn(RouteRegistry.Section.SETTINGS, BrainCapabilities.empty().asSet());
+        assertEquals(1, legacySettings.size());
+        assertEquals(BrainStudioRoutes.ROUTE_SKILLS, legacySettings.get(0).id());
+        assertTrue(registry.destinationsIn(RouteRegistry.Section.NOTES_TASKS, BrainCapabilities.empty().asSet()).isEmpty());
 
-        // Upgraded gateway unlocks all Cerveau destinations — and NEVER includes Profile Settings!
+        // Upgraded gateway unlocks Notes & Shared under NOTES_TASKS and Memory/Search/Skills/Files/Profile under SETTINGS.
         BrainCapabilities full = BrainCapabilities.fromFlags(Map.of(
                 BrainCapabilities.MEMORY_API, true,
                 BrainCapabilities.SMART_NOTES, true,
@@ -87,17 +88,20 @@ public final class BrainCapabilitiesAndRoutesTest {
                 BrainCapabilities.SESSION_SEARCH, true,
                 BrainCapabilities.WORKSPACE_BROWSER, true,
                 BrainCapabilities.PROFILE_DEFAULTS, true));
-        List<RouteRegistry.Destination> upgraded = registry.destinationsIn(RouteRegistry.Section.CERVEAU, full.asSet());
-        assertEquals(6, upgraded.size());
-        for (RouteRegistry.Destination dest : upgraded) {
-            assertFalse("Profile defaults must NOT live in Cerveau",
-                    BrainStudioRoutes.ROUTE_PROFILE_DEFAULTS.equals(dest.id()));
-        }
+        List<RouteRegistry.Destination> notesTasksRoutes =
+                registry.destinationsIn(RouteRegistry.Section.NOTES_TASKS, full.asSet());
+        assertEquals(2, notesTasksRoutes.size());
+        assertEquals(BrainStudioRoutes.ROUTE_NOTES, notesTasksRoutes.get(0).id());
+        assertEquals(BrainStudioRoutes.ROUTE_SHARED_WITH_ME, notesTasksRoutes.get(1).id());
+
         List<RouteRegistry.Destination> settingsRoutes =
                 registry.destinationsIn(RouteRegistry.Section.SETTINGS, full.asSet());
-        assertEquals(1, settingsRoutes.size());
-        assertEquals(BrainStudioRoutes.ROUTE_PROFILE_DEFAULTS, settingsRoutes.get(0).id());
-        assertTrue(registry.destinationsIn(RouteRegistry.Section.SETTINGS, BrainCapabilities.empty().asSet()).isEmpty());
+        assertEquals(5, settingsRoutes.size());
+        assertTrue(settingsRoutes.stream().anyMatch(d -> BrainStudioRoutes.ROUTE_PROFILE_DEFAULTS.equals(d.id())));
+        assertTrue(settingsRoutes.stream().anyMatch(d -> BrainStudioRoutes.ROUTE_MEMORY.equals(d.id())));
+        assertTrue(settingsRoutes.stream().anyMatch(d -> BrainStudioRoutes.ROUTE_SEARCH.equals(d.id())));
+        assertTrue(settingsRoutes.stream().anyMatch(d -> BrainStudioRoutes.ROUTE_SKILLS.equals(d.id())));
+        assertTrue(settingsRoutes.stream().anyMatch(d -> BrainStudioRoutes.ROUTE_WORKSPACE_FILES.equals(d.id())));
 
         assertTrue(registry.dispatch(BrainStudioRoutes.ROUTE_MEMORY));
         assertTrue(registry.dispatch(BrainStudioRoutes.ROUTE_NOTES));

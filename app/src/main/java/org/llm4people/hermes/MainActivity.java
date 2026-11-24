@@ -240,12 +240,6 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         unlock();
     }
 
-    /** Extensibility hook for feature modules registering additional destinations. */
-    public ShellRoutes shellRoutes() { return shellRoutes; }
-
-    /** Peek at a pending {@code hermes://pair} deep link awaiting explicit user confirmation. */
-    public PairingLinkParser.ParsedInput pendingPairing() { return pendingPairing; }
-
     /** Consume and clear a pending {@code hermes://pair} deep link so single-use codes are never replayed. */
     public PairingLinkParser.ParsedInput consumePendingPairing() {
         PairingLinkParser.ParsedInput current = pendingPairing;
@@ -458,7 +452,6 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         actions.register("nav_apps", () -> switchTab(WorkspaceNavigation.APPS));
         actions.register("nav_settings", this::openSettingsHub);
         actions.register(SettingsHubPanel.ROUTE_ID, this::openSettingsHub);
-        actions.register(AppearanceSettingsPanel.ROUTE_ID, () -> navigate(AppearanceSettingsPanel.ROUTE_ID));
         actions.register(SettingsHubPanel.ACTION_VOICE_OPTIONS, () -> voice.openOptionsDialog(null, false));
         actions.register("pages", () -> navigate(WorkspaceNavigation.GALLERY));
         actions.register("nearby_area", () -> { if (threads != null) threads.editNearbyArea(); });
@@ -483,14 +476,6 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         actions.register("brain", this::openSettingsHub);
         actions.register("reminders", () -> panels.showReminders());
         actions.register("notifications", () -> push.settings(account, deliveryActions(account)));
-        actions.register("deliveries", () -> push.openInbox(account, deliveryActions(account)));
-        actions.register("push_policy", () -> push.openPolicy(account));
-        actions.register(AmbientAccessPanel.ROUTE_ID, () -> navigate(AmbientAccessPanel.ROUTE_ID));
-        actions.register(PresenceSettingsPanel.ROUTE_ID, () -> navigate(PresenceSettingsPanel.ROUTE_ID));
-        actions.register(ConnectionDoctorPanel.ROUTE_ID, () -> navigate(ConnectionDoctorPanel.ROUTE_ID));
-        actions.register(PermissionsPanel.ROUTE_ID, () -> navigate(PermissionsPanel.ROUTE_ID));
-        actions.register(TemplatesPanel.ROUTE_ID, () -> navigate(TemplatesPanel.ROUTE_ID));
-        actions.register(UpdatePanel.ROUTE_ID, () -> navigate(UpdatePanel.ROUTE_ID));
         actions.register("command_palette", this::openCommandPalette);
         actions.register("language", () -> {
             Account owner = account;
@@ -600,6 +585,8 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         AppCustomization savedCustom = AppCustomizationStore.forAccount(unlocked).current();
         if (!savedCustom.equals(AppCustomization.defaults())) {
             applyAppCustomization(unlocked, savedCustom, false);
+        } else {
+            reconcileProfileThemeMode(unlocked, savedCustom);
         }
         HermesApi api = new HermesApi(account.endpoint, account.bearer,
                 HermesApi.Limits.from(HermesConfig.load(this)));
@@ -757,6 +744,12 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             @Override public void openAllNotes() {
                 if (account == owner && panels != null) {
                     panels.showNotes(activeThreadCheck(), MainActivity.this::stageDraft, null);
+                }
+            }
+
+            @Override public void openNote(String noteId) {
+                if (account == owner && panels != null) {
+                    panels.showNotes(activeThreadCheck(), MainActivity.this::stageDraft, null, noteId);
                 }
             }
 
@@ -975,11 +968,13 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     }
 
     private void resolve(Account owner, MobilePush.Target target) {
+        final HermesApi client = activeApi;
+        if (client == null) return;
         long request = ++noticeRequest;
         threads.cancelNotice();
         notifications.execute(() -> {
             try {
-                JSONObject event = MobilePush.resolve(owner, target);
+                JSONObject event = MobilePush.resolve(owner, client, target);
                 runOnUiThread(() -> { if (noticeRequest == request) openPushEvent(owner, event); });
             } catch (IOException | RuntimeException failure) {
                 Diagnostics.warning("push", "open_failed");
@@ -1152,10 +1147,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     private void dismissOverlays(boolean keepThreadEditor) {
         if (notice != null) notice.dismiss();
         notice = null;
-        if (activeAmbientPanel != null) {
-            activeAmbientPanel.close();
-            activeAmbientPanel = null;
-        }
+        if (activeAmbientPanel != null) activeAmbientPanel.dismissDialogs();
         if (activePresencePanel != null) activePresencePanel.dismissDialogs();
         if (activeUpdatePanel != null) activeUpdatePanel.dismissDialogs();
         if (activeDoctorPanel != null) activeDoctorPanel.dismissDialogs();
@@ -1837,13 +1829,57 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         }
     }
 
+    /** Pure-Java SSoT helper aligning a profile's stored theme override with the active global theme mode. */
+    static ThemePalette.OverrideSpec reconcileThemeForMode(
+            AppCustomization custom,
+            ThemePalette.OverrideSpec existing,
+            String globalThemeMode,
+            boolean systemNight) throws IOException {
+        String safeMode = AppThemeMode.normalize(globalThemeMode);
+        AppCustomization safeCustom = custom == null ? AppCustomization.defaults() : custom;
+        ThemePalette.OverrideSpec base = existing == null ? ThemePalette.OverrideSpec.defaults() : existing;
+        if (safeMode.equals(base.theme)) {
+            return base;
+        }
+        return safeCustom.adaptOverrideForThemeMode(base, safeMode, systemNight);
+    }
+
+    /** Pure-Java SSoT helper bridging {@link AppCustomization} onto an override aligned to the global theme mode. */
+    static ThemePalette.OverrideSpec buildThemeOverrideForMode(
+            AppCustomization custom,
+            ThemePalette.OverrideSpec existing,
+            String globalThemeMode,
+            boolean systemNight) throws IOException {
+        ThemePalette.OverrideSpec aligned = reconcileThemeForMode(custom, existing, globalThemeMode, systemNight);
+        AppCustomization safeCustom = custom == null ? AppCustomization.defaults() : custom;
+        return safeCustom.toThemeOverride(aligned, systemNight);
+    }
+
+    private void reconcileProfileThemeMode(Account owner, AppCustomization custom) {
+        if (owner == null) return;
+        try {
+            boolean systemNight = AppThemeMode.isSystemNight();
+            ThemePalette.OverrideSpec existing = ThemePalette.load(owner, systemNight);
+            ThemePalette.OverrideSpec reconciled = reconcileThemeForMode(
+                    custom, existing, AppThemeMode.readMode(this), systemNight);
+            if (!reconciled.equals(existing)) {
+                ThemePalette.save(owner, reconciled);
+            }
+        } catch (IOException | RuntimeException failed) {
+            Diagnostics.warning("customization", "live_theme_sync_failed");
+        }
+    }
+
     private void applyAppCustomization(Account owner, AppCustomization custom, boolean refreshLayout) {
         if (owner == null || custom == null) return;
         try {
             boolean systemNight = AppThemeMode.isSystemNight();
             ThemePalette.OverrideSpec existing = ThemePalette.load(owner, systemNight);
-            ThemePalette.OverrideSpec spec = custom.toThemeOverride(existing, systemNight);
-            ThemePalette.save(owner, spec);
+            ThemePalette.OverrideSpec spec = buildThemeOverrideForMode(
+                    custom, existing, AppThemeMode.readMode(this), systemNight);
+            if (!spec.equals(existing)) {
+                ThemePalette.save(owner, spec);
+            }
             if (threads != null && account == owner) {
                 threads.applyAppCustomization(custom);
             }
@@ -2069,7 +2105,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             }
             return;
         }
-        if (code == AmbientAccessPanel.REQUEST_READ_CALENDAR || code == AmbientAccessPanel.REQUEST_READ_CONTACTS) {
+        if (code == AmbientAccessPanel.REQUEST_READ_CALENDAR) {
             if (activeAmbientPanel != null) activeAmbientPanel.onPermissionResult(code, permissions, results);
             return;
         }

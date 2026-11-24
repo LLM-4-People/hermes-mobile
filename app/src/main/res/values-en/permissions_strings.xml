@@ -30,8 +30,6 @@
     <string name="perm_location_desc">Look up nearby places or share your general area only when you turn it on.</string>
     <string name="perm_calendar_title">Calendar</string>
     <string name="perm_calendar_desc">Include upcoming appointment context when ambient access is enabled.</string>
-    <string name="perm_contacts_title">Contacts</string>
-    <string name="perm_contacts_desc">Match contact names only when the contacts option is turned on.</string>
     <string name="perm_notification_access_title">Notification access</string>
     <string name="perm_notification_access_desc">Read notifications from allowed apps to prepare summaries or editable drafts.</string>
     <string name="perm_install_updates_title">Install updates</string>
@@ -47,7 +45,6 @@
     <string name="perm_settings_unavailable">Could not open that settings screen on this device.</string>
 
     <string name="perm_ambient_calendar_denied">Calendar permission is missing. Allow calendar access or open Android settings to enable this context.</string>
-    <string name="perm_ambient_contacts_denied">Contacts permission is missing. Allow contacts access or open Android settings to enable this context.</string>
     <string name="perm_location_blocked">Location access is blocked by Android. Open Android settings to allow it.</string>
     <string name="perm_precise_location_unavailable">This build of Hermes uses approximate location only by privacy design.</string>
     <string name="perm_update_install_still_off">Install unknown apps permission is still off. Open Android settings to install this update.</string>

@@ -104,4 +104,26 @@ public final class NotificationAllowlistTest {
         assertTrue(HermesNotificationListener.snapshot().isEmpty());
         HermesNotificationListener.clearSession();
     }
+
+    @Test
+    public void parserRemainsTolerantOfLegacyContactsAndDeviceContextKeys() {
+        MemoryStore store = new MemoryStore();
+        store.write(NotificationAllowlist.KEY_SETTINGS,
+                "notifications=1\nmedia=0\ncalendar=1\ncontacts=1\ndevice_context=1\nunknown_future_key=1");
+        NotificationAllowlist allowlist = NotificationAllowlist.forStore(store);
+
+        NotificationAllowlist.Settings parsed = allowlist.settings();
+        assertTrue(parsed.notificationsEnabled());
+        assertFalse(parsed.mediaEnabled());
+        assertTrue(parsed.calendarEnabled());
+        assertTrue(parsed.contactsEnabled());
+        assertTrue(parsed.deviceContextEnabled());
+
+        NotificationAllowlist.Settings reconciled = AmbientAccessPanel.reconcilePermissions(parsed, true);
+        assertTrue(reconciled.notificationsEnabled());
+        assertFalse(reconciled.mediaEnabled());
+        assertTrue(reconciled.calendarEnabled());
+        assertFalse(reconciled.contactsEnabled());
+        assertFalse(reconciled.deviceContextEnabled());
+    }
 }

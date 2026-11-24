@@ -56,13 +56,13 @@ public final class TemplatesPanel {
         this.isOpen = isOpen != null ? isOpen : () -> !activity.isFinishing() && !activity.isDestroyed();
     }
 
-    /** Register this panel in {@link RouteRegistry} under {@link RouteRegistry.Section#ATELIER}. */
+    /** Register this panel in {@link RouteRegistry} under {@link RouteRegistry.Section#APPS}. */
     public static RouteRegistry registerRoute(RouteRegistry registry, Context context, Runnable open) {
         Objects.requireNonNull(registry, "registry");
         Objects.requireNonNull(context, "context");
         return registry.register(new RouteRegistry.Destination(
                 ROUTE_ID,
-                RouteRegistry.Section.ATELIER,
+                RouteRegistry.Section.APPS,
                 context.getString(R.string.templates_route_label),
                 context.getString(R.string.templates_route_hint),
                 0,

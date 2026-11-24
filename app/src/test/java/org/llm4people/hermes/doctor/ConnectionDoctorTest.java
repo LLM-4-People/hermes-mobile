@@ -313,12 +313,12 @@ public final class ConnectionDoctorTest {
     }
 
     @Test
-    public void routeIdMatchesRegistryContractUnderActivite() {
+    public void routeIdMatchesRegistryContractUnderSettings() {
         RouteRegistry registry = new RouteRegistry();
         AtomicInteger opened = new AtomicInteger();
         registry.register(new RouteRegistry.Destination(
                 ConnectionDoctorPanel.ROUTE_ID,
-                RouteRegistry.Section.ACTIVITE,
+                RouteRegistry.Section.SETTINGS,
                 "Connection doctor",
                 "Verify server, features, notifications, and language",
                 0,
@@ -326,10 +326,10 @@ public final class ConnectionDoctorTest {
                 null,
                 opened::incrementAndGet));
 
-        List<RouteRegistry.Destination> activite = registry.destinationsIn(
-                RouteRegistry.Section.ACTIVITE, Collections.emptySet());
-        assertEquals(1, activite.size());
-        assertEquals("connection_doctor", activite.get(0).id());
+        List<RouteRegistry.Destination> settings = registry.destinationsIn(
+                RouteRegistry.Section.SETTINGS, Collections.emptySet());
+        assertEquals(1, settings.size());
+        assertEquals("connection_doctor", settings.get(0).id());
         assertTrue(registry.dispatch(ConnectionDoctorPanel.ROUTE_ID));
         assertEquals(1, opened.get());
     }
