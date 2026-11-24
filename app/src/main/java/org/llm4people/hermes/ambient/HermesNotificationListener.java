@@ -343,6 +343,7 @@ public final class HermesNotificationListener extends NotificationListenerServic
 
         NotificationPrivacyGuard.Candidate candidate = new NotificationPrivacyGuard.Candidate(
                 sbn.getPackageName(),
+                sender,
                 title,
                 text,
                 notification.visibility,

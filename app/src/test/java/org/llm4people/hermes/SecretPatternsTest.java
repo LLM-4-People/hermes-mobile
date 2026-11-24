@@ -44,7 +44,15 @@ public final class SecretPatternsTest {
             "ghs_AbCdEf1234567890",
             "ghr_AbCdEf1234567890",
             "Bearer\u3000abcdefgh12345678",
+            "Bearer\u00A0abcdefgh12345678",
+            "Bearer\u2007abcdefgh12345678",
+            "Bearer\u202Fabcdefgh12345678",
             "Bea\u200Brer\nabcdefgh12345678",
+            "Bea\u200Brer\u000Babcdefgh12345678",
+            "Bea\u200Brer\u000Cabcdefgh12345678",
+            "Bea\u200Brer\u0085abcdefgh12345678",
+            "token\u200Bsk-\u200B1234567890abcdef",
+            "task-sk-1234567890abcdef",
             "eyJ\uFEFFhbGciOiJIUzI1NiJ9.payload",
             "-----BEGIN\u202E PRIVATE KEY-----",
             "safe prefix ".repeat(20) + "sk-proj-1234567890abcdef"
@@ -56,6 +64,7 @@ public final class SecretPatternsTest {
         assertFalse(SecretPatterns.containsCredential(""));
         assertFalse(SecretPatterns.containsCredential("Bonjour Montréal, réunion à 14h30"));
         assertFalse(SecretPatterns.containsCredential("Ask about task-1234567890abcdef"));
+        assertFalse(SecretPatterns.containsCredential("torchbearer 1234567890abcdef"));
 
         for (String secret : OBFUSCATED_AND_DRIFTED_SECRETS) {
             assertTrue("SecretPatterns missed: " + secret, SecretPatterns.containsCredential(secret));
@@ -71,7 +80,7 @@ public final class SecretPatternsTest {
                     NotificationPrivacyGuard.Decision.BLOCK_OTP_OR_SECRET,
                     NotificationPrivacyGuard.evaluate(
                             new NotificationPrivacyGuard.Candidate(
-                                    "com.slack", "Notice", secret, 0, false, false, false, "msg"),
+                                    "com.slack", "Alice", "Notice", secret, 0, false, false, false, "msg"),
                             Set.of("com.slack")));
             assertEquals("ContinuousLocationTracker leaked: " + secret,
                     "", ContinuousLocationTracker.sanitizeAreaLabel(secret));
@@ -119,7 +128,11 @@ public final class SecretPatternsTest {
                 {"Alert", "o\u200Btp 123456"},
                 {"Notice", "card\u200B\npin 1234"},
                 {"Alert", "c\nvv 123"},
-                {"card", "pin 1234"}
+                {"card", "pin 1234"},
+                {"Notice", "code\u200Bo\u200Btp 123456"},
+                {"Notice", "code\u200Bc\u200Bvv 904"},
+                {"Banque", "Votre code\u00A0de\u00A0vérification\u202F: 482910"},
+                {"Alert", "Alert\u200BG-\u200B123456"}
         };
         for (String[] pair : obfuscatedCases) {
             assertTrue("containsOtpOrSecret missed: " + pair[0] + " / " + pair[1],
@@ -128,8 +141,29 @@ public final class SecretPatternsTest {
                     NotificationPrivacyGuard.Decision.BLOCK_OTP_OR_SECRET,
                     NotificationPrivacyGuard.evaluate(
                             new NotificationPrivacyGuard.Candidate(
-                                    "com.slack", pair[0], pair[1], 0, false, false, false, "msg"),
+                                    "com.slack", "Alice", pair[0], pair[1], 0, false, false, false, "msg"),
                             Set.of("com.slack")));
         }
+
+        // Sender / conversationTitle must also be inspected individually and combined with title/text.
+        assertEquals(NotificationPrivacyGuard.Decision.BLOCK_OTP_OR_SECRET,
+                NotificationPrivacyGuard.evaluate(
+                        new NotificationPrivacyGuard.Candidate(
+                                "com.slack", "sk-proj-1234567890abcdef", "Chat", "Hello", 0, false, false, false, "msg"),
+                        Set.of("com.slack")));
+        assertEquals(NotificationPrivacyGuard.Decision.BLOCK_OTP_OR_SECRET,
+                NotificationPrivacyGuard.evaluate(
+                        new NotificationPrivacyGuard.Candidate(
+                                "com.slack", "OTP Alerts", "Message", "839201", 0, false, false, false, "msg"),
+                        Set.of("com.slack")));
+        assertEquals(NotificationPrivacyGuard.Decision.BLOCK_OTP_OR_SECRET,
+                NotificationPrivacyGuard.evaluate(
+                        new NotificationPrivacyGuard.Candidate(
+                                "com.slack", "card", "pin", "1234", 0, false, false, false, "msg"),
+                        Set.of("com.slack")));
+
+        // Ordinary words containing short-token substrings must not false-positive.
+        assertFalse(NotificationPrivacyGuard.containsOtpOrSecret("Alice", "Nice footprint on the trail"));
+        assertFalse(NotificationPrivacyGuard.containsOtpOrSecret("Order", "Ref BG-123456 confirmed"));
     }
 }

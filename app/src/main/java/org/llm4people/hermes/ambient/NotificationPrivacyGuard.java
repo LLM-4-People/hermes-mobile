@@ -35,6 +35,7 @@ public final class NotificationPrivacyGuard {
     /** Pure data descriptor evaluated before accepting any notification into memory. */
     public record Candidate(
             String packageName,
+            String sender,
             String title,
             String text,
             int visibility,
@@ -78,21 +79,20 @@ public final class NotificationPrivacyGuard {
             "ledger.", "trezor", "exodus", "trustwallet", "phantom.app"
     };
 
-    private static final Pattern OTP_KEYWORDS = Pattern.compile(
-            "(?i)(?:\\botp\\b|\\b2fa\\b|\\bmfa\\b|\\btotp\\b|"
-                    + "verification\\s+code|security\\s+code|login\\s+code|sign[-\\s]?in\\s+code|"
+    private static final Pattern SHORT_BOUNDED_TOKENS = Pattern.compile("(?i)(?:otp|2fa|mfa|totp|cvv|cvc)");
+
+    private static final Pattern GOOGLE_OTP = Pattern.compile("G-\\d{5,8}");
+
+    private static final Pattern SENSITIVE_PHRASES = Pattern.compile(
+            "(?i)(?:verification\\s+code|security\\s+code|login\\s+code|sign[-\\s]?in\\s+code|"
                     + "one[-\\s]?time\\s+(?:code|pass(?:word|code))|passcode|auth(?:entication)?\\s+code|"
                     + "confirm(?:ation)?\\s+code|temporary\\s+password|do\\s+not\\s+share|"
                     + "never\\s+share\\s+(?:this|your)\\s+code|seed\\s+phrase|recovery\\s+phrase|"
                     + "code\\s+de\\s+v[ée]rification|code\\s+de\\s+s[ée]curit[ée]|"
                     + "code\\s+[àa]\\s+usage\\s+unique|code\\s+de\\s+connexion|"
                     + "code\\s+d['’]authentification|code\\s+temporaire|mot\\s+de\\s+passe\\s+temporaire|"
-                    + "ne\\s+(?:le\\s+)?partagez\\s+pas|phrase\\s+de\\s+r[ée]cup[ée]ration)");
-
-    private static final Pattern GOOGLE_OTP = Pattern.compile("(?:^|[^A-Za-z0-9])G-\\d{5,8}(?:$|[^A-Za-z0-9])");
-
-    private static final Pattern SECRET_LABEL = Pattern.compile(
-            "(?i)(?:\\bcvv\\b|\\bcvc\\b|card\\s+pin|nip\\s+de\\s+carte|private\\s+key|cl[ée]\\s+priv[ée]e)");
+                    + "ne\\s+(?:le\\s+)?partagez\\s+pas|phrase\\s+de\\s+r[ée]cup[ée]ration|"
+                    + "card\\s+pin|nip\\s+de\\s+carte|private\\s+key|cl[ée]\\s+priv[ée]e)");
 
     private NotificationPrivacyGuard() {}
 
@@ -111,41 +111,37 @@ public final class NotificationPrivacyGuard {
 
     /** True when title or text looks like an OTP/2FA code, recovery phrase, temporary password, or API/JWT secret. */
     public static boolean containsOtpOrSecret(String title, String text) {
-        if (SecretPatterns.containsCredential(title) || SecretPatterns.containsCredential(text)) {
-            return true;
-        }
-        if (matchesOtpOrLabelWithNormalization(title) || matchesOtpOrLabelWithNormalization(text)) {
-            return true;
-        }
-        String combined = ((title == null ? "" : title) + "\n" + (text == null ? "" : text)).trim();
-        if (combined.isEmpty()) return false;
-        if (SecretPatterns.containsCredential(combined)) return true;
-        if (matchesOtpOrLabel(combined)) return true;
-        String spaced = ((title == null ? "" : title) + " " + (text == null ? "" : text))
-                .replace('\n', ' ').replace('\r', ' ').replace('\t', ' ');
-        String spacedCollapsed = PlainTextSanitizer.collapseBounded(spaced, spaced.length());
-        return !spacedCollapsed.isEmpty() && matchesOtpOrLabel(spacedCollapsed);
+        return containsOtpOrSecret(null, title, text);
     }
 
-    private static boolean matchesOtpOrLabelWithNormalization(String value) {
+    /** True when sender, title, or text (individually or combined) looks like an OTP/2FA code or secret. */
+    public static boolean containsOtpOrSecret(String sender, String title, String text) {
+        if (matchesSensitive(sender) || matchesSensitive(title) || matchesSensitive(text)) {
+            return true;
+        }
+        String combined = joinNonEmpty(sender, title, text);
+        return !combined.isEmpty() && matchesSensitive(combined);
+    }
+
+    private static boolean matchesSensitive(String value) {
         if (value == null || value.isEmpty()) return false;
-        if (matchesOtpOrLabel(value)) return true;
-        String collapsed = PlainTextSanitizer.collapseBounded(value, value.length());
-        if (!collapsed.isEmpty() && matchesOtpOrLabel(collapsed)) return true;
-        if (value.indexOf('\n') >= 0 || value.indexOf('\r') >= 0 || value.indexOf('\t') >= 0) {
-            String spaced = value.replace('\n', ' ').replace('\r', ' ').replace('\t', ' ');
-            String spacedCollapsed = PlainTextSanitizer.collapseBounded(spaced, spaced.length());
-            return !spacedCollapsed.isEmpty() && matchesOtpOrLabel(spacedCollapsed);
-        }
-        return false;
+        PlainTextSanitizer.DetectionView view = PlainTextSanitizer.DetectionView.of(value);
+        if (SecretPatterns.containsCredentialInView(view)) return true;
+        if (view.matches(GOOGLE_OTP, true, true)) return true;
+        if (view.matches(SHORT_BOUNDED_TOKENS, true, true)) return true;
+        // Every phrase in SENSITIVE_PHRASES is an explicit OTP/2FA/temporary-password/do-not-share indicator;
+        // hard-block immediately even when the secret/code is alphanumeric.
+        return view.matches(SENSITIVE_PHRASES, false, false);
     }
 
-    private static boolean matchesOtpOrLabel(String text) {
-        if (GOOGLE_OTP.matcher(text).find()) return true;
-        if (SECRET_LABEL.matcher(text).find()) return true;
-        // Every phrase in OTP_KEYWORDS is an explicit OTP/2FA/temporary-password/do-not-share indicator;
-        // hard-block immediately even when the secret/code is alphanumeric (no numeric CODE_TOKEN required).
-        return OTP_KEYWORDS.matcher(text).find();
+    private static String joinNonEmpty(String... parts) {
+        StringBuilder sb = new StringBuilder();
+        for (String part : parts) {
+            if (part == null || part.isEmpty()) continue;
+            if (sb.length() > 0) sb.append(' ');
+            sb.append(part);
+        }
+        return sb.toString();
     }
 
     /** Evaluate a notification candidate against hard blocks and the active profile's allowlist. */
@@ -176,39 +172,21 @@ public final class NotificationPrivacyGuard {
         if (allowlistedPackages == null || !allowlistedPackages.contains(pkg)) {
             return Decision.BLOCK_NOT_ALLOWLISTED;
         }
+        String cleanSender = sanitizeText(candidate.sender(), MAX_SENDER_CHARS);
         String cleanTitle = sanitizeText(candidate.title(), MAX_TITLE_CHARS);
         String cleanText = sanitizeText(candidate.text(), MAX_TEXT_CHARS);
         if (cleanTitle.isEmpty() && cleanText.isEmpty()) {
             return Decision.BLOCK_EMPTY;
         }
-        if (containsOtpOrSecret(candidate.title(), candidate.text())
-                || containsOtpOrSecret(cleanTitle, cleanText)) {
+        if (containsOtpOrSecret(candidate.sender(), candidate.title(), candidate.text())
+                || containsOtpOrSecret(cleanSender, cleanTitle, cleanText)) {
             return Decision.BLOCK_OTP_OR_SECRET;
         }
         return Decision.ALLOW;
     }
 
-    /** Strip control characters, collapse whitespace runs, and enforce a hard length cap. */
+    /** Strip format/surrogate chars, collapse controls & Unicode whitespace, and truncate safely. */
     public static String sanitizeText(String raw, int maxChars) {
-        if (raw == null || maxChars <= 0) return "";
-        StringBuilder out = new StringBuilder(Math.min(raw.length(), maxChars));
-        boolean prevSpace = false;
-        for (int i = 0; i < raw.length(); i++) {
-            char c = raw.charAt(i);
-            if (Character.isISOControl(c) || Character.isWhitespace(c)) {
-                if (out.length() > 0 && !prevSpace) {
-                    out.append(' ');
-                    prevSpace = true;
-                }
-            } else {
-                out.append(c);
-                prevSpace = false;
-            }
-            if (out.length() > maxChars) break;
-        }
-        String trimmed = out.toString().trim();
-        if (trimmed.length() <= maxChars) return trimmed;
-        if (maxChars == 1) return "…";
-        return trimmed.substring(0, maxChars - 1).trim() + "…";
+        return PlainTextSanitizer.collapseWithEllipsis(raw, maxChars);
     }
 }

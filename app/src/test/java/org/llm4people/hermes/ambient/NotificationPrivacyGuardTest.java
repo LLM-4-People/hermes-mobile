@@ -81,25 +81,25 @@ public final class NotificationPrivacyGuardTest {
     public void blocksSecretVisibilityOngoingSystemNoiseAndNonAllowlistedApps() {
         assertEquals(NotificationPrivacyGuard.Decision.BLOCK_PRIVATE_VISIBILITY,
                 NotificationPrivacyGuard.evaluate(
-                        new NotificationPrivacyGuard.Candidate(SIGNAL, "Alice", "Salut",
+                        new NotificationPrivacyGuard.Candidate(SIGNAL, "Alice", "Alice", "Salut",
                                 NotificationPrivacyGuard.VISIBILITY_SECRET, false, false, false, "msg"),
                         ALLOWLIST));
 
         assertEquals(NotificationPrivacyGuard.Decision.BLOCK_ONGOING_OR_SYSTEM,
                 NotificationPrivacyGuard.evaluate(
-                        new NotificationPrivacyGuard.Candidate(SIGNAL, "Appel", "En cours",
+                        new NotificationPrivacyGuard.Candidate(SIGNAL, "Appel", "Appel", "En cours",
                                 0, true, false, false, "msg"),
                         ALLOWLIST));
 
         assertEquals(NotificationPrivacyGuard.Decision.BLOCK_ONGOING_OR_SYSTEM,
                 NotificationPrivacyGuard.evaluate(
-                        new NotificationPrivacyGuard.Candidate(SIGNAL, "Sync", "Uploading",
+                        new NotificationPrivacyGuard.Candidate(SIGNAL, "Sync", "Sync", "Uploading",
                                 0, false, true, false, "progress"),
                         ALLOWLIST));
 
         assertEquals(NotificationPrivacyGuard.Decision.BLOCK_ONGOING_OR_SYSTEM,
                 NotificationPrivacyGuard.evaluate(
-                        new NotificationPrivacyGuard.Candidate("com.android.systemui", "Battery", "80%",
+                        new NotificationPrivacyGuard.Candidate("com.android.systemui", "Battery", "Battery", "80%",
                                 0, false, false, false, "sys"),
                         Set.of("com.android.systemui")));
 
@@ -121,9 +121,13 @@ public final class NotificationPrivacyGuardTest {
         String cleaned = NotificationPrivacyGuard.sanitizeText("  Bonjour\n\t\u0007  tout   le monde  ", 16);
         assertEquals("Bonjour tout le…", cleaned);
         assertEquals(16, cleaned.length());
+
+        // R10.2.3: sanitizeText strips format/bidi/Plane 14 tags, normalizes NBSP, and never splits surrogates.
+        assertEquals("Bonjour monde", NotificationPrivacyGuard.sanitizeText("Bon\u202E\uDB40\uDC20jour\u00A0monde", 32));
+        assertEquals("ab…", NotificationPrivacyGuard.sanitizeText("ab😀cd", 4));
     }
 
     private static NotificationPrivacyGuard.Candidate candidate(String pkg, String title, String text) {
-        return new NotificationPrivacyGuard.Candidate(pkg, title, text, 0, false, false, false, "msg");
+        return new NotificationPrivacyGuard.Candidate(pkg, title, title, text, 0, false, false, false, "msg");
     }
 }
