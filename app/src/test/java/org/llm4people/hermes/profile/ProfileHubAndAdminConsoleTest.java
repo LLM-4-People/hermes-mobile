@@ -82,4 +82,15 @@ public final class ProfileHubAndAdminConsoleTest {
         assertEquals("0:00", PairingShareSheet.formatCountdown(0));
         assertEquals("0:00", PairingShareSheet.formatCountdown(-42));
     }
+
+    @Test public void usersLoadStateResolvesErrorWhenEmptyAndLoadedWhenFetchedOrCached() {
+        assertEquals(AdminConsoleSheet.UsersLoadState.LOADED,
+                AdminConsoleSheet.resolveUsersLoadState(true, false));
+        assertEquals(AdminConsoleSheet.UsersLoadState.LOADED,
+                AdminConsoleSheet.resolveUsersLoadState(true, true));
+        assertEquals(AdminConsoleSheet.UsersLoadState.LOADED,
+                AdminConsoleSheet.resolveUsersLoadState(false, true));
+        assertEquals(AdminConsoleSheet.UsersLoadState.ERROR,
+                AdminConsoleSheet.resolveUsersLoadState(false, false));
+    }
 }

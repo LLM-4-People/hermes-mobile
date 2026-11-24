@@ -2,15 +2,16 @@ package org.llm4people.hermes.panel;
 
 import android.app.AlertDialog;
 import android.content.Context;
+import android.content.res.ColorStateList;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.view.Gravity;
 import android.view.View;
+import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.Button;
 import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -52,25 +53,15 @@ final class ReminderPanel {
         ZoneId zone = ZoneId.systemDefault();
 
         // Active profile pill + summary header
-        TextView profileBadge = Ui.text(panel.activity, panel.account.label, 14);
-        profileBadge.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        profileBadge.setTextColor(panel.activity.getColor(R.color.accent));
-        profileBadge.setPaddingRelative(Ui.dp(panel.activity, 12), Ui.dp(panel.activity, 5),
-                Ui.dp(panel.activity, 12), Ui.dp(panel.activity, 5));
-        GradientDrawable badgeBg = new GradientDrawable();
-        badgeBg.setCornerRadius(Ui.dp(panel.activity, 999));
-        badgeBg.setColor(panel.activity.getColor(R.color.accent_surface));
-        profileBadge.setBackground(badgeBg);
+        TextView profileBadge = Ui.pill(panel.activity, panel.account.label, R.color.accent_surface, R.color.accent);
         LinearLayout.LayoutParams badgeLp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         badgeLp.topMargin = Ui.dp(panel.activity, 6);
         page.addView(profileBadge, badgeLp);
 
         LinearLayout topActions = Ui.row(panel.activity);
-        Button createBtn = Ui.button(panel.activity, panel.t(R.string.panel_new_reminder), v -> edit(null));
-        enforceTouch(createBtn);
-        Button refreshBtn = Ui.button(panel.activity, panel.t(R.string.panel_refresh), v -> show());
-        enforceTouch(refreshBtn);
+        Button createBtn = Ui.filledButton(panel.activity, panel.t(R.string.panel_new_reminder), v -> edit(null));
+        Button refreshBtn = Ui.outlinedButton(panel.activity, panel.t(R.string.panel_refresh), v -> show());
         topActions.addView(createBtn, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         LinearLayout.LayoutParams refLp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
@@ -81,21 +72,27 @@ final class ReminderPanel {
         topLp.topMargin = Ui.dp(panel.activity, 10);
         page.addView(topActions, topLp);
 
+        TextView listFeedback = createFeedbackView();
+        page.addView(listFeedback, cardMargins());
+
         LinearLayout jobsSection = Ui.column(panel.activity);
         page.addView(jobsSection, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
 
-        page.addView(Ui.divider(panel.activity));
+        page.addView(Ui.divider(panel.activity), cardMargins());
         panel.note(page, panel.t(MobilePush.isEnabled(panel.activity, panel.account.id)
                 ? R.string.panel_push_on : R.string.panel_push_off));
-        panel.action(page, R.string.panel_push, () -> new MobilePush(panel.activity).settings(panel.account));
+        Button pushBtn = Ui.outlinedButton(panel.activity, panel.t(R.string.panel_push),
+                v -> new MobilePush(panel.activity).settings(panel.account));
+        page.addView(pushBtn, cardMargins());
         panel.note(page, panel.t(R.string.panel_push_status));
 
         panel.load(jobsSection, () -> panel.api.get(JOBS + "?include_disabled=true").getJSONArray("jobs"),
-                jobs -> renderJobsOverview(jobsSection, jobs, zone, locale), this::show);
+                jobs -> renderJobsOverview(jobsSection, jobs, zone, locale, listFeedback), this::show);
     }
 
-    private void renderJobsOverview(LinearLayout container, JSONArray jobs, ZoneId zone, Locale locale) {
+    private void renderJobsOverview(LinearLayout container, JSONArray jobs, ZoneId zone, Locale locale,
+                                    TextView feedbackView) {
         container.removeAllViews();
         ScheduledJobModel.Summary summary = ScheduledJobModel.summarizeJobs(jobs);
 
@@ -114,13 +111,13 @@ final class ReminderPanel {
         filterScroll.setHorizontalScrollBarEnabled(false);
         LinearLayout chipsRow = Ui.row(panel.activity);
         addFilterChip(chipsRow, ScheduledJobModel.Filter.ALL,
-                panel.t(R.string.panel_jobs_filter_all, summary.total()), container, jobs, zone, locale);
+                panel.t(R.string.panel_jobs_filter_all, summary.total()), container, jobs, zone, locale, feedbackView);
         addFilterChip(chipsRow, ScheduledJobModel.Filter.ACTIVE,
-                panel.t(R.string.panel_jobs_filter_active, summary.active()), container, jobs, zone, locale);
+                panel.t(R.string.panel_jobs_filter_active, summary.active()), container, jobs, zone, locale, feedbackView);
         addFilterChip(chipsRow, ScheduledJobModel.Filter.PAUSED,
-                panel.t(R.string.panel_jobs_filter_paused, summary.paused()), container, jobs, zone, locale);
+                panel.t(R.string.panel_jobs_filter_paused, summary.paused()), container, jobs, zone, locale, feedbackView);
         addFilterChip(chipsRow, ScheduledJobModel.Filter.ATTENTION,
-                panel.t(R.string.panel_jobs_filter_attention, summary.attention()), container, jobs, zone, locale);
+                panel.t(R.string.panel_jobs_filter_attention, summary.attention()), container, jobs, zone, locale, feedbackView);
         filterScroll.addView(chipsRow);
         LinearLayout.LayoutParams scrollLp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
@@ -133,7 +130,7 @@ final class ReminderPanel {
             JSONObject job = jobs.optJSONObject(i);
             if (job == null || PanelData.text(job, "id").isEmpty()) continue;
             if (!ScheduledJobModel.matchesFilter(PanelData.jobState(job), activeFilter)) continue;
-            container.addView(buildJobCard(job, zone, locale), cardMargins());
+            container.addView(buildJobCard(job, zone, locale, feedbackView), cardMargins());
             shown++;
         }
         if (shown == 0) {
@@ -148,26 +145,36 @@ final class ReminderPanel {
             LinearLayout container,
             JSONArray jobs,
             ZoneId zone,
-            Locale locale) {
+            Locale locale,
+            TextView feedbackView) {
         boolean selected = activeFilter == filter;
         Button chip = new Button(panel.activity, null, android.R.attr.borderlessButtonStyle);
         chip.setText(label);
         chip.setAllCaps(false);
         chip.setTextSize(13);
-        chip.setTypeface(Typeface.DEFAULT, selected ? Typeface.BOLD : Typeface.NORMAL);
-        enforceTouch(chip);
+        chip.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        chip.setStateListAnimator(null);
+        int touchMin = Ui.dp(panel.activity, 48);
+        chip.setMinHeight(touchMin);
+        chip.setMinimumHeight(touchMin);
         Ui.pad(chip, 14, 6);
-        GradientDrawable bg = new GradientDrawable();
-        bg.setCornerRadius(Ui.dp(panel.activity, 999));
-        bg.setColor(panel.activity.getColor(selected ? R.color.accent_surface : R.color.surface));
-        bg.setStroke(Math.max(1, Ui.dp(panel.activity, 1)),
-                panel.activity.getColor(selected ? R.color.accent : R.color.line));
-        chip.setBackground(bg);
+        GradientDrawable bg = Ui.shape(panel.activity, 999,
+                selected ? R.color.accent_surface : R.color.surface,
+                selected ? R.color.accent : R.color.line,
+                selected ? 2 : 1);
+        chip.setBackground(Ui.roundedRipple(panel.activity, 999, bg));
         chip.setTextColor(panel.activity.getColor(selected ? R.color.accent : R.color.ink));
         chip.setSelected(selected);
+        chip.setAccessibilityDelegate(new View.AccessibilityDelegate() {
+            @Override public void onInitializeAccessibilityNodeInfo(View host, AccessibilityNodeInfo info) {
+                super.onInitializeAccessibilityNodeInfo(host, info);
+                info.setCheckable(true);
+                info.setChecked(selected);
+            }
+        });
         chip.setOnClickListener(v -> {
             activeFilter = filter;
-            renderJobsOverview(container, jobs, zone, locale);
+            renderJobsOverview(container, jobs, zone, locale, feedbackView);
         });
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
@@ -175,14 +182,8 @@ final class ReminderPanel {
         row.addView(chip, lp);
     }
 
-    private LinearLayout buildJobCard(JSONObject job, ZoneId zone, Locale locale) {
-        LinearLayout card = Ui.column(panel.activity);
-        Ui.pad(card, 14, 12);
-        GradientDrawable bg = new GradientDrawable();
-        bg.setCornerRadius(Ui.dp(panel.activity, 12));
-        bg.setColor(panel.activity.getColor(R.color.surface));
-        bg.setStroke(Math.max(1, Ui.dp(panel.activity, 1)), panel.activity.getColor(R.color.line));
-        card.setBackground(bg);
+    private LinearLayout buildJobCard(JSONObject job, ZoneId zone, Locale locale, TextView feedbackView) {
+        LinearLayout card = Ui.card(panel.activity);
 
         String jobState = PanelData.jobState(job);
         String name = PanelData.text(job, "name");
@@ -193,11 +194,16 @@ final class ReminderPanel {
         titleBtn.setText(name);
         titleBtn.setAllCaps(false);
         titleBtn.setTextSize(16);
-        titleBtn.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        titleBtn.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         titleBtn.setTextColor(panel.activity.getColor(R.color.ink));
         titleBtn.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
-        titleBtn.setPaddingRelative(0, Ui.dp(panel.activity, 4), Ui.dp(panel.activity, 8), Ui.dp(panel.activity, 4));
-        enforceTouch(titleBtn);
+        titleBtn.setStateListAnimator(null);
+        titleBtn.setBackground(Ui.roundedRipple(panel.activity, Ui.BUTTON_CORNER_DP, null));
+        titleBtn.setPaddingRelative(Ui.dp(panel.activity, 4), Ui.dp(panel.activity, 6),
+                Ui.dp(panel.activity, 8), Ui.dp(panel.activity, 6));
+        int touchMin = Ui.dp(panel.activity, 48);
+        titleBtn.setMinHeight(touchMin);
+        titleBtn.setMinimumHeight(touchMin);
         titleBtn.setOnClickListener(v -> details(job));
         header.addView(titleBtn, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         header.addView(statusPill(jobState));
@@ -248,66 +254,51 @@ final class ReminderPanel {
         actionsScroll.setHorizontalScrollBarEnabled(false);
         LinearLayout actions = Ui.row(panel.activity);
 
-        Button runNowBtn = Ui.button(panel.activity, panel.t(R.string.panel_jobs_run_now), null);
-        enforceTouch(runNowBtn);
-        runNowBtn.setOnClickListener(v -> triggerJobNow(job, runNowBtn, null));
+        Button runNowBtn = Ui.tonalButton(panel.activity, panel.t(R.string.panel_jobs_run_now), null);
+        runNowBtn.setOnClickListener(v -> triggerJobNow(job, runNowBtn, feedbackView, null));
         actions.addView(runNowBtn);
 
         if (!"completed".equals(jobState)) {
             boolean enabled = job.optBoolean("enabled", true);
-            Button toggleBtn = Ui.button(panel.activity,
+            Button toggleBtn = Ui.outlinedButton(panel.activity,
                     panel.t(enabled ? R.string.panel_pause : R.string.panel_resume),
                     v -> mutate(() -> panel.api.post(path(job) + (enabled ? "/pause" : "/resume"), new JSONObject())));
-            enforceTouch(toggleBtn);
             LinearLayout.LayoutParams tLp = new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-            tLp.setMarginStart(Ui.dp(panel.activity, 6));
+            tLp.setMarginStart(Ui.dp(panel.activity, 8));
             actions.addView(toggleBtn, tLp);
         }
 
-        Button detailsBtn = Ui.button(panel.activity, panel.t(R.string.panel_jobs_details), v -> details(job));
-        enforceTouch(detailsBtn);
+        Button detailsBtn = Ui.outlinedButton(panel.activity, panel.t(R.string.panel_jobs_details), v -> details(job));
         LinearLayout.LayoutParams dLp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        dLp.setMarginStart(Ui.dp(panel.activity, 6));
+        dLp.setMarginStart(Ui.dp(panel.activity, 8));
         actions.addView(detailsBtn, dLp);
 
         actionsScroll.addView(actions);
         LinearLayout.LayoutParams actLp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        actLp.topMargin = Ui.dp(panel.activity, 8);
+        actLp.topMargin = Ui.dp(panel.activity, 10);
         card.addView(actionsScroll, actLp);
         return card;
     }
 
     private TextView statusPill(String jobState) {
-        TextView pill = Ui.text(panel.activity, stateLabel(jobState), 12);
-        pill.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        pill.setSingleLine(true);
-        pill.setPaddingRelative(Ui.dp(panel.activity, 10), Ui.dp(panel.activity, 4),
-                Ui.dp(panel.activity, 10), Ui.dp(panel.activity, 4));
-        GradientDrawable bg = new GradientDrawable();
-        bg.setCornerRadius(Ui.dp(panel.activity, 999));
-        switch (jobState) {
-            case "scheduled" -> {
-                bg.setColor(panel.activity.getColor(R.color.accent_surface));
-                pill.setTextColor(panel.activity.getColor(R.color.accent));
-            }
-            case "paused" -> {
-                bg.setColor(panel.activity.getColor(R.color.warning_surface));
-                pill.setTextColor(panel.activity.getColor(R.color.warning));
-            }
-            case "error" -> {
-                bg.setColor(panel.activity.getColor(R.color.danger_surface));
-                pill.setTextColor(panel.activity.getColor(R.color.danger));
-            }
+        TextView pill = switch (jobState) {
+            case "scheduled" -> Ui.pill(panel.activity, stateLabel(jobState),
+                    R.color.accent_surface, R.color.accent);
+            case "paused" -> Ui.pill(panel.activity, stateLabel(jobState),
+                    R.color.warning_surface, R.color.warning);
+            case "error" -> Ui.pill(panel.activity, stateLabel(jobState),
+                    R.color.danger_surface, R.color.danger);
             default -> {
-                bg.setColor(panel.activity.getColor(R.color.paper));
-                bg.setStroke(Math.max(1, Ui.dp(panel.activity, 1)), panel.activity.getColor(R.color.line));
-                pill.setTextColor(panel.activity.getColor(R.color.muted));
+                TextView neutral = Ui.pill(panel.activity, stateLabel(jobState),
+                        R.color.surface_container, R.color.muted);
+                neutral.setBackground(Ui.shape(panel.activity, 999,
+                        R.color.surface_container, R.color.line, 1));
+                yield neutral;
             }
-        }
-        pill.setBackground(bg);
+        };
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         lp.setMarginStart(Ui.dp(panel.activity, 8));
@@ -397,74 +388,135 @@ final class ReminderPanel {
         header.setGravity(Gravity.CENTER_VERTICAL);
         TextView titleView = Ui.text(panel.activity, name, 19);
         titleView.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        titleView.setAccessibilityHeading(true);
         header.addView(titleView, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         header.addView(statusPill(jobState));
         page.addView(header);
 
+        LinearLayout metaCard = Ui.card(panel.activity);
         String prompt = PanelData.text(job, "prompt");
-        if (!prompt.isEmpty()) panel.note(page, prompt);
-        panel.note(page, panel.t(R.string.panel_job_state, stateLabel(jobState)));
+        if (!prompt.isEmpty()) {
+            TextView promptView = Ui.text(panel.activity, prompt, 15);
+            promptView.setTextColor(panel.activity.getColor(R.color.ink));
+            metaCard.addView(promptView);
+            metaCard.addView(Ui.divider(panel.activity), cardMargins());
+        }
+        addMetaLine(metaCard, panel.t(R.string.panel_job_state, stateLabel(jobState)), R.color.ink);
         String lastError = PanelData.text(job, "last_error");
         if (!lastError.isEmpty()) {
-            TextView errView = panel.note(page, panel.t(R.string.panel_last_job_error, lastError));
-            errView.setTextColor(panel.activity.getColor(R.color.danger));
+            addMetaLine(metaCard, panel.t(R.string.panel_last_job_error, lastError), R.color.danger);
         }
         String friendlySchedule = humanSchedule(panel.activity, job, zone);
         String rawSchedule = scheduleLabel(job, zone, locale);
-        panel.note(page, panel.t(R.string.panel_saved_schedule,
-                friendlySchedule.isEmpty() ? rawSchedule : friendlySchedule));
+        addMetaLine(metaCard, panel.t(R.string.panel_saved_schedule,
+                friendlySchedule.isEmpty() ? rawSchedule : friendlySchedule), R.color.ink);
         String channel = ScheduledJobModel.deliveryChannelLabel(PanelData.text(job, "deliver"));
         if (!channel.isEmpty()) {
-            panel.note(page, panel.t(R.string.panel_jobs_delivery, channel));
+            addMetaLine(metaCard, panel.t(R.string.panel_jobs_delivery, channel), R.color.muted);
         }
         String next = PanelData.text(job, "next_run_at");
-        if (!next.isEmpty()) panel.note(page, panel.t(R.string.panel_next, formatTime(next, zone, locale)));
+        if (!next.isEmpty()) {
+            addMetaLine(metaCard, panel.t(R.string.panel_next, formatTime(next, zone, locale)), R.color.muted);
+        }
         String lastRun = PanelData.text(job, "last_run_at");
-        if (!lastRun.isEmpty()) panel.note(page, panel.t(R.string.panel_jobs_last_run, formatTime(lastRun, zone, locale)));
+        if (!lastRun.isEmpty()) {
+            addMetaLine(metaCard, panel.t(R.string.panel_jobs_last_run, formatTime(lastRun, zone, locale)), R.color.muted);
+        }
+        page.addView(metaCard, cardMargins());
+
+        TextView detailFeedback = createFeedbackView();
+        page.addView(detailFeedback, cardMargins());
 
         String path = path(job);
         LinearLayout runsSection = Ui.column(panel.activity);
-        Button runNowBtn = panel.action(page, R.string.panel_jobs_run_now, () -> {});
-        runNowBtn.setOnClickListener(v -> triggerJobNow(job, runNowBtn, () -> loadRecentRuns(runsSection, job, zone, locale)));
+        Button runNowBtn = Ui.filledButton(panel.activity, panel.t(R.string.panel_jobs_run_now), null);
+        runNowBtn.setOnClickListener(v -> triggerJobNow(job, runNowBtn, detailFeedback,
+                () -> loadRecentRuns(runsSection, job, zone, locale)));
+        page.addView(runNowBtn, cardMargins());
 
-        panel.action(page, R.string.panel_edit, () -> edit(job));
+        Button editBtn = Ui.outlinedButton(panel.activity, panel.t(R.string.panel_edit), v -> edit(job));
+        page.addView(editBtn, cardMargins());
         if (!"completed".equals(PanelData.text(job, "state"))) {
             boolean enabled = job.optBoolean("enabled", true);
-            panel.action(page, enabled ? R.string.panel_pause : R.string.panel_resume,
-                    () -> mutate(() -> panel.api.post(path + (enabled ? "/pause" : "/resume"), new JSONObject())));
+            Button pauseBtn = Ui.outlinedButton(panel.activity,
+                    panel.t(enabled ? R.string.panel_pause : R.string.panel_resume),
+                    v -> mutate(() -> panel.api.post(path + (enabled ? "/pause" : "/resume"), new JSONObject())));
+            page.addView(pauseBtn, cardMargins());
         }
-        panel.action(page, R.string.panel_delete, () -> panel.present(new AlertDialog.Builder(panel.activity)
-                .setMessage(panel.t(R.string.panel_confirm_delete, name))
-                .setNegativeButton(R.string.panel_cancel, null)
-                .setPositiveButton(R.string.panel_delete, (d, which) -> mutate(() -> {
-                    panel.api.delete(path); return null;
-                })).create()));
+        Button deleteBtn = Ui.outlinedButton(panel.activity, panel.t(R.string.panel_delete),
+                v -> panel.present(new AlertDialog.Builder(panel.activity)
+                        .setMessage(panel.t(R.string.panel_confirm_delete, name))
+                        .setNegativeButton(R.string.panel_cancel, null)
+                        .setPositiveButton(R.string.panel_delete, (d, which) -> mutate(() -> {
+                            panel.api.delete(path); return null;
+                        })).create()));
+        deleteBtn.setTextColor(dangerInk());
+        page.addView(deleteBtn, cardMargins());
 
         panel.section(page, R.string.panel_jobs_recent_runs);
         page.addView(runsSection);
         loadRecentRuns(runsSection, job, zone, locale);
     }
 
-    private void triggerJobNow(JSONObject job, Button button, Runnable onTriggered) {
+    private void addMetaLine(LinearLayout card, String text, int colorRes) {
+        TextView view = Ui.text(panel.activity, text, 14);
+        view.setTextColor(panel.activity.getColor(colorRes));
+        if (card.getChildCount() > 0) {
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+            lp.topMargin = Ui.dp(panel.activity, 6);
+            card.addView(view, lp);
+        } else {
+            card.addView(view);
+        }
+    }
+
+    private TextView createFeedbackView() {
+        TextView view = Ui.text(panel.activity, "", 13);
+        view.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        view.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        view.setVisibility(View.GONE);
+        return view;
+    }
+
+    private ColorStateList dangerInk() {
+        return new ColorStateList(
+                new int[][]{new int[]{-android.R.attr.state_enabled}, new int[]{}},
+                new int[]{panel.activity.getColor(R.color.disabled_ink), panel.activity.getColor(R.color.danger)});
+    }
+
+    private void triggerJobNow(JSONObject job, Button button, TextView feedbackView, Runnable onTriggered) {
         String jobId = PanelData.text(job, "id");
         if (jobId.isEmpty()) return;
         button.setEnabled(false);
         String original = button.getText().toString();
         button.setText(panel.t(R.string.panel_jobs_running_now));
+        if (feedbackView != null) {
+            feedbackView.setText("");
+            feedbackView.setVisibility(View.GONE);
+        }
         LinearLayout statusSlot = Ui.column(panel.activity);
         panel.request(statusSlot, () -> panel.api.post(ScheduledJobModel.triggerPath(jobId), new JSONObject()),
                 ok -> {
                     button.setEnabled(true);
                     button.setText(original);
                     Diagnostics.event("jobs", "triggered_now");
-                    Toast.makeText(panel.activity, R.string.panel_jobs_triggered, Toast.LENGTH_SHORT).show();
+                    if (feedbackView != null) {
+                        feedbackView.setTextColor(panel.activity.getColor(R.color.accent));
+                        feedbackView.setText(R.string.panel_jobs_triggered);
+                        feedbackView.setVisibility(View.VISIBLE);
+                    }
                     if (onTriggered != null) onTriggered.run();
                 },
                 error -> {
                     button.setEnabled(true);
                     button.setText(original);
                     Diagnostics.warning("jobs", "trigger_failed");
-                    Toast.makeText(panel.activity, R.string.panel_jobs_trigger_failed, Toast.LENGTH_LONG).show();
+                    if (feedbackView != null) {
+                        feedbackView.setTextColor(panel.activity.getColor(R.color.danger));
+                        feedbackView.setText(R.string.panel_jobs_trigger_failed);
+                        feedbackView.setVisibility(View.VISIBLE);
+                    }
                 });
     }
 
@@ -497,13 +549,7 @@ final class ReminderPanel {
             return;
         }
         for (ScheduledJobModel.JobRun run : runs) {
-            LinearLayout row = Ui.column(panel.activity);
-            Ui.pad(row, 12, 10);
-            GradientDrawable bg = new GradientDrawable();
-            bg.setCornerRadius(Ui.dp(panel.activity, 10));
-            bg.setColor(panel.activity.getColor(R.color.surface));
-            bg.setStroke(Math.max(1, Ui.dp(panel.activity, 1)), panel.activity.getColor(R.color.line));
-            row.setBackground(bg);
+            LinearLayout row = Ui.tonalCard(panel.activity);
 
             String when = formatEpochTime(run.startedAtEpochSec(), zone, locale);
             String dur = ScheduledJobModel.formatDuration(run.durationSeconds());
@@ -536,12 +582,6 @@ final class ReminderPanel {
             case "missed" -> panel.t(R.string.panel_jobs_run_status_missed);
             default -> panel.t(R.string.panel_unknown);
         };
-    }
-
-    private void enforceTouch(Button button) {
-        int touchMin = Ui.dp(panel.activity, 48);
-        button.setMinHeight(touchMin);
-        button.setMinimumHeight(touchMin);
     }
 
     private LinearLayout.LayoutParams cardMargins() {
