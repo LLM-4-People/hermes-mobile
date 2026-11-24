@@ -44,11 +44,11 @@ if "resolve-activity" in sys.argv:
     else:
         print(os.environ.get("MAP_COMPONENT", "com.google.android.apps.maps/.MapsActivity"))
 if sys.argv[3:] == ["shell", "dumpsys", "connectivity"]:
-    print("Active default network: none")
+    print(os.environ.get("FIXTURE_CONNECTIVITY", "Active default network: none"))
 if sys.argv[3:] == ["shell", "settings", "get", "global", "airplane_mode_on"]:
-    print("1")
+    print(os.environ.get("FIXTURE_AIRPLANE_ON", "1"))
 if sys.argv[3:] == ["shell", "settings", "get", "global", "wifi_on"]:
-    print("0")
+    print(os.environ.get("FIXTURE_WIFI_ON", "0"))
 if sys.argv[1:] == ["get-serialno"]:
     print(os.environ.get("FIXTURE_ADB_SERIAL", "emulator-fixture"))
 if Path(sys.argv[0]).name == "dexdump":
@@ -94,7 +94,7 @@ class DeviceGateTest(unittest.TestCase):
         self.trace.touch()
         ci = self.root / "ci"
         ci.mkdir()
-        for name in ("native_tests.py", "phone-action-check.sh", "nearby-device-check.sh"):
+        for name in ("native_tests.py", "emulator-offline.sh", "phone-action-check.sh", "nearby-device-check.sh"):
             shutil.copyfile(GATE.with_name(name), ci / name)
         apk = self.root / TEST_APK
         apk.parent.mkdir(parents=True)
@@ -348,10 +348,38 @@ class DeviceGateTest(unittest.TestCase):
         self.assertIn([*device, "shell", "svc", "data", "disable"], calls)
         self.assertGreaterEqual(calls.count([*device, "shell", "dumpsys", "connectivity"]), 2)
         self.assertGreaterEqual(calls.count([*device, "shell", "settings", "get", "global", "airplane_mode_on"]), 2)
+        self.assertGreaterEqual(calls.count([*device, "shell", "settings", "get", "global", "wifi_on"]), 2)
         verifier = next(cmd for cmd in calls if cmd[0] == "python")
         self.assertEqual(verifier[:4], ["python", "-B", "-m", "verification.nearby_restaurants"])
         self.assertEqual(verifier[verifier.index("--verify-apks") + 1:verifier.index("--verify-apks") + 3], [APP_APK, TEST_APK])
         self.assertEqual(verifier[verifier.index("--output") + 1], str(self.runner / "hermes-nearby"))
+
+    def test_both_offline_gates_enforce_wifi_off_airplane_on_and_fail_cleanly_when_network_stays_up(self):
+        cases = [
+            ("wifi_still_on", {"FIXTURE_WIFI_ON": "1", "FIXTURE_AIRPLANE_ON": "1", "FIXTURE_CONNECTIVITY": "Active default network: none"}),
+            ("airplane_off", {"FIXTURE_WIFI_ON": "0", "FIXTURE_AIRPLANE_ON": "0", "FIXTURE_CONNECTIVITY": "Active default network: none"}),
+            ("default_network_active", {"FIXTURE_WIFI_ON": "0", "FIXTURE_AIRPLANE_ON": "1", "FIXTURE_CONNECTIVITY": "Active default network: 100"}),
+        ]
+        fast_poll = {
+            "EMULATOR_OFFLINE_MAX_ATTEMPTS": "3",
+            "EMULATOR_OFFLINE_POLL_SECONDS": "0.01",
+            "EMULATOR_OFFLINE_REASSERT_EVERY": "2",
+        }
+        for gate_name, runner, serial in (
+            ("handoff", self.handoff_gate, HANDOFF[2]),
+            ("nearby", self.nearby_gate, "emulator-nearby"),
+        ):
+            for label, overrides in cases:
+                with self.subTest(gate=gate_name, case=label):
+                    self.trace.write_text("")
+                    result, calls = runner(**fast_poll, **overrides)
+                    self.assertEqual(result.returncode, 1)
+                    self.assertIn("Emulator did not settle into offline airplane mode", result.stderr)
+                    device = ["adb", "-s", serial]
+                    self.assertGreaterEqual(calls.count([*device, "shell", "cmd", "connectivity", "airplane-mode", "enable"]), 2)
+                    self.assertGreaterEqual(calls.count([*device, "shell", "svc", "wifi", "disable"]), 2)
+                    self.assertGreaterEqual(calls.count([*device, "shell", "svc", "data", "disable"]), 2)
+                    self.assertFalse(any(cmd[0] == "python" for cmd in calls))
 
     def test_nearby_gate_fails_on_missing_evidence_or_unexpected_map_resolver(self):
         result, calls = self.nearby_gate(MISSING_NEARBY_EVIDENCE="comparison.png")

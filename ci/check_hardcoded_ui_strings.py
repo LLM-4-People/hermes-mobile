@@ -487,11 +487,14 @@ class _XmlResources:
     issues: list[str]
 
 
+TOOLS_LOCALE_ATTR = "{http://schemas.android.com/tools}locale"
+
+
 def _has_unquoted_edge_whitespace(raw_text: str) -> bool:
     return raw_text != raw_text.strip() and not (raw_text.startswith('"') and raw_text.endswith('"'))
 
 
-def _collect_xml_resources(res_dir: Path, root: Path) -> _XmlResources:
+def _collect_xml_resources(res_dir: Path, root: Path, *, expected_locale: str | None = None) -> _XmlResources:
     """Collect translatable and non-translatable keys, strings, plurals, and array lengths."""
     translatable: dict[str, set[str]] = {"string": set(), "plurals": set(), "string-array": set()}
     non_translatable: dict[str, set[str]] = {"string": set(), "plurals": set(), "string-array": set()}
@@ -513,6 +516,7 @@ def _collect_xml_resources(res_dir: Path, root: Path) -> _XmlResources:
             issues.append(f"{rel}: invalid XML ({err})")
             continue
         root_el = tree.getroot()
+        file_has_translatable = False
         for tag in ("string", "plurals", "string-array"):
             for el in root_el.findall(tag):
                 name = el.attrib.get("name", "").strip()
@@ -527,6 +531,7 @@ def _collect_xml_resources(res_dir: Path, root: Path) -> _XmlResources:
                 if el.attrib.get("translatable") == "false":
                     non_translatable[tag].add(name)
                 else:
+                    file_has_translatable = True
                     translatable[tag].add(name)
                     if tag == "string":
                         raw_text = "".join(el.itertext())
@@ -558,6 +563,12 @@ def _collect_xml_resources(res_dir: Path, root: Path) -> _XmlResources:
                                 issues.append(
                                     f"{rel}: <string-array name={name!r}> item[{idx}] has unquoted leading/trailing whitespace that AAPT2 strips"
                                 )
+        if expected_locale is not None and file_has_translatable:
+            actual_locale = root_el.attrib.get(TOOLS_LOCALE_ATTR, "").strip()
+            if actual_locale != expected_locale:
+                issues.append(
+                    f"{rel}: <resources> defines translatable entries and must declare tools:locale={expected_locale!r} (found {actual_locale!r})"
+                )
 
     return _XmlResources(translatable, non_translatable, strings, plurals, array_lengths, issues)
 
@@ -565,8 +576,8 @@ def _collect_xml_resources(res_dir: Path, root: Path) -> _XmlResources:
 def check_xml_parity(root: Path) -> list[str]:
     """Verify exact 1:1 key, placeholder, plurals quantity, and array-length parity between values/ and values-en/."""
     res_root = root / "app/src/main/res"
-    fr = _collect_xml_resources(res_root / "values", root)
-    en = _collect_xml_resources(res_root / "values-en", root)
+    fr = _collect_xml_resources(res_root / "values", root, expected_locale="fr")
+    en = _collect_xml_resources(res_root / "values-en", root, expected_locale="en")
     issues = [*fr.issues, *en.issues]
 
     for tag in ("string", "plurals", "string-array"):
