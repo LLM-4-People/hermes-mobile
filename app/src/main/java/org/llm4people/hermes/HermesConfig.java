@@ -30,6 +30,8 @@ public final class HermesConfig {
     public static final int DEFAULT_PROBE_TIMEOUT_MS = 8_000;
     public static final int DEFAULT_VOICE_SERVICE_TIMEOUT_MS = 15_000;
     public static final int DEFAULT_TTS_INIT_TIMEOUT_MS = 12_000;
+    public static final int DEFAULT_VOICE_MODEL_RELEASE_TIMEOUT_MS = 120_000;
+    public static final int DEFAULT_HTTP_MAX_REDIRECTS = 5;
 
     private static final HermesConfig DEFAULTS = new HermesConfig(
             DEFAULT_HTTP_CONNECT_TIMEOUT_MS,
@@ -54,7 +56,9 @@ public final class HermesConfig {
             DEFAULT_EXPECTED_FORK_CAPABILITIES,
             DEFAULT_PROBE_TIMEOUT_MS,
             DEFAULT_VOICE_SERVICE_TIMEOUT_MS,
-            DEFAULT_TTS_INIT_TIMEOUT_MS);
+            DEFAULT_TTS_INIT_TIMEOUT_MS,
+            DEFAULT_VOICE_MODEL_RELEASE_TIMEOUT_MS,
+            DEFAULT_HTTP_MAX_REDIRECTS);
 
     public final int httpConnectTimeoutMs;
     public final int httpReadTimeoutMs;
@@ -79,6 +83,8 @@ public final class HermesConfig {
     public final int probeTimeoutMs;
     public final int voiceServiceTimeoutMs;
     public final int ttsInitTimeoutMs;
+    public final int voiceModelReleaseTimeoutMs;
+    public final int httpMaxRedirects;
 
     public HermesConfig(int httpConnectTimeoutMs, int httpReadTimeoutMs, int httpJsonMaxBytes, int httpEventMaxBytes,
                         int nearbyTimeoutMs, int nearbyFusedGraceMs, long artifactDefaultMaxBytes,
@@ -111,6 +117,24 @@ public final class HermesConfig {
                         String githubWebBaseUrl, String openStreetMapBaseUrl, int doctorCheckTimeoutMs,
                         int slowLatencyThresholdMs, int expectedForkCapabilities, int probeTimeoutMs,
                         int voiceServiceTimeoutMs, int ttsInitTimeoutMs) {
+        this(httpConnectTimeoutMs, httpReadTimeoutMs, httpJsonMaxBytes, httpEventMaxBytes,
+                nearbyTimeoutMs, nearbyFusedGraceMs, artifactDefaultMaxBytes, artifactHardMaxBytes,
+                diagnosticsRingCapacity, threadPageSize, maxReconnects,
+                updateRepo, updateApiBase, updateMaxApkBytes, updateCheckIntervalMs,
+                githubWebBaseUrl, openStreetMapBaseUrl, doctorCheckTimeoutMs,
+                slowLatencyThresholdMs, expectedForkCapabilities, probeTimeoutMs,
+                voiceServiceTimeoutMs, ttsInitTimeoutMs,
+                DEFAULT_VOICE_MODEL_RELEASE_TIMEOUT_MS, DEFAULT_HTTP_MAX_REDIRECTS);
+    }
+
+    public HermesConfig(int httpConnectTimeoutMs, int httpReadTimeoutMs, int httpJsonMaxBytes, int httpEventMaxBytes,
+                        int nearbyTimeoutMs, int nearbyFusedGraceMs, long artifactDefaultMaxBytes,
+                        long artifactHardMaxBytes, int diagnosticsRingCapacity, int threadPageSize, int maxReconnects,
+                        String updateRepo, String updateApiBase, long updateMaxApkBytes, long updateCheckIntervalMs,
+                        String githubWebBaseUrl, String openStreetMapBaseUrl, int doctorCheckTimeoutMs,
+                        int slowLatencyThresholdMs, int expectedForkCapabilities, int probeTimeoutMs,
+                        int voiceServiceTimeoutMs, int ttsInitTimeoutMs,
+                        int voiceModelReleaseTimeoutMs, int httpMaxRedirects) {
         if (httpConnectTimeoutMs <= 0 || httpReadTimeoutMs <= 0 || httpJsonMaxBytes <= 0 || httpEventMaxBytes <= 0) {
             throw new IllegalArgumentException("HTTP bounds must be positive");
         }
@@ -120,7 +144,7 @@ public final class HermesConfig {
         if (artifactDefaultMaxBytes <= 0 || artifactHardMaxBytes < artifactDefaultMaxBytes) {
             throw new IllegalArgumentException("Artifact byte limits must be positive and ordered");
         }
-        if (diagnosticsRingCapacity <= 0 || threadPageSize <= 0 || maxReconnects < 0) {
+        if (diagnosticsRingCapacity <= 0 || threadPageSize <= 0 || maxReconnects < 0 || httpMaxRedirects < 0) {
             throw new IllegalArgumentException("Operational bounds must be valid");
         }
         String cleanRepo = updateRepo == null ? "" : updateRepo.trim();
@@ -136,7 +160,8 @@ public final class HermesConfig {
         if (updateMaxApkBytes <= 0 || updateCheckIntervalMs <= 0
                 || doctorCheckTimeoutMs <= 0 || slowLatencyThresholdMs <= 0
                 || expectedForkCapabilities <= 0 || probeTimeoutMs <= 0
-                || voiceServiceTimeoutMs <= 0 || ttsInitTimeoutMs <= 0) {
+                || voiceServiceTimeoutMs <= 0 || ttsInitTimeoutMs <= 0
+                || voiceModelReleaseTimeoutMs <= 0) {
             throw new IllegalArgumentException("Operational timeouts and thresholds must be positive");
         }
         this.httpConnectTimeoutMs = httpConnectTimeoutMs;
@@ -162,6 +187,8 @@ public final class HermesConfig {
         this.probeTimeoutMs = probeTimeoutMs;
         this.voiceServiceTimeoutMs = voiceServiceTimeoutMs;
         this.ttsInitTimeoutMs = ttsInitTimeoutMs;
+        this.voiceModelReleaseTimeoutMs = voiceModelReleaseTimeoutMs;
+        this.httpMaxRedirects = httpMaxRedirects;
     }
 
     private static String stripTrailingSlash(String url) {
@@ -227,7 +254,9 @@ public final class HermesConfig {
                     res.getInteger(R.integer.hermes_expected_fork_capabilities),
                     res.getInteger(R.integer.hermes_probe_timeout_ms),
                     res.getInteger(R.integer.hermes_voice_service_timeout_ms),
-                    res.getInteger(R.integer.hermes_tts_init_timeout_ms));
+                    res.getInteger(R.integer.hermes_tts_init_timeout_ms),
+                    res.getInteger(R.integer.hermes_voice_model_release_timeout_ms),
+                    res.getInteger(R.integer.hermes_http_max_redirects));
         });
     }
 

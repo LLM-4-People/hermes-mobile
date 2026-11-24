@@ -114,6 +114,58 @@ public final class GithubReleaseClientTest {
     }
 
     @Test
+    public void releaseClientAndApkInstallerRespectConfiguredHttpMaxRedirects() throws Exception {
+        HermesConfig oneRedirect = new HermesConfig(
+                1000, 2000, 65536, 65536, 3000, 500, 4096, 8192, 10, 20, 2,
+                HermesConfig.DEFAULT_UPDATE_REPO, HermesConfig.DEFAULT_UPDATE_API_BASE,
+                HermesConfig.DEFAULT_UPDATE_MAX_APK_BYTES, HermesConfig.DEFAULT_UPDATE_CHECK_INTERVAL_MS,
+                HermesConfig.DEFAULT_GITHUB_WEB_BASE_URL, HermesConfig.DEFAULT_OSM_BASE_URL,
+                HermesConfig.DEFAULT_DOCTOR_CHECK_TIMEOUT_MS, HermesConfig.DEFAULT_SLOW_LATENCY_THRESHOLD_MS,
+                HermesConfig.DEFAULT_EXPECTED_FORK_CAPABILITIES, HermesConfig.DEFAULT_PROBE_TIMEOUT_MS,
+                HermesConfig.DEFAULT_VOICE_SERVICE_TIMEOUT_MS, HermesConfig.DEFAULT_TTS_INIT_TIMEOUT_MS,
+                HermesConfig.DEFAULT_VOICE_MODEL_RELEASE_TIMEOUT_MS, 1);
+
+        String hop0 = "https://github.com/LLM-4-People/hermes-mobile/releases/download/v1.0.0/SHA256SUMS";
+        String hop1 = "https://objects.githubusercontent.com/hop1";
+        String hop2 = "https://objects.githubusercontent.com/hop2";
+        GithubReleaseClient client = new GithubReleaseClient(oneRedirect, (url, accept, max) -> {
+            if (hop0.equals(url)) return new GithubReleaseClient.Response(302, hop1, new byte[0]);
+            if (hop1.equals(url)) return new GithubReleaseClient.Response(302, hop2, new byte[0]);
+            return new GithubReleaseClient.Response(200, null, "ok".getBytes(StandardCharsets.UTF_8));
+        });
+        try {
+            client.fetchAllowedBytes(hop0, "application/octet-stream", 1024);
+            fail("Expected Too many redirects when hops exceed config.httpMaxRedirects=1");
+        } catch (IOException expected) {
+            assertTrue(expected.getMessage().contains("Too many redirects"));
+        }
+
+        byte[] apkBytes = "PK\003\004apk".getBytes(StandardCharsets.UTF_8);
+        String hex = sha256(apkBytes);
+        ApkUpdateInstaller.StreamSource redirectingSource = url -> {
+            if (hop0.equals(url)) return new ApkUpdateInstaller.StreamResponse(302, hop1, -1L, null);
+            return new ApkUpdateInstaller.StreamResponse(200, null, apkBytes.length, new ByteArrayInputStream(apkBytes));
+        };
+        File updatesDir = tmp.newFolder("redirect-test");
+        try {
+            ApkUpdateInstaller.downloadAndVerifyChecksum(
+                    redirectingSource, hop0, hex, updatesDir, "hermes-update-v1.0.0.apk",
+                    apkBytes.length, 4096, 0, null, new AtomicBoolean(false));
+            fail("Expected redirect rejection when maxRedirects=0");
+        } catch (IOException expected) {
+            assertTrue(expected.getMessage().contains("Too many redirects"));
+        }
+        try {
+            ApkUpdateInstaller.downloadAndVerifyChecksum(
+                    redirectingSource, hop0, hex, updatesDir, "hermes-update-v1.0.0.apk",
+                    apkBytes.length, 4096, -1, null, new AtomicBoolean(false));
+            fail("Expected IllegalArgumentException for negative maxRedirects");
+        } catch (IllegalArgumentException expected) {
+            // ok
+        }
+    }
+
+    @Test
     public void prefersExactVersionedApkOverGenericAndRejectsUnsignedVariants() throws Exception {
         assertEquals("hermes-mobile-v0.3.0.apk", GithubReleaseClient.preferredApkName("v0.3.0"));
         assertEquals("hermes-mobile-v0.3.0-rc.1.apk", GithubReleaseClient.preferredApkName("0.3.0-rc.1"));

@@ -2,7 +2,6 @@ package org.llm4people.hermes.customization;
 
 import android.content.Context;
 import android.content.res.ColorStateList;
-import android.content.res.Configuration;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.StateListDrawable;
 import android.view.Gravity;
@@ -657,8 +656,7 @@ public final class InteractiveCardView extends LinearLayout {
 
     private void renderCustomizationPreview(Context context) {
         AppCustomization proposed = spec.proposedCustomization;
-        boolean night = (context.getResources().getConfiguration().uiMode
-                & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
+        boolean night = org.llm4people.hermes.artifact.ThemePalette.isNight(context);
         int accentArgb = night ? proposed.darkAccentArgb() : proposed.lightAccentArgb();
         int onAccentArgb = AppCustomization.onAccentArgb(accentArgb);
 
@@ -867,22 +865,6 @@ public final class InteractiveCardView extends LinearLayout {
     }
 
     private static long parseLongVal(Object value) {
-        if (value instanceof Number n) {
-            long raw = n.longValue();
-            return raw > 10_000_000_000L ? raw / 1000L : Math.max(0L, raw);
-        }
-        if (value instanceof String s && !s.trim().isEmpty()) {
-            try {
-                return java.time.Instant.parse(s.trim()).getEpochSecond();
-            } catch (RuntimeException ignored) {
-                try {
-                    long parsed = Long.parseLong(s.trim());
-                    return parsed > 10_000_000_000L ? parsed / 1000L : Math.max(0L, parsed);
-                } catch (NumberFormatException ignored2) {
-                    return 0L;
-                }
-            }
-        }
-        return 0L;
+        return org.llm4people.hermes.EpochTimestamps.parseEpochSeconds(value);
     }
 }

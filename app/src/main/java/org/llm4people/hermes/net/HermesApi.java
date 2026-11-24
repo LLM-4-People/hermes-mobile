@@ -20,14 +20,22 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class HermesApi {
     public static final class Limits {
         public final int connectTimeoutMs, readTimeoutMs, jsonBytes, eventBytes;
+        public final long artifactDefaultMaxBytes;
+
         public Limits(int connectTimeoutMs, int readTimeoutMs, int jsonBytes, int eventBytes) {
-            if (Math.min(Math.min(connectTimeoutMs, readTimeoutMs), Math.min(jsonBytes, eventBytes)) <= 0) {
+            this(connectTimeoutMs, readTimeoutMs, jsonBytes, eventBytes, HermesConfig.DEFAULT_ARTIFACT_MAX_BYTES);
+        }
+
+        public Limits(int connectTimeoutMs, int readTimeoutMs, int jsonBytes, int eventBytes, long artifactDefaultMaxBytes) {
+            if (Math.min(Math.min(connectTimeoutMs, readTimeoutMs), Math.min(jsonBytes, eventBytes)) <= 0
+                    || artifactDefaultMaxBytes <= 0) {
                 throw new IllegalArgumentException("Transport bounds must be positive");
             }
             this.connectTimeoutMs = connectTimeoutMs;
             this.readTimeoutMs = readTimeoutMs;
             this.jsonBytes = jsonBytes;
             this.eventBytes = eventBytes;
+            this.artifactDefaultMaxBytes = artifactDefaultMaxBytes;
         }
         public static Limits defaults() {
             return from(HermesConfig.defaults());
@@ -35,7 +43,8 @@ public final class HermesApi {
 
         public static Limits from(HermesConfig config) {
             HermesConfig cfg = config == null ? HermesConfig.defaults() : config;
-            return new Limits(cfg.httpConnectTimeoutMs, cfg.httpReadTimeoutMs, cfg.httpJsonMaxBytes, cfg.httpEventMaxBytes);
+            return new Limits(cfg.httpConnectTimeoutMs, cfg.httpReadTimeoutMs,
+                    cfg.httpJsonMaxBytes, cfg.httpEventMaxBytes, cfg.artifactDefaultMaxBytes);
         }
     }
 
@@ -198,7 +207,7 @@ public final class HermesApi {
         if (boundary == null || !visibleAscii(boundary) || body == null || body.length == 0) {
             throw new IllegalArgumentException("Invalid multipart payload");
         }
-        long maxUpload = Math.max(limits.jsonBytes, HermesConfig.defaults().artifactDefaultMaxBytes + 4096L);
+        long maxUpload = Math.max(limits.jsonBytes, limits.artifactDefaultMaxBytes + 4096L);
         if (body.length > maxUpload) throw new IOException("Upload exceeded the byte limit");
         HttpURLConnection http = connection(path, "POST", "application/json");
         trackConnection(http);

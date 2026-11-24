@@ -140,7 +140,7 @@ public class HermesOsPrivacyAndWidgetTest {
         assertEquals("Brouillon Bob", store.draftForAction("bob_brief", 0, "profile-bob"));
     }
 
-    @Test public void widgetStoreHandlesMultiInstanceBindingLiveUpdateRemovalAndCorruptRows() {
+    @Test public void widgetStoreHandlesMultiInstanceBindingLiveUpdateRemovalAndCorruptRows() throws Exception {
         MemoryBacking backing = new MemoryBacking();
         HermesWidgetStore store = new HermesWidgetStore(backing);
 
@@ -180,7 +180,47 @@ public class HermesOsPrivacyAndWidgetTest {
         store.upsertSpec(v2);
         assertEquals("Après-midi", store.specForInstance(101).title);
         assertEquals("Après-midi", store.specForInstance(102).title);
-        assertEquals("☐ Appeler Marie · 14h", v2.formattedItemLine(v2.items.get(0)));
+        assertEquals("Appeler Marie · 14h", v2.formattedItemLine(v2.items.get(0)));
+        assertFalse(v2.items.get(0).checked());
+
+        // Checklist checked state round-trips through encode/decode without Unicode box/check prefixes.
+        HermesWidgetSpec checklistSpec = new HermesWidgetSpec(
+                "tasks_today", "Tâches", "", HermesWidgetSpec.Template.CHECKLIST,
+                Arrays.asList(
+                        new HermesWidgetSpec.Item("Envoyer le rapport", "", "", true),
+                        new HermesWidgetSpec.Item("Appeler Paul", "15h", "", false)),
+                "#1B5E50", true, "profile-a");
+        HermesWidgetSpec decodedChecklist = HermesWidgetSpec.decode(checklistSpec.encode());
+        assertEquals(2, decodedChecklist.items.size());
+        assertTrue(decodedChecklist.items.get(0).checked());
+        assertFalse(decodedChecklist.items.get(1).checked());
+        assertEquals("Envoyer le rapport", decodedChecklist.formattedItemLine(decodedChecklist.items.get(0)));
+        assertEquals("Appeler Paul · 15h", decodedChecklist.formattedItemLine(decodedChecklist.items.get(1)));
+
+        // Legacy 3-column v2 records decode cleanly with checked=false, while invalid flag rejects.
+        String legacyThreeCol = checklistSpec.encode().replace("\t1", "").replace("\t0", "");
+        assertFalse(HermesWidgetSpec.decode(legacyThreeCol).items.get(0).checked());
+        try {
+            HermesWidgetSpec.decode(checklistSpec.encode().replace("\t1", "\t2"));
+            fail("Expected invalid checked flag rejection");
+        } catch (IllegalArgumentException expected) {
+            // ok
+        }
+
+        // HomePinBridge preserves checked boolean cleanly without prepending "✓ ".
+        org.llm4people.hermes.artifact.LiveUiPatch.WidgetSpec liveSpec =
+                new org.llm4people.hermes.artifact.LiveUiPatch.WidgetSpec(
+                        "chk_1", "Courses", "", "checklist",
+                        Arrays.asList(
+                                new org.llm4people.hermes.artifact.LiveUiPatch.WidgetItem("Lait", "", Boolean.TRUE, ""),
+                                new org.llm4people.hermes.artifact.LiveUiPatch.WidgetItem("Pain", "", Boolean.FALSE, "")),
+                        "#1B5E50", true, false);
+        HermesWidgetSpec converted = org.llm4people.hermes.artifact.HomePinBridge.toOsWidgetSpec(liveSpec, "profile-a");
+        assertNotNull(converted);
+        assertEquals("Lait", converted.items.get(0).label());
+        assertTrue(converted.items.get(0).checked());
+        assertEquals("Pain", converted.items.get(1).label());
+        assertFalse(converted.items.get(1).checked());
 
         // Unbinding one instance keeps the other intact.
         store.unbindInstance(101);

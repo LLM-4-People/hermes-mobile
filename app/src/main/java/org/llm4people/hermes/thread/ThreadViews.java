@@ -1046,9 +1046,7 @@ public final class ThreadViews {
             boolean markdown = chat && "assistant".equals(role);
             String rawReasoning = markdown ? ThreadData.string(row, "reasoning") : "";
             int pageLimit = chat ? TranscriptPage.PAGE_CHARS : 300;
-            boolean night = (getContext().getResources().getConfiguration().uiMode
-                    & android.content.res.Configuration.UI_MODE_NIGHT_MASK)
-                    == android.content.res.Configuration.UI_MODE_NIGHT_YES;
+            boolean night = ThemePalette.isNight(getContext());
             ThreadData.RowId rid = ThreadData.rowId(row);
             String rowKey = rid == null ? (role + "#" + (chat ? "c" : "i")) : (rid.segment() + ":" + rid.id());
             final String rowContent = content;

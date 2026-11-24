@@ -261,6 +261,30 @@ public final class VoiceDraftsTest extends InstrumentationTestCase {
         });
     }
 
+    public void testResumeClearsStalePermissionDeniedBannerOnceMicrophoneGranted() throws Throwable {
+        runTestOnUiThread(() -> {
+            input.allowed = false;
+            controls.button.performClick();
+            assertTrue(input.requested > 0);
+            assertTrue(voice.permissionResult(
+                    input.requested,
+                    new String[]{Manifest.permission.RECORD_AUDIO},
+                    new int[]{PackageManager.PERMISSION_DENIED}));
+            status(R.string.voice_permission_denied);
+
+            // While still denied, resume keeps the banner intact.
+            voice.pause();
+            voice.resume();
+            status(R.string.voice_permission_denied);
+
+            // Once permission is granted externally in Android Settings, resume clears the stale banner.
+            voice.pause();
+            input.allowed = true;
+            voice.resume();
+            assertEquals(View.GONE, controls.feedback.getVisibility());
+        });
+    }
+
     public void testLocalDownloadFailureKeepsSystemConsentAndIgnoresLateCompletion() throws Throwable {
         if (Build.VERSION.SDK_INT < 33) return;
         runTestOnUiThread(() -> {

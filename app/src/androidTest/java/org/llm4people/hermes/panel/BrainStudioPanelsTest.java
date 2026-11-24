@@ -217,6 +217,161 @@ public final class BrainStudioPanelsTest extends InstrumentationTestCase {
         }
     }
 
+    public void testNotesPanelDeepLinkOneShotUnknownBlankAndLoadErrorPreservation() throws Throwable {
+        if (Build.VERSION.SDK_INT < 29) return;
+        Context app = getInstrumentation().getTargetContext();
+        Activity activity = getInstrumentation().startActivitySync(
+                app.getPackageManager().getLaunchIntentForPackage(app.getPackageName()));
+        String caps = "{\"features\":{\"smart_notes\":true}}";
+        String notesJson = """
+                {"notes":[
+                  {"id":"n-1","title":"Plan produit","content":"Contenu détaillé de la note cible","tags":["produit"],"pinned":false,"permission":"owner"},
+                  {"id":"n-2","title":"Courses","content":"Pain et lait","tags":[],"pinned":false,"permission":"owner"}]}
+                """;
+        String refreshedNotesJson = """
+                {"notes":[
+                  {"id":"n-1","title":"Plan produit v2","content":"Contenu détaillé de la note cible","tags":["produit"],"pinned":false,"permission":"owner"},
+                  {"id":"n-2","title":"Courses","content":"Pain et lait","tags":[],"pinned":false,"permission":"owner"}]}
+                """;
+        // 1) Matching initialNoteId opens CodeReader once and does NOT reopen on refresh (one-shot);
+        // 2) unknown/blank IDs render list cleanly with no CodeReader dialog;
+        // 3) server 500 error keeps error + Retry visible even when typing in the filter field.
+        try (MultiStatusServer gateway = new MultiStatusServer(
+                new String[]{
+                        "200 OK", "200 OK",
+                        "200 OK", "200 OK",
+                        "200 OK", "200 OK",
+                        "200 OK", "200 OK",
+                        "200 OK", "500 Internal Server Error"
+                },
+                new String[]{
+                        caps, notesJson,
+                        caps, refreshedNotesJson,
+                        caps, notesJson,
+                        caps, notesJson,
+                        caps, "{\"error\":\"boom\"}"
+                });
+             WorkspaceAccountFixture profile = new WorkspaceAccountFixture(app, gateway.endpoint())) {
+            SessionPanel panel = new SessionPanel(activity, new HermesApi(gateway.endpoint(), "test"), profile.account);
+            String readerMarker = activity.getString(R.string.code_copy_content);
+            try {
+                // Positive + one-shot: initialNoteId opens target note CodeReader dialog directly;
+                // dismissing ONLY the CodeReader dialog and refreshing must NOT re-open CodeReader.
+                runTestOnUiThread(() -> panel.showNotes(() -> true, draft -> {}, null, "n-1"));
+                assertTextVisible(readerMarker);
+                assertTextVisible("Contenu détaillé de la note cible");
+                clickVisibleButtonInWindow(readerMarker, activity.getString(R.string.ws_close));
+                waitUntilTextNotVisible(readerMarker);
+                clickVisibleButton(activity.getString(R.string.panel_refresh));
+                assertTextVisible("Plan produit v2");
+                assertTextNotVisible(readerMarker);
+                runTestOnUiThread(panel::close);
+
+                // Negative: unknown initialNoteId shows notes list without opening CodeReader or crashing.
+                runTestOnUiThread(() -> panel.showNotes(() -> true, draft -> {}, null, "missing-id"));
+                assertTextVisible("Plan produit");
+                assertTextVisible("Courses");
+                assertTextNotVisible(readerMarker);
+                runTestOnUiThread(panel::close);
+
+                // Negative: blank initialNoteId renders list cleanly without opening CodeReader.
+                runTestOnUiThread(() -> panel.showNotes(() -> true, draft -> {}, null, "   "));
+                assertTextVisible("Plan produit");
+                assertTextNotVisible(readerMarker);
+                runTestOnUiThread(panel::close);
+
+                // Negative: HTTP 500 failure + Retry stays visible when user types in filter field.
+                runTestOnUiThread(() -> panel.showNotes(() -> true, draft -> {}, null, "n-1"));
+                assertTextVisible(activity.getString(R.string.panel_retry));
+                assertTextNotVisible(readerMarker);
+                runTestOnUiThread(() -> {
+                    for (View root : WindowInspector.getGlobalWindowViews()) {
+                        View filter = root.findViewById(R.id.brain_notes_filter);
+                        if (filter instanceof android.widget.EditText et) {
+                            et.setText("plan");
+                            break;
+                        }
+                    }
+                });
+                assertTextVisible(activity.getString(R.string.panel_retry));
+                assertTextNotVisible(readerMarker);
+            } finally {
+                runTestOnUiThread(panel::close);
+            }
+        } finally {
+            runTestOnUiThread(activity::finish);
+        }
+    }
+
+    private void clickVisibleButton(String label) throws Throwable {
+        clickVisibleButtonInWindow(null, label);
+    }
+
+    private void clickVisibleButtonInWindow(String windowMarker, String label) throws Throwable {
+        long deadline = SystemClock.elapsedRealtime() + 8000;
+        while (SystemClock.elapsedRealtime() < deadline) {
+            boolean[] clicked = {false};
+            runTestOnUiThread(() -> {
+                List<View> roots = WindowInspector.getGlobalWindowViews();
+                for (int i = roots.size() - 1; i >= 0; i--) {
+                    View root = roots.get(i);
+                    if (windowMarker != null && !windowContainsText(root, windowMarker)) continue;
+                    for (android.widget.Button btn : findAll(root, android.widget.Button.class)) {
+                        if (btn.isShown() && btn.getText() != null
+                                && label.equalsIgnoreCase(btn.getText().toString().trim())) {
+                            btn.performClick();
+                            clicked[0] = true;
+                            return;
+                        }
+                    }
+                }
+            });
+            if (clicked[0]) {
+                getInstrumentation().waitForIdleSync();
+                return;
+            }
+            SystemClock.sleep(100);
+        }
+        fail("Expected clickable button: " + label);
+    }
+
+    private void waitUntilTextNotVisible(String unexpected) throws Throwable {
+        long deadline = SystemClock.elapsedRealtime() + 8000;
+        while (SystemClock.elapsedRealtime() < deadline) {
+            getInstrumentation().waitForIdleSync();
+            if (!isTextVisibleNow(unexpected)) return;
+            SystemClock.sleep(100);
+        }
+        fail("Unexpected visible text remained: " + unexpected);
+    }
+
+    private void assertTextNotVisible(String unexpected) throws Throwable {
+        getInstrumentation().waitForIdleSync();
+        assertFalse("Unexpected visible text: " + unexpected, isTextVisibleNow(unexpected));
+    }
+
+    private boolean isTextVisibleNow(String needle) throws Throwable {
+        boolean[] found = {false};
+        runTestOnUiThread(() -> {
+            for (View root : WindowInspector.getGlobalWindowViews()) {
+                if (windowContainsText(root, needle)) {
+                    found[0] = true;
+                    return;
+                }
+            }
+        });
+        return found[0];
+    }
+
+    private static boolean windowContainsText(View root, String needle) {
+        for (TextView tv : findAll(root, TextView.class)) {
+            if (tv.isShown() && tv.getText() != null && tv.getText().toString().contains(needle)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private void assertTextVisible(String expected) throws Throwable {
         long deadline = SystemClock.elapsedRealtime() + 8000;
         while (SystemClock.elapsedRealtime() < deadline) {

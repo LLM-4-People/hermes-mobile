@@ -64,11 +64,11 @@ public final class HomePinBridge {
             for (LiveUiPatch.WidgetItem item : spec.items) {
                 if (items.size() >= HermesWidgetSpec.MAX_ITEMS) break;
                 if (item == null) continue;
-                String label = Boolean.TRUE.equals(item.checked) ? "✓ " + item.label : item.label;
                 items.add(new HermesWidgetSpec.Item(
-                        label,
+                        item.label,
                         item.value == null ? "" : item.value,
-                        item.actionDraft == null ? "" : item.actionDraft));
+                        item.actionDraft == null ? "" : item.actionDraft,
+                        Boolean.TRUE.equals(item.checked)));
             }
         }
         try {

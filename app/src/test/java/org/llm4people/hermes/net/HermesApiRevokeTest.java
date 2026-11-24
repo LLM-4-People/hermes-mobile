@@ -15,6 +15,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -24,6 +25,30 @@ import static org.junit.Assert.fail;
  * and rejects subsequent calls fail-closed.
  */
 public final class HermesApiRevokeTest {
+
+    @Test
+    public void limitsCarriesConfiguredArtifactByteCeilingAndPostMultipartEnforcesIt() {
+        org.llm4people.hermes.HermesConfig tight = new org.llm4people.hermes.HermesConfig(
+                1000, 2000, 512, 512, 3000, 500, 1024L, 2048L, 10, 20, 2);
+        HermesApi.Limits limits = HermesApi.Limits.from(tight);
+        assertEquals(1024L, limits.artifactDefaultMaxBytes);
+
+        HermesApi api = new HermesApi("http://127.0.0.1:18099", "test-bearer", limits);
+        byte[] oversized = new byte[1024 + 4096 + 1];
+        try {
+            api.postMultipart("/api/upload", "boundary123", oversized);
+            fail("Expected postMultipart to reject payload exceeding configured artifactDefaultMaxBytes");
+        } catch (IOException expected) {
+            assertTrue(expected.getMessage().contains("byte limit"));
+        }
+
+        try {
+            new HermesApi.Limits(1000, 1000, 1024, 1024, 0L);
+            fail("Expected rejection for non-positive artifactDefaultMaxBytes");
+        } catch (IllegalArgumentException expected) {
+            // ok
+        }
+    }
 
     @Test
     public void revokeImmediatelyAbortsInFlightDownloadAndBlocksNewCalls() throws Exception {
