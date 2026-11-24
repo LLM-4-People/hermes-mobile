@@ -42,8 +42,6 @@ public final class AdaptiveLifecycleTest extends InstrumentationTestCase {
 
     public void testInPlaceConfigurationChangeKeepsUnlockedWorkspaceAndDraftIntact() throws Throwable {
         Context context = getInstrumentation().getTargetContext();
-        MainActivity activity = (MainActivity) getInstrumentation().startActivitySync(
-                context.getPackageManager().getLaunchIntentForPackage(context.getPackageName()));
         String transcript = new JSONObject()
                 .put("thread_id", "root")
                 .put("session_id", "root")
@@ -52,46 +50,52 @@ public final class AdaptiveLifecycleTest extends InstrumentationTestCase {
                 .put("has_more", false)
                 .put("total", 0)
                 .toString();
-        try (Exchange server = new Exchange("200 OK", "Content-Type: application/json\r\n", transcript,
-                "{\"data\":[],\"has_more\":false}");
-             WorkspaceAccountFixture fixture = new WorkspaceAccountFixture(context, server.endpoint())) {
-            fixture.account.write("last-thread", "root");
-            Method open = MainActivity.class.getDeclaredMethod("opened", Account.class);
-            open.setAccessible(true);
-            Field threadsField = MainActivity.class.getDeclaredField("threads");
-            threadsField.setAccessible(true);
-            try {
-                runTestOnUiThread(() -> {
-                    try { open.invoke(activity, fixture.account); }
-                    catch (ReflectiveOperationException error) { throw new AssertionError(error); }
-                });
-                getInstrumentation().waitForIdleSync();
-                runTestOnUiThread(() -> {
-                    try {
-                        ThreadWorkspace before = (ThreadWorkspace) threadsField.get(activity);
-                        assertNotNull(before);
-                        EditText composer = findComposer(activity.getWindow().getDecorView());
-                        assertNotNull(composer);
-                        composer.setText("Brouillon conservé après rotation");
-                        composer.setSelection(10, 18);
+        try {
+            try (Exchange server = new Exchange("200 OK", "Content-Type: application/json\r\n", transcript,
+                    "{\"data\":[],\"has_more\":false}");
+                 WorkspaceAccountFixture fixture = new WorkspaceAccountFixture(context, server.endpoint())) {
+                fixture.account.write("last-thread", "root");
+                Method open = MainActivity.class.getDeclaredMethod("opened", Account.class);
+                open.setAccessible(true);
+                Field threadsField = MainActivity.class.getDeclaredField("threads");
+                threadsField.setAccessible(true);
+                MainActivity activity = (MainActivity) getInstrumentation().startActivitySync(
+                        context.getPackageManager().getLaunchIntentForPackage(context.getPackageName()));
+                try {
+                    runTestOnUiThread(() -> {
+                        try { open.invoke(activity, fixture.account); }
+                        catch (ReflectiveOperationException error) { throw new AssertionError(error); }
+                    });
+                    getInstrumentation().waitForIdleSync();
+                    runTestOnUiThread(() -> {
+                        try {
+                            ThreadWorkspace before = (ThreadWorkspace) threadsField.get(activity);
+                            assertNotNull(before);
+                            EditText composer = findComposer(activity.getWindow().getDecorView());
+                            assertNotNull(composer);
+                            composer.setText("Brouillon conservé après rotation");
+                            composer.setSelection(10, 18);
 
-                        Configuration next = new Configuration(activity.getResources().getConfiguration());
-                        next.orientation = next.orientation == Configuration.ORIENTATION_LANDSCAPE
-                                ? Configuration.ORIENTATION_PORTRAIT : Configuration.ORIENTATION_LANDSCAPE;
-                        activity.onConfigurationChanged(next);
+                            Configuration next = new Configuration(activity.getResources().getConfiguration());
+                            next.orientation = next.orientation == Configuration.ORIENTATION_LANDSCAPE
+                                    ? Configuration.ORIENTATION_PORTRAIT : Configuration.ORIENTATION_LANDSCAPE;
+                            activity.onConfigurationChanged(next);
 
-                        assertSame(before, threadsField.get(activity));
-                        assertSame(composer, findComposer(activity.getWindow().getDecorView()));
-                        assertEquals("Brouillon conservé après rotation", composer.getText().toString());
-                        assertEquals(10, composer.getSelectionStart());
-                        assertEquals(18, composer.getSelectionEnd());
-                    } catch (IllegalAccessException error) {
-                        throw new AssertionError(error);
-                    }
-                });
-            } finally {
-                ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+                            assertSame(before, threadsField.get(activity));
+                            assertSame(composer, findComposer(activity.getWindow().getDecorView()));
+                            assertEquals("Brouillon conservé après rotation", composer.getText().toString());
+                            assertEquals(10, composer.getSelectionStart());
+                            assertEquals(18, composer.getSelectionEnd());
+                        } catch (IllegalAccessException error) {
+                            throw new AssertionError(error);
+                        }
+                    });
+                } finally {
+                    ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+                }
             }
+        } finally {
+            Diagnostics.clear();
         }
     }
 

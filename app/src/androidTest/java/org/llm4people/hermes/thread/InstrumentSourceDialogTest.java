@@ -10,6 +10,7 @@ import android.widget.AdapterView;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.llm4people.hermes.ActivityTestLifecycle;
+import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.MainActivity;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.artifact.ThreadInstruments;
@@ -36,52 +37,63 @@ public final class InstrumentSourceDialogTest extends InstrumentationTestCase {
 
     private void exercise(boolean pinned) throws Throwable {
         Context app = getInstrumentation().getTargetContext();
-        activity = (MainActivity) getInstrumentation().startActivitySync(
-                app.getPackageManager().getLaunchIntentForPackage(app.getPackageName()));
-        try (WorkspaceAccountFixture profile = new WorkspaceAccountFixture(app)) {
-            transcript = transcript("Relecture");
-            JSONArray changed = transcript("Nouvelle relecture");
-            ThreadInstruments store = new ThreadInstruments(profile.account, "root");
-            original = store.proposals(transcript).get(0);
-            if (pinned) store.pin(store.state(), original, transcript);
-            runTestOnUiThread(() -> {
-                VoiceDrafts voice = new VoiceDrafts(activity);
-                workspace = new ThreadWorkspace(activity, null, profile.account, activity, voice);
-                ThreadViews screen = new ThreadViews(activity, voice);
-                workspace.screen = screen;
-                screen.chat("", s -> {}, () -> fail("Unexpected send"), () -> {}, () -> {});
-                panel = new ThreadInstrumentPanel(workspace, store, activity);
-                screen.instruments = panel;
-                activity.setContentView(screen.root);
-            });
-            openReader(pinned);
-            runTestOnUiThread(() -> {
-                panel.proposals(transcript);
-                assertTrue(sourceVisible());
-                panel.proposals(changed);
-                assertEquals(pinned, sourceVisible());
-                if (pinned) {
-                    assertEquals(original.pageJson, store.state().current.pageJson);
-                    assertTrue(panel.close());
-                    assertFalse(sourceVisible());
+        workspace = null;
+        panel = null;
+        try {
+            try (WorkspaceAccountFixture profile = new WorkspaceAccountFixture(app)) {
+                activity = (MainActivity) getInstrumentation().startActivitySync(
+                        app.getPackageManager().getLaunchIntentForPackage(app.getPackageName()));
+                try {
+                    transcript = transcript("Relecture");
+                    JSONArray changed = transcript("Nouvelle relecture");
+                    ThreadInstruments store = new ThreadInstruments(profile.account, "root");
+                    original = store.proposals(transcript).get(0);
+                    if (pinned) store.pin(store.state(), original, transcript);
+                    runTestOnUiThread(() -> {
+                        VoiceDrafts voice = new VoiceDrafts(activity);
+                        workspace = new ThreadWorkspace(activity, null, profile.account, activity, voice);
+                        ThreadViews screen = new ThreadViews(activity, voice);
+                        workspace.screen = screen;
+                        screen.chat("", s -> {}, () -> fail("Unexpected send"), () -> {}, () -> {});
+                        panel = new ThreadInstrumentPanel(workspace, store, activity);
+                        screen.instruments = panel;
+                        activity.setContentView(screen.root);
+                    });
+                    openReader(pinned);
+                    runTestOnUiThread(() -> {
+                        panel.proposals(transcript);
+                        assertTrue(sourceVisible());
+                        panel.proposals(changed);
+                        assertEquals(pinned, sourceVisible());
+                        if (pinned) {
+                            assertEquals(original.pageJson, store.state().current.pageJson);
+                            assertTrue(panel.close());
+                            assertFalse(sourceVisible());
+                        }
+                    });
+                    openReader(pinned);
+                    runTestOnUiThread(() -> {
+                        AlertDialog unrelated = workspace.screen.show(new AlertDialog.Builder(activity)
+                                .setTitle("Autre dialogue"));
+                        panel.proposals(new JSONArray());
+                        panel.retire();
+                        assertTrue(unrelated.isShowing());
+                    });
+                } finally {
+                    try {
+                        runTestOnUiThread(() -> {
+                            if (workspace != null) {
+                                workspace.close();
+                                workspace = null;
+                            }
+                        });
+                    } finally {
+                        ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+                    }
                 }
-            });
-            openReader(pinned);
-            runTestOnUiThread(() -> {
-                AlertDialog unrelated = workspace.screen.show(new AlertDialog.Builder(activity)
-                        .setTitle("Autre dialogue"));
-                panel.proposals(new JSONArray());
-                panel.retire();
-                assertTrue(unrelated.isShowing());
-            });
-        } finally {
-            try {
-                runTestOnUiThread(() -> {
-                    if (workspace != null) workspace.close();
-                });
-            } finally {
-                ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
             }
+        } finally {
+            Diagnostics.clear();
         }
     }
 

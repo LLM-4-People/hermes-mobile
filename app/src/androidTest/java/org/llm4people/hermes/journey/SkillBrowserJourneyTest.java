@@ -13,6 +13,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import org.json.JSONArray;
 import org.llm4people.hermes.ActivityTestLifecycle;
+import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.MainActivity;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.net.Exchange;
@@ -35,65 +36,75 @@ public final class SkillBrowserJourneyTest extends InstrumentationTestCase {
     public void testRefreshSearchAndSelectionStageOnlyIntoTheOriginalDraft() throws Throwable {
         if (Build.VERSION.SDK_INT < 29) return;
         Context app = getInstrumentation().getTargetContext();
-        MainActivity activity = (MainActivity) getInstrumentation().startActivitySync(app.getPackageManager()
-                .getLaunchIntentForPackage(app.getPackageName()));
         String transcript = ThreadNoticeContinuityTest.transcript("discussion", "discussion", "Relecture", new JSONArray());
-        try (Exchange gateway = new Exchange("200 OK", JSON, transcript, CAPS, EMPTY, EMPTY, CATALOG);
-             WorkspaceAccountFixture profile = new WorkspaceAccountFixture(app, gateway.endpoint())) {
-            try {
+        try {
+            try (Exchange gateway = new Exchange("200 OK", JSON, transcript, CAPS, EMPTY, EMPTY, CATALOG);
+                 WorkspaceAccountFixture profile = new WorkspaceAccountFixture(app, gateway.endpoint())) {
                 profile.account.write("last-thread", "discussion");
                 String policy = "{\"allowed_toolsets\":[\"skills\"]}";
                 profile.account.write("panel/options/discussion", policy);
                 Method open = MainActivity.class.getDeclaredMethod("opened", Account.class);
                 open.setAccessible(true);
-                runTestOnUiThread(() -> {
-                    try { open.invoke(activity, profile.account); }
-                    catch (ReflectiveOperationException error) { throw new AssertionError(error); }
-                });
-                JourneyUi ui = new JourneyUi(getInstrumentation(), activity, app.getCacheDir());
-                ui.see(activity.getString(R.string.starter_heading));
-                ui.fill(activity.getString(R.string.thread_message_hint), "Mon brouillon");
-                runTestOnUiThread(() -> activity.onAction("models"));
-                ui.tap(activity.getString(R.string.skills_title));
-                ui.see(activity.getString(R.string.skills_empty));
-                ui.tap(activity.getString(R.string.skills_refresh));
-                ui.see("travail/revue");
-                ui.fill(activity.getString(R.string.skills_search), "absente");
-                ui.see(activity.getString(R.string.skills_no_matches));
-                ui.fill(activity.getString(R.string.skills_search), "qualite");
-                ui.tap("travail/revue");
-                ui.contains(activity.getString(R.string.skills_category, "Qualité"), "Vérifier les changements.");
-                ui.tap(activity.getString(R.string.skills_prepare));
-                ui.see("Mon brouillon\n" + activity.getString(R.string.skills_request, "travail/revue"));
-                assertEquals(policy, profile.account.read("panel/options/discussion"));
-                assertEquals(2, gateway.observed().split("GET /p/travail/v1/skills HTTP/", -1).length - 1);
-                assertFalse(gateway.observed().contains("POST "));
-                assertTrue(gateway.observed().contains("Authorization: Bearer fixture"));
-            } finally { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
+                MainActivity activity = (MainActivity) getInstrumentation().startActivitySync(app.getPackageManager()
+                        .getLaunchIntentForPackage(app.getPackageName()));
+                try {
+                    runTestOnUiThread(() -> {
+                        try { open.invoke(activity, profile.account); }
+                        catch (ReflectiveOperationException error) { throw new AssertionError(error); }
+                    });
+                    JourneyUi ui = new JourneyUi(getInstrumentation(), activity, app.getCacheDir());
+                    ui.see(activity.getString(R.string.starter_heading));
+                    ui.fill(activity.getString(R.string.thread_message_hint), "Mon brouillon");
+                    runTestOnUiThread(() -> activity.onAction("models"));
+                    ui.tap(activity.getString(R.string.skills_title));
+                    ui.see(activity.getString(R.string.skills_empty));
+                    ui.tap(activity.getString(R.string.skills_refresh));
+                    ui.see("travail/revue");
+                    ui.fill(activity.getString(R.string.skills_search), "absente");
+                    ui.see(activity.getString(R.string.skills_no_matches));
+                    ui.fill(activity.getString(R.string.skills_search), "qualite");
+                    ui.tap("travail/revue");
+                    ui.contains(activity.getString(R.string.skills_category, "Qualité"), "Vérifier les changements.");
+                    ui.tap(activity.getString(R.string.skills_prepare));
+                    ui.see("Mon brouillon\n" + activity.getString(R.string.skills_request, "travail/revue"));
+                    assertEquals(policy, profile.account.read("panel/options/discussion"));
+                    assertEquals(2, gateway.observed().split("GET /p/travail/v1/skills HTTP/", -1).length - 1);
+                    assertFalse(gateway.observed().contains("POST "));
+                    assertTrue(gateway.observed().contains("Authorization: Bearer fixture"));
+                } finally { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
+            }
+        } finally {
+            Diagnostics.clear();
         }
     }
 
     public void testSkillsSearchAndFirstMatchRemainUsableAboveCompactKeyboards() throws Throwable {
         if (Build.VERSION.SDK_INT < 29) return;
         Context app = getInstrumentation().getTargetContext();
-        MainActivity activity = (MainActivity) getInstrumentation().startActivitySync(app.getPackageManager()
-                .getLaunchIntentForPackage(app.getPackageName()));
-        JourneyUi ui = new JourneyUi(getInstrumentation(), activity, app.getCacheDir());
-        try (WorkspaceAccountFixture profile = new WorkspaceAccountFixture(app)) {
-            for (boolean landscape : new boolean[]{false, true}) {
-                try (Exchange gateway = new Exchange("200 OK", JSON, CAPS, EMPTY, CATALOG)) {
-                    SessionPanel panel = new SessionPanel(activity, new HermesApi(gateway.endpoint(), "test"), profile.account);
-                    try {
-                        runTestOnUiThread(() -> PickerWindow.open(panel, landscape, draft -> fail("Unexpected draft")));
-                        ui.tap(activity.getString(R.string.skills_title));
-                        ui.fill(activity.getString(R.string.skills_search), "qualite");
-                        ui.see("travail/revue");
-                        runTestOnUiThread(() -> checkSearchWindow(landscape));
-                        ui.see(activity.getString(R.string.skills_prepare));
-                    } finally { runTestOnUiThread(panel::close); }
-                }
+        try {
+            try (WorkspaceAccountFixture profile = new WorkspaceAccountFixture(app)) {
+                MainActivity activity = (MainActivity) getInstrumentation().startActivitySync(app.getPackageManager()
+                        .getLaunchIntentForPackage(app.getPackageName()));
+                try {
+                    JourneyUi ui = new JourneyUi(getInstrumentation(), activity, app.getCacheDir());
+                    for (boolean landscape : new boolean[]{false, true}) {
+                        try (Exchange gateway = new Exchange("200 OK", JSON, CAPS, EMPTY, CATALOG)) {
+                            SessionPanel panel = new SessionPanel(activity, new HermesApi(gateway.endpoint(), "test"), profile.account);
+                            try {
+                                runTestOnUiThread(() -> PickerWindow.open(panel, landscape, draft -> fail("Unexpected draft")));
+                                ui.tap(activity.getString(R.string.skills_title));
+                                ui.fill(activity.getString(R.string.skills_search), "qualite");
+                                ui.see("travail/revue");
+                                runTestOnUiThread(() -> checkSearchWindow(landscape));
+                                ui.see(activity.getString(R.string.skills_prepare));
+                            } finally { runTestOnUiThread(panel::close); }
+                        }
+                    }
+                } finally { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
             }
-        } finally { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
+        } finally {
+            Diagnostics.clear();
+        }
     }
 
     private void checkSearchWindow(boolean landscape) {
@@ -117,33 +128,49 @@ public final class SkillBrowserJourneyTest extends InstrumentationTestCase {
     public void testChangedThreadDiscardsAnOpenSkillAndUnsupportedListingHasRecovery() throws Throwable {
         if (Build.VERSION.SDK_INT < 29) return;
         Context app = getInstrumentation().getTargetContext();
-        MainActivity activity = (MainActivity) getInstrumentation().startActivitySync(app.getPackageManager()
-                .getLaunchIntentForPackage(app.getPackageName()));
         AtomicBoolean active = new AtomicBoolean(true);
         AtomicReference<String> staged = new AtomicReference<>();
-        JourneyUi ui = new JourneyUi(getInstrumentation(), activity, app.getCacheDir());
-        try (Exchange gateway = new Exchange("200 OK", JSON, CAPS, EMPTY, CATALOG);
-             Exchange missing = new Exchange("404 Not Found", JSON, "{}", "{}");
-             WorkspaceAccountFixture profile = new WorkspaceAccountFixture(app)) {
-            SessionPanel first = new SessionPanel(activity, new HermesApi(gateway.endpoint(), "test"), profile.account);
-            SessionPanel second = new SessionPanel(activity, new HermesApi(missing.endpoint(), "test"), profile.account);
-            try {
-                runTestOnUiThread(() -> first.show("one", "one", active::get, staged::set));
-                ui.tap(activity.getString(R.string.skills_title));
-                ui.tap("travail/revue");
-                ui.see(activity.getString(R.string.skills_prepare));
-                active.set(false);
-                ui.tap(activity.getString(R.string.skills_prepare));
-                assertNull(staged.get());
-                runTestOnUiThread(() -> second.show("two", "two", () -> true, staged::set));
-                ui.tap(activity.getString(R.string.skills_title));
-                ui.see(activity.getString(R.string.skills_missing));
-                ui.see(activity.getString(R.string.skills_refresh));
-                assertNull(staged.get());
-            } finally {
-                try { runTestOnUiThread(() -> { first.close(); second.close(); }); }
-                finally { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
+        try {
+            try (Exchange gateway = new Exchange("200 OK", JSON, CAPS, EMPTY, CATALOG);
+                 Exchange missing = new Exchange("404 Not Found", JSON, "{}", "{}");
+                 WorkspaceAccountFixture profile = new WorkspaceAccountFixture(app)) {
+                MainActivity activity = (MainActivity) getInstrumentation().startActivitySync(app.getPackageManager()
+                        .getLaunchIntentForPackage(app.getPackageName()));
+                SessionPanel first = null;
+                SessionPanel second = null;
+                try {
+                    JourneyUi ui = new JourneyUi(getInstrumentation(), activity, app.getCacheDir());
+                    first = new SessionPanel(activity, new HermesApi(gateway.endpoint(), "test"), profile.account);
+                    second = new SessionPanel(activity, new HermesApi(missing.endpoint(), "test"), profile.account);
+                    SessionPanel firstPanel = first;
+                    SessionPanel secondPanel = second;
+                    runTestOnUiThread(() -> firstPanel.show("one", "one", active::get, staged::set));
+                    ui.tap(activity.getString(R.string.skills_title));
+                    ui.tap("travail/revue");
+                    ui.see(activity.getString(R.string.skills_prepare));
+                    active.set(false);
+                    ui.tap(activity.getString(R.string.skills_prepare));
+                    assertNull(staged.get());
+                    runTestOnUiThread(() -> secondPanel.show("two", "two", () -> true, staged::set));
+                    ui.tap(activity.getString(R.string.skills_title));
+                    ui.see(activity.getString(R.string.skills_missing));
+                    ui.see(activity.getString(R.string.skills_refresh));
+                    assertNull(staged.get());
+                } finally {
+                    SessionPanel closeFirst = first;
+                    SessionPanel closeSecond = second;
+                    try {
+                        runTestOnUiThread(() -> {
+                            if (closeFirst != null) closeFirst.close();
+                            if (closeSecond != null) closeSecond.close();
+                        });
+                    } finally {
+                        ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+                    }
+                }
             }
+        } finally {
+            Diagnostics.clear();
         }
     }
 }
