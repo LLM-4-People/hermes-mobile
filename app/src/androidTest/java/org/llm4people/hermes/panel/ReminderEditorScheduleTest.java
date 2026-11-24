@@ -9,6 +9,7 @@ import android.view.inspector.WindowInspector;
 import android.widget.Button;
 
 import org.json.JSONObject;
+import org.llm4people.hermes.ActivityTestLifecycle;
 import org.llm4people.hermes.R;
 
 import java.time.ZoneId;
@@ -55,10 +56,11 @@ public final class ReminderEditorScheduleTest extends InstrumentationTestCase {
                     ZonedDateTime.now(ZoneId.of("Europe/Paris")));
             assertEquals("0 9 * * 1-5", parsed.toGatewaySchedule(ZoneId.of("Europe/Paris")));
         } finally {
-            runTestOnUiThread(() -> {
-                panel.close();
-                activity.finish();
-            });
+            try {
+                runTestOnUiThread(panel::close);
+            } finally {
+                ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+            }
         }
     }
 

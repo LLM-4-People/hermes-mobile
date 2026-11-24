@@ -13,6 +13,7 @@ import android.widget.EditText;
 import android.widget.LinearLayout;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import org.llm4people.hermes.ActivityTestLifecycle;
 import org.llm4people.hermes.R;
 
 @SuppressWarnings("deprecation")
@@ -59,7 +60,8 @@ public final class PanelNavigationTest extends InstrumentationTestCase {
                 assertFalse(panels.refreshLayout());
             });
         } finally {
-            runTestOnUiThread(() -> { panels.close(); activity.finish(); });
+            try { runTestOnUiThread(() -> { panels.close(); }); }
+            finally { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
         }
     }
 

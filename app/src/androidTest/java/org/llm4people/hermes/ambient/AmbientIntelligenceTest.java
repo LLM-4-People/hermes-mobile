@@ -8,6 +8,7 @@ import android.test.InstrumentationTestCase;
 import android.view.View;
 import android.view.WindowManager;
 
+import org.llm4people.hermes.ActivityTestLifecycle;
 import org.llm4people.hermes.RouteRegistry;
 
 import java.util.HashMap;
@@ -109,7 +110,7 @@ public final class AmbientIntelligenceTest extends InstrumentationTestCase {
             assertEquals(HermesNotificationListener.ReplyOutcome.CANCELLED, outcome.get());
             assertEquals(HermesNotificationListener.ReplyOutcome.FAILED, revokedOutcome.get());
         } finally {
-            runTestOnUiThread(activity::finish);
+            ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
         }
     }
 }

@@ -8,6 +8,7 @@ import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.ListView;
 import org.json.JSONObject;
+import org.llm4people.hermes.ActivityTestLifecycle;
 import org.llm4people.hermes.MainActivity;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
@@ -123,7 +124,7 @@ public final class InfiniteChatStressAndroidTest extends InstrumentationTestCase
             });
             getInstrumentation().waitForIdleSync();
         } finally {
-            runTestOnUiThread(activity::finish);
+            ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
         }
     }
 }

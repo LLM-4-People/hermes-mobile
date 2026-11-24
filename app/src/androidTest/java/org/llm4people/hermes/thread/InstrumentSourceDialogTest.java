@@ -9,6 +9,7 @@ import android.widget.AdapterView;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.llm4people.hermes.ActivityTestLifecycle;
 import org.llm4people.hermes.MainActivity;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.artifact.ThreadInstruments;
@@ -74,10 +75,13 @@ public final class InstrumentSourceDialogTest extends InstrumentationTestCase {
                 assertTrue(unrelated.isShowing());
             });
         } finally {
-            runTestOnUiThread(() -> {
-                if (workspace != null) workspace.close();
-                activity.finish();
-            });
+            try {
+                runTestOnUiThread(() -> {
+                    if (workspace != null) workspace.close();
+                });
+            } finally {
+                ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+            }
         }
     }
 

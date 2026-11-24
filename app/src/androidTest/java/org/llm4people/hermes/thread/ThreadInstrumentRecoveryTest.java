@@ -7,6 +7,7 @@ import android.view.View;
 import android.view.WindowManager;
 import android.view.inspector.WindowInspector;
 import android.widget.Button;
+import org.llm4people.hermes.ActivityTestLifecycle;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.artifact.ThreadInstruments;
 import org.llm4people.hermes.profile.WorkspaceAccountFixture;
@@ -66,10 +67,13 @@ public final class ThreadInstrumentRecoveryTest extends InstrumentationTestCase 
             assertEquals("brouillon privé", profile.account.read("thread:local-root"));
             runTestOnUiThread(() -> assertEquals("brouillon privé", workspace[0].screen.draft()));
         } finally {
-            runTestOnUiThread(() -> {
-                if (workspace[0] != null) workspace[0].close();
-                activity.finish();
-            });
+            try {
+                runTestOnUiThread(() -> {
+                    if (workspace[0] != null) workspace[0].close();
+                });
+            } finally {
+                ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+            }
         }
     }
 

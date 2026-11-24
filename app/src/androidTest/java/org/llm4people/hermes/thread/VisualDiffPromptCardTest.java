@@ -10,6 +10,7 @@ import android.widget.TextView;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.llm4people.hermes.ActivityTestLifecycle;
 import org.llm4people.hermes.R;
 
 @SuppressWarnings("deprecation")
@@ -24,7 +25,7 @@ public final class VisualDiffPromptCardTest extends InstrumentationTestCase {
     }
 
     @Override protected void tearDown() throws Exception {
-        try { getInstrumentation().runOnMainSync(activity::finish); }
+        try { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
         finally { super.tearDown(); }
     }
 

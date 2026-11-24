@@ -13,6 +13,7 @@ import android.widget.TextView;
 
 import org.json.JSONObject;
 import org.json.JSONArray;
+import org.llm4people.hermes.ActivityTestLifecycle;
 import org.llm4people.hermes.MainActivity;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.net.Exchange;
@@ -43,7 +44,7 @@ public class HiddenPromptTest extends InstrumentationTestCase {
                 catch (Exception failure) { throw new AssertionError(failure); }
             });
         } finally {
-            getInstrumentation().runOnMainSync(activity::finish);
+            ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
         }
     }
 
@@ -112,7 +113,7 @@ public class HiddenPromptTest extends InstrumentationTestCase {
             assertTrue(gateway.observed().contains("/api/sessions/discussion/messages?"));
             runTestOnUiThread(() -> activity.onAction("profiles"));
         } finally {
-            getInstrumentation().runOnMainSync(activity::finish);
+            ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
         }
     }
 

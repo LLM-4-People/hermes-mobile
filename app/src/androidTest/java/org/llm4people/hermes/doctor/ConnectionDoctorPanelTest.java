@@ -13,6 +13,7 @@ import android.widget.Button;
 import android.widget.TextView;
 
 import org.json.JSONObject;
+import org.llm4people.hermes.ActivityTestLifecycle;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.RouteRegistry;
 
@@ -84,10 +85,11 @@ public final class ConnectionDoctorPanelTest extends InstrumentationTestCase {
                 assertFalse("Credentials must never leak into clipboard report", copied.contains("supersecret"));
             });
         } finally {
-            runTestOnUiThread(() -> {
-                panel.close();
-                activity.finish();
-            });
+            try {
+                runTestOnUiThread(panel::close);
+            } finally {
+                ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+            }
         }
     }
 
@@ -153,10 +155,11 @@ public final class ConnectionDoctorPanelTest extends InstrumentationTestCase {
             assertEquals(1, ambientClicks.get());
             assertEquals(1, langClicks.get());
         } finally {
-            runTestOnUiThread(() -> {
-                panel.close();
-                activity.finish();
-            });
+            try {
+                runTestOnUiThread(panel::close);
+            } finally {
+                ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+            }
         }
     }
 

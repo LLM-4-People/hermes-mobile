@@ -13,6 +13,7 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
+import org.llm4people.hermes.ActivityTestLifecycle;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.journey.JourneyUi;
 
@@ -119,7 +120,8 @@ public class DeviceReviewTest extends InstrumentationTestCase {
             ui.see("Brouillon privé");
         } finally {
             driver.removeMonitor(external);
-            runTestOnUiThread(() -> { ArtifactDesk.dismiss(activity); activity.finish(); });
+            try { runTestOnUiThread(() -> ArtifactDesk.dismiss(activity)); }
+            finally { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
         }
     }
 }

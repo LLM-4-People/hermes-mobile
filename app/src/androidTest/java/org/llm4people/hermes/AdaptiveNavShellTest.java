@@ -34,12 +34,10 @@ public final class AdaptiveNavShellTest extends InstrumentationTestCase {
                 assertEquals(View.VISIBLE, shell.navBar().getVisibility());
 
                 // All 3 living primary destinations are present and clickable.
+                assertEquals(3, shell.navBar().getChildCount());
                 assertNotNull(shell.root.findViewById(R.id.nav_tab_discussions));
                 assertNotNull(shell.root.findViewById(R.id.nav_tab_tasks));
                 assertNotNull(shell.root.findViewById(R.id.nav_tab_apps));
-                assertNull(shell.root.findViewById(R.id.nav_tab_atelier));
-                assertNull(shell.root.findViewById(R.id.nav_tab_brain));
-                assertNull(shell.root.findViewById(R.id.nav_tab_activity));
                 assertTrue(shell.root.findViewById(R.id.nav_tab_tasks).performClick());
                 assertEquals("nav_tasks", actions.get(actions.size() - 1));
                 assertTrue(shell.root.findViewById(R.id.nav_tab_apps).performClick());
@@ -89,7 +87,7 @@ public final class AdaptiveNavShellTest extends InstrumentationTestCase {
                 assertEquals(Ui.dp(activity, AdaptiveLayout.NAV_RAIL_WIDTH_DP), shell.navBar().getWidth(), 2);
             });
         } finally {
-            runTestOnUiThread(activity::finish);
+            ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
         }
     }
 
@@ -142,7 +140,7 @@ public final class AdaptiveNavShellTest extends InstrumentationTestCase {
                 shell.dismissMenu();
             });
         } finally {
-            runTestOnUiThread(activity::finish);
+            ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
         }
     }
 

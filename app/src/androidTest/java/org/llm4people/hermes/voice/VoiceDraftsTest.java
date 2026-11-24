@@ -17,6 +17,7 @@ import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import org.llm4people.hermes.ActivityTestLifecycle;
 import org.llm4people.hermes.MainActivity;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
@@ -44,7 +45,7 @@ public final class VoiceDraftsTest extends InstrumentationTestCase {
     }
 
     @Override protected void tearDown() throws Exception {
-        try { getInstrumentation().runOnMainSync(activity::finish); }
+        try { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
         finally { super.tearDown(); }
     }
 

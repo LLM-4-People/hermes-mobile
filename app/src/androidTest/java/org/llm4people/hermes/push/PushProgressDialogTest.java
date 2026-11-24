@@ -13,6 +13,7 @@ import android.view.inspector.WindowInspector;
 import android.widget.Button;
 import android.widget.TextView;
 
+import org.llm4people.hermes.ActivityTestLifecycle;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.net.Exchange;
 import org.llm4people.hermes.profile.WorkspaceAccountFixture;
@@ -39,7 +40,7 @@ public final class PushProgressDialogTest extends InstrumentationTestCase {
                     backBeforeReply(context, activity, history, success);
                 }
             }
-        } finally { runTestOnUiThread(activity::finish); }
+        } finally { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
     }
 
     private void backBeforeReply(Context context, Activity activity, boolean history, boolean success) throws Throwable {

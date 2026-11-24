@@ -18,6 +18,7 @@ import android.widget.TextView;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.UUID;
+import org.llm4people.hermes.ActivityTestLifecycle;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.net.Exchange;
 import org.llm4people.hermes.net.HermesApi;
@@ -87,7 +88,8 @@ public final class SessionSettingsStorageTest extends InstrumentationTestCase {
                 });
                 assertFalse(SessionPanel.runOptions(context, account, "thread").has("excluded_tools"));
             } finally {
-                runTestOnUiThread(() -> { panel.close(); activity.finish(); });
+                try { runTestOnUiThread(() -> { panel.close(); }); }
+                finally { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
             }
         } finally {
             blocker.delete();
@@ -140,7 +142,8 @@ public final class SessionSettingsStorageTest extends InstrumentationTestCase {
                     assertEquals("Alpha", SessionPanel.runOptions(context, owner, "thread").optString("model"));
                 });
             } finally {
-                runTestOnUiThread(() -> { panel.close(); activity.finish(); });
+                try { runTestOnUiThread(() -> { panel.close(); }); }
+                finally { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
             }
         }
     }
@@ -199,7 +202,8 @@ public final class SessionSettingsStorageTest extends InstrumentationTestCase {
                 });
                 assertTrue(server.observed().contains("/api/model/options?include_unconfigured=false"));
             } finally {
-                runTestOnUiThread(() -> { panel.close(); activity.finish(); });
+                try { runTestOnUiThread(() -> { panel.close(); }); }
+                finally { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
             }
         }
     }

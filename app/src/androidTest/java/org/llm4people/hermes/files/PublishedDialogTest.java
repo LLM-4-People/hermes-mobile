@@ -7,6 +7,7 @@ import android.content.Intent;
 import android.test.InstrumentationTestCase;
 import android.view.WindowManager;
 import android.widget.ImageView;
+import org.llm4people.hermes.ActivityTestLifecycle;
 
 /** Private progress, inventory and preview sheets all use the file controller's presentation path. */
 @SuppressWarnings("deprecation")
@@ -27,7 +28,8 @@ public final class PublishedDialogTest extends InstrumentationTestCase {
                 assertFalse(file.isShowing());
             });
         } finally {
-            runTestOnUiThread(() -> { files.close(); activity.finish(); });
+            try { runTestOnUiThread(() -> { files.close(); }); }
+            finally { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
         }
     }
 }

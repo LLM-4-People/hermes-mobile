@@ -7,6 +7,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.llm4people.hermes.ActivityTestLifecycle;
 import org.llm4people.hermes.MainActivity;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.net.Exchange;
@@ -99,7 +100,7 @@ public final class NearbyGuideJourneyTest extends InstrumentationTestCase {
                 assertTrue(observed.contains("Authorization: Bearer fixture"));
                 assertFalse(observed.contains("accuracy_m"));
                 assertFalse(observed.contains("/v1/runs"));
-            } finally { runTestOnUiThread(activity::finish); }
+            } finally { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
         }
     }
 }

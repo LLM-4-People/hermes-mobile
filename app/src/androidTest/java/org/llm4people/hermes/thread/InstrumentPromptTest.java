@@ -8,6 +8,7 @@ import android.widget.Button;
 import android.widget.EditText;
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.llm4people.hermes.ActivityTestLifecycle;
 import org.llm4people.hermes.MainActivity;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
@@ -86,7 +87,7 @@ public class InstrumentPromptTest extends InstrumentationTestCase {
                 assertTrue(page.screen.promptRows.visible());
                 assertEquals("Demain matin", page.screen.draft());
             });
-        } finally { runTestOnUiThread(activity::finish); }
+        } finally { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
     }
 
     private void open(Account account) throws Exception {

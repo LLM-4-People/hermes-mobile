@@ -6,6 +6,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.test.InstrumentationTestCase;
 
+import org.llm4people.hermes.ActivityTestLifecycle;
 import org.llm4people.hermes.profile.WorkspaceAccountFixture;
 
 import java.io.File;
@@ -88,7 +89,7 @@ public final class PrivateCaptureProviderTest extends InstrumentationTestCase {
             assertFalse("Mismatch must clear capture state", capture2.isReady());
             assertFalse("Mismatch must delete the private slot file", file2.exists());
         } finally {
-            runTestOnUiThread(activity::finish);
+            ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
         }
     }
 }

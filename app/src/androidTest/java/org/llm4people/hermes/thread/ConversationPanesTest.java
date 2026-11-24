@@ -12,6 +12,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.llm4people.hermes.ActivityTestLifecycle;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.net.Exchange;
@@ -115,7 +116,7 @@ public final class ConversationPanesTest extends InstrumentationTestCase {
                 panes.retire();
             });
         } finally {
-            runTestOnUiThread(activity::finish);
+            ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
         }
     }
 
@@ -195,10 +196,13 @@ public final class ConversationPanesTest extends InstrumentationTestCase {
                     assertEquals("first-1", ((JSONObject) list.getAdapter().getItem(1)).optString("id"));
                 });
             } finally {
-                runTestOnUiThread(() -> {
-                    if (holder[0] != null) holder[0].close();
-                    activity.finish();
-                });
+                try {
+                    runTestOnUiThread(() -> {
+                        if (holder[0] != null) holder[0].close();
+                    });
+                } finally {
+                    ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+                }
             }
         }
     }

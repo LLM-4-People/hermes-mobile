@@ -16,6 +16,7 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import org.llm4people.hermes.ActivityTestLifecycle;
 import org.llm4people.hermes.Ui;
 import android.text.style.ClickableSpan;
 import android.text.style.ForegroundColorSpan;
@@ -86,10 +87,13 @@ public final class MessageTextTest extends InstrumentationTestCase {
                 assertTrue(clip.getDescription().getExtras().getBoolean("android.content.extra.IS_SENSITIVE"));
             });
         } finally {
-            runTestOnUiThread(() -> {
-                if (reader[0] != null) reader[0].dismiss();
-                activity.finish();
-            });
+            try {
+                runTestOnUiThread(() -> {
+                    if (reader[0] != null) reader[0].dismiss();
+                });
+            } finally {
+                ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+            }
         }
     }
 

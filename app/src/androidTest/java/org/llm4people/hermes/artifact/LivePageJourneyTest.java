@@ -8,6 +8,7 @@ import android.os.Build;
 import android.test.InstrumentationTestCase;
 import android.test.InstrumentationTestRunner;
 import java.io.File;
+import org.llm4people.hermes.ActivityTestLifecycle;
 import org.llm4people.hermes.journey.JourneyUi;
 import android.view.View;
 import android.view.ViewGroup;
@@ -88,7 +89,8 @@ public class LivePageJourneyTest extends InstrumentationTestCase {
                 assertEquals("Relire seulement Code.java",staged[0]);
             }
         } finally {
-            runTestOnUiThread(() -> { ArtifactDesk.dismiss(activity); activity.finish(); });
+            try { runTestOnUiThread(() -> { ArtifactDesk.dismiss(activity); }); }
+            finally { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
         }
     }
 
@@ -144,7 +146,8 @@ public class LivePageJourneyTest extends InstrumentationTestCase {
                 assertTrue(PageLayouts.titles(account.account, true).isEmpty());
             });
         } finally {
-            runTestOnUiThread(() -> { ArtifactDesk.dismiss(activity); activity.finish(); });
+            try { runTestOnUiThread(() -> { ArtifactDesk.dismiss(activity); }); }
+            finally { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
         }
     }
 
@@ -174,7 +177,8 @@ public class LivePageJourneyTest extends InstrumentationTestCase {
                 assertEquals(expectedNight, ThemePalette.isNight(rendered.getContext()));
             });
         } finally {
-            runTestOnUiThread(() -> { ArtifactDesk.dismiss(activity); activity.finish(); });
+            try { runTestOnUiThread(() -> { ArtifactDesk.dismiss(activity); }); }
+            finally { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
         }
     }
 

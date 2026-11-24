@@ -6,6 +6,7 @@ import android.test.InstrumentationTestCase;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import org.llm4people.hermes.ActivityTestLifecycle;
 import org.llm4people.hermes.MainActivity;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.RouteRegistry;
@@ -84,7 +85,7 @@ public final class TemplatesPanelTest extends InstrumentationTestCase {
             });
             getInstrumentation().waitForIdleSync();
         } finally {
-            runTestOnUiThread(activity::finish);
+            ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
         }
     }
 

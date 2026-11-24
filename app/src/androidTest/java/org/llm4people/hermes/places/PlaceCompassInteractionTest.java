@@ -15,6 +15,7 @@ import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.FrameLayout;
 
 import org.json.JSONObject;
+import org.llm4people.hermes.ActivityTestLifecycle;
 import org.llm4people.hermes.R;
 import java.util.ArrayList;
 import java.util.List;
@@ -129,7 +130,7 @@ public final class PlaceCompassInteractionTest extends InstrumentationTestCase {
                 assertFalse(chart.requestFocus());
             });
         } finally {
-            try { runTestOnUiThread(activity::finish); }
+            try { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
             finally { getInstrumentation().setInTouchMode(true); }
         }
     }

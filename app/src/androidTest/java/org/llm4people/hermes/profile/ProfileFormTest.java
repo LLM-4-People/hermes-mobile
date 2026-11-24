@@ -11,6 +11,7 @@ import android.view.inputmethod.EditorInfo;
 import android.widget.Button;
 import android.widget.EditText;
 
+import org.llm4people.hermes.ActivityTestLifecycle;
 import org.llm4people.hermes.Ui;
 
 @SuppressWarnings("deprecation")
@@ -47,7 +48,7 @@ public final class ProfileFormTest extends InstrumentationTestCase {
                 assertEquals(1, submissions[0]);
             });
         } finally {
-            runTestOnUiThread(activity::finish);
+            ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
         }
     }
 }

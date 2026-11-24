@@ -7,6 +7,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.test.InstrumentationTestCase;
 import android.util.Base64;
+import org.llm4people.hermes.ActivityTestLifecycle;
 import org.llm4people.hermes.profile.Account;
 import org.llm4people.hermes.profile.WorkspaceAccountFixture;
 
@@ -42,7 +43,8 @@ public final class LayoutRecoveryTest extends InstrumentationTestCase {
             assertEquals("", history.current());
             assertFalse(history.canUndo());
         } finally {
-            runTestOnUiThread(() -> { ArtifactDesk.dismiss(activity); activity.finish(); });
+            try { runTestOnUiThread(() -> { ArtifactDesk.dismiss(activity); }); }
+            finally { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
         }
     }
 

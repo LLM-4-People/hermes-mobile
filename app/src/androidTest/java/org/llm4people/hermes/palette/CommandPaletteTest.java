@@ -8,6 +8,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.widget.EditText;
+import org.llm4people.hermes.ActivityTestLifecycle;
 import org.llm4people.hermes.MainActivity;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.templates.WorkflowTemplate;
@@ -95,7 +96,7 @@ public final class CommandPaletteTest extends InstrumentationTestCase {
             assertEquals(WorkflowTemplate.builtIn(context).get(0).draft, stagedDraft.get());
             assertFalse(paletteRef.get().isShowing());
         } finally {
-            runTestOnUiThread(activity::finish);
+            ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
         }
     }
 

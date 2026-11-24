@@ -3,6 +3,7 @@ package org.llm4people.hermes.thread;
 import android.app.Activity;
 import android.content.Context;
 import android.test.InstrumentationTestCase;
+import org.llm4people.hermes.ActivityTestLifecycle;
 import org.llm4people.hermes.profile.WorkspaceAccountFixture;
 import org.llm4people.hermes.voice.VoiceDrafts;
 
@@ -33,7 +34,7 @@ public final class NearbyConsentTest extends InstrumentationTestCase {
                     assertEquals("Un déjeuner ?", workspace.journal.draft());
                 } finally { workspace.close(); }
             });
-        } finally { runTestOnUiThread(activity::finish); }
+        } finally { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
     }
 
     public void testReconcilePermissionStateAndApplyAppCustomization() throws Throwable {
@@ -101,7 +102,7 @@ public final class NearbyConsentTest extends InstrumentationTestCase {
                             findTextViewByText(list, activity.getString(org.llm4people.hermes.R.string.starter_heading)));
                 } finally { workspace.close(); }
             });
-        } finally { runTestOnUiThread(activity::finish); }
+        } finally { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
     }
 
     private static void measureAndLayout(android.view.View root, int widthPx, int heightPx) {

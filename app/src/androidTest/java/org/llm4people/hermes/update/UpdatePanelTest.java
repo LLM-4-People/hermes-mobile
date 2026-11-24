@@ -9,6 +9,7 @@ import android.provider.OpenableColumns;
 import android.test.InstrumentationTestCase;
 import android.view.View;
 
+import org.llm4people.hermes.ActivityTestLifecycle;
 import org.llm4people.hermes.RouteRegistry;
 
 import java.io.File;
@@ -90,7 +91,7 @@ public final class UpdatePanelTest extends InstrumentationTestCase {
             });
             getInstrumentation().waitForIdleSync();
         } finally {
-            runTestOnUiThread(activity::finish);
+            ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
         }
     }
 }

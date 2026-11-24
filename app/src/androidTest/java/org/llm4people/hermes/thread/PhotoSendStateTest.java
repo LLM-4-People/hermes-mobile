@@ -7,6 +7,7 @@ import android.test.InstrumentationTestCase;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import org.llm4people.hermes.ActivityTestLifecycle;
 import org.llm4people.hermes.R;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -50,7 +51,7 @@ public final class PhotoSendStateTest extends InstrumentationTestCase {
                 send.performClick();
                 assertEquals(1, sends.get());
             });
-        } finally { runTestOnUiThread(activity::finish); }
+        } finally { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
     }
     private static Button findSend(View view, String label) {
         if (view instanceof Button b && label.contentEquals(b.getText())) return b;
