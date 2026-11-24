@@ -17,6 +17,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.JsonValues;
+import org.llm4people.hermes.PlainTextSanitizer;
 import org.llm4people.hermes.SecretPatterns;
 import org.llm4people.hermes.customization.InteractiveCardView;
 import org.llm4people.hermes.panel.ReminderPanel;
@@ -622,7 +623,7 @@ public final class LiveUiPatch {
                     if (!FORK_SURFACE_KINDS.contains(kind)) throw new IOException("Unsupported surface kind");
                     String title = obj.optString("title", "");
                     if (!validText(title, 160)) throw new IOException("Invalid surface title");
-                    String boundedTitle = title.length() > 64 ? title.substring(0, 64).trim() : title;
+                    String boundedTitle = PlainTextSanitizer.collapseBounded(title, 64);
                     JSONObject spec = obj.optJSONObject("spec");
                     if (spec == null) spec = new JSONObject();
                     String pageId = normalizePageId(surfaceId);
@@ -632,7 +633,7 @@ public final class LiveUiPatch {
                     if (obj.has("tab") && !obj.isNull("tab")) {
                         String tabId = obj.optString("tab", "");
                         if (!validSafeId(tabId)) throw new IOException("Invalid surface tab");
-                        String tabLabel = boundedTitle.length() > 48 ? boundedTitle.substring(0, 48).trim() : boundedTitle;
+                        String tabLabel = PlainTextSanitizer.collapseBounded(boundedTitle, 48);
                         out.add(new Op.UpsertTab(new CustomTab(tabId, tabLabel, validated.surface)));
                     }
                 }
@@ -903,9 +904,9 @@ public final class LiveUiPatch {
         return "page/" + slug;
     }
 
-    private static String trimTo(String raw, int max) {
-        String s = raw == null ? "" : raw.trim().replace('\n', ' ').replace('\r', ' ');
-        return s.length() > max ? s.substring(0, max).trim() : s;
+    static String trimTo(String raw, int max) {
+        if (raw == null || max <= 0) return "";
+        return PlainTextSanitizer.collapseBounded(raw.replace('\n', ' ').replace('\r', ' '), max);
     }
 
     private static Set<String> keySet(JSONObject obj) {

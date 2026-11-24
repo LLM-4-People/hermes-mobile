@@ -366,6 +366,16 @@
     <string name="share_bridge_reason_android_update_shortcuts">Hermes proposes updating your home screen shortcuts and widgets.</string>
     <string name="share_bridge_reason_android_local_reminder">Hermes proposes showing a quiet reminder on your phone.</string>
     <string name="share_bridge_reason_default">Hermes proposes opening this action on your phone.</string>
+    <string name="share_bridge_preview_link">Link: %1$s</string>
+    <string name="share_bridge_preview_app">App: %1$s</string>
+    <string name="share_bridge_preview_subject">Subject: %1$s</string>
+    <string name="share_bridge_preview_message">Message: %1$s</string>
+    <string name="share_bridge_preview_duration">Duration: %1$s</string>
+    <string name="share_bridge_preview_label">Label: %1$s</string>
+    <string name="share_bridge_preview_title">Title: %1$s</string>
+    <string name="share_bridge_preview_draft">Draft: %1$s</string>
+    <string name="share_bridge_preview_summary">Summary: %1$s</string>
+    <string name="share_bridge_preview_changes">Changes: %1$s</string>
 
     <string name="share_tray_added">Item added: %1$s</string>
     <string name="share_tray_removed">Item removed: %1$s</string>

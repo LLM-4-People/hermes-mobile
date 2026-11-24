@@ -86,7 +86,7 @@ public final class PlainTextSanitizer {
                 out.appendCodePoint(cp);
                 prevSpace = false;
             }
-            if (out.length() > maxChars) break;
+            if (!prevSpace && out.length() > maxChars) break;
         }
         String trimmed = out.toString().trim();
         if (trimmed.length() <= maxChars) return trimmed;
@@ -96,6 +96,22 @@ public final class PlainTextSanitizer {
             cut--;
         }
         return trimmed.substring(0, cut).trim() + "…";
+    }
+
+    /** True when {@code raw} contains at least one visible (non-space, non-control, non-format, non-invisible-mark) code point. */
+    public static boolean hasVisibleText(String raw) {
+        if (raw == null || raw.isEmpty()) return false;
+        for (int i = 0; i < raw.length(); ) {
+            int cp = raw.codePointAt(i);
+            i += Character.charCount(cp);
+            int type = Character.getType(cp);
+            if (!isAnySpace(cp) && !Character.isISOControl(cp)
+                    && type != Character.FORMAT && type != Character.SURROGATE
+                    && !isInvisibleMark(cp)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean isAnySpace(int cp) {

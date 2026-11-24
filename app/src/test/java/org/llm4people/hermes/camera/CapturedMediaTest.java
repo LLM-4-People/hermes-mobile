@@ -57,8 +57,11 @@ public final class CapturedMediaTest {
         assertEquals("..etcpasswd", CapturedMedia.sanitizeFilename("../etc/passwd", "Document"));
         assertEquals("Document", CapturedMedia.sanitizeFilename("..", "Document"));
         assertEquals("Document", CapturedMedia.sanitizeFilename(".", "Document"));
+        assertEquals("Document", CapturedMedia.sanitizeFilename("../", "Document"));
+        assertEquals("Document", CapturedMedia.sanitizeFilename("..\\", "Document"));
         assertEquals("Document", CapturedMedia.sanitizeFilename("\u0000\u202E", "Document"));
         assertEquals("Photo", CapturedMedia.sanitizeFilename(null, "Photo"));
+        assertEquals("Photo", CapturedMedia.queryDisplayName(null, null, "Photo"));
     }
 
     @Test

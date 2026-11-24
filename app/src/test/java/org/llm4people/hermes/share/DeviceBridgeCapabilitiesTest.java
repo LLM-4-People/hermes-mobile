@@ -1,10 +1,13 @@
 package org.llm4people.hermes.share;
 
 import org.junit.Test;
+import org.llm4people.hermes.R;
 import org.llm4people.hermes.ambient.NotificationAllowlist;
 import org.llm4people.hermes.presence.PresencePolicy;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.junit.Assert.assertEquals;
@@ -160,5 +163,84 @@ public final class DeviceBridgeCapabilitiesTest {
         for (String invalid : new String[]{null, "", "   ", "demain 10h", "2026-11-23T10:00:00", "2026-13-40T10:00:00Z"}) {
             assertEquals(null, DeviceBridgeFlow.defaultCalendarEnd(invalid));
         }
+    }
+
+    @Test
+    public void sanitizesReasonAndBuildsTargetPreviewsForAllSixConfirmRequiredDeepActions() {
+        // R17.2.2: sanitizeReason strips bidi/CGJ/controls and truncates safely at surrogate boundary.
+        assertEquals("", DeviceBridgeFlow.sanitizeReason("  \u202E\u034F\n\t "));
+        assertEquals("Ouvrir carte", DeviceBridgeFlow.sanitizeReason("Ou\u202E\u034Fvrir\n\u00A0carte"));
+        String reasonBoundary = "a".repeat(298) + "\uD83D\uDE00tail";
+        String sanitizedReason = DeviceBridgeFlow.sanitizeReason(reasonBoundary);
+        assertTrue(sanitizedReason.length() <= 300);
+        assertTrue(sanitizedReason.endsWith("…"));
+        assertFalse(Character.isHighSurrogate(sanitizedReason.charAt(sanitizedReason.length() - 2)));
+
+        // 1. android_open_app
+        List<DeviceBridgeFlow.PreviewLine> openApp = DeviceBridgeFlow.previewLinesForParams("android_open_app",
+                Map.of("deep_link", "https://example.org/doc\u202E", "package_name", "org.example.app"));
+        assertEquals(2, openApp.size());
+        assertEquals(R.string.share_bridge_preview_link, openApp.get(0).labelRes());
+        assertEquals("https://example.org/doc", openApp.get(0).value());
+        assertEquals(R.string.share_bridge_preview_app, openApp.get(1).labelRes());
+        assertEquals("org.example.app", openApp.get(1).value());
+
+        // 2. android_share_sheet
+        List<DeviceBridgeFlow.PreviewLine> share = DeviceBridgeFlow.previewLinesForParams("android_share_sheet",
+                Map.of("subject", "Bilan\u034F", "text", "Résumé\ncomplet"));
+        assertEquals(2, share.size());
+        assertEquals(R.string.share_bridge_preview_subject, share.get(0).labelRes());
+        assertEquals("Bilan", share.get(0).value());
+        assertEquals(R.string.share_bridge_preview_message, share.get(1).labelRes());
+        assertEquals("Résumé complet", share.get(1).value());
+
+        // 3. android_set_timer
+        List<DeviceBridgeFlow.PreviewLine> timer = DeviceBridgeFlow.previewLinesForParams("android_set_timer",
+                Map.of("duration_seconds", 330, "label", "Thé\u202E"));
+        assertEquals(2, timer.size());
+        assertEquals(R.string.share_bridge_preview_duration, timer.get(0).labelRes());
+        assertEquals("5min 30s", timer.get(0).value());
+        assertEquals(R.string.share_bridge_preview_label, timer.get(1).labelRes());
+        assertEquals("Thé", timer.get(1).value());
+
+        // 4. app_create_template
+        List<DeviceBridgeFlow.PreviewLine> template = DeviceBridgeFlow.previewLinesForParams("app_create_template",
+                Map.of("title", "Résumé matinal", "draft_prompt", "Résume mes tâches\ndu jour."));
+        assertEquals(2, template.size());
+        assertEquals(R.string.share_bridge_preview_title, template.get(0).labelRes());
+        assertEquals("Résumé matinal", template.get(0).value());
+        assertEquals(R.string.share_bridge_preview_draft, template.get(1).labelRes());
+        assertEquals("Résume mes tâches du jour.", template.get(1).value());
+
+        // 5. android_sync_shortcuts
+        List<DeviceBridgeFlow.PreviewLine> shortcuts = DeviceBridgeFlow.previewLinesForParams("android_sync_shortcuts",
+                Map.of("tile_label", "Hermes", "widget_summary", "3 rappels actifs"));
+        assertEquals(2, shortcuts.size());
+        assertEquals(R.string.share_bridge_preview_label, shortcuts.get(0).labelRes());
+        assertEquals("Hermes", shortcuts.get(0).value());
+        assertEquals(R.string.share_bridge_preview_summary, shortcuts.get(1).labelRes());
+        assertEquals("3 rappels actifs", shortcuts.get(1).value());
+
+        // 6. app_customize
+        Map<String, Object> customParams = new LinkedHashMap<>();
+        customParams.put("operation", "apply");
+        customParams.put("theme", "dark");
+        customParams.put("accent", "sage");
+        customParams.put("density", "compact");
+        List<DeviceBridgeFlow.PreviewLine> customize =
+                DeviceBridgeFlow.previewLinesForParams("app_customize", customParams);
+        assertEquals(1, customize.size());
+        assertEquals(R.string.share_bridge_preview_changes, customize.get(0).labelRes());
+        assertEquals("theme=dark, accent=sage, density=compact", customize.get(0).value());
+
+        List<DeviceBridgeFlow.PreviewLine> customizeReset =
+                DeviceBridgeFlow.previewLinesForParams("app_customize", Map.of("operation", "reset"));
+        assertEquals(1, customizeReset.size());
+        assertEquals("reset", customizeReset.get(0).value());
+
+        // Negative / empty / unknown action returns empty preview safely.
+        assertTrue(DeviceBridgeFlow.previewLinesForParams("unknown", Map.of("a", "b")).isEmpty());
+        assertTrue(DeviceBridgeFlow.previewLinesForParams("android_open_app", null).isEmpty());
+        assertTrue(DeviceBridgeFlow.previewLinesForParams("android_open_app", Map.of("deep_link", " \u202E ")).isEmpty());
     }
 }

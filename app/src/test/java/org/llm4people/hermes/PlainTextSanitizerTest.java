@@ -70,5 +70,9 @@ public final class PlainTextSanitizerTest {
         // U+034F (Combining Grapheme Joiner) is stripped from display previews while keeping emoji VS-16 intact.
         assertEquals("sk-123", PlainTextSanitizer.collapseBounded("sk-\u034F123", 16));
         assertEquals("Bonjour café ☕\uFE0F", PlainTextSanitizer.collapseWithEllipsis("Bon\u034Fjour café ☕\uFE0F", 32));
+        // R17.2.3: Whitespace right at maxChars must not silently drop subsequent words or spuriously ellipsize trailing spaces.
+        assertEquals("hell…", PlainTextSanitizer.collapseWithEllipsis("hello world", 5));
+        assertEquals("hello", PlainTextSanitizer.collapseWithEllipsis("hello   ", 5));
+        assertEquals("hello", PlainTextSanitizer.collapseWithEllipsis("hello\n\t  ", 5));
     }
 }

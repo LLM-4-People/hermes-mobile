@@ -146,5 +146,22 @@ public final class DeliveryItemTest {
         assertTrue(clamped.endsWith("…"));
         assertFalse("Must never split surrogate pair at summary boundary",
                 Character.isHighSurrogate(clamped.charAt(clamped.length() - 2)));
+
+        // R17.2.1: Constructor and selectSummary sanitize top-level summary and fall back when invisible-only.
+        DeliveryItem constructed = new DeliveryItem(
+                VALID_ID, DeliveryItem.Kind.NOTICE, DeliveryItem.Urgency.NORMAL,
+                "Titre", "Bon\u202E\u034Fjour " + "x".repeat(310), "{}", 1L, null, null, null, 0L);
+        assertTrue(constructed.summary.length() <= 300);
+        assertTrue(constructed.summary.startsWith("Bonjour "));
+        assertTrue(constructed.summary.endsWith("…"));
+        assertFalse(constructed.summary.contains("\u202E"));
+
+        DeliveryItem invisibleSummary = new DeliveryItem(
+                VALID_ID, DeliveryItem.Kind.NOTICE, DeliveryItem.Urgency.NORMAL,
+                "Titre", "  \u202E\u034F\n\t ", "{}", 1L, null, null, null, 0L);
+        assertEquals("", invisibleSummary.summary);
+
+        assertEquals("Fallback body", DeliveryItem.selectSummary("  \u202E\u034F\n ", "  ", "Fallback\u202E body"));
+        assertEquals("Top summary", DeliveryItem.selectSummary("Top\u034F summary", "Fallback body"));
     }
 }

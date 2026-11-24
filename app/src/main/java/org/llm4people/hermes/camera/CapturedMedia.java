@@ -124,7 +124,7 @@ public final class CapturedMedia {
         }
         long limit = effectiveByteLimit(maxDocumentBytes);
         byte[] raw = readBounded(resolver, uri, limit);
-        String name = queryName(resolver, uri, normalized.startsWith("image/") ? "Photo.jpg" : "Document");
+        String name = queryDisplayName(resolver, uri, normalized.startsWith("image/") ? "Photo.jpg" : "Document");
         if (normalized.startsWith("image/")) {
             return stripImageExif(raw, name, limit);
         }
@@ -199,7 +199,8 @@ public final class CapturedMedia {
         }
     }
 
-    private static String queryName(ContentResolver resolver, Uri uri, String fallback) {
+    public static String queryDisplayName(ContentResolver resolver, Uri uri, String fallback) {
+        if (resolver == null || uri == null) return fallback;
         try (Cursor row = resolver.query(uri, new String[]{OpenableColumns.DISPLAY_NAME}, null, null, null)) {
             if (row != null && row.moveToFirst()) {
                 return sanitizeFilename(row.getString(0), fallback);

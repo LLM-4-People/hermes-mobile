@@ -59,26 +59,44 @@ public final class QrScannerActivityTest {
     }
 
     @Test
-    public void deferredTorchUiSyncReadsLiveSynchronizedStateAfterResetAndReenable() {
+    public void deferredTorchUiSyncReadsLiveSynchronizedStateAfterResetAndReenable() throws Exception {
         assertFalse(QrScannerActivity.currentTorchEnabled(false, false));
         assertFalse(QrScannerActivity.currentTorchEnabled(false, true));
         assertFalse(QrScannerActivity.currentTorchEnabled(true, false));
         assertTrue(QrScannerActivity.currentTorchEnabled(true, true));
+        assertTrue(QrScannerActivity.isCurrentEpoch(3, 3));
+        assertFalse(QrScannerActivity.isCurrentEpoch(2, 3));
 
-        // Simulate closeCamera() resetting torchOn=false and posting a UI refresh runnable,
-        // followed by camera reopen + user re-enabling torch BEFORE the posted runnable flushes.
+        // Verify production postTorchButtonState() takes 0 args (no stale boolean snapshot overload).
+        java.lang.reflect.Method zeroArgPost = QrScannerActivity.class.getDeclaredMethod("postTorchButtonState");
+        assertEquals(void.class, zeroArgPost.getReturnType());
+        boolean hasBooleanOverload = false;
+        try {
+            QrScannerActivity.class.getDeclaredMethod("postTorchButtonState", boolean.class);
+            hasBooleanOverload = true;
+        } catch (NoSuchMethodException expected) {
+            // expected
+        }
+        assertFalse("Stale postTorchButtonState(boolean) overload must not exist", hasBooleanOverload);
+
+        // Verify epoch-fenced closeCameraForEpoch(int, CameraDevice) exists for disconnect/error cleanup.
+        java.lang.reflect.Method epochClose = QrScannerActivity.class.getDeclaredMethod(
+                "closeCameraForEpoch", int.class, android.hardware.camera2.CameraDevice.class);
+        assertEquals(boolean.class, epochClose.getReturnType());
+
+        // Exercise production deferredTorchUiSync helper across reset -> re-enable before flush.
         Object lock = new Object();
         boolean[] flashAvailable = {true};
         boolean[] torchOn = {false};
         boolean[] renderedButtonOn = {false};
 
-        Runnable deferredUiRefresh = () -> {
-            final boolean liveEnabled;
-            synchronized (lock) {
-                liveEnabled = QrScannerActivity.currentTorchEnabled(flashAvailable[0], torchOn[0]);
-            }
-            renderedButtonOn[0] = liveEnabled;
-        };
+        Runnable deferredUiRefresh = QrScannerActivity.deferredTorchUiSync(
+                () -> {
+                    synchronized (lock) {
+                        return QrScannerActivity.currentTorchEnabled(flashAvailable[0], torchOn[0]);
+                    }
+                },
+                enabled -> renderedButtonOn[0] = enabled);
 
         // Before flush, user re-enables torch on reopened camera.
         synchronized (lock) {
@@ -93,5 +111,9 @@ public final class QrScannerActivityTest {
         }
         deferredUiRefresh.run();
         assertFalse("Deferred refresh must stay false when flash is unavailable", renderedButtonOn[0]);
+
+        // Null-safe no-op on missing reader or updater.
+        QrScannerActivity.deferredTorchUiSync(null, enabled -> renderedButtonOn[0] = enabled).run();
+        QrScannerActivity.deferredTorchUiSync(() -> true, null).run();
     }
 }

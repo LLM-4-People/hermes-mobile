@@ -58,6 +58,8 @@ import java.util.Arrays;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 
 /**
  * Zero-dependency native Camera2 QR scanner for Hermes pairing links.
@@ -722,26 +724,15 @@ public final class QrScannerActivity extends Activity {
 
                 @Override
                 public void onDisconnected(CameraDevice device) {
-                    device.close();
-                    synchronized (cameraLock) {
-                        if (sessionEpoch != cameraEpoch) return;
-                        cameraOpening = false;
-                        if (cameraDevice == device) cameraDevice = null;
-                    }
+                    if (!closeCameraForEpoch(sessionEpoch, device)) return;
+                    Diagnostics.warning("qr_scanner", "camera_disconnected");
+                    mainHandler.post(() -> showFallback(
+                            R.string.qr_scanner_unavailable_title, R.string.qr_scanner_unavailable_detail, false));
                 }
 
                 @Override
                 public void onError(CameraDevice device, int error) {
-                    device.close();
-                    boolean stale;
-                    synchronized (cameraLock) {
-                        stale = sessionEpoch != cameraEpoch;
-                        if (!stale) {
-                            cameraOpening = false;
-                            if (cameraDevice == device) cameraDevice = null;
-                        }
-                    }
-                    if (stale) return;
+                    if (!closeCameraForEpoch(sessionEpoch, device)) return;
                     Diagnostics.warning("qr_scanner", "camera_open_error_" + error);
                     mainHandler.post(() -> showFallback(
                             R.string.qr_scanner_unavailable_title, R.string.qr_scanner_unavailable_detail, false));
@@ -926,6 +917,17 @@ public final class QrScannerActivity extends Activity {
         return flashAvailable && torchOn;
     }
 
+    static boolean isCurrentEpoch(int expectedEpoch, int currentEpoch) {
+        return expectedEpoch == currentEpoch;
+    }
+
+    static Runnable deferredTorchUiSync(BooleanSupplier liveStateReader, Consumer<Boolean> uiUpdater) {
+        return () -> {
+            if (liveStateReader == null || uiUpdater == null) return;
+            uiUpdater.accept(liveStateReader.getAsBoolean());
+        };
+    }
+
     private boolean readTorchEnabledLocked() {
         synchronized (cameraLock) {
             return currentTorchEnabled(flashAvailable, torchOn);
@@ -939,7 +941,7 @@ public final class QrScannerActivity extends Activity {
     }
 
     private void postTorchButtonState() {
-        mainHandler.post(() -> updateTorchButtonText(readTorchEnabledLocked()));
+        mainHandler.post(deferredTorchUiSync(this::readTorchEnabledLocked, this::updateTorchButtonText));
     }
 
     private void toggleTorch() {
@@ -969,30 +971,55 @@ public final class QrScannerActivity extends Activity {
         updateTorchButtonText(applied);
     }
 
-    private void closeCamera() {
-        boolean resetTorchUi;
+    private boolean closeCameraForEpoch(int expectedEpoch, CameraDevice callbackDevice) {
+        if (callbackDevice != null) {
+            try { callbackDevice.close(); } catch (RuntimeException ignored) {}
+        }
+        boolean current;
+        boolean resetTorchUi = false;
         synchronized (cameraLock) {
-            cameraEpoch++;
-            resetTorchUi = torchOn;
-            torchOn = false;
-            cameraOpening = false;
-            if (captureSession != null) {
-                try { captureSession.close(); } catch (RuntimeException ignored) {}
-                captureSession = null;
+            current = isCurrentEpoch(expectedEpoch, cameraEpoch);
+            if (current) {
+                resetTorchUi = closeCameraResourcesLocked(callbackDevice);
             }
-            if (cameraDevice != null) {
-                try { cameraDevice.close(); } catch (RuntimeException ignored) {}
-                cameraDevice = null;
-            }
-            if (imageReader != null) {
-                try { imageReader.close(); } catch (RuntimeException ignored) {}
-                imageReader = null;
-            }
-            previewRequestBuilder = null;
         }
         if (resetTorchUi) {
             postTorchButtonState();
         }
+        return current;
+    }
+
+    private void closeCamera() {
+        boolean resetTorchUi;
+        synchronized (cameraLock) {
+            resetTorchUi = closeCameraResourcesLocked(null);
+        }
+        if (resetTorchUi) {
+            postTorchButtonState();
+        }
+    }
+
+    private boolean closeCameraResourcesLocked(CameraDevice alreadyClosed) {
+        cameraEpoch++;
+        boolean resetTorchUi = torchOn;
+        torchOn = false;
+        cameraOpening = false;
+        if (captureSession != null) {
+            try { captureSession.close(); } catch (RuntimeException ignored) {}
+            captureSession = null;
+        }
+        if (cameraDevice != null) {
+            if (cameraDevice != alreadyClosed) {
+                try { cameraDevice.close(); } catch (RuntimeException ignored) {}
+            }
+            cameraDevice = null;
+        }
+        if (imageReader != null) {
+            try { imageReader.close(); } catch (RuntimeException ignored) {}
+            imageReader = null;
+        }
+        previewRequestBuilder = null;
+        return resetTorchUi;
     }
 
     private String selectCameraId(CameraManager manager) {
