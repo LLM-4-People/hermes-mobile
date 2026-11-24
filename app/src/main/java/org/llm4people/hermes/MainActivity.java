@@ -333,13 +333,13 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         shellRoutes.register(AppearanceSettingsPanel.ROUTE_ID, (route, force) -> {
             boolean changed = navigation.display(route, this::leavingSurface);
             if (!changed && activeAppearancePanel != null) {
-                activeAppearancePanel.syncThemeMode(ThemePalette.load(account, ThemePalette.isNight(this)).theme);
+                activeAppearancePanel.syncThemeMode(AppThemeMode.readMode(this));
                 activeAppearancePanel.refreshAll();
                 return;
             }
             if (activeAppearancePanel != null) activeAppearancePanel.dismissDialogs();
             Account owner = account;
-            String initialTheme = ThemePalette.load(owner, ThemePalette.isNight(this)).theme;
+            String initialTheme = AppThemeMode.readMode(this);
             activeAppearancePanel = new AppearanceSettingsPanel(
                     this,
                     AppCustomizationStore.forAccount(owner),
@@ -868,7 +868,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                 return WorkspaceDialogs.securitySummary(MainActivity.this, owner.id);
             }
             @Override public String themeModeLabel() {
-                String mode = ThemePalette.load(owner, ThemePalette.isNight(MainActivity.this)).theme;
+                String mode = AppThemeMode.readMode(MainActivity.this);
                 return getString(SettingsHubModel.themeModeLabelRes(mode));
             }
             @Override public String appearanceSummary() {
@@ -1841,9 +1841,9 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     private void applyAppCustomization(Account owner, AppCustomization custom, boolean refreshLayout) {
         if (owner == null || custom == null) return;
         try {
-            boolean night = ThemePalette.isNight(this);
-            ThemePalette.OverrideSpec existing = ThemePalette.load(owner, night);
-            ThemePalette.OverrideSpec spec = custom.toThemeOverride(existing, night);
+            boolean systemNight = AppThemeMode.isSystemNight();
+            ThemePalette.OverrideSpec existing = ThemePalette.load(owner, systemNight);
+            ThemePalette.OverrideSpec spec = custom.toThemeOverride(existing, systemNight);
             ThemePalette.save(owner, spec);
             if (refreshLayout && account == owner) {
                 onLayoutChanged();
@@ -1858,10 +1858,10 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         String safeMode = themeMode.trim().toLowerCase(java.util.Locale.ROOT);
         if (!ThemePalette.THEMES.contains(safeMode)) return false;
         try {
-            boolean night = ThemePalette.isNight(this);
-            ThemePalette.OverrideSpec current = ThemePalette.load(owner, night);
+            boolean systemNight = AppThemeMode.isSystemNight();
+            ThemePalette.OverrideSpec current = ThemePalette.load(owner, systemNight);
             AppCustomization saved = AppCustomizationStore.forAccount(owner).current();
-            ThemePalette.OverrideSpec updated = saved.adaptOverrideForThemeMode(current, safeMode, night);
+            ThemePalette.OverrideSpec updated = saved.adaptOverrideForThemeMode(current, safeMode, systemNight);
             ThemePalette.save(owner, updated);
             if (!AppThemeMode.applyAndRecreateIfNeeded(this, safeMode)) {
                 onLayoutChanged();

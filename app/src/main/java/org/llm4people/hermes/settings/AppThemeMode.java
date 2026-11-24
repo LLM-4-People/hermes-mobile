@@ -3,6 +3,7 @@ package org.llm4people.hermes.settings;
 import android.app.Activity;
 import android.app.UiModeManager;
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.content.res.Configuration;
 import android.content.res.Resources;
 import android.os.Build;
@@ -45,6 +46,11 @@ public final class AppThemeMode {
         return systemNight;
     }
 
+    /** Returns true when switching to {@code nextMode} changes the Activity's effective Day/Night polarity. */
+    public static boolean willRecreateOnModeChange(boolean currentActivityNight, String nextMode, boolean systemNight) {
+        return resolveNight(nextMode, systemNight) != currentActivityNight;
+    }
+
     /** Compute the updated {@link Configuration#uiMode} bitmask for API 28–30 context wrapping. */
     public static int computeUiMode(int currentUiMode, String mode) {
         String normalized = normalize(mode);
@@ -77,21 +83,26 @@ public final class AppThemeMode {
         }
     }
 
-    /** Persist the selected theme mode and apply it via {@link UiModeManager} on API 31+. */
+    /** Persist the selected theme mode synchronously and apply it via {@link UiModeManager} on API 31+. */
     public static String apply(Context context, String mode) {
         String normalized = normalize(mode);
         if (context == null) return normalized;
         try {
-            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-                    .edit()
-                    .putString(KEY_MODE, normalized)
-                    .apply();
+            if (!commitMode(context.getSharedPreferences(PREFS, Context.MODE_PRIVATE), normalized)) {
+                Diagnostics.warning("theme", "save_mode_failed");
+            }
         } catch (RuntimeException unavailable) {
             Diagnostics.warning("theme", "save_mode_failed", unavailable);
         }
         applyPlatformNightMode(context, normalized);
         Diagnostics.event("theme", "mode_" + normalized);
         return normalized;
+    }
+
+    /** Synchronously commit the normalized theme mode so an immediate process kill never drops the preference. */
+    static boolean commitMode(SharedPreferences prefs, String mode) {
+        if (prefs == null) return false;
+        return prefs.edit().putString(KEY_MODE, normalize(mode)).commit();
     }
 
     /** Re-apply any stored night-mode override during Activity startup (API 31+). */
@@ -102,19 +113,20 @@ public final class AppThemeMode {
 
     /**
      * Persist and apply {@code mode} live to {@code activity}.
-     * Returns {@code true} when an Activity recreation was triggered so callers can skip redundant re-renders.
+     * Returns {@code true} when an Activity recreation will occur (either triggered natively by
+     * {@link UiModeManager#setApplicationNightMode(int)} on API 31+ or via {@link Activity#recreate()}
+     * on API 28–30) so callers can skip redundant synchronous re-renders on the outgoing Activity.
      */
     public static boolean applyAndRecreateIfNeeded(Activity activity, String mode) {
         if (activity == null) return false;
         boolean wasNight = ThemePalette.isNight(activity);
         String normalized = apply(activity, mode);
-        boolean targetNight = resolveNight(normalized, isSystemNight());
-        if (Build.VERSION.SDK_INT < 31 && targetNight != wasNight
-                && !activity.isFinishing() && !activity.isDestroyed()) {
+        boolean willRecreate = willRecreateOnModeChange(wasNight, normalized, isSystemNight())
+                && !activity.isFinishing() && !activity.isDestroyed();
+        if (willRecreate && Build.VERSION.SDK_INT < 31) {
             activity.recreate();
-            return true;
         }
-        return false;
+        return willRecreate;
     }
 
     /** Wrap an Activity base context on API 28–30 so Light/Dark overrides resolve matching night resources. */
@@ -140,7 +152,8 @@ public final class AppThemeMode {
         }
     }
 
-    private static boolean isSystemNight() {
+    /** Read the true device/system dark-mode polarity unaffected by per-Activity overrides. */
+    public static boolean isSystemNight() {
         try {
             int uiMode = Resources.getSystem().getConfiguration().uiMode;
             return (uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;

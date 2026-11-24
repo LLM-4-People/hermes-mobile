@@ -179,7 +179,7 @@ public final class AppearanceSettingsPanel {
     private void renderPreview() {
         previewSlot.removeAllViews();
         AppCustomization custom = store.current();
-        boolean previewNight = AppThemeMode.resolveNight(activeThemeMode, ThemePalette.isNight(activity));
+        boolean previewNight = AppThemeMode.resolveNight(activeThemeMode, AppThemeMode.isSystemNight());
 
         int bgColor = previewNight ? ThemePalette.NIGHT_SURFACE : ThemePalette.DAY_SURFACE;
         int borderColor = previewNight ? ThemePalette.NIGHT_LINE : ThemePalette.DAY_LINE;
@@ -349,7 +349,7 @@ public final class AppearanceSettingsPanel {
         if (paletteSwatchesSlot == null) return;
         paletteSwatchesSlot.removeAllViews();
         AppCustomization current = store.current();
-        boolean previewNight = AppThemeMode.resolveNight(activeThemeMode, ThemePalette.isNight(activity));
+        boolean previewNight = AppThemeMode.resolveNight(activeThemeMode, AppThemeMode.isSystemNight());
         SettingsWrapLayout swatches = new SettingsWrapLayout(activity, 8, 8);
         for (AppCustomization.PalettePreset preset : AppearanceSettingsModel.CURATED_PRESETS) {
             boolean selected = current.palette == preset;
