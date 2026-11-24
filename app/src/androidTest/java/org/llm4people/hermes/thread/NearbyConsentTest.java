@@ -41,14 +41,9 @@ public final class NearbyConsentTest extends InstrumentationTestCase {
         Activity activity = getInstrumentation().startActivitySync(
                 context.getPackageManager().getLaunchIntentForPackage(context.getPackageName()));
         try (WorkspaceAccountFixture fixture = new WorkspaceAccountFixture(context)) {
-            ThreadWorkspace[] workspaceRef = new ThreadWorkspace[1];
-            android.widget.ListView[] listRef = new android.widget.ListView[1];
-            ThreadStarters[] startersRef = new ThreadStarters[1];
-            String[] staged = {""};
-            try {
-                runTestOnUiThread(() -> {
-                    ThreadWorkspace workspace = new ThreadWorkspace(activity, null, fixture.account, null, new VoiceDrafts(activity));
-                    workspaceRef[0] = workspace;
+            runTestOnUiThread(() -> {
+                ThreadWorkspace workspace = new ThreadWorkspace(activity, null, fixture.account, null, new VoiceDrafts(activity));
+                try {
                     // Positive + negative NearbyConsent.reconcilePermissionState assertions.
                     workspace.nearby.setFailureForTest("Location blocked");
                     workspace.nearby.reconcilePermissionState(false);
@@ -61,8 +56,10 @@ public final class NearbyConsentTest extends InstrumentationTestCase {
                     workspace.reconcileNearbyPermission();
                     assertEquals("", workspace.nearby.failureForTest());
 
-                    // ThreadStarters attaches its header view to ListView; ListView only mounts header views
-                    // as children after an adapter is bound and a layout pass runs.
+                    // ThreadStarters attaches its header view to ListView; mount list on the Activity and
+                    // synchronously measure+layout in the same UI frame (avoiding any async ProfileGate
+                    // setContentView race) so ListView attaches its header and content.isShown() is true.
+                    String[] staged = {""};
                     android.widget.ListView list = new android.widget.ListView(activity);
                     ThreadStarters starters = new ThreadStarters(list, text -> staged[0] = text);
                     list.setAdapter(new android.widget.ArrayAdapter<>(
@@ -78,42 +75,35 @@ public final class NearbyConsentTest extends InstrumentationTestCase {
                                                     "brief", "Brief matin", "Fais le point du matin.")));
                     starters.applyCustomization(custom);
                     workspace.applyAppCustomization(custom);
-                    listRef[0] = list;
-                    startersRef[0] = starters;
-                });
+                    measureAndLayout(list,
+                            org.llm4people.hermes.Ui.dp(activity, 360),
+                            org.llm4people.hermes.Ui.dp(activity, 780));
 
-                // Wait for Android layout pass to attach the ListView header and render the custom chip.
-                android.widget.Button[] shortcutChipRef = new android.widget.Button[1];
-                long deadline = android.os.SystemClock.elapsedRealtime() + 5000;
-                while (android.os.SystemClock.elapsedRealtime() < deadline) {
-                    getInstrumentation().waitForIdleSync();
-                    runTestOnUiThread(() -> shortcutChipRef[0] = findButtonByText(listRef[0], "Brief matin"));
-                    if (shortcutChipRef[0] != null) break;
-                    android.os.SystemClock.sleep(50);
-                }
-
-                runTestOnUiThread(() -> {
-                    android.widget.Button shortcutChip = shortcutChipRef[0];
+                    android.widget.Button shortcutChip = findButtonByText(list, "Brief matin");
                     assertNotNull("Expected custom composer shortcut chip", shortcutChip);
-                    assertNotNull("Expected custom greeting heading", findTextViewByText(listRef[0], "Bonjour équipe"));
+                    assertNotNull("Expected custom greeting heading", findTextViewByText(list, "Bonjour équipe"));
 
                     // Editable Draft Rule: tapping shortcut chip stages draft text directly.
                     shortcutChip.performClick();
                     assertEquals("Fais le point du matin.", staged[0]);
 
                     // Resetting customization restores default heading and hides custom shortcuts.
-                    startersRef[0].applyCustomization(null);
+                    starters.applyCustomization(null);
+                    workspace.applyAppCustomization(null);
                     assertNull("Custom shortcut chip should disappear when customization resets",
-                            findButtonByText(listRef[0], "Brief matin"));
+                            findButtonByText(list, "Brief matin"));
                     assertNotNull("Default starter heading should be restored",
-                            findTextViewByText(listRef[0], activity.getString(org.llm4people.hermes.R.string.starter_heading)));
-                });
-            } finally {
-                runTestOnUiThread(() -> {
-                    if (workspaceRef[0] != null) workspaceRef[0].close();
-                });
-            }
+                            findTextViewByText(list, activity.getString(org.llm4people.hermes.R.string.starter_heading)));
+                } finally { workspace.close(); }
+            });
         } finally { runTestOnUiThread(activity::finish); }
+    }
+
+    private static void measureAndLayout(android.view.View root, int widthPx, int heightPx) {
+        root.measure(
+                android.view.View.MeasureSpec.makeMeasureSpec(widthPx, android.view.View.MeasureSpec.EXACTLY),
+                android.view.View.MeasureSpec.makeMeasureSpec(heightPx, android.view.View.MeasureSpec.EXACTLY));
+        root.layout(0, 0, widthPx, heightPx);
     }
 
     private static android.widget.Button findButtonByText(android.view.View root, String text) {
