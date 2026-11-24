@@ -197,6 +197,60 @@ class SemverBumpTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             semver_bump.main(["--superseded-prs-json", "[]"])
 
+    def test_semver_2_prerelease_precedence_for_publish_pending_and_superseded_prs(self):
+        ordered = [
+            "v0.3.0-1",
+            "v0.3.0-alpha",
+            "v0.3.0-alpha.1",
+            "v0.3.0-rc.1",
+            "v0.3.0-rc.2",
+            "v0.3.0-rc.10",
+            "v0.3.0",
+        ]
+        keys = [semver_bump.semver_sort_key(tag) for tag in ordered]
+        self.assertEqual(keys, sorted(keys))
+        self.assertLess(semver_bump.semver_sort_key("v0.3.0-rc.2"), semver_bump.semver_sort_key("v0.3.0-rc.10"))
+
+        # Publishing rc.2 after rc.1 and final 0.3.0 after rc.10 both succeed.
+        rc2 = semver_bump.plan_release("0.3.0-rc.2", 5, "publish", existing_tags=["v0.3.0-rc.1"], published_max_code=4)
+        self.assertEqual(rc2["mode"], "tag_and_release")
+        self.assertEqual(rc2["tag"], "v0.3.0-rc.2")
+
+        final = semver_bump.plan_release("0.3.0", 6, "publish", existing_tags=["v0.3.0-rc.1", "v0.3.0-rc.10"], published_max_code=5)
+        self.assertEqual(final["mode"], "tag_and_release")
+        self.assertEqual(final["tag"], "v0.3.0")
+
+        # Downgrading rc.2 below rc.10 or publishing rc.1 after final 0.3.0 fails closed with original tag preserved.
+        with self.assertRaisesRegex(ValueError, r"must exceed latest tag v0\.3\.0-rc\.10"):
+            semver_bump.plan_release("0.3.0-rc.2", 6, "publish", existing_tags=["v0.3.0-rc.10"], published_max_code=5)
+        with self.assertRaisesRegex(ValueError, r"must exceed latest tag v0\.3\.0-rc\.10"):
+            semver_bump.plan_release("0.3.0-rc.9", 6, "publish", existing_tags=["v0.3.0-rc.10"], published_max_code=5)
+        with self.assertRaisesRegex(ValueError, r"must exceed latest tag v0\.3\.0"):
+            semver_bump.plan_release("0.3.0-rc.1", 7, "publish", existing_tags=["v0.3.0"], published_max_code=6)
+
+        # Pending higher pre-release tag preserves its pre-release suffix.
+        pending_rc = semver_bump.plan_release(
+            "0.2.1",
+            4,
+            "patch",
+            existing_tags=["v0.2.1"],
+            published_max_code=4,
+            pending_release_tags=["v0.3.0-rc.2"],
+        )
+        self.assertEqual(pending_rc["tag"], "v0.3.0-rc.2")
+        self.assertEqual(pending_rc["branch"], "release/v0.3.0-rc.2")
+
+        # Superseded pre-release PR detection honors SemVer 2.0.0 numeric & final precedence.
+        open_prs = [
+            {"number": 51, "headRefName": "release/v0.3.0-rc.1"},
+            {"number": 52, "headRefName": "release/v0.3.0-rc.2"},
+            {"number": 53, "headRefName": "release/v0.3.0-rc.10"},
+            {"number": 54, "headRefName": "release/v0.3.0"},
+        ]
+        self.assertEqual(semver_bump.find_superseded_release_prs(open_prs, "v0.3.0-rc.2"), [51])
+        self.assertEqual(semver_bump.find_superseded_release_prs(open_prs, "v0.3.0-rc.10"), [51, 52])
+        self.assertEqual(semver_bump.find_superseded_release_prs(open_prs, "v0.3.0"), [51, 52, 53])
+
     def test_plan_release_tags_immediately_for_first_untagged_version_and_opens_bump_pr_afterward(self):
         # First release (no tags yet, gradle.properties = 0.1.0 / code 1): tag & release immediately
         first = semver_bump.plan_release("0.1.0", 1, "minor", existing_tags=[], published_max_code=0)
