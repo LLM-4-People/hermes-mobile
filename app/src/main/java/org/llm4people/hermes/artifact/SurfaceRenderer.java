@@ -142,11 +142,6 @@ final class SurfaceRenderer {
     }
 
     static LinearLayout pageContent(Context c, Activity activity, WorkspaceLayout layout,
-                                    ArtifactDesk.Host host, boolean showTitle) {
-        return pageContent(c, activity, layout, host, resolvePalette(c, null, layout), null, "thread", showTitle);
-    }
-
-    static LinearLayout pageContent(Context c, Activity activity, WorkspaceLayout layout,
                                     ArtifactDesk.Host host, ThemePalette colors,
                                     InstrumentStateStore store, String stateScope, boolean showTitle) {
         LinearLayout body = Ui.column(c);

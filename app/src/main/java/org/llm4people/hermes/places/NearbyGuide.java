@@ -458,10 +458,6 @@ public final class NearbyGuide extends LinearLayout {
         return context == null ? formatted + " km" : context.getString(R.string.places_distance_km, formatted);
     }
 
-    public static String distance(int meters) {
-        return distance(null, meters);
-    }
-
     private Button action(String label, String tag, OnClickListener click) {
         Button b = Ui.button(getContext(), label, click);
         b.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);

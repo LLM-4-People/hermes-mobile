@@ -268,6 +268,8 @@ public final class DiffRenderer {
         if (model == null || context == null) return "";
         List<String> parts = new ArrayList<>();
         if (!model.path.isEmpty()) parts.add(model.path);
+        String risk = riskLabel(context, model.risk);
+        if (!risk.isEmpty()) parts.add(risk);
         if (model.additions > 0) {
             parts.add(context.getResources().getQuantityString(R.plurals.diff_lines_added, model.additions, model.additions));
         }
@@ -340,10 +342,15 @@ public final class DiffRenderer {
             badge.setText(styledStats(context, model));
             badge.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
             badge.setPaddingRelative(Ui.dp(context, 8), 0, 0, 0);
-            badge.setContentDescription(statsDesc);
+            if (!statsDesc.isEmpty()) {
+                badge.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+            }
             box.addView(badge);
         }
-        box.setContentDescription(statsDesc);
+        if (!statsDesc.isEmpty()) {
+            info.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
+            box.setContentDescription(statsDesc);
+        }
         return box;
     }
 
