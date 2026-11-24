@@ -28,14 +28,13 @@ import java.util.function.Consumer;
  * (universal_sharing or note_sharing), plus learned Habit Suggestions (strictly count >= 3).
  */
 final class NotesPanel {
-    private static final int TAB_MINE = 0;
-    private static final int TAB_SHARED = 1;
+    private static Typeface mediumTypeface;
 
     private final SessionPanel panel;
     private final BooleanSupplier activeThread;
     private final Consumer<String> stageDraft;
     private final Runnable parent;
-    private int activeTab = TAB_MINE;
+    private NotesModel.FilterTab activeTab = NotesModel.FilterTab.MINE;
     private int loadSeq;
     private BrainCapabilities capabilities = BrainCapabilities.empty();
     private List<NotesModel.Note> notes = new ArrayList<>();
@@ -44,6 +43,13 @@ final class NotesPanel {
     private LinearLayout tabsRow;
     private LinearLayout habitsBox;
     private LinearLayout body;
+
+    private static Typeface mediumTypeface() {
+        if (mediumTypeface == null) {
+            mediumTypeface = Typeface.create("sans-serif-medium", Typeface.NORMAL);
+        }
+        return mediumTypeface;
+    }
 
     NotesPanel(SessionPanel panel, BooleanSupplier activeThread, Consumer<String> stageDraft, Runnable parent) {
         this.panel = panel;
@@ -79,10 +85,40 @@ final class NotesPanel {
 
     private void renderTabs() {
         tabsRow.removeAllViews();
-        tabsRow.addView(BrainUi.chip(panel.activity, panel.t(R.string.brain_notes_tab_mine),
-                activeTab == TAB_MINE, () -> { activeTab = TAB_MINE; renderTabs(); load(); }));
-        tabsRow.addView(BrainUi.chip(panel.activity, panel.t(R.string.brain_notes_tab_shared),
-                activeTab == TAB_SHARED, () -> { activeTab = TAB_SHARED; renderTabs(); load(); }));
+        int gap = Ui.dp(panel.activity, 8);
+        NotesModel.FilterTab[] tabs = NotesModel.FilterTab.values();
+        for (int i = 0; i < tabs.length; i++) {
+            NotesModel.FilterTab tab = tabs[i];
+            boolean selected = activeTab == tab;
+            String label = panel.t(tab.labelRes);
+            Button pill = new Button(panel.activity, null, android.R.attr.borderlessButtonStyle);
+            pill.setTag("notes:filter:" + tab.name().toLowerCase(java.util.Locale.ROOT));
+            pill.setText(label);
+            pill.setAllCaps(false);
+            pill.setTextSize(14);
+            pill.setTypeface(mediumTypeface());
+            pill.setStateListAnimator(null);
+            pill.setMinHeight(Ui.dp(panel.activity, 48));
+            pill.setMinimumHeight(Ui.dp(panel.activity, 48));
+            pill.setPaddingRelative(Ui.dp(panel.activity, 18), Ui.dp(panel.activity, 10),
+                    Ui.dp(panel.activity, 18), Ui.dp(panel.activity, 10));
+            pill.setSelected(selected);
+            pill.setContentDescription(label);
+            pill.setTextColor(panel.activity.getColor(selected ? R.color.on_accent : R.color.ink));
+            pill.setBackground(Ui.roundedRipple(panel.activity, Ui.BUTTON_CORNER_DP,
+                    selected
+                            ? Ui.shape(panel.activity, Ui.BUTTON_CORNER_DP, R.color.accent, 0, 0)
+                            : Ui.shape(panel.activity, Ui.BUTTON_CORNER_DP, R.color.surface_container, R.color.line, 1)));
+            pill.setOnClickListener(v -> {
+                if (activeTab == tab) return;
+                activeTab = tab;
+                renderTabs();
+                load();
+            });
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
+            if (i < tabs.length - 1) lp.setMarginEnd(gap);
+            tabsRow.addView(pill, lp);
+        }
     }
 
     private void load() {
@@ -91,7 +127,7 @@ final class NotesPanel {
         // Each tab switch or reload supersedes any in-flight load: a stale response must never
         // overwrite the notes of the tab now on screen.
         int seq = ++loadSeq;
-        boolean sharedTab = activeTab == TAB_SHARED;
+        boolean sharedTab = activeTab == NotesModel.FilterTab.SHARED;
         panel.request(body, () -> {
             BrainCapabilities caps = BrainJson.parseCapabilities(panel.api.capabilities());
             if (!caps.smartNotes()) return new Object[]{caps, null, null};
@@ -101,7 +137,9 @@ final class NotesPanel {
             } else {
                 fetched = BrainJson.parseNotes(panel.api.get("/api/notes"), false);
             }
-            List<NotesModel.HabitSuggestion> habits = fetchOptionalHabits(caps);
+            List<NotesModel.HabitSuggestion> habits = sharedTab
+                    ? java.util.Collections.emptyList()
+                    : fetchOptionalHabits(caps);
             return new Object[]{caps, fetched, habits};
         }, payload -> {
             if (seq != loadSeq) return;
@@ -123,7 +161,12 @@ final class NotesPanel {
             if (seq != loadSeq) return;
             if (error instanceof HermesApi.HttpError http && (http.status == 404 || http.status == 405 || http.status == 501)) {
                 Diagnostics.warning("notes", "endpoint_absent", "http_" + http.status);
-                BrainUi.showUnavailable(panel, body, R.string.brain_notes_unavailable, this::load);
+                if (sharedTab) {
+                    notes = new ArrayList<>();
+                    renderList();
+                } else {
+                    BrainUi.showUnavailable(panel, body, R.string.brain_notes_unavailable, this::load);
+                }
             } else {
                 Diagnostics.warning("notes", "load_failed", error);
                 panel.failure(body, error, this::load);
@@ -160,52 +203,83 @@ final class NotesPanel {
     private void renderList() {
         body.removeAllViews();
         LinearLayout bar = Ui.row(panel.activity);
-        if (activeTab == TAB_MINE) {
-            bar.addView(Ui.button(panel.activity, panel.t(R.string.brain_notes_new), v -> openEditor(null)));
+        if (activeTab == NotesModel.FilterTab.MINE) {
+            Button createBtn = Ui.filledButton(panel.activity, panel.t(R.string.brain_notes_new), v -> openEditor(null));
+            LinearLayout.LayoutParams createLp = new LinearLayout.LayoutParams(-2, -2);
+            createLp.setMarginEnd(Ui.dp(panel.activity, 8));
+            bar.addView(createBtn, createLp);
         }
-        bar.addView(Ui.button(panel.activity, panel.t(R.string.panel_refresh), v -> load()));
-        body.addView(bar);
+        bar.addView(Ui.outlinedButton(panel.activity, panel.t(R.string.panel_refresh), v -> load()));
+        LinearLayout.LayoutParams barLp = new LinearLayout.LayoutParams(-1, -2);
+        barLp.bottomMargin = Ui.dp(panel.activity, 12);
+        body.addView(bar, barLp);
 
         String query = filterField == null ? "" : filterField.getText().toString();
-        List<NotesModel.Note> visible = NotesModel.filter(notes, query);
+        List<NotesModel.Note> visible = NotesModel.filterForTab(notes, activeTab, query);
         if (visible.isEmpty()) {
-            panel.note(body, panel.t(notes.isEmpty()
-                    ? (activeTab == TAB_SHARED ? R.string.brain_notes_shared_empty : R.string.brain_notes_empty)
-                    : R.string.brain_memory_empty_filter));
+            panel.note(body, panel.t(NotesModel.emptyMessageRes(activeTab, notes.isEmpty())));
             return;
         }
-        for (NotesModel.Note note : visible) {
-            body.addView(noteCard(note));
+        int cardGap = Ui.dp(panel.activity, 10);
+        for (int i = 0; i < visible.size(); i++) {
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+            if (i < visible.size() - 1) lp.bottomMargin = cardGap;
+            body.addView(noteCard(visible.get(i)), lp);
         }
     }
 
     private View noteCard(NotesModel.Note note) {
-        LinearLayout card = BrainUi.card(panel.activity);
+        LinearLayout card = Ui.card(panel.activity);
+        card.setFocusable(true);
+        card.setClickable(true);
+        card.setContentDescription(panel.t(R.string.notes_open_note_cd, note.displayTitle(panel.activity)));
+        card.setOnClickListener(v -> openReader(note));
+
         LinearLayout top = Ui.row(panel.activity);
-        TextView title = Ui.text(panel.activity, note.displayTitle(panel.activity), 17);
-        title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        TextView title = Ui.text(panel.activity, note.displayTitle(panel.activity), 16);
+        title.setTypeface(mediumTypeface());
         top.addView(title, new LinearLayout.LayoutParams(0, -2, 1));
-        if (note.pinned()) top.addView(BrainUi.badge(panel.activity, panel.t(R.string.brain_memory_pinned), true));
+        if (note.pinned()) {
+            top.addView(Ui.pill(panel.activity, panel.t(R.string.brain_memory_pinned),
+                    R.color.accent_surface, R.color.accent));
+        }
         card.addView(top);
 
         if (!note.body().isEmpty()) {
-            TextView content = Ui.text(panel.activity, note.body(), 15);
-            content.setTextIsSelectable(true);
-            Ui.pad(content, 0, 4);
+            TextView content = Ui.text(panel.activity, note.body(), 14);
+            content.setTextColor(panel.activity.getColor(R.color.muted));
+            content.setMaxLines(4);
+            content.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            content.setPaddingRelative(0, Ui.dp(panel.activity, 6), 0, 0);
             card.addView(content);
         }
 
         LinearLayout badges = Ui.row(panel.activity);
+        int badgeGap = Ui.dp(panel.activity, 6);
         if (!note.isOwner()) {
-            badges.addView(BrainUi.badge(panel.activity,
-                    UniversalShareModel.permissionLabel(panel.activity, note.permission()), false));
+            TextView permBadge = Ui.pill(panel.activity,
+                    UniversalShareModel.permissionLabel(panel.activity, note.permission()),
+                    R.color.accent_surface, R.color.accent);
+            LinearLayout.LayoutParams permLp = new LinearLayout.LayoutParams(-2, -2);
+            permLp.setMarginEnd(badgeGap);
+            badges.addView(permBadge, permLp);
             if (!note.ownerProfile().isEmpty()) {
-                badges.addView(BrainUi.badge(panel.activity,
-                        panel.t(R.string.ws_shared_by, note.ownerProfile()), false));
+                TextView ownerBadge = Ui.pill(panel.activity,
+                        panel.t(R.string.ws_shared_by, note.ownerProfile()),
+                        R.color.surface_container, R.color.muted);
+                LinearLayout.LayoutParams ownerLp = new LinearLayout.LayoutParams(-2, -2);
+                ownerLp.setMarginEnd(badgeGap);
+                badges.addView(ownerBadge, ownerLp);
             }
         }
-        for (String tag : note.tags()) badges.addView(BrainUi.badge(panel.activity, tag, false));
+        for (String tag : note.tags()) {
+            TextView tagPill = Ui.pill(panel.activity, tag, R.color.surface_container, R.color.ink);
+            LinearLayout.LayoutParams tagLp = new LinearLayout.LayoutParams(-2, -2);
+            tagLp.setMarginEnd(badgeGap);
+            badges.addView(tagPill, tagLp);
+        }
         if (badges.getChildCount() > 0) {
+            badges.setPaddingRelative(0, Ui.dp(panel.activity, 8), 0, 0);
             card.addView(BrainUi.chipBar(panel.activity, badges));
         }
 
@@ -231,6 +305,21 @@ final class NotesPanel {
         }
         if (actions.getChildCount() > 0) card.addView(BrainUi.chipBar(panel.activity, actions));
         return card;
+    }
+
+    private void openReader(NotesModel.Note note) {
+        AlertDialog.Builder reader = org.llm4people.hermes.artifact.CodeReader.dialog(
+                panel.activity, note.displayTitle(panel.activity), "markdown", note.body());
+        if (note.canEdit()) {
+            reader.setNeutralButton(R.string.panel_edit, (d, w) -> openEditor(note));
+        }
+        if (stageDraft != null && activeThread.getAsBoolean()) {
+            reader.setPositiveButton(R.string.brain_skills_use_in_thread, (d, w) -> {
+                panel.close();
+                stageDraft.accept(NotesModel.draftPromptForNote(panel.activity, note));
+            });
+        }
+        panel.present(reader.create());
     }
 
     void showWithDraft(String prefillTitle, String prefillBody) {

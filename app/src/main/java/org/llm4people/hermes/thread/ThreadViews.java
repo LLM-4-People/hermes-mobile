@@ -42,6 +42,14 @@ import java.util.function.Consumer;
 
 public final class ThreadViews {
     private static final TranscriptCellCache CELL_CACHE = new TranscriptCellCache();
+    private static Typeface mediumTypeface;
+
+    private static Typeface mediumTypeface() {
+        if (mediumTypeface == null) {
+            mediumTypeface = Typeface.create("sans-serif-medium", Typeface.NORMAL);
+        }
+        return mediumTypeface;
+    }
 
     /** Clear the bounded transcript Markdown/span LRU cache (memory trim or profile lock). */
     public static void clearCellCache() {
@@ -92,6 +100,9 @@ public final class ThreadViews {
     private String selectedRoot;
     private Map<String, ActiveRunTracker.TaskBadge> activeBadges = Collections.emptyMap();
     private Consumer<String> onStopTask;
+    private LinearLayout inboxFilterRow;
+    private ThreadInboxFilter.Filter activeInboxFilter = ThreadInboxFilter.Filter.ALL;
+    private Consumer<ThreadInboxFilter.Filter> onInboxFilterSelected;
     private InfiniteScrollController scrollController;
     private int tailFollowEpoch;
     private View.OnLayoutChangeListener pendingTailListener;
@@ -110,18 +121,30 @@ public final class ThreadViews {
         list.setDivider(null);
         list.setClipToPadding(false);
         notice = Ui.column(activity);
+        notice.setBackground(Ui.shape(activity, Ui.CARD_CORNER_DP, R.color.warning_surface, 0, 0));
+        Ui.pad(notice, 14, 10);
         noticeSlot = Ui.column(activity);
-        noticeSlot.addView(notice);
-        Ui.pad(notice, 16, 2);
+        LinearLayout.LayoutParams noticeLp = new LinearLayout.LayoutParams(-1, -2);
+        noticeLp.setMargins(Ui.dp(activity, 12), Ui.dp(activity, 6), Ui.dp(activity, 12), Ui.dp(activity, 4));
+        noticeSlot.addView(notice, noticeLp);
         status = Ui.text(activity, "", 14);
+        status.setTextColor(activity.getColor(R.color.ink));
         status.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
-        remedy = Ui.button(activity, "", v -> {});
+        remedy = Ui.tonalButton(activity, "", v -> {});
+        LinearLayout.LayoutParams remedyLp = new LinearLayout.LayoutParams(-2, -2);
+        remedyLp.topMargin = Ui.dp(activity, 6);
         notice.addView(status);
-        notice.addView(remedy);
+        notice.addView(remedy, remedyLp);
     }
 
     void inbox(Runnable create, Runnable refresh, Consumer<JSONObject> choose, Runnable next) {
+        inbox(create, refresh, choose, next, null);
+    }
+
+    void inbox(Runnable create, Runnable refresh, Consumer<JSONObject> choose, Runnable next,
+               Consumer<ThreadInboxFilter.Filter> onFilter) {
         reset(false);
+        this.onInboxFilterSelected = onFilter;
         Button newThread = Ui.button(activity, activity.getString(R.string.thread_new_conversation), v -> create.run());
         newThread.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
         newThread.setTextSize(16);
@@ -143,6 +166,16 @@ public final class ThreadViews {
         reload.setOnClickListener(v -> refresh.run());
         actions.addView(reload, Ui.dp(activity, 48), Ui.dp(activity, 48));
         root.addView(actions);
+        root.addView(Ui.divider(activity));
+        HorizontalScrollView filterScroll = new HorizontalScrollView(activity);
+        filterScroll.setHorizontalScrollBarEnabled(false);
+        filterScroll.setBackgroundColor(activity.getColor(R.color.surface));
+        inboxFilterRow = Ui.row(activity);
+        inboxFilterRow.setPaddingRelative(Ui.dp(activity, 14), Ui.dp(activity, 8),
+                Ui.dp(activity, 14), Ui.dp(activity, 8));
+        filterScroll.addView(inboxFilterRow);
+        root.addView(filterScroll);
+        renderInboxFilters();
         root.addView(Ui.divider(activity));
         list.setId(R.id.discussion_list);
         list.setDivider(new ColorDrawable(activity.getColor(R.color.line)));
@@ -434,6 +467,51 @@ public final class ThreadViews {
         }
     }
 
+    void setInboxFilter(ThreadInboxFilter.Filter filter) {
+        activeInboxFilter = filter == null ? ThreadInboxFilter.Filter.ALL : filter;
+        renderInboxFilters();
+    }
+
+    private void renderInboxFilters() {
+        if (inboxFilterRow == null) return;
+        inboxFilterRow.removeAllViews();
+        int gap = Ui.dp(activity, 8);
+        ThreadInboxFilter.Filter[] filters = ThreadInboxFilter.Filter.values();
+        Typeface medium = mediumTypeface();
+        for (int i = 0; i < filters.length; i++) {
+            ThreadInboxFilter.Filter filter = filters[i];
+            boolean selected = filter == activeInboxFilter;
+            String label = activity.getString(filter.labelRes);
+            Button pill = new Button(activity, null, android.R.attr.borderlessButtonStyle);
+            pill.setTag("thread_inbox:filter:" + filter.name().toLowerCase(java.util.Locale.ROOT));
+            pill.setText(label);
+            pill.setAllCaps(false);
+            pill.setTextSize(14);
+            pill.setTypeface(medium);
+            pill.setStateListAnimator(null);
+            pill.setMinHeight(Ui.dp(activity, 48));
+            pill.setMinimumHeight(Ui.dp(activity, 48));
+            pill.setPaddingRelative(Ui.dp(activity, 16), Ui.dp(activity, 8),
+                    Ui.dp(activity, 16), Ui.dp(activity, 8));
+            pill.setSelected(selected);
+            pill.setContentDescription(label);
+            pill.setTextColor(activity.getColor(selected ? R.color.on_accent : R.color.ink));
+            pill.setBackground(Ui.roundedRipple(activity, Ui.BUTTON_CORNER_DP,
+                    selected
+                            ? Ui.shape(activity, Ui.BUTTON_CORNER_DP, R.color.accent, 0, 0)
+                            : Ui.shape(activity, Ui.BUTTON_CORNER_DP, R.color.surface_container, R.color.line, 1)));
+            pill.setOnClickListener(v -> {
+                if (activeInboxFilter == filter) return;
+                activeInboxFilter = filter;
+                renderInboxFilters();
+                if (onInboxFilterSelected != null) onInboxFilterSelected.accept(filter);
+            });
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
+            if (i < filters.length - 1) lp.setMarginEnd(gap);
+            inboxFilterRow.addView(pill, lp);
+        }
+    }
+
     void indexRows(JSONArray data, String selected, boolean hasMore) {
         indexRows(data, selected, hasMore, Collections.emptyMap(), null);
     }
@@ -660,8 +738,20 @@ public final class ThreadViews {
     }
 
     void outgoing(String text) {
-        outgoing.setText(text.isEmpty() ? "" : activity.getString(R.string.thread_you) + "\n" + text);
-        outgoing.setVisibility(text.isEmpty() ? View.GONE : View.VISIBLE);
+        if (text.isEmpty()) {
+            outgoing.setText("");
+            outgoing.setVisibility(View.GONE);
+            return;
+        }
+        String speaker = activity.getString(R.string.thread_you);
+        android.text.SpannableString styled = new android.text.SpannableString(speaker + "\n" + text);
+        styled.setSpan(new android.text.style.AbsoluteSizeSpan(13, true),
+                0, speaker.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        styled.setSpan(new android.text.style.StyleSpan(Typeface.BOLD),
+                0, speaker.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        outgoing.setLineSpacing(0f, 1.18f);
+        outgoing.setText(styled);
+        outgoing.setVisibility(View.VISIBLE);
     }
 
     void live(String detail, String text, boolean hasPrompts) {
@@ -788,9 +878,8 @@ public final class ThreadViews {
         LiveReasoningCard(Context context, Consumer<AlertDialog.Builder> openDialog) {
             this.context = context;
             this.openDialog = openDialog;
-            root = Ui.column(context);
+            root = Ui.tonalCard(context);
             Ui.pad(root, 12, 8);
-            root.setBackground(Ui.shape(context, 14, R.color.surface, R.color.line, 1));
 
             contentBox = Ui.column(context);
             contentBox.setVisibility(View.GONE);
@@ -953,8 +1042,7 @@ public final class ThreadViews {
             heading.setText(label);
             heading.setTextSize(chat ? 13 : 16);
             heading.setMaxLines(chat ? 2 : 3);
-            heading.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL),
-                    chat ? Typeface.BOLD : Typeface.NORMAL);
+            heading.setTypeface(mediumTypeface(), chat ? Typeface.BOLD : Typeface.NORMAL);
             heading.setTextColor(getContext().getColor(chat && role.equals("assistant") ? R.color.accent : R.color.ink));
             body.setTextColor(getContext().getColor(chat ? R.color.ink : R.color.muted));
             body.setMaxLines(chat ? Integer.MAX_VALUE : 2);
@@ -1021,15 +1109,40 @@ public final class ThreadViews {
             for (Pin proposal : proposals)
                 instruments.proposal(this, proposal);
             if (!chat) {
+                if (ThreadInboxFilter.isSharedRow(row)) {
+                    LinearLayout badges = Ui.row(getContext());
+                    badges.setPaddingRelative(0, Ui.dp(getContext(), 6), 0, 0);
+                    String perm = ThreadInboxFilter.permission(row);
+                    TextView permPill = Ui.pill(getContext(),
+                            org.llm4people.hermes.panel.UniversalShareModel.permissionLabel(getContext(), perm),
+                            R.color.accent_surface, R.color.accent);
+                    LinearLayout.LayoutParams permLp = new LinearLayout.LayoutParams(-2, -2);
+                    permLp.setMarginEnd(Ui.dp(getContext(), 6));
+                    badges.addView(permPill, permLp);
+                    String owner = ThreadInboxFilter.ownerProfile(row);
+                    if (!owner.isEmpty()) {
+                        badges.addView(Ui.pill(getContext(),
+                                getContext().getString(R.string.ws_shared_by, owner),
+                                R.color.surface_container, R.color.muted));
+                    }
+                    addView(badges);
+                } else if (ThreadInboxFilter.isPinned(row)) {
+                    LinearLayout pinRow = Ui.row(getContext());
+                    pinRow.setPaddingRelative(0, Ui.dp(getContext(), 6), 0, 0);
+                    pinRow.addView(Ui.pill(getContext(),
+                            getContext().getString(R.string.brain_memory_pinned),
+                            R.color.accent_surface, R.color.accent));
+                    addView(pinRow);
+                }
                 String rootId = ThreadIdentity.rootId(row);
                 ActiveRunTracker.TaskBadge badge = activeBadges.get(rootId);
                 if (badge != null && badge.active()) {
-                    addView(activeTaskRow(getContext(), rootId, badge));
+                    addView(activeTaskRow(getContext(), rootId, label, badge));
                 }
             }
         }
 
-        private View activeTaskRow(Context context, String rootId, ActiveRunTracker.TaskBadge badge) {
+        private View activeTaskRow(Context context, String rootId, String threadTitle, ActiveRunTracker.TaskBadge badge) {
             LinearLayout strip = Ui.row(context);
             strip.setGravity(Gravity.CENTER_VERTICAL);
             strip.setPadding(0, Ui.dp(context, 4), 0, 0);
@@ -1043,8 +1156,13 @@ public final class ThreadViews {
             View spacer = new View(context);
             strip.addView(spacer, new LinearLayout.LayoutParams(0, 1, 1));
             if (badge.canStop() && onStopTask != null) {
-                Button stopBtn = Ui.button(context, context.getString(R.string.thread_badge_stop),
-                        v -> onStopTask.accept(rootId));
+                String stopLabel = context.getString(R.string.thread_badge_stop);
+                Button stopBtn = Ui.button(context, stopLabel, v -> onStopTask.accept(rootId));
+                stopBtn.setTextColor(new android.content.res.ColorStateList(
+                        new int[][]{new int[]{-android.R.attr.state_enabled}, new int[]{}},
+                        new int[]{context.getColor(R.color.disabled_ink), context.getColor(R.color.danger)}));
+                stopBtn.setContentDescription(threadTitle == null || threadTitle.isEmpty()
+                        ? stopLabel : stopLabel + " · " + threadTitle);
                 stopBtn.setFocusable(false);
                 stopBtn.setFocusableInTouchMode(false);
                 stopBtn.setMinHeight(Ui.dp(context, 48));

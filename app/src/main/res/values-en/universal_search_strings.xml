@@ -1,0 +1,37 @@
+<resources>
+    <!-- Universal Search overlay -->
+    <string name="universal_search_title">Search everywhere</string>
+    <string name="universal_search_hint">Search chats, notes, shared items, settings…</string>
+    <string name="universal_search_close">Close search</string>
+    <string name="universal_search_clear">Clear search</string>
+    <string name="universal_search_cat_all">All</string>
+    <string name="universal_search_cat_chats">Chats</string>
+    <string name="universal_search_cat_notes">Notes</string>
+    <string name="universal_search_cat_shared">Shared</string>
+    <string name="universal_search_cat_settings">Settings</string>
+    <string name="universal_search_cat_tools">Tools</string>
+    <string name="universal_search_searching">Searching your server…</string>
+    <string name="universal_search_suggested">Quick access</string>
+    <string name="universal_search_empty_title">No results</string>
+    <string name="universal_search_empty_hint">Try a different keyword or switch category.</string>
+    <string name="universal_search_empty_shared">No shared items found.</string>
+    <string name="universal_search_offline_local_only">Server offline: showing local matches.</string>
+    <string name="universal_search_error">Could not finish searching your server.</string>
+    <string name="universal_search_open_result_cd">%1$s, %2$s</string>
+
+    <!-- Chats inline filter pills & quick starters -->
+    <string name="thread_filter_all">All</string>
+    <string name="thread_filter_pinned">Pinned</string>
+    <string name="thread_filter_shared">Shared</string>
+    <string name="thread_filter_pinned_empty">No pinned chats yet.</string>
+    <string name="thread_filter_shared_empty">No chats shared with this profile yet.</string>
+    <string name="thread_filter_shared_unavailable">Shared chats require a newer Hermes server.</string>
+    <string name="thread_filter_shared_loading">Loading shared chats…</string>
+    <string name="thread_filter_shared_failed">Could not load shared chats.</string>
+    <string name="thread_shared_open_failed">Could not open this shared chat.</string>
+    <string name="thread_shared_use_in_new">Continue in a new chat</string>
+    <string name="thread_starters_templates_heading">Quick templates</string>
+
+    <!-- Notes reader -->
+    <string name="notes_open_note_cd">Open note %1$s</string>
+</resources>
