@@ -219,13 +219,6 @@ public final class DeepAndroidActions {
             return true;
         }
 
-        public synchronized int recentCount(long nowMs) {
-            while (!timestampsMs.isEmpty() && nowMs - timestampsMs.peekFirst() >= WINDOW_MS) {
-                timestampsMs.removeFirst();
-            }
-            return timestampsMs.size();
-        }
-
         public synchronized void reset() {
             timestampsMs.clear();
         }

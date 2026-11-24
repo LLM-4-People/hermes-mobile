@@ -180,7 +180,7 @@ public final class OnboardingModels {
         String code = str(map.get("code")).trim();
         long expiresAt = parseEpochSeconds(map.get("expires_at"));
         Object rawTtl = map.containsKey("ttl_seconds") ? map.get("ttl_seconds") : map.get("ttl_remaining_seconds");
-        int ttl = (int) Math.max(0L, Math.min(Integer.MAX_VALUE, num(rawTtl, 0L)));
+        int ttl = JsonValues.parseNonNegativeInt(rawTtl, 0);
         String deepLink = str(map.get("deep_link")).trim();
         String slug = safeSlug(str(map.get("profile_slug")));
         String displayName = cleanText(str(map.get("display_name")), 64);
@@ -243,7 +243,7 @@ public final class OnboardingModels {
         long expiresAt = parseEpochSeconds(map.get("expires_at"));
         Object rawTtl = map.containsKey("ttl_remaining_seconds")
                 ? map.get("ttl_remaining_seconds") : map.get("ttl_seconds");
-        int ttl = Math.max(0, (int) num(rawTtl, 0L));
+        int ttl = JsonValues.parseNonNegativeInt(rawTtl, 0);
         return new PairingInspect(true, serverUrl, baseHost, slug, displayName, mode, expiresAt, ttl);
     }
 
@@ -284,8 +284,8 @@ public final class OnboardingModels {
         }
         boolean ready = bool(map.get("ready"), false);
         String activeModel = cleanText(str(map.get("active_model")), 128);
-        int activeCapabilities = Math.max(0, (int) num(map.get("active_capabilities"), 0L));
-        int endpointCount = Math.max(0, (int) num(map.get("endpoint_count"), 0L));
+        int activeCapabilities = JsonValues.parseNonNegativeInt(map.get("active_capabilities"), 0);
+        int endpointCount = JsonValues.parseNonNegativeInt(map.get("endpoint_count"), 0);
         String language = normalizeLanguage(str(map.get("language")));
         boolean manageable = bool(map.get("profiles_manageable"), false);
 
@@ -358,15 +358,15 @@ public final class OnboardingModels {
                 ? (Map<String, Object>) nestedSummary : map;
         String defaultLanguage = normalizeLanguage(str(settings.get("default_language")));
         String defaultModel = cleanText(str(settings.get("default_model")), 128);
-        int maxConcurrent = (int) num(settings.get("max_concurrent_runs"), 32L);
-        int perProfile = (int) num(settings.get("per_profile_concurrent_limit"), 12L);
-        int pairingTtl = (int) num(settings.get("pairing_ttl_seconds"), 300L);
+        int maxConcurrent = JsonValues.parseInt(settings.get("max_concurrent_runs"), 32);
+        int perProfile = JsonValues.parseInt(settings.get("per_profile_concurrent_limit"), 12);
+        int pairingTtl = JsonValues.parseInt(settings.get("pairing_ttl_seconds"), 300);
         boolean allowSelfPairing = bool(settings.get("allow_self_device_pairing"), true);
-        int profileCount = (int) num(summary.get("profile_count"), 0L);
-        int activeRunsCount = (int) num(summary.get("active_runs_count"), 0L);
-        int activeTickets = (int) num(summary.get("active_pairing_tickets"), 0L);
-        int activeCaps = (int) num(summary.get("active_capabilities"), 0L);
-        int endpoints = (int) num(summary.get("endpoint_count"), 0L);
+        int profileCount = JsonValues.parseNonNegativeInt(summary.get("profile_count"), 0);
+        int activeRunsCount = JsonValues.parseNonNegativeInt(summary.get("active_runs_count"), 0);
+        int activeTickets = JsonValues.parseNonNegativeInt(summary.get("active_pairing_tickets"), 0);
+        int activeCaps = JsonValues.parseNonNegativeInt(summary.get("active_capabilities"), 0);
+        int endpoints = JsonValues.parseNonNegativeInt(summary.get("endpoint_count"), 0);
         return new AdminSettings(defaultLanguage, defaultModel, maxConcurrent, perProfile, pairingTtl,
                 allowSelfPairing, profileCount, activeRunsCount, activeTickets, activeCaps, endpoints);
     }
@@ -391,10 +391,6 @@ public final class OnboardingModels {
         return Collections.unmodifiableList(out);
     }
 
-    public static RemoteProfile parseRemoteProfile(JSONObject obj) {
-        return parseRemoteProfileMap(JsonValues.toMap(obj));
-    }
-
     @SuppressWarnings("unchecked")
     public static RemoteProfile parseRemoteProfileMap(Map<String, Object> map) {
         if (map == null) return null;
@@ -409,8 +405,8 @@ public final class OnboardingModels {
                 ? src.get("preferred_language") : src.get("language")));
         String model = cleanText(str(src.get("default_model")), 128);
         String badgeColor = safeHexColor(str(src.get("badge_color")));
-        int activeRuns = Math.max(0, (int) num(src.get("active_runs"), 0L));
-        int threadCount = Math.max(0, (int) num(src.get("thread_count"), 0L));
+        int activeRuns = JsonValues.parseNonNegativeInt(src.get("active_runs"), 0);
+        int threadCount = JsonValues.parseNonNegativeInt(src.get("thread_count"), 0);
         long lastActive = parseEpochSeconds(src.get("last_active"));
         boolean isAdmin = src.get("is_admin") instanceof Boolean b
                 ? b : "admin".equalsIgnoreCase(str(src.get("role")));
@@ -468,12 +464,11 @@ public final class OnboardingModels {
     }
 
     private static int extractCapabilityCount(Object summary) {
-        if (summary instanceof Number n) return Math.max(0, n.intValue());
+        if (summary instanceof Number) return JsonValues.parseNonNegativeInt(summary, 0);
         if (summary instanceof Map<?, ?> m) {
-            long count = num(m.get("active_capabilities"), -1L);
-            if (count >= 0) return (int) count;
-            count = num(m.get("count"), 0L);
-            return Math.max(0, (int) count);
+            int count = JsonValues.parseInt(m.get("active_capabilities"), -1);
+            if (count >= 0) return count;
+            return JsonValues.parseNonNegativeInt(m.get("count"), 0);
         }
         return 0;
     }
@@ -504,11 +499,6 @@ public final class OnboardingModels {
 
     private static String str(Object value) {
         return value instanceof String s ? s : "";
-    }
-
-    private static long num(Object value, long fallback) {
-        if (value instanceof Number n) return n.longValue();
-        return fallback;
     }
 
     private static boolean bool(Object value, boolean fallback) {

@@ -23,7 +23,6 @@ public final class UniversalShareModel {
 
     private static final Set<String> ALLOWED_KINDS = Set.of(
             KIND_NOTE, KIND_SURFACE, KIND_WIDGET, KIND_TOOL, KIND_SKILL, KIND_ARTIFACT, KIND_SESSION);
-    private static final Set<String> ALLOWED_PERMS = Set.of(PERM_READ, PERM_EDIT, PERM_CLONE);
     private static final Pattern VALID_PROFILE = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._-]{0,63}");
 
     public record ShareGrant(
@@ -53,10 +52,6 @@ public final class UniversalShareModel {
         public boolean canEdit() {
             return PERM_EDIT.equals(permission);
         }
-
-        public boolean canClone() {
-            return PERM_CLONE.equals(permission);
-        }
     }
 
     private UniversalShareModel() {}
@@ -66,17 +61,6 @@ public final class UniversalShareModel {
         String normalized = rawKind.trim().toLowerCase(Locale.ROOT);
         if (!ALLOWED_KINDS.contains(normalized)) {
             throw new LocalizedInputException("share_kind_unsupported", R.string.ws_share_err_kind_unsupported);
-        }
-        return normalized;
-    }
-
-    public static String validatePermission(String rawPermission) {
-        if (rawPermission == null) {
-            throw new LocalizedInputException("share_perm_missing", R.string.ws_share_err_perm_missing);
-        }
-        String normalized = rawPermission.trim().toLowerCase(Locale.ROOT);
-        if (!ALLOWED_PERMS.contains(normalized)) {
-            throw new LocalizedInputException("share_perm_invalid", R.string.ws_share_err_perm_invalid);
         }
         return normalized;
     }

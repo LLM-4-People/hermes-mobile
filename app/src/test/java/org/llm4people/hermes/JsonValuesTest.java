@@ -95,4 +95,61 @@ public final class JsonValuesTest {
         assertEquals("\"\\u0000\\u001f\"", JsonValues.quote("\u0000\u001f"));
         assertEquals("\"Montréal ☕\"", JsonValues.quote("Montréal ☕"));
     }
+
+    @Test
+    public void saturateIntAndParsersHandleOverflowNegativeFloatsStringsAndNonFiniteValues() {
+        assertEquals(0, JsonValues.saturateInt(0L));
+        assertEquals(Integer.MAX_VALUE, JsonValues.saturateInt(Integer.MAX_VALUE));
+        assertEquals(Integer.MIN_VALUE, JsonValues.saturateInt(Integer.MIN_VALUE));
+        assertEquals(Integer.MAX_VALUE, JsonValues.saturateInt(4_294_967_296L));
+        assertEquals(Integer.MAX_VALUE, JsonValues.saturateInt(Long.MAX_VALUE));
+        assertEquals(Integer.MIN_VALUE, JsonValues.saturateInt(-4_294_967_200L));
+        assertEquals(Integer.MIN_VALUE, JsonValues.saturateInt(Long.MIN_VALUE));
+
+        assertNull(JsonValues.parseIntOrNull(null));
+        assertNull(JsonValues.parseIntOrNull(JSONObject.NULL));
+        assertNull(JsonValues.parseIntOrNull(""));
+        assertNull(JsonValues.parseIntOrNull("   "));
+        assertNull(JsonValues.parseIntOrNull("not-a-number"));
+        assertNull(JsonValues.parseIntOrNull(Boolean.TRUE));
+        assertNull(JsonValues.parseIntOrNull(Double.NaN));
+        assertNull(JsonValues.parseIntOrNull(Double.POSITIVE_INFINITY));
+        assertNull(JsonValues.parseIntOrNull(Double.NEGATIVE_INFINITY));
+        assertNull(JsonValues.parseIntOrNull(Float.NaN));
+        assertNull(JsonValues.parseIntOrNull(Float.POSITIVE_INFINITY));
+        assertNull(JsonValues.parseIntOrNull("NaN"));
+        assertNull(JsonValues.parseIntOrNull("Infinity"));
+        assertNull(JsonValues.parseIntOrNull("-Infinity"));
+
+        assertEquals(42, JsonValues.parseInt(42, -1));
+        assertEquals(7, JsonValues.parseInt((short) 7, -1));
+        assertEquals(3, JsonValues.parseInt((byte) 3, -1));
+        assertEquals(Integer.MAX_VALUE, JsonValues.parseInt(4_294_967_296L, -1));
+        assertEquals(Integer.MAX_VALUE, JsonValues.parseInt(3_000_000_000L, -1));
+        assertEquals(Integer.MIN_VALUE, JsonValues.parseInt(-4_294_967_200L, -1));
+        assertEquals(Integer.MAX_VALUE, JsonValues.parseInt(4_294_967_296.0d, -1));
+        assertEquals(Integer.MIN_VALUE, JsonValues.parseInt(-4_294_967_200.0d, -1));
+        assertEquals(181, JsonValues.parseInt(180.6d, -1));
+        assertEquals(180, JsonValues.parseInt(180.4f, -1));
+        assertEquals(180, JsonValues.parseInt("180", -1));
+        assertEquals(-15, JsonValues.parseInt("  -15  ", -1));
+        assertEquals(181, JsonValues.parseInt("180.6", -1));
+        assertEquals(Integer.MAX_VALUE, JsonValues.parseInt("1e20", -1));
+        assertEquals(Integer.MIN_VALUE, JsonValues.parseInt("-1e20", -1));
+        assertEquals(Integer.MAX_VALUE, JsonValues.parseInt("4294967296", -1));
+        assertEquals(Integer.MIN_VALUE, JsonValues.parseInt("-4294967200", -1));
+        assertEquals(300, JsonValues.parseInt(Double.NaN, 300));
+        assertEquals(300, JsonValues.parseInt(Double.POSITIVE_INFINITY, 300));
+        assertEquals(300, JsonValues.parseInt("NaN", 300));
+        assertEquals(300, JsonValues.parseInt("Infinity", 300));
+
+        assertEquals(0, JsonValues.parseNonNegativeInt(-5, 9));
+        assertEquals(0, JsonValues.parseNonNegativeInt(-4_294_967_200L, 9));
+        assertEquals(0, JsonValues.parseNonNegativeInt("-4294967200", 9));
+        assertEquals(Integer.MAX_VALUE, JsonValues.parseNonNegativeInt(4_294_967_296L, 0));
+        assertEquals(Integer.MAX_VALUE, JsonValues.parseNonNegativeInt(3_000_000_000L, 0));
+        assertEquals(7, JsonValues.parseNonNegativeInt(Double.NaN, 7));
+        assertEquals(7, JsonValues.parseNonNegativeInt(Double.POSITIVE_INFINITY, 7));
+        assertEquals(0, JsonValues.parseNonNegativeInt(null, -3));
+    }
 }

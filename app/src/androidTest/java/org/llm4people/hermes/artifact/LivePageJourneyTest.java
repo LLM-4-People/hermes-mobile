@@ -3,6 +3,7 @@ package org.llm4people.hermes.artifact;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
+import android.graphics.drawable.ColorDrawable;
 import android.os.Build;
 import android.test.InstrumentationTestCase;
 import android.test.InstrumentationTestRunner;
@@ -141,6 +142,36 @@ public class LivePageJourneyTest extends InstrumentationTestCase {
                 View invalid = InstrumentPreview.render(activity, "{}", host);
                 assertTrue(views(invalid, v -> v instanceof Button).isEmpty());
                 assertTrue(PageLayouts.titles(account.account, true).isEmpty());
+            });
+        } finally {
+            runTestOnUiThread(() -> { ArtifactDesk.dismiss(activity); activity.finish(); });
+        }
+    }
+
+    public void testFiveArgInstrumentPreviewAppliesOppositePolarityAccountTheme() throws Throwable {
+        Context app = getInstrumentation().getTargetContext();
+        Intent launch = app.getPackageManager().getLaunchIntentForPackage(app.getPackageName());
+        assertNotNull(launch);
+        Activity activity = getInstrumentation().startActivitySync(launch);
+        WorkspaceTestHost host = new WorkspaceTestHost() {
+            @Override public String workspaceValue(String key) { return "Polarity check"; }
+        };
+        try (WorkspaceAccountFixture fixture = new WorkspaceAccountFixture(app)) {
+            boolean activityNight = ThemePalette.isNight(activity);
+            boolean expectedNight = !activityNight;
+            String oppositeTheme = expectedNight ? "dark" : "light";
+            ThemePalette.OverrideSpec override = ThemePalette.OverrideSpec.validated(
+                    oppositeTheme, null, "comfortable", 0, "paper", expectedNight);
+            ThemePalette.save(fixture.account, override);
+            ThemePalette expected = ThemePalette.resolve(override, activityNight);
+            String pageJson = LiveLayoutContractTest.REVIEW.replace(
+                    "\"mode\":\"replace\",", "\"mode\":\"replace\",\"theme\":\"system\",");
+            runTestOnUiThread(() -> {
+                View rendered = InstrumentPreview.render(activity, pageJson, host, fixture.account, "scope");
+                assertNotNull(rendered);
+                assertTrue(rendered.getBackground() instanceof ColorDrawable);
+                assertEquals(expected.paper, ((ColorDrawable) rendered.getBackground()).getColor());
+                assertEquals(expectedNight, ThemePalette.isNight(rendered.getContext()));
             });
         } finally {
             runTestOnUiThread(() -> { ArtifactDesk.dismiss(activity); activity.finish(); });

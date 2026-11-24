@@ -1,7 +1,5 @@
 package org.llm4people.hermes.doctor;
 
-import org.llm4people.hermes.HermesConfig;
-
 import java.net.URI;
 import java.util.Collections;
 import java.util.List;
@@ -14,9 +12,6 @@ import java.util.regex.Pattern;
  * Single Source of Truth for health check statuses, host sanitization, and copy-safe reports.
  */
 public final class DoctorCheck {
-    public static final int EXPECTED_FORK_CAPABILITIES = HermesConfig.DEFAULT_EXPECTED_FORK_CAPABILITIES;
-    public static final long SLOW_LATENCY_THRESHOLD_MS = HermesConfig.DEFAULT_SLOW_LATENCY_THRESHOLD_MS;
-
     private static final int MAX_SAFE_VALUE_CHARS = 96;
     private static final Pattern BEARER_PATTERN = Pattern.compile("(?i)\\bbearer\\s+[^\\s,;]+");
     private static final Pattern SECRET_PREFIX_PATTERN = Pattern.compile(

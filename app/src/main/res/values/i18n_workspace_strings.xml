@@ -371,8 +371,6 @@
 
     <string name="ws_share_err_kind_missing">Type d’élément manquant.</string>
     <string name="ws_share_err_kind_unsupported">Type d’élément non pris en charge pour le partage.</string>
-    <string name="ws_share_err_perm_missing">Niveau d’accès manquant.</string>
-    <string name="ws_share_err_perm_invalid">Niveau d’accès invalide.</string>
     <string name="ws_share_err_profile_missing">Indiquez le nom du profil destinataire sur ce serveur.</string>
     <string name="ws_share_err_profile_invalid">Nom de profil invalide (lettres, chiffres, tirets ou points).</string>
     <string name="ws_share_err_id_missing">Identifiant d’élément manquant.</string>
