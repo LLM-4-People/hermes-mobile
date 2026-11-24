@@ -1,9 +1,14 @@
 package org.llm4people.hermes.panel;
 
 import android.app.AlertDialog;
+import android.content.res.ColorStateList;
 import android.graphics.Typeface;
+import android.text.TextUtils;
 import android.text.format.Formatter;
 import android.view.View;
+import android.view.accessibility.AccessibilityNodeInfo;
+import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import org.llm4people.hermes.Diagnostics;
@@ -109,8 +114,13 @@ final class WorkspaceFilesPanel {
         TextView pathLabel = Ui.text(panel.activity, location, 15);
         pathLabel.setTypeface(Typeface.MONOSPACE);
         pathLabel.setTextColor(panel.activity.getColor(R.color.muted));
-        header.addView(pathLabel, new LinearLayout.LayoutParams(0, -2, 1));
-        header.addView(Ui.button(panel.activity, panel.t(R.string.panel_refresh), v -> loadTree(currentPath)));
+        pathLabel.setMaxLines(2);
+        pathLabel.setEllipsize(TextUtils.TruncateAt.MIDDLE);
+        pathLabel.setContentDescription(location);
+        LinearLayout.LayoutParams pathLp = new LinearLayout.LayoutParams(0, -2, 1);
+        pathLp.setMarginEnd(Ui.dp(panel.activity, 8));
+        header.addView(pathLabel, pathLp);
+        header.addView(Ui.outlinedButton(panel.activity, panel.t(R.string.panel_refresh), v -> loadTree(currentPath)));
         body.addView(header);
 
         if (!currentPath.isEmpty()) {
@@ -127,25 +137,26 @@ final class WorkspaceFilesPanel {
     }
 
     private View entryRow(BrainJson.WorkspaceEntry entry) {
-        LinearLayout card = BrainUi.card(panel.activity);
+        LinearLayout card = interactiveCard();
         LinearLayout top = Ui.row(panel.activity);
+        LinearLayout copy = Ui.column(panel.activity);
         String displayPath = entry.isDirectory()
                 ? panel.t(R.string.ws_files_dir_prefix, entry.path()) : entry.path();
         TextView name = Ui.text(panel.activity, displayPath, 16);
         name.setTypeface(entry.isDirectory() ? Typeface.DEFAULT_BOLD : Typeface.MONOSPACE);
-        top.addView(name, new LinearLayout.LayoutParams(0, -2, 1));
+        copy.addView(name);
+        if (!entry.isDirectory() && entry.sizeBytes() > 0) {
+            TextView size = Ui.text(panel.activity, Formatter.formatShortFileSize(panel.activity, entry.sizeBytes()), 13);
+            size.setTextColor(panel.activity.getColor(R.color.muted));
+            copy.addView(size);
+        }
+        top.addView(copy, new LinearLayout.LayoutParams(0, -2, 1));
         String gitBadge = WorkspacePathGuard.gitStatusLabel(panel.activity, entry.gitStatus());
         if (!gitBadge.isEmpty()) {
             top.addView(BrainUi.badge(panel.activity, gitBadge, true));
         }
+        top.addView(forwardChevron(), chevronParams());
         card.addView(top);
-
-        if (!entry.isDirectory() && entry.sizeBytes() > 0) {
-            TextView size = Ui.text(panel.activity, Formatter.formatShortFileSize(panel.activity, entry.sizeBytes()), 13);
-            size.setTextColor(panel.activity.getColor(R.color.muted));
-            card.addView(size);
-        }
-        card.setFocusable(true);
         card.setOnClickListener(v -> {
             if (entry.isDirectory()) loadTree(entry.path());
             else openFile(entry.path());
@@ -215,37 +226,99 @@ final class WorkspaceFilesPanel {
 
     private void renderDiff(BrainJson.WorkspaceDiff diff) {
         body.removeAllViews();
-        if (!diff.branch().isEmpty()) {
-            StringBuilder summary = new StringBuilder(panel.t(R.string.brain_files_branch, diff.branch()));
-            if (diff.ahead() > 0) summary.append(" · ").append(panel.t(R.string.ws_files_ahead, diff.ahead()));
-            if (diff.behind() > 0) summary.append(" · ").append(panel.t(R.string.ws_files_behind, diff.behind()));
-            panel.note(body, summary.toString());
+        if (!diff.branch().isEmpty() || diff.ahead() > 0 || diff.behind() > 0) {
+            LinearLayout summaryCard = Ui.tonalCard(panel.activity);
+            LinearLayout.LayoutParams cardLp = new LinearLayout.LayoutParams(-1, -2);
+            cardLp.setMargins(0, Ui.dp(panel.activity, 6), 0, Ui.dp(panel.activity, 8));
+            LinearLayout pills = Ui.row(panel.activity);
+            int gap = Ui.dp(panel.activity, 6);
+            if (!diff.branch().isEmpty()) {
+                TextView branchPill = Ui.pill(panel.activity,
+                        panel.t(R.string.brain_files_branch, diff.branch()),
+                        R.color.surface, R.color.ink);
+                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
+                lp.setMarginEnd(gap);
+                pills.addView(branchPill, lp);
+            }
+            if (diff.ahead() > 0) {
+                TextView aheadPill = Ui.pill(panel.activity,
+                        panel.t(R.string.ws_files_ahead, diff.ahead()),
+                        R.color.accent_surface, R.color.accent);
+                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
+                lp.setMarginEnd(gap);
+                pills.addView(aheadPill, lp);
+            }
+            if (diff.behind() > 0) {
+                TextView behindPill = Ui.pill(panel.activity,
+                        panel.t(R.string.ws_files_behind, diff.behind()),
+                        R.color.warning_surface, R.color.warning);
+                pills.addView(behindPill);
+            }
+            summaryCard.addView(BrainUi.chipBar(panel.activity, pills));
+            body.addView(summaryCard, cardLp);
         }
         if (!diff.diffText().isEmpty()) {
-            panel.action(body, R.string.brain_files_view_all_diff, () -> panel.present(
-                    CodeReader.dialog(panel.activity, panel.t(R.string.brain_files_tab_diff), "diff", diff.diffText()).create()));
+            Button viewAll = Ui.tonalButton(panel.activity, panel.t(R.string.brain_files_view_all_diff),
+                    v -> panel.present(CodeReader.dialog(
+                            panel.activity, panel.t(R.string.brain_files_tab_diff), "diff", diff.diffText()).create()));
+            LinearLayout.LayoutParams btnLp = new LinearLayout.LayoutParams(-2, -2);
+            btnLp.setMargins(0, Ui.dp(panel.activity, 4), 0, Ui.dp(panel.activity, 8));
+            body.addView(viewAll, btnLp);
         }
         if (diff.files().isEmpty()) {
             panel.note(body, panel.t(R.string.brain_files_no_changes));
             return;
         }
         for (BrainJson.DiffFile file : diff.files()) {
-            LinearLayout card = BrainUi.card(panel.activity);
+            LinearLayout card = interactiveCard();
+            LinearLayout row = Ui.row(panel.activity);
+            LinearLayout copy = Ui.column(panel.activity);
             TextView name = Ui.text(panel.activity, file.path(), 15);
             name.setTypeface(Typeface.MONOSPACE);
-            card.addView(name);
+            copy.addView(name);
 
             LinearLayout badges = Ui.row(panel.activity);
             String label = WorkspacePathGuard.gitStatusLabel(panel.activity, file.status());
             if (!label.isEmpty()) badges.addView(BrainUi.badge(panel.activity, label, false));
             badges.addView(BrainUi.badge(panel.activity, "+" + file.additions() + " / -" + file.deletions(), true));
             badges.setPaddingRelative(0, Ui.dp(panel.activity, 6), 0, 0);
-            card.addView(badges);
+            copy.addView(badges);
 
-            card.setFocusable(true);
+            row.addView(copy, new LinearLayout.LayoutParams(0, -2, 1));
+            row.addView(forwardChevron(), chevronParams());
+            card.addView(row);
             card.setOnClickListener(v -> openFileDiff(file.path()));
             body.addView(card);
         }
+    }
+
+    private LinearLayout interactiveCard() {
+        LinearLayout card = BrainUi.card(panel.activity);
+        card.setBackground(Ui.roundedRipple(panel.activity, Ui.CARD_CORNER_DP,
+                Ui.shape(panel.activity, Ui.CARD_CORNER_DP, R.color.surface, R.color.line, 1)));
+        card.setFocusable(true);
+        card.setAccessibilityDelegate(new View.AccessibilityDelegate() {
+            @Override public void onInitializeAccessibilityNodeInfo(View host, AccessibilityNodeInfo info) {
+                super.onInitializeAccessibilityNodeInfo(host, info);
+                info.setClassName(Button.class.getName());
+            }
+        });
+        return card;
+    }
+
+    private ImageView forwardChevron() {
+        ImageView arrow = new ImageView(panel.activity);
+        arrow.setImageResource(R.drawable.ic_navigate_forward);
+        arrow.setImageTintList(ColorStateList.valueOf(panel.activity.getColor(R.color.muted)));
+        arrow.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        return arrow;
+    }
+
+    private LinearLayout.LayoutParams chevronParams() {
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                Ui.dp(panel.activity, 18), Ui.dp(panel.activity, 18));
+        lp.setMarginStart(Ui.dp(panel.activity, 8));
+        return lp;
     }
 
     private void openFileDiff(String rawPath) {

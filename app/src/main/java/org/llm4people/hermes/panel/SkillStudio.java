@@ -1,14 +1,19 @@
 package org.llm4people.hermes.panel;
 
 import android.app.AlertDialog;
+import android.content.res.ColorStateList;
 import android.graphics.Typeface;
 import android.text.Editable;
-import android.text.TextWatcher;
 import android.text.InputFilter;
+import android.text.InputType;
+import android.text.TextWatcher;
 import android.view.View;
+import android.view.accessibility.AccessibilityNodeInfo;
+import android.view.inputmethod.EditorInfo;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.Switch;
 import android.widget.TextView;
@@ -27,8 +32,8 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 /**
- * Full native Skill Studio ("Savoir-faire"): read SKILL.md, create/edit/delete user skills,
- * toggle enabled/disabled with strict rollback, and 1-tap "Utiliser dans la discussion" editable draft.
+ * Full native Skill Studio: read SKILL.md, create/edit/delete user skills,
+ * toggle enabled/disabled with strict rollback, and 1-tap editable draft handoff.
  * Degrades cleanly to read-only catalog when gateway lacks features.skill_studio.
  */
 final class SkillStudio {
@@ -58,8 +63,10 @@ final class SkillStudio {
 
         LinearLayout toolbar = Ui.row(panel.activity);
         searchField = BrainUi.searchField(panel.activity, R.id.brain_skills_search, R.string.brain_skills_search);
-        toolbar.addView(searchField, new LinearLayout.LayoutParams(0, -2, 1));
-        toolbar.addView(Ui.button(panel.activity, panel.t(R.string.panel_refresh), v -> load()));
+        LinearLayout.LayoutParams searchLp = new LinearLayout.LayoutParams(0, -2, 1);
+        searchLp.setMarginEnd(Ui.dp(panel.activity, 8));
+        toolbar.addView(searchField, searchLp);
+        toolbar.addView(Ui.outlinedButton(panel.activity, panel.t(R.string.panel_refresh), v -> load()));
         page.addView(toolbar);
         searchField.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
@@ -118,18 +125,23 @@ final class SkillStudio {
     private void renderHeaderActions() {
         statusBox.removeAllViews();
         LinearLayout actions = Ui.row(panel.activity);
+        int gap = Ui.dp(panel.activity, 8);
         if (studioSupported) {
-            actions.addView(Ui.button(panel.activity, panel.t(R.string.brain_skills_new), v -> openCreateForm()));
+            Button create = Ui.filledButton(panel.activity, panel.t(R.string.brain_skills_new), v -> openCreateForm());
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
+            lp.setMarginEnd(gap);
+            actions.addView(create, lp);
         } else {
             panel.note(statusBox, panel.t(R.string.brain_skills_readonly_notice));
         }
         if (stageDraft != null && activeThread.getAsBoolean()) {
-            actions.addView(Ui.button(panel.activity, panel.t(R.string.brain_skills_ask_hermes), v -> {
+            Button ask = Ui.tonalButton(panel.activity, panel.t(R.string.brain_skills_ask_hermes), v -> {
                 panel.close();
                 stageDraft.accept(SkillStudioModel.draftPromptToCreateSkill(panel.activity));
-            }));
+            });
+            actions.addView(ask);
         }
-        if (actions.getChildCount() > 0) statusBox.addView(actions);
+        if (actions.getChildCount() > 0) statusBox.addView(BrainUi.chipBar(panel.activity, actions));
     }
 
     private void renderCategories() {
@@ -166,6 +178,8 @@ final class SkillStudio {
 
     private View skillRow(SkillInventory skill) {
         LinearLayout card = BrainUi.card(panel.activity);
+        card.setBackground(Ui.roundedRipple(panel.activity, Ui.CARD_CORNER_DP,
+                Ui.shape(panel.activity, Ui.CARD_CORNER_DP, R.color.surface, R.color.line, 1)));
         LinearLayout top = Ui.row(panel.activity);
         LinearLayout labels = Ui.column(panel.activity);
         TextView name = Ui.text(panel.activity, skill.name, 17);
@@ -174,6 +188,7 @@ final class SkillStudio {
         if (!skill.description.isEmpty()) {
             TextView desc = Ui.text(panel.activity, skill.description, 14);
             desc.setTextColor(panel.activity.getColor(R.color.muted));
+            desc.setLineSpacing(0f, 1.2f);
             labels.addView(desc);
         }
         top.addView(labels, new LinearLayout.LayoutParams(0, -2, 1));
@@ -188,6 +203,15 @@ final class SkillStudio {
             toggle.setOnClickListener(v -> toggleSkillEnabled(skill, toggle, toggle.isChecked()));
             top.addView(toggle);
         }
+
+        ImageView arrow = new ImageView(panel.activity);
+        arrow.setImageResource(R.drawable.ic_navigate_forward);
+        arrow.setImageTintList(ColorStateList.valueOf(panel.activity.getColor(R.color.muted)));
+        arrow.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        LinearLayout.LayoutParams arrowLp = new LinearLayout.LayoutParams(
+                Ui.dp(panel.activity, 18), Ui.dp(panel.activity, 18));
+        arrowLp.setMarginStart(Ui.dp(panel.activity, 8));
+        top.addView(arrow, arrowLp);
         card.addView(top);
 
         LinearLayout badges = Ui.row(panel.activity);
@@ -197,11 +221,16 @@ final class SkillStudio {
                     SkillStudioModel.sourceLabel(panel.activity, skill.source, skill.writable), false));
         }
         if (badges.getChildCount() > 0) {
-            badges.setPaddingRelative(0, Ui.dp(panel.activity, 6), 0, 0);
-            card.addView(badges);
+            card.addView(BrainUi.chipBar(panel.activity, badges));
         }
 
         card.setFocusable(true);
+        card.setAccessibilityDelegate(new View.AccessibilityDelegate() {
+            @Override public void onInitializeAccessibilityNodeInfo(View host, AccessibilityNodeInfo info) {
+                super.onInitializeAccessibilityNodeInfo(host, info);
+                info.setClassName(Button.class.getName());
+            }
+        });
         card.setOnClickListener(v -> openDetail(skill));
         return card;
     }
@@ -244,6 +273,7 @@ final class SkillStudio {
         LinearLayout page = panel.page("brain_skill_detail", R.string.brain_skills_title, this::show);
         TextView heading = Ui.text(panel.activity, skill.name, 22);
         heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        heading.setAccessibilityHeading(true);
         page.addView(heading);
         LinearLayout content = Ui.column(panel.activity);
         page.addView(content);
@@ -277,7 +307,7 @@ final class SkillStudio {
                 SkillStudioModel.sourceLabel(panel.activity, detail.source(), detail.writable()), false));
         badges.addView(BrainUi.badge(panel.activity,
                 panel.t(detail.enabled() ? R.string.brain_skills_enabled : R.string.brain_skills_disabled), detail.enabled()));
-        box.addView(badges);
+        box.addView(BrainUi.chipBar(panel.activity, badges));
 
         if (!detail.description().isEmpty()) panel.note(box, detail.description());
         if (!detail.supportingFiles().isEmpty()) {
@@ -285,38 +315,59 @@ final class SkillStudio {
         }
         if (!detail.lintWarnings().isEmpty()) {
             LinearLayout warnCard = BrainUi.card(panel.activity);
+            warnCard.setBackground(Ui.shape(panel.activity, Ui.CARD_CORNER_DP,
+                    R.color.warning_surface, R.color.warning, 1));
             TextView warnTitle = Ui.text(panel.activity, panel.t(R.string.brain_skills_lint_header), 14);
             warnTitle.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-            warnTitle.setTextColor(panel.activity.getColor(R.color.danger));
+            warnTitle.setTextColor(panel.activity.getColor(R.color.warning));
             warnCard.addView(warnTitle);
-            for (String w : detail.lintWarnings()) panel.note(warnCard, "• " + w);
+            for (String w : detail.lintWarnings()) {
+                TextView row = Ui.text(panel.activity, w, 14);
+                row.setTextColor(panel.activity.getColor(R.color.ink));
+                row.setLineSpacing(0f, 1.2f);
+                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+                lp.topMargin = Ui.dp(panel.activity, 4);
+                warnCard.addView(row, lp);
+            }
             box.addView(warnCard);
         }
 
+        int gap = Ui.dp(panel.activity, 8);
         LinearLayout actions = Ui.row(panel.activity);
         if (stageDraft != null && activeThread.getAsBoolean()) {
-            actions.addView(Ui.button(panel.activity, panel.t(R.string.brain_skills_use_in_thread), v -> {
+            Button useBtn = Ui.filledButton(panel.activity, panel.t(R.string.brain_skills_use_in_thread), v -> {
                 panel.close();
                 stageDraft.accept(SkillStudioModel.draftPromptForSkill(panel.activity, detail.name()));
-            }));
+            });
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
+            lp.setMarginEnd(gap);
+            actions.addView(useBtn, lp);
         }
         String fullText = detail.raw().isEmpty() ? detail.body() : detail.raw();
         if (!fullText.isEmpty()) {
-            actions.addView(Ui.button(panel.activity, panel.t(R.string.brain_skills_view_full),
+            actions.addView(Ui.tonalButton(panel.activity, panel.t(R.string.brain_skills_view_full),
                     v -> panel.present(CodeReader.dialog(panel.activity, detail.name() + " · SKILL.md", "markdown", fullText).create())));
         }
-        box.addView(actions);
+        if (actions.getChildCount() > 0) box.addView(BrainUi.chipBar(panel.activity, actions));
 
         if (detail.writable()) {
             LinearLayout editRow = Ui.row(panel.activity);
-            editRow.addView(Ui.button(panel.activity, panel.t(R.string.panel_edit), v -> openEditForm(detail)));
-            editRow.addView(Ui.button(panel.activity, panel.t(R.string.brain_share_action),
+            Button editBtn = Ui.button(panel.activity, panel.t(R.string.panel_edit), v -> openEditForm(detail));
+            LinearLayout.LayoutParams editLp = new LinearLayout.LayoutParams(-2, -2);
+            editLp.setMarginEnd(gap);
+            editRow.addView(editBtn, editLp);
+
+            Button shareBtn = Ui.button(panel.activity, panel.t(R.string.brain_share_action),
                     v -> ShareWithUserSheet.openShareSheet(panel, UniversalShareModel.KIND_SKILL,
-                            detail.name(), detail.name(), () -> openDetail(new SkillInventoryPlaceholder(detail).toInventory()))));
+                            detail.name(), detail.name(), () -> openDetail(new SkillInventoryPlaceholder(detail).toInventory())));
+            LinearLayout.LayoutParams shareLp = new LinearLayout.LayoutParams(-2, -2);
+            shareLp.setMarginEnd(gap);
+            editRow.addView(shareBtn, shareLp);
+
             Button del = Ui.button(panel.activity, panel.t(R.string.panel_delete), v -> confirmDelete(box, detail));
-            del.setTextColor(panel.activity.getColor(R.color.danger));
+            del.setTextColor(dangerInk());
             editRow.addView(del);
-            box.addView(editRow);
+            box.addView(BrainUi.chipBar(panel.activity, editRow));
         } else {
             panel.note(box, panel.t(R.string.brain_skills_builtin_readonly));
         }
@@ -325,35 +376,82 @@ final class SkillStudio {
         if (!preview.isEmpty()) {
             LinearLayout previewCard = BrainUi.card(panel.activity);
             TextView bodyView = Ui.text(panel.activity, WorkspacePathGuard.boundContent(preview), 15);
+            bodyView.setLineSpacing(0f, 1.2f);
             bodyView.setTextIsSelectable(true);
             previewCard.addView(bodyView);
             box.addView(previewCard);
         }
     }
 
+    private ColorStateList dangerInk() {
+        return new ColorStateList(
+                new int[][]{new int[]{-android.R.attr.state_enabled}, new int[]{}},
+                new int[]{panel.activity.getColor(R.color.disabled_ink), panel.activity.getColor(R.color.danger)});
+    }
+
+    private EditText formField(LinearLayout parent, int labelAndHintRes, boolean capitalize) {
+        TextView label = Ui.text(panel.activity, panel.t(labelAndHintRes), 14);
+        label.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        LinearLayout.LayoutParams labelLp = new LinearLayout.LayoutParams(-1, -2);
+        labelLp.topMargin = Ui.dp(panel.activity, 12);
+        parent.addView(label, labelLp);
+
+        EditText field = new EditText(panel.activity);
+        field.setId(View.generateViewId());
+        field.setInputType(InputType.TYPE_CLASS_TEXT
+                | (capitalize ? InputType.TYPE_TEXT_FLAG_CAP_SENTENCES : InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS));
+        field.setSingleLine(true);
+        field.setImeOptions(EditorInfo.IME_ACTION_NEXT | EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING
+                | EditorInfo.IME_FLAG_NO_EXTRACT_UI);
+        field.setBackgroundResource(R.drawable.profile_input);
+        field.setBackgroundTintList(null);
+        field.setMinHeight(Ui.dp(panel.activity, 48));
+        Ui.pad(field, 12, 10);
+        field.setTextColor(panel.activity.getColor(R.color.ink));
+        field.setHintTextColor(panel.activity.getColor(R.color.muted));
+        field.setHint(labelAndHintRes);
+        field.setSaveEnabled(false);
+        field.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS);
+        label.setLabelFor(field.getId());
+
+        LinearLayout.LayoutParams fieldLp = new LinearLayout.LayoutParams(-1, -2);
+        fieldLp.topMargin = Ui.dp(panel.activity, 4);
+        parent.addView(field, fieldLp);
+        return field;
+    }
+
     private void openCreateForm() {
         LinearLayout page = panel.page("brain_skill_create", R.string.brain_skills_new, this::show);
-        EditText nameField = BrainUi.searchField(panel.activity, 0, R.string.brain_skills_name_hint);
-        EditText catField = BrainUi.searchField(panel.activity, 0, R.string.brain_skills_category_hint);
-        EditText descField = BrainUi.searchField(panel.activity, 0, R.string.brain_skills_desc_hint);
+        EditText nameField = formField(page, R.string.brain_skills_name_hint, false);
+        EditText catField = formField(page, R.string.brain_skills_category_hint, false);
+        EditText descField = formField(page, R.string.brain_skills_desc_hint, true);
         descField.setFilters(new InputFilter[]{new InputFilter.LengthFilter(SkillStudioModel.MAX_DESCRIPTION_CHARS)});
+
+        TextView bodyLabel = Ui.text(panel.activity, panel.t(R.string.brain_skills_instructions_hint), 14);
+        bodyLabel.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        LinearLayout.LayoutParams bodyLabelLp = new LinearLayout.LayoutParams(-1, -2);
+        bodyLabelLp.topMargin = Ui.dp(panel.activity, 12);
+        page.addView(bodyLabel, bodyLabelLp);
+
         EditText bodyField = BrainUi.multilineField(panel.activity, R.string.brain_skills_instructions_hint, 6);
+        bodyField.setId(View.generateViewId());
+        bodyLabel.setLabelFor(bodyField.getId());
+        LinearLayout.LayoutParams bodyLp = new LinearLayout.LayoutParams(-1, -2);
+        bodyLp.topMargin = Ui.dp(panel.activity, 4);
+        page.addView(bodyField, bodyLp);
+
         CheckBox rawMode = new CheckBox(panel.activity);
         rawMode.setMinHeight(Ui.dp(panel.activity, 48));
         rawMode.setText(R.string.brain_skills_advanced_raw);
-
-        LinearLayout.LayoutParams gap = new LinearLayout.LayoutParams(-1, -2);
-        gap.setMargins(0, Ui.dp(panel.activity, 6), 0, Ui.dp(panel.activity, 6));
-        page.addView(nameField, gap);
-        page.addView(catField, gap);
-        page.addView(descField, gap);
-        page.addView(bodyField, gap);
-        page.addView(rawMode);
+        rawMode.setTextColor(panel.activity.getColor(R.color.ink));
+        LinearLayout.LayoutParams checkLp = new LinearLayout.LayoutParams(-1, -2);
+        checkLp.topMargin = Ui.dp(panel.activity, 8);
+        page.addView(rawMode, checkLp);
 
         LinearLayout feedback = Ui.column(panel.activity);
         page.addView(feedback);
 
-        panel.action(page, R.string.panel_save, () -> {
+        Button saveBtn = Ui.filledButton(panel.activity, panel.t(R.string.panel_save), v -> {
             feedback.removeAllViews();
             SkillStudioModel.SkillLocation location;
             String content;
@@ -384,19 +482,32 @@ final class SkillStudio {
                         panel.failure(feedback, error, null);
                     });
         });
+        LinearLayout.LayoutParams saveLp = new LinearLayout.LayoutParams(-1, -2);
+        saveLp.topMargin = Ui.dp(panel.activity, 12);
+        page.addView(saveBtn, saveLp);
     }
 
     private void openEditForm(SkillStudioModel.SkillDetail detail) {
         LinearLayout page = panel.page("brain_skill_edit", R.string.panel_edit, () -> openDetail(
                 new SkillInventoryPlaceholder(detail).toInventory()));
         panel.note(page, detail.name());
+        TextView editorLabel = Ui.text(panel.activity, panel.t(R.string.brain_skills_instructions_hint), 14);
+        editorLabel.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        LinearLayout.LayoutParams labelLp = new LinearLayout.LayoutParams(-1, -2);
+        labelLp.topMargin = Ui.dp(panel.activity, 8);
+        page.addView(editorLabel, labelLp);
+
         EditText editor = BrainUi.multilineField(panel.activity, R.string.brain_skills_instructions_hint, 10);
+        editor.setId(View.generateViewId());
+        editorLabel.setLabelFor(editor.getId());
         editor.setText(detail.raw().isEmpty() ? detail.body() : detail.raw());
-        page.addView(editor);
+        LinearLayout.LayoutParams editorLp = new LinearLayout.LayoutParams(-1, -2);
+        editorLp.topMargin = Ui.dp(panel.activity, 4);
+        page.addView(editor, editorLp);
         LinearLayout feedback = Ui.column(panel.activity);
         page.addView(feedback);
 
-        panel.action(page, R.string.panel_save, () -> {
+        Button saveBtn = Ui.filledButton(panel.activity, panel.t(R.string.panel_save), v -> {
             feedback.removeAllViews();
             String content;
             try {
@@ -417,6 +528,9 @@ final class SkillStudio {
                         panel.failure(feedback, error, null);
                     });
         });
+        LinearLayout.LayoutParams saveLp = new LinearLayout.LayoutParams(-1, -2);
+        saveLp.topMargin = Ui.dp(panel.activity, 12);
+        page.addView(saveBtn, saveLp);
     }
 
     private void confirmDelete(LinearLayout feedbackTarget, SkillStudioModel.SkillDetail detail) {
