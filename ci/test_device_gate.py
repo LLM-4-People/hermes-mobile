@@ -44,7 +44,15 @@ if "resolve-activity" in sys.argv:
     else:
         print(os.environ.get("MAP_COMPONENT", "com.google.android.apps.maps/.MapsActivity"))
 if sys.argv[3:] == ["shell", "dumpsys", "connectivity"]:
-    print(os.environ.get("FIXTURE_CONNECTIVITY", "Active default network: none"))
+    seq_env = os.environ.get("FIXTURE_CONNECTIVITY_SEQ")
+    if seq_env:
+        counter = Path(os.environ["GATE_COMMANDS"]).with_suffix(".conn")
+        idx = int(counter.read_text()) if counter.exists() else 0
+        items = seq_env.split(",")
+        counter.write_text(str(idx + 1))
+        print(items[min(idx, len(items) - 1)])
+    else:
+        print(os.environ.get("FIXTURE_CONNECTIVITY", "Active default network: none"))
 if sys.argv[3:] == ["shell", "settings", "get", "global", "airplane_mode_on"]:
     print(os.environ.get("FIXTURE_AIRPLANE_ON", "1"))
 if sys.argv[3:] == ["shell", "settings", "get", "global", "wifi_on"]:
@@ -112,6 +120,8 @@ class DeviceGateTest(unittest.TestCase):
         env = {**os.environ, "RUNNER_TEMP": str(self.runner), "GATE_COMMANDS": str(self.trace),
                "ANDROID_BUILD_TOOLS": str(self.build_tools),
                "PATH": str(self.root / "bin") + os.pathsep + os.environ["PATH"],
+               "EMULATOR_OFFLINE_POLL_SECONDS": "0",
+               "EMULATOR_OFFLINE_REQUIRED_HITS": "2",
                "FAIL_VERIFIER": fail, "EXECUTION_STATUS": str(execution_status), **changes}
         if suite is not None:
             env["HERMES_DEVICE_SUITE"] = suite
@@ -126,6 +136,8 @@ class DeviceGateTest(unittest.TestCase):
         env = {**os.environ, "RUNNER_TEMP": str(self.runner), "GATE_COMMANDS": str(self.trace),
                "ANDROID_BUILD_TOOLS": str(self.build_tools),
                "PATH": str(self.root / "bin") + os.pathsep + os.environ["PATH"],
+               "EMULATOR_OFFLINE_POLL_SECONDS": "0",
+               "EMULATOR_OFFLINE_REQUIRED_HITS": "2",
                "FIXTURE_ADB_SERIAL": HANDOFF[2], **changes}
         result = subprocess.run(["bash", GATE.with_name("phone-action-check.sh"), APP_APK],
                                 cwd=self.root, env=env, text=True, capture_output=True)
@@ -306,6 +318,8 @@ class DeviceGateTest(unittest.TestCase):
         env = {**os.environ, "RUNNER_TEMP": str(self.runner), "GATE_COMMANDS": str(self.trace),
                "ANDROID_BUILD_TOOLS": str(self.build_tools),
                "PATH": str(self.root / "bin") + os.pathsep + os.environ["PATH"],
+               "EMULATOR_OFFLINE_POLL_SECONDS": "0",
+               "EMULATOR_OFFLINE_REQUIRED_HITS": "2",
                "FIXTURE_ADB_SERIAL": "emulator-nearby", **changes}
         result = subprocess.run(["bash", GATE.with_name("nearby-device-check.sh")],
                                 cwd=self.root, env=env, text=True, capture_output=True)
@@ -346,6 +360,10 @@ class DeviceGateTest(unittest.TestCase):
         self.assertIn([*device, "shell", "cmd", "connectivity", "airplane-mode", "enable"], calls)
         self.assertIn([*device, "shell", "svc", "wifi", "disable"], calls)
         self.assertIn([*device, "shell", "svc", "data", "disable"], calls)
+        self.assertIn([*device, "shell", "settings", "put", "global", "mobile_data", "0"], calls)
+        # Early disable starts settling before resolve-activity runs.
+        resolve_idx = next(i for i, cmd in enumerate(calls) if "resolve-activity" in cmd)
+        self.assertLess(calls.index([*device, "shell", "cmd", "connectivity", "airplane-mode", "enable"]), resolve_idx)
         self.assertGreaterEqual(calls.count([*device, "shell", "dumpsys", "connectivity"]), 2)
         self.assertGreaterEqual(calls.count([*device, "shell", "settings", "get", "global", "airplane_mode_on"]), 2)
         self.assertGreaterEqual(calls.count([*device, "shell", "settings", "get", "global", "wifi_on"]), 2)
@@ -353,6 +371,39 @@ class DeviceGateTest(unittest.TestCase):
         self.assertEqual(verifier[:4], ["python", "-B", "-m", "verification.nearby_restaurants"])
         self.assertEqual(verifier[verifier.index("--verify-apks") + 1:verifier.index("--verify-apks") + 3], [APP_APK, TEST_APK])
         self.assertEqual(verifier[verifier.index("--output") + 1], str(self.runner / "hermes-nearby"))
+
+    def test_offline_helper_reasserts_on_radio_flap_and_requires_full_default_stability_window(self):
+        # Simulate boot-time radio briefly coming up after 2 offline polls, then staying offline for 6 consecutive polls.
+        seq = ",".join([
+            "Active default network: none",
+            "Active default network: none",
+            "Active default network: 100",
+            *["Active default network: none"] * 6,
+        ])
+        conn_counter = self.trace.with_suffix(".conn")
+        if conn_counter.exists():
+            conn_counter.unlink()
+        env = {
+            **os.environ,
+            "RUNNER_TEMP": str(self.runner),
+            "GATE_COMMANDS": str(self.trace),
+            "ANDROID_BUILD_TOOLS": str(self.build_tools),
+            "PATH": str(self.root / "bin") + os.pathsep + os.environ["PATH"],
+            "EMULATOR_OFFLINE_POLL_SECONDS": "0",
+            "FIXTURE_ADB_SERIAL": "emulator-nearby",
+            "FIXTURE_CONNECTIVITY_SEQ": seq,
+        }
+        # Deliberately omit EMULATOR_OFFLINE_REQUIRED_HITS to verify default 6-hit window.
+        env.pop("EMULATOR_OFFLINE_REQUIRED_HITS", None)
+        result = subprocess.run(["bash", GATE.with_name("nearby-device-check.sh")],
+                                cwd=self.root, env=env, text=True, capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        calls = [json.loads(line) for line in self.trace.read_text().splitlines()]
+        device = ["adb", "-s", "emulator-nearby"]
+        # 2 initial offline + 1 flap + 6 consecutive settled = 9 connectivity checks.
+        self.assertEqual(calls.count([*device, "shell", "dumpsys", "connectivity"]), 9)
+        # Early disable + wait_emulator_offline initial disable + immediate re-assert on drop-back = 3 disables.
+        self.assertEqual(calls.count([*device, "shell", "settings", "put", "global", "mobile_data", "0"]), 3)
 
     def test_both_offline_gates_enforce_wifi_off_airplane_on_and_fail_cleanly_when_network_stays_up(self):
         cases = [
@@ -362,7 +413,8 @@ class DeviceGateTest(unittest.TestCase):
         ]
         fast_poll = {
             "EMULATOR_OFFLINE_MAX_ATTEMPTS": "3",
-            "EMULATOR_OFFLINE_POLL_SECONDS": "0.01",
+            "EMULATOR_OFFLINE_POLL_SECONDS": "0",
+            "EMULATOR_OFFLINE_REQUIRED_HITS": "2",
             "EMULATOR_OFFLINE_REASSERT_EVERY": "2",
         }
         for gate_name, runner, serial in (
@@ -376,9 +428,10 @@ class DeviceGateTest(unittest.TestCase):
                     self.assertEqual(result.returncode, 1)
                     self.assertIn("Emulator did not settle into offline airplane mode", result.stderr)
                     device = ["adb", "-s", serial]
-                    self.assertGreaterEqual(calls.count([*device, "shell", "cmd", "connectivity", "airplane-mode", "enable"]), 2)
-                    self.assertGreaterEqual(calls.count([*device, "shell", "svc", "wifi", "disable"]), 2)
-                    self.assertGreaterEqual(calls.count([*device, "shell", "svc", "data", "disable"]), 2)
+                    self.assertGreaterEqual(calls.count([*device, "shell", "cmd", "connectivity", "airplane-mode", "enable"]), 3)
+                    self.assertGreaterEqual(calls.count([*device, "shell", "svc", "wifi", "disable"]), 3)
+                    self.assertGreaterEqual(calls.count([*device, "shell", "svc", "data", "disable"]), 3)
+                    self.assertGreaterEqual(calls.count([*device, "shell", "settings", "put", "global", "mobile_data", "0"]), 3)
                     self.assertFalse(any(cmd[0] == "python" for cmd in calls))
 
     def test_nearby_gate_fails_on_missing_evidence_or_unexpected_map_resolver(self):

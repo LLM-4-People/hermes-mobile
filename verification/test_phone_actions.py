@@ -279,6 +279,37 @@ class PhoneActionsTransitionTest(unittest.TestCase):
                 device.shell.assert_called_once_with("input", "keyevent", "BACK")
                 self.assertEqual(tapped, [s["thread_send"], s["thread_send"]])
 
+    def test_assert_offline_waits_reactively_for_transient_network_teardown(self):
+        device = Mock()
+        device.shell.side_effect = [
+            "NetworkAgentInfo\nActive default network: 100\n",
+            "NetworkAgentInfo\nActive default network: 100\n",
+            "NetworkAgentInfo\nActive default network: none\n",
+        ]
+        with patch.object(phone_actions, "sleep") as mock_sleep, patch.object(
+            phone_actions, "monotonic", side_effect=[10.0, 10.25, 10.5]
+        ):
+            phone_actions.assert_offline(device, timeout=5.0, poll_interval=0.25)
+        self.assertEqual(device.shell.call_count, 3)
+        self.assertEqual(mock_sleep.call_count, 2)
+
+    def test_assert_offline_reports_observed_network_line_when_still_online(self):
+        for dump, expected_detail in (
+            ("Header\n  Active default network: 100\nTail\n", "Active default network: 100"),
+            ("No connectivity status line\n", "Active default network: <missing>"),
+        ):
+            with self.subTest(expected_detail=expected_detail):
+                device = Mock()
+                device.shell.return_value = dump
+                with patch.object(phone_actions, "sleep"), patch.object(
+                    phone_actions, "monotonic", side_effect=[10.0, 15.1]
+                ):
+                    with self.assertRaises(ValueError) as raised:
+                        phone_actions.assert_offline(device, timeout=5.0, poll_interval=0.25)
+                msg = str(raised.exception)
+                self.assertIn("Use a dedicated emulator in airplane mode with Wi-Fi disabled", msg)
+                self.assertIn(expected_detail, msg)
+
 
 if __name__ == "__main__":
     unittest.main()

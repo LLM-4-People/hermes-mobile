@@ -22,6 +22,7 @@ if grep -Fxq 'package:com.google.android.calendar' <<< "$enabled"; then
   "${device[@]}" shell pm disable-user --user 0 com.google.android.calendar
 fi
 "${device[@]}" shell pm clear org.llm4people.hermes
+disable_emulator_network "$serial"
 
 require_receiver() {
   local expected=$1 resolved
