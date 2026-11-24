@@ -95,7 +95,7 @@ adb install -r {{ release_apk }}</code></div>
           <p>Hermes Mobile connects to the companion server at <a href="{{ fork_url }}" rel="noopener">LLM-4-People/hermes-agent</a>. One single HTTPS host serves isolated users under <code>/p/&lt;profile&gt;</code> with no per-user subdomains required.</p>
           <ol>
             <li>Deploy the companion server and run <code>python3 scripts/mobile_setup.py --invite alex --qr</code> on the host to create an isolated profile and a single-use 5-minute pairing ticket.</li>
-            <li>On Android, open <strong>Connect your Hermes</strong> and tap <strong>Paste pairing link</strong> or open the <code>hermes://pair</code> deep link. Confirm the target host before claiming, or fill in host, profile slug, and access key manually.</li>
+            <li>On Android, open <strong>Connect Hermes</strong> and tap <strong>Paste pairing link</strong> or open the <code>hermes://pair</code> deep link. Confirm the target host before claiming, or fill in host, profile slug, and access key manually.</li>
             <li>The first profile acts as admin with an in-app <strong>Admin console</strong> for inviting members, rotating keys, setting concurrency caps, and revoking active tickets.</li>
             <li>Protect the local device vault with your choice of <strong>Biometrics / device lock</strong>, a <strong>6 to 12 digit PIN</strong>, or a <strong>12+ character passphrase</strong> (with a smart 5-minute default auto-lock grace, configurable in <strong>Settings &gt; Security</strong>) and manage optional Android capabilities in <strong>Settings &gt; Permissions</strong>.</li>
           </ol>

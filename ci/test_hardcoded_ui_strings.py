@@ -86,10 +86,20 @@ class HardcodedUiStringsGuardTest(unittest.TestCase):
                     }
                     void osSurfaces(android.widget.RemoteViews rv, android.content.pm.ShortcutInfo.Builder sb, android.service.quicksettings.Tile tile) {
                         rv.setTextViewText(1, "Widget title text");
+                        rv.setContentDescription(1, "Widget accessibility text");
                         sb.setShortLabel("Quick Ask");
                         sb.setLongLabel("Open Hermes quickly");
                         tile.setLabel("Hermes Tile");
-                        new NotificationChannel("ch_id", "Live updates", 3);
+                        new NotificationChannel("ch_id", "Live updates", 3).setDescription("Channel summary text");
+                        nb.setShortCriticalText("Running now");
+                        new Notification.Action.Builder(null, "Stop active run", null).build();
+                        new AccessibilityNodeInfo.AccessibilityAction(16, "Open full view");
+                        new ProfileScreen(ctx, "Profile heading", "Profile subtitle text");
+                        screen.section("Section title text", "Section helper summary");
+                        screen.field("Field title text", "Field hint text", "Field helper text");
+                        screen.profileRow("Profile row title", "Profile row subtitle");
+                        ProfileScreen.styledField(ctx, 1, "Styled hint text", "Styled error text");
+                        ProfileScreen.choiceChip(ctx, "Biometric lock choice");
                         android.content.ClipData.newPlainText("Copied report", "payload");
                     }
                 }
@@ -112,10 +122,27 @@ class HardcodedUiStringsGuardTest(unittest.TestCase):
                 "Bypassed after else",
                 "Bypassed after return",
                 "Widget title text",
+                "Widget accessibility text",
                 "Quick Ask",
                 "Open Hermes quickly",
                 "Hermes Tile",
                 "Live updates",
+                "Channel summary text",
+                "Running now",
+                "Stop active run",
+                "Open full view",
+                "Profile heading",
+                "Profile subtitle text",
+                "Section title text",
+                "Section helper summary",
+                "Field title text",
+                "Field hint text",
+                "Field helper text",
+                "Profile row title",
+                "Profile row subtitle",
+                "Styled hint text",
+                "Styled error text",
+                "Biometric lock choice",
                 "Copied report",
             ]
             for snippet in expected_snippets:
