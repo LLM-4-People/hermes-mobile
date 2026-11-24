@@ -3,15 +3,18 @@ package org.llm4people.hermes.profile;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.graphics.Typeface;
-import android.graphics.drawable.GradientDrawable;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.Editable;
+import android.text.InputType;
 import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.View;
+import android.view.accessibility.AccessibilityNodeInfo;
+import android.view.inputmethod.EditorInfo;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.Switch;
@@ -55,6 +58,7 @@ public final class ProfileHubSheet implements AutoCloseable {
         }
         return cached;
     }
+
     private static final Pattern VALID_SLUG = Pattern.compile("[a-z0-9][a-z0-9-]{1,31}");
 
     public interface Callbacks {
@@ -82,7 +86,7 @@ public final class ProfileHubSheet implements AutoCloseable {
     private AlertDialog childDialog;
     private PairingShareSheet shareSheet;
     private LinearLayout serverSlot;
-    private TextView heroMeta;
+    private LinearLayout heroBadgesRow;
     private Button adminButton;
     private Button inviteButton;
     private boolean isAdmin;
@@ -180,18 +184,25 @@ public final class ProfileHubSheet implements AutoCloseable {
         body.addView(localHeading, topMargin(18));
 
         Map<String, String> localProfiles = new AccountStore(activity).profiles();
+        int otherLocalCount = 0;
         for (Map.Entry<String, String> entry : localProfiles.entrySet()) {
             if (account.id.equals(entry.getKey())) continue;
+            otherLocalCount++;
             body.addView(buildLocalProfileRow(entry.getKey(), entry.getValue()), topMargin(8));
         }
+        if (otherLocalCount == 0) {
+            TextView emptyLocal = Ui.text(activity, activity.getString(R.string.profile_hub_local_empty), 13);
+            emptyLocal.setTextColor(activity.getColor(R.color.muted));
+            body.addView(emptyLocal, topMargin(6));
+        }
 
-        Button scanQrBtn = Ui.button(activity, activity.getString(R.string.profile_hub_scan_qr_action), v -> {
+        Button scanQrBtn = Ui.tonalButton(activity, activity.getString(R.string.profile_hub_scan_qr_action), v -> {
             close();
             callbacks.onScanQrCode();
         });
-        body.addView(scanQrBtn, topMargin(10));
+        body.addView(scanQrBtn, topMargin(12));
 
-        Button addLocalBtn = Ui.button(activity, activity.getString(R.string.profile_add_action), v -> {
+        Button addLocalBtn = Ui.outlinedButton(activity, activity.getString(R.string.profile_add_action), v -> {
             close();
             callbacks.onAddProfile();
         });
@@ -256,12 +267,8 @@ public final class ProfileHubSheet implements AutoCloseable {
 
     private LinearLayout buildActiveHeroCard() {
         LinearLayout card = Ui.column(activity);
-        Ui.pad(card, 14, 14);
-        GradientDrawable bg = new GradientDrawable();
-        bg.setCornerRadius(Ui.dp(activity, 14));
-        bg.setColor(activity.getColor(R.color.surface));
-        bg.setStroke(Math.max(1, Ui.dp(activity, 1)), activity.getColor(R.color.accent));
-        card.setBackground(bg);
+        Ui.pad(card, 16, 16);
+        card.setBackground(Ui.shape(activity, Ui.CARD_CORNER_DP, R.color.surface, R.color.accent, 1));
 
         LinearLayout top = Ui.row(activity);
         top.setGravity(Gravity.CENTER_VERTICAL);
@@ -272,9 +279,13 @@ public final class ProfileHubSheet implements AutoCloseable {
         name.setTypeface(mediumTypeface());
         info.addView(name);
 
-        heroMeta = Ui.text(activity, buildHeroMetaText(), 13);
-        heroMeta.setTextColor(activity.getColor(R.color.muted));
-        info.addView(heroMeta);
+        HorizontalScrollView badgesScroll = new HorizontalScrollView(activity);
+        badgesScroll.setHorizontalScrollBarEnabled(false);
+        heroBadgesRow = Ui.row(activity);
+        heroBadgesRow.setGravity(Gravity.CENTER_VERTICAL);
+        badgesScroll.addView(heroBadgesRow);
+        populateHeroBadges();
+        info.addView(badgesScroll, topMargin(6));
 
         LinearLayout.LayoutParams infoLp = new LinearLayout.LayoutParams(
                 0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
@@ -282,46 +293,53 @@ public final class ProfileHubSheet implements AutoCloseable {
         top.addView(info, infoLp);
         card.addView(top);
 
-        Button pairBtn = Ui.button(activity, activity.getString(R.string.profile_hub_pair_device_action),
+        Button pairBtn = Ui.filledButton(activity, activity.getString(R.string.profile_hub_pair_device_action),
                 v -> triggerPairDevice());
-        card.addView(pairBtn, topMargin(12));
+        card.addView(pairBtn, topMargin(14));
 
-        inviteButton = Ui.button(activity, activity.getString(R.string.profile_hub_invite_action),
+        inviteButton = Ui.outlinedButton(activity, activity.getString(R.string.profile_hub_invite_action),
                 v -> showInviteDialog(isAdmin));
         inviteButton.setVisibility(isAdmin ? View.VISIBLE : View.GONE);
-        card.addView(inviteButton, topMargin(6));
+        card.addView(inviteButton, topMargin(8));
 
-        adminButton = Ui.button(activity, activity.getString(R.string.admin_console_open_action), v -> {
+        adminButton = Ui.outlinedButton(activity, activity.getString(R.string.admin_console_open_action), v -> {
             close();
             callbacks.onOpenAdminConsole();
         });
         adminButton.setVisibility(isAdmin ? View.VISIBLE : View.GONE);
-        card.addView(adminButton, topMargin(6));
+        card.addView(adminButton, topMargin(8));
 
         return card;
     }
 
-    private String buildHeroMetaText() {
-        StringBuilder sb = new StringBuilder(activity.getString(R.string.profile_hub_active_badge));
+    private void populateHeroBadges() {
+        if (heroBadgesRow == null) return;
+        heroBadgesRow.removeAllViews();
+        addPill(heroBadgesRow, activity.getString(R.string.profile_hub_active_badge), true);
         if (isAdmin) {
-            sb.append(" · ").append(activity.getString(R.string.profile_hub_admin_badge));
+            addPill(heroBadgesRow, activity.getString(R.string.profile_hub_admin_badge), true);
         }
-        sb.append(" · ").append(AppLanguage.readMode(activity).wire.toUpperCase(Locale.ROOT));
+        addPill(heroBadgesRow, AppLanguage.readMode(activity).wire.toUpperCase(Locale.ROOT), false);
         if (activeRunCount > 0) {
-            sb.append(" · ").append(activity.getString(R.string.profile_hub_runs_badge, activeRunCount));
+            addPill(heroBadgesRow, activity.getString(R.string.profile_hub_runs_badge, activeRunCount), true);
         }
-        return sb.toString();
+    }
+
+    private void addPill(LinearLayout row, String text, boolean accent) {
+        TextView badge = Ui.pill(activity, text,
+                accent ? R.color.accent_surface : R.color.surface_container,
+                accent ? R.color.accent : R.color.ink);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        if (row.getChildCount() > 0) lp.setMarginStart(Ui.dp(activity, 8));
+        row.addView(badge, lp);
     }
 
     private LinearLayout buildLocalProfileRow(String profileId, String label) {
         LinearLayout row = Ui.row(activity);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        Ui.pad(row, 12, 10);
-        GradientDrawable bg = new GradientDrawable();
-        bg.setCornerRadius(Ui.dp(activity, 12));
-        bg.setColor(activity.getColor(R.color.surface));
-        bg.setStroke(Math.max(1, Ui.dp(activity, 1)), activity.getColor(R.color.line));
-        row.setBackground(bg);
+        Ui.pad(row, 16, 12);
+        row.setBackground(Ui.shape(activity, Ui.CARD_CORNER_DP, R.color.surface, R.color.line, 1));
 
         row.addView(avatarBadge(activity, avatarInitials(label), false));
 
@@ -330,9 +348,10 @@ public final class ProfileHubSheet implements AutoCloseable {
         LinearLayout.LayoutParams nameLp = new LinearLayout.LayoutParams(
                 0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
         nameLp.setMarginStart(Ui.dp(activity, 12));
+        nameLp.setMarginEnd(Ui.dp(activity, 8));
         row.addView(name, nameLp);
 
-        Button switchBtn = Ui.button(activity, activity.getString(R.string.profile_hub_switch_action), v -> {
+        Button switchBtn = Ui.tonalButton(activity, activity.getString(R.string.profile_hub_switch_action), v -> {
             close();
             callbacks.onSwitchProfile(profileId);
         });
@@ -363,7 +382,7 @@ public final class ProfileHubSheet implements AutoCloseable {
                     isAdmin = finalStatus.isAdmin();
                     callbacks.onAdminStateResolved(isAdmin);
                 }
-                if (heroMeta != null) heroMeta.setText(buildHeroMetaText());
+                populateHeroBadges();
                 if (adminButton != null) adminButton.setVisibility(isAdmin ? View.VISIBLE : View.GONE);
                 if (inviteButton != null) inviteButton.setVisibility(isAdmin ? View.VISIBLE : View.GONE);
                 renderRemoteProfiles(finalProfiles);
@@ -386,13 +405,7 @@ public final class ProfileHubSheet implements AutoCloseable {
     }
 
     private LinearLayout buildRemoteProfileCard(OnboardingModels.RemoteProfile profile) {
-        LinearLayout card = Ui.column(activity);
-        Ui.pad(card, 12, 10);
-        GradientDrawable bg = new GradientDrawable();
-        bg.setCornerRadius(Ui.dp(activity, 12));
-        bg.setColor(activity.getColor(R.color.surface));
-        bg.setStroke(Math.max(1, Ui.dp(activity, 1)), activity.getColor(R.color.line));
-        card.setBackground(bg);
+        LinearLayout card = Ui.card(activity);
 
         LinearLayout header = Ui.row(activity);
         header.setGravity(Gravity.CENTER_VERTICAL);
@@ -403,37 +416,48 @@ public final class ProfileHubSheet implements AutoCloseable {
         title.setTypeface(mediumTypeface());
         textCol.addView(title);
 
+        HorizontalScrollView pillsScroll = new HorizontalScrollView(activity);
+        pillsScroll.setHorizontalScrollBarEnabled(false);
+        LinearLayout pillsRow = Ui.row(activity);
+        pillsRow.setGravity(Gravity.CENTER_VERTICAL);
         String roleLabel = activity.getString(
                 profile.isAdmin() ? R.string.admin_console_role_admin : R.string.admin_console_role_member);
-        String meta = roleLabel
-                + " · " + profile.preferredLanguage().toUpperCase(Locale.ROOT)
-                + " · " + activity.getString(R.string.profile_hub_threads_count, profile.threadCount());
+        addPill(pillsRow, roleLabel, profile.isAdmin());
+        addPill(pillsRow, profile.preferredLanguage().toUpperCase(Locale.ROOT), false);
         if (profile.activeRuns() > 0) {
-            meta += " · " + activity.getString(R.string.profile_hub_runs_badge, profile.activeRuns());
+            addPill(pillsRow, activity.getString(R.string.profile_hub_runs_badge, profile.activeRuns()), true);
         }
-        TextView sub = Ui.text(activity, meta, 12);
-        sub.setTextColor(activity.getColor(R.color.muted));
-        textCol.addView(sub);
+        pillsScroll.addView(pillsRow);
+        textCol.addView(pillsScroll, topMargin(6));
+
+        TextView threadsCaption = Ui.text(activity,
+                activity.getString(R.string.profile_hub_threads_count, profile.threadCount()), 12);
+        threadsCaption.setTextColor(activity.getColor(R.color.muted));
+        textCol.addView(threadsCaption, topMargin(4));
 
         LinearLayout.LayoutParams colLp = new LinearLayout.LayoutParams(
                 0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
-        colLp.setMarginStart(Ui.dp(activity, 10));
+        colLp.setMarginStart(Ui.dp(activity, 12));
         header.addView(textCol, colLp);
         card.addView(header);
 
+        HorizontalScrollView actionsScroll = new HorizontalScrollView(activity);
+        actionsScroll.setHorizontalScrollBarEnabled(false);
         LinearLayout actions = Ui.row(activity);
-        Button editBtn = Ui.button(activity, activity.getString(R.string.profile_hub_edit_action),
-                v -> showEditDialog(profile));
-        actions.addView(editBtn);
 
-        Button pairBtn = Ui.button(activity, activity.getString(R.string.profile_hub_pair_device_action),
+        Button pairBtn = Ui.tonalButton(activity, activity.getString(R.string.profile_hub_pair_device_action),
                 v -> inviteExistingProfile(profile.slug()));
-        LinearLayout.LayoutParams pairLp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        pairLp.setMarginStart(Ui.dp(activity, 8));
-        actions.addView(pairBtn, pairLp);
+        actions.addView(pairBtn);
 
-        card.addView(actions, topMargin(8));
+        Button editBtn = Ui.outlinedButton(activity, activity.getString(R.string.profile_hub_edit_action),
+                v -> showEditDialog(profile));
+        LinearLayout.LayoutParams editLp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        editLp.setMarginStart(Ui.dp(activity, 8));
+        actions.addView(editBtn, editLp);
+
+        actionsScroll.addView(actions);
+        card.addView(actionsScroll, topMargin(10));
         return card;
     }
 
@@ -462,21 +486,25 @@ public final class ProfileHubSheet implements AutoCloseable {
     }
 
     private void showEditDialog(OnboardingModels.RemoteProfile profile) {
+        ScrollView scroll = new ScrollView(activity);
         LinearLayout form = Ui.column(activity);
-        Ui.pad(form, 18, 10);
-        EditText nameField = new EditText(activity);
-        nameField.setHint(R.string.profile_hub_edit_name_hint);
-        nameField.setText(profile.displayName());
-        nameField.setSingleLine(true);
-        nameField.setSaveEnabled(false);
-        form.addView(nameField);
+        Ui.pad(form, 18, 12);
+        scroll.addView(form);
 
-        EditText modelField = new EditText(activity);
-        modelField.setHint(R.string.profile_hub_edit_model_hint);
-        modelField.setText(profile.defaultModel());
-        modelField.setSingleLine(true);
-        modelField.setSaveEnabled(false);
-        form.addView(modelField, topMargin(8));
+        EditText nameField = styledLabeledField(form,
+                R.string.profile_hub_edit_name_hint,
+                profile.displayName(),
+                R.string.profile_hub_edit_name_hint,
+                0);
+        EditText modelField = styledLabeledField(form,
+                R.string.admin_settings_model_label,
+                profile.defaultModel(),
+                R.string.profile_hub_edit_model_hint,
+                10);
+
+        TextView langLabel = Ui.text(activity, activity.getString(R.string.profile_hub_language_label), 14);
+        langLabel.setTypeface(mediumTypeface());
+        form.addView(langLabel, topMargin(12));
 
         String[] lang = {profile.preferredLanguage()};
         String[] labels = {
@@ -485,31 +513,35 @@ public final class ProfileHubSheet implements AutoCloseable {
                 activity.getString(R.string.onboarding_language_fr)
         };
         String[] codes = {"auto", "en", "fr"};
+        HorizontalScrollView langScroll = new HorizontalScrollView(activity);
+        langScroll.setHorizontalScrollBarEnabled(false);
         LinearLayout langRow = Ui.row(activity);
         Button[] btns = new Button[3];
         Runnable paint = () -> {
             for (int i = 0; i < 3; i++) {
-                boolean sel = codes[i].equals(lang[0]);
-                btns[i].setSelected(sel);
-                btns[i].setTextColor(activity.getColor(sel ? R.color.accent : R.color.ink));
+                styleChoiceChip(btns[i], codes[i].equals(lang[0]));
             }
         };
         for (int i = 0; i < 3; i++) {
             final String code = codes[i];
-            Button b = Ui.button(activity, labels[i], v -> {
+            Button b = choiceChip(labels[i], () -> {
                 lang[0] = code;
                 paint.run();
             });
             btns[i] = b;
-            langRow.addView(b, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+            if (i > 0) lp.setMarginStart(Ui.dp(activity, 8));
+            langRow.addView(b, lp);
         }
         paint.run();
-        form.addView(langRow, topMargin(10));
+        langScroll.addView(langRow);
+        form.addView(langScroll, topMargin(6));
 
         dismissChildDialog();
         childDialog = Ui.secureDialog(new AlertDialog.Builder(activity)
                 .setTitle(R.string.profile_hub_edit_title)
-                .setView(form)
+                .setView(scroll)
                 .setNegativeButton(R.string.profile_setup_cancel, null)
                 .setPositiveButton(R.string.profile_save_action, (d, w) -> {
                     String nextName = nameField.getText().toString().trim();
@@ -539,24 +571,31 @@ public final class ProfileHubSheet implements AutoCloseable {
     }
 
     private void showInviteDialog(boolean allowAdminToggle) {
+        ScrollView scroll = new ScrollView(activity);
         LinearLayout form = Ui.column(activity);
-        Ui.pad(form, 18, 10);
+        Ui.pad(form, 18, 12);
+        scroll.addView(form);
 
         TextView detail = Ui.text(activity, activity.getString(R.string.profile_hub_invite_detail), 13);
         detail.setTextColor(activity.getColor(R.color.muted));
         form.addView(detail);
 
-        EditText nameField = new EditText(activity);
-        nameField.setHint(R.string.profile_hub_invite_name_hint);
-        nameField.setSingleLine(true);
-        nameField.setSaveEnabled(false);
-        form.addView(nameField, topMargin(10));
+        EditText nameField = styledLabeledField(form,
+                R.string.profile_hub_edit_name_hint,
+                "",
+                R.string.profile_hub_invite_name_hint,
+                10);
+        EditText slugField = styledLabeledField(form,
+                R.string.profile_hub_slug_label,
+                "",
+                R.string.profile_hub_invite_slug_hint,
+                10);
 
-        EditText slugField = new EditText(activity);
-        slugField.setHint(R.string.profile_hub_invite_slug_hint);
-        slugField.setSingleLine(true);
-        slugField.setSaveEnabled(false);
-        form.addView(slugField, topMargin(8));
+        TextView inlineError = Ui.text(activity, "", 13);
+        inlineError.setTextColor(activity.getColor(R.color.danger));
+        inlineError.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        inlineError.setVisibility(View.GONE);
+        form.addView(inlineError, topMargin(8));
 
         boolean[] slugManuallyEdited = {false};
         nameField.addTextChangedListener(new TextWatcher() {
@@ -568,59 +607,147 @@ public final class ProfileHubSheet implements AutoCloseable {
                 }
             }
         });
+        slugField.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {}
+            @Override public void afterTextChanged(Editable s) {
+                if (inlineError.getVisibility() == View.VISIBLE) {
+                    inlineError.setText("");
+                    inlineError.setVisibility(View.GONE);
+                }
+            }
+        });
         slugField.setOnFocusChangeListener((v, hasFocus) -> {
             if (hasFocus) slugManuallyEdited[0] = true;
         });
 
         Switch adminToggle = new Switch(activity);
         adminToggle.setText(R.string.admin_console_grant_admin_toggle);
+        adminToggle.setTextColor(activity.getColor(R.color.ink));
+        adminToggle.setTextSize(15);
         adminToggle.setMinHeight(Ui.dp(activity, 48));
-        if (allowAdminToggle) form.addView(adminToggle, topMargin(8));
+        if (allowAdminToggle) form.addView(adminToggle, topMargin(10));
 
         dismissChildDialog();
-        childDialog = Ui.secureDialog(new AlertDialog.Builder(activity)
+        AlertDialog dialog = Ui.secureDialog(new AlertDialog.Builder(activity)
                 .setTitle(R.string.profile_hub_invite_title)
-                .setView(form)
+                .setView(scroll)
                 .setNegativeButton(R.string.profile_setup_cancel, null)
-                .setPositiveButton(R.string.profile_hub_invite_create_action, (d, w) -> {
-                    String displayName = nameField.getText().toString().trim();
-                    String slug = slugField.getText().toString().trim().toLowerCase(Locale.ROOT);
-                    if (!isValidNewSlug(slug)) {
-                        Toast.makeText(activity, R.string.profile_hub_invite_invalid_slug, Toast.LENGTH_LONG).show();
-                        return;
+                .setPositiveButton(R.string.profile_hub_invite_create_action, null));
+        childDialog = dialog;
+        Button positive = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+        if (positive != null) {
+            positive.setOnClickListener(v -> {
+                String displayName = nameField.getText().toString().trim();
+                String slug = slugField.getText().toString().trim().toLowerCase(Locale.ROOT);
+                if (!isValidNewSlug(slug)) {
+                    inlineError.setText(R.string.profile_hub_invite_invalid_slug);
+                    inlineError.setVisibility(View.VISIBLE);
+                    slugField.requestFocus();
+                    return;
+                }
+                inlineError.setText("");
+                inlineError.setVisibility(View.GONE);
+                boolean grantAdmin = allowAdminToggle && adminToggle.isChecked();
+                dialog.dismiss();
+                io.execute(() -> {
+                    OnboardingModels.PairingTicket ticket = null;
+                    try {
+                        JSONObject req = new JSONObject();
+                        req.put("slug", slug);
+                        req.put("display_name", displayName.isEmpty() ? slug : displayName);
+                        req.put("preferred_language", AppLanguage.resolvedTag(activity));
+                        req.put("is_admin", grantAdmin);
+                        req.put("create_invite", true);
+                        JSONObject resp = api.createProfile(req);
+                        JSONObject rawTicket = resp.optJSONObject("pairing_ticket");
+                        if (rawTicket == null) rawTicket = resp.optJSONObject("ticket");
+                        if (rawTicket == null) rawTicket = resp;
+                        ticket = OnboardingModels.parsePairingTicket(rawTicket);
+                        Diagnostics.event("profile_hub", "invite_created");
+                    } catch (Exception err) {
+                        Diagnostics.warning("profile_hub", "invite_create_failed");
                     }
-                    boolean grantAdmin = allowAdminToggle && adminToggle.isChecked();
-                    io.execute(() -> {
-                        OnboardingModels.PairingTicket ticket = null;
-                        try {
-                            JSONObject req = new JSONObject();
-                            req.put("slug", slug);
-                            req.put("display_name", displayName.isEmpty() ? slug : displayName);
-                            req.put("preferred_language", AppLanguage.resolvedTag(activity));
-                            req.put("is_admin", grantAdmin);
-                            req.put("create_invite", true);
-                            JSONObject resp = api.createProfile(req);
-                            JSONObject rawTicket = resp.optJSONObject("pairing_ticket");
-                            if (rawTicket == null) rawTicket = resp.optJSONObject("ticket");
-                            if (rawTicket == null) rawTicket = resp;
-                            ticket = OnboardingModels.parsePairingTicket(rawTicket);
-                            Diagnostics.event("profile_hub", "invite_created");
-                        } catch (Exception err) {
-                            Diagnostics.warning("profile_hub", "invite_create_failed");
+                    OnboardingModels.PairingTicket created = ticket;
+                    main.post(() -> {
+                        if (closed || !canAct.getAsBoolean()) return;
+                        if (created == null) {
+                            Toast.makeText(activity, R.string.profile_hub_invite_failed, Toast.LENGTH_LONG).show();
+                            return;
                         }
-                        OnboardingModels.PairingTicket created = ticket;
-                        main.post(() -> {
-                            if (closed || !canAct.getAsBoolean()) return;
-                            if (created == null) {
-                                Toast.makeText(activity, R.string.profile_hub_invite_failed, Toast.LENGTH_LONG).show();
-                                return;
-                            }
-                            refreshRemoteState();
-                            if (shareSheet != null) shareSheet.close();
-                            shareSheet = PairingShareSheet.show(activity, created, api, io, canAct, this::refreshRemoteState);
-                        });
+                        refreshRemoteState();
+                        if (shareSheet != null) shareSheet.close();
+                        shareSheet = PairingShareSheet.show(activity, created, api, io, canAct, this::refreshRemoteState);
                     });
-                }));
+                });
+            });
+        }
+    }
+
+    private EditText styledLabeledField(
+            LinearLayout parent,
+            int labelRes,
+            String initial,
+            int hintRes,
+            int topGapDp) {
+        TextView lbl = Ui.text(activity, activity.getString(labelRes), 14);
+        lbl.setTypeface(mediumTypeface());
+        if (topGapDp > 0) parent.addView(lbl, topMargin(topGapDp));
+        else parent.addView(lbl);
+
+        EditText field = new EditText(activity);
+        field.setId(View.generateViewId());
+        lbl.setLabelFor(field.getId());
+        field.setText(initial == null ? "" : initial);
+        if (hintRes != 0) field.setHint(hintRes);
+        field.setSingleLine(true);
+        field.setInputType(InputType.TYPE_CLASS_TEXT);
+        field.setBackgroundResource(R.drawable.profile_input);
+        field.setBackgroundTintList(null);
+        Ui.pad(field, 12, 10);
+        field.setTextColor(activity.getColor(R.color.ink));
+        field.setHintTextColor(activity.getColor(R.color.muted));
+        field.setMinHeight(Ui.dp(activity, 48));
+        field.setSaveEnabled(false);
+        field.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO);
+        field.setImeOptions(EditorInfo.IME_FLAG_NO_EXTRACT_UI | EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING);
+        parent.addView(field, topMargin(6));
+        return field;
+    }
+
+    private Button choiceChip(String label, Runnable onClick) {
+        Button btn = new Button(activity, null, android.R.attr.borderlessButtonStyle);
+        btn.setText(label);
+        btn.setAllCaps(false);
+        btn.setTextSize(14);
+        btn.setTypeface(mediumTypeface());
+        btn.setStateListAnimator(null);
+        Ui.pad(btn, 14, 10);
+        int touchMin = Ui.dp(activity, 48);
+        btn.setMinHeight(touchMin);
+        btn.setMinimumHeight(touchMin);
+        btn.setOnClickListener(v -> onClick.run());
+        return btn;
+    }
+
+    private void styleChoiceChip(Button btn, boolean selected) {
+        if (btn == null) return;
+        btn.setBackground(Ui.roundedRipple(activity, Ui.BUTTON_CORNER_DP, Ui.shape(
+                activity,
+                Ui.BUTTON_CORNER_DP,
+                selected ? R.color.accent_surface : R.color.surface,
+                selected ? R.color.accent : R.color.line,
+                selected ? 2 : 1)));
+        btn.setTextColor(activity.getColor(selected ? R.color.accent : R.color.ink));
+        btn.setSelected(selected);
+        btn.setAccessibilityDelegate(new View.AccessibilityDelegate() {
+            @Override
+            public void onInitializeAccessibilityNodeInfo(View host, AccessibilityNodeInfo info) {
+                super.onInitializeAccessibilityNodeInfo(host, info);
+                info.setCheckable(true);
+                info.setChecked(selected);
+            }
+        });
     }
 
     static TextView avatarBadge(Activity activity, String initials, boolean accent) {

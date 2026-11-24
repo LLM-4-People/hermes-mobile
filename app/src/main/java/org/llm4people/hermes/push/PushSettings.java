@@ -123,18 +123,18 @@ final class PushSettings {
         LinearLayout extras = null;
         if (offersDistributor(device)) {
             extras = Ui.column(activity);
-            Ui.pad(extras, 16, 4);
-            extras.addView(Ui.button(activity, activity.getString(R.string.push_settings_open_distributor),
-                    v -> openDistributor(v, device)));
+            Ui.pad(extras, 18, 8);
+            extras.addView(Ui.tonalButton(activity, activity.getString(R.string.push_settings_open_distributor),
+                    v -> openDistributor(v, device)), stackGap(0));
             if (!allowed && device.repair == PushStore.REPAIR_ACTION) {
-                extras.addView(Ui.button(activity, activity.getString(R.string.instrument_retry),
-                        v -> retryRepair(device)));
+                extras.addView(Ui.outlinedButton(activity, activity.getString(R.string.instrument_retry),
+                        v -> retryRepair(device)), stackGap(8));
             }
         }
         if (account != null) {
             if (extras == null) {
                 extras = Ui.column(activity);
-                Ui.pad(extras, 16, 4);
+                Ui.pad(extras, 18, 8);
             }
             PushPolicy currentPolicy = PushPolicy.load(activity, account.id);
             String quietLine = currentPolicy.quietHoursEnabled
@@ -144,83 +144,107 @@ final class PushSettings {
                     : activity.getString(R.string.push_policy_quiet_status_off);
             TextView summary = Ui.text(activity, quietLine, 14);
             summary.setTextColor(activity.getColor(R.color.muted));
-            Ui.pad(summary, 4, 6);
-            extras.addView(summary);
-            extras.addView(Ui.button(activity, activity.getString(R.string.push_policy_button),
-                    v -> showPolicyDialog()));
-            extras.addView(Ui.button(activity, activity.getString(R.string.push_inbox_button),
-                    v -> openDeliveryInbox()));
+            Ui.pad(summary, 2, 6);
+            extras.addView(summary, stackGap(extras.getChildCount() > 0 ? 8 : 0));
+            extras.addView(Ui.tonalButton(activity, activity.getString(R.string.push_policy_button),
+                    v -> showPolicyDialog()), stackGap(8));
+            extras.addView(Ui.outlinedButton(activity, activity.getString(R.string.push_inbox_button),
+                    v -> openDeliveryInbox()), stackGap(8));
         }
         if (extras != null) builder.setView(extras);
         return builder;
+    }
+
+    private LinearLayout.LayoutParams stackGap(int topDp) {
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        if (topDp > 0) lp.topMargin = Ui.dp(activity, topDp);
+        return lp;
+    }
+
+    private Switch styledSwitch(String label, boolean checked) {
+        Switch toggle = new Switch(activity);
+        toggle.setText(label);
+        toggle.setTextSize(15);
+        toggle.setTextColor(activity.getColor(R.color.ink));
+        toggle.setChecked(checked);
+        toggle.setMinHeight(Ui.dp(activity, 48));
+        return toggle;
     }
 
     void showPolicyDialog() {
         if (!current() || account == null) return;
         PushPolicy[] state = {PushPolicy.load(activity, account.id)};
         LinearLayout content = Ui.column(activity);
-        Ui.pad(content, 20, 12);
+        Ui.pad(content, 18, 12);
 
         TextView catHeading = Ui.text(activity, activity.getString(R.string.push_policy_categories_heading), 17);
         catHeading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        catHeading.setAccessibilityHeading(true);
         content.addView(catHeading);
         TextView catHint = Ui.text(activity, activity.getString(R.string.push_policy_categories_hint), 13);
         catHint.setTextColor(activity.getColor(R.color.muted));
-        Ui.pad(catHint, 0, 4);
-        content.addView(catHint);
+        content.addView(catHint, stackGap(4));
 
-        for (DeliveryItem.Category category : DeliveryItem.Category.values()) {
-            Switch toggle = new Switch(activity);
-            toggle.setText(category.label(activity));
-            toggle.setChecked(state[0].isCategoryEnabled(category));
-            toggle.setMinHeight(Ui.dp(activity, 48));
+        LinearLayout categoriesCard = Ui.card(activity);
+        DeliveryItem.Category[] categories = DeliveryItem.Category.values();
+        for (int i = 0; i < categories.length; i++) {
+            DeliveryItem.Category category = categories[i];
+            if (i > 0) {
+                addInsetDivider(categoriesCard, 8);
+            }
+            Switch toggle = styledSwitch(category.label(activity), state[0].isCategoryEnabled(category));
             toggle.setOnCheckedChangeListener((btn, checked) -> {
                 state[0] = state[0].withCategory(category, checked);
                 PushPolicy.save(activity, account.id, state[0]);
             });
-            content.addView(toggle);
+            categoriesCard.addView(toggle, stackGap(i > 0 ? 4 : 0));
             TextView sub = Ui.text(activity, category.hint(activity), 12);
             sub.setTextColor(activity.getColor(R.color.muted));
-            Ui.pad(sub, 0, 2);
-            content.addView(sub);
+            categoriesCard.addView(sub, stackGap(2));
         }
+        content.addView(categoriesCard, stackGap(10));
 
-        content.addView(Ui.divider(activity));
         TextView quietHeading = Ui.text(activity, activity.getString(R.string.push_policy_quiet_heading), 17);
         quietHeading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        Ui.pad(quietHeading, 0, 10);
-        content.addView(quietHeading);
+        quietHeading.setAccessibilityHeading(true);
+        content.addView(quietHeading, stackGap(16));
 
-        Button startButton = Ui.button(activity, "", null);
-        Button endButton = Ui.button(activity, "", null);
-        Switch highToggle = new Switch(activity);
+        LinearLayout quietCard = Ui.card(activity);
+        Button startButton = Ui.outlinedButton(activity, "", null);
+        Button endButton = Ui.outlinedButton(activity, "", null);
+        Switch highToggle = styledSwitch(activity.getString(R.string.push_policy_quiet_high_toggle),
+                state[0].allowHighUrgencyDuringQuietHours);
+        TextView highHint = Ui.text(activity, activity.getString(R.string.push_policy_quiet_high_hint), 12);
 
         Runnable refreshQuietViews = () -> {
+            boolean enabled = state[0].quietHoursEnabled;
             startButton.setText(activity.getString(R.string.push_policy_quiet_start,
                     PushPolicy.formatMinute(activity, state[0].quietStartMinute)));
             endButton.setText(activity.getString(R.string.push_policy_quiet_end,
                     PushPolicy.formatMinute(activity, state[0].quietEndMinute)));
-            startButton.setEnabled(state[0].quietHoursEnabled);
-            endButton.setEnabled(state[0].quietHoursEnabled);
-            highToggle.setEnabled(state[0].quietHoursEnabled);
+            startButton.setEnabled(enabled);
+            endButton.setEnabled(enabled);
+            highToggle.setEnabled(enabled);
+            highToggle.setTextColor(activity.getColor(enabled ? R.color.ink : R.color.disabled_ink));
+            highHint.setTextColor(activity.getColor(enabled ? R.color.muted : R.color.disabled_ink));
         };
 
-        Switch quietToggle = new Switch(activity);
-        quietToggle.setText(activity.getString(R.string.push_policy_quiet_toggle));
-        quietToggle.setChecked(state[0].quietHoursEnabled);
-        quietToggle.setMinHeight(Ui.dp(activity, 48));
+        Switch quietToggle = styledSwitch(activity.getString(R.string.push_policy_quiet_toggle),
+                state[0].quietHoursEnabled);
         quietToggle.setOnCheckedChangeListener((btn, checked) -> {
             state[0] = state[0].withQuietHours(checked, state[0].quietStartMinute,
                     state[0].quietEndMinute, state[0].allowHighUrgencyDuringQuietHours);
             PushPolicy.save(activity, account.id, state[0]);
             refreshQuietViews.run();
         });
-        content.addView(quietToggle);
+        quietCard.addView(quietToggle);
 
         TextView quietHint = Ui.text(activity, activity.getString(R.string.push_policy_quiet_hint), 12);
         quietHint.setTextColor(activity.getColor(R.color.muted));
-        content.addView(quietHint);
+        quietCard.addView(quietHint, stackGap(2));
 
+        addInsetDivider(quietCard, 10);
         startButton.setOnClickListener(v -> openQuietTimePicker(state[0].quietStartMinute, picked -> {
             state[0] = state[0].withQuietHours(state[0].quietHoursEnabled, picked,
                     state[0].quietEndMinute, state[0].allowHighUrgencyDuringQuietHours);
@@ -233,22 +257,18 @@ final class PushSettings {
             PushPolicy.save(activity, account.id, state[0]);
             refreshQuietViews.run();
         }));
-        content.addView(startButton);
-        content.addView(endButton);
+        quietCard.addView(startButton, stackGap(10));
+        quietCard.addView(endButton, stackGap(8));
 
-        highToggle.setText(activity.getString(R.string.push_policy_quiet_high_toggle));
-        highToggle.setChecked(state[0].allowHighUrgencyDuringQuietHours);
-        highToggle.setMinHeight(Ui.dp(activity, 48));
+        addInsetDivider(quietCard, 10);
         highToggle.setOnCheckedChangeListener((btn, checked) -> {
             state[0] = state[0].withQuietHours(state[0].quietHoursEnabled, state[0].quietStartMinute,
                     state[0].quietEndMinute, checked);
             PushPolicy.save(activity, account.id, state[0]);
         });
-        content.addView(highToggle);
-
-        TextView highHint = Ui.text(activity, activity.getString(R.string.push_policy_quiet_high_hint), 12);
-        highHint.setTextColor(activity.getColor(R.color.muted));
-        content.addView(highHint);
+        quietCard.addView(highToggle, stackGap(6));
+        quietCard.addView(highHint, stackGap(2));
+        content.addView(quietCard, stackGap(8));
 
         refreshQuietViews.run();
 
@@ -259,6 +279,13 @@ final class PushSettings {
                 .setView(scroll)
                 .setNegativeButton(R.string.push_settings_back, (d, w) -> show())
                 .setPositiveButton(R.string.ws_close, null));
+    }
+
+    private void addInsetDivider(LinearLayout parent, int topDp) {
+        View divider = Ui.insetDivider(activity, 16);
+        LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) divider.getLayoutParams();
+        lp.topMargin = Ui.dp(activity, topDp);
+        parent.addView(divider, lp);
     }
 
     private void openQuietTimePicker(int initialMinute, java.util.function.IntConsumer onPicked) {

@@ -1,0 +1,9 @@
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="fr">
+    <string name="profile_hub_local_empty">Aucun autre profil enregistré sur cet appareil.</string>
+    <string name="admin_console_users_empty">Aucun utilisateur enregistré sur ce serveur.</string>
+    <string name="admin_console_users_load_failed">Impossible de charger la liste des utilisateurs.</string>
+    <string name="admin_settings_revoke_failed">Impossible de révoquer ce lien d’association.</string>
+    <string name="admin_console_delete_slug_mismatch">Saisissez exactement l’identifiant « %1$s » pour confirmer.</string>
+    <string name="profile_hub_slug_label">Identifiant du profil</string>
+    <string name="profile_hub_language_label">Langue préférée</string>
+</resources>
