@@ -1,0 +1,26 @@
+<resources>
+    <string name="profile_defaults_status_unsaved">Unsaved changes</string>
+    <string name="profile_defaults_status_saved">Up to date</string>
+    <string name="profile_defaults_save_cta">Save defaults</string>
+    <string name="profile_defaults_change_model">Change model</string>
+    <string name="profile_defaults_model_search_hint">Filter by model or provider…</string>
+    <string name="profile_defaults_provider_all">All</string>
+    <string name="profile_defaults_model_search_empty">No models match this filter.</string>
+    <string name="profile_defaults_selected_badge">Active</string>
+    <string name="profile_defaults_reasoning_desc_auto">Adapts reasoning depth automatically for each request.</string>
+    <string name="profile_defaults_reasoning_desc_low">Fastest replies for straightforward questions and tasks.</string>
+    <string name="profile_defaults_reasoning_desc_medium">Balanced speed and analytical depth for daily work.</string>
+    <string name="profile_defaults_reasoning_desc_high">Deeper step-by-step reasoning for complex problems.</string>
+    <string name="profile_defaults_toolsets_count">%1$d / %2$d enabled</string>
+    <string name="profile_defaults_enable_all">Enable all</string>
+    <string name="profile_defaults_disable_all">Disable all</string>
+    <string name="profile_defaults_toolsets_search_hint">Filter capabilities…</string>
+    <string name="profile_defaults_toolsets_empty_search">No capabilities match this filter.</string>
+    <string name="profile_defaults_soul_chars">%1$d chars</string>
+    <string name="profile_defaults_soul_empty">Empty</string>
+    <string name="profile_defaults_soul_empty_hint">No custom instructions set for this profile yet.</string>
+    <string name="profile_defaults_soul_discard_title">Discard changes?</string>
+    <string name="profile_defaults_soul_discard_message">Your edits to the assistant personality have not been saved.</string>
+    <string name="profile_defaults_soul_discard_confirm">Discard</string>
+    <string name="profile_defaults_soul_keep_editing">Keep editing</string>
+</resources>

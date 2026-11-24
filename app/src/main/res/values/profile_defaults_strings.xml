@@ -1,0 +1,26 @@
+<resources>
+    <string name="profile_defaults_status_unsaved">Modifications non enregistrées</string>
+    <string name="profile_defaults_status_saved">À jour</string>
+    <string name="profile_defaults_save_cta">Enregistrer les réglages</string>
+    <string name="profile_defaults_change_model">Changer de modèle</string>
+    <string name="profile_defaults_model_search_hint">Filtrer par modèle ou fournisseur…</string>
+    <string name="profile_defaults_provider_all">Tous</string>
+    <string name="profile_defaults_model_search_empty">Aucun modèle ne correspond à ce filtre.</string>
+    <string name="profile_defaults_selected_badge">Actif</string>
+    <string name="profile_defaults_reasoning_desc_auto">S’adapte automatiquement selon la complexité de chaque demande.</string>
+    <string name="profile_defaults_reasoning_desc_low">Réponses les plus rapides pour les tâches simples et directes.</string>
+    <string name="profile_defaults_reasoning_desc_medium">Bon équilibre entre rapidité et qualité d’analyse.</string>
+    <string name="profile_defaults_reasoning_desc_high">Réflexion étape par étape plus poussée pour les sujets complexes.</string>
+    <string name="profile_defaults_toolsets_count">%1$d / %2$d actives</string>
+    <string name="profile_defaults_enable_all">Tout activer</string>
+    <string name="profile_defaults_disable_all">Tout désactiver</string>
+    <string name="profile_defaults_toolsets_search_hint">Filtrer les capacités…</string>
+    <string name="profile_defaults_toolsets_empty_search">Aucune capacité ne correspond à ce filtre.</string>
+    <string name="profile_defaults_soul_chars">%1$d car.</string>
+    <string name="profile_defaults_soul_empty">Vide</string>
+    <string name="profile_defaults_soul_empty_hint">Aucune consigne personnalisée définie pour ce profil.</string>
+    <string name="profile_defaults_soul_discard_title">Ignorer les modifications ?</string>
+    <string name="profile_defaults_soul_discard_message">Vos modifications de la personnalité ne sont pas enregistrées.</string>
+    <string name="profile_defaults_soul_discard_confirm">Ignorer</string>
+    <string name="profile_defaults_soul_keep_editing">Continuer l’édition</string>
+</resources>
