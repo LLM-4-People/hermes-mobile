@@ -3,6 +3,7 @@ package org.llm4people.hermes.voice;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.speech.tts.TextToSpeech;
 import android.speech.tts.Voice;
 import android.test.InstrumentationTestCase;
@@ -11,6 +12,7 @@ import android.widget.EditText;
 import android.widget.LinearLayout;
 
 import org.llm4people.hermes.ActivityTestLifecycle;
+import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.Ui;
 
 import java.util.ArrayList;
@@ -20,6 +22,11 @@ import java.util.Locale;
 
 @SuppressWarnings("deprecation")
 public final class DuplexVoiceUiTest extends InstrumentationTestCase {
+    private static final String VOICE_PREFS = "hermes_voice_prefs";
+    private static final String KEY_VOICE_LOCALE = "voice_locale";
+
+    private Context appContext;
+    private String savedVoiceLocale;
     private Activity activity;
     private FakeDictation input;
     private VoiceDrafts voice;
@@ -28,8 +35,10 @@ public final class DuplexVoiceUiTest extends InstrumentationTestCase {
 
     @Override protected void setUp() throws Exception {
         super.setUp();
-        Context app = getInstrumentation().getTargetContext();
-        Intent launch = app.getPackageManager().getLaunchIntentForPackage(app.getPackageName());
+        appContext = getInstrumentation().getTargetContext();
+        savedVoiceLocale = appContext.getSharedPreferences(VOICE_PREFS, Context.MODE_PRIVATE)
+                .getString(KEY_VOICE_LOCALE, null);
+        Intent launch = appContext.getPackageManager().getLaunchIntentForPackage(appContext.getPackageName());
         activity = getInstrumentation().startActivitySync(launch);
         getInstrumentation().runOnMainSync(() -> {
             input = new FakeDictation();
@@ -47,8 +56,34 @@ public final class DuplexVoiceUiTest extends InstrumentationTestCase {
     }
 
     @Override protected void tearDown() throws Exception {
-        try { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
-        finally { super.tearDown(); }
+        try {
+            try {
+                if (voice != null) {
+                    getInstrumentation().runOnMainSync(() -> {
+                        voice.reader().stop();
+                        voice.cancel();
+                    });
+                }
+            } finally {
+                ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+            }
+        } finally {
+            try {
+                if (appContext != null) {
+                    SharedPreferences.Editor prefsEditor = appContext
+                            .getSharedPreferences(VOICE_PREFS, Context.MODE_PRIVATE).edit();
+                    if (savedVoiceLocale != null) {
+                        prefsEditor.putString(KEY_VOICE_LOCALE, savedVoiceLocale);
+                    } else {
+                        prefsEditor.remove(KEY_VOICE_LOCALE);
+                    }
+                    prefsEditor.commit();
+                }
+            } finally {
+                Diagnostics.clear();
+                super.tearDown();
+            }
+        }
     }
 
     public void testPartialResultsStreamIntoEditableDraftAndRollbackOnCancel() throws Throwable {

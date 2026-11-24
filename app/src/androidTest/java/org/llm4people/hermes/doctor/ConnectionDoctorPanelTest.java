@@ -14,6 +14,7 @@ import android.widget.TextView;
 
 import org.json.JSONObject;
 import org.llm4people.hermes.ActivityTestLifecycle;
+import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.RouteRegistry;
 
@@ -86,9 +87,16 @@ public final class ConnectionDoctorPanelTest extends InstrumentationTestCase {
             });
         } finally {
             try {
-                runTestOnUiThread(panel::close);
+                runTestOnUiThread(() -> {
+                    clearClipboard(activity);
+                    panel.close();
+                });
             } finally {
-                ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+                try {
+                    ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+                } finally {
+                    Diagnostics.clear();
+                }
             }
         }
     }
@@ -156,10 +164,27 @@ public final class ConnectionDoctorPanelTest extends InstrumentationTestCase {
             assertEquals(1, langClicks.get());
         } finally {
             try {
-                runTestOnUiThread(panel::close);
+                runTestOnUiThread(() -> {
+                    clearClipboard(activity);
+                    panel.close();
+                });
             } finally {
-                ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+                try {
+                    ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+                } finally {
+                    Diagnostics.clear();
+                }
             }
+        }
+    }
+
+    private static void clearClipboard(Activity activity) {
+        ClipboardManager cm = activity.getSystemService(ClipboardManager.class);
+        if (cm == null) return;
+        try {
+            cm.clearPrimaryClip();
+        } catch (RuntimeException ignored) {
+            cm.setPrimaryClip(ClipData.newPlainText("", ""));
         }
     }
 

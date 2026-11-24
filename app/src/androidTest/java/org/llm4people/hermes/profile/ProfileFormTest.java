@@ -18,6 +18,7 @@ import org.llm4people.hermes.Ui;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 @SuppressWarnings("deprecation")
 public final class ProfileFormTest extends InstrumentationTestCase {
@@ -62,6 +63,7 @@ public final class ProfileFormTest extends InstrumentationTestCase {
         Intent launch = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
         assertNotNull(launch);
         Activity activity = getInstrumentation().startActivitySync(launch);
+        AtomicReference<ProfileGate> gateRef = new AtomicReference<>();
         try {
             runTestOnUiThread(() -> {
                 // 1. Direct ProfileScreen helper contract: pinRepeat submission & key IME/focus across all 3 lock modes.
@@ -125,6 +127,7 @@ public final class ProfileFormTest extends InstrumentationTestCase {
 
                 // 2. Live ProfileGate.add(...) setup screen verifies actual chip clicks update key & pinRepeat.
                 ProfileGate gate = new ProfileGate(activity);
+                gateRef.set(gate);
                 gate.openAddWithPairing(null);
                 View root = activity.findViewById(android.R.id.content);
                 EditText gateKey = findLabeledEdit(root, activity.getString(R.string.profile_key_label));
@@ -162,7 +165,14 @@ public final class ProfileFormTest extends InstrumentationTestCase {
                 assertEquals(EditorInfo.IME_ACTION_DONE, gateKey.getImeOptions() & EditorInfo.IME_MASK_ACTION);
             });
         } finally {
-            ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+            try {
+                ProfileGate gate = gateRef.getAndSet(null);
+                if (gate != null) {
+                    runTestOnUiThread(gate::close);
+                }
+            } finally {
+                ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+            }
         }
     }
 

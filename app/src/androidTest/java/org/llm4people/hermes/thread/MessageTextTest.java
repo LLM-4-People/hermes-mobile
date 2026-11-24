@@ -89,6 +89,14 @@ public final class MessageTextTest extends InstrumentationTestCase {
         } finally {
             try {
                 runTestOnUiThread(() -> {
+                    ClipboardManager clipboard = activity.getSystemService(ClipboardManager.class);
+                    if (clipboard != null) {
+                        try {
+                            clipboard.clearPrimaryClip();
+                        } catch (RuntimeException ignored) {
+                            clipboard.setPrimaryClip(ClipData.newPlainText("", ""));
+                        }
+                    }
                     if (reader[0] != null) reader[0].dismiss();
                 });
             } finally {
