@@ -2,8 +2,9 @@ package org.llm4people.hermes.presence;
 
 import android.app.AlertDialog;
 import android.content.Context;
+import android.content.res.ColorStateList;
 import android.graphics.Typeface;
-import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.StateListDrawable;
 import android.view.View;
 import android.widget.Button;
 import android.widget.HorizontalScrollView;
@@ -12,6 +13,7 @@ import android.widget.ScrollView;
 import android.widget.Switch;
 import android.widget.TextView;
 
+import org.llm4people.hermes.AdaptiveLayout;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.RouteRegistry;
@@ -21,7 +23,9 @@ import org.llm4people.hermes.customization.AppCustomizationStore;
 import org.llm4people.hermes.os.PermissionCenter;
 
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
 
@@ -95,6 +99,7 @@ public final class PresenceSettingsPanel {
     private final Listener listener;
 
     private PresencePolicy policy;
+    private LinearLayout statusBannerCard;
     private TextView statusBanner;
     private TextView feedback;
     private Button feedbackAction;
@@ -104,7 +109,12 @@ public final class PresenceSettingsPanel {
     private Switch readSwitch;
     private Switch locationSwitch;
     private Switch preciseSwitch;
+    private TextView preciseSummary;
     private Switch nudgeSwitch;
+    private final Map<AppCustomization.PalettePreset, Button> paletteChips =
+            new EnumMap<>(AppCustomization.PalettePreset.class);
+    private final Map<AppCustomization.Density, Button> densityChips =
+            new EnumMap<>(AppCustomization.Density.class);
     private boolean binding;
     private PermissionCenter.Key pendingDenialKey;
     private AlertDialog activeDialog;
@@ -144,87 +154,92 @@ public final class PresenceSettingsPanel {
     }
 
     public View buildView() {
-        ScrollView scroll = new ScrollView(context);
-        scroll.setFillViewport(true);
-        scroll.setBackgroundColor(context.getColor(R.color.paper));
-
         LinearLayout body = Ui.column(context);
-        Ui.pad(body, 20, 18);
-        scroll.addView(body, new ScrollView.LayoutParams(-1, -2));
-
-        TextView title = Ui.text(context, context.getString(R.string.presence_panel_title), 24);
-        title.setTypeface(mediumTypeface());
-        title.setAccessibilityHeading(true);
-        body.addView(title);
+        ScrollView scroll = centeredScroll(body);
 
         TextView intro = mutedText(context.getString(R.string.presence_panel_intro));
-        addTop(body, intro, 6);
+        body.addView(intro);
 
+        statusBannerCard = Ui.tonalCard(context);
         statusBanner = Ui.text(context, "", 14);
         statusBanner.setTypeface(mediumTypeface());
         statusBanner.setTag("presence:status_banner");
-        Ui.pad(statusBanner, 14, 10);
-        GradientDrawable bannerBg = new GradientDrawable();
-        bannerBg.setColor(context.getColor(R.color.accent_surface));
-        bannerBg.setCornerRadius(Ui.dp(context, 10));
-        statusBanner.setBackground(bannerBg);
-        addTop(body, statusBanner, 12);
+        statusBannerCard.addView(statusBanner, new LinearLayout.LayoutParams(-1, -2));
+        addTop(body, statusBannerCard, 12);
 
         int minTouch = Ui.dp(context, 48);
+        int gap = Ui.dp(context, 8);
         LinearLayout quickControls = Ui.row(context);
-        pauseLocationButton = Ui.button(context, context.getString(R.string.presence_pause_location), v -> toggleLocationPause());
+        pauseLocationButton = Ui.outlinedButton(context, context.getString(R.string.presence_pause_location), v -> toggleLocationPause());
         pauseLocationButton.setTag("presence:pause_location");
         pauseLocationButton.setMinWidth(minTouch);
         pauseLocationButton.setMinimumWidth(minTouch);
+        LinearLayout.LayoutParams pauseLp = new LinearLayout.LayoutParams(-2, -2);
+        pauseLp.setMarginEnd(gap);
 
-        Button allOffButton = Ui.button(context, context.getString(R.string.presence_turn_all_off), v -> turnEverythingOff());
+        Button allOffButton = Ui.outlinedButton(context, context.getString(R.string.presence_turn_all_off), v -> turnEverythingOff());
         allOffButton.setTag("presence:turn_all_off");
-        allOffButton.setTextColor(context.getColor(R.color.danger));
+        allOffButton.setTextColor(dangerInk(context));
+        StateListDrawable dangerStates = new StateListDrawable();
+        dangerStates.addState(new int[]{-android.R.attr.state_enabled},
+                Ui.shape(context, Ui.BUTTON_CORNER_DP, R.color.disabled_surface, R.color.line, 1));
+        dangerStates.addState(new int[]{},
+                Ui.shape(context, Ui.BUTTON_CORNER_DP, R.color.danger_surface, R.color.danger, 1));
+        allOffButton.setBackground(Ui.roundedRipple(context, Ui.BUTTON_CORNER_DP, dangerStates));
         allOffButton.setMinWidth(minTouch);
         allOffButton.setMinimumWidth(minTouch);
 
-        quickControls.addView(pauseLocationButton);
+        quickControls.addView(pauseLocationButton, pauseLp);
         quickControls.addView(allOffButton);
-        addTop(body, horizontalRow(quickControls), 6);
+        addTop(body, horizontalRow(quickControls), 10);
 
         feedback = Ui.text(context, "", 14);
         feedback.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         feedback.setVisibility(View.GONE);
-        addTop(body, feedback, 6);
+        addTop(body, feedback, 8);
 
-        feedbackAction = Ui.button(context, "", null);
+        feedbackAction = Ui.tonalButton(context, "", null);
         feedbackAction.setTag("presence:feedback_action");
         feedbackAction.setMinWidth(minTouch);
         feedbackAction.setMinimumWidth(minTouch);
         feedbackAction.setVisibility(View.GONE);
-        addTop(body, feedbackAction, 4);
+        LinearLayout.LayoutParams feedbackActionLp = new LinearLayout.LayoutParams(-2, -2);
+        feedbackActionLp.topMargin = Ui.dp(context, 6);
+        body.addView(feedbackAction, feedbackActionLp);
 
         addSectionHeader(body, context.getString(R.string.presence_section_sharing));
 
-        screenSwitch = addToggle(body, "presence:toggle_screen",
+        LinearLayout togglesCard = Ui.card(context);
+        screenSwitch = addToggle(togglesCard, false, "presence:toggle_screen",
                 context.getString(R.string.presence_toggle_screen_title),
                 context.getString(R.string.presence_toggle_screen_summary),
-                checked -> applyPolicy(policy.withAppPresence(checked), context.getString(R.string.presence_feedback_saved)));
+                checked -> applyPolicy(policy.withAppPresence(checked), context.getString(R.string.presence_feedback_saved)),
+                null);
 
-        readSwitch = addToggle(body, "presence:toggle_read",
+        readSwitch = addToggle(togglesCard, true, "presence:toggle_read",
                 context.getString(R.string.presence_toggle_read_title),
                 context.getString(R.string.presence_toggle_read_summary),
-                checked -> applyPolicy(policy.withReadWithoutReply(checked), context.getString(R.string.presence_feedback_saved)));
+                checked -> applyPolicy(policy.withReadWithoutReply(checked), context.getString(R.string.presence_feedback_saved)),
+                null);
 
-        locationSwitch = addToggle(body, "presence:toggle_location",
+        locationSwitch = addToggle(togglesCard, true, "presence:toggle_location",
                 context.getString(R.string.presence_toggle_location_title),
                 context.getString(R.string.presence_toggle_location_summary),
-                this::handleLocationToggle);
+                this::handleLocationToggle,
+                null);
 
-        preciseSwitch = addToggle(body, "presence:toggle_precise",
+        preciseSwitch = addToggle(togglesCard, true, "presence:toggle_precise",
                 context.getString(R.string.presence_toggle_precise_title),
                 context.getString(R.string.presence_toggle_precise_summary),
-                this::handlePreciseLocationToggle);
+                this::handlePreciseLocationToggle,
+                summaryView -> preciseSummary = summaryView);
 
-        nudgeSwitch = addToggle(body, "presence:toggle_nudges",
+        nudgeSwitch = addToggle(togglesCard, true, "presence:toggle_nudges",
                 context.getString(R.string.presence_toggle_nudges_title),
                 context.getString(R.string.presence_toggle_nudges_summary),
-                this::handleNudgesToggle);
+                this::handleNudgesToggle,
+                null);
+        addTop(body, togglesCard, 10);
 
         buildCustomizationSection(body);
         refresh();
@@ -258,6 +273,10 @@ public final class PresenceSettingsPanel {
                 preciseSwitch.setChecked(policy.preciseLocation);
                 preciseSwitch.setEnabled(policy.continuousLocationEnabled);
             }
+            if (preciseSummary != null) {
+                preciseSummary.setTextColor(context.getColor(
+                        policy.continuousLocationEnabled ? R.color.muted : R.color.disabled_ink));
+            }
             if (nudgeSwitch != null) nudgeSwitch.setChecked(policy.proactiveNudgesEnabled);
             if (pauseLocationButton != null) {
                 pauseLocationButton.setVisibility(policy.continuousLocationEnabled ? View.VISIBLE : View.GONE);
@@ -267,6 +286,7 @@ public final class PresenceSettingsPanel {
             if (undoButton != null) {
                 undoButton.setEnabled(customizationStore.canUndo());
             }
+            updateCustomizationChips();
             updateBanner();
         } finally {
             binding = false;
@@ -287,6 +307,9 @@ public final class PresenceSettingsPanel {
         addSectionHeader(body, context.getString(R.string.custom_section_title));
         addTop(body, mutedText(context.getString(R.string.custom_section_intro)), 4);
 
+        paletteChips.clear();
+        densityChips.clear();
+
         addTop(body, Ui.text(context, context.getString(R.string.custom_palette_label), 14), 10);
         LinearLayout paletteRow1 = Ui.row(context);
         LinearLayout paletteRow2 = Ui.row(context);
@@ -295,19 +318,20 @@ public final class PresenceSettingsPanel {
         addPaletteChip(paletteRow1, AppCustomization.PalettePreset.TERRACOTTA, R.string.custom_palette_terracotta);
         addPaletteChip(paletteRow2, AppCustomization.PalettePreset.INDIGO, R.string.custom_palette_indigo);
         addPaletteChip(paletteRow2, AppCustomization.PalettePreset.PLUM, R.string.custom_palette_plum);
-        addTop(body, horizontalRow(paletteRow1), 6);
-        addTop(body, horizontalRow(paletteRow2), 4);
+        addTop(body, horizontalRow(paletteRow1), 8);
+        addTop(body, horizontalRow(paletteRow2), 8);
 
-        addTop(body, Ui.text(context, context.getString(R.string.custom_density_label), 14), 12);
+        addTop(body, Ui.text(context, context.getString(R.string.custom_density_label), 14), 14);
         LinearLayout densityRow = Ui.row(context);
         addDensityChip(densityRow, AppCustomization.Density.COMPACT, R.string.custom_density_compact);
         addDensityChip(densityRow, AppCustomization.Density.COMFORTABLE, R.string.custom_density_comfortable);
         addDensityChip(densityRow, AppCustomization.Density.SPACIOUS, R.string.custom_density_spacious);
-        addTop(body, horizontalRow(densityRow), 6);
+        addTop(body, horizontalRow(densityRow), 8);
 
         int minTouch = Ui.dp(context, 48);
+        int gap = Ui.dp(context, 8);
         LinearLayout undoRow = Ui.row(context);
-        undoButton = Ui.button(context, context.getString(R.string.custom_undo), v -> {
+        undoButton = Ui.outlinedButton(context, context.getString(R.string.custom_undo), v -> {
             AppCustomization restored = customizationStore.undo();
             listener.onCustomizationChanged(restored);
             showFeedback(context.getString(R.string.custom_feedback_undone));
@@ -317,7 +341,7 @@ public final class PresenceSettingsPanel {
         undoButton.setMinWidth(minTouch);
         undoButton.setMinimumWidth(minTouch);
 
-        Button resetButton = Ui.button(context, context.getString(R.string.custom_reset), v -> {
+        Button resetButton = Ui.outlinedButton(context, context.getString(R.string.custom_reset), v -> {
             AppCustomization reset = customizationStore.resetToDefault();
             listener.onCustomizationChanged(reset);
             showFeedback(context.getString(R.string.custom_feedback_reset));
@@ -326,10 +350,12 @@ public final class PresenceSettingsPanel {
         resetButton.setTag("custom:reset");
         resetButton.setMinWidth(minTouch);
         resetButton.setMinimumWidth(minTouch);
+        LinearLayout.LayoutParams resetLp = new LinearLayout.LayoutParams(-2, -2);
+        resetLp.setMarginStart(gap);
 
         undoRow.addView(undoButton);
-        undoRow.addView(resetButton);
-        addTop(body, horizontalRow(undoRow), 10);
+        undoRow.addView(resetButton, resetLp);
+        addTop(body, horizontalRow(undoRow), 12);
     }
 
     private HorizontalScrollView horizontalRow(LinearLayout row) {
@@ -341,7 +367,7 @@ public final class PresenceSettingsPanel {
     }
 
     private void addPaletteChip(LinearLayout row, AppCustomization.PalettePreset preset, int labelRes) {
-        Button chip = Ui.button(context, context.getString(labelRes), v -> {
+        Button chip = Ui.outlinedButton(context, context.getString(labelRes), v -> {
             AppCustomization next = customizationStore.current().withPalette(preset, null);
             customizationStore.apply(next);
             listener.onCustomizationChanged(next);
@@ -352,11 +378,14 @@ public final class PresenceSettingsPanel {
         int minTouch = Ui.dp(context, 48);
         chip.setMinWidth(minTouch);
         chip.setMinimumWidth(minTouch);
-        row.addView(chip);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
+        if (row.getChildCount() > 0) lp.setMarginStart(Ui.dp(context, 8));
+        row.addView(chip, lp);
+        paletteChips.put(preset, chip);
     }
 
     private void addDensityChip(LinearLayout row, AppCustomization.Density density, int labelRes) {
-        Button chip = Ui.button(context, context.getString(labelRes), v -> {
+        Button chip = Ui.outlinedButton(context, context.getString(labelRes), v -> {
             AppCustomization next = customizationStore.current().withDensity(density);
             customizationStore.apply(next);
             listener.onCustomizationChanged(next);
@@ -367,7 +396,34 @@ public final class PresenceSettingsPanel {
         int minTouch = Ui.dp(context, 48);
         chip.setMinWidth(minTouch);
         chip.setMinimumWidth(minTouch);
-        row.addView(chip);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
+        if (row.getChildCount() > 0) lp.setMarginStart(Ui.dp(context, 8));
+        row.addView(chip, lp);
+        densityChips.put(density, chip);
+    }
+
+    private void updateCustomizationChips() {
+        AppCustomization current = customizationStore.current();
+        for (Map.Entry<AppCustomization.PalettePreset, Button> entry : paletteChips.entrySet()) {
+            styleChoiceChip(entry.getValue(), current.palette == entry.getKey());
+        }
+        for (Map.Entry<AppCustomization.Density, Button> entry : densityChips.entrySet()) {
+            styleChoiceChip(entry.getValue(), current.density == entry.getKey());
+        }
+    }
+
+    private void styleChoiceChip(Button chip, boolean selected) {
+        if (chip == null) return;
+        chip.setSelected(selected);
+        if (selected) {
+            chip.setBackground(Ui.roundedRipple(context, Ui.BUTTON_CORNER_DP,
+                    Ui.shape(context, Ui.BUTTON_CORNER_DP, R.color.accent_surface, R.color.accent, 1)));
+            chip.setTextColor(enabledDisabledInk(context, R.color.accent));
+        } else {
+            chip.setBackground(Ui.roundedRipple(context, Ui.BUTTON_CORNER_DP,
+                    Ui.shape(context, Ui.BUTTON_CORNER_DP, R.color.surface, R.color.line, 1)));
+            chip.setTextColor(enabledDisabledInk(context, R.color.ink));
+        }
     }
 
     /** Called by host Activity once Android grants coarse or fine location permission. */
@@ -568,8 +624,16 @@ public final class PresenceSettingsPanel {
         if (policy.proactiveNudgesEnabled) tags.add(context.getString(R.string.presence_status_tag_nudges));
         if (tags.isEmpty()) {
             statusBanner.setText(context.getString(R.string.presence_status_all_off));
+            statusBanner.setTextColor(context.getColor(R.color.muted));
+            if (statusBannerCard != null) {
+                statusBannerCard.setBackground(Ui.shape(context, Ui.CARD_CORNER_DP, R.color.surface_container, 0, 0));
+            }
         } else {
             statusBanner.setText(context.getString(R.string.presence_status_active, String.join(" · ", tags)));
+            statusBanner.setTextColor(context.getColor(R.color.accent));
+            if (statusBannerCard != null) {
+                statusBannerCard.setBackground(Ui.shape(context, Ui.CARD_CORNER_DP, R.color.accent_surface, 0, 0));
+            }
         }
     }
 
@@ -604,21 +668,55 @@ public final class PresenceSettingsPanel {
         }
     }
 
+    private ScrollView centeredScroll(LinearLayout body) {
+        ScrollView scroll = new ScrollView(context) {
+            @Override protected void onMeasure(int widthSpec, int heightSpec) {
+                float density = getResources().getDisplayMetrics().density;
+                int gutter = Ui.dp(context, AdaptiveLayout.centeredGutterDp(
+                        MeasureSpec.getSize(widthSpec) / density, AdaptiveLayout.READING_COLUMN_MAX_DP, 20));
+                int top = Ui.dp(context, 16);
+                int bottom = Ui.dp(context, 24);
+                if (body.getPaddingStart() != gutter || body.getPaddingTop() != top) {
+                    body.setPaddingRelative(gutter, top, gutter, bottom);
+                }
+                super.onMeasure(widthSpec, heightSpec);
+            }
+        };
+        scroll.setFillViewport(true);
+        scroll.setClipToPadding(false);
+        scroll.setBackgroundColor(context.getColor(R.color.paper));
+        scroll.addView(body, new ScrollView.LayoutParams(-1, -2));
+        return scroll;
+    }
+
     private void addSectionHeader(LinearLayout parent, String label) {
-        addTop(parent, Ui.divider(context), 14);
+        addTop(parent, Ui.divider(context), 18);
         TextView header = Ui.text(context, label, 18);
         header.setTypeface(mediumTypeface());
         header.setAccessibilityHeading(true);
-        addTop(parent, header, 12);
+        addTop(parent, header, 14);
     }
 
     private Switch addToggle(
-            LinearLayout parent, String tag, String title, String summary, Consumer<Boolean> onToggle) {
+            LinearLayout card,
+            boolean withDivider,
+            String tag,
+            String title,
+            String summary,
+            Consumer<Boolean> onToggle,
+            Consumer<TextView> summarySink) {
+        if (withDivider) {
+            View divider = Ui.insetDivider(context, 16);
+            LinearLayout.LayoutParams divLp = (LinearLayout.LayoutParams) divider.getLayoutParams();
+            divLp.topMargin = Ui.dp(context, 10);
+            divLp.bottomMargin = Ui.dp(context, 10);
+            card.addView(divider, divLp);
+        }
         LinearLayout block = Ui.column(context);
         Switch sw = new Switch(context);
         sw.setText(title);
         sw.setTextSize(15);
-        sw.setTextColor(context.getColor(R.color.ink));
+        sw.setTextColor(enabledDisabledInk(context, R.color.ink));
         int minTouch = Ui.dp(context, 48);
         sw.setMinHeight(minTouch);
         sw.setMinimumHeight(minTouch);
@@ -629,9 +727,21 @@ public final class PresenceSettingsPanel {
             if (!binding) onToggle.accept(checked);
         });
         block.addView(sw, new LinearLayout.LayoutParams(-1, -2));
-        block.addView(mutedText(summary));
-        addTop(parent, block, 10);
+        TextView summaryView = mutedText(summary);
+        block.addView(summaryView);
+        if (summarySink != null) summarySink.accept(summaryView);
+        card.addView(block, new LinearLayout.LayoutParams(-1, -2));
         return sw;
+    }
+
+    private static ColorStateList enabledDisabledInk(Context context, int enabledColorRes) {
+        return new ColorStateList(
+                new int[][]{new int[]{-android.R.attr.state_enabled}, new int[]{}},
+                new int[]{context.getColor(R.color.disabled_ink), context.getColor(enabledColorRes)});
+    }
+
+    private static ColorStateList dangerInk(Context context) {
+        return enabledDisabledInk(context, R.color.danger);
     }
 
     private TextView mutedText(String text) {
