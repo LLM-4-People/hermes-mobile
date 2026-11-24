@@ -5,6 +5,8 @@ import android.view.KeyEvent;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.ambient.AmbientAccessPanel;
 import org.llm4people.hermes.panel.BrainStudioRoutes;
+import org.llm4people.hermes.settings.AppearanceSettingsPanel;
+import org.llm4people.hermes.settings.SettingsHubPanel;
 import org.llm4people.hermes.templates.TemplatesPanel;
 import org.llm4people.hermes.templates.WorkflowTemplate;
 import org.llm4people.hermes.update.UpdatePanel;
@@ -204,6 +206,10 @@ public final class CommandRegistry {
                 R.string.palette_act_doctor_hint, R.string.palette_kw_doctor, run);
         addAction(list, context, UpdatePanel.ROUTE_ID, R.string.palette_act_updates_title,
                 R.string.palette_act_updates_hint, R.string.palette_kw_updates, run);
+        addAction(list, context, SettingsHubPanel.ROUTE_ID, R.string.palette_act_settings_title,
+                R.string.palette_act_settings_hint, R.string.palette_kw_settings, run);
+        addAction(list, context, AppearanceSettingsPanel.ROUTE_ID, R.string.palette_act_appearance_title,
+                R.string.palette_act_appearance_hint, R.string.palette_kw_appearance, run);
         addAction(list, context, "language", R.string.palette_act_language_title,
                 R.string.palette_act_language_hint, R.string.palette_kw_language, run);
         addAction(list, context, "security", R.string.palette_act_security_title,

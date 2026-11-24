@@ -4,8 +4,9 @@ import java.util.ArrayDeque;
 
 /** The unlocked account's live navigation stack. Returning to a route unwinds to its first entry. */
 final class WorkspaceNavigation {
-    static final String DISCUSSION = "discussion", HOME = "home", GALLERY = "pages", COMPOSER = "composer";
-    static final String BRAIN = "brain", ACTIVITY = "activity";
+    static final String DISCUSSION = "discussion", NOTES_TASKS = "notes_tasks", APPS = "apps";
+    static final String SETTINGS = "settings", GALLERY = "pages", COMPOSER = "composer";
+    static final String HOME = APPS;
     private final ArrayDeque<String> routes = new ArrayDeque<>();
 
     private String displayed;
@@ -15,19 +16,20 @@ final class WorkspaceNavigation {
     String current() { return routes.getLast(); }
     boolean contains(String route) { return routes.contains(route); }
 
-    /** Maps any active route to one of the four primary shell destinations. */
+    /** Maps any active route to one of the three primary living destinations or top-bar Settings. */
     static String topDestination(String route) {
         if (route == null || DISCUSSION.equals(route) || COMPOSER.equals(route)) return DISCUSSION;
-        if (BRAIN.equals(route)) return BRAIN;
-        if (ACTIVITY.equals(route)
+        if (NOTES_TASKS.equals(route)) return NOTES_TASKS;
+        if (SETTINGS.equals(route)
+                || org.llm4people.hermes.settings.AppearanceSettingsPanel.ROUTE_ID.equals(route)
                 || org.llm4people.hermes.ambient.AmbientAccessPanel.ROUTE_ID.equals(route)
                 || org.llm4people.hermes.presence.PresenceSettingsPanel.ROUTE_ID.equals(route)
-                || org.llm4people.hermes.doctor.ConnectionDoctorPanel.ROUTE_ID.equals(route)
                 || org.llm4people.hermes.os.PermissionsPanel.ROUTE_ID.equals(route)
-                || org.llm4people.hermes.update.UpdatePanel.ROUTE_ID.equals(route)) {
-            return ACTIVITY;
+                || org.llm4people.hermes.update.UpdatePanel.ROUTE_ID.equals(route)
+                || org.llm4people.hermes.doctor.ConnectionDoctorPanel.ROUTE_ID.equals(route)) {
+            return SETTINGS;
         }
-        return HOME;
+        return APPS;
     }
 
     /** Switches cleanly between primary destinations while keeping Discussions as the Back root. */

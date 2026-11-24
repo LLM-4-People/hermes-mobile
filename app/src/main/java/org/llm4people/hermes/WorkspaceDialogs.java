@@ -26,6 +26,9 @@ import org.llm4people.hermes.os.LockGracePolicy;
 import org.llm4people.hermes.profile.Account;
 import org.llm4people.hermes.profile.ProfileGate;
 import org.llm4people.hermes.profile.ProfileLockPolicy;
+import org.llm4people.hermes.settings.AppearanceSettingsPanel;
+import org.llm4people.hermes.settings.SettingsHubPanel;
+import org.llm4people.hermes.settings.SettingsWrapLayout;
 import org.llm4people.hermes.thread.ThreadWorkspace;
 
 import java.util.ArrayList;
@@ -104,7 +107,7 @@ final class WorkspaceDialogs {
             if (dialogHolder[0] != null) dialogHolder[0].dismiss();
             onAction.accept("deliveries");
         }));
-        entries.add(new Entry(activity.getString(R.string.nav_atelier) + " · "
+        entries.add(new Entry(activity.getString(R.string.nav_apps) + " · "
                 + activity.getString(R.string.ws_my_screens), () -> {
             if (dialogHolder[0] != null) dialogHolder[0].dismiss();
             onAction.accept("pages");
@@ -116,6 +119,14 @@ final class WorkspaceDialogs {
         entries.add(new Entry(activity.getString(R.string.activity_reminders_title), () -> {
             if (dialogHolder[0] != null) dialogHolder[0].dismiss();
             onAction.accept("reminders");
+        }));
+        entries.add(new Entry(activity.getString(R.string.nav_settings), () -> {
+            if (dialogHolder[0] != null) dialogHolder[0].dismiss();
+            onAction.accept(SettingsHubPanel.ROUTE_ID);
+        }));
+        entries.add(new Entry(activity.getString(R.string.appearance_route_label), () -> {
+            if (dialogHolder[0] != null) dialogHolder[0].dismiss();
+            onAction.accept(AppearanceSettingsPanel.ROUTE_ID);
         }));
         entries.add(new Entry(activity.getString(R.string.activity_security_title), () -> {
             if (dialogHolder[0] != null) dialogHolder[0].dismiss();
@@ -159,45 +170,66 @@ final class WorkspaceDialogs {
 
     static AlertDialog showSecurity(Activity activity, Account account, ProfileGate gate,
                                     Runnable onLockNow, Runnable onPolicyChanged, Runnable onDismissed) {
+        Typeface medium = Typeface.create("sans-serif-medium", Typeface.NORMAL);
         LinearLayout content = Ui.column(activity);
-        Ui.pad(content, 18, 12);
+        Ui.pad(content, 16, 12);
 
+        // Profile identity + immediate lock card
+        LinearLayout profileCard = Ui.card(activity);
+        LinearLayout profileHeader = Ui.row(activity);
+        profileHeader.addView(Ui.avatarBadge(activity, Ui.initials(account.label), 36, true));
         TextView profileTitle = Ui.text(activity, account.label, 17);
-        profileTitle.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        content.addView(profileTitle);
+        profileTitle.setTypeface(medium);
+        profileTitle.setPaddingRelative(Ui.dp(activity, 10), 0, 0, 0);
+        profileHeader.addView(profileTitle, new LinearLayout.LayoutParams(0, -2, 1f));
+        profileCard.addView(profileHeader);
 
-        Button lockNow = Ui.button(activity, activity.getString(R.string.security_lock_now), null);
+        Button lockNow = Ui.outlinedButton(activity, activity.getString(R.string.security_lock_now), null);
         lockNow.setTextColor(activity.getColor(R.color.danger));
-        lockNow.setGravity(android.view.Gravity.START | android.view.Gravity.CENTER_VERTICAL);
-        content.addView(lockNow, new LinearLayout.LayoutParams(-1, -2));
-        content.addView(Ui.divider(activity));
+        LinearLayout.LayoutParams lockLp = new LinearLayout.LayoutParams(-1, -2);
+        lockLp.topMargin = Ui.dp(activity, 12);
+        profileCard.addView(lockNow, lockLp);
+        content.addView(profileCard, new LinearLayout.LayoutParams(-1, -2));
+
+        // Lock method & biometric card
+        LinearLayout authCard = Ui.card(activity);
+        LinearLayout.LayoutParams cardGap = new LinearLayout.LayoutParams(-1, -2);
+        cardGap.topMargin = Ui.dp(activity, 12);
 
         TextView modeHeading = Ui.text(activity, activity.getString(R.string.security_lock_mode_title), 16);
-        modeHeading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        modeHeading.setPaddingRelative(0, Ui.dp(activity, 12), 0, Ui.dp(activity, 4));
-        content.addView(modeHeading);
+        modeHeading.setTypeface(medium);
+        authCard.addView(modeHeading);
 
-        TextView modeStatus = Ui.text(activity, "", 14);
-        modeStatus.setTextColor(activity.getColor(R.color.muted));
-        content.addView(modeStatus);
+        TextView modeStatus = Ui.pill(activity, "", R.color.accent_surface, R.color.accent);
+        LinearLayout.LayoutParams statusLp = new LinearLayout.LayoutParams(-2, -2);
+        statusLp.topMargin = Ui.dp(activity, 6);
+        authCard.addView(modeStatus, statusLp);
 
-        Button changeModeBtn = Ui.button(activity, activity.getString(R.string.security_lock_mode_change), null);
-        changeModeBtn.setGravity(android.view.Gravity.START | android.view.Gravity.CENTER_VERTICAL);
-        content.addView(changeModeBtn, new LinearLayout.LayoutParams(-1, -2));
-        content.addView(Ui.divider(activity));
+        Button changeModeBtn = Ui.tonalButton(activity, activity.getString(R.string.security_lock_mode_change), null);
+        LinearLayout.LayoutParams changeLp = new LinearLayout.LayoutParams(-1, -2);
+        changeLp.topMargin = Ui.dp(activity, 10);
+        authCard.addView(changeModeBtn, changeLp);
+
+        View authDiv = Ui.divider(activity);
+        LinearLayout.LayoutParams authDivLp = new LinearLayout.LayoutParams(-1, Math.max(1, Ui.dp(activity, 1)));
+        authDivLp.topMargin = Ui.dp(activity, 12);
+        authDivLp.bottomMargin = Ui.dp(activity, 10);
+        authCard.addView(authDiv, authDivLp);
 
         TextView bioHeading = Ui.text(activity, activity.getString(R.string.security_biometric_title), 16);
-        bioHeading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        bioHeading.setPaddingRelative(0, Ui.dp(activity, 12), 0, Ui.dp(activity, 4));
-        content.addView(bioHeading);
+        bioHeading.setTypeface(medium);
+        authCard.addView(bioHeading);
 
         TextView bioStatus = Ui.text(activity, "", 14);
         bioStatus.setTextColor(activity.getColor(R.color.muted));
-        content.addView(bioStatus);
+        bioStatus.setPaddingRelative(0, Ui.dp(activity, 4), 0, 0);
+        authCard.addView(bioStatus);
 
-        Button bioAction = Ui.button(activity, "", null);
-        bioAction.setGravity(android.view.Gravity.START | android.view.Gravity.CENTER_VERTICAL);
-        content.addView(bioAction, new LinearLayout.LayoutParams(-1, -2));
+        Button bioAction = Ui.outlinedButton(activity, "", null);
+        LinearLayout.LayoutParams bioBtnLp = new LinearLayout.LayoutParams(-1, -2);
+        bioBtnLp.topMargin = Ui.dp(activity, 10);
+        authCard.addView(bioAction, bioBtnLp);
+        content.addView(authCard, cardGap);
 
         Runnable refreshBio = () -> {
             ProfileLockPolicy.Mode currentMode = ProfileLockPolicy.mode(activity, account.id);
@@ -274,40 +306,54 @@ final class WorkspaceDialogs {
             }
         });
 
-        content.addView(Ui.divider(activity));
-
+        // Auto-lock timeout card with wrap-safe Material 3 choice chips
+        LinearLayout graceCard = Ui.card(activity);
         TextView graceHeading = Ui.text(activity, activity.getString(R.string.security_grace_title), 16);
-        graceHeading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        graceHeading.setPaddingRelative(0, Ui.dp(activity, 12), 0, Ui.dp(activity, 4));
-        content.addView(graceHeading);
+        graceHeading.setTypeface(medium);
+        graceCard.addView(graceHeading);
 
         TextView graceHint = Ui.text(activity, activity.getString(R.string.security_grace_hint), 14);
         graceHint.setTextColor(activity.getColor(R.color.muted));
-        content.addView(graceHint);
+        graceHint.setPaddingRelative(0, Ui.dp(activity, 4), 0, Ui.dp(activity, 10));
+        graceCard.addView(graceHint);
 
-        RadioGroup group = new RadioGroup(activity);
-        group.setOrientation(RadioGroup.VERTICAL);
-        LockGracePolicy.Window current = LockGracePolicy.window(activity, account.id);
+        LockGracePolicy.Window[] selectedWindow = {LockGracePolicy.window(activity, account.id)};
         List<LockGracePolicy.Window> options = new ArrayList<>(Arrays.asList(LockGracePolicy.selectableWindows()));
-        if (!options.contains(current)) options.add(current);
-        for (LockGracePolicy.Window option : options) {
-            RadioButton button = new RadioButton(activity);
-            button.setId(View.generateViewId());
-            button.setText(option.labelRes);
-            button.setTextColor(activity.getColor(R.color.ink));
-            button.setMinHeight(Ui.dp(activity, 48));
-            button.setTag(option);
-            group.addView(button);
-            if (option == current) group.check(button.getId());
-        }
-        group.setOnCheckedChangeListener((g, checkedId) -> {
-            View selected = g.findViewById(checkedId);
-            if (selected != null && selected.getTag() instanceof LockGracePolicy.Window chosen) {
-                LockGracePolicy.setWindow(activity, account.id, chosen);
-                if (onPolicyChanged != null) onPolicyChanged.run();
+        if (!options.contains(selectedWindow[0])) options.add(selectedWindow[0]);
+
+        SettingsWrapLayout graceChips = new SettingsWrapLayout(activity, 8, 8);
+        List<Button> chipButtons = new ArrayList<>(options.size());
+        Runnable syncGraceChips = () -> {
+            for (int i = 0; i < options.size(); i++) {
+                boolean active = options.get(i) == selectedWindow[0];
+                Button chip = chipButtons.get(i);
+                chip.setSelected(active);
+                chip.setTextColor(activity.getColor(active ? R.color.on_accent : R.color.ink));
+                chip.setBackground(Ui.roundedRipple(activity, Ui.BUTTON_CORNER_DP,
+                        active
+                                ? Ui.shape(activity, Ui.BUTTON_CORNER_DP, R.color.accent, 0, 0)
+                                : Ui.shape(activity, Ui.BUTTON_CORNER_DP, R.color.surface, R.color.line, 1)));
             }
-        });
-        content.addView(group);
+        };
+        for (LockGracePolicy.Window option : options) {
+            Button chip = Ui.outlinedButton(activity, activity.getString(option.labelRes), v -> {
+                if (selectedWindow[0] == option) return;
+                selectedWindow[0] = option;
+                LockGracePolicy.setWindow(activity, account.id, option);
+                syncGraceChips.run();
+                if (onPolicyChanged != null) onPolicyChanged.run();
+            });
+            chip.setTag(option);
+            Ui.pad(chip, 14, 8);
+            chipButtons.add(chip);
+            graceChips.addView(chip);
+        }
+        syncGraceChips.run();
+        graceCard.addView(graceChips, new LinearLayout.LayoutParams(-1, -2));
+
+        LinearLayout.LayoutParams graceCardLp = new LinearLayout.LayoutParams(-1, -2);
+        graceCardLp.topMargin = Ui.dp(activity, 12);
+        content.addView(graceCard, graceCardLp);
 
         ScrollView scroll = new ScrollView(activity);
         scroll.addView(content, new ScrollView.LayoutParams(-1, -2));

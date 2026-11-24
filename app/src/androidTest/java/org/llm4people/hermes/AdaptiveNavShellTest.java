@@ -33,27 +33,35 @@ public final class AdaptiveNavShellTest extends InstrumentationTestCase {
                 assertEquals(AdaptiveLayout.NavChrome.BOTTOM_BAR, shell.navBar().mode());
                 assertEquals(View.VISIBLE, shell.navBar().getVisibility());
 
-                // All 4 primary destinations are present and clickable.
+                // All 3 living primary destinations are present and clickable.
                 assertNotNull(shell.root.findViewById(R.id.nav_tab_discussions));
-                assertNotNull(shell.root.findViewById(R.id.nav_tab_atelier));
-                assertNotNull(shell.root.findViewById(R.id.nav_tab_brain));
-                assertNotNull(shell.root.findViewById(R.id.nav_tab_activity));
-                assertTrue(shell.root.findViewById(R.id.nav_tab_brain).performClick());
-                assertEquals("nav_brain", actions.get(actions.size() - 1));
-                assertTrue(shell.root.findViewById(R.id.nav_tab_activity).performClick());
-                assertEquals("nav_activity", actions.get(actions.size() - 1));
+                assertNotNull(shell.root.findViewById(R.id.nav_tab_tasks));
+                assertNotNull(shell.root.findViewById(R.id.nav_tab_apps));
+                assertNull(shell.root.findViewById(R.id.nav_tab_atelier));
+                assertNull(shell.root.findViewById(R.id.nav_tab_brain));
+                assertNull(shell.root.findViewById(R.id.nav_tab_activity));
+                assertTrue(shell.root.findViewById(R.id.nav_tab_tasks).performClick());
+                assertEquals("nav_tasks", actions.get(actions.size() - 1));
+                assertTrue(shell.root.findViewById(R.id.nav_tab_apps).performClick());
+                assertEquals("nav_apps", actions.get(actions.size() - 1));
 
-                // Top bar 1-tap Search and Profile/Lock buttons have >= 48dp touch targets.
+                // Top bar 1-tap Search and Settings buttons have >= 48dp touch targets.
                 View search = shell.root.findViewById(R.id.top_search_action);
-                View lock = shell.root.findViewById(R.id.top_profile_lock_action);
+                View settings = shell.root.findViewById(R.id.top_settings_action);
                 assertNotNull(search);
-                assertNotNull(lock);
+                assertNotNull(settings);
                 assertTrue(search.getWidth() >= Ui.dp(activity, 48));
-                assertTrue(lock.getWidth() >= Ui.dp(activity, 48));
+                assertTrue(settings.getWidth() >= Ui.dp(activity, 48));
                 assertTrue(search.performClick());
                 assertEquals("search", actions.get(actions.size() - 1));
-                assertTrue(lock.performClick());
-                assertEquals("security", actions.get(actions.size() - 1));
+                assertTrue(settings.performClick());
+                assertEquals("settings", actions.get(actions.size() - 1));
+
+                // Active Settings route highlights top-bar Settings button cleanly.
+                shell.setActiveRoute(WorkspaceNavigation.SETTINGS);
+                assertTrue(settings.isSelected());
+                shell.setActiveRoute(WorkspaceNavigation.DISCUSSION);
+                assertFalse(settings.isSelected());
 
                 // IME visible on phone auto-hides bottom navigation bar so composer stays full-height.
                 shell.setImeVisible(true);
@@ -90,15 +98,32 @@ public final class AdaptiveNavShellTest extends InstrumentationTestCase {
         MainActivity activity = (MainActivity) getInstrumentation().startActivitySync(
                 context.getPackageManager().getLaunchIntentForPackage(context.getPackageName()));
         try {
+            WorkspaceShell[] holder = new WorkspaceShell[1];
             runTestOnUiThread(() -> {
                 WorkspaceShell shell = new WorkspaceShell(activity, id -> {}, () -> false);
+                holder[0] = shell;
                 activity.setContentView(shell.root);
-                shell.selected("t1", "Fil courant");
+                // Non-chat surfaces hide More for a clean 2-icon top bar.
+                shell.show(new View(activity), activity.getString(R.string.hub_tasks_title));
+                ArrayList<View> hiddenMore = new ArrayList<>();
+                shell.root.findViewsWithText(hiddenMore, activity.getString(R.string.ws_more_actions),
+                        View.FIND_VIEWS_WITH_CONTENT_DESCRIPTION);
+                assertEquals(1, hiddenMore.size());
+                assertEquals(View.GONE, hiddenMore.get(0).getVisibility());
 
+                // Active chat reveals contextual More overflow actions.
+                shell.show(new View(activity), null);
+                shell.selected("t1", "Fil courant");
+            });
+            getInstrumentation().waitForIdleSync();
+            runTestOnUiThread(() -> {
+                WorkspaceShell shell = holder[0];
                 ArrayList<View> more = new ArrayList<>();
                 shell.root.findViewsWithText(more, activity.getString(R.string.ws_more_actions),
                         View.FIND_VIEWS_WITH_CONTENT_DESCRIPTION);
                 assertEquals(1, more.size());
+                assertEquals(View.VISIBLE, more.get(0).getVisibility());
+                assertTrue(more.get(0).isAttachedToWindow());
                 assertTrue(more.get(0).performClick());
 
                 Menu menu = overflowMenu(shell);
@@ -109,11 +134,11 @@ public final class AdaptiveNavShellTest extends InstrumentationTestCase {
                 }
                 assertTrue(titles.contains(activity.getString(R.string.ws_model_and_tools)));
                 assertTrue(titles.contains(activity.getString(R.string.ws_artifacts)));
-                assertFalse("Rappels belongs in Activité tab",
+                assertFalse("Rappels belongs in Notes & tasks tab",
                         titles.contains(activity.getString(R.string.ws_reminders)));
-                assertFalse("Mes écrans belongs in Atelier tab",
+                assertFalse("Mes écrans belongs in Apps tab",
                         titles.contains(activity.getString(R.string.ws_my_screens)));
-                assertFalse("Verrouiller belongs in top bar Profile/Lock",
+                assertFalse("Verrouiller belongs in Settings hero card",
                         titles.contains(activity.getString(R.string.ws_lock_profile)));
                 shell.dismissMenu();
             });

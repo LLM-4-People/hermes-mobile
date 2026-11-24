@@ -60,7 +60,7 @@ final class ThreadInstrumentJourney {
         ui.capture("20-essai-discussion");
         ui.tap(ret);
         ui.absent(open);
-        ui.tap(ui.str(R.string.nav_atelier));
+        ui.tap(ui.str(R.string.nav_apps));
         ui.tap(ui.str(R.string.ws_my_screens));
         ui.contains(ui.str(R.string.ws_pages_empty));
         ui.absent(title);

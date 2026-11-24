@@ -374,7 +374,7 @@ public final class LiveUiAndSurfacesV2Test extends InstrumentationTestCase {
             manager.apply(parsed);
             assertEquals(1, manager.tabs().size());
             assertEquals(2, manager.quickActions().size());
-            assertEquals("nav_activity", manager.quickActions().get(0).nativeActionId());
+            assertEquals("nav_tasks", manager.quickActions().get(0).nativeActionId());
             assertEquals("page/suivi_jour", manager.quickActions().get(1).page);
             assertEquals(1, manager.widgets().size());
             assertEquals(Boolean.TRUE, manager.widgets().get(0).items.get(0).checked);

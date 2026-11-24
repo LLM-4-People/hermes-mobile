@@ -18,8 +18,8 @@ import java.util.Objects;
 import java.util.function.Consumer;
 
 /**
- * Material 3 adaptive 4-destination navigation chrome.
- * Renders as a bottom bar with 64x32dp active capsule indicators on phones (&lt; 720dp,
+ * Material 3 adaptive 3-destination navigation chrome (Chats · Notes &amp; tasks · Apps).
+ * Renders as a bottom bar with spacious 64x32dp active capsule indicators on phones (&lt; 720dp,
  * auto-hidden when IME is open) and a calm leading navigation rail on tablets (&gt;= 720dp).
  */
 public final class AdaptiveNavBar extends LinearLayout {
@@ -29,12 +29,10 @@ public final class AdaptiveNavBar extends LinearLayout {
     private static final Destination[] DESTINATIONS = {
             new Destination(WorkspaceNavigation.DISCUSSION, R.id.nav_tab_discussions,
                     R.drawable.ic_threads, R.string.nav_discussions),
-            new Destination(WorkspaceNavigation.HOME, R.id.nav_tab_atelier,
-                    R.drawable.ic_desk, R.string.nav_atelier),
-            new Destination(WorkspaceNavigation.BRAIN, R.id.nav_tab_brain,
-                    R.drawable.ic_brain, R.string.nav_brain),
-            new Destination(WorkspaceNavigation.ACTIVITY, R.id.nav_tab_activity,
-                    R.drawable.ic_activity, R.string.nav_activity)
+            new Destination(WorkspaceNavigation.NOTES_TASKS, R.id.nav_tab_tasks,
+                    R.drawable.ic_tasks, R.string.nav_notes_tasks),
+            new Destination(WorkspaceNavigation.APPS, R.id.nav_tab_apps,
+                    R.drawable.ic_apps, R.string.nav_apps)
     };
 
     private final Map<String, ItemViews> items = new LinkedHashMap<>();

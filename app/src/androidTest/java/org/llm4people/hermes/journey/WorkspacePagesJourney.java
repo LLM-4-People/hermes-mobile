@@ -58,7 +58,7 @@ final class WorkspacePagesJourney {
     }
 
     private void pages() {
-        ui.tap(ui.str(R.string.nav_atelier));
+        ui.tap(ui.str(R.string.nav_apps));
         ui.tap(ui.str(R.string.ws_my_screens));
     }
 

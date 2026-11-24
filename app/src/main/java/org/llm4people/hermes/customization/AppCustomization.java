@@ -89,10 +89,9 @@ public final class AppCustomization {
     }
 
     public enum StartupTab {
-        DISCUSSIONS("discussions"),
-        ATELIER("atelier"),
-        CERVEAU("cerveau"),
-        ACTIVITE("activite");
+        CHATS("chats"),
+        NOTES_TASKS("notes_tasks"),
+        APPS("apps");
 
         public final String wire;
 
@@ -100,11 +99,12 @@ public final class AppCustomization {
 
         public static StartupTab parse(String wire) {
             if (wire == null || wire.trim().isEmpty()) return null;
-            String normalized = wire.trim().toLowerCase(Locale.ROOT);
-            for (StartupTab value : values()) {
-                if (value.wire.equals(normalized)) return value;
-            }
-            return null;
+            return switch (wire.trim().toLowerCase(Locale.ROOT)) {
+                case "chats", "discussions", "discussion" -> CHATS;
+                case "notes_tasks", "tasks", "notes", "activite", "activity" -> NOTES_TASKS;
+                case "apps", "atelier", "workspace", "cerveau", "brain" -> APPS;
+                default -> null;
+            };
         }
     }
 
@@ -168,7 +168,7 @@ public final class AppCustomization {
     public static AppCustomization defaults() {
         return new AppCustomization(
                 PalettePreset.FOREST, null, Density.COMFORTABLE, 0.0f,
-                StartupTab.DISCUSSIONS, "", Collections.emptyList());
+                StartupTab.CHATS, "", Collections.emptyList());
     }
 
     public AppCustomization withPalette(PalettePreset preset, String customHex) {

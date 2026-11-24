@@ -128,9 +128,9 @@ public final class LiveUiStateManagerTest {
         // Fork PR #15 QuickAction destination mapping -> top-level native tabs
         try {
             assertEquals("nav_discussions", new LiveUiPatch.QuickAction("qa_d", "Discussions", null, null, "discussions", null).nativeActionId());
-            assertEquals("nav_atelier", new LiveUiPatch.QuickAction("qa_a", "Atelier", null, null, "atelier", null).nativeActionId());
-            assertEquals("nav_brain", new LiveUiPatch.QuickAction("qa_c", "Cerveau", null, null, "cerveau", null).nativeActionId());
-            assertEquals("nav_activity", new LiveUiPatch.QuickAction("qa_act", "Activité", null, null, "activite", "bell").nativeActionId());
+            assertEquals("nav_apps", new LiveUiPatch.QuickAction("qa_a", "Atelier", null, null, "atelier", null).nativeActionId());
+            assertEquals("nav_settings", new LiveUiPatch.QuickAction("qa_c", "Cerveau", null, null, "cerveau", null).nativeActionId());
+            assertEquals("nav_tasks", new LiveUiPatch.QuickAction("qa_act", "Activité", null, null, "activite", "bell").nativeActionId());
         } catch (IOException unexpected) {
             fail("Valid destination quick action rejected: " + unexpected);
         }

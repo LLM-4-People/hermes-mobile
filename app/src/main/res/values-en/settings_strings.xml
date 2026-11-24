@@ -1,0 +1,157 @@
+<resources>
+    <string name="nav_notes_tasks">Notes &amp; tasks</string>
+    <string name="nav_apps">Apps</string>
+    <string name="nav_settings">Settings</string>
+    <string name="settings_panel_title">Settings</string>
+    <string name="settings_subtitle">Manage your profile, appearance, security, and Hermes preferences.</string>
+    <string name="settings_search_hint">Search settings…</string>
+    <string name="settings_search_empty">No settings match “%1$s”.</string>
+    <string name="settings_host_unknown">Private server</string>
+    <string name="settings_switch_profile">Switch profile</string>
+
+    <string name="settings_section_assistant">Assistant and AI</string>
+    <string name="settings_section_appearance">Appearance and language</string>
+    <string name="settings_section_security">Security and privacy</string>
+    <string name="settings_section_notifications">Notifications and delivery</string>
+    <string name="settings_section_system">Workspace and system</string>
+
+    <string name="settings_item_profile_defaults_title">Default model, reasoning, and personality</string>
+    <string name="settings_item_profile_defaults_hint">Default settings for new discussions</string>
+    <string name="settings_item_thread_model_title">Active discussion model and tools</string>
+    <string name="settings_item_thread_model_hint">Change the model or tools for the current discussion</string>
+    <string name="settings_item_voice_title">Voice and dictation</string>
+    <string name="settings_item_voice_hint">Dictation and spoken reply language · %1$s</string>
+    <string name="settings_item_memory_title">Hermes memory</string>
+    <string name="settings_item_skills_title">Skills</string>
+    <string name="settings_item_appearance_title">Theme, palette, and layout</string>
+    <string name="settings_item_language_title">App language</string>
+    <string name="settings_item_security_title">App lock and auto-lock timeout</string>
+    <string name="settings_item_permissions_title">App permissions</string>
+    <string name="settings_item_ambient_title">Ambient context</string>
+    <string name="settings_item_presence_title">Presence and proactive habits</string>
+    <string name="settings_item_notifications_title">Push notifications</string>
+    <string name="settings_item_push_policy_title">Delivery and alert policy</string>
+    <string name="settings_item_files_title">Workspace files</string>
+    <string name="settings_item_templates_title">Templates library</string>
+    <string name="settings_item_usage_title">Usage and costs</string>
+    <string name="settings_item_doctor_title">Connection doctor</string>
+    <string name="settings_item_updates_title">App updates</string>
+    <string name="settings_version_format">Version %1$s</string>
+
+    <string name="hub_tasks_title">Notes &amp; tasks</string>
+    <string name="hub_seg_notes">Notes</string>
+    <string name="hub_seg_reminders">Reminders</string>
+    <string name="hub_seg_inbox">Inbox</string>
+    <string name="hub_seg_inbox_unread">Inbox (%1$d)</string>
+    <string name="hub_new_note">New note</string>
+    <string name="hub_manage_notes">View all</string>
+    <string name="hub_manage_reminders">Manage all</string>
+    <string name="hub_open_inbox">Open inbox</string>
+    <string name="hub_open_shared">Shared items</string>
+    <string name="hub_loading">Loading…</string>
+    <string name="hub_retry">Retry</string>
+    <string name="hub_notes_empty_title">No notes yet</string>
+    <string name="hub_notes_empty_body">Create a structured note to keep ideas and decisions ready at a glance.</string>
+    <string name="hub_notes_pinned">Pinned</string>
+    <string name="hub_notes_error">Unable to load your notes right now.</string>
+    <string name="hub_reminders_empty_title">No scheduled reminders</string>
+    <string name="hub_reminders_empty_body">Schedule a morning briefing or automatic follow-up with Hermes.</string>
+    <string name="hub_reminders_error">Unable to load your reminders right now.</string>
+    <string name="hub_reminders_active_pill">%1$d active</string>
+    <string name="hub_reminders_paused_pill">%1$d paused</string>
+    <string name="hub_reminders_attention_pill">%1$d needs attention</string>
+    <string name="hub_inbox_deliveries_heading">Recent deliveries</string>
+    <string name="hub_inbox_shared_heading">Shared with you</string>
+    <string name="hub_inbox_unread_pill">New</string>
+    <string name="hub_inbox_shared_by">From %1$s</string>
+    <string name="hub_inbox_empty_title">All caught up</string>
+    <string name="hub_inbox_empty_body">Hermes deliveries and items shared with you will appear here.</string>
+
+    <string name="hub_apps_title">Apps</string>
+    <string name="hub_apps_voice_title">Hands-free voice</string>
+    <string name="hub_apps_voice_body">Start a spoken conversation or adjust your dictation language.</string>
+    <string name="hub_apps_voice_start">Talk to Hermes</string>
+    <string name="hub_apps_voice_options">Voice options</string>
+    <string name="hub_apps_screens_section">Interactive screens and tools</string>
+    <string name="hub_apps_screens_empty_title">No custom tools yet</string>
+    <string name="hub_apps_screens_empty_body">Ask Hermes to build a custom form, tracker, or dashboard for you.</string>
+    <string name="hub_apps_create_tool">Create tool</string>
+    <string name="hub_apps_workflows_section">Reusable workflows</string>
+    <string name="hub_apps_templates_count">%1$d ready-to-use templates</string>
+    <string name="hub_apps_templates_body">Start recurring work in one tap with an editable draft.</string>
+
+    <string name="settings_lang_auto">Automatic (%1$s)</string>
+    <string name="settings_lang_fr">Français</string>
+    <string name="settings_lang_en">English</string>
+
+    <string name="appearance_route_label">Appearance and layout</string>
+    <string name="appearance_route_hint">Theme, accent color, density, text size, and shortcuts</string>
+    <string name="appearance_panel_title">Appearance</string>
+    <string name="appearance_preview_title">Live preview</string>
+    <string name="appearance_preview_default_greeting">Ready for your next request.</string>
+    <string name="appearance_preview_meta">%1$s · %2$s · %3$s</string>
+    <string name="appearance_preview_sample_cta">Sample button</string>
+
+    <string name="appearance_theme_title">Theme</string>
+    <string name="appearance_theme_system">System</string>
+    <string name="appearance_theme_light">Light</string>
+    <string name="appearance_theme_dark">Dark</string>
+
+    <string name="appearance_palette_title">Accent palette</string>
+    <string name="appearance_palette_forest">Forest</string>
+    <string name="appearance_palette_slate">Slate</string>
+    <string name="appearance_palette_terracotta">Terracotta</string>
+    <string name="appearance_palette_indigo">Indigo</string>
+    <string name="appearance_palette_plum">Plum</string>
+    <string name="appearance_palette_custom">Custom</string>
+    <string name="appearance_custom_hex_hint">Custom color (#RRGGBB)</string>
+    <string name="appearance_custom_hex_apply">Apply color</string>
+    <string name="appearance_contrast_pass">%1$s:1 · WCAG AA pass</string>
+    <string name="appearance_contrast_fail">%1$s:1 · Low contrast (minimum 4.5:1)</string>
+    <string name="appearance_hex_invalid">Enter a full hex color such as #1B5E50.</string>
+    <string name="appearance_hex_low_contrast">Pick a darker color to meet the 4.5:1 contrast ratio.</string>
+
+    <string name="appearance_density_title">Layout density</string>
+    <string name="appearance_density_compact">Compact</string>
+    <string name="appearance_density_comfortable">Comfortable</string>
+    <string name="appearance_density_spacious">Spacious</string>
+
+    <string name="appearance_text_size_title">Text size</string>
+    <string name="appearance_text_size_hint" formatted="false">Scales cards and custom surfaces (85%–130%).</string>
+    <string name="appearance_text_decrease">Decrease text size</string>
+    <string name="appearance_text_increase">Increase text size</string>
+
+    <string name="appearance_startup_title">Startup tab</string>
+    <string name="appearance_startup_hint">Screen opened automatically after unlocking.</string>
+
+    <string name="appearance_greeting_title">Companion greeting</string>
+    <string name="appearance_greeting_hint">Write a short personal greeting…</string>
+    <string name="appearance_greeting_counter">%1$d / %2$d characters</string>
+    <string name="appearance_greeting_apply">Apply greeting</string>
+    <string name="appearance_greeting_saved">Companion greeting updated.</string>
+    <string name="appearance_secret_rejected">Secrets, keys, or sensitive codes are not allowed here.</string>
+
+    <string name="appearance_shortcuts_title">Composer quick shortcuts</string>
+    <string name="appearance_shortcuts_hint">Each shortcut prepares an editable draft and never sends automatically.</string>
+    <string name="appearance_shortcuts_empty">No shortcuts saved yet. Add up to %1$d.</string>
+    <string name="appearance_shortcuts_add">Add shortcut</string>
+    <string name="appearance_shortcuts_limit_reached">Maximum of %1$d shortcuts reached.</string>
+    <string name="appearance_shortcut_dialog_title">New draft shortcut</string>
+    <string name="appearance_shortcut_label_hint">Short button label (e.g. Summarize)</string>
+    <string name="appearance_shortcut_draft_hint">Text inserted into your draft…</string>
+    <string name="appearance_shortcut_remove">Remove shortcut “%1$s”</string>
+    <string name="appearance_shortcut_invalid">Enter a valid label and draft text.</string>
+
+    <string name="appearance_history_title">History</string>
+    <string name="appearance_undo">Undo</string>
+    <string name="appearance_undo_count">Undo (%1$d)</string>
+    <string name="appearance_reset">Reset to defaults</string>
+    <string name="appearance_applied_toast">Appearance updated.</string>
+    <string name="appearance_reset_toast">Appearance reset to defaults.</string>
+    <string name="appearance_undone_toast">Last change undone.</string>
+
+    <string name="palette_act_settings_title">Settings</string>
+    <string name="palette_act_settings_hint">Profile, appearance, security, voice, and system</string>
+    <string name="palette_act_appearance_title">Appearance and theme</string>
+    <string name="palette_act_appearance_hint">Light or dark theme, palette, density, and text size</string>
+</resources>

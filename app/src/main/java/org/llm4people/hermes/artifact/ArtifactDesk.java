@@ -69,6 +69,17 @@ public final class ArtifactDesk {
         return WorkspacePages.gallery(activity, account, host);
     }
 
+    /** Returns active custom screen titles for the Apps launcher without duplicating page index decoding. */
+    public static Map<String, String> savedPageTitles(android.content.Context context, Account account) {
+        if (context == null || account == null) return java.util.Collections.emptyMap();
+        try {
+            return PageLayouts.titles(context, account, false);
+        } catch (IllegalStateException unavailable) {
+            Diagnostics.warning("workspace", "saved_page_titles_unavailable");
+            return java.util.Collections.emptyMap();
+        }
+    }
+
     public static View page(Activity activity, Account account, String id, Host host) {
         if (!WorkspaceLayout.custom(id)) return null;
         return SurfaceRenderer.decorate(activity, account, id, null, host);
