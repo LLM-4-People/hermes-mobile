@@ -553,15 +553,11 @@ final class ProfileDefaultsPanel {
         row.setBackground(Ui.roundedRipple(panel.activity, 0, null));
         row.setFocusable(true);
         row.setClickable(true);
-        row.setAccessibilityDelegate(new View.AccessibilityDelegate() {
-            @Override public void onInitializeAccessibilityNodeInfo(View host, android.view.accessibility.AccessibilityNodeInfo info) {
-                super.onInitializeAccessibilityNodeInfo(host, info);
-                info.setClassName(Button.class.getName());
-            }
-        });
+        Ui.setButtonRole(row);
         row.setOnClickListener(v -> onSelect.run());
 
         LinearLayout copy = Ui.column(panel.activity);
+        copy.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
         TextView name = Ui.text(panel.activity, opt.info().label(), 16);
         name.setTypeface(Ui.mediumTypeface());
         copy.addView(name);
@@ -585,6 +581,7 @@ final class ProfileDefaultsPanel {
             TextView activePill = Ui.pill(panel.activity,
                     activeLabel,
                     R.color.accent_surface, R.color.accent);
+            activePill.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
             LinearLayout.LayoutParams pillLp = new LinearLayout.LayoutParams(-2, -2);
             pillLp.setMarginStart(Ui.dp(panel.activity, 8));
             row.addView(activePill, pillLp);

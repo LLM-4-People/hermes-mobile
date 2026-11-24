@@ -259,45 +259,59 @@ final class NotesPanel {
 
     private View noteCard(NotesModel.Note note) {
         LinearLayout card = Ui.card(panel.activity);
-        card.setMinimumHeight(Ui.dp(panel.activity, 48));
-        card.setBackground(Ui.roundedRipple(panel.activity, Ui.CARD_CORNER_DP,
-                Ui.shape(panel.activity, Ui.CARD_CORNER_DP, R.color.surface, R.color.line, 1)));
-        card.setFocusable(true);
-        card.setClickable(true);
-        card.setContentDescription(panel.t(R.string.notes_open_note_cd, note.displayTitle(panel.activity)));
-        card.setOnClickListener(v -> openReader(note));
+
+        LinearLayout headerArea = Ui.column(panel.activity);
+        headerArea.setMinimumHeight(Ui.dp(panel.activity, 48));
+        headerArea.setBackground(Ui.roundedRipple(panel.activity, Ui.CARD_CORNER_DP, null));
+        headerArea.setFocusable(true);
+        headerArea.setClickable(true);
+        Ui.setButtonRole(headerArea);
+        headerArea.setOnClickListener(v -> openReader(note));
+
+        List<String> descriptionParts = new ArrayList<>();
+        String displayTitle = note.displayTitle(panel.activity);
+        descriptionParts.add(panel.t(R.string.notes_open_note_cd, displayTitle));
 
         LinearLayout top = Ui.row(panel.activity);
-        TextView title = Ui.text(panel.activity, note.displayTitle(panel.activity), 16);
+        top.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
+        TextView title = Ui.text(panel.activity, displayTitle, 16);
         title.setTypeface(Ui.mediumTypeface());
         top.addView(title, new LinearLayout.LayoutParams(0, -2, 1));
         if (note.pinned()) {
-            top.addView(Ui.pill(panel.activity, panel.t(R.string.brain_memory_pinned),
+            String pinnedLabel = panel.t(R.string.brain_memory_pinned);
+            descriptionParts.add(pinnedLabel);
+            top.addView(Ui.pill(panel.activity, pinnedLabel,
                     R.color.accent_surface, R.color.accent));
         }
-        card.addView(top);
+        headerArea.addView(top);
 
         if (!note.body().isEmpty()) {
+            String preview = note.body().length() > 240 ? note.body().substring(0, 240) + "…" : note.body();
+            descriptionParts.add(preview);
             TextView content = Ui.text(panel.activity, note.body(), 14);
             content.setTextColor(panel.activity.getColor(R.color.muted));
             content.setMaxLines(4);
             content.setEllipsize(android.text.TextUtils.TruncateAt.END);
             content.setPaddingRelative(0, Ui.dp(panel.activity, 6), 0, 0);
-            card.addView(content);
+            content.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+            headerArea.addView(content);
         }
 
         LinearLayout badges = Ui.row(panel.activity);
+        badges.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
         int badgeGap = Ui.dp(panel.activity, 6);
         if (!note.isOwner()) {
-            TextView permBadge = Ui.pill(panel.activity,
-                    UniversalShareModel.permissionLabel(panel.activity, note.permission()),
+            String permLabel = UniversalShareModel.permissionLabel(panel.activity, note.permission());
+            descriptionParts.add(permLabel);
+            TextView permBadge = Ui.pill(panel.activity, permLabel,
                     R.color.accent_surface, R.color.accent);
             LinearLayout.LayoutParams permLp = new LinearLayout.LayoutParams(-2, -2);
             permLp.setMarginEnd(badgeGap);
             badges.addView(permBadge, permLp);
             if (!note.ownerProfile().isEmpty()) {
-                TextView ownerBadge = Ui.pill(panel.activity,
-                        panel.t(R.string.ws_shared_by, note.ownerProfile()),
+                String sharedBy = panel.t(R.string.ws_shared_by, note.ownerProfile());
+                descriptionParts.add(sharedBy);
+                TextView ownerBadge = Ui.pill(panel.activity, sharedBy,
                         R.color.surface_container, R.color.muted);
                 LinearLayout.LayoutParams ownerLp = new LinearLayout.LayoutParams(-2, -2);
                 ownerLp.setMarginEnd(badgeGap);
@@ -305,6 +319,7 @@ final class NotesPanel {
             }
         }
         for (String tag : note.tags()) {
+            descriptionParts.add(tag);
             TextView tagPill = Ui.pill(panel.activity, tag, R.color.surface_container, R.color.ink);
             LinearLayout.LayoutParams tagLp = new LinearLayout.LayoutParams(-2, -2);
             tagLp.setMarginEnd(badgeGap);
@@ -312,8 +327,12 @@ final class NotesPanel {
         }
         if (badges.getChildCount() > 0) {
             badges.setPaddingRelative(0, Ui.dp(panel.activity, 8), 0, 0);
-            card.addView(BrainUi.chipBar(panel.activity, badges));
+            View badgeBar = BrainUi.chipBar(panel.activity, badges);
+            badgeBar.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
+            headerArea.addView(badgeBar);
         }
+        headerArea.setContentDescription(String.join(". ", descriptionParts));
+        card.addView(headerArea);
 
         LinearLayout actions = Ui.row(panel.activity);
         int actionGap = Ui.dp(panel.activity, 8);

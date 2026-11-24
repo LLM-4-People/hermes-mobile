@@ -351,17 +351,14 @@ public final class NearbyGuide extends LinearLayout {
             marker.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
             top.addView(marker);
             name = text(place.name, 16, R.color.ink);
+            name.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
             TextView dist = text(distance(getContext(), place.distanceMeters), 15, R.color.accent);
+            dist.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
             dist.setPaddingRelative(dp(8), 0, 0, 0);
             dist.setTypeface(Typeface.create(Typeface.DEFAULT, 600, false));
             top.addView(name, new LayoutParams(0, -2, 1));
             top.addView(dist);
-            top.setAccessibilityDelegate(new AccessibilityDelegate() {
-                @Override public void onInitializeAccessibilityNodeInfo(View view, android.view.accessibility.AccessibilityNodeInfo info) {
-                    super.onInitializeAccessibilityNodeInfo(view, info);
-                    info.setClassName(Button.class.getName());
-                }
-            });
+            Ui.setButtonRole(top);
             top.setOnClickListener(v -> actions.select(index, true));
             group.addView(top);
             pairNote = text("", 14, R.color.ink);

@@ -164,6 +164,7 @@ public final class CommandPalette {
 
         LinearLayout header = Ui.row(activity);
         header.setGravity(Gravity.CENTER_VERTICAL);
+        header.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
         TextView title = Ui.text(activity, item.title, 16);
         title.setTypeface(Ui.mediumTypeface());
         title.setMaxLines(1);
@@ -189,11 +190,13 @@ public final class CommandPalette {
             sub.setMaxLines(2);
             sub.setEllipsize(TextUtils.TruncateAt.END);
             sub.setPaddingRelative(0, Ui.dp(activity, 2), 0, 0);
+            sub.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
             row.addView(sub);
         }
 
         row.setContentDescription(item.title + ", " + categoryLabel(item.category)
                 + (item.subtitle.isEmpty() ? "" : ", " + item.subtitle));
+        Ui.setButtonRole(row);
         row.setOnClickListener(v -> executeItem(item));
         return row;
     }
