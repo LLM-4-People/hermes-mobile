@@ -51,4 +51,14 @@ public final class PlainTextSanitizerTest {
         assertEquals("ab", PlainTextSanitizer.collapseWithEllipsis("a\uD83Db", 10));
         assertEquals("…", PlainTextSanitizer.collapseWithEllipsis("hello", 1));
     }
+
+    @Test
+    public void foldAccentsStripsDiacriticsAndLowercasesRootLocale() {
+        assertEquals("", PlainTextSanitizer.foldAccents(null));
+        assertEquals("", PlainTextSanitizer.foldAccents(""));
+        assertEquals("ete", PlainTextSanitizer.foldAccents("Été"));
+        assertEquals("naive", PlainTextSanitizer.foldAccents("Naïve"));
+        assertEquals("cœur", PlainTextSanitizer.foldAccents("CŒUR"));
+        assertEquals("resume cafe", PlainTextSanitizer.foldAccents("Re\u0301sume\u0301 CAFE\u0301"));
+    }
 }

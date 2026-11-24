@@ -1,8 +1,8 @@
 package org.llm4people.hermes.panel;
 
+import org.llm4people.hermes.PlainTextSanitizer;
 import org.llm4people.hermes.R;
 
-import java.text.Normalizer;
 import java.util.Locale;
 import java.util.regex.Pattern;
 
@@ -11,7 +11,6 @@ public final class ThreadActionModel {
     public static final String FORMAT_MARKDOWN = "markdown";
     public static final String FORMAT_JSON = "json";
 
-    private static final Pattern MARKS = Pattern.compile("\\p{M}+");
     private static final Pattern NON_SLUG = Pattern.compile("[^a-z0-9]+");
 
     public record TurnChoice(long messageId, String speakerLabel, String preview, String sessionId) {
@@ -61,8 +60,7 @@ public final class ThreadActionModel {
 
     public static String slugifyTitle(String rawTitle) {
         if (rawTitle == null || rawTitle.trim().isEmpty()) return "discussion-hermes";
-        String folded = MARKS.matcher(Normalizer.normalize(rawTitle.trim(), Normalizer.Form.NFD))
-                .replaceAll("").toLowerCase(Locale.ROOT);
+        String folded = PlainTextSanitizer.foldAccents(rawTitle.trim());
         String slug = NON_SLUG.matcher(folded).replaceAll("-").replaceAll("^-+|-+$", "");
         if (slug.isEmpty()) return "discussion-hermes";
         if (slug.length() > 48) slug = slug.substring(0, 48).replaceAll("-+$", "");

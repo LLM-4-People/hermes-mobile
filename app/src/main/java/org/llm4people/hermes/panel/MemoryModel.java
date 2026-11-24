@@ -1,23 +1,19 @@
 package org.llm4people.hermes.panel;
 
 import android.content.Context;
+import org.llm4people.hermes.PlainTextSanitizer;
 import org.llm4people.hermes.R;
 
-import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
-import java.util.regex.Pattern;
 
 /** Pure domain model and validation for Hermes MEMORY.md and USER.md inspection and editing. */
 public final class MemoryModel {
     public static final String TARGET_MEMORY = "memory";
     public static final String TARGET_USER = "user";
     public static final int DEFAULT_CHAR_LIMIT = 4000;
-
-    private static final Pattern MARKS = Pattern.compile("\\p{M}+");
 
     public record Entry(String id, String text, boolean pinned) {
         public Entry {
@@ -153,7 +149,6 @@ public final class MemoryModel {
     }
 
     private static String fold(String value) {
-        return MARKS.matcher(Normalizer.normalize(value, Normalizer.Form.NFD))
-                .replaceAll("").toLowerCase(Locale.ROOT);
+        return PlainTextSanitizer.foldAccents(value);
     }
 }

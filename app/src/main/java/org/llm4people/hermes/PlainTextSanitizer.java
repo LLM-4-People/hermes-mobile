@@ -1,5 +1,7 @@
 package org.llm4people.hermes;
 
+import java.text.Normalizer;
+import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -12,7 +14,17 @@ import java.util.regex.Pattern;
  * {@code \u3000}) to single ASCII spaces, and never splits surrogate pairs.
  */
 public final class PlainTextSanitizer {
+    private static final Pattern COMBINING_MARKS = Pattern.compile("\\p{M}+");
+
     private PlainTextSanitizer() {}
+
+    /** Accent- and case-insensitive normalization (NFD decomposition, combining marks stripped, root lowercase). */
+    public static String foldAccents(String raw) {
+        if (raw == null || raw.isEmpty()) return "";
+        return COMBINING_MARKS.matcher(Normalizer.normalize(raw, Normalizer.Form.NFD))
+                .replaceAll("")
+                .toLowerCase(Locale.ROOT);
+    }
 
     /**
      * Strips ISO control, format, and unpaired surrogate code points, collapses consecutive

@@ -3,17 +3,15 @@ package org.llm4people.hermes.panel;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.llm4people.hermes.PlainTextSanitizer;
 import org.llm4people.hermes.VisibleText;
-import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.regex.Pattern;
 
 /** The gateway supplies a loadable name, description, optional category, and optional Studio metadata. */
 final class SkillInventory {
-    private static final Pattern MARKS = Pattern.compile("\\p{M}+");
     private static final Pattern WORDS = Pattern.compile("[\\p{javaWhitespace}\\p{Zs}]+");
     final String name;
     final String description;
@@ -85,8 +83,7 @@ final class SkillInventory {
     }
 
     private static String fold(String value) {
-        return MARKS.matcher(Normalizer.normalize(value, Normalizer.Form.NFD))
-                .replaceAll("").toLowerCase(Locale.ROOT);
+        return PlainTextSanitizer.foldAccents(value);
     }
 
     static List<SkillInventory> search(List<SkillInventory> skills, String query) {

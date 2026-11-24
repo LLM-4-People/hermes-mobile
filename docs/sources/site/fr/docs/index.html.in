@@ -70,7 +70,7 @@
           <a href="#palette-modeles">Recherche universelle et modèles</a>
           <a href="#diagnostic">Diagnostic de connexion</a>
           <a href="#concurrence">Tâches parallèles et vitesse</a>
-          <a href="#cerveau-partage">Notes, partage et outils</a>
+          <a href="#notes-partage">Notes, partage et outils</a>
           <a href="#interface-directe">Interface en direct et widgets</a>
           <a href="#securite">Sécurité, Landlock et alertes</a>
           <a href="#compilation">Compiler localement</a>
@@ -129,7 +129,7 @@ adb install -r {{ release_apk }}</code></div>
           </ul>
         </section>
 
-        <section id="cerveau-partage" class="doc-section">
+        <section id="notes-partage" class="doc-section">
           <h2>6. Notes, partage intégré et outils avancés</h2>
           <p>Passez directement entre <strong>Discussions</strong> (avec filtres <strong>Toutes · Épinglées · Partagées</strong>), <strong>Notes et tâches</strong> (Notes avec filtres <strong>Mes notes · Partagées</strong>, Rappels et Boîte de réception) et <strong>Apps</strong> (Voix mains libres, Écrans personnalisés et Modèles). La mémoire, les savoir-faire, les fichiers du projet et le <strong>Studio d’apparence</strong> sont regroupés dans le centre <strong>Réglages</strong> de la barre supérieure.</p>
           <p>Partagez sélectivement 7 types d’éléments (notes, savoir-faire, écrans personnalisés, widgets, outils, fichiers et discussions) avec d’autres profils du même serveur sans exposer votre espace privé.</p>
