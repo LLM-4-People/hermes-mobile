@@ -31,6 +31,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
@@ -83,7 +84,7 @@ public final class ProfileGate {
                     baseServer = split.baseUrl();
                     if (formSlug.isEmpty()) formSlug = split.profileSlug();
                 } else if (claim.serverUrl() != null && !claim.serverUrl().trim().isEmpty()) {
-                    baseServer = FirstRunWizard.stripTrailingProfilePath(claim.serverUrl());
+                    baseServer = GatewayAddress.split(claim.serverUrl()).baseUrl();
                 }
             }
         } catch (IllegalArgumentException invalid) {
@@ -990,6 +991,11 @@ public final class ProfileGate {
         }
     }
 
+    /** Pure-Java guard preventing late cancel hooks from clearing {@code busy} once IO reseal has started. */
+    static boolean shouldClearBusyOnBiometricCancel(int expectedEpoch, int currentEpoch, boolean resealStarted) {
+        return expectedEpoch == currentEpoch && !resealStarted;
+    }
+
     /** Update an already-unlocked profile's lock mode (Biometric / PIN / Passphrase) atomically. */
     public BiometricVault.Session updateLockMode(
             Account unlocked,
@@ -1004,16 +1010,18 @@ public final class ProfileGate {
             return null;
         }
         int epoch = generation;
-        ProfileLockPolicy.Mode previousMode = ProfileLockPolicy.mode(activity, unlocked.id);
         if (nextMode == ProfileLockPolicy.Mode.BIOMETRIC) {
             if (nextSecret != null) Arrays.fill(nextSecret, '\0');
             busy = true;
+            AtomicBoolean resealStarted = new AtomicBoolean(false);
             BiometricVault.Session session = enrollBiometric(unlocked, new BiometricVault.EnrollmentCallback() {
                 @Override public void onEnrolled() {
+                    resealStarted.set(true);
                     char[] generated = ProfileLockPolicy.generateVaultSecret();
                     IO.execute(() -> {
                         boolean ok;
                         try {
+                            ProfileLockPolicy.Mode previousMode = ProfileLockPolicy.mode(activity, unlocked.id);
                             ok = commitLockModeTransition(
                                     () -> store.prepareLockSecret(unlocked, generated),
                                     () -> unlocked.unlocked() && store.contains(unlocked.id),
@@ -1054,7 +1062,7 @@ public final class ProfileGate {
             }
             return session.withOnCancel(() -> {
                 if (activeBiometric == session) activeBiometric = null;
-                if (epoch == generation) busy = false;
+                if (shouldClearBusyOnBiometricCancel(epoch, generation, resealStarted.get())) busy = false;
             });
         }
         if (nextSecret == null || nextSecret.length == 0) {
@@ -1065,6 +1073,7 @@ public final class ProfileGate {
         IO.execute(() -> {
             boolean ok;
             try {
+                ProfileLockPolicy.Mode previousMode = ProfileLockPolicy.mode(activity, unlocked.id);
                 ok = commitLockModeTransition(
                         () -> store.prepareLockSecret(unlocked, nextSecret),
                         () -> unlocked.unlocked() && store.contains(unlocked.id),

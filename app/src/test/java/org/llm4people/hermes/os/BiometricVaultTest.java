@@ -178,4 +178,69 @@ public class BiometricVaultTest {
         session.withOnCancel(() -> lateRuns[0]++);
         assertEquals(1, lateRuns[0]);
     }
+
+    @Test public void sessionMarkSettledSuppressesCancelCleanupHooksAndLateRegistrations() {
+        int[] prompts = {0};
+        int[] cleanups = {0};
+        int[] hooks = {0};
+        boolean[] busy = {true};
+        boolean[] promptCanceled = {false};
+        BiometricVault.Session session = new BiometricVault.Session(() -> {
+            prompts[0]++;
+            promptCanceled[0] = true;
+        }, () -> promptCanceled[0], () -> cleanups[0]++);
+
+        // Owner attaches a cancel hook that clears busy (mirroring ProfileGate.updateLockMode).
+        session.withOnCancel(() -> {
+            hooks[0]++;
+            busy[0] = false;
+        });
+
+        // Prompt settles normally (e.g., onAuthenticationSucceeded) before dialog dismissal cancels the handle.
+        session.markSettled();
+        assertTrue("Settled session must no longer report as an active prompt", session.isCanceled());
+
+        // Subsequent owner cancel during post-enroll IO reseal must be a complete no-op.
+        session.cancel();
+        session.cancel();
+        assertEquals(0, prompts[0]);
+        assertEquals(0, cleanups[0]);
+        assertEquals(0, hooks[0]);
+        assertTrue("Dismissal after settlement must not clear busy during reseal", busy[0]);
+
+        // Late onCancel registration on a settled session must not fire either.
+        int[] lateHooks = {0};
+        session.withOnCancel(() -> lateHooks[0]++);
+        assertEquals(0, lateHooks[0]);
+
+        // Negative control: cancel BEFORE settlement still cancels prompt, runs cleanup, and invokes hook once.
+        int[] prePrompts = {0};
+        int[] preCleanups = {0};
+        int[] preHooks = {0};
+        BiometricVault.Session active = new BiometricVault.Session(
+                () -> prePrompts[0]++, () -> false, () -> preCleanups[0]++);
+        active.withOnCancel(() -> preHooks[0]++);
+        active.cancel();
+        active.markSettled();
+        active.cancel();
+        assertEquals(1, prePrompts[0]);
+        assertEquals(1, preCleanups[0]);
+        assertEquals(1, preHooks[0]);
+
+        // Race control: markSettled() firing during cancel()'s cleanup must NOT clobber onCancelHook or
+        // suppress late withOnCancel() on the already-cancelled session.
+        int[] raceHooks = {0};
+        int[] raceLateHooks = {0};
+        BiometricVault.Session[] holder = new BiometricVault.Session[1];
+        holder[0] = new BiometricVault.Session(
+                () -> {},
+                () -> false,
+                () -> holder[0].markSettled());
+        holder[0].withOnCancel(() -> raceHooks[0]++);
+        holder[0].cancel();
+        assertEquals("markSettled during cleanup must not drop pending cancel hook", 1, raceHooks[0]);
+        holder[0].withOnCancel(() -> raceLateHooks[0]++);
+        assertEquals("Late withOnCancel on cancelled-then-markSettled session must still run once",
+                1, raceLateHooks[0]);
+    }
 }

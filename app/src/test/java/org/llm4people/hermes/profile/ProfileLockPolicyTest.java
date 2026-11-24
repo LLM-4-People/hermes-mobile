@@ -175,6 +175,54 @@ public final class ProfileLockPolicyTest {
     }
 
     @Test
+    public void biometricCancelBusyGuardAndSerializedTransitionsObserveLatestCommittedMode() {
+        // Pre-reseal cancel in the active epoch clears busy.
+        assertTrue(ProfileGate.shouldClearBusyOnBiometricCancel(5, 5, false));
+        // Dismissal once IO reseal has started must NOT clear busy prematurely.
+        assertFalse(ProfileGate.shouldClearBusyOnBiometricCancel(5, 5, true));
+        // Stale epoch cancels must never clear busy for a newer generation.
+        assertFalse(ProfileGate.shouldClearBusyOnBiometricCancel(4, 5, false));
+        assertFalse(ProfileGate.shouldClearBusyOnBiometricCancel(4, 5, true));
+
+        // Serialized transitions reading previousMode inside IO observe the latest committed mode on rollback.
+        Map<String, String> modeData = new HashMap<>();
+        modeData.put("mode.p1", ProfileLockPolicy.Mode.PASSPHRASE.key);
+        boolean[] commitOk = {true};
+        android.content.SharedPreferences modePrefs = mapPrefs(modeData, commitOk);
+        android.content.Context ctx = contextStub(modePrefs);
+
+        assertTrue(ProfileGate.commitLockModeTransition(
+                () -> "env-pin",
+                () -> true,
+                () -> ProfileLockPolicy.writeMode(modePrefs, "p1", ProfileLockPolicy.Mode.PIN),
+                env -> {},
+                () -> ProfileLockPolicy.writeMode(modePrefs, "p1", ProfileLockPolicy.Mode.PASSPHRASE),
+                null,
+                null,
+                "lock_mode_reseal_failed"));
+        assertEquals(ProfileLockPolicy.Mode.PIN, ProfileLockPolicy.mode(ctx, "p1"));
+
+        // Second serialized transition reads fresh previousMode (PIN) right before commitLockModeTransition.
+        ProfileLockPolicy.Mode freshPrevious = ProfileLockPolicy.mode(ctx, "p1");
+        assertEquals(ProfileLockPolicy.Mode.PIN, freshPrevious);
+        int[] revoked = {0};
+        boolean secondOk = ProfileGate.commitLockModeTransition(
+                () -> "env-bio",
+                () -> true,
+                () -> ProfileLockPolicy.writeMode(modePrefs, "p1", ProfileLockPolicy.Mode.BIOMETRIC),
+                env -> { throw new IOException("commit failed"); },
+                () -> ProfileLockPolicy.writeMode(modePrefs, "p1", freshPrevious),
+                null,
+                ProfileGate.shouldRevokeBiometricOnBiometricRollback(freshPrevious)
+                        ? () -> revoked[0]++ : null,
+                "lock_mode_biometric_reseal_failed");
+        assertFalse(secondOk);
+        assertEquals("Rollback must restore latest committed PIN mode, not stale PASSPHRASE",
+                ProfileLockPolicy.Mode.PIN, ProfileLockPolicy.mode(ctx, "p1"));
+        assertEquals(1, revoked[0]);
+    }
+
+    @Test
     public void biometricEnrollmentGuardRollsBackExactlyOnceOnCancelOrInterruptAndNeverAfterEnroll() {
         ProfileGate.BiometricEnrollmentGuard guard = new ProfileGate.BiometricEnrollmentGuard();
         int[] rollbacks = {0};

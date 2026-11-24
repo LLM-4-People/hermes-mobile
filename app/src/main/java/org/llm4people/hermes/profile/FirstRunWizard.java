@@ -326,7 +326,7 @@ public final class FirstRunWizard {
         Objects.requireNonNull(plan, "plan");
         if (inspected == null) {
             return new StagedPairing(
-                    stripTrailingProfilePath(plan.serverUrl()),
+                    GatewayAddress.split(plan.serverUrl()).baseUrl(),
                     plan.pairingCode(),
                     plan.profileSlug(),
                     plan.displayName(),
@@ -335,15 +335,11 @@ public final class FirstRunWizard {
         String rawBase = !inspected.baseHost().isEmpty()
                 ? inspected.baseHost()
                 : (!plan.serverUrl().isEmpty() ? plan.serverUrl() : inspected.serverUrl());
-        String cleanBase = stripTrailingProfilePath(rawBase);
+        String cleanBase = GatewayAddress.split(rawBase).baseUrl();
         String chosenSlug = inspected.profileSlug().isEmpty() ? plan.profileSlug() : inspected.profileSlug();
         String chosenName = inspected.displayName().isEmpty() ? plan.displayName() : inspected.displayName();
         return new StagedPairing(
                 cleanBase, plan.pairingCode(), chosenSlug, chosenName, inspected.expiresAtEpochSec());
-    }
-
-    static String stripTrailingProfilePath(String serverUrl) {
-        return GatewayAddress.split(serverUrl).baseUrl();
     }
 
     /** Extracts the trailing {@code /p/<slug>} profile slug from a normalized account endpoint, or empty. */

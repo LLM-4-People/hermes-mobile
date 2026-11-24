@@ -57,7 +57,9 @@ public final class AppearanceSettingsPanel {
     private LinearLayout themeSlot;
     private LinearLayout paletteSwatchesSlot;
     private LinearLayout densitySlot;
-    private LinearLayout textSizeSlot;
+    private Button textSizeMinusBtn;
+    private TextView textSizeValuePill;
+    private Button textSizePlusBtn;
     private LinearLayout startupSlot;
     private LinearLayout shortcutsSlot;
     private LinearLayout historySlot;
@@ -110,7 +112,8 @@ public final class AppearanceSettingsPanel {
         LinearLayout paletteCard = addSectionCard(list, R.string.appearance_palette_title);
         buildPaletteSection(paletteCard);
         densitySlot = addSectionCard(list, R.string.appearance_density_title);
-        textSizeSlot = addSectionCard(list, R.string.appearance_text_size_title);
+        LinearLayout textSizeCard = addSectionCard(list, R.string.appearance_text_size_title);
+        buildTextSizeSection(textSizeCard);
         startupSlot = addSectionCard(list, R.string.appearance_startup_title);
         LinearLayout greetingCard = addSectionCard(list, R.string.appearance_greeting_title);
         buildGreetingSection(greetingCard);
@@ -412,41 +415,48 @@ public final class AppearanceSettingsPanel {
         densitySlot.addView(chips, new LinearLayout.LayoutParams(-1, -2));
     }
 
-    private void renderTextSizeSection() {
-        textSizeSlot.removeAllViews();
-        float delta = store.current().fontScaleDelta;
-
+    private void buildTextSizeSection(LinearLayout card) {
         TextView hint = Ui.text(activity, activity.getString(R.string.appearance_text_size_hint), 14);
         hint.setTextColor(activity.getColor(R.color.muted));
         hint.setPaddingRelative(0, 0, 0, Ui.dp(activity, 10));
-        textSizeSlot.addView(hint);
+        card.addView(hint);
 
         LinearLayout row = Ui.row(activity);
-        Button minus = Ui.outlinedButton(activity, "−", v -> {
+        textSizeMinusBtn = Ui.outlinedButton(activity, "−", v -> {
             float next = AppearanceSettingsModel.stepFontScale(store.current().fontScaleDelta, -1);
             applyCustomization(store.current().withFontScaleDelta(next));
         });
-        minus.setContentDescription(activity.getString(R.string.appearance_text_decrease));
-        minus.setEnabled(AppearanceSettingsModel.canDecreaseFontScale(delta));
-        row.addView(minus);
+        textSizeMinusBtn.setContentDescription(activity.getString(R.string.appearance_text_decrease));
+        row.addView(textSizeMinusBtn);
 
-        TextView valuePill = Ui.pill(activity,
-                AppearanceSettingsModel.formatFontScalePercent(delta),
+        textSizeValuePill = Ui.pill(activity,
+                AppearanceSettingsModel.formatFontScalePercent(store.current().fontScaleDelta),
                 R.color.accent_surface, R.color.accent);
+        textSizeValuePill.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         LinearLayout.LayoutParams pillLp = new LinearLayout.LayoutParams(-2, -2);
         pillLp.setMarginStart(Ui.dp(activity, 12));
         pillLp.setMarginEnd(Ui.dp(activity, 12));
-        row.addView(valuePill, pillLp);
+        row.addView(textSizeValuePill, pillLp);
 
-        Button plus = Ui.outlinedButton(activity, "+", v -> {
+        textSizePlusBtn = Ui.outlinedButton(activity, "+", v -> {
             float next = AppearanceSettingsModel.stepFontScale(store.current().fontScaleDelta, 1);
             applyCustomization(store.current().withFontScaleDelta(next));
         });
-        plus.setContentDescription(activity.getString(R.string.appearance_text_increase));
-        plus.setEnabled(AppearanceSettingsModel.canIncreaseFontScale(delta));
-        row.addView(plus);
+        textSizePlusBtn.setContentDescription(activity.getString(R.string.appearance_text_increase));
+        row.addView(textSizePlusBtn);
 
-        textSizeSlot.addView(row);
+        card.addView(row);
+    }
+
+    private void renderTextSizeSection() {
+        if (textSizeMinusBtn == null || textSizeValuePill == null || textSizePlusBtn == null) return;
+        float delta = store.current().fontScaleDelta;
+        textSizeMinusBtn.setEnabled(AppearanceSettingsModel.canDecreaseFontScale(delta));
+        String formatted = AppearanceSettingsModel.formatFontScalePercent(delta);
+        if (!formatted.contentEquals(textSizeValuePill.getText())) {
+            textSizeValuePill.setText(formatted);
+        }
+        textSizePlusBtn.setEnabled(AppearanceSettingsModel.canIncreaseFontScale(delta));
     }
 
     private void renderStartupSection() {

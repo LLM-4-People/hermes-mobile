@@ -81,6 +81,7 @@ import org.llm4people.hermes.search.UniversalSearchEntries;
 import org.llm4people.hermes.search.UniversalSearchModel;
 import org.llm4people.hermes.search.UniversalSearchSheet;
 import org.llm4people.hermes.settings.AppThemeMode;
+import org.llm4people.hermes.settings.AppearanceSettingsModel;
 import org.llm4people.hermes.settings.AppearanceSettingsPanel;
 import org.llm4people.hermes.settings.SettingsHubModel;
 import org.llm4people.hermes.settings.SettingsHubPanel;
@@ -910,14 +911,14 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             }
             @Override public String themeModeLabel() {
                 String mode = AppThemeMode.readMode(MainActivity.this);
-                return getString(SettingsHubModel.themeModeLabelRes(mode));
+                return getString(AppearanceSettingsModel.themeModeLabelRes(mode));
             }
             @Override public String appearanceSummary() {
                 AppCustomization custom = AppCustomizationStore.forAccount(owner).current();
                 return SettingsHubModel.formatAppearanceSummary(
                         themeModeLabel(),
-                        getString(SettingsHubModel.paletteLabelRes(custom.palette)),
-                        getString(SettingsHubModel.densityLabelRes(custom.density)));
+                        getString(AppearanceSettingsModel.paletteLabelRes(custom.palette)),
+                        getString(AppearanceSettingsModel.densityLabelRes(custom.density)));
             }
             @Override public String languageSummary() {
                 AppLanguage.Mode mode = AppLanguage.readMode(MainActivity.this);
