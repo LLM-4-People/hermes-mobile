@@ -267,6 +267,7 @@ public final class ThreadViews {
             if (instruments != null) instruments.revealDiscussionIfCompact();
             onSend.run();
         });
+        duplex.setBargeInAllowed(!runActive);
         send = Ui.button(activity, activity.getString(R.string.thread_send), v -> {
             if (!send.isEnabled()) return;
             composerVoice.cancel();
@@ -729,6 +730,7 @@ public final class ThreadViews {
         updateSend();
         stop.setVisibility(active && canStop ? View.VISIBLE : View.GONE);
         stop.setEnabled(canStop);
+        if (duplex != null) duplex.setBargeInAllowed(!active);
     }
 
     void outgoing(String text) {

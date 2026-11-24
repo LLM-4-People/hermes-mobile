@@ -27,21 +27,30 @@ public final class PlainTextSanitizer {
     }
 
     /**
-     * Strips ISO control, format, and unpaired surrogate code points, collapses consecutive
-     * whitespace/space code points to single ASCII spaces, trims, and bounds to {@code maxChars}
-     * UTF-16 code units without splitting surrogate pairs.
+     * Strips ISO control, format, unpaired surrogate, standalone strippable invisible, and unattached
+     * variation-selector code points, collapses consecutive whitespace/space code points to single
+     * ASCII spaces, trims, and bounds to {@code maxChars} UTF-16 code units without splitting surrogate pairs.
      */
     public static String collapseBounded(String raw, int maxChars) {
         if (raw == null || raw.isEmpty() || maxChars <= 0) return "";
         StringBuilder out = new StringBuilder();
         boolean prevSpace = false;
+        boolean prevVisibleBase = false;
+        boolean hasVisible = false;
         for (int i = 0; i < raw.length(); ) {
             int cp = raw.codePointAt(i);
             int step = Character.charCount(cp);
             i += step;
             int type = Character.getType(cp);
             if (Character.isISOControl(cp) || type == Character.FORMAT || type == Character.SURROGATE
-                    || cp == 0x034F) {
+                    || isStrippableInvisible(cp)) {
+                continue;
+            }
+            if (isVariationSelector(cp)) {
+                if (!prevVisibleBase) continue;
+                if (step > maxChars - out.length()) break;
+                out.appendCodePoint(cp);
+                prevVisibleBase = false;
                 continue;
             }
             if (isAnySpace(cp)) {
@@ -50,44 +59,57 @@ public final class PlainTextSanitizer {
                     out.append(' ');
                     prevSpace = true;
                 }
+                prevVisibleBase = false;
             } else {
                 if (step > maxChars - out.length()) break;
                 out.appendCodePoint(cp);
                 prevSpace = false;
+                prevVisibleBase = true;
+                hasVisible = true;
             }
         }
-        return out.toString().trim();
+        return hasVisible ? out.toString().trim() : "";
     }
 
     /**
      * Code-point-safe preview sanitizer that strips format (bidi/zero-width/Plane 14 tags),
-     * combining grapheme joiners ({@code U+034F}), and unpaired surrogates, collapses ISO controls
-     * and Unicode whitespace/space characters to single ASCII spaces, and truncates with {@code "…"}
-     * without splitting surrogate pairs.
+     * standalone strippable invisibles (CGJ, Hangul fillers, Mongolian FVS), unattached variation
+     * selectors, and unpaired surrogates, collapses ISO controls and Unicode whitespace/space
+     * characters to single ASCII spaces, and truncates with {@code "…"} without splitting surrogate pairs.
      */
     public static String collapseWithEllipsis(String raw, int maxChars) {
         if (raw == null || maxChars <= 0) return "";
         StringBuilder out = new StringBuilder((int) Math.min((long) raw.length(), (long) maxChars + 2L));
         boolean prevSpace = false;
+        boolean prevVisibleBase = false;
+        boolean hasVisible = false;
         for (int i = 0; i < raw.length(); ) {
             int cp = raw.codePointAt(i);
             int step = Character.charCount(cp);
             i += step;
             int type = Character.getType(cp);
-            if (type == Character.FORMAT || type == Character.SURROGATE || cp == 0x034F) {
+            if (type == Character.FORMAT || type == Character.SURROGATE || isStrippableInvisible(cp)) {
                 continue;
             }
-            if (Character.isISOControl(cp) || isAnySpace(cp)) {
+            if (isVariationSelector(cp)) {
+                if (!prevVisibleBase) continue;
+                out.appendCodePoint(cp);
+                prevVisibleBase = false;
+            } else if (Character.isISOControl(cp) || isAnySpace(cp)) {
                 if (out.length() > 0 && !prevSpace) {
                     out.append(' ');
                     prevSpace = true;
                 }
+                prevVisibleBase = false;
             } else {
                 out.appendCodePoint(cp);
                 prevSpace = false;
+                prevVisibleBase = true;
+                hasVisible = true;
             }
             if (!prevSpace && out.length() > maxChars) break;
         }
+        if (!hasVisible) return "";
         String trimmed = out.toString().trim();
         if (trimmed.length() <= maxChars) return trimmed;
         if (maxChars == 1) return "…";
@@ -95,7 +117,8 @@ public final class PlainTextSanitizer {
         if (cut > 0 && Character.isHighSurrogate(trimmed.charAt(cut - 1))) {
             cut--;
         }
-        return trimmed.substring(0, cut).trim() + "…";
+        String prefix = trimmed.substring(0, cut).trim();
+        return hasVisibleText(prefix) ? prefix + "…" : "…";
     }
 
     /** True when {@code raw} contains at least one visible (non-space, non-control, non-format, non-invisible-mark) code point. */
@@ -114,6 +137,35 @@ public final class PlainTextSanitizer {
         return false;
     }
 
+    /** True when {@code raw} contains any ISO control, format, unpaired surrogate, line/paragraph separator, or standalone strippable invisible code point. */
+    public static boolean hasUnsafeSingleLineCodePoint(String raw) {
+        if (raw == null || raw.isEmpty()) return false;
+        for (int i = 0; i < raw.length(); ) {
+            int cp = raw.codePointAt(i);
+            int type = Character.getType(cp);
+            if (Character.isISOControl(cp) || type == Character.FORMAT || type == Character.SURROGATE
+                    || type == Character.LINE_SEPARATOR || type == Character.PARAGRAPH_SEPARATOR
+                    || isStrippableInvisible(cp)) {
+                return true;
+            }
+            i += Character.charCount(cp);
+        }
+        return false;
+    }
+
+    /** Standalone invisible filler/joiner code points (CGJ, Hangul fillers, Mongolian FVS) safe to strip from display/single-line text. */
+    public static boolean isStrippableInvisible(int cp) {
+        return cp == 0x034F
+                || cp == 0x115F || cp == 0x1160 || cp == 0x3164 || cp == 0xFFA0
+                || (cp >= 0x180B && cp <= 0x180F);
+    }
+
+    /** Unicode Variation Selectors (BMP VS1..VS16 and Plane-14 VS17..VS256). */
+    public static boolean isVariationSelector(int cp) {
+        return (cp >= 0xFE00 && cp <= 0xFE0F)
+                || (cp >= 0xE0100 && cp <= 0xE01EF);
+    }
+
     private static boolean isAnySpace(int cp) {
         return Character.isWhitespace(cp) || Character.isSpaceChar(cp);
     }
@@ -125,11 +177,7 @@ public final class PlainTextSanitizer {
     }
 
     private static boolean isInvisibleMark(int cp) {
-        return cp == 0x034F
-                || cp == 0x115F || cp == 0x1160 || cp == 0x3164 || cp == 0xFFA0
-                || (cp >= 0x180B && cp <= 0x180F)
-                || (cp >= 0xFE00 && cp <= 0xFE0F)
-                || (cp >= 0xE0100 && cp <= 0xE01EF);
+        return isStrippableInvisible(cp) || isVariationSelector(cp);
     }
 
     private static boolean isCombiningMark(int type) {

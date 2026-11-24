@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import org.llm4people.hermes.AppLanguage;
+import org.llm4people.hermes.PlainTextSanitizer;
 import org.llm4people.hermes.R;
 import java.util.Set;
 import org.llm4people.hermes.Ui;
@@ -260,13 +261,7 @@ public final class DataTableBlock {
     }
 
     private static void validateCellChars(String s) throws IOException {
-        for (int i = 0; i < s.length(); ) {
-            int cp = s.codePointAt(i);
-            int kind = Character.getType(cp);
-            require(!Character.isISOControl(cp) && kind != Character.FORMAT && kind != Character.SURROGATE
-                    && kind != Character.LINE_SEPARATOR && kind != Character.PARAGRAPH_SEPARATOR);
-            i += Character.charCount(cp);
-        }
+        require(!PlainTextSanitizer.hasUnsafeSingleLineCodePoint(s));
     }
 
     static View build(Context context, Model model, ThemePalette palette, ArtifactDesk.Host host) {

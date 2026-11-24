@@ -89,6 +89,8 @@ public final class VoiceDrafts {
         View bar();
         boolean active();
         DuplexVoiceSession.State state();
+        boolean canBargeIn();
+        void setBargeInAllowed(boolean allowed);
         void start();
         void stop();
         void bargeIn();
@@ -150,8 +152,7 @@ public final class VoiceDrafts {
         private void pressed() {
             if (!visible() || paused) return;
             if (activeDuplex != null && activeDuplex.controls == this && activeDuplex.active()) {
-                if (activeDuplex.state() == DuplexVoiceSession.State.SPEAKING
-                        || activeDuplex.state() == DuplexVoiceSession.State.THINKING) {
+                if (activeDuplex.canBargeIn()) {
                     activeDuplex.bargeIn();
                 } else {
                     activeDuplex.stop();
@@ -466,6 +467,16 @@ public final class VoiceDrafts {
         @Override public View bar() { return bar; }
         @Override public boolean active() { return session.active(); }
         @Override public DuplexVoiceSession.State state() { return session.state(); }
+        @Override public boolean canBargeIn() { return session.canBargeIn(); }
+
+        @Override public void setBargeInAllowed(boolean allowed) {
+            session.setBargeInAllowed(allowed);
+            updateBargeInVisibility();
+        }
+
+        private void updateBargeInVisibility() {
+            bargeInButton.setVisibility(session.canBargeIn() ? View.VISIBLE : View.GONE);
+        }
 
         @Override public void start() {
             if (paused || !controls.visible()) return;
@@ -482,6 +493,7 @@ public final class VoiceDrafts {
         }
 
         @Override public void bargeIn() {
+            if (!session.canBargeIn()) return;
             Diagnostics.event("voice", "duplex_barge_in");
             session.bargeIn();
         }
@@ -526,8 +538,7 @@ public final class VoiceDrafts {
             boolean show = next != DuplexVoiceSession.State.OFF;
             bar.setVisibility(show ? View.VISIBLE : View.GONE);
             meter.setActive(next == DuplexVoiceSession.State.LISTENING);
-            bargeInButton.setVisibility(next == DuplexVoiceSession.State.SPEAKING
-                    || next == DuplexVoiceSession.State.THINKING ? View.VISIBLE : View.GONE);
+            updateBargeInVisibility();
             int labelRes = switch (next) {
                 case LISTENING -> R.string.voice_duplex_listening;
                 case THINKING -> R.string.voice_duplex_thinking;

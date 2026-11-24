@@ -81,6 +81,7 @@ public final class DeliveryItemTest {
         for (String badTitle : new String[]{
                 null, "   ", "Line1\nLine2", "a".repeat(DeliveryItem.MAX_TITLE_CHARS + 1),
                 "Titre\u202E", "Titre\u0085", "Titre\uD83D", "Titre\u2028", "Titre\u2029", "Titre\u034F",
+                "Titre\u3164", "Titre\u180F",
                 "\u00A0", "\u200B", "\u034F", "\uFE0F", "\u115F\u3164"}) {
             try {
                 new DeliveryItem(VALID_ID, DeliveryItem.Kind.NOTICE, DeliveryItem.Urgency.NORMAL,
@@ -101,7 +102,7 @@ public final class DeliveryItemTest {
 
         for (String badLink : new String[]{
                 "bad\nsession", "bad\u202Elink", "bad\u0085link", "bad\uD83Dlink",
-                "bad\u2028link", "bad\u2029link", "bad\u034Flink"}) {
+                "bad\u2028link", "bad\u2029link", "bad\u034Flink", "bad\u3164link", "bad\u180Flink", "\u115F\u3164"}) {
             try {
                 new DeliveryItem(VALID_ID, DeliveryItem.Kind.NOTICE, DeliveryItem.Urgency.NORMAL,
                         "Titre", "", "{}", 1L, badLink, null, null, 0L);
@@ -110,9 +111,9 @@ public final class DeliveryItemTest {
                 // ok
             }
         }
-        // Invisible-only optional link normalizes to null rather than persisting phantom whitespace.
+        // Invisible-only optional link (non-ASCII space / bare variation selector) normalizes to null rather than persisting phantom whitespace.
         DeliveryItem invisibleLink = new DeliveryItem(VALID_ID, DeliveryItem.Kind.NOTICE, DeliveryItem.Urgency.NORMAL,
-                "Titre", "", "{}", 1L, "\u00A0", "\uFE0F", "\u115F\u3164", 0L);
+                "Titre", "", "{}", 1L, "\u00A0", "\uFE0F", "\u2003", 0L);
         assertNull(invisibleLink.sessionId);
         assertNull(invisibleLink.runId);
         assertNull(invisibleLink.jobId);
@@ -176,8 +177,12 @@ public final class DeliveryItemTest {
 
         assertEquals("", DeliveryItem.clampSummary("\uFE0F"));
         assertEquals("", DeliveryItem.clampSummary("\u115F\u3164"));
+        assertEquals("", DeliveryItem.clampSummary("\u3164".repeat(305)));
+        assertEquals("", DeliveryItem.clampSummary("\uFE0F".repeat(305)));
         assertEquals("Fallback body", DeliveryItem.selectSummary("  \u202E\u034F\n ", "  ", "Fallback\u202E body"));
         assertEquals("Fallback body", DeliveryItem.selectSummary("\uFE0F", "Fallback body"));
+        assertEquals("Fallback body", DeliveryItem.selectSummary("\u3164".repeat(305), "Fallback body"));
+        assertEquals("Fallback body", DeliveryItem.selectSummary("\uFE0F".repeat(305), "Fallback body"));
         assertEquals("Top summary", DeliveryItem.selectSummary("Top\u034F summary", "Fallback body"));
     }
 }

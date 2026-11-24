@@ -117,4 +117,46 @@ public final class PlainTextSanitizerTest {
             assertFalse("Expected VisibleText.isBlank parity: " + sample, VisibleText.isBlank(sample));
         }
     }
+
+    @Test
+    public void stripsHangulFillersMongolianFvsUnattachedVsAndNeverFabricatesEllipsis() {
+        // R19.2.1: Standalone strippable invisibles & variation selectors classification.
+        for (int cp : new int[]{0x034F, 0x115F, 0x1160, 0x3164, 0xFFA0, 0x180B, 0x180C, 0x180D, 0x180E, 0x180F}) {
+            assertTrue("Expected strippable invisible U+" + Integer.toHexString(cp),
+                    PlainTextSanitizer.isStrippableInvisible(cp));
+            assertFalse(PlainTextSanitizer.isVariationSelector(cp));
+            assertTrue(PlainTextSanitizer.hasUnsafeSingleLineCodePoint("a" + new String(Character.toChars(cp)) + "b"));
+        }
+        for (int cp : new int[]{0xFE00, 0xFE0F, 0xE0100, 0xE01EF}) {
+            assertTrue(PlainTextSanitizer.isVariationSelector(cp));
+            assertFalse(PlainTextSanitizer.isStrippableInvisible(cp));
+        }
+        assertFalse(PlainTextSanitizer.hasUnsafeSingleLineCodePoint(null));
+        assertFalse(PlainTextSanitizer.hasUnsafeSingleLineCodePoint(""));
+        assertFalse(PlainTextSanitizer.hasUnsafeSingleLineCodePoint("Bonjour café ☕\uFE0F 😀"));
+        assertTrue(PlainTextSanitizer.hasUnsafeSingleLineCodePoint("a\nb"));
+        assertTrue(PlainTextSanitizer.hasUnsafeSingleLineCodePoint("a\u202Eb"));
+        assertTrue(PlainTextSanitizer.hasUnsafeSingleLineCodePoint("a\uD83Db"));
+        assertTrue(PlainTextSanitizer.hasUnsafeSingleLineCodePoint("a\u2028b"));
+        assertTrue(PlainTextSanitizer.hasUnsafeSingleLineCodePoint("a\u2029b"));
+
+        // Padding attacks with Hangul fillers, Mongolian FVS, or leading/repeated variation selectors never consume budget.
+        assertEquals("ok", PlainTextSanitizer.collapseBounded("\u3164".repeat(160) + "ok", 16));
+        assertEquals("ok", PlainTextSanitizer.collapseBounded("\u180F".repeat(60) + "ok", 16));
+        assertEquals("ok", PlainTextSanitizer.collapseBounded("\uFE0F".repeat(160) + "ok", 16));
+        assertEquals("ok", PlainTextSanitizer.collapseWithEllipsis("\u3164".repeat(320) + "ok", 16));
+        assertEquals("ok", PlainTextSanitizer.collapseWithEllipsis("\uFE0F".repeat(320) + "ok", 16));
+
+        // Legitimate emoji with a single attached variation selector stays intact; repeated VS are dropped.
+        assertEquals("☕\uFE0F Pause", PlainTextSanitizer.collapseBounded("☕\uFE0F\uFE0F\uFE0F Pause", 32));
+        assertEquals("☕\uFE0F Pause", PlainTextSanitizer.collapseWithEllipsis("☕\uFE0F\uFE0F\uFE0F Pause", 32));
+
+        // Invisible-only inputs longer than maxChars must return "" and NEVER fabricate visible "…".
+        assertEquals("", PlainTextSanitizer.collapseWithEllipsis("\u3164".repeat(305), 300));
+        assertEquals("", PlainTextSanitizer.collapseWithEllipsis("\uFE0F".repeat(305), 300));
+        assertEquals("", PlainTextSanitizer.collapseWithEllipsis("\u180F".repeat(305), 300));
+        assertEquals("", PlainTextSanitizer.collapseWithEllipsis(" \uFE0F ", 1));
+        assertEquals("", PlainTextSanitizer.collapseBounded("\u3164".repeat(305), 300));
+        assertEquals("", PlainTextSanitizer.collapseBounded("\uFE0F".repeat(305), 300));
+    }
 }

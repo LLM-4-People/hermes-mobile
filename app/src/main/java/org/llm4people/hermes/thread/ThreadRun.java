@@ -25,6 +25,7 @@ import org.llm4people.hermes.share.DeviceBridgeFlow;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Consumer;
 
 /** Manages exactly one mobile-originated run in the selected thread. */
 final class ThreadRun {
@@ -660,14 +661,16 @@ final class ThreadRun {
         frame = null;
         ui.busy(true, false);
         ui.live(summary, output, false);
-        if ("completed".equals(outcome)) ui.duplexReplyComplete(output);
-        else ui.stopDuplex();
+        if (!"completed".equals(outcome)) ui.stopDuplex();
         boolean keepPosition = keepCompletionPosition;
         keepCompletionPosition = false;
         page.loadMessages(false, owner.guard(() -> {
             JSONObject receipt = journal.pending();
             boolean enrolled = journal.sameOwner() && receipt.has("nearby_guide");
-            if (finishTracking()) return;
+            if (finishTracking()) {
+                settleDuplexAfterTracking(true, outcome, output, ui::duplexReplyComplete, ui::stopDuplex);
+                return;
+            }
             if (enrolled && page.nearby.granted()) {
                 NearbyTurn.Guide guide = NearbyTurn.response(receipt, status, page.messages(), SystemClock.elapsedRealtime(), bootCount());
                 if (guide != null) page.host.nearbyGuide(page, page.sessionId(), owner.run, guide.row(), guide.area());
@@ -687,7 +690,25 @@ final class ThreadRun {
             if (status.has("suggested_actions")) page.onSuggestedActions(status.opt("suggested_actions"));
             else page.clearSuggestedActions();
             ui.notice("", "", null);
+            settleDuplexAfterTracking(false, outcome, output, ui::duplexReplyComplete, ui::stopDuplex);
         }), keepPosition);
+    }
+
+    /**
+     * Finalizes duplex state strictly after {@code finishTracking()} and {@code ui.busy(false, false)}
+     * settle the run receipt so duplex can never re-enter LISTENING while {@code journal.pending() != null}.
+     */
+    static void settleDuplexAfterTracking(
+            boolean trackingStillPending,
+            String outcome,
+            String output,
+            Consumer<String> onComplete,
+            Runnable onStop) {
+        if (!trackingStillPending && "completed".equals(outcome)) {
+            if (onComplete != null) onComplete.accept(output);
+        } else if (onStop != null) {
+            onStop.run();
+        }
     }
 
     void stop() {
