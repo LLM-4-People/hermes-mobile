@@ -40,6 +40,7 @@ import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.net.HermesApi;
+import org.llm4people.hermes.panel.BrainCapabilities;
 import org.llm4people.hermes.panel.SearchResultModel;
 import org.llm4people.hermes.panel.UniversalShareModel;
 
@@ -124,6 +125,7 @@ public final class UniversalSearchSheet implements AutoCloseable {
 
         LinearLayout root = Ui.column(localized);
         root.setBackgroundColor(localized.getColor(R.color.paper));
+        root.setAccessibilityPaneTitle(localized.getString(R.string.universal_search_title));
         root.setOnApplyWindowInsetsListener((v, insets) -> {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 android.graphics.Insets bars = insets.getInsets(
@@ -228,7 +230,6 @@ public final class UniversalSearchSheet implements AutoCloseable {
         queryField.setTextColor(localized.getColor(R.color.ink));
         queryField.setHintTextColor(localized.getColor(R.color.muted));
         queryField.setHint(R.string.universal_search_hint);
-        queryField.setContentDescription(localized.getString(R.string.universal_search_title));
         queryField.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
@@ -429,8 +430,8 @@ public final class UniversalSearchSheet implements AutoCloseable {
         try {
             JSONObject caps = api.capabilities();
             JSONObject features = caps == null ? null : caps.optJSONObject("features");
-            if (features != null && features.has("session_search")) {
-                boolean enabled = features.optBoolean("session_search", false);
+            if (features != null && features.has(BrainCapabilities.SESSION_SEARCH)) {
+                boolean enabled = features.optBoolean(BrainCapabilities.SESSION_SEARCH, false);
                 sessionSearchSupported = enabled;
                 return enabled;
             }

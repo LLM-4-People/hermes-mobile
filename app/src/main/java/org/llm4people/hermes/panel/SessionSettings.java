@@ -304,7 +304,7 @@ final class SessionSettings {
                 if (!name.isEmpty()) toolsets.put(name, names(row.optJSONArray("tools")));
             }
             JSONObject features = (JSONObject) payload[0];
-            individualTools = features.optBoolean("run_tool_exclusions");
+            individualTools = features.optBoolean(BrainCapabilities.RUN_TOOL_EXCLUSIONS);
             skillStudioSupported = features.optBoolean(BrainCapabilities.SKILL_STUDIO);
             capabilitiesLoaded = true;
             if (pendingOpenSkills) {
@@ -314,7 +314,7 @@ final class SessionSettings {
                     return;
                 }
             }
-            renderTools(box, features.optBoolean("run_toolset_selection"));
+            renderTools(box, features.optBoolean(BrainCapabilities.RUN_TOOLSET_SELECTION));
             if (features.optBoolean(BrainCapabilities.PROFILE_DEFAULTS)) {
                 box.addView(Ui.divider(panel.activity));
                 panel.action(box, R.string.brain_profile_defaults_title,

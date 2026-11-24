@@ -279,7 +279,6 @@ public final class DataTableBlock {
         if (model.filterable && host != null) {
             EditText search = WorkspaceForms.editor(context, false, 80, colors);
             search.setHint(org.llm4people.hermes.R.string.ws_table_filter_hint);
-            search.setContentDescription(context.getString(org.llm4people.hermes.R.string.ws_table_filter_a11y));
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
             lp.bottomMargin = Ui.dp(context, 8);
             container.addView(search, lp);

@@ -13,6 +13,7 @@ import android.os.LocaleList;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.llm4people.hermes.net.HermesApi;
+import org.llm4people.hermes.panel.BrainCapabilities;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -257,7 +258,7 @@ public final class AppLanguage {
     public static boolean supportsProfileLanguageSync(JSONObject capabilities) {
         if (capabilities == null) return false;
         JSONObject features = capabilities.optJSONObject("features");
-        return features != null && features.optBoolean("profile_defaults");
+        return features != null && features.optBoolean(BrainCapabilities.PROFILE_DEFAULTS);
     }
 
     /** Revoke all in-flight detached language sync clients (called on lock, forget, or final destroy). */
