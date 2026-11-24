@@ -186,17 +186,11 @@ final class MemoryPanel {
 
             Button del = Ui.button(panel.activity, panel.t(R.string.panel_delete),
                     v -> confirmDelete(bucket.target(), entry));
-            del.setTextColor(dangerInk());
+            del.setTextColor(Ui.dangerInk(panel.activity));
             actions.addView(del);
             card.addView(BrainUi.chipBar(panel.activity, actions));
         }
         return card;
-    }
-
-    private ColorStateList dangerInk() {
-        return new ColorStateList(
-                new int[][]{new int[]{-android.R.attr.state_enabled}, new int[]{}},
-                new int[]{panel.activity.getColor(R.color.disabled_ink), panel.activity.getColor(R.color.danger)});
     }
 
     private void openEditor(MemoryModel.Bucket bucket, MemoryModel.Entry existing) {
@@ -227,9 +221,13 @@ final class MemoryPanel {
         pinBox.setChecked(existing != null && existing.pinned());
         form.addView(pinBox);
 
+        ScrollView formScroll = new ScrollView(panel.activity);
+        formScroll.setFillViewport(true);
+        formScroll.addView(form);
+
         AlertDialog dialog = new AlertDialog.Builder(panel.activity)
                 .setTitle(existing == null ? R.string.brain_memory_add_title : R.string.brain_memory_edit_title)
-                .setView(form)
+                .setView(formScroll)
                 .setNegativeButton(R.string.panel_cancel, null)
                 .setPositiveButton(R.string.panel_save, null)
                 .create();

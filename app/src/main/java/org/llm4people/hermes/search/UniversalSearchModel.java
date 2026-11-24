@@ -100,7 +100,8 @@ public final class UniversalSearchModel {
             String permission,
             boolean fromServer,
             int score,
-            List<SearchResultModel.Span> snippetHighlights) {
+            List<SearchResultModel.Span> snippetHighlights,
+            boolean fallbackTitle) {
         public Result {
             dedupeKey = safe(dedupeKey);
             category = category == null || category == Category.ALL ? Category.TOOLS : category;
@@ -117,8 +118,13 @@ public final class UniversalSearchModel {
                     : Collections.unmodifiableList(new ArrayList<>(snippetHighlights));
         }
 
-        public boolean isShared() {
-            return category == Category.SHARED || !shareId.isEmpty();
+        public Result(
+                String dedupeKey, Category category, String title, String subtitle,
+                String targetId, String actionId, String shareId, String resourceKind,
+                String ownerProfile, String permission, boolean fromServer, int score,
+                List<SearchResultModel.Span> snippetHighlights) {
+            this(dedupeKey, category, title, subtitle, targetId, actionId, shareId, resourceKind,
+                    ownerProfile, permission, fromServer, score, snippetHighlights, false);
         }
     }
 
@@ -301,7 +307,8 @@ public final class UniversalSearchModel {
                         remote.permission(),
                         remote.fromServer(),
                         score,
-                        remote.snippetHighlights());
+                        remote.snippetHighlights(),
+                        remote.fallbackTitle());
                 putBest(byKey, scored);
             }
         }
@@ -348,7 +355,8 @@ public final class UniversalSearchModel {
             String target = !threadId.isEmpty() ? threadId : sessionId;
             if (target.isEmpty()) continue;
             String title = mapText(row, "thread_title");
-            if (title.isEmpty()) title = fallback;
+            boolean isFallback = title.isEmpty();
+            if (isFallback) title = fallback;
             SearchResultModel.HighlightedSnippet snippet = SearchResultModel.parseSnippet(mapText(row, "snippet"));
             out.add(new Result(
                     "chat:" + target,
@@ -363,7 +371,8 @@ public final class UniversalSearchModel {
                     "",
                     true,
                     70,
-                    snippet.highlights()));
+                    snippet.highlights(),
+                    isFallback));
         }
         return Collections.unmodifiableList(out);
     }
@@ -388,7 +397,8 @@ public final class UniversalSearchModel {
             if (id.isEmpty()) id = mapText(row, "note_id");
             if (id.isEmpty()) continue;
             String title = mapText(row, "title");
-            if (title.isEmpty()) title = fallback;
+            boolean isFallback = title.isEmpty();
+            if (isFallback) title = fallback;
             String body = mapText(row, "body");
             if (body.isEmpty()) body = mapText(row, "content");
             String owner = mapText(row, "owner_profile");
@@ -407,7 +417,8 @@ public final class UniversalSearchModel {
                     permission,
                     true,
                     30,
-                    Collections.emptyList()));
+                    Collections.emptyList(),
+                    isFallback));
         }
         return Collections.unmodifiableList(out);
     }
@@ -483,11 +494,15 @@ public final class UniversalSearchModel {
             byKey.put(candidate.dedupeKey(), candidate);
             return;
         }
-        // Prefer richer server snippet when both exist for the same chat/note, keeping better title/score.
+        // Prefer richer server snippet when both exist for the same chat/note, never letting a
+        // synthetic fallback title overwrite a real non-fallback title.
         boolean candidateRicher = candidate.fromServer() && !candidate.subtitle().isEmpty()
                 && (!existing.fromServer() || existing.subtitle().isEmpty());
         if (candidateRicher || candidate.score() > existing.score()) {
-            String bestTitle = candidate.title().isEmpty() ? existing.title() : candidate.title();
+            boolean useExistingTitle = !existing.title().isEmpty()
+                    && (candidate.title().isEmpty() || (candidate.fallbackTitle() && !existing.fallbackTitle()));
+            String bestTitle = useExistingTitle ? existing.title() : candidate.title();
+            boolean bestFallback = useExistingTitle ? existing.fallbackTitle() : candidate.fallbackTitle();
             String bestSub = !candidate.subtitle().isEmpty() ? candidate.subtitle() : existing.subtitle();
             List<SearchResultModel.Span> bestSpans = !candidate.snippetHighlights().isEmpty()
                     ? candidate.snippetHighlights() : existing.snippetHighlights();
@@ -504,7 +519,8 @@ public final class UniversalSearchModel {
                     !candidate.permission().isEmpty() ? candidate.permission() : existing.permission(),
                     candidate.fromServer() || existing.fromServer(),
                     Math.max(candidate.score(), existing.score()),
-                    bestSpans));
+                    bestSpans,
+                    bestFallback));
         }
     }
 

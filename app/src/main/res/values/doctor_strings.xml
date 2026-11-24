@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="fr">
     <string name="doctor_route_label">Diagnostic de connexion</string>
     <string name="doctor_route_hint">Vérifier le serveur, les fonctions, les notifications et la langue</string>
     <string name="doctor_panel_title">Diagnostic de connexion</string>

@@ -221,7 +221,7 @@ public final class ShareWithUserSheet {
 
                 Button revoke = Ui.button(panel.activity, panel.t(R.string.brain_share_revoke),
                         v -> revokeShare(grant.shareId()));
-                revoke.setTextColor(panel.activity.getColor(R.color.danger));
+                revoke.setTextColor(Ui.dangerInk(panel.activity));
                 card.addView(revoke);
                 body.addView(card);
             }
@@ -370,17 +370,19 @@ public final class ShareWithUserSheet {
                     badges.addView(BrainUi.badge(panel.activity,
                             panel.t(R.string.ws_shared_by, grant.ownerProfile()), false));
                 }
-                badges.setPaddingRelative(0, Ui.dp(panel.activity, 6), 0, 0);
-                card.addView(badges);
+                card.addView(BrainUi.chipBar(panel.activity, badges));
 
                 LinearLayout actions = Ui.row(panel.activity);
-                actions.addView(Ui.button(panel.activity, panel.t(R.string.brain_share_open_item),
-                        v -> openSharedContent(grant)));
+                Button openBtn = Ui.button(panel.activity, panel.t(R.string.brain_share_open_item),
+                        v -> openSharedContent(grant));
+                LinearLayout.LayoutParams openLp = new LinearLayout.LayoutParams(-2, -2);
+                openLp.setMarginEnd(Ui.dp(panel.activity, 8));
+                actions.addView(openBtn, openLp);
                 Button dismiss = Ui.button(panel.activity, panel.t(R.string.brain_share_dismiss),
                         v -> dismissShare(grant.shareId()));
-                dismiss.setTextColor(panel.activity.getColor(R.color.danger));
+                dismiss.setTextColor(Ui.dangerInk(panel.activity));
                 actions.addView(dismiss);
-                card.addView(actions);
+                card.addView(BrainUi.chipBar(panel.activity, actions));
                 body.addView(card);
             }
         }

@@ -3,6 +3,7 @@ package org.llm4people.hermes.thread;
 import android.content.Context;
 
 import org.json.JSONArray;
+import org.llm4people.hermes.HermesConfig;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.artifact.MessageParts;
 import org.json.JSONException;
@@ -14,7 +15,11 @@ import java.util.Set;
 
 /** Wire conversions shared by the inbox, transcript and durable run state. */
 final class ThreadData {
-    static final int PAGE = 40;
+    static final int PAGE = HermesConfig.DEFAULT_THREAD_PAGE_SIZE;
+
+    static int pageSize(Context context) {
+        return HermesConfig.load(context).threadPageSize;
+    }
     static String path(String session) {
         return "/api/sessions/" + HermesApi.segment(session);
     }

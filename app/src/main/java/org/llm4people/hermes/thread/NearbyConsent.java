@@ -64,6 +64,10 @@ final class NearbyConsent {
     boolean beforeSend(String text, Runnable exactSend) {
         if (busy) return false;
         if (skip) return true;
+        if (!failure.isEmpty() && granted()) {
+            failure = "";
+            refresh();
+        }
         if (staged == null || stagedFromPreference) refreshPreference();
         if (!failure.isEmpty()) { show(exactSend); return false; }
         if (staged != null) {
@@ -90,6 +94,14 @@ final class NearbyConsent {
     }
     private boolean deviceStaged() { return staged != null && "device".equals(staged.optString("source")); }
     boolean granted() { return page.activity.checkSelfPermission(PERMISSION) == PackageManager.PERMISSION_GRANTED; }
+
+    /** Reconciles stale blocked-location failures after the user grants location permission in Android settings. */
+    void reconcilePermissionState() {
+        if (granted() && !failure.isEmpty()) {
+            failure = "";
+            refresh();
+        }
+    }
 
     void restore() {
         clearTurn();

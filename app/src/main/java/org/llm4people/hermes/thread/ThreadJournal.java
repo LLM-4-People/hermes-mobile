@@ -1,6 +1,7 @@
 package org.llm4people.hermes.thread;
 
 import org.json.JSONObject;
+import org.llm4people.hermes.HermesConfig;
 import org.llm4people.hermes.profile.Account;
 
 import java.nio.charset.StandardCharsets;
@@ -15,7 +16,7 @@ import java.util.function.Consumer;
 
 /** One encrypted commit moves a draft into or out of the outbox. Mutable state belongs to the UI. */
 final class ThreadJournal {
-    private static final int MAX_RECONNECTS = 5;
+    private final int maxReconnects;
     private final String session;
     private final String owner;
     private final Consumer<String> write;
@@ -31,6 +32,10 @@ final class ThreadJournal {
     private boolean retired;
 
     ThreadJournal(Account account, String session) {
+        this(account, session, HermesConfig.DEFAULT_MAX_RECONNECTS);
+    }
+
+    ThreadJournal(Account account, String session, int maxReconnects) {
         this(session, scope(account.id, account.endpoint, account.bearer, session), account.read("thread:" + session),
                 value -> account.write("thread:" + session, value), new PhotoStore() {
                     public String read() { return account.read("thread-photo:" + session); }
@@ -40,14 +45,20 @@ final class ThreadJournal {
                         changes.put("thread-photo:" + session, pixels);
                         account.writeTogether(changes);
                     }
-                });
+                }, maxReconnects);
     }
 
     ThreadJournal(String session, String owner, String encoded, Consumer<String> write) {
-        this(session, owner, encoded, write, null);
+        this(session, owner, encoded, write, null, HermesConfig.DEFAULT_MAX_RECONNECTS);
     }
 
     ThreadJournal(String session, String owner, String encoded, Consumer<String> write, PhotoStore photos) {
+        this(session, owner, encoded, write, photos, HermesConfig.DEFAULT_MAX_RECONNECTS);
+    }
+
+    ThreadJournal(String session, String owner, String encoded, Consumer<String> write, PhotoStore photos,
+                  int maxReconnects) {
+        this.maxReconnects = Math.max(0, maxReconnects);
         this.photos = photos;
         this.session = session;
         this.owner = owner;
@@ -71,9 +82,9 @@ final class ThreadJournal {
                 && (!pending.has("run_id") || ThreadData.validId(ThreadData.string(pending, "run_id")));
     }
 
-    private static boolean validReconnects(JSONObject receipt) {
+    private boolean validReconnects(JSONObject receipt) {
         return !receipt.has("disconnects") || receipt.opt("disconnects") instanceof Integer count
-                && count >= 0 && count <= MAX_RECONNECTS + 1;
+                && count >= 0 && count <= maxReconnects + 1;
     }
 
     private boolean validObservation(JSONObject observed) {
@@ -260,15 +271,15 @@ final class ThreadJournal {
     }
 
     boolean reconnectsExhausted() {
-        return pending().optInt("disconnects") > MAX_RECONNECTS;
+        return pending().optInt("disconnects") > maxReconnects;
     }
 
     /** Reserve one reconnect on the admitted run, alongside its replay cursor, before scheduling it. */
     long nextReconnectDelayMillis() {
         int previous = pending().optInt("disconnects");
-        if (previous > MAX_RECONNECTS) return -1;
+        if (previous > maxReconnects) return -1;
         saveDisconnects(previous + 1);
-        return previous == MAX_RECONNECTS ? -1 : 1000L << previous;
+        return previous == maxReconnects ? -1 : 1000L << previous;
     }
 
     void resetReconnects() { saveDisconnects(0); }

@@ -252,8 +252,8 @@ public final class InteractiveControlsBlock {
             prepare.setSingleLine(false);
             GradientDrawable fill = new GradientDrawable();
             fill.setColor(colors.accentSurface);
-            fill.setCornerRadius(Ui.dp(c, 8));
-            prepare.setBackground(new RippleDrawable(ColorStateList.valueOf(colors.line), fill, null));
+            fill.setCornerRadius(Ui.dp(c, Ui.BUTTON_CORNER_DP));
+            prepare.setBackground(Ui.roundedRipple(c, Ui.BUTTON_CORNER_DP, fill));
             prepare.setTextColor(colors.accent);
             Ui.pad(prepare, 16, 8);
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
@@ -323,7 +323,7 @@ public final class InteractiveControlsBlock {
         LinearLayout header = Ui.row(c);
         header.setPadding(0, Ui.dp(c, 8), 0, Ui.dp(c, 2));
         TextView labelView = Ui.text(c, ctrl.label, colors.scaledSp(15));
-        labelView.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        labelView.setTypeface(Ui.mediumTypeface());
         labelView.setTextColor(colors.ink);
         TextView valueView = Ui.text(c, formatSliderValue(c, current, ctrl.unit), colors.scaledSp(15));
         valueView.setTypeface(Typeface.MONOSPACE);
@@ -377,7 +377,7 @@ public final class InteractiveControlsBlock {
         state.put(ctrl.id, Collections.unmodifiableList(new ArrayList<>(selected)));
 
         TextView labelView = Ui.text(c, ctrl.label, colors.scaledSp(15));
-        labelView.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        labelView.setTypeface(Ui.mediumTypeface());
         labelView.setTextColor(colors.ink);
         labelView.setPadding(0, Ui.dp(c, 8), 0, Ui.dp(c, 4));
         group.addView(labelView);
@@ -393,7 +393,7 @@ public final class InteractiveControlsBlock {
                 boolean active = mutableSelected.contains(option);
                 Button b = chipButtons.get(i);
                 GradientDrawable bg = new GradientDrawable();
-                bg.setCornerRadius(Ui.dp(c, 18));
+                bg.setCornerRadius(Ui.dp(c, Ui.BUTTON_CORNER_DP));
                 if (active) {
                     bg.setColor(colors.accent);
                     b.setTextColor(colors.onAccent);
@@ -402,7 +402,7 @@ public final class InteractiveControlsBlock {
                     bg.setStroke(Math.max(1, Ui.dp(c, 1)), colors.line);
                     b.setTextColor(colors.ink);
                 }
-                b.setBackground(bg);
+                b.setBackground(Ui.roundedRipple(c, Ui.BUTTON_CORNER_DP, bg));
                 b.setSelected(active);
                 b.setContentDescription(c.getString(active
                         ? org.llm4people.hermes.R.string.ws_ctrl_chip_selected
@@ -428,11 +428,13 @@ public final class InteractiveControlsBlock {
             });
             chip.setEnabled(interactive);
             chip.setTextSize(colors.scaledSp(14));
-            chip.setMinHeight(Ui.dp(c, 44));
+            int touchMin = Ui.dp(c, 48);
+            chip.setMinHeight(touchMin);
+            chip.setMinimumHeight(touchMin);
             chip.setGravity(Gravity.CENTER);
             Ui.pad(chip, 12, 6);
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
-            lp.setMarginEnd(Ui.dp(c, 6));
+            lp.setMarginEnd(Ui.dp(c, 8));
             chipButtons.add(chip);
             row.addView(chip, lp);
         }

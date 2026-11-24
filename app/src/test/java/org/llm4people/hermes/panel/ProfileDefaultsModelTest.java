@@ -49,6 +49,39 @@ public final class ProfileDefaultsModelTest {
     }
 
     @Test
+    public void markSavedWithSubmittedSnapshotPreservesInFlightEditsAsDirty() {
+        ProfileDefaultsModel model = new ProfileDefaultsModel();
+        model.load(
+                "anthropic",
+                "claude-sonnet-4",
+                "medium",
+                Arrays.asList("web"),
+                Arrays.asList("web", "files", "terminal"));
+
+        // User edits effort and submits PATCH.
+        model.selectEffort("high");
+        ProfileDefaultsModel.Snapshot submitted = model.currentSnapshot();
+        assertTrue(model.isDirty());
+
+        // While PATCH is in flight, user makes another edit.
+        model.setToolsetEnabled("files", true);
+
+        // PATCH completes with the previously submitted snapshot: model MUST stay dirty!
+        model.markSaved(submitted);
+        assertTrue("In-flight edits made after PATCH submission must remain dirty", model.isDirty());
+        assertEquals("high", model.savedSnapshot().reasoningEffort());
+        assertFalse(model.savedSnapshot().enabledToolsets().contains("files"));
+
+        // Null snapshot is safely ignored.
+        model.markSaved(null);
+        assertTrue(model.isDirty());
+
+        // Reverting the in-flight edit makes it clean again.
+        model.setToolsetEnabled("files", false);
+        assertFalse(model.isDirty());
+    }
+
+    @Test
     public void searchableModelFilterMatchesIdLabelAndProviderCaseInsensitively() {
         List<ProfileDefaultsModel.ModelOption> catalog = Arrays.asList(
                 new ProfileDefaultsModel.ModelOption("anthropic", "Anthropic",

@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="fr">
     <!-- Modes de verrouillage et délais intelligents -->
     <string name="lock_mode_section_label">Méthode de verrouillage</string>
     <string name="lock_mode_biometric">Biométrie / téléphone</string>

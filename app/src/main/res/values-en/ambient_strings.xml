@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
     <string name="ambient_listener_label">Hermes notification access</string>
     <string name="ambient_route_label">Phone context</string>
     <string name="ambient_route_hint">Selected notifications, now playing, calendar agenda, and device status</string>

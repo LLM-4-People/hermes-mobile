@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="fr">
     <string name="profile_setup_missing_on_device">Ce profil n’est plus enregistré sur cet appareil.</string>
     <string name="profile_setup_server_hint">https://hermes.exemple.fr</string>
     <string name="profile_setup_name_required">Saisissez un nom de profil.</string>

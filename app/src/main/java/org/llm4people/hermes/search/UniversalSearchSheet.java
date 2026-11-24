@@ -65,8 +65,6 @@ public final class UniversalSearchSheet implements AutoCloseable {
         void onDismissed();
     }
 
-    private static Typeface mediumTypeface;
-
     private final Activity activity;
     private final Context localized;
     private final HermesApi api;
@@ -169,7 +167,7 @@ public final class UniversalSearchSheet implements AutoCloseable {
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
 
         dialog.setContentView(root);
-        dialog.setOnDismissListener(d -> teardown(true));
+        dialog.setOnDismissListener(d -> teardown());
         dialog.show();
 
         renderCategoryChips();
@@ -263,7 +261,7 @@ public final class UniversalSearchSheet implements AutoCloseable {
 
         LinearLayout.LayoutParams shellLp = new LinearLayout.LayoutParams(
                 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
-        shellLp.setMarginStart(Ui.dp(localized, 4));
+        shellLp.setMarginStart(Ui.dp(localized, 8));
         header.addView(fieldShell, shellLp);
         return header;
     }
@@ -313,7 +311,7 @@ public final class UniversalSearchSheet implements AutoCloseable {
         chip.setText(label);
         chip.setAllCaps(false);
         chip.setTextSize(14);
-        chip.setTypeface(mediumTypeface());
+        chip.setTypeface(Ui.mediumTypeface());
         chip.setStateListAnimator(null);
         chip.setMinHeight(Ui.dp(localized, 48));
         chip.setMinimumHeight(Ui.dp(localized, 48));
@@ -563,7 +561,7 @@ public final class UniversalSearchSheet implements AutoCloseable {
 
     private TextView sectionHeader(String label) {
         TextView heading = Ui.text(localized, label, 14);
-        heading.setTypeface(mediumTypeface());
+        heading.setTypeface(Ui.mediumTypeface());
         heading.setTextColor(localized.getColor(R.color.muted));
         heading.setAccessibilityHeading(true);
         heading.setPaddingRelative(Ui.dp(localized, 4), Ui.dp(localized, 4),
@@ -594,7 +592,7 @@ public final class UniversalSearchSheet implements AutoCloseable {
         top.setGravity(Gravity.CENTER_VERTICAL);
 
         TextView title = Ui.text(localized, item.title(), 16);
-        title.setTypeface(mediumTypeface());
+        title.setTypeface(Ui.mediumTypeface());
         title.setMaxLines(2);
         title.setEllipsize(TextUtils.TruncateAt.END);
         LinearLayout.LayoutParams titleLp = new LinearLayout.LayoutParams(
@@ -690,7 +688,7 @@ public final class UniversalSearchSheet implements AutoCloseable {
                 ? R.string.universal_search_error
                 : R.string.universal_search_empty_title);
         TextView title = Ui.text(localized, titleText, 16);
-        title.setTypeface(mediumTypeface());
+        title.setTypeface(Ui.mediumTypeface());
         title.setGravity(Gravity.CENTER_HORIZONTAL);
         card.addView(title);
 
@@ -720,7 +718,7 @@ public final class UniversalSearchSheet implements AutoCloseable {
     }
 
     private void dispatchResult(UniversalSearchModel.Result item) {
-        Diagnostics.event("universal_search", "result_selected:" + item.category().name().toLowerCase(java.util.Locale.ROOT));
+        Diagnostics.event("universal_search", "result_selected_" + item.category().name().toLowerCase(java.util.Locale.ROOT));
         close();
         if (callbacks == null) return;
         switch (item.category()) {
@@ -746,7 +744,7 @@ public final class UniversalSearchSheet implements AutoCloseable {
         }
     }
 
-    private void teardown(boolean notifyCallback) {
+    private void teardown() {
         if (closed) return;
         closed = true;
         cancelPendingDebounce();
@@ -755,7 +753,7 @@ public final class UniversalSearchSheet implements AutoCloseable {
         }
         io.shutdownNow();
         dialog = null;
-        if (notifyCallback && callbacks != null) {
+        if (callbacks != null) {
             callbacks.onDismissed();
         }
     }
@@ -763,16 +761,10 @@ public final class UniversalSearchSheet implements AutoCloseable {
     @Override
     public void close() {
         Dialog active = dialog;
-        teardown(true);
+        teardown();
         if (active != null && active.isShowing()) {
             try { active.dismiss(); } catch (RuntimeException ignored) {}
         }
     }
 
-    private static Typeface mediumTypeface() {
-        if (mediumTypeface == null) {
-            mediumTypeface = Typeface.create("sans-serif-medium", Typeface.NORMAL);
-        }
-        return mediumTypeface;
-    }
 }

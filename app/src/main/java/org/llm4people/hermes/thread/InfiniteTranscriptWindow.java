@@ -2,6 +2,7 @@ package org.llm4people.hermes.thread;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.llm4people.hermes.HermesConfig;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -19,7 +20,7 @@ import java.util.Set;
  */
 public final class InfiniteTranscriptWindow<T> {
     public static final int MAX_WINDOW_ROWS = 400;
-    public static final int DEFAULT_PAGE_SIZE = 40;
+    public static final int DEFAULT_PAGE_SIZE = HermesConfig.DEFAULT_THREAD_PAGE_SIZE;
 
     public interface RowIdentity<T> {
         String stableKey(T row);

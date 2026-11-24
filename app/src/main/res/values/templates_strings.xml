@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="fr">
     <string name="templates_route_label">Modèles du quotidien</string>
     <string name="templates_route_hint">Raccourcis prêts à l’emploi et modèles personnels</string>
     <string name="templates_panel_title">Modèles du quotidien</string>

@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
     <string name="profile_defaults_status_unsaved">Unsaved changes</string>
     <string name="profile_defaults_status_saved">Up to date</string>
     <string name="profile_defaults_save_cta">Save defaults</string>

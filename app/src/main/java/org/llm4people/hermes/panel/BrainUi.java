@@ -43,6 +43,7 @@ final class BrainUi {
         EditText field = new EditText(context);
         field.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE
                 | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+        field.setImeOptions(EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING | EditorInfo.IME_FLAG_NO_EXTRACT_UI);
         field.setMinLines(minLines);
         field.setTextSize(16);
         field.setLineSpacing(0f, 1.25f);
@@ -84,13 +85,13 @@ final class BrainUi {
         chip.setAllCaps(false);
         chip.setTextSize(14);
         chip.setMaxLines(2);
-        chip.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        chip.setTypeface(Ui.mediumTypeface());
         chip.setStateListAnimator(null);
         int minTouch = Ui.dp(context, 48);
         chip.setMinHeight(minTouch);
         chip.setMinimumHeight(minTouch);
-        chip.setMinWidth(0);
-        chip.setMinimumWidth(0);
+        chip.setMinWidth(minTouch);
+        chip.setMinimumWidth(minTouch);
         chip.setSelected(selected);
         GradientDrawable bg = selected
                 ? Ui.shape(context, Ui.BUTTON_CORNER_DP, R.color.accent, 0, 0)

@@ -152,17 +152,17 @@ final class ReminderPanel {
         chip.setText(label);
         chip.setAllCaps(false);
         chip.setTextSize(13);
-        chip.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        chip.setTypeface(Ui.mediumTypeface());
         chip.setStateListAnimator(null);
         int touchMin = Ui.dp(panel.activity, 48);
         chip.setMinHeight(touchMin);
         chip.setMinimumHeight(touchMin);
         Ui.pad(chip, 14, 6);
-        GradientDrawable bg = Ui.shape(panel.activity, 999,
+        GradientDrawable bg = Ui.shape(panel.activity, Ui.BUTTON_CORNER_DP,
                 selected ? R.color.accent_surface : R.color.surface,
                 selected ? R.color.accent : R.color.line,
                 selected ? 2 : 1);
-        chip.setBackground(Ui.roundedRipple(panel.activity, 999, bg));
+        chip.setBackground(Ui.roundedRipple(panel.activity, Ui.BUTTON_CORNER_DP, bg));
         chip.setTextColor(panel.activity.getColor(selected ? R.color.accent : R.color.ink));
         chip.setSelected(selected);
         chip.setAccessibilityDelegate(new View.AccessibilityDelegate() {
@@ -194,7 +194,7 @@ final class ReminderPanel {
         titleBtn.setText(name);
         titleBtn.setAllCaps(false);
         titleBtn.setTextSize(16);
-        titleBtn.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        titleBtn.setTypeface(Ui.mediumTypeface());
         titleBtn.setTextColor(panel.activity.getColor(R.color.ink));
         titleBtn.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
         titleBtn.setStateListAnimator(null);
@@ -450,7 +450,7 @@ final class ReminderPanel {
                         .setPositiveButton(R.string.panel_delete, (d, which) -> mutate(() -> {
                             panel.api.delete(path); return null;
                         })).create()));
-        deleteBtn.setTextColor(dangerInk());
+        deleteBtn.setTextColor(Ui.dangerInk(panel.activity));
         page.addView(deleteBtn, cardMargins());
 
         panel.section(page, R.string.panel_jobs_recent_runs);
@@ -473,16 +473,10 @@ final class ReminderPanel {
 
     private TextView createFeedbackView() {
         TextView view = Ui.text(panel.activity, "", 13);
-        view.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        view.setTypeface(Ui.mediumTypeface());
         view.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         view.setVisibility(View.GONE);
         return view;
-    }
-
-    private ColorStateList dangerInk() {
-        return new ColorStateList(
-                new int[][]{new int[]{-android.R.attr.state_enabled}, new int[]{}},
-                new int[]{panel.activity.getColor(R.color.disabled_ink), panel.activity.getColor(R.color.danger)});
     }
 
     private void triggerJobNow(JSONObject job, Button button, TextView feedbackView, Runnable onTriggered) {
@@ -552,7 +546,8 @@ final class ReminderPanel {
             LinearLayout row = Ui.tonalCard(panel.activity);
 
             String when = formatEpochTime(run.startedAtEpochSec(), zone, locale);
-            String dur = ScheduledJobModel.formatDuration(run.durationSeconds());
+            String dur = ScheduledJobModel.formatDuration(
+                    run.durationSeconds(), org.llm4people.hermes.AppLanguage.resolvedLocale(panel.activity));
             StringBuilder line = new StringBuilder(runStatusLabel(run.status()));
             if (!when.isEmpty()) line.append(" · ").append(when);
             if (!dur.isEmpty()) line.append(" · ").append(dur);

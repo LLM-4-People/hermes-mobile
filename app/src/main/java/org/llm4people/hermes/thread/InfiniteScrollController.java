@@ -101,12 +101,8 @@ public final class InfiniteScrollController implements AbsListView.OnScrollListe
         pill.setMinimumHeight(Ui.dp(context, 48));
         pill.setMinimumWidth(Ui.dp(context, 48));
         Ui.pad(pill, 16, 10);
-        GradientDrawable bg = new GradientDrawable();
-        bg.setColor(context.getColor(R.color.accent));
-        bg.setCornerRadius(Ui.dp(context, 24));
-        bg.setStroke(Math.max(1, Ui.dp(context, 1)), context.getColor(R.color.line));
-        pill.setBackground(bg);
-        pill.setElevation(Ui.dp(context, 4));
+        pill.setBackground(Ui.roundedRipple(context, 24,
+                Ui.shape(context, 24, R.color.accent, R.color.line, 1)));
         pill.setContentDescription(context.getString(R.string.infinite_jump_latest_cd));
         pill.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         pill.setVisibility(View.GONE);
@@ -237,7 +233,6 @@ public final class InfiniteScrollController implements AbsListView.OnScrollListe
     }
 
     private static void logEvent(String action) {
-        try { Diagnostics.event("infinite_scroll", action); }
-        catch (RuntimeException unmockedHostJvm) {}
+        Diagnostics.event("infinite_scroll", action);
     }
 }

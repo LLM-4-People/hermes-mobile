@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="fr">
     <!-- CodeReader controls -->
     <string name="code_line_numbers">Numéros</string>
     <string name="code_line_numbers_show">Afficher les numéros de ligne</string>

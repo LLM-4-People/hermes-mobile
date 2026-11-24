@@ -1,33 +1,18 @@
 <resources xmlns:tools="http://schemas.android.com/tools" tools:locale="fr">
     <string name="nav_discussions">Discussions</string>
-    <string name="nav_atelier">Atelier</string>
-    <string name="nav_brain">Cerveau</string>
-    <string name="nav_activity">Activité</string>
 
     <string name="top_search">Rechercher</string>
     <string name="top_profile_lock">Profil et verrouillage</string>
 
-    <string name="atelier_subtitle">Organisez vos écrans, vos outils et les réglages de votre profil.</string>
-    <string name="brain_subtitle">Découvrez ce que Hermes sait faire et choisissez ses capacités.</string>
     <string name="brain_skills_hint">Parcourir les savoir-faire prêts à l’emploi de votre assistant.</string>
-    <string name="brain_models_title">Modèle et capacités</string>
-    <string name="brain_models_hint">Choisir l’assistant et les capacités actives pour la discussion en cours.</string>
-    <string name="brain_memory_hint">Vos préférences et outils restent chiffrés sur cet appareil. Votre profil protège vos échanges.</string>
-    <string name="brain_create_tool_title">Créer un outil personnalisé</string>
-    <string name="brain_create_tool_hint">Demander à Hermes un formulaire ou un tableau adapté à votre besoin.</string>
 
-    <string name="activity_subtitle">Retrouvez vos rappels, vos livraisons, vos alertes et le suivi de vos échanges.</string>
     <string name="activity_reminders_title">Tâches planifiées</string>
     <string name="activity_reminders_hint">Voir, lancer ou modifier les tâches planifiées de votre profil.</string>
     <string name="activity_deliveries_title">Livraisons de Hermes</string>
     <string name="activity_deliveries_hint">Briefings, fichiers, mises à jour d’écran et propositions reçues.</string>
-    <string name="activity_notifications_title">Notifications</string>
     <string name="activity_notifications_hint">Gérer les alertes sur cet appareil et voir l’historique récent.</string>
-    <string name="activity_push_policy_title">Préférences d’alertes et heures calmes</string>
     <string name="activity_push_policy_hint">Choisir les catégories d’alertes et programmer vos plages silencieuses.</string>
-    <string name="activity_usage_title">Utilisation</string>
     <string name="activity_usage_hint">Consulter le coût estimé et le temps de réponse de la discussion.</string>
-    <string name="activity_security_title">Sécurité et verrouillage</string>
 
     <string name="security_dialog_title">Sécurité et verrouillage</string>
     <string name="security_lock_now">Verrouiller le profil</string>
@@ -105,14 +90,8 @@
     <string name="ws_capture_photo">Prendre une photo…</string>
     <string name="ws_choose_discussion_tool_body">Ouvrez une discussion pour créer un outil.</string>
     <string name="ws_choose_discussion_files_body">Ouvrez une discussion pour parcourir les fichiers du projet.</string>
-    <string name="brain_open_all_title">Ouvrir tout le Cerveau de Hermes</string>
-    <string name="brain_open_all_hint">Mémoire, notes, partages, recherche et réglages vérifiés avec votre serveur.</string>
     <string name="brain_memory_card_hint">Ce que Hermes retient et ce qu’il sait à propos de vous.</string>
-    <string name="brain_notes_card_hint">Vos notes structurées et habitudes apprises avec Hermes.</string>
-    <string name="brain_shared_card_hint">Notes, savoir-faire et éléments partagés par d’autres utilisateurs sur ce serveur.</string>
-    <string name="brain_search_card_hint">Retrouvez un passage dans tout votre historique.</string>
     <string name="brain_files_card_hint">Parcourez les fichiers et modifications de la discussion en cours.</string>
-    <string name="brain_profile_defaults_card_hint">Modèle et capacités utilisés par défaut pour ce profil.</string>
     <string name="live_ui_delivery_title">Mise à jour d’écran proposée</string>
     <string name="live_ui_delivery_apply">Appliquer</string>
     <string name="live_ui_delivery_failed_title">Mise à jour impossible</string>

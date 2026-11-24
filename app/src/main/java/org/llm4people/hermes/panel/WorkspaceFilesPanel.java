@@ -281,8 +281,7 @@ final class WorkspaceFilesPanel {
             String label = WorkspacePathGuard.gitStatusLabel(panel.activity, file.status());
             if (!label.isEmpty()) badges.addView(BrainUi.badge(panel.activity, label, false));
             badges.addView(BrainUi.badge(panel.activity, "+" + file.additions() + " / -" + file.deletions(), true));
-            badges.setPaddingRelative(0, Ui.dp(panel.activity, 6), 0, 0);
-            copy.addView(badges);
+            copy.addView(BrainUi.chipBar(panel.activity, badges));
 
             row.addView(copy, new LinearLayout.LayoutParams(0, -2, 1));
             row.addView(forwardChevron(), chevronParams());

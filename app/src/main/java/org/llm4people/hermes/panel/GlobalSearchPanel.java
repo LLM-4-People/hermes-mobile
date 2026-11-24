@@ -49,7 +49,9 @@ final class GlobalSearchPanel {
         LinearLayout searchRow = Ui.row(panel.activity);
         queryField = BrainUi.searchField(panel.activity, R.id.brain_search_field, R.string.brain_search_hint);
         searchRow.addView(queryField, new LinearLayout.LayoutParams(0, -2, 1));
-        searchRow.addView(Ui.button(panel.activity, panel.t(R.string.brain_search_action), v -> submitSearch()));
+        LinearLayout.LayoutParams searchBtnLp = new LinearLayout.LayoutParams(-2, -2);
+        searchBtnLp.setMarginStart(Ui.dp(panel.activity, 8));
+        searchRow.addView(Ui.button(panel.activity, panel.t(R.string.brain_search_action), v -> submitSearch()), searchBtnLp);
         page.addView(searchRow);
 
         queryField.setOnEditorActionListener((v, actionId, event) -> {
@@ -211,7 +213,10 @@ final class GlobalSearchPanel {
 
         String targetSession = hit.targetSessionId();
         if (!targetSession.isEmpty() && openThread != null) {
+            card.setBackground(Ui.roundedRipple(panel.activity, Ui.CARD_CORNER_DP,
+                    Ui.shape(panel.activity, Ui.CARD_CORNER_DP, R.color.surface, R.color.line, 1)));
             card.setFocusable(true);
+            card.setClickable(true);
             card.setOnClickListener(v -> jumpToThread(targetSession));
             panel.action(card, R.string.brain_search_open_thread, () -> jumpToThread(targetSession));
         }

@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="fr">
     <!-- Assistant de première connexion -->
     <string name="onboarding_paste_card_title">Connexion instantanée</string>
     <string name="onboarding_paste_card_hint">Scannez un code QR d’association ou collez un lien hermes://pair, une invitation HTTPS ou vos accès copiés</string>

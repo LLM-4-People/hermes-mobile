@@ -56,7 +56,7 @@ public final class LiveUiPatchBar extends LinearLayout {
         ThemePalette palette = ThemePalette.resolve(ThemePalette.OverrideSpec.defaults(), ThemePalette.isNight(activity));
         GradientDrawable bg = new GradientDrawable();
         bg.setColor(palette.accentSurface);
-        bg.setCornerRadius(Ui.dp(activity, 10));
+        bg.setCornerRadius(Ui.dp(activity, Ui.CARD_CORNER_DP));
         bg.setStroke(Math.max(1, Ui.dp(activity, 1)), palette.line);
         setBackground(bg);
         Ui.pad(this, 14, 10);
@@ -72,8 +72,11 @@ public final class LiveUiPatchBar extends LinearLayout {
         summary.setPadding(0, Ui.dp(activity, 2), 0, Ui.dp(activity, 6));
         addView(summary);
 
+        HorizontalScrollView actionsScroll = new HorizontalScrollView(activity);
+        actionsScroll.setHorizontalScrollBarEnabled(false);
         LinearLayout actions = Ui.row(activity);
         actions.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+        int gap = Ui.dp(activity, 8);
         viewButton = actionButton(activity.getString(org.llm4people.hermes.R.string.ws_view), "live-ui-view", v -> openPreview());
         applyButton = actionButton(activity.getString(org.llm4people.hermes.R.string.ws_apply), "live-ui-apply", v -> applyCurrent());
         pinButton = actionButton(activity.getString(org.llm4people.hermes.R.string.ws_surface_pin_home), "live-ui-pin-home", v -> {
@@ -82,11 +85,14 @@ public final class LiveUiPatchBar extends LinearLayout {
         pinButton.setVisibility(GONE);
         cancelButton = actionButton(activity.getString(org.llm4people.hermes.R.string.ws_cancel), "live-ui-cancel", v -> cancelOrRollback());
         applyButton.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        actions.addView(viewButton);
-        actions.addView(applyButton);
-        actions.addView(pinButton);
+        LinearLayout.LayoutParams btnGap = new LinearLayout.LayoutParams(-2, -2);
+        btnGap.setMarginEnd(gap);
+        actions.addView(viewButton, btnGap);
+        actions.addView(applyButton, new LinearLayout.LayoutParams(btnGap));
+        actions.addView(pinButton, new LinearLayout.LayoutParams(btnGap));
         actions.addView(cancelButton);
-        addView(actions);
+        actionsScroll.addView(actions);
+        addView(actionsScroll);
     }
 
     public void present(LiveUiPatch patch) {
@@ -263,18 +269,20 @@ public final class LiveUiPatchBar extends LinearLayout {
             chip.setTag("quick-action-" + action.id);
             chip.setTextSize(14);
             chip.setTextColor(colors.accent);
-            chip.setMinHeight(Ui.dp(context, 44));
-            Ui.pad(chip, 12, 4);
+            int touchMin = Ui.dp(context, 48);
+            chip.setMinHeight(touchMin);
+            chip.setMinimumHeight(touchMin);
+            Ui.pad(chip, 12, 6);
             GradientDrawable bg = new GradientDrawable();
-            bg.setCornerRadius(Ui.dp(context, 18));
+            bg.setCornerRadius(Ui.dp(context, Ui.BUTTON_CORNER_DP));
             bg.setColor(colors.accentSurface);
             bg.setStroke(Math.max(1, Ui.dp(context, 1)), colors.line);
-            chip.setBackground(bg);
+            chip.setBackground(Ui.roundedRipple(context, Ui.BUTTON_CORNER_DP, bg));
             chip.setContentDescription(context.getString(action.draft != null
                     ? org.llm4people.hermes.R.string.ws_liveui_chip_draft_a11y
                     : org.llm4people.hermes.R.string.ws_liveui_chip_open_a11y, action.label));
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
-            lp.setMarginEnd(Ui.dp(context, 6));
+            lp.setMarginEnd(Ui.dp(context, 8));
             row.addView(chip, lp);
         }
         scroll.addView(row);
@@ -329,18 +337,20 @@ public final class LiveUiPatchBar extends LinearLayout {
             chip.setTag("suggested-action-" + i);
             chip.setTextSize(colors.scaledSp(14));
             chip.setTextColor(colors.accent);
-            chip.setMinHeight(Ui.dp(context, 44));
-            Ui.pad(chip, 12, 4);
+            int touchMin = Ui.dp(context, 48);
+            chip.setMinHeight(touchMin);
+            chip.setMinimumHeight(touchMin);
+            Ui.pad(chip, 12, 6);
             GradientDrawable bg = new GradientDrawable();
-            bg.setCornerRadius(Ui.dp(context, 18));
+            bg.setCornerRadius(Ui.dp(context, Ui.BUTTON_CORNER_DP));
             bg.setColor(colors.surface);
             bg.setStroke(Math.max(1, Ui.dp(context, 1)), colors.line);
-            chip.setBackground(bg);
+            chip.setBackground(Ui.roundedRipple(context, Ui.BUTTON_CORNER_DP, bg));
             chip.setContentDescription(context.getString(item.draft != null
                     ? org.llm4people.hermes.R.string.ws_liveui_chip_draft_a11y
                     : org.llm4people.hermes.R.string.ws_liveui_chip_open_a11y, item.label));
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
-            lp.setMarginEnd(Ui.dp(context, 6));
+            lp.setMarginEnd(Ui.dp(context, 8));
             row.addView(chip, lp);
         }
         scroll.addView(row);

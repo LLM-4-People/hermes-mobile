@@ -180,8 +180,11 @@ final class SessionSettings {
     private <T> void picker(LinearLayout box, ArrayList<T> choices, T current, Consumer<T> select) {
         EditText search = new EditText(panel.activity);
         search.setSingleLine();
+        search.setSaveEnabled(false);
+        search.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO);
         search.setHint(R.string.panel_search);
-        search.setImeOptions(EditorInfo.IME_ACTION_SEARCH | EditorInfo.IME_FLAG_NO_EXTRACT_UI);
+        search.setImeOptions(EditorInfo.IME_ACTION_SEARCH | EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING
+                | EditorInfo.IME_FLAG_NO_EXTRACT_UI);
         search.setMinHeight(Ui.dp(panel.activity, 48));
         search.setTextColor(panel.activity.getColor(R.color.ink));
         search.setHintTextColor(panel.activity.getColor(R.color.muted));

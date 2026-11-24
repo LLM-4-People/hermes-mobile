@@ -264,7 +264,6 @@ public final class InstrumentStateStore {
     }
 
     private static void warnUnreadable() {
-        try { Diagnostics.warning("instrument_state", "unreadable"); }
-        catch (RuntimeException ignoredInHostJvmTests) {}
+        Diagnostics.warning("instrument_state", "unreadable");
     }
 }

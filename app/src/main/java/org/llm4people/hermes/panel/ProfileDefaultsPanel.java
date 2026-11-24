@@ -318,11 +318,11 @@ final class ProfileDefaultsPanel {
             refreshToolsetRows();
             syncSaveBar();
         });
-        bulkRow.addView(enableAll);
+        LinearLayout.LayoutParams enableLp = new LinearLayout.LayoutParams(-2, -2);
+        enableLp.setMarginEnd(Ui.dp(panel.activity, 8));
+        bulkRow.addView(enableAll, enableLp);
         bulkRow.addView(disableAll);
-        LinearLayout.LayoutParams bulkLp = new LinearLayout.LayoutParams(-1, -2);
-        bulkLp.topMargin = Ui.dp(panel.activity, 4);
-        card.addView(bulkRow, bulkLp);
+        card.addView(BrainUi.chipBar(panel.activity, bulkRow));
 
         if (model.shouldShowToolsetFilter()) {
             EditText filterField = BrainUi.searchField(
@@ -468,7 +468,10 @@ final class ProfileDefaultsPanel {
         scroll.setFillViewport(true);
         LinearLayout resultsBox = Ui.column(panel.activity);
         scroll.addView(resultsBox, new ScrollView.LayoutParams(-1, -2));
-        LinearLayout.LayoutParams scrollLp = new LinearLayout.LayoutParams(-1, Ui.dp(panel.activity, 340));
+        int screenHeightPx = panel.activity.getResources().getDisplayMetrics().heightPixels;
+        int pickerHeight = Math.max(Ui.dp(panel.activity, 180),
+                Math.min(Ui.dp(panel.activity, 380), Math.round(screenHeightPx * 0.45f)));
+        LinearLayout.LayoutParams scrollLp = new LinearLayout.LayoutParams(-1, pickerHeight);
         scrollLp.topMargin = Ui.dp(panel.activity, 6);
         root.addView(scroll, scrollLp);
 
@@ -549,11 +552,18 @@ final class ProfileDefaultsPanel {
                 Ui.dp(panel.activity, 14), Ui.dp(panel.activity, 10));
         row.setBackground(Ui.roundedRipple(panel.activity, 0, null));
         row.setFocusable(true);
+        row.setClickable(true);
+        row.setAccessibilityDelegate(new View.AccessibilityDelegate() {
+            @Override public void onInitializeAccessibilityNodeInfo(View host, android.view.accessibility.AccessibilityNodeInfo info) {
+                super.onInitializeAccessibilityNodeInfo(host, info);
+                info.setClassName(Button.class.getName());
+            }
+        });
         row.setOnClickListener(v -> onSelect.run());
 
         LinearLayout copy = Ui.column(panel.activity);
         TextView name = Ui.text(panel.activity, opt.info().label(), 16);
-        name.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        name.setTypeface(Ui.mediumTypeface());
         copy.addView(name);
 
         String capabilities = opt.info().summaryLine(panel.activity);
@@ -568,14 +578,18 @@ final class ProfileDefaultsPanel {
 
         boolean isCurrent = opt.providerSlug().equals(model.selectedProvider())
                 && opt.info().id().equals(model.selectedModel());
+        String rowDescription = opt.info().label() + ", " + detailText;
         if (isCurrent) {
+            String activeLabel = panel.t(R.string.profile_defaults_selected_badge);
+            rowDescription = rowDescription + ", " + activeLabel;
             TextView activePill = Ui.pill(panel.activity,
-                    panel.t(R.string.profile_defaults_selected_badge),
+                    activeLabel,
                     R.color.accent_surface, R.color.accent);
             LinearLayout.LayoutParams pillLp = new LinearLayout.LayoutParams(-2, -2);
             pillLp.setMarginStart(Ui.dp(panel.activity, 8));
             row.addView(activePill, pillLp);
         }
+        row.setContentDescription(rowDescription);
         return row;
     }
 
@@ -585,19 +599,20 @@ final class ProfileDefaultsPanel {
         syncSaveBar();
         saveFeedback.removeAllViews();
 
+        ProfileDefaultsModel.Snapshot submitted = model.currentSnapshot();
         JSONObject payload = new JSONObject();
-        if (!model.selectedProvider().isEmpty() && !model.selectedModel().isEmpty()) {
-            PanelData.put(payload, "provider", model.selectedProvider());
-            PanelData.put(payload, "model", model.selectedModel());
+        if (!submitted.provider().isEmpty() && !submitted.model().isEmpty()) {
+            PanelData.put(payload, "provider", submitted.provider());
+            PanelData.put(payload, "model", submitted.model());
         }
-        PanelData.put(payload, "enabled_toolsets", new JSONArray(model.selectedToolsets()));
+        PanelData.put(payload, "enabled_toolsets", new JSONArray(submitted.enabledToolsets()));
         PanelData.put(payload, "reasoning_effort",
-                model.reasoningEffort().isEmpty() ? JSONObject.NULL : model.reasoningEffort());
+                submitted.reasoningEffort().isEmpty() ? JSONObject.NULL : submitted.reasoningEffort());
 
         panel.request(saveFeedback, () -> panel.api.patch("/api/profile/defaults", payload),
                 updated -> {
                     saving = false;
-                    model.markSaved();
+                    model.markSaved(submitted);
                     syncSaveBar();
                     Diagnostics.event("profile_defaults", "saved");
                     BrainUi.liveNote(panel, saveFeedback, panel.t(R.string.brain_profile_saved));

@@ -151,7 +151,7 @@ public final class NearbyGuide extends LinearLayout {
             chip.setContentDescription(getContext().getString(
                     selected ? R.string.places_guide_cat_selected_desc : R.string.places_guide_cat_desc, catLabel));
             LayoutParams lp = new LayoutParams(-2, -2);
-            lp.setMarginEnd(dp(6));
+            lp.setMarginEnd(dp(8));
             chips.addView(chip, lp);
         }
         scroll.addView(chips);
@@ -178,11 +178,11 @@ public final class NearbyGuide extends LinearLayout {
         Button b = Ui.button(getContext(), label, click);
         b.setTag(tag);
         b.setTextSize(14);
-        b.setMinHeight(dp(44));
-        b.setMinimumHeight(dp(44));
+        b.setMinHeight(dp(48));
+        b.setMinimumHeight(dp(48));
         Ui.pad(b, 12, 6);
         GradientDrawable bg = new GradientDrawable();
-        bg.setCornerRadius(dp(18));
+        bg.setCornerRadius(dp(Ui.BUTTON_CORNER_DP));
         if (selected) {
             bg.setColor(getContext().getColor(R.color.accent));
             b.setTextColor(getContext().getColor(R.color.on_accent));
@@ -191,7 +191,7 @@ public final class NearbyGuide extends LinearLayout {
             bg.setStroke(Math.max(1, dp(1)), getContext().getColor(R.color.line));
             b.setTextColor(getContext().getColor(R.color.ink));
         }
-        b.setBackground(bg);
+        b.setBackground(Ui.roundedRipple(getContext(), Ui.BUTTON_CORNER_DP, bg));
         b.setSelected(selected);
         return b;
     }

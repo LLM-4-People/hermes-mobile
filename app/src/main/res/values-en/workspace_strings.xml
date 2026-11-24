@@ -1,19 +1,15 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
     <string name="ws_discussions">Discussions</string>
     <string name="ws_discussion">Discussion</string>
     <string name="ws_desk">Workspace</string>
     <string name="ws_more_actions">More actions</string>
     <string name="ws_reply_hermes">Reply to Hermes</string>
-    <string name="ws_resume_discussion">Return to discussion</string>
     <string name="ws_artifacts">Saved items</string>
     <string name="ws_model_and_tools">Model and tools</string>
     <string name="ws_usage">Usage</string>
-    <string name="ws_workspace">Workspace</string>
     <string name="ws_my_screens">My screens</string>
-    <string name="ws_new_discussion">New discussion</string>
     <string name="ws_all_discussions">All discussions</string>
     <string name="ws_reminders">Reminders</string>
-    <string name="ws_notifications">Notifications</string>
     <string name="ws_lock_profile">Lock profile</string>
     <string name="ws_back_previous">Back to previous screen</string>
     <string name="ws_hide_discussions">Hide discussions</string>

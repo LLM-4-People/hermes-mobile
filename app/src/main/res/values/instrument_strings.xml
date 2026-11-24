@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="fr">
     <string name="instrument_damaged">Outil épinglé illisible</string>
     <string name="instrument_repair">Réinitialiser…</string>
     <string name="instrument_repair_title">Réinitialiser l’outil de cette discussion ?</string>

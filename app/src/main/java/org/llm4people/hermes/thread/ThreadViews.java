@@ -42,14 +42,6 @@ import java.util.function.Consumer;
 
 public final class ThreadViews {
     private static final TranscriptCellCache CELL_CACHE = new TranscriptCellCache();
-    private static Typeface mediumTypeface;
-
-    private static Typeface mediumTypeface() {
-        if (mediumTypeface == null) {
-            mediumTypeface = Typeface.create("sans-serif-medium", Typeface.NORMAL);
-        }
-        return mediumTypeface;
-    }
 
     /** Clear the bounded transcript Markdown/span LRU cache (memory trim or profile lock). */
     public static void clearCellCache() {
@@ -477,7 +469,7 @@ public final class ThreadViews {
         inboxFilterRow.removeAllViews();
         int gap = Ui.dp(activity, 8);
         ThreadInboxFilter.Filter[] filters = ThreadInboxFilter.Filter.values();
-        Typeface medium = mediumTypeface();
+        Typeface medium = Ui.mediumTypeface();
         for (int i = 0; i < filters.length; i++) {
             ThreadInboxFilter.Filter filter = filters[i];
             boolean selected = filter == activeInboxFilter;
@@ -1044,7 +1036,7 @@ public final class ThreadViews {
             heading.setText(label);
             heading.setTextSize(chat ? 13 : 16);
             heading.setMaxLines(chat ? 2 : 3);
-            heading.setTypeface(mediumTypeface(), chat ? Typeface.BOLD : Typeface.NORMAL);
+            heading.setTypeface(Ui.mediumTypeface(), chat ? Typeface.BOLD : Typeface.NORMAL);
             heading.setTextColor(getContext().getColor(chat && role.equals("assistant") ? R.color.accent : R.color.ink));
             body.setTextColor(getContext().getColor(chat ? R.color.ink : R.color.muted));
             body.setMaxLines(chat ? Integer.MAX_VALUE : 2);
@@ -1112,6 +1104,8 @@ public final class ThreadViews {
                 instruments.proposal(this, proposal);
             if (!chat) {
                 if (ThreadInboxFilter.isSharedRow(row)) {
+                    HorizontalScrollView badgeScroll = new HorizontalScrollView(getContext());
+                    badgeScroll.setHorizontalScrollBarEnabled(false);
                     LinearLayout badges = Ui.row(getContext());
                     badges.setPaddingRelative(0, Ui.dp(getContext(), 6), 0, 0);
                     String perm = ThreadInboxFilter.permission(row);
@@ -1119,7 +1113,7 @@ public final class ThreadViews {
                             org.llm4people.hermes.panel.UniversalShareModel.permissionLabel(getContext(), perm),
                             R.color.accent_surface, R.color.accent);
                     LinearLayout.LayoutParams permLp = new LinearLayout.LayoutParams(-2, -2);
-                    permLp.setMarginEnd(Ui.dp(getContext(), 6));
+                    permLp.setMarginEnd(Ui.dp(getContext(), 8));
                     badges.addView(permPill, permLp);
                     String owner = ThreadInboxFilter.ownerProfile(row);
                     if (!owner.isEmpty()) {
@@ -1127,7 +1121,8 @@ public final class ThreadViews {
                                 getContext().getString(R.string.ws_shared_by, owner),
                                 R.color.surface_container, R.color.muted));
                     }
-                    addView(badges);
+                    badgeScroll.addView(badges);
+                    addView(badgeScroll);
                 } else if (ThreadInboxFilter.isPinned(row)) {
                     LinearLayout pinRow = Ui.row(getContext());
                     pinRow.setPaddingRelative(0, Ui.dp(getContext(), 6), 0, 0);
@@ -1160,9 +1155,7 @@ public final class ThreadViews {
             if (badge.canStop() && onStopTask != null) {
                 String stopLabel = context.getString(R.string.thread_badge_stop);
                 Button stopBtn = Ui.button(context, stopLabel, v -> onStopTask.accept(rootId));
-                stopBtn.setTextColor(new android.content.res.ColorStateList(
-                        new int[][]{new int[]{-android.R.attr.state_enabled}, new int[]{}},
-                        new int[]{context.getColor(R.color.disabled_ink), context.getColor(R.color.danger)}));
+                stopBtn.setTextColor(Ui.dangerInk(context));
                 stopBtn.setContentDescription(threadTitle == null || threadTitle.isEmpty()
                         ? stopLabel : stopLabel + " · " + threadTitle);
                 stopBtn.setFocusable(false);

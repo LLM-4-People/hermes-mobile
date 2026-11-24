@@ -155,8 +155,8 @@ final class UsagePanel {
         });
         primaryCard.addView(Ui.insetDivider(panel.activity, 0));
         primaryCard.addView(toggle);
-        primaryCard.addView(technical, disclosureBodyParams());
         local.addView(primaryCard, cardParams());
+        local.addView(technical, disclosureBodyParams());
     }
 
     private void display(LinearLayout box, DiscussionUsage usage, BrainJson.AnalyticsSummary analytics) {
@@ -190,8 +190,8 @@ final class UsagePanel {
         });
         primaryCard.addView(Ui.insetDivider(panel.activity, 0));
         primaryCard.addView(toggle);
-        primaryCard.addView(details, disclosureBodyParams());
         box.addView(primaryCard, cardParams());
+        box.addView(details, disclosureBodyParams());
     }
 
     private Button disclosureToggle(boolean expanded) {

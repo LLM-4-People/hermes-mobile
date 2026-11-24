@@ -22,6 +22,45 @@ public final class HermesConfigTest {
         assertEquals("https://api.github.com", cfg.updateApiBase);
         assertEquals(52_428_800L, cfg.updateMaxApkBytes);
         assertEquals(86_400_000L, cfg.updateCheckIntervalMs);
+        assertEquals("https://github.com", cfg.githubWebBaseUrl);
+        assertEquals("https://www.openstreetmap.org", cfg.openStreetMapBaseUrl);
+        assertEquals(HermesConfig.DEFAULT_DOCTOR_CHECK_TIMEOUT_MS, cfg.doctorCheckTimeoutMs);
+        assertEquals(HermesConfig.DEFAULT_SLOW_LATENCY_THRESHOLD_MS, cfg.slowLatencyThresholdMs);
+        assertEquals(HermesConfig.DEFAULT_EXPECTED_FORK_CAPABILITIES, cfg.expectedForkCapabilities);
+        assertEquals(HermesConfig.DEFAULT_PROBE_TIMEOUT_MS, cfg.probeTimeoutMs);
+        assertEquals(HermesConfig.DEFAULT_VOICE_SERVICE_TIMEOUT_MS, cfg.voiceServiceTimeoutMs);
+        assertEquals(HermesConfig.DEFAULT_TTS_INIT_TIMEOUT_MS, cfg.ttsInitTimeoutMs);
+    }
+
+    @Test
+    public void constructorRejectsInsecureUrlsAndNonPositiveOperationalTimeouts() {
+        try {
+            new HermesConfig(1000, 1000, 1000, 1000, 1000, 500, 1024, 2048, 10, 10, 1,
+                    "owner/repo", "https://api.github.com", 1024, 1000,
+                    "http://github.com", "https://www.openstreetmap.org",
+                    1000, 500, 1, 1000, 1000, 1000);
+            fail("Expected rejection for non-HTTPS githubWebBaseUrl");
+        } catch (IllegalArgumentException expected) {
+            // ok
+        }
+        try {
+            new HermesConfig(1000, 1000, 1000, 1000, 1000, 500, 1024, 2048, 10, 10, 1,
+                    "owner/repo", "https://api.github.com", 1024, 1000,
+                    "https://github.com", "http://www.openstreetmap.org",
+                    1000, 500, 1, 1000, 1000, 1000);
+            fail("Expected rejection for non-HTTPS openStreetMapBaseUrl");
+        } catch (IllegalArgumentException expected) {
+            // ok
+        }
+        try {
+            new HermesConfig(1000, 1000, 1000, 1000, 1000, 500, 1024, 2048, 10, 10, 1,
+                    "owner/repo", "https://api.github.com", 1024, 1000,
+                    "https://github.com", "https://www.openstreetmap.org",
+                    0, 500, 1, 1000, 1000, 1000);
+            fail("Expected rejection for zero doctorCheckTimeoutMs");
+        } catch (IllegalArgumentException expected) {
+            // ok
+        }
     }
 
     @Test

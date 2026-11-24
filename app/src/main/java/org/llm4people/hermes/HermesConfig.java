@@ -20,8 +20,16 @@ public final class HermesConfig {
     public static final int DEFAULT_MAX_RECONNECTS = 5;
     public static final String DEFAULT_UPDATE_REPO = "LLM-4-People/hermes-mobile";
     public static final String DEFAULT_UPDATE_API_BASE = "https://api.github.com";
+    public static final String DEFAULT_GITHUB_WEB_BASE_URL = "https://github.com";
+    public static final String DEFAULT_OSM_BASE_URL = "https://www.openstreetmap.org";
     public static final long DEFAULT_UPDATE_MAX_APK_BYTES = 52_428_800L;
     public static final long DEFAULT_UPDATE_CHECK_INTERVAL_MS = 86_400_000L;
+    public static final int DEFAULT_DOCTOR_CHECK_TIMEOUT_MS = 10_000;
+    public static final int DEFAULT_SLOW_LATENCY_THRESHOLD_MS = 1_500;
+    public static final int DEFAULT_EXPECTED_FORK_CAPABILITIES = 10;
+    public static final int DEFAULT_PROBE_TIMEOUT_MS = 8_000;
+    public static final int DEFAULT_VOICE_SERVICE_TIMEOUT_MS = 15_000;
+    public static final int DEFAULT_TTS_INIT_TIMEOUT_MS = 4_000;
 
     private static final HermesConfig DEFAULTS = new HermesConfig(
             DEFAULT_HTTP_CONNECT_TIMEOUT_MS,
@@ -38,7 +46,15 @@ public final class HermesConfig {
             DEFAULT_UPDATE_REPO,
             DEFAULT_UPDATE_API_BASE,
             DEFAULT_UPDATE_MAX_APK_BYTES,
-            DEFAULT_UPDATE_CHECK_INTERVAL_MS);
+            DEFAULT_UPDATE_CHECK_INTERVAL_MS,
+            DEFAULT_GITHUB_WEB_BASE_URL,
+            DEFAULT_OSM_BASE_URL,
+            DEFAULT_DOCTOR_CHECK_TIMEOUT_MS,
+            DEFAULT_SLOW_LATENCY_THRESHOLD_MS,
+            DEFAULT_EXPECTED_FORK_CAPABILITIES,
+            DEFAULT_PROBE_TIMEOUT_MS,
+            DEFAULT_VOICE_SERVICE_TIMEOUT_MS,
+            DEFAULT_TTS_INIT_TIMEOUT_MS);
 
     public final int httpConnectTimeoutMs;
     public final int httpReadTimeoutMs;
@@ -55,6 +71,14 @@ public final class HermesConfig {
     public final String updateApiBase;
     public final long updateMaxApkBytes;
     public final long updateCheckIntervalMs;
+    public final String githubWebBaseUrl;
+    public final String openStreetMapBaseUrl;
+    public final int doctorCheckTimeoutMs;
+    public final int slowLatencyThresholdMs;
+    public final int expectedForkCapabilities;
+    public final int probeTimeoutMs;
+    public final int voiceServiceTimeoutMs;
+    public final int ttsInitTimeoutMs;
 
     public HermesConfig(int httpConnectTimeoutMs, int httpReadTimeoutMs, int httpJsonMaxBytes, int httpEventMaxBytes,
                         int nearbyTimeoutMs, int nearbyFusedGraceMs, long artifactDefaultMaxBytes,
@@ -70,6 +94,23 @@ public final class HermesConfig {
                         int nearbyTimeoutMs, int nearbyFusedGraceMs, long artifactDefaultMaxBytes,
                         long artifactHardMaxBytes, int diagnosticsRingCapacity, int threadPageSize, int maxReconnects,
                         String updateRepo, String updateApiBase, long updateMaxApkBytes, long updateCheckIntervalMs) {
+        this(httpConnectTimeoutMs, httpReadTimeoutMs, httpJsonMaxBytes, httpEventMaxBytes,
+                nearbyTimeoutMs, nearbyFusedGraceMs, artifactDefaultMaxBytes, artifactHardMaxBytes,
+                diagnosticsRingCapacity, threadPageSize, maxReconnects,
+                updateRepo, updateApiBase, updateMaxApkBytes, updateCheckIntervalMs,
+                DEFAULT_GITHUB_WEB_BASE_URL, DEFAULT_OSM_BASE_URL,
+                DEFAULT_DOCTOR_CHECK_TIMEOUT_MS, DEFAULT_SLOW_LATENCY_THRESHOLD_MS,
+                DEFAULT_EXPECTED_FORK_CAPABILITIES, DEFAULT_PROBE_TIMEOUT_MS,
+                DEFAULT_VOICE_SERVICE_TIMEOUT_MS, DEFAULT_TTS_INIT_TIMEOUT_MS);
+    }
+
+    public HermesConfig(int httpConnectTimeoutMs, int httpReadTimeoutMs, int httpJsonMaxBytes, int httpEventMaxBytes,
+                        int nearbyTimeoutMs, int nearbyFusedGraceMs, long artifactDefaultMaxBytes,
+                        long artifactHardMaxBytes, int diagnosticsRingCapacity, int threadPageSize, int maxReconnects,
+                        String updateRepo, String updateApiBase, long updateMaxApkBytes, long updateCheckIntervalMs,
+                        String githubWebBaseUrl, String openStreetMapBaseUrl, int doctorCheckTimeoutMs,
+                        int slowLatencyThresholdMs, int expectedForkCapabilities, int probeTimeoutMs,
+                        int voiceServiceTimeoutMs, int ttsInitTimeoutMs) {
         if (httpConnectTimeoutMs <= 0 || httpReadTimeoutMs <= 0 || httpJsonMaxBytes <= 0 || httpEventMaxBytes <= 0) {
             throw new IllegalArgumentException("HTTP bounds must be positive");
         }
@@ -84,11 +125,19 @@ public final class HermesConfig {
         }
         String cleanRepo = updateRepo == null ? "" : updateRepo.trim();
         String cleanApiBase = updateApiBase == null ? "" : updateApiBase.trim();
+        String cleanGithubWeb = githubWebBaseUrl == null ? "" : githubWebBaseUrl.trim();
+        String cleanOsmBase = openStreetMapBaseUrl == null ? "" : openStreetMapBaseUrl.trim();
         if (!cleanRepo.contains("/") || cleanApiBase.isEmpty() || !cleanApiBase.startsWith("https://")) {
             throw new IllegalArgumentException("Update repository and HTTPS API base must be valid");
         }
-        if (updateMaxApkBytes <= 0 || updateCheckIntervalMs <= 0) {
-            throw new IllegalArgumentException("Update bounds must be positive");
+        if (!cleanGithubWeb.startsWith("https://") || !cleanOsmBase.startsWith("https://")) {
+            throw new IllegalArgumentException("External base URLs must use HTTPS");
+        }
+        if (updateMaxApkBytes <= 0 || updateCheckIntervalMs <= 0
+                || doctorCheckTimeoutMs <= 0 || slowLatencyThresholdMs <= 0
+                || expectedForkCapabilities <= 0 || probeTimeoutMs <= 0
+                || voiceServiceTimeoutMs <= 0 || ttsInitTimeoutMs <= 0) {
+            throw new IllegalArgumentException("Operational timeouts and thresholds must be positive");
         }
         this.httpConnectTimeoutMs = httpConnectTimeoutMs;
         this.httpReadTimeoutMs = httpReadTimeoutMs;
@@ -102,10 +151,21 @@ public final class HermesConfig {
         this.threadPageSize = threadPageSize;
         this.maxReconnects = maxReconnects;
         this.updateRepo = cleanRepo;
-        this.updateApiBase = cleanApiBase.endsWith("/")
-                ? cleanApiBase.substring(0, cleanApiBase.length() - 1) : cleanApiBase;
+        this.updateApiBase = stripTrailingSlash(cleanApiBase);
         this.updateMaxApkBytes = updateMaxApkBytes;
         this.updateCheckIntervalMs = updateCheckIntervalMs;
+        this.githubWebBaseUrl = stripTrailingSlash(cleanGithubWeb);
+        this.openStreetMapBaseUrl = stripTrailingSlash(cleanOsmBase);
+        this.doctorCheckTimeoutMs = doctorCheckTimeoutMs;
+        this.slowLatencyThresholdMs = slowLatencyThresholdMs;
+        this.expectedForkCapabilities = expectedForkCapabilities;
+        this.probeTimeoutMs = probeTimeoutMs;
+        this.voiceServiceTimeoutMs = voiceServiceTimeoutMs;
+        this.ttsInitTimeoutMs = ttsInitTimeoutMs;
+    }
+
+    private static String stripTrailingSlash(String url) {
+        return url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
     }
 
     private record CacheSnapshot(Object key, HermesConfig config) {}
@@ -159,7 +219,15 @@ public final class HermesConfig {
                     res.getString(R.string.hermes_update_repo),
                     res.getString(R.string.hermes_update_api_base),
                     res.getInteger(R.integer.hermes_update_max_apk_bytes),
-                    res.getInteger(R.integer.hermes_update_check_interval_ms));
+                    res.getInteger(R.integer.hermes_update_check_interval_ms),
+                    res.getString(R.string.hermes_github_web_base_url),
+                    res.getString(R.string.hermes_osm_base_url),
+                    res.getInteger(R.integer.hermes_doctor_check_timeout_ms),
+                    res.getInteger(R.integer.hermes_slow_latency_threshold_ms),
+                    res.getInteger(R.integer.hermes_expected_fork_capabilities),
+                    res.getInteger(R.integer.hermes_probe_timeout_ms),
+                    res.getInteger(R.integer.hermes_voice_service_timeout_ms),
+                    res.getInteger(R.integer.hermes_tts_init_timeout_ms));
         });
     }
 

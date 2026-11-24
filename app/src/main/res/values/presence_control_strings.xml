@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="fr">
     <!-- Route & panel chrome -->
     <string name="presence_route_label">Présence &amp; apparence</string>
     <string name="presence_route_hint">Partage optionnel, position continue, personnalisation</string>

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="fr">
     <string name="update_route_label">Mises à jour de l’application</string>
     <string name="update_route_hint">Vérifier et installer une version publiée sur GitHub</string>
     <string name="update_panel_title">Mises à jour</string>

@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
     <string name="transcript_page">Page %1$d</string>
     <string name="transcript_previous">Previous</string>
     <string name="transcript_next">Next</string>

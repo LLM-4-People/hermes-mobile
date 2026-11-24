@@ -467,12 +467,10 @@ public final class ActiveRunTracker {
     }
 
     private static void logEvent(String event) {
-        try { Diagnostics.event("multi_run", event); }
-        catch (RuntimeException unmockedHostJvm) {}
+        Diagnostics.event("multi_run", event);
     }
 
     private static void logWarning(String warning) {
-        try { Diagnostics.warning("multi_run", warning); }
-        catch (RuntimeException unmockedHostJvm) {}
+        Diagnostics.warning("multi_run", warning);
     }
 }

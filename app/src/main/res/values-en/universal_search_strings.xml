@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
     <!-- Universal Search overlay -->
     <string name="universal_search_title">Search everywhere</string>
     <string name="universal_search_hint">Search chats, notes, shared items, settings…</string>

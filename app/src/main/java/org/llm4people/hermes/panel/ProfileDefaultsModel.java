@@ -103,6 +103,10 @@ public final class ProfileDefaultsModel {
         saved = currentSnapshot();
     }
 
+    public void markSaved(Snapshot committed) {
+        if (committed != null) saved = committed;
+    }
+
     public String selectedProvider() { return selectedProvider; }
     public String selectedModel() { return selectedModel; }
     public String reasoningEffort() { return selectedEffort; }
