@@ -2,6 +2,7 @@ package org.llm4people.hermes;
 
 import android.content.Context;
 import android.content.res.Configuration;
+import android.os.LocaleList;
 import android.test.InstrumentationTestCase;
 
 import org.json.JSONObject;
@@ -46,6 +47,28 @@ public final class AppLanguageResourcesTest extends InstrumentationTestCase {
         assertEquals("3 ready-to-use templates", en.getResources().getQuantityString(R.plurals.hub_apps_templates_count, 3, 3));
         assertEquals("1 needs attention", en.getResources().getQuantityString(R.plurals.hub_reminders_attention_pill, 1, 1));
         assertEquals("2 need attention", en.getResources().getQuantityString(R.plurals.hub_reminders_attention_pill, 2, 2));
+    }
+
+    public void testLocaleListResolutionPrefersExplicitFrenchOverEnglishFallback() {
+        Context base = getInstrumentation().getTargetContext();
+
+        Context frFrThenEnUs = localizedList(base, "fr-FR,en-US");
+        assertEquals("Envoyer", frFrThenEnUs.getString(R.string.thread_send));
+        assertEquals("12 caractères minimum",
+                frFrThenEnUs.getResources().getQuantityString(R.plurals.profile_passphrase_hint, 12, 12));
+
+        Context frThenEnUs = localizedList(base, "fr,en-US");
+        assertEquals("Envoyer", frThenEnUs.getString(R.string.thread_send));
+        assertEquals("12 caractères minimum",
+                frThenEnUs.getResources().getQuantityString(R.plurals.profile_passphrase_hint, 12, 12));
+
+        Context enUsThenFrFr = localizedList(base, "en-US,fr-FR");
+        assertEquals("Send", enUsThenFrFr.getString(R.string.thread_send));
+        assertEquals("At least 12 characters",
+                enUsThenFrFr.getResources().getQuantityString(R.plurals.profile_passphrase_hint, 12, 12));
+
+        Context esEsFallback = localizedList(base, "es-ES");
+        assertEquals("Envoyer", esEsFallback.getString(R.string.thread_send));
     }
 
     public void testModeSwitchingUpdatesAcceptLanguageAndCapabilityGatedProfileSync() throws Exception {
@@ -107,6 +130,12 @@ public final class AppLanguageResourcesTest extends InstrumentationTestCase {
     private static Context localized(Context base, Locale locale) {
         Configuration config = new Configuration(base.getResources().getConfiguration());
         config.setLocale(locale);
+        return base.createConfigurationContext(config);
+    }
+
+    private static Context localizedList(Context base, String languageTags) {
+        Configuration config = new Configuration(base.getResources().getConfiguration());
+        config.setLocales(LocaleList.forLanguageTags(languageTags));
         return base.createConfigurationContext(config);
     }
 }
