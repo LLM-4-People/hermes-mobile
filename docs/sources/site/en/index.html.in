@@ -88,7 +88,7 @@
         <div class="facts-grid">
           <div class="fact-card">
             <strong>{{ release_apk_size_en }}</strong>
-            <span>Signed release APK size with R8 shrinking and Cosign attestation</span>
+            <span>Signed release APK size with R8 shrinking and GitHub build provenance attestation</span>
           </div>
           <div class="fact-card">
             <strong>{{ expected_fork_capabilities }} / {{ expected_fork_capabilities }}</strong>

@@ -145,11 +145,16 @@ public final class MultiRunAndProfileSecurityTest extends InstrumentationTestCas
         contains.setAccessible(true);
 
         String uniqueSuffix = Long.toHexString(System.nanoTime());
-        Account alice = (Account) create.invoke(store, "Alice-" + uniqueSuffix, "https://alice.example/p/a",
-                "alice-token-secret", "alice-passphrase-1234".toCharArray());
-        Account bob = (Account) create.invoke(store, "Bob-" + uniqueSuffix, "https://bob.example/p/b",
-                "bob-token-secret", "bob-passphrase-1234".toCharArray());
+        Account alice = null;
+        Account bob = null;
+        String textReceipt = null;
+        String mediaReceipt = null;
         try {
+            alice = (Account) create.invoke(store, "Alice-" + uniqueSuffix, "https://alice.example/p/a",
+                    "alice-token-secret", "alice-passphrase-1234".toCharArray());
+            bob = (Account) create.invoke(store, "Bob-" + uniqueSuffix, "https://bob.example/p/b",
+                    "bob-token-secret", "bob-passphrase-1234".toCharArray());
+
             // Seed every store for Alice (vault, grace policy, backoff, widget, incoming text & media shares).
             alice.write("secret-note", "confidential-alice");
             LockGracePolicy.setWindow(context, alice.id, LockGracePolicy.Window.MINUTES_5);
@@ -169,12 +174,14 @@ public final class MultiRunAndProfileSecurityTest extends InstrumentationTestCas
             widgets.upsertSpec(new HermesWidgetSpec(bobWid, "Bob Widget", "", HermesWidgetSpec.Template.STATUS,
                     Collections.emptyList(), null, true, bob.id), bob.id);
 
-            String textReceipt = IncomingShare.create(context, "Alice private share");
-            if (textReceipt != null) IncomingShare.open(context, textReceipt, alice);
-            String mediaReceipt = IncomingMediaShare.create(context, Collections.singletonList(
+            textReceipt = IncomingShare.create(context, "Alice private share");
+            assertNotNull("Expected text share receipt", textReceipt);
+            IncomingShare.open(context, textReceipt, alice);
+            mediaReceipt = IncomingMediaShare.create(context, Collections.singletonList(
                     new CapturedMedia.Item(CapturedMedia.Kind.DOCUMENT, "doc.txt", "text/plain",
                             "hello".getBytes(StandardCharsets.UTF_8), "deadbeef", null)));
-            if (mediaReceipt != null) IncomingMediaShare.open(context, mediaReceipt, alice);
+            assertNotNull("Expected media share receipt", mediaReceipt);
+            IncomingMediaShare.open(context, mediaReceipt, alice);
 
             alice.close();
             forget.invoke(store, alice.id);
@@ -185,15 +192,21 @@ public final class MultiRunAndProfileSecurityTest extends InstrumentationTestCas
             assertEquals(0L, UnlockBackoff.forContext(context).remainingMs(alice.id));
             assertEquals(0, UnlockBackoff.forContext(context).failureCount(alice.id));
             assertNull(widgets.spec(aliceWid));
-            if (textReceipt != null) assertNull(IncomingShare.owner(context, textReceipt));
-            if (mediaReceipt != null) assertNull(IncomingMediaShare.owner(context, mediaReceipt));
+            assertNull(IncomingShare.owner(context, textReceipt));
+            assertNull(IncomingMediaShare.owner(context, mediaReceipt));
 
             // Bob's profile & widget remain completely intact.
             assertTrue((Boolean) contains.invoke(store, bob.id));
             assertNotNull(widgets.spec(bobWid));
         } finally {
-            bob.close();
-            forget.invoke(store, bob.id);
+            if (textReceipt != null) IncomingShare.discard(context, textReceipt);
+            if (mediaReceipt != null) IncomingMediaShare.discard(context, mediaReceipt);
+            if (alice != null) {
+                try { alice.close(); } finally { forget.invoke(store, alice.id); }
+            }
+            if (bob != null) {
+                try { bob.close(); } finally { forget.invoke(store, bob.id); }
+            }
         }
     }
 }

@@ -88,7 +88,7 @@
         <div class="facts-grid">
           <div class="fact-card">
             <strong>~{{ release_apk_size_fr }}</strong>
-            <span>Taille de l’APK signé avec compactage R8 et attestation Cosign</span>
+            <span>Taille de l’APK signé avec compactage R8 et attestation de provenance GitHub</span>
           </div>
           <div class="fact-card">
             <strong>{{ expected_fork_capabilities }} / {{ expected_fork_capabilities }}</strong>

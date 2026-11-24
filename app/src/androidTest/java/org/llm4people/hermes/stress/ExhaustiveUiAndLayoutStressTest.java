@@ -47,6 +47,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 /**
@@ -202,22 +203,35 @@ public final class ExhaustiveUiAndLayoutStressTest extends InstrumentationTestCa
                 new HttpReply("500 Internal Server Error", "{\"error\":{\"code\":\"server_boom\"}}"));
              WorkspaceAccountFixture profile = new WorkspaceAccountFixture(app, failing.endpoint())) {
             SessionPanel panel = new SessionPanel(activity, new HermesApi(failing.endpoint(), "test"), profile.account);
-            runTestOnUiThread(() -> {
-                panel.showMemory(null);
-                panel.showNotes(() -> true, d -> {}, null);
-                panel.showGlobalSearch(id -> {}, null);
-                panel.showSkillStudio(() -> true, d -> {}, null);
-                panel.showWorkspaceFiles("s1", () -> true, d -> {}, null);
-                panel.showProfileDefaults(null);
-                panel.showStats(null, null);
-                panel.showReminders();
-                // Simulate immediate profile lock mid-flight while multiple worker tasks are active.
-                panel.close();
-            });
-            getInstrumentation().waitForIdleSync();
-            waitForCondition(() -> !activity.isFinishing(), 2_000L);
-            runTestOnUiThread(() -> assertFalse("Activity must stay healthy after lock-mid-action",
-                    activity.isFinishing()));
+            try {
+                runTestOnUiThread(() -> {
+                    panel.showMemory(null);
+                    panel.showNotes(() -> true, d -> {}, null);
+                    panel.showGlobalSearch(id -> {}, null);
+                    panel.showSkillStudio(() -> true, d -> {}, null);
+                    panel.showWorkspaceFiles("s1", () -> true, d -> {}, null);
+                    panel.showProfileDefaults(null);
+                    panel.showStats(null, null);
+                    panel.showReminders();
+                });
+                waitForCondition(() -> failing.handledRequests() >= 8, 8_000L);
+                getInstrumentation().waitForIdleSync();
+                // Simulate immediate profile lock mid-flight while a fresh worker request is active.
+                runTestOnUiThread(() -> {
+                    panel.showMemory(null);
+                    panel.close();
+                });
+                getInstrumentation().waitForIdleSync();
+                waitForCondition(() -> shownOtherWindowsOnUi(activity) == 0, 5_000L);
+                runTestOnUiThread(() -> {
+                    assertFalse("Activity must stay healthy after error burst and lock-mid-action",
+                            activity.isFinishing());
+                    assertEquals("No leaked dialog windows may remain after panel.close()",
+                            0, shownOtherWindows(activity));
+                });
+            } finally {
+                runTestOnUiThread(panel::close);
+            }
         } finally {
             finishMain(activity);
         }
@@ -486,6 +500,25 @@ public final class ExhaustiveUiAndLayoutStressTest extends InstrumentationTestCa
         return null;
     }
 
+    private static int shownOtherWindows(Activity activity) {
+        View decor = activity.getWindow().getDecorView();
+        int count = 0;
+        for (View w : WindowInspector.getGlobalWindowViews()) {
+            if (w != decor && w.isShown()) count++;
+        }
+        return count;
+    }
+
+    private int shownOtherWindowsOnUi(Activity activity) {
+        int[] count = new int[1];
+        try {
+            runTestOnUiThread(() -> count[0] = shownOtherWindows(activity));
+        } catch (Throwable error) {
+            throw new AssertionError("Failed to inspect windows on UI thread", error);
+        }
+        return count[0];
+    }
+
     private static boolean containsText(View v, String expected) {
         if (v == null || v.getVisibility() != View.VISIBLE) return false;
         if (v instanceof TextView tv && tv.getText() != null && tv.getText().toString().contains(expected)) {
@@ -664,6 +697,7 @@ public final class ExhaustiveUiAndLayoutStressTest extends InstrumentationTestCa
             t.setDaemon(true);
             return t;
         });
+        private final AtomicInteger handledCount = new AtomicInteger();
         private volatile boolean closed;
 
         DynamicLoopbackServer(Function<String, HttpReply> router) throws IOException {
@@ -717,8 +751,13 @@ public final class ExhaustiveUiAndLayoutStressTest extends InstrumentationTestCa
                 out.write(head.getBytes(StandardCharsets.US_ASCII));
                 out.write(payload);
                 out.flush();
+                handledCount.incrementAndGet();
             } catch (IOException ignored) {
             }
+        }
+
+        int handledRequests() {
+            return handledCount.get();
         }
 
         String endpoint() {

@@ -26,7 +26,7 @@ public final class WorkspaceOverflowTest extends InstrumentationTestCase {
                 activity.setContentView(holder[0].root);
                 holder[0].selected("A", "Première discussion");
             });
-            getInstrumentation().waitForIdleSync();
+            NavShellTestWait.waitUntilOverflowAttached(this, activity, holder[0]);
             runTestOnUiThread(() -> {
                 WorkspaceShell shell = holder[0];
                 Menu original = open(shell);

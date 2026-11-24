@@ -1,7 +1,6 @@
 package org.llm4people.hermes;
 
 import android.content.Context;
-import android.os.SystemClock;
 import android.test.InstrumentationTestCase;
 import android.view.Menu;
 import android.view.View;
@@ -115,28 +114,7 @@ public final class AdaptiveNavShellTest extends InstrumentationTestCase {
                 shell.show(new View(activity), null);
                 shell.selected("t1", "Fil courant");
             });
-            getInstrumentation().waitForIdleSync();
-            long deadline = SystemClock.elapsedRealtime() + 5000L;
-            boolean attached = false;
-            while (SystemClock.elapsedRealtime() < deadline) {
-                boolean[] ready = new boolean[1];
-                runTestOnUiThread(() -> {
-                    WorkspaceShell shell = holder[0];
-                    ArrayList<View> more = new ArrayList<>();
-                    shell.root.findViewsWithText(more, activity.getString(R.string.ws_more_actions),
-                            View.FIND_VIEWS_WITH_CONTENT_DESCRIPTION);
-                    ready[0] = more.size() == 1
-                            && more.get(0).getVisibility() == View.VISIBLE
-                            && more.get(0).isAttachedToWindow();
-                });
-                if (ready[0]) {
-                    attached = true;
-                    break;
-                }
-                SystemClock.sleep(50L);
-                getInstrumentation().waitForIdleSync();
-            }
-            assertTrue("More overflow button did not attach visibly within 5s", attached);
+            NavShellTestWait.waitUntilOverflowAttached(this, activity, holder[0]);
             runTestOnUiThread(() -> {
                 WorkspaceShell shell = holder[0];
                 ArrayList<View> more = new ArrayList<>();
