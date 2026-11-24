@@ -1,6 +1,9 @@
 package org.llm4people.hermes.presence;
 
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
+import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.ambient.AmbientAccessPanel;
 import org.llm4people.hermes.customization.AppCustomizationStore;
 import org.llm4people.hermes.doctor.ConnectionDoctorPanel;
@@ -10,16 +13,31 @@ import org.llm4people.hermes.settings.AppearanceSettingsPanel;
 import org.llm4people.hermes.templates.TemplatesPanel;
 import org.llm4people.hermes.update.UpdatePanel;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public final class DeepAndroidActionsNavigateTest {
+    @Before
+    public void setUpDiagnostics() {
+        Diagnostics.clear();
+        Diagnostics.setSink((level, tag, message) -> {});
+    }
+
+    @After
+    public void tearDownDiagnostics() {
+        Diagnostics.clear();
+        Diagnostics.setSink(null);
+    }
+
     private static final class MemoryBacking implements AppCustomizationStore.Backing {
         String stored;
         @Override public String read() { return stored; }
@@ -127,9 +145,60 @@ public final class DeepAndroidActionsNavigateTest {
                 "https://example.com/a\nb",
                 "",
                 "   ")) {
-            org.junit.Assert.assertFalse("Expected rejection for deep link: " + bad,
+            assertFalse("Expected rejection for deep link: " + bad,
                     DeepAndroidActions.isAllowedDeepLink(bad));
         }
-        org.junit.Assert.assertFalse(DeepAndroidActions.isAllowedDeepLink(null));
+        assertFalse(DeepAndroidActions.isAllowedDeepLink(null));
+    }
+
+    @Test
+    public void androidSetTimerSaturatesOverflowAndRejectsNonFiniteOrInvalidDurations() {
+        AtomicInteger observedSeconds = new AtomicInteger(-1);
+        DeepAndroidActions actions = new DeepAndroidActions(
+                new AppPresenceTracker(),
+                new ContinuousLocationTracker(),
+                new AppCustomizationStore(new MemoryBacking()),
+                new DeepAndroidActions.NudgeRateLimiter(),
+                new DeepAndroidActions.HostBridge() {
+                    @Override public boolean setTimer(int durationSeconds, String label) {
+                        observedSeconds.set(durationSeconds);
+                        return true;
+                    }
+                });
+
+        PresencePolicy policy = PresencePolicy.defaults();
+        PushPolicy push = PushPolicy.defaults();
+        long now = 1_000_000L;
+
+        // 64-bit overflow (1L << 32) + 60 previously wrapped to 60; must saturate and fail range check.
+        DeepAndroidActions.Result overflow = actions.execute(
+                "android_set_timer", Map.of("duration_seconds", (1L << 32) + 60L),
+                policy, push, true, now, 600);
+        assertEquals(DeepAndroidActions.Status.REJECTED_INVALID_PARAMS, overflow.status());
+        assertEquals("timer_duration_out_of_range", overflow.reasonCode());
+
+        DeepAndroidActions.Result underflow = actions.execute(
+                "android_set_timer", Map.of("duration_seconds", -4_294_967_200L),
+                policy, push, true, now, 600);
+        assertEquals(DeepAndroidActions.Status.REJECTED_INVALID_PARAMS, underflow.status());
+        assertEquals("timer_duration_out_of_range", underflow.reasonCode());
+
+        // Non-finite numbers and non-Number inputs must be rejected as invalid_timer_duration.
+        for (Object invalid : new Object[]{Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, "60", null}) {
+            Map<String, Object> params = new LinkedHashMap<>();
+            params.put("duration_seconds", invalid);
+            DeepAndroidActions.Result res = actions.execute(
+                    "android_set_timer", params, policy, push, true, now, 600);
+            assertEquals(DeepAndroidActions.Status.REJECTED_INVALID_PARAMS, res.status());
+            assertEquals("invalid_timer_duration", res.reasonCode());
+        }
+        assertEquals(-1, observedSeconds.get());
+
+        // Valid timer duration executes cleanly.
+        DeepAndroidActions.Result ok = actions.execute(
+                "android_set_timer", Map.of("duration_seconds", 60, "label", "Tea"),
+                policy, push, true, now, 600);
+        assertTrue(ok.ok());
+        assertEquals(60, observedSeconds.get());
     }
 }

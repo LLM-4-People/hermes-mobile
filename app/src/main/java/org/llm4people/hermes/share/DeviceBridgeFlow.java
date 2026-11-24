@@ -260,6 +260,11 @@ public final class DeviceBridgeFlow {
         return resolveCalendarDays(ahead, legacy);
     }
 
+    static int resolveNotificationDigestLimit(JSONObject params) {
+        int raw = params == null ? 20 : JsonValues.parseInt(params.opt("limit"), 20);
+        return Math.max(1, Math.min(raw, 40));
+    }
+
     private static NotificationAllowlist.Settings liveSettings(Account account) {
         if (account == null) return null;
         try {
@@ -448,7 +453,7 @@ public final class DeviceBridgeFlow {
                         callback.finish(Status.UNAVAILABLE, null);
                         return;
                     }
-                    int limit = Math.max(1, Math.min(request.params().optInt("limit", 20), 40));
+                    int limit = resolveNotificationDigestLimit(request.params());
                     List<AmbientNotification> snapshot = HermesNotificationListener.snapshot();
                     JSONArray items = new JSONArray();
                     try {
