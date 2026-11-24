@@ -8,6 +8,8 @@ import java.util.Set;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
@@ -125,5 +127,34 @@ public final class NotificationAllowlistTest {
         assertTrue(reconciled.calendarEnabled());
         assertFalse(reconciled.contactsEnabled());
         assertFalse(reconciled.deviceContextEnabled());
+    }
+
+    @Test
+    public void ambientPanelSafeStoreHelpersFailClosedWhenAccountStoreCloses() {
+        MemoryStore openStore = new MemoryStore();
+        NotificationAllowlist openAllowlist = NotificationAllowlist.forStore(openStore);
+        assertNotNull(AmbientAccessPanel.readSettingsSafely(openAllowlist));
+        assertTrue(AmbientAccessPanel.saveSettingsSafely(
+                openAllowlist, new NotificationAllowlist.Settings(true, false, false, false, false)));
+        openAllowlist.setAllowed("org.thoughtcrime.securesms", true);
+        assertEquals(Set.of("org.thoughtcrime.securesms"),
+                AmbientAccessPanel.readAllowedPackagesSafely(openAllowlist));
+        assertEquals(Set.of("org.thoughtcrime.securesms"),
+                AmbientAccessPanel.readEffectiveAllowedPackagesSafely(openAllowlist));
+
+        // Simulate Account.close() throwing IllegalStateException on read/write.
+        NotificationAllowlist closedAllowlist = NotificationAllowlist.forStore(new NotificationAllowlist.Store() {
+            @Override public String read(String key) { throw new IllegalStateException("Account closed"); }
+            @Override public void write(String key, String value) { throw new IllegalStateException("Account closed"); }
+            @Override public void remove(String key) { throw new IllegalStateException("Account closed"); }
+        });
+        assertNull(AmbientAccessPanel.readSettingsSafely(closedAllowlist));
+        assertNull(AmbientAccessPanel.readAllowedPackagesSafely(closedAllowlist));
+        assertNull(AmbientAccessPanel.readEffectiveAllowedPackagesSafely(closedAllowlist));
+        assertFalse(AmbientAccessPanel.saveSettingsSafely(closedAllowlist, NotificationAllowlist.Settings.ALL_OFF));
+        assertNull(AmbientAccessPanel.readSettingsSafely(null));
+        assertNull(AmbientAccessPanel.readAllowedPackagesSafely(null));
+        assertNull(AmbientAccessPanel.readEffectiveAllowedPackagesSafely(null));
+        assertFalse(AmbientAccessPanel.saveSettingsSafely(null, NotificationAllowlist.Settings.ALL_OFF));
     }
 }

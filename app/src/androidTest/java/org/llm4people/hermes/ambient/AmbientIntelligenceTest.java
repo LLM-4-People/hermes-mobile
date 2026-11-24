@@ -88,6 +88,20 @@ public final class AmbientIntelligenceTest extends InstrumentationTestCase {
                 revokedDialog.getButton(AlertDialog.BUTTON_POSITIVE).performClick();
 
                 panel.dismissDialogs();
+                panel.close();
+
+                // Closed encrypted profile store must never crash AmbientAccessPanel buildView or refreshAll.
+                NotificationAllowlist closedStoreAllowlist = NotificationAllowlist.forStore(new NotificationAllowlist.Store() {
+                    @Override public String read(String key) { throw new IllegalStateException("Profile closed"); }
+                    @Override public void write(String key, String value) { throw new IllegalStateException("Profile closed"); }
+                    @Override public void remove(String key) { throw new IllegalStateException("Profile closed"); }
+                });
+                AmbientAccessPanel closedPanel = new AmbientAccessPanel(activity, closedStoreAllowlist, text -> {});
+                View closedRoot = closedPanel.buildView();
+                assertNotNull(closedRoot);
+                closedPanel.refreshAll();
+                closedPanel.close();
+
                 HermesNotificationListener.clearSession();
                 assertTrue(HermesNotificationListener.snapshot().isEmpty());
             });

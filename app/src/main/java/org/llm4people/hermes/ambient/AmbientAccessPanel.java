@@ -39,8 +39,10 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 /**
@@ -104,6 +106,7 @@ public final class AmbientAccessPanel {
     }
     private List<AppEntry> installedApps;
     private Future<?> appLoadTask;
+    private final AtomicInteger appLoadGeneration = new AtomicInteger();
     private boolean loadingApps;
     private volatile boolean closed;
     private LinearLayout allowlistContainer;
@@ -228,11 +231,60 @@ public final class AmbientAccessPanel {
     }
 
     private void cancelAppLoad() {
+        appLoadGeneration.incrementAndGet();
         Future<?> task = appLoadTask;
         appLoadTask = null;
         if (task != null) task.cancel(true);
         loadingApps = false;
         main.removeCallbacksAndMessages(null);
+    }
+
+    /** Fail-closed read of settings when the underlying encrypted profile may already be closed. */
+    static NotificationAllowlist.Settings readSettingsSafely(NotificationAllowlist allowlist) {
+        if (allowlist == null) return null;
+        try {
+            return allowlist.settings();
+        } catch (IllegalStateException closedStore) {
+            return null;
+        }
+    }
+
+    /** Fail-closed read of allowed packages when the underlying encrypted profile may already be closed. */
+    static Set<String> readAllowedPackagesSafely(NotificationAllowlist allowlist) {
+        if (allowlist == null) return null;
+        try {
+            return allowlist.allowedPackages();
+        } catch (IllegalStateException closedStore) {
+            return null;
+        }
+    }
+
+    /** Fail-closed read of effective allowed packages when the underlying encrypted profile may already be closed. */
+    static Set<String> readEffectiveAllowedPackagesSafely(NotificationAllowlist allowlist) {
+        if (allowlist == null) return null;
+        try {
+            return allowlist.effectiveAllowedPackages();
+        } catch (IllegalStateException closedStore) {
+            return null;
+        }
+    }
+
+    /** Fail-closed persistence when the underlying encrypted profile may already be closed. */
+    static boolean saveSettingsSafely(NotificationAllowlist allowlist, NotificationAllowlist.Settings next) {
+        if (allowlist == null || next == null) return false;
+        try {
+            allowlist.saveSettings(next);
+            return true;
+        } catch (IllegalStateException closedStore) {
+            return false;
+        }
+    }
+
+    private void onStoreClosed() {
+        if (!closed) {
+            Diagnostics.debug("ambient", "panel_store_closed");
+            close();
+        }
     }
 
     private void trackDialog(AlertDialog dialog) {
@@ -247,19 +299,30 @@ public final class AmbientAccessPanel {
 
     /** Refresh status badge, toggles, media card, and live notification digest (e.g. on Activity resume). */
     public void refreshAll() {
-        NotificationAllowlist.Settings saved = allowlist.settings();
+        if (closed) return;
+        NotificationAllowlist.Settings saved = readSettingsSafely(allowlist);
+        if (saved == null) {
+            onStoreClosed();
+            return;
+        }
         NotificationAllowlist.Settings current = reconcilePermissions(
                 saved,
                 CalendarContextReader.hasPermission(activity));
-        if (!current.equals(saved)) {
-            allowlist.saveSettings(current);
+        if (!current.equals(saved) && !saveSettingsSafely(allowlist, current)) {
+            onStoreClosed();
+            return;
         }
         if (pendingDenialKey != null
                 && PermissionCenter.state(activity, pendingDenialKey) == PermissionCenter.State.GRANTED) {
             clearFeedback();
         }
         syncSwitches(current);
-        HermesNotificationListener.bindProfile(allowlist.effectiveAllowedPackages());
+        Set<String> effective = readEffectiveAllowedPackagesSafely(allowlist);
+        if (effective == null) {
+            onStoreClosed();
+            return;
+        }
+        HermesNotificationListener.bindProfile(effective);
         updateStatusBadge(current);
         renderAllowlist();
         renderMedia(current);
@@ -289,22 +352,30 @@ public final class AmbientAccessPanel {
 
     /** Handle Calendar runtime permission outcomes with fail-closed persistence and 1-tap recovery. */
     public void onPermissionResult(int requestCode, String[] permissions, int[] results) {
-        if (requestCode != REQUEST_READ_CALENDAR) return;
+        if (closed || requestCode != REQUEST_READ_CALENDAR) return;
         PermissionCenter.recordCompletedPrompt(activity, PermissionCenter.Key.CALENDAR, results);
         boolean granted = PermissionCenter.isCompletedResult(results)
                 && results[0] == PackageManager.PERMISSION_GRANTED
                 && CalendarContextReader.hasPermission(activity);
         saveCalendarSetting(granted);
+        if (closed) return;
         handleRuntimePermissionOutcome(PermissionCenter.Key.CALENDAR, Manifest.permission.READ_CALENDAR,
                 REQUEST_READ_CALENDAR, R.string.perm_ambient_calendar_denied, granted);
         refreshAll();
     }
 
     private void saveCalendarSetting(boolean enabled) {
-        NotificationAllowlist.Settings cur = allowlist.settings();
+        if (closed) return;
+        NotificationAllowlist.Settings cur = readSettingsSafely(allowlist);
+        if (cur == null) {
+            onStoreClosed();
+            return;
+        }
         if (cur.calendarEnabled() == enabled && !cur.contactsEnabled() && !cur.deviceContextEnabled()) return;
-        allowlist.saveSettings(new NotificationAllowlist.Settings(
-                cur.notificationsEnabled(), cur.mediaEnabled(), enabled, false, false));
+        if (!saveSettingsSafely(allowlist, new NotificationAllowlist.Settings(
+                cur.notificationsEnabled(), cur.mediaEnabled(), enabled, false, false))) {
+            onStoreClosed();
+        }
     }
 
     private void handleRuntimePermissionOutcome(
@@ -365,21 +436,31 @@ public final class AmbientAccessPanel {
 
     private void buildTogglesSection(LinearLayout body) {
         addSectionHeader(body, R.string.ambient_section_toggles, 0);
-        NotificationAllowlist.Settings initial = allowlist.settings();
+        NotificationAllowlist.Settings initial = readSettingsSafely(allowlist);
+        if (initial == null) {
+            onStoreClosed();
+            initial = NotificationAllowlist.Settings.ALL_OFF;
+        }
         LinearLayout card = Ui.card(activity);
 
         notificationsSwitch = addSwitch(card, false, R.string.ambient_toggle_notifications, initial.notificationsEnabled(), checked -> {
             if (!checked) dismissDialogs();
-            NotificationAllowlist.Settings cur = allowlist.settings();
-            allowlist.saveSettings(new NotificationAllowlist.Settings(
-                    checked, cur.mediaEnabled(), cur.calendarEnabled(), false, false));
+            NotificationAllowlist.Settings cur = readSettingsSafely(allowlist);
+            if (cur == null || !saveSettingsSafely(allowlist, new NotificationAllowlist.Settings(
+                    checked, cur.mediaEnabled(), cur.calendarEnabled(), false, false))) {
+                onStoreClosed();
+                return;
+            }
             refreshAll();
         });
         mediaSwitch = addSwitch(card, true, R.string.ambient_toggle_media, initial.mediaEnabled(), checked -> {
             if (!checked) dismissDialogs();
-            NotificationAllowlist.Settings cur = allowlist.settings();
-            allowlist.saveSettings(new NotificationAllowlist.Settings(
-                    cur.notificationsEnabled(), checked, cur.calendarEnabled(), false, false));
+            NotificationAllowlist.Settings cur = readSettingsSafely(allowlist);
+            if (cur == null || !saveSettingsSafely(allowlist, new NotificationAllowlist.Settings(
+                    cur.notificationsEnabled(), checked, cur.calendarEnabled(), false, false))) {
+                onStoreClosed();
+                return;
+            }
             refreshAll();
         });
         calendarSwitch = addSwitch(card, true, R.string.ambient_toggle_calendar, initial.calendarEnabled(), checked -> {
@@ -481,7 +562,7 @@ public final class AmbientAccessPanel {
     }
 
     private void renderAllowlist() {
-        if (allowlistContainer == null) return;
+        if (closed || allowlistContainer == null) return;
         allowlistContainer.removeAllViews();
         if (installedApps == null) {
             allowlistContainer.addView(mutedNote(activity.getString(R.string.ambient_allowlist_loading)));
@@ -493,7 +574,11 @@ public final class AmbientAccessPanel {
             allowlistContainer.addView(mutedNote(activity.getString(R.string.ambient_allowlist_empty)));
             return;
         }
-        Set<String> allowed = allowlist.allowedPackages();
+        Set<String> allowed = readAllowedPackagesSafely(allowlist);
+        if (allowed == null) {
+            onStoreClosed();
+            return;
+        }
         int limit = Math.min(visible.size(), 40);
         for (int i = 0; i < limit; i++) {
             if (i > 0) {
@@ -510,13 +595,21 @@ public final class AmbientAccessPanel {
             toggle.setMinHeight(Ui.dp(activity, 48));
             toggle.setChecked(allowed.contains(app.packageName()));
             toggle.setOnCheckedChangeListener((btn, checked) -> {
+                if (closed || binding) return;
                 try {
                     allowlist.setAllowed(app.packageName(), checked);
                     HermesNotificationListener.bindProfile(allowlist.effectiveAllowedPackages());
                     renderDigest();
-                } catch (IllegalArgumentException | IllegalStateException ex) {
+                } catch (IllegalStateException closedStore) {
+                    onStoreClosed();
+                } catch (IllegalArgumentException ex) {
                     Diagnostics.warning("ambient", "allowlist_toggle_failed", ex);
-                    btn.setChecked(!checked);
+                    binding = true;
+                    try {
+                        btn.setChecked(!checked);
+                    } finally {
+                        binding = false;
+                    }
                 }
             });
             allowlistContainer.addView(toggle, new LinearLayout.LayoutParams(-1, -2));
@@ -524,19 +617,25 @@ public final class AmbientAccessPanel {
     }
 
     private void startLoadLaunchableAppsIfNeeded() {
-        if (closed || loadingApps || installedApps != null) return;
+        if (closed || loadingApps || installedApps != null || appLoader.isShutdown()) return;
         loadingApps = true;
-        appLoadTask = appLoader.submit(() -> {
-            List<AppEntry> loaded = loadLaunchableApps();
-            if (Thread.currentThread().isInterrupted() || closed) return;
-            main.post(() -> {
-                loadingApps = false;
-                appLoadTask = null;
-                if (closed || activity.isFinishing() || activity.isDestroyed()) return;
-                installedApps = loaded;
-                renderAllowlist();
+        int gen = appLoadGeneration.incrementAndGet();
+        try {
+            appLoadTask = appLoader.submit(() -> {
+                List<AppEntry> loaded = loadLaunchableApps();
+                if (Thread.currentThread().isInterrupted() || closed || gen != appLoadGeneration.get()) return;
+                main.post(() -> {
+                    if (gen != appLoadGeneration.get()) return;
+                    loadingApps = false;
+                    appLoadTask = null;
+                    if (closed || activity.isFinishing() || activity.isDestroyed()) return;
+                    installedApps = loaded;
+                    renderAllowlist();
+                });
             });
-        });
+        } catch (RejectedExecutionException rejected) {
+            loadingApps = false;
+        }
     }
 
     private void renderMedia(NotificationAllowlist.Settings settings) {
@@ -652,14 +751,24 @@ public final class AmbientAccessPanel {
     }
 
     private void confirmMediaControl(MediaContextBridge.NowPlaying current, MediaContextBridge.ControlAction action) {
-        if (!allowlist.settings().mediaEnabled()) return;
+        if (!isMediaStillEnabled()) return;
         dismissDialogs();
         trackDialog(MediaContextBridge.showControlConfirmation(
                 activity,
-                () -> allowlist.settings().mediaEnabled(),
+                this::isMediaStillEnabled,
                 current,
                 action,
                 ok -> refreshAll()));
+    }
+
+    private boolean isMediaStillEnabled() {
+        if (closed) return false;
+        NotificationAllowlist.Settings settings = readSettingsSafely(allowlist);
+        if (settings == null) {
+            onStoreClosed();
+            return false;
+        }
+        return settings.mediaEnabled();
     }
 
     private void confirmQuickReply(AmbientNotification item) {
@@ -682,9 +791,19 @@ public final class AmbientAccessPanel {
     }
 
     private boolean isReplyStillAllowed(AmbientNotification item) {
-        return item != null
-                && allowlist.settings().notificationsEnabled()
-                && allowlist.effectiveAllowedPackages().contains(item.packageName);
+        if (closed || item == null) return false;
+        NotificationAllowlist.Settings settings = readSettingsSafely(allowlist);
+        if (settings == null) {
+            onStoreClosed();
+            return false;
+        }
+        if (!settings.notificationsEnabled()) return false;
+        Set<String> effective = readEffectiveAllowedPackagesSafely(allowlist);
+        if (effective == null) {
+            onStoreClosed();
+            return false;
+        }
+        return effective.contains(item.packageName);
     }
 
     private List<AppEntry> loadLaunchableApps() {
