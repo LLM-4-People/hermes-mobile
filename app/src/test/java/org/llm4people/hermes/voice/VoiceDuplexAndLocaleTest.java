@@ -210,4 +210,44 @@ public final class VoiceDuplexAndLocaleTest {
                 List.of("Première phrase."), spoken);
         assertEquals("Microphone must never reopen after explicit stop", 1, listens.size());
     }
+
+    @Test public void onReplyCompleteHandlesSynchronousSentenceFailureAndSuccessWithoutResurrectingOrDoubleListening() {
+        // Case 1: speakSentence fails synchronously via onSentenceDone(gen, false) -> must stay OFF, never restart listening.
+        List<Integer> failListens = new ArrayList<>();
+        final DuplexVoiceSession[] failRef = new DuplexVoiceSession[1];
+        DuplexVoiceSession failSession = new DuplexVoiceSession(new DuplexVoiceSession.Callbacks() {
+            @Override public void startListening(int gen) { failListens.add(gen); }
+            @Override public void stopListening() {}
+            @Override public void submitUtterance(String utterance) {}
+            @Override public void speakSentence(String sentence, int gen) { failRef[0].onSentenceDone(gen, false); }
+            @Override public void stopSpeaking() {}
+            @Override public void stateChanged(DuplexVoiceSession.State state) {}
+        });
+        failRef[0] = failSession;
+        failSession.start();
+        assertEquals(1, failListens.size());
+        failSession.onTranscriptFinal(failListens.get(0), "Bonjour");
+        failSession.onReplyComplete("Réponse finale.");
+        assertEquals("Synchronous TTS failure must keep duplex OFF", DuplexVoiceSession.State.OFF, failSession.state());
+        assertEquals("Synchronous TTS failure must never reopen mic", 1, failListens.size());
+
+        // Case 2: speakSentence succeeds synchronously via onSentenceDone(gen, true) -> invokes startListening exactly once.
+        List<Integer> okListens = new ArrayList<>();
+        final DuplexVoiceSession[] okRef = new DuplexVoiceSession[1];
+        DuplexVoiceSession okSession = new DuplexVoiceSession(new DuplexVoiceSession.Callbacks() {
+            @Override public void startListening(int gen) { okListens.add(gen); }
+            @Override public void stopListening() {}
+            @Override public void submitUtterance(String utterance) {}
+            @Override public void speakSentence(String sentence, int gen) { okRef[0].onSentenceDone(gen, true); }
+            @Override public void stopSpeaking() {}
+            @Override public void stateChanged(DuplexVoiceSession.State state) {}
+        });
+        okRef[0] = okSession;
+        okSession.start();
+        assertEquals(1, okListens.size());
+        okSession.onTranscriptFinal(okListens.get(0), "Bonjour");
+        okSession.onReplyComplete("Réponse finale.");
+        assertEquals(DuplexVoiceSession.State.LISTENING, okSession.state());
+        assertEquals("Synchronous TTS success must reopen mic exactly once", 2, okListens.size());
+    }
 }

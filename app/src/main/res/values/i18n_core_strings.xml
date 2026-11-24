@@ -366,6 +366,16 @@
     <string name="share_bridge_reason_android_update_shortcuts">Hermes propose d’actualiser vos raccourcis et widgets d’accueil.</string>
     <string name="share_bridge_reason_android_local_reminder">Hermes propose d’afficher un rappel discret sur votre téléphone.</string>
     <string name="share_bridge_reason_default">Hermes propose d’ouvrir cette action sur votre téléphone.</string>
+    <string name="share_bridge_preview_link">Lien : %1$s</string>
+    <string name="share_bridge_preview_app">Application : %1$s</string>
+    <string name="share_bridge_preview_subject">Objet : %1$s</string>
+    <string name="share_bridge_preview_message">Message : %1$s</string>
+    <string name="share_bridge_preview_duration">Durée : %1$s</string>
+    <string name="share_bridge_preview_label">Libellé : %1$s</string>
+    <string name="share_bridge_preview_title">Titre : %1$s</string>
+    <string name="share_bridge_preview_draft">Brouillon : %1$s</string>
+    <string name="share_bridge_preview_summary">Résumé : %1$s</string>
+    <string name="share_bridge_preview_changes">Changements : %1$s</string>
 
     <string name="share_tray_added">Élément ajouté : %1$s</string>
     <string name="share_tray_removed">Élément retiré : %1$s</string>

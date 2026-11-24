@@ -166,7 +166,7 @@ public final class DeliveryItem {
         String cleanTitle = cleanLine(title, MAX_TITLE_CHARS);
         if (cleanTitle.isEmpty()) throw new IllegalArgumentException("Delivery title required");
         this.title = cleanTitle;
-        this.summary = summary == null ? "" : summary.trim();
+        this.summary = clampSummary(summary);
         String safePayload = (payloadJson == null || payloadJson.trim().isEmpty()) ? "{}" : payloadJson;
         if (safePayload.length() > MAX_PAYLOAD_CHARS) {
             throw new IllegalArgumentException("Delivery payload exceeds bound");
@@ -255,13 +255,27 @@ public final class DeliveryItem {
         return out;
     }
 
+    private static final String[] SUMMARY_PAYLOAD_KEYS = {
+            "summary", "subtitle", "message", "body", "text", "description", "filename"
+    };
+
     private static String extractSummary(JSONObject raw, JSONObject payload) {
-        String top = raw.isNull("summary") ? "" : raw.optString("summary", "").trim();
+        String top = raw.isNull("summary") ? "" : raw.optString("summary", "");
+        if (payload == null) return selectSummary(top);
+        String[] fallbacks = new String[SUMMARY_PAYLOAD_KEYS.length];
+        for (int i = 0; i < SUMMARY_PAYLOAD_KEYS.length; i++) {
+            String key = SUMMARY_PAYLOAD_KEYS[i];
+            fallbacks[i] = payload.isNull(key) ? null : payload.optString(key, "");
+        }
+        return selectSummary(top, fallbacks);
+    }
+
+    static String selectSummary(String topSummary, String... payloadFallbacks) {
+        String top = clampSummary(topSummary);
         if (!top.isEmpty()) return top;
-        if (payload == null) return "";
-        for (String key : new String[]{"summary", "subtitle", "message", "body", "text", "description", "filename"}) {
-            if (!payload.isNull(key)) {
-                String val = clampSummary(payload.optString(key, ""));
+        if (payloadFallbacks != null) {
+            for (String candidate : payloadFallbacks) {
+                String val = clampSummary(candidate);
                 if (!val.isEmpty()) return val;
             }
         }

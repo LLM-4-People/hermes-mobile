@@ -274,6 +274,16 @@ public final class LiveUiStateManagerTest {
         assertEquals(List.of("Travail"), stateStore.getStringList("atelier", "page/shared", "chips_c", Collections.emptyList()));
     }
 
+    @Test public void trimToSanitizesControlsBidiAndNeverSplitsSurrogatePairs() {
+        assertEquals("", LiveUiPatch.trimTo(null, 16));
+        assertEquals("", LiveUiPatch.trimTo("hello", 0));
+        assertEquals("Line one Line two", LiveUiPatch.trimTo("Line\u202E\u034F one\n\rLine  two", 32));
+        // Surrogate pair at boundary (max=5 with 4 ASCII chars + 2-char emoji) must not leave unpaired high surrogate.
+        String bounded = LiveUiPatch.trimTo("abcd\uD83D\uDE00ef", 5);
+        assertEquals("abcd", bounded);
+        assertEquals("abcd\uD83D\uDE00", LiveUiPatch.trimTo("abcd\uD83D\uDE00ef", 6));
+    }
+
     private static void assertThrowsIo(IoRunnable runnable) {
         try {
             runnable.run();

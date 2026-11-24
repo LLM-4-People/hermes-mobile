@@ -1,18 +1,17 @@
 package org.llm4people.hermes.thread;
 
 import android.content.ContentResolver;
-import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.ColorSpace;
 import android.graphics.ImageDecoder;
 import android.net.Uri;
-import android.provider.OpenableColumns;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.llm4people.hermes.HermesConfig;
+import org.llm4people.hermes.camera.CapturedMedia;
 import org.llm4people.hermes.perf.BitmapSampling;
 import org.llm4people.hermes.perf.ThumbnailCache;
 
@@ -118,16 +117,8 @@ final class DiscussionPhoto {
     }
 
     private static String name(ContentResolver resolver, Uri uri) {
-        try (Cursor row = resolver.query(uri, new String[]{OpenableColumns.DISPLAY_NAME}, null, null, null)) {
-            if (row != null && row.moveToFirst()) {
-                String raw = row.getString(0);
-                if (raw != null) {
-                    String result = raw.substring(0, Math.min(raw.length(), 128)).replaceAll("[\\p{Cc}\\p{Cf}/\\\\]", "").trim();
-                    if (!result.isEmpty()) return result;
-                }
-            }
-        } catch (RuntimeException unavailable) { /* The name is optional. */ }
-        return ThreadStrings.get(org.llm4people.hermes.R.string.thread_photo_selected);
+        return CapturedMedia.queryDisplayName(resolver, uri,
+                ThreadStrings.get(org.llm4people.hermes.R.string.thread_photo_selected));
     }
 
     static boolean valid(JSONObject info) {

@@ -116,7 +116,7 @@ public final class DuplexVoiceSession {
         replyFinished = true;
         List<String> tail = sentenceStream.flush(finalVisibleText);
         enqueueSentences(tail);
-        if (!speakingSentence && speechQueue.isEmpty()) {
+        if ((state == State.THINKING || state == State.SPEAKING) && !speakingSentence && speechQueue.isEmpty()) {
             enterListening();
         }
     }

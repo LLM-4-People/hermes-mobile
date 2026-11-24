@@ -15,6 +15,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.JsonValues;
+import org.llm4people.hermes.PlainTextSanitizer;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.VisibleText;
@@ -42,6 +43,7 @@ import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -663,17 +665,20 @@ public final class DeviceBridgeFlow {
         return array;
     }
 
+    static String sanitizeReason(String raw) {
+        String cleaned = PlainTextSanitizer.collapseWithEllipsis(raw, 300);
+        return PlainTextSanitizer.hasVisibleText(cleaned) ? cleaned : "";
+    }
+
     public static BridgeRequest parseRequest(JSONObject event) {
         if (event == null) return null;
         String id = event.optString("request_id", "").trim();
         String actionType = event.optString("action_type", "").trim();
-        String reason = event.optString("reason", "").trim();
         if (!REQUEST_ID.matcher(id).matches() || !SUPPORTED_ACTIONS.contains(actionType)) {
             Diagnostics.warning("device_bridge", "invalid_request");
             return null;
         }
-        if (reason.length() > 300) reason = reason.substring(0, 300);
-        if (VisibleText.isBlank(reason)) reason = "";
+        String reason = sanitizeReason(event.optString("reason", ""));
         JSONObject params = event.optJSONObject("params");
         long expiresAt = event.optLong("expires_at", 0L);
         return new BridgeRequest(id, actionType, reason, params == null ? new JSONObject() : params, expiresAt);
@@ -817,9 +822,11 @@ public final class DeviceBridgeFlow {
         }
         String reasonText = VisibleText.isBlank(request.reason())
                 ? defaultReason(activity, request.actionType()) : request.reason();
+        String paramPreview = formatParamPreview(activity, request);
+        String detailText = paramPreview.isEmpty() ? reasonText : reasonText + "\n\n" + paramPreview;
         AlertDialog.Builder dialog = new AlertDialog.Builder(activity)
                 .setTitle(title(activity, request.actionType()))
-                .setMessage(activity.getString(org.llm4people.hermes.R.string.share_bridge_consent_footer, reasonText))
+                .setMessage(activity.getString(org.llm4people.hermes.R.string.share_bridge_consent_footer, detailText))
                 .setNegativeButton(org.llm4people.hermes.R.string.share_bridge_deny, (d, w) -> once.finish(Status.DENIED, null))
                 .setOnCancelListener(d -> once.finish(Status.DENIED, null))
                 .setPositiveButton(org.llm4people.hermes.R.string.share_bridge_allow_once, (d, w) -> {
@@ -830,6 +837,115 @@ public final class DeviceBridgeFlow {
                     }
                 });
         trackDialog(Ui.secureDialog(dialog), once);
+    }
+
+    record PreviewLine(int labelRes, String value) {}
+
+    static String formatParamPreview(Context context, BridgeRequest request) {
+        if (context == null || request == null) return "";
+        List<PreviewLine> lines = previewLinesForParams(request.actionType(), JsonValues.toMap(request.params()));
+        if (lines.isEmpty()) return "";
+        Context localized = org.llm4people.hermes.AppLanguage.localizedContext(context, null);
+        StringBuilder out = new StringBuilder();
+        for (PreviewLine line : lines) {
+            if (out.length() > 0) out.append('\n');
+            out.append(localized.getString(line.labelRes(), line.value()));
+        }
+        return out.toString();
+    }
+
+    /** Pure-Java sanitized target/parameter preview lines for all CONFIRM_REQUIRED DeepAndroidActions. */
+    static List<PreviewLine> previewLinesForParams(String actionType, Map<String, Object> params) {
+        if (actionType == null || params == null || params.isEmpty()) return Collections.emptyList();
+        List<PreviewLine> lines = new ArrayList<>();
+        switch (actionType) {
+            case "android_open_app" -> {
+                addPreviewLine(lines, R.string.share_bridge_preview_link, paramText(params, "deep_link", 160));
+                addPreviewLine(lines, R.string.share_bridge_preview_app, paramText(params, "package_name", 80));
+            }
+            case "android_share_sheet" -> {
+                addPreviewLine(lines, R.string.share_bridge_preview_subject, paramText(params, "subject", 80));
+                addPreviewLine(lines, R.string.share_bridge_preview_message, paramText(params, "text", 160));
+            }
+            case "android_set_timer" -> {
+                Integer secs = JsonValues.parseIntOrNull(params.get("duration_seconds"));
+                if (secs != null && secs > 0) {
+                    addPreviewLine(lines, R.string.share_bridge_preview_duration, formatDurationSeconds(secs));
+                }
+                addPreviewLine(lines, R.string.share_bridge_preview_label, paramText(params, "label", 80));
+            }
+            case "app_create_template" -> {
+                addPreviewLine(lines, R.string.share_bridge_preview_title, paramText(params, "title", 80));
+                addPreviewLine(lines, R.string.share_bridge_preview_draft, paramText(params, "draft_prompt", 160));
+            }
+            case "android_sync_shortcuts" -> {
+                addPreviewLine(lines, R.string.share_bridge_preview_label, paramText(params, "tile_label", 80));
+                addPreviewLine(lines, R.string.share_bridge_preview_summary, paramText(params, "widget_summary", 160));
+            }
+            case "app_customize" -> {
+                String delta = summarizeCustomizeDeltas(params);
+                addPreviewLine(lines, R.string.share_bridge_preview_changes, delta);
+            }
+            default -> {
+                // Other actions already present dedicated review dialogs or carry no extra confirmation targets.
+            }
+        }
+        return Collections.unmodifiableList(lines);
+    }
+
+    private static void addPreviewLine(List<PreviewLine> lines, int labelRes, String value) {
+        if (!value.isEmpty()) lines.add(new PreviewLine(labelRes, value));
+    }
+
+    private static String paramText(Map<String, Object> params, String key, int maxChars) {
+        Object raw = params.get(key);
+        if (!(raw instanceof String s)) return "";
+        String cleaned = PlainTextSanitizer.collapseWithEllipsis(s, maxChars);
+        return PlainTextSanitizer.hasVisibleText(cleaned) ? cleaned : "";
+    }
+
+    private static String formatDurationSeconds(int totalSeconds) {
+        int hours = totalSeconds / 3600;
+        int minutes = (totalSeconds % 3600) / 60;
+        int seconds = totalSeconds % 60;
+        StringBuilder sb = new StringBuilder();
+        if (hours > 0) sb.append(hours).append('h');
+        if (minutes > 0) {
+            if (sb.length() > 0) sb.append(' ');
+            sb.append(minutes).append("min");
+        }
+        if (seconds > 0 || sb.length() == 0) {
+            if (sb.length() > 0) sb.append(' ');
+            sb.append(seconds).append('s');
+        }
+        return sb.toString();
+    }
+
+    private static String summarizeCustomizeDeltas(Map<String, Object> params) {
+        List<String> parts = new ArrayList<>();
+        String op = paramText(params, "operation", 24).toLowerCase(Locale.ROOT);
+        if ("undo".equals(op) || "reset".equals(op)) {
+            return op;
+        }
+        String theme = paramText(params, "theme", 24);
+        if (!theme.isEmpty()) parts.add("theme=" + theme);
+        String accent = paramText(params, "accent", 32);
+        if (accent.isEmpty()) accent = paramText(params, "accent_preset", 32);
+        if (!accent.isEmpty()) parts.add("accent=" + accent);
+        String hex = paramText(params, "accent_hex", 16);
+        if (!hex.isEmpty()) parts.add("accent_hex=" + hex);
+        String density = paramText(params, "density", 24);
+        if (!density.isEmpty()) parts.add("density=" + density);
+        Integer fontStep = JsonValues.parseIntOrNull(params.get("font_scale_step"));
+        if (fontStep != null) parts.add("font_scale_step=" + fontStep);
+        String startupTab = paramText(params, "startup_tab", 24);
+        if (!startupTab.isEmpty()) parts.add("startup_tab=" + startupTab);
+        String greeting = paramText(params, "greeting", 48);
+        if (!greeting.isEmpty()) parts.add("greeting=" + greeting);
+        List<?> shortcuts = JsonValues.asList(params.get("quick_shortcuts"));
+        if (shortcuts != null) parts.add("quick_shortcuts=" + shortcuts.size());
+        if (parts.isEmpty()) return "";
+        return PlainTextSanitizer.collapseWithEllipsis(String.join(", ", parts), 180);
     }
 
     public static int titleRes(String actionType) {
