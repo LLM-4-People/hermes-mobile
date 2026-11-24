@@ -1,6 +1,7 @@
 package org.llm4people.hermes.hub;
 
 import org.junit.Test;
+import org.llm4people.hermes.R;
 import org.llm4people.hermes.push.DeliveryItem;
 
 import java.util.Arrays;
@@ -44,9 +45,16 @@ public final class NotesTasksModelTest {
         assertEquals(1, overview.attentionCount());
         assertEquals("j_err", overview.rows().get(0).id());
         assertTrue(overview.rows().get(0).needsAttention());
+        assertEquals(R.string.panel_jobs_run_status_failed,
+                NotesTasksModel.reminderStatusLabelRes(overview.rows().get(0)));
         assertEquals("j_active", overview.rows().get(1).id());
+        assertEquals(R.string.panel_scheduled,
+                NotesTasksModel.reminderStatusLabelRes(overview.rows().get(1)));
         assertEquals("j_paused", overview.rows().get(2).id());
         assertFalse(overview.rows().get(2).enabled());
+        assertEquals(R.string.panel_paused,
+                NotesTasksModel.reminderStatusLabelRes(overview.rows().get(2)));
+        assertEquals(R.string.panel_paused, NotesTasksModel.reminderStatusLabelRes(null));
 
         NotesTasksModel.ReminderOverview empty = NotesTasksModel.parseReminders(null);
         assertEquals(0, empty.total());

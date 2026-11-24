@@ -2,6 +2,7 @@ package org.llm4people.hermes;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.res.ColorStateList;
 import android.graphics.Typeface;
 import android.text.Editable;
 import android.text.InputFilter;
@@ -185,7 +186,9 @@ final class WorkspaceDialogs {
         profileCard.addView(profileHeader);
 
         Button lockNow = Ui.outlinedButton(activity, activity.getString(R.string.security_lock_now), null);
-        lockNow.setTextColor(activity.getColor(R.color.danger));
+        lockNow.setTextColor(new ColorStateList(
+                new int[][]{new int[]{-android.R.attr.state_enabled}, new int[]{}},
+                new int[]{activity.getColor(R.color.disabled_ink), activity.getColor(R.color.danger)}));
         LinearLayout.LayoutParams lockLp = new LinearLayout.LayoutParams(-1, -2);
         lockLp.topMargin = Ui.dp(activity, 12);
         profileCard.addView(lockNow, lockLp);

@@ -337,19 +337,16 @@ public final class NotesTasksPanel implements AutoCloseable {
             NotesTasksModel.ReminderRow row = overview.rows().get(i);
             if (i > 0) group.addView(Ui.insetDivider(activity, 64));
             String subtitle = !row.schedule().isEmpty() ? row.schedule() : row.promptPreview();
-            String badge;
+            String badge = activity.getString(NotesTasksModel.reminderStatusLabelRes(row));
             int badgeBg;
             int badgeInk;
             if (row.needsAttention()) {
-                badge = activity.getString(R.string.panel_paused);
                 badgeBg = R.color.danger_surface;
                 badgeInk = R.color.danger;
             } else if (row.enabled()) {
-                badge = activity.getString(R.string.panel_scheduled);
                 badgeBg = R.color.accent_surface;
                 badgeInk = R.color.accent;
             } else {
-                badge = activity.getString(R.string.panel_paused);
                 badgeBg = R.color.surface_container;
                 badgeInk = R.color.muted;
             }

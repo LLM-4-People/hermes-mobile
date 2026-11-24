@@ -3,6 +3,7 @@ package org.llm4people.hermes.settings;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
+import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
@@ -587,7 +588,9 @@ public final class AppearanceSettingsPanel {
                             AppearanceSettingsModel.removeShortcut(store.current().composerShortcuts, item.id());
                     applyCustomization(store.current().withComposerShortcuts(next));
                 });
-                remove.setTextColor(activity.getColor(R.color.danger));
+                remove.setTextColor(new ColorStateList(
+                        new int[][]{new int[]{-android.R.attr.state_enabled}, new int[]{}},
+                        new int[]{activity.getColor(R.color.disabled_ink), activity.getColor(R.color.danger)}));
                 remove.setContentDescription(activity.getString(R.string.appearance_shortcut_remove, item.label()));
                 row.addView(remove);
                 shortcutsSlot.addView(row);
@@ -614,7 +617,13 @@ public final class AppearanceSettingsPanel {
 
         EditText labelInput = new EditText(activity);
         labelInput.setSingleLine(true);
+        labelInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+        labelInput.setImeOptions(EditorInfo.IME_ACTION_NEXT
+                | EditorInfo.IME_FLAG_NO_EXTRACT_UI
+                | EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING);
         labelInput.setHint(R.string.appearance_shortcut_label_hint);
+        labelInput.setTextColor(activity.getColor(R.color.ink));
+        labelInput.setHintTextColor(activity.getColor(R.color.muted));
         labelInput.setFilters(new InputFilter[]{new InputFilter.LengthFilter(AppCustomization.MAX_SHORTCUT_LABEL_CHARS)});
         labelInput.setSaveEnabled(false);
         labelInput.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO);
@@ -627,7 +636,15 @@ public final class AppearanceSettingsPanel {
         EditText draftInput = new EditText(activity);
         draftInput.setMinLines(2);
         draftInput.setMaxLines(4);
+        draftInput.setInputType(InputType.TYPE_CLASS_TEXT
+                | InputType.TYPE_TEXT_FLAG_MULTI_LINE
+                | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+        draftInput.setImeOptions(EditorInfo.IME_ACTION_DONE
+                | EditorInfo.IME_FLAG_NO_EXTRACT_UI
+                | EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING);
         draftInput.setHint(R.string.appearance_shortcut_draft_hint);
+        draftInput.setTextColor(activity.getColor(R.color.ink));
+        draftInput.setHintTextColor(activity.getColor(R.color.muted));
         draftInput.setFilters(new InputFilter[]{new InputFilter.LengthFilter(AppCustomization.MAX_SHORTCUT_DRAFT_CHARS)});
         draftInput.setSaveEnabled(false);
         draftInput.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO);
@@ -639,23 +656,50 @@ public final class AppearanceSettingsPanel {
         dLp.topMargin = Ui.dp(activity, 10);
         form.addView(draftInput, dLp);
 
-        activeDialog = Ui.secureDialog(new AlertDialog.Builder(activity)
+        TextView errorView = Ui.text(activity, "", 13);
+        errorView.setTextColor(activity.getColor(R.color.danger));
+        errorView.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        errorView.setVisibility(View.GONE);
+        errorView.setPaddingRelative(0, Ui.dp(activity, 8), 0, 0);
+        form.addView(errorView);
+
+        TextWatcher clearError = new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                errorView.setVisibility(View.GONE);
+            }
+            @Override public void afterTextChanged(Editable s) {}
+        };
+        labelInput.addTextChangedListener(clearError);
+        draftInput.addTextChangedListener(clearError);
+
+        ScrollView scroll = new ScrollView(activity);
+        scroll.addView(form, new ScrollView.LayoutParams(-1, -2));
+
+        AlertDialog dialog = Ui.secureDialog(new AlertDialog.Builder(activity)
                 .setTitle(R.string.appearance_shortcut_dialog_title)
-                .setView(form)
+                .setView(scroll)
                 .setNegativeButton(R.string.ws_cancel, null)
-                .setPositiveButton(R.string.ws_apply, (d, w) -> {
-                    try {
-                        List<AppCustomization.ComposerShortcut> existing = store.current().composerShortcuts;
-                        AppCustomization.ComposerShortcut created = AppearanceSettingsModel.createShortcut(
-                                existing, labelInput.getText().toString(), draftInput.getText().toString());
-                        List<AppCustomization.ComposerShortcut> updated = new ArrayList<>(existing);
-                        updated.add(created);
-                        applyCustomization(store.current().withComposerShortcuts(updated));
-                    } catch (IllegalArgumentException | IllegalStateException invalid) {
-                        Toast.makeText(activity, R.string.appearance_shortcut_invalid, Toast.LENGTH_LONG).show();
-                    }
-                }));
-        activeDialog.setOnDismissListener(d -> {
+                .setPositiveButton(R.string.ws_apply, null));
+        activeDialog = dialog;
+        Button applyBtn = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+        if (applyBtn != null) {
+            applyBtn.setOnClickListener(v -> {
+                try {
+                    List<AppCustomization.ComposerShortcut> existing = store.current().composerShortcuts;
+                    AppCustomization.ComposerShortcut created = AppearanceSettingsModel.createShortcut(
+                            existing, labelInput.getText().toString(), draftInput.getText().toString());
+                    List<AppCustomization.ComposerShortcut> updated = new ArrayList<>(existing);
+                    updated.add(created);
+                    applyCustomization(store.current().withComposerShortcuts(updated));
+                    dialog.dismiss();
+                } catch (IllegalArgumentException | IllegalStateException invalid) {
+                    errorView.setText(R.string.appearance_shortcut_invalid);
+                    errorView.setVisibility(View.VISIBLE);
+                }
+            });
+        }
+        dialog.setOnDismissListener(d -> {
             if (activeDialog == d) activeDialog = null;
         });
     }

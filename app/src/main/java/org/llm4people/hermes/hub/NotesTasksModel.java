@@ -2,6 +2,7 @@ package org.llm4people.hermes.hub;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.llm4people.hermes.R;
 import org.llm4people.hermes.push.DeliveryItem;
 
 import java.util.ArrayList;
@@ -197,6 +198,13 @@ public final class NotesTasksModel {
             out.add(new SharedRow(shareId, kind, label, owner, perm));
         }
         return normalizeShares(out);
+    }
+
+    /** Single source of truth mapping reminder status to its localized pill string resource. */
+    public static int reminderStatusLabelRes(ReminderRow row) {
+        if (row == null) return R.string.panel_paused;
+        if (row.needsAttention()) return R.string.panel_jobs_run_status_failed;
+        return row.enabled() ? R.string.panel_scheduled : R.string.panel_paused;
     }
 
     /** Count unacknowledged deliveries in the given list. */
