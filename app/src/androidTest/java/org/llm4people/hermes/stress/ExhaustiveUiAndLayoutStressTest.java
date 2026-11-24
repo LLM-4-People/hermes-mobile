@@ -93,82 +93,92 @@ public final class ExhaustiveUiAndLayoutStressTest extends InstrumentationTestCa
         ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
     }
 
+    @Override protected void tearDown() throws Exception {
+        try {
+            super.tearDown();
+        } finally {
+            Diagnostics.clear();
+        }
+    }
+
     public void testAllNativePanelsPassMechanicalLayoutIntegrityAcrossViewportFontAndNightMatrix() throws Throwable {
         if (Build.VERSION.SDK_INT < 29) return;
         Context app = getInstrumentation().getTargetContext();
-        Activity activity = launchMain();
 
         try (WorkspaceAccountFixture profile = new WorkspaceAccountFixture(app, "http://127.0.0.1:1/p/stress")) {
-            Configuration originalConfig = new Configuration(activity.getResources().getConfiguration());
+            Activity activity = launchMain();
             try {
-                for (ViewportSpec spec : VIEWPORT_MATRIX) {
-                    ConnectionDoctor doctor = new ConnectionDoctor(stressProbes(spec.name()));
-                    ConnectionDoctorPanel doctorPanel = new ConnectionDoctorPanel(activity, doctor, null);
-                    UpdatePanel updatePanel = new UpdatePanel(activity);
-                    AmbientAccessPanel ambientPanel = new AmbientAccessPanel(
-                            activity, NotificationAllowlist.forAccount(profile.account), draft -> {});
-                    try {
-                        View[] doctorView = new View[1];
-                        runTestOnUiThread(() -> {
-                            applyConfiguration(activity, spec);
-                            doctorView[0] = doctorPanel.buildView();
-                            activity.setContentView(doctorView[0]);
-                        });
-                        waitForCondition(() -> doctorPanel.latestReport() != null, 8000L);
-                        runTestOnUiThread(() -> {
-                            measureAndLayout(activity, doctorView[0], spec);
-                            assertLayoutIntegrity(activity, doctorView[0], "ConnectionDoctor/" + spec.name(), true);
+                Configuration originalConfig = new Configuration(activity.getResources().getConfiguration());
+                try {
+                    for (ViewportSpec spec : VIEWPORT_MATRIX) {
+                        ConnectionDoctor doctor = new ConnectionDoctor(stressProbes(spec.name()));
+                        ConnectionDoctorPanel doctorPanel = new ConnectionDoctorPanel(activity, doctor, null);
+                        UpdatePanel updatePanel = new UpdatePanel(activity);
+                        AmbientAccessPanel ambientPanel = new AmbientAccessPanel(
+                                activity, NotificationAllowlist.forAccount(profile.account), draft -> {});
+                        try {
+                            View[] doctorView = new View[1];
+                            runTestOnUiThread(() -> {
+                                applyConfiguration(activity, spec);
+                                doctorView[0] = doctorPanel.buildView();
+                                activity.setContentView(doctorView[0]);
+                            });
+                            waitForCondition(() -> doctorPanel.latestReport() != null, 8000L);
+                            runTestOnUiThread(() -> {
+                                measureAndLayout(activity, doctorView[0], spec);
+                                assertLayoutIntegrity(activity, doctorView[0], "ConnectionDoctor/" + spec.name(), true);
 
-                            // Expand technical details and re-verify geometry with preview & copy button visible.
-                            Button tech = findButtonContaining(doctorView[0],
-                                    activity.getString(R.string.doctor_technical_show));
-                            assertNotNull("Technical toggle missing in " + spec.name(), tech);
-                            assertTrue(tech.performClick());
-                            measureAndLayout(activity, doctorView[0], spec);
-                            assertLayoutIntegrity(activity, doctorView[0],
-                                    "ConnectionDoctor-Tech/" + spec.name(), true);
-                        });
+                                // Expand technical details and re-verify geometry with preview & copy button visible.
+                                Button tech = findButtonContaining(doctorView[0],
+                                        activity.getString(R.string.doctor_technical_show));
+                                assertNotNull("Technical toggle missing in " + spec.name(), tech);
+                                assertTrue(tech.performClick());
+                                measureAndLayout(activity, doctorView[0], spec);
+                                assertLayoutIntegrity(activity, doctorView[0],
+                                        "ConnectionDoctor-Tech/" + spec.name(), true);
+                            });
 
-                        // UpdatePanel geometry check
-                        runTestOnUiThread(() -> {
-                            View updateView = updatePanel.buildView();
-                            activity.setContentView(updateView);
-                            measureAndLayout(activity, updateView, spec);
-                            assertLayoutIntegrity(activity, updateView, "UpdatePanel/" + spec.name(), false);
-                        });
+                            // UpdatePanel geometry check
+                            runTestOnUiThread(() -> {
+                                View updateView = updatePanel.buildView();
+                                activity.setContentView(updateView);
+                                measureAndLayout(activity, updateView, spec);
+                                assertLayoutIntegrity(activity, updateView, "UpdatePanel/" + spec.name(), false);
+                            });
 
-                        // AmbientAccessPanel geometry check
-                        runTestOnUiThread(() -> {
-                            View ambientView = ambientPanel.buildView();
-                            activity.setContentView(ambientView);
-                            measureAndLayout(activity, ambientView, spec);
-                            assertLayoutIntegrity(activity, ambientView, "AmbientAccessPanel/" + spec.name(), false);
-                        });
-                    } finally {
-                        runTestOnUiThread(() -> {
-                            doctorPanel.close();
-                            updatePanel.close();
-                            ambientPanel.close();
-                        });
+                            // AmbientAccessPanel geometry check
+                            runTestOnUiThread(() -> {
+                                View ambientView = ambientPanel.buildView();
+                                activity.setContentView(ambientView);
+                                measureAndLayout(activity, ambientView, spec);
+                                assertLayoutIntegrity(activity, ambientView, "AmbientAccessPanel/" + spec.name(), false);
+                            });
+                        } finally {
+                            runTestOnUiThread(() -> {
+                                doctorPanel.close();
+                                updatePanel.close();
+                                ambientPanel.close();
+                            });
+                        }
                     }
+                } finally {
+                    runTestOnUiThread(() -> restoreConfiguration(activity, originalConfig));
                 }
             } finally {
-                runTestOnUiThread(() -> restoreConfiguration(activity, originalConfig));
+                finishMain(activity);
             }
-        } finally {
-            finishMain(activity);
         }
     }
 
     public void testAllSessionPanelsHandlePopulatedEmptyErrorAndLockMidActionCleanly() throws Throwable {
         if (Build.VERSION.SDK_INT < 29) return;
         Context app = getInstrumentation().getTargetContext();
-        Activity activity = launchMain();
 
-        try {
-            // Phase 1: Populated full-capability companion gateway + layout assertions on every panel.
-            try (DynamicLoopbackServer gateway = new DynamicLoopbackServer(ExhaustiveUiAndLayoutStressTest::populatedReply);
-                 WorkspaceAccountFixture profile = new WorkspaceAccountFixture(app, gateway.endpoint())) {
+        // Phase 1: Populated full-capability companion gateway + layout assertions on every panel.
+        try (DynamicLoopbackServer gateway = new DynamicLoopbackServer(ExhaustiveUiAndLayoutStressTest::populatedReply);
+             WorkspaceAccountFixture profile = new WorkspaceAccountFixture(app, gateway.endpoint())) {
+            Activity activity = launchMain();
+            try {
                 SessionPanel panel = new SessionPanel(activity, new HermesApi(gateway.endpoint(), "test"), profile.account);
                 try {
                     exercisePanel("Memory", () -> panel.showMemory(null), activity,
@@ -196,12 +206,17 @@ public final class ExhaustiveUiAndLayoutStressTest extends InstrumentationTestCa
                 } finally {
                     runTestOnUiThread(panel::close);
                 }
+            } finally {
+                finishMain(activity);
             }
+        }
 
-            // Phase 2: All HTTP 500 error responses + rapid switching + lock-mid-action cleanup.
-            try (DynamicLoopbackServer failing = new DynamicLoopbackServer(path ->
-                    new HttpReply("500 Internal Server Error", "{\"error\":{\"code\":\"server_boom\"}}"));
-                 WorkspaceAccountFixture profile = new WorkspaceAccountFixture(app, failing.endpoint())) {
+        // Phase 2: All HTTP 500 error responses + rapid switching + lock-mid-action cleanup.
+        try (DynamicLoopbackServer failing = new DynamicLoopbackServer(path ->
+                new HttpReply("500 Internal Server Error", "{\"error\":{\"code\":\"server_boom\"}}"));
+             WorkspaceAccountFixture profile = new WorkspaceAccountFixture(app, failing.endpoint())) {
+            Activity activity = launchMain();
+            try {
                 SessionPanel panel = new SessionPanel(activity, new HermesApi(failing.endpoint(), "test"), profile.account);
                 try {
                     runTestOnUiThread(() -> {
@@ -232,9 +247,9 @@ public final class ExhaustiveUiAndLayoutStressTest extends InstrumentationTestCa
                 } finally {
                     runTestOnUiThread(panel::close);
                 }
+            } finally {
+                finishMain(activity);
             }
-        } finally {
-            finishMain(activity);
         }
     }
 

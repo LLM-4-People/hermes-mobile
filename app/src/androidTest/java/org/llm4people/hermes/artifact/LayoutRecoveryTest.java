@@ -16,35 +16,37 @@ public final class LayoutRecoveryTest extends InstrumentationTestCase {
     public void testRecoveryDialogRequiresConfirmationBeforeChangingLayout() throws Throwable {
         Context app = getInstrumentation().getTargetContext();
         Intent intent = app.getPackageManager().getLaunchIntentForPackage(app.getPackageName());
-        Activity activity = getInstrumentation().startActivitySync(intent);
         try (WorkspaceAccountFixture fixture = new WorkspaceAccountFixture(app)) {
-            LayoutHistory history = new LayoutHistory(fixture.account, "home");
-            fixture.account.write("workspace.v1.home", "{invalid history");
-            boolean[] changed = {false};
-            ArtifactDesk.Host host = new WorkspaceTestHost() {
-                @Override public void onAction(String id) { fail("Unexpected navigation"); }
-                @Override public void onLayoutChanged() { changed[0] = true; }
-            };
-            runTestOnUiThread(() -> {
-                AlertDialog cancel = SurfaceRenderer.controls(activity, history, host);
-                cancel.getButton(AlertDialog.BUTTON_NEGATIVE).performClick();
-            });
-            getInstrumentation().waitForIdleSync();
-            assertFalse(changed[0]);
-            assertEquals("{invalid history", fixture.account.read("workspace.v1.home"));
-            runTestOnUiThread(() -> {
-                AlertDialog confirm = SurfaceRenderer.controls(activity, history, host);
-                assertEquals(activity.getString(org.llm4people.hermes.R.string.ws_restore),
-                        confirm.getButton(AlertDialog.BUTTON_POSITIVE).getText().toString());
-                confirm.getButton(AlertDialog.BUTTON_POSITIVE).performClick();
-            });
-            getInstrumentation().waitForIdleSync();
-            assertTrue(changed[0]);
-            assertEquals("", history.current());
-            assertFalse(history.canUndo());
-        } finally {
-            try { runTestOnUiThread(() -> { ArtifactDesk.dismiss(activity); }); }
-            finally { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
+            Activity activity = getInstrumentation().startActivitySync(intent);
+            try {
+                LayoutHistory history = new LayoutHistory(fixture.account, "home");
+                fixture.account.write("workspace.v1.home", "{invalid history");
+                boolean[] changed = {false};
+                ArtifactDesk.Host host = new WorkspaceTestHost() {
+                    @Override public void onAction(String id) { fail("Unexpected navigation"); }
+                    @Override public void onLayoutChanged() { changed[0] = true; }
+                };
+                runTestOnUiThread(() -> {
+                    AlertDialog cancel = SurfaceRenderer.controls(activity, history, host);
+                    cancel.getButton(AlertDialog.BUTTON_NEGATIVE).performClick();
+                });
+                getInstrumentation().waitForIdleSync();
+                assertFalse(changed[0]);
+                assertEquals("{invalid history", fixture.account.read("workspace.v1.home"));
+                runTestOnUiThread(() -> {
+                    AlertDialog confirm = SurfaceRenderer.controls(activity, history, host);
+                    assertEquals(activity.getString(org.llm4people.hermes.R.string.ws_restore),
+                            confirm.getButton(AlertDialog.BUTTON_POSITIVE).getText().toString());
+                    confirm.getButton(AlertDialog.BUTTON_POSITIVE).performClick();
+                });
+                getInstrumentation().waitForIdleSync();
+                assertTrue(changed[0]);
+                assertEquals("", history.current());
+                assertFalse(history.canUndo());
+            } finally {
+                try { runTestOnUiThread(() -> ArtifactDesk.dismiss(activity)); }
+                finally { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
+            }
         }
     }
 

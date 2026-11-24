@@ -11,98 +11,102 @@ import org.llm4people.hermes.voice.VoiceDrafts;
 public final class NearbyConsentTest extends InstrumentationTestCase {
     public void testReplacingAManualAreaWithOneDeviceFixRetiresTheOldConsentBeforeAcquisition() throws Throwable {
         Context context = getInstrumentation().getTargetContext();
-        Activity activity = getInstrumentation().startActivitySync(
-                context.getPackageManager().getLaunchIntentForPackage(context.getPackageName()));
         String preference = "nearby-future-sends-v1";
         try (WorkspaceAccountFixture fixture = new WorkspaceAccountFixture(context)) {
-            fixture.account.write(preference, fixture.account.selectionBinding(preference, "profile"));
-            runTestOnUiThread(() -> {
-                ThreadWorkspace workspace = new ThreadWorkspace(activity, null, fixture.account, null, new VoiceDrafts(activity));
-                try {
-                    workspace.journal = new ThreadJournal(fixture.account, "first");
-                    workspace.journal.draft("Un déjeuner ?");
-                    workspace.journal.nearbyDraft("manual", "Rosemont");
-                    workspace.nearby.restore();
-                    assertEquals("Rosemont", workspace.nearby.frozen().optString("area"));
-                    // No permission result or successful location is needed to commit this opt-out.
-                    assertTrue(workspace.nearby.prepareDeviceChoice(false));
-                    assertNull(fixture.account.read(preference));
-                    assertNull(workspace.nearby.frozen());
-                    assertEquals("confirm", workspace.journal.nearbyDraft().optString("mode"));
-                    workspace.nearby.restore();
-                    assertNull(workspace.nearby.frozen());
-                    assertEquals("Un déjeuner ?", workspace.journal.draft());
-                } finally { workspace.close(); }
-            });
-        } finally { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
+            Activity activity = getInstrumentation().startActivitySync(
+                    context.getPackageManager().getLaunchIntentForPackage(context.getPackageName()));
+            try {
+                fixture.account.write(preference, fixture.account.selectionBinding(preference, "profile"));
+                runTestOnUiThread(() -> {
+                    ThreadWorkspace workspace = new ThreadWorkspace(activity, null, fixture.account, null, new VoiceDrafts(activity));
+                    try {
+                        workspace.journal = new ThreadJournal(fixture.account, "first");
+                        workspace.journal.draft("Un déjeuner ?");
+                        workspace.journal.nearbyDraft("manual", "Rosemont");
+                        workspace.nearby.restore();
+                        assertEquals("Rosemont", workspace.nearby.frozen().optString("area"));
+                        // No permission result or successful location is needed to commit this opt-out.
+                        assertTrue(workspace.nearby.prepareDeviceChoice(false));
+                        assertNull(fixture.account.read(preference));
+                        assertNull(workspace.nearby.frozen());
+                        assertEquals("confirm", workspace.journal.nearbyDraft().optString("mode"));
+                        workspace.nearby.restore();
+                        assertNull(workspace.nearby.frozen());
+                        assertEquals("Un déjeuner ?", workspace.journal.draft());
+                    } finally { workspace.close(); }
+                });
+            } finally { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
+        }
     }
 
     public void testReconcilePermissionStateAndApplyAppCustomization() throws Throwable {
         Context context = getInstrumentation().getTargetContext();
-        Activity activity = getInstrumentation().startActivitySync(
-                context.getPackageManager().getLaunchIntentForPackage(context.getPackageName()));
         try (WorkspaceAccountFixture fixture = new WorkspaceAccountFixture(context)) {
-            runTestOnUiThread(() -> {
-                ThreadWorkspace workspace = new ThreadWorkspace(activity, null, fixture.account, null, new VoiceDrafts(activity));
-                try {
-                    // Positive + negative NearbyConsent.reconcilePermissionState assertions.
-                    workspace.nearby.setFailureForTest("Location blocked");
-                    workspace.nearby.reconcilePermissionState(false);
-                    assertEquals("Denied state must preserve failure banner",
-                            "Location blocked", workspace.nearby.failureForTest());
-                    workspace.nearby.reconcilePermissionState(true);
-                    assertEquals("Granted state must clear stale failure banner",
-                            "", workspace.nearby.failureForTest());
-                    // Delegated no-arg entry point remains safe with no active failure.
-                    workspace.reconcileNearbyPermission();
-                    assertEquals("", workspace.nearby.failureForTest());
+            Activity activity = getInstrumentation().startActivitySync(
+                    context.getPackageManager().getLaunchIntentForPackage(context.getPackageName()));
+            try {
+                runTestOnUiThread(() -> {
+                    ThreadWorkspace workspace = new ThreadWorkspace(activity, null, fixture.account, null, new VoiceDrafts(activity));
+                    try {
+                        // Positive + negative NearbyConsent.reconcilePermissionState assertions.
+                        workspace.nearby.setFailureForTest("Location blocked");
+                        workspace.nearby.reconcilePermissionState(false);
+                        assertEquals("Denied state must preserve failure banner",
+                                "Location blocked", workspace.nearby.failureForTest());
+                        workspace.nearby.reconcilePermissionState(true);
+                        assertEquals("Granted state must clear stale failure banner",
+                                "", workspace.nearby.failureForTest());
+                        // Delegated no-arg entry point remains safe with no active failure.
+                        workspace.reconcileNearbyPermission();
+                        assertEquals("", workspace.nearby.failureForTest());
 
-                    // ThreadStarters attaches its header view to ListView; mount list on the Activity and
-                    // synchronously measure+layout in the same UI frame (avoiding any async ProfileGate
-                    // setContentView race) so ListView attaches its header and content.isShown() is true.
-                    String[] staged = {""};
-                    android.widget.ListView list = new android.widget.ListView(activity);
-                    ThreadStarters starters = new ThreadStarters(list, text -> staged[0] = text);
-                    list.setAdapter(new android.widget.ArrayAdapter<>(
-                            activity, android.R.layout.simple_list_item_1));
-                    activity.setContentView(list);
-                    starters.show(true);
+                        // ThreadStarters attaches its header view to ListView; mount list on the Activity and
+                        // synchronously measure+layout in the same UI frame (avoiding any async ProfileGate
+                        // setContentView race) so ListView attaches its header and content.isShown() is true.
+                        String[] staged = {""};
+                        android.widget.ListView list = new android.widget.ListView(activity);
+                        ThreadStarters starters = new ThreadStarters(list, text -> staged[0] = text);
+                        list.setAdapter(new android.widget.ArrayAdapter<>(
+                                activity, android.R.layout.simple_list_item_1));
+                        activity.setContentView(list);
+                        starters.show(true);
 
-                    org.llm4people.hermes.customization.AppCustomization custom =
-                            org.llm4people.hermes.customization.AppCustomization.defaults()
-                                    .withCompanionGreeting("Bonjour équipe")
-                                    .withComposerShortcuts(java.util.List.of(
-                                            new org.llm4people.hermes.customization.AppCustomization.ComposerShortcut(
-                                                    "brief", "Brief matin", "Fais le point du matin.")));
-                    starters.applyCustomization(custom);
-                    workspace.applyAppCustomization(custom);
-                    int w = org.llm4people.hermes.Ui.dp(activity, 360);
-                    int h = org.llm4people.hermes.Ui.dp(activity, 780);
-                    // First layout fires ThreadStarters' OnLayoutChangeListener -> alignEmptyList() ->
-                    // ListView.setStackFromBottom(true) -> resetList() before View.layout() clears
-                    // PFLAG_FORCE_LAYOUT; forceLayout() + second layout mounts the header synchronously.
-                    measureAndLayout(list, w, h);
-                    list.forceLayout();
-                    measureAndLayout(list, w, h);
+                        org.llm4people.hermes.customization.AppCustomization custom =
+                                org.llm4people.hermes.customization.AppCustomization.defaults()
+                                        .withCompanionGreeting("Bonjour équipe")
+                                        .withComposerShortcuts(java.util.List.of(
+                                                new org.llm4people.hermes.customization.AppCustomization.ComposerShortcut(
+                                                        "brief", "Brief matin", "Fais le point du matin.")));
+                        starters.applyCustomization(custom);
+                        workspace.applyAppCustomization(custom);
+                        int w = org.llm4people.hermes.Ui.dp(activity, 360);
+                        int h = org.llm4people.hermes.Ui.dp(activity, 780);
+                        // First layout fires ThreadStarters' OnLayoutChangeListener -> alignEmptyList() ->
+                        // ListView.setStackFromBottom(true) -> resetList() before View.layout() clears
+                        // PFLAG_FORCE_LAYOUT; forceLayout() + second layout mounts the header synchronously.
+                        measureAndLayout(list, w, h);
+                        list.forceLayout();
+                        measureAndLayout(list, w, h);
 
-                    android.widget.Button shortcutChip = findButtonByText(list, "Brief matin");
-                    assertNotNull("Expected custom composer shortcut chip", shortcutChip);
-                    assertNotNull("Expected custom greeting heading", findTextViewByText(list, "Bonjour équipe"));
+                        android.widget.Button shortcutChip = findButtonByText(list, "Brief matin");
+                        assertNotNull("Expected custom composer shortcut chip", shortcutChip);
+                        assertNotNull("Expected custom greeting heading", findTextViewByText(list, "Bonjour équipe"));
 
-                    // Editable Draft Rule: tapping shortcut chip stages draft text directly.
-                    shortcutChip.performClick();
-                    assertEquals("Fais le point du matin.", staged[0]);
+                        // Editable Draft Rule: tapping shortcut chip stages draft text directly.
+                        shortcutChip.performClick();
+                        assertEquals("Fais le point du matin.", staged[0]);
 
-                    // Resetting customization restores default heading and hides custom shortcuts.
-                    starters.applyCustomization(null);
-                    workspace.applyAppCustomization(null);
-                    assertNull("Custom shortcut chip should disappear when customization resets",
-                            findButtonByText(list, "Brief matin"));
-                    assertNotNull("Default starter heading should be restored",
-                            findTextViewByText(list, activity.getString(org.llm4people.hermes.R.string.starter_heading)));
-                } finally { workspace.close(); }
-            });
-        } finally { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
+                        // Resetting customization restores default heading and hides custom shortcuts.
+                        starters.applyCustomization(null);
+                        workspace.applyAppCustomization(null);
+                        assertNull("Custom shortcut chip should disappear when customization resets",
+                                findButtonByText(list, "Brief matin"));
+                        assertNotNull("Default starter heading should be restored",
+                                findTextViewByText(list, activity.getString(org.llm4people.hermes.R.string.starter_heading)));
+                    } finally { workspace.close(); }
+                });
+            } finally { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
+        }
     }
 
     private static void measureAndLayout(android.view.View root, int widthPx, int heightPx) {

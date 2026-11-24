@@ -92,38 +92,40 @@ public final class PageRecoveryTest extends InstrumentationTestCase {
 
     public void testPrivateConfirmationCanCancelBeforeRepairing() throws Throwable {
         Context app = getInstrumentation().getTargetContext();
-        Activity activity = getInstrumentation().startActivitySync(app.getPackageManager().getLaunchIntentForPackage(app.getPackageName()));
         try (WorkspaceAccountFixture fixture = new WorkspaceAccountFixture(app)) {
-            fixture.account.write(KEY, "{broken");
-            LayoutHistory page = new LayoutHistory(fixture.account, ID);
-            boolean[] changed = {false};
-            ArtifactDesk.Host host = new WorkspaceTestHost() {
-                @Override public void onLayoutChanged() { changed[0] = true; }
-            };
-            runTestOnUiThread(() -> {
-                View gallery = ArtifactDesk.pages(activity, fixture.account, host);
-                ArrayList<View> repairButtons = new ArrayList<>();
-                gallery.findViewsWithText(repairButtons, activity.getString(org.llm4people.hermes.R.string.ws_pages_repair_action), View.FIND_VIEWS_WITH_TEXT);
-                assertEquals(1, repairButtons.size());
-                assertTrue(repairButtons.get(0).isClickable());
-                AlertDialog cancel = SurfaceRenderer.controls(activity, page, host);
-                assertTrue((cancel.getWindow().getAttributes().flags & WindowManager.LayoutParams.FLAG_SECURE) != 0);
-                cancel.getButton(AlertDialog.BUTTON_NEGATIVE).performClick();
-            });
-            getInstrumentation().waitForIdleSync();
-            assertEquals("{broken", fixture.account.read(KEY));
-            assertFalse(changed[0]);
-            runTestOnUiThread(() -> {
-                AlertDialog accept = SurfaceRenderer.controls(activity, page, host);
-                assertEquals(activity.getString(org.llm4people.hermes.R.string.ws_repair), accept.getButton(AlertDialog.BUTTON_POSITIVE).getText().toString());
-                accept.getButton(AlertDialog.BUTTON_POSITIVE).performClick();
-            });
-            getInstrumentation().waitForIdleSync();
-            assertTrue(changed[0]);
-            assertTrue(PageLayouts.titles(fixture.account, true).isEmpty());
-        } finally {
-            try { runTestOnUiThread(() -> { ArtifactDesk.dismiss(activity); }); }
-            finally { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
+            Activity activity = getInstrumentation().startActivitySync(app.getPackageManager().getLaunchIntentForPackage(app.getPackageName()));
+            try {
+                fixture.account.write(KEY, "{broken");
+                LayoutHistory page = new LayoutHistory(fixture.account, ID);
+                boolean[] changed = {false};
+                ArtifactDesk.Host host = new WorkspaceTestHost() {
+                    @Override public void onLayoutChanged() { changed[0] = true; }
+                };
+                runTestOnUiThread(() -> {
+                    View gallery = ArtifactDesk.pages(activity, fixture.account, host);
+                    ArrayList<View> repairButtons = new ArrayList<>();
+                    gallery.findViewsWithText(repairButtons, activity.getString(org.llm4people.hermes.R.string.ws_pages_repair_action), View.FIND_VIEWS_WITH_TEXT);
+                    assertEquals(1, repairButtons.size());
+                    assertTrue(repairButtons.get(0).isClickable());
+                    AlertDialog cancel = SurfaceRenderer.controls(activity, page, host);
+                    assertTrue((cancel.getWindow().getAttributes().flags & WindowManager.LayoutParams.FLAG_SECURE) != 0);
+                    cancel.getButton(AlertDialog.BUTTON_NEGATIVE).performClick();
+                });
+                getInstrumentation().waitForIdleSync();
+                assertEquals("{broken", fixture.account.read(KEY));
+                assertFalse(changed[0]);
+                runTestOnUiThread(() -> {
+                    AlertDialog accept = SurfaceRenderer.controls(activity, page, host);
+                    assertEquals(activity.getString(org.llm4people.hermes.R.string.ws_repair), accept.getButton(AlertDialog.BUTTON_POSITIVE).getText().toString());
+                    accept.getButton(AlertDialog.BUTTON_POSITIVE).performClick();
+                });
+                getInstrumentation().waitForIdleSync();
+                assertTrue(changed[0]);
+                assertTrue(PageLayouts.titles(fixture.account, true).isEmpty());
+            } finally {
+                try { runTestOnUiThread(() -> ArtifactDesk.dismiss(activity)); }
+                finally { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
+            }
         }
     }
 }
