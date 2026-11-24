@@ -8,6 +8,7 @@ import re
 import secrets
 import subprocess
 import sys
+from time import monotonic
 from xml.etree import ElementTree
 
 from verification.device.app_strings import AppStrings
@@ -16,6 +17,11 @@ from .stack import eventually
 
 APP = "org.llm4people.hermes"
 NTFY = "io.heckel.ntfy"
+PERMISSION_ALLOW_IDS = (
+    "com.android.permissioncontroller:id/permission_allow_button",
+    "com.google.android.permissioncontroller:id/permission_allow_button",
+)
+TAP_RETRY_COOLDOWN_SECONDS = 2.0
 
 
 def focused_window(device):
@@ -105,13 +111,15 @@ class Screen:
         notification_permission=False,
         description=None,
         max_taps=None,
+        retry_interval=0.0,
     ):
         # Labels are static test controls. Never log field contents.
         print("Tap " + label, file=sys.stderr, flush=True)
         taps = 0
+        last_tap = None
 
         def attempt():
-            nonlocal taps
+            nonlocal taps, last_tap
             root = self.hierarchy()
             result = ready(root)
             if result:
@@ -123,9 +131,13 @@ class Screen:
                 if scroll:
                     self.scroll(root)
                 return None
-            if max_taps is None or taps < max_taps:
+            now = monotonic()
+            if (max_taps is None or taps < max_taps) and (
+                last_tap is None or retry_interval <= 0 or now - last_tap >= retry_interval
+            ):
                 self.tap_node(node)
                 taps += 1
+                last_tap = now
             return None
 
         return eventually(description or ("state after tapping " + label), attempt)[0]
@@ -179,17 +191,21 @@ class Screen:
 
         eventually("the named Android editor to accept text", enter)
 
-    def allow_if_prompted(self, root=None):
+    def permission_allow_node(self, root=None):
         if root is None:
             root = self.hierarchy()
-        node = self.node("com.android.permissioncontroller:id/permission_allow_button", root)
-        if node is None:
-            node = self.node(
-                "com.google.android.permissioncontroller:id/permission_allow_button",
-                root,
-            )
+        for resource_id in PERMISSION_ALLOW_IDS:
+            node = self.node(resource_id, root)
+            if node is not None:
+                return node
+        return None
+
+    def allow_if_prompted(self, root=None):
+        node = self.permission_allow_node(root)
         if node is not None:
             self.tap_node(node)
+            return True
+        return False
 
 
 def launch(device, package):
@@ -317,38 +333,61 @@ def choose_ntfy(ui):
     unified_label = s["push_settings_enable_up"]
     no_transport = s["push_settings_no_service"]
     no_distributor = s["push_settings_install_up"]
+    allow_blocked = s["push_settings_allow_title"]
+    searching_label = s["push_settings_searching_services"]
     attempts = 0
     distributor_taps = 0
+    last_permission_tap = None
+    last_transport_tap = None
+    last_distributor_tap = None
     flags = {}
 
+    def cooldown_elapsed(last_tap, now):
+        return last_tap is None or now - last_tap >= TAP_RETRY_COOLDOWN_SECONDS
+
     def choose():
-        nonlocal attempts, distributor_taps
+        nonlocal attempts, distributor_taps, last_permission_tap, last_transport_tap, last_distributor_tap
         root = ui.hierarchy()
+        now = monotonic()
         transport = ui.node(transport_title, root) is not None
         distributor = ui.node(distributor_title, root) is not None
         unified = ui.node(unified_label, root)
         ntfy = ui.node("ntfy\n" + NTFY, root)
+        permission_prompt = ui.permission_allow_node(root) is not None
         unavailable = (
             transport and ui.node(no_transport, root) is not None
             or distributor and ui.node(no_distributor, root) is not None
         )
-        flags.update(transport_picker=transport, distributor_picker=distributor, unifiedpush_option=unified is not None,
-                     ntfy_option=ntfy is not None, unavailable=unavailable, transport_taps=attempts)
+        flags.update(
+            transport_picker=transport,
+            distributor_picker=distributor,
+            unifiedpush_option=unified is not None,
+            ntfy_option=ntfy is not None,
+            unavailable=unavailable,
+            transport_taps=attempts,
+            permission_prompt=permission_prompt,
+            permission_blocked=ui.node(allow_blocked, root) is not None,
+            searching=ui.node(searching_label, root) is not None,
+        )
         if unavailable:
             raise AssertionError("The application reported no available transport or distributor")
         if distributor_taps > 0 and not distributor:
             return (True,)
         if distributor:
-            if ntfy is not None:
+            if ntfy is not None and cooldown_elapsed(last_distributor_tap, now):
                 ui.tap_node(ntfy)
                 distributor_taps += 1
+                last_distributor_tap = now
             return None
         if transport and unified is not None and attempts < 3:
-            ui.tap_node(unified)
-            attempts += 1
-            flags["transport_taps"] = attempts
-        elif not transport:
-            ui.allow_if_prompted(root)
+            if cooldown_elapsed(last_transport_tap, now):
+                ui.tap_node(unified)
+                attempts += 1
+                last_transport_tap = now
+                flags["transport_taps"] = attempts
+        elif not transport and cooldown_elapsed(last_permission_tap, now):
+            if ui.allow_if_prompted(root):
+                last_permission_tap = now
         return None
 
     try:
@@ -382,19 +421,19 @@ def enroll(ui):
     enable = s["push_settings_enable"]
     transport_title = s["push_settings_service_title"]
     distributor_title = s["push_settings_choose_distributor"]
+    searching = s["push_settings_searching_services"]
     open_notifications_settings(ui, enable)
     ui.tap_until(
         enable,
         lambda root: (
             ui.node(transport_title, root) is not None
             or ui.node(distributor_title, root) is not None
-            or ui.node("com.android.permissioncontroller:id/permission_allow_button", root) is not None
-            or ui.node("com.google.android.permissioncontroller:id/permission_allow_button", root) is not None
+            or ui.node(searching, root) is not None
+            or ui.permission_allow_node(root) is not None
         ),
-        scroll=True,
         description="Push enrollment prompt or transport chooser after tapping " + enable,
+        retry_interval=TAP_RETRY_COOLDOWN_SECONDS,
     )
-    ui.allow_if_prompted()
     choose_ntfy(ui)
 
 
