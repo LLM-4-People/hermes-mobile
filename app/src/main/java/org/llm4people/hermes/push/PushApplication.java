@@ -6,11 +6,13 @@ import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.HermesConfig;
 import org.llm4people.hermes.perf.MemoryPressure;
+import org.llm4people.hermes.thread.ThreadStrings;
 
 public final class PushApplication extends Application {
     @Override public void onCreate() {
         super.onCreate();
         AppLanguage.refreshRuntime(this);
+        ThreadStrings.attach(this);
         Diagnostics.setCapacity(HermesConfig.load(this).diagnosticsRingCapacity);
         DistributorEnrollment.reconcile(this);
         boolean pending = MobilePush.reconcileRemovals(this);

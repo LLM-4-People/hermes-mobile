@@ -143,6 +143,12 @@ public final class ConversationPanesTest extends InstrumentationTestCase {
         assertEquals("Deux renommé", inPlace.getJSONObject(1).getString("title"));
         assertEquals("Aperçu", inPlace.getJSONObject(1).getString("preview"));
 
+        // Passing the generic conversation fallback title preserves the existing thread's real title.
+        String genericTitle = ThreadStrings.get(R.string.thread_conversation);
+        assertFalse(genericTitle.isEmpty());
+        JSONArray genericFallback = DiscussionIndex.selectedFirst(merged, "root-2", "tip-2b", genericTitle, "Aperçu", 4);
+        assertEquals("Deux modifié", genericFallback.getJSONObject(1).getString("title"));
+
         // Selecting an off-page thread prepends it so the open discussion remains reachable.
         JSONArray pinned = DiscussionIndex.selectedFirst(merged, "root-9", "tip-9", "Hors page", "Début", 1);
         assertEquals(4, pinned.length());

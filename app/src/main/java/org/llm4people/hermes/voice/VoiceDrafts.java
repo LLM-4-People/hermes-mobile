@@ -281,6 +281,9 @@ public final class VoiceDrafts {
     }
 
     private void begin(Controls target, VoiceInput.Source source, DuplexBridge duplex, int duplexGen) {
+        if (activeDuplex != null && (duplex == null || activeDuplex != duplex)) {
+            activeDuplex.stop();
+        }
         cancelAttemptAndRecovery();
         if (!target.visible() || paused) {
             if (duplex != null) duplex.session.onListenError(duplexGen, false);

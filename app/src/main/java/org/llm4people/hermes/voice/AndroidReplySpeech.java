@@ -32,10 +32,6 @@ final class AndroidReplySpeech implements SpeechPlayback.Driver {
     private Consumer<Boolean> ready;
     private final Runnable initTimeout = () -> initialized(false);
 
-    AndroidReplySpeech(Context context) {
-        this(context, () -> VoiceLocale.SYSTEM);
-    }
-
     AndroidReplySpeech(Context context, Supplier<VoiceLocale> localeSupplier) {
         this.context = context.getApplicationContext();
         this.localeSupplier = localeSupplier == null ? () -> VoiceLocale.SYSTEM : localeSupplier;

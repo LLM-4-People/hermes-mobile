@@ -18,9 +18,13 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import org.llm4people.hermes.ActivityTestLifecycle;
+import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.MainActivity;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @SuppressWarnings("deprecation")
 public final class VoiceDraftsTest extends InstrumentationTestCase {
@@ -46,7 +50,10 @@ public final class VoiceDraftsTest extends InstrumentationTestCase {
 
     @Override protected void tearDown() throws Exception {
         try { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
-        finally { super.tearDown(); }
+        finally {
+            Diagnostics.clear();
+            super.tearDown();
+        }
     }
 
     private void attachEditor() {
@@ -366,6 +373,55 @@ public final class VoiceDraftsTest extends InstrumentationTestCase {
             status(R.string.voice_unavailable);
             assertTrue(editor.isEnabled());
             assertEquals("sur cet appareil", editor.getText().toString());
+        });
+    }
+
+    public void testStandaloneDictationOnSecondaryControlsStopsActiveDuplexInListeningAndThinking() throws Throwable {
+        runTestOnUiThread(() -> {
+            List<String> submitted = new ArrayList<>();
+            VoiceDrafts.DuplexHandle duplex = voice.bindDuplex(controls, submitted::add);
+            layout.addView(duplex.bar());
+
+            EditText secondaryEditor = new EditText(activity);
+            secondaryEditor.setSaveEnabled(false);
+            VoiceDrafts.Controls secondary = voice.bind(secondaryEditor);
+            layout.addView(secondaryEditor);
+            layout.addView(secondary.button);
+            layout.addView(secondary.feedback);
+
+            // Case 1: Duplex in LISTENING -> tapping secondary dictation stops duplex and hides its bar.
+            duplex.start();
+            assertEquals(DuplexVoiceSession.State.LISTENING, duplex.state());
+            assertTrue(duplex.active());
+            assertEquals(View.VISIBLE, duplex.bar().getVisibility());
+            assertEquals(1, input.recordings);
+
+            secondary.button.performClick();
+            assertEquals(DuplexVoiceSession.State.OFF, duplex.state());
+            assertFalse(duplex.active());
+            assertEquals(View.GONE, duplex.bar().getVisibility());
+            assertEquals(1, input.closes);
+            assertEquals(2, input.recordings);
+            input.result("Réponse secondaire");
+            assertEquals("Réponse secondaire", secondaryEditor.getText().toString());
+            assertTrue(submitted.isEmpty());
+
+            // Case 2: Duplex in THINKING -> tapping secondary dictation stops duplex cleanly.
+            duplex.start();
+            assertEquals(DuplexVoiceSession.State.LISTENING, duplex.state());
+            input.result("Question duplex");
+            assertEquals(DuplexVoiceSession.State.THINKING, duplex.state());
+            assertEquals(View.VISIBLE, duplex.bar().getVisibility());
+            assertEquals(List.of("Question duplex"), submitted);
+
+            secondary.button.performClick();
+            assertEquals(DuplexVoiceSession.State.OFF, duplex.state());
+            assertFalse(duplex.active());
+            assertEquals(View.GONE, duplex.bar().getVisibility());
+            duplex.onReplyComplete("Réponse ignorée.");
+            assertEquals(DuplexVoiceSession.State.OFF, duplex.state());
+            input.result("Suite");
+            assertEquals("Réponse secondaire Suite", secondaryEditor.getText().toString());
         });
     }
 }

@@ -36,10 +36,6 @@ final class RunFollower implements AutoCloseable {
         final String reasoning;
         final List<JSONObject> uiPatches;
 
-        Frame(long seq, RunPreview preview, String activity, List<JSONObject> prompts) {
-            this(seq, preview, activity, prompts, 0, Collections.emptyList(), "", Collections.emptyList());
-        }
-
         Frame(long seq, RunPreview preview, String activity, List<JSONObject> prompts,
               int toolSteps, List<DeviceBridgeFlow.BridgeRequest> deviceRequests,
               String reasoning, List<JSONObject> uiPatches) {

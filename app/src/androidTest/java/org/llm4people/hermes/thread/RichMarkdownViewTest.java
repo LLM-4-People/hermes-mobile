@@ -15,6 +15,7 @@ import android.widget.TextView;
 
 import org.json.JSONObject;
 import org.llm4people.hermes.ActivityTestLifecycle;
+import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.net.Exchange;
@@ -36,7 +37,10 @@ public final class RichMarkdownViewTest extends InstrumentationTestCase {
 
     @Override protected void tearDown() throws Exception {
         try { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
-        finally { super.tearDown(); }
+        finally {
+            Diagnostics.clear();
+            super.tearDown();
+        }
     }
 
     public void testTablesReviewedHttpsLinksQuotesAndReasoningDisclosureRenderNatively() throws Throwable {
@@ -122,7 +126,10 @@ public final class RichMarkdownViewTest extends InstrumentationTestCase {
                         @Override public void unknown(JSONObject status) { fail("Unexpected unknown"); }
                     }).follow();
         }
-        assertTrue(frames.stream().anyMatch(f -> "Analyse en cours.".equals(f.reasoning)));
+        String expectedThinking = ThreadStrings.get(R.string.thread_hermes_thinking);
+        assertFalse(expectedThinking.isEmpty());
+        assertTrue(frames.stream().anyMatch(f ->
+                "Analyse en cours.".equals(f.reasoning) && expectedThinking.equals(f.activity)));
     }
 
     private static TableLayout findTable(View view) {
