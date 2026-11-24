@@ -506,8 +506,10 @@ public final class DeepAndroidActions {
 
     private Result handleSetTimer(Map<String, Object> params) {
         Object rawSeconds = params.get("duration_seconds");
-        if (!(rawSeconds instanceof Number n)) return reject("invalid_timer_duration");
-        int seconds = n.intValue();
+        if (!(rawSeconds instanceof Number)) return reject("invalid_timer_duration");
+        Integer parsedSeconds = JsonValues.parseIntOrNull(rawSeconds);
+        if (parsedSeconds == null) return reject("invalid_timer_duration");
+        int seconds = parsedSeconds;
         if (seconds < MIN_TIMER_SECONDS || seconds > MAX_TIMER_SECONDS) {
             return reject("timer_duration_out_of_range");
         }

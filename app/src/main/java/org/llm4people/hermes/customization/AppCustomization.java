@@ -1,6 +1,7 @@
 package org.llm4people.hermes.customization;
 
 import org.llm4people.hermes.Diagnostics;
+import org.llm4people.hermes.PlainTextSanitizer;
 import org.llm4people.hermes.artifact.ThemePalette;
 import org.llm4people.hermes.os.HermesWidgetSpec;
 
@@ -338,22 +339,7 @@ public final class AppCustomization {
         if (HermesWidgetSpec.containsSecretLikePattern(raw)) {
             throw new IllegalArgumentException("Secret-like content is not permitted in customization text");
         }
-        StringBuilder out = new StringBuilder();
-        boolean prevSpace = false;
-        for (int i = 0; i < raw.length() && out.length() < maxChars; i++) {
-            char c = raw.charAt(i);
-            if (Character.isISOControl(c) || Character.getType(c) == Character.FORMAT) continue;
-            if (Character.isWhitespace(c)) {
-                if (out.length() > 0 && !prevSpace) {
-                    out.append(' ');
-                    prevSpace = true;
-                }
-            } else {
-                out.append(c);
-                prevSpace = false;
-            }
-        }
-        return out.toString().trim();
+        return PlainTextSanitizer.collapseBounded(raw, maxChars);
     }
 
     /** Compact pure-Java serialization (host-JVM testable, safe for encrypted vault storage). */

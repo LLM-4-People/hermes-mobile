@@ -2,6 +2,7 @@ package org.llm4people.hermes.onboarding;
 
 import org.json.JSONObject;
 import org.llm4people.hermes.JsonValues;
+import org.llm4people.hermes.PlainTextSanitizer;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.profile.GatewayAddress;
 
@@ -478,23 +479,7 @@ public final class OnboardingModels {
     }
 
     private static String cleanText(String raw, int maxChars) {
-        if (raw == null || raw.isEmpty()) return "";
-        StringBuilder out = new StringBuilder();
-        boolean prevSpace = false;
-        for (int i = 0; i < raw.length() && out.length() < maxChars; i++) {
-            char c = raw.charAt(i);
-            if (Character.isISOControl(c) || Character.getType(c) == Character.FORMAT) continue;
-            if (Character.isWhitespace(c)) {
-                if (out.length() > 0 && !prevSpace) {
-                    out.append(' ');
-                    prevSpace = true;
-                }
-            } else {
-                out.append(c);
-                prevSpace = false;
-            }
-        }
-        return out.toString().trim();
+        return PlainTextSanitizer.collapseBounded(raw, maxChars);
     }
 
     private static String str(Object value) {

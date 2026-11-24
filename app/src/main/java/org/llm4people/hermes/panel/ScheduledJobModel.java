@@ -3,6 +3,7 @@ package org.llm4people.hermes.panel;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.llm4people.hermes.JsonValues;
+import org.llm4people.hermes.PlainTextSanitizer;
 import org.llm4people.hermes.net.HermesApi;
 
 import java.util.ArrayList;
@@ -190,23 +191,7 @@ public final class ScheduledJobModel {
     }
 
     private static String clean(String raw, int maxChars) {
-        if (raw == null || raw.isEmpty()) return "";
-        StringBuilder sb = new StringBuilder();
-        boolean prevSpace = false;
-        for (int i = 0; i < raw.length() && sb.length() < maxChars; i++) {
-            char c = raw.charAt(i);
-            if (Character.isISOControl(c) || Character.getType(c) == Character.FORMAT) continue;
-            if (Character.isWhitespace(c)) {
-                if (sb.length() > 0 && !prevSpace) {
-                    sb.append(' ');
-                    prevSpace = true;
-                }
-            } else {
-                sb.append(c);
-                prevSpace = false;
-            }
-        }
-        return sb.toString().trim();
+        return PlainTextSanitizer.collapseBounded(raw, maxChars);
     }
 
     private static String str(Object v) {

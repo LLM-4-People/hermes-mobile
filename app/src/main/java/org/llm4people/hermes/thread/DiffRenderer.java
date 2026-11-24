@@ -103,8 +103,8 @@ public final class DiffRenderer {
             for (int i = 0; i < hunks.length(); i++) {
                 JSONObject hunk = hunks.optJSONObject(i);
                 if (hunk == null) continue;
-                int oldStart = hunk.optInt("old_start", 1);
-                int newStart = hunk.optInt("new_start", 1);
+                int oldStart = JsonValues.parseInt(hunk.opt("old_start"), 1);
+                int newStart = JsonValues.parseInt(hunk.opt("new_start"), 1);
                 JSONArray rawLines = hunk.optJSONArray("lines");
                 List<String> lines = new ArrayList<>();
                 if (rawLines != null) {

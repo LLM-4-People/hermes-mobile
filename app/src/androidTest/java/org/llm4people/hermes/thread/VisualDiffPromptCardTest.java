@@ -103,6 +103,82 @@ public final class VisualDiffPromptCardTest extends InstrumentationTestCase {
         });
     }
 
+    public void testStructuredDiffSaturatesOverflowNegativeFractionalAndNonFiniteCountsAndHunkStarts() throws Exception {
+        JSONArray lines = new JSONArray().put(" ctx").put("-old").put("+new");
+
+        // 1. 64-bit overflow and negative underflow saturate without 32-bit wrap-around.
+        JSONObject overflowHunk = new JSONObject()
+                .put("old_start", 4_294_967_296L)
+                .put("new_start", -4_294_967_200L)
+                .put("lines", lines);
+        JSONObject overflowPrompt = new JSONObject().put("diff", new JSONObject()
+                .put("path", "src/Overflow.java")
+                .put("hunks", new JSONArray().put(overflowHunk))
+                .put("additions", 4_294_967_296L)
+                .put("deletions", -4_294_967_200L));
+        DiffRenderer.DiffModel overflow = DiffRenderer.parse(overflowPrompt);
+        assertNotNull(overflow);
+        assertEquals(Integer.MAX_VALUE, overflow.additions());
+        assertEquals(0, overflow.deletions());
+        assertEquals("@@ -" + Integer.MAX_VALUE + " +0 @@", overflow.lines().get(0).text());
+
+        // 2. Fractional values round deterministically.
+        JSONObject fracHunk = new JSONObject()
+                .put("old_start", 9.6d)
+                .put("new_start", 11.4d)
+                .put("lines", lines);
+        JSONObject fracPrompt = new JSONObject().put("diff", new JSONObject()
+                .put("path", "src/Frac.java")
+                .put("hunks", new JSONArray().put(fracHunk))
+                .put("additions", 3.6d)
+                .put("deletions", 2.4d));
+        DiffRenderer.DiffModel frac = DiffRenderer.parse(fracPrompt);
+        assertNotNull(frac);
+        assertEquals(4, frac.additions());
+        assertEquals(2, frac.deletions());
+        assertEquals("@@ -10 +11 @@", frac.lines().get(0).text());
+
+        // 3. Non-number / null values fall back cleanly to counted lines (+1/-1) and hunk start 1.
+        JSONObject badHunk = new JSONObject()
+                .put("old_start", "bad")
+                .put("new_start", JSONObject.NULL)
+                .put("lines", lines);
+        JSONObject badPrompt = new JSONObject().put("diff", new JSONObject()
+                .put("path", "src/Bad.java")
+                .put("hunks", new JSONArray().put(badHunk))
+                .put("additions", "not-a-number")
+                .put("deletions", JSONObject.NULL));
+        DiffRenderer.DiffModel bad = DiffRenderer.parse(badPrompt);
+        assertNotNull(bad);
+        assertEquals(1, bad.additions());
+        assertEquals(1, bad.deletions());
+        assertEquals("@@ -1 +1 @@", bad.lines().get(0).text());
+
+        // 4. Non-finite Double.NaN / Double.POSITIVE_INFINITY fall back cleanly.
+        JSONObject nonFiniteHunk = new JSONObject() {
+            @Override public Object opt(String name) {
+                if ("old_start".equals(name)) return Double.NaN;
+                if ("new_start".equals(name)) return Double.POSITIVE_INFINITY;
+                return super.opt(name);
+            }
+        }.put("lines", lines);
+        JSONObject nonFiniteDiff = new JSONObject() {
+            @Override public boolean has(String name) {
+                return "additions".equals(name) || "deletions".equals(name) || super.has(name);
+            }
+            @Override public Object opt(String name) {
+                if ("additions".equals(name)) return Double.NaN;
+                if ("deletions".equals(name)) return Double.POSITIVE_INFINITY;
+                return super.opt(name);
+            }
+        }.put("path", "src/NonFinite.java").put("hunks", new JSONArray().put(nonFiniteHunk));
+        DiffRenderer.DiffModel nonFinite = DiffRenderer.parse(new JSONObject().put("diff", nonFiniteDiff));
+        assertNotNull(nonFinite);
+        assertEquals(1, nonFinite.additions());
+        assertEquals(1, nonFinite.deletions());
+        assertEquals("@@ -1 +1 @@", nonFinite.lines().get(0).text());
+    }
+
     private static View findExact(View view, String label) {
         if (view instanceof TextView tv && tv.isShown() && label.contentEquals(tv.getText())) return tv;
         if (view instanceof ViewGroup g) {

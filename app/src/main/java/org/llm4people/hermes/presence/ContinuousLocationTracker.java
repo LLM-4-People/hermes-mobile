@@ -10,6 +10,7 @@ import android.location.LocationManager;
 import android.os.Looper;
 
 import org.llm4people.hermes.Diagnostics;
+import org.llm4people.hermes.PlainTextSanitizer;
 import org.llm4people.hermes.os.HermesWidgetSpec;
 
 import java.util.List;
@@ -129,22 +130,7 @@ public final class ContinuousLocationTracker {
     public static String sanitizeAreaLabel(String raw) {
         if (raw == null || raw.isEmpty()) return "";
         if (HermesWidgetSpec.containsSecretLikePattern(raw)) return "";
-        StringBuilder out = new StringBuilder();
-        boolean prevSpace = false;
-        for (int i = 0; i < raw.length() && out.length() < MAX_PLACE_LABEL_CHARS; i++) {
-            char c = raw.charAt(i);
-            if (Character.isISOControl(c) || Character.getType(c) == Character.FORMAT) continue;
-            if (Character.isWhitespace(c)) {
-                if (out.length() > 0 && !prevSpace) {
-                    out.append(' ');
-                    prevSpace = true;
-                }
-            } else {
-                out.append(c);
-                prevSpace = false;
-            }
-        }
-        return out.toString().trim();
+        return PlainTextSanitizer.collapseBounded(raw, MAX_PLACE_LABEL_CHARS);
     }
 
     public static boolean hasCoarsePermission(Context context) {

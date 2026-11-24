@@ -392,39 +392,60 @@ public final class ApkUpdateInstaller {
         Diagnostics.warning("update", action);
     }
 
-    private static final class HttpsStreamSource implements StreamSource {
+    static final class HttpsStreamSource implements StreamSource {
+        @FunctionalInterface
+        interface ConnectionFactory {
+            HttpURLConnection open(String url) throws IOException;
+        }
+
         private final HermesConfig config;
+        private final ConnectionFactory connectionFactory;
 
         HttpsStreamSource(HermesConfig config) {
+            this(config, url -> (HttpURLConnection) new URL(url).openConnection());
+        }
+
+        HttpsStreamSource(HermesConfig config, ConnectionFactory connectionFactory) {
             this.config = config;
+            this.connectionFactory = connectionFactory;
         }
 
         @Override
         public StreamResponse open(String url) throws IOException {
-            HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
-            conn.setInstanceFollowRedirects(false);
-            conn.setConnectTimeout(config.httpConnectTimeoutMs);
-            conn.setReadTimeout(config.httpReadTimeoutMs);
-            conn.setRequestMethod("GET");
-            conn.setUseCaches(false);
-            conn.setRequestProperty("Accept", "application/octet-stream");
-            conn.setRequestProperty("User-Agent", "Hermes-Mobile");
-            int code = conn.getResponseCode();
-            String location = conn.getHeaderField("Location");
-            if (GithubReleaseClient.isRedirect(code)) {
-                conn.disconnect();
-                return new StreamResponse(code, location, -1L, null);
-            }
-            long contentLength = conn.getContentLengthLong();
-            InputStream stream = code >= 200 && code < 300 ? conn.getInputStream() : conn.getErrorStream();
-            InputStream wrapped = stream == null ? null : new InputStream() {
-                @Override public int read() throws IOException { return stream.read(); }
-                @Override public int read(byte[] b, int off, int len) throws IOException { return stream.read(b, off, len); }
-                @Override public void close() throws IOException {
-                    try { stream.close(); } finally { conn.disconnect(); }
+            HttpURLConnection conn = connectionFactory.open(url);
+            boolean transferred = false;
+            try {
+                conn.setInstanceFollowRedirects(false);
+                conn.setConnectTimeout(config.httpConnectTimeoutMs);
+                conn.setReadTimeout(config.httpReadTimeoutMs);
+                conn.setRequestMethod("GET");
+                conn.setUseCaches(false);
+                conn.setRequestProperty("Accept", "application/octet-stream");
+                conn.setRequestProperty("User-Agent", "Hermes-Mobile");
+                int code = conn.getResponseCode();
+                String location = conn.getHeaderField("Location");
+                if (GithubReleaseClient.isRedirect(code)) {
+                    return new StreamResponse(code, location, -1L, null);
                 }
-            };
-            return new StreamResponse(code, location, contentLength, wrapped);
+                long contentLength = conn.getContentLengthLong();
+                InputStream stream = code >= 200 && code < 300 ? conn.getInputStream() : conn.getErrorStream();
+                if (stream == null) {
+                    return new StreamResponse(code, location, contentLength, null);
+                }
+                InputStream wrapped = new InputStream() {
+                    @Override public int read() throws IOException { return stream.read(); }
+                    @Override public int read(byte[] b, int off, int len) throws IOException { return stream.read(b, off, len); }
+                    @Override public void close() throws IOException {
+                        try { stream.close(); } finally { conn.disconnect(); }
+                    }
+                };
+                transferred = true;
+                return new StreamResponse(code, location, contentLength, wrapped);
+            } finally {
+                if (!transferred) {
+                    conn.disconnect();
+                }
+            }
         }
     }
 }

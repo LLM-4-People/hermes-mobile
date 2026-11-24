@@ -216,5 +216,44 @@ public final class DeviceBridgeContractTest extends InstrumentationTestCase {
         assertEquals(14, DeviceBridgeFlow.resolveCalendarDays(new JSONObject().put("days_ahead", 14)));
         assertEquals(3, DeviceBridgeFlow.resolveCalendarDays(new JSONObject().put("days", 3)));
         assertEquals(1, DeviceBridgeFlow.resolveCalendarDays(new JSONObject().put("days_ahead", 1).put("days", 10)));
+
+        // R8.8.1: Overflow, negative underflow, fractional, null/non-number, and non-finite days_ahead / limit.
+        assertEquals(Integer.MAX_VALUE, DeviceBridgeFlow.resolveCalendarDays(
+                new JSONObject().put("days_ahead", 4_294_967_296L)));
+        assertEquals(Integer.MIN_VALUE, DeviceBridgeFlow.resolveCalendarDays(
+                new JSONObject().put("days_ahead", -4_294_967_200L)));
+        assertEquals(4, DeviceBridgeFlow.resolveCalendarDays(
+                new JSONObject().put("days_ahead", 3.6d)));
+        assertEquals(7, DeviceBridgeFlow.resolveCalendarDays(
+                new JSONObject().put("days_ahead", JSONObject.NULL)));
+        assertEquals(5, DeviceBridgeFlow.resolveCalendarDays(
+                new JSONObject().put("days_ahead", "not-a-number").put("days", 5)));
+        JSONObject nanDays = new JSONObject() {
+            @Override public boolean has(String name) { return "days_ahead".equals(name); }
+            @Override public Object opt(String name) { return "days_ahead".equals(name) ? Double.NaN : null; }
+        };
+        assertEquals(7, DeviceBridgeFlow.resolveCalendarDays(nanDays));
+        JSONObject infDays = new JSONObject() {
+            @Override public boolean has(String name) { return "days_ahead".equals(name); }
+            @Override public Object opt(String name) { return "days_ahead".equals(name) ? Double.POSITIVE_INFINITY : null; }
+        };
+        assertEquals(7, DeviceBridgeFlow.resolveCalendarDays(infDays));
+
+        assertEquals(20, DeviceBridgeFlow.resolveNotificationDigestLimit(null));
+        assertEquals(20, DeviceBridgeFlow.resolveNotificationDigestLimit(new JSONObject()));
+        assertEquals(40, DeviceBridgeFlow.resolveNotificationDigestLimit(
+                new JSONObject().put("limit", 4_294_967_296L)));
+        assertEquals(1, DeviceBridgeFlow.resolveNotificationDigestLimit(
+                new JSONObject().put("limit", -4_294_967_200L)));
+        assertEquals(4, DeviceBridgeFlow.resolveNotificationDigestLimit(
+                new JSONObject().put("limit", 3.6d)));
+        assertEquals(20, DeviceBridgeFlow.resolveNotificationDigestLimit(
+                new JSONObject().put("limit", "not-a-number")));
+        assertEquals(20, DeviceBridgeFlow.resolveNotificationDigestLimit(
+                new JSONObject().put("limit", JSONObject.NULL)));
+        assertEquals(20, DeviceBridgeFlow.resolveNotificationDigestLimit(
+                new JSONObject().put("limit", "NaN")));
+        assertEquals(20, DeviceBridgeFlow.resolveNotificationDigestLimit(
+                new JSONObject().put("limit", "Infinity")));
     }
 }
