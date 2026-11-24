@@ -5,11 +5,13 @@ import android.test.InstrumentationTestCase;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.R;
 
 @SuppressWarnings("deprecation")
 public final class NearbyResultTest extends InstrumentationTestCase {
     private Context targetContext() { return getInstrumentation().getTargetContext(); }
+    private Context localizedContext(Context target) { return AppLanguage.wrapContext(target); }
     private static JSONObject response(JSONArray rows) throws JSONException {
         return new JSONObject().put("source", "OpenStreetMap").put("attribution", "© OpenStreetMap contributors")
                 .put("source_date", "2026-11-22T13:05:00Z").put("radius_m", 1500).put("places", rows);
@@ -29,8 +31,9 @@ public final class NearbyResultTest extends InstrumentationTestCase {
                 .put(venue("node",17,"Café ☕",205))
                 .put(venue("relation",5000000000L,"Bistro",22));
         Context context = targetContext();
-        String italian = context.getString(R.string.places_cuisine_italian);
-        String pizza = context.getString(R.string.places_cuisine_pizza);
+        Context localized = localizedContext(context);
+        String italian = localized.getString(R.string.places_cuisine_italian);
+        String pizza = localized.getString(R.string.places_cuisine_pizza);
         NearbyResult result = NearbyResult.parse(context, response(records));
         assertEquals("© OpenStreetMap contributors", result.attribution);
         assertEquals("2026-11-22T13:05:00Z", result.sourceDate);
@@ -65,7 +68,7 @@ public final class NearbyResultTest extends InstrumentationTestCase {
 
     public void testCuisineFilterKeepsAnUnknownSourceTagContainingAMiddleDot() throws Exception {
         Context context = targetContext();
-        String italian = context.getString(R.string.places_cuisine_italian);
+        String italian = localizedContext(context).getString(R.string.places_cuisine_italian);
         JSONArray rows = new JSONArray().put(venue("node", 42, "Restaurant", 10)
                 .put("cuisine", "du marché · local; italian;du marché · local"));
         NearbyResult.Place place = NearbyResult.parse(context, response(rows)).places.get(0);
@@ -75,12 +78,13 @@ public final class NearbyResultTest extends InstrumentationTestCase {
 
     public void testCuisineTagsFromTheMontrealSourceUseFrenchLabels() throws Exception {
         Context context = targetContext();
+        Context localized = localizedContext(context);
         JSONArray rows = new JSONArray().put(venue("node", 42, "Restaurant", 10)
                 .put("cuisine", "italian_pizza;pasta;asian;korean"));
-        String expected = context.getString(R.string.places_cuisine_italian_pizza) + " · "
-                + context.getString(R.string.places_cuisine_pasta) + " · "
-                + context.getString(R.string.places_cuisine_asian) + " · "
-                + context.getString(R.string.places_cuisine_korean);
+        String expected = localized.getString(R.string.places_cuisine_italian_pizza) + " · "
+                + localized.getString(R.string.places_cuisine_pasta) + " · "
+                + localized.getString(R.string.places_cuisine_asian) + " · "
+                + localized.getString(R.string.places_cuisine_korean);
         assertEquals(expected,
                 NearbyResult.parse(context, response(rows)).places.get(0).cuisine);
     }

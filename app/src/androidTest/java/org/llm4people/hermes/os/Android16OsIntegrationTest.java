@@ -11,6 +11,7 @@ import android.os.Build;
 import android.test.InstrumentationTestCase;
 import android.widget.RemoteViews;
 
+import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.R;
 
 import java.util.List;
@@ -65,9 +66,10 @@ public final class Android16OsIntegrationTest extends InstrumentationTestCase {
         assertTrue((built.flags & Notification.FLAG_ONGOING_EVENT) != 0);
         assertNotNull(built.actions);
         assertEquals(2, built.actions.length);
-        assertEquals(context.getString(R.string.live_run_working_title), built.extras.getString(Notification.EXTRA_TITLE));
+        Context localized = AppLanguage.wrapContext(context);
+        assertEquals(localized.getString(R.string.live_run_working_title), built.extras.getString(Notification.EXTRA_TITLE));
         if (Build.VERSION.SDK_INT >= 36) {
-            assertEquals(context.getString(R.string.live_run_chip_step_of, 2, 4), built.getShortCriticalText());
+            assertEquals(localized.getString(R.string.live_run_chip_step_of, 2, 4), built.getShortCriticalText());
         }
     }
 

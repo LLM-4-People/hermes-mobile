@@ -5,6 +5,7 @@ import android.app.AlertDialog;
 import android.app.Dialog;
 import android.content.Context;
 import android.content.res.ColorStateList;
+import android.os.SystemClock;
 import android.test.InstrumentationTestCase;
 import android.view.View;
 import android.view.ViewGroup;
@@ -34,6 +35,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -90,7 +92,7 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                 }
             });
         } finally {
-            runTestOnUiThread(activity::finish);
+            finishAndAwaitDestroyed(activity);
         }
     }
 
@@ -135,11 +137,14 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                 }
             });
         } finally {
-            runTestOnUiThread(() -> {
-                UniversalSearchSheet sheet = sheetRef.getAndSet(null);
-                if (sheet != null) sheet.close();
-                activity.finish();
-            });
+            try {
+                runTestOnUiThread(() -> {
+                    UniversalSearchSheet sheet = sheetRef.getAndSet(null);
+                    if (sheet != null) sheet.close();
+                });
+            } finally {
+                finishAndAwaitDestroyed(activity);
+            }
         }
     }
 
@@ -206,17 +211,20 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                 }
             });
         } finally {
-            runTestOnUiThread(() -> {
-                ArtifactDesk.dismiss(activity);
-                ThreadWorkspace workspace = workspaceRef.getAndSet(null);
-                if (workspace != null) workspace.close();
-                VoiceDrafts voice = voiceRef.getAndSet(null);
-                if (voice != null) {
-                    voice.reader().stop();
-                    voice.cancel();
-                }
-                activity.finish();
-            });
+            try {
+                runTestOnUiThread(() -> {
+                    ArtifactDesk.dismiss(activity);
+                    ThreadWorkspace workspace = workspaceRef.getAndSet(null);
+                    if (workspace != null) workspace.close();
+                    VoiceDrafts voice = voiceRef.getAndSet(null);
+                    if (voice != null) {
+                        voice.reader().stop();
+                        voice.cancel();
+                    }
+                });
+            } finally {
+                finishAndAwaitDestroyed(activity);
+            }
         }
     }
 
@@ -262,14 +270,36 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                 }
             });
         } finally {
-            runTestOnUiThread(() -> {
-                AlertDialog dialog = dialogRef.getAndSet(null);
-                if (dialog != null && dialog.isShowing()) dialog.dismiss();
-                ProfileGate gate = gateRef.getAndSet(null);
-                if (gate != null) gate.close();
-                activity.finish();
-            });
+            try {
+                runTestOnUiThread(() -> {
+                    AlertDialog dialog = dialogRef.getAndSet(null);
+                    if (dialog != null && dialog.isShowing()) dialog.dismiss();
+                    ProfileGate gate = gateRef.getAndSet(null);
+                    if (gate != null) gate.close();
+                });
+            } finally {
+                finishAndAwaitDestroyed(activity);
+            }
         }
+    }
+
+    private void finishAndAwaitDestroyed(Activity activity) throws Throwable {
+        if (activity == null) return;
+        runTestOnUiThread(() -> {
+            if (!activity.isFinishing() && !activity.isDestroyed()) {
+                activity.finish();
+            }
+        });
+        getInstrumentation().waitForIdleSync();
+        long deadline = SystemClock.uptimeMillis() + 5_000L;
+        AtomicBoolean destroyed = new AtomicBoolean(false);
+        while (SystemClock.uptimeMillis() < deadline) {
+            runTestOnUiThread(() -> destroyed.set(activity.isDestroyed()));
+            if (destroyed.get()) return;
+            SystemClock.sleep(10L);
+        }
+        runTestOnUiThread(() -> destroyed.set(activity.isDestroyed()));
+        assertTrue("Expected launched MainActivity to complete onDestroy() before next test", destroyed.get());
     }
 
     @SuppressWarnings("unchecked")

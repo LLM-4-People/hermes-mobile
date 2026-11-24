@@ -1,13 +1,18 @@
 package org.llm4people.hermes.thread;
 
-import junit.framework.TestCase;
+import android.test.InstrumentationTestCase;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.llm4people.hermes.R;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class ThreadStateTest extends TestCase {
+@SuppressWarnings("deprecation")
+public class ThreadStateTest extends InstrumentationTestCase {
+    @Override protected void setUp() throws Exception {
+        super.setUp();
+        ThreadStrings.attach(getInstrumentation().getTargetContext());
+    }
     public void testShareReceiptSurvivesReopenAndNeverReplacesTheDraft() {
         AtomicReference<String> saved = new AtomicReference<>();
         ThreadJournal journal = new ThreadJournal("thread", "owner", null, saved::set);
@@ -383,7 +388,9 @@ public class ThreadStateTest extends TestCase {
         assertEquals("", ThreadData.content(null));
         JSONObject row = new JSONObject("{\"content\":[null,{\"type\":\"text\",\"text\":\"one\"},{\"type\":\"text\",\"text\":\"two\"}]}");
         assertEquals("one\ntwo", ThreadData.content(row));
-        assertEquals(ThreadStrings.get(R.string.thread_new_conversation),
+        String newConversation = ThreadStrings.get(R.string.thread_new_conversation);
+        assertFalse("Expected default new conversation title", newConversation.isEmpty());
+        assertEquals(newConversation,
                 ThreadData.title(new JSONObject().put("title", JSONObject.NULL)));
     }
 

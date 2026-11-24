@@ -11,6 +11,7 @@ import android.test.InstrumentationTestCase;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.RouteRegistry;
@@ -26,6 +27,7 @@ import java.util.UUID;
 @SuppressWarnings("deprecation")
 public final class UniversalDeliveryTest extends InstrumentationTestCase {
     private Context context;
+    private Context localized;
     private PushStore store;
     private PushStore.Device deviceA;
     private PushStore.Device deviceB;
@@ -33,6 +35,7 @@ public final class UniversalDeliveryTest extends InstrumentationTestCase {
     @Override protected void setUp() throws Exception {
         super.setUp();
         context = getInstrumentation().getTargetContext();
+        localized = AppLanguage.wrapContext(context);
         if (Build.VERSION.SDK_INT >= 33) {
             getInstrumentation().getUiAutomation().grantRuntimePermission(context.getPackageName(),
                     Manifest.permission.POST_NOTIFICATIONS);
@@ -77,8 +80,8 @@ public final class UniversalDeliveryTest extends InstrumentationTestCase {
         StatusBarNotification posted = awaitNotification(deviceA.installation + "/" + briefingEvent);
         assertNotNull(posted);
         Notification notice = posted.getNotification();
-        assertEquals(context.getString(R.string.push_kind_briefing_title), notice.extras.getString("android.title"));
-        assertEquals(context.getString(R.string.push_notice_open_details), notice.extras.getString("android.text"));
+        assertEquals(localized.getString(R.string.push_kind_briefing_title), notice.extras.getString("android.title"));
+        assertEquals(localized.getString(R.string.push_notice_open_details), notice.extras.getString("android.text"));
         assertEquals(Notification.VISIBILITY_PRIVATE, notice.visibility);
         assertFalse(notice.extras.toString().contains("SECRET-TITLE-MUST-NEVER-SHOW"));
         assertFalse(notice.extras.toString().contains("SECRET-SNIPPET-MUST-NEVER-SHOW"));

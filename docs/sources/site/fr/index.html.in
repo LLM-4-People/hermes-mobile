@@ -202,7 +202,7 @@
           </article>
           <article class="pillar-card">
             <h3>Diagnostic de connexion en direct</h3>
-            <p>Exécute 6 vérifications parallèles couvrant la latence, les <code>{{ expected_fork_capabilities }}/{{ expected_fork_capabilities }}</code> capacités compagnon, les notifications, les mises à jour et la langue, avec copie de rapport expurgé.</p>
+            <p>Exécute 6 vérifications parallèles couvrant la latence, les <code>{{ expected_fork_capabilities }}/{{ expected_fork_capabilities }}</code> capacités compagnon, les notifications, les mises à jour, les permissions et la langue, avec copie de rapport expurgé.</p>
           </article>
           <article class="pillar-card">
             <h3>Tâches simultanées et chargement fluide</h3>

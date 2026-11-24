@@ -4,6 +4,7 @@ import android.content.Context;
 import android.test.InstrumentationTestCase;
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.R;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
@@ -11,6 +12,7 @@ import java.util.LinkedHashSet;
 @SuppressWarnings("deprecation")
 public final class PlaceSelectionTest extends InstrumentationTestCase {
     private Context targetContext() { return getInstrumentation().getTargetContext(); }
+    private Context localizedContext() { return AppLanguage.wrapContext(targetContext()); }
 
     private NearbyResult result() throws Exception {
         JSONArray rows = new JSONArray();
@@ -25,10 +27,10 @@ public final class PlaceSelectionTest extends InstrumentationTestCase {
                 .put("radius_m",1500).put("places",rows));
     }
     public void testFilterMembershipAndComparisonUseOriginalRecordIndexes() throws Exception {
-        Context context = targetContext();
-        String asian = context.getString(R.string.places_cuisine_asian);
-        String italian = context.getString(R.string.places_cuisine_italian);
-        String pizza = context.getString(R.string.places_cuisine_pizza);
+        Context localized = localizedContext();
+        String asian = localized.getString(R.string.places_cuisine_asian);
+        String italian = localized.getString(R.string.places_cuisine_italian);
+        String pizza = localized.getString(R.string.places_cuisine_pizza);
         PlaceSelection choice = new PlaceSelection(result());
         assertEquals(Arrays.asList(asian, italian, pizza), choice.cuisines);
         choice.choose(1, false);
@@ -54,8 +56,8 @@ public final class PlaceSelectionTest extends InstrumentationTestCase {
         assertEquals(-1, choice.comparison());
     }
     public void testUnreportedCuisineNeverBecomesAFilterOrIntroducesAPoint() throws Exception {
-        Context context = targetContext();
-        String asian = context.getString(R.string.places_cuisine_asian);
+        Context localized = localizedContext();
+        String asian = localized.getString(R.string.places_cuisine_asian);
         PlaceSelection choice = new PlaceSelection(result());
         choice.filter("Inconnue");
         assertEquals("", choice.cuisine());
