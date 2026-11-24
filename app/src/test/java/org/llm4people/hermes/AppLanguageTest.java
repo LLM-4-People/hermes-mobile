@@ -191,6 +191,40 @@ public final class AppLanguageTest {
         }
     }
 
+    @Test
+    public void refreshRuntimeUpdatesModeAutoAcceptLanguageAndLifecycleHooksExist() throws Exception {
+        String previous = AppLanguage.currentAcceptLanguage();
+        try {
+            AppLanguage.refreshRuntime(AppLanguage.Mode.AUTO, Collections.singletonList("en-CA"));
+            assertEquals("en-CA, en;q=0.9", AppLanguage.currentAcceptLanguage());
+
+            AppLanguage.refreshRuntime(AppLanguage.Mode.AUTO, Collections.singletonList("fr-CA"));
+            assertEquals("fr-CA, fr;q=0.9", AppLanguage.currentAcceptLanguage());
+
+            AppLanguage.refreshRuntime(AppLanguage.Mode.AUTO, Collections.singletonList("es-ES"));
+            assertEquals("fr", AppLanguage.currentAcceptLanguage());
+
+            AppLanguage.refreshRuntime(AppLanguage.Mode.ENGLISH, Collections.singletonList("fr-CA"));
+            assertEquals("en", AppLanguage.currentAcceptLanguage());
+
+            AppLanguage.refreshRuntime(AppLanguage.Mode.FRENCH, Collections.singletonList("en-US"));
+            assertEquals("fr", AppLanguage.currentAcceptLanguage());
+        } finally {
+            AppLanguage.setActiveAcceptLanguageForTest(previous);
+        }
+
+        // R15.1.2: PushApplication overrides onConfigurationChanged(Configuration).
+        java.lang.reflect.Method onConfig = org.llm4people.hermes.push.PushApplication.class
+                .getDeclaredMethod("onConfigurationChanged", android.content.res.Configuration.class);
+        assertEquals(void.class, onConfig.getReturnType());
+
+        // R15.1.1: HermesWidgetProvider exposes null-safe 1-arg refresh(Context).
+        java.lang.reflect.Method refresh = org.llm4people.hermes.os.HermesWidgetProvider.class
+                .getMethod("refresh", android.content.Context.class);
+        assertEquals(void.class, refresh.getReturnType());
+        org.llm4people.hermes.os.HermesWidgetProvider.refresh(null);
+    }
+
     private static File locateResRoot() {
         File direct = new File("src/main/res");
         if (direct.isDirectory()) return direct;

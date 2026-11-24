@@ -36,7 +36,7 @@ public final class LiveUiStateManagerTest {
         LiveUiPatch.WidgetSpec widget = new LiveUiPatch.WidgetSpec(
                 "briefing_matin", "Résumé du jour", "2 tâches en cours", "briefing",
                 List.of(new LiveUiPatch.WidgetItem("Focus", "Revue mobile", "Fais le point sur mes tâches")),
-                "#1B4D89", true, false);
+                "#1B4D89", true);
 
         LiveUiPatch rev1 = new LiveUiPatch("rev-001", "", "atelier", "Thème bleu et raccourcis",
                 Arrays.asList(
@@ -97,21 +97,21 @@ public final class LiveUiStateManagerTest {
         // Widget must opt in explicitly with home_screen_safe: true and valid template + contrast + no secrets.
         assertThrowsIo(() -> new LiveUiPatch.WidgetSpec(
                 "w1", "Titre", "", "metric",
-                List.of(new LiveUiPatch.WidgetItem("A", "1", null)), null, false, false));
+                List.of(new LiveUiPatch.WidgetItem("A", "1", null)), null, false));
         assertThrowsIo(() -> new LiveUiPatch.WidgetSpec(
                 "w1", "Titre", "", "unknown_tpl",
-                List.of(new LiveUiPatch.WidgetItem("A", "1", null)), null, true, false));
+                List.of(new LiveUiPatch.WidgetItem("A", "1", null)), null, true));
         assertThrowsIo(() -> new LiveUiPatch.WidgetSpec(
                 "w1", "Titre", "", "metric",
-                List.of(new LiveUiPatch.WidgetItem("A", "1", null)), "#808080", true, false));
+                List.of(new LiveUiPatch.WidgetItem("A", "1", null)), "#808080", true));
         assertThrowsIo(() -> new LiveUiPatch.WidgetSpec(
                 "w1", "Bearer abcdefghijklmnopqrstuvwx", "", "status",
-                Collections.emptyList(), null, true, false));
+                Collections.emptyList(), null, true));
         // Fork PR #15 allows 0..8 items + checked + accent_ink_hex
         try {
             LiveUiPatch.WidgetSpec emptyItemsOk = new LiveUiPatch.WidgetSpec(
                     "w_empty", "Statut calme", "Rien à signaler", "status",
-                    Collections.emptyList(), "#0D6E6E", "#FFFFFF", true, false);
+                    Collections.emptyList(), "#0D6E6E", "#FFFFFF", true);
             assertEquals("#FFFFFF", emptyItemsOk.accentInkHex);
             assertTrue(emptyItemsOk.items.isEmpty());
             LiveUiPatch.WidgetItem checkedItem = new LiveUiPatch.WidgetItem("Courses", "", Boolean.TRUE, null);
@@ -196,7 +196,7 @@ public final class LiveUiStateManagerTest {
                 "system", "#0D6E6E", "comfortable", 0, "paper", false);
         LiveUiPatch.WidgetSpec widget = new LiveUiPatch.WidgetSpec(
                 "briefing_matin", "Résumé du jour", "", "briefing",
-                Collections.emptyList(), "#0D6E6E", true, false);
+                Collections.emptyList(), "#0D6E6E", true);
         LiveUiPatch rev1 = new LiveUiPatch("rev-day-1", "", "atelier", "Accent sarcelle",
                 Arrays.asList(
                         new LiveUiPatch.Op.SetThemeOverride(systemTeal),

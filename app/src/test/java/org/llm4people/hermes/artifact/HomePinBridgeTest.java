@@ -33,8 +33,7 @@ public final class HomePinBridgeTest {
                         new LiveUiPatch.WidgetItem("Course 5", "", null, "")
                 ),
                 "#1E5B78",
-                true,
-                false);
+                true);
 
         HermesWidgetSpec osSpec = HomePinBridge.toOsWidgetSpec(live);
         assertNotNull(osSpec);

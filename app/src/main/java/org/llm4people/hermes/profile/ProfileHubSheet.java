@@ -9,7 +9,6 @@ import android.text.InputType;
 import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.View;
-import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.inputmethod.EditorInfo;
 import android.widget.Button;
 import android.widget.EditText;
@@ -24,13 +23,13 @@ import org.json.JSONObject;
 import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.HermesConfig;
+import org.llm4people.hermes.PlainTextSanitizer;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.onboarding.OnboardingModels;
 import org.llm4people.hermes.onboarding.PairingShareSheet;
 
-import java.text.Normalizer;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -110,15 +109,13 @@ public final class ProfileHubSheet implements AutoCloseable {
     /** Derives a safe lowercase slug suggestion from a human display name (accent-folded). */
     public static String suggestSlug(String displayName) {
         if (displayName == null || displayName.trim().isEmpty()) return "";
-        String norm = Normalizer.normalize(displayName.trim(), Normalizer.Form.NFD);
+        String folded = PlainTextSanitizer.foldAccents(displayName.trim());
         StringBuilder sb = new StringBuilder();
         boolean prevDash = true;
-        for (int i = 0; i < norm.length() && sb.length() < 32; i++) {
-            char c = norm.charAt(i);
-            int type = Character.getType(c);
-            if (type == Character.NON_SPACING_MARK || type == Character.COMBINING_SPACING_MARK) continue;
-            if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')) {
-                sb.append(Character.toLowerCase(c));
+        for (int i = 0; i < folded.length() && sb.length() < 32; i++) {
+            char c = folded.charAt(i);
+            if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')) {
+                sb.append(c);
                 prevDash = false;
             } else if (!prevDash && sb.length() > 0) {
                 sb.append('-');
@@ -756,14 +753,7 @@ public final class ProfileHubSheet implements AutoCloseable {
                 selected ? 2 : 1)));
         btn.setTextColor(activity.getColor(selected ? R.color.accent : R.color.ink));
         btn.setSelected(selected);
-        btn.setAccessibilityDelegate(new View.AccessibilityDelegate() {
-            @Override
-            public void onInitializeAccessibilityNodeInfo(View host, AccessibilityNodeInfo info) {
-                super.onInitializeAccessibilityNodeInfo(host, info);
-                info.setCheckable(true);
-                info.setChecked(selected);
-            }
-        });
+        Ui.setCheckableState(btn, selected);
     }
 
     static TextView avatarBadge(Activity activity, String initials, boolean accent) {

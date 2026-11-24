@@ -741,13 +741,7 @@ public final class AppearanceSettingsPanel {
         chip.setBackground(Ui.roundedRipple(activity, Ui.BUTTON_CORNER_DP, bg));
         chip.setOnClickListener(v -> onClick.run());
         chip.setContentDescription(label);
-        chip.setAccessibilityDelegate(new View.AccessibilityDelegate() {
-            @Override public void onInitializeAccessibilityNodeInfo(View host, android.view.accessibility.AccessibilityNodeInfo info) {
-                super.onInitializeAccessibilityNodeInfo(host, info);
-                info.setClassName(Button.class.getName());
-                info.setSelected(host.isSelected());
-            }
-        });
+        Ui.setSelectableButtonRole(chip);
 
         if (swatchColorArgb != 0) {
             View dot = new View(activity);

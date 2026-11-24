@@ -7,7 +7,6 @@ import android.text.InputType;
 import android.text.TextUtils;
 import android.text.TextWatcher;
 import android.view.View;
-import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.inputmethod.EditorInfo;
 import android.widget.Button;
 import android.widget.EditText;
@@ -269,12 +268,7 @@ public final class SettingsHubPanel {
         row.setClickable(true);
         row.setBackground(Ui.roundedRipple(activity, 0, null));
         row.setOnClickListener(v -> onAction.accept(item.actionId()));
-        row.setAccessibilityDelegate(new View.AccessibilityDelegate() {
-            @Override public void onInitializeAccessibilityNodeInfo(View host, AccessibilityNodeInfo info) {
-                super.onInitializeAccessibilityNodeInfo(host, info);
-                info.setClassName(Button.class.getName());
-            }
-        });
+        Ui.setButtonRole(row);
         row.setContentDescription(item.subtitle().isEmpty()
                 ? item.title() : item.title() + ". " + item.subtitle());
 

@@ -18,6 +18,7 @@ import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.JsonValues;
 import org.llm4people.hermes.R;
+import org.llm4people.hermes.WorkspaceNavigation;
 import org.llm4people.hermes.ambient.AmbientAccessPanel;
 import org.llm4people.hermes.artifact.ThemePalette;
 import org.llm4people.hermes.customization.AppCustomization;
@@ -100,7 +101,7 @@ public final class DeepAndroidActions {
     private static Map<String, NavigateDestination> buildNavigateTargetMap() {
         Map<String, NavigateDestination> m = new LinkedHashMap<>();
         m.put("discussions", NavigateDestination.DISCUSSIONS);
-        m.put("discussion", NavigateDestination.DISCUSSIONS);
+        m.put(WorkspaceNavigation.DISCUSSION, NavigateDestination.DISCUSSIONS);
         m.put(AppsLauncherPanel.ROUTE_ID, NavigateDestination.APPS);
         m.put("atelier", NavigateDestination.APPS);
         m.put("home", NavigateDestination.APPS);

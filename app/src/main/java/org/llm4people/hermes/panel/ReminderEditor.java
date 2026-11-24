@@ -8,7 +8,6 @@ import android.text.InputType;
 import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.View;
-import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.inputmethod.EditorInfo;
 import android.widget.Button;
 import android.widget.EditText;
@@ -63,7 +62,7 @@ final class ReminderEditor {
     }
 
     void show() {
-        LinearLayout page = panel.page("reminders",
+        LinearLayout page = panel.page(ReminderPanel.ROUTE_ID,
                 job == null ? R.string.panel_new_reminder : R.string.panel_reminder_edit,
                 () -> { if (job == null) owner.show(); else owner.details(job); });
         PanelFrame.Sections editor = panel.sections(page);
@@ -209,13 +208,7 @@ final class ReminderEditor {
         chip.setBackground(Ui.roundedRipple(panel.activity, Ui.BUTTON_CORNER_DP, fill));
         chip.setTextColor(panel.activity.getColor(selected ? R.color.accent : R.color.ink));
         chip.setSelected(selected);
-        chip.setAccessibilityDelegate(new View.AccessibilityDelegate() {
-            @Override public void onInitializeAccessibilityNodeInfo(View host, AccessibilityNodeInfo info) {
-                super.onInitializeAccessibilityNodeInfo(host, info);
-                info.setCheckable(true);
-                info.setChecked(selected);
-            }
-        });
+        Ui.setCheckableState(chip, selected);
         chip.setOnClickListener(listener);
         return chip;
     }

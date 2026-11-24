@@ -1,6 +1,7 @@
 package org.llm4people.hermes.push;
 
 import android.app.Application;
+import android.content.res.Configuration;
 
 import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.Diagnostics;
@@ -32,6 +33,11 @@ public final class PushApplication extends Application {
                 Diagnostics.debug("push", "startup_prune_skipped", ignored);
             }
         });
+    }
+
+    @Override public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        AppLanguage.refreshRuntime(this);
     }
 
     @Override public void onTrimMemory(int level) {

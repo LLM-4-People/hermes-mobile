@@ -6,7 +6,6 @@ import android.graphics.drawable.GradientDrawable;
 import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.View;
-import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.Button;
 import android.widget.HorizontalScrollView;
 import android.widget.ImageView;
@@ -179,13 +178,7 @@ public final class NotesTasksPanel implements AutoCloseable {
                 : null;
         tab.setBackground(Ui.roundedRipple(activity, 12, fill));
         Ui.pad(tab, 12, 10);
-        tab.setAccessibilityDelegate(new View.AccessibilityDelegate() {
-            @Override public void onInitializeAccessibilityNodeInfo(View host, AccessibilityNodeInfo info) {
-                super.onInitializeAccessibilityNodeInfo(host, info);
-                info.setClassName(Button.class.getName());
-                info.setSelected(host.isSelected());
-            }
-        });
+        Ui.setSelectableButtonRole(tab);
         tab.setOnClickListener(v -> selectSegment(segment));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2, 1f);
         segmentBar.addView(tab, lp);
@@ -482,12 +475,7 @@ public final class NotesTasksPanel implements AutoCloseable {
         row.setClickable(true);
         row.setBackground(Ui.roundedRipple(activity, 0, null));
         row.setOnClickListener(v -> onClick.run());
-        row.setAccessibilityDelegate(new View.AccessibilityDelegate() {
-            @Override public void onInitializeAccessibilityNodeInfo(View host, AccessibilityNodeInfo info) {
-                super.onInitializeAccessibilityNodeInfo(host, info);
-                info.setClassName(Button.class.getName());
-            }
-        });
+        Ui.setButtonRole(row);
         StringBuilder desc = new StringBuilder(title == null ? "" : title);
         if (badge != null && !badge.isEmpty()) {
             if (desc.length() > 0) desc.append(". ");

@@ -6,7 +6,6 @@ import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.view.Gravity;
 import android.view.View;
-import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.Button;
 import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
@@ -34,7 +33,8 @@ import java.util.concurrent.Callable;
 /**
  * Profile-scoped Scheduled Jobs overview, live execution history, and immediate trigger controls.
  */
-final class ReminderPanel {
+public final class ReminderPanel {
+    public static final String ROUTE_ID = "reminders";
     static final String JOBS = "/api/jobs";
     private final SessionPanel panel;
     private ScheduledJobModel.Filter activeFilter = ScheduledJobModel.Filter.ALL;
@@ -47,7 +47,7 @@ final class ReminderPanel {
     }
 
     void show() {
-        LinearLayout page = panel.page("reminders", R.string.panel_reminders, null);
+        LinearLayout page = panel.page(ROUTE_ID, R.string.panel_reminders, null);
         Locale locale = activeLocale(panel.activity);
         ZoneId zone = ZoneId.systemDefault();
 
@@ -164,13 +164,7 @@ final class ReminderPanel {
         chip.setBackground(Ui.roundedRipple(panel.activity, Ui.BUTTON_CORNER_DP, bg));
         chip.setTextColor(panel.activity.getColor(selected ? R.color.accent : R.color.ink));
         chip.setSelected(selected);
-        chip.setAccessibilityDelegate(new View.AccessibilityDelegate() {
-            @Override public void onInitializeAccessibilityNodeInfo(View host, AccessibilityNodeInfo info) {
-                super.onInitializeAccessibilityNodeInfo(host, info);
-                info.setCheckable(true);
-                info.setChecked(selected);
-            }
-        });
+        Ui.setCheckableState(chip, selected);
         chip.setOnClickListener(v -> {
             activeFilter = filter;
             renderJobsOverview(container, jobs, zone, locale, feedbackView);
@@ -306,7 +300,7 @@ final class ReminderPanel {
     }
 
     void open(String jobId) {
-        LinearLayout page = panel.page("reminders", R.string.panel_reminders, this::show);
+        LinearLayout page = panel.page(ROUTE_ID, R.string.panel_reminders, this::show);
         if (jobId == null || jobId.isEmpty()) {
             panel.note(page, panel.t(R.string.panel_missing_job));
             panel.action(page, R.string.panel_view_reminders, this::show);
@@ -377,7 +371,7 @@ final class ReminderPanel {
     }
 
     void details(JSONObject job) {
-        LinearLayout page = panel.page("reminders", R.string.panel_reminders, this::show);
+        LinearLayout page = panel.page(ROUTE_ID, R.string.panel_reminders, this::show);
         Locale locale = activeLocale(panel.activity);
         ZoneId zone = ZoneId.systemDefault();
         String name = PanelData.text(job, "name");
@@ -617,7 +611,7 @@ final class ReminderPanel {
 
     private void mutate(Callable<JSONObject> operation) {
         // A POST can commit on the server even when its response is lost. Reload the list instead of retrying it.
-        LinearLayout page = panel.page("reminders", R.string.panel_reminders, this::show);
+        LinearLayout page = panel.page(ROUTE_ID, R.string.panel_reminders, this::show);
         panel.request(page, operation, ignored -> show(), error -> {
             panel.failure(page, error, null);
             panel.note(page, panel.t(R.string.panel_check_mutation));

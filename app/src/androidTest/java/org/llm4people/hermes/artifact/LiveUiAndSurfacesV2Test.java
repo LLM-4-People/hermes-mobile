@@ -1,6 +1,7 @@
 package org.llm4people.hermes.artifact;
 
 import android.content.Context;
+import android.content.res.Configuration;
 import android.test.InstrumentationTestCase;
 import android.view.View;
 import android.widget.LinearLayout;
@@ -8,8 +9,10 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.llm4people.hermes.customization.InteractiveCardView;
 import org.llm4people.hermes.profile.Account;
 import org.llm4people.hermes.profile.WorkspaceAccountFixture;
 
@@ -551,27 +554,62 @@ public final class LiveUiAndSurfacesV2Test extends InstrumentationTestCase {
     }
 
     public void testHighlightsReturnLocalizedOpDescriptions() throws Exception {
-        Context context = getInstrumentation().getTargetContext();
+        Context base = getInstrumentation().getTargetContext();
+        Configuration frConfig = new Configuration(base.getResources().getConfiguration());
+        frConfig.setLocale(Locale.FRENCH);
+        Context frContext = base.createConfigurationContext(frConfig);
+        Configuration enConfig = new Configuration(base.getResources().getConfiguration());
+        enConfig.setLocale(Locale.ENGLISH);
+        Context enContext = base.createConfigurationContext(enConfig);
+
         LiveUiPatch.WidgetSpec widget = new LiveUiPatch.WidgetSpec(
                 "w_daily", "Daily Focus", "2 items", "checklist",
                 Collections.singletonList(new LiveUiPatch.WidgetItem("Check build", "09:00", null)),
-                null, true, false);
+                null, true);
+        ThemePalette.OverrideSpec themeOverride = ThemePalette.OverrideSpec.validated(
+                "light", "#1B4D89", "compact", 1, "outlined", false);
         List<LiveUiPatch.Op> ops = Arrays.asList(
                 new LiveUiPatch.Op.UpsertSurface("page/focus", "{\"version\":2}", "Focus"),
                 new LiveUiPatch.Op.RemoveSurface("page/old"),
                 new LiveUiPatch.Op.UpsertTab(new LiveUiPatch.CustomTab("tab_focus", "Focus", "page/focus")),
+                new LiveUiPatch.Op.RemoveTab("tab_old"),
+                new LiveUiPatch.Op.UpsertQuickAction(
+                        new LiveUiPatch.QuickAction("qa_focus", "Summarize", "Summarize this.", null)),
+                new LiveUiPatch.Op.RemoveQuickAction("qa_old"),
+                new LiveUiPatch.Op.SetThemeOverride(themeOverride),
                 new LiveUiPatch.Op.ResetTheme(),
-                new LiveUiPatch.Op.UpsertWidget(widget));
+                new LiveUiPatch.Op.UpsertWidget(widget),
+                new LiveUiPatch.Op.RemoveWidget("w_old"));
+        InteractiveCardView.Spec card = InteractiveCardView.Spec.checklist(
+                "card_release", "Release checklist", "Verify before tag",
+                Collections.singletonList(new InteractiveCardView.ChecklistItem("item_1", "Run tests", false)));
         LiveUiPatch patch = new LiveUiPatch(
-                "rev-highlights-01", "", "atelier", "Localized preview", ops, true);
+                "rev-highlights-01", "", "atelier", "Localized preview",
+                ops, Collections.emptyList(), Collections.singletonList(card), true, LiveUiPatch.MAX_OPS);
 
-        List<String> highlights = patch.highlights(context);
-        assertEquals(ops.size(), highlights.size());
+        List<String> frHighlights = patch.highlights(frContext);
+        List<String> enHighlights = patch.highlights(enContext);
+        assertEquals(ops.size() + 1, frHighlights.size());
+        assertEquals(ops.size() + 1, enHighlights.size());
+
         for (int i = 0; i < ops.size(); i++) {
-            assertEquals("Highlight[" + i + "] must match localized Op.describe(context)",
-                    ops.get(i).describe(context), highlights.get(i));
+            assertEquals("FR highlight[" + i + "] must match localized Op.describe(frContext)",
+                    ops.get(i).describe(frContext), frHighlights.get(i));
+            assertEquals("EN highlight[" + i + "] must match localized Op.describe(enContext)",
+                    ops.get(i).describe(enContext), enHighlights.get(i));
+            assertFalse("FR and EN highlight[" + i + "] must diverge for " + ops.get(i).kind(),
+                    frHighlights.get(i).equals(enHighlights.get(i)));
         }
-        assertFalse("ResetTheme highlight must be localized, never hardcoded 'default'",
-                "default".equals(highlights.get(3)));
+        assertFalse("ResetTheme FR highlight must be localized, never hardcoded 'default'",
+                "default".equals(frHighlights.get(7)));
+        assertFalse("ResetTheme EN highlight must be localized, never hardcoded 'default'",
+                "default".equals(enHighlights.get(7)));
+        assertEquals("Release checklist", frHighlights.get(ops.size()));
+        assertEquals("Release checklist", enHighlights.get(ops.size()));
+
+        try {
+            enHighlights.add("x");
+            fail("highlights() must return an unmodifiable list");
+        } catch (UnsupportedOperationException expected) {}
     }
 }

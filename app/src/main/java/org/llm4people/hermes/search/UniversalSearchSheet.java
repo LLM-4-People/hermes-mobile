@@ -22,7 +22,6 @@ import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowInsets;
 import android.view.WindowManager;
-import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
@@ -627,13 +626,7 @@ public final class UniversalSearchSheet implements AutoCloseable {
         String baseDesc = localized.getString(
                 R.string.universal_search_open_result_cd, item.title(), pillLabel);
         row.setContentDescription(subtitle.isEmpty() ? baseDesc : baseDesc + ". " + subtitle);
-        row.setAccessibilityDelegate(new View.AccessibilityDelegate() {
-            @Override
-            public void onInitializeAccessibilityNodeInfo(View host, AccessibilityNodeInfo info) {
-                super.onInitializeAccessibilityNodeInfo(host, info);
-                info.setClassName(Button.class.getName());
-            }
-        });
+        Ui.setButtonRole(row);
         row.setOnClickListener(v -> dispatchResult(item));
         return row;
     }
