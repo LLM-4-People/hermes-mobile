@@ -60,6 +60,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.IntSupplier;
 
 /**
  * Zero-dependency native Camera2 QR scanner for Hermes pairing links.
@@ -724,18 +725,20 @@ public final class QrScannerActivity extends Activity {
 
                 @Override
                 public void onDisconnected(CameraDevice device) {
-                    if (!closeCameraForEpoch(sessionEpoch, device)) return;
+                    int closedEpoch = closeCameraForEpoch(sessionEpoch, device);
+                    if (closedEpoch < 0) return;
                     Diagnostics.warning("qr_scanner", "camera_disconnected");
-                    mainHandler.post(() -> showFallback(
-                            R.string.qr_scanner_unavailable_title, R.string.qr_scanner_unavailable_detail, false));
+                    postFallbackForEpoch(closedEpoch,
+                            R.string.qr_scanner_unavailable_title, R.string.qr_scanner_unavailable_detail, false);
                 }
 
                 @Override
                 public void onError(CameraDevice device, int error) {
-                    if (!closeCameraForEpoch(sessionEpoch, device)) return;
+                    int closedEpoch = closeCameraForEpoch(sessionEpoch, device);
+                    if (closedEpoch < 0) return;
                     Diagnostics.warning("qr_scanner", "camera_open_error_" + error);
-                    mainHandler.post(() -> showFallback(
-                            R.string.qr_scanner_unavailable_title, R.string.qr_scanner_unavailable_detail, false));
+                    postFallbackForEpoch(closedEpoch,
+                            R.string.qr_scanner_unavailable_title, R.string.qr_scanner_unavailable_detail, false);
                 }
             }, bgHandler);
         } catch (CameraAccessException | RuntimeException err) {
@@ -754,10 +757,7 @@ public final class QrScannerActivity extends Activity {
     private void createCaptureSession(CameraDevice device, int sessionEpoch) {
         Surface previewSurface = previewView.getHolder().getSurface();
         if (previewSurface == null || !previewSurface.isValid() || analysisSize == null) {
-            synchronized (cameraLock) {
-                if (sessionEpoch != cameraEpoch) return;
-            }
-            closeCamera();
+            closeCameraForEpoch(sessionEpoch, null);
             return;
         }
 
@@ -817,24 +817,20 @@ public final class QrScannerActivity extends Activity {
 
                         @Override
                         public void onConfigureFailed(CameraCaptureSession session) {
-                            synchronized (cameraLock) {
-                                if (sessionEpoch != cameraEpoch) return;
-                            }
+                            int closedEpoch = closeCameraForEpoch(sessionEpoch, null);
+                            if (closedEpoch < 0) return;
                             Diagnostics.warning("qr_scanner", "session_configure_failed");
-                            closeCamera();
-                            mainHandler.post(() -> showFallback(
-                                    R.string.qr_scanner_unavailable_title, R.string.qr_scanner_unavailable_detail, false));
+                            postFallbackForEpoch(closedEpoch,
+                                    R.string.qr_scanner_unavailable_title, R.string.qr_scanner_unavailable_detail, false);
                         }
                     },
                     bgHandler);
         } catch (CameraAccessException | RuntimeException err) {
-            synchronized (cameraLock) {
-                if (sessionEpoch != cameraEpoch) return;
-            }
+            int closedEpoch = closeCameraForEpoch(sessionEpoch, null);
+            if (closedEpoch < 0) return;
             Diagnostics.warning("qr_scanner", "capture_session_failed");
-            closeCamera();
-            mainHandler.post(() -> showFallback(
-                    R.string.qr_scanner_unavailable_title, R.string.qr_scanner_unavailable_detail, false));
+            postFallbackForEpoch(closedEpoch,
+                    R.string.qr_scanner_unavailable_title, R.string.qr_scanner_unavailable_detail, false);
         }
     }
 
@@ -928,6 +924,28 @@ public final class QrScannerActivity extends Activity {
         };
     }
 
+    static Runnable deferredEpochUiAction(int expectedEpoch, IntSupplier liveEpochReader, Runnable action) {
+        return () -> {
+            if (liveEpochReader == null || action == null) return;
+            if (!isCurrentEpoch(expectedEpoch, liveEpochReader.getAsInt())) return;
+            action.run();
+        };
+    }
+
+    private int readCameraEpochLocked() {
+        synchronized (cameraLock) {
+            return cameraEpoch;
+        }
+    }
+
+    private void postFallbackForEpoch(int expectedEpoch, int titleRes, int detailRes, boolean permissionRecovery) {
+        if (expectedEpoch < 0) return;
+        mainHandler.post(deferredEpochUiAction(
+                expectedEpoch,
+                this::readCameraEpochLocked,
+                () -> showFallback(titleRes, detailRes, permissionRecovery)));
+    }
+
     private boolean readTorchEnabledLocked() {
         synchronized (cameraLock) {
             return currentTorchEnabled(flashAvailable, torchOn);
@@ -971,22 +989,22 @@ public final class QrScannerActivity extends Activity {
         updateTorchButtonText(applied);
     }
 
-    private boolean closeCameraForEpoch(int expectedEpoch, CameraDevice callbackDevice) {
+    private int closeCameraForEpoch(int expectedEpoch, CameraDevice callbackDevice) {
         if (callbackDevice != null) {
             try { callbackDevice.close(); } catch (RuntimeException ignored) {}
         }
-        boolean current;
+        int closedEpoch = -1;
         boolean resetTorchUi = false;
         synchronized (cameraLock) {
-            current = isCurrentEpoch(expectedEpoch, cameraEpoch);
-            if (current) {
+            if (isCurrentEpoch(expectedEpoch, cameraEpoch)) {
                 resetTorchUi = closeCameraResourcesLocked(callbackDevice);
+                closedEpoch = cameraEpoch;
             }
         }
         if (resetTorchUi) {
             postTorchButtonState();
         }
-        return current;
+        return closedEpoch;
     }
 
     private void closeCamera() {

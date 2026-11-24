@@ -2,6 +2,7 @@ package org.llm4people.hermes.share;
 
 import org.junit.Test;
 import org.llm4people.hermes.R;
+import org.llm4people.hermes.ambient.HermesNotificationListener;
 import org.llm4people.hermes.ambient.NotificationAllowlist;
 import org.llm4people.hermes.presence.PresencePolicy;
 
@@ -221,26 +222,92 @@ public final class DeviceBridgeCapabilitiesTest {
         assertEquals(R.string.share_bridge_preview_summary, shortcuts.get(1).labelRes());
         assertEquals("3 rappels actifs", shortcuts.get(1).value());
 
-        // 6. app_customize
+        // 6. app_customize: localized labels & enum values with zero raw wire tokens.
         Map<String, Object> customParams = new LinkedHashMap<>();
         customParams.put("operation", "apply");
         customParams.put("theme", "dark");
-        customParams.put("accent", "sage");
+        customParams.put("accent", "slate");
+        customParams.put("accent_hex", "#1B4D89");
         customParams.put("density", "compact");
+        customParams.put("font_scale_step", 2);
+        customParams.put("startup_tab", "notes_tasks");
+        customParams.put("greeting", "Bonjour\u202E");
+        customParams.put("quick_shortcuts", List.of("a", "b"));
         List<DeviceBridgeFlow.PreviewLine> customize =
                 DeviceBridgeFlow.previewLinesForParams("app_customize", customParams);
-        assertEquals(1, customize.size());
-        assertEquals(R.string.share_bridge_preview_changes, customize.get(0).labelRes());
-        assertEquals("theme=dark, accent=sage, density=compact", customize.get(0).value());
+        assertEquals(8, customize.size());
+        assertEquals(DeviceBridgeFlow.PreviewLine.resValue(R.string.share_bridge_preview_theme, R.string.appearance_theme_dark),
+                customize.get(0));
+        assertEquals(DeviceBridgeFlow.PreviewLine.resValue(R.string.share_bridge_preview_accent, R.string.appearance_palette_slate),
+                customize.get(1));
+        assertEquals(DeviceBridgeFlow.PreviewLine.text(R.string.share_bridge_preview_accent_color, "#1B4D89"),
+                customize.get(2));
+        assertEquals(DeviceBridgeFlow.PreviewLine.resValue(R.string.share_bridge_preview_density, R.string.appearance_density_compact),
+                customize.get(3));
+        assertEquals(DeviceBridgeFlow.PreviewLine.text(R.string.share_bridge_preview_text_size, "110%"),
+                customize.get(4));
+        assertEquals(DeviceBridgeFlow.PreviewLine.resValue(R.string.share_bridge_preview_startup_tab, R.string.nav_notes_tasks),
+                customize.get(5));
+        assertEquals(DeviceBridgeFlow.PreviewLine.text(R.string.share_bridge_preview_greeting, "Bonjour"),
+                customize.get(6));
+        assertEquals(DeviceBridgeFlow.PreviewLine.text(R.string.share_bridge_preview_shortcuts, "2"),
+                customize.get(7));
 
         List<DeviceBridgeFlow.PreviewLine> customizeReset =
                 DeviceBridgeFlow.previewLinesForParams("app_customize", Map.of("operation", "reset"));
-        assertEquals(1, customizeReset.size());
-        assertEquals("reset", customizeReset.get(0).value());
+        assertEquals(List.of(DeviceBridgeFlow.PreviewLine.message(R.string.share_bridge_preview_customize_reset)),
+                customizeReset);
+
+        List<DeviceBridgeFlow.PreviewLine> customizeUndo =
+                DeviceBridgeFlow.previewLinesForParams("app_customize", Map.of("operation", "undo"));
+        assertEquals(List.of(DeviceBridgeFlow.PreviewLine.message(R.string.share_bridge_preview_customize_undo)),
+                customizeUndo);
 
         // Negative / empty / unknown action returns empty preview safely.
         assertTrue(DeviceBridgeFlow.previewLinesForParams("unknown", Map.of("a", "b")).isEmpty());
         assertTrue(DeviceBridgeFlow.previewLinesForParams("android_open_app", null).isEmpty());
         assertTrue(DeviceBridgeFlow.previewLinesForParams("android_open_app", Map.of("deep_link", " \u202E ")).isEmpty());
+    }
+
+    @Test
+    public void previewBoundaryAndNegativeInputsAndNotificationReplyDraftSanitization() {
+        // Hour-scale and short timer formatting
+        assertEquals(List.of(DeviceBridgeFlow.PreviewLine.text(R.string.share_bridge_preview_duration, "1h")),
+                DeviceBridgeFlow.previewLinesForParams("android_set_timer", Map.of("duration_seconds", 3600)));
+        assertEquals(List.of(DeviceBridgeFlow.PreviewLine.text(R.string.share_bridge_preview_duration, "1h 1min 5s")),
+                DeviceBridgeFlow.previewLinesForParams("android_set_timer", Map.of("duration_seconds", 3665)));
+        assertEquals(List.of(DeviceBridgeFlow.PreviewLine.text(R.string.share_bridge_preview_duration, "45s")),
+                DeviceBridgeFlow.previewLinesForParams("android_set_timer", Map.of("duration_seconds", 45)));
+
+        // Non-positive and non-numeric timer durations are omitted fail-closed
+        assertTrue(DeviceBridgeFlow.previewLinesForParams("android_set_timer", Map.of("duration_seconds", 0)).isEmpty());
+        assertTrue(DeviceBridgeFlow.previewLinesForParams("android_set_timer", Map.of("duration_seconds", -10)).isEmpty());
+        assertTrue(DeviceBridgeFlow.previewLinesForParams("android_set_timer", Map.of("duration_seconds", "bad")).isEmpty());
+
+        // Empty / unknown-only params and out-of-range font_scale_step / non-String values
+        assertTrue(DeviceBridgeFlow.previewLinesForParams("app_customize", Map.of()).isEmpty());
+        assertTrue(DeviceBridgeFlow.previewLinesForParams("app_customize",
+                Map.of("operation", "apply", "unknown_key", "ignored")).isEmpty());
+        assertTrue(DeviceBridgeFlow.previewLinesForParams("app_customize",
+                Map.of("operation", "apply", "font_scale_step", 99)).isEmpty());
+        assertTrue(DeviceBridgeFlow.previewLinesForParams("app_customize",
+                Map.of("operation", "apply", "font_scale_step", -9)).isEmpty());
+        assertTrue(DeviceBridgeFlow.previewLinesForParams("android_open_app",
+                Map.of("deep_link", 12345, "package_name", Boolean.TRUE)).isEmpty());
+
+        // Accent preset alias & unrecognized value still use localized label resource (never "accent=...")
+        assertEquals(List.of(DeviceBridgeFlow.PreviewLine.resValue(R.string.share_bridge_preview_accent, R.string.appearance_palette_plum)),
+                DeviceBridgeFlow.previewLinesForParams("app_customize", Map.of("accent_preset", "plum")));
+        assertEquals(List.of(DeviceBridgeFlow.PreviewLine.text(R.string.share_bridge_preview_accent, "custom_raw")),
+                DeviceBridgeFlow.previewLinesForParams("app_customize", Map.of("accent", "custom_raw")));
+
+        // R18.2.3: Reply draft sanitization matches NotificationPrivacyGuard before confirmation display.
+        assertEquals("", HermesNotificationListener.sanitizeReplyDraft(null));
+        assertEquals("", HermesNotificationListener.sanitizeReplyDraft("  \u202E\u034F\r\n\t "));
+        assertEquals("On arrive dans 5 min",
+                HermesNotificationListener.sanitizeReplyDraft("On\u202E\u034F\uDB40\uDC20 arrive\u0000\ndans\u00A05\uD83D min"));
+        String longDraft = HermesNotificationListener.sanitizeReplyDraft("a".repeat(HermesNotificationListener.MAX_REPLY_CHARS + 50));
+        assertEquals(HermesNotificationListener.MAX_REPLY_CHARS, longDraft.length());
+        assertTrue(longDraft.endsWith("…"));
     }
 }

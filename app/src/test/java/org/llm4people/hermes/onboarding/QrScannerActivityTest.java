@@ -79,10 +79,10 @@ public final class QrScannerActivityTest {
         }
         assertFalse("Stale postTorchButtonState(boolean) overload must not exist", hasBooleanOverload);
 
-        // Verify epoch-fenced closeCameraForEpoch(int, CameraDevice) exists for disconnect/error cleanup.
+        // Verify epoch-fenced closeCameraForEpoch(int, CameraDevice) returns the post-close epoch (or -1 when stale).
         java.lang.reflect.Method epochClose = QrScannerActivity.class.getDeclaredMethod(
                 "closeCameraForEpoch", int.class, android.hardware.camera2.CameraDevice.class);
-        assertEquals(boolean.class, epochClose.getReturnType());
+        assertEquals(int.class, epochClose.getReturnType());
 
         // Exercise production deferredTorchUiSync helper across reset -> re-enable before flush.
         Object lock = new Object();
@@ -115,5 +115,26 @@ public final class QrScannerActivityTest {
         // Null-safe no-op on missing reader or updater.
         QrScannerActivity.deferredTorchUiSync(null, enabled -> renderedButtonOn[0] = enabled).run();
         QrScannerActivity.deferredTorchUiSync(() -> true, null).run();
+    }
+
+    @Test
+    public void deferredEpochUiActionSkipsStaleEpochsAndRunsOnlyWhenCurrent() {
+        int[] liveEpoch = {4};
+        int[] fallbackCalls = {0};
+
+        Runnable currentAction = QrScannerActivity.deferredEpochUiAction(
+                4, () -> liveEpoch[0], () -> fallbackCalls[0]++);
+        currentAction.run();
+        assertEquals("Matching epoch must execute UI action", 1, fallbackCalls[0]);
+
+        // Camera reopened before deferred fallback ran: epoch advanced from 4 -> 5.
+        liveEpoch[0] = 5;
+        currentAction.run();
+        assertEquals("Stale deferred fallback must not overwrite reopened camera", 1, fallbackCalls[0]);
+
+        // Null reader/action fail closed without throwing.
+        QrScannerActivity.deferredEpochUiAction(5, null, () -> fallbackCalls[0]++).run();
+        QrScannerActivity.deferredEpochUiAction(5, () -> liveEpoch[0], null).run();
+        assertEquals(1, fallbackCalls[0]);
     }
 }

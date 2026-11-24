@@ -126,6 +126,7 @@ public final class PlainTextSanitizer {
 
     private static boolean isInvisibleMark(int cp) {
         return cp == 0x034F
+                || cp == 0x115F || cp == 0x1160 || cp == 0x3164 || cp == 0xFFA0
                 || (cp >= 0x180B && cp <= 0x180F)
                 || (cp >= 0xFE00 && cp <= 0xFE0F)
                 || (cp >= 0xE0100 && cp <= 0xE01EF);

@@ -12,6 +12,7 @@ import android.provider.OpenableColumns;
 
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.HermesConfig;
+import org.llm4people.hermes.PlainTextSanitizer;
 import org.llm4people.hermes.perf.BitmapSampling;
 
 import java.io.ByteArrayOutputStream;
@@ -86,16 +87,30 @@ public final class CapturedMedia {
 
     public static String sanitizeFilename(String raw, String fallback) {
         if (raw != null) {
-            String cleaned = raw.substring(0, Math.min(raw.length(), 128))
-                    .replaceAll("[\\p{Cc}\\p{Cf}/\\\\]", "")
-                    .trim();
-            if (!cleaned.isEmpty() && !".".equals(cleaned) && !"..".equals(cleaned)) return cleaned;
+            StringBuilder out = new StringBuilder(Math.min(raw.length(), 128));
+            for (int i = 0; i < raw.length(); ) {
+                int cp = raw.codePointAt(i);
+                int step = Character.charCount(cp);
+                i += step;
+                int type = Character.getType(cp);
+                if (cp == '/' || cp == '\\' || Character.isISOControl(cp)
+                        || type == Character.FORMAT || type == Character.SURROGATE || cp == 0x034F) {
+                    continue;
+                }
+                if (out.length() + step > 128) break;
+                out.appendCodePoint(cp);
+            }
+            String cleaned = out.toString().trim();
+            if (!cleaned.isEmpty() && !".".equals(cleaned) && !"..".equals(cleaned)
+                    && PlainTextSanitizer.hasVisibleText(cleaned)) {
+                return cleaned;
+            }
         }
         return fallback;
     }
 
     /** Honors the caller's pre-resolved positive artifact byte ceiling, defaulting only when {@code <= 0}. */
-    static long effectiveByteLimit(long requestedBytes) {
+    public static long effectiveByteLimit(long requestedBytes) {
         return requestedBytes > 0 ? requestedBytes : HermesConfig.defaults().artifactDefaultMaxBytes;
     }
 
@@ -182,7 +197,7 @@ public final class CapturedMedia {
         }
     }
 
-    private static byte[] readBounded(ContentResolver resolver, Uri uri, long limit) throws IOException {
+    public static byte[] readBounded(ContentResolver resolver, Uri uri, long limit) throws IOException {
         try (InputStream input = resolver.openInputStream(uri)) {
             if (input == null) throw new IOException("Unreadable content URI");
             ByteArrayOutputStream data = new ByteArrayOutputStream();

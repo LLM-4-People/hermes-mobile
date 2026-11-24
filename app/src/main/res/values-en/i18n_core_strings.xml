@@ -375,7 +375,16 @@
     <string name="share_bridge_preview_title">Title: %1$s</string>
     <string name="share_bridge_preview_draft">Draft: %1$s</string>
     <string name="share_bridge_preview_summary">Summary: %1$s</string>
-    <string name="share_bridge_preview_changes">Changes: %1$s</string>
+    <string name="share_bridge_preview_customize_undo">Undo last appearance change</string>
+    <string name="share_bridge_preview_customize_reset">Reset appearance to default</string>
+    <string name="share_bridge_preview_theme">Theme: %1$s</string>
+    <string name="share_bridge_preview_accent">Palette: %1$s</string>
+    <string name="share_bridge_preview_accent_color">Accent color: %1$s</string>
+    <string name="share_bridge_preview_density">Density: %1$s</string>
+    <string name="share_bridge_preview_text_size">Text size: %1$s</string>
+    <string name="share_bridge_preview_startup_tab">Startup tab: %1$s</string>
+    <string name="share_bridge_preview_greeting">Greeting: %1$s</string>
+    <string name="share_bridge_preview_shortcuts">Quick shortcuts: %1$s</string>
 
     <string name="share_tray_added">Item added: %1$s</string>
     <string name="share_tray_removed">Item removed: %1$s</string>

@@ -283,7 +283,8 @@ public final class DeliveryItem {
     }
 
     static String clampSummary(String raw) {
-        return PlainTextSanitizer.collapseWithEllipsis(raw, 300);
+        String cleaned = PlainTextSanitizer.collapseWithEllipsis(raw, 300);
+        return PlainTextSanitizer.hasVisibleText(cleaned) ? cleaned : "";
     }
 
     private static long readEpochSec(JSONObject raw, String field) {
@@ -295,15 +296,25 @@ public final class DeliveryItem {
         return EpochTimestamps.parseEpochSeconds(value);
     }
 
+    private static void rejectUnsafeCodePoints(String value, String message) {
+        for (int i = 0; i < value.length(); ) {
+            int cp = value.codePointAt(i);
+            int type = Character.getType(cp);
+            if (Character.isISOControl(cp) || type == Character.FORMAT || type == Character.SURROGATE
+                    || type == Character.LINE_SEPARATOR || type == Character.PARAGRAPH_SEPARATOR
+                    || cp == 0x034F) {
+                throw new IllegalArgumentException(message);
+            }
+            i += Character.charCount(cp);
+        }
+    }
+
     private static String cleanLine(String raw, int maxLen) {
         if (raw == null) return "";
         String trimmed = raw.trim();
         if (trimmed.length() > maxLen) throw new IllegalArgumentException("Field exceeds maximum length");
-        for (int i = 0; i < trimmed.length(); i++) {
-            char ch = trimmed.charAt(i);
-            if (ch < 32 || ch == 127) throw new IllegalArgumentException("Control character in delivery title");
-        }
-        return trimmed;
+        rejectUnsafeCodePoints(trimmed, "Control character in delivery title");
+        return PlainTextSanitizer.hasVisibleText(trimmed) ? trimmed : "";
     }
 
     private static String optionalLink(String raw) {
@@ -311,11 +322,8 @@ public final class DeliveryItem {
         String trimmed = raw.trim();
         if (trimmed.isEmpty()) return null;
         if (trimmed.length() > 256) throw new IllegalArgumentException("Link identifier exceeds bound");
-        for (int i = 0; i < trimmed.length(); i++) {
-            char ch = trimmed.charAt(i);
-            if (ch < 32 || ch == 127) throw new IllegalArgumentException("Control character in link identifier");
-        }
-        return trimmed;
+        rejectUnsafeCodePoints(trimmed, "Control character in link identifier");
+        return PlainTextSanitizer.hasVisibleText(trimmed) ? trimmed : null;
     }
 
     @Override public boolean equals(Object other) {

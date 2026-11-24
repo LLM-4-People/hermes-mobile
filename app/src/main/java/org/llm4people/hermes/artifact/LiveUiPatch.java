@@ -928,27 +928,18 @@ public final class LiveUiPatch {
 
     static boolean validText(String s, int max) {
         if (s == null || s.isEmpty() || s.length() > max) return false;
-        if (FORBIDDEN_PAYLOAD.matcher(s).find()) return false;
-        boolean hasVisible = false;
+        if (PlainTextSanitizer.DetectionView.of(s).matches(FORBIDDEN_PAYLOAD, false, false)) return false;
         for (int i = 0; i < s.length(); ) {
             int cp = s.codePointAt(i);
             int kind = Character.getType(cp);
             if (Character.isISOControl(cp) || kind == Character.FORMAT || kind == Character.SURROGATE
-                    || kind == Character.LINE_SEPARATOR || kind == Character.PARAGRAPH_SEPARATOR) {
+                    || kind == Character.LINE_SEPARATOR || kind == Character.PARAGRAPH_SEPARATOR
+                    || cp == 0x034F) {
                 return false;
-            }
-            if (!Character.isWhitespace(cp) && !Character.isSpaceChar(cp) && !isVariationSelector(cp)) {
-                hasVisible = true;
             }
             i += Character.charCount(cp);
         }
-        return hasVisible;
-    }
-
-    private static boolean isVariationSelector(int cp) {
-        return cp == 0x180F || (cp >= 0x180B && cp <= 0x180D)
-                || (cp >= 0xFE00 && cp <= 0xFE0F)
-                || (cp >= 0xE0100 && cp <= 0xE01EF);
+        return PlainTextSanitizer.hasVisibleText(s);
     }
 
     private static void warnRejected() {
