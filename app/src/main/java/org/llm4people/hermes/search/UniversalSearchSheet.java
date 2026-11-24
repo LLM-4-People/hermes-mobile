@@ -85,6 +85,7 @@ public final class UniversalSearchSheet implements AutoCloseable {
     private LinearLayout statusSlot;
     private LinearLayout resultsContainer;
     private Runnable pendingDebounce;
+    private String lastEmptyAnnouncement;
     private volatile boolean closed;
     private volatile Boolean sessionSearchSupported;
     private volatile boolean catalogLoaded;
@@ -516,6 +517,7 @@ public final class UniversalSearchSheet implements AutoCloseable {
             Ui.pad(banner, 14, 10);
             TextView msg = Ui.text(localized, localized.getString(R.string.universal_search_offline_local_only), 13);
             msg.setTextColor(localized.getColor(R.color.warning));
+            msg.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
             banner.addView(msg, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
             Button retry = Ui.button(localized, localized.getString(R.string.panel_retry),
                     v -> triggerRemoteNow(session.epoch(), session.activeQuery()));
@@ -535,10 +537,14 @@ public final class UniversalSearchSheet implements AutoCloseable {
         List<UniversalSearchModel.Result> results = session.results();
         if (results.isEmpty()) {
             if (!session.isRemoteLoading()) {
-                resultsContainer.addView(buildEmptyState());
+                String emptyKey = emptyStateAnnouncementKey();
+                boolean announce = !emptyKey.equals(lastEmptyAnnouncement);
+                lastEmptyAnnouncement = emptyKey;
+                resultsContainer.addView(buildEmptyState(announce));
             }
             return;
         }
+        lastEmptyAnnouncement = null;
 
         if (session.activeQuery().isEmpty() && session.activeCategory() == UniversalSearchModel.Category.ALL) {
             TextView suggestedHeader = sectionHeader(localized.getString(R.string.universal_search_suggested));
@@ -667,7 +673,17 @@ public final class UniversalSearchSheet implements AutoCloseable {
         return styled;
     }
 
-    private View buildEmptyState() {
+    private String emptyStateAnnouncementKey() {
+        boolean degradedOnly = session.isRemoteDegraded() && !session.activeQuery().isEmpty();
+        int titleRes = degradedOnly ? R.string.universal_search_error : R.string.universal_search_empty_title;
+        int hintRes = session.activeCategory() == UniversalSearchModel.Category.SHARED
+                && session.activeQuery().isEmpty()
+                ? R.string.universal_search_empty_shared
+                : R.string.universal_search_empty_hint;
+        return titleRes + ":" + hintRes;
+    }
+
+    private View buildEmptyState(boolean announce) {
         LinearLayout card = Ui.tonalCard(localized);
         card.setGravity(Gravity.CENTER_HORIZONTAL);
         Ui.pad(card, 24, 28);
@@ -695,6 +711,9 @@ public final class UniversalSearchSheet implements AutoCloseable {
         TextView title = Ui.text(localized, titleText, 16);
         title.setTypeface(Ui.mediumTypeface());
         title.setGravity(Gravity.CENTER_HORIZONTAL);
+        if (announce) {
+            title.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        }
         card.addView(title);
 
         int hintRes = session.activeCategory() == UniversalSearchModel.Category.SHARED

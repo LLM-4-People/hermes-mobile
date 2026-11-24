@@ -193,6 +193,7 @@ final class SessionSettings {
         field.setMargins(0, Ui.dp(panel.activity, 8), 0, Ui.dp(panel.activity, 8));
         ScrollView header = attachPickerControls(box, search, field);
         TextView empty = panel.note(box, panel.t(R.string.panel_empty_search));
+        empty.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         ListView list = new ListView(panel.activity);
         list.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
         ArrayAdapter<T> adapter = new ArrayAdapter<>(panel.activity, R.layout.discussion_setting_choice,

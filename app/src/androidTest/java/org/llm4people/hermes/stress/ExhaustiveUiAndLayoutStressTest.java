@@ -19,6 +19,7 @@ import android.widget.Switch;
 import android.widget.TextView;
 
 import org.llm4people.hermes.ActivityTestLifecycle;
+import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.MainActivity;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
@@ -278,7 +279,6 @@ public final class ExhaustiveUiAndLayoutStressTest extends InstrumentationTestCa
                         b.performClick();
                         b.performClick();
                     }
-                    panel.dismissDialogs();
                 });
             } finally {
                 runTestOnUiThread(panel::close);
@@ -291,57 +291,61 @@ public final class ExhaustiveUiAndLayoutStressTest extends InstrumentationTestCa
     public void testUnlockedMainActivityShellTabsPassLayoutIntegrityAcrossPhoneAndTablet() throws Throwable {
         if (Build.VERSION.SDK_INT < 29) return;
         Context app = getInstrumentation().getTargetContext();
-        MainActivity activity = launchMain();
 
         try (DynamicLoopbackServer gateway = new DynamicLoopbackServer(ExhaustiveUiAndLayoutStressTest::populatedReply);
              WorkspaceAccountFixture profile = new WorkspaceAccountFixture(app, gateway.endpoint())) {
-            Method opened = MainActivity.class.getDeclaredMethod("opened", Account.class);
-            opened.setAccessible(true);
-            runTestOnUiThread(() -> {
-                try {
-                    opened.invoke(activity, profile.account);
-                } catch (ReflectiveOperationException err) {
-                    throw new AssertionError(err);
-                }
-            });
-            getInstrumentation().waitForIdleSync();
-            waitForCondition(() -> {
-                boolean[] ready = new boolean[1];
-                try {
-                    runTestOnUiThread(() -> {
-                        View tab = activity.getWindow().getDecorView().findViewById(R.id.nav_tab_discussions);
-                        ready[0] = tab != null && tab.getWidth() > 0 && tab.getHeight() > 0;
-                    });
-                } catch (Throwable ignored) {
-                    return false;
-                }
-                return ready[0];
-            }, 5_000L);
-
-            int[] tabIds = {
-                    R.id.nav_tab_discussions,
-                    R.id.nav_tab_tasks,
-                    R.id.nav_tab_apps,
-                    R.id.top_settings_action
-            };
-            for (int tabId : tabIds) {
+            MainActivity activity = launchMain();
+            try {
+                Method opened = MainActivity.class.getDeclaredMethod("opened", Account.class);
+                opened.setAccessible(true);
                 runTestOnUiThread(() -> {
-                    View decor = activity.getWindow().getDecorView();
-                    View tab = decor.findViewById(tabId);
-                    assertNotNull("Expected primary navigation tab " + tabId, tab);
-                    assertTrue(tab.getWidth() >= Ui.dp(activity, 48) - 2);
-                    assertTrue(tab.getHeight() >= Ui.dp(activity, 48) - 2);
-                    assertTrue(tab.performClick());
+                    try {
+                        opened.invoke(activity, profile.account);
+                    } catch (ReflectiveOperationException err) {
+                        throw new AssertionError(err);
+                    }
                 });
                 getInstrumentation().waitForIdleSync();
-                runTestOnUiThread(() -> {
-                    View content = activity.findViewById(android.R.id.content);
-                    assertNotNull(content);
-                    assertLayoutIntegrity(activity, content, "MainActivity-tab-" + tabId, false);
-                });
+                waitForCondition(() -> {
+                    boolean[] ready = new boolean[1];
+                    try {
+                        runTestOnUiThread(() -> {
+                            View tab = activity.getWindow().getDecorView().findViewById(R.id.nav_tab_discussions);
+                            ready[0] = tab != null && tab.getWidth() > 0 && tab.getHeight() > 0;
+                        });
+                    } catch (Throwable ignored) {
+                        return false;
+                    }
+                    return ready[0];
+                }, 5_000L);
+
+                int[] tabIds = {
+                        R.id.nav_tab_discussions,
+                        R.id.nav_tab_tasks,
+                        R.id.nav_tab_apps,
+                        R.id.top_settings_action
+                };
+                for (int tabId : tabIds) {
+                    runTestOnUiThread(() -> {
+                        View decor = activity.getWindow().getDecorView();
+                        View tab = decor.findViewById(tabId);
+                        assertNotNull("Expected primary navigation tab " + tabId, tab);
+                        assertTrue(tab.getWidth() >= Ui.dp(activity, 48) - 2);
+                        assertTrue(tab.getHeight() >= Ui.dp(activity, 48) - 2);
+                        assertTrue(tab.performClick());
+                    });
+                    getInstrumentation().waitForIdleSync();
+                    runTestOnUiThread(() -> {
+                        View content = activity.findViewById(android.R.id.content);
+                        assertNotNull(content);
+                        assertLayoutIntegrity(activity, content, "MainActivity-tab-" + tabId, false);
+                    });
+                }
+            } finally {
+                finishMain(activity);
             }
         } finally {
-            finishMain(activity);
+            Diagnostics.clear();
         }
     }
 

@@ -572,6 +572,7 @@ public final class NotesTasksPanel implements AutoCloseable {
         LinearLayout card = Ui.card(activity);
         TextView err = Ui.text(activity, message, 15);
         err.setTextColor(activity.getColor(R.color.danger));
+        err.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         card.addView(err);
         Button retry = Ui.outlinedButton(activity, activity.getString(R.string.hub_retry), v -> onRetry.run());
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);

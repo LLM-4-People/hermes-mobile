@@ -1,7 +1,6 @@
 package org.llm4people.hermes.doctor;
 
 import android.app.Activity;
-import android.app.AlertDialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
@@ -71,7 +70,6 @@ public final class ConnectionDoctorPanel {
     private TextView technicalLanguage;
     private TextView technicalReportPreview;
     private Button copyReportButton;
-    private AlertDialog activeDialog;
 
     private DoctorCheck.Report latestReport;
     private boolean technicalExpanded;
@@ -175,11 +173,6 @@ public final class ConnectionDoctorPanel {
 
         buildTechnicalSection(body);
 
-        scroll.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
-            @Override public void onViewAttachedToWindow(View v) {}
-            @Override public void onViewDetachedFromWindow(View v) { dismissDialogs(); }
-        });
-
         runChecks();
         return scroll;
     }
@@ -251,19 +244,9 @@ public final class ConnectionDoctorPanel {
         }
     }
 
-    /** Dismiss any active dialog cleanly (e.g., on profile lock or activity pause). */
-    public void dismissDialogs() {
-        AlertDialog dialog = activeDialog;
-        activeDialog = null;
-        if (dialog != null && dialog.isShowing()) {
-            dialog.dismiss();
-        }
-    }
-
-    /** Stop background probes, dismiss dialogs, and prevent stale UI callbacks. */
+    /** Stop background probes and prevent stale UI callbacks. */
     public void close() {
         closed = true;
-        dismissDialogs();
         main.removeCallbacksAndMessages(null);
         runner.shutdownNow();
         doctor.close();

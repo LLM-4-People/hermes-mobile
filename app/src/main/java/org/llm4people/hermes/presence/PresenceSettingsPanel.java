@@ -1,6 +1,5 @@
 package org.llm4people.hermes.presence;
 
-import android.app.AlertDialog;
 import android.content.Context;
 import android.graphics.drawable.StateListDrawable;
 import android.view.View;
@@ -105,7 +104,6 @@ public final class PresenceSettingsPanel {
             new EnumMap<>(AppCustomization.Density.class);
     private boolean binding;
     private PermissionCenter.Key pendingDenialKey;
-    private AlertDialog activeDialog;
 
     public PresenceSettingsPanel(
             Context context,
@@ -276,16 +274,6 @@ public final class PresenceSettingsPanel {
         } finally {
             binding = false;
         }
-    }
-
-    public void dismissDialogs() {
-        AlertDialog dialog = activeDialog;
-        activeDialog = null;
-        if (dialog != null && dialog.isShowing()) dialog.dismiss();
-    }
-
-    public void close() {
-        dismissDialogs();
     }
 
     private void buildCustomizationSection(LinearLayout body) {
