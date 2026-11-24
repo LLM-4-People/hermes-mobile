@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
     <string name="voice_dictate">Dictate</string>
     <string name="voice_finish">Finish dictation</string>
     <string name="voice_cancel">Cancel dictation</string>

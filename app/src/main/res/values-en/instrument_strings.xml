@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
     <string name="instrument_damaged">Pinned tool unreadable</string>
     <string name="instrument_repair">Reset…</string>
     <string name="instrument_repair_title">Reset this discussion’s tool?</string>

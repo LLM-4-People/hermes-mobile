@@ -20,8 +20,8 @@ public final class BrainPanelsPolishContractTest {
         String src = readPanel("MemoryPanel.java");
         assertTrue("Add memory CTA promoted to Ui.filledButton", src.contains("Ui.filledButton("));
         assertTrue("Entry action row wrapped in horizontal scroll", src.contains("BrainUi.chipBar(panel.activity, actions)"));
-        assertTrue("Delete button uses enabled/disabled danger ColorStateList",
-                src.contains("new ColorStateList(") && src.contains("R.color.disabled_ink") && src.contains("R.color.danger"));
+        assertTrue("Delete button uses centralized Ui.dangerInk ColorStateList",
+                src.contains("Ui.dangerInk(panel.activity)"));
         assertTrue("Diff preview wrapped in ScrollView with Before/After cards",
                 src.contains("new ScrollView(panel.activity)")
                         && src.contains("Ui.tonalCard(panel.activity)")
@@ -40,14 +40,16 @@ public final class BrainPanelsPolishContractTest {
                 src.contains("Ui.filledButton(panel.activity, panel.t(R.string.brain_skills_new)")
                         && src.contains("Ui.filledButton(panel.activity, panel.t(R.string.brain_skills_use_in_thread)")
                         && src.contains("Ui.filledButton(panel.activity, panel.t(R.string.panel_save)"));
-        assertTrue("Delete button uses enabled/disabled danger ColorStateList",
-                src.contains("new ColorStateList(") && src.contains("R.color.disabled_ink"));
+        assertTrue("Delete button uses centralized Ui.dangerInk ColorStateList",
+                src.contains("Ui.dangerInk(panel.activity)"));
         assertTrue("Create form uses proper IME_ACTION_NEXT fields with setLabelFor",
                 src.contains("EditorInfo.IME_ACTION_NEXT")
                         && src.contains("label.setLabelFor(field.getId())")
                         && src.contains("rawMode.setTextColor(panel.activity.getColor(R.color.ink))"));
         int createStart = src.indexOf("private void openCreateForm()");
         int editStart = src.indexOf("private void openEditForm(");
+        assertTrue("Expected openCreateForm() in SkillStudio.java", createStart >= 0);
+        assertTrue("Expected openEditForm() after openCreateForm() in SkillStudio.java", editStart > createStart);
         String createBody = src.substring(createStart, editStart);
         assertFalse("openCreateForm must not reuse BrainUi.searchField",
                 createBody.contains("BrainUi.searchField("));
@@ -79,10 +81,12 @@ public final class BrainPanelsPolishContractTest {
     @Test
     public void usagePanelUsesGroupedCardsTabularSansPersistedDisclosuresAndDangerErrors() throws Exception {
         String src = readPanel("UsagePanel.java");
-        assertTrue("Primary metrics grouped in Ui.card with inset dividers and technical details in Ui.tonalCard",
+        assertTrue("Primary metrics grouped in Ui.card with inset dividers and sibling technical Ui.tonalCard",
                 src.contains("Ui.card(panel.activity)")
                         && src.contains("Ui.tonalCard(panel.activity)")
-                        && src.contains("Ui.insetDivider(panel.activity, 0)"));
+                        && src.contains("Ui.insetDivider(panel.activity, 0)")
+                        && !src.contains("primaryCard.addView(technical")
+                        && !src.contains("primaryCard.addView(details"));
         assertTrue("Metrics use sans-serif-medium with tabular figures instead of Typeface.MONOSPACE",
                 src.contains("sans-serif-medium")
                         && src.contains("setFontFeatureSettings(\"tnum\")")

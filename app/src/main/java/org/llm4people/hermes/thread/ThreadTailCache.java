@@ -279,7 +279,6 @@ public final class ThreadTailCache {
     }
 
     private static void logWarning(String action) {
-        try { Diagnostics.warning("threads", action); }
-        catch (RuntimeException unmockedHostJvm) {}
+        Diagnostics.warning("threads", action);
     }
 }

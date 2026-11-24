@@ -8,6 +8,5 @@
     <item name="nav_tab_activity" type="id" />
     <item name="top_search_action" type="id" />
     <item name="top_settings_action" type="id" />
-    <item name="top_profile_lock_action" type="id" />
     <item name="settings_row_notifications" type="id" />
 </resources>

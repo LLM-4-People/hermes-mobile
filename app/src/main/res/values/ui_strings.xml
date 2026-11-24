@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="fr">
     <string name="thread_speaker_hermes">Hermes</string>
     <string name="thread_photo_attached_cd">Image jointe : %1$s</string>
     <string name="thread_photo_remove_cd">Retirer l’image %1$s</string>

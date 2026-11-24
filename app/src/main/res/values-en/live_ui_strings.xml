@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
     <string name="home_pin_dialog_title">Pin to home screen?</string>
     <string name="home_pin_widget_privacy_note">Only this home-screen-safe text will be visible outside the app.</string>
     <string name="home_pin_cancel">Cancel</string>

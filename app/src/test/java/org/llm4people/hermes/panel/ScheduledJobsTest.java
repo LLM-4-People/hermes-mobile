@@ -91,6 +91,11 @@ public final class ScheduledJobsTest {
         assertEquals(-1L, parsed.get(2).durationSeconds());
         assertEquals("", ScheduledJobModel.formatDuration(-1L));
         assertEquals("1h 04m", ScheduledJobModel.formatDuration(3840L));
+        assertEquals("0s", ScheduledJobModel.formatDuration(0L, Locale.FRENCH));
+        assertEquals("2m 05s", ScheduledJobModel.formatDuration(125L, Locale.FRENCH));
+        assertEquals("1h 04m", ScheduledJobModel.formatDuration(3840L, Locale.ENGLISH));
+        assertEquals("14s", ScheduledJobModel.formatDuration(14L, null));
+        assertEquals("", ScheduledJobModel.formatDuration(-5L, Locale.FRENCH));
 
         assertTrue(ScheduledJobModel.parseRunsMap(null).isEmpty());
         assertTrue(ScheduledJobModel.parseRunsMap(Map.of()).isEmpty());

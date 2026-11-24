@@ -11,6 +11,12 @@ import java.util.function.BooleanSupplier;
 record ThreadWindow(JSONObject metadata, JSONArray rows, int rawCount, boolean more) {
     static ThreadWindow read(ThreadContext.Read api, String query, int start, int loaded, long priorTotal,
                              ThreadData.RowId oldest, BooleanSupplier current) throws IOException {
+        return read(api, query, start, loaded, priorTotal, oldest, current, ThreadData.PAGE);
+    }
+
+    static ThreadWindow read(ThreadContext.Read api, String query, int start, int loaded, long priorTotal,
+                             ThreadData.RowId oldest, BooleanSupplier current, int pageSize) throws IOException {
+        int limit = Math.max(1, pageSize);
         JSONObject metadata = null;
         ArrayDeque<JSONArray> pages = new ArrayDeque<>();
         long total = -1;
@@ -19,7 +25,7 @@ record ThreadWindow(JSONObject metadata, JSONArray rows, int rawCount, boolean m
         String previousPage = null;
         do {
             if (!current.getAsBoolean()) throw new IOException("Conversation changed");
-            JSONObject response = api.get(query + ThreadData.PAGE + "&offset=" + offset);
+            JSONObject response = api.get(query + limit + "&offset=" + offset);
             if (metadata == null) {
                 metadata = response;
                 total = ThreadContext.visibleTotal(response);
@@ -37,7 +43,7 @@ record ThreadWindow(JSONObject metadata, JSONArray rows, int rawCount, boolean m
             }
             pages.addFirst(rows);
             offset += rows.length();
-            more = rows.length() > 0 && (total < 0 ? rows.length() == ThreadData.PAGE : offset < total);
+            more = rows.length() > 0 && (total < 0 ? rows.length() == limit : offset < total);
             if (oldest != null) {
                 for (int i = 0; i < rows.length(); i++)
                     if (oldest.equals(ThreadData.rowId(rows.optJSONObject(i)))) { reached = true; break; }

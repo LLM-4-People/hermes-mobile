@@ -103,14 +103,22 @@ public final class CodeReader {
 
     private void mountWithToolbar(LinearLayout box, String title) {
         Context c = box.getContext();
+        int gap = Ui.dp(c, 8);
+        HorizontalScrollView actionsScroll = new HorizontalScrollView(c);
+        actionsScroll.setHorizontalScrollBarEnabled(false);
         LinearLayout actions = Ui.row(c);
         actions.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
         Button copy = Ui.button(c, c.getString(R.string.code_copy_content), v -> copy(c, source, title));
-        actions.addView(copy);
+        LinearLayout.LayoutParams copyLp = new LinearLayout.LayoutParams(-2, -2);
+        copyLp.setMarginEnd(gap);
+        actions.addView(copy, copyLp);
         Button searchToggle = Ui.button(c, c.getString(R.string.code_search), v -> toggleSearch(c));
         actions.addView(searchToggle);
-        box.addView(actions);
+        actionsScroll.addView(actions);
+        box.addView(actionsScroll);
 
+        HorizontalScrollView optionsScroll = new HorizontalScrollView(c);
+        optionsScroll.setHorizontalScrollBarEnabled(false);
         LinearLayout displayOptions = Ui.row(c);
         displayOptions.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
         lineNumbersButton = Ui.button(c, c.getString(R.string.code_line_numbers), v -> {
@@ -124,9 +132,12 @@ public final class CodeReader {
             render(c, currentPage);
         });
         updateOptionLabels(c);
-        displayOptions.addView(lineNumbersButton);
+        LinearLayout.LayoutParams lineLp = new LinearLayout.LayoutParams(-2, -2);
+        lineLp.setMarginEnd(gap);
+        displayOptions.addView(lineNumbersButton, lineLp);
         displayOptions.addView(scrollToggleButton);
-        box.addView(displayOptions);
+        optionsScroll.addView(displayOptions);
+        box.addView(optionsScroll);
 
         searchBar = buildSearchBar(c);
         searchBar.setVisibility(View.GONE);
@@ -179,7 +190,9 @@ public final class CodeReader {
         prevMatchButton = Ui.button(c, c.getString(R.string.code_search_previous), v -> stepMatch(c, -1));
         nextMatchButton = Ui.button(c, c.getString(R.string.code_search_next), v -> stepMatch(c, 1));
         nav.addView(searchCounter, new LinearLayout.LayoutParams(0, -2, 1));
-        nav.addView(prevMatchButton);
+        LinearLayout.LayoutParams prevLp = new LinearLayout.LayoutParams(-2, -2);
+        prevLp.setMarginEnd(Ui.dp(c, 8));
+        nav.addView(prevMatchButton, prevLp);
         nav.addView(nextMatchButton);
         bar.addView(nav);
         updateSearchCounter(c);
@@ -247,7 +260,11 @@ public final class CodeReader {
         if (pages > 1) {
             section.addView(Ui.text(c, c.getString(R.string.code_page_of, currentPage + 1, pages), 14));
             LinearLayout nav = Ui.row(c);
-            if (currentPage > 0) nav.addView(Ui.button(c, c.getString(R.string.transcript_previous), v -> render(c, currentPage - 1)));
+            if (currentPage > 0) {
+                LinearLayout.LayoutParams prevLp = new LinearLayout.LayoutParams(-2, -2);
+                prevLp.setMarginEnd(Ui.dp(c, 8));
+                nav.addView(Ui.button(c, c.getString(R.string.transcript_previous), v -> render(c, currentPage - 1)), prevLp);
+            }
             if (currentPage < pages - 1) nav.addView(Ui.button(c, c.getString(R.string.transcript_next), v -> render(c, currentPage + 1)));
             section.addView(nav);
         }

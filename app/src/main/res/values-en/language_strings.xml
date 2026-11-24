@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
     <string name="language_action">Language / Langue</string>
     <string name="language_picker_title">Language / Langue</string>
     <string name="language_auto">Automatic (device language)</string>

@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="fr">
     <string name="profile_defaults_status_unsaved">Modifications non enregistrées</string>
     <string name="profile_defaults_status_saved">À jour</string>
     <string name="profile_defaults_save_cta">Enregistrer les réglages</string>

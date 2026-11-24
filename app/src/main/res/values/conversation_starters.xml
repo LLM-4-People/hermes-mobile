@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="fr">
     <string name="starter_heading">Quelques idées pour commencer</string>
     <string name="starter_question">Poser une question</string>
     <string name="starter_code">Comprendre du code</string>

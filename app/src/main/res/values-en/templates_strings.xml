@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
     <string name="templates_route_label">Everyday workflows</string>
     <string name="templates_route_hint">Ready-to-use starters and personal templates</string>
     <string name="templates_panel_title">Everyday workflows</string>

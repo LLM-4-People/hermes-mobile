@@ -68,10 +68,6 @@ public final class Diagnostics {
         debugEnabled = enabled;
     }
 
-    public static boolean isDebugEnabled() {
-        return debugEnabled;
-    }
-
     public static void setCapacity(int maxEntries) {
         if (maxEntries <= 0) throw new IllegalArgumentException("Diagnostics capacity must be positive");
         synchronized (LOCK) {

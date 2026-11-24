@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
     <string name="perm_route_label">Permissions</string>
     <string name="perm_route_hint">Notifications, microphone, camera, location, and Android access</string>
     <string name="perm_panel_title">Permissions</string>

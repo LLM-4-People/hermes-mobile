@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="fr">
     <string name="home_pin_dialog_title">Épingler sur l’écran d’accueil ?</string>
     <string name="home_pin_widget_privacy_note">Seul ce texte prévu pour l’écran d’accueil sera visible hors de l’application.</string>
     <string name="home_pin_cancel">Annuler</string>

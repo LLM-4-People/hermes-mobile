@@ -77,7 +77,13 @@ public final class ThreadInboxFilter {
     public static List<Entry> filterEntries(List<Entry> rows, Filter filter) {
         if (rows == null || rows.isEmpty()) return Collections.emptyList();
         Filter active = filter == null ? Filter.ALL : filter;
-        if (active == Filter.ALL) return Collections.unmodifiableList(new ArrayList<>(rows));
+        if (active == Filter.ALL) {
+            List<Entry> clean = new ArrayList<>(rows.size());
+            for (Entry row : rows) {
+                if (row != null) clean.add(row);
+            }
+            return Collections.unmodifiableList(clean);
+        }
         if (active == Filter.SHARED) return Collections.emptyList();
         List<Entry> pinned = new ArrayList<>();
         for (Entry row : rows) {

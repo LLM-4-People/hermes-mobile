@@ -972,13 +972,11 @@ public final class LiveUiPatch {
     }
 
     private static void warnRejected() {
-        try { Diagnostics.warning("live_ui", "patch_rejected"); }
-        catch (RuntimeException ignoredInHostJvmTests) {}
+        Diagnostics.warning("live_ui", "patch_rejected");
     }
 
     private static void warnStateUnreadable() {
-        try { Diagnostics.warning("live_ui", "state_unreadable"); }
-        catch (RuntimeException ignoredInHostJvmTests) {}
+        Diagnostics.warning("live_ui", "state_unreadable");
     }
 
     /**

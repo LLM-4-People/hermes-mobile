@@ -7,6 +7,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.Diagnostics;
+import org.llm4people.hermes.HermesConfig;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.VisibleText;
 
@@ -62,7 +63,7 @@ public final class NearbyResult {
             this.latitude = lat;
             this.longitude = lon;
             this.distanceMeters = distance;
-            this.sourceUrl = "https://www.openstreetmap.org/" + id;
+            this.sourceUrl = HermesConfig.DEFAULT_OSM_BASE_URL + "/" + id;
         }
 
         /** Coordinates of the public venue, as plain decimal degrees suitable for Android's geo query. */

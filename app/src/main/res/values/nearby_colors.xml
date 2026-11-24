@@ -1,5 +1,4 @@
 <resources>
-    <string name="places_open_page">Ouvrir la page proposée</string>
     <color name="places_chart">#163D34</color>
     <color name="places_grid">#608579</color>
     <color name="places_label">#E3F1E6</color>

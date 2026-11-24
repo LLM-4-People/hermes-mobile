@@ -94,7 +94,40 @@ public final class UniversalSearchEntriesTest {
                 UniversalSearchEntries.routeSharedItem(sharedNote));
         assertEquals(UniversalSearchEntries.SharedDestination.OPEN_SHARED_HUB,
                 UniversalSearchEntries.routeSharedItem(sharedSkill));
+        for (String hubKind : List.of(
+                UniversalShareModel.KIND_TOOL,
+                UniversalShareModel.KIND_SURFACE,
+                UniversalShareModel.KIND_WIDGET,
+                UniversalShareModel.KIND_ARTIFACT,
+                "",
+                "unknown")) {
+            UniversalSearchModel.Result item = new UniversalSearchModel.Result(
+                    "shared:x-" + hubKind, UniversalSearchModel.Category.SHARED, "Item", "owner",
+                    "res-x", "", "x", hubKind, "owner", "read", true, 30, List.of());
+            assertEquals("Kind " + hubKind + " should route to shared hub",
+                    UniversalSearchEntries.SharedDestination.OPEN_SHARED_HUB,
+                    UniversalSearchEntries.routeSharedItem(item));
+        }
         assertEquals(UniversalSearchEntries.SharedDestination.OPEN_SHARED_HUB,
                 UniversalSearchEntries.routeSharedItem(null));
+    }
+
+    @Test
+    public void skipsNullAndBlankEntriesWithoutThrowing() {
+        java.util.ArrayList<UniversalSearchEntries.ChatRef> chats = new java.util.ArrayList<>();
+        chats.add(null);
+        chats.add(new UniversalSearchEntries.ChatRef("t-blank-title", "   ", "Preview"));
+        chats.add(new UniversalSearchEntries.ChatRef("t-valid", "Valid", "Sub"));
+
+        java.util.ArrayList<UniversalSearchEntries.ToolRef> tools = new java.util.ArrayList<>();
+        tools.add(null);
+        tools.add(new UniversalSearchEntries.ToolRef("", "No id", "", "", UniversalSearchModel.Category.TOOLS));
+        tools.add(new UniversalSearchEntries.ToolRef("id-1", "   ", "", "", UniversalSearchModel.Category.TOOLS));
+        tools.add(new UniversalSearchEntries.ToolRef("id-2", "Doctor", "Check", "net", UniversalSearchModel.Category.TOOLS));
+
+        List<UniversalSearchModel.LocalEntry> built = UniversalSearchEntries.build(chats, List.of(), tools);
+        assertEquals(2, built.size());
+        assertEquals("t-valid", built.get(0).targetId());
+        assertEquals("id-2", built.get(1).actionId());
     }
 }

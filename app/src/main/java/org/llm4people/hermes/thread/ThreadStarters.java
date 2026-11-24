@@ -14,30 +14,27 @@ import java.util.List;
 import java.util.function.Consumer;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
+import org.llm4people.hermes.customization.AppCustomization;
 import org.llm4people.hermes.templates.WorkflowTemplate;
 
 /** Optional Material 3 starter cards and quick workflow templates in an empty transcript. The composer owns every resulting draft. */
 final class ThreadStarters {
     private static final int MAX_QUICK_TEMPLATES = 3;
-    private static Typeface mediumTypeface;
     private final LinearLayout content;
     private final ListView list;
-
-    private static Typeface mediumTypeface() {
-        if (mediumTypeface == null) {
-            mediumTypeface = Typeface.create("sans-serif-medium", Typeface.NORMAL);
-        }
-        return mediumTypeface;
-    }
+    private final TextView heading;
+    private final LinearLayout customShortcutsSlot;
+    private final Consumer<String> edit;
 
     ThreadStarters(ListView transcript, Consumer<String> edit) {
         list = transcript;
+        this.edit = edit;
         Context context = transcript.getContext();
         content = Ui.column(context);
         Ui.pad(content, 18, 16);
         content.setVisibility(View.GONE);
-        TextView heading = Ui.text(context, context.getString(R.string.starter_heading), 24);
-        heading.setTypeface(mediumTypeface());
+        heading = Ui.text(context, context.getString(R.string.starter_heading), 24);
+        heading.setTypeface(Ui.mediumTypeface());
         heading.setLetterSpacing(-0.02f);
         heading.setPaddingRelative(0, 0, 0, Ui.dp(context, 12));
         heading.setAccessibilityHeading(true);
@@ -45,6 +42,9 @@ final class ThreadStarters {
         add(R.string.starter_question, 0, edit);
         add(R.string.starter_code, R.string.starter_code_draft, edit);
         add(R.string.starter_plan, R.string.starter_plan_draft, edit);
+        customShortcutsSlot = Ui.column(context);
+        customShortcutsSlot.setVisibility(View.GONE);
+        content.addView(customShortcutsSlot);
         addQuickTemplates(context, edit);
 
         // The list measures its header even when a child is gone. Keep the hidden header zero-height.
@@ -80,7 +80,7 @@ final class ThreadStarters {
         if (builtIns == null || builtIns.isEmpty()) return;
 
         TextView label = Ui.text(context, context.getString(R.string.thread_starters_templates_heading), 14);
-        label.setTypeface(mediumTypeface());
+        label.setTypeface(Ui.mediumTypeface());
         label.setTextColor(context.getColor(R.color.muted));
         label.setAccessibilityHeading(true);
         label.setPaddingRelative(0, Ui.dp(context, 12), 0, Ui.dp(context, 8));
@@ -108,6 +108,43 @@ final class ThreadStarters {
     static boolean available(boolean confirmedEmpty, String draft, boolean pending, List<String> slots) {
         return confirmedEmpty && draft.isEmpty() && !pending
                 && (slots.isEmpty() || slots.contains("composer") && slots.contains("transcript"));
+    }
+
+    void applyCustomization(AppCustomization customization) {
+        Context context = content.getContext();
+        String greeting = customization == null ? "" : customization.companionGreeting;
+        heading.setText(greeting == null || greeting.isEmpty()
+                ? context.getString(R.string.starter_heading)
+                : greeting);
+        customShortcutsSlot.removeAllViews();
+        List<AppCustomization.ComposerShortcut> shortcuts = customization == null
+                ? java.util.Collections.emptyList()
+                : customization.composerShortcuts;
+        if (shortcuts == null || shortcuts.isEmpty()) {
+            customShortcutsSlot.setVisibility(View.GONE);
+            alignEmptyList();
+            return;
+        }
+        HorizontalScrollView strip = new HorizontalScrollView(context);
+        strip.setHorizontalScrollBarEnabled(false);
+        LinearLayout row = Ui.row(context);
+        int gap = Ui.dp(context, 8);
+        for (int i = 0; i < shortcuts.size(); i++) {
+            AppCustomization.ComposerShortcut shortcut = shortcuts.get(i);
+            Button chip = Ui.tonalButton(context, shortcut.label(), v -> {
+                if (content.isShown()) edit.accept(shortcut.draftText());
+            });
+            chip.setContentDescription(context.getString(R.string.templates_chip_cd, shortcut.label()));
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
+            if (i < shortcuts.size() - 1) lp.setMarginEnd(gap);
+            row.addView(chip, lp);
+        }
+        strip.addView(row);
+        LinearLayout.LayoutParams stripLp = new LinearLayout.LayoutParams(-1, -2);
+        stripLp.topMargin = Ui.dp(context, 4);
+        customShortcutsSlot.addView(strip, stripLp);
+        customShortcutsSlot.setVisibility(View.VISIBLE);
+        alignEmptyList();
     }
 
     void show(boolean available) {

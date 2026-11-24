@@ -108,11 +108,14 @@ public final class ThreadWorkspace implements AutoCloseable {
     private List<String> slotOrder = Collections.emptyList();
     private volatile int generation;
     private volatile int profileEpoch;
+    private final int maxReconnects;
+    private final int pageSize;
+    private AppCustomization activeCustomization;
     private int inboxOffset;
     private boolean inboxLoaded, inboxLoading, inboxFailed, inboxMore;
     private ThreadInboxFilter.Filter inboxFilter = ThreadInboxFilter.Filter.ALL;
     private JSONArray sharedInbox = new JSONArray();
-    private boolean sharedLoaded, sharedLoading, sharedUnavailable;
+    private boolean sharedLoaded, sharedLoading, sharedUnavailable, sharedFailed;
     private int sharedLoadEpoch;
     private int sharedOpenEpoch;
     private final ThreadTailCache tailCache = new ThreadTailCache();
@@ -146,6 +149,9 @@ public final class ThreadWorkspace implements AutoCloseable {
         this.api = api;
         this.account = account;
         this.host = host;
+        HermesConfig config = HermesConfig.load(activity);
+        this.maxReconnects = config.maxReconnects;
+        this.pageSize = config.threadPageSize;
         this.tailCacheEpoch = tailCache.bindProfile(account.id);
         index = new ThreadViews(activity, voice);
         index.inbox(() -> create(UUID.randomUUID().toString(), null, index), this::refreshActiveInbox,
@@ -174,6 +180,14 @@ public final class ThreadWorkspace implements AutoCloseable {
     public void chooseGuideArea(BooleanSupplier current, Consumer<JSONObject> selected) { nearby.chooseGuide(current, selected); }
     public boolean nearbyPermission(int code, String[] permissions, int[] results) {
         return nearby.permissionResult(code, permissions, results);
+    }
+    public void reconcileNearbyPermission() {
+        if (!closed && nearby != null) nearby.reconcilePermissionState();
+    }
+    public void applyAppCustomization(AppCustomization customization) {
+        if (closed) return;
+        activeCustomization = customization;
+        if (starters != null) starters.applyCustomization(customization);
     }
     public void pauseNearbyFix() { nearby.pauseFix(); }
     boolean admitting() { return run != null && run.submitting(); }
@@ -373,7 +387,7 @@ public final class ThreadWorkspace implements AutoCloseable {
     /** Checks the durable receipt even if a different discussion was restored after process death. */
     public boolean containsShare(String target, String receipt) {
         if (closed || target == null || !ThreadData.validId(target)) return false;
-        ThreadJournal record = target.equals(session) && journal != null ? journal : new ThreadJournal(account, target);
+        ThreadJournal record = target.equals(session) && journal != null ? journal : new ThreadJournal(account, target, maxReconnects);
         return record.containsShare(receipt);
     }
 
@@ -410,6 +424,7 @@ public final class ThreadWorkspace implements AutoCloseable {
                     activity.getSystemService(InputMethodManager.class).showSoftInput(editor, InputMethodManager.SHOW_IMPLICIT);
                 }
             });
+            if (activeCustomization != null) starters.applyCustomization(activeCustomization);
         }
         if (starters != null) starters.show(available);
     }
@@ -457,7 +472,16 @@ public final class ThreadWorkspace implements AutoCloseable {
     public void openSharedInbox() {
         if (closed) return;
         inbox();
-        selectInboxFilter(ThreadInboxFilter.Filter.SHARED);
+        if (inboxFilter == ThreadInboxFilter.Filter.SHARED) {
+            paintIndex();
+            if ((!sharedLoaded || sharedFailed) && !sharedLoading) {
+                loadSharedThreads();
+            } else {
+                indexNotice();
+            }
+        } else {
+            selectInboxFilter(ThreadInboxFilter.Filter.SHARED);
+        }
     }
 
     private void inbox(String warning, Runnable recovery) {
@@ -504,7 +528,7 @@ public final class ThreadWorkspace implements AutoCloseable {
         index.setInboxFilter(target);
         if (target == ThreadInboxFilter.Filter.SHARED) {
             paintIndex();
-            if (!sharedLoaded && !sharedLoading) {
+            if ((!sharedLoaded || sharedFailed) && !sharedLoading) {
                 loadSharedThreads();
             } else {
                 indexNotice();
@@ -527,13 +551,17 @@ public final class ThreadWorkspace implements AutoCloseable {
         if (closed || sharedLoading) return;
         sharedLoading = true;
         sharedUnavailable = false;
+        sharedFailed = false;
         int epoch = ++sharedLoadEpoch;
-        index.notice(activity.getString(R.string.thread_filter_shared_loading), "", null);
+        if (inboxFilter == ThreadInboxFilter.Filter.SHARED) {
+            index.notice(activity.getString(R.string.thread_filter_shared_loading), "", null);
+        }
         request(() -> api.get("/api/shares/incoming?resource_kind=session"),
                 data -> {
                     if (epoch != sharedLoadEpoch) return;
                     sharedLoading = false;
                     sharedLoaded = true;
+                    sharedFailed = false;
                     sharedInbox = ThreadInboxFilter.parseSharedSessions(data);
                     paintIndex();
                     indexNotice();
@@ -544,11 +572,13 @@ public final class ThreadWorkspace implements AutoCloseable {
                             && (http.status == 404 || http.status == 405 || http.status == 501)) {
                         sharedLoaded = true;
                         sharedUnavailable = true;
+                        sharedFailed = false;
                         sharedInbox = new JSONArray();
                         Diagnostics.debug("threads", "shared_sessions_absent");
                         paintIndex();
                         indexNotice();
                     } else {
+                        sharedFailed = true;
                         Diagnostics.warning("threads", "shared_sessions_failed", failure);
                         if (inboxFilter == ThreadInboxFilter.Filter.SHARED) {
                             index.notice(activity.getString(R.string.thread_filter_shared_failed),
@@ -647,17 +677,21 @@ public final class ThreadWorkspace implements AutoCloseable {
         if (closed || inboxLoading) return;
         inboxLoading = true;
         inboxFailed = false;
-        index.paging();
-        index.notice(activity.getString(R.string.thread_loading_list), "", null);
+        if (inboxFilter != ThreadInboxFilter.Filter.SHARED) {
+            index.paging();
+            index.notice(activity.getString(R.string.thread_loading_list), "", null);
+        }
         int offset = first ? 0 : inboxOffset;
-        request(() -> api.get("/api/sessions?source=api_server&limit=" + ThreadData.PAGE + "&offset=" + offset),
+        request(() -> api.get("/api/sessions?source=api_server&limit=" + pageSize + "&offset=" + offset),
                 data -> {
                     inboxLoading = false;
                     JSONArray page = data.optJSONArray("data");
                     if (page == null) {
                         inboxFailed = true;
-                        index.notice(activity.getString(R.string.thread_incomplete_server_reply),
-                                activity.getString(R.string.instrument_retry), () -> loadThreads(first));
+                        if (inboxFilter != ThreadInboxFilter.Filter.SHARED) {
+                            index.notice(activity.getString(R.string.thread_incomplete_server_reply),
+                                    activity.getString(R.string.instrument_retry), () -> loadThreads(first));
+                        }
                         return;
                     }
                     for (int i = 0; i < page.length(); i++) {
@@ -666,14 +700,18 @@ public final class ThreadWorkspace implements AutoCloseable {
                     }
                     inbox = DiscussionIndex.merge(first ? new JSONArray() : inbox, page);
                     inboxLoaded = true;
-                    inboxOffset = offset + ThreadData.PAGE;
-                    inboxMore = page.length() > 0 && data.optBoolean("has_more", page.length() >= ThreadData.PAGE);
-                    paintIndex();
-                    indexNotice();
+                    inboxOffset = offset + pageSize;
+                    inboxMore = page.length() > 0 && data.optBoolean("has_more", page.length() >= pageSize);
+                    if (inboxFilter != ThreadInboxFilter.Filter.SHARED) {
+                        paintIndex();
+                        indexNotice();
+                    }
                 }, failure -> {
                     inboxLoading = false;
                     inboxFailed = true;
-                    index.notice(errorMessage(failure), activity.getString(R.string.instrument_retry), () -> loadThreads(first));
+                    if (inboxFilter != ThreadInboxFilter.Filter.SHARED) {
+                        index.notice(errorMessage(failure), activity.getString(R.string.instrument_retry), () -> loadThreads(first));
+                    }
                 });
     }
 
@@ -771,7 +809,7 @@ public final class ThreadWorkspace implements AutoCloseable {
         namedTitle = identity.name;
         firstPrompt = openingPrompts.getOrDefault(id, identity.prompt);
         title = !namedTitle.isEmpty() || firstPrompt.isEmpty() ? label : firstPrompt;
-        try { journal = new ThreadJournal(account, id); }
+        try { journal = new ThreadJournal(account, id, maxReconnects); }
         catch (RuntimeException unreadable) {
             Diagnostics.warning("threads", "journal_unreadable");
             inbox(activity.getString(R.string.thread_local_unreadable), () -> recover(identity, label));
@@ -849,6 +887,9 @@ public final class ThreadWorkspace implements AutoCloseable {
         EditText input = new EditText(activity);
         input.setSingleLine();
         input.setSaveEnabled(false);
+        input.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO);
+        input.setImeOptions(android.view.inputmethod.EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING
+                | android.view.inputmethod.EditorInfo.IME_FLAG_NO_EXTRACT_UI);
         input.setText(title);
         input.selectAll();
         screen.show(new AlertDialog.Builder(activity).setTitle(R.string.thread_rename_title).setView(input)
@@ -888,17 +929,17 @@ public final class ThreadWorkspace implements AutoCloseable {
         Long keysetBeforeId = older && gatewaySupportsKeyset ? transcriptWindow.oldestId() : null;
         request(() -> {
             if (keysetBeforeId != null) {
-                JSONObject response = api.get(query + ThreadData.PAGE + "&before_id=" + keysetBeforeId);
+                JSONObject response = api.get(query + pageSize + "&before_id=" + keysetBeforeId);
                 JSONArray pageRows = response.optJSONArray("data");
                 if (pageRows == null) throw new java.io.IOException("Missing transcript");
                 JSONObject pag = response.optJSONObject("pagination");
                 boolean moreFlag = pag != null
-                        ? pag.optBoolean("has_more", pageRows.length() >= ThreadData.PAGE)
-                        : pageRows.length() >= ThreadData.PAGE;
+                        ? pag.optBoolean("has_more", pageRows.length() >= pageSize)
+                        : pageRows.length() >= pageSize;
                 return new ThreadWindow(response, pageRows, pageRows.length(), moreFlag);
             }
             return ThreadWindow.read(api::get, query, offset, retained, priorTotal, oldest,
-                    () -> owner == generation && requestNo == transcriptRequest);
+                    () -> owner == generation && requestNo == transcriptRequest, pageSize);
         }, window -> {
             if (requestNo != transcriptRequest) return;
             loading = false;
@@ -1002,15 +1043,15 @@ public final class ThreadWorkspace implements AutoCloseable {
         int requestNo = ++transcriptRequest;
         String path = ThreadData.path(session);
         String url = path + "/messages?order=oldest&visible_only=true&include_compacted=true&limit="
-                + ThreadData.PAGE + "&after_id=" + afterId;
+                + pageSize + "&after_id=" + afterId;
         request(() -> {
             JSONObject response = api.get(url);
             JSONArray pageRows = response.optJSONArray("data");
             if (pageRows == null) throw new java.io.IOException("Missing transcript");
             JSONObject pag = response.optJSONObject("pagination");
             boolean moreNewer = pag != null
-                    ? pag.optBoolean("has_more", pageRows.length() >= ThreadData.PAGE)
-                    : pageRows.length() >= ThreadData.PAGE;
+                    ? pag.optBoolean("has_more", pageRows.length() >= pageSize)
+                    : pageRows.length() >= pageSize;
             return new ThreadWindow(response, pageRows, pageRows.length(), moreNewer);
         }, window -> {
             if (requestNo != transcriptRequest) return;
@@ -1059,7 +1100,7 @@ public final class ThreadWorkspace implements AutoCloseable {
         openingRequested = true;
         String path = ThreadData.path(session);
         request(() -> api.get(path + "/messages?order=oldest&limit="
-                + ThreadData.PAGE + "&include_compacted=true&visible_only=true"), data -> {
+                + pageSize + "&include_compacted=true&visible_only=true"), data -> {
             JSONArray page = data.optJSONArray("data");
             if (page == null || !firstPrompt.isEmpty()) return;
             rememberOpening(ThreadTitles.firstPrompt(page));
@@ -1137,7 +1178,7 @@ public final class ThreadWorkspace implements AutoCloseable {
         }
         if (!handedOff && journal != null) journal.retire();
         importingPhoto = false;
-        loading = creating = inboxLoading = false;
+        loading = creating = inboxLoading = sharedLoading = false;
         run = null;
         journal = null;
         messages = new JSONArray();
@@ -1188,6 +1229,8 @@ public final class ThreadWorkspace implements AutoCloseable {
             hasOlderMessages = false;
             inbox = new JSONArray();
             inboxLoaded = inboxLoading = inboxFailed = inboxMore = false;
+            sharedInbox = new JSONArray();
+            sharedLoaded = sharedLoading = sharedUnavailable = sharedFailed = false;
             inboxRecovery = null;
             openingPrompts.clear();
             namedTitle = firstPrompt = "";
@@ -1518,7 +1561,9 @@ public final class ThreadWorkspace implements AutoCloseable {
         List<JSONObject> parsed = new java.util.ArrayList<>(cached.encodedRows().size());
         for (String raw : cached.encodedRows()) {
             try { parsed.add(new JSONObject(raw)); }
-            catch (org.json.JSONException ignored) {}
+            catch (org.json.JSONException ignored) {
+                Diagnostics.warning("threads", "tail_cache_row_corrupt", ignored);
+            }
         }
         if (parsed.isEmpty()) return;
         transcriptWindow.replaceLatest(parsed, cached.hasMore(), cached.oldestId(), cached.newestId(), cached.totalCount());

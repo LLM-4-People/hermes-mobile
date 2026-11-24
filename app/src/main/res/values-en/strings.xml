@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
     <string name="ask_hermes">Ask Hermes</string>
     <string name="app_name">Hermes Mobile</string>
     <string name="instrument_create">Create a tool for this thread</string>

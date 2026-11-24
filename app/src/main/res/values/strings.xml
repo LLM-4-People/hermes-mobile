@@ -1,6 +1,7 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="fr">
     <string name="ask_hermes">Demander à Hermes</string>
     <string name="app_name">Hermes Mobile</string>
     <string name="instrument_create">Créer un outil pour ce fil</string>
     <string name="instrument_create_request">Crée un outil que je pourrai réutiliser dans cette discussion à partir de notre échange.</string>
+    <string name="places_open_page">Ouvrir la page proposée</string>
 </resources>

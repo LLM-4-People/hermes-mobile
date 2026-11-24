@@ -14,6 +14,14 @@
     <integer name="hermes_max_reconnects">5</integer>
     <string name="hermes_update_repo" translatable="false">LLM-4-People/hermes-mobile</string>
     <string name="hermes_update_api_base" translatable="false">https://api.github.com</string>
+    <string name="hermes_github_web_base_url" translatable="false">https://github.com</string>
+    <string name="hermes_osm_base_url" translatable="false">https://www.openstreetmap.org</string>
     <integer name="hermes_update_max_apk_bytes">52428800</integer>
     <integer name="hermes_update_check_interval_ms">86400000</integer>
+    <integer name="hermes_doctor_check_timeout_ms">10000</integer>
+    <integer name="hermes_slow_latency_threshold_ms">1500</integer>
+    <integer name="hermes_expected_fork_capabilities">10</integer>
+    <integer name="hermes_probe_timeout_ms">8000</integer>
+    <integer name="hermes_voice_service_timeout_ms">15000</integer>
+    <integer name="hermes_tts_init_timeout_ms">4000</integer>
 </resources>

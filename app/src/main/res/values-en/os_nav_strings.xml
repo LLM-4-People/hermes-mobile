@@ -1,33 +1,18 @@
 <resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
     <string name="nav_discussions">Discussions</string>
-    <string name="nav_atelier">Atelier</string>
-    <string name="nav_brain">Brain</string>
-    <string name="nav_activity">Activity</string>
 
     <string name="top_search">Search</string>
     <string name="top_profile_lock">Profile and lock</string>
 
-    <string name="atelier_subtitle">Organize your screens, tools, and profile settings.</string>
-    <string name="brain_subtitle">Explore what Hermes knows and choose its capabilities.</string>
     <string name="brain_skills_hint">Browse ready-to-use methods for your assistant.</string>
-    <string name="brain_models_title">Model and capabilities</string>
-    <string name="brain_models_hint">Choose the assistant and active capabilities for this discussion.</string>
-    <string name="brain_memory_hint">Your preferences and tools stay encrypted on this device. Your profile protects your conversations.</string>
-    <string name="brain_create_tool_title">Create a custom tool</string>
-    <string name="brain_create_tool_hint">Ask Hermes for a form or table tailored to your need.</string>
 
-    <string name="activity_subtitle">Review your reminders, deliveries, alerts, and conversation activity.</string>
     <string name="activity_reminders_title">Scheduled jobs</string>
     <string name="activity_reminders_hint">View, run, or edit scheduled jobs for your profile.</string>
     <string name="activity_deliveries_title">Hermes deliveries</string>
     <string name="activity_deliveries_hint">Briefings, files, screen updates, and incoming proposals.</string>
-    <string name="activity_notifications_title">Notifications</string>
     <string name="activity_notifications_hint">Manage alerts on this device and see recent history.</string>
-    <string name="activity_push_policy_title">Alert preferences and quiet hours</string>
     <string name="activity_push_policy_hint">Choose alert categories and schedule quiet hours.</string>
-    <string name="activity_usage_title">Usage</string>
     <string name="activity_usage_hint">Review estimated cost and response time for this discussion.</string>
-    <string name="activity_security_title">Security and lock</string>
 
     <string name="security_dialog_title">Security and lock</string>
     <string name="security_lock_now">Lock profile</string>
@@ -105,14 +90,8 @@
     <string name="ws_capture_photo">Take a photo…</string>
     <string name="ws_choose_discussion_tool_body">Open a discussion to create a tool.</string>
     <string name="ws_choose_discussion_files_body">Open a discussion to browse project files.</string>
-    <string name="brain_open_all_title">Open all of Hermes brain</string>
-    <string name="brain_open_all_hint">Memory, notes, shared items, search, and settings verified with your server.</string>
     <string name="brain_memory_card_hint">What Hermes remembers and knows about you.</string>
-    <string name="brain_notes_card_hint">Your structured notes and habits learned with Hermes.</string>
-    <string name="brain_shared_card_hint">Notes, skills, and items shared by other profiles on this server.</string>
-    <string name="brain_search_card_hint">Find any passage across all your conversations.</string>
     <string name="brain_files_card_hint">Browse files and changes in the current discussion.</string>
-    <string name="brain_profile_defaults_card_hint">Default model and capabilities for this profile.</string>
     <string name="live_ui_delivery_title">Proposed screen update</string>
     <string name="live_ui_delivery_apply">Apply</string>
     <string name="live_ui_delivery_failed_title">Update unavailable</string>

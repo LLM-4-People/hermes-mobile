@@ -74,11 +74,14 @@ final class SkillBrowser {
         panel.activity.getTheme().resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, ripple, true);
         refresh.setBackgroundResource(ripple.resourceId);
         refresh.setImageResource(R.drawable.ic_skills_refresh);
+        refresh.setImageTintList(Ui.enabledDisabledInk(panel.activity, R.color.ink));
         refresh.setContentDescription(panel.t(R.string.skills_refresh));
         refresh.setTooltipText(panel.t(R.string.skills_refresh));
         refresh.setOnClickListener(v -> load());
         int target = Ui.dp(panel.activity, 48);
-        toolbar.addView(refresh, new LinearLayout.LayoutParams(target, target));
+        LinearLayout.LayoutParams refreshLp = new LinearLayout.LayoutParams(target, target);
+        refreshLp.setMarginStart(Ui.dp(panel.activity, 8));
+        toolbar.addView(refresh, refreshLp);
         if (parent != null) {
             parent.attachPickerControls(box, toolbar, new LinearLayout.LayoutParams(-1, -2));
         } else {
@@ -130,7 +133,6 @@ final class SkillBrowser {
     private void load() {
         if (!current()) return;
         refresh.setEnabled(false);
-        refresh.setAlpha(0.45f);
         inventory = null;
         adapter.clear();
         empty.setVisibility(View.GONE);
@@ -156,7 +158,6 @@ final class SkillBrowser {
 
     private void enableRefresh() {
         refresh.setEnabled(true);
-        refresh.setAlpha(1f);
     }
 
     private void filter() {

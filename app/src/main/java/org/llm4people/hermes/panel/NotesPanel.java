@@ -1,7 +1,6 @@
 package org.llm4people.hermes.panel;
 
 import android.app.AlertDialog;
-import android.graphics.Typeface;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.View;
@@ -9,6 +8,7 @@ import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -28,14 +28,14 @@ import java.util.function.Consumer;
  * (universal_sharing or note_sharing), plus learned Habit Suggestions (strictly count >= 3).
  */
 final class NotesPanel {
-    private static Typeface mediumTypeface;
-
     private final SessionPanel panel;
     private final BooleanSupplier activeThread;
     private final Consumer<String> stageDraft;
     private final Runnable parent;
     private NotesModel.FilterTab activeTab = NotesModel.FilterTab.MINE;
     private int loadSeq;
+    private boolean loadFailed;
+    private String pendingNoteId;
     private BrainCapabilities capabilities = BrainCapabilities.empty();
     private List<NotesModel.Note> notes = new ArrayList<>();
     private List<NotesModel.HabitSuggestion> learnedHabits = new ArrayList<>();
@@ -43,13 +43,6 @@ final class NotesPanel {
     private LinearLayout tabsRow;
     private LinearLayout habitsBox;
     private LinearLayout body;
-
-    private static Typeface mediumTypeface() {
-        if (mediumTypeface == null) {
-            mediumTypeface = Typeface.create("sans-serif-medium", Typeface.NORMAL);
-        }
-        return mediumTypeface;
-    }
 
     NotesPanel(SessionPanel panel, BooleanSupplier activeThread, Consumer<String> stageDraft, Runnable parent) {
         this.panel = panel;
@@ -59,15 +52,22 @@ final class NotesPanel {
     }
 
     void show() {
-        showTab(NotesModel.FilterTab.MINE);
+        showTab(NotesModel.FilterTab.MINE, null);
+    }
+
+    void show(String initialNoteId) {
+        showTab(NotesModel.FilterTab.MINE, initialNoteId);
     }
 
     void showShared() {
-        showTab(NotesModel.FilterTab.SHARED);
+        showTab(NotesModel.FilterTab.SHARED, null);
     }
 
-    private void showTab(NotesModel.FilterTab initialTab) {
+    private void showTab(NotesModel.FilterTab initialTab, String initialNoteId) {
         activeTab = initialTab == null ? NotesModel.FilterTab.MINE : initialTab;
+        pendingNoteId = initialNoteId == null ? null : initialNoteId.trim();
+        if (pendingNoteId != null && pendingNoteId.isEmpty()) pendingNoteId = null;
+        loadFailed = false;
         LinearLayout page = panel.page("brain_notes", R.string.brain_notes_title, parent);
         panel.note(page, panel.t(R.string.brain_notes_subtitle));
 
@@ -81,7 +81,9 @@ final class NotesPanel {
         page.addView(filterField, lp);
         filterField.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-            @Override public void onTextChanged(CharSequence s, int start, int before, int count) { renderList(); }
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                if (!loadFailed) renderList();
+            }
             @Override public void afterTextChanged(Editable s) {}
         });
 
@@ -105,7 +107,7 @@ final class NotesPanel {
             pill.setText(label);
             pill.setAllCaps(false);
             pill.setTextSize(14);
-            pill.setTypeface(mediumTypeface());
+            pill.setTypeface(Ui.mediumTypeface());
             pill.setStateListAnimator(null);
             pill.setMinHeight(Ui.dp(panel.activity, 48));
             pill.setMinimumHeight(Ui.dp(panel.activity, 48));
@@ -133,6 +135,7 @@ final class NotesPanel {
     private void load() {
         body.removeAllViews();
         habitsBox.removeAllViews();
+        loadFailed = false;
         // Each tab switch or reload supersedes any in-flight load: a stale response must never
         // overwrite the notes of the tab now on screen.
         int seq = ++loadSeq;
@@ -158,29 +161,47 @@ final class NotesPanel {
             @SuppressWarnings("unchecked")
             List<NotesModel.HabitSuggestion> habits = (List<NotesModel.HabitSuggestion>) payload[2];
             if (fetched == null) {
+                loadFailed = true;
                 Diagnostics.event("notes", "capability_absent");
                 BrainUi.showUnavailable(panel, body, R.string.brain_notes_unavailable, this::load);
                 return;
             }
+            loadFailed = false;
             notes = new ArrayList<>(fetched);
             learnedHabits = habits == null ? new ArrayList<>() : new ArrayList<>(habits);
             renderHabits();
             renderList();
+            openPendingNoteIfPresent();
         }, error -> {
             if (seq != loadSeq) return;
             if (error instanceof HermesApi.HttpError http && (http.status == 404 || http.status == 405 || http.status == 501)) {
                 Diagnostics.warning("notes", "endpoint_absent", "http_" + http.status);
                 if (sharedTab) {
+                    loadFailed = false;
                     notes = new ArrayList<>();
                     renderList();
                 } else {
+                    loadFailed = true;
                     BrainUi.showUnavailable(panel, body, R.string.brain_notes_unavailable, this::load);
                 }
             } else {
+                loadFailed = true;
                 Diagnostics.warning("notes", "load_failed", error);
                 panel.failure(body, error, this::load);
             }
         });
+    }
+
+    private void openPendingNoteIfPresent() {
+        String targetId = pendingNoteId;
+        if (targetId == null || targetId.isEmpty()) return;
+        pendingNoteId = null;
+        for (NotesModel.Note note : notes) {
+            if (targetId.equals(note.id())) {
+                openReader(note);
+                return;
+            }
+        }
     }
 
     private List<NotesModel.HabitSuggestion> fetchOptionalHabits(BrainCapabilities caps) {
@@ -210,6 +231,7 @@ final class NotesPanel {
     }
 
     private void renderList() {
+        if (loadFailed) return;
         body.removeAllViews();
         LinearLayout bar = Ui.row(panel.activity);
         if (activeTab == NotesModel.FilterTab.MINE) {
@@ -219,9 +241,7 @@ final class NotesPanel {
             bar.addView(createBtn, createLp);
         }
         bar.addView(Ui.outlinedButton(panel.activity, panel.t(R.string.panel_refresh), v -> load()));
-        LinearLayout.LayoutParams barLp = new LinearLayout.LayoutParams(-1, -2);
-        barLp.bottomMargin = Ui.dp(panel.activity, 12);
-        body.addView(bar, barLp);
+        body.addView(BrainUi.chipBar(panel.activity, bar));
 
         String query = filterField == null ? "" : filterField.getText().toString();
         List<NotesModel.Note> visible = NotesModel.filterForTab(notes, activeTab, query);
@@ -248,7 +268,7 @@ final class NotesPanel {
 
         LinearLayout top = Ui.row(panel.activity);
         TextView title = Ui.text(panel.activity, note.displayTitle(panel.activity), 16);
-        title.setTypeface(mediumTypeface());
+        title.setTypeface(Ui.mediumTypeface());
         top.addView(title, new LinearLayout.LayoutParams(0, -2, 1));
         if (note.pinned()) {
             top.addView(Ui.pill(panel.activity, panel.t(R.string.brain_memory_pinned),
@@ -312,9 +332,7 @@ final class NotesPanel {
         }
         if (note.canDelete()) {
             Button del = Ui.button(panel.activity, panel.t(R.string.panel_delete), v -> confirmDelete(note));
-            del.setTextColor(new android.content.res.ColorStateList(
-                    new int[][]{new int[]{-android.R.attr.state_enabled}, new int[]{}},
-                    new int[]{panel.activity.getColor(R.color.disabled_ink), panel.activity.getColor(R.color.danger)}));
+            del.setTextColor(Ui.dangerInk(panel.activity));
             addActionButton(actions, del, actionGap);
         }
         if (actions.getChildCount() > 0) card.addView(BrainUi.chipBar(panel.activity, actions));
@@ -381,9 +399,13 @@ final class NotesPanel {
         errorView.setTextColor(panel.activity.getColor(R.color.danger));
         errorView.setVisibility(View.GONE);
 
+        ScrollView scroll = new ScrollView(panel.activity);
+        scroll.setFillViewport(true);
+        scroll.addView(form);
+
         AlertDialog dialog = new AlertDialog.Builder(panel.activity)
                 .setTitle(existing == null ? R.string.brain_notes_new : R.string.panel_edit)
-                .setView(form)
+                .setView(scroll)
                 .setNegativeButton(R.string.panel_cancel, null)
                 .setPositiveButton(R.string.panel_save, null)
                 .create();

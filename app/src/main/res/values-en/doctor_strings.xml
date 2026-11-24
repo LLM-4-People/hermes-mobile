@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
     <string name="doctor_route_label">Connection doctor</string>
     <string name="doctor_route_hint">Check server reachability, companion features, notifications, and language</string>
     <string name="doctor_panel_title">Connection doctor</string>

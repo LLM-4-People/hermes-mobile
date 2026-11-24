@@ -15,6 +15,7 @@ import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 
 /** Shared native Material 3 primitives. Dimensions follow screen density and text follows font scale. */
@@ -22,10 +23,50 @@ public final class Ui {
     public static final int BUTTON_CORNER_DP = 14;
     public static final int CARD_CORNER_DP = 16;
 
+    private static Typeface mediumTypeface;
+
     private Ui() {}
 
-    private static Typeface mediumTypeface() {
-        return Typeface.create("sans-serif-medium", Typeface.NORMAL);
+    /** Cached medium-weight sans-serif typeface shared across native UI surfaces (lazy for host-JVM safety). */
+    public static Typeface mediumTypeface() {
+        if (mediumTypeface == null) {
+            mediumTypeface = Typeface.create("sans-serif-medium", Typeface.NORMAL);
+        }
+        return mediumTypeface;
+    }
+
+    /** Enabled/disabled ColorStateList pairing {@code enabledColorRes} with semantic {@code R.color.disabled_ink}. */
+    public static ColorStateList enabledDisabledInk(Context context, int enabledColorRes) {
+        return enabledDisabledInk(context.getColor(enabledColorRes), context.getColor(R.color.disabled_ink));
+    }
+
+    /** Semantic destructive button ink preserving distinct disabled state. */
+    public static ColorStateList dangerInk(Context context) {
+        return enabledDisabledInk(context, R.color.danger);
+    }
+
+    /** ScrollView centering {@code content} within {@code maxColumnDp} using {@link AdaptiveLayout#centeredGutterDp}. */
+    public static ScrollView centeredScroll(
+            Context context, View content, int maxColumnDp, int minGutterDp, int topDp, int bottomDp) {
+        ScrollView scroll = new ScrollView(context) {
+            @Override protected void onMeasure(int widthSpec, int heightSpec) {
+                float density = getResources().getDisplayMetrics().density;
+                int gutter = dp(context, AdaptiveLayout.centeredGutterDp(
+                        MeasureSpec.getSize(widthSpec) / density, maxColumnDp, minGutterDp));
+                int top = dp(context, topDp);
+                int bottom = dp(context, bottomDp);
+                if (content.getPaddingStart() != gutter
+                        || content.getPaddingTop() != top
+                        || content.getPaddingBottom() != bottom) {
+                    content.setPaddingRelative(gutter, top, gutter, bottom);
+                }
+                super.onMeasure(widthSpec, heightSpec);
+            }
+        };
+        scroll.setFillViewport(true);
+        scroll.setClipToPadding(false);
+        scroll.addView(content, new ScrollView.LayoutParams(-1, -2));
+        return scroll;
     }
 
     public static int dp(Context context, float value) {

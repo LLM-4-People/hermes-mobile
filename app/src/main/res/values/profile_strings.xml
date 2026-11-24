@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="fr">
     <string name="profile_connect_detail">Un même serveur Hermes (fork LLM-4-People/hermes-agent) peut héberger plusieurs profils isolés sous la même adresse HTTPS.</string>
     <string name="profile_server_slug_label">Profil serveur (optionnel)</string>
     <string name="profile_server_slug_hint">Ex. alice (vide = profil principal)</string>

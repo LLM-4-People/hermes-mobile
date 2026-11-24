@@ -296,10 +296,11 @@ public final class DataTableBlock {
         HorizontalScrollView hScroll = new HorizontalScrollView(context);
         hScroll.setFillViewport(true);
         GradientDrawable frame = new GradientDrawable();
-        frame.setCornerRadius(Ui.dp(context, 8));
+        frame.setCornerRadius(Ui.dp(context, Ui.CARD_CORNER_DP));
         frame.setColor(colors.surface);
         frame.setStroke(Math.max(1, Ui.dp(context, 1)), colors.line);
         hScroll.setBackground(frame);
+        hScroll.setClipToOutline(true);
         hScroll.addView(tableBody);
         container.addView(hScroll);
 
@@ -316,15 +317,22 @@ public final class DataTableBlock {
         for (int i = 0; i < model.columns.size(); i++) {
             int colIndex = i;
             Column col = model.columns.get(i);
-            String arrow = model.sortColumn() == i ? (model.ascending() ? " ▲" : " ▼") : "";
-            Button head = Ui.button(c, col.label + arrow, v -> {
+            boolean activeSort = model.sortColumn() == i;
+            Button head = Ui.button(c, col.label, v -> {
                 model.toggleSort(colIndex);
                 renderTable(c, tableBody, model, colors, host);
             });
             head.setEnabled(model.sortable);
-            head.setTextColor(colors.ink);
+            head.setTextColor(activeSort ? colors.accent : colors.ink);
             head.setTextSize(colors.scaledSp(14));
             head.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+            head.setCompoundDrawablesRelativeWithIntrinsicBounds(0, 0,
+                    activeSort ? (model.ascending() ? android.R.drawable.arrow_up_float : android.R.drawable.arrow_down_float) : 0,
+                    0);
+            if (activeSort) {
+                head.setCompoundDrawableTintList(android.content.res.ColorStateList.valueOf(colors.accent));
+                head.setCompoundDrawablePadding(Ui.dp(c, 4));
+            }
             head.setGravity((col.numeric ? Gravity.END : Gravity.START) | Gravity.CENTER_VERTICAL);
             head.setMinimumWidth(colWidth);
             head.setMinWidth(colWidth);
@@ -354,7 +362,7 @@ public final class DataTableBlock {
         for (int r = 0; r < rows.size(); r++) {
             List<String> row = rows.get(r);
             LinearLayout rowView = Ui.row(c);
-            rowView.setMinimumHeight(Ui.dp(c, 44));
+            rowView.setMinimumHeight(Ui.dp(c, 48));
             for (int colIdx = 0; colIdx < model.columns.size(); colIdx++) {
                 Column col = model.columns.get(colIdx);
                 TextView cell = Ui.text(c, row.get(colIdx), colors.scaledSp(15));
@@ -369,6 +377,7 @@ public final class DataTableBlock {
                 rowView.addView(cell, new LinearLayout.LayoutParams(0, -2, 1f));
             }
             if (host != null && !model.draftPrompt.isEmpty()) {
+                rowView.setBackground(Ui.roundedRipple(c, 0, null));
                 rowView.setClickable(true);
                 rowView.setFocusable(true);
                 rowView.setOnClickListener(v -> host.stageDraft(model.draftForRow(row)));

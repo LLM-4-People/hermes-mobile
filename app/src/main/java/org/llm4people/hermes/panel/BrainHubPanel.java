@@ -58,12 +58,14 @@ final class BrainHubPanel {
         for (RouteRegistry.Destination dest : all) {
             boolean ready = dest.availableFor(capabilities.asSet());
             LinearLayout card = BrainUi.card(panel.activity);
+            card.setBackground(Ui.roundedRipple(panel.activity, Ui.CARD_CORNER_DP,
+                    Ui.shape(panel.activity, Ui.CARD_CORNER_DP, R.color.surface, R.color.line, 1)));
             LinearLayout top = Ui.row(panel.activity);
             TextView title = Ui.text(panel.activity, dest.label(), 18);
-            title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+            title.setTypeface(Ui.mediumTypeface());
             top.addView(title, new LinearLayout.LayoutParams(0, -2, 1));
-            top.addView(BrainUi.badge(panel.activity,
-                    panel.t(ready ? R.string.brain_available : R.string.brain_needs_update), ready));
+            String statusText = panel.t(ready ? R.string.brain_available : R.string.brain_needs_update);
+            top.addView(BrainUi.badge(panel.activity, statusText, ready));
             card.addView(top);
             if (!dest.hint().isEmpty()) {
                 TextView hint = Ui.text(panel.activity, dest.hint(), 14);
@@ -72,7 +74,16 @@ final class BrainHubPanel {
                 card.addView(hint);
             }
             card.setFocusable(true);
-            card.setContentDescription(dest.label() + ". " + dest.hint());
+            card.setClickable(true);
+            card.setAccessibilityDelegate(new android.view.View.AccessibilityDelegate() {
+                @Override public void onInitializeAccessibilityNodeInfo(
+                        android.view.View host, android.view.accessibility.AccessibilityNodeInfo info) {
+                    super.onInitializeAccessibilityNodeInfo(host, info);
+                    info.setClassName(android.widget.Button.class.getName());
+                }
+            });
+            card.setContentDescription(dest.label() + ", " + statusText
+                    + (dest.hint().isEmpty() ? "" : ". " + dest.hint()));
             card.setOnClickListener(v -> registry.dispatch(dest.id()));
             body.addView(card);
         }

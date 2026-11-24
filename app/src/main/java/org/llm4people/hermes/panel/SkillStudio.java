@@ -365,7 +365,7 @@ final class SkillStudio {
             editRow.addView(shareBtn, shareLp);
 
             Button del = Ui.button(panel.activity, panel.t(R.string.panel_delete), v -> confirmDelete(box, detail));
-            del.setTextColor(dangerInk());
+            del.setTextColor(Ui.dangerInk(panel.activity));
             editRow.addView(del);
             box.addView(BrainUi.chipBar(panel.activity, editRow));
         } else {
@@ -381,12 +381,6 @@ final class SkillStudio {
             previewCard.addView(bodyView);
             box.addView(previewCard);
         }
-    }
-
-    private ColorStateList dangerInk() {
-        return new ColorStateList(
-                new int[][]{new int[]{-android.R.attr.state_enabled}, new int[]{}},
-                new int[]{panel.activity.getColor(R.color.disabled_ink), panel.activity.getColor(R.color.danger)});
     }
 
     private EditText formField(LinearLayout parent, int labelAndHintRes, boolean capitalize) {

@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
     <string name="skills_title">Hermes skills</string>
     <string name="skills_search">Search for a skill</string>
     <string name="skills_refresh">Refresh skills</string>

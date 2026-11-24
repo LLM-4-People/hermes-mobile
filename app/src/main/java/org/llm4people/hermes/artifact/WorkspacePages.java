@@ -77,13 +77,15 @@ final class WorkspacePages {
             chip.setTag("atelier-tab-" + tab.id);
             chip.setTextColor(palette.accent);
             chip.setTextSize(palette.scaledSp(14));
-            chip.setMinHeight(Ui.dp(activity, 44));
+            int touchMin = Ui.dp(activity, 48);
+            chip.setMinHeight(touchMin);
+            chip.setMinimumHeight(touchMin);
             Ui.pad(chip, 14, 6);
             GradientDrawable bg = new GradientDrawable();
-            bg.setCornerRadius(Ui.dp(activity, 18));
+            bg.setCornerRadius(Ui.dp(activity, Ui.BUTTON_CORNER_DP));
             bg.setColor(palette.accentSurface);
             bg.setStroke(Math.max(1, Ui.dp(activity, 1)), palette.line);
-            chip.setBackground(bg);
+            chip.setBackground(Ui.roundedRipple(activity, Ui.BUTTON_CORNER_DP, bg));
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
             lp.setMarginEnd(Ui.dp(activity, 8));
             row.addView(chip, lp);

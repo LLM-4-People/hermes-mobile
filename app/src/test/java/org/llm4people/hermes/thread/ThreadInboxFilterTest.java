@@ -100,5 +100,29 @@ public final class ThreadInboxFilterTest {
                 ThreadInboxFilter.extractSharedContentMap(transcript, "You", "Hermes"));
 
         assertEquals("", ThreadInboxFilter.extractSharedContentMap(null, "You", "Hermes"));
+
+        // Nested content.messages and malformed rows fail closed cleanly.
+        Map<String, Object> nested = Map.of("content", Map.of("messages", List.of(
+                Map.of("role", "user", "content", "Question"),
+                Map.of("role", "assistant", "content", "Answer"))));
+        assertEquals("You:\nQuestion\n\nHermes:\nAnswer",
+                ThreadInboxFilter.extractSharedContentMap(nested, "You", "Hermes"));
+
+        assertFalse(ThreadInboxFilter.isPinnedMap(Map.of("pinned", 1)));
+        assertFalse(ThreadInboxFilter.isPinnedMap(Map.of("is_pinned", "true")));
+        assertFalse(ThreadInboxFilter.isPinnedMap(Map.of("pinned", 0)));
+
+        java.util.ArrayList<ThreadInboxFilter.Entry> withNull = new java.util.ArrayList<>();
+        withNull.add(null);
+        withNull.add(new ThreadInboxFilter.Entry("t-ok", "Ok", true, false, "", "", ""));
+        assertEquals(1, ThreadInboxFilter.filterEntries(withNull, null).size());
+        assertEquals(1, ThreadInboxFilter.filterEntries(withNull, ThreadInboxFilter.Filter.PINNED).size());
+
+        java.util.ArrayList<Object> noisyShares = new java.util.ArrayList<>();
+        noisyShares.add(null);
+        noisyShares.add("bad");
+        noisyShares.add(Map.of("share_id", "sh-blank", "resource_kind", "session", "resource_id", "", "label", ""));
+        List<ThreadInboxFilter.Entry> parsedNoisy = ThreadInboxFilter.parseSharedSessionsMap(Map.of("data", noisyShares));
+        assertTrue(parsedNoisy.isEmpty());
     }
 }

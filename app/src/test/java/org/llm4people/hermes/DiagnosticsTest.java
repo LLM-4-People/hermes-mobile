@@ -58,6 +58,25 @@ public final class DiagnosticsTest {
     }
 
     @Test
+    public void underscoreEventNamesArePreservedWhileColonNamesAreSanitized() throws IOException {
+        Diagnostics.event("search", "result_selected_chats");
+        Diagnostics.event("search", "result_selected:chats");
+        List<Diagnostics.Entry> entries = Diagnostics.snapshot();
+        assertEquals(2, entries.size());
+        assertEquals("search.result_selected_chats", entries.get(0).message());
+        assertEquals("search.event", entries.get(1).message());
+
+        Path sheetPath = Path.of("src/main/java/org/llm4people/hermes/search/UniversalSearchSheet.java");
+        if (!Files.isRegularFile(sheetPath)) {
+            sheetPath = Path.of("app/src/main/java/org/llm4people/hermes/search/UniversalSearchSheet.java");
+        }
+        String src = new String(Files.readAllBytes(sheetPath), StandardCharsets.UTF_8);
+        assertFalse("UniversalSearchSheet must use underscore event names, never colons",
+                src.contains("result_selected:"));
+        assertTrue(src.contains("result_selected_"));
+    }
+
+    @Test
     public void debugRespectsToggleAndRejectsNonPositiveCapacity() {
         Diagnostics.debug("threads", "ignored_when_off");
         assertTrue(Diagnostics.snapshot().isEmpty());

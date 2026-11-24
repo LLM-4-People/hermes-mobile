@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
     <string name="read_listen">Listen</string>
     <string name="read_stop">Stop</string>
     <string name="read_stop_label">Stop reading</string>

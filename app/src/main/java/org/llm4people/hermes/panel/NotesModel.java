@@ -49,7 +49,7 @@ public final class NotesModel {
         }
 
         public boolean isOwner() {
-            return ownerProfile.isEmpty() || "owner".equals(permission) || permission.isEmpty();
+            return "owner".equals(permission) || (permission.isEmpty() && ownerProfile.isEmpty());
         }
 
         public boolean canEdit() {
@@ -154,10 +154,17 @@ public final class NotesModel {
 
     public static List<Note> filter(List<Note> notes, String query) {
         if (notes == null || notes.isEmpty()) return Collections.emptyList();
-        if (query == null || query.trim().isEmpty()) return new ArrayList<>(notes);
+        if (query == null || query.trim().isEmpty()) {
+            List<Note> clean = new ArrayList<>(notes.size());
+            for (Note note : notes) {
+                if (note != null) clean.add(note);
+            }
+            return Collections.unmodifiableList(clean);
+        }
         String needle = fold(query.trim());
         List<Note> matched = new ArrayList<>();
         for (Note note : notes) {
+            if (note == null) continue;
             if (fold(note.title() + " " + note.body() + " " + String.join(" ", note.tags())).contains(needle)) {
                 matched.add(note);
             }

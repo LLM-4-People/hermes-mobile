@@ -66,6 +66,51 @@ public final class UniversalSearchModelTest {
     }
 
     @Test
+    public void fallbackServerTitleNeverOverwritesRealLocalChatTitle() {
+        List<SearchResultModel.Span> spans = List.of(new SearchResultModel.Span(0, 6));
+        Map<String, Object> serverResp = Map.of(
+                "data", List.of(Map.of(
+                        "thread_id", "t-1",
+                        "snippet", "<mark>Budget</mark> validé par l'équipe")));
+        List<UniversalSearchModel.Result> serverHits =
+                UniversalSearchModel.parseSessionSearchHitsMap(serverResp, "Untitled");
+        assertEquals(1, serverHits.size());
+        assertTrue(serverHits.get(0).fallbackTitle());
+        assertEquals("Untitled", serverHits.get(0).title());
+
+        List<UniversalSearchModel.Result> merged = UniversalSearchModel.merge(
+                "budget", UniversalSearchModel.Category.ALL, sampleLocal(), serverHits);
+        assertEquals(1, merged.size());
+        assertEquals("Budget Q4", merged.get(0).title());
+        assertFalse(merged.get(0).fallbackTitle());
+        assertEquals("Budget validé par l'équipe", merged.get(0).subtitle());
+        assertEquals(1, merged.get(0).snippetHighlights().size());
+        assertTrue(merged.get(0).fromServer());
+        assertEquals(1, spans.size());
+    }
+
+    @Test
+    public void handlesMalformedWireElementsAndRapidCategorySwitching() {
+        List<Object> noisyRows = new ArrayList<>();
+        noisyRows.add(null);
+        noisyRows.add("not-a-map");
+        noisyRows.add(Map.of("session_id", "   "));
+        noisyRows.add(Map.of("session_id", "s-ok", "thread_title", "Valid", "snippet", "Body"));
+        List<UniversalSearchModel.Result> hits =
+                UniversalSearchModel.parseSessionSearchHitsMap(Map.of("data", noisyRows), "Fallback");
+        assertEquals(1, hits.size());
+        assertEquals("s-ok", hits.get(0).targetId());
+        assertFalse(hits.get(0).fallbackTitle());
+
+        UniversalSearchModel.SearchSession session = new UniversalSearchModel.SearchSession(sampleLocal());
+        session.setCategory(UniversalSearchModel.Category.TOOLS);
+        assertEquals(1, session.results().size());
+        assertEquals("memory", session.results().get(0).actionId());
+        session.setCategory(UniversalSearchModel.Category.SETTINGS);
+        assertEquals(2, session.results().size());
+    }
+
+    @Test
     public void filtersStrictlyByCategoryAndGroupsDeterministically() {
         UniversalSearchModel.Result remoteNote = new UniversalSearchModel.Result(
                 "note:n-1", UniversalSearchModel.Category.NOTES, "Budget courses", "Liste",
@@ -242,11 +287,19 @@ public final class UniversalSearchModelTest {
                 "app/src/main/java/org/llm4people/hermes/thread/ThreadWorkspace.java"));
         assertTrue(threadWorkspace.contains("int openEpoch = ++sharedOpenEpoch;"));
         assertTrue(threadWorkspace.contains("if (closed || openEpoch != sharedOpenEpoch || inboxFilter != ThreadInboxFilter.Filter.SHARED)"));
+        assertTrue(threadWorkspace.contains("if (inboxFilter != ThreadInboxFilter.Filter.SHARED)"));
+        assertTrue(threadWorkspace.contains("sharedLoading = false;"));
 
         String notesPanel = readUtf8(root.resolve(
                 "app/src/main/java/org/llm4people/hermes/panel/NotesPanel.java"));
         assertTrue(notesPanel.contains("Ui.roundedRipple(panel.activity, Ui.CARD_CORNER_DP"));
-        assertTrue(notesPanel.contains("R.color.disabled_ink), panel.activity.getColor(R.color.danger)"));
+        assertTrue(notesPanel.contains("Ui.dangerInk(panel.activity)"));
+        assertTrue(notesPanel.contains("if (!loadFailed) renderList();"));
+
+        String ui = readUtf8(root.resolve("app/src/main/java/org/llm4people/hermes/Ui.java"));
+        assertTrue(ui.contains("public static ColorStateList dangerInk("));
+        assertTrue(ui.contains("R.color.disabled_ink"));
+        assertTrue(ui.contains("R.color.danger"));
     }
 
     private static String readUtf8(java.nio.file.Path path) throws Exception {

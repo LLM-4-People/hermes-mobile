@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="fr">
     <item name="skill_search_field" type="id" />
     <item name="skill_results" type="id" />
     <string name="skills_title">Compétences de Hermes</string>

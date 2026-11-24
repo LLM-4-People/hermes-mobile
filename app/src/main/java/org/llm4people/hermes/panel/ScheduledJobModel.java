@@ -146,16 +146,22 @@ public final class ScheduledJobModel {
 
     /** Formats a non-negative duration in seconds concisely (e.g. {@code 14s}, {@code 2m 05s}, {@code 1h 04m}). */
     public static String formatDuration(long seconds) {
+        return formatDuration(seconds, Locale.getDefault());
+    }
+
+    /** Locale-aware duration formatter using the active app locale instead of hardcoded {@link Locale#US}. */
+    public static String formatDuration(long seconds, Locale locale) {
         if (seconds < 0L) return "";
-        if (seconds < 60L) return seconds + "s";
+        Locale active = locale == null ? Locale.getDefault() : locale;
+        if (seconds < 60L) return String.format(active, "%ds", seconds);
         long mins = seconds / 60L;
         long remSec = seconds % 60L;
         if (mins < 60L) {
-            return String.format(Locale.US, "%dm %02ds", mins, remSec);
+            return String.format(active, "%dm %02ds", mins, remSec);
         }
         long hours = mins / 60L;
         long remMin = mins % 60L;
-        return String.format(Locale.US, "%dh %02dm", hours, remMin);
+        return String.format(active, "%dh %02dm", hours, remMin);
     }
 
     /** Extracts a clean, non-sensitive delivery channel label (e.g. {@code local}, {@code signal}, {@code telegram}). */

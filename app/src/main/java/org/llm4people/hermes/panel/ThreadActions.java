@@ -43,6 +43,7 @@ public final class ThreadActions implements Closeable {
     private final ExecutorService io = Executors.newSingleThreadExecutor();
     private HermesApi api;
     private String ownerProfileId;
+    private int actionEpoch;
     private AlertDialog activeDialog;
     private PendingExport pendingExport;
 
@@ -64,6 +65,7 @@ public final class ThreadActions implements Closeable {
     }
 
     public void unlock(Account account, HermesApi client) {
+        actionEpoch++;
         this.ownerProfileId = account == null ? null : account.id;
         this.api = client;
         if (pendingExport != null && (ownerProfileId == null || !ownerProfileId.equals(pendingExport.ownerProfileId))) {
@@ -74,12 +76,14 @@ public final class ThreadActions implements Closeable {
     }
 
     public void lock() {
+        actionEpoch++;
         api = null;
         ownerProfileId = null;
         dismiss();
     }
 
     public void dismiss() {
+        actionEpoch++;
         if (activeDialog != null) {
             activeDialog.dismiss();
             activeDialog = null;
@@ -91,6 +95,7 @@ public final class ThreadActions implements Closeable {
         if (api == null || sessionId == null || sessionId.isEmpty()) return;
         HermesApi client = api;
         String owner = ownerProfileId;
+        int epoch = actionEpoch;
         io.execute(() -> {
             try {
                 JSONObject current = client.get("/api/sessions/" + HermesApi.segment(sessionId));
@@ -100,14 +105,14 @@ public final class ThreadActions implements Closeable {
                 client.setSessionPinned(sessionId, nextPinned);
                 Diagnostics.event("thread_actions", nextPinned ? "pinned" : "unpinned");
                 activity.runOnUiThread(() -> {
-                    if (!sameOwner(owner)) return;
+                    if (!sameOwner(owner, epoch)) return;
                     toast(activity.getString(nextPinned ? R.string.brain_thread_pinned_ok : R.string.brain_thread_unpinned_ok));
                     if (onChanged != null) onChanged.run();
                 });
             } catch (Exception error) {
                 Diagnostics.warning("thread_actions", "pin_failed", error);
                 activity.runOnUiThread(() -> {
-                    if (sameOwner(owner)) toast(activity.getString(R.string.panel_network_error));
+                    if (sameOwner(owner, epoch)) toast(activity.getString(R.string.panel_network_error));
                 });
             }
         });
@@ -119,6 +124,7 @@ public final class ThreadActions implements Closeable {
         List<ThreadActionModel.TurnChoice> turns = extractTurnChoices(activity, messages);
         HermesApi client = api;
         String owner = ownerProfileId;
+        int epoch = actionEpoch;
         io.execute(() -> {
             boolean supported;
             try {
@@ -126,12 +132,12 @@ public final class ThreadActions implements Closeable {
             } catch (Exception error) {
                 Diagnostics.warning("thread_actions", "fork_capability_failed", error);
                 activity.runOnUiThread(() -> {
-                    if (sameOwner(owner)) toast(activity.getString(R.string.panel_network_error));
+                    if (sameOwner(owner, epoch)) toast(activity.getString(R.string.panel_network_error));
                 });
                 return;
             }
             activity.runOnUiThread(() -> {
-                if (!sameOwner(owner)) return;
+                if (!sameOwner(owner, epoch)) return;
                 if (!supported) {
                     presentNotice(R.string.brain_thread_fork, R.string.brain_thread_fork_unavailable);
                     return;
@@ -193,6 +199,7 @@ public final class ThreadActions implements Closeable {
         if (api == null) return;
         HermesApi client = api;
         String owner = ownerProfileId;
+        int epoch = actionEpoch;
         Long safeMessageId = ThreadActionModel.validateForkMessageId(upToMessageId);
         io.execute(() -> {
             try {
@@ -204,12 +211,12 @@ public final class ThreadActions implements Closeable {
                 Diagnostics.event("thread_actions", "forked");
                 String targetId = forkedId;
                 activity.runOnUiThread(() -> {
-                    if (sameOwner(owner) && openForkedThread != null) openForkedThread.accept(targetId);
+                    if (sameOwner(owner, epoch) && openForkedThread != null) openForkedThread.accept(targetId);
                 });
             } catch (Exception error) {
                 Diagnostics.warning("thread_actions", "fork_failed", error);
                 activity.runOnUiThread(() -> {
-                    if (!sameOwner(owner)) return;
+                    if (!sameOwner(owner, epoch)) return;
                     if (error instanceof HermesApi.HttpError http && http.status == 404
                             && "message_not_found".equals(http.code)) {
                         presentNotice(R.string.brain_thread_fork, R.string.brain_thread_fork_message_not_found);
@@ -228,6 +235,7 @@ public final class ThreadActions implements Closeable {
         if (api == null || sessionId == null || sessionId.isEmpty()) return;
         HermesApi client = api;
         String owner = ownerProfileId;
+        int epoch = actionEpoch;
         io.execute(() -> {
             boolean supported;
             try {
@@ -235,12 +243,12 @@ public final class ThreadActions implements Closeable {
             } catch (Exception error) {
                 Diagnostics.warning("thread_actions", "export_capability_failed", error);
                 activity.runOnUiThread(() -> {
-                    if (sameOwner(owner)) toast(activity.getString(R.string.panel_network_error));
+                    if (sameOwner(owner, epoch)) toast(activity.getString(R.string.panel_network_error));
                 });
                 return;
             }
             activity.runOnUiThread(() -> {
-                if (!sameOwner(owner)) return;
+                if (!sameOwner(owner, epoch)) return;
                 if (!supported) {
                     presentNotice(R.string.brain_thread_export, R.string.brain_thread_export_unavailable);
                     return;
@@ -296,18 +304,19 @@ public final class ThreadActions implements Closeable {
         PendingExport job = pendingExport;
         pendingExport = null;
         HermesApi client = api;
+        int epoch = actionEpoch;
         long maxBytes = HermesConfig.load(activity).artifactDefaultMaxBytes;
         io.execute(() -> {
             try {
                 writeExportToUri(client, job, maxBytes);
                 Diagnostics.event("thread_actions", "exported");
                 activity.runOnUiThread(() -> {
-                    if (sameOwner(job.ownerProfileId)) toast(activity.getString(R.string.brain_thread_export_saved));
+                    if (sameOwner(job.ownerProfileId, epoch)) toast(activity.getString(R.string.brain_thread_export_saved));
                 });
             } catch (Exception error) {
                 Diagnostics.warning("thread_actions", "export_failed", error);
                 activity.runOnUiThread(() -> {
-                    if (sameOwner(job.ownerProfileId)) toast(activity.getString(R.string.brain_thread_export_failed));
+                    if (sameOwner(job.ownerProfileId, epoch)) toast(activity.getString(R.string.brain_thread_export_failed));
                 });
             }
         });
@@ -352,7 +361,12 @@ public final class ThreadActions implements Closeable {
     }
 
     private boolean sameOwner(String expectedOwner) {
-        return expectedOwner != null && expectedOwner.equals(ownerProfileId) && !activity.isDestroyed();
+        return expectedOwner != null && expectedOwner.equals(ownerProfileId)
+                && !activity.isDestroyed() && !activity.isFinishing();
+    }
+
+    private boolean sameOwner(String expectedOwner, int expectedEpoch) {
+        return expectedEpoch == actionEpoch && sameOwner(expectedOwner);
     }
 
     private void presentNotice(int titleRes, int bodyRes) {
