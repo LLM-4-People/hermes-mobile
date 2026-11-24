@@ -14,6 +14,7 @@ import android.widget.TableLayout;
 import android.widget.TextView;
 
 import org.json.JSONObject;
+import org.llm4people.hermes.ActivityTestLifecycle;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.net.Exchange;
@@ -34,7 +35,7 @@ public final class RichMarkdownViewTest extends InstrumentationTestCase {
     }
 
     @Override protected void tearDown() throws Exception {
-        try { getInstrumentation().runOnMainSync(activity::finish); }
+        try { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
         finally { super.tearDown(); }
     }
 

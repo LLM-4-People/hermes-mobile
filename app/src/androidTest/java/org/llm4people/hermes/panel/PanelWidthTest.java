@@ -12,6 +12,7 @@ import android.view.inspector.WindowInspector;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 
+import org.llm4people.hermes.ActivityTestLifecycle;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 
@@ -72,7 +73,8 @@ public final class PanelWidthTest extends InstrumentationTestCase {
                 }
             });
         } finally {
-            runTestOnUiThread(() -> { panel.close(); activity.finish(); });
+            try { runTestOnUiThread(() -> { panel.close(); }); }
+            finally { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
         }
     }
 

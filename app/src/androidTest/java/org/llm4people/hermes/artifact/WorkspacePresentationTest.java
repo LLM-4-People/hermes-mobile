@@ -13,6 +13,7 @@ import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.TextView;
+import org.llm4people.hermes.ActivityTestLifecycle;
 import org.llm4people.hermes.R;
 
 @SuppressWarnings("deprecation")
@@ -65,7 +66,7 @@ public final class WorkspacePresentationTest extends InstrumentationTestCase {
                 ArtifactDesk.dismiss(activity);
                 assertFalse(foregroundReview.isShowing());
             });
-        } finally { runTestOnUiThread(activity::finish); }
+        } finally { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
     }
 
     public void testNavigationAndLayoutChangeCloseEverySecureReaderDialogBeforeRouting() throws Throwable {
@@ -103,7 +104,8 @@ public final class WorkspacePresentationTest extends InstrumentationTestCase {
                 assertTrue(called[2]);
             });
         } finally {
-            runTestOnUiThread(() -> { ArtifactDesk.dismiss(activity); activity.finish(); });
+            try { runTestOnUiThread(() -> { ArtifactDesk.dismiss(activity); }); }
+            finally { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
         }
     }
 

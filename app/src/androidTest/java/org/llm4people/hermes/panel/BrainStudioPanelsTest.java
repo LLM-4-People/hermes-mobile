@@ -10,6 +10,7 @@ import android.view.ViewGroup;
 import android.view.inspector.WindowInspector;
 import android.widget.Switch;
 import android.widget.TextView;
+import org.llm4people.hermes.ActivityTestLifecycle;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.artifact.ArtifactDesk;
 import org.llm4people.hermes.net.Exchange;
@@ -61,7 +62,7 @@ public final class BrainStudioPanelsTest extends InstrumentationTestCase {
                 runTestOnUiThread(panel::close);
             }
         } finally {
-            runTestOnUiThread(activity::finish);
+            ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
         }
     }
 
@@ -105,7 +106,7 @@ public final class BrainStudioPanelsTest extends InstrumentationTestCase {
                 }
             }
         } finally {
-            runTestOnUiThread(activity::finish);
+            ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
         }
     }
 
@@ -189,7 +190,7 @@ public final class BrainStudioPanelsTest extends InstrumentationTestCase {
                 runTestOnUiThread(panel::close);
             }
         } finally {
-            runTestOnUiThread(activity::finish);
+            ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
         }
     }
 
@@ -213,7 +214,7 @@ public final class BrainStudioPanelsTest extends InstrumentationTestCase {
                 runTestOnUiThread(panel::close);
             }
         } finally {
-            runTestOnUiThread(activity::finish);
+            ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
         }
     }
 
@@ -302,7 +303,7 @@ public final class BrainStudioPanelsTest extends InstrumentationTestCase {
                 runTestOnUiThread(panel::close);
             }
         } finally {
-            runTestOnUiThread(activity::finish);
+            ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
         }
     }
 

@@ -1,6 +1,7 @@
 package org.llm4people.hermes.thread;
 
 import android.app.Activity;
+import org.llm4people.hermes.ActivityTestLifecycle;
 import org.llm4people.hermes.profile.WorkspaceAccountFixture;
 import android.content.Context;
 import android.content.Intent;
@@ -56,7 +57,7 @@ public class ThreadSlotsTest extends InstrumentationTestCase {
                 assertEquals(0, sends.get());
             });
         } finally {
-            runTestOnUiThread(activity::finish);
+            ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
         }
     }
 
@@ -85,7 +86,7 @@ public class ThreadSlotsTest extends InstrumentationTestCase {
                 assertEquals(1, sends.get());
                 assertEquals("Bonjour Hermes !", view.draft());
             });
-        } finally { runTestOnUiThread(activity::finish); }
+        } finally { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
     }
 
     public void testOfflineLanguageOptionsLeaveAnEditableComposerInAShortViewport() throws Throwable {
@@ -131,7 +132,7 @@ public class ThreadSlotsTest extends InstrumentationTestCase {
                 field.append(" modifié");
                 assertEquals("Brouillon modifié", thread.draft());
             });
-        } finally { runTestOnUiThread(activity::finish); }
+        } finally { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
     }
 
     public void testEmptyStartersFollowAvailableHeightAndDraftChangesSendState() throws Throwable {
@@ -167,7 +168,7 @@ public class ThreadSlotsTest extends InstrumentationTestCase {
                 assertTrue(send.isShown());
                 assertEquals("Une question", thread.draft());
             });
-        } finally { runTestOnUiThread(activity::finish); }
+        } finally { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
     }
 
     public void testSendControlAndAdmissionTreatInvisibleDraftsIdentically() throws Throwable {
@@ -212,7 +213,7 @@ public class ThreadSlotsTest extends InstrumentationTestCase {
                     assertEquals(question, view.draft());
                 } finally { page.close(); }
             });
-        } finally { runTestOnUiThread(activity::finish); }
+        } finally { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
     }
 
     private static void layout(View view, int width, int height) {

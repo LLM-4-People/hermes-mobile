@@ -5,7 +5,6 @@ import android.app.AlertDialog;
 import android.app.Dialog;
 import android.content.Context;
 import android.content.res.ColorStateList;
-import android.os.SystemClock;
 import android.test.InstrumentationTestCase;
 import android.view.View;
 import android.view.ViewGroup;
@@ -35,7 +34,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -92,7 +90,7 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                 }
             });
         } finally {
-            finishAndAwaitDestroyed(activity);
+            ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
         }
     }
 
@@ -143,7 +141,7 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                     if (sheet != null) sheet.close();
                 });
             } finally {
-                finishAndAwaitDestroyed(activity);
+                ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
             }
         }
     }
@@ -223,7 +221,7 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                     }
                 });
             } finally {
-                finishAndAwaitDestroyed(activity);
+                ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
             }
         }
     }
@@ -278,28 +276,9 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                     if (gate != null) gate.close();
                 });
             } finally {
-                finishAndAwaitDestroyed(activity);
+                ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
             }
         }
-    }
-
-    private void finishAndAwaitDestroyed(Activity activity) throws Throwable {
-        if (activity == null) return;
-        runTestOnUiThread(() -> {
-            if (!activity.isFinishing() && !activity.isDestroyed()) {
-                activity.finish();
-            }
-        });
-        getInstrumentation().waitForIdleSync();
-        long deadline = SystemClock.uptimeMillis() + 5_000L;
-        AtomicBoolean destroyed = new AtomicBoolean(false);
-        while (SystemClock.uptimeMillis() < deadline) {
-            runTestOnUiThread(() -> destroyed.set(activity.isDestroyed()));
-            if (destroyed.get()) return;
-            SystemClock.sleep(10L);
-        }
-        runTestOnUiThread(() -> destroyed.set(activity.isDestroyed()));
-        assertTrue("Expected launched MainActivity to complete onDestroy() before next test", destroyed.get());
     }
 
     @SuppressWarnings("unchecked")

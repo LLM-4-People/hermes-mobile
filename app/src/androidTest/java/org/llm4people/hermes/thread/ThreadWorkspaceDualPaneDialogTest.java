@@ -5,6 +5,7 @@ import android.app.AlertDialog;
 import android.content.Context;
 import android.test.InstrumentationTestCase;
 
+import org.llm4people.hermes.ActivityTestLifecycle;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.profile.WorkspaceAccountFixture;
 import org.llm4people.hermes.voice.VoiceDrafts;
@@ -47,7 +48,7 @@ public final class ThreadWorkspaceDualPaneDialogTest extends InstrumentationTest
                 }
             });
         } finally {
-            runTestOnUiThread(activity::finish);
+            ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
         }
     }
 }

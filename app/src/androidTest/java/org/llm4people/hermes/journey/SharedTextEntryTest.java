@@ -16,6 +16,7 @@ import org.json.JSONObject;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import org.llm4people.hermes.ActivityTestLifecycle;
 import org.llm4people.hermes.MainActivity;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.share.ShareTextActivity;
@@ -64,8 +65,11 @@ public final class SharedTextEntryTest extends InstrumentationTestCase {
                 assertNull(IncomingShare.pending(context));
                 assertFalse(gateway.observed().contains("POST "));
             } finally {
-                if (activity != null) runTestOnUiThread(activity::finish);
-                IncomingShare.discard(context, receipt);
+                try {
+                    ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+                } finally {
+                    IncomingShare.discard(context, receipt);
+                }
             }
         }
     }
@@ -146,8 +150,11 @@ public final class SharedTextEntryTest extends InstrumentationTestCase {
                 assertNull(IncomingShare.pending(context));
                 assertFalse(gateway.observed().contains("POST "));
             } finally {
-                if (receipt != null) IncomingShare.discard(context, receipt);
-                runTestOnUiThread(current[0]::finish);
+                try {
+                    if (receipt != null) IncomingShare.discard(context, receipt);
+                } finally {
+                    ActivityTestLifecycle.finishAndAwaitDestroyed(this, current[0]);
+                }
             }
         }
     }

@@ -92,15 +92,18 @@ public final class WorkspaceSecurityDialogTest extends InstrumentationTestCase {
             assertTrue("Expected onDismissed callback to execute",
                     waitUntil(dismissed::get, 3000L));
         } finally {
-            runTestOnUiThread(() -> {
-                AutoCloseable handle = handleRef.getAndSet(null);
-                if (handle != null) {
-                    try { handle.close(); } catch (Exception ignored) {}
-                }
-                ProfileGate gate = gateRef.getAndSet(null);
-                if (gate != null) gate.close();
-                activity.finish();
-            });
+            try {
+                runTestOnUiThread(() -> {
+                    AutoCloseable handle = handleRef.getAndSet(null);
+                    if (handle != null) {
+                        try { handle.close(); } catch (Exception ignored) {}
+                    }
+                    ProfileGate gate = gateRef.getAndSet(null);
+                    if (gate != null) gate.close();
+                });
+            } finally {
+                ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+            }
         }
     }
 
@@ -155,7 +158,7 @@ public final class WorkspaceSecurityDialogTest extends InstrumentationTestCase {
                 }
             });
         } finally {
-            runTestOnUiThread(activity::finish);
+            ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
         }
     }
 

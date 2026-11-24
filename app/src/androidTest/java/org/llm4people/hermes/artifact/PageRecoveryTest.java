@@ -10,6 +10,7 @@ import android.view.View;
 import android.view.WindowManager;
 import java.util.ArrayList;
 import org.json.JSONObject;
+import org.llm4people.hermes.ActivityTestLifecycle;
 import org.llm4people.hermes.profile.Account;
 import org.llm4people.hermes.profile.WorkspaceAccountFixture;
 
@@ -121,7 +122,8 @@ public final class PageRecoveryTest extends InstrumentationTestCase {
             assertTrue(changed[0]);
             assertTrue(PageLayouts.titles(fixture.account, true).isEmpty());
         } finally {
-            runTestOnUiThread(() -> { ArtifactDesk.dismiss(activity); activity.finish(); });
+            try { runTestOnUiThread(() -> { ArtifactDesk.dismiss(activity); }); }
+            finally { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
         }
     }
 }

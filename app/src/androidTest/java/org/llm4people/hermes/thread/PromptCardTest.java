@@ -13,6 +13,7 @@ import android.widget.TextView;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.llm4people.hermes.ActivityTestLifecycle;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 
@@ -32,7 +33,7 @@ public class PromptCardTest extends InstrumentationTestCase {
     }
 
     @Override protected void tearDown() throws Exception {
-        try { getInstrumentation().runOnMainSync(activity::finish); }
+        try { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
         finally { super.tearDown(); }
     }
 

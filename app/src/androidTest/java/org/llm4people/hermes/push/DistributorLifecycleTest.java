@@ -16,6 +16,7 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
 
+import org.llm4people.hermes.ActivityTestLifecycle;
 import org.llm4people.hermes.R;
 import org.unifiedpush.android.connector.UnifiedPush;
 import org.unifiedpush.android.connector.FailedReason;
@@ -318,7 +319,7 @@ public final class DistributorLifecycleTest extends InstrumentationTestCase {
                     });
                 }
             }
-        } finally { runTestOnUiThread(activity::finish); }
+        } finally { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
     }
 
     private static boolean hasAction(AlertDialog dialog, String label) {

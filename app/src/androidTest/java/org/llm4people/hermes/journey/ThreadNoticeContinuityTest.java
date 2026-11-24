@@ -6,6 +6,7 @@ import android.test.InstrumentationTestCase;
 import android.widget.EditText;
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.llm4people.hermes.ActivityTestLifecycle;
 import org.llm4people.hermes.artifact.ArtifactDesk;
 import org.llm4people.hermes.artifact.ThreadInstruments;
 import org.llm4people.hermes.net.Exchange;
@@ -112,10 +113,13 @@ public final class ThreadNoticeContinuityTest extends InstrumentationTestCase {
             });
             assertEquals("brouillon privé",new JSONObject(fixture.account.read("thread:root")).getString("draft"));
         } finally {
-            runTestOnUiThread(() -> {
-                if (workspace[0] != null) workspace[0].close();
-                activity.finish();
-            });
+            try {
+                runTestOnUiThread(() -> {
+                    if (workspace[0] != null) workspace[0].close();
+                });
+            } finally {
+                ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+            }
         }
     }
 }

@@ -17,6 +17,7 @@ import android.widget.EditText;
 import android.widget.HorizontalScrollView;
 import android.widget.TextView;
 
+import org.llm4people.hermes.ActivityTestLifecycle;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 
@@ -32,7 +33,7 @@ public final class CodeReaderTest extends InstrumentationTestCase {
     }
 
     @Override protected void tearDown() throws Exception {
-        try { getInstrumentation().runOnMainSync(activity::finish); }
+        try { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
         finally { super.tearDown(); }
     }
 

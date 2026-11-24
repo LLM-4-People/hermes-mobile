@@ -13,6 +13,7 @@ import android.widget.ListView;
 import android.view.WindowManager;
 import android.view.inspector.WindowInspector;
 
+import org.llm4people.hermes.ActivityTestLifecycle;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.push.MobilePush;
 import org.llm4people.hermes.net.Exchange;
@@ -78,8 +79,11 @@ public final class SecurePushWindowTest extends InstrumentationTestCase {
                 getInstrumentation().waitForIdleSync();
                 runTestOnUiThread(() -> assertFalse(WindowInspector.getGlobalWindowViews().contains(windows.get(windows.size()-1))));
             } finally {
-                if (activity != null) runTestOnUiThread(activity::finish);
-                accounts.forget(account.id);
+                try {
+                    ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+                } finally {
+                    accounts.forget(account.id);
+                }
             }
         }
     }

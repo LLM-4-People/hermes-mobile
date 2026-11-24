@@ -6,6 +6,7 @@ import android.content.Intent;
 import android.test.InstrumentationTestCase;
 import android.view.View;
 import android.widget.EditText;
+import org.llm4people.hermes.ActivityTestLifecycle;
 import org.llm4people.hermes.Ui;
 
 @SuppressWarnings("deprecation")
@@ -53,7 +54,7 @@ public class InstrumentViewportTest extends InstrumentationTestCase {
                 assertEquals("facture.py", field.getText().toString());
                 assertTrue(field.isShown());
             });
-        } finally { runTestOnUiThread(activity::finish); }
+        } finally { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
     }
 
     private static void size(View view, int widthDp) {

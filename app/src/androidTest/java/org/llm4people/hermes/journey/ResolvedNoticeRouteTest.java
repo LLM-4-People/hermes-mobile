@@ -4,6 +4,7 @@ import android.content.Context;
 import android.test.InstrumentationTestCase;
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.llm4people.hermes.ActivityTestLifecycle;
 import org.llm4people.hermes.MainActivity;
 import org.llm4people.hermes.artifact.ThreadInstruments;
 import org.llm4people.hermes.net.Exchange;
@@ -78,7 +79,7 @@ public class ResolvedNoticeRouteTest extends InstrumentationTestCase {
             assertFalse(wire.contains("POST "));
         } finally {
             releaseEvents.countDown();
-            runTestOnUiThread(activity::finish);
+            ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
         }
     }
 
@@ -119,7 +120,7 @@ public class ResolvedNoticeRouteTest extends InstrumentationTestCase {
             assertEquals(1, newGateway.observed().split("GET ", -1).length - 1);
         } finally {
             release.countDown();
-            runTestOnUiThread(activity::finish);
+            ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
         }
     }
 

@@ -10,6 +10,7 @@ import android.view.View;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 
+import org.llm4people.hermes.ActivityTestLifecycle;
 import org.llm4people.hermes.Ui;
 
 import java.util.ArrayList;
@@ -46,7 +47,7 @@ public final class DuplexVoiceUiTest extends InstrumentationTestCase {
     }
 
     @Override protected void tearDown() throws Exception {
-        try { getInstrumentation().runOnMainSync(activity::finish); }
+        try { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
         finally { super.tearDown(); }
     }
 

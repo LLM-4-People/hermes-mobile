@@ -42,7 +42,7 @@ public final class WorkspaceOverflowTest extends InstrumentationTestCase {
                 shell.dismissMenu();
             });
         } finally {
-            runTestOnUiThread(activity::finish);
+            ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
         }
     }
 

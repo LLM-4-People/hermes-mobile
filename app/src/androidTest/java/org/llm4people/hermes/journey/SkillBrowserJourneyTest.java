@@ -12,6 +12,7 @@ import java.lang.reflect.Method;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import org.json.JSONArray;
+import org.llm4people.hermes.ActivityTestLifecycle;
 import org.llm4people.hermes.MainActivity;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.net.Exchange;
@@ -68,7 +69,7 @@ public final class SkillBrowserJourneyTest extends InstrumentationTestCase {
                 assertEquals(2, gateway.observed().split("GET /p/travail/v1/skills HTTP/", -1).length - 1);
                 assertFalse(gateway.observed().contains("POST "));
                 assertTrue(gateway.observed().contains("Authorization: Bearer fixture"));
-            } finally { runTestOnUiThread(activity::finish); }
+            } finally { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
         }
     }
 
@@ -92,7 +93,7 @@ public final class SkillBrowserJourneyTest extends InstrumentationTestCase {
                     } finally { runTestOnUiThread(panel::close); }
                 }
             }
-        } finally { runTestOnUiThread(activity::finish); }
+        } finally { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
     }
 
     private void checkSearchWindow(boolean landscape) {
@@ -139,7 +140,10 @@ public final class SkillBrowserJourneyTest extends InstrumentationTestCase {
                 ui.see(activity.getString(R.string.skills_missing));
                 ui.see(activity.getString(R.string.skills_refresh));
                 assertNull(staged.get());
-            } finally { runTestOnUiThread(() -> { first.close(); second.close(); activity.finish(); }); }
+            } finally {
+                try { runTestOnUiThread(() -> { first.close(); second.close(); }); }
+                finally { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
+            }
         }
     }
 }

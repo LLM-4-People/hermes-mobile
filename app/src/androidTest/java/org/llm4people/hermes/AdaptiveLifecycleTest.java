@@ -90,7 +90,7 @@ public final class AdaptiveLifecycleTest extends InstrumentationTestCase {
                     }
                 });
             } finally {
-                runTestOnUiThread(activity::finish);
+                ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
             }
         }
     }
@@ -156,7 +156,7 @@ public final class AdaptiveLifecycleTest extends InstrumentationTestCase {
                 assertEquals(Ui.dp(activity, 20), list.getPaddingStart(), 2);
             });
         } finally {
-            runTestOnUiThread(activity::finish);
+            ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
         }
     }
 

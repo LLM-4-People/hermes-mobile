@@ -18,6 +18,7 @@ import android.widget.ImageButton;
 import android.widget.Switch;
 import android.widget.TextView;
 
+import org.llm4people.hermes.ActivityTestLifecycle;
 import org.llm4people.hermes.MainActivity;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
@@ -88,10 +89,7 @@ public final class ExhaustiveUiAndLayoutStressTest extends InstrumentationTestCa
     }
 
     private void finishMain(Activity activity) throws Throwable {
-        if (activity != null) {
-            runTestOnUiThread(activity::finish);
-            getInstrumentation().waitForIdleSync();
-        }
+        ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
     }
 
     public void testAllNativePanelsPassMechanicalLayoutIntegrityAcrossViewportFontAndNightMatrix() throws Throwable {
