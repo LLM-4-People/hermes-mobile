@@ -16,6 +16,7 @@ import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.camera.CapturedMedia;
 import org.llm4people.hermes.profile.IncomingMediaShare;
+import org.llm4people.hermes.settings.AppThemeMode;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -37,7 +38,7 @@ public final class ShareMediaActivity extends Activity {
     private String waiting;
 
     @Override protected void attachBaseContext(Context newBase) {
-        super.attachBaseContext(AppLanguage.wrapContext(newBase));
+        super.attachBaseContext(AppThemeMode.wrapContext(AppLanguage.wrapContext(newBase)));
     }
 
     @Override protected void onCreate(Bundle state) {

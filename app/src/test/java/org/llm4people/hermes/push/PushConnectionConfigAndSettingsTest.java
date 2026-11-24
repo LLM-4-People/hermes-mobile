@@ -54,6 +54,14 @@ public final class PushConnectionConfigAndSettingsTest {
             assertFalse(owned.isRevoked());
             settings.close();
             assertTrue("PushSettings.close() must revoke its owned HermesApi", owned.isRevoked());
+
+            // Revoked or null owned api must fail closed across enroll and remove operations
+            assertThrows(IOException.class, () -> PushConnection.enroll(null, account, owned, null, 0L, () -> true));
+            assertThrows(IOException.class, () -> PushConnection.enroll(null, account, null, null, 0L, () -> true));
+            assertThrows(IOException.class, () -> DistributorEnrollment.enroll(null, account, owned, "pkg", "sig", "vapid", 0L, () -> true));
+            assertThrows(IOException.class, () -> DistributorEnrollment.enroll(null, account, null, "pkg", "sig", "vapid", 0L, () -> true));
+            assertThrows(IOException.class, () -> PushConnection.remove(null, null, owned));
+            assertThrows(IOException.class, () -> PushConnection.remove(null, null, (HermesApi) null));
         } finally {
             account.close();
         }

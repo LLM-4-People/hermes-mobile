@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 
 import javax.crypto.Cipher;
@@ -81,6 +82,7 @@ public final class BiometricVault {
         private final BooleanSupplier promptCanceled;
         private final Runnable cleanup;
         private final AtomicBoolean cancelled = new AtomicBoolean(false);
+        private final AtomicReference<Runnable> onCancelHook = new AtomicReference<>();
 
         Session(Runnable cancelPrompt, BooleanSupplier promptCanceled, Runnable cleanup) {
             this.cancelPrompt = Objects.requireNonNull(cancelPrompt);
@@ -92,13 +94,39 @@ public final class BiometricVault {
             return new Session(signal::cancel, signal::isCanceled, cleanup);
         }
 
-        /** Idempotent: cancels the OS prompt and always runs cleanup, even if the prompt cancel throws. */
+        /** Registers an owner-side hook invoked once when {@link #cancel()} completes (or immediately if already canceled). */
+        public Session withOnCancel(Runnable onCancel) {
+            if (onCancel == null) return this;
+            if (cancelled.get()) {
+                onCancel.run();
+                return this;
+            }
+            onCancelHook.getAndUpdate(prev -> prev == null ? onCancel : () -> {
+                try {
+                    prev.run();
+                } finally {
+                    onCancel.run();
+                }
+            });
+            if (cancelled.get()) {
+                Runnable late = onCancelHook.getAndSet(null);
+                if (late != null) late.run();
+            }
+            return this;
+        }
+
+        /** Idempotent: cancels the OS prompt and always runs cleanup + cancel hooks, even if prompt cancel throws. */
         public void cancel() {
             if (!cancelled.compareAndSet(false, true)) return;
             try {
                 if (!promptCanceled.getAsBoolean()) cancelPrompt.run();
             } finally {
-                cleanup.run();
+                try {
+                    cleanup.run();
+                } finally {
+                    Runnable hook = onCancelHook.getAndSet(null);
+                    if (hook != null) hook.run();
+                }
             }
         }
 

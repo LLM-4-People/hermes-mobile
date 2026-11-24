@@ -70,16 +70,17 @@ final class DistributorEnrollment {
         }
     }
 
-    static void enroll(Context context, Account account, String distributor, String signer, String vapid,
+    static void enroll(Context context, Account account, HermesApi api, String distributor, String signer, String vapid,
                        long before, BooleanSupplier current) throws Exception {
+        if (api == null || api.isRevoked()) throw new IOException("Push enrollment client closed");
         PushStore.Device device;
         synchronized (PushConnection.class) {
-            if (before != PushConnection.version() || !current.getAsBoolean()) return;
+            if (before != PushConnection.version() || !current.getAsBoolean() || api.isRevoked()) return;
             if (!DistributorIdentity.matches(context, distributor, signer) || !choices(context).contains(distributor)) throw new IOException("Distributor unavailable");
             device = PushStore.get(context).prepareUnified(account.id, account.endpoint, distributor, signer, vapid);
         }
         // Reserve before the callback. The full profile bearer never enters the background service.
-        new HermesApi(account.endpoint, account.bearer, PushConnection.apiLimits(context)).put(device.path(),
+        api.put(device.path(),
                 new JSONObject().put("provider", PROVIDER).put("management_key", device.managementKey()));
         synchronized (PushConnection.class) {
             PushStore.Device stored = PushStore.get(context).forInstallation(device.installation);
