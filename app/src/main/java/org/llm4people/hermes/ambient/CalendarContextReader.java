@@ -8,6 +8,7 @@ import android.database.Cursor;
 import android.net.Uri;
 import android.provider.CalendarContract;
 import org.llm4people.hermes.Diagnostics;
+import org.llm4people.hermes.JsonValues;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -43,7 +44,7 @@ public final class CalendarContextReader {
 
         public String toSanitizedJson() {
             return "{"
-                    + "\"title\":" + AmbientJson.quote(title)
+                    + "\"title\":" + JsonValues.quote(title)
                     + ",\"start_ms\":" + startMillis
                     + ",\"end_ms\":" + endMillis
                     + ",\"all_day\":" + allDay

@@ -130,10 +130,10 @@ public final class DuplexVoiceUiTest extends InstrumentationTestCase {
         Voice enNetwork = new Voice("en-net", Locale.US, Voice.QUALITY_NORMAL, Voice.LATENCY_NORMAL, true, Collections.emptySet());
         Voice enMissing = new Voice("en-miss", Locale.US, Voice.QUALITY_NORMAL, Voice.LATENCY_NORMAL, false,
                 Collections.singleton(TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED));
-        assertTrue(AndroidReplySpeech.installedVoice(enOffline, "en"));
-        assertFalse(AndroidReplySpeech.installedVoice(enNetwork, "en"));
-        assertFalse(AndroidReplySpeech.installedVoice(enMissing, "en"));
-        assertFalse(AndroidReplySpeech.installedVoice(enOffline, "fr"));
+        assertTrue(AndroidReplySpeech.installedForLanguage(enOffline, "en"));
+        assertFalse(AndroidReplySpeech.installedForLanguage(enNetwork, "en"));
+        assertFalse(AndroidReplySpeech.installedForLanguage(enMissing, "en"));
+        assertFalse(AndroidReplySpeech.installedForLanguage(enOffline, "fr"));
     }
 
     public void testOptInDuplexHandleSubmitsOnSpeechAndSupportsInstantBargeIn() throws Throwable {

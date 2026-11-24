@@ -6,7 +6,7 @@
 
 ## Everyday notes, universal search, and settings tools
 
-1. **Hermes memory (`MEMORY.md` & `USER.md`, in Settings → Assistant & AI)**
+1. **Hermes memory (`MEMORY.md` & `USER.md`, in Settings → Assistant and AI)**
    - Inspect what Hermes remembers about your projects and preferences, add or edit entries directly, and save safely with server-side revision checks.
 2. **Smart notes (in Notes & tasks)**
    - Capture structured Markdown notes with tags and full-text filtering, switch between **My notes** and **Shared with me** inline, pin your own notes (`owner`-gated), or stage a note directly into the active discussion draft.
@@ -14,9 +14,9 @@
    - Hermes only suggests a reusable habit or recurring automation after observing a real pattern **at least 3 times**. Review each suggestion in plain language and accept, customize, or dismiss it.
 4. **Universal search (top-bar Search on every screen)**
    - Search instantly across local screens, settings, tools, and server-side SQLite FTS5 conversation history, smart notes, and shared items in one `FLAG_SECURE` overlay with category filter chips and incremental pagination.
-5. **Skills (in Settings → Assistant & AI)**
+5. **Skills (in Settings → Assistant and AI)**
    - Browse enabled skills on your gateway, inspect summaries and instructions, create or update reusable skills (validated against the fork’s 60-character description budget and lowercase single-segment category rules), or stage a skill into your current draft.
-6. **Workspace files & Git diffs (in Settings → Workspace & system)**
+6. **Workspace files & Git diffs (in Settings → Workspace and system)**
    - Browse the active thread’s workspace directory on the gateway, read source files in the syntax-highlighted `CodeReader`, inspect live Git diffs, or reference files in your next message.
 7. **Profile defaults & language sync (in Settings)**
    - Set your default provider, model, and capabilities for the unlocked profile. Changing the app language (**Auto / French / English**) asynchronously syncs `preferred_language` (`PATCH /api/profile/defaults`) and sends `Accept-Language` and `user_language` so Hermes replies in your language.

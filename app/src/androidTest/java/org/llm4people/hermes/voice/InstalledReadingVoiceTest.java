@@ -10,12 +10,12 @@ import java.util.Set;
 
 public final class InstalledReadingVoiceTest extends TestCase {
     public void testOnlyInstalledOfflineFrenchVoiceMayReceiveContent() {
-        assertTrue(AndroidReplySpeech.installedFrench(voice(Locale.CANADA_FRENCH, false, Collections.emptySet())));
-        assertFalse(AndroidReplySpeech.installedFrench(voice(Locale.FRANCE, true, Collections.emptySet())));
-        assertFalse(AndroidReplySpeech.installedFrench(voice(Locale.FRANCE, false,
-                Collections.singleton(TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED))));
-        assertFalse(AndroidReplySpeech.installedFrench(voice(Locale.ENGLISH, false, Collections.emptySet())));
-        assertFalse(AndroidReplySpeech.installedFrench(null));
+        assertTrue(AndroidReplySpeech.installedForLanguage(voice(Locale.CANADA_FRENCH, false, Collections.emptySet()), "fr"));
+        assertFalse(AndroidReplySpeech.installedForLanguage(voice(Locale.FRANCE, true, Collections.emptySet()), "fr"));
+        assertFalse(AndroidReplySpeech.installedForLanguage(voice(Locale.FRANCE, false,
+                Collections.singleton(TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED)), "fr"));
+        assertFalse(AndroidReplySpeech.installedForLanguage(voice(Locale.ENGLISH, false, Collections.emptySet()), "fr"));
+        assertFalse(AndroidReplySpeech.installedForLanguage(null, "fr"));
 
         assertTrue(AndroidReplySpeech.installedForLanguage(voice(Locale.US, false, Collections.emptySet()), "en"));
         assertFalse(AndroidReplySpeech.installedForLanguage(voice(Locale.US, true, Collections.emptySet()), "en"));

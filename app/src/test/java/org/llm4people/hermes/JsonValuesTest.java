@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
@@ -94,6 +95,16 @@ public final class JsonValuesTest {
         assertEquals("\"\\b\\f\\n\\r\\t\"", JsonValues.quote("\b\f\n\r\t"));
         assertEquals("\"\\u0000\\u001f\"", JsonValues.quote("\u0000\u001f"));
         assertEquals("\"Montréal ☕\"", JsonValues.quote("Montréal ☕"));
+
+        // Control-character hex escapes must stay ASCII digits regardless of JVM default locale.
+        Locale previous = Locale.getDefault();
+        try {
+            Locale.setDefault(Locale.forLanguageTag("ar-EG-u-nu-arab"));
+            assertEquals("\"a\\u0007b\"", JsonValues.quote("a\u0007b"));
+            assertEquals("\"line1\\n\\\"quoted\\\"\"", JsonValues.quote("line1\n\"quoted\""));
+        } finally {
+            Locale.setDefault(previous);
+        }
     }
 
     @Test

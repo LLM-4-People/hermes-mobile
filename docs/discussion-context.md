@@ -2,7 +2,7 @@
 
 ## Ask about a photo
 
-Open **More actions → Attach image…** and choose a still image in Android’s picker. Its thumbnail appears above the message field. You can edit the question or tap **Remove** to remove the image and keep your text. Tap **Send** when the question and thumbnail are ready.
+Open **More actions → Attach an image…** and choose a still image in Android’s picker. Its thumbnail appears above the message field. You can edit the question or tap **Remove** to remove the image and keep your text. Tap **Send** when the question and thumbnail are ready.
 
 In the captured verification run (recorded in French on Android 16), the tester updated the draft question to ask which colors appear in the capture before sending the blue image with a yellow rectangle.
 
@@ -13,7 +13,7 @@ The receiving test provider compared every decoded pixel with the 96 × 64 refer
 
 ## Ask Hermes to use an installed skill
 
-In the discussion, open **More actions → Model & tools → Hermes skills**. Search by name or description. In the captured verification run, searching for the review keyword returned the installed `qualite/synthese` skill for checking references and conclusions. Tap the result to read its summary.
+In the discussion, open **More actions → Model and tools → Hermes skills**. Search by name or description. In the captured verification run, searching for the review keyword returned the installed `qualite/synthese` skill for checking references and conclusions. Tap the result to read its summary.
 
 <a href="examples/discussion-context/01-competence-recherche.png"><img src="examples/discussion-context/01-competence-recherche.png" width="300" alt="Searching the skill catalog returns the matching review skill and its short description."></a>
 <a href="examples/discussion-context/02-competence-resume.png"><img src="examples/discussion-context/02-competence-resume.png" width="300" alt="The skill dialog shows its category and summary with actions to prepare a draft or return."></a>
