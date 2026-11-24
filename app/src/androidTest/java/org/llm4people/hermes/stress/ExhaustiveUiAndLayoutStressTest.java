@@ -20,7 +20,6 @@ import android.widget.TextView;
 
 import org.llm4people.hermes.MainActivity;
 import org.llm4people.hermes.R;
-import org.llm4people.hermes.RouteRegistry;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.ambient.AmbientAccessPanel;
 import org.llm4people.hermes.ambient.NotificationAllowlist;
@@ -28,7 +27,6 @@ import org.llm4people.hermes.doctor.ConnectionDoctor;
 import org.llm4people.hermes.doctor.ConnectionDoctorPanel;
 import org.llm4people.hermes.doctor.DoctorCheck;
 import org.llm4people.hermes.net.HermesApi;
-import org.llm4people.hermes.panel.BrainStudioRoutes;
 import org.llm4people.hermes.panel.SessionPanel;
 import org.llm4people.hermes.profile.Account;
 import org.llm4people.hermes.profile.WorkspaceAccountFixture;
@@ -171,10 +169,7 @@ public final class ExhaustiveUiAndLayoutStressTest extends InstrumentationTestCa
         try (DynamicLoopbackServer gateway = new DynamicLoopbackServer(ExhaustiveUiAndLayoutStressTest::populatedReply);
              WorkspaceAccountFixture profile = new WorkspaceAccountFixture(app, gateway.endpoint())) {
             SessionPanel panel = new SessionPanel(activity, new HermesApi(gateway.endpoint(), "test"), profile.account);
-            RouteRegistry registry = BrainStudioRoutes.register(new RouteRegistry(), activity, noopHandlers());
             try {
-                exercisePanel("BrainHub", () -> panel.showBrainHub(registry), activity,
-                        activity.getString(R.string.brain_hub_title));
                 exercisePanel("Memory", () -> panel.showMemory(null), activity,
                         activity.getString(R.string.brain_memory_title));
                 exercisePanel("Notes", () -> panel.showNotes(() -> true, d -> {}, null), activity,
@@ -588,22 +583,6 @@ public final class ExhaustiveUiAndLayoutStressTest extends InstrumentationTestCa
             @Override public ConnectionDoctor.LanguageProbe probeLanguage() {
                 return new ConnectionDoctor.LanguageProbe("مرحبا\u202E", "fr", false);
             }
-        };
-    }
-
-    private static BrainStudioRoutes.Handlers noopHandlers() {
-        return new BrainStudioRoutes.Handlers() {
-            @Override public void openMemory() {}
-            @Override public void openNotes() {}
-            @Override public void openSharedWithMe() {}
-            @Override public void openGlobalSearch() {}
-            @Override public void openSkillStudio() {}
-            @Override public void openWorkspaceFiles() {}
-            @Override public void openProfileDefaults() {}
-            @Override public void togglePinThread() {}
-            @Override public void forkThread() {}
-            @Override public void exportThread() {}
-            @Override public void shareThread() {}
         };
     }
 

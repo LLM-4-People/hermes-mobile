@@ -71,14 +71,23 @@ def live_facts(root):
             derived["pinned_revision"] = m.group(1)
             derived["pinned_revision_short"] = m.group(1)[:8]
 
-    doctor_check = root / "app/src/main/java/org/llm4people/hermes/doctor/DoctorCheck.java"
-    if doctor_check.is_file():
+    config_xml = root / "app/src/main/res/values/config.xml"
+    if config_xml.is_file():
         m = re.search(
-            r"EXPECTED_FORK_CAPABILITIES\s*=\s*(\d+)",
-            doctor_check.read_text(encoding="utf-8"),
+            r'<integer\s+name="hermes_expected_fork_capabilities">\s*(\d+)\s*</integer>',
+            config_xml.read_text(encoding="utf-8"),
         )
         if m:
             derived["expected_fork_capabilities"] = m.group(1)
+    if "expected_fork_capabilities" not in derived:
+        hermes_config = root / "app/src/main/java/org/llm4people/hermes/HermesConfig.java"
+        if hermes_config.is_file():
+            m = re.search(
+                r"DEFAULT_EXPECTED_FORK_CAPABILITIES\s*=\s*(\d+)",
+                hermes_config.read_text(encoding="utf-8"),
+            )
+            if m:
+                derived["expected_fork_capabilities"] = m.group(1)
 
     templates_xml = root / "app/src/main/res/values/templates_strings.xml"
     if templates_xml.is_file():

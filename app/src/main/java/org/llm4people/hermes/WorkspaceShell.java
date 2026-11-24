@@ -2,7 +2,6 @@ package org.llm4people.hermes;
 
 import android.app.Activity;
 import android.content.res.ColorStateList;
-import android.graphics.Typeface;
 import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.View;
@@ -25,7 +24,6 @@ import java.util.function.Consumer;
  * and custom pages.
  */
 final class WorkspaceShell {
-    private static final Typeface MEDIUM = Typeface.create("sans-serif-medium", Typeface.NORMAL);
     final LinearLayout root;
     private final Activity activity;
     private final Consumer<String> action;
@@ -83,7 +81,7 @@ final class WorkspaceShell {
                 pageTitle != null ? "previous" : canTogglePanes ? "toggle_discussions" : "threads"));
         header.addView(leading);
         heading = Ui.text(activity, activity.getString(R.string.ws_discussions), 20);
-        heading.setTypeface(MEDIUM);
+        heading.setTypeface(Ui.mediumTypeface());
         heading.setLetterSpacing(-0.01f);
         heading.setMaxLines(2);
         heading.setEllipsize(TextUtils.TruncateAt.END);

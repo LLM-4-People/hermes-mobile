@@ -39,7 +39,6 @@ import java.util.regex.Pattern;
 /** Local authentication flow. Its owner must discard gateway clients and account references on lock. */
 public final class ProfileGate {
     static final int MIN_PASSPHRASE = 12;
-    static final int PROBE_TIMEOUT_MS = 8_000;
     private static final int TEXT = InputType.TYPE_CLASS_TEXT;
     private static final int SECRET = TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD;
     private static final int PIN_INPUT = InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_VARIATION_PASSWORD;
@@ -657,7 +656,7 @@ public final class ProfileGate {
         ProfileLockPolicy.Mode[] selectedMode = {ProfileLockPolicy.defaultModeForSetup(bioAvail)};
 
         TextView modeHeading = Ui.text(activity, activity.getString(R.string.lock_mode_section_label), 14);
-        modeHeading.setTypeface(android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL));
+        modeHeading.setTypeface(Ui.mediumTypeface());
         modeHeading.setAccessibilityHeading(true);
         screen.card(modeHeading, 10);
 
@@ -1208,7 +1207,7 @@ public final class ProfileGate {
         screen.setNote(statusView, activity.getString(R.string.profile_setup_testing), R.color.muted);
         HermesConfig cfg = HermesConfig.load(activity);
         HermesApi.Limits probeLimits = new HermesApi.Limits(
-                PROBE_TIMEOUT_MS, PROBE_TIMEOUT_MS, cfg.httpJsonMaxBytes, cfg.httpEventMaxBytes);
+                cfg.probeTimeoutMs, cfg.probeTimeoutMs, cfg.httpJsonMaxBytes, cfg.httpEventMaxBytes);
         PROBE_IO.execute(() -> {
             long startMs = SystemClock.elapsedRealtime();
             int outcome = 0; // 0=ok, 1=expired(410), 2=legacy(404), 3=unreachable
@@ -1274,7 +1273,7 @@ public final class ProfileGate {
                 ? R.string.onboarding_paste_claiming : R.string.profile_setup_opening), false);
         HermesConfig cfg = HermesConfig.load(activity);
         HermesApi.Limits claimLimits = new HermesApi.Limits(
-                PROBE_TIMEOUT_MS, PROBE_TIMEOUT_MS, cfg.httpJsonMaxBytes, cfg.httpEventMaxBytes);
+                cfg.probeTimeoutMs, cfg.probeTimeoutMs, cfg.httpJsonMaxBytes, cfg.httpEventMaxBytes);
         IO.execute(() -> {
             Account account = null;
             OnboardingModels.PairingClaim claimed = null;
@@ -1422,7 +1421,7 @@ public final class ProfileGate {
         screen.setNote(statusView, activity.getString(R.string.profile_setup_testing), R.color.muted);
         HermesConfig cfg = HermesConfig.load(activity);
         HermesApi.Limits probeLimits = new HermesApi.Limits(
-                PROBE_TIMEOUT_MS, PROBE_TIMEOUT_MS, cfg.httpJsonMaxBytes, cfg.httpEventMaxBytes);
+                cfg.probeTimeoutMs, cfg.probeTimeoutMs, cfg.httpJsonMaxBytes, cfg.httpEventMaxBytes);
         PROBE_IO.execute(() -> executeCapabilitiesProbe(
                 screenEpoch, probeEpoch, screen, testButton, statusView, endpoint, bearer, probeLimits));
     }
@@ -1438,7 +1437,7 @@ public final class ProfileGate {
         screen.setNote(statusView, activity.getString(R.string.profile_setup_testing), R.color.muted);
         HermesConfig cfg = HermesConfig.load(activity);
         HermesApi.Limits probeLimits = new HermesApi.Limits(
-                PROBE_TIMEOUT_MS, PROBE_TIMEOUT_MS, cfg.httpJsonMaxBytes, cfg.httpEventMaxBytes);
+                cfg.probeTimeoutMs, cfg.probeTimeoutMs, cfg.httpJsonMaxBytes, cfg.httpEventMaxBytes);
         PROBE_IO.execute(() -> {
             String endpoint = null;
             long appliedCooldown = 0L;

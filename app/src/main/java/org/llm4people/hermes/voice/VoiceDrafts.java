@@ -25,6 +25,7 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 
 import org.llm4people.hermes.Diagnostics;
+import org.llm4people.hermes.HermesConfig;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.os.PermissionCenter;
@@ -34,13 +35,13 @@ import java.util.function.Consumer;
 
 /** Main-thread owner of one microphone and its editable destination across the unlocked workspace. */
 public final class VoiceDrafts {
-    private static final int SERVICE_TIMEOUT_MS = 15000;
     private static final String PREFS = "hermes_voice_prefs";
     private static final String KEY_LOCALE = "voice_locale";
     private static final AtomicInteger permissionIds = new AtomicInteger(20000);
     private final Activity activity;
     private final VoiceInput input;
     private final ReplyReader reader;
+    private final int serviceTimeoutMs;
     private final Handler main = new Handler(Looper.getMainLooper());
     private VoiceLocale selectedLocale;
     private Attempt active;
@@ -54,6 +55,7 @@ public final class VoiceDrafts {
     VoiceDrafts(Activity activity, VoiceInput input) {
         this.activity = activity;
         this.input = input;
+        this.serviceTimeoutMs = HermesConfig.load(activity).voiceServiceTimeoutMs;
         SharedPreferences prefs = activity.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         selectedLocale = VoiceLocale.fromStorageKey(prefs.getString(KEY_LOCALE, null));
         input.setLocale(selectedLocale);
@@ -379,7 +381,7 @@ public final class VoiceDrafts {
             if (model != null) {
                 recovery = new ModelRecovery(target, model);
                 target.report(R.string.voice_model_checking, 0, null);
-                main.postDelayed(recovery.timeout, SERVICE_TIMEOUT_MS);
+                main.postDelayed(recovery.timeout, serviceTimeoutMs);
                 model.check(recovery::update);
                 return;
             }
@@ -629,7 +631,7 @@ public final class VoiceDrafts {
                 phase = Phase.STARTING;
                 target.icon(true, R.string.voice_finish);
                 target.report(R.string.voice_starting, R.string.voice_cancel_short, target::cancel);
-                main.postDelayed(timeout, SERVICE_TIMEOUT_MS);
+                main.postDelayed(timeout, serviceTimeoutMs);
                 recording = input.open(source, this);
                 recording.start();
             } catch (SecurityException denied) {
@@ -697,7 +699,7 @@ public final class VoiceDrafts {
             target.icon(true, R.string.voice_cancel);
             target.report(R.string.voice_processing, R.string.voice_cancel_short, target::cancel);
             main.removeCallbacks(timeout);
-            main.postDelayed(timeout, SERVICE_TIMEOUT_MS);
+            main.postDelayed(timeout, serviceTimeoutMs);
         }
 
         @Override public void result(String transcript) {

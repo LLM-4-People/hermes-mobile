@@ -2,7 +2,6 @@ package org.llm4people.hermes.settings;
 
 import android.app.Activity;
 import android.content.res.ColorStateList;
-import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.text.Editable;
 import android.text.InputType;
@@ -43,7 +42,6 @@ import java.util.function.Consumer;
 public final class SettingsHubPanel {
     public static final String ROUTE_ID = "settings";
     public static final String ACTION_VOICE_OPTIONS = "voice_options";
-    private static final Typeface MEDIUM = Typeface.create("sans-serif-medium", Typeface.NORMAL);
 
     public interface StateProvider {
         String profileName();
@@ -77,21 +75,7 @@ public final class SettingsHubPanel {
 
     public View buildView() {
         LinearLayout list = Ui.column(activity);
-        ScrollView scroll = new ScrollView(activity) {
-            @Override protected void onMeasure(int widthSpec, int heightSpec) {
-                float density = getResources().getDisplayMetrics().density;
-                int gutter = Ui.dp(activity, AdaptiveLayout.centeredGutterDp(
-                        MeasureSpec.getSize(widthSpec) / density, AdaptiveLayout.READING_COLUMN_MAX_DP, 20));
-                int top = Ui.dp(activity, 14);
-                int bottom = Ui.dp(activity, 28);
-                if (list.getPaddingStart() != gutter || list.getPaddingTop() != top) {
-                    list.setPaddingRelative(gutter, top, gutter, bottom);
-                }
-                super.onMeasure(widthSpec, heightSpec);
-            }
-        };
-        scroll.setFillViewport(true);
-        scroll.setClipToPadding(false);
+        ScrollView scroll = Ui.centeredScroll(activity, list, AdaptiveLayout.READING_COLUMN_MAX_DP, 20, 14, 28);
         scroll.setTag("settings:hub");
 
         TextView subtitle = Ui.text(activity, activity.getString(R.string.settings_subtitle), 15);
@@ -115,7 +99,6 @@ public final class SettingsHubPanel {
         sectionsSlot = Ui.column(activity);
         list.addView(sectionsSlot, new LinearLayout.LayoutParams(-1, -2));
 
-        scroll.addView(list, new ScrollView.LayoutParams(-1, -2));
         scrollView = scroll;
         refresh();
         Diagnostics.debug("settings_hub", "opened");
@@ -179,7 +162,7 @@ public final class SettingsHubPanel {
         LinearLayout identity = Ui.column(activity);
         identity.setPaddingRelative(Ui.dp(activity, 12), 0, 0, 0);
         TextView nameView = Ui.text(activity, name, 18);
-        nameView.setTypeface(MEDIUM);
+        nameView.setTypeface(Ui.mediumTypeface());
         nameView.setMaxLines(1);
         nameView.setEllipsize(TextUtils.TruncateAt.END);
         identity.addView(nameView);
@@ -216,9 +199,7 @@ public final class SettingsHubPanel {
         SettingsWrapLayout actions = new SettingsWrapLayout(activity, 10, 8);
         Button lockBtn = Ui.outlinedButton(activity, activity.getString(R.string.security_lock_now),
                 v -> onAction.accept("profiles"));
-        lockBtn.setTextColor(new ColorStateList(
-                new int[][]{new int[]{-android.R.attr.state_enabled}, new int[]{}},
-                new int[]{activity.getColor(R.color.disabled_ink), activity.getColor(R.color.danger)}));
+        lockBtn.setTextColor(Ui.dangerInk(activity));
         actions.addView(lockBtn);
 
         Button switchBtn = Ui.tonalButton(activity, activity.getString(R.string.settings_switch_profile),
@@ -259,7 +240,7 @@ public final class SettingsHubPanel {
         }
         for (SettingsHubModel.SectionSpec section : filtered) {
             TextView heading = Ui.text(activity, section.title(), 18);
-            heading.setTypeface(MEDIUM);
+            heading.setTypeface(Ui.mediumTypeface());
             heading.setLetterSpacing(-0.01f);
             heading.setPaddingRelative(Ui.dp(activity, 4), Ui.dp(activity, 20), 0, Ui.dp(activity, 8));
             heading.setAccessibilityHeading(true);
@@ -318,7 +299,7 @@ public final class SettingsHubPanel {
 
         LinearLayout copy = Ui.column(activity);
         TextView title = Ui.text(activity, item.title(), 16);
-        title.setTypeface(MEDIUM);
+        title.setTypeface(Ui.mediumTypeface());
         title.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         copy.addView(title);
         if (!item.subtitle().isEmpty()) {

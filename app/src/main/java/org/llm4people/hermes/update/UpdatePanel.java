@@ -6,7 +6,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
-import android.graphics.Typeface;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Handler;
@@ -47,14 +46,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public final class UpdatePanel {
     public static final String ROUTE_ID = "app_updates";
-    private static Typeface mediumTypeface;
-
-    private static Typeface mediumTypeface() {
-        if (mediumTypeface == null) {
-            mediumTypeface = Typeface.create("sans-serif-medium", Typeface.NORMAL);
-        }
-        return mediumTypeface;
-    }
 
     private final Activity activity;
     private final HermesConfig config;
@@ -141,23 +132,8 @@ public final class UpdatePanel {
     /** Build the scrollable paper/ink/teal TalkBack-accessible update view. */
     public View buildView() {
         LinearLayout body = Ui.column(activity);
-        ScrollView scroll = new ScrollView(activity) {
-            @Override protected void onMeasure(int widthSpec, int heightSpec) {
-                float density = getResources().getDisplayMetrics().density;
-                int gutter = Ui.dp(activity, AdaptiveLayout.centeredGutterDp(
-                        MeasureSpec.getSize(widthSpec) / density, AdaptiveLayout.READING_COLUMN_MAX_DP, 20));
-                int top = Ui.dp(activity, 16);
-                int bottom = Ui.dp(activity, 24);
-                if (body.getPaddingStart() != gutter || body.getPaddingTop() != top) {
-                    body.setPaddingRelative(gutter, top, gutter, bottom);
-                }
-                super.onMeasure(widthSpec, heightSpec);
-            }
-        };
-        scroll.setFillViewport(true);
-        scroll.setClipToPadding(false);
+        ScrollView scroll = Ui.centeredScroll(activity, body, AdaptiveLayout.READING_COLUMN_MAX_DP, 20, 16, 24);
         scroll.setBackgroundColor(activity.getColor(R.color.paper));
-        scroll.addView(body, new ScrollView.LayoutParams(-1, -2));
 
         TextView subtitle = Ui.text(activity, activity.getString(R.string.update_panel_subtitle), 15);
         subtitle.setTextColor(activity.getColor(R.color.muted));
@@ -167,7 +143,7 @@ public final class UpdatePanel {
         String installedDisplay = installedDisplayVersion();
         TextView installedLabel = Ui.text(activity,
                 activity.getString(R.string.update_installed_version, installedDisplay), 15);
-        installedLabel.setTypeface(mediumTypeface());
+        installedLabel.setTypeface(Ui.mediumTypeface());
         installedLabel.setPaddingRelative(0, 0, 0, Ui.dp(activity, 14));
         body.addView(installedLabel);
 
@@ -181,7 +157,7 @@ public final class UpdatePanel {
         card.addView(statusPill, statusPillLp);
 
         statusTitle = Ui.text(activity, activity.getString(R.string.update_status_unchecked), 17);
-        statusTitle.setTypeface(mediumTypeface());
+        statusTitle.setTypeface(Ui.mediumTypeface());
         statusTitle.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         card.addView(statusTitle);
 
@@ -257,7 +233,7 @@ public final class UpdatePanel {
         body.addView(card, new LinearLayout.LayoutParams(-1, -2));
 
         notesHeading = Ui.text(activity, activity.getString(R.string.update_notes_heading), 17);
-        notesHeading.setTypeface(mediumTypeface());
+        notesHeading.setTypeface(Ui.mediumTypeface());
         notesHeading.setAccessibilityHeading(true);
         notesHeading.setPaddingRelative(0, Ui.dp(activity, 18), 0, Ui.dp(activity, 8));
         notesHeading.setVisibility(View.GONE);
@@ -499,7 +475,7 @@ public final class UpdatePanel {
     private void openOnGitHub() {
         String raw = latestRelease != null && !latestRelease.htmlUrl().isEmpty()
                 ? latestRelease.htmlUrl()
-                : "https://github.com/" + config.updateRepo + "/releases/latest";
+                : config.githubWebBaseUrl + "/" + config.updateRepo + "/releases/latest";
         SafeLinks.Validated safe = SafeLinks.validate(raw);
         if (safe == null || !GithubReleaseClient.isAllowedDownloadUrl(safe.url())) {
             Diagnostics.warning("update", "github_link_rejected");

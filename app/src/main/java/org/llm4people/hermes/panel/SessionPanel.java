@@ -17,7 +17,6 @@ import android.widget.TextView;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.llm4people.hermes.R;
-import org.llm4people.hermes.RouteRegistry;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.artifact.ArtifactDesk;
 import org.llm4people.hermes.net.HermesApi;
@@ -63,7 +62,6 @@ public final class SessionPanel implements AutoCloseable {
     }
     public void showReminders() { new ReminderPanel(this).show(); }
     public void showReminder(String jobId) { new ReminderPanel(this).open(jobId); }
-    public void showBrainHub(RouteRegistry registry) { new BrainHubPanel(this, registry).show(); }
     public void showMemory(Runnable parent) { new MemoryPanel(this, parent).show(); }
     public void showNotes(BooleanSupplier activeThread, Consumer<String> stageDraft, Runnable parent) {
         new NotesPanel(this, activeThread, stageDraft, parent).show();

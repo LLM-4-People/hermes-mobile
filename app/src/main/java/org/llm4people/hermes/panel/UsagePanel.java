@@ -1,7 +1,6 @@
 package org.llm4people.hermes.panel;
 
 import android.content.res.ColorStateList;
-import android.graphics.Typeface;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
@@ -263,7 +262,7 @@ final class UsagePanel {
         name.setTextColor(panel.activity.getColor(R.color.muted));
         name.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         TextView number = Ui.text(panel.activity, value, 20);
-        number.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        number.setTypeface(Ui.mediumTypeface());
         number.setFontFeatureSettings("tnum");
         number.setContentDescription(name.getText() + ", " + value);
         LinearLayout.LayoutParams numLp = new LinearLayout.LayoutParams(-1, -2);

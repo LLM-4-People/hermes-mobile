@@ -27,7 +27,6 @@ import java.util.function.Consumer;
 final class ProfileScreen {
     enum BadgeTone { NEUTRAL, BIOMETRIC, COOLDOWN }
 
-    private static final Typeface MEDIUM = Typeface.create("sans-serif-medium", Typeface.NORMAL);
     private final Activity activity;
     private final LinearLayout body;
     private EditText lastField;
@@ -38,21 +37,9 @@ final class ProfileScreen {
         body = Ui.column(activity);
         // The activity already reserves system bars, cutouts and the IME. Center the form
         // inside the remaining space, including in split-screen and rotated windows.
-        ScrollView scroll = new ScrollView(activity) {
-            @Override protected void onMeasure(int widthSpec, int heightSpec) {
-                float density = getResources().getDisplayMetrics().density;
-                int gutter = Ui.dp(activity, AdaptiveLayout.centeredGutterDp(
-                        MeasureSpec.getSize(widthSpec) / density, AdaptiveLayout.PROFILE_COLUMN_MAX_DP, 22));
-                if (body.getPaddingStart() != gutter) {
-                    body.setPaddingRelative(gutter, Ui.dp(activity, 24), gutter, Ui.dp(activity, 28));
-                }
-                super.onMeasure(widthSpec, heightSpec);
-            }
-        };
-        scroll.setFillViewport(true);
-        scroll.setBackgroundColor(activity.getColor(R.color.paper));
         body.setFocusableInTouchMode(true);
-        scroll.addView(body, new ScrollView.LayoutParams(-1, -2));
+        ScrollView scroll = Ui.centeredScroll(activity, body, AdaptiveLayout.PROFILE_COLUMN_MAX_DP, 22, 24, 28);
+        scroll.setBackgroundColor(activity.getColor(R.color.paper));
         heading(title, 28, 0, true);
         if (description != null) description(description);
         activity.setContentView(scroll);
@@ -66,7 +53,7 @@ final class ProfileScreen {
 
     private void heading(String title, int size, int top, boolean display) {
         TextView heading = Ui.text(activity, title, size);
-        heading.setTypeface(display ? Typeface.DEFAULT_BOLD : MEDIUM);
+        heading.setTypeface(display ? Typeface.DEFAULT_BOLD : Ui.mediumTypeface());
         heading.setLetterSpacing(display ? -0.02f : -0.01f);
         heading.setAccessibilityHeading(true);
         add(heading, top);
@@ -122,7 +109,7 @@ final class ProfileScreen {
     static EditText styledField(Activity activity, LinearLayout container, String label, String hint,
                                 int type, int maxLength, boolean sensitive, int topMarginDp) {
         TextView caption = Ui.text(activity, label, 14);
-        caption.setTypeface(MEDIUM);
+        caption.setTypeface(Ui.mediumTypeface());
         LinearLayout.LayoutParams capLp = new LinearLayout.LayoutParams(-1, -2);
         capLp.topMargin = Ui.dp(activity, topMarginDp);
         container.addView(caption, capLp);
@@ -158,7 +145,7 @@ final class ProfileScreen {
         chip.setText(label);
         chip.setAllCaps(false);
         chip.setTextSize(14);
-        chip.setTypeface(MEDIUM);
+        chip.setTypeface(Ui.mediumTypeface());
         chip.setSingleLine(true);
         chip.setEllipsize(TextUtils.TruncateAt.END);
         chip.setGravity(Gravity.CENTER);
@@ -254,7 +241,7 @@ final class ProfileScreen {
         button.setMinHeight(Ui.dp(activity, 48));
         button.setMinimumHeight(Ui.dp(activity, 48));
         button.setTextSize(16);
-        button.setTypeface(MEDIUM);
+        button.setTypeface(Ui.mediumTypeface());
         button.setTextColor(activity.getColor(R.color.ink));
         if (badgeText != null && !badgeText.isEmpty()) {
             button.setContentDescription(label + ", " + badgeText);

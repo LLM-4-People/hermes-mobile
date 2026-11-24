@@ -2,8 +2,6 @@ package org.llm4people.hermes.profile;
 
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.content.res.ColorStateList;
-import android.graphics.Typeface;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.Editable;
@@ -53,17 +51,6 @@ import java.util.function.BooleanSupplier;
  * </ul>
  */
 public final class AdminConsoleSheet implements AutoCloseable {
-    private static volatile Typeface mediumTypeface;
-
-    private static Typeface mediumTypeface() {
-        Typeface cached = mediumTypeface;
-        if (cached == null) {
-            cached = Typeface.create("sans-serif-medium", Typeface.NORMAL);
-            mediumTypeface = cached;
-        }
-        return cached;
-    }
-
     public enum Tab { USERS, SETTINGS }
 
     public enum UsersLoadState { LOADING, LOADED, ERROR }
@@ -184,7 +171,7 @@ public final class AdminConsoleSheet implements AutoCloseable {
         body.addView(subtitle);
 
         summaryLine = Ui.text(activity, activity.getString(R.string.profile_hub_loading), 13);
-        summaryLine.setTypeface(mediumTypeface());
+        summaryLine.setTypeface(Ui.mediumTypeface());
         summaryLine.setTextColor(activity.getColor(R.color.accent));
         body.addView(summaryLine, topMargin(8));
 
@@ -251,7 +238,7 @@ public final class AdminConsoleSheet implements AutoCloseable {
         btn.setText(label);
         btn.setAllCaps(false);
         btn.setTextSize(14);
-        btn.setTypeface(mediumTypeface());
+        btn.setTypeface(Ui.mediumTypeface());
         btn.setStateListAnimator(null);
         Ui.pad(btn, 14, 10);
         int touchMin = Ui.dp(activity, 48);
@@ -380,7 +367,7 @@ public final class AdminConsoleSheet implements AutoCloseable {
 
         LinearLayout info = Ui.column(activity);
         TextView title = Ui.text(activity, profile.displayName() + " (@" + profile.slug() + ")", 15);
-        title.setTypeface(mediumTypeface());
+        title.setTypeface(Ui.mediumTypeface());
         info.addView(title);
 
         HorizontalScrollView pillsScroll = new HorizontalScrollView(activity);
@@ -447,12 +434,6 @@ public final class AdminConsoleSheet implements AutoCloseable {
         row.addView(badge, lp);
     }
 
-    private ColorStateList dangerTextColors() {
-        return new ColorStateList(
-                new int[][]{new int[]{-android.R.attr.state_enabled}, new int[]{}},
-                new int[]{activity.getColor(R.color.disabled_ink), activity.getColor(R.color.danger)});
-    }
-
     private void addRowAction(
             LinearLayout row,
             int labelRes,
@@ -465,7 +446,7 @@ public final class AdminConsoleSheet implements AutoCloseable {
                 ? Ui.tonalButton(activity, text, v -> onClick.run())
                 : Ui.outlinedButton(activity, text, v -> onClick.run());
         btn.setEnabled(enabled);
-        if (danger) btn.setTextColor(dangerTextColors());
+        if (danger) btn.setTextColor(Ui.dangerInk(activity));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         if (row.getChildCount() > 0) lp.setMarginStart(Ui.dp(activity, 8));
@@ -609,7 +590,7 @@ public final class AdminConsoleSheet implements AutoCloseable {
             LinearLayout metaCol = Ui.column(activity);
             String who = !ticket.displayName().isEmpty() ? ticket.displayName() : ticket.profileSlug();
             TextView whoView = Ui.text(activity, who, 14);
-            whoView.setTypeface(mediumTypeface());
+            whoView.setTypeface(Ui.mediumTypeface());
             metaCol.addView(whoView);
 
             HorizontalScrollView badgeScroll = new HorizontalScrollView(activity);
@@ -632,7 +613,7 @@ public final class AdminConsoleSheet implements AutoCloseable {
 
             Button revoke = Ui.outlinedButton(activity, activity.getString(R.string.profile_hub_qr_revoke_action),
                     v -> revokeTicket(ticket.ticketId()));
-            revoke.setTextColor(dangerTextColors());
+            revoke.setTextColor(Ui.dangerInk(activity));
             row.addView(revoke);
             card.addView(row);
             contentSlot.addView(card, topMargin(8));
@@ -993,7 +974,7 @@ public final class AdminConsoleSheet implements AutoCloseable {
 
     private TextView label(int resId) {
         TextView tv = Ui.text(activity, activity.getString(resId), 14);
-        tv.setTypeface(mediumTypeface());
+        tv.setTypeface(Ui.mediumTypeface());
         return tv;
     }
 

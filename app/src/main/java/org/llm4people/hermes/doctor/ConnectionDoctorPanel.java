@@ -38,17 +38,6 @@ import java.util.concurrent.Executors;
 public final class ConnectionDoctorPanel {
     public static final String ROUTE_ID = "connection_doctor";
 
-    private static volatile Typeface mediumTypeface;
-
-    private static Typeface mediumTypeface() {
-        Typeface cached = mediumTypeface;
-        if (cached == null) {
-            cached = Typeface.create("sans-serif-medium", Typeface.NORMAL);
-            mediumTypeface = cached;
-        }
-        return cached;
-    }
-
     /** Optional 1-tap fix callbacks wired by the host Activity / navigation shell. */
     public interface FixHandlers {
         default void openPushSettings() {}
@@ -122,23 +111,8 @@ public final class ConnectionDoctorPanel {
     /** Build the scrollable paper/ink/teal TalkBack-accessible Connection Doctor view. */
     public View buildView() {
         LinearLayout body = Ui.column(activity);
-        ScrollView scroll = new ScrollView(activity) {
-            @Override protected void onMeasure(int widthSpec, int heightSpec) {
-                float density = getResources().getDisplayMetrics().density;
-                int gutter = Ui.dp(activity, AdaptiveLayout.centeredGutterDp(
-                        MeasureSpec.getSize(widthSpec) / density, AdaptiveLayout.READING_COLUMN_MAX_DP, 20));
-                int top = Ui.dp(activity, 16);
-                int bottom = Ui.dp(activity, 24);
-                if (body.getPaddingStart() != gutter || body.getPaddingTop() != top) {
-                    body.setPaddingRelative(gutter, top, gutter, bottom);
-                }
-                super.onMeasure(widthSpec, heightSpec);
-            }
-        };
-        scroll.setFillViewport(true);
-        scroll.setClipToPadding(false);
+        ScrollView scroll = Ui.centeredScroll(activity, body, AdaptiveLayout.READING_COLUMN_MAX_DP, 20, 16, 24);
         scroll.setBackgroundColor(activity.getColor(R.color.paper));
-        scroll.addView(body, new ScrollView.LayoutParams(-1, -2));
 
         TextView subtitle = Ui.text(activity, activity.getString(R.string.doctor_panel_subtitle), 15);
         subtitle.setTextColor(activity.getColor(R.color.muted));
@@ -147,7 +121,7 @@ public final class ConnectionDoctorPanel {
 
         LinearLayout summaryCard = Ui.card(activity);
         summaryTitle = Ui.text(activity, activity.getString(R.string.doctor_status_running), 18);
-        summaryTitle.setTypeface(mediumTypeface());
+        summaryTitle.setTypeface(Ui.mediumTypeface());
         summaryTitle.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         summaryCard.addView(summaryTitle);
 
@@ -172,7 +146,7 @@ public final class ConnectionDoctorPanel {
 
         LinearLayout permissionsCard = Ui.card(activity);
         TextView permTitle = Ui.text(activity, activity.getString(R.string.doctor_permissions_card_title), 16);
-        permTitle.setTypeface(mediumTypeface());
+        permTitle.setTypeface(Ui.mediumTypeface());
         permissionsCard.addView(permTitle);
 
         permissionsSummary = Ui.text(activity, PermissionsPanel.summaryLine(activity), 14);
@@ -391,7 +365,7 @@ public final class ConnectionDoctorPanel {
         card.addView(badge, new LinearLayout.LayoutParams(-2, -2));
 
         TextView title = Ui.text(activity, checkTitle(item.id()), 16);
-        title.setTypeface(mediumTypeface());
+        title.setTypeface(Ui.mediumTypeface());
         title.setPaddingRelative(0, Ui.dp(activity, 8), 0, 0);
         card.addView(title);
 

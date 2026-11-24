@@ -5,7 +5,6 @@ import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.util.TypedValue;
-import android.graphics.Typeface;
 import android.os.Bundle;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
@@ -13,6 +12,7 @@ import android.view.View;
 import android.view.ViewConfiguration;
 import android.view.accessibility.AccessibilityNodeInfo;
 import org.llm4people.hermes.R;
+import org.llm4people.hermes.Ui;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -69,7 +69,7 @@ final class PlaceCompass extends View {
         northSymbol = c.getString(R.string.places_compass_north_symbol);
         textSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 12,
                 getResources().getDisplayMetrics()) / dp;
-        paint.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        paint.setTypeface(Ui.mediumTypeface());
         paint.setTextSize(textSize);
         scaleLabelWidth = paint.measureText(scaleLabel);
         rankBaselineOffset = (paint.ascent() + paint.descent()) / 2f;

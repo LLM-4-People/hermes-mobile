@@ -12,7 +12,6 @@ import android.graphics.Canvas;
 import android.graphics.Insets;
 import android.graphics.Paint;
 import android.graphics.RectF;
-import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCaptureSession;
@@ -314,7 +313,7 @@ public final class QrScannerActivity extends Activity {
 
         TextView title = Ui.text(this, getString(R.string.qr_scanner_title), 17);
         title.setTextColor(0xFFFFFFFF);
-        title.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        title.setTypeface(Ui.mediumTypeface());
         title.setGravity(Gravity.CENTER);
         title.setAccessibilityHeading(true);
         LinearLayout.LayoutParams titleLp = new LinearLayout.LayoutParams(
@@ -343,7 +342,7 @@ public final class QrScannerActivity extends Activity {
         fallbackCard.setVisibility(View.GONE);
 
         fallbackTitle = Ui.text(this, getString(R.string.qr_scanner_permission_title), 17);
-        fallbackTitle.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        fallbackTitle.setTypeface(Ui.mediumTypeface());
         fallbackTitle.setTextColor(getColor(R.color.ink));
         fallbackTitle.setGravity(Gravity.CENTER);
         fallbackCard.addView(fallbackTitle);
@@ -445,7 +444,7 @@ public final class QrScannerActivity extends Activity {
         btn.setAllCaps(false);
         btn.setTextSize(14);
         btn.setTextColor(0xFFFFFFFF);
-        btn.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        btn.setTypeface(Ui.mediumTypeface());
         int touchMin = Ui.dp(this, 48);
         btn.setMinHeight(touchMin);
         btn.setMinimumHeight(touchMin);

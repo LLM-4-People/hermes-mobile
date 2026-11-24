@@ -1,7 +1,6 @@
 package org.llm4people.hermes.panel;
 
 import android.content.res.Configuration;
-import android.graphics.Typeface;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.Gravity;
@@ -346,7 +345,7 @@ final class SessionSettings {
         Set<String> checked = custom == null ? new LinkedHashSet<>(toolsets.keySet()) : names(custom);
         if (editable) {
             CheckBox defaults = toggle(box, panel.t(R.string.panel_tools_defaults), custom == null, true);
-            defaults.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+            defaults.setTypeface(Ui.mediumTypeface());
             if (custom == null) toolDetail(box, panel.t(R.string.panel_tools_inherited_hint));
             defaults.setOnClickListener(v -> {
                 boolean on = defaults.isChecked();

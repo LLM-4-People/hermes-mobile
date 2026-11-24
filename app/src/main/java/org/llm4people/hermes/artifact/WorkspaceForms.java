@@ -4,7 +4,6 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.res.ColorStateList;
-import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.RippleDrawable;
 import android.text.InputFilter;
@@ -41,7 +40,7 @@ final class WorkspaceForms {
             String fieldTitle = field.required
                     ? field.label : c.getString(R.string.ws_form_optional_suffix, field.label);
             TextView label = Ui.text(c, fieldTitle, 15);
-            label.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+            label.setTypeface(Ui.mediumTypeface());
             label.setPadding(0, Ui.dp(c, 10), 0, Ui.dp(c, 4));
             group.addView(label);
             if (host == null) {

@@ -2,7 +2,6 @@ package org.llm4people.hermes.hub;
 
 import android.app.Activity;
 import android.content.res.ColorStateList;
-import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.text.TextUtils;
 import android.view.Gravity;
@@ -41,7 +40,6 @@ import java.util.function.BooleanSupplier;
  */
 public final class NotesTasksPanel implements AutoCloseable {
     public static final String ROUTE_ID = "notes_tasks";
-    private static final Typeface MEDIUM = Typeface.create("sans-serif-medium", Typeface.NORMAL);
 
     public interface Callbacks {
         void createNote();
@@ -90,21 +88,7 @@ public final class NotesTasksPanel implements AutoCloseable {
 
     public View buildView() {
         LinearLayout list = Ui.column(activity);
-        ScrollView scroll = new ScrollView(activity) {
-            @Override protected void onMeasure(int widthSpec, int heightSpec) {
-                float density = getResources().getDisplayMetrics().density;
-                int gutter = Ui.dp(activity, AdaptiveLayout.centeredGutterDp(
-                        MeasureSpec.getSize(widthSpec) / density, AdaptiveLayout.READING_COLUMN_MAX_DP, 20));
-                int top = Ui.dp(activity, 14);
-                int bottom = Ui.dp(activity, 28);
-                if (list.getPaddingStart() != gutter || list.getPaddingTop() != top) {
-                    list.setPaddingRelative(gutter, top, gutter, bottom);
-                }
-                super.onMeasure(widthSpec, heightSpec);
-            }
-        };
-        scroll.setFillViewport(true);
-        scroll.setClipToPadding(false);
+        ScrollView scroll = Ui.centeredScroll(activity, list, AdaptiveLayout.READING_COLUMN_MAX_DP, 20, 14, 28);
         scroll.setTag("hub:notes_tasks");
 
         HorizontalScrollView segmentScroll = new HorizontalScrollView(activity);
@@ -122,7 +106,6 @@ public final class NotesTasksPanel implements AutoCloseable {
         contentLp.topMargin = Ui.dp(activity, 16);
         list.addView(contentSlot, contentLp);
 
-        scroll.addView(list, new ScrollView.LayoutParams(-1, -2));
         renderSegmentBar();
         loadActiveSegment();
         Diagnostics.debug("notes_tasks", "opened");
@@ -180,7 +163,7 @@ public final class NotesTasksPanel implements AutoCloseable {
         TextView tab = new TextView(activity);
         tab.setText(label);
         tab.setTextSize(14);
-        tab.setTypeface(MEDIUM);
+        tab.setTypeface(Ui.mediumTypeface());
         tab.setSingleLine(true);
         tab.setEllipsize(TextUtils.TruncateAt.END);
         tab.setGravity(Gravity.CENTER);
@@ -464,7 +447,7 @@ public final class NotesTasksPanel implements AutoCloseable {
 
     private void addSectionHeading(LinearLayout parent, String title, boolean topGap) {
         TextView heading = Ui.text(activity, title, 18);
-        heading.setTypeface(MEDIUM);
+        heading.setTypeface(Ui.mediumTypeface());
         heading.setLetterSpacing(-0.01f);
         heading.setPaddingRelative(Ui.dp(activity, 4), Ui.dp(activity, topGap ? 20 : 4), 0, Ui.dp(activity, 8));
         heading.setAccessibilityHeading(true);
@@ -515,7 +498,7 @@ public final class NotesTasksPanel implements AutoCloseable {
         LinearLayout copy = Ui.column(activity);
         LinearLayout titleRow = Ui.row(activity);
         TextView titleView = Ui.text(activity, title, 16);
-        titleView.setTypeface(MEDIUM);
+        titleView.setTypeface(Ui.mediumTypeface());
         titleView.setMaxLines(2);
         titleView.setEllipsize(TextUtils.TruncateAt.END);
         titleView.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
@@ -592,7 +575,7 @@ public final class NotesTasksPanel implements AutoCloseable {
         LinearLayout header = Ui.row(activity);
         header.addView(iconCircle(iconRes, 40, 22, false));
         TextView titleView = Ui.text(activity, title, 16);
-        titleView.setTypeface(MEDIUM);
+        titleView.setTypeface(Ui.mediumTypeface());
         header.addView(titleView, new LinearLayout.LayoutParams(0, -2, 1f));
         card.addView(header);
         if (body != null && !body.isEmpty()) {

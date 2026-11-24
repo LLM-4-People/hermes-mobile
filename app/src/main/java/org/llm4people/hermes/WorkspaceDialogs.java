@@ -2,8 +2,6 @@ package org.llm4people.hermes;
 
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.content.res.ColorStateList;
-import android.graphics.Typeface;
 import android.text.Editable;
 import android.text.InputFilter;
 import android.text.InputType;
@@ -45,7 +43,6 @@ final class WorkspaceDialogs {
 
     static AlertDialog showSecurity(Activity activity, Account account, ProfileGate gate,
                                     Runnable onLockNow, Runnable onPolicyChanged, Runnable onDismissed) {
-        Typeface medium = Typeface.create("sans-serif-medium", Typeface.NORMAL);
         LinearLayout content = Ui.column(activity);
         Ui.pad(content, 16, 12);
 
@@ -54,15 +51,13 @@ final class WorkspaceDialogs {
         LinearLayout profileHeader = Ui.row(activity);
         profileHeader.addView(Ui.avatarBadge(activity, Ui.initials(account.label), 36, true));
         TextView profileTitle = Ui.text(activity, account.label, 17);
-        profileTitle.setTypeface(medium);
+        profileTitle.setTypeface(Ui.mediumTypeface());
         profileTitle.setPaddingRelative(Ui.dp(activity, 10), 0, 0, 0);
         profileHeader.addView(profileTitle, new LinearLayout.LayoutParams(0, -2, 1f));
         profileCard.addView(profileHeader);
 
         Button lockNow = Ui.outlinedButton(activity, activity.getString(R.string.security_lock_now), null);
-        lockNow.setTextColor(new ColorStateList(
-                new int[][]{new int[]{-android.R.attr.state_enabled}, new int[]{}},
-                new int[]{activity.getColor(R.color.disabled_ink), activity.getColor(R.color.danger)}));
+        lockNow.setTextColor(Ui.dangerInk(activity));
         LinearLayout.LayoutParams lockLp = new LinearLayout.LayoutParams(-1, -2);
         lockLp.topMargin = Ui.dp(activity, 12);
         profileCard.addView(lockNow, lockLp);
@@ -74,7 +69,7 @@ final class WorkspaceDialogs {
         cardGap.topMargin = Ui.dp(activity, 12);
 
         TextView modeHeading = Ui.text(activity, activity.getString(R.string.security_lock_mode_title), 16);
-        modeHeading.setTypeface(medium);
+        modeHeading.setTypeface(Ui.mediumTypeface());
         authCard.addView(modeHeading);
 
         TextView modeStatus = Ui.pill(activity, "", R.color.accent_surface, R.color.accent);
@@ -94,7 +89,7 @@ final class WorkspaceDialogs {
         authCard.addView(authDiv, authDivLp);
 
         TextView bioHeading = Ui.text(activity, activity.getString(R.string.security_biometric_title), 16);
-        bioHeading.setTypeface(medium);
+        bioHeading.setTypeface(Ui.mediumTypeface());
         authCard.addView(bioHeading);
 
         TextView bioStatus = Ui.text(activity, "", 14);
@@ -186,7 +181,7 @@ final class WorkspaceDialogs {
         // Auto-lock timeout card with wrap-safe Material 3 choice chips
         LinearLayout graceCard = Ui.card(activity);
         TextView graceHeading = Ui.text(activity, activity.getString(R.string.security_grace_title), 16);
-        graceHeading.setTypeface(medium);
+        graceHeading.setTypeface(Ui.mediumTypeface());
         graceCard.addView(graceHeading);
 
         TextView graceHint = Ui.text(activity, activity.getString(R.string.security_grace_hint), 14);

@@ -7,8 +7,6 @@ import android.content.ClipDescription;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
-import android.content.res.ColorStateList;
-import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
 import android.os.Handler;
@@ -37,17 +35,6 @@ import java.util.function.BooleanSupplier;
  * Always wrapped in {@link Ui#secureDialog} so pairing tickets never leak into screenshots/recents.
  */
 public final class PairingShareSheet implements AutoCloseable {
-    private static volatile Typeface mediumTypeface;
-
-    private static Typeface mediumTypeface() {
-        Typeface cached = mediumTypeface;
-        if (cached == null) {
-            cached = Typeface.create("sans-serif-medium", Typeface.NORMAL);
-            mediumTypeface = cached;
-        }
-        return cached;
-    }
-
     private final Handler main = new Handler(Looper.getMainLooper());
     private AlertDialog dialog;
     private Runnable tick;
@@ -165,7 +152,7 @@ public final class PairingShareSheet implements AutoCloseable {
         }
 
         TextView countdownView = Ui.text(activity, "", 14);
-        countdownView.setTypeface(mediumTypeface());
+        countdownView.setTypeface(Ui.mediumTypeface());
         countdownView.setPaddingRelative(Ui.dp(activity, 12), Ui.dp(activity, 6),
                 Ui.dp(activity, 12), Ui.dp(activity, 6));
         GradientDrawable pillBg = new GradientDrawable();
@@ -205,9 +192,7 @@ public final class PairingShareSheet implements AutoCloseable {
             Button revokeBtn = Ui.button(activity, activity.getString(R.string.profile_hub_qr_revoke_action), null);
             revokeBtn.setMinHeight(touchMin);
             revokeBtn.setMinimumHeight(touchMin);
-            revokeBtn.setTextColor(new ColorStateList(
-                    new int[][]{new int[]{-android.R.attr.state_enabled}, new int[]{}},
-                    new int[]{activity.getColor(R.color.disabled_ink), activity.getColor(R.color.danger)}));
+            revokeBtn.setTextColor(Ui.dangerInk(activity));
             revokeBtn.setOnClickListener(v -> {
                 revokeBtn.setEnabled(false);
                 io.execute(() -> {
