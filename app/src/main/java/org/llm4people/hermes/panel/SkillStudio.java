@@ -195,8 +195,12 @@ final class SkillStudio {
         top.addView(labels, new LinearLayout.LayoutParams(0, -2, 1));
 
         if (studioSupported) {
+            int minTouch = Ui.dp(panel.activity, 48);
             Switch toggle = new Switch(panel.activity);
-            toggle.setMinHeight(Ui.dp(panel.activity, 48));
+            toggle.setMinHeight(minTouch);
+            toggle.setMinimumHeight(minTouch);
+            toggle.setMinWidth(minTouch);
+            toggle.setMinimumWidth(minTouch);
             boolean currentEnabled = toggleState.isEnabled(skill.name, skill.enabled);
             toggle.setChecked(currentEnabled);
             toggle.setContentDescription(skill.name + " · "

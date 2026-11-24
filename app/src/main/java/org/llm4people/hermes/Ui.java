@@ -316,7 +316,8 @@ public final class Ui {
         return button;
     }
 
-    private static ColorStateList enabledDisabledInk(int enabledColor, int disabledColor) {
+    /** Enabled/disabled ColorStateList pairing raw {@code enabledColor} and {@code disabledColor} ARGB values. */
+    public static ColorStateList enabledDisabledInk(int enabledColor, int disabledColor) {
         return new ColorStateList(
                 new int[][]{new int[]{-android.R.attr.state_enabled}, new int[]{}},
                 new int[]{disabledColor, enabledColor});

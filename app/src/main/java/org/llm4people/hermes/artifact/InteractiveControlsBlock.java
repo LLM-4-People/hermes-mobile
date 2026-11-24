@@ -2,7 +2,6 @@ package org.llm4people.hermes.artifact;
 
 import android.app.Activity;
 import android.content.Context;
-import android.content.res.ColorStateList;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.StateListDrawable;
@@ -253,18 +252,12 @@ public final class InteractiveControlsBlock {
             fill.setColor(colors.accentSurface);
             fill.setCornerRadius(Ui.dp(c, Ui.BUTTON_CORNER_DP));
             prepare.setBackground(Ui.roundedRipple(c, Ui.BUTTON_CORNER_DP, fill));
-            prepare.setTextColor(statefulColor(colors.accent, colors.muted));
+            prepare.setTextColor(Ui.enabledDisabledInk(colors.accent, colors.muted));
             Ui.pad(prepare, 16, 8);
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
             lp.topMargin = Ui.dp(c, 10);
             group.addView(prepare, lp);
         }
-    }
-
-    private static ColorStateList statefulColor(int enabledColor, int disabledColor) {
-        return new ColorStateList(
-                new int[][]{new int[]{-android.R.attr.state_enabled}, new int[]{}},
-                new int[]{disabledColor, enabledColor});
     }
 
     private static void addToggle(LinearLayout group, Control ctrl, Map<String, Object> state,
@@ -276,7 +269,7 @@ public final class InteractiveControlsBlock {
         Switch sw = new Switch(c);
         sw.setText(ctrl.label);
         sw.setTextSize(colors.scaledSp(16));
-        sw.setTextColor(statefulColor(colors.ink, colors.muted));
+        sw.setTextColor(Ui.enabledDisabledInk(colors.ink, colors.muted));
         sw.setMinHeight(Ui.dp(c, 48));
         sw.setChecked(checked);
         sw.setEnabled(interactive);
@@ -300,7 +293,7 @@ public final class InteractiveControlsBlock {
         CheckBox box = new CheckBox(c);
         box.setText(ctrl.label);
         box.setTextSize(colors.scaledSp(16));
-        box.setTextColor(statefulColor(colors.ink, colors.muted));
+        box.setTextColor(Ui.enabledDisabledInk(colors.ink, colors.muted));
         box.setMinHeight(Ui.dp(c, 48));
         box.setChecked(checked);
         box.setEnabled(interactive);
@@ -406,11 +399,11 @@ public final class InteractiveControlsBlock {
                 enabledBg.setCornerRadius(radiusPx);
                 if (active) {
                     enabledBg.setColor(colors.accent);
-                    b.setTextColor(statefulColor(colors.onAccent, colors.muted));
+                    b.setTextColor(Ui.enabledDisabledInk(colors.onAccent, colors.muted));
                 } else {
                     enabledBg.setColor(colors.surface);
                     enabledBg.setStroke(strokePx, colors.line);
-                    b.setTextColor(statefulColor(colors.ink, colors.muted));
+                    b.setTextColor(Ui.enabledDisabledInk(colors.ink, colors.muted));
                 }
                 GradientDrawable disabledBg = new GradientDrawable();
                 disabledBg.setCornerRadius(radiusPx);

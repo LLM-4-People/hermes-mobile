@@ -4,7 +4,6 @@ import android.content.Context;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
-import android.graphics.drawable.RippleDrawable;
 import android.graphics.drawable.StateListDrawable;
 import android.view.Gravity;
 import android.view.View;
@@ -57,7 +56,7 @@ final class InstrumentVersions extends RadioGroup {
             StateListDrawable surface = new StateListDrawable();
             surface.addState(selected, shape(c, c.getColor(side.fill)));
             surface.addState(new int[0], shape(c, Color.TRANSPARENT));
-            tab.setBackground(new RippleDrawable(ColorStateList.valueOf(c.getColor(R.color.line)), surface, null));
+            tab.setBackground(Ui.roundedRipple(c, 6, surface));
             tab.setTextColor(new ColorStateList(new int[][]{selected, new int[0]},
                     new int[]{c.getColor(side.ink), c.getColor(R.color.muted)}));
             addView(tab, new RadioGroup.LayoutParams(0, -2, 1));

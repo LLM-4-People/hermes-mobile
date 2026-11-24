@@ -3,11 +3,11 @@ package org.llm4people.hermes;
 import android.app.Activity;
 import android.content.Context;
 import android.content.res.ColorStateList;
+import android.content.res.Configuration;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.RippleDrawable;
 import android.graphics.drawable.StateListDrawable;
-import android.os.SystemClock;
 import android.test.InstrumentationTestCase;
 import android.view.View;
 import android.view.ViewGroup;
@@ -15,8 +15,8 @@ import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.RadioButton;
 import android.widget.Switch;
-import android.widget.TextView;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -24,7 +24,9 @@ import org.llm4people.hermes.artifact.ArtifactDesk;
 import org.llm4people.hermes.artifact.DataTableBlock;
 import org.llm4people.hermes.artifact.InstrumentStateStore;
 import org.llm4people.hermes.artifact.InteractiveControlsBlock;
+import org.llm4people.hermes.artifact.MessageParts;
 import org.llm4people.hermes.artifact.ThemePalette;
+import org.llm4people.hermes.artifact.ThreadInstruments;
 import org.llm4people.hermes.panel.SessionPanel;
 import org.llm4people.hermes.places.NearbyCategory;
 import org.llm4people.hermes.places.NearbyGuide;
@@ -40,19 +42,21 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.Locale;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
- * Instrumentation regression tests for Triple-Check Round 10 PR 3:
- * - R10.1.1 & R10.5.6: Localized InstrumentChanges diffs (nearby_places, sparkline, metrics, controls, section_renamed).
- * - R10.5.1: PromptQuestion multi-select CheckBox & VoiceDrafts mic ImageButton stateful colors.
- * - R10.5.2 & R10.5.5: MessageText reasoning contentDescription toggle & rounded ripples (MessageText & NearbyGuide).
- * - R10.5.3: InteractiveControlsBlock stateful colors/StateListDrawable & DataTableBlock non-sortable TextView headers.
+ * Instrumentation regression tests for Triple-Check Rounds 10 &amp; 11 UI/a11y/i18n polish:
+ * - R10.1.1 &amp; R10.5.6: Localized InstrumentChanges diffs (nearby_places, sparkline, metrics, controls, section_renamed).
+ * - R10.5.1: PromptQuestion multi-select CheckBox &amp; VoiceDrafts mic ImageButton stateful colors.
+ * - R10.5.2 &amp; R10.5.5: MessageText reasoning contentDescription toggle &amp; rounded ripples (MessageText &amp; NearbyGuide).
+ * - R10.5.3: InteractiveControlsBlock stateful colors/StateListDrawable &amp; DataTableBlock non-sortable TextView headers.
  * - R10.5.4: PushSettings, SessionSettings, and ThreadViews stateful disabled/enabled colors.
+ * - R11.1.1: Localized FR/EN ws_image_attached marker through ThreadData.content, ThreadInstrumentPanel.spoken, and MessageParts.project.
+ * - R11.5.1, R11.5.2, R11.5.3: PromptButtons.Role.SKIP disabled_ink, InstrumentVersions rounded ripple mask, SkillStudio 48dp Switch.
  */
 @SuppressWarnings("deprecation")
 public final class UiPolishR10RegressionTest extends InstrumentationTestCase {
@@ -154,6 +158,62 @@ public final class UiPolishR10RegressionTest extends InstrumentationTestCase {
         assertEquals(1, renameDiffs.size());
         assertEquals(c.getString(R.string.ws_diff_section_renamed, "Check · After", "Review"),
                 recordAccessor(renameDiffs.get(0), "section"));
+    }
+
+    public void testLocalizedImageMarkerInThreadDataAndInstrumentPanel() throws Throwable {
+        Context base = getInstrumentation().getTargetContext();
+        String pageJson = """
+                {"version":1,"surface":"page/demo","mode":"replace","title":"Demo","blocks":[{"title":"Info","note":"Body"}]}""";
+        String fence = "```hermes-workspace\n" + pageJson + "\n```";
+        JSONObject row = new JSONObject()
+                .put("id", "m-1")
+                .put("role", "assistant")
+                .put("content", new JSONArray()
+                        .put(new JSONObject().put("type", "text").put("text", "Intro\n" + fence))
+                        .put(new JSONObject().put("type", "image_url")));
+        Object layout = parseLayout(pageJson);
+        Class<?> layoutCls = Class.forName("org.llm4people.hermes.artifact.WorkspaceLayout");
+        Constructor<ThreadInstruments.Pin> pinCtor = ThreadInstruments.Pin.class.getDeclaredConstructor(
+                ThreadInstruments.class, layoutCls, String.class, String.class, String.class, int.class, int.class);
+        pinCtor.setAccessible(true);
+        ThreadInstruments.Pin pin = pinCtor.newInstance(null, layout, pageJson, "m-1", "s-1", 0, 1);
+        List<ThreadInstruments.Pin> proposals = Collections.singletonList(pin);
+
+        Class<?> threadDataCls = Class.forName("org.llm4people.hermes.thread.ThreadData");
+        Method tdContent = threadDataCls.getDeclaredMethod("content", Context.class, JSONObject.class);
+        tdContent.setAccessible(true);
+        Class<?> panelCls = Class.forName("org.llm4people.hermes.thread.ThreadInstrumentPanel");
+        Method spoken = panelCls.getDeclaredMethod("spoken", Context.class, JSONObject.class, List.class);
+        spoken.setAccessible(true);
+
+        for (Locale locale : new Locale[]{Locale.FRENCH, Locale.ENGLISH}) {
+            Context ctx = localized(base, locale);
+            String expectedMarker = ctx.getString(R.string.ws_image_attached);
+            String expectedSpoken = ctx.getString(R.string.instrument_spoken, "Demo");
+            assertEquals(Locale.FRENCH.equals(locale) ? "[Image jointe]" : "[Image attached]", expectedMarker);
+
+            String content = (String) tdContent.invoke(null, ctx, row);
+            assertTrue("ThreadData.content should localize image marker for " + locale,
+                    content.contains(expectedMarker));
+            assertFalse("ThreadData.content should not emit raw [image] for " + locale,
+                    content.contains("[image]"));
+
+            String spokenNoProposals = (String) spoken.invoke(null, ctx, row, Collections.emptyList());
+            assertTrue("ThreadInstrumentPanel.spoken (no proposals) should localize image marker for " + locale,
+                    spokenNoProposals.contains(expectedMarker));
+
+            String spokenWithProposal = (String) spoken.invoke(null, ctx, row, proposals);
+            assertTrue("ThreadInstrumentPanel.spoken should include localized spoken label for " + locale,
+                    spokenWithProposal.contains(expectedSpoken));
+            assertTrue("ThreadInstrumentPanel.spoken should localize image marker for " + locale,
+                    spokenWithProposal.contains(expectedMarker));
+
+            String projectedProse = MessageParts.project(
+                    row, Collections.singletonMap(0, pageJson), ignored -> "", ctx);
+            assertTrue("MessageParts.project prose should localize image marker for " + locale,
+                    projectedProse.contains(expectedMarker));
+            assertFalse(projectedProse.contains("[image]"));
+        }
     }
 
     public void testStatefulColorsAndRipplesAcrossThreadAndArtifactControls() throws Throwable {
@@ -370,6 +430,64 @@ public final class UiPolishR10RegressionTest extends InstrumentationTestCase {
                     assertEquals(2, sortableButtons.size());
                     assertStatefulColors("DataTableBlock sortable header",
                             sortableButtons.get(0).getTextColors(), palette.ink, palette.muted);
+
+                    // 8. PromptButtons.Role.SKIP distinct disabled_ink vs muted enabled (R11.5.1)
+                    Class<?> promptButtonsCls = Class.forName("org.llm4people.hermes.thread.PromptButtons");
+                    @SuppressWarnings({"unchecked", "rawtypes"})
+                    Class<? extends Enum> roleCls = (Class<? extends Enum>) Class.forName(
+                            "org.llm4people.hermes.thread.PromptButtons$Role");
+                    @SuppressWarnings("unchecked")
+                    Object skipRole = Enum.valueOf(roleCls, "SKIP");
+                    Method addPromptButton = promptButtonsCls.getDeclaredMethod(
+                            "add", LinearLayout.class, CharSequence.class, Runnable.class, roleCls);
+                    addPromptButton.setAccessible(true);
+                    Button skipButton = (Button) addPromptButton.invoke(
+                            null, Ui.column(activity), "Skip", null, skipRole);
+                    int muted = activity.getColor(R.color.muted);
+                    assertStatefulColors("PromptButtons SKIP text", skipButton.getTextColors(), muted, disabledInk);
+                    assertStatefulColors("PromptButtons SKIP icon", skipButton.getCompoundDrawableTintList(), muted, disabledInk);
+
+                    // 9. InstrumentVersions tabs use Ui.roundedRipple with non-null rounded mask (R11.5.2)
+                    Class<?> versionsCls = Class.forName("org.llm4people.hermes.thread.InstrumentVersions");
+                    Constructor<?> versionsCtor = versionsCls.getDeclaredConstructor(Context.class, Consumer.class);
+                    versionsCtor.setAccessible(true);
+                    ViewGroup versions = (ViewGroup) versionsCtor.newInstance(activity, (Consumer<?>) s -> {});
+                    assertEquals(3, versions.getChildCount());
+                    for (int i = 0; i < versions.getChildCount(); i++) {
+                        RadioButton tab = (RadioButton) versions.getChildAt(i);
+                        assertRoundedRipple("InstrumentVersions tab " + i, tab.getBackground());
+                    }
+
+                    // 10. SkillStudio label-less Switch has >= 48dp touch target width & height (R11.5.3)
+                    Class<?> skillStudioCls = Class.forName("org.llm4people.hermes.panel.SkillStudio");
+                    Constructor<?> studioCtor = skillStudioCls.getDeclaredConstructor(
+                            SessionPanel.class, BooleanSupplier.class, Consumer.class, Runnable.class);
+                    studioCtor.setAccessible(true);
+                    Object studio = studioCtor.newInstance(
+                            sessionPanel, (BooleanSupplier) () -> true, (Consumer<String>) s -> {}, null);
+                    Field supportedField = skillStudioCls.getDeclaredField("studioSupported");
+                    supportedField.setAccessible(true);
+                    supportedField.setBoolean(studio, true);
+                    Class<?> skillInvCls = Class.forName("org.llm4people.hermes.panel.SkillInventory");
+                    Method parseSkills = skillInvCls.getDeclaredMethod("parse", JSONObject.class);
+                    parseSkills.setAccessible(true);
+                    List<?> parsedSkills = (List<?>) parseSkills.invoke(null, new JSONObject().put("data",
+                            new JSONArray().put(new JSONObject()
+                                    .put("name", "demo-skill")
+                                    .put("description", "Demo")
+                                    .put("category", "general")
+                                    .put("enabled", true)
+                                    .put("writable", true))));
+                    Method skillRow = skillStudioCls.getDeclaredMethod("skillRow", skillInvCls);
+                    skillRow.setAccessible(true);
+                    View rowView = (View) skillRow.invoke(studio, parsedSkills.get(0));
+                    Switch skillToggle = findFirst(rowView, Switch.class);
+                    assertNotNull("Expected Switch inside SkillStudio skillRow", skillToggle);
+                    int min48 = Ui.dp(activity, 48);
+                    assertTrue("SkillStudio Switch minWidth >= 48dp", skillToggle.getMinWidth() >= min48);
+                    assertTrue("SkillStudio Switch minimumWidth >= 48dp", skillToggle.getMinimumWidth() >= min48);
+                    assertTrue("SkillStudio Switch minHeight >= 48dp", skillToggle.getMinHeight() >= min48);
+                    assertTrue("SkillStudio Switch minimumHeight >= 48dp", skillToggle.getMinimumHeight() >= min48);
                 } catch (Exception err) {
                     throw new AssertionError(err);
                 }
@@ -381,9 +499,15 @@ public final class UiPolishR10RegressionTest extends InstrumentationTestCase {
                     if (v != null) v.cancel();
                 });
             } finally {
-                finishAndAwaitDestroyed(activity);
+                ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
             }
         }
+    }
+
+    private static Context localized(Context base, Locale locale) {
+        Configuration config = new Configuration(base.getResources().getConfiguration());
+        config.setLocale(locale);
+        return base.createConfigurationContext(config);
     }
 
     private static Object parseLayout(String json) throws Exception {
@@ -440,25 +564,6 @@ public final class UiPolishR10RegressionTest extends InstrumentationTestCase {
         RippleDrawable ripple = (RippleDrawable) drawable;
         Drawable mask = ripple.findDrawableByLayerId(android.R.id.mask);
         assertTrue(label + " ripple mask must be rounded GradientDrawable", mask instanceof GradientDrawable);
-    }
-
-    private void finishAndAwaitDestroyed(Activity activity) throws Throwable {
-        if (activity == null) return;
-        runTestOnUiThread(() -> {
-            if (!activity.isFinishing() && !activity.isDestroyed()) {
-                activity.finish();
-            }
-        });
-        getInstrumentation().waitForIdleSync();
-        long deadline = SystemClock.uptimeMillis() + 5_000L;
-        AtomicBoolean destroyed = new AtomicBoolean(false);
-        while (SystemClock.uptimeMillis() < deadline) {
-            runTestOnUiThread(() -> destroyed.set(activity.isDestroyed()));
-            if (destroyed.get()) return;
-            SystemClock.sleep(10L);
-        }
-        runTestOnUiThread(() -> destroyed.set(activity.isDestroyed()));
-        assertTrue("Expected launched MainActivity to complete onDestroy() before next test", destroyed.get());
     }
 
     private static <T extends View> T findFirst(View root, Class<T> type) {

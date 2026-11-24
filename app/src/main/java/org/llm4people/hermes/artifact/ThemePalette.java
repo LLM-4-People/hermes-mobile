@@ -52,7 +52,7 @@ public final class ThemePalette {
             Arrays.asList("paper", "elevated", "outlined", "tinted", "glass"));
     public static final int MIN_FONT_SCALE_STEP = -2;
     public static final int MAX_FONT_SCALE_STEP = 3;
-    private static final String STORAGE_KEY = "workspace.theme.v2";
+    static final String STORAGE_KEY = "workspace.theme.v2";
 
     public static final class ContrastException extends IOException {
         private static final long serialVersionUID = 1L;

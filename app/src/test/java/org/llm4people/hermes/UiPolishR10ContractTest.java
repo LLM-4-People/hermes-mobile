@@ -109,4 +109,43 @@ public final class UiPolishR10ContractTest {
         assertTrue(share.contains("Custom Screens/Tools (Apps)"));
         assertTrue(share.contains("under Notes &amp; Tasks"));
     }
+
+    @Test
+    public void round11SsotAndPolishContractsHold() throws IOException {
+        // R11.4.2: Public Ui.enabledDisabledInk(int, int) SSoT across all artifact/card views.
+        String ui = read("src/main/java/org/llm4people/hermes/Ui.java");
+        assertTrue(ui.contains("public static ColorStateList enabledDisabledInk(int enabledColor, int disabledColor)"));
+        for (String rel : new String[]{
+                "src/main/java/org/llm4people/hermes/artifact/InteractiveControlsBlock.java",
+                "src/main/java/org/llm4people/hermes/artifact/DataTableBlock.java",
+                "src/main/java/org/llm4people/hermes/customization/InteractiveCardView.java"
+        }) {
+            String src = read(rel);
+            assertFalse(rel + " must delegate to Ui.enabledDisabledInk instead of new ColorStateList",
+                    src.contains("new ColorStateList("));
+            assertTrue(rel + " must use Ui.enabledDisabledInk(", src.contains("Ui.enabledDisabledInk("));
+        }
+
+        // R11.4.4 & R11.7.1: Vault key SSoT & LiveUiPatch Apps Javadoc.
+        String liveUi = read("src/main/java/org/llm4people/hermes/artifact/LiveUiPatch.java");
+        assertFalse(liveUi.contains("\"workspace.theme.v2\""));
+        assertTrue(liveUi.contains("ThemePalette.STORAGE_KEY"));
+        assertTrue(liveUi.contains("custom Apps tabs"));
+        assertFalse(liveUi.contains("custom Atelier tabs"));
+        String desk = read("src/main/java/org/llm4people/hermes/artifact/ArtifactDesk.java");
+        assertFalse(desk.contains("\"workspace.live_ui.v2\""));
+        assertTrue(desk.contains("LiveUiPatch.STATE_KEY"));
+
+        // R11.1.1 / R11.5.1 / R11.5.2 / R11.5.3 contracts.
+        String parts = read("src/main/java/org/llm4people/hermes/artifact/MessageParts.java");
+        assertTrue(parts.contains("AppLanguage.wrapContext(context).getString(R.string.ws_image_attached)"));
+        String promptButtons = read("src/main/java/org/llm4people/hermes/thread/PromptButtons.java");
+        assertTrue(promptButtons.contains("colors(context, R.color.disabled_ink, text, text)"));
+        String versions = read("src/main/java/org/llm4people/hermes/thread/InstrumentVersions.java");
+        assertTrue(versions.contains("Ui.roundedRipple(c, 6, surface)"));
+        assertFalse(versions.contains("new RippleDrawable("));
+        String studio = read("src/main/java/org/llm4people/hermes/panel/SkillStudio.java");
+        assertTrue(studio.contains("toggle.setMinWidth(minTouch)"));
+        assertTrue(studio.contains("toggle.setMinimumWidth(minTouch)"));
+    }
 }

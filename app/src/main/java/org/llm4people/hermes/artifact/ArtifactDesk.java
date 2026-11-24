@@ -179,7 +179,7 @@ public final class ArtifactDesk {
     private static boolean isOpen(Activity activity, Account account) {
         if (activity == null || activity.isFinishing() || activity.isDestroyed() || account == null) return false;
         try {
-            account.read("workspace.live_ui.v2");
+            account.read(LiveUiPatch.STATE_KEY);
             return true;
         } catch (IllegalStateException lockedOrClosed) {
             return false;

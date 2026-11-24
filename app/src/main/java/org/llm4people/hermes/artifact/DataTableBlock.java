@@ -1,7 +1,6 @@
 package org.llm4people.hermes.artifact;
 
 import android.content.Context;
-import android.content.res.ColorStateList;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.text.Editable;
@@ -335,18 +334,14 @@ public final class DataTableBlock {
                 model.toggleSort(colIndex);
                 renderTable(c, tableBody, model, colors, host);
             });
-            head.setTextColor(new ColorStateList(
-                    new int[][]{new int[]{-android.R.attr.state_enabled}, new int[]{}},
-                    new int[]{colors.muted, activeSort ? colors.accent : colors.ink}));
+            head.setTextColor(Ui.enabledDisabledInk(activeSort ? colors.accent : colors.ink, colors.muted));
             head.setTextSize(colors.scaledSp(14));
             head.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
             head.setCompoundDrawablesRelativeWithIntrinsicBounds(0, 0,
                     activeSort ? (model.ascending() ? android.R.drawable.arrow_up_float : android.R.drawable.arrow_down_float) : 0,
                     0);
             if (activeSort) {
-                head.setCompoundDrawableTintList(new ColorStateList(
-                        new int[][]{new int[]{-android.R.attr.state_enabled}, new int[]{}},
-                        new int[]{colors.muted, colors.accent}));
+                head.setCompoundDrawableTintList(Ui.enabledDisabledInk(colors.accent, colors.muted));
                 head.setCompoundDrawablePadding(Ui.dp(c, 4));
             }
             head.setGravity(gravity);
