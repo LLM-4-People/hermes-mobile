@@ -255,18 +255,19 @@ public final class DeliveryItem {
         return out;
     }
 
+    private static final String[] SUMMARY_PAYLOAD_KEYS = {
+            "summary", "subtitle", "message", "body", "text", "description", "filename"
+    };
+
     private static String extractSummary(JSONObject raw, JSONObject payload) {
         String top = raw.isNull("summary") ? "" : raw.optString("summary", "");
-        String sanitizedTop = clampSummary(top);
-        if (!sanitizedTop.isEmpty()) return sanitizedTop;
-        if (payload == null) return "";
-        for (String key : new String[]{"summary", "subtitle", "message", "body", "text", "description", "filename"}) {
-            if (!payload.isNull(key)) {
-                String val = clampSummary(payload.optString(key, ""));
-                if (!val.isEmpty()) return val;
-            }
+        if (payload == null) return selectSummary(top);
+        String[] fallbacks = new String[SUMMARY_PAYLOAD_KEYS.length];
+        for (int i = 0; i < SUMMARY_PAYLOAD_KEYS.length; i++) {
+            String key = SUMMARY_PAYLOAD_KEYS[i];
+            fallbacks[i] = payload.isNull(key) ? null : payload.optString(key, "");
         }
-        return "";
+        return selectSummary(top, fallbacks);
     }
 
     static String selectSummary(String topSummary, String... payloadFallbacks) {

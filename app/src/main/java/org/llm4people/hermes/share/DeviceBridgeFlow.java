@@ -845,7 +845,7 @@ public final class DeviceBridgeFlow {
         if (context == null || request == null) return "";
         List<PreviewLine> lines = previewLinesForParams(request.actionType(), JsonValues.toMap(request.params()));
         if (lines.isEmpty()) return "";
-        Context localized = org.llm4people.hermes.AppLanguage.wrapContext(context);
+        Context localized = org.llm4people.hermes.AppLanguage.localizedContext(context, null);
         StringBuilder out = new StringBuilder();
         for (PreviewLine line : lines) {
             if (out.length() > 0) out.append('\n');
