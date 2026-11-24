@@ -35,61 +35,63 @@ public final class PrivateCaptureProviderTest extends InstrumentationTestCase {
 
     public void testClaimReadySlotIsOneShotRejectsMismatchAndDeletesOnRead() throws Throwable {
         Context context = getInstrumentation().getTargetContext();
-        Activity activity = getInstrumentation().startActivitySync(
-                context.getPackageManager().getLaunchIntentForPackage(context.getPackageName()));
         try (WorkspaceAccountFixture fixture = new WorkspaceAccountFixture(context)) {
-            // 1) Matching owner + session claims once, clears instance state, and second claim returns null.
-            Uri slot1 = PrivateCaptureProvider.createSlot(context);
-            File file1 = PrivateCaptureProvider.fileForSlot(context, slot1);
-            assertNotNull(file1);
-            assertTrue(file1.isFile());
-
-            Bundle state1 = new Bundle();
-            String nonce1 = "nonce-1";
-            state1.putString("camera_nonce", nonce1);
-            state1.putString("camera_owner", fixture.account.selectionBinding(nonce1, ""));
-            state1.putString("camera_thread", fixture.account.selectionBinding(nonce1, "session-a"));
-            state1.putString("camera_slot", slot1.toString());
-            state1.putBoolean("camera_ready", true);
-
-            ThreadCameraCapture capture1 = new ThreadCameraCapture(activity, state1);
-            assertTrue(capture1.isReady());
-            Uri claimed = capture1.claimReadySlot(fixture.account, "session-a");
-            assertEquals(slot1, claimed);
-            assertFalse("Claim must clear ready state immediately", capture1.isReady());
-            assertNull("Second claim must return null (one-shot)",
-                    capture1.claimReadySlot(fixture.account, "session-a"));
-
-            // readAndDeleteSlot always deletes the claimed file even when empty/unreadable.
+            Activity activity = getInstrumentation().startActivitySync(
+                    context.getPackageManager().getLaunchIntentForPackage(context.getPackageName()));
             try {
-                ThreadCameraCapture.readAndDeleteSlot(context, claimed);
-                fail("Expected empty slot read failure");
-            } catch (IOException expected) {
-                // ok
+                // 1) Matching owner + session claims once, clears instance state, and second claim returns null.
+                Uri slot1 = PrivateCaptureProvider.createSlot(context);
+                File file1 = PrivateCaptureProvider.fileForSlot(context, slot1);
+                assertNotNull(file1);
+                assertTrue(file1.isFile());
+
+                Bundle state1 = new Bundle();
+                String nonce1 = "nonce-1";
+                state1.putString("camera_nonce", nonce1);
+                state1.putString("camera_owner", fixture.account.selectionBinding(nonce1, ""));
+                state1.putString("camera_thread", fixture.account.selectionBinding(nonce1, "session-a"));
+                state1.putString("camera_slot", slot1.toString());
+                state1.putBoolean("camera_ready", true);
+
+                ThreadCameraCapture capture1 = new ThreadCameraCapture(activity, state1);
+                assertTrue(capture1.isReady());
+                Uri claimed = capture1.claimReadySlot(fixture.account, "session-a");
+                assertEquals(slot1, claimed);
+                assertFalse("Claim must clear ready state immediately", capture1.isReady());
+                assertNull("Second claim must return null (one-shot)",
+                        capture1.claimReadySlot(fixture.account, "session-a"));
+
+                // readAndDeleteSlot always deletes the claimed file even when empty/unreadable.
+                try {
+                    ThreadCameraCapture.readAndDeleteSlot(context, claimed);
+                    fail("Expected empty slot read failure");
+                } catch (IOException expected) {
+                    // ok
+                }
+                assertFalse("Claimed slot file must be deleted after read attempt", file1.exists());
+
+                // 2) Mismatched session returns null and deletes/clears the slot immediately.
+                Uri slot2 = PrivateCaptureProvider.createSlot(context);
+                File file2 = PrivateCaptureProvider.fileForSlot(context, slot2);
+                assertNotNull(file2);
+                assertTrue(file2.isFile());
+
+                Bundle state2 = new Bundle();
+                String nonce2 = "nonce-2";
+                state2.putString("camera_nonce", nonce2);
+                state2.putString("camera_owner", fixture.account.selectionBinding(nonce2, ""));
+                state2.putString("camera_thread", fixture.account.selectionBinding(nonce2, "session-a"));
+                state2.putString("camera_slot", slot2.toString());
+                state2.putBoolean("camera_ready", true);
+
+                ThreadCameraCapture capture2 = new ThreadCameraCapture(activity, state2);
+                assertNull("Mismatched session must fail closed",
+                        capture2.claimReadySlot(fixture.account, "session-b"));
+                assertFalse("Mismatch must clear capture state", capture2.isReady());
+                assertFalse("Mismatch must delete the private slot file", file2.exists());
+            } finally {
+                ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
             }
-            assertFalse("Claimed slot file must be deleted after read attempt", file1.exists());
-
-            // 2) Mismatched session returns null and deletes/clears the slot immediately.
-            Uri slot2 = PrivateCaptureProvider.createSlot(context);
-            File file2 = PrivateCaptureProvider.fileForSlot(context, slot2);
-            assertNotNull(file2);
-            assertTrue(file2.isFile());
-
-            Bundle state2 = new Bundle();
-            String nonce2 = "nonce-2";
-            state2.putString("camera_nonce", nonce2);
-            state2.putString("camera_owner", fixture.account.selectionBinding(nonce2, ""));
-            state2.putString("camera_thread", fixture.account.selectionBinding(nonce2, "session-a"));
-            state2.putString("camera_slot", slot2.toString());
-            state2.putBoolean("camera_ready", true);
-
-            ThreadCameraCapture capture2 = new ThreadCameraCapture(activity, state2);
-            assertNull("Mismatched session must fail closed",
-                    capture2.claimReadySlot(fixture.account, "session-b"));
-            assertFalse("Mismatch must clear capture state", capture2.isReady());
-            assertFalse("Mismatch must delete the private slot file", file2.exists());
-        } finally {
-            ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
         }
     }
 }

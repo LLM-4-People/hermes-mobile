@@ -174,46 +174,48 @@ public class ThreadSlotsTest extends InstrumentationTestCase {
     public void testSendControlAndAdmissionTreatInvisibleDraftsIdentically() throws Throwable {
         Context context = getInstrumentation().getTargetContext();
         Intent launch = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
-        Activity activity = getInstrumentation().startActivitySync(launch);
         try (WorkspaceAccountFixture fixture = new WorkspaceAccountFixture(context)) {
-            runTestOnUiThread(() -> {
-                ThreadViews view = new ThreadViews(activity);
-                AtomicInteger admissions = new AtomicInteger();
-                ThreadWorkspace.Host host = new ThreadWorkspace.Host() {
-                    public void selected(String id, String title) {}
-                    public void pendingChanged() {}
-                    public JSONObject options(String id) {
-                        admissions.incrementAndGet();
-                        return null; // Stop before network work.
-                    }
-                    public void timing(String id, long first, long elapsed, long tokens) {}
-                };
-                ThreadWorkspace page = new ThreadWorkspace(activity, null, fixture.account, host, view.voice);
-                page.screen = view;
-                page.journal = new ThreadJournal(fixture.account, "discussion");
-                try {
-                    ThreadRun run = new ThreadRun(page);
-                    view.chat("", page.journal::draft, run::send, () -> {}, () -> {});
-                    activity.setContentView(view.root);
-                    View send = find(view.root, activity.getString(R.string.thread_send));
-                    for (String blank : new String[]{"", " ", "\u00a0", "\u202f", "\u200b\ufe0f"}) {
-                        view.displayDraft(blank);
-                        assertFalse(send.isEnabled());
-                        view.busy(false, false);
-                        assertFalse(send.isEnabled());
-                        run.send();
-                    }
-                    assertEquals(0, admissions.get());
-                    String question = "\u00a0Déjà prêt\u202f? ✈️  ";
-                    view.displayDraft(question);
-                    assertEquals(question, view.draft());
-                    assertTrue(send.isEnabled());
-                    send.performClick();
-                    assertEquals(1, admissions.get());
-                    assertEquals(question, view.draft());
-                } finally { page.close(); }
-            });
-        } finally { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
+            Activity activity = getInstrumentation().startActivitySync(launch);
+            try {
+                runTestOnUiThread(() -> {
+                    ThreadViews view = new ThreadViews(activity);
+                    AtomicInteger admissions = new AtomicInteger();
+                    ThreadWorkspace.Host host = new ThreadWorkspace.Host() {
+                        public void selected(String id, String title) {}
+                        public void pendingChanged() {}
+                        public JSONObject options(String id) {
+                            admissions.incrementAndGet();
+                            return null; // Stop before network work.
+                        }
+                        public void timing(String id, long first, long elapsed, long tokens) {}
+                    };
+                    ThreadWorkspace page = new ThreadWorkspace(activity, null, fixture.account, host, view.voice);
+                    page.screen = view;
+                    page.journal = new ThreadJournal(fixture.account, "discussion");
+                    try {
+                        ThreadRun run = new ThreadRun(page);
+                        view.chat("", page.journal::draft, run::send, () -> {}, () -> {});
+                        activity.setContentView(view.root);
+                        View send = find(view.root, activity.getString(R.string.thread_send));
+                        for (String blank : new String[]{"", " ", "\u00a0", "\u202f", "\u200b\ufe0f"}) {
+                            view.displayDraft(blank);
+                            assertFalse(send.isEnabled());
+                            view.busy(false, false);
+                            assertFalse(send.isEnabled());
+                            run.send();
+                        }
+                        assertEquals(0, admissions.get());
+                        String question = "\u00a0Déjà prêt\u202f? ✈️  ";
+                        view.displayDraft(question);
+                        assertEquals(question, view.draft());
+                        assertTrue(send.isEnabled());
+                        send.performClick();
+                        assertEquals(1, admissions.get());
+                        assertEquals(question, view.draft());
+                    } finally { page.close(); }
+                });
+            } finally { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
+        }
     }
 
     private static void layout(View view, int width, int height) {

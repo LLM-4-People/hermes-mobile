@@ -11,6 +11,7 @@ import android.view.inspector.WindowInspector;
 import android.widget.Switch;
 import android.widget.TextView;
 import org.llm4people.hermes.ActivityTestLifecycle;
+import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.artifact.ArtifactDesk;
 import org.llm4people.hermes.net.Exchange;
@@ -35,42 +36,50 @@ import java.util.concurrent.Executors;
 public final class BrainStudioPanelsTest extends InstrumentationTestCase {
     private static final String JSON = "Content-Type: application/json\r\n";
 
+    @Override protected void tearDown() throws Exception {
+        try {
+            super.tearDown();
+        } finally {
+            Diagnostics.clear();
+        }
+    }
+
     public void testMemoryPanelDegradesCleanlyOnLegacyGateway() throws Throwable {
         if (Build.VERSION.SDK_INT < 29) return;
         Context app = getInstrumentation().getTargetContext();
-        Activity activity = getInstrumentation().startActivitySync(
-                app.getPackageManager().getLaunchIntentForPackage(app.getPackageName()));
         try (Exchange legacy = new Exchange("200 OK", JSON, "{\"features\":{}}");
              WorkspaceAccountFixture profile = new WorkspaceAccountFixture(app, legacy.endpoint())) {
-            SessionPanel panel = new SessionPanel(activity, new HermesApi(legacy.endpoint(), "test"), profile.account);
-            // Regression guard: brain_* surfaces are not in WorkspaceLayout.SURFACES and must mount
-            // cleanly even when MainActivity attaches a non-null ArtifactDesk.Host.
-            panel.setLayoutHost(new ArtifactDesk.Host() {
-                @Override public java.util.function.BooleanSupplier deviceActionOrigin() { return () -> false; }
-                @Override public void onAction(String id) {}
-                @Override public void onLayoutChanged() {}
-                @Override public void openWorkspace(String pageId) {}
-                @Override public void stageDraft(String text) {}
-                @Override public void threadSlots(List<String> order) {}
-                @Override public String workspaceValue(String source) { return ""; }
-            });
+            Activity activity = getInstrumentation().startActivitySync(
+                    app.getPackageManager().getLaunchIntentForPackage(app.getPackageName()));
             try {
-                runTestOnUiThread(() -> panel.showMemory(null));
-                assertTextVisible(activity.getString(R.string.brain_memory_title));
-                assertTextVisible(activity.getString(R.string.brain_upgrade_required));
+                SessionPanel panel = new SessionPanel(activity, new HermesApi(legacy.endpoint(), "test"), profile.account);
+                // Regression guard: brain_* surfaces are not in WorkspaceLayout.SURFACES and must mount
+                // cleanly even when MainActivity attaches a non-null ArtifactDesk.Host.
+                panel.setLayoutHost(new ArtifactDesk.Host() {
+                    @Override public java.util.function.BooleanSupplier deviceActionOrigin() { return () -> false; }
+                    @Override public void onAction(String id) {}
+                    @Override public void onLayoutChanged() {}
+                    @Override public void openWorkspace(String pageId) {}
+                    @Override public void stageDraft(String text) {}
+                    @Override public void threadSlots(List<String> order) {}
+                    @Override public String workspaceValue(String source) { return ""; }
+                });
+                try {
+                    runTestOnUiThread(() -> panel.showMemory(null));
+                    assertTextVisible(activity.getString(R.string.brain_memory_title));
+                    assertTextVisible(activity.getString(R.string.brain_upgrade_required));
+                } finally {
+                    runTestOnUiThread(panel::close);
+                }
             } finally {
-                runTestOnUiThread(panel::close);
+                ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
             }
-        } finally {
-            ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
         }
     }
 
     public void testSkillStudioRollsBackSwitchWhenServerRejectsToggle() throws Throwable {
         if (Build.VERSION.SDK_INT < 29) return;
         Context app = getInstrumentation().getTargetContext();
-        Activity activity = getInstrumentation().startActivitySync(
-                app.getPackageManager().getLaunchIntentForPackage(app.getPackageName()));
         String caps = "{\"features\":{\"skill_studio\":true}}";
         String list = """
                 {"object":"list","data":[
@@ -79,8 +88,11 @@ public final class BrainStudioPanelsTest extends InstrumentationTestCase {
         String toggleError = "{\"error\":{\"code\":\"toggle_failed\"}}";
         try (MultiStatusServer gateway = new MultiStatusServer(
                 new String[]{"200 OK", "200 OK", "500 Internal Server Error"},
-                new String[]{caps, list, toggleError})) {
-            try (WorkspaceAccountFixture profile = new WorkspaceAccountFixture(app, gateway.endpoint())) {
+                new String[]{caps, list, toggleError});
+             WorkspaceAccountFixture profile = new WorkspaceAccountFixture(app, gateway.endpoint())) {
+            Activity activity = getInstrumentation().startActivitySync(
+                    app.getPackageManager().getLaunchIntentForPackage(app.getPackageName()));
+            try {
                 SessionPanel panel = new SessionPanel(activity, new HermesApi(gateway.endpoint(), "test"), profile.account);
                 try {
                     runTestOnUiThread(() -> panel.showSkillStudio(() -> true, draft -> {}, null));
@@ -104,9 +116,9 @@ public final class BrainStudioPanelsTest extends InstrumentationTestCase {
                 } finally {
                     runTestOnUiThread(panel::close);
                 }
+            } finally {
+                ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
             }
-        } finally {
-            ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
         }
     }
 
@@ -169,8 +181,6 @@ public final class BrainStudioPanelsTest extends InstrumentationTestCase {
     public void testUsagePanelPreservesUnknownMetricsAsIndisponible() throws Throwable {
         if (Build.VERSION.SDK_INT < 29) return;
         Context app = getInstrumentation().getTargetContext();
-        Activity activity = getInstrumentation().startActivitySync(
-                app.getPackageManager().getLaunchIntentForPackage(app.getPackageName()));
         String messages = "{\"session_id\":\"s1\",\"data\":[]}";
         String session = "{\"session\":{\"id\":\"s1\",\"input_tokens\":10,\"cache_read_tokens\":0,\"cache_write_tokens\":0,\"output_tokens\":20,\"cost_status\":\"unknown\",\"estimated_cost_usd\":0}}";
         String caps = "{\"features\":{}}";
@@ -178,51 +188,55 @@ public final class BrainStudioPanelsTest extends InstrumentationTestCase {
              WorkspaceAccountFixture profile = new WorkspaceAccountFixture(app, gateway.endpoint())) {
             // Timing with elapsed_ms only (missing first_ms & output_tokens -> TTFT & speed MUST stay Indisponible).
             profile.account.write("panel/timing/s1", "{\"elapsed_ms\":1200}");
-            SessionPanel panel = new SessionPanel(activity, new HermesApi(gateway.endpoint(), "test"), profile.account);
+            Activity activity = getInstrumentation().startActivitySync(
+                    app.getPackageManager().getLaunchIntentForPackage(app.getPackageName()));
             try {
-                runTestOnUiThread(() -> panel.showStats("s1", "s1"));
-                assertTextVisible(activity.getString(R.string.brain_usage_response_time));
-                assertTextVisible(activity.getString(R.string.brain_usage_speed));
-                assertTextVisible(activity.getString(R.string.ws_unavailable));
-                assertTextVisible(activity.getString(R.string.brain_usage_technical_toggle));
-                assertTextVisible(activity.getString(R.string.panel_out));
+                SessionPanel panel = new SessionPanel(activity, new HermesApi(gateway.endpoint(), "test"), profile.account);
+                try {
+                    runTestOnUiThread(() -> panel.showStats("s1", "s1"));
+                    assertTextVisible(activity.getString(R.string.brain_usage_response_time));
+                    assertTextVisible(activity.getString(R.string.brain_usage_speed));
+                    assertTextVisible(activity.getString(R.string.ws_unavailable));
+                    assertTextVisible(activity.getString(R.string.brain_usage_technical_toggle));
+                    assertTextVisible(activity.getString(R.string.panel_out));
+                } finally {
+                    runTestOnUiThread(panel::close);
+                }
             } finally {
-                runTestOnUiThread(panel::close);
+                ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
             }
-        } finally {
-            ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
         }
     }
 
     public void testUsagePanelShowsProfileWideAnalyticsWithoutActiveSession() throws Throwable {
         if (Build.VERSION.SDK_INT < 29) return;
         Context app = getInstrumentation().getTargetContext();
-        Activity activity = getInstrumentation().startActivitySync(
-                app.getPackageManager().getLaunchIntentForPackage(app.getPackageName()));
         String caps = "{\"features\":{\"usage_analytics\":true}}";
         String analytics = "{\"days\":30,\"sessions\":7,\"api_calls\":19,\"input_tokens\":1200,\"output_tokens\":450,\"actual_cost_usd\":0.12}";
         try (Exchange gateway = new Exchange("200 OK", JSON, caps, analytics);
              WorkspaceAccountFixture profile = new WorkspaceAccountFixture(app, gateway.endpoint())) {
-            SessionPanel panel = new SessionPanel(activity, new HermesApi(gateway.endpoint(), "test"), profile.account);
+            Activity activity = getInstrumentation().startActivitySync(
+                    app.getPackageManager().getLaunchIntentForPackage(app.getPackageName()));
             try {
-                runTestOnUiThread(() -> panel.showStats(null, null));
-                assertTextVisible(activity.getString(R.string.brain_usage_profile_analytics));
-                assertTextVisible(activity.getString(R.string.brain_usage_profile_runs));
-                assertTextVisible("7");
-                assertTextVisible(activity.getString(R.string.panel_out));
+                SessionPanel panel = new SessionPanel(activity, new HermesApi(gateway.endpoint(), "test"), profile.account);
+                try {
+                    runTestOnUiThread(() -> panel.showStats(null, null));
+                    assertTextVisible(activity.getString(R.string.brain_usage_profile_analytics));
+                    assertTextVisible(activity.getString(R.string.brain_usage_profile_runs));
+                    assertTextVisible("7");
+                    assertTextVisible(activity.getString(R.string.panel_out));
+                } finally {
+                    runTestOnUiThread(panel::close);
+                }
             } finally {
-                runTestOnUiThread(panel::close);
+                ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
             }
-        } finally {
-            ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
         }
     }
 
     public void testNotesPanelDeepLinkOneShotUnknownBlankAndLoadErrorPreservation() throws Throwable {
         if (Build.VERSION.SDK_INT < 29) return;
         Context app = getInstrumentation().getTargetContext();
-        Activity activity = getInstrumentation().startActivitySync(
-                app.getPackageManager().getLaunchIntentForPackage(app.getPackageName()));
         String caps = "{\"features\":{\"smart_notes\":true}}";
         String notesJson = """
                 {"notes":[
@@ -253,57 +267,61 @@ public final class BrainStudioPanelsTest extends InstrumentationTestCase {
                         caps, "{\"error\":\"boom\"}"
                 });
              WorkspaceAccountFixture profile = new WorkspaceAccountFixture(app, gateway.endpoint())) {
-            SessionPanel panel = new SessionPanel(activity, new HermesApi(gateway.endpoint(), "test"), profile.account);
-            String readerMarker = activity.getString(R.string.code_copy_content);
+            Activity activity = getInstrumentation().startActivitySync(
+                    app.getPackageManager().getLaunchIntentForPackage(app.getPackageName()));
             try {
-                // Positive + one-shot: initialNoteId opens target note CodeReader dialog directly;
-                // dismissing ONLY the CodeReader dialog and refreshing must NOT re-open CodeReader.
-                runTestOnUiThread(() -> panel.showNotes(() -> true, draft -> {}, null, "n-1"));
-                assertTextVisible(readerMarker);
-                assertTextVisible("Contenu détaillé de la note cible");
-                clickVisibleButtonInWindow(readerMarker, activity.getString(R.string.ws_close));
-                waitUntilTextNotVisible(readerMarker);
-                clickVisibleButton(activity.getString(R.string.panel_refresh));
-                assertTextVisible("Plan produit v2");
-                assertTextNotVisible(readerMarker);
-                runTestOnUiThread(panel::close);
+                SessionPanel panel = new SessionPanel(activity, new HermesApi(gateway.endpoint(), "test"), profile.account);
+                String readerMarker = activity.getString(R.string.code_copy_content);
+                try {
+                    // Positive + one-shot: initialNoteId opens target note CodeReader dialog directly;
+                    // dismissing ONLY the CodeReader dialog and refreshing must NOT re-open CodeReader.
+                    runTestOnUiThread(() -> panel.showNotes(() -> true, draft -> {}, null, "n-1"));
+                    assertTextVisible(readerMarker);
+                    assertTextVisible("Contenu détaillé de la note cible");
+                    clickVisibleButtonInWindow(readerMarker, activity.getString(R.string.ws_close));
+                    waitUntilTextNotVisible(readerMarker);
+                    clickVisibleButton(activity.getString(R.string.panel_refresh));
+                    assertTextVisible("Plan produit v2");
+                    assertTextNotVisible(readerMarker);
+                    runTestOnUiThread(panel::close);
 
-                // Negative: unknown initialNoteId shows notes list without opening CodeReader or crashing.
-                runTestOnUiThread(() -> panel.showNotes(() -> true, draft -> {}, null, "missing-id"));
-                assertTextVisible("Plan produit");
-                assertTextVisible("Courses");
-                assertTextNotVisible(readerMarker);
-                runTestOnUiThread(panel::close);
+                    // Negative: unknown initialNoteId shows notes list without opening CodeReader or crashing.
+                    runTestOnUiThread(() -> panel.showNotes(() -> true, draft -> {}, null, "missing-id"));
+                    assertTextVisible("Plan produit");
+                    assertTextVisible("Courses");
+                    assertTextNotVisible(readerMarker);
+                    runTestOnUiThread(panel::close);
 
-                // Negative: blank initialNoteId renders list cleanly without opening CodeReader.
-                runTestOnUiThread(() -> panel.showNotes(() -> true, draft -> {}, null, "   "));
-                assertTextVisible("Plan produit");
-                assertTextNotVisible(readerMarker);
-                runTestOnUiThread(panel::close);
+                    // Negative: blank initialNoteId renders list cleanly without opening CodeReader.
+                    runTestOnUiThread(() -> panel.showNotes(() -> true, draft -> {}, null, "   "));
+                    assertTextVisible("Plan produit");
+                    assertTextNotVisible(readerMarker);
+                    runTestOnUiThread(panel::close);
 
-                // Negative: HTTP 500 failure + Retry stays visible when user types in filter field.
-                runTestOnUiThread(() -> panel.showNotes(() -> true, draft -> {}, null, "n-1"));
-                assertTextVisible(activity.getString(R.string.panel_retry));
-                assertTextNotVisible(readerMarker);
-                boolean[] typed = {false};
-                runTestOnUiThread(() -> {
-                    for (View root : WindowInspector.getGlobalWindowViews()) {
-                        View filter = root.findViewById(R.id.brain_notes_filter);
-                        if (filter instanceof android.widget.EditText et && et.isShown()) {
-                            et.setText("plan");
-                            typed[0] = true;
-                            break;
+                    // Negative: HTTP 500 failure + Retry stays visible when user types in filter field.
+                    runTestOnUiThread(() -> panel.showNotes(() -> true, draft -> {}, null, "n-1"));
+                    assertTextVisible(activity.getString(R.string.panel_retry));
+                    assertTextNotVisible(readerMarker);
+                    boolean[] typed = {false};
+                    runTestOnUiThread(() -> {
+                        for (View root : WindowInspector.getGlobalWindowViews()) {
+                            View filter = root.findViewById(R.id.brain_notes_filter);
+                            if (filter instanceof android.widget.EditText et && et.isShown()) {
+                                et.setText("plan");
+                                typed[0] = true;
+                                break;
+                            }
                         }
-                    }
-                });
-                assertTrue("Expected visible notes filter EditText", typed[0]);
-                assertTextVisible(activity.getString(R.string.panel_retry));
-                assertTextNotVisible(readerMarker);
+                    });
+                    assertTrue("Expected visible notes filter EditText", typed[0]);
+                    assertTextVisible(activity.getString(R.string.panel_retry));
+                    assertTextNotVisible(readerMarker);
+                } finally {
+                    runTestOnUiThread(panel::close);
+                }
             } finally {
-                runTestOnUiThread(panel::close);
+                ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
             }
-        } finally {
-            ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
         }
     }
 

@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 @SuppressWarnings("deprecation")
 public final class AmbientIntelligenceTest extends InstrumentationTestCase {
@@ -47,10 +48,13 @@ public final class AmbientIntelligenceTest extends InstrumentationTestCase {
         Intent launch = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
         assertNotNull(launch);
         Activity activity = getInstrumentation().startActivitySync(launch);
-        java.util.concurrent.atomic.AtomicReference<HermesNotificationListener.ReplyOutcome> outcome =
-                new java.util.concurrent.atomic.AtomicReference<>();
-        java.util.concurrent.atomic.AtomicReference<HermesNotificationListener.ReplyOutcome> revokedOutcome =
-                new java.util.concurrent.atomic.AtomicReference<>();
+        AtomicReference<HermesNotificationListener.ReplyOutcome> outcome = new AtomicReference<>();
+        AtomicReference<HermesNotificationListener.ReplyOutcome> revokedOutcome = new AtomicReference<>();
+        AtomicReference<AmbientAccessPanel> panelRef = new AtomicReference<>();
+        AtomicReference<AmbientAccessPanel> closedPanelRef = new AtomicReference<>();
+        AtomicReference<AlertDialog> replyDialogRef = new AtomicReference<>();
+        AtomicReference<AlertDialog> mediaDialogRef = new AtomicReference<>();
+        AtomicReference<AlertDialog> revokedDialogRef = new AtomicReference<>();
         try {
             runTestOnUiThread(() -> {
                 Map<String, String> backing = new HashMap<>();
@@ -60,6 +64,7 @@ public final class AmbientIntelligenceTest extends InstrumentationTestCase {
                     @Override public void remove(String key) { backing.remove(key); }
                 });
                 AmbientAccessPanel panel = new AmbientAccessPanel(activity, allowlist, text -> {});
+                panelRef.set(panel);
                 View root = panel.buildView();
                 assertNotNull(root);
                 activity.setContentView(root);
@@ -69,27 +74,33 @@ public final class AmbientIntelligenceTest extends InstrumentationTestCase {
                         "Marie", "On déjeune ensemble ?", System.currentTimeMillis(), true, "Répondre");
                 AlertDialog replyDialog = HermesNotificationListener.showQuickReplyConfirmation(
                         activity, sample, "Avec plaisir !", outcome::set);
+                replyDialogRef.set(replyDialog);
                 assertTrue((replyDialog.getWindow().getAttributes().flags
                         & WindowManager.LayoutParams.FLAG_SECURE) != 0);
                 replyDialog.cancel();
+                replyDialogRef.set(null);
 
                 MediaContextBridge.NowPlaying track = new MediaContextBridge.NowPlaying(
                         "com.example.music", "Music", "Clair de Lune", "Debussy", "",
                         MediaContextBridge.PlaybackKind.PLAYING, 0, 120000);
                 AlertDialog mediaDialog = MediaContextBridge.showControlConfirmation(
                         activity, false, track, MediaContextBridge.ControlAction.PAUSE, null);
+                mediaDialogRef.set(mediaDialog);
                 assertTrue((mediaDialog.getWindow().getAttributes().flags
                         & WindowManager.LayoutParams.FLAG_SECURE) != 0);
                 mediaDialog.dismiss();
+                mediaDialogRef.set(null);
 
                 // Revoked live opt-in fails closed when confirm is invoked on an open quick-reply dialog.
                 // AlertDialog dispatches the positive click through its Handler, so assert after idle sync.
                 AlertDialog revokedDialog = HermesNotificationListener.showQuickReplyConfirmation(
                         activity, sample, "Bonjour", () -> false, revokedOutcome::set);
+                revokedDialogRef.set(revokedDialog);
                 revokedDialog.getButton(AlertDialog.BUTTON_POSITIVE).performClick();
 
                 panel.dismissDialogs();
                 panel.close();
+                panelRef.set(null);
 
                 // Closed encrypted profile store must never crash AmbientAccessPanel buildView or refreshAll.
                 NotificationAllowlist closedStoreAllowlist = NotificationAllowlist.forStore(new NotificationAllowlist.Store() {
@@ -98,10 +109,12 @@ public final class AmbientIntelligenceTest extends InstrumentationTestCase {
                     @Override public void remove(String key) { throw new IllegalStateException("Profile closed"); }
                 });
                 AmbientAccessPanel closedPanel = new AmbientAccessPanel(activity, closedStoreAllowlist, text -> {});
+                closedPanelRef.set(closedPanel);
                 View closedRoot = closedPanel.buildView();
                 assertNotNull(closedRoot);
                 closedPanel.refreshAll();
                 closedPanel.close();
+                closedPanelRef.set(null);
 
                 HermesNotificationListener.clearSession();
                 assertTrue(HermesNotificationListener.snapshot().isEmpty());
@@ -110,7 +123,32 @@ public final class AmbientIntelligenceTest extends InstrumentationTestCase {
             assertEquals(HermesNotificationListener.ReplyOutcome.CANCELLED, outcome.get());
             assertEquals(HermesNotificationListener.ReplyOutcome.FAILED, revokedOutcome.get());
         } finally {
-            ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+            try {
+                runTestOnUiThread(() -> {
+                    dismissIfShowing(replyDialogRef.getAndSet(null));
+                    dismissIfShowing(mediaDialogRef.getAndSet(null));
+                    dismissIfShowing(revokedDialogRef.getAndSet(null));
+                    AmbientAccessPanel openPanel = panelRef.getAndSet(null);
+                    if (openPanel != null) {
+                        openPanel.dismissDialogs();
+                        openPanel.close();
+                    }
+                    AmbientAccessPanel openClosedPanel = closedPanelRef.getAndSet(null);
+                    if (openClosedPanel != null) {
+                        openClosedPanel.dismissDialogs();
+                        openClosedPanel.close();
+                    }
+                    HermesNotificationListener.clearSession();
+                });
+            } finally {
+                ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+            }
+        }
+    }
+
+    private static void dismissIfShowing(AlertDialog dialog) {
+        if (dialog != null && dialog.isShowing()) {
+            dialog.dismiss();
         }
     }
 }

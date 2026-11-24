@@ -18,6 +18,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 @SuppressWarnings("deprecation")
 public final class UpdatePanelTest extends InstrumentationTestCase {
@@ -79,19 +80,32 @@ public final class UpdatePanelTest extends InstrumentationTestCase {
         Intent launch = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
         assertNotNull(launch);
         Activity activity = getInstrumentation().startActivitySync(launch);
+        AtomicReference<UpdatePanel> panelRef = new AtomicReference<>();
         try {
             runTestOnUiThread(() -> {
                 UpdatePanel panel = new UpdatePanel(activity);
+                panelRef.set(panel);
                 View view = panel.buildView();
                 assertNotNull(view);
                 activity.setContentView(view);
                 assertNotNull(UpdatePanel.installedVersionName(activity));
                 panel.dismissDialogs();
                 panel.close();
+                panelRef.set(null);
             });
             getInstrumentation().waitForIdleSync();
         } finally {
-            ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+            try {
+                UpdatePanel openPanel = panelRef.getAndSet(null);
+                if (openPanel != null) {
+                    runTestOnUiThread(() -> {
+                        openPanel.dismissDialogs();
+                        openPanel.close();
+                    });
+                }
+            } finally {
+                ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+            }
         }
     }
 }
