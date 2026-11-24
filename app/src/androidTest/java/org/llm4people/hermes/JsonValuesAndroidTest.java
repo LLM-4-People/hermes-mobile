@@ -4,6 +4,7 @@ import android.test.AndroidTestCase;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.llm4people.hermes.hub.NotesTasksModel;
 
 import java.util.List;
 import java.util.Map;
@@ -114,5 +115,72 @@ public final class JsonValuesAndroidTest extends AndroidTestCase {
         assertFalse(innerObj.containsKey("n"));
 
         assertEquals(Boolean.FALSE, converted.get(3));
+    }
+
+    public void testNotesTasksModelJsonObjectOverloadsMatchMapParsersWithJsonNull() throws Exception {
+        // Null and empty envelopes fail closed cleanly.
+        assertTrue(NotesTasksModel.parseNotes(null).isEmpty());
+        assertTrue(NotesTasksModel.parseNotes(new JSONObject()).isEmpty());
+        assertEquals(0, NotesTasksModel.parseReminders(null).total());
+        assertTrue(NotesTasksModel.parseReceivedShares(null).isEmpty());
+
+        JSONObject notesPayload = new JSONObject().put("notes", new JSONArray()
+                .put(JSONObject.NULL)
+                .put(new JSONObject()
+                        .put("id", "n-1")
+                        .put("title", "Regular")
+                        .put("content", "First\nSecond")
+                        .put("pinned", false)
+                        .put("updated_at", JSONObject.NULL))
+                .put(new JSONObject()
+                        .put("note_id", "n-2")
+                        .put("title", "Pinned")
+                        .put("body", "Priority")
+                        .put("pinned", true)
+                        .put("updated_at", "2026-11-24")));
+        List<NotesTasksModel.NoteRow> notes = NotesTasksModel.parseNotes(notesPayload);
+        assertEquals(NotesTasksModel.parseNotesMap(JsonValues.toMap(notesPayload)), notes);
+        assertEquals(2, notes.size());
+        assertEquals("n-2", notes.get(0).id());
+        assertTrue(notes.get(0).pinned());
+        assertEquals("First Second", notes.get(1).preview());
+
+        JSONObject remindersPayload = new JSONObject().put("jobs", new JSONArray()
+                .put(JSONObject.NULL)
+                .put(new JSONObject()
+                        .put("id", "j-ok")
+                        .put("name", "Morning")
+                        .put("prompt", "Briefing")
+                        .put("schedule_display", "08:00")
+                        .put("enabled", true)
+                        .put("last_status", JSONObject.NULL))
+                .put(new JSONObject()
+                        .put("job_id", "j-err")
+                        .put("title", "Sync")
+                        .put("message", "Retry")
+                        .put("schedule", "02:00")
+                        .put("enabled", true)
+                        .put("last_status", "FAILED")));
+        NotesTasksModel.ReminderOverview reminders = NotesTasksModel.parseReminders(remindersPayload);
+        assertEquals(NotesTasksModel.parseRemindersMap(JsonValues.toMap(remindersPayload)), reminders);
+        assertEquals(2, reminders.total());
+        assertEquals(1, reminders.attentionCount());
+        assertEquals("j-err", reminders.rows().get(0).id());
+
+        JSONObject sharesPayload = new JSONObject().put("data", new JSONArray()
+                .put(JSONObject.NULL)
+                .put(new JSONObject()
+                        .put("share_id", "s-1")
+                        .put("resource_kind", "NOTE")
+                        .put("title", JSONObject.NULL)
+                        .put("resource_id", "res-42")
+                        .put("owner_profile", "alice")
+                        .put("permission", "READ")));
+        List<NotesTasksModel.SharedRow> shares = NotesTasksModel.parseReceivedShares(sharesPayload);
+        assertEquals(NotesTasksModel.parseReceivedSharesMap(JsonValues.toMap(sharesPayload)), shares);
+        assertEquals(1, shares.size());
+        assertEquals("s-1", shares.get(0).shareId());
+        assertEquals("res-42", shares.get(0).displayTitle());
+        assertEquals("alice", shares.get(0).ownerProfile());
     }
 }

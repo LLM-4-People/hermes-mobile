@@ -42,8 +42,12 @@ public final class MobilePush {
     }
 
     public void openPolicy(Account account) {
+        openPolicy(account, null);
+    }
+
+    public void openPolicy(Account account, DeliveryRouter.Actions actions) {
         lock();
-        PushSettings flow = new PushSettings(activity, account);
+        PushSettings flow = new PushSettings(activity, account, actions);
         decor().setTag(R.id.push_settings_flow, flow);
         flow.showPolicyDialog();
     }

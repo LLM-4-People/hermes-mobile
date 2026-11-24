@@ -381,6 +381,16 @@ def check_sentence_case(text, lang):
                 continue
 
             if is_first:
+                # Check French elided first token (e.g. "L’Atelier" -> check "Atelier", "L’Auto-update" -> check "Auto").
+                if lang == "fr" and not _is_allowed_capitalized_word(token, lang):
+                    first_segment = re.split(r"[-+/]", token, maxsplit=1)[0]
+                    elided = FR_ELISION.match(first_segment)
+                    if elided:
+                        after = elided.group(1)
+                        if after and after[0].isupper() and any(c.islower() for c in after[1:]):
+                            if not _is_allowed_capitalized_word(after, lang):
+                                offenders.append(token)
+                                continue
                 # Even on the first word, reject Title-Case hyphenated compounds like "End-to-End".
                 if "-" in token and not _is_allowed_capitalized_word(token, lang):
                     parts = token.split("-")

@@ -8,6 +8,8 @@ import org.llm4people.hermes.os.LockGracePolicy;
 import org.llm4people.hermes.panel.SessionPanel;
 import org.llm4people.hermes.profile.Account;
 import org.llm4people.hermes.profile.ProfileGate;
+import org.llm4people.hermes.push.DeliveryRouter;
+import org.llm4people.hermes.push.MobilePush;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -84,6 +86,23 @@ public final class MainActivityR4RegressionTest {
                 Activity.class, Account.class, ProfileGate.class,
                 Runnable.class, Runnable.class, Runnable.class);
         assertEquals(AutoCloseable.class, showSecurity.getReturnType());
+    }
+
+    @Test
+    public void detachedSyncRevocationPolicyPreservesOnlyConfigChanges() {
+        assertTrue(MainActivity.shouldRevokeDetachedSyncs(false));
+        assertFalse(MainActivity.shouldRevokeDetachedSyncs(true));
+    }
+
+    @Test
+    public void pushPolicyAndReminderNotificationContractsExposeSharedCallbacks() throws Exception {
+        Method openPolicyWithActions = MobilePush.class.getMethod(
+                "openPolicy", Account.class, DeliveryRouter.Actions.class);
+        assertEquals(void.class, openPolicyWithActions.getReturnType());
+
+        Method setOpenNotifications = SessionPanel.class.getMethod(
+                "setOpenNotifications", Runnable.class);
+        assertEquals(void.class, setOpenNotifications.getReturnType());
     }
 
     @Test

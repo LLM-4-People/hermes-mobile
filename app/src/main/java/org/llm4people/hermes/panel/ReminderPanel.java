@@ -82,7 +82,7 @@ final class ReminderPanel {
         panel.note(page, panel.t(MobilePush.isEnabled(panel.activity, panel.account.id)
                 ? R.string.panel_push_on : R.string.panel_push_off));
         Button pushBtn = Ui.outlinedButton(panel.activity, panel.t(R.string.panel_push),
-                v -> new MobilePush(panel.activity).settings(panel.account));
+                v -> panel.openNotifications());
         page.addView(pushBtn, cardMargins());
         panel.note(page, panel.t(R.string.panel_push_status));
 

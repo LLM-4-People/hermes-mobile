@@ -174,6 +174,11 @@ public final class FirstRunWizard {
                 themeWillRecreate || localeChanged);
     }
 
+    @FunctionalInterface
+    interface ThrowingRunnable {
+        void run() throws Exception;
+    }
+
     /** Submit onboarding profile patch, tracking & revoking detached clients so lock/forget aborts them. */
     static Future<Boolean> submitProfileSync(
             HermesApi syncClient,
@@ -181,7 +186,20 @@ public final class FirstRunWizard {
             String slug,
             String editedName,
             String langCode) {
-        if (syncClient == null || slug == null || slug.isEmpty()) {
+        return submitProfileSync(syncClient, detached, slug, () -> {
+            JSONObject patch = new JSONObject();
+            if (editedName != null && !editedName.isEmpty()) patch.put("display_name", editedName);
+            patch.put("preferred_language", langCode);
+            syncClient.updateProfile(slug, patch);
+        });
+    }
+
+    static Future<Boolean> submitProfileSync(
+            HermesApi syncClient,
+            boolean detached,
+            String slug,
+            ThrowingRunnable work) {
+        if (syncClient == null || slug == null || slug.isEmpty() || work == null) {
             return CompletableFuture.completedFuture(false);
         }
         if (detached) {
@@ -191,11 +209,8 @@ public final class FirstRunWizard {
             return PROFILE_SYNC_IO.submit(() -> {
                 try {
                     if (syncClient.isRevoked()) return false;
-                    JSONObject patch = new JSONObject();
-                    if (editedName != null && !editedName.isEmpty()) patch.put("display_name", editedName);
-                    patch.put("preferred_language", langCode);
-                    syncClient.updateProfile(slug, patch);
-                    return true;
+                    work.run();
+                    return !syncClient.isRevoked();
                 } catch (Exception ignored) {
                     Diagnostics.debug("onboarding", "profile_pref_sync_skipped");
                     return false;
