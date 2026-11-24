@@ -248,7 +248,11 @@ public final class ProfileHubSheet implements AutoCloseable {
             }
             OnboardingModels.PairingTicket created = ticket;
             main.post(() -> {
-                if (closed || !canAct.getAsBoolean() || activity.isFinishing() || activity.isDestroyed()) return;
+                if (closed) return;
+                if (!canAct.getAsBoolean() || activity.isFinishing() || activity.isDestroyed()) {
+                    if (standalone) close();
+                    return;
+                }
                 if (created == null) {
                     Toast.makeText(activity, R.string.profile_hub_qr_unavailable, Toast.LENGTH_LONG).show();
                     if (standalone) close();
@@ -256,7 +260,7 @@ public final class ProfileHubSheet implements AutoCloseable {
                 }
                 if (shareSheet != null) shareSheet.close();
                 shareSheet = PairingShareSheet.show(activity, created, api, io, canAct,
-                        this::refreshRemoteState, standalone ? this::close : null);
+                        standalone ? null : this::refreshRemoteState, standalone ? this::close : null);
             });
         });
     }
@@ -679,7 +683,11 @@ public final class ProfileHubSheet implements AutoCloseable {
                     }
                     OnboardingModels.PairingTicket created = ticket;
                     main.post(() -> {
-                        if (closed || !canAct.getAsBoolean()) return;
+                        if (closed) return;
+                        if (!canAct.getAsBoolean() || activity.isFinishing() || activity.isDestroyed()) {
+                            if (standalone) close();
+                            return;
+                        }
                         if (created == null) {
                             Toast.makeText(activity, R.string.profile_hub_invite_failed, Toast.LENGTH_LONG).show();
                             if (standalone) close();
@@ -688,7 +696,7 @@ public final class ProfileHubSheet implements AutoCloseable {
                         if (!standalone) refreshRemoteState();
                         if (shareSheet != null) shareSheet.close();
                         shareSheet = PairingShareSheet.show(activity, created, api, io, canAct,
-                                this::refreshRemoteState, standalone ? this::close : null);
+                                standalone ? null : this::refreshRemoteState, standalone ? this::close : null);
                     });
                 });
             });

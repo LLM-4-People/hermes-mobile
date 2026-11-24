@@ -59,7 +59,8 @@ public final class IncomingMediaShare {
 
     public static synchronized String pending(Context context) {
         SharedPreferences prefs = prefs(context);
-        String id = pendingIdFromPrefs(prefs, System.currentTimeMillis());
+        String id = pendingIdFromPrefs(prefs, System.currentTimeMillis(),
+                expiredId -> deleteSealedBlob(context, expiredId));
         if (id == null) return null;
         if (sealedFile(context, id).isFile()) return id;
         discard(context, id);
@@ -67,6 +68,11 @@ public final class IncomingMediaShare {
     }
 
     static String pendingIdFromPrefs(SharedPreferences prefs, long nowMs) {
+        return pendingIdFromPrefs(prefs, nowMs, null);
+    }
+
+    static String pendingIdFromPrefs(SharedPreferences prefs, long nowMs,
+                                     java.util.function.Consumer<String> onDeleteBlob) {
         if (prefs == null) return null;
         String id;
         try {
@@ -79,8 +85,17 @@ public final class IncomingMediaShare {
         if (id == null) return null;
         long remaining = expiry(prefs) - nowMs;
         if (remaining > 0 && remaining <= LIFETIME) return id;
+        if (onDeleteBlob != null) onDeleteBlob.accept(id);
         clearCorruptPrefs(prefs);
         return null;
+    }
+
+    private static void deleteSealedBlob(Context context, String id) {
+        if (context == null || id == null || id.isEmpty()) return;
+        File blob = sealedFile(context, id);
+        if (blob.exists() && !blob.delete()) {
+            Diagnostics.warning("share", "media_blob_delete_failed");
+        }
     }
 
     /** Stage 1..MAX_ITEMS sanitized items in one encrypted blob; never overwrites an existing pending share. */
@@ -183,10 +198,7 @@ public final class IncomingMediaShare {
             return;
         }
         if (id == null || !id.equals(storedId)) return;
-        File blob = sealedFile(context, id);
-        if (blob.exists() && !blob.delete()) {
-            Diagnostics.warning("share", "media_blob_delete_failed");
-        }
+        deleteSealedBlob(context, id);
         Map<String, String> cleared = new HashMap<>();
         cleared.put("id", null);
         cleared.put("expires", null);

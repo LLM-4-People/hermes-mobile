@@ -54,10 +54,40 @@ public final class CorruptSharePrefsFailClosedTest {
         assertTrue(Diagnostics.exportRedacted().contains("share.text_expiry_corrupt"));
 
         boolean[] mediaCommitted = {false};
+        String[] deletedBlobId = {null};
         SharedPreferences badMediaExpiry = corruptExpiryPrefs("receipt-2", mediaCommitted);
-        assertNull(IncomingMediaShare.pendingIdFromPrefs(badMediaExpiry, 1_000_000L));
+        assertNull(IncomingMediaShare.pendingIdFromPrefs(badMediaExpiry, 1_000_000L, id -> deletedBlobId[0] = id));
         assertTrue(mediaCommitted[0]);
+        assertTrue("Corrupt-expiry media share must delete its sealed .enc blob", "receipt-2".equals(deletedBlobId[0]));
         assertTrue(Diagnostics.exportRedacted().contains("share.media_expiry_corrupt"));
+
+        // Normal expired media share must ALSO delete its sealed .enc blob and clear prefs
+        boolean[] expiredCommitted = {false};
+        String[] expiredDeletedId = {null};
+        SharedPreferences expiredMedia = validPrefs("receipt-expired", "500000", expiredCommitted);
+        assertNull(IncomingMediaShare.pendingIdFromPrefs(expiredMedia, 1_000_000L, id -> expiredDeletedId[0] = id));
+        assertTrue(expiredCommitted[0]);
+        assertTrue("Expired media share must delete its sealed .enc blob", "receipt-expired".equals(expiredDeletedId[0]));
+    }
+
+    private static SharedPreferences validPrefs(String idValue, String expiresValue, boolean[] committed) {
+        SharedPreferences.Editor editor = editorProxy(committed);
+        Map<String, Object> snapshot = new HashMap<>();
+        snapshot.put("id", idValue);
+        snapshot.put("expires", expiresValue);
+        return (SharedPreferences) Proxy.newProxyInstance(
+                SharedPreferences.class.getClassLoader(),
+                new Class<?>[]{SharedPreferences.class},
+                (proxy, method, args) -> switch (method.getName()) {
+                    case "getString" -> {
+                        if ("id".equals(args[0])) yield idValue;
+                        if ("expires".equals(args[0])) yield expiresValue;
+                        yield args[1];
+                    }
+                    case "getAll" -> snapshot;
+                    case "edit" -> editor;
+                    default -> null;
+                });
     }
 
     private static SharedPreferences corruptPrefs(String key, Object value, boolean[] committed) {
