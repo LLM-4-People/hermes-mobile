@@ -8,7 +8,10 @@ case "$suite" in
   all|core|native|live-core|journeys) ;;
   *) echo "Unknown HERMES_DEVICE_SUITE: $suite (expected all, core, native, live-core, or journeys)" >&2; exit 2 ;;
 esac
+# shellcheck source=ci/emulator-ready.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/emulator-ready.sh"
 device=$(adb get-serialno)
+wait_emulator_ready "$device"
 app_apk=app/build/outputs/apk/debug/app-debug.apk
 test_apk=app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
 adb -s "$device" install -r -t "$app_apk"

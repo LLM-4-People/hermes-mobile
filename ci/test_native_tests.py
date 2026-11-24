@@ -112,7 +112,13 @@ java.lang.NoClassDefFoundError: private content
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
             expected = {("app.FrameworkTest", "testPass"), ("app.FrameworkTest", "testHung")}
-            def adb(command, *, stdout, stderr, timeout=None):
+            def adb(command, *, stdout=None, stderr=None, capture_output=False, text=False, errors=None, timeout=None):
+                if capture_output:
+                    if command[3:6] == ["shell", "dumpsys", "window"]:
+                        return subprocess.CompletedProcess(command, 0, "  mCurrentFocus=Window{9 u0 org.llm4people.hermes/.MainActivity}\n", "")
+                    if command[3:6] == ["shell", "dumpsys", "activity"]:
+                        return subprocess.CompletedProcess(command, 0, "  topResumedActivity: ActivityRecord{1 u0 org.llm4people.hermes/.MainActivity}\n", "")
+                    return subprocess.CompletedProcess(command, 0, "", "")
                 if "log" in command:
                     stdout.write(
                         status("testPass", 1, 2) + status("testPass", 0, 2)
@@ -128,6 +134,11 @@ java.lang.NoClassDefFoundError: private content
                   self.assertRaisesRegex(ValueError, r"timed out.*completed 1/2.*app\.FrameworkTest#testHung")):
                 run("serial", directory, expected)
             self.assertIn("app.FrameworkTest#testHung", log.getvalue())
+            diag_file = directory / "timeout-diag.txt"
+            self.assertTrue(diag_file.is_file())
+            diag_text = diag_file.read_text()
+            self.assertIn("window_focus: mCurrentFocus=Window{9 u0 org.llm4people.hermes/.MainActivity}", diag_text)
+            self.assertIn("resumed_activity: topResumedActivity: ActivityRecord{1 u0 org.llm4people.hermes/.MainActivity}", diag_text)
             self.assertEqual(
                 in_flight_cases(status("testPass", 1, 2) + status("testPass", 0, 2) + status("testHung", 1, 2)),
                 (1, [("app.FrameworkTest", "testHung")]),

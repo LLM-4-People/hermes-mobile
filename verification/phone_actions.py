@@ -315,18 +315,44 @@ def leave_receiver(ui, package, kind):
                    not ui.device.ime_shown())
     if not focused(ui.device).startswith(package + "/"):
         return
-    ui.device.shell("input", "keyevent", "BACK")
+    last_back = None
+    last_discard = None
+
+    def cooldown_elapsed(last_action, now):
+        return last_action is None or now - last_action >= TAP_RETRY_COOLDOWN_SECONDS
+
     if kind == "calendar_event":
         def discarded():
+            nonlocal last_back, last_discard
             if not focused(ui.device).startswith(package + "/"):
                 return True
+            now = monotonic()
             node = ui.node("Discard")
             if node is not None and node.get("package") == package:
-                ui.tap_node(node)
+                if cooldown_elapsed(last_discard, now):
+                    ui.tap_node(node)
+                    last_discard = now
+                return False
+            if cooldown_elapsed(last_back, now):
+                ui.device.shell("input", "keyevent", "BACK")
+                last_back = now
             return False
+
         eventually("the unsaved calendar draft to close", discarded)
     elif kind == "share_text":
-        eventually("the native sharesheet to close", lambda: not focused(ui.device).startswith(package + "/"))
+        def closed():
+            nonlocal last_back
+            if not focused(ui.device).startswith(package + "/"):
+                return True
+            now = monotonic()
+            if cooldown_elapsed(last_back, now):
+                ui.device.shell("input", "keyevent", "BACK")
+                last_back = now
+            return False
+
+        eventually("the native sharesheet to close", closed)
+    else:
+        ui.device.shell("input", "keyevent", "BACK")
 
 
 def review(ui, kind, request, output, full_screen):

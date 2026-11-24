@@ -1,5 +1,5 @@
-name: Pristine Android AVD snapshot cache
-description: Enable KVM and restore or warm-and-save one clean, untouched Google APIs AVD quick-boot snapshot before any tests mutate the emulator.
+name: Pristine Android AVD disk cache
+description: Enable KVM, resiliently install emulator SDK packages, and restore or warm-and-save one clean, snapshot-free Google APIs AVD disk image before any tests mutate the emulator.
 inputs:
   api-level:
     description: Android API level for the Google APIs emulator
@@ -14,15 +14,23 @@ runs:
     - name: Enable KVM
       shell: bash
       run: sudo chmod a+rw /dev/kvm
-    - name: Restore pristine AVD snapshot
+    - name: Pre-install Android emulator SDK packages with retries
+      shell: bash
+      run: |
+        bash ci/emulator-sdk.sh \
+          emulator \
+          platform-tools \
+          "platforms;android-${{ inputs.api-level }}" \
+          "system-images;android-${{ inputs.api-level }};google_apis;x86_64"
+    - name: Restore pristine AVD disk image
       id: avd-cache
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: |
           ~/.android/avd/*
           ~/.android/adb*
-        key: avd-v1-${{ runner.os }}-api${{ inputs.api-level }}-google_apis-x86_64-${{ inputs.avd-name }}
-    - name: Warm pristine AVD snapshot on cache miss
+        key: avd-v2-${{ runner.os }}-api${{ inputs.api-level }}-google_apis-x86_64-${{ inputs.avd-name }}
+    - name: Warm pristine AVD disk image on cache miss
       if: steps.avd-cache.outputs.cache-hit != 'true'
       uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
       with:
@@ -31,14 +39,20 @@ runs:
         arch: x86_64
         avd-name: ${{ inputs.avd-name }}
         force-avd-creation: true
-        emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+        emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-load -no-snapshot-save -camera-back none -camera-front none -memory 3072
         disable-animations: true
-        script: echo "Warmed pristine AVD snapshot for API ${{ inputs.api-level }}"
-    - name: Save pristine AVD snapshot immediately before test mutations
+        disable-spellchecker: true
+        emulator-boot-timeout: 300
+        script: echo "Warmed pristine AVD disk image for API ${{ inputs.api-level }}"
+    - name: Strip host-specific QEMU snapshots before caching AVD
+      if: steps.avd-cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: rm -rf ~/.android/avd/*.avd/snapshots
+    - name: Save pristine AVD disk image immediately before test mutations
       if: steps.avd-cache.outputs.cache-hit != 'true'
       uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: |
           ~/.android/avd/*
           ~/.android/adb*
-        key: avd-v1-${{ runner.os }}-api${{ inputs.api-level }}-google_apis-x86_64-${{ inputs.avd-name }}
+        key: avd-v2-${{ runner.os }}-api${{ inputs.api-level }}-google_apis-x86_64-${{ inputs.avd-name }}

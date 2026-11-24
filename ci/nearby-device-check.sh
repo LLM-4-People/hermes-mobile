@@ -3,7 +3,10 @@
 set -euo pipefail
 # shellcheck source=ci/emulator-offline.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/emulator-offline.sh"
+# shellcheck source=ci/emulator-ready.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/emulator-ready.sh"
 serial=$(adb get-serialno)
+wait_emulator_ready "$serial"
 app=app/build/outputs/apk/debug/app-debug.apk
 tests=app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
 evidence="$RUNNER_TEMP/hermes-nearby"

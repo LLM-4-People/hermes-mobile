@@ -310,6 +310,74 @@ class PhoneActionsTransitionTest(unittest.TestCase):
                 self.assertIn("Use a dedicated emulator in airplane mode with Wi-Fi disabled", msg)
                 self.assertIn(expected_detail, msg)
 
+    def test_leave_receiver_retries_swallowed_back_and_discard_for_calendar_draft(self):
+        calendar_act = "topResumedActivity: ActivityRecord{3 u0 org.fossify.calendar/.EventActivity t1}"
+        editor = node_tree("Atelier de dessin", package=phone_actions.CALENDAR, window_id="30")
+        discard_dialog = node_tree("Discard changes?", "Discard", "Cancel", package=phone_actions.CALENDAR, window_id="31")
+
+        # 1. Initial check in calendar; 2. First BACK swallowed (still editor);
+        # 3. Second BACK opens discard dialog -> tap Discard (swallowed);
+        # 4. Retry tap Discard -> returns to MainActivity.
+        activities = iter([
+            calendar_act,  # initial focus check
+            calendar_act,  # poll 1 -> BACK #1
+            calendar_act,  # poll 2 -> BACK #2 (after cooldown)
+            calendar_act,  # poll 3 -> Discard #1
+            calendar_act,  # poll 4 -> Discard #2 (after cooldown)
+            MAIN_ACTIVITY, # poll 5 -> left calendar!
+        ])
+        hierarchies = iter([editor, editor, discard_dialog, discard_dialog])
+        backs = []
+        taps = []
+        device = Mock()
+        device.ime_shown.return_value = False
+
+        def shell(*args):
+            if args == ("dumpsys", "activity", "activities"):
+                return next(activities)
+            if args == ("input", "keyevent", "BACK"):
+                backs.append(args)
+                return ""
+            if args[:2] == ("input", "tap"):
+                taps.append(args[2:])
+                return ""
+            raise AssertionError(f"Unexpected shell call: {args!r}")
+
+        device.shell.side_effect = shell
+        ui = Screen(device, Mock(), lang="en")
+        ui.hierarchy = Mock(side_effect=lambda: next(hierarchies))
+        step = TAP_RETRY_COOLDOWN_SECONDS + 0.5
+        clock = [10.0 + step * i for i in range(6)]
+        with patch("verification.unifiedpush.stack.time.sleep"), patch.object(
+            phone_actions, "monotonic", side_effect=clock
+        ):
+            phone_actions.leave_receiver(ui, phone_actions.CALENDAR, "calendar_event")
+        self.assertEqual(len(backs), 2)
+        self.assertEqual(len(taps), 2)
+
+    def test_leave_receiver_retries_swallowed_back_for_sharesheet(self):
+        activities = iter([CHOOSER_ACTIVITY, CHOOSER_ACTIVITY, CHOOSER_ACTIVITY, MAIN_ACTIVITY])
+        backs = []
+        device = Mock()
+        device.ime_shown.return_value = False
+
+        def shell(*args):
+            if args == ("dumpsys", "activity", "activities"):
+                return next(activities)
+            if args == ("input", "keyevent", "BACK"):
+                backs.append(args)
+                return ""
+            raise AssertionError(f"Unexpected shell call: {args!r}")
+
+        device.shell.side_effect = shell
+        ui = Screen(device, Mock(), lang="en")
+        step = TAP_RETRY_COOLDOWN_SECONDS + 0.5
+        with patch("verification.unifiedpush.stack.time.sleep"), patch.object(
+            phone_actions, "monotonic", side_effect=[10.0, 10.0 + step]
+        ):
+            phone_actions.leave_receiver(ui, "com.android.intentresolver", "share_text")
+        self.assertEqual(len(backs), 2)
+
 
 if __name__ == "__main__":
     unittest.main()

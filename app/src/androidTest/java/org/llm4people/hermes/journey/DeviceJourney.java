@@ -52,9 +52,14 @@ public final class DeviceJourney extends Instrumentation {
             runOnMainSync(() -> {
                 if (resumed == null || resumed.isDestroyed() || resumed.isFinishing()) return;
                 View root = resumed.getWindow().getDecorView();
-                observed[0] = root.getWidth() + "×" + root.getHeight();
-                if (root.hasWindowFocus() && root.getWidth() == width && root.getHeight() == height) {
+                boolean focused = root.hasWindowFocus();
+                observed[0] = root.getWidth() + "×" + root.getHeight() + " (focus=" + focused + ")";
+                if (focused && root.getWidth() == width && root.getHeight() == height) {
                     ready[0] = resumed;
+                } else if (!focused && root.getWidth() == width && root.getHeight() == height) {
+                    resumed.setTurnScreenOn(true);
+                    resumed.setShowWhenLocked(true);
+                    root.requestFocus();
                 }
             });
             if (ready[0] != null) return ready[0];

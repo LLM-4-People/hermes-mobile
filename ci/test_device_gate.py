@@ -57,6 +57,20 @@ if sys.argv[3:] == ["shell", "settings", "get", "global", "airplane_mode_on"]:
     print(os.environ.get("FIXTURE_AIRPLANE_ON", "1"))
 if sys.argv[3:] == ["shell", "settings", "get", "global", "wifi_on"]:
     print(os.environ.get("FIXTURE_WIFI_ON", "0"))
+if sys.argv[3:] == ["shell", "getprop", "sys.boot_completed"]:
+    seq_env = os.environ.get("FIXTURE_BOOT_SEQ")
+    if seq_env:
+        counter = Path(os.environ["GATE_COMMANDS"]).with_suffix(".boot")
+        idx = int(counter.read_text()) if counter.exists() else 0
+        items = seq_env.split(",")
+        counter.write_text(str(idx + 1))
+        print(items[min(idx, len(items) - 1)])
+    else:
+        print(os.environ.get("FIXTURE_BOOT_COMPLETED", "1"))
+if sys.argv[3:] == ["shell", "pm", "path", "android"]:
+    print(os.environ.get("FIXTURE_PM_ANDROID", "package:/system/framework/framework-res.apk"))
+if sys.argv[3:] == ["shell", "dumpsys", "window"]:
+    print(os.environ.get("FIXTURE_WINDOW_DUMP", "mCurrentFocus=Window{1 u0 com.android.launcher/.Launcher}"))
 if sys.argv[1:] == ["get-serialno"]:
     print(os.environ.get("FIXTURE_ADB_SERIAL", "emulator-fixture"))
 if Path(sys.argv[0]).name == "dexdump":
@@ -102,7 +116,8 @@ class DeviceGateTest(unittest.TestCase):
         self.trace.touch()
         ci = self.root / "ci"
         ci.mkdir()
-        for name in ("native_tests.py", "emulator-offline.sh", "phone-action-check.sh", "nearby-device-check.sh"):
+        for name in ("native_tests.py", "emulator-offline.sh", "emulator-ready.sh", "emulator-sdk.sh",
+                     "phone-action-check.sh", "nearby-device-check.sh"):
             shutil.copyfile(GATE.with_name(name), ci / name)
         apk = self.root / TEST_APK
         apk.parent.mkdir(parents=True)
@@ -120,6 +135,7 @@ class DeviceGateTest(unittest.TestCase):
         env = {**os.environ, "RUNNER_TEMP": str(self.runner), "GATE_COMMANDS": str(self.trace),
                "ANDROID_BUILD_TOOLS": str(self.build_tools),
                "PATH": str(self.root / "bin") + os.pathsep + os.environ["PATH"],
+               "EMULATOR_READY_POLL_SECONDS": "0",
                "EMULATOR_OFFLINE_POLL_SECONDS": "0",
                "EMULATOR_OFFLINE_REQUIRED_HITS": "2",
                "FAIL_VERIFIER": fail, "EXECUTION_STATUS": str(execution_status), **changes}
@@ -136,6 +152,7 @@ class DeviceGateTest(unittest.TestCase):
         env = {**os.environ, "RUNNER_TEMP": str(self.runner), "GATE_COMMANDS": str(self.trace),
                "ANDROID_BUILD_TOOLS": str(self.build_tools),
                "PATH": str(self.root / "bin") + os.pathsep + os.environ["PATH"],
+               "EMULATOR_READY_POLL_SECONDS": "0",
                "EMULATOR_OFFLINE_POLL_SECONDS": "0",
                "EMULATOR_OFFLINE_REQUIRED_HITS": "2",
                "FIXTURE_ADB_SERIAL": HANDOFF[2], **changes}
@@ -213,8 +230,11 @@ class DeviceGateTest(unittest.TestCase):
     def test_journeys_use_the_packaged_apks_and_their_own_emulator(self):
         result, calls = self.gate()
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(calls[:8], [
-            ["adb", "get-serialno"],
+        install_idx = calls.index([*ADB, "install", "-r", "-t", APP_APK])
+        self.assertEqual(calls[0], ["adb", "get-serialno"])
+        self.assertIn([*ADB, "shell", "getprop", "sys.boot_completed"], calls[:install_idx])
+        self.assertIn([*ADB, "shell", "wm", "dismiss-keyguard"], calls[:install_idx])
+        self.assertEqual(calls[install_idx:install_idx + 7], [
             [*ADB, "install", "-r", "-t", APP_APK], [*ADB, "install", "-r", "-t", TEST_APK],
             ["dexdump", "-l", "xml", TEST_APK],
             [*INSTRUMENT, "-e", "log", "true", FRAMEWORK], [*INSTRUMENT, FRAMEWORK],
@@ -226,7 +246,7 @@ class DeviceGateTest(unittest.TestCase):
         for phase in ("discovery", "execution"):
             saved = self.runner / "android-instrumentation" / f"{phase}.txt"
             self.assertEqual(saved.read_text(), (self.root / f"{phase}.txt").read_text())
-        verifiers = [cmd for cmd in calls[8:] if cmd[0] == "python"]
+        verifiers = [cmd for cmd in calls[install_idx + 7:] if cmd[0] == "python"]
         self.assertEqual([cmd[:2] for cmd in verifiers], [["python", "-B"]] * 6)
         self.assertEqual([cmd[2] for cmd in verifiers], [
             "verification/live_api.py", "verification/conversation_cards.py", "verification/thread_instruments.py",
@@ -318,6 +338,7 @@ class DeviceGateTest(unittest.TestCase):
         env = {**os.environ, "RUNNER_TEMP": str(self.runner), "GATE_COMMANDS": str(self.trace),
                "ANDROID_BUILD_TOOLS": str(self.build_tools),
                "PATH": str(self.root / "bin") + os.pathsep + os.environ["PATH"],
+               "EMULATOR_READY_POLL_SECONDS": "0",
                "EMULATOR_OFFLINE_POLL_SECONDS": "0",
                "EMULATOR_OFFLINE_REQUIRED_HITS": "2",
                "FIXTURE_ADB_SERIAL": "emulator-nearby", **changes}
@@ -335,17 +356,29 @@ class DeviceGateTest(unittest.TestCase):
         self.assertIn("ReactiveCircus/android-emulator-runner@", nearby_step)
         self.assertIn("target: google_apis", nearby_step)
         self.assertIn("avd-name: hermes-ci", nearby_step)
-        self.assertIn("-no-snapshot-save", nearby_step)
+        self.assertIn("-no-snapshot-load -no-snapshot-save", nearby_step)
+        self.assertIn("disable-spellchecker: true", nearby_step)
         self.assertIn("script: bash ci/nearby-device-check.sh", nearby_step)
         self.assertNotIn("if:", nearby_step)
         self.assertNotIn("continue-on-error", nearby_step)
         self.assertIn("name: android-nearby-restaurants", rest)
         self.assertIn("${{ runner.temp }}/hermes-nearby/nearby.json", rest)
 
+        # Every emulator job in checks.yml must boot snapshot-free to avoid cross-VM Vulkan/snapshot corruption.
+        self.assertEqual(workflow.count("-no-snapshot-load -no-snapshot-save"), 6)
+        self.assertEqual(workflow.count("disable-spellchecker: true"), 6)
+
         avd_action = (GATE.parents[1] / ".github/actions/avd-cache/action.yml").read_text()
+        self.assertIn("bash ci/emulator-sdk.sh", avd_action)
+        self.assertIn("avd-v2-", avd_action)
+        self.assertIn("rm -rf ~/.android/avd/*.avd/snapshots", avd_action)
         self.assertIn("actions/cache/restore@", avd_action)
         self.assertIn("actions/cache/save@", avd_action)
-        self.assertLess(avd_action.index("Warm pristine AVD snapshot"), avd_action.index("actions/cache/save@"))
+        self.assertLess(avd_action.index("Warm pristine AVD disk image"), avd_action.index("actions/cache/save@"))
+
+        unified_push = (GATE.parents[1] / ".github/workflows/unified-push.yml").read_text()
+        self.assertIn("bash ci/emulator-sdk.sh emulator platform-tools", unified_push)
+        self.assertIn("disable-spellchecker: true", unified_push)
 
         labeler = (GATE.parents[1] / ".github/workflows/pr-labeler.yml").read_text()
         self.assertIn("issues: write", labeler)
@@ -389,6 +422,7 @@ class DeviceGateTest(unittest.TestCase):
             "GATE_COMMANDS": str(self.trace),
             "ANDROID_BUILD_TOOLS": str(self.build_tools),
             "PATH": str(self.root / "bin") + os.pathsep + os.environ["PATH"],
+            "EMULATOR_READY_POLL_SECONDS": "0",
             "EMULATOR_OFFLINE_POLL_SECONDS": "0",
             "FIXTURE_ADB_SERIAL": "emulator-nearby",
             "FIXTURE_CONNECTIVITY_SEQ": seq,
@@ -445,3 +479,68 @@ class DeviceGateTest(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("com.google.android.apps.maps", result.stderr)
         self.assertNotIn("verification.nearby_restaurants", [arg for cmd in calls for arg in cmd])
+
+    def test_emulator_ready_retries_until_boot_completes_and_fails_cleanly_on_timeout(self):
+        result, calls = self.gate(
+            suite="native",
+            include_handoff=False,
+            HERMES_NATIVE_SHARD="0/1",
+            FIXTURE_BOOT_SEQ="0,,1",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(calls.count([*ADB, "shell", "getprop", "sys.boot_completed"]), 3)
+        self.assertIn([*ADB, "shell", "wm", "dismiss-keyguard"], calls)
+        self.assertIn([*ADB, "shell", "settings", "put", "global", "anr_show_background", "0"], calls)
+
+        self.trace.write_text("")
+        failed, calls = self.gate(
+            suite="native",
+            include_handoff=False,
+            FIXTURE_BOOT_COMPLETED="0",
+            EMULATOR_READY_MAX_ATTEMPTS="3",
+        )
+        self.assertEqual(failed.returncode, 1)
+        self.assertIn("did not become ready", failed.stderr)
+        self.assertFalse(any("install" in cmd for cmd in calls))
+
+    def test_emulator_sdk_helper_retries_corrupt_zip_cleans_installer_and_fails_when_exhausted(self):
+        sdk_root = self.root / "fake-sdk"
+        (sdk_root / "emulator/.installer").mkdir(parents=True)
+        (sdk_root / ".temp").mkdir(parents=True)
+        counter = self.root / "sdk-attempts.txt"
+        fake_sdkmanager = self.root / "bin/fake-sdkmanager"
+        fake_sdkmanager.write_text(
+            "#!/usr/bin/env python3\n"
+            "import os, sys\n"
+            "from pathlib import Path\n"
+            "c = Path(os.environ['SDK_COUNTER'])\n"
+            "n = int(c.read_text()) + 1 if c.exists() else 1\n"
+            "c.write_text(str(n))\n"
+            "fail_until = int(os.environ.get('SDK_FAIL_UNTIL', '1'))\n"
+            "if n <= fail_until:\n"
+            "    print('Warning: An error occurred while preparing SDK package Android Emulator: Error on ZipFile unknown archive.')\n"
+            "    sys.exit(0)\n"
+            "print('done')\n"
+        )
+        fake_sdkmanager.chmod(0o755)
+        env = {
+            **os.environ,
+            "ANDROID_HOME": str(sdk_root),
+            "HERMES_SDKMANAGER_BIN": str(fake_sdkmanager),
+            "HERMES_SDK_INSTALL_RETRIES": "3",
+            "HERMES_SDK_RETRY_DELAY_SECONDS": "0",
+            "SDK_COUNTER": str(counter),
+            "SDK_FAIL_UNTIL": "1",
+        }
+        ok = subprocess.run(["bash", GATE.with_name("emulator-sdk.sh"), "emulator"], env=env, text=True, capture_output=True)
+        self.assertEqual(ok.returncode, 0, ok.stderr)
+        self.assertEqual(counter.read_text(), "2")
+        self.assertFalse((sdk_root / "emulator/.installer").exists())
+        self.assertFalse((sdk_root / ".temp").exists())
+
+        counter.unlink()
+        env["SDK_FAIL_UNTIL"] = "5"
+        exhausted = subprocess.run(["bash", GATE.with_name("emulator-sdk.sh"), "emulator"], env=env, text=True, capture_output=True)
+        self.assertEqual(exhausted.returncode, 1)
+        self.assertIn("failed after 3 attempts", exhausted.stderr)
+        self.assertEqual(counter.read_text(), "3")
