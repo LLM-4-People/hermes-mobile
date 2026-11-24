@@ -10,6 +10,8 @@ import android.net.Uri;
 import android.provider.CalendarContract;
 import android.text.format.Formatter;
 import android.view.View;
+import android.widget.Button;
+import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -55,6 +57,9 @@ public final class DeliveryRouter {
     private final DeliveryInbox inbox;
     private final Actions actions;
     private AlertDialog activeDialog;
+    private AlertDialog inboxDialog;
+    private int inboxEpoch;
+    private boolean dismissed;
 
     public DeliveryRouter(Activity activity, Account account, HermesApi api, DeliveryInbox inbox, Actions actions) {
         this.activity = Objects.requireNonNull(activity, "activity");
@@ -99,49 +104,77 @@ public final class DeliveryRouter {
     }
 
     public void dismiss() {
+        dismissed = true;
+        inboxEpoch++;
+        inboxDialog = null;
         if (activeDialog != null) {
-            activeDialog.dismiss();
+            try { activeDialog.dismiss(); } catch (RuntimeException ignored) {}
             activeDialog = null;
+        }
+        if (api != null) {
+            api.revoke();
         }
     }
 
     public void showInbox() {
+        dismissed = false;
+        int epoch = ++inboxEpoch;
         List<DeliveryItem> local = inbox.cached(account);
-        present(buildInboxDialog(local, null));
-        if (api != null) refreshInBackground();
+        presentInbox(buildInboxDialog(local, null), epoch);
+        if (api != null) refreshInBackground(epoch, inboxDialog);
     }
 
-    private void refreshInBackground() {
+    private void refreshInBackground(int expectedEpoch, AlertDialog expectedInboxDialog) {
+        if (dismissed || api == null || api.isRevoked()) return;
         PushConnection.WORK.execute(() -> {
             try {
                 List<DeliveryItem> updated = inbox.sync(account, api);
                 activity.runOnUiThread(() -> {
-                    if (!activity.isFinishing() && !activity.isDestroyed() && activeDialog != null && activeDialog.isShowing()) {
-                        present(buildInboxDialog(updated, null));
+                    if (canRefreshInbox(expectedEpoch, expectedInboxDialog)) {
+                        presentInbox(buildInboxDialog(updated, null), expectedEpoch);
                     }
                 });
             } catch (Exception failure) {
                 Diagnostics.warning("push", "inbox_sync_failed", failure);
                 activity.runOnUiThread(() -> {
-                    if (!activity.isFinishing() && !activity.isDestroyed() && activeDialog != null && activeDialog.isShowing()) {
-                        present(buildInboxDialog(inbox.cached(account),
-                                activity.getString(R.string.push_inbox_sync_error)));
+                    if (canRefreshInbox(expectedEpoch, expectedInboxDialog)) {
+                        presentInbox(buildInboxDialog(inbox.cached(account),
+                                activity.getString(R.string.push_inbox_sync_error)), expectedEpoch);
                     }
                 });
             }
         });
     }
 
+    private boolean canRefreshInbox(int expectedEpoch, AlertDialog expectedInboxDialog) {
+        return !dismissed
+                && expectedEpoch == inboxEpoch
+                && !activity.isFinishing()
+                && !activity.isDestroyed()
+                && expectedInboxDialog != null
+                && activeDialog == expectedInboxDialog
+                && activeDialog.isShowing();
+    }
+
     AlertDialog.Builder buildInboxDialog(List<DeliveryItem> items, String statusNote) {
         LinearLayout box = Ui.column(activity);
         Ui.pad(box, 16, 12);
 
+        HorizontalScrollView toolbarScroll = new HorizontalScrollView(activity);
+        toolbarScroll.setHorizontalScrollBarEnabled(false);
         LinearLayout toolbar = Ui.row(activity);
-        toolbar.addView(Ui.button(activity, activity.getString(R.string.push_inbox_refresh),
-                v -> { if (api != null) refreshInBackground(); }));
-        toolbar.addView(Ui.button(activity, activity.getString(R.string.push_policy_button),
-                v -> actions.openPushPolicy()));
-        box.addView(toolbar);
+        Button refreshBtn = Ui.outlinedButton(activity, activity.getString(R.string.push_inbox_refresh), v -> {
+            if (api != null && !dismissed) refreshInBackground(inboxEpoch, inboxDialog);
+        });
+        toolbar.addView(refreshBtn);
+        Button policyBtn = Ui.outlinedButton(activity, activity.getString(R.string.push_policy_button),
+                v -> actions.openPushPolicy());
+        LinearLayout.LayoutParams policyLp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        policyLp.setMarginStart(Ui.dp(activity, 8));
+        toolbar.addView(policyBtn, policyLp);
+        toolbarScroll.addView(toolbar);
+        box.addView(toolbarScroll);
 
         if (statusNote != null && !statusNote.isEmpty()) {
             TextView note = Ui.text(activity, statusNote, 14);
@@ -487,9 +520,22 @@ public final class DeliveryRouter {
         });
     }
 
+    private void presentInbox(AlertDialog.Builder builder, int epoch) {
+        if (dismissed || epoch != inboxEpoch || activity.isFinishing() || activity.isDestroyed()) return;
+        if (activeDialog != null) {
+            try { activeDialog.dismiss(); } catch (RuntimeException ignored) {}
+        }
+        activeDialog = Ui.secureDialog(builder);
+        inboxDialog = activeDialog;
+    }
+
     private void present(AlertDialog.Builder builder) {
-        if (activity.isFinishing() || activity.isDestroyed()) return;
-        if (activeDialog != null) activeDialog.dismiss();
+        if (dismissed || activity.isFinishing() || activity.isDestroyed()) return;
+        inboxEpoch++;
+        inboxDialog = null;
+        if (activeDialog != null) {
+            try { activeDialog.dismiss(); } catch (RuntimeException ignored) {}
+        }
         activeDialog = Ui.secureDialog(builder);
     }
 

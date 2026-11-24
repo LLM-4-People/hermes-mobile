@@ -232,11 +232,11 @@ public final class ProfileLockPolicy {
         }
     }
 
-    public static void setMode(Context context, String profileId, Mode mode) {
-        if (context == null || profileId == null || profileId.isEmpty()) return;
+    public static boolean setMode(Context context, String profileId, Mode mode) {
+        if (context == null || profileId == null || profileId.isEmpty()) return false;
         SharedPreferences prefs = prefs(context);
         synchronized (prefs) {
-            writeMode(prefs, profileId, mode);
+            return writeMode(prefs, profileId, mode);
         }
     }
 

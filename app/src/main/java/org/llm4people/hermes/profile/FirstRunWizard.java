@@ -32,6 +32,7 @@ import java.net.URI;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
@@ -186,13 +187,13 @@ public final class FirstRunWizard {
                 && !"default".equalsIgnoreCase(profileSlug.trim())) {
             return profileSlug.trim();
         }
-        return (defaultLabel != null && !defaultLabel.trim().isEmpty()) ? defaultLabel.trim() : "Default";
+        return (defaultLabel != null && !defaultLabel.trim().isEmpty()) ? defaultLabel.trim() : "";
     }
 
     /**
      * Friendly profile name pre-filled into the Step-1 "Profile name" field for a pairing ticket.
      * Priority: explicit {@code displayName} -&gt; capitalized non-default {@code profileSlug} -&gt;
-     * localized {@code defaultLabel}. NEVER falls back to the server URL hostname.
+     * localized {@code defaultLabel}. NEVER falls back to the server URL hostname or hardcoded English.
      */
     public static String formProfileName(String displayName, String profileSlug, String defaultLabel) {
         if (displayName != null && !displayName.trim().isEmpty()) return displayName.trim();
@@ -201,7 +202,7 @@ public final class FirstRunWizard {
             String s = profileSlug.trim();
             return Character.toUpperCase(s.charAt(0)) + s.substring(1);
         }
-        return (defaultLabel != null && !defaultLabel.trim().isEmpty()) ? defaultLabel.trim() : "Default";
+        return (defaultLabel != null && !defaultLabel.trim().isEmpty()) ? defaultLabel.trim() : "";
     }
 
     /** Derives a friendly profile display name from explicit name, slug, or server host. */
@@ -254,7 +255,7 @@ public final class FirstRunWizard {
                 cleanBase, plan.pairingCode(), chosenSlug, chosenName, inspected.expiresAtEpochSec());
     }
 
-    private static String stripTrailingProfilePath(String serverUrl) {
+    static String stripTrailingProfilePath(String serverUrl) {
         String normalized = GatewayAddress.normalize(serverUrl);
         try {
             URI uri = URI.create(normalized);
@@ -347,15 +348,18 @@ public final class FirstRunWizard {
         statusNote.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         statusNote.setVisibility(View.GONE);
 
+        AtomicInteger inspectEpoch = new AtomicInteger(0);
         Consumer<PairingLinkParser.ParsedInput> handleParsed = parsed -> {
             if (!isCurrent.getAsBoolean()) return;
+            int requestEpoch = inspectEpoch.incrementAndGet();
             Step1Plan plan = planForInput(parsed);
             if (plan == null) {
                 showStatus(activity, statusNote, activity.getString(R.string.onboarding_paste_invalid), R.color.danger);
                 return;
             }
             if (plan.action() == ApplyAction.CLAIM_TICKET) {
-                inspectAndConfirm(activity, plan, statusNote, io, isCurrent, targets);
+                BooleanSupplier requestCurrent = () -> isCurrent.getAsBoolean() && inspectEpoch.get() == requestEpoch;
+                inspectAndConfirm(activity, plan, statusNote, io, requestCurrent, targets);
             } else if (plan.action() == ApplyAction.FILL_CREDENTIALS) {
                 targets.fillFields(plan.suggestedName(), plan.serverUrl(), plan.profileSlug(), plan.apiKey(), false);
                 showStatus(activity, statusNote, activity.getString(R.string.onboarding_direct_applied), R.color.accent);
@@ -368,7 +372,7 @@ public final class FirstRunWizard {
 
         PairingLinkParser.ParsedInput detectedClip = hasIncomingLink ? null : detectClipboardLink(activity);
         if (detectedClip != null) {
-            card.addView(Ui.divider(activity), topMargin(activity, 12));
+            addDivider(activity, card, 12);
             TextView bannerText = Ui.text(activity,
                     activity.getString(R.string.onboarding_paste_clipboard_detected), 13);
             bannerText.setTypeface(mediumTypeface());
@@ -378,7 +382,7 @@ public final class FirstRunWizard {
             Button useBtn = Ui.outlinedButton(activity, activity.getString(R.string.onboarding_paste_clipboard_use),
                     v -> handleParsed.accept(detectedClip));
             card.addView(useBtn, topMargin(activity, 8));
-            card.addView(Ui.divider(activity), topMargin(activity, 12));
+            addDivider(activity, card, 12);
         }
 
         Button scanQrBtn = Ui.filledButton(activity, activity.getString(R.string.onboarding_scan_qr_action), v -> {
@@ -708,7 +712,15 @@ public final class FirstRunWizard {
     private static TextView sectionLabel(Activity activity, int resId) {
         TextView label = Ui.text(activity, activity.getString(resId), 14);
         label.setTypeface(mediumTypeface());
+        label.setAccessibilityHeading(true);
         return label;
+    }
+
+    private static void addDivider(Activity activity, LinearLayout parent, int topDp) {
+        View divider = Ui.divider(activity);
+        LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) divider.getLayoutParams();
+        lp.topMargin = Ui.dp(activity, topDp);
+        parent.addView(divider, lp);
     }
 
     private static LinearLayout.LayoutParams topMargin(Activity activity, int dp) {

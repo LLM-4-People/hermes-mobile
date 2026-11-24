@@ -187,7 +187,6 @@ public final class UnlockBackoff {
     }
 
     private static void warnCorrupt() {
-        try { Diagnostics.warning("profile", "backoff_record_corrupt"); }
-        catch (RuntimeException unmockedHostJvm) {}
+        Diagnostics.warning("profile", "backoff_record_corrupt");
     }
 }

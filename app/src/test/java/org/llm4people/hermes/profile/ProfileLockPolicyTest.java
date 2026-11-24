@@ -241,5 +241,62 @@ public final class ProfileLockPolicyTest {
 
         commitReturns[0] = false;
         assertFalse(ProfileLockPolicy.writeMode(prefs, "p1", ProfileLockPolicy.Mode.BIOMETRIC));
+
+        // Verify setMode(Context, ...) forwards writeMode commit result and fails closed on null args
+        assertFalse(ProfileLockPolicy.setMode(null, "p1", ProfileLockPolicy.Mode.PIN));
+        assertFalse(ProfileLockPolicy.setMode(contextStub(prefs), "", ProfileLockPolicy.Mode.PIN));
+        commitReturns[0] = true;
+        assertTrue(ProfileLockPolicy.setMode(contextStub(prefs), "p1", ProfileLockPolicy.Mode.PIN));
+        commitReturns[0] = false;
+        assertFalse(ProfileLockPolicy.setMode(contextStub(prefs), "p1", ProfileLockPolicy.Mode.BIOMETRIC));
+    }
+
+    @Test
+    public void rollbackFieldsPreserveServerUrlSlugAndApiKeyAcrossNamedDefaultAndNullClaims() {
+        org.llm4people.hermes.onboarding.OnboardingModels.PairingClaim named =
+                new org.llm4people.hermes.onboarding.OnboardingModels.PairingClaim(
+                        "https://chat.example.com/mobile", "allison", "Allison",
+                        "sk-claimed-123", "fr", "", 0, null);
+        ProfileGate.RollbackFields namedFields = ProfileGate.resolveRollbackFields(named);
+        assertNotNull(namedFields);
+        assertEquals("https://chat.example.com/mobile", namedFields.serverUrl());
+        assertEquals("allison", namedFields.profileSlug());
+        assertEquals("sk-claimed-123", namedFields.apiKey());
+
+        org.llm4people.hermes.onboarding.OnboardingModels.PairingClaim embedded =
+                new org.llm4people.hermes.onboarding.OnboardingModels.PairingClaim(
+                        "https://chat.example.com/mobile/p/alex", "", "Alex",
+                        "sk-claimed-456", "en", "", 0, null);
+        ProfileGate.RollbackFields embeddedFields = ProfileGate.resolveRollbackFields(embedded);
+        assertNotNull(embeddedFields);
+        assertEquals("https://chat.example.com/mobile", embeddedFields.serverUrl());
+        assertEquals("alex", embeddedFields.profileSlug());
+        assertEquals("sk-claimed-456", embeddedFields.apiKey());
+
+        org.llm4people.hermes.onboarding.OnboardingModels.PairingClaim defaultClaim =
+                new org.llm4people.hermes.onboarding.OnboardingModels.PairingClaim(
+                        "https://chat.example.com/mobile", "default", "Jacob",
+                        "sk-claimed-789", "fr", "", 0, null);
+        ProfileGate.RollbackFields defaultFields = ProfileGate.resolveRollbackFields(defaultClaim);
+        assertNotNull(defaultFields);
+        assertEquals("https://chat.example.com/mobile", defaultFields.serverUrl());
+        assertEquals("", defaultFields.profileSlug());
+        assertEquals("sk-claimed-789", defaultFields.apiKey());
+
+        assertNull(ProfileGate.resolveRollbackFields(null));
+        org.llm4people.hermes.onboarding.OnboardingModels.PairingClaim blankKey =
+                new org.llm4people.hermes.onboarding.OnboardingModels.PairingClaim(
+                        "https://chat.example.com/mobile", "allison", "Allison",
+                        "   ", "fr", "", 0, null);
+        assertNull(ProfileGate.resolveRollbackFields(blankKey));
+    }
+
+    private static android.content.Context contextStub(android.content.SharedPreferences prefs) {
+        return new android.content.ContextWrapper(null) {
+            @Override public android.content.Context getApplicationContext() { return this; }
+            @Override public android.content.SharedPreferences getSharedPreferences(String name, int mode) {
+                return prefs;
+            }
+        };
     }
 }

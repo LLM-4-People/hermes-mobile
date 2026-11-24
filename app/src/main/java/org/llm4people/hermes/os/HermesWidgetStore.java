@@ -120,9 +120,13 @@ public final class HermesWidgetStore {
     /** Convenience helper for AccountStore.forget / ProfileGate.onForget: purges widgets and refreshes Home Screen. */
     public static void forgetProfile(Context context, String profileId) {
         if (context == null || profileId == null || profileId.trim().isEmpty()) return;
-        Context app = context.getApplicationContext();
-        int removed = new HermesWidgetStore(app).purgeProfile(profileId);
-        if (removed > 0) HermesWidgetProvider.refresh(app, false);
+        try {
+            Context app = context.getApplicationContext();
+            int removed = new HermesWidgetStore(app).purgeProfile(profileId);
+            if (removed > 0) HermesWidgetProvider.refresh(app, false);
+        } catch (RuntimeException failed) {
+            Diagnostics.warning("widget", "profile_forget_failed", failed);
+        }
     }
 
     public synchronized boolean removeSpec(String widgetId) {
@@ -204,13 +208,11 @@ public final class HermesWidgetStore {
     }
 
     private static void logEvent(String action) {
-        try { Diagnostics.event("widget", action); }
-        catch (RuntimeException unmockedHostJvm) {}
+        Diagnostics.event("widget", action);
     }
 
     private static void logWarning(String action) {
-        try { Diagnostics.warning("widget", action); }
-        catch (RuntimeException unmockedHostJvm) {}
+        Diagnostics.warning("widget", action);
     }
 
     public synchronized void savePendingPin(String token, String widgetId) {
@@ -245,13 +247,20 @@ public final class HermesWidgetStore {
         return draft.isEmpty() ? null : draft;
     }
 
-    private static final class SharedPrefsBacking implements Backing {
+    static final class SharedPrefsBacking implements Backing {
         private final SharedPreferences prefs;
 
         SharedPrefsBacking(SharedPreferences prefs) { this.prefs = prefs; }
 
         @Override public String get(String key) {
-            synchronized (prefs) { return prefs.getString(key, null); }
+            synchronized (prefs) {
+                try {
+                    return prefs.getString(key, null);
+                } catch (ClassCastException corrupt) {
+                    Diagnostics.warning("widget", "pref_read_corrupt");
+                    return null;
+                }
+            }
         }
 
         @Override public void put(String key, String value) {

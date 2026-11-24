@@ -225,9 +225,8 @@ public final class ProfileHubSheet implements AutoCloseable {
                 .setView(scroll)
                 .setPositiveButton(R.string.ws_close, null)
                 .setOnDismissListener(d -> {
-                    if (!closed) {
-                        sheetDialog = null;
-                    }
+                    sheetDialog = null;
+                    close();
                 }));
 
         refreshRemoteState();
@@ -236,6 +235,7 @@ public final class ProfileHubSheet implements AutoCloseable {
     /** Immediately triggers the 1-tap "Add another device" 5-min QR pairing flow. */
     public void triggerPairDevice() {
         if (closed || !canAct.getAsBoolean()) return;
+        boolean standalone = sheetDialog == null;
         io.execute(() -> {
             OnboardingModels.PairingTicket ticket = null;
             try {
@@ -248,13 +248,19 @@ public final class ProfileHubSheet implements AutoCloseable {
             }
             OnboardingModels.PairingTicket created = ticket;
             main.post(() -> {
-                if (closed || !canAct.getAsBoolean() || activity.isFinishing() || activity.isDestroyed()) return;
+                if (closed) return;
+                if (!canAct.getAsBoolean() || activity.isFinishing() || activity.isDestroyed()) {
+                    if (standalone) close();
+                    return;
+                }
                 if (created == null) {
                     Toast.makeText(activity, R.string.profile_hub_qr_unavailable, Toast.LENGTH_LONG).show();
+                    if (standalone) close();
                     return;
                 }
                 if (shareSheet != null) shareSheet.close();
-                shareSheet = PairingShareSheet.show(activity, created, api, io, canAct, this::refreshRemoteState);
+                shareSheet = PairingShareSheet.show(activity, created, api, io, canAct,
+                        standalone ? null : this::refreshRemoteState, standalone ? this::close : null);
             });
         });
     }
@@ -628,12 +634,18 @@ public final class ProfileHubSheet implements AutoCloseable {
         adminToggle.setMinHeight(Ui.dp(activity, 48));
         if (allowAdminToggle) form.addView(adminToggle, topMargin(10));
 
+        boolean standalone = sheetDialog == null;
+        boolean[] submitted = {false};
         dismissChildDialog();
         AlertDialog dialog = Ui.secureDialog(new AlertDialog.Builder(activity)
                 .setTitle(R.string.profile_hub_invite_title)
                 .setView(scroll)
                 .setNegativeButton(R.string.profile_setup_cancel, null)
                 .setPositiveButton(R.string.profile_hub_invite_create_action, null));
+        dialog.setOnDismissListener(d -> {
+            if (childDialog == dialog) childDialog = null;
+            if (standalone && !submitted[0]) close();
+        });
         childDialog = dialog;
         Button positive = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
         if (positive != null) {
@@ -649,6 +661,7 @@ public final class ProfileHubSheet implements AutoCloseable {
                 inlineError.setText("");
                 inlineError.setVisibility(View.GONE);
                 boolean grantAdmin = allowAdminToggle && adminToggle.isChecked();
+                submitted[0] = true;
                 dialog.dismiss();
                 io.execute(() -> {
                     OnboardingModels.PairingTicket ticket = null;
@@ -670,14 +683,20 @@ public final class ProfileHubSheet implements AutoCloseable {
                     }
                     OnboardingModels.PairingTicket created = ticket;
                     main.post(() -> {
-                        if (closed || !canAct.getAsBoolean()) return;
-                        if (created == null) {
-                            Toast.makeText(activity, R.string.profile_hub_invite_failed, Toast.LENGTH_LONG).show();
+                        if (closed) return;
+                        if (!canAct.getAsBoolean() || activity.isFinishing() || activity.isDestroyed()) {
+                            if (standalone) close();
                             return;
                         }
-                        refreshRemoteState();
+                        if (created == null) {
+                            Toast.makeText(activity, R.string.profile_hub_invite_failed, Toast.LENGTH_LONG).show();
+                            if (standalone) close();
+                            return;
+                        }
+                        if (!standalone) refreshRemoteState();
                         if (shareSheet != null) shareSheet.close();
-                        shareSheet = PairingShareSheet.show(activity, created, api, io, canAct, this::refreshRemoteState);
+                        shareSheet = PairingShareSheet.show(activity, created, api, io, canAct,
+                                standalone ? null : this::refreshRemoteState, standalone ? this::close : null);
                     });
                 });
             });
@@ -769,6 +788,7 @@ public final class ProfileHubSheet implements AutoCloseable {
     }
 
     @Override public void close() {
+        if (closed) return;
         closed = true;
         api.revoke();
         io.shutdownNow();
@@ -778,8 +798,9 @@ public final class ProfileHubSheet implements AutoCloseable {
         }
         dismissChildDialog();
         if (sheetDialog != null) {
-            try { sheetDialog.dismiss(); } catch (RuntimeException ignored) {}
+            AlertDialog toDismiss = sheetDialog;
             sheetDialog = null;
+            try { toDismiss.dismiss(); } catch (RuntimeException ignored) {}
         }
     }
 }

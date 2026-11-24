@@ -5,6 +5,7 @@ import android.content.SharedPreferences;
 import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
 import android.util.Base64;
+import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.os.BiometricVault;
 import org.llm4people.hermes.os.LockGracePolicy;
 
@@ -110,13 +111,19 @@ final class AccountStore {
                 String endpoint = GatewayAddress.normalize(data.readUTF());
                 String bearer = data.readUTF();
                 byte[] keys = new byte[Account.KEY_BYTES];
-                data.readFully(keys);
-                synchronized (prefs) {
-                    if (!label.equals(prefs.getString(LABEL + id, null)) || !prefs.contains(id)) {
-                        Arrays.fill(keys, (byte) 0);
-                        throw new IOException("Profile changed while opening");
+                boolean transferred = false;
+                try {
+                    data.readFully(keys);
+                    synchronized (prefs) {
+                        if (!label.equals(prefs.getString(LABEL + id, null)) || !prefs.contains(id)) {
+                            throw new IOException("Profile changed while opening");
+                        }
+                        Account opened = new Account(id, label, endpoint, bearer, vault(id), keys);
+                        transferred = true;
+                        return opened;
                     }
-                    return new Account(id, label, endpoint, bearer, vault(id), keys);
+                } finally {
+                    if (!transferred) Arrays.fill(keys, (byte) 0);
                 }
             }
         } finally {
@@ -193,22 +200,30 @@ final class AccountStore {
     }
 
     void forget(String id) throws IOException {
-        BiometricVault.revoke(context, id);
-        LockGracePolicy.forget(context, id);
-        ProfileLockPolicy.forget(context, id);
-        UnlockBackoff.forget(context, id);
-        org.llm4people.hermes.os.HermesWidgetStore.forgetProfile(context, id);
-        IncomingShare.forgetProfile(context, id);
-        IncomingMediaShare.forgetProfile(context, id);
-        org.llm4people.hermes.camera.PrivateCaptureProvider.purgeAll(context);
-        org.llm4people.hermes.ambient.HermesNotificationListener.clearSession();
-        org.llm4people.hermes.perf.MemoryPressure.clearAll();
+        runForgetCleanup("biometric", () -> BiometricVault.revoke(context, id));
+        runForgetCleanup("grace", () -> LockGracePolicy.forget(context, id));
+        runForgetCleanup("lock_mode", () -> ProfileLockPolicy.forget(context, id));
+        runForgetCleanup("backoff", () -> UnlockBackoff.forget(context, id));
+        runForgetCleanup("widgets", () -> org.llm4people.hermes.os.HermesWidgetStore.forgetProfile(context, id));
+        runForgetCleanup("share_text", () -> IncomingShare.forgetProfile(context, id));
+        runForgetCleanup("share_media", () -> IncomingMediaShare.forgetProfile(context, id));
+        runForgetCleanup("captures", () -> org.llm4people.hermes.camera.PrivateCaptureProvider.purgeAll(context));
+        runForgetCleanup("ambient", org.llm4people.hermes.ambient.HermesNotificationListener::clearSession);
+        runForgetCleanup("memory", org.llm4people.hermes.perf.MemoryPressure::clearAll);
         commitMembership(id, null, null);
         SharedPreferences profileVault = vault(id);
         synchronized (profileVault) {
             profileVault.edit().clear().commit();
         }
         context.deleteSharedPreferences("hermes.vault." + id);
+    }
+
+    private static void runForgetCleanup(String step, Runnable action) {
+        try {
+            action.run();
+        } catch (RuntimeException failed) {
+            Diagnostics.warning("profile", "forget_cleanup_failed_" + step, failed);
+        }
     }
 
     private void commitMembership(String id, String label, String envelope) throws IOException {

@@ -215,8 +215,8 @@ final class WorkspaceDialogs {
         for (LockGracePolicy.Window option : options) {
             Button chip = Ui.outlinedButton(activity, activity.getString(option.labelRes), v -> {
                 if (selectedWindow[0] == option) return;
+                if (!LockGracePolicy.setWindow(activity, account.id, option)) return;
                 selectedWindow[0] = option;
-                LockGracePolicy.setWindow(activity, account.id, option);
                 syncGraceChips.run();
                 if (onPolicyChanged != null) onPolicyChanged.run();
             });
@@ -363,9 +363,12 @@ final class WorkspaceDialogs {
         });
         syncInputs.run();
 
+        ScrollView formScroll = new ScrollView(activity);
+        formScroll.addView(form, new ScrollView.LayoutParams(-1, -2));
+
         AlertDialog modeDialog = Ui.secureDialog(new AlertDialog.Builder(activity)
                 .setTitle(R.string.security_lock_mode_title)
-                .setView(form)
+                .setView(formScroll)
                 .setNegativeButton(R.string.profile_setup_cancel, null)
                 .setPositiveButton(R.string.security_lock_mode_save, (d, w) -> {
                     ProfileLockPolicy.Mode target = chosen[0];
