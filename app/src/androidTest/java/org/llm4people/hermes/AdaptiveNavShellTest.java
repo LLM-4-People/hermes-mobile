@@ -103,13 +103,12 @@ public final class AdaptiveNavShellTest extends InstrumentationTestCase {
                 WorkspaceShell shell = new WorkspaceShell(activity, id -> {}, () -> false);
                 holder[0] = shell;
                 activity.setContentView(shell.root);
-                // Non-chat surfaces hide More for a clean 2-icon top bar.
+                // Non-chat surfaces hide More for a clean 2-icon top bar (View.GONE views are excluded by findViewsWithText).
                 shell.show(new View(activity), activity.getString(R.string.hub_tasks_title));
                 ArrayList<View> hiddenMore = new ArrayList<>();
                 shell.root.findViewsWithText(hiddenMore, activity.getString(R.string.ws_more_actions),
                         View.FIND_VIEWS_WITH_CONTENT_DESCRIPTION);
-                assertEquals(1, hiddenMore.size());
-                assertEquals(View.GONE, hiddenMore.get(0).getVisibility());
+                assertTrue("More overflow button must be hidden on non-chat surfaces", hiddenMore.isEmpty());
 
                 // Active chat reveals contextual More overflow actions.
                 shell.show(new View(activity), null);
