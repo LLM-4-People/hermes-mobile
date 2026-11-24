@@ -10,6 +10,7 @@ from .ui import (
     PERMISSION_ALLOW_IDS,
     Screen,
     TAP_RETRY_COOLDOWN_SECONDS,
+    TOP_SETTINGS_ID,
     enroll,
     focused_window,
     open_notifications_settings,
@@ -139,6 +140,44 @@ class ScreenUiTest(unittest.TestCase):
                 # 4 navigation taps (close, settings, lock_now, add_action) + 2 save taps (1st swallowed, 2nd succeeds).
                 self.assertEqual(ui.tap_node.call_count, 6)
                 self.assertEqual(ui.field.call_count, 5)
+
+    def test_start_account_scrolls_settings_to_top_by_tapping_top_settings_button_not_heading(self):
+        for lang in ("en", "fr"):
+            with self.subTest(lang=lang):
+                ui = Screen(Mock(), Mock(), lang=lang)
+                s = ui.strings
+                # Returned to SettingsHubPanel scrolled down: heading text equals nav_settings and
+                # precedes top_settings_action in the tree, while security_lock_now is off-screen.
+                scrolled_settings = tree(
+                    {"text": s["settings_panel_title"], "bounds": "[60,10][200,70]"},
+                    {"resource-id": TOP_SETTINGS_ID, "content-desc": s["nav_settings"], "bounds": "[250,10][310,70]"},
+                    {"resource-id": NOTIFICATIONS_ROW_ID, "bounds": "[20,400][300,460]"},
+                )
+                top_settings = tree(
+                    {"text": s["settings_panel_title"], "bounds": "[60,10][200,70]"},
+                    {"resource-id": TOP_SETTINGS_ID, "content-desc": s["nav_settings"], "bounds": "[250,10][310,70]"},
+                    {"text": s["security_lock_now"], "bounds": "[20,160][280,210]"},
+                )
+                chooser = tree({"text": s["profile_add_action"], "bounds": "[20,200][280,250]"})
+                connect = tree({"text": s["profile_connect_title"], "bounds": "[20,40][280,90]"})
+                save_form = tree({"text": s["profile_save_action"], "bounds": "[20,500][280,550]"})
+                opened_ws = tree({"text": s["thread_new_conversation"], "bounds": "[20,80][280,130]"})
+                ui.hierarchy = Mock(side_effect=[
+                    scrolled_settings, top_settings, chooser, connect, save_form, opened_ws
+                ])
+                tapped = []
+                ui.tap_node = Mock(side_effect=lambda node: tapped.append(
+                    node.get("resource-id") or node.get("text") or node.get("content-desc")
+                ))
+                ui.field = Mock()
+                with patch("verification.unifiedpush.stack.time.sleep"):
+                    start_account(ui, "Alt", "https://example.test", "secret-key", "correct-horse-battery")
+                self.assertEqual(tapped, [
+                    TOP_SETTINGS_ID,
+                    s["security_lock_now"],
+                    s["profile_add_action"],
+                    s["profile_save_action"],
+                ])
 
     def test_enroll_retries_swallowed_enable_tap_and_transitions_in_en_and_fr(self):
         for lang in ("en", "fr"):

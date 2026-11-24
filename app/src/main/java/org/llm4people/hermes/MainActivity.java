@@ -452,11 +452,11 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         actions.register("nav_discussions", () -> switchTab(WorkspaceNavigation.DISCUSSION));
         actions.register("nav_tasks", () -> switchTab(WorkspaceNavigation.NOTES_TASKS));
         actions.register("nav_apps", () -> switchTab(WorkspaceNavigation.APPS));
-        actions.register("nav_settings", () -> navigate(WorkspaceNavigation.SETTINGS));
+        actions.register("nav_settings", this::openSettingsHub);
         actions.register("nav_atelier", () -> switchTab(WorkspaceNavigation.APPS));
-        actions.register("nav_brain", () -> navigate(WorkspaceNavigation.SETTINGS));
+        actions.register("nav_brain", this::openSettingsHub);
         actions.register("nav_activity", () -> switchTab(WorkspaceNavigation.NOTES_TASKS));
-        actions.register(SettingsHubPanel.ROUTE_ID, () -> navigate(WorkspaceNavigation.SETTINGS));
+        actions.register(SettingsHubPanel.ROUTE_ID, this::openSettingsHub);
         actions.register(AppearanceSettingsPanel.ROUTE_ID, () -> navigate(AppearanceSettingsPanel.ROUTE_ID));
         actions.register(SettingsHubPanel.ACTION_VOICE_OPTIONS, () -> voice.openOptionsDialog(null, false));
         actions.register("pages", () -> navigate(WorkspaceNavigation.GALLERY));
@@ -705,6 +705,17 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             case APPS -> WorkspaceNavigation.APPS;
             case CHATS -> WorkspaceNavigation.DISCUSSION;
         };
+    }
+
+    private void openSettingsHub() {
+        if (navigation != null && WorkspaceNavigation.SETTINGS.equals(navigation.current())) {
+            if (activeSettingsPanel != null) {
+                activeSettingsPanel.scrollToTop();
+                activeSettingsPanel.refresh();
+            }
+            return;
+        }
+        navigate(WorkspaceNavigation.SETTINGS);
     }
 
     private void refreshSettingsHubIfVisible() {

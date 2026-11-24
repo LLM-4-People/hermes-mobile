@@ -63,6 +63,7 @@ public final class SettingsHubPanel {
     private final StateProvider state;
     private final Consumer<String> onAction;
 
+    private ScrollView scrollView;
     private LinearLayout heroSlot;
     private LinearLayout bannerSlot;
     private LinearLayout sectionsSlot;
@@ -115,9 +116,15 @@ public final class SettingsHubPanel {
         list.addView(sectionsSlot, new LinearLayout.LayoutParams(-1, -2));
 
         scroll.addView(list, new ScrollView.LayoutParams(-1, -2));
+        scrollView = scroll;
         refresh();
         Diagnostics.debug("settings_hub", "opened");
         return scroll;
+    }
+
+    /** Scroll Settings Hub immediately back to the top profile hero card (honoring Reduce Motion). */
+    public void scrollToTop() {
+        if (scrollView != null) scrollView.scrollTo(0, 0);
     }
 
     /** Rebuild live hero pills, notification banner, and grouped sections while preserving search query. */

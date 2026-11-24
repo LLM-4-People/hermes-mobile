@@ -17,6 +17,7 @@ from .stack import eventually
 
 APP = "org.llm4people.hermes"
 NTFY = "io.heckel.ntfy"
+TOP_SETTINGS_ID = APP + ":id/top_settings_action"
 NOTIFICATIONS_ROW_ID = APP + ":id/settings_row_notifications"
 PERMISSION_ALLOW_IDS = (
     "com.android.permissioncontroller:id/permission_allow_button",
@@ -299,7 +300,9 @@ def start_account(ui, label, endpoint, bearer, phrase):
         if lock_action is not None:
             ui.tap_node(lock_action)
             return False
-        settings_btn = ui.node(settings_btn_label, root)
+        settings_btn = ui.node(TOP_SETTINGS_ID, root)
+        if settings_btn is None:
+            settings_btn = ui.node(settings_btn_label, root)
         if settings_btn is not None:
             ui.tap_node(settings_btn)
             return False
