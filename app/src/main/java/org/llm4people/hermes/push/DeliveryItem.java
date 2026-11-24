@@ -5,6 +5,7 @@ import android.content.Context;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.llm4people.hermes.AppLanguage;
+import org.llm4people.hermes.EpochTimestamps;
 import org.llm4people.hermes.R;
 
 import java.util.Locale;
@@ -269,12 +270,11 @@ public final class DeliveryItem {
 
     private static long readEpochSec(JSONObject raw, String field) {
         if (!raw.has(field) || raw.isNull(field)) return 0L;
-        Object v = raw.opt(field);
-        if (v instanceof Number n) {
-            double d = n.doubleValue();
-            if (Double.isFinite(d) && d > 0) return (long) d;
-        }
-        return 0L;
+        return parseEpochSecValue(raw.opt(field));
+    }
+
+    static long parseEpochSecValue(Object value) {
+        return EpochTimestamps.parseEpochSeconds(value);
     }
 
     private static String cleanLine(String raw, int maxLen) {

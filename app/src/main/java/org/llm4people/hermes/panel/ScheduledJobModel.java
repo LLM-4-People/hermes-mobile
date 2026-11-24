@@ -2,11 +2,11 @@ package org.llm4people.hermes.panel;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.llm4people.hermes.JsonValues;
 import org.llm4people.hermes.net.HermesApi;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -115,7 +115,7 @@ public final class ScheduledJobModel {
 
     /** Parses {@code GET /api/jobs/{id}/runs} response JSON safely on Android. */
     public static List<JobRun> parseRuns(JSONObject response) {
-        return parseRunsMap(jsonToMap(response));
+        return parseRunsMap(JsonValues.toMap(response));
     }
 
     /** Pure-Java parser for {@code GET /api/jobs/{id}/runs} payloads (host-JVM testable). */
@@ -215,30 +215,5 @@ public final class ScheduledJobModel {
 
     private static boolean bool(Object v) {
         return v instanceof Boolean b && b;
-    }
-
-    private static Map<String, Object> jsonToMap(JSONObject obj) {
-        if (obj == null) return null;
-        Map<String, Object> out = new LinkedHashMap<>();
-        JSONArray names = obj.names();
-        if (names == null) return out;
-        for (int i = 0; i < names.length(); i++) {
-            String key = names.optString(i, null);
-            if (key == null) continue;
-            Object val = obj.opt(key);
-            if (val instanceof JSONObject nested) {
-                out.put(key, jsonToMap(nested));
-            } else if (val instanceof JSONArray arr) {
-                List<Object> list = new ArrayList<>(arr.length());
-                for (int j = 0; j < arr.length(); j++) {
-                    Object entry = arr.opt(j);
-                    list.add(entry instanceof JSONObject nestedObj ? jsonToMap(nestedObj) : entry);
-                }
-                out.put(key, list);
-            } else if (val != JSONObject.NULL) {
-                out.put(key, val);
-            }
-        }
-        return out;
     }
 }

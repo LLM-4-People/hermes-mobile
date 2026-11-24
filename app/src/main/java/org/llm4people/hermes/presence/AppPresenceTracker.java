@@ -3,6 +3,7 @@ package org.llm4people.hermes.presence;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.llm4people.hermes.Diagnostics;
+import org.llm4people.hermes.JsonValues;
 import org.llm4people.hermes.os.HermesWidgetSpec;
 
 import java.util.ArrayDeque;
@@ -388,26 +389,6 @@ public final class AppPresenceTracker {
     }
 
     static String quoteJson(String raw) {
-        if (raw == null) return "null";
-        StringBuilder out = new StringBuilder(raw.length() + 2);
-        out.append('"');
-        for (int i = 0; i < raw.length(); i++) {
-            char c = raw.charAt(i);
-            switch (c) {
-                case '"' -> out.append("\\\"");
-                case '\\' -> out.append("\\\\");
-                case '\b' -> out.append("\\b");
-                case '\f' -> out.append("\\f");
-                case '\n' -> out.append("\\n");
-                case '\r' -> out.append("\\r");
-                case '\t' -> out.append("\\t");
-                default -> {
-                    if (c < 0x20) out.append(String.format(Locale.ROOT, "\\u%04x", (int) c));
-                    else out.append(c);
-                }
-            }
-        }
-        out.append('"');
-        return out.toString();
+        return JsonValues.quote(raw);
     }
 }

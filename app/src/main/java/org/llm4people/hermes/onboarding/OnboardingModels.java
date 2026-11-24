@@ -1,7 +1,7 @@
 package org.llm4people.hermes.onboarding;
 
-import org.json.JSONArray;
 import org.json.JSONObject;
+import org.llm4people.hermes.JsonValues;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.profile.GatewayAddress;
 
@@ -171,7 +171,7 @@ public final class OnboardingModels {
     public record RotateKeyResult(String profileSlug, String apiKey, PairingTicket pairingTicket) {}
 
     public static PairingTicket parsePairingTicket(JSONObject obj) {
-        return parsePairingTicketMap(jsonToMap(obj));
+        return parsePairingTicketMap(JsonValues.toMap(obj));
     }
 
     public static PairingTicket parsePairingTicketMap(Map<String, Object> map) {
@@ -198,7 +198,7 @@ public final class OnboardingModels {
     }
 
     public static List<PairingTicket> parseActivePairingTickets(JSONObject obj) {
-        return parseActivePairingTicketsMap(jsonToMap(obj));
+        return parseActivePairingTicketsMap(JsonValues.toMap(obj));
     }
 
     @SuppressWarnings("unchecked")
@@ -221,7 +221,7 @@ public final class OnboardingModels {
     }
 
     public static PairingInspect parsePairingInspect(JSONObject obj) {
-        return parsePairingInspectMap(jsonToMap(obj));
+        return parsePairingInspectMap(JsonValues.toMap(obj));
     }
 
     public static PairingInspect parsePairingInspectMap(Map<String, Object> map) {
@@ -248,7 +248,7 @@ public final class OnboardingModels {
     }
 
     public static PairingClaim parsePairingClaim(JSONObject obj) {
-        return parsePairingClaimMap(jsonToMap(obj));
+        return parsePairingClaimMap(JsonValues.toMap(obj));
     }
 
     @SuppressWarnings("unchecked")
@@ -274,7 +274,7 @@ public final class OnboardingModels {
     }
 
     public static OnboardingStatus parseOnboardingStatus(JSONObject obj) {
-        return parseOnboardingStatusMap(jsonToMap(obj));
+        return parseOnboardingStatusMap(JsonValues.toMap(obj));
     }
 
     @SuppressWarnings("unchecked")
@@ -344,7 +344,7 @@ public final class OnboardingModels {
     }
 
     public static AdminSettings parseAdminSettings(JSONObject obj) {
-        return parseAdminSettingsMap(jsonToMap(obj));
+        return parseAdminSettingsMap(JsonValues.toMap(obj));
     }
 
     @SuppressWarnings("unchecked")
@@ -372,7 +372,7 @@ public final class OnboardingModels {
     }
 
     public static List<RemoteProfile> parseProfiles(JSONObject obj) {
-        return parseProfilesMap(jsonToMap(obj));
+        return parseProfilesMap(JsonValues.toMap(obj));
     }
 
     @SuppressWarnings("unchecked")
@@ -392,7 +392,7 @@ public final class OnboardingModels {
     }
 
     public static RemoteProfile parseRemoteProfile(JSONObject obj) {
-        return parseRemoteProfileMap(jsonToMap(obj));
+        return parseRemoteProfileMap(JsonValues.toMap(obj));
     }
 
     @SuppressWarnings("unchecked")
@@ -420,7 +420,7 @@ public final class OnboardingModels {
     }
 
     public static RotateKeyResult parseRotateKey(JSONObject obj) {
-        return parseRotateKeyMap(jsonToMap(obj));
+        return parseRotateKeyMap(JsonValues.toMap(obj));
     }
 
     @SuppressWarnings("unchecked")
@@ -517,30 +517,5 @@ public final class OnboardingModels {
 
     private static int clamp(int value, int min, int max) {
         return Math.max(min, Math.min(max, value));
-    }
-
-    private static Map<String, Object> jsonToMap(JSONObject obj) {
-        if (obj == null) return null;
-        Map<String, Object> out = new LinkedHashMap<>();
-        JSONArray names = obj.names();
-        if (names == null) return out;
-        for (int i = 0; i < names.length(); i++) {
-            String key = names.optString(i, null);
-            if (key == null) continue;
-            Object val = obj.opt(key);
-            if (val instanceof JSONObject nested) {
-                out.put(key, jsonToMap(nested));
-            } else if (val instanceof JSONArray arr) {
-                List<Object> list = new ArrayList<>(arr.length());
-                for (int j = 0; j < arr.length(); j++) {
-                    Object item = arr.opt(j);
-                    list.add(item instanceof JSONObject nestedItem ? jsonToMap(nestedItem) : item);
-                }
-                out.put(key, list);
-            } else if (val != JSONObject.NULL) {
-                out.put(key, val);
-            }
-        }
-        return out;
     }
 }

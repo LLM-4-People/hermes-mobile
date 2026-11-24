@@ -149,7 +149,7 @@ public final class ExhaustiveUiAndLayoutStressTest extends InstrumentationTestCa
                         runTestOnUiThread(() -> {
                             doctorPanel.close();
                             updatePanel.close();
-                            ambientPanel.dismissDialogs();
+                            ambientPanel.close();
                         });
                     }
                 }
@@ -166,71 +166,73 @@ public final class ExhaustiveUiAndLayoutStressTest extends InstrumentationTestCa
         Context app = getInstrumentation().getTargetContext();
         Activity activity = launchMain();
 
-        // Phase 1: Populated full-capability companion gateway + layout assertions on every panel.
-        try (DynamicLoopbackServer gateway = new DynamicLoopbackServer(ExhaustiveUiAndLayoutStressTest::populatedReply);
-             WorkspaceAccountFixture profile = new WorkspaceAccountFixture(app, gateway.endpoint())) {
-            SessionPanel panel = new SessionPanel(activity, new HermesApi(gateway.endpoint(), "test"), profile.account);
-            try {
-                exercisePanel("Memory", () -> panel.showMemory(null), activity,
-                        activity.getString(R.string.brain_memory_title));
-                exercisePanel("Notes", () -> panel.showNotes(() -> true, d -> {}, null), activity,
-                        activity.getString(R.string.brain_notes_title));
-                exercisePanel("SharedWithMe", () -> panel.showSharedWithMe(d -> {}, null), activity,
-                        activity.getString(R.string.brain_shared_with_me_title));
-                exercisePanel("GlobalSearch", () -> panel.showGlobalSearch(id -> {}, null), activity,
-                        activity.getString(R.string.brain_search_title));
-                exercisePanel("SkillStudio", () -> panel.showSkillStudio(() -> true, d -> {}, null), activity,
-                        activity.getString(R.string.brain_skills_title));
-                exercisePanel("WorkspaceFiles", () -> panel.showWorkspaceFiles("s1", () -> true, d -> {}, null),
-                        activity, activity.getString(R.string.brain_files_title));
-                exercisePanel("ProfileDefaults", () -> panel.showProfileDefaults(null), activity,
-                        activity.getString(R.string.brain_profile_defaults_title));
-                exercisePanel("Usage-NoSession", () -> panel.showStats(null, null), activity,
-                        activity.getString(R.string.panel_stats));
-                exercisePanel("Usage-ActiveSession", () -> panel.showStats("s1", "s1"), activity,
-                        activity.getString(R.string.panel_stats));
-                exercisePanel("Reminders", panel::showReminders, activity,
-                        activity.getString(R.string.panel_reminders));
-                exercisePanel("Skills", () -> panel.showSkills(() -> true, d -> {}), activity,
-                        activity.getString(R.string.skills_title));
-            } finally {
-                runTestOnUiThread(panel::close);
+        try {
+            // Phase 1: Populated full-capability companion gateway + layout assertions on every panel.
+            try (DynamicLoopbackServer gateway = new DynamicLoopbackServer(ExhaustiveUiAndLayoutStressTest::populatedReply);
+                 WorkspaceAccountFixture profile = new WorkspaceAccountFixture(app, gateway.endpoint())) {
+                SessionPanel panel = new SessionPanel(activity, new HermesApi(gateway.endpoint(), "test"), profile.account);
+                try {
+                    exercisePanel("Memory", () -> panel.showMemory(null), activity,
+                            activity.getString(R.string.brain_memory_title));
+                    exercisePanel("Notes", () -> panel.showNotes(() -> true, d -> {}, null), activity,
+                            activity.getString(R.string.brain_notes_title));
+                    exercisePanel("SharedWithMe", () -> panel.showSharedWithMe(d -> {}, null), activity,
+                            activity.getString(R.string.brain_shared_with_me_title));
+                    exercisePanel("GlobalSearch", () -> panel.showGlobalSearch(id -> {}, null), activity,
+                            activity.getString(R.string.brain_search_title));
+                    exercisePanel("SkillStudio", () -> panel.showSkillStudio(() -> true, d -> {}, null), activity,
+                            activity.getString(R.string.brain_skills_title));
+                    exercisePanel("WorkspaceFiles", () -> panel.showWorkspaceFiles("s1", () -> true, d -> {}, null),
+                            activity, activity.getString(R.string.brain_files_title));
+                    exercisePanel("ProfileDefaults", () -> panel.showProfileDefaults(null), activity,
+                            activity.getString(R.string.brain_profile_defaults_title));
+                    exercisePanel("Usage-NoSession", () -> panel.showStats(null, null), activity,
+                            activity.getString(R.string.panel_stats));
+                    exercisePanel("Usage-ActiveSession", () -> panel.showStats("s1", "s1"), activity,
+                            activity.getString(R.string.panel_stats));
+                    exercisePanel("Reminders", panel::showReminders, activity,
+                            activity.getString(R.string.panel_reminders));
+                    exercisePanel("Skills", () -> panel.showSkills(() -> true, d -> {}), activity,
+                            activity.getString(R.string.skills_title));
+                } finally {
+                    runTestOnUiThread(panel::close);
+                }
             }
-        }
 
-        // Phase 2: All HTTP 500 error responses + rapid switching + lock-mid-action cleanup.
-        try (DynamicLoopbackServer failing = new DynamicLoopbackServer(path ->
-                new HttpReply("500 Internal Server Error", "{\"error\":{\"code\":\"server_boom\"}}"));
-             WorkspaceAccountFixture profile = new WorkspaceAccountFixture(app, failing.endpoint())) {
-            SessionPanel panel = new SessionPanel(activity, new HermesApi(failing.endpoint(), "test"), profile.account);
-            try {
-                runTestOnUiThread(() -> {
-                    panel.showMemory(null);
-                    panel.showNotes(() -> true, d -> {}, null);
-                    panel.showGlobalSearch(id -> {}, null);
-                    panel.showSkillStudio(() -> true, d -> {}, null);
-                    panel.showWorkspaceFiles("s1", () -> true, d -> {}, null);
-                    panel.showProfileDefaults(null);
-                    panel.showStats(null, null);
-                    panel.showReminders();
-                });
-                waitForCondition(() -> failing.handledRequests() >= 8, 8_000L);
-                getInstrumentation().waitForIdleSync();
-                // Simulate immediate profile lock mid-flight while a fresh worker request is active.
-                runTestOnUiThread(() -> {
-                    panel.showMemory(null);
-                    panel.close();
-                });
-                getInstrumentation().waitForIdleSync();
-                waitForCondition(() -> shownOtherWindowsOnUi(activity) == 0, 5_000L);
-                runTestOnUiThread(() -> {
-                    assertFalse("Activity must stay healthy after error burst and lock-mid-action",
-                            activity.isFinishing());
-                    assertEquals("No leaked dialog windows may remain after panel.close()",
-                            0, shownOtherWindows(activity));
-                });
-            } finally {
-                runTestOnUiThread(panel::close);
+            // Phase 2: All HTTP 500 error responses + rapid switching + lock-mid-action cleanup.
+            try (DynamicLoopbackServer failing = new DynamicLoopbackServer(path ->
+                    new HttpReply("500 Internal Server Error", "{\"error\":{\"code\":\"server_boom\"}}"));
+                 WorkspaceAccountFixture profile = new WorkspaceAccountFixture(app, failing.endpoint())) {
+                SessionPanel panel = new SessionPanel(activity, new HermesApi(failing.endpoint(), "test"), profile.account);
+                try {
+                    runTestOnUiThread(() -> {
+                        panel.showMemory(null);
+                        panel.showNotes(() -> true, d -> {}, null);
+                        panel.showGlobalSearch(id -> {}, null);
+                        panel.showSkillStudio(() -> true, d -> {}, null);
+                        panel.showWorkspaceFiles("s1", () -> true, d -> {}, null);
+                        panel.showProfileDefaults(null);
+                        panel.showStats(null, null);
+                        panel.showReminders();
+                    });
+                    waitForCondition(() -> failing.handledRequests() >= 8, 8_000L);
+                    getInstrumentation().waitForIdleSync();
+                    // Simulate immediate profile lock mid-flight while a fresh worker request is active.
+                    runTestOnUiThread(() -> {
+                        panel.showMemory(null);
+                        panel.close();
+                    });
+                    getInstrumentation().waitForIdleSync();
+                    waitForCondition(() -> shownOtherWindowsOnUi(activity) == 0, 5_000L);
+                    runTestOnUiThread(() -> {
+                        assertFalse("Activity must stay healthy after error burst and lock-mid-action",
+                                activity.isFinishing());
+                        assertEquals("No leaked dialog windows may remain after panel.close()",
+                                0, shownOtherWindows(activity));
+                    });
+                } finally {
+                    runTestOnUiThread(panel::close);
+                }
             }
         } finally {
             finishMain(activity);

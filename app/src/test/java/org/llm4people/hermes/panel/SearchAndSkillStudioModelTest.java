@@ -153,4 +153,21 @@ public final class SearchAndSkillStudioModelTest {
         assertEquals(R.string.ws_share_err_denied,
                 UniversalShareModel.describeHttpErrorRes(403, ""));
     }
+
+    @Test
+    public void formatTimestampDelegatesIso8601EpochSecondsAndEpochMillisConsistently() {
+        ZoneId utc = ZoneId.of("UTC");
+        String expected = SearchResultModel.formatTimestamp("2026-11-22T14:30:00Z", utc, java.util.Locale.US);
+        assertFalse(expected.isEmpty());
+        assertEquals(expected, SearchResultModel.formatTimestamp("2026-11-22T09:30:00-05:00", utc, java.util.Locale.US));
+        assertEquals(expected, SearchResultModel.formatTimestamp("1795357800", utc, java.util.Locale.US));
+        assertEquals(expected, SearchResultModel.formatTimestamp("1795357800000", utc, java.util.Locale.US));
+
+        assertEquals("", SearchResultModel.formatTimestamp(null, utc, java.util.Locale.US));
+        assertEquals("", SearchResultModel.formatTimestamp("   ", utc, java.util.Locale.US));
+        assertEquals("", SearchResultModel.formatTimestamp("0", utc, java.util.Locale.US));
+        assertEquals("", SearchResultModel.formatTimestamp("-1795357800", utc, java.util.Locale.US));
+        assertEquals("", SearchResultModel.formatTimestamp("NaN", utc, java.util.Locale.US));
+        assertEquals("", SearchResultModel.formatTimestamp("invalid-date", utc, java.util.Locale.US));
+    }
 }
