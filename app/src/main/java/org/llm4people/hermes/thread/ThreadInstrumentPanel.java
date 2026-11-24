@@ -16,6 +16,7 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
@@ -143,11 +144,13 @@ final class ThreadInstrumentPanel {
     }
 
     static String spoken(Context context, JSONObject row, List<Pin> proposals) {
-        if (proposals.isEmpty()) return ThreadData.content(row);
+        if (proposals.isEmpty()) return ThreadData.content(context, row);
         Map<Integer, String> titles = new HashMap<>();
         for (Pin pin : proposals) titles.put(pin.fenceOrdinal, pin.title);
+        Context localized = context == null ? null : AppLanguage.wrapContext(context);
         return MessageParts.project(row, bodies(proposals), ordinal ->
-                context.getString(R.string.instrument_spoken, titles.get(ordinal)));
+                (localized != null ? localized : context).getString(R.string.instrument_spoken, titles.get(ordinal)),
+                context);
     }
 
     private static Map<Integer, String> bodies(List<Pin> proposals) {
@@ -157,7 +160,7 @@ final class ThreadInstrumentPanel {
     }
 
     String prose(JSONObject row, List<Pin> proposals) {
-        String prose = MessageParts.project(row, bodies(proposals), ignored -> "");
+        String prose = MessageParts.project(row, bodies(proposals), ignored -> "", activity);
         return prose.trim().isEmpty() ? "" : prose;
     }
 

@@ -3,6 +3,7 @@ package org.llm4people.hermes.artifact;
 import android.content.Context;
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.R;
 import java.util.ArrayList;
 import java.util.List;
@@ -67,7 +68,8 @@ public final class MessageParts {
     }
 
     private static String imageMarker(Context context) {
-        return context == null ? DEFAULT_IMAGE_MARKER : context.getString(R.string.ws_image_attached);
+        return context == null ? DEFAULT_IMAGE_MARKER
+                : AppLanguage.wrapContext(context).getString(R.string.ws_image_attached);
     }
 
     private static String normalizeImageMarker(String marker) {

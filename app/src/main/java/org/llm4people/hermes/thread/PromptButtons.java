@@ -35,7 +35,7 @@ final class PromptButtons {
             case SKIP -> R.color.muted;
             default -> R.color.accent;
         };
-        ColorStateList ink = colors(context, R.color.muted, text, text);
+        ColorStateList ink = colors(context, R.color.disabled_ink, text, text);
         button.setTextColor(ink);
         button.setCompoundDrawableTintList(ink);
         if (!quiet) {

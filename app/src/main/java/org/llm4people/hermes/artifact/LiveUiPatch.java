@@ -57,7 +57,7 @@ public final class LiveUiPatch {
     private static final Pattern FORBIDDEN_PAYLOAD = Pattern.compile(
             "(?i)<\\s*/?\\s*(script|iframe|object|embed|svg)\\b|javascript\\s*:|vbscript\\s*:|data\\s*:\\s*text/html|intent\\s*:|file\\s*://");
     private static final List<String> SCOPES = Arrays.asList("thread", "atelier", "global");
-    private static final String STATE_KEY = "workspace.live_ui.v2";
+    static final String STATE_KEY = "workspace.live_ui.v2";
 
     public static final class CustomTab {
         public final String id;
@@ -983,7 +983,7 @@ public final class LiveUiPatch {
     }
 
     /**
-     * Profile-scoped persistent state for live UI edits: custom Atelier tabs, custom composer quick-action chips,
+     * Profile-scoped persistent state for live UI edits: custom Apps tabs, custom composer quick-action chips,
      * widgets, live theme override, and atomic rollback history. Fails closed on storage corruption.
      */
     public static final class StateManager {
@@ -1061,7 +1061,7 @@ public final class LiveUiPatch {
         /** Explicit user-confirmed recovery of a corrupted workspace.live_ui.v2 record. */
         public synchronized void resetCorrupted() {
             store.remove(STATE_KEY);
-            store.remove("workspace.theme.v2");
+            store.remove(ThemePalette.STORAGE_KEY);
             tabs.clear();
             quickActions.clear();
             widgets.clear();
@@ -1234,12 +1234,12 @@ public final class LiveUiPatch {
         private void persist() {
             if (tabs.isEmpty() && quickActions.isEmpty() && widgets.isEmpty() && theme.isDefault() && history.isEmpty()) {
                 store.remove(STATE_KEY);
-                store.remove("workspace.theme.v2");
+                store.remove(ThemePalette.STORAGE_KEY);
                 return;
             }
             store.write(STATE_KEY, encodeState());
-            if (theme.isDefault()) store.remove("workspace.theme.v2");
-            else store.write("workspace.theme.v2", theme.encode());
+            if (theme.isDefault()) store.remove(ThemePalette.STORAGE_KEY);
+            else store.write(ThemePalette.STORAGE_KEY, theme.encode());
         }
 
         /** Pure-Java deterministic encoding (zero org.json dependency so JVM unit tests run natively). */

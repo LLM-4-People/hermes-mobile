@@ -69,7 +69,9 @@ final class ThreadData {
     }
 
     static String content(Context context, JSONObject message) {
-        String value = MessageParts.display(message);
+        String value = context != null
+                ? MessageParts.display(message, context)
+                : MessageParts.display(message, ThreadStrings.get(null, R.string.ws_image_attached));
         if ("user".equals(string(message, "role")) && value.contains(PHOTO_HINT)) {
             return PHOTO_LINE.matcher(value).replaceAll(java.util.regex.Matcher.quoteReplacement(
                     ThreadStrings.get(context, R.string.thread_attached_image)));

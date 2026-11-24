@@ -1,7 +1,6 @@
 package org.llm4people.hermes.customization;
 
 import android.content.Context;
-import android.content.res.ColorStateList;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.StateListDrawable;
 import android.view.Gravity;
@@ -596,9 +595,7 @@ public final class InteractiveCardView extends LinearLayout {
         apply.setText(context.getString(R.string.card_apply_appearance));
         apply.setAllCaps(false);
         apply.setTypeface(Ui.mediumTypeface());
-        apply.setTextColor(new ColorStateList(
-                new int[][]{new int[]{-android.R.attr.state_enabled}, new int[]{}},
-                new int[]{context.getColor(R.color.disabled_ink), onAccentArgb}));
+        apply.setTextColor(Ui.enabledDisabledInk(onAccentArgb, context.getColor(R.color.disabled_ink)));
         apply.setMinHeight(touchMin);
         apply.setMinimumHeight(touchMin);
         apply.setMinWidth(touchMin);
