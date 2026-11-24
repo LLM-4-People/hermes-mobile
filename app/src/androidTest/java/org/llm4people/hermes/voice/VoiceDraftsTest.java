@@ -49,8 +49,18 @@ public final class VoiceDraftsTest extends InstrumentationTestCase {
     }
 
     @Override protected void tearDown() throws Exception {
-        try { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
-        finally {
+        try {
+            try {
+                if (voice != null) {
+                    getInstrumentation().runOnMainSync(() -> {
+                        voice.reader().stop();
+                        voice.cancel();
+                    });
+                }
+            } finally {
+                ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+            }
+        } finally {
             Diagnostics.clear();
             super.tearDown();
         }

@@ -39,86 +39,88 @@ public final class OpenDiscussionComposerRegressionTest extends InstrumentationT
         Context context = getInstrumentation().getTargetContext();
         Intent launch = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
         assertNotNull(launch);
-        MainActivity activity = (MainActivity) getInstrumentation().startActivitySync(launch);
-        try (SessionEchoGateway gateway = new SessionEchoGateway();
-             WorkspaceAccountFixture owner = new WorkspaceAccountFixture(context, gateway.endpoint());
-             WorkspaceAccountFixture foreign = new WorkspaceAccountFixture(context, gateway.endpoint())) {
-            owner.account.write("last-thread", "seed-thread");
-            ThreadWorkspace threads = main(() -> unlock(activity, owner.account));
-            WorkspaceNavigation navigation = main(() -> navigationOf(activity));
-            assertNotNull(threads);
-            assertNotNull(navigation);
+        try {
+            try (SessionEchoGateway gateway = new SessionEchoGateway();
+                 WorkspaceAccountFixture owner = new WorkspaceAccountFixture(context, gateway.endpoint());
+                 WorkspaceAccountFixture foreign = new WorkspaceAccountFixture(context, gateway.endpoint())) {
+                MainActivity activity = (MainActivity) getInstrumentation().startActivitySync(launch);
+                try {
+                    owner.account.write("last-thread", "seed-thread");
+                    ThreadWorkspace threads = main(() -> unlock(activity, owner.account));
+                    WorkspaceNavigation navigation = main(() -> navigationOf(activity));
+                    assertNotNull(threads);
+                    assertNotNull(navigation);
 
-            // 1. Positive inline: default layout keeps composer visible and stays on DISCUSSION.
-            runTestOnUiThread(() -> {
-                assertTrue(threads.composerVisible());
-                activity.onAction("nav_apps");
-                assertEquals(WorkspaceNavigation.APPS, navigation.current());
-                invokeOpenDiscussionComposer(activity, owner.account, false, false);
-                assertEquals(WorkspaceNavigation.DISCUSSION, navigation.current());
-                assertTrue(threads.composerVisible());
-                assertEquals("seed-thread", threads.sessionId());
-            });
+                    // 1. Positive inline: default layout keeps composer visible and stays on DISCUSSION.
+                    runTestOnUiThread(() -> {
+                        assertTrue(threads.composerVisible());
+                        activity.onAction("nav_apps");
+                        assertEquals(WorkspaceNavigation.APPS, navigation.current());
+                        invokeOpenDiscussionComposer(activity, owner.account, false, false);
+                        assertEquals(WorkspaceNavigation.DISCUSSION, navigation.current());
+                        assertTrue(threads.composerVisible());
+                        assertEquals("seed-thread", threads.sessionId());
+                    });
 
-            // 2. Positive fallback (existing thread): hidden inline composer routes to COMPOSER.
-            String hiddenRecord = new JSONObject().put("current", HIDDEN_COMPOSER_LAYOUT).toString();
-            runTestOnUiThread(() -> {
-                owner.account.write("workspace.v1.thread", hiddenRecord);
-                activity.onLayoutChanged();
-                assertFalse("Custom replace layout must hide inline composer", threads.composerVisible());
-                activity.onAction("nav_apps");
-                assertEquals(WorkspaceNavigation.APPS, navigation.current());
-                invokeOpenDiscussionComposer(activity, owner.account, false, false);
-                assertEquals(WorkspaceNavigation.COMPOSER, navigation.current());
-                assertEquals("seed-thread", threads.sessionId());
-            });
+                    // 2. Positive fallback (existing thread): hidden inline composer routes to COMPOSER.
+                    String hiddenRecord = new JSONObject().put("current", HIDDEN_COMPOSER_LAYOUT).toString();
+                    runTestOnUiThread(() -> {
+                        owner.account.write("workspace.v1.thread", hiddenRecord);
+                        activity.onLayoutChanged();
+                        assertFalse("Custom replace layout must hide inline composer", threads.composerVisible());
+                        activity.onAction("nav_apps");
+                        assertEquals(WorkspaceNavigation.APPS, navigation.current());
+                        invokeOpenDiscussionComposer(activity, owner.account, false, false);
+                        assertEquals(WorkspaceNavigation.COMPOSER, navigation.current());
+                        assertEquals("seed-thread", threads.sessionId());
+                    });
 
-            // 3. Positive fallback (createNew=true): creates a new session and then routes to COMPOSER.
-            runTestOnUiThread(() -> {
-                activity.onAction("nav_apps");
-                assertEquals(WorkspaceNavigation.APPS, navigation.current());
-                invokeOpenDiscussionComposer(activity, owner.account, true, false);
-            });
-            awaitCondition("createNew thread creation and fallback to COMPOSER", () -> {
-                String sessionId = threads.sessionId();
-                return sessionId != null
-                        && !"seed-thread".equals(sessionId)
-                        && WorkspaceNavigation.COMPOSER.equals(navigation.current());
-            });
-            String createdSessionId = main(threads::sessionId);
-            assertNotNull(createdSessionId);
-            assertFalse("seed-thread".equals(createdSessionId));
+                    // 3. Positive fallback (createNew=true): creates a new session and then routes to COMPOSER.
+                    runTestOnUiThread(() -> {
+                        activity.onAction("nav_apps");
+                        assertEquals(WorkspaceNavigation.APPS, navigation.current());
+                        invokeOpenDiscussionComposer(activity, owner.account, true, false);
+                    });
+                    awaitCondition("createNew thread creation and fallback to COMPOSER", () -> {
+                        String sessionId = threads.sessionId();
+                        return sessionId != null
+                                && !"seed-thread".equals(sessionId)
+                                && WorkspaceNavigation.COMPOSER.equals(navigation.current());
+                    });
+                    String createdSessionId = main(threads::sessionId);
+                    assertNotNull(createdSessionId);
+                    assertFalse("seed-thread".equals(createdSessionId));
 
-            // 4. Negative / fail-closed: null or mismatched Account is a strict no-op.
-            runTestOnUiThread(() -> {
-                activity.onAction("nav_apps");
-                assertEquals(WorkspaceNavigation.APPS, navigation.current());
-                invokeOpenDiscussionComposer(activity, null, false, false);
-                assertEquals(WorkspaceNavigation.APPS, navigation.current());
-                assertEquals(createdSessionId, threads.sessionId());
+                    // 4. Negative / fail-closed: null or mismatched Account is a strict no-op.
+                    runTestOnUiThread(() -> {
+                        activity.onAction("nav_apps");
+                        assertEquals(WorkspaceNavigation.APPS, navigation.current());
+                        invokeOpenDiscussionComposer(activity, null, false, false);
+                        assertEquals(WorkspaceNavigation.APPS, navigation.current());
+                        assertEquals(createdSessionId, threads.sessionId());
 
-                invokeOpenDiscussionComposer(activity, foreign.account, true, false);
-                assertEquals(WorkspaceNavigation.APPS, navigation.current());
-                assertEquals(createdSessionId, threads.sessionId());
-            });
+                        invokeOpenDiscussionComposer(activity, foreign.account, true, false);
+                        assertEquals(WorkspaceNavigation.APPS, navigation.current());
+                        assertEquals(createdSessionId, threads.sessionId());
+                    });
 
-            // 5. Restoring default layout returns inline composer behavior to DISCUSSION.
-            runTestOnUiThread(() -> {
-                owner.account.remove("workspace.v1.thread");
-                activity.onLayoutChanged();
-                activity.onAction("nav_apps");
-                assertEquals(WorkspaceNavigation.APPS, navigation.current());
-                invokeOpenDiscussionComposer(activity, owner.account, false, false);
-                assertEquals(WorkspaceNavigation.DISCUSSION, navigation.current());
-                assertTrue(threads.composerVisible());
-                assertEquals(createdSessionId, threads.sessionId());
-            });
-        } finally {
-            try {
-                ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
-            } finally {
-                Diagnostics.clear();
+                    // 5. Restoring default layout returns inline composer behavior to DISCUSSION.
+                    runTestOnUiThread(() -> {
+                        owner.account.remove("workspace.v1.thread");
+                        activity.onLayoutChanged();
+                        activity.onAction("nav_apps");
+                        assertEquals(WorkspaceNavigation.APPS, navigation.current());
+                        invokeOpenDiscussionComposer(activity, owner.account, false, false);
+                        assertEquals(WorkspaceNavigation.DISCUSSION, navigation.current());
+                        assertTrue(threads.composerVisible());
+                        assertEquals(createdSessionId, threads.sessionId());
+                    });
+                } finally {
+                    ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+                }
             }
+        } finally {
+            Diagnostics.clear();
         }
     }
 
