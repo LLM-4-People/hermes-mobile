@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Run the handoff journey on its own freshly booted API 36 Google APIs device.
 set -euo pipefail
+# shellcheck source=ci/emulator-offline.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/emulator-offline.sh"
 serial=$(adb get-serialno)
 app_apk=${1:?expected the packaged Hermes APK}
 device=(adb -s "$serial")
@@ -15,9 +17,6 @@ echo "2825816d0a972bd85eb289e556221293fadecfd3179a4a2531bde6f89c6f0238  $calenda
 "${device[@]}" install -r -t "$app_apk"
 
 # Keep the gateway on adb reverse. The external apps must have no default network or signed-in account.
-"${device[@]}" shell cmd connectivity airplane-mode enable
-"${device[@]}" shell svc wifi disable
-"${device[@]}" shell svc data disable
 enabled=$("${device[@]}" shell pm list packages -e com.google.android.calendar)
 if grep -Fxq 'package:com.google.android.calendar' <<< "$enabled"; then
   "${device[@]}" shell pm disable-user --user 0 com.google.android.calendar
@@ -39,31 +38,7 @@ require_receiver org.fossify.calendar -a android.intent.action.INSERT -d content
   -t vnd.android.cursor.dir/event
 require_receiver com.google.android.apps.maps -a android.intent.action.VIEW -d 'geo:0,0?q=Laval'
 
-# Android disconnects asynchronously. Poll until airplane mode is on, Wi-Fi is off, and no default network remains across 2 consecutive checks.
-offline_hits=0
-airplane=""
-wifi=""
-for ((i = 0; i < 120; i++)); do
-  airplane=$("${device[@]}" shell settings get global airplane_mode_on | tr -d '\r')
-  wifi=$("${device[@]}" shell settings get global wifi_on | tr -d '\r')
-  connectivity=$("${device[@]}" shell dumpsys connectivity)
-  if [[ "$airplane" == "1" && "$wifi" == "0" && "$connectivity" == *'Active default network: none'* ]]; then
-    offline_hits=$((offline_hits + 1))
-    if (( offline_hits >= 2 )); then break; fi
-  else
-    offline_hits=0
-    if (( i > 0 && i % 20 == 0 )); then
-      "${device[@]}" shell cmd connectivity airplane-mode enable
-      "${device[@]}" shell svc wifi disable
-      "${device[@]}" shell svc data disable
-    fi
-  fi
-  sleep 0.25
-done
-if (( offline_hits < 2 )); then
-  echo "Emulator did not settle into offline airplane mode (airplane_mode_on=${airplane:-?}, wifi_on=${wifi:-?})." >&2
-  exit 1
-fi
+wait_emulator_offline "$serial"
 mkdir "$proof"
 "$RUNNER_TEMP/hermes-env/bin/python" -B -m verification.phone_actions --source .fixture/hermes \
   --serial "$serial" --apk "$app_apk" --inbound --output "$proof/phone-actions.json"

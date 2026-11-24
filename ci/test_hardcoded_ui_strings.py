@@ -17,6 +17,10 @@ def _write(root: Path, rel: str, content: str) -> Path:
     return path
 
 
+FR_RES = '<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="fr">'
+EN_RES = '<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">'
+
+
 class HardcodedUiStringsGuardTest(unittest.TestCase):
     def test_repo_passes_with_zero_allowlists_and_accurate_ui_sinks(self):
         self.assertFalse(hasattr(guard, "MIGRATION_ALLOWLIST"))
@@ -29,8 +33,8 @@ class HardcodedUiStringsGuardTest(unittest.TestCase):
     def test_rejects_hardcoded_french_literals_both_accented_and_unaccented(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            _write(root, "app/src/main/res/values/strings.xml", "<resources><string name='ok'>OK</string></resources>")
-            _write(root, "app/src/main/res/values-en/strings.xml", "<resources><string name='ok'>OK</string></resources>")
+            _write(root, "app/src/main/res/values/strings.xml", f"{FR_RES}<string name='ok'>OK</string></resources>")
+            _write(root, "app/src/main/res/values-en/strings.xml", f"{EN_RES}<string name='ok'>OK</string></resources>")
             _write(
                 root,
                 "app/src/main/java/org/example/BadFr.java",
@@ -55,8 +59,8 @@ class HardcodedUiStringsGuardTest(unittest.TestCase):
     def test_rejects_hardcoded_english_ui_strings_in_ui_sinks(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            _write(root, "app/src/main/res/values/strings.xml", "<resources><string name='ok'>OK</string></resources>")
-            _write(root, "app/src/main/res/values-en/strings.xml", "<resources><string name='ok'>OK</string></resources>")
+            _write(root, "app/src/main/res/values/strings.xml", f"{FR_RES}<string name='ok'>OK</string></resources>")
+            _write(root, "app/src/main/res/values-en/strings.xml", f"{EN_RES}<string name='ok'>OK</string></resources>")
             _write(
                 root,
                 "app/src/main/java/org/example/BadEnUi.java",
@@ -117,8 +121,8 @@ class HardcodedUiStringsGuardTest(unittest.TestCase):
     def test_allows_localized_resources_symbols_non_ui_calls_and_regex_matchers(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            _write(root, "app/src/main/res/values/strings.xml", "<resources><string name='ok'>OK</string></resources>")
-            _write(root, "app/src/main/res/values-en/strings.xml", "<resources><string name='ok'>OK</string></resources>")
+            _write(root, "app/src/main/res/values/strings.xml", f"{FR_RES}<string name='ok'>OK</string></resources>")
+            _write(root, "app/src/main/res/values-en/strings.xml", f"{EN_RES}<string name='ok'>OK</string></resources>")
             _write(
                 root,
                 "app/src/main/java/org/example/Clean.java",
@@ -146,7 +150,7 @@ class HardcodedUiStringsGuardTest(unittest.TestCase):
             _write(
                 root,
                 "app/src/main/res/values/a.xml",
-                """<resources>
+                f"""{FR_RES}
                     <string name="keep">Garder</string>
                     <string name="fmt_ok">100%% %1$s (%2$d)</string>
                     <string name="fmt_bad">Valeur %1$s sur %2$d</string>
@@ -167,12 +171,12 @@ class HardcodedUiStringsGuardTest(unittest.TestCase):
             _write(
                 root,
                 "app/src/main/res/values/b.xml",
-                """<resources><string name="keep">Doublon</string></resources>""",
+                f"""{FR_RES}<string name="keep">Doublon</string></resources>""",
             )
             _write(
                 root,
                 "app/src/main/res/values-en/a.xml",
-                """<resources>
+                f"""{EN_RES}
                     <string name="keep">Keep</string>
                     <string name="fmt_ok">(%2$d) %1$s 100%%</string>
                     <string name="fmt_bad">Value %1$d</string>
@@ -203,6 +207,29 @@ class HardcodedUiStringsGuardTest(unittest.TestCase):
             self.assertFalse(any("fmt_ok" in i for i in issues), issues)
             self.assertTrue(any("<plurals name='days'> quantities" in i for i in issues), issues)
             self.assertTrue(any("<plurals name='files' quantity='one'> placeholder mismatch" in i for i in issues), issues)
+
+    def test_xml_parity_enforces_tools_locale_and_exempts_non_translatable_only_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            # Non-translatable-only XML files (colors, ids, config) require no tools:locale.
+            _write(root, "app/src/main/res/values/colors.xml", "<resources><color name='ink'>#14231E</color></resources>")
+            _write(root, "app/src/main/res/values/config.xml", "<resources><string name='repo' translatable='false'>owner/app</string></resources>")
+            _write(root, "app/src/main/res/values/ids.xml", "<resources><item name='row_id' type='id'/></resources>")
+            _write(root, "app/src/main/res/values/strings.xml", f"{FR_RES}<string name='ok'>OK</string></resources>")
+            _write(root, "app/src/main/res/values-en/strings.xml", f"{EN_RES}<string name='ok'>OK</string></resources>")
+            self.assertEqual(guard.check_xml_parity(root), [])
+
+            # Missing tools:locale in values/ and values-en/ must fail.
+            _write(root, "app/src/main/res/values/missing_fr.xml", "<resources><string name='m1'>Bonjour</string></resources>")
+            _write(root, "app/src/main/res/values-en/missing_en.xml", "<resources><string name='m1'>Hello</string></resources>")
+            # Wrong tools:locale in values/ and values-en/ must fail.
+            _write(root, "app/src/main/res/values/wrong_fr.xml", f"{EN_RES}<plurals name='p1'><item quantity='one'>1</item></plurals></resources>")
+            _write(root, "app/src/main/res/values-en/wrong_en.xml", f"{FR_RES}<plurals name='p1'><item quantity='one'>1</item></plurals></resources>")
+            issues = guard.check_xml_parity(root)
+            self.assertTrue(any("missing_fr.xml" in i and "tools:locale='fr'" in i for i in issues), issues)
+            self.assertTrue(any("missing_en.xml" in i and "tools:locale='en'" in i for i in issues), issues)
+            self.assertTrue(any("wrong_fr.xml" in i and "tools:locale='fr'" in i and "found 'en'" in i for i in issues), issues)
+            self.assertTrue(any("wrong_en.xml" in i and "tools:locale='en'" in i and "found 'fr'" in i for i in issues), issues)
 
 
 if __name__ == "__main__":
