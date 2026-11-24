@@ -198,7 +198,12 @@ final class ProfileDefaultsPanel {
     private void syncSaveBar() {
         boolean dirty = model.isDirty();
         if (statusPill != null) {
-            statusPill.setText(dirty ? R.string.profile_defaults_status_unsaved : R.string.profile_defaults_status_saved);
+            String nextText = panel.t(dirty
+                    ? R.string.profile_defaults_status_unsaved
+                    : R.string.profile_defaults_status_saved);
+            if (!nextText.contentEquals(statusPill.getText())) {
+                statusPill.setText(nextText);
+            }
             statusPill.setTextColor(panel.activity.getColor(dirty ? R.color.warning : R.color.accent));
             statusPill.setBackground(Ui.shape(panel.activity, 999,
                     dirty ? R.color.warning_surface : R.color.accent_surface, 0, 0));
@@ -351,9 +356,7 @@ final class ProfileDefaultsPanel {
     }
 
     private void refreshToolsetRows() {
-        if (toolsetCountPill != null) {
-            toolsetCountPill.setText(toolsetCountText());
-        }
+        updateToolsetCountPill();
         if (toolsetListContainer == null) return;
         toolsetListContainer.removeAllViews();
         List<String> filtered = model.filterToolsets(toolsetFilterQuery);
@@ -395,10 +398,18 @@ final class ProfileDefaultsPanel {
             toggle.setChecked(model.isToolsetEnabled(toolset));
             toggle.setOnCheckedChangeListener((btn, checked) -> {
                 model.setToolsetEnabled(toolset, checked);
-                if (toolsetCountPill != null) toolsetCountPill.setText(toolsetCountText());
+                updateToolsetCountPill();
                 syncSaveBar();
             });
             toolsetListContainer.addView(toggle, new LinearLayout.LayoutParams(-1, -2));
+        }
+    }
+
+    private void updateToolsetCountPill() {
+        if (toolsetCountPill == null) return;
+        String next = toolsetCountText();
+        if (!next.contentEquals(toolsetCountPill.getText())) {
+            toolsetCountPill.setText(next);
         }
     }
 
@@ -662,9 +673,7 @@ final class ProfileDefaultsPanel {
                     initialRef[0] = currentText;
 
                     LinearLayout metaRow = Ui.row(panel.activity);
-                    TextView counterPill = Ui.pill(panel.activity, soulCountLabel(currentText),
-                            R.color.accent_surface, R.color.accent);
-                    counterPill.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+                    TextView counterPill = createSoulCounterPill(currentText);
                     metaRow.addView(counterPill);
                     LinearLayout.LayoutParams metaLp = new LinearLayout.LayoutParams(-1, -2);
                     metaLp.bottomMargin = Ui.dp(panel.activity, 10);
@@ -731,6 +740,10 @@ final class ProfileDefaultsPanel {
                         }
                     });
                 }, this::editSoul);
+    }
+
+    private TextView createSoulCounterPill(String text) {
+        return Ui.pill(panel.activity, soulCountLabel(text), R.color.accent_surface, R.color.accent);
     }
 
     private String soulCountLabel(String text) {

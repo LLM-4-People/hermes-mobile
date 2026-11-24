@@ -7,11 +7,14 @@ import android.content.Context;
 import android.content.res.ColorStateList;
 import android.graphics.drawable.RippleDrawable;
 import android.test.InstrumentationTestCase;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.text.format.Formatter;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.accessibility.AccessibilityNodeInfo;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -24,6 +27,7 @@ import org.json.JSONObject;
 import org.llm4people.hermes.ambient.AmbientAccessPanel;
 import org.llm4people.hermes.ambient.NotificationAllowlist;
 import org.llm4people.hermes.artifact.ArtifactDesk;
+import org.llm4people.hermes.artifact.CodeReader;
 import org.llm4people.hermes.artifact.DataTableBlock;
 import org.llm4people.hermes.artifact.ThemePalette;
 import org.llm4people.hermes.artifact.ThreadInstruments;
@@ -55,6 +59,7 @@ import org.llm4people.hermes.profile.Account;
 import org.llm4people.hermes.profile.AdminConsoleSheet;
 import org.llm4people.hermes.profile.FirstRunWizard;
 import org.llm4people.hermes.onboarding.OnboardingModels;
+import org.llm4people.hermes.onboarding.QrScannerActivity;
 import org.llm4people.hermes.profile.ProfileGate;
 import org.llm4people.hermes.profile.ProfileLockPolicy;
 import org.llm4people.hermes.profile.WorkspaceAccountFixture;
@@ -63,7 +68,9 @@ import org.llm4people.hermes.search.UniversalSearchModel;
 import org.llm4people.hermes.search.UniversalSearchSheet;
 import org.llm4people.hermes.settings.AppearanceSettingsPanel;
 import org.llm4people.hermes.settings.SettingsHubPanel;
+import org.llm4people.hermes.thread.InfiniteScrollController;
 import org.llm4people.hermes.thread.ThreadWorkspace;
+import org.llm4people.hermes.update.UpdatePanel;
 import org.llm4people.hermes.voice.VoiceDrafts;
 
 import java.lang.ref.WeakReference;
@@ -77,6 +84,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
@@ -106,6 +114,9 @@ import java.util.function.Supplier;
  * - R18.5.1-R18.5.3: Transition-guarded polite live regions across all 8 live-filtered empty states +
  *   SkillStudio, streaming reasoning toggle contentDescription in ThreadViews & MessageText, and
  *   FirstRunWizard manual-paste dialog padded profile_input styling.
+ * - R20.5.1, R20.5.3-R20.5.8: TalkBack live-region noise suppression and missing-announcement fixes
+ *   across InfiniteScrollController, UpdatePanel, ProfileDefaultsPanel, SkillBrowser, CodeReader,
+ *   CommandPalette, and QrScannerActivity.
  */
 @SuppressWarnings("deprecation")
 public final class AccessibilityControlsRegressionTest extends InstrumentationTestCase {
@@ -1907,6 +1918,407 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
         } finally {
             Diagnostics.clear();
         }
+    }
+
+    public void testR20TalkBackLiveRegionGuardsAcrossControllersAndPanels() throws Throwable {
+        Context context = getInstrumentation().getTargetContext();
+        AtomicReference<SessionPanel> sessionPanelRef = new AtomicReference<>();
+        AtomicReference<UpdatePanel> updatePanelRef = new AtomicReference<>();
+        AtomicReference<CommandPalette> paletteRef = new AtomicReference<>();
+        try (WorkspaceAccountFixture fixture = new WorkspaceAccountFixture(context)) {
+            MainActivity activity = launchActivity(context.getPackageName(), MainActivity.class, null);
+            try {
+                runTestOnUiThread(() -> {
+                    try {
+                        // R20.5.1: InfiniteScrollController hides jumpPill without mutating text and skips
+                        // unchanged setText/setContentDescription across scroll frames.
+                        InfiniteScrollController scrollController = new InfiniteScrollController(
+                                new InfiniteScrollController.Callbacks() {
+                                    @Override public boolean hasOlder() { return false; }
+                                    @Override public boolean hasNewer() { return false; }
+                                    @Override public boolean isLoadingOlder() { return false; }
+                                    @Override public boolean isLoadingNewer() { return false; }
+                                    @Override public void loadOlder() {}
+                                    @Override public void loadNewer() {}
+                                });
+                        Button jumpPill = scrollController.createJumpPill(activity, null);
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE, jumpPill.getAccessibilityLiveRegion());
+                        assertEquals(View.GONE, jumpPill.getVisibility());
+                        AtomicInteger pillMutations = countTextMutations(jumpPill);
+
+                        // Scrolling up shows pill without mutating already-matching base text.
+                        scrollController.onScroll(null, 0, 5, 40);
+                        assertEquals(View.VISIBLE, jumpPill.getVisibility());
+                        assertEquals(0, pillMutations.get());
+
+                        // Repeated scroll frames while scrolled up must not re-fire setText.
+                        scrollController.onScroll(null, 1, 5, 40);
+                        scrollController.onScroll(null, 2, 5, 40);
+                        assertEquals(0, pillMutations.get());
+
+                        // Unread count transitions update text and contentDescription cleanly.
+                        scrollController.onNewMessagesArrived(1);
+                        assertEquals(1, pillMutations.get());
+                        assertEquals(activity.getString(R.string.infinite_jump_latest_one),
+                                String.valueOf(jumpPill.getText()));
+                        assertEquals(activity.getString(R.string.infinite_jump_latest_one_cd),
+                                String.valueOf(jumpPill.getContentDescription()));
+
+                        pillMutations.set(0);
+                        scrollController.onScroll(null, 3, 5, 40);
+                        assertEquals(0, pillMutations.get());
+
+                        scrollController.onNewMessagesArrived(2);
+                        assertEquals(1, pillMutations.get());
+                        assertEquals(activity.getString(R.string.infinite_jump_latest_unread, 3),
+                                String.valueOf(jumpPill.getText()));
+
+                        // Snapping to latest hides pill WITHOUT mutating text while visible.
+                        pillMutations.set(0);
+                        scrollController.onSnappedToLatest();
+                        assertEquals(View.GONE, jumpPill.getVisibility());
+                        assertEquals(0, pillMutations.get());
+
+                        // Scrolling up again refreshes text cleanly to 0-unread label before showing.
+                        scrollController.onScroll(null, 0, 5, 40);
+                        assertEquals(View.VISIBLE, jumpPill.getVisibility());
+                        assertEquals(1, pillMutations.get());
+                        assertEquals(activity.getString(R.string.infinite_jump_latest),
+                                String.valueOf(jumpPill.getText()));
+
+                        // R20.5.3: UpdatePanel silences intermediate per-percent download ticks and guards
+                        // discrete milestone announcements against unchanged visible text.
+                        UpdatePanel updatePanel = new UpdatePanel(activity);
+                        updatePanelRef.set(updatePanel);
+                        updatePanel.buildView();
+                        Field feedbackField = UpdatePanel.class.getDeclaredField("feedback");
+                        feedbackField.setAccessible(true);
+                        TextView updateFeedback = (TextView) feedbackField.get(updatePanel);
+                        assertNotNull(updateFeedback);
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE,
+                                updateFeedback.getAccessibilityLiveRegion());
+                        Method showFeedback2 = UpdatePanel.class.getDeclaredMethod(
+                                "showFeedback", String.class, boolean.class);
+                        showFeedback2.setAccessible(true);
+                        Method showFeedback3 = UpdatePanel.class.getDeclaredMethod(
+                                "showFeedback", String.class, boolean.class, boolean.class);
+                        showFeedback3.setAccessible(true);
+                        AtomicInteger feedbackMutations = countTextMutations(updateFeedback);
+
+                        showFeedback2.invoke(updatePanel, activity.getString(R.string.update_downloading, 0), false);
+                        assertEquals(View.VISIBLE, updateFeedback.getVisibility());
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE,
+                                updateFeedback.getAccessibilityLiveRegion());
+                        assertEquals(1, feedbackMutations.get());
+
+                        // Intermediate percentage ticks drop live region to NONE.
+                        showFeedback3.invoke(updatePanel, activity.getString(R.string.update_downloading, 25),
+                                false, false);
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_NONE,
+                                updateFeedback.getAccessibilityLiveRegion());
+                        showFeedback3.invoke(updatePanel, activity.getString(R.string.update_downloading_indeterminate),
+                                false, false);
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_NONE,
+                                updateFeedback.getAccessibilityLiveRegion());
+
+                        // Verifying milestone restores POLITE and suppresses duplicate identical calls.
+                        feedbackMutations.set(0);
+                        String verifying = activity.getString(R.string.update_verifying);
+                        showFeedback3.invoke(updatePanel, verifying, false, true);
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE,
+                                updateFeedback.getAccessibilityLiveRegion());
+                        assertEquals(1, feedbackMutations.get());
+                        showFeedback3.invoke(updatePanel, verifying, false, true);
+                        assertEquals(1, feedbackMutations.get());
+
+                        // Error milestone announces via POLITE with danger tint and suppresses duplicates.
+                        feedbackMutations.set(0);
+                        String netErr = activity.getString(R.string.update_error_network);
+                        showFeedback2.invoke(updatePanel, netErr, true);
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE,
+                                updateFeedback.getAccessibilityLiveRegion());
+                        assertEquals(activity.getColor(R.color.danger), updateFeedback.getCurrentTextColor());
+                        assertEquals(1, feedbackMutations.get());
+                        showFeedback2.invoke(updatePanel, netErr, true);
+                        assertEquals(1, feedbackMutations.get());
+
+                        // R20.5.4: ProfileDefaultsPanel removes POLITE from SOUL.md counterPill and guards
+                        // toolsetCountPill & statusPill against unchanged text.
+                        HermesApi api = new HermesApi("http://127.0.0.1:1", "tok");
+                        SessionPanel sessionPanel = new SessionPanel(activity, api, fixture.account);
+                        sessionPanelRef.set(sessionPanel);
+
+                        Class<?> profilePanelClass = Class.forName("org.llm4people.hermes.panel.ProfileDefaultsPanel");
+                        Constructor<?> profileCtor = profilePanelClass.getDeclaredConstructor(
+                                SessionPanel.class, Runnable.class);
+                        profileCtor.setAccessible(true);
+                        Object profilePanel = profileCtor.newInstance(sessionPanel, null);
+
+                        Field profileModelField = profilePanelClass.getDeclaredField("model");
+                        profileModelField.setAccessible(true);
+                        ProfileDefaultsModel profileModel = (ProfileDefaultsModel) profileModelField.get(profilePanel);
+                        List<String> toolsets = Arrays.asList("web", "code");
+                        profileModel.load("openai", "gpt-4o", "auto", toolsets, toolsets);
+
+                        Class<?> summaryClass = Class.forName("org.llm4people.hermes.panel.BrainJson$ProfileSummary");
+                        Constructor<?> summaryCtor = summaryClass.getDeclaredConstructor(
+                                String.class, String.class, String.class, String.class,
+                                List.class, String.class, boolean.class, boolean.class, String.class);
+                        summaryCtor.setAccessible(true);
+                        Object summaryObj = summaryCtor.newInstance(
+                                "Default", "", "openai", "gpt-4o", toolsets, "auto", true, false, "Hello soul");
+                        setField(profilePanel, "summary", summaryObj);
+
+                        Method mountMainPage = profilePanelClass.getDeclaredMethod("mountMainPage");
+                        mountMainPage.setAccessible(true);
+                        mountMainPage.invoke(profilePanel);
+                        Method renderProfile = profilePanelClass.getDeclaredMethod("render");
+                        renderProfile.setAccessible(true);
+                        renderProfile.invoke(profilePanel);
+
+                        Field statusPillField = profilePanelClass.getDeclaredField("statusPill");
+                        statusPillField.setAccessible(true);
+                        TextView statusPill = (TextView) statusPillField.get(profilePanel);
+                        Field toolsetCountField = profilePanelClass.getDeclaredField("toolsetCountPill");
+                        toolsetCountField.setAccessible(true);
+                        TextView toolsetCountPill = (TextView) toolsetCountField.get(profilePanel);
+                        assertNotNull(statusPill);
+                        assertNotNull(toolsetCountPill);
+
+                        Method syncSaveBar = profilePanelClass.getDeclaredMethod("syncSaveBar");
+                        syncSaveBar.setAccessible(true);
+                        Method refreshToolsets = profilePanelClass.getDeclaredMethod("refreshToolsetRows");
+                        refreshToolsets.setAccessible(true);
+
+                        AtomicInteger statusMutations = countTextMutations(statusPill);
+                        AtomicInteger toolsetCountMutations = countTextMutations(toolsetCountPill);
+
+                        syncSaveBar.invoke(profilePanel);
+                        assertEquals("Unchanged saved status must not re-fire setText", 0, statusMutations.get());
+                        refreshToolsets.invoke(profilePanel);
+                        assertEquals("Unchanged toolset count must not re-fire setText",
+                                0, toolsetCountMutations.get());
+
+                        profileModel.setToolsetEnabled("web", false);
+                        refreshToolsets.invoke(profilePanel);
+                        syncSaveBar.invoke(profilePanel);
+                        assertEquals(1, toolsetCountMutations.get());
+                        assertEquals(1, statusMutations.get());
+
+                        // Subsequent unchanged refreshes while dirty must not re-fire setText.
+                        refreshToolsets.invoke(profilePanel);
+                        syncSaveBar.invoke(profilePanel);
+                        assertEquals(1, toolsetCountMutations.get());
+                        assertEquals(1, statusMutations.get());
+
+                        Method createSoulCounterPill = profilePanelClass.getDeclaredMethod(
+                                "createSoulCounterPill", String.class);
+                        createSoulCounterPill.setAccessible(true);
+                        TextView soulCounterPill = (TextView) createSoulCounterPill.invoke(profilePanel, "Hello");
+                        assertEquals("SOUL.md counterPill must not use POLITE live region",
+                                View.ACCESSIBILITY_LIVE_REGION_NONE,
+                                soulCounterPill.getAccessibilityLiveRegion());
+
+                        // R20.5.5: SkillBrowser only calls empty.setText when empty & hidden/changed, and never
+                        // calls setText when hiding on non-empty matches.
+                        Class<?> skillBrowserClass = Class.forName("org.llm4people.hermes.panel.SkillBrowser");
+                        Class<?> sessionSettingsClass = Class.forName("org.llm4people.hermes.panel.SessionSettings");
+                        Constructor<?> skillBrowserCtor = skillBrowserClass.getDeclaredConstructor(
+                                SessionPanel.class, BooleanSupplier.class, Consumer.class, sessionSettingsClass);
+                        skillBrowserCtor.setAccessible(true);
+                        Object skillBrowser = skillBrowserCtor.newInstance(
+                                sessionPanel, (BooleanSupplier) () -> true, (Consumer<String>) s -> {}, null);
+
+                        Class<?> skillInventoryClass = Class.forName("org.llm4people.hermes.panel.SkillInventory");
+                        Method parseSkills = skillInventoryClass.getDeclaredMethod("parse", JSONObject.class);
+                        parseSkills.setAccessible(true);
+                        Object parsedSkills = parseSkills.invoke(null, new JSONObject().put("data",
+                                new JSONArray().put(new JSONObject()
+                                        .put("name", "git")
+                                        .put("description", "Git helper")
+                                        .put("category", "dev"))));
+
+                        EditText skillSearch = new EditText(activity);
+                        TextView skillEmpty = Ui.text(activity, "", 14);
+                        skillEmpty.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+                        skillEmpty.setVisibility(View.GONE);
+                        ArrayAdapter<Object> skillAdapter = new ArrayAdapter<>(
+                                activity, android.R.layout.simple_list_item_1, new ArrayList<>());
+                        setField(skillBrowser, "search", skillSearch);
+                        setField(skillBrowser, "empty", skillEmpty);
+                        setField(skillBrowser, "adapter", skillAdapter);
+                        setField(skillBrowser, "inventory", parsedSkills);
+
+                        Method filterSkills = skillBrowserClass.getDeclaredMethod("filter");
+                        filterSkills.setAccessible(true);
+                        AtomicInteger skillEmptyMutations = countTextMutations(skillEmpty);
+
+                        skillSearch.setText("git");
+                        filterSkills.invoke(skillBrowser);
+                        assertEquals(View.GONE, skillEmpty.getVisibility());
+                        assertEquals("Non-empty matches must not call empty.setText", 0, skillEmptyMutations.get());
+
+                        skillSearch.setText("zzz");
+                        filterSkills.invoke(skillBrowser);
+                        assertEquals(View.VISIBLE, skillEmpty.getVisibility());
+                        assertEquals(1, skillEmptyMutations.get());
+                        assertEquals(activity.getString(R.string.skills_no_matches),
+                                String.valueOf(skillEmpty.getText()));
+
+                        skillSearch.setText("zzzz");
+                        filterSkills.invoke(skillBrowser);
+                        assertEquals(View.VISIBLE, skillEmpty.getVisibility());
+                        assertEquals("Repeated empty search must not re-fire empty.setText",
+                                1, skillEmptyMutations.get());
+
+                        skillSearch.setText("git");
+                        filterSkills.invoke(skillBrowser);
+                        assertEquals(View.GONE, skillEmpty.getVisibility());
+                        assertEquals("Hiding empty notice must not call setText", 1, skillEmptyMutations.get());
+
+                        skillSearch.setText("qqq");
+                        filterSkills.invoke(skillBrowser);
+                        assertEquals(View.VISIBLE, skillEmpty.getVisibility());
+                        assertEquals("Re-entering empty state must announce cleanly", 2, skillEmptyMutations.get());
+
+                        // R20.5.6: CodeReader guards searchCounter.setText against unchanged labels.
+                        Constructor<CodeReader> codeReaderCtor = CodeReader.class.getDeclaredConstructor(
+                                String.class, String.class);
+                        codeReaderCtor.setAccessible(true);
+                        CodeReader reader = codeReaderCtor.newInstance("alpha\nbeta\nalpha\n", "text");
+                        Method mountToolbar = CodeReader.class.getDeclaredMethod(
+                                "mountWithToolbar", LinearLayout.class, String.class);
+                        mountToolbar.setAccessible(true);
+                        mountToolbar.invoke(reader, Ui.column(activity), "sample.txt");
+
+                        Field searchCounterField = CodeReader.class.getDeclaredField("searchCounter");
+                        searchCounterField.setAccessible(true);
+                        TextView searchCounter = (TextView) searchCounterField.get(reader);
+                        assertNotNull(searchCounter);
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE,
+                                searchCounter.getAccessibilityLiveRegion());
+                        Method applySearch = CodeReader.class.getDeclaredMethod(
+                                "applySearch", Context.class, String.class);
+                        applySearch.setAccessible(true);
+                        Method stepMatch = CodeReader.class.getDeclaredMethod(
+                                "stepMatch", Context.class, int.class);
+                        stepMatch.setAccessible(true);
+                        AtomicInteger counterMutations = countTextMutations(searchCounter);
+
+                        applySearch.invoke(reader, activity, "zzz");
+                        assertEquals(1, counterMutations.get());
+                        applySearch.invoke(reader, activity, "zzzz");
+                        assertEquals("Repeated zero-match query must not re-fire searchCounter.setText",
+                                1, counterMutations.get());
+
+                        applySearch.invoke(reader, activity, "alph");
+                        assertEquals(2, counterMutations.get());
+                        applySearch.invoke(reader, activity, "alpha");
+                        assertEquals("Unchanged 1/2 match label must not re-fire searchCounter.setText",
+                                2, counterMutations.get());
+
+                        stepMatch.invoke(reader, activity, 1);
+                        assertEquals(3, counterMutations.get());
+
+                        // R20.5.7: CommandPalette guards countAnnouncement.setText against unchanged counts.
+                        CommandRegistry cmdRegistry = new CommandRegistry();
+                        cmdRegistry.add(new CommandItem(
+                                "cmd-a", CommandItem.Category.ACTION, "New Chat", "", "", () -> {}));
+                        cmdRegistry.add(new CommandItem(
+                                "cmd-b", CommandItem.Category.SCREEN, "Settings", "", "", () -> {}));
+                        CommandPalette palette = new CommandPalette(activity, cmdRegistry, () -> true);
+                        paletteRef.set(palette);
+                        palette.show();
+
+                        Field countAnnouncementField = CommandPalette.class.getDeclaredField("countAnnouncement");
+                        countAnnouncementField.setAccessible(true);
+                        TextView countAnnouncement = (TextView) countAnnouncementField.get(palette);
+                        assertNotNull(countAnnouncement);
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE,
+                                countAnnouncement.getAccessibilityLiveRegion());
+                        Method renderPalette = CommandPalette.class.getDeclaredMethod("renderResults", String.class);
+                        renderPalette.setAccessible(true);
+                        AtomicInteger paletteCountMutations = countTextMutations(countAnnouncement);
+
+                        renderPalette.invoke(palette, "zzz");
+                        assertEquals(1, paletteCountMutations.get());
+                        renderPalette.invoke(palette, "zzzz");
+                        assertEquals("Repeated 0-result query must not re-fire countAnnouncement.setText",
+                                1, paletteCountMutations.get());
+
+                        renderPalette.invoke(palette, "new");
+                        assertEquals(2, paletteCountMutations.get());
+                        renderPalette.invoke(palette, "new c");
+                        assertEquals("Unchanged 1-result query must not re-fire countAnnouncement.setText",
+                                2, paletteCountMutations.get());
+
+                        // R20.5.8: QrScannerActivity fallbackDetail uses POLITE live region and guards
+                        // setText against unchanged text while fallbackCard is visible.
+                        Method createFallbackDetail = QrScannerActivity.class.getDeclaredMethod(
+                                "createFallbackDetail", Context.class);
+                        createFallbackDetail.setAccessible(true);
+                        TextView fallbackDetail = (TextView) createFallbackDetail.invoke(null, activity);
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE,
+                                fallbackDetail.getAccessibilityLiveRegion());
+
+                        Method applyFallbackDetail = QrScannerActivity.class.getDeclaredMethod(
+                                "applyFallbackDetail", TextView.class, View.class, String.class);
+                        applyFallbackDetail.setAccessible(true);
+                        LinearLayout fallbackCard = Ui.column(activity);
+                        fallbackCard.setVisibility(View.VISIBLE);
+                        AtomicInteger fallbackMutations = countTextMutations(fallbackDetail);
+
+                        String permDetail = activity.getString(R.string.qr_scanner_permission_detail);
+                        applyFallbackDetail.invoke(null, fallbackDetail, fallbackCard, permDetail);
+                        assertEquals("Unchanged visible fallbackDetail must not re-fire setText",
+                                0, fallbackMutations.get());
+
+                        String notHermes = activity.getString(R.string.qr_scanner_not_hermes);
+                        applyFallbackDetail.invoke(null, fallbackDetail, fallbackCard, notHermes);
+                        assertEquals(1, fallbackMutations.get());
+                        assertEquals(notHermes, String.valueOf(fallbackDetail.getText()));
+
+                        applyFallbackDetail.invoke(null, fallbackDetail, fallbackCard, notHermes);
+                        assertEquals("Repeated visible error must not re-fire setText",
+                                1, fallbackMutations.get());
+
+                        String noQr = activity.getString(R.string.qr_scanner_image_no_qr);
+                        applyFallbackDetail.invoke(null, fallbackDetail, fallbackCard, noQr);
+                        assertEquals(2, fallbackMutations.get());
+                        assertEquals(noQr, String.valueOf(fallbackDetail.getText()));
+                    } catch (Exception err) {
+                        throw new AssertionError(err);
+                    }
+                });
+            } finally {
+                try {
+                    runTestOnUiThread(() -> {
+                        CommandPalette palette = paletteRef.getAndSet(null);
+                        if (palette != null) palette.dismiss();
+                        UpdatePanel updatePanel = updatePanelRef.getAndSet(null);
+                        if (updatePanel != null) updatePanel.close();
+                        SessionPanel sp = sessionPanelRef.getAndSet(null);
+                        if (sp != null) sp.close();
+                    });
+                } finally {
+                    ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+                }
+            }
+        } finally {
+            Diagnostics.clear();
+        }
+    }
+
+    private static AtomicInteger countTextMutations(TextView view) {
+        AtomicInteger count = new AtomicInteger();
+        view.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int countBefore, int after) {}
+            @Override public void onTextChanged(CharSequence s, int start, int before, int countAfter) {
+                count.incrementAndGet();
+            }
+            @Override public void afterTextChanged(Editable s) {}
+        });
+        return count;
     }
 
     @SuppressWarnings("unchecked")
