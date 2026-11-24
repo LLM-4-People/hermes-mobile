@@ -555,7 +555,7 @@ public final class LiveUiAndSurfacesV2Test extends InstrumentationTestCase {
         LiveUiPatch.WidgetSpec widget = new LiveUiPatch.WidgetSpec(
                 "w_daily", "Daily Focus", "2 items", "checklist",
                 Collections.singletonList(new LiveUiPatch.WidgetItem("Check build", "09:00", null)),
-                null, false, false);
+                null, true, false);
         List<LiveUiPatch.Op> ops = Arrays.asList(
                 new LiveUiPatch.Op.UpsertSurface("page/focus", "{\"version\":2}", "Focus"),
                 new LiveUiPatch.Op.RemoveSurface("page/old"),
