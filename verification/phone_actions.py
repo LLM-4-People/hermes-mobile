@@ -27,6 +27,7 @@ import shlex
 import sqlite3
 import sys
 import tempfile
+from time import monotonic, sleep
 from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 
@@ -108,9 +109,21 @@ def visible(ui, expected):
     return all(any(item.casefold() in text.casefold() for text in texts) for item in expected)
 
 
-def assert_offline(device):
-    if "Active default network: none" not in device.shell("dumpsys", "connectivity"):
-        raise ValueError("Use a dedicated emulator in airplane mode with Wi-Fi disabled")
+def assert_offline(device, *, timeout=5.0, poll_interval=0.25):
+    deadline = monotonic() + timeout
+    last_dump = ""
+    while True:
+        last_dump = device.shell("dumpsys", "connectivity")
+        if "Active default network: none" in last_dump:
+            return
+        if monotonic() >= deadline:
+            break
+        sleep(poll_interval)
+    observed = next(
+        (line.strip() for line in last_dump.splitlines() if "Active default network:" in line),
+        "Active default network: <missing>",
+    )
+    raise ValueError(f"Use a dedicated emulator in airplane mode with Wi-Fi disabled ({observed})")
 
 
 def event_rows(device):
