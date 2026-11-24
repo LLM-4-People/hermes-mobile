@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 
 public final class SecurePushWindowTest extends InstrumentationTestCase {
     public void testUnenrolledProfileOpensSecureAuthenticatedHistory() throws Throwable {
@@ -34,11 +35,13 @@ public final class SecurePushWindowTest extends InstrumentationTestCase {
         try (Exchange bridge = new Exchange("200 OK", "Content-Type: application/json\r\n", body);
              Account account = accounts.create(label, bridge.endpoint(), label, label.toCharArray())) {
             Activity activity = null;
+            AtomicReference<MobilePush> pushRef = new AtomicReference<>();
             try {
                 Intent launch = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
                 assertNotNull(launch);
                 activity = getInstrumentation().startActivitySync(launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
                 MobilePush push = new MobilePush(activity);
+                pushRef.set(push);
                 assertFalse(MobilePush.isEnabled(context, account.id));
                 String historyLabel = activity.getString(R.string.push_settings_history);
                 List<View> windows = new ArrayList<>();
@@ -80,7 +83,14 @@ public final class SecurePushWindowTest extends InstrumentationTestCase {
                 runTestOnUiThread(() -> assertFalse(WindowInspector.getGlobalWindowViews().contains(windows.get(windows.size()-1))));
             } finally {
                 try {
-                    ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+                    try {
+                        MobilePush activePush = pushRef.getAndSet(null);
+                        if (activePush != null) {
+                            runTestOnUiThread(activePush::lock);
+                        }
+                    } finally {
+                        ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+                    }
                 } finally {
                     accounts.forget(account.id);
                 }

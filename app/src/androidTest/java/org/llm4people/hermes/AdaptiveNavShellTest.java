@@ -95,8 +95,8 @@ public final class AdaptiveNavShellTest extends InstrumentationTestCase {
         Context context = getInstrumentation().getTargetContext();
         MainActivity activity = (MainActivity) getInstrumentation().startActivitySync(
                 context.getPackageManager().getLaunchIntentForPackage(context.getPackageName()));
+        WorkspaceShell[] holder = new WorkspaceShell[1];
         try {
-            WorkspaceShell[] holder = new WorkspaceShell[1];
             runTestOnUiThread(() -> {
                 WorkspaceShell shell = new WorkspaceShell(activity, id -> {}, () -> false);
                 holder[0] = shell;
@@ -140,7 +140,13 @@ public final class AdaptiveNavShellTest extends InstrumentationTestCase {
                 shell.dismissMenu();
             });
         } finally {
-            ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+            try {
+                runTestOnUiThread(() -> {
+                    if (holder[0] != null) holder[0].dismissMenu();
+                });
+            } finally {
+                ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+            }
         }
     }
 

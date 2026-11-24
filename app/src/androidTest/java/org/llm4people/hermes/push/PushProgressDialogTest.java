@@ -14,6 +14,7 @@ import android.widget.Button;
 import android.widget.TextView;
 
 import org.llm4people.hermes.ActivityTestLifecycle;
+import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.net.Exchange;
 import org.llm4people.hermes.profile.WorkspaceAccountFixture;
@@ -33,26 +34,30 @@ public final class PushProgressDialogTest extends InstrumentationTestCase {
                     Manifest.permission.POST_NOTIFICATIONS);
         }
         Intent launch = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
-        Activity activity = getInstrumentation().startActivitySync(launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        assertNotNull(launch);
         try {
             for (boolean history : new boolean[]{false, true}) {
                 for (boolean success : new boolean[]{false, true}) {
-                    backBeforeReply(context, activity, history, success);
+                    backBeforeReply(context, launch, history, success);
                 }
             }
-        } finally { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
+        } finally {
+            Diagnostics.clear();
+        }
     }
 
-    private void backBeforeReply(Context context, Activity activity, boolean history, boolean success) throws Throwable {
+    private void backBeforeReply(Context context, Intent launch, boolean history, boolean success) throws Throwable {
         String body = history ? "{\"events\":[],\"next_cursor\":0}" : "{}";
         try (Exchange bridge = new Exchange(success ? "200 OK" : "503 Unavailable", "", body);
              WorkspaceAccountFixture fixture = new WorkspaceAccountFixture(context, bridge.endpoint())) {
+            Activity activity = getInstrumentation().startActivitySync(
+                    new Intent(launch).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
             MobilePush push = new MobilePush(activity);
             CountDownLatch release = new CountDownLatch(1);
-            PushConnection.WORK.submit(() -> { release.await(); return null; });
-            List<View> initial = new ArrayList<>();
-            View[] progress = new View[1];
             try {
+                PushConnection.WORK.submit(() -> { release.await(); return null; });
+                List<View> initial = new ArrayList<>();
+                View[] progress = new View[1];
                 getInstrumentation().waitForIdleSync();
                 runTestOnUiThread(() -> {
                     initial.addAll(WindowInspector.getGlobalWindowViews());
@@ -89,7 +94,15 @@ public final class PushProgressDialogTest extends InstrumentationTestCase {
                 });
             } finally {
                 release.countDown();
-                runTestOnUiThread(push::lock);
+                try {
+                    runTestOnUiThread(push::lock);
+                } finally {
+                    try {
+                        PushConnection.WORK.submit(() -> {}).get(10, TimeUnit.SECONDS);
+                    } finally {
+                        ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+                    }
+                }
             }
         }
     }

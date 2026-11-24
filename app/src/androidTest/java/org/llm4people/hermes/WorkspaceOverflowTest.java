@@ -19,8 +19,8 @@ public final class WorkspaceOverflowTest extends InstrumentationTestCase {
         MainActivity activity = (MainActivity) getInstrumentation().startActivitySync(
                 context.getPackageManager().getLaunchIntentForPackage(context.getPackageName()));
         List<String> actions = new ArrayList<>();
+        WorkspaceShell[] holder = new WorkspaceShell[1];
         try {
-            WorkspaceShell[] holder = new WorkspaceShell[1];
             runTestOnUiThread(() -> {
                 holder[0] = new WorkspaceShell(activity, actions::add, () -> false);
                 activity.setContentView(holder[0].root);
@@ -42,7 +42,13 @@ public final class WorkspaceOverflowTest extends InstrumentationTestCase {
                 shell.dismissMenu();
             });
         } finally {
-            ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+            try {
+                runTestOnUiThread(() -> {
+                    if (holder[0] != null) holder[0].dismissMenu();
+                });
+            } finally {
+                ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+            }
         }
     }
 
@@ -51,8 +57,8 @@ public final class WorkspaceOverflowTest extends InstrumentationTestCase {
         MainActivity activity = (MainActivity) getInstrumentation().startActivitySync(
                 context.getPackageManager().getLaunchIntentForPackage(context.getPackageName()));
         List<String> actions = new ArrayList<>();
+        WorkspaceShell[] holder = new WorkspaceShell[1];
         try {
-            WorkspaceShell[] holder = new WorkspaceShell[1];
             runTestOnUiThread(() -> {
                 holder[0] = new WorkspaceShell(activity, actions::add, () -> false);
                 activity.setContentView(holder[0].root);
@@ -90,7 +96,13 @@ public final class WorkspaceOverflowTest extends InstrumentationTestCase {
                 shell.dismissMenu();
             });
         } finally {
-            ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+            try {
+                runTestOnUiThread(() -> {
+                    if (holder[0] != null) holder[0].dismissMenu();
+                });
+            } finally {
+                ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+            }
         }
     }
 

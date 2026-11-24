@@ -46,8 +46,8 @@ public final class CommandPaletteTest extends InstrumentationTestCase {
         assertFalse(registry.search("revue architecture").isEmpty());
 
         Activity activity = launchActivity(context.getPackageName(), MainActivity.class, null);
+        AtomicReference<CommandPalette> paletteRef = new AtomicReference<>();
         try {
-            AtomicReference<CommandPalette> paletteRef = new AtomicReference<>();
             AtomicReference<AlertDialog> dialogRef = new AtomicReference<>();
             runTestOnUiThread(() -> {
                 CommandPalette palette = new CommandPalette(activity, registry, () -> true);
@@ -96,7 +96,14 @@ public final class CommandPaletteTest extends InstrumentationTestCase {
             assertEquals(WorkflowTemplate.builtIn(context).get(0).draft, stagedDraft.get());
             assertFalse(paletteRef.get().isShowing());
         } finally {
-            ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+            try {
+                CommandPalette palette = paletteRef.getAndSet(null);
+                if (palette != null) {
+                    runTestOnUiThread(palette::dismiss);
+                }
+            } finally {
+                ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+            }
         }
     }
 

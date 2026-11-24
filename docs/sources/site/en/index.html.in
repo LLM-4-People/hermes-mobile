@@ -137,7 +137,7 @@
                 data-src-dark="../assets/screens/dark/en/connection-doctor.png"
                 data-badge="Android 16 · EN"
                 data-title="Connection doctor"
-                data-desc="Runs 6 parallel health checks across server latency, companion capabilities, push delivery, updates, permissions, and language sync.">
+                data-desc="Runs 6 parallel health checks across server latency, companion capabilities, push delivery, updates, ambient access, and language sync.">
                 Connection doctor
               </button>
               <button type="button" class="showcase-tab" role="tab" aria-selected="false"
@@ -202,7 +202,7 @@
           </article>
           <article class="pillar-card">
             <h3>Live connection doctor</h3>
-            <p>Runs 6 parallel non-blocking health probes covering latency, <code>{{ expected_fork_capabilities }}/{{ expected_fork_capabilities }}</code> companion features, push, updates, permissions, and language sync with a redacted report copy.</p>
+            <p>Runs 6 parallel non-blocking health probes covering latency, <code>{{ expected_fork_capabilities }}/{{ expected_fork_capabilities }}</code> companion features, push, updates, ambient access, and language sync with a redacted report copy.</p>
           </article>
           <article class="pillar-card">
             <h3>Parallel multi-run and instant paging</h3>
