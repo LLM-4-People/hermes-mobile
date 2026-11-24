@@ -110,6 +110,81 @@ public final class AppLanguageTest {
         assertEquals("Extra untranslated keys in values-en", frStrings.keySet(), enStrings.keySet());
     }
 
+    @Test
+    public void syncToServerAsyncRevokesClientsOnCompletionAndOnRevokePendingSyncs() throws Exception {
+        Diagnostics.clear();
+        Diagnostics.setSink((level, tag, msg) -> {});
+        try {
+            // Null API returns false cleanly.
+            assertFalse(AppLanguage.syncToServerAsync(null, AppLanguage.Mode.FRENCH)
+                    .get(5, java.util.concurrent.TimeUnit.SECONDS));
+
+            // Pre-revoked API does not touch the server.
+            java.util.concurrent.atomic.AtomicInteger hits = new java.util.concurrent.atomic.AtomicInteger();
+            try (java.net.ServerSocket server = new java.net.ServerSocket(
+                    0, 4, java.net.InetAddress.getByName("127.0.0.1"))) {
+                java.util.concurrent.CountDownLatch holdOpen = new java.util.concurrent.CountDownLatch(1);
+                java.util.concurrent.CountDownLatch clientConnected = new java.util.concurrent.CountDownLatch(1);
+                Thread responder = new Thread(() -> {
+                    while (!server.isClosed()) {
+                        try (java.net.Socket s = server.accept()) {
+                            int n = hits.incrementAndGet();
+                            if (n == 1) {
+                                // First real request: immediate empty 503 response.
+                                java.io.OutputStream out = s.getOutputStream();
+                                out.write("HTTP/1.1 503 Service Unavailable\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+                                        .getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+                                out.flush();
+                            } else {
+                                // Second request: hold socket open until revoked.
+                                clientConnected.countDown();
+                                holdOpen.await(5, java.util.concurrent.TimeUnit.SECONDS);
+                            }
+                        } catch (Exception ignored) {
+                            return;
+                        }
+                    }
+                }, "test-lang-sync-server");
+                responder.setDaemon(true);
+                responder.start();
+
+                String endpoint = "http://127.0.0.1:" + server.getLocalPort();
+                org.llm4people.hermes.net.HermesApi.Limits limits =
+                        org.llm4people.hermes.net.HermesApi.Limits.from(HermesConfig.defaults());
+
+                org.llm4people.hermes.net.HermesApi preRevoked =
+                        new org.llm4people.hermes.net.HermesApi(endpoint, "tok", limits);
+                preRevoked.revoke();
+                assertFalse(AppLanguage.syncToServerAsync(preRevoked, AppLanguage.Mode.ENGLISH)
+                        .get(5, java.util.concurrent.TimeUnit.SECONDS));
+                assertEquals(0, hits.get());
+
+                // Completed detached sync revokes its HermesApi in finally.
+                org.llm4people.hermes.net.HermesApi completed =
+                        new org.llm4people.hermes.net.HermesApi(endpoint, "tok", limits);
+                assertFalse(AppLanguage.syncToServerAsync(completed, AppLanguage.Mode.ENGLISH)
+                        .get(5, java.util.concurrent.TimeUnit.SECONDS));
+                assertTrue("Completed sync API must be revoked in finally", completed.isRevoked());
+                assertEquals(1, hits.get());
+
+                // In-flight detached sync is revoked immediately by revokePendingSyncs().
+                org.llm4people.hermes.net.HermesApi inFlight =
+                        new org.llm4people.hermes.net.HermesApi(endpoint, "tok", limits);
+                java.util.concurrent.Future<Boolean> future =
+                        AppLanguage.syncToServerAsync(inFlight, AppLanguage.Mode.FRENCH);
+                assertTrue(clientConnected.await(5, java.util.concurrent.TimeUnit.SECONDS));
+                AppLanguage.revokePendingSyncs();
+                assertTrue("revokePendingSyncs() must revoke active sync API", inFlight.isRevoked());
+                holdOpen.countDown();
+                assertFalse(future.get(5, java.util.concurrent.TimeUnit.SECONDS));
+            }
+        } finally {
+            AppLanguage.revokePendingSyncs();
+            Diagnostics.clear();
+            Diagnostics.setSink(null);
+        }
+    }
+
     private static File locateResRoot() {
         File direct = new File("src/main/res");
         if (direct.isDirectory()) return direct;

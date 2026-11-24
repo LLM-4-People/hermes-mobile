@@ -1,8 +1,13 @@
 package org.llm4people.hermes;
 
+import android.app.Activity;
+import android.content.Intent;
+
 import org.junit.Test;
 import org.llm4people.hermes.os.LockGracePolicy;
 import org.llm4people.hermes.panel.SessionPanel;
+import org.llm4people.hermes.profile.Account;
+import org.llm4people.hermes.profile.ProfileGate;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -51,6 +56,34 @@ public final class MainActivityR4RegressionTest {
             assertEquals(LockGracePolicy.internalTransitionTimeoutMillis(window),
                     MainActivity.internalTransitionTimeoutMs(window));
         }
+    }
+
+    @Test
+    public void internalTransitionGuardMarksOnlyPositiveRequestCodesAndChooser() {
+        // Explicit startActivityForResult (requestCode >= 0) always marks an internal transition.
+        assertTrue(MainActivity.shouldMarkInternalTransition(0, null));
+        assertTrue(MainActivity.shouldMarkInternalTransition(4092, Intent.ACTION_VIEW));
+        assertTrue(MainActivity.shouldMarkInternalTransition(Integer.MAX_VALUE, ""));
+
+        // ACTION_CHOOSER (requestCode == -1 via startActivity) marks an internal transition.
+        assertTrue(MainActivity.shouldMarkInternalTransition(-1, Intent.ACTION_CHOOSER));
+
+        // Arbitrary fire-and-forget startActivity (requestCode == -1, non-chooser) must NOT suppress auto-lock.
+        assertFalse(MainActivity.shouldMarkInternalTransition(-1, null));
+        assertFalse(MainActivity.shouldMarkInternalTransition(-1, ""));
+        assertFalse(MainActivity.shouldMarkInternalTransition(-1, Intent.ACTION_VIEW));
+        assertFalse(MainActivity.shouldMarkInternalTransition(-1, Intent.ACTION_MAIN));
+        assertFalse(MainActivity.shouldMarkInternalTransition(-1, "android.settings.APPLICATION_DETAILS_SETTINGS"));
+        assertFalse(MainActivity.shouldMarkInternalTransition(Integer.MIN_VALUE, Intent.ACTION_VIEW));
+    }
+
+    @Test
+    public void showSecurityReturnsSynchronousAutoCloseableHandle() throws Exception {
+        Method showSecurity = WorkspaceDialogs.class.getDeclaredMethod(
+                "showSecurity",
+                Activity.class, Account.class, ProfileGate.class,
+                Runnable.class, Runnable.class, Runnable.class);
+        assertEquals(AutoCloseable.class, showSecurity.getReturnType());
     }
 
     @Test

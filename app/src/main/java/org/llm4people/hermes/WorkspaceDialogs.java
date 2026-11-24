@@ -2,7 +2,6 @@ package org.llm4people.hermes;
 
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.text.Editable;
 import android.text.InputFilter;
 import android.text.InputType;
 import android.view.View;
@@ -41,8 +40,8 @@ final class WorkspaceDialogs {
         return activity.getString(lockMode.labelRes) + " · " + grace;
     }
 
-    static AlertDialog showSecurity(Activity activity, Account account, ProfileGate gate,
-                                    Runnable onLockNow, Runnable onPolicyChanged, Runnable onDismissed) {
+    static AutoCloseable showSecurity(Activity activity, Account account, ProfileGate gate,
+                                      Runnable onLockNow, Runnable onPolicyChanged, Runnable onDismissed) {
         LinearLayout content = Ui.column(activity);
         Ui.pad(content, 16, 12);
 
@@ -235,11 +234,7 @@ final class WorkspaceDialogs {
                 .setView(scroll)
                 .setPositiveButton(R.string.ws_close, null));
         dialogHolder[0] = dialog;
-        lockNow.setOnClickListener(v -> {
-            dialog.dismiss();
-            onLockNow.run();
-        });
-        dialog.setOnDismissListener(d -> {
+        Runnable cleanup = () -> {
             if (childDialog[0] != null) {
                 childDialog[0].dismiss();
                 childDialog[0] = null;
@@ -248,9 +243,20 @@ final class WorkspaceDialogs {
                 activeEnroll[0].cancel();
                 activeEnroll[0] = null;
             }
+        };
+        lockNow.setOnClickListener(v -> {
+            cleanup.run();
+            dialog.dismiss();
+            onLockNow.run();
+        });
+        dialog.setOnDismissListener(d -> {
+            cleanup.run();
             if (onDismissed != null) onDismissed.run();
         });
-        return dialog;
+        return () -> {
+            cleanup.run();
+            dialog.dismiss();
+        };
     }
 
     private static AlertDialog showChangeLockModeDialog(

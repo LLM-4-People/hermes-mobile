@@ -19,6 +19,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -38,6 +41,7 @@ public final class AppLanguage {
         thread.setDaemon(true);
         return thread;
     });
+    private static final Set<HermesApi> PENDING_SYNCS = ConcurrentHashMap.newKeySet();
     private static volatile String activeAcceptLanguage = "";
 
     public enum Mode {
@@ -256,13 +260,38 @@ public final class AppLanguage {
         return features != null && features.optBoolean("profile_defaults");
     }
 
+    /** Revoke all in-flight detached language sync clients (called on lock, forget, or final destroy). */
+    public static void revokePendingSyncs() {
+        for (HermesApi client : PENDING_SYNCS) {
+            if (PENDING_SYNCS.remove(client)) {
+                client.revoke();
+            }
+        }
+    }
+
     /**
      * Submit capability-gated server profile language sync on an application-scoped daemon thread
      * so Activity recreation during locale switching never interrupts the HTTP request mid-flight.
      * Captures only the immutable HermesApi client and Mode (no Activity or Account reference).
      */
     public static Future<Boolean> syncToServerAsync(HermesApi api, Mode mode) {
-        return SYNC_EXECUTOR.submit(() -> syncToServer(api, mode));
+        if (api == null) return CompletableFuture.completedFuture(false);
+        PENDING_SYNCS.add(api);
+        try {
+            return SYNC_EXECUTOR.submit(() -> {
+                try {
+                    if (api.isRevoked()) return false;
+                    return syncToServer(api, mode);
+                } finally {
+                    PENDING_SYNCS.remove(api);
+                    api.revoke();
+                }
+            });
+        } catch (RuntimeException | Error err) {
+            PENDING_SYNCS.remove(api);
+            api.revoke();
+            throw err;
+        }
     }
 
     /** Capability-gated background sync of preferred_language to the server profile defaults. */
