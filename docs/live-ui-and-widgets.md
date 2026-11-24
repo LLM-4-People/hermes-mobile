@@ -31,6 +31,6 @@ Hermes can generate custom home screen widgets alongside a workspace patch or fr
 
 - **Live Updates:** Active Hermes runs surface progress directly in an Android 16 Live Update notification (`LiveRunNotification`) with a quick stop action—without exposing private prompt contents on the lockscreen.
 - **Quick Settings Tile & App Shortcuts:** Jump directly into a new discussion, voice input, or camera capture via `HermesTileService` and `HermesShortcuts`, always gated behind `ProfileGate`.
-- **Adaptive Phone & Tablet Shell:** Three living destinations (**Chats**, **Notes & Tasks**, **Apps**) render as an IME-aware bottom navigation bar on phones (auto-hiding when the keyboard opens without dropping text focus) and as a **92 dp** navigation rail on tablets (`>= 720 dp` wide) paired with a collapsible `232–360 dp` conversation sidebar, with **Universal Search** and **Settings Hub** always available from the top bar.
+- **Adaptive Phone & Tablet Shell:** Three living destinations (**Discussions**, **Notes & Tasks**, **Apps**) render as an IME-aware bottom navigation bar on phones (auto-hiding when the keyboard opens without dropping text focus) and as a **92 dp** navigation rail on tablets (`>= 720 dp` wide) paired with a collapsible `232–360 dp` conversation sidebar, with **Universal Search** and **Settings Hub** always available from the top bar.
 
 <!-- Generated from docs/sources/docs/live-ui-and-widgets.md.in by scripts/docs.py. -->

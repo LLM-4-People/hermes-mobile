@@ -42,4 +42,4 @@ Because all users on a deployment share **one single HTTPS hostname** (`/p/<prof
 | `artifact` | Named code, diff, or published file artifacts |
 | `session` | Conversation snapshots and discussions |
 
-Open **Share on this server** from a supported item to grant or revoke access via `/api/shares/outgoing`. Incoming shared items (`/api/shares/incoming`) appear directly inline via the **Shared** filter in **Chats**, the **Shared** filter in **Notes & tasks**, **Notes & tasks → Inbox**, and top-bar **Universal search**, where you can preview them safely or stage them into your own workspace.
+Open **Share on this server** from a supported item to grant or revoke access via `/api/shares/outgoing`. Incoming shared items (`/api/shares/incoming`) appear directly inline via the **Shared** filter in **Discussions**, the **Shared** filter in **Notes & tasks**, **Notes & tasks → Inbox**, and top-bar **Universal search**, where you can preview them safely or stage them into your own workspace.

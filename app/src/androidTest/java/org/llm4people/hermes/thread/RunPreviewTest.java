@@ -1,6 +1,6 @@
 package org.llm4people.hermes.thread;
 
-import junit.framework.TestCase;
+import android.test.InstrumentationTestCase;
 import org.json.JSONObject;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.net.Exchange;
@@ -9,7 +9,12 @@ import java.util.Locale;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicReference;
 
-public final class RunPreviewTest extends TestCase {
+@SuppressWarnings("deprecation")
+public final class RunPreviewTest extends InstrumentationTestCase {
+    @Override protected void setUp() throws Exception {
+        super.setUp();
+        ThreadStrings.attach(getInstrumentation().getTargetContext());
+    }
     private static String repeat(String value, int count) {
         char[] copies = new char[count];
         Arrays.fill(copies, 'x');
@@ -73,6 +78,7 @@ public final class RunPreviewTest extends TestCase {
 
     public void testImageDataRemainsCollapsedAfterEvictionAndReplayGapDropsPriorMarkup() {
         String imagePlaceholder = ThreadStrings.get(R.string.thread_attached_image_bracket);
+        assertFalse("Expected attached image placeholder string", imagePlaceholder.isEmpty());
         RunPreview preview = new RunPreview(null);
         preview.append("![graphique](data:image/png;base64," + repeat("QUJD", 36_000));
         LiveTranscript view = new LiveTranscript();

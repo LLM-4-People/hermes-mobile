@@ -9,6 +9,7 @@ import android.os.Build;
 import android.service.notification.StatusBarNotification;
 import android.test.InstrumentationTestCase;
 
+import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.net.Exchange;
 import org.json.JSONObject;
@@ -24,6 +25,7 @@ import java.util.UUID;
 
 public final class PushRoutingTest extends InstrumentationTestCase {
     private Context context;
+    private Context localized;
     private PushStore store;
     private PushStore.Device device;
     private final String event = "35db19fc00bd4d7cb516cb64e6a4f000";
@@ -31,6 +33,7 @@ public final class PushRoutingTest extends InstrumentationTestCase {
     @Override protected void setUp() throws Exception {
         super.setUp();
         context = getInstrumentation().getTargetContext();
+        localized = AppLanguage.wrapContext(context);
         store = PushStore.get(context);
         PushConfig config = PushConfig.parse(new JSONObject("{\"providers\":[\"fcm\"],\"firebase\":"
                 + "{\"applicationId\":\"1:123456:android:aabbcc\",\"gcmSenderId\":\"123456\","
@@ -169,7 +172,7 @@ public final class PushRoutingTest extends InstrumentationTestCase {
             getInstrumentation().getUiAutomation().grantRuntimePermission(context.getPackageName(),
                     Manifest.permission.POST_NOTIFICATIONS);
         }
-        assertEquals(context.getString(org.llm4people.hermes.R.string.push_notice_question),
+        assertEquals(localized.getString(R.string.push_notice_question),
                 PushNotices.title(context, PushNotices.QUESTION));
         PushStore.Device owner = store.forInstallation(device.installation);
         String late = "00000000000000000000000000000001";
@@ -201,8 +204,8 @@ public final class PushRoutingTest extends InstrumentationTestCase {
             for (StatusBarNotification row : context.getSystemService(NotificationManager.class).getActiveNotifications()) {
                 if (!tag.equals(row.getTag())) continue;
                 present = true;
-                assertEquals(context.getString(R.string.push_notice_question), row.getNotification().extras.getString("android.title"));
-                assertEquals(context.getString(R.string.push_notice_open_details), row.getNotification().extras.getString("android.text"));
+                assertEquals(localized.getString(R.string.push_notice_question), row.getNotification().extras.getString("android.title"));
+                assertEquals(localized.getString(R.string.push_notice_open_details), row.getNotification().extras.getString("android.text"));
                 assertEquals(android.app.Notification.VISIBILITY_PRIVATE, row.getNotification().visibility);
                 assertEquals(PushNotices.PROMPT_DISPLAY_MILLIS, row.getNotification().getTimeoutAfter());
             }
@@ -215,7 +218,7 @@ public final class PushRoutingTest extends InstrumentationTestCase {
     private boolean postedNotice(String tag) {
         for (StatusBarNotification active : context.getSystemService(NotificationManager.class).getActiveNotifications()) {
             if (!tag.equals(active.getTag())) continue;
-            assertEquals(context.getString(R.string.push_notice_reminder), active.getNotification().extras.getString("android.title"));
+            assertEquals(localized.getString(R.string.push_notice_reminder), active.getNotification().extras.getString("android.title"));
             assertFalse(active.getNotification().extras.toString().contains("sensitive-body-never-display"));
             return true;
         }

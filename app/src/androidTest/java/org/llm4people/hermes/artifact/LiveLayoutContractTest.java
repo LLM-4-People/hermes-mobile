@@ -2,6 +2,7 @@ package org.llm4people.hermes.artifact;
 
 import android.content.Context;
 import android.test.InstrumentationTestCase;
+import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.VisibleText;
 import org.llm4people.hermes.places.NearbyCategory;
@@ -32,7 +33,8 @@ public class LiveLayoutContractTest extends InstrumentationTestCase {
         assertEquals("pharmacy", pharmacy.blocks.get(0).category);
         assertEquals(NearbyCategory.PHARMACY.heading, pharmacy.blocks.get(0).title);
         Context target = getInstrumentation().getTargetContext();
-        assertEquals(target.getString(R.string.places_cat_pharmacy_heading), NearbyCategory.PHARMACY.heading(target));
+        Context localized = AppLanguage.wrapContext(target);
+        assertEquals(localized.getString(R.string.places_cat_pharmacy_heading), NearbyCategory.PHARMACY.heading(target));
         WorkspaceLayout bounded = WorkspaceLayout.parse(
                 "{\"version\":2,\"surface\":\"page/cafes\",\"mode\":\"replace\",\"title\":\"Cafés\",\"blocks\":[{\"type\":\"nearby_places\",\"category\":\"cafe\",\"radius_m\":3000,\"limit\":20}]}");
         assertEquals(3000, bounded.blocks.get(0).radiusMeters);

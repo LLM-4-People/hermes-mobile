@@ -220,7 +220,7 @@ public final class PermissionCenter {
         return resolveState(context, activity, key);
     }
 
-    /** Snapshot all 8 user-facing panel permissions in display order. */
+    /** Snapshot all 7 user-facing panel permissions in display order. */
     public static Map<Key, State> snapshot(Context context) {
         Objects.requireNonNull(context, "context");
         Activity activity = context instanceof Activity a ? a : null;

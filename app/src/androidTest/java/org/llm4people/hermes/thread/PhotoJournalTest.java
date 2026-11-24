@@ -1,12 +1,17 @@
 package org.llm4people.hermes.thread;
 
-import junit.framework.TestCase;
+import android.test.InstrumentationTestCase;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.llm4people.hermes.R;
 import java.util.Base64;
 
-public final class PhotoJournalTest extends TestCase {
+@SuppressWarnings("deprecation")
+public final class PhotoJournalTest extends InstrumentationTestCase {
+    @Override protected void setUp() throws Exception {
+        super.setUp();
+        ThreadStrings.attach(getInstrumentation().getTargetContext());
+    }
     private static final String PIXELS = "AQID";
     private static JSONObject info() throws Exception {
         return new JSONObject().put("name", "Photo privée.png").put("mime", "image/png").put("thumbnail", "")
@@ -89,6 +94,7 @@ public final class PhotoJournalTest extends TestCase {
         String reference = "[Image attached at: /srv/hermes/cache/documents/native-inputs/" + digest
                 + "/api_" + digest.substring(0, 32) + ".png]";
         String attached = ThreadStrings.get(R.string.thread_attached_image);
+        assertFalse("Expected attached image label", attached.isEmpty());
         JSONObject user = new JSONObject().put("role", "user").put("content", "Question\n\n" + reference);
         assertEquals("Question\n\n" + attached, ThreadData.content(user));
         assertEquals("Question", ThreadTitles.firstPrompt(new JSONArray().put(user)));
