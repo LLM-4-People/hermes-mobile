@@ -2,6 +2,7 @@ package org.llm4people.hermes;
 
 import org.llm4people.hermes.hub.AppsLauncherPanel;
 import org.llm4people.hermes.hub.NotesTasksPanel;
+import org.llm4people.hermes.settings.SettingsHubPanel;
 
 import java.util.ArrayDeque;
 
@@ -10,7 +11,7 @@ final class WorkspaceNavigation {
     static final String DISCUSSION = "discussion";
     static final String NOTES_TASKS = NotesTasksPanel.ROUTE_ID;
     static final String APPS = AppsLauncherPanel.ROUTE_ID;
-    static final String SETTINGS = "settings", GALLERY = "pages", COMPOSER = "composer";
+    static final String SETTINGS = SettingsHubPanel.ROUTE_ID, GALLERY = "pages", COMPOSER = "composer";
     static final String HOME = APPS;
     private final ArrayDeque<String> routes = new ArrayDeque<>();
 

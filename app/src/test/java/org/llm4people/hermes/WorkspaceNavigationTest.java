@@ -5,6 +5,7 @@ import org.llm4people.hermes.ambient.AmbientAccessPanel;
 import org.llm4people.hermes.artifact.ArtifactDesk;
 import org.llm4people.hermes.hub.AppsLauncherPanel;
 import org.llm4people.hermes.hub.NotesTasksPanel;
+import org.llm4people.hermes.settings.SettingsHubPanel;
 import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.List;
@@ -91,6 +92,7 @@ public class WorkspaceNavigationTest {
         assertEquals(WorkspaceNavigation.DISCUSSION, WorkspaceNavigation.topDestination(WorkspaceNavigation.COMPOSER));
         assertEquals(NotesTasksPanel.ROUTE_ID, WorkspaceNavigation.NOTES_TASKS);
         assertEquals(AppsLauncherPanel.ROUTE_ID, WorkspaceNavigation.APPS);
+        assertEquals(SettingsHubPanel.ROUTE_ID, WorkspaceNavigation.SETTINGS);
         assertEquals(WorkspaceNavigation.NOTES_TASKS, WorkspaceNavigation.topDestination(WorkspaceNavigation.NOTES_TASKS));
         assertEquals(WorkspaceNavigation.APPS, WorkspaceNavigation.topDestination(WorkspaceNavigation.APPS));
         assertEquals(WorkspaceNavigation.APPS, WorkspaceNavigation.topDestination(WorkspaceNavigation.GALLERY));

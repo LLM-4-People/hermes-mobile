@@ -46,6 +46,61 @@ public final class WorkspaceOverflowTest extends InstrumentationTestCase {
         }
     }
 
+    public void testDiscussionAndComposerOverflowExposeAttachmentsAndGateOriginalDiscussionView() throws Throwable {
+        Context context = getInstrumentation().getTargetContext();
+        MainActivity activity = (MainActivity) getInstrumentation().startActivitySync(
+                context.getPackageManager().getLaunchIntentForPackage(context.getPackageName()));
+        List<String> actions = new ArrayList<>();
+        try {
+            WorkspaceShell[] holder = new WorkspaceShell[1];
+            runTestOnUiThread(() -> {
+                holder[0] = new WorkspaceShell(activity, actions::add, () -> false);
+                activity.setContentView(holder[0].root);
+                holder[0].selected("A", "Première discussion");
+            });
+            NavShellTestWait.waitUntilOverflowAttached(this, activity, holder[0]);
+            runTestOnUiThread(() -> {
+                WorkspaceShell shell = holder[0];
+                boolean cameraAvailable = org.llm4people.hermes.camera.ThreadCameraCapture.isAvailable(activity);
+                String attachLabel = activity.getString(R.string.ws_attach_image);
+                String cameraLabel = activity.getString(R.string.ws_capture_photo);
+                String locationLabel = activity.getString(R.string.ws_location_for_message);
+                String originalViewLabel = activity.getString(R.string.ws_original_discussion_view);
+
+                // DISCUSSION surface (pageTitle == null): attachments + original discussion view.
+                Menu discussionMenu = open(shell);
+                assertTrue("DISCUSSION overflow must expose attach_photo", hasLabel(discussionMenu, attachLabel));
+                assertEquals("DISCUSSION overflow capture_camera must match availability",
+                        cameraAvailable, hasLabel(discussionMenu, cameraLabel));
+                assertTrue("DISCUSSION overflow must expose nearby_area", hasLabel(discussionMenu, locationLabel));
+                assertTrue("DISCUSSION overflow must expose ws_original_discussion_view",
+                        hasLabel(discussionMenu, originalViewLabel));
+                shell.dismissMenu();
+
+                // COMPOSER surface (pageTitle == ws_original_discussion): attachments remain available,
+                // while ws_original_discussion_view is suppressed as redundant.
+                shell.show(new View(activity), activity.getString(R.string.ws_original_discussion));
+                Menu composerMenu = open(shell);
+                assertTrue("COMPOSER overflow must expose attach_photo", hasLabel(composerMenu, attachLabel));
+                assertEquals("COMPOSER overflow capture_camera must match availability",
+                        cameraAvailable, hasLabel(composerMenu, cameraLabel));
+                assertTrue("COMPOSER overflow must expose nearby_area", hasLabel(composerMenu, locationLabel));
+                assertFalse("COMPOSER overflow must suppress redundant ws_original_discussion_view",
+                        hasLabel(composerMenu, originalViewLabel));
+                shell.dismissMenu();
+            });
+        } finally {
+            ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+        }
+    }
+
+    private static boolean hasLabel(Menu menu, String label) {
+        for (int i = 0; i < menu.size(); i++) {
+            if (label.contentEquals(menu.getItem(i).getTitle())) return true;
+        }
+        return false;
+    }
+
     private static Menu open(WorkspaceShell shell) {
         ArrayList<View> controls = new ArrayList<>();
         shell.root.findViewsWithText(controls, shell.root.getContext().getString(R.string.ws_more_actions),

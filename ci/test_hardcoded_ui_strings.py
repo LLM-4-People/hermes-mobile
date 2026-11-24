@@ -26,6 +26,7 @@ class HardcodedUiStringsGuardTest(unittest.TestCase):
         self.assertFalse(hasattr(guard, "MIGRATION_ALLOWLIST"))
         self.assertFalse(hasattr(guard, "PREEXISTING_WHITESPACE_STRINGS"))
         self.assertIn(("Ui", "pill"), guard.QUALIFIED_UI_SINK_ARGS)
+        self.assertIn(("ClipData", "newPlainText"), guard.QUALIFIED_UI_SINK_ARGS)
         for dead_method in ("chip", "heading", "sectionTitle", "caption", "badge", "banner", "emptyState"):
             self.assertNotIn(("Ui", dead_method), guard.QUALIFIED_UI_SINK_ARGS)
         self.assertEqual(guard.check_repo(ROOT), [])
@@ -89,6 +90,7 @@ class HardcodedUiStringsGuardTest(unittest.TestCase):
                         sb.setLongLabel("Open Hermes quickly");
                         tile.setLabel("Hermes Tile");
                         new NotificationChannel("ch_id", "Live updates", 3);
+                        android.content.ClipData.newPlainText("Copied report", "payload");
                     }
                 }
                 """,
@@ -114,6 +116,7 @@ class HardcodedUiStringsGuardTest(unittest.TestCase):
                 "Open Hermes quickly",
                 "Hermes Tile",
                 "Live updates",
+                "Copied report",
             ]
             for snippet in expected_snippets:
                 self.assertTrue(any(snippet in i for i in issues), f"Missing finding for {snippet!r}: {issues}")
@@ -135,6 +138,7 @@ class HardcodedUiStringsGuardTest(unittest.TestCase):
                         tv.setText("·");
                         tv.setText(obj.optString("title", ""));
                         tv.setTag("save_button");
+                        android.content.ClipData.newPlainText(ctx.getString(R.string.ok), "raw_payload");
                         Diagnostics.event("panel", "opened_ok");
                         String punct = ".,!?;:)»";
                         throw new IllegalStateException("Internal state mismatch");

@@ -8,6 +8,8 @@ import android.content.res.ColorStateList;
 import android.test.InstrumentationTestCase;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.accessibility.AccessibilityNodeInfo;
+import android.widget.Button;
 import android.widget.EditText;
 import android.widget.RadioButton;
 
@@ -17,6 +19,7 @@ import org.llm4people.hermes.artifact.DataTableBlock;
 import org.llm4people.hermes.artifact.ThemePalette;
 import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.os.BiometricVault;
+import org.llm4people.hermes.panel.UniversalShareModel;
 import org.llm4people.hermes.profile.Account;
 import org.llm4people.hermes.profile.ProfileGate;
 import org.llm4people.hermes.profile.ProfileLockPolicy;
@@ -37,12 +40,14 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Instrumentation regression tests for Triple-Check Round 8 accessibility polish:
+ * Instrumentation regression tests for accessibility polish:
  * - R8.5.1: Editable search EditTexts in DataTableBlock & UniversalSearchSheet avoid contentDescription
  *   and rely on hint (+ root accessibilityPaneTitle on UniversalSearchSheet).
  * - R8.5.2: Dialog EditTexts in WorkspaceForms.reviewDraft() & ThreadWorkspace.rename() retain non-empty
  *   hints even after text is cleared.
  * - R8.5.3: Security lock-mode RadioButtons use a stateful ColorStateList with disabled_ink.
+ * - R13.5.1: UniversalSearchSheet result rows include non-empty subtitles in contentDescription,
+ *   hide redundant children from accessibility, and expose Button class name.
  */
 @SuppressWarnings("deprecation")
 public final class AccessibilityControlsRegressionTest extends InstrumentationTestCase {
@@ -130,6 +135,69 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                     View root = content.getChildAt(0);
                     assertEquals(activity.getString(R.string.universal_search_title),
                             String.valueOf(root.getAccessibilityPaneTitle()));
+
+                    Field localizedField = UniversalSearchSheet.class.getDeclaredField("localized");
+                    localizedField.setAccessible(true);
+                    Context localized = (Context) localizedField.get(sheet);
+                    Method buildRow = UniversalSearchSheet.class.getDeclaredMethod(
+                            "buildResultRow", UniversalSearchModel.Result.class);
+                    buildRow.setAccessible(true);
+
+                    // R13.5.1: Snippet row includes title, badge, and subtitle in contentDescription,
+                    // hides redundant children from accessibility, and announces Button role.
+                    UniversalSearchModel.Result chatResult = new UniversalSearchModel.Result(
+                            "chat:1", UniversalSearchModel.Category.CHATS,
+                            "Release plan", "Verify staging smoke tests",
+                            "t1", "", "", "", "", "", true, 100, Collections.emptyList());
+                    ViewGroup chatRow = (ViewGroup) buildRow.invoke(sheet, chatResult);
+                    String chatExpectedBase = localized.getString(
+                            R.string.universal_search_open_result_cd,
+                            "Release plan",
+                            localized.getString(UniversalSearchModel.Category.CHATS.labelRes));
+                    assertEquals(chatExpectedBase + ". Verify staging smoke tests",
+                            String.valueOf(chatRow.getContentDescription()));
+                    assertEquals(2, chatRow.getChildCount());
+                    assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS,
+                            chatRow.getChildAt(0).getImportantForAccessibility());
+                    assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_NO,
+                            chatRow.getChildAt(1).getImportantForAccessibility());
+                    assertButtonAccessibilityRole(chatRow);
+
+                    // R13.5.1: SHARED row includes owner and permission in contentDescription.
+                    UniversalSearchModel.Result sharedResult = new UniversalSearchModel.Result(
+                            "share:1", UniversalSearchModel.Category.SHARED,
+                            "Shared runbook", "",
+                            "n1", "", "s1", "note", "alice", "edit", true, 90, Collections.emptyList());
+                    ViewGroup sharedRow = (ViewGroup) buildRow.invoke(sheet, sharedResult);
+                    String sharedKind = UniversalShareModel.kindLabel(localized, "note");
+                    String sharedOwner = localized.getString(R.string.ws_shared_by, "alice");
+                    String sharedPerm = UniversalShareModel.permissionLabel(localized, "edit");
+                    String sharedExpectedBase = localized.getString(
+                            R.string.universal_search_open_result_cd, "Shared runbook", sharedKind);
+                    assertEquals(sharedExpectedBase + ". " + sharedOwner + " · " + sharedPerm,
+                            String.valueOf(sharedRow.getContentDescription()));
+                    assertEquals(2, sharedRow.getChildCount());
+                    assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS,
+                            sharedRow.getChildAt(0).getImportantForAccessibility());
+                    assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_NO,
+                            sharedRow.getChildAt(1).getImportantForAccessibility());
+                    assertButtonAccessibilityRole(sharedRow);
+
+                    // Empty-subtitle row preserves base contentDescription without trailing punctuation.
+                    UniversalSearchModel.Result bareResult = new UniversalSearchModel.Result(
+                            "tool:1", UniversalSearchModel.Category.TOOLS,
+                            "Settings", "",
+                            "", "settings", "", "", "", "", false, 80, Collections.emptyList());
+                    ViewGroup bareRow = (ViewGroup) buildRow.invoke(sheet, bareResult);
+                    String bareExpectedBase = localized.getString(
+                            R.string.universal_search_open_result_cd,
+                            "Settings",
+                            localized.getString(UniversalSearchModel.Category.TOOLS.labelRes));
+                    assertEquals(bareExpectedBase, String.valueOf(bareRow.getContentDescription()));
+                    assertEquals(1, bareRow.getChildCount());
+                    assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS,
+                            bareRow.getChildAt(0).getImportantForAccessibility());
+                    assertButtonAccessibilityRole(bareRow);
                 } catch (Exception err) {
                     throw new AssertionError(err);
                 }
@@ -300,6 +368,16 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
         Field field = target.getClass().getDeclaredField(name);
         field.setAccessible(true);
         field.set(target, value);
+    }
+
+    private static void assertButtonAccessibilityRole(View view) {
+        AccessibilityNodeInfo info = AccessibilityNodeInfo.obtain();
+        try {
+            view.onInitializeAccessibilityNodeInfo(info);
+            assertEquals(Button.class.getName(), String.valueOf(info.getClassName()));
+        } finally {
+            info.recycle();
+        }
     }
 
     private static <T extends View> T findFirst(View root, Class<T> type) {

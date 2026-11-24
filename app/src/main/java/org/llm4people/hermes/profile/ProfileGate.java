@@ -481,7 +481,6 @@ public final class ProfileGate {
         Consumer<PairingLinkParser.ParsedInput> instantHandler = FirstRunWizard.attachInstantSetupCard(
                 activity,
                 screen,
-                incomingLink != null,
                 PROBE_IO,
                 () -> screenEpoch == generation && !busy,
                 new FirstRunWizard.Step1Targets() {
@@ -1876,10 +1875,6 @@ public final class ProfileGate {
     }
 
     private interface Opening { Account get() throws Exception; }
-
-    private void run(ProfileScreen screen, Button action, char[] pass, Opening work, Consumer<Account> success, String error) {
-        run(screen, action, null, pass, work, success, error);
-    }
 
     private void run(ProfileScreen screen, Button action, String throttleProfileId, char[] pass,
                      Opening work, Consumer<Account> success, String error) {

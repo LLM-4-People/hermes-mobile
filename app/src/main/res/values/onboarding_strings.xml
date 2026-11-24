@@ -4,8 +4,6 @@
     <string name="onboarding_paste_card_hint">Scannez un code QR d’association ou collez un lien hermes://pair, une invitation HTTPS ou vos accès copiés</string>
     <string name="onboarding_scan_qr_action">Scanner un code QR</string>
     <string name="onboarding_paste_action">Coller le lien d’association</string>
-    <string name="onboarding_paste_clipboard_detected">Lien d’association détecté dans le presse-papiers</string>
-    <string name="onboarding_paste_clipboard_use">Utiliser le lien détecté</string>
     <string name="onboarding_paste_invalid">Lien ou code non reconnu. Collez un lien d’association valide ou utilisez la configuration manuelle.</string>
     <string name="onboarding_paste_checking">Vérification du lien d’association…</string>
     <string name="onboarding_paste_claiming">Association avec votre serveur Hermes…</string>

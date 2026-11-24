@@ -406,7 +406,8 @@ public final class ConnectionDoctorPanel {
         }
         try {
             String safeText = latestReport.toSafeReportText();
-            clipboard.setPrimaryClip(ClipData.newPlainText("hermes-connection-doctor", safeText));
+            clipboard.setPrimaryClip(ClipData.newPlainText(
+                    activity.getString(R.string.doctor_panel_title), safeText));
             Diagnostics.event("doctor", "safe_report_copied");
             showFeedback(activity.getString(R.string.doctor_report_copied), false);
         } catch (RuntimeException failed) {

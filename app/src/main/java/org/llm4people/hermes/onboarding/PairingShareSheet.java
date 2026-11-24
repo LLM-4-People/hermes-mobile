@@ -57,7 +57,7 @@ public final class PairingShareSheet implements AutoCloseable {
         try {
             ClipboardManager cm = context.getSystemService(ClipboardManager.class);
             if (cm == null) return false;
-            ClipData clip = ClipData.newPlainText("Hermes", deepLink.trim());
+            ClipData clip = ClipData.newPlainText(context.getString(R.string.app_name), deepLink.trim());
             PersistableBundle extras = new PersistableBundle();
             extras.putBoolean(
                     Build.VERSION.SDK_INT >= 33
