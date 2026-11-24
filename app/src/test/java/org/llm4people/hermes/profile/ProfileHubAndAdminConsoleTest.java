@@ -4,6 +4,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.llm4people.hermes.Diagnostics;
+import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.onboarding.OnboardingModels;
 import org.llm4people.hermes.onboarding.PairingShareSheet;
 
@@ -31,10 +32,10 @@ public final class ProfileHubAndAdminConsoleTest {
         Diagnostics.setSink(null);
     }
     @Test public void avatarInitialsSlugSuggestionAndValidationHandleAccentsAndHostileInput() {
-        assertEquals("JD", ProfileHubSheet.avatarInitials("Jean Dupont"));
-        assertEquals("A", ProfileHubSheet.avatarInitials("alex"));
-        assertEquals("H", ProfileHubSheet.avatarInitials("   "));
-        assertEquals("H", ProfileHubSheet.avatarInitials(null));
+        assertEquals("JD", Ui.initials("Jean Dupont"));
+        assertEquals("A", Ui.initials("alex"));
+        assertEquals("H", Ui.initials("   "));
+        assertEquals("H", Ui.initials(null));
 
         assertEquals("elodie-martin", ProfileHubSheet.suggestSlug("Élodie Martin"));
         assertEquals("alex-2", ProfileHubSheet.suggestSlug("  Alex  2!! "));
@@ -175,5 +176,46 @@ public final class ProfileHubAndAdminConsoleTest {
         Diagnostics.clear();
         assertFalse(PairingShareSheet.submitRevoke(false, racingPool, runs::incrementAndGet));
         assertTrue(Diagnostics.exportRedacted().contains("onboarding.pairing_revoke_rejected"));
+    }
+
+    @Test public void profileInviteNormalizationNoteChangeGuardAndCredentialHintPolicy() {
+        ProfileInviteDialogs.CreateProfileParams named =
+                ProfileInviteDialogs.normalizeCreateProfile("  Alex  ", "Alex Martin", " fr ", true);
+        assertEquals("alex", named.slug());
+        assertEquals("Alex Martin", named.displayName());
+        assertEquals("fr", named.preferredLanguage());
+        assertTrue(named.grantAdmin());
+
+        // Blank display name falls back to normalized slug; null inputs fail-safe to empty strings.
+        ProfileInviteDialogs.CreateProfileParams fallback =
+                ProfileInviteDialogs.normalizeCreateProfile("Team-42", "   ", null, false);
+        assertEquals("team-42", fallback.slug());
+        assertEquals("team-42", fallback.displayName());
+        assertEquals("", fallback.preferredLanguage());
+        assertFalse(fallback.grantAdmin());
+
+        ProfileInviteDialogs.CreateProfileParams allNull =
+                ProfileInviteDialogs.normalizeCreateProfile(null, null, null, false);
+        assertEquals("", allNull.slug());
+        assertEquals("", allNull.displayName());
+        assertEquals("", allNull.preferredLanguage());
+        assertNull(ProfileInviteDialogs.extractCreatedTicket(null));
+
+        // R20.5.2: ProfileScreen.changedNoteText suppresses redundant setText calls on live-region notes.
+        assertNull(ProfileScreen.changedNoteText("Ready", "Ready"));
+        assertNull(ProfileScreen.changedNoteText("", null));
+        assertNull(ProfileScreen.changedNoteText("", ""));
+        assertEquals("Mismatch", ProfileScreen.changedNoteText("Ready", "Mismatch"));
+        assertEquals("", ProfileScreen.changedNoteText("Ready", null));
+        assertEquals("Ready", ProfileScreen.changedNoteText(null, "Ready"));
+
+        // R20.5.2: PIN/passphrase live-region policy announces discrete states and silences per-keystroke progress.
+        assertTrue(ProfileGate.shouldAnnounceCredentialState(ProfileLockPolicy.CredentialState.READY));
+        assertTrue(ProfileGate.shouldAnnounceCredentialState(ProfileLockPolicy.CredentialState.MISMATCH));
+        assertTrue(ProfileGate.shouldAnnounceCredentialState(ProfileLockPolicy.CredentialState.INVALID_FORMAT));
+        assertFalse(ProfileGate.shouldAnnounceCredentialState(ProfileLockPolicy.CredentialState.EMPTY));
+        assertFalse(ProfileGate.shouldAnnounceCredentialState(ProfileLockPolicy.CredentialState.TOO_SHORT));
+        assertFalse(ProfileGate.shouldAnnounceCredentialState(ProfileLockPolicy.CredentialState.AWAITING_CONFIRM));
+        assertFalse(ProfileGate.shouldAnnounceCredentialState(null));
     }
 }

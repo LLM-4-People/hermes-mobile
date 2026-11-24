@@ -93,12 +93,7 @@ final class ReminderEditor {
         field.setSingleLine(single);
         field.setInputType(InputType.TYPE_CLASS_TEXT | (single ? 0 : InputType.TYPE_TEXT_FLAG_MULTI_LINE));
         field.setTextSize(16);
-        field.setTextColor(panel.activity.getColor(R.color.ink));
-        field.setHintTextColor(panel.activity.getColor(R.color.muted));
-        field.setBackgroundResource(R.drawable.profile_input);
-        field.setBackgroundTintList(null);
-        Ui.pad(field, 12, 10);
-        field.setMinHeight(Ui.dp(panel.activity, 48));
+        Ui.styleDialogInput(panel.activity, field);
         field.setSaveEnabled(false);
         field.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO);
         field.setImeOptions((single ? EditorInfo.IME_ACTION_NEXT : EditorInfo.IME_ACTION_NONE)

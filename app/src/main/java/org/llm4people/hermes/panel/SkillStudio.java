@@ -424,12 +424,7 @@ final class SkillStudio {
         field.setSingleLine(true);
         field.setImeOptions(EditorInfo.IME_ACTION_NEXT | EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING
                 | EditorInfo.IME_FLAG_NO_EXTRACT_UI);
-        field.setBackgroundResource(R.drawable.profile_input);
-        field.setBackgroundTintList(null);
-        field.setMinHeight(Ui.dp(panel.activity, 48));
-        Ui.pad(field, 12, 10);
-        field.setTextColor(panel.activity.getColor(R.color.ink));
-        field.setHintTextColor(panel.activity.getColor(R.color.muted));
+        Ui.styleDialogInput(panel.activity, field);
         field.setHint(labelAndHintRes);
         field.setSaveEnabled(false);
         field.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS);

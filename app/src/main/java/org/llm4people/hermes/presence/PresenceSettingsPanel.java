@@ -340,7 +340,7 @@ public final class PresenceSettingsPanel {
     }
 
     private void addPaletteChip(LinearLayout row, AppCustomization.PalettePreset preset, int labelRes) {
-        Button chip = Ui.outlinedButton(context, context.getString(labelRes), v -> {
+        Button chip = Ui.choiceChip(context, context.getString(labelRes), v -> {
             AppCustomization next = customizationStore.current().withPalette(preset, null);
             customizationStore.apply(next);
             listener.onCustomizationChanged(next);
@@ -358,7 +358,7 @@ public final class PresenceSettingsPanel {
     }
 
     private void addDensityChip(LinearLayout row, AppCustomization.Density density, int labelRes) {
-        Button chip = Ui.outlinedButton(context, context.getString(labelRes), v -> {
+        Button chip = Ui.choiceChip(context, context.getString(labelRes), v -> {
             AppCustomization next = customizationStore.current().withDensity(density);
             customizationStore.apply(next);
             listener.onCustomizationChanged(next);
@@ -378,24 +378,10 @@ public final class PresenceSettingsPanel {
     private void updateCustomizationChips() {
         AppCustomization current = customizationStore.current();
         for (Map.Entry<AppCustomization.PalettePreset, Button> entry : paletteChips.entrySet()) {
-            styleChoiceChip(entry.getValue(), current.palette == entry.getKey());
+            Ui.styleChoiceChip(entry.getValue(), current.palette == entry.getKey());
         }
         for (Map.Entry<AppCustomization.Density, Button> entry : densityChips.entrySet()) {
-            styleChoiceChip(entry.getValue(), current.density == entry.getKey());
-        }
-    }
-
-    private void styleChoiceChip(Button chip, boolean selected) {
-        if (chip == null) return;
-        chip.setSelected(selected);
-        if (selected) {
-            chip.setBackground(Ui.roundedRipple(context, Ui.BUTTON_CORNER_DP,
-                    Ui.shape(context, Ui.BUTTON_CORNER_DP, R.color.accent_surface, R.color.accent, 1)));
-            chip.setTextColor(Ui.enabledDisabledInk(context, R.color.accent));
-        } else {
-            chip.setBackground(Ui.roundedRipple(context, Ui.BUTTON_CORNER_DP,
-                    Ui.shape(context, Ui.BUTTON_CORNER_DP, R.color.surface, R.color.line, 1)));
-            chip.setTextColor(Ui.enabledDisabledInk(context, R.color.ink));
+            Ui.styleChoiceChip(entry.getValue(), current.density == entry.getKey());
         }
     }
 

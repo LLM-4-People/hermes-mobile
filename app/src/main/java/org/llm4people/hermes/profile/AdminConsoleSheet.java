@@ -9,7 +9,6 @@ import android.text.InputType;
 import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.View;
-import android.view.inputmethod.EditorInfo;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.HorizontalScrollView;
@@ -20,7 +19,6 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import org.json.JSONObject;
-import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.HermesConfig;
 import org.llm4people.hermes.R;
@@ -437,36 +435,9 @@ public final class AdminConsoleSheet implements AutoCloseable {
 
         String[] langHolder = {cur.defaultLanguage()};
         contentSlot.addView(label(R.string.admin_settings_language_label));
-        HorizontalScrollView langScroll = new HorizontalScrollView(activity);
-        langScroll.setHorizontalScrollBarEnabled(false);
-        LinearLayout langRow = Ui.row(activity);
-        String[] labels = {
-                activity.getString(R.string.onboarding_language_auto),
-                activity.getString(R.string.onboarding_language_en),
-                activity.getString(R.string.onboarding_language_fr)
-        };
-        String[] codes = {"auto", "en", "fr"};
-        Button[] langBtns = new Button[3];
-        Runnable paintLang = () -> {
-            for (int i = 0; i < 3; i++) {
-                styleTabButton(langBtns[i], codes[i].equals(langHolder[0]));
-            }
-        };
-        for (int i = 0; i < 3; i++) {
-            final String code = codes[i];
-            Button b = tabButton(labels[i], () -> {
-                langHolder[0] = code;
-                paintLang.run();
-            });
-            langBtns[i] = b;
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-            if (i > 0) lp.setMarginStart(Ui.dp(activity, 8));
-            langRow.addView(b, lp);
-        }
-        paintLang.run();
-        langScroll.addView(langRow);
-        contentSlot.addView(langScroll, topMargin(6));
+        contentSlot.addView(
+                ProfileScreen.languageChoiceRow(activity, cur.defaultLanguage(), code -> langHolder[0] = code),
+                topMargin(6));
 
         EditText modelField = labeledEdit(contentSlot,
                 R.string.admin_settings_model_label,
@@ -624,27 +595,14 @@ public final class AdminConsoleSheet implements AutoCloseable {
     }
 
     private void pairProfileDevice(String slug) {
-        submitIo(() -> {
-            OnboardingModels.PairingTicket ticket = null;
-            try {
-                JSONObject req = new JSONObject();
-                req.put("mode", "device");
-                ticket = OnboardingModels.parsePairingTicket(api.inviteProfile(slug, req));
-            } catch (Exception err) {
-                Diagnostics.warning("admin", "pair_device_failed");
-            }
-            OnboardingModels.PairingTicket created = ticket;
-            main.post(() -> {
-                if (closed || !canAct.getAsBoolean()) return;
-                if (created == null) {
-                    Toast.makeText(activity, R.string.profile_hub_qr_unavailable, Toast.LENGTH_LONG).show();
-                    return;
-                }
-                if (shareSheet != null) shareSheet.close();
-                shareSheet = PairingShareSheet.show(activity, created, api, io, canAct, this::refreshAll);
-                refreshAll();
-            });
-        });
+        ProfileInviteDialogs.pairExistingProfileDevice(
+                activity, api, main, this::submitIo, () -> closed, canAct,
+                slug, "admin", "pair_device_failed",
+                created -> {
+                    if (shareSheet != null) shareSheet.close();
+                    shareSheet = PairingShareSheet.show(activity, created, api, io, canAct, this::refreshAll);
+                    refreshAll();
+                });
     }
 
     private void toggleAdminRole(OnboardingModels.RemoteProfile profile) {
@@ -726,116 +684,18 @@ public final class AdminConsoleSheet implements AutoCloseable {
     }
 
     private void showInviteUserDialog() {
-        ScrollView scroll = new ScrollView(activity);
-        LinearLayout form = Ui.column(activity);
-        Ui.pad(form, 18, 12);
-        scroll.addView(form);
-
-        TextView detail = Ui.text(activity, activity.getString(R.string.profile_hub_invite_detail), 13);
-        detail.setTextColor(activity.getColor(R.color.muted));
-        form.addView(detail);
-
-        EditText nameField = labeledEdit(form,
-                R.string.profile_hub_edit_name_hint,
-                "",
-                R.string.profile_hub_invite_name_hint,
-                InputType.TYPE_CLASS_TEXT,
-                10);
-        EditText slugField = labeledEdit(form,
-                R.string.profile_hub_slug_label,
-                "",
-                R.string.profile_hub_invite_slug_hint,
-                InputType.TYPE_CLASS_TEXT,
-                10);
-
-        TextView inlineError = Ui.text(activity, "", 13);
-        inlineError.setTextColor(activity.getColor(R.color.danger));
-        inlineError.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
-        inlineError.setVisibility(View.GONE);
-        form.addView(inlineError, topMargin(8));
-
-        boolean[] slugEdited = {false};
-        nameField.addTextChangedListener(new TextWatcher() {
-            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {}
-            @Override public void afterTextChanged(Editable s) {
-                if (!slugEdited[0]) slugField.setText(ProfileHubSheet.suggestSlug(s.toString()));
-            }
-        });
-        slugField.addTextChangedListener(new TextWatcher() {
-            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {}
-            @Override public void afterTextChanged(Editable s) {
-                if (inlineError.getVisibility() == View.VISIBLE) {
-                    inlineError.setText("");
-                    inlineError.setVisibility(View.GONE);
-                }
-            }
-        });
-        slugField.setOnFocusChangeListener((v, hasFocus) -> { if (hasFocus) slugEdited[0] = true; });
-
-        Switch adminToggle = new Switch(activity);
-        adminToggle.setText(R.string.admin_console_grant_admin_toggle);
-        adminToggle.setTextColor(activity.getColor(R.color.ink));
-        adminToggle.setTextSize(15);
-        adminToggle.setMinHeight(Ui.dp(activity, 48));
-        form.addView(adminToggle, topMargin(10));
-
         dismissChildDialog();
-        AlertDialog dialog = Ui.secureDialog(new AlertDialog.Builder(activity)
-                .setTitle(R.string.admin_console_invite_user_action)
-                .setView(scroll)
-                .setNegativeButton(R.string.profile_setup_cancel, null)
-                .setPositiveButton(R.string.profile_hub_invite_create_action, null));
-        childDialog = dialog;
-        Button positive = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
-        if (positive != null) {
-            positive.setOnClickListener(v -> {
-                String name = nameField.getText().toString().trim();
-                String slug = slugField.getText().toString().trim().toLowerCase(Locale.ROOT);
-                if (!ProfileHubSheet.isValidNewSlug(slug)) {
-                    inlineError.setText(R.string.profile_hub_invite_invalid_slug);
-                    inlineError.setVisibility(View.VISIBLE);
-                    slugField.requestFocus();
-                    return;
-                }
-                inlineError.setText("");
-                inlineError.setVisibility(View.GONE);
-                if (closed || io.isShutdown()) return;
-                boolean grantAdmin = adminToggle.isChecked();
-                dialog.dismiss();
-                submitIo(() -> {
-                    OnboardingModels.PairingTicket ticket = null;
-                    try {
-                        JSONObject req = new JSONObject();
-                        req.put("slug", slug);
-                        req.put("display_name", name.isEmpty() ? slug : name);
-                        req.put("preferred_language", AppLanguage.resolvedTag(activity));
-                        req.put("is_admin", grantAdmin);
-                        req.put("create_invite", true);
-                        JSONObject resp = api.createProfile(req);
-                        JSONObject rawTicket = resp.optJSONObject("pairing_ticket");
-                        if (rawTicket == null) rawTicket = resp.optJSONObject("ticket");
-                        if (rawTicket == null) rawTicket = resp;
-                        ticket = OnboardingModels.parsePairingTicket(rawTicket);
-                        Diagnostics.event("admin", "user_invited");
-                    } catch (Exception err) {
-                        Diagnostics.warning("admin", "user_invite_failed");
-                    }
-                    OnboardingModels.PairingTicket created = ticket;
-                    main.post(() -> {
-                        if (closed || !canAct.getAsBoolean()) return;
-                        if (created == null) {
-                            Toast.makeText(activity, R.string.profile_hub_invite_failed, Toast.LENGTH_LONG).show();
-                            return;
-                        }
-                        refreshAll();
-                        if (shareSheet != null) shareSheet.close();
-                        shareSheet = PairingShareSheet.show(activity, created, api, io, canAct, this::refreshAll);
-                    });
+        childDialog = ProfileInviteDialogs.showCreateAndInviteDialog(
+                activity, api, main, this::submitIo, () -> closed, canAct,
+                R.string.admin_console_invite_user_action, true,
+                "admin", "user_invited", "user_invite_failed",
+                d -> { if (childDialog == d) childDialog = null; },
+                null,
+                created -> {
+                    refreshAll();
+                    if (shareSheet != null) shareSheet.close();
+                    shareSheet = PairingShareSheet.show(activity, created, api, io, canAct, this::refreshAll);
                 });
-            });
-        }
     }
 
     private void confirmRotateKey(OnboardingModels.RemoteProfile profile) {
@@ -983,33 +843,8 @@ public final class AdminConsoleSheet implements AutoCloseable {
             int hintRes,
             int inputType,
             int topGapDp) {
-        TextView lbl = label(labelRes);
-        if (topGapDp > 0) parent.addView(lbl, topMargin(topGapDp));
-        else parent.addView(lbl);
-
-        EditText e = edit(initial, hintRes, inputType);
-        e.setId(View.generateViewId());
-        lbl.setLabelFor(e.getId());
-        parent.addView(e, topMargin(6));
-        return e;
-    }
-
-    private EditText edit(String initial, int hintRes, int inputType) {
-        EditText e = new EditText(activity);
-        e.setText(initial == null ? "" : initial);
-        if (hintRes != 0) e.setHint(hintRes);
-        e.setSingleLine(true);
-        e.setInputType(inputType);
-        e.setBackgroundResource(R.drawable.profile_input);
-        e.setBackgroundTintList(null);
-        Ui.pad(e, 12, 10);
-        e.setTextColor(activity.getColor(R.color.ink));
-        e.setHintTextColor(activity.getColor(R.color.muted));
-        e.setMinHeight(Ui.dp(activity, 48));
-        e.setSaveEnabled(false);
-        e.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO);
-        e.setImeOptions(EditorInfo.IME_FLAG_NO_EXTRACT_UI | EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING);
-        return e;
+        return ProfileInviteDialogs.labeledDialogField(
+                activity, parent, labelRes, initial, hintRes, inputType, topGapDp);
     }
 
     private LinearLayout.LayoutParams topMargin(int dp) {

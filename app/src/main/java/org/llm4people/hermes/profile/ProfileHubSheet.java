@@ -4,18 +4,14 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.os.Handler;
 import android.os.Looper;
-import android.text.Editable;
 import android.text.InputType;
-import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.View;
-import android.view.inputmethod.EditorInfo;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
-import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -94,11 +90,6 @@ public final class ProfileHubSheet implements AutoCloseable {
         this.callbacks = Objects.requireNonNull(callbacks, "callbacks");
         this.api = new HermesApi(account.endpoint, account.bearer,
                 HermesApi.Limits.from(HermesConfig.load(activity)));
-    }
-
-    /** Crisp 1-2 character avatar initials for profile cards (host-JVM testable). */
-    public static String avatarInitials(String label) {
-        return Ui.initials(label);
     }
 
     /** Validates a newly created server profile slug (2..32 lowercase ASCII letters, digits, hyphens). */
@@ -265,7 +256,7 @@ public final class ProfileHubSheet implements AutoCloseable {
 
         LinearLayout top = Ui.row(activity);
         top.setGravity(Gravity.CENTER_VERTICAL);
-        top.addView(avatarBadge(activity, avatarInitials(account.label), true));
+        top.addView(avatarBadge(activity, Ui.initials(account.label), true));
 
         LinearLayout info = Ui.column(activity);
         TextView name = Ui.text(activity, account.label, 17);
@@ -334,7 +325,7 @@ public final class ProfileHubSheet implements AutoCloseable {
         Ui.pad(row, 16, 12);
         row.setBackground(Ui.shape(activity, Ui.CARD_CORNER_DP, R.color.surface, R.color.line, 1));
 
-        row.addView(avatarBadge(activity, avatarInitials(label), false));
+        row.addView(avatarBadge(activity, Ui.initials(label), false));
 
         TextView name = Ui.text(activity, label, 15);
         name.setTypeface(Ui.mediumTypeface());
@@ -455,27 +446,13 @@ public final class ProfileHubSheet implements AutoCloseable {
     }
 
     private void inviteExistingProfile(String slug) {
-        if (closed || api.isRevoked()) return;
-        submitIo(() -> {
-            OnboardingModels.PairingTicket ticket = null;
-            try {
-                JSONObject req = new JSONObject();
-                req.put("mode", "device");
-                ticket = OnboardingModels.parsePairingTicket(api.inviteProfile(slug, req));
-            } catch (Exception err) {
-                Diagnostics.warning("profile_hub", "invite_existing_failed");
-            }
-            OnboardingModels.PairingTicket created = ticket;
-            main.post(() -> {
-                if (closed || !canAct.getAsBoolean() || activity.isFinishing() || activity.isDestroyed()) return;
-                if (created == null) {
-                    Toast.makeText(activity, R.string.profile_hub_qr_unavailable, Toast.LENGTH_LONG).show();
-                    return;
-                }
-                if (shareSheet != null) shareSheet.close();
-                shareSheet = PairingShareSheet.show(activity, created, api, io, canAct, this::refreshRemoteState);
-            });
-        });
+        ProfileInviteDialogs.pairExistingProfileDevice(
+                activity, api, main, this::submitIo, () -> closed, canAct,
+                slug, "profile_hub", "invite_existing_failed",
+                created -> {
+                    if (shareSheet != null) shareSheet.close();
+                    shareSheet = PairingShareSheet.show(activity, created, api, io, canAct, this::refreshRemoteState);
+                });
     }
 
     private void showEditDialog(OnboardingModels.RemoteProfile profile) {
@@ -500,36 +477,9 @@ public final class ProfileHubSheet implements AutoCloseable {
         form.addView(langLabel, topMargin(12));
 
         String[] lang = {profile.preferredLanguage()};
-        String[] labels = {
-                activity.getString(R.string.onboarding_language_auto),
-                activity.getString(R.string.onboarding_language_en),
-                activity.getString(R.string.onboarding_language_fr)
-        };
-        String[] codes = {"auto", "en", "fr"};
-        HorizontalScrollView langScroll = new HorizontalScrollView(activity);
-        langScroll.setHorizontalScrollBarEnabled(false);
-        LinearLayout langRow = Ui.row(activity);
-        Button[] btns = new Button[3];
-        Runnable paint = () -> {
-            for (int i = 0; i < 3; i++) {
-                styleChoiceChip(btns[i], codes[i].equals(lang[0]));
-            }
-        };
-        for (int i = 0; i < 3; i++) {
-            final String code = codes[i];
-            Button b = choiceChip(labels[i], () -> {
-                lang[0] = code;
-                paint.run();
-            });
-            btns[i] = b;
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-            if (i > 0) lp.setMarginStart(Ui.dp(activity, 8));
-            langRow.addView(b, lp);
-        }
-        paint.run();
-        langScroll.addView(langRow);
-        form.addView(langScroll, topMargin(6));
+        form.addView(
+                ProfileScreen.languageChoiceRow(activity, profile.preferredLanguage(), code -> lang[0] = code),
+                topMargin(6));
 
         dismissChildDialog();
         childDialog = Ui.secureDialog(new AlertDialog.Builder(activity)
@@ -564,133 +514,20 @@ public final class ProfileHubSheet implements AutoCloseable {
     }
 
     private void showInviteDialog(boolean allowAdminToggle) {
-        ScrollView scroll = new ScrollView(activity);
-        LinearLayout form = Ui.column(activity);
-        Ui.pad(form, 18, 12);
-        scroll.addView(form);
-
-        TextView detail = Ui.text(activity, activity.getString(R.string.profile_hub_invite_detail), 13);
-        detail.setTextColor(activity.getColor(R.color.muted));
-        form.addView(detail);
-
-        EditText nameField = styledLabeledField(form,
-                R.string.profile_hub_edit_name_hint,
-                "",
-                R.string.profile_hub_invite_name_hint,
-                10);
-        EditText slugField = styledLabeledField(form,
-                R.string.profile_hub_slug_label,
-                "",
-                R.string.profile_hub_invite_slug_hint,
-                10);
-
-        TextView inlineError = Ui.text(activity, "", 13);
-        inlineError.setTextColor(activity.getColor(R.color.danger));
-        inlineError.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
-        inlineError.setVisibility(View.GONE);
-        form.addView(inlineError, topMargin(8));
-
-        boolean[] slugManuallyEdited = {false};
-        nameField.addTextChangedListener(new TextWatcher() {
-            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {}
-            @Override public void afterTextChanged(Editable s) {
-                if (!slugManuallyEdited[0]) {
-                    slugField.setText(suggestSlug(s.toString()));
-                }
-            }
-        });
-        slugField.addTextChangedListener(new TextWatcher() {
-            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {}
-            @Override public void afterTextChanged(Editable s) {
-                if (inlineError.getVisibility() == View.VISIBLE) {
-                    inlineError.setText("");
-                    inlineError.setVisibility(View.GONE);
-                }
-            }
-        });
-        slugField.setOnFocusChangeListener((v, hasFocus) -> {
-            if (hasFocus) slugManuallyEdited[0] = true;
-        });
-
-        Switch adminToggle = new Switch(activity);
-        adminToggle.setText(R.string.admin_console_grant_admin_toggle);
-        adminToggle.setTextColor(activity.getColor(R.color.ink));
-        adminToggle.setTextSize(15);
-        adminToggle.setMinHeight(Ui.dp(activity, 48));
-        if (allowAdminToggle) form.addView(adminToggle, topMargin(10));
-
         boolean standalone = sheetDialog == null;
-        boolean[] submitted = {false};
         dismissChildDialog();
-        AlertDialog dialog = Ui.secureDialog(new AlertDialog.Builder(activity)
-                .setTitle(R.string.profile_hub_invite_title)
-                .setView(scroll)
-                .setNegativeButton(R.string.profile_setup_cancel, null)
-                .setPositiveButton(R.string.profile_hub_invite_create_action, null));
-        dialog.setOnDismissListener(d -> {
-            if (childDialog == dialog) childDialog = null;
-            if (standalone && !submitted[0]) close();
-        });
-        childDialog = dialog;
-        Button positive = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
-        if (positive != null) {
-            positive.setOnClickListener(v -> {
-                String displayName = nameField.getText().toString().trim();
-                String slug = slugField.getText().toString().trim().toLowerCase(Locale.ROOT);
-                if (!isValidNewSlug(slug)) {
-                    inlineError.setText(R.string.profile_hub_invite_invalid_slug);
-                    inlineError.setVisibility(View.VISIBLE);
-                    slugField.requestFocus();
-                    return;
-                }
-                inlineError.setText("");
-                inlineError.setVisibility(View.GONE);
-                if (closed || io.isShutdown()) return;
-                boolean grantAdmin = allowAdminToggle && adminToggle.isChecked();
-                submitted[0] = true;
-                dialog.dismiss();
-                if (!submitIo(() -> {
-                    OnboardingModels.PairingTicket ticket = null;
-                    try {
-                        JSONObject req = new JSONObject();
-                        req.put("slug", slug);
-                        req.put("display_name", displayName.isEmpty() ? slug : displayName);
-                        req.put("preferred_language", AppLanguage.resolvedTag(activity));
-                        req.put("is_admin", grantAdmin);
-                        req.put("create_invite", true);
-                        JSONObject resp = api.createProfile(req);
-                        JSONObject rawTicket = resp.optJSONObject("pairing_ticket");
-                        if (rawTicket == null) rawTicket = resp.optJSONObject("ticket");
-                        if (rawTicket == null) rawTicket = resp;
-                        ticket = OnboardingModels.parsePairingTicket(rawTicket);
-                        Diagnostics.event("profile_hub", "invite_created");
-                    } catch (Exception err) {
-                        Diagnostics.warning("profile_hub", "invite_create_failed");
-                    }
-                    OnboardingModels.PairingTicket created = ticket;
-                    main.post(() -> {
-                        if (closed) return;
-                        if (!canAct.getAsBoolean() || activity.isFinishing() || activity.isDestroyed()) {
-                            if (standalone) close();
-                            return;
-                        }
-                        if (created == null) {
-                            Toast.makeText(activity, R.string.profile_hub_invite_failed, Toast.LENGTH_LONG).show();
-                            if (standalone) close();
-                            return;
-                        }
-                        if (!standalone) refreshRemoteState();
-                        if (shareSheet != null) shareSheet.close();
-                        shareSheet = PairingShareSheet.show(activity, created, api, io, canAct,
-                                standalone ? null : this::refreshRemoteState, standalone ? this::close : null);
-                    });
-                }) && standalone) {
-                    close();
-                }
-            });
-        }
+        childDialog = ProfileInviteDialogs.showCreateAndInviteDialog(
+                activity, api, main, this::submitIo, () -> closed, canAct,
+                R.string.profile_hub_invite_title, allowAdminToggle,
+                "profile_hub", "invite_created", "invite_create_failed",
+                d -> { if (childDialog == d) childDialog = null; },
+                standalone ? this::close : null,
+                created -> {
+                    if (!standalone) refreshRemoteState();
+                    if (shareSheet != null) shareSheet.close();
+                    shareSheet = PairingShareSheet.show(activity, created, api, io, canAct,
+                            standalone ? null : this::refreshRemoteState, standalone ? this::close : null);
+                });
     }
 
     private boolean submitIo(Runnable task) {
@@ -703,37 +540,8 @@ public final class ProfileHubSheet implements AutoCloseable {
             String initial,
             int hintRes,
             int topGapDp) {
-        TextView lbl = Ui.text(activity, activity.getString(labelRes), 14);
-        lbl.setTypeface(Ui.mediumTypeface());
-        if (topGapDp > 0) parent.addView(lbl, topMargin(topGapDp));
-        else parent.addView(lbl);
-
-        EditText field = new EditText(activity);
-        field.setId(View.generateViewId());
-        lbl.setLabelFor(field.getId());
-        field.setText(initial == null ? "" : initial);
-        if (hintRes != 0) field.setHint(hintRes);
-        field.setSingleLine(true);
-        field.setInputType(InputType.TYPE_CLASS_TEXT);
-        field.setBackgroundResource(R.drawable.profile_input);
-        field.setBackgroundTintList(null);
-        Ui.pad(field, 12, 10);
-        field.setTextColor(activity.getColor(R.color.ink));
-        field.setHintTextColor(activity.getColor(R.color.muted));
-        field.setMinHeight(Ui.dp(activity, 48));
-        field.setSaveEnabled(false);
-        field.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO);
-        field.setImeOptions(EditorInfo.IME_FLAG_NO_EXTRACT_UI | EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING);
-        parent.addView(field, topMargin(6));
-        return field;
-    }
-
-    private Button choiceChip(String label, Runnable onClick) {
-        return Ui.choiceChip(activity, label, v -> onClick.run());
-    }
-
-    private void styleChoiceChip(Button btn, boolean selected) {
-        Ui.styleChoiceChip(btn, selected);
+        return ProfileInviteDialogs.labeledDialogField(
+                activity, parent, labelRes, initial, hintRes, InputType.TYPE_CLASS_TEXT, topGapDp);
     }
 
     static TextView avatarBadge(Activity activity, String initials, boolean accent) {
