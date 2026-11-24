@@ -128,6 +128,14 @@ public final class NotesTasksModelTest {
         List<NotesTasksModel.NoteRow> capped = NotesTasksModel.parseNotesMap(Map.of("data", many));
         assertEquals(NotesTasksModel.MAX_VISIBLE_ITEMS, capped.size());
 
+        // Non-list primary key falls back cleanly to secondary "data" list.
+        Map<String, Object> fallbackEnvelope = new HashMap<>();
+        fallbackEnvelope.put("notes", "not-a-list");
+        fallbackEnvelope.put("data", List.of(Map.of("id", "n_fb", "title", "Fallback note")));
+        List<NotesTasksModel.NoteRow> fallbackRows = NotesTasksModel.parseNotesMap(fallbackEnvelope);
+        assertEquals(1, fallbackRows.size());
+        assertEquals("n_fb", fallbackRows.get(0).id());
+
         // Negative / empty inputs.
         assertTrue(NotesTasksModel.parseNotesMap(null).isEmpty());
         assertTrue(NotesTasksModel.parseNotesMap(Collections.emptyMap()).isEmpty());

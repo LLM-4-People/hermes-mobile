@@ -214,7 +214,6 @@ PROPER_WORDS = {
     "Matrix",
     "Nextcloud",
     "Ntfy",
-    "Atelier",
     "Wi-Fi",
     "Bluetooth",
     "Chromium",
@@ -283,7 +282,6 @@ EN_ONLY_PROPER_WORDS = {
 FR_ONLY_PROPER_WORDS = {
     "Français",
     "English",
-    "Cerveau",
 }
 
 FR_ELISION = re.compile(r"^(?:[cdjlmnst]|qu)['’](.+)$", re.IGNORECASE)
@@ -325,7 +323,7 @@ def _is_allowed_capitalized_word(word, lang):
     for suffix in ("'s", "’s"):
         if word.endswith(suffix):
             return _is_allowed_capitalized_word(word[:-2], lang)
-    # French elisions (e.g., d'Android, l'Atelier, d'Hermes).
+    # French elisions (e.g., d'Android, d'Hermes).
     if lang == "fr":
         m = FR_ELISION.match(word)
         if m:
@@ -406,8 +404,13 @@ def check_sentence_case(text, lang):
                 for part in re.split(r"[-+]", sp):
                     if not part:
                         continue
-                    if part[0].isupper() and any(c.islower() for c in part[1:]):
-                        if not _is_allowed_capitalized_word(part, lang):
+                    check_part = part
+                    if lang == "fr":
+                        elided = FR_ELISION.match(part)
+                        if elided:
+                            check_part = elided.group(1)
+                    if check_part and check_part[0].isupper() and any(c.islower() for c in check_part[1:]):
+                        if not _is_allowed_capitalized_word(check_part, lang):
                             offenders.append(token)
                             flagged = True
                             break

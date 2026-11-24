@@ -1,6 +1,6 @@
 # Deploy multi-profile Hermes accounts on one HTTPS hostname
 
-Hermes Mobile requires our own Hermes Agent fork at [LLM-4-People/hermes-agent](https://github.com/LLM-4-People/hermes-agent) (for single-host multi-profile `/p/{profile}` routing, run-scoped instructions, live UI editing, universal push notifications, universal sharing, Smart Notes, visual approval diffs, and Brain Studio).
+Hermes Mobile requires our own Hermes Agent fork at [LLM-4-People/hermes-agent](https://github.com/LLM-4-People/hermes-agent) (for single-host multi-profile `/p/{profile}` routing, run-scoped instructions, live UI editing, universal push notifications, universal sharing, Smart Notes, memory, skills, workspace files, and visual approval diffs).
 
 **One single HTTPS server hostname** (for example `https://hermes.example.com`) serves every user and profile under `/p/<profile>`. No per-user subdomains or separate HTTPS hostnames are required. Each person gets an isolated Hermes home, coding workspace, threads, configuration, provider credentials, container network, and unique 256-bit gateway access key. Because profiles stay isolated behind one shared server, users on that server can keep private work separate while still sharing notes, tools, widgets, and discussions with other users on the same server.
 

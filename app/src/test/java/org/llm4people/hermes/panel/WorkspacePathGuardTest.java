@@ -18,20 +18,47 @@ public final class WorkspacePathGuardTest {
         assertEquals("app", WorkspacePathGuard.parentDirectory("app/src"));
         assertEquals("", WorkspacePathGuard.parentDirectory("app"));
 
-        // Safe example env templates remain readable.
+        // Safe example env templates and non-secret dotfiles/names remain readable.
         assertFalse(WorkspacePathGuard.isSensitivePath(".env.example"));
         assertEquals(".env.example", WorkspacePathGuard.normalizeRelativePath(".env.example", false));
+        assertFalse(WorkspacePathGuard.isSensitivePath(".gitignore"));
+        assertEquals(".gitignore", WorkspacePathGuard.normalizeRelativePath(".gitignore", false));
+        assertEquals("docs/ssh.md", WorkspacePathGuard.normalizeRelativePath("docs/ssh.md", false));
+        assertEquals("sub/.gitattributes", WorkspacePathGuard.normalizeRelativePath("sub/.gitattributes", true));
 
         String[] rejected = {
                 "", "   ", "/etc/passwd", "\\windows\\win.ini", "../secret.txt", "a/../b",
                 "a//b", "a/./b", "C:secret.txt", "https://evil/x", "%2e%2e/x", "a%2fb",
-                "file\u0000.txt", ".env", "config/.env.production", ".git/config",
-                ".ssh/id_rsa", "certs/server.pem", "private/app.key", "credentials.json"
+                "file\u0000.txt", ".env", "config/.env.production", ".git", ".git/config",
+                "sub/.git", "sub/.git/HEAD", ".ssh", ".ssh/id_rsa", "sub/.ssh", "sub/.ssh/config",
+                "certs/server.pem", "private/app.key", "credentials.json"
         };
         for (String bad : rejected) {
             try {
                 WorkspacePathGuard.normalizeRelativePath(bad, false);
-                fail("Expected path rejection for: " + bad);
+                fail("Expected path rejection (allowEmptyRoot=false) for: " + bad);
+            } catch (IllegalArgumentException expected) {
+                // Path safety enforced.
+            }
+        }
+
+        // Directory browsing (allowEmptyRoot=true) must also reject .git / .ssh segments with or without trailing slash.
+        String[] rejectedDirs = {
+                ".ssh", ".ssh/", "sub/.ssh", "sub/.ssh/", ".SSH/",
+                ".git", ".git/", "sub/.git", "sub/.git/", "SUB/.GIT/"
+        };
+        for (String badDir : rejectedDirs) {
+            assertTrue("Expected isSensitivePath=true for: " + badDir,
+                    WorkspacePathGuard.isSensitivePath(badDir));
+            try {
+                WorkspacePathGuard.normalizeRelativePath(badDir, true);
+                fail("Expected path rejection (allowEmptyRoot=true) for: " + badDir);
+            } catch (IllegalArgumentException expected) {
+                // Path safety enforced.
+            }
+            try {
+                WorkspacePathGuard.normalizeRelativePath(badDir, false);
+                fail("Expected path rejection (allowEmptyRoot=false) for: " + badDir);
             } catch (IllegalArgumentException expected) {
                 // Path safety enforced.
             }

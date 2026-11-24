@@ -8,7 +8,7 @@ android
 
 ## Stack
 
-Native Android views, with Java and the Android SDK (API {{ min_sdk }}–{{ target_sdk }}, zero WebView, minimal dependencies: Firebase Messaging and UnifiedPush Connector). This app requires our Hermes Agent fork at [{{ fork_repository }}]({{ fork_url }}) for single-host multi-profile `/p/{profile}`, run-scoped instructions, Live UI modding (`ui.patch`), universal push deliveries (`mobile_deliver`), universal same-server sharing, Smart Notes, pattern-gated habits, visual approval diffs, Brain Studio, and the approved device bridge.
+Native Android views, with Java and the Android SDK (API {{ min_sdk }}–{{ target_sdk }}, zero WebView, minimal dependencies: Firebase Messaging and UnifiedPush Connector). This app requires our Hermes Agent fork at [{{ fork_repository }}]({{ fork_url }}) for single-host multi-profile `/p/{profile}`, run-scoped instructions, Live UI modding (`ui.patch`), universal push deliveries (`mobile_deliver`), universal same-server sharing, Smart Notes, memory, skills, workspace files, pattern-gated habits, visual approval diffs, and the approved device bridge.
 
 ## Users and operating context
 

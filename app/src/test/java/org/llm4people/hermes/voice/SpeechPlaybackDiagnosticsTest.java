@@ -1,5 +1,7 @@
 package org.llm4people.hermes.voice;
 
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 import org.llm4people.hermes.Diagnostics;
 
@@ -13,9 +15,20 @@ import static org.junit.Assert.assertTrue;
 
 /** Pure-JVM regression tests verifying SpeechPlayback logs privacy-safe Diagnostics warnings on failure. */
 public final class SpeechPlaybackDiagnosticsTest {
+    @Before
+    public void installNoOpDiagnosticsSink() {
+        Diagnostics.clear();
+        Diagnostics.setSink((level, tag, message) -> {});
+    }
+
+    @After
+    public void restoreDiagnosticsState() {
+        Diagnostics.clear();
+        Diagnostics.setSink(null);
+    }
+
     @Test
     public void emitsPrivacySafeDiagnosticsOnFactoryAndSpeakFailures() {
-        Diagnostics.clear();
         List<SpeechPlayback.Failure> failures = new ArrayList<>();
 
         // Factory throws RuntimeException -> UNAVAILABLE + playback_start_failed warning without leaking text.
