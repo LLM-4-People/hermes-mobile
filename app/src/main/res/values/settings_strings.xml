@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="fr">
     <string name="nav_notes_tasks">Notes et tâches</string>
     <string name="nav_apps">Apps</string>
     <string name="nav_settings">Réglages</string>

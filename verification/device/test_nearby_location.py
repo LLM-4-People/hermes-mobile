@@ -362,13 +362,13 @@ class NearbyLocationTest(unittest.TestCase):
         for lang in ("en", "fr"):
             with self.subTest(lang=lang):
                 s = AppStrings.for_lang(lang)
-                profile_lock = s["top_profile_lock"]
+                settings_btn = s["nav_settings"]
                 lock_now = s["security_lock_now"]
                 choose_profile = s["profile_choose_title"]
                 thread_screen = ET.fromstring(
                     '<node text="" content-desc="" resource-id="" class="android.widget.FrameLayout" '
                     'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[0,0][320,640]">'
-                    f'<node text="" content-desc="{profile_lock}" resource-id="" class="android.widget.ImageButton" '
+                    f'<node text="" content-desc="{settings_btn}" resource-id="" class="android.widget.ImageButton" '
                     'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[260,24][316,72]"/>'
                     '</node>'
                 )
@@ -411,7 +411,7 @@ class NearbyLocationTest(unittest.TestCase):
 
                 lock(StubScreen())
                 self.assertEqual(actions, [
-                    ("tap", profile_lock),
+                    ("tap", settings_btn),
                     "scroll",
                     ("tap", lock_now),
                 ])

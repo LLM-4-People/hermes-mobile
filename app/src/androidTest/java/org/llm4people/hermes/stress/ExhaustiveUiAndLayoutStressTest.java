@@ -311,9 +311,9 @@ public final class ExhaustiveUiAndLayoutStressTest extends InstrumentationTestCa
 
             int[] tabIds = {
                     R.id.nav_tab_discussions,
-                    R.id.nav_tab_atelier,
-                    R.id.nav_tab_brain,
-                    R.id.nav_tab_activity
+                    R.id.nav_tab_tasks,
+                    R.id.nav_tab_apps,
+                    R.id.top_settings_action
             };
             for (int tabId : tabIds) {
                 runTestOnUiThread(() -> {

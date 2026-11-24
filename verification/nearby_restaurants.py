@@ -190,13 +190,13 @@ def consent_failures(ui, fix, second, names, phrases, check_idle):
                             launcher_stopped_app)
     fix.publish()
     launch(ui.device, APP)
-    profile_lock_btn = s["top_profile_lock"]
+    settings_btn = s["nav_settings"]
 
     def returned():
         root = ui.hierarchy()
         if ui.node(choose_profile, root) is not None:
             return ("locked",)
-        if ui.node(profile_lock_btn, root) is not None:
+        if ui.node(settings_btn, root) is not None:
             return ("open",)
         return None
 

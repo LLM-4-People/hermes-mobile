@@ -112,7 +112,7 @@ class NearbyJourneyConsentTest(unittest.TestCase):
 
     def test_ensure_unlocked_skips_unlock_when_grace_kept_workspace_open(self):
         ui = Screen(Mock(), Mock(), lang="en")
-        workspace = node_tree((APP, ui.strings["top_profile_lock"]))
+        workspace = node_tree((APP, ui.strings["nav_settings"]))
         ui.hierarchy = Mock(return_value=workspace)
         with patch.object(nearby_journey, "unlock") as mock_unlock:
             nearby_journey.ensure_unlocked(ui, "Guide-1", "passphrase-value")

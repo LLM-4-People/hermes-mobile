@@ -17,6 +17,7 @@ from .stack import eventually
 
 APP = "org.llm4people.hermes"
 NTFY = "io.heckel.ntfy"
+NOTIFICATIONS_ROW_ID = APP + ":id/settings_row_notifications"
 PERMISSION_ALLOW_IDS = (
     "com.android.permissioncontroller:id/permission_allow_button",
     "com.google.android.permissioncontroller:id/permission_allow_button",
@@ -276,7 +277,7 @@ def start_account(ui, label, endpoint, bearer, phrase):
     connect_title = s["profile_connect_title"]
     add_action = s["profile_add_action"]
     choose_other = s["profile_choose_other"]
-    profile_lock_btn = s["top_profile_lock"]
+    settings_btn_label = s["nav_settings"]
     lock_now = s["security_lock_now"]
     close_labels = tuple(dict.fromkeys(
         candidate for candidate in (s.get("ws_close"), "Fermer", "Close") if candidate
@@ -298,9 +299,9 @@ def start_account(ui, label, endpoint, bearer, phrase):
         if lock_action is not None:
             ui.tap_node(lock_action)
             return False
-        lock_btn = ui.node(profile_lock_btn, root)
-        if lock_btn is not None:
-            ui.tap_node(lock_btn)
+        settings_btn = ui.node(settings_btn_label, root)
+        if settings_btn is not None:
+            ui.tap_node(settings_btn)
             return False
         for close_label in close_labels:
             dismiss = ui.node(close_label, root)
@@ -398,18 +399,17 @@ def choose_ntfy(ui):
 
 
 def open_notifications_settings(ui, expected_control):
-    """Open Atelier -> Notifications with retried taps even when Notifications sits below the fold."""
+    """Open top-bar Settings -> Push notifications with retried taps even when below the fold."""
     s = ui.strings
-    nav_atelier = s["nav_atelier"]
-    notifications = s["ws_notifications"]
-    atelier_anchors = (s["ws_workspace"], s["ws_model_and_tools"], notifications)
+    nav_settings = s["nav_settings"]
+    settings_anchors = (s["security_lock_now"], s["settings_switch_profile"], NOTIFICATIONS_ROW_ID)
     ui.tap_until(
-        nav_atelier,
-        lambda root: any(ui.node(anchor, root) is not None for anchor in atelier_anchors),
-        description="Atelier workspace opened",
+        nav_settings,
+        lambda root: any(ui.node(anchor, root) is not None for anchor in settings_anchors),
+        description="Settings screen opened",
     )
     ui.tap_until(
-        notifications,
+        NOTIFICATIONS_ROW_ID,
         lambda root: ui.node(expected_control, root) is not None,
         scroll=True,
         description="Notifications settings showing " + expected_control,

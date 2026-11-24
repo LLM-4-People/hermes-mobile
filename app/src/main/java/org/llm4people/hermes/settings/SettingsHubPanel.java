@@ -273,6 +273,9 @@ public final class SettingsHubPanel {
 
     private View buildRow(SettingsHubModel.ItemSpec item) {
         LinearLayout row = Ui.row(activity);
+        if ("notifications".equals(item.actionId())) {
+            row.setId(R.id.settings_row_notifications);
+        }
         row.setMinimumHeight(Ui.dp(activity, 56));
         row.setPaddingRelative(Ui.dp(activity, 16), Ui.dp(activity, 12), Ui.dp(activity, 14), Ui.dp(activity, 12));
         row.setFocusable(true);
