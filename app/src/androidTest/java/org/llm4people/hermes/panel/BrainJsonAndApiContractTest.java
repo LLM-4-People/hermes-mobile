@@ -235,4 +235,68 @@ public final class BrainJsonAndApiContractTest extends InstrumentationTestCase {
         assertEquals("seg-current", turns.get(1).targetSessionId("seg-current"));
         assertEquals(context.getString(R.string.ws_role_user) + " · Question initiale", turns.get(0).displayLabel());
     }
+
+    public void testBrainJsonSaturatesOverflowNegativeFractionalAndNonFiniteCounts() throws Exception {
+        MemoryModel.Snapshot mem = BrainJson.parseMemorySnapshot(new JSONObject()
+                .put("memory", new JSONObject()
+                        .put("entries", new JSONArray())
+                        .put("chars", 4_294_967_296L)
+                        .put("limit", -4_294_967_200L))
+                .put("user", new JSONObject()
+                        .put("entries", new JSONArray())
+                        .put("chars", "NaN")
+                        .put("limit", 4_294_967_296L)));
+        assertEquals(Integer.MAX_VALUE, mem.memory().chars());
+        assertEquals(MemoryModel.DEFAULT_CHAR_LIMIT, mem.memory().limit());
+        assertEquals(0, mem.user().chars());
+        assertEquals(Integer.MAX_VALUE, mem.user().limit());
+
+        SearchResultModel.Page page = BrainJson.parseSearchPage(new JSONObject()
+                .put("data", new JSONArray())
+                .put("total", 4_294_967_296L));
+        assertEquals(Integer.MAX_VALUE, page.total());
+        assertTrue(page.hasMoreFlag());
+
+        BrainJson.WorkspaceFile file = BrainJson.parseWorkspaceFile(new JSONObject()
+                .put("path", "src/Main.java")
+                .put("total_lines", 4_294_967_296L)
+                .put("content", "class Main {}"));
+        assertEquals(Integer.MAX_VALUE, file.totalLines());
+
+        BrainJson.WorkspaceDiff diff = BrainJson.parseWorkspaceDiff(new JSONObject()
+                .put("branch", "main")
+                .put("ahead", 4_294_967_296L)
+                .put("behind", -4_294_967_200L)
+                .put("files", new JSONArray().put(new JSONObject()
+                        .put("path", "src/Main.java")
+                        .put("status", "M")
+                        .put("additions", 4_294_967_296L)
+                        .put("deletions", -4_294_967_200L))));
+        assertEquals(Integer.MAX_VALUE, diff.ahead());
+        assertEquals(0, diff.behind());
+        assertEquals(Integer.MAX_VALUE, diff.files().get(0).additions());
+        assertEquals(0, diff.files().get(0).deletions());
+
+        ModelCapabilityBadges.ModelInfo model = BrainJson.parseModelObject("m1", new JSONObject()
+                .put("context_length", 4_294_967_296L)
+                .put("max_output_tokens", 3.6d));
+        assertEquals(Integer.MAX_VALUE, model.contextLength());
+        assertEquals(4, model.maxOutputTokens());
+
+        BrainJson.AnalyticsSummary analytics = BrainJson.parseAnalyticsSummary(
+                new JSONObject().put("period_days", 4_294_967_296L), 30);
+        assertEquals(Integer.MAX_VALUE, analytics.days());
+        BrainJson.AnalyticsSummary analyticsFallback = BrainJson.parseAnalyticsSummary(
+                new JSONObject().put("days", "NaN"), 30);
+        assertEquals(30, analyticsFallback.days());
+
+        List<NotesModel.HabitSuggestion> habits = BrainJson.parseHabitSuggestions(new JSONObject()
+                .put("suggestions", new JSONArray().put(new JSONObject()
+                        .put("id", "h1")
+                        .put("label", "Daily brief")
+                        .put("draft", "Prepare my brief")
+                        .put("count", 4_294_967_296L))));
+        assertEquals(1, habits.size());
+        assertEquals(Integer.MAX_VALUE, habits.get(0).count());
+    }
 }

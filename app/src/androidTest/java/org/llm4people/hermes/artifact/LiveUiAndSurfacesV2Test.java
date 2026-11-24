@@ -525,4 +525,27 @@ public final class LiveUiAndSurfacesV2Test extends InstrumentationTestCase {
             fail("An invalid present revision_id must still be rejected");
         } catch (IOException expected) { }
     }
+
+    public void testLiveUiPatchDelegatesSecretDetectionAndSaturatesMapCompassParams() throws Exception {
+        assertTrue(LiveUiPatch.containsSecret("sk-\u200B1234567890abcdef"));
+        assertTrue(LiveUiPatch.containsSecret("gho_AbCdEf1234567890"));
+        assertTrue(LiveUiPatch.containsSecret("eyJhbGciOiJIUzI1NiJ9.payload"));
+        assertFalse(LiveUiPatch.containsSecret("Mon tableau du jour"));
+
+        // map_compass overflow radius_m / limit must saturate cleanly (and fail WorkspaceLayout bounds instead of wrapping).
+        JSONObject overflowCompass = new JSONObject()
+                .put("revision_id", "rev-compass-overflow")
+                .put("scope", "atelier")
+                .put("summary", "Compass bounds")
+                .put("ops", new JSONArray().put(new JSONObject()
+                        .put("op", "upsert_surface")
+                        .put("surface_id", "compass_test")
+                        .put("kind", "map_compass")
+                        .put("title", "Autour")
+                        .put("spec", new JSONObject()
+                                .put("category", "cafe")
+                                .put("radius_m", 4_294_967_296L)
+                                .put("limit", 4_294_967_296L))));
+        assertPatchRejected(overflowCompass);
+    }
 }

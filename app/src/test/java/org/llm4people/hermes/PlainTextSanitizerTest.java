@@ -31,4 +31,14 @@ public final class PlainTextSanitizerTest {
         assertEquals("Hello", PlainTextSanitizer.collapseBounded("Hello world", 6));
         assertEquals("Bonjour café ☕", PlainTextSanitizer.collapseBounded("  Bonjour   café   ☕  ", 64));
     }
+
+    @Test
+    public void preservesWholeSurrogatePairsAndStripsUnpairedSurrogatesAndPlane14Tags() {
+        assertEquals("ab", PlainTextSanitizer.collapseBounded("ab😀", 3));
+        assertEquals("ab😀", PlainTextSanitizer.collapseBounded("ab😀", 4));
+        assertEquals("ab", PlainTextSanitizer.collapseBounded("a\uD83Db", 16));
+        assertEquals("ab", PlainTextSanitizer.collapseBounded("a\uDC00b", 16));
+        // Plane 14 tag space U+E0020 (\uDB40\uDC20) is supplementary Character.FORMAT and must be stripped.
+        assertEquals("sk-123", PlainTextSanitizer.collapseBounded("sk-\uDB40\uDC20123", 16));
+    }
 }

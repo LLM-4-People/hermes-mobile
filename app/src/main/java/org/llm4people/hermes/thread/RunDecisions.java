@@ -1,6 +1,7 @@
 package org.llm4people.hermes.thread;
 
 import org.json.JSONObject;
+import org.llm4people.hermes.JsonValues;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -79,6 +80,13 @@ final class RunDecisions {
         return false;
     }
 
+    static boolean isConfirmedReply(String runId, String promptId, JSONObject reply) {
+        if (runId == null || promptId == null || reply == null) return false;
+        return runId.equals(reply.opt("run_id")) && promptId.equals(RunPrompts.id(reply))
+                && ("resolved".equals(reply.opt("status")) || "already_resolved".equals(reply.opt("status"))
+                || JsonValues.parseInt(reply.opt("resolved"), 0) > 0);
+    }
+
     void respond(JSONObject prompt, String value) {
         RunPrompts.Key key = RunPrompts.key(prompt);
         if (!available(key, PromptCard.State.READY)) return;
@@ -90,10 +98,7 @@ final class RunDecisions {
         RunAction action = observation.when(() -> available(key, PromptCard.State.SENDING));
         String endpoint = action.path() + (key.question() ? "/clarify" : "/approval");
         page.request(() -> page.api.post(endpoint, body), action.guard(reply -> {
-            boolean confirmed = action.run.equals(reply.opt("run_id")) && key.id().equals(RunPrompts.id(reply))
-                    && ("resolved".equals(reply.opt("status")) || "already_resolved".equals(reply.opt("status"))
-                    || reply.optInt("resolved") > 0);
-            if (confirmed) settled.add(key);
+            if (isConfirmedReply(action.run, key.id(), reply)) settled.add(key);
             else attempts.put(key, PromptCard.State.VERIFY);
             paint();
         }), action.guard(error -> {

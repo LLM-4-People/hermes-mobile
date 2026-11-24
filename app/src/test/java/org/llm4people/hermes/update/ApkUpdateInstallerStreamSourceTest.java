@@ -147,4 +147,69 @@ public final class ApkUpdateInstallerStreamSourceTest {
         assertTrue(streamClosed.get());
         assertEquals(1, conn.disconnects.get());
     }
+
+    @Test
+    public void disconnectsImmediatelyWhenGetResponseCodeThrows() throws Exception {
+        URL url = new URL("https://github.com/LLM-4-People/hermes-mobile/releases/download/v1.0.0/app.apk");
+        FakeHttpURLConnection conn = new FakeHttpURLConnection(
+                url, 200, null, null, null, new IOException("tls handshake failed"), null);
+        ApkUpdateInstaller.HttpsStreamSource source =
+                new ApkUpdateInstaller.HttpsStreamSource(HermesConfig.defaults(), ignored -> conn);
+
+        try {
+            source.open(url.toString());
+            fail("Expected IOException from getResponseCode()");
+        } catch (IOException expected) {
+            assertTrue(expected.getMessage().contains("tls handshake failed"));
+        }
+        assertEquals(1, conn.disconnects.get());
+    }
+
+    @Test
+    public void transfersOwnershipOnNon2xxErrorStreamAndDisconnectsOnClose() throws Exception {
+        URL url = new URL("https://github.com/LLM-4-People/hermes-mobile/releases/download/v1.0.0/app.apk");
+        AtomicBoolean errorClosed = new AtomicBoolean();
+        ByteArrayInputStream errBody = new ByteArrayInputStream("not-found".getBytes(StandardCharsets.UTF_8)) {
+            @Override public void close() throws IOException {
+                errorClosed.set(true);
+                super.close();
+            }
+        };
+        FakeHttpURLConnection conn = new FakeHttpURLConnection(url, 404, null, null, errBody, null, null);
+        ApkUpdateInstaller.HttpsStreamSource source =
+                new ApkUpdateInstaller.HttpsStreamSource(HermesConfig.defaults(), ignored -> conn);
+
+        ApkUpdateInstaller.StreamResponse resp = source.open(url.toString());
+        assertEquals(404, resp.statusCode());
+        assertNotNull(resp.body());
+        assertEquals(0, conn.disconnects.get());
+        assertEquals("not-found", new String(resp.body().readAllBytes(), StandardCharsets.UTF_8));
+
+        resp.close();
+        assertTrue(errorClosed.get());
+        assertEquals(1, conn.disconnects.get());
+    }
+
+    @Test
+    public void disconnectsEvenWhenWrappedStreamCloseThrows() throws Exception {
+        URL url = new URL("https://github.com/LLM-4-People/hermes-mobile/releases/download/v1.0.0/app.apk");
+        InputStream failingCloseStream = new ByteArrayInputStream("apk".getBytes(StandardCharsets.UTF_8)) {
+            @Override public void close() throws IOException {
+                throw new IOException("close boom");
+            }
+        };
+        FakeHttpURLConnection conn = new FakeHttpURLConnection(url, 200, null, failingCloseStream, null, null, null);
+        ApkUpdateInstaller.HttpsStreamSource source =
+                new ApkUpdateInstaller.HttpsStreamSource(HermesConfig.defaults(), ignored -> conn);
+
+        ApkUpdateInstaller.StreamResponse resp = source.open(url.toString());
+        assertEquals(0, conn.disconnects.get());
+        try {
+            resp.close();
+            fail("Expected IOException from stream.close()");
+        } catch (IOException expected) {
+            assertTrue(expected.getMessage().contains("close boom"));
+        }
+        assertEquals(1, conn.disconnects.get());
+    }
 }

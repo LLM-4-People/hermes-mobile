@@ -114,5 +114,14 @@ public final class PanelDataTest extends TestCase {
         assertEquals("2027-01-01T10:00:00+01:00", PanelData.schedule(new JSONObject(
                 "{\"schedule\":{\"kind\":\"once\",\"run_at\":\"2027-01-01T10:00:00+01:00\"}}")));
         assertEquals("", PanelData.schedule(new JSONObject("{\"schedule\":{\"kind\":\"new-server-format\"}}")));
+        // R9.4.3: Saturating interval minutes parsing (no 32-bit wrap-around on overflow/underflow/non-finite).
+        assertEquals(Integer.MAX_VALUE + "m", PanelData.schedule(new JSONObject()
+                .put("schedule", new JSONObject().put("kind", "interval").put("minutes", 4_294_967_296L))));
+        assertEquals("", PanelData.schedule(new JSONObject()
+                .put("schedule", new JSONObject().put("kind", "interval").put("minutes", -4_294_967_200L))));
+        assertEquals("4m", PanelData.schedule(new JSONObject()
+                .put("schedule", new JSONObject().put("kind", "interval").put("minutes", 3.6d))));
+        assertEquals("", PanelData.schedule(new JSONObject()
+                .put("schedule", new JSONObject().put("kind", "interval").put("minutes", "NaN"))));
     }
 }

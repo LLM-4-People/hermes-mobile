@@ -16,6 +16,8 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.llm4people.hermes.Diagnostics;
+import org.llm4people.hermes.JsonValues;
+import org.llm4people.hermes.SecretPatterns;
 import org.llm4people.hermes.customization.InteractiveCardView;
 import org.llm4people.hermes.places.NearbyCategory;
 import org.llm4people.hermes.profile.Account;
@@ -54,8 +56,6 @@ public final class LiveUiPatch {
     private static final Pattern SAFE_ID = Pattern.compile("[a-z0-9][a-z0-9_-]{0,63}");
     private static final Pattern FORBIDDEN_PAYLOAD = Pattern.compile(
             "(?i)<\\s*/?\\s*(script|iframe|object|embed|svg)\\b|javascript\\s*:|vbscript\\s*:|data\\s*:\\s*text/html|intent\\s*:|file\\s*://");
-    private static final Pattern WIDGET_SECRET = Pattern.compile(
-            "(?i)(?:sk-[a-z0-9_-]{12,}|ghp_[a-z0-9]{20,}|bearer\\s+[a-z0-9._-]{16,}|-----begin\\s+[a-z ]*private key-----)");
     private static final List<String> SCOPES = Arrays.asList("thread", "atelier", "global");
     private static final String STATE_KEY = "workspace.live_ui.v2";
 
@@ -891,8 +891,12 @@ public final class LiveUiPatch {
                 block.put("type", "nearby_places");
                 String cat = spec.optString("category", NearbyCategory.RESTAURANT.id);
                 block.put("category", NearbyCategory.valid(cat) ? cat : NearbyCategory.RESTAURANT.id);
-                if (spec.has("radius_m")) block.put("radius_m", spec.optInt("radius_m", NearbyCategory.DEFAULT_RADIUS_M));
-                if (spec.has("limit")) block.put("limit", spec.optInt("limit", NearbyCategory.DEFAULT_LIMIT));
+                if (spec.has("radius_m")) {
+                    block.put("radius_m", JsonValues.parseInt(spec.opt("radius_m"), NearbyCategory.DEFAULT_RADIUS_M));
+                }
+                if (spec.has("limit")) {
+                    block.put("limit", JsonValues.parseInt(spec.opt("limit"), NearbyCategory.DEFAULT_LIMIT));
+                }
             }
             case "markdown_card", "action_bar" -> {
                 block.put("type", "section");
@@ -942,7 +946,7 @@ public final class LiveUiPatch {
     }
 
     static boolean containsSecret(String s) {
-        return s != null && WIDGET_SECRET.matcher(s).find();
+        return SecretPatterns.containsCredential(s);
     }
 
     static boolean validText(String s, int max) {
