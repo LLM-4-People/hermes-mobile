@@ -1,6 +1,6 @@
 # Zero-root ambient intelligence
 
-Hermes Mobile includes an optional, zero-root **Ambient context** panel under **Settings → Ambient context** that lets Hermes help with selected third-party notifications, media playback, and opt-in device context—while staying **fail-closed and completely OFF by default**.
+Hermes Mobile includes an optional, zero-root **Ambient context** panel under **Settings → Ambient context** that lets Hermes help with selected third-party notifications, media playback, and calendar context—while staying **fail-closed and completely OFF by default**.
 
 ## Opt-in and privacy boundaries
 
@@ -23,9 +23,9 @@ Each sanitized entry in your profile’s live digest offers explicit, user-confi
 - **Reviewed quick-reply:** Draft a reply with Hermes, inspect the exact outgoing text in a confirmation dialog, and explicitly approve before Android invokes the notification’s `RemoteInput` action.
 - **Dismiss:** Remove the entry from the local digest buffer.
 
-## Now playing and approved device context
+## Now playing, calendar, and approved device bridge
 
 - **Now Playing card:** When notification access is granted and media control is enabled, inspect the active media session and trigger user-confirmed play/pause/next/previous actions.
-- **Calendar, Contacts & Device Bridge:** Optional read-only calendar/contact context and approved bridge capabilities (`calendar_read`, `media_control`, `camera`, `location_coarse`, `nearby_osm`, `clipboard_read`, and the 10 reviewed OS actions) each request explicit runtime permission and per-action user review before executing or returning results to Hermes.
+- **Calendar & approved device bridge:** Optional read-only calendar context and approved bridge capabilities (`calendar_read`, `media_control`, `camera`, `location_coarse`, `nearby_osm`, `clipboard_read`, and the 10 reviewed OS actions) each request explicit runtime permission and per-action user review before executing or returning results to Hermes.
 
 <!-- Generated from docs/sources/docs/ambient.md.in by scripts/docs.py. -->

@@ -2,13 +2,12 @@ package org.llm4people.hermes.thread;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.llm4people.hermes.JsonValues;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.panel.UniversalShareModel;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -109,24 +108,24 @@ public final class ThreadInboxFilter {
     /** Pure-JVM parser for `/api/shares/incoming?resource_kind=session` payloads. */
     public static List<Entry> parseSharedSessionsMap(Map<String, Object> response) {
         if (response == null) return Collections.emptyList();
-        List<?> rows = asList(response.get("data"));
-        if (rows == null) rows = asList(response.get("shares"));
+        List<?> rows = JsonValues.asList(response.get("data"));
+        if (rows == null) rows = JsonValues.asList(response.get("shares"));
         if (rows == null || rows.isEmpty()) return Collections.emptyList();
         List<Entry> out = new ArrayList<>(rows.size());
         for (Object item : rows) {
-            Map<?, ?> row = asMap(item);
+            Map<?, ?> row = JsonValues.asMap(item);
             if (row == null) continue;
-            String kind = mapText(row, "resource_kind").toLowerCase(Locale.ROOT);
+            String kind = JsonValues.mapText(row, "resource_kind").toLowerCase(Locale.ROOT);
             if (!kind.isEmpty() && !UniversalShareModel.KIND_SESSION.equals(kind)) continue;
-            String shareId = mapText(row, "share_id");
-            if (shareId.isEmpty()) shareId = mapText(row, "id");
+            String shareId = JsonValues.mapText(row, "share_id");
+            if (shareId.isEmpty()) shareId = JsonValues.mapText(row, "id");
             if (shareId.isEmpty()) continue;
-            String resourceId = mapText(row, "resource_id");
-            String label = mapText(row, "label");
+            String resourceId = JsonValues.mapText(row, "resource_id");
+            String label = JsonValues.mapText(row, "label");
             if (label.isEmpty()) label = resourceId;
             if (label.isEmpty()) continue;
-            String owner = mapText(row, "owner_profile");
-            String perm = mapText(row, "permission").toLowerCase(Locale.ROOT);
+            String owner = JsonValues.mapText(row, "owner_profile");
+            String perm = JsonValues.mapText(row, "permission").toLowerCase(Locale.ROOT);
             if (perm.isEmpty()) perm = UniversalShareModel.PERM_READ;
             out.add(new Entry(
                     resourceId.isEmpty() ? shareId : resourceId,
@@ -146,7 +145,7 @@ public final class ThreadInboxFilter {
      */
     public static JSONArray parseSharedSessions(JSONObject response) {
         JSONArray out = new JSONArray();
-        for (Entry entry : parseSharedSessionsMap(jsonToMap(response))) {
+        for (Entry entry : parseSharedSessionsMap(JsonValues.toMap(response))) {
             JSONObject normalized = new JSONObject();
             ThreadData.put(normalized, "id", entry.id());
             ThreadData.put(normalized, "_lineage_root_id", "shared:" + entry.shareId());
@@ -175,7 +174,7 @@ public final class ThreadInboxFilter {
 
     /** Extracts a readable transcript or text body from `/api/shares/incoming/{id}/content`. */
     public static String extractSharedContent(JSONObject reply, String userLabel, String assistantLabel) {
-        return extractSharedContentMap(jsonToMap(reply), userLabel, assistantLabel);
+        return extractSharedContentMap(JsonValues.toMap(reply), userLabel, assistantLabel);
     }
 
     /** Pure-JVM extractor for `/api/shares/incoming/{id}/content` payloads. */
@@ -185,19 +184,19 @@ public final class ThreadInboxFilter {
             Object val = reply.get(key);
             if (val instanceof String s && !s.trim().isEmpty()) return s.trim();
         }
-        List<?> messages = asList(reply.get("messages"));
+        List<?> messages = JsonValues.asList(reply.get("messages"));
         if (messages == null) {
-            Map<?, ?> nested = asMap(reply.get("content"));
-            if (nested != null) messages = asList(nested.get("messages"));
+            Map<?, ?> nested = JsonValues.asMap(reply.get("content"));
+            if (nested != null) messages = JsonValues.asList(nested.get("messages"));
         }
         if (messages != null && !messages.isEmpty()) {
             StringBuilder out = new StringBuilder();
             for (Object item : messages) {
-                Map<?, ?> row = asMap(item);
+                Map<?, ?> row = JsonValues.asMap(item);
                 if (row == null) continue;
-                String text = mapText(row, "content");
+                String text = JsonValues.mapText(row, "content");
                 if (text.isEmpty()) continue;
-                String role = mapText(row, "role").toLowerCase(Locale.ROOT);
+                String role = JsonValues.mapText(row, "role").toLowerCase(Locale.ROOT);
                 String speaker = "user".equals(role) ? userLabel : "assistant".equals(role) ? assistantLabel : "";
                 if (out.length() > 0) out.append("\n\n");
                 if (speaker != null && !speaker.isEmpty()) out.append(speaker).append(":\n");
@@ -205,46 +204,6 @@ public final class ThreadInboxFilter {
             }
             if (out.length() > 0) return out.toString();
         }
-        return mapText(reply, "title");
-    }
-
-    private static Map<String, Object> jsonToMap(JSONObject obj) {
-        if (obj == null) return null;
-        Map<String, Object> out = new LinkedHashMap<>();
-        Iterator<String> keys = obj.keys();
-        while (keys.hasNext()) {
-            String key = keys.next();
-            Object val = obj.opt(key);
-            if (val == null || val == JSONObject.NULL) continue;
-            out.put(key, convertJsonValue(val));
-        }
-        return out;
-    }
-
-    private static Object convertJsonValue(Object val) {
-        if (val instanceof JSONObject obj) return jsonToMap(obj);
-        if (val instanceof JSONArray arr) {
-            List<Object> list = new ArrayList<>(arr.length());
-            for (int i = 0; i < arr.length(); i++) {
-                Object elem = arr.opt(i);
-                if (elem != null && elem != JSONObject.NULL) list.add(convertJsonValue(elem));
-            }
-            return list;
-        }
-        return val;
-    }
-
-    private static Map<?, ?> asMap(Object raw) {
-        return raw instanceof Map<?, ?> m ? m : null;
-    }
-
-    private static List<?> asList(Object raw) {
-        return raw instanceof List<?> l ? l : null;
-    }
-
-    private static String mapText(Map<?, ?> row, String key) {
-        if (row == null) return "";
-        Object val = row.get(key);
-        return val instanceof String s ? s.trim() : "";
+        return JsonValues.mapText(reply, "title");
     }
 }

@@ -284,15 +284,18 @@ public final class BrainStudioPanelsTest extends InstrumentationTestCase {
                 runTestOnUiThread(() -> panel.showNotes(() -> true, draft -> {}, null, "n-1"));
                 assertTextVisible(activity.getString(R.string.panel_retry));
                 assertTextNotVisible(readerMarker);
+                boolean[] typed = {false};
                 runTestOnUiThread(() -> {
                     for (View root : WindowInspector.getGlobalWindowViews()) {
                         View filter = root.findViewById(R.id.brain_notes_filter);
-                        if (filter instanceof android.widget.EditText et) {
+                        if (filter instanceof android.widget.EditText et && et.isShown()) {
                             et.setText("plan");
+                            typed[0] = true;
                             break;
                         }
                     }
                 });
+                assertTrue("Expected visible notes filter EditText", typed[0]);
                 assertTextVisible(activity.getString(R.string.panel_retry));
                 assertTextNotVisible(readerMarker);
             } finally {

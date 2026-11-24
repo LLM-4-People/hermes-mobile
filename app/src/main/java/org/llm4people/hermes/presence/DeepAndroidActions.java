@@ -13,10 +13,10 @@ import android.os.Build;
 import android.provider.AlarmClock;
 import android.service.quicksettings.TileService;
 
-import org.json.JSONArray;
 import org.json.JSONObject;
 import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.Diagnostics;
+import org.llm4people.hermes.JsonValues;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.ambient.AmbientAccessPanel;
 import org.llm4people.hermes.artifact.ThemePalette;
@@ -33,13 +33,13 @@ import org.llm4people.hermes.push.DeliveryItem;
 import org.llm4people.hermes.push.PushPolicy;
 import org.llm4people.hermes.settings.AppearanceSettingsPanel;
 import org.llm4people.hermes.templates.TemplatesPanel;
+import org.llm4people.hermes.thread.SafeLinks;
 import org.llm4people.hermes.update.UpdatePanel;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Deque;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -311,7 +311,7 @@ public final class DeepAndroidActions {
             boolean userConfirmed,
             long nowMs,
             int localMinuteOfDay) {
-        Map<String, Object> map = jsonObjectToMap(params);
+        Map<String, Object> map = JsonValues.toMap(params);
         return execute(actionWire, map, presencePolicy, pushPolicy, userConfirmed, nowMs, localMinuteOfDay);
     }
 
@@ -328,7 +328,7 @@ public final class DeepAndroidActions {
         String scheme = trimmed.substring(0, colon).toLowerCase(Locale.ROOT);
         if (!ALLOWED_DEEP_LINK_SCHEMES.contains(scheme)) return false;
         if ("https".equals(scheme)) {
-            return trimmed.startsWith("https://") && trimmed.length() > 10;
+            return SafeLinks.validate(trimmed) != null;
         }
         return trimmed.length() > colon + 1;
     }
@@ -641,31 +641,6 @@ public final class DeepAndroidActions {
 
     private static String str(Object value) {
         return value instanceof String s ? s : "";
-    }
-
-    private static Map<String, Object> jsonObjectToMap(JSONObject obj) {
-        Map<String, Object> out = new HashMap<>();
-        if (obj == null) return out;
-        JSONArray names = obj.names();
-        if (names == null) return out;
-        for (int i = 0; i < names.length(); i++) {
-            String key = names.optString(i, null);
-            if (key == null) continue;
-            Object val = obj.opt(key);
-            if (val instanceof JSONObject nested) {
-                out.put(key, jsonObjectToMap(nested));
-            } else if (val instanceof JSONArray arr) {
-                List<Object> list = new ArrayList<>(arr.length());
-                for (int j = 0; j < arr.length(); j++) {
-                    Object item = arr.opt(j);
-                    list.add(item instanceof JSONObject nestedItem ? jsonObjectToMap(nestedItem) : item);
-                }
-                out.put(key, list);
-            } else if (val != JSONObject.NULL) {
-                out.put(key, val);
-            }
-        }
-        return out;
     }
 
     /**

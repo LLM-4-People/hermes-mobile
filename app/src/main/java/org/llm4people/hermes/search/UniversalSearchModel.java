@@ -1,7 +1,7 @@
 package org.llm4people.hermes.search;
 
-import org.json.JSONArray;
 import org.json.JSONObject;
+import org.llm4people.hermes.JsonValues;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.panel.SearchResultModel;
 import org.llm4people.hermes.panel.UniversalShareModel;
@@ -10,7 +10,6 @@ import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -337,27 +336,27 @@ public final class UniversalSearchModel {
 
     /** Parses `/api/sessions/search` response into unified chat results reusing {@link SearchResultModel#parseSnippet}. */
     public static List<Result> parseSessionSearchHits(JSONObject response, String untitledFallback) {
-        return parseSessionSearchHitsMap(jsonToMap(response), untitledFallback);
+        return parseSessionSearchHitsMap(JsonValues.toMap(response), untitledFallback);
     }
 
     /** Pure-JVM parser for `/api/sessions/search` payloads. */
     public static List<Result> parseSessionSearchHitsMap(Map<String, Object> response, String untitledFallback) {
         if (response == null) return Collections.emptyList();
-        List<?> data = asList(response.get("data"));
+        List<?> data = JsonValues.asList(response.get("data"));
         if (data == null || data.isEmpty()) return Collections.emptyList();
         String fallback = safe(untitledFallback);
         List<Result> out = new ArrayList<>(data.size());
         for (Object item : data) {
-            Map<?, ?> row = asMap(item);
+            Map<?, ?> row = JsonValues.asMap(item);
             if (row == null) continue;
-            String threadId = mapText(row, "thread_id");
-            String sessionId = mapText(row, "session_id");
+            String threadId = JsonValues.mapText(row, "thread_id");
+            String sessionId = JsonValues.mapText(row, "session_id");
             String target = !threadId.isEmpty() ? threadId : sessionId;
             if (target.isEmpty()) continue;
-            String title = mapText(row, "thread_title");
+            String title = JsonValues.mapText(row, "thread_title");
             boolean isFallback = title.isEmpty();
             if (isFallback) title = fallback;
-            SearchResultModel.HighlightedSnippet snippet = SearchResultModel.parseSnippet(mapText(row, "snippet"));
+            SearchResultModel.HighlightedSnippet snippet = SearchResultModel.parseSnippet(JsonValues.mapText(row, "snippet"));
             out.add(new Result(
                     "chat:" + target,
                     Category.CHATS,
@@ -379,30 +378,30 @@ public final class UniversalSearchModel {
 
     /** Parses `/api/notes` response into unified Smart Note results. */
     public static List<Result> parseNotesResults(JSONObject response, String untitledFallback) {
-        return parseNotesResultsMap(jsonToMap(response), untitledFallback);
+        return parseNotesResultsMap(JsonValues.toMap(response), untitledFallback);
     }
 
     /** Pure-JVM parser for `/api/notes` payloads. */
     public static List<Result> parseNotesResultsMap(Map<String, Object> response, String untitledFallback) {
         if (response == null) return Collections.emptyList();
-        List<?> rows = asList(response.get("data"));
-        if (rows == null) rows = asList(response.get("notes"));
+        List<?> rows = JsonValues.asList(response.get("data"));
+        if (rows == null) rows = JsonValues.asList(response.get("notes"));
         if (rows == null || rows.isEmpty()) return Collections.emptyList();
         String fallback = safe(untitledFallback);
         List<Result> out = new ArrayList<>(rows.size());
         for (Object item : rows) {
-            Map<?, ?> row = asMap(item);
+            Map<?, ?> row = JsonValues.asMap(item);
             if (row == null) continue;
-            String id = mapText(row, "id");
-            if (id.isEmpty()) id = mapText(row, "note_id");
+            String id = JsonValues.mapText(row, "id");
+            if (id.isEmpty()) id = JsonValues.mapText(row, "note_id");
             if (id.isEmpty()) continue;
-            String title = mapText(row, "title");
+            String title = JsonValues.mapText(row, "title");
             boolean isFallback = title.isEmpty();
             if (isFallback) title = fallback;
-            String body = mapText(row, "body");
-            if (body.isEmpty()) body = mapText(row, "content");
-            String owner = mapText(row, "owner_profile");
-            String permission = mapText(row, "permission");
+            String body = JsonValues.mapText(row, "body");
+            if (body.isEmpty()) body = JsonValues.mapText(row, "content");
+            String owner = JsonValues.mapText(row, "owner_profile");
+            String permission = JsonValues.mapText(row, "permission");
             String subtitle = excerpt(body, 140);
             out.add(new Result(
                     "note:" + id,
@@ -425,29 +424,29 @@ public final class UniversalSearchModel {
 
     /** Parses `/api/shares/incoming` response into unified Shared results. */
     public static List<Result> parseSharedResults(JSONObject response) {
-        return parseSharedResultsMap(jsonToMap(response));
+        return parseSharedResultsMap(JsonValues.toMap(response));
     }
 
     /** Pure-JVM parser for `/api/shares/incoming` payloads. */
     public static List<Result> parseSharedResultsMap(Map<String, Object> response) {
         if (response == null) return Collections.emptyList();
-        List<?> rows = asList(response.get("data"));
-        if (rows == null) rows = asList(response.get("shares"));
+        List<?> rows = JsonValues.asList(response.get("data"));
+        if (rows == null) rows = JsonValues.asList(response.get("shares"));
         if (rows == null || rows.isEmpty()) return Collections.emptyList();
         List<Result> out = new ArrayList<>(rows.size());
         for (Object item : rows) {
-            Map<?, ?> row = asMap(item);
+            Map<?, ?> row = JsonValues.asMap(item);
             if (row == null) continue;
-            String shareId = mapText(row, "share_id");
-            if (shareId.isEmpty()) shareId = mapText(row, "id");
+            String shareId = JsonValues.mapText(row, "share_id");
+            if (shareId.isEmpty()) shareId = JsonValues.mapText(row, "id");
             if (shareId.isEmpty()) continue;
-            String kind = mapText(row, "resource_kind").toLowerCase(Locale.ROOT);
-            String resourceId = mapText(row, "resource_id");
-            String label = mapText(row, "label");
+            String kind = JsonValues.mapText(row, "resource_kind").toLowerCase(Locale.ROOT);
+            String resourceId = JsonValues.mapText(row, "resource_id");
+            String label = JsonValues.mapText(row, "label");
             if (label.isEmpty()) label = resourceId;
             if (label.isEmpty()) continue;
-            String owner = mapText(row, "owner_profile");
-            String perm = mapText(row, "permission").toLowerCase(Locale.ROOT);
+            String owner = JsonValues.mapText(row, "owner_profile");
+            String perm = JsonValues.mapText(row, "permission").toLowerCase(Locale.ROOT);
             if (perm.isEmpty()) perm = UniversalShareModel.PERM_READ;
             out.add(new Result(
                     "shared:" + shareId,
@@ -548,46 +547,6 @@ public final class UniversalSearchModel {
         String singleLine = WHITESPACE.matcher(raw.trim()).replaceAll(" ");
         if (singleLine.length() <= maxChars) return singleLine;
         return singleLine.substring(0, maxChars - 1).trim() + "…";
-    }
-
-    private static Map<String, Object> jsonToMap(JSONObject obj) {
-        if (obj == null) return null;
-        Map<String, Object> out = new LinkedHashMap<>();
-        Iterator<String> keys = obj.keys();
-        while (keys.hasNext()) {
-            String key = keys.next();
-            Object val = obj.opt(key);
-            if (val == null || val == JSONObject.NULL) continue;
-            out.put(key, convertJsonValue(val));
-        }
-        return out;
-    }
-
-    private static Object convertJsonValue(Object val) {
-        if (val instanceof JSONObject obj) return jsonToMap(obj);
-        if (val instanceof JSONArray arr) {
-            List<Object> list = new ArrayList<>(arr.length());
-            for (int i = 0; i < arr.length(); i++) {
-                Object elem = arr.opt(i);
-                if (elem != null && elem != JSONObject.NULL) list.add(convertJsonValue(elem));
-            }
-            return list;
-        }
-        return val;
-    }
-
-    private static Map<?, ?> asMap(Object raw) {
-        return raw instanceof Map<?, ?> m ? m : null;
-    }
-
-    private static List<?> asList(Object raw) {
-        return raw instanceof List<?> l ? l : null;
-    }
-
-    private static String mapText(Map<?, ?> row, String key) {
-        if (row == null) return "";
-        Object val = row.get(key);
-        return val instanceof String s ? s.trim() : "";
     }
 
     private static String safe(String value) {

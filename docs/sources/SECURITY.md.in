@@ -15,7 +15,7 @@ Include:
 
 1. **Device-Local Profile Vault, Multi-Mode Lock & Permissions Center**
    - Each profile’s endpoint, bearer credential, drafts, custom surfaces, and settings are stored in encrypted per-profile storage unlocked by your chosen lock mode: Class-3 hardware-backed **Biometrics / device lock** (`BIOMETRIC_STRONG` / `DEVICE_CREDENTIAL`), a **6–12 digit PIN**, or a **12+ character passphrase**, with a smart **5-minute** default auto-lock grace window (configurable from immediate lock to longer grace intervals) and persisted unlock backoff.
-   - **Settings → App permissions** surfaces every optional Android runtime or special permission (notifications, microphone, camera, approximate location, notification access, package installs) with transparent status and 1-tap **Allow** / **Open settings** actions—nothing is requested silently.
+   - **Settings → App permissions** surfaces every optional Android runtime or special permission (notifications, microphone, camera, approximate location, calendar, notification access, package installs) with transparent status and 1-tap **Allow** / **Open settings** actions—nothing is requested silently.
    - All activities set `FLAG_SECURE` to prevent screenshots and recents previews from leaking private transcripts.
    - Locking a profile or destroying `MainActivity` zeros active keys, dismisses open dialogs, and cancels in-flight biometric sessions. Forgetting a profile purges its encrypted files, push enrollments, and owned Home Screen Widgets.
 2. **Single-Host Multi-Profile Server Isolation (`/p/<profile>`)**
@@ -24,7 +24,7 @@ Include:
 3. **Zero-Leak Closed-App Push Delivery**
    - The push bridge (`server/mobile_push`) mounts its profile’s `HERMES_HOME` read-only and transmits only opaque event kinds, identifiers, urgency, and hashed profile hints. Message bodies, delivery titles, prompts, and answers never transit FCM or ntfy/UnifiedPush—the Android client fetches them directly from the authenticated gateway after the owning profile unlocks.
 4. **Zero-Root Ambient Intelligence & Media Hygiene**
-   - Ambient notification, media, calendar, and contact integrations start **OFF** for every profile.
+   - Ambient notification, media, and calendar integrations start **OFF** for every profile.
    - `NotificationPrivacyGuard` runs at the lowest choking point before any notification text enters memory, hard-blocking Hermes itself, OTP/2FA codes, alphanumeric tokens, password managers, authenticators, banking/finance/crypto apps, `VISIBILITY_SECRET` notices, and ongoing system notifications.
    - Still images attached from gallery or camera are decoded and re-encoded into fresh sRGB opaque pixels, discarding all EXIF, GPS, and ICC metadata before upload.
 

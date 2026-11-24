@@ -1,13 +1,12 @@
 package org.llm4people.hermes.panel;
 
 import android.content.Context;
+import org.llm4people.hermes.EpochTimestamps;
 import org.llm4people.hermes.R;
 
 import java.time.Instant;
-import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
 import java.time.format.FormatStyle;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -155,30 +154,13 @@ public final class SearchResultModel {
     }
 
     public static String formatTimestamp(String rawTimestamp, ZoneId zone, Locale locale) {
-        if (rawTimestamp == null || rawTimestamp.trim().isEmpty()) return "";
-        String value = rawTimestamp.trim();
+        long epochSec = EpochTimestamps.parseEpochSeconds(rawTimestamp);
+        if (epochSec <= 0L) return "";
         ZoneId targetZone = zone == null ? ZoneId.systemDefault() : zone;
         Locale effective = locale == null ? Locale.getDefault() : locale;
         DateTimeFormatter fmt = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM)
                 .withLocale(effective);
-        try {
-            return OffsetDateTime.parse(value).atZoneSameInstant(targetZone).format(fmt);
-        } catch (DateTimeParseException ignored) {
-            // Try instant or epoch seconds/millis below.
-        }
-        try {
-            return Instant.parse(value).atZone(targetZone).format(fmt);
-        } catch (DateTimeParseException ignored) {
-            // Try numeric epoch below.
-        }
-        try {
-            double numeric = Double.parseDouble(value);
-            if (!Double.isFinite(numeric) || numeric <= 0) return "";
-            long epochMillis = numeric > 1e11 ? Math.round(numeric) : Math.round(numeric * 1000d);
-            return Instant.ofEpochMilli(epochMillis).atZone(targetZone).format(fmt);
-        } catch (NumberFormatException ignored) {
-            return "";
-        }
+        return Instant.ofEpochSecond(epochSec).atZone(targetZone).format(fmt);
     }
 
     private static List<Span> adjustSpansAfterTrim(String untrimmed, List<Span> rawSpans) {

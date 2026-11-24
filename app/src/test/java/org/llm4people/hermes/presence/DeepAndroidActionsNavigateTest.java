@@ -98,4 +98,38 @@ public final class DeepAndroidActionsNavigateTest {
                 actions.execute("app_navigate",
                         Map.of("target", "tab", "route_id", "../etc/passwd;rm"), policy, push, false, now, 600).status());
     }
+
+    @Test
+    public void allowedDeepLinkDelegatesHttpsToSafeLinksAndRejectsDeceptiveOrBlockedUrls() {
+        // Positive HTTPS (including uppercase scheme) and non-HTTP allowlisted schemes
+        assertTrue(DeepAndroidActions.isAllowedDeepLink("https://example.com"));
+        assertTrue(DeepAndroidActions.isAllowedDeepLink("https://example.com/path?q=1"));
+        assertTrue(DeepAndroidActions.isAllowedDeepLink("HTTPS://EXAMPLE.COM/docs"));
+        assertTrue(DeepAndroidActions.isAllowedDeepLink("geo:45.5017,-73.5673"));
+        assertTrue(DeepAndroidActions.isAllowedDeepLink("mailto:help@example.com"));
+        assertTrue(DeepAndroidActions.isAllowedDeepLink("tel:+15145550199"));
+
+        // Negative HTTPS phishing / malformed / hostless / whitespace / backslash inputs
+        for (String bad : List.of(
+                "https://trusted.example.com@evil.example.net/login",
+                "https://user:pass@example.com/secret",
+                "https://example.com\\evil",
+                "https://example.com/path with spaces",
+                "https://",
+                "https:///only-path",
+                "https://example.com:0/badport",
+                "https://..invalid/path",
+                "http://example.com/insecure",
+                "file:///etc/passwd",
+                "content://com.android.contacts/data",
+                "javascript:alert(1)",
+                "intent://scan/#Intent;end",
+                "https://example.com/a\nb",
+                "",
+                "   ")) {
+            org.junit.Assert.assertFalse("Expected rejection for deep link: " + bad,
+                    DeepAndroidActions.isAllowedDeepLink(bad));
+        }
+        org.junit.Assert.assertFalse(DeepAndroidActions.isAllowedDeepLink(null));
+    }
 }
