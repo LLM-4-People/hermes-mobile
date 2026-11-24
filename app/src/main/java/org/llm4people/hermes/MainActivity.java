@@ -144,6 +144,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     private ProfileHubSheet activeProfileHub;
     private AdminConsoleSheet activeAdminConsole;
     private AutoCloseable activeFirstRunStep2;
+    private AutoCloseable activeSecurityDialog;
     private boolean activeProfileIsAdmin;
     private UpdateCheckCoordinator.BadgeState updateBadge;
     private final Map<String, View> customPages = new HashMap<>();
@@ -224,6 +225,8 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         sharedMedia.restore(state, getIntent());
         gate = new ProfileGate(this);
         gate.setOnForget(id -> {
+            FirstRunWizard.revokePendingSyncs();
+            AppLanguage.revokePendingSyncs();
             nudgeRateLimiter.reset();
             MobilePush.forget(this, id);
             HermesWidgetStore.forgetProfile(this, id);
@@ -356,7 +359,11 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             shell.show(activeAmbientPanel.buildView(), getString(R.string.ambient_panel_title));
         });
         shellRoutes.register(PresenceSettingsPanel.ROUTE_ID, (route, force) -> {
-            navigation.display(route, this::leavingSurface);
+            boolean changed = navigation.display(route, this::leavingSurface);
+            if (!changed && activePresencePanel != null) {
+                activePresencePanel.refresh();
+                return;
+            }
             if (activePresencePanel != null) activePresencePanel.close();
             Account owner = account;
             activePresencePanel = new PresenceSettingsPanel(
@@ -502,10 +509,14 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         actions.register("search", this::openUniversalSearch);
         actions.register("security", () -> {
             if (account == null) return;
-            if (notice != null) notice.dismiss();
-            notice = WorkspaceDialogs.showSecurity(this, account, gate, this::lock, () -> {
+            closeSecurityDialog();
+            if (notice != null) {
+                notice.dismiss();
+                notice = null;
+            }
+            activeSecurityDialog = WorkspaceDialogs.showSecurity(this, account, gate, this::lock, () -> {
                 refreshSettingsHubIfVisible();
-            }, () -> notice = null);
+            }, () -> activeSecurityDialog = null);
         });
         actions.register("stats", () -> panels.showStats(threads.sessionId(), threads.remoteSessionId()));
         actions.register("tools", () -> openThreadAction("tools"));
@@ -1137,9 +1148,20 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         if (!sameThread || !onThread) displayDiscussion();
     }
 
+    private void closeSecurityDialog() {
+        AutoCloseable security = activeSecurityDialog;
+        activeSecurityDialog = null;
+        if (security != null) {
+            try {
+                security.close();
+            } catch (Exception ignored) {}
+        }
+    }
+
     private void dismissOverlays() { dismissOverlays(false); }
 
     private void dismissOverlays(boolean keepThreadEditor) {
+        closeSecurityDialog();
         if (notice != null) notice.dismiss();
         notice = null;
         if (activeAmbientPanel != null) activeAmbientPanel.dismissDialogs();
@@ -2056,6 +2078,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     }
 
     @Override protected void onActivityResult(int code, int result, Intent data) {
+        checkGraceOnReturn();
         if (code == QrScannerActivity.REQUEST_CODE) {
             PairingLinkParser.ParsedInput scanned = QrScannerActivity.extractScannedPairing(result, data);
             if (scanned != null && gate != null) {
@@ -2225,6 +2248,8 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
 
     private void lock() {
         try {
+            FirstRunWizard.revokePendingSyncs();
+            AppLanguage.revokePendingSyncs();
             clearWorkspace();
         } finally {
             gate.lock();
@@ -2304,21 +2329,16 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         if (threads != null) threads.onTrimMemory();
     }
 
-    @Override public void startActivityForResult(Intent intent, int requestCode, Bundle options) {
-        markInternalTransition();
-        try {
-            super.startActivityForResult(intent, requestCode, options);
-        } catch (RuntimeException err) {
-            clearInternalTransition();
-            throw err;
-        }
+    /** Pure-Java SSoT guard: only requestCode >= 0 or ACTION_CHOOSER marks an internal activity transition. */
+    static boolean shouldMarkInternalTransition(int requestCode, String action) {
+        return requestCode >= 0 || Intent.ACTION_CHOOSER.equals(action);
     }
 
-    @Override public void startActivity(Intent intent, Bundle options) {
-        boolean marked = intent != null && Intent.ACTION_CHOOSER.equals(intent.getAction());
+    @Override public void startActivityForResult(Intent intent, int requestCode, Bundle options) {
+        boolean marked = shouldMarkInternalTransition(requestCode, intent == null ? null : intent.getAction());
         if (marked) markInternalTransition();
         try {
-            super.startActivity(intent, options);
+            super.startActivityForResult(intent, requestCode, options);
         } catch (RuntimeException err) {
             if (marked) clearInternalTransition();
             throw err;
@@ -2427,6 +2447,13 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         } catch (IllegalArgumentException ignored) {}
         pendingPairing = null;
         pairingLinkHandler = null;
+        if (!isChangingConfigurations()) {
+            FirstRunWizard.revokePendingSyncs();
+            AppLanguage.revokePendingSyncs();
+            if (cameraCapture != null && isFinishing()) {
+                cameraCapture.clear();
+            }
+        }
         clearWorkspace();
         if (voice != null) {
             voice.reader().stop();

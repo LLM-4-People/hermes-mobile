@@ -129,24 +129,96 @@ public final class FirstRunWizardTest {
                 "system", "system", false, false, true);
         assertFalse(unchanged.applyThemeCallback());
         assertTrue(unchanged.recreateForLocale());
+        assertTrue(unchanged.willRecreate());
 
         // Switching light -> dark in day mode triggers theme recreate -> suppress redundant locale recreate
         FirstRunWizard.Step2CommitPlan darkRecreates = FirstRunWizard.planStep2Commit(
                 "light", "dark", false, false, true);
         assertTrue(darkRecreates.applyThemeCallback());
         assertFalse(darkRecreates.recreateForLocale());
+        assertTrue(darkRecreates.willRecreate());
 
         // Switching system -> light when already in day mode does NOT recreate for theme -> keep locale recreate
         FirstRunWizard.Step2CommitPlan samePolarity = FirstRunWizard.planStep2Commit(
                 "system", "light", false, false, true);
         assertTrue(samePolarity.applyThemeCallback());
         assertTrue(samePolarity.recreateForLocale());
+        assertTrue(samePolarity.willRecreate());
+
+        // Same polarity with no locale recreate -> willRecreate is false (session api reused)
+        FirstRunWizard.Step2CommitPlan noRecreate = FirstRunWizard.planStep2Commit(
+                "system", "light", false, false, false);
+        assertTrue(noRecreate.applyThemeCallback());
+        assertFalse(noRecreate.recreateForLocale());
+        assertFalse(noRecreate.willRecreate());
 
         // Null/garbage theme inputs normalize safely to system
         FirstRunWizard.Step2CommitPlan badInputs = FirstRunWizard.planStep2Commit(
                 null, "invalid_theme", false, false, false);
         assertFalse(badInputs.applyThemeCallback());
         assertFalse(badInputs.recreateForLocale());
+        assertFalse(badInputs.willRecreate());
+    }
+
+    @Test public void detachedProfileSyncRevokesOnLockAndCompletionWhileSessionReusePreservesApi() throws Exception {
+        org.llm4people.hermes.Diagnostics.clear();
+        org.llm4people.hermes.Diagnostics.setSink((level, tag, msg) -> {});
+        try {
+            // Null / blank inputs fail closed cleanly without throwing.
+            assertFalse(FirstRunWizard.submitProfileSync(null, true, "alex", "Alex", "en")
+                    .get(5, java.util.concurrent.TimeUnit.SECONDS));
+            org.llm4people.hermes.net.HermesApi blankSlugApi = new org.llm4people.hermes.net.HermesApi(
+                    "http://127.0.0.1:1", "tok",
+                    org.llm4people.hermes.net.HermesApi.Limits.from(org.llm4people.hermes.HermesConfig.defaults()));
+            assertFalse(FirstRunWizard.submitProfileSync(blankSlugApi, true, "", "Alex", "en")
+                    .get(5, java.util.concurrent.TimeUnit.SECONDS));
+
+            // Detached sync always revokes client on completion (even on error).
+            org.llm4people.hermes.net.HermesApi detachedApi = new org.llm4people.hermes.net.HermesApi(
+                    "http://127.0.0.1:1", "tok",
+                    org.llm4people.hermes.net.HermesApi.Limits.from(org.llm4people.hermes.HermesConfig.defaults()));
+            assertFalse(FirstRunWizard.submitProfileSync(detachedApi, true, "alex", "Alex", "en")
+                    .get(5, java.util.concurrent.TimeUnit.SECONDS));
+            assertTrue("Detached sync client must be revoked in finally", detachedApi.isRevoked());
+
+            // Non-detached session reuse must NOT revoke the caller's live session API.
+            org.llm4people.hermes.net.HermesApi sessionApi = new org.llm4people.hermes.net.HermesApi(
+                    "http://127.0.0.1:1", "tok",
+                    org.llm4people.hermes.net.HermesApi.Limits.from(org.llm4people.hermes.HermesConfig.defaults()));
+            assertFalse(FirstRunWizard.submitProfileSync(sessionApi, false, "alex", "Alex", "en")
+                    .get(5, java.util.concurrent.TimeUnit.SECONDS));
+            assertFalse("Session API reuse must not be revoked by FirstRunWizard", sessionApi.isRevoked());
+
+            // In-flight detached sync is revoked immediately by revokePendingSyncs().
+            java.util.concurrent.CountDownLatch accepted = new java.util.concurrent.CountDownLatch(1);
+            java.util.concurrent.CountDownLatch release = new java.util.concurrent.CountDownLatch(1);
+            try (java.net.ServerSocket server = new java.net.ServerSocket(
+                    0, 2, java.net.InetAddress.getByName("127.0.0.1"))) {
+                Thread holder = new Thread(() -> {
+                    try (java.net.Socket s = server.accept()) {
+                        accepted.countDown();
+                        release.await(5, java.util.concurrent.TimeUnit.SECONDS);
+                    } catch (Exception ignored) {}
+                }, "test-onboarding-sync-hold");
+                holder.setDaemon(true);
+                holder.start();
+
+                org.llm4people.hermes.net.HermesApi inFlight = new org.llm4people.hermes.net.HermesApi(
+                        "http://127.0.0.1:" + server.getLocalPort(), "tok",
+                        org.llm4people.hermes.net.HermesApi.Limits.from(org.llm4people.hermes.HermesConfig.defaults()));
+                java.util.concurrent.Future<Boolean> future = FirstRunWizard.submitProfileSync(
+                        inFlight, true, "alex", "Alex", "en");
+                // Revoke immediately (either before or during request) — must mark client revoked.
+                FirstRunWizard.revokePendingSyncs();
+                assertTrue("revokePendingSyncs() must revoke tracked detached client", inFlight.isRevoked());
+                release.countDown();
+                assertFalse(future.get(5, java.util.concurrent.TimeUnit.SECONDS));
+            }
+        } finally {
+            FirstRunWizard.revokePendingSyncs();
+            org.llm4people.hermes.Diagnostics.clear();
+            org.llm4people.hermes.Diagnostics.setSink(null);
+        }
     }
 
     @Test public void isCompletedLogsDiagnosticWarningWhenAccountReadFails() {

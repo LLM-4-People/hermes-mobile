@@ -708,10 +708,10 @@ public final class AppearanceSettingsPanel {
         boolean canReset = !store.current().equals(AppCustomization.defaults())
                 || !AppearanceSettingsModel.THEME_SYSTEM.equals(activeThemeMode);
         Button resetBtn = Ui.outlinedButton(activity, activity.getString(R.string.appearance_reset), v -> {
-            activeThemeMode = AppearanceSettingsModel.THEME_SYSTEM;
-            listener.onThemeModeChanged(AppearanceSettingsModel.THEME_SYSTEM);
             AppCustomization defaults = store.resetToDefault();
             listener.onCustomizationChanged(defaults);
+            listener.onThemeModeChanged(AppearanceSettingsModel.THEME_SYSTEM);
+            activeThemeMode = AppThemeMode.readMode(activity);
             refreshAll();
             Toast.makeText(activity, R.string.appearance_reset_toast, Toast.LENGTH_SHORT).show();
         });

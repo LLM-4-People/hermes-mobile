@@ -32,8 +32,12 @@ import org.llm4people.hermes.settings.AppThemeMode;
 import java.net.URI;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
@@ -58,6 +62,16 @@ public final class FirstRunWizard {
         t.setDaemon(true);
         return t;
     });
+    private static final Set<HermesApi> PENDING_SYNCS = ConcurrentHashMap.newKeySet();
+
+    /** Revoke all in-flight detached onboarding sync clients (called on lock, forget, or final destroy). */
+    public static void revokePendingSyncs() {
+        for (HermesApi client : PENDING_SYNCS) {
+            if (PENDING_SYNCS.remove(client)) {
+                client.revoke();
+            }
+        }
+    }
 
     public enum ApplyAction {
         CLAIM_TICKET,
@@ -140,7 +154,7 @@ public final class FirstRunWizard {
     }
 
     /** Pure-Java commit plan for Step 2 preventing mid-dialog theme recreation and double recreates. */
-    record Step2CommitPlan(boolean applyThemeCallback, boolean recreateForLocale) {}
+    record Step2CommitPlan(boolean applyThemeCallback, boolean recreateForLocale, boolean willRecreate) {}
 
     static Step2CommitPlan planStep2Commit(
             String initialTheme,
@@ -153,7 +167,49 @@ public final class FirstRunWizard {
         boolean themeChanged = !normalizedSelected.equals(normalizedInitial);
         boolean themeWillRecreate = themeChanged
                 && AppThemeMode.willRecreateOnModeChange(currentActivityNight, normalizedSelected, systemNight);
-        return new Step2CommitPlan(themeChanged, localeWillRecreate && !themeWillRecreate);
+        return new Step2CommitPlan(themeChanged, localeWillRecreate && !themeWillRecreate,
+                themeWillRecreate || localeWillRecreate);
+    }
+
+    /** Submit onboarding profile patch, tracking & revoking detached clients so lock/forget aborts them. */
+    static Future<Boolean> submitProfileSync(
+            HermesApi syncClient,
+            boolean detached,
+            String slug,
+            String editedName,
+            String langCode) {
+        if (syncClient == null || slug == null || slug.isEmpty()) {
+            return CompletableFuture.completedFuture(false);
+        }
+        if (detached) {
+            PENDING_SYNCS.add(syncClient);
+        }
+        try {
+            return PROFILE_SYNC_IO.submit(() -> {
+                try {
+                    if (syncClient.isRevoked()) return false;
+                    JSONObject patch = new JSONObject();
+                    if (editedName != null && !editedName.isEmpty()) patch.put("display_name", editedName);
+                    patch.put("preferred_language", langCode);
+                    syncClient.updateProfile(slug, patch);
+                    return true;
+                } catch (Exception ignored) {
+                    Diagnostics.debug("onboarding", "profile_pref_sync_skipped");
+                    return false;
+                } finally {
+                    if (detached) {
+                        PENDING_SYNCS.remove(syncClient);
+                        syncClient.revoke();
+                    }
+                }
+            });
+        } catch (RuntimeException | Error err) {
+            if (detached) {
+                PENDING_SYNCS.remove(syncClient);
+                syncClient.revoke();
+            }
+            throw err;
+        }
     }
 
     private FirstRunWizard() {}
@@ -648,28 +704,20 @@ public final class FirstRunWizard {
             }
             String editedName = nameField.getText().toString().trim();
             String slug = extractSlugFromEndpoint(account.endpoint);
-            if (api != null && !api.isRevoked() && !slug.isEmpty()) {
-                String endpoint = account.endpoint;
-                String bearer = account.bearer;
-                String langCode = selectedLang[0];
-                HermesApi.Limits syncLimits = HermesApi.Limits.from(HermesConfig.load(activity));
-                PROFILE_SYNC_IO.execute(() -> {
-                    try {
-                        JSONObject patch = new JSONObject();
-                        if (!editedName.isEmpty()) patch.put("display_name", editedName);
-                        patch.put("preferred_language", langCode);
-                        new HermesApi(endpoint, bearer, syncLimits).updateProfile(slug, patch);
-                    } catch (Exception ignored) {
-                        Diagnostics.debug("onboarding", "profile_pref_sync_skipped");
-                    }
-                });
-            }
             Step2CommitPlan commitPlan = planStep2Commit(
                     initialTheme,
                     selectedTheme[0],
                     ThemePalette.isNight(activity),
                     AppThemeMode.isSystemNight(),
                     recreateForLocale);
+            if (api != null && !api.isRevoked() && !slug.isEmpty()) {
+                boolean detached = commitPlan.willRecreate();
+                HermesApi syncClient = detached
+                        ? new HermesApi(account.endpoint, account.bearer,
+                                HermesApi.Limits.from(HermesConfig.load(activity)))
+                        : api;
+                submitProfileSync(syncClient, detached, slug, editedName, selectedLang[0]);
+            }
             if (commitPlan.applyThemeCallback()) {
                 callbacks.onThemeSelected(selectedTheme[0]);
             }
