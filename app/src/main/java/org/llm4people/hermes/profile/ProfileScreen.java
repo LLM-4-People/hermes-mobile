@@ -298,7 +298,9 @@ final class ProfileScreen {
         return button;
     }
 
-    private static void connectSubmission(EditText field, Button submit) {
+    static void connectSubmission(EditText field, Button submit) {
+        field.setNextFocusForwardId(View.NO_ID);
+        field.setNextFocusDownId(View.NO_ID);
         field.setImeOptions((field.getImeOptions() & ~EditorInfo.IME_MASK_ACTION) | EditorInfo.IME_ACTION_DONE);
         field.setOnEditorActionListener((edit, action, event) -> {
             boolean enter = event != null && (event.getKeyCode() == KeyEvent.KEYCODE_ENTER
@@ -308,6 +310,34 @@ final class ProfileScreen {
                 submit.performClick();
             return true;
         });
+    }
+
+    static void connectNext(EditText field, int nextFocusId) {
+        field.setNextFocusForwardId(nextFocusId);
+        field.setNextFocusDownId(nextFocusId);
+        field.setImeOptions((field.getImeOptions() & ~EditorInfo.IME_MASK_ACTION) | EditorInfo.IME_ACTION_NEXT);
+        field.setOnEditorActionListener(null);
+    }
+
+    /** Updates the access-key field's focus-next target and IME action to match the selected lock mode. */
+    static void configureLockModeFocus(
+            ProfileLockPolicy.Mode mode,
+            EditText key,
+            EditText pin,
+            EditText phrase,
+            Button saveButton) {
+        if (mode == ProfileLockPolicy.Mode.PIN) {
+            connectNext(key, pin.getId());
+        } else if (mode == ProfileLockPolicy.Mode.PASSPHRASE) {
+            connectNext(key, phrase.getId());
+        } else if (saveButton != null) {
+            connectSubmission(key, saveButton);
+        } else {
+            key.setNextFocusForwardId(View.NO_ID);
+            key.setNextFocusDownId(View.NO_ID);
+            key.setImeOptions((key.getImeOptions() & ~EditorInfo.IME_MASK_ACTION) | EditorInfo.IME_ACTION_DONE);
+            key.setOnEditorActionListener(null);
+        }
     }
 
     void status(String message, boolean error) {

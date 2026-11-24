@@ -308,10 +308,7 @@ public final class QrScannerActivity extends Activity {
         topBar.setGravity(Gravity.CENTER_VERTICAL);
         Ui.pad(topBar, 12, 12);
 
-        Button closeBtn = overlayButton(getString(R.string.qr_scanner_close), v -> {
-            setResult(RESULT_CANCELED);
-            finish();
-        });
+        Button closeBtn = overlayButton(getString(R.string.qr_scanner_close), v -> cancelAndFinish());
         topBar.addView(closeBtn);
 
         TextView title = Ui.text(this, getString(R.string.qr_scanner_title), 17);
@@ -371,10 +368,7 @@ public final class QrScannerActivity extends Activity {
         pickLp.topMargin = Ui.dp(this, 10);
         fallbackCard.addView(fallbackPickBtn, pickLp);
 
-        Button fallbackCancelBtn = Ui.button(this, getString(R.string.profile_setup_cancel), v -> {
-            setResult(RESULT_CANCELED);
-            finish();
-        });
+        Button fallbackCancelBtn = Ui.button(this, getString(R.string.profile_setup_cancel), v -> cancelAndFinish());
         LinearLayout.LayoutParams cancelLp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         cancelLp.topMargin = Ui.dp(this, 8);
@@ -507,6 +501,7 @@ public final class QrScannerActivity extends Activity {
         closeCamera();
         stopCameraThread();
         imageIo.shutdownNow();
+        mainHandler.removeCallbacksAndMessages(null);
         super.onDestroy();
     }
 
@@ -1033,8 +1028,19 @@ public final class QrScannerActivity extends Activity {
         return best != null ? new Size(best[0], best[1]) : null;
     }
 
+    static boolean canDeliverSuccess(boolean finishing, boolean destroyed, AtomicBoolean delivered) {
+        return !finishing && !destroyed && delivered != null && delivered.compareAndSet(false, true);
+    }
+
+    private void cancelAndFinish() {
+        resultDelivered.set(true);
+        mainHandler.removeCallbacksAndMessages(null);
+        setResult(RESULT_CANCELED);
+        finish();
+    }
+
     private void deliverSuccess(String validatedRawLink, String diagEvent) {
-        if (!resultDelivered.compareAndSet(false, true)) return;
+        if (!canDeliverSuccess(isFinishing(), isDestroyed(), resultDelivered)) return;
         Diagnostics.event("qr_scanner", diagEvent);
         closeCamera();
         Intent result = new Intent();
