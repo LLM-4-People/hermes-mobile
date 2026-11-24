@@ -93,18 +93,21 @@ public final class NotificationAllowlistTest {
     @Test
     public void staleInFlightIngestionCannotLeakAcrossProfileSwitch() {
         HermesNotificationListener.clearSession();
-        HermesNotificationListener.bindProfile(Set.of("org.thoughtcrime.securesms"));
-        long profileAEpoch = HermesNotificationListener.currentSessionEpoch();
-        // Profile switches to Profile B (allowing only WhatsApp) while Signal ingestion is in flight.
-        HermesNotificationListener.bindProfile(Set.of("com.whatsapp"));
+        try {
+            HermesNotificationListener.bindProfile(Set.of("org.thoughtcrime.securesms"));
+            long profileAEpoch = HermesNotificationListener.currentSessionEpoch();
+            // Profile switches to Profile B (allowing only WhatsApp) while Signal ingestion is in flight.
+            HermesNotificationListener.bindProfile(Set.of("com.whatsapp"));
 
-        AmbientNotification staleSignal = new AmbientNotification(
-                "k-signal", "org.thoughtcrime.securesms", "Signal", "Alice",
-                "Alice", "Message privé", 1000L, false, "");
-        assertFalse(HermesNotificationListener.commitBufferedIfCurrent(
-                profileAEpoch, Set.of("org.thoughtcrime.securesms"), staleSignal, null));
-        assertTrue(HermesNotificationListener.snapshot().isEmpty());
-        HermesNotificationListener.clearSession();
+            AmbientNotification staleSignal = new AmbientNotification(
+                    "k-signal", "org.thoughtcrime.securesms", "Signal", "Alice",
+                    "Alice", "Message privé", 1000L, false, "");
+            assertFalse(HermesNotificationListener.commitBufferedIfCurrent(
+                    profileAEpoch, Set.of("org.thoughtcrime.securesms"), staleSignal, null));
+            assertTrue(HermesNotificationListener.snapshot().isEmpty());
+        } finally {
+            HermesNotificationListener.clearSession();
+        }
     }
 
     @Test

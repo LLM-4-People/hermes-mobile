@@ -10,6 +10,7 @@ import android.service.notification.StatusBarNotification;
 import android.test.InstrumentationTestCase;
 
 import org.llm4people.hermes.AppLanguage;
+import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.net.Exchange;
 import org.json.JSONObject;
@@ -49,7 +50,13 @@ public final class PushRoutingTest extends InstrumentationTestCase {
                 PushNotices.cancel(context, device.installation);
                 store.finishRemoval(device);
             }
-        } finally { super.tearDown(); }
+        } finally {
+            try {
+                Diagnostics.clear();
+            } finally {
+                super.tearDown();
+            }
+        }
     }
 
     private Intent tapIntent() {

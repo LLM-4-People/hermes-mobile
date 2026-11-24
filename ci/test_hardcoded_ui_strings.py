@@ -26,6 +26,11 @@ class HardcodedUiStringsGuardTest(unittest.TestCase):
         self.assertFalse(hasattr(guard, "MIGRATION_ALLOWLIST"))
         self.assertFalse(hasattr(guard, "PREEXISTING_WHITESPACE_STRINGS"))
         self.assertIn(("Ui", "pill"), guard.QUALIFIED_UI_SINK_ARGS)
+        self.assertIn(("Ui", "choiceChip"), guard.QUALIFIED_UI_SINK_ARGS)
+        self.assertIn(("panel", "note"), guard.QUALIFIED_UI_SINK_ARGS)
+        self.assertIn(("BrainUi", "chip"), guard.QUALIFIED_UI_SINK_ARGS)
+        self.assertIn(("BrainUi", "badge"), guard.QUALIFIED_UI_SINK_ARGS)
+        self.assertIn(("BrainUi", "liveNote"), guard.QUALIFIED_UI_SINK_ARGS)
         self.assertIn(("ClipData", "newPlainText"), guard.QUALIFIED_UI_SINK_ARGS)
         for dead_method in ("chip", "heading", "sectionTitle", "caption", "badge", "banner", "emptyState"):
             self.assertNotIn(("Ui", dead_method), guard.QUALIFIED_UI_SINK_ARGS)
@@ -79,7 +84,12 @@ class HardcodedUiStringsGuardTest(unittest.TestCase):
                         Toast.makeText(ctx, "Saved successfully", Toast.LENGTH_SHORT).show();
                         Ui.button(ctx, "Retry now", null);
                         Ui.pill(ctx, "Active badge", R.color.accent_surface, R.color.accent);
+                        Ui.choiceChip(ctx, "French choice chip", null);
                         screen.note("Nothing to show yet.");
+                        panel.note(box, "Panel helper text");
+                        BrainUi.chip(ctx, "Memory tab chip", false, null);
+                        BrainUi.badge(ctx, "Pinned status badge", true);
+                        BrainUi.liveNote(panel, box, "No matching notes");
                         if (ready) setText("Primary label");
                         else setText("Bypassed after else");
                         return setTitle("Bypassed after return");
@@ -117,7 +127,12 @@ class HardcodedUiStringsGuardTest(unittest.TestCase):
                 "Saved successfully",
                 "Retry now",
                 "Active badge",
+                "French choice chip",
                 "Nothing to show yet.",
+                "Panel helper text",
+                "Memory tab chip",
+                "Pinned status badge",
+                "No matching notes",
                 "Primary label",
                 "Bypassed after else",
                 "Bypassed after return",
@@ -166,6 +181,11 @@ class HardcodedUiStringsGuardTest(unittest.TestCase):
                         tv.setText(obj.optString("title", ""));
                         tv.setTag("save_button");
                         android.content.ClipData.newPlainText(ctx.getString(R.string.ok), "raw_payload");
+                        Ui.choiceChip(ctx, ctx.getString(R.string.ok), null);
+                        panel.note(box, panel.t(R.string.ok));
+                        BrainUi.chip(ctx, ctx.getString(R.string.ok), true, null);
+                        BrainUi.badge(ctx, ctx.getString(R.string.ok), false);
+                        BrainUi.liveNote(panel, box, panel.t(R.string.ok));
                         Diagnostics.event("panel", "opened_ok");
                         String punct = ".,!?;:)»";
                         throw new IllegalStateException("Internal state mismatch");

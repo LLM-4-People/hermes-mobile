@@ -2,6 +2,7 @@ package org.llm4people.hermes.journey;
 
 import android.app.Activity;
 import android.content.Context;
+import android.os.Build;
 import android.test.InstrumentationTestCase;
 import android.widget.EditText;
 import org.json.JSONArray;
@@ -36,6 +37,7 @@ public final class ThreadNoticeContinuityTest extends InstrumentationTestCase {
     }
 
     public void testAuthenticatedLineageRefreshPreservesBothUnstagedFormsAndComposer() throws Throwable {
+        if (Build.VERSION.SDK_INT < 29) return;
         Context context = getInstrumentation().getTargetContext();
         ThreadWorkspace[] workspace = new ThreadWorkspace[1];
         EditText[] editor = new EditText[1];

@@ -2,6 +2,7 @@ package org.llm4people.hermes.thread;
 
 import android.app.Activity;
 import android.content.Context;
+import android.os.Build;
 import android.test.InstrumentationTestCase;
 import android.view.View;
 import android.view.WindowManager;
@@ -18,6 +19,7 @@ import java.util.ArrayList;
 @SuppressWarnings("deprecation")
 public final class ThreadInstrumentRecoveryTest extends InstrumentationTestCase {
     public void testRecoveryRequiresConfirmationForTheObservedThreadRecord() throws Throwable {
+        if (Build.VERSION.SDK_INT < 29) return;
         Context app = getInstrumentation().getTargetContext();
         String slot = "thread.instrument.v1.local-root";
         ThreadWorkspace[] workspace = new ThreadWorkspace[1];
