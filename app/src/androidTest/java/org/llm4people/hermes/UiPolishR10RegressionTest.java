@@ -3,6 +3,7 @@ package org.llm4people.hermes;
 import android.app.Activity;
 import android.content.Context;
 import android.content.res.ColorStateList;
+import android.content.res.Configuration;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.RippleDrawable;
@@ -41,6 +42,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
@@ -160,7 +162,6 @@ public final class UiPolishR10RegressionTest extends InstrumentationTestCase {
 
     public void testLocalizedImageMarkerInThreadDataAndInstrumentPanel() throws Throwable {
         Context base = getInstrumentation().getTargetContext();
-        AppLanguage.Mode original = AppLanguage.readMode(base);
         String pageJson = """
                 {"version":1,"surface":"page/demo","mode":"replace","title":"Demo","blocks":[{"title":"Info","note":"Body"}]}""";
         String fence = "```hermes-workspace\n" + pageJson + "\n```";
@@ -184,36 +185,34 @@ public final class UiPolishR10RegressionTest extends InstrumentationTestCase {
         Class<?> panelCls = Class.forName("org.llm4people.hermes.thread.ThreadInstrumentPanel");
         Method spoken = panelCls.getDeclaredMethod("spoken", Context.class, JSONObject.class, List.class);
         spoken.setAccessible(true);
-        try {
-            for (AppLanguage.Mode mode : new AppLanguage.Mode[]{AppLanguage.Mode.FRENCH, AppLanguage.Mode.ENGLISH}) {
-                AppLanguage.apply(base, mode);
-                String expectedMarker = AppLanguage.wrapContext(base).getString(R.string.ws_image_attached);
-                String expectedSpoken = AppLanguage.wrapContext(base).getString(R.string.instrument_spoken, "Demo");
 
-                String content = (String) tdContent.invoke(null, base, row);
-                assertTrue("ThreadData.content should localize image marker for " + mode,
-                        content.contains(expectedMarker));
-                assertFalse("ThreadData.content should not emit raw [image] for " + mode,
-                        content.contains("[image]"));
+        for (Locale locale : new Locale[]{Locale.FRENCH, Locale.ENGLISH}) {
+            Context ctx = localized(base, locale);
+            String expectedMarker = ctx.getString(R.string.ws_image_attached);
+            String expectedSpoken = ctx.getString(R.string.instrument_spoken, "Demo");
+            assertEquals(Locale.FRENCH.equals(locale) ? "[Image jointe]" : "[Image attached]", expectedMarker);
 
-                String spokenNoProposals = (String) spoken.invoke(null, base, row, Collections.emptyList());
-                assertTrue("ThreadInstrumentPanel.spoken (no proposals) should localize image marker for " + mode,
-                        spokenNoProposals.contains(expectedMarker));
+            String content = (String) tdContent.invoke(null, ctx, row);
+            assertTrue("ThreadData.content should localize image marker for " + locale,
+                    content.contains(expectedMarker));
+            assertFalse("ThreadData.content should not emit raw [image] for " + locale,
+                    content.contains("[image]"));
 
-                String spokenWithProposal = (String) spoken.invoke(null, base, row, proposals);
-                assertTrue("ThreadInstrumentPanel.spoken should include localized spoken label for " + mode,
-                        spokenWithProposal.contains(expectedSpoken));
-                assertTrue("ThreadInstrumentPanel.spoken should localize image marker for " + mode,
-                        spokenWithProposal.contains(expectedMarker));
+            String spokenNoProposals = (String) spoken.invoke(null, ctx, row, Collections.emptyList());
+            assertTrue("ThreadInstrumentPanel.spoken (no proposals) should localize image marker for " + locale,
+                    spokenNoProposals.contains(expectedMarker));
 
-                String projectedProse = MessageParts.project(
-                        row, Collections.singletonMap(0, pageJson), ignored -> "", base);
-                assertTrue("MessageParts.project prose should localize image marker for " + mode,
-                        projectedProse.contains(expectedMarker));
-                assertFalse(projectedProse.contains("[image]"));
-            }
-        } finally {
-            AppLanguage.apply(base, original);
+            String spokenWithProposal = (String) spoken.invoke(null, ctx, row, proposals);
+            assertTrue("ThreadInstrumentPanel.spoken should include localized spoken label for " + locale,
+                    spokenWithProposal.contains(expectedSpoken));
+            assertTrue("ThreadInstrumentPanel.spoken should localize image marker for " + locale,
+                    spokenWithProposal.contains(expectedMarker));
+
+            String projectedProse = MessageParts.project(
+                    row, Collections.singletonMap(0, pageJson), ignored -> "", ctx);
+            assertTrue("MessageParts.project prose should localize image marker for " + locale,
+                    projectedProse.contains(expectedMarker));
+            assertFalse(projectedProse.contains("[image]"));
         }
     }
 
@@ -503,6 +502,12 @@ public final class UiPolishR10RegressionTest extends InstrumentationTestCase {
                 ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
             }
         }
+    }
+
+    private static Context localized(Context base, Locale locale) {
+        Configuration config = new Configuration(base.getResources().getConfiguration());
+        config.setLocale(locale);
+        return base.createConfigurationContext(config);
     }
 
     private static Object parseLayout(String json) throws Exception {
