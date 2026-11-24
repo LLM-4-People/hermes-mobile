@@ -181,7 +181,7 @@ public final class AppLanguage {
                 manager.setApplicationLocales(next);
             }
         }
-        refreshRuntime(context, target);
+        refreshRuntime(target);
         Diagnostics.event("locale", "mode_" + target.wire);
     }
 
@@ -189,7 +189,7 @@ public final class AppLanguage {
     public static Context wrapContext(Context base) {
         if (base == null) return null;
         Mode mode = readMode(base);
-        refreshRuntime(base, mode);
+        refreshRuntime(mode);
         if (Build.VERSION.SDK_INT >= 33 || mode == Mode.AUTO) {
             return base;
         }
@@ -201,10 +201,10 @@ public final class AppLanguage {
 
     /** Refresh cached Accept-Language from the active app/device configuration. */
     public static void refreshRuntime(Context context) {
-        refreshRuntime(context, readMode(context));
+        refreshRuntime(readMode(context));
     }
 
-    private static void refreshRuntime(Context context, Mode mode) {
+    private static void refreshRuntime(Mode mode) {
         Locale resolved = resolveLocale(mode, systemLanguageTags());
         activeAcceptLanguage = formatAcceptLanguage(resolved);
     }

@@ -25,6 +25,7 @@ import org.llm4people.hermes.doctor.ConnectionDoctorPanel;
 import org.llm4people.hermes.os.PermissionsPanel;
 import org.llm4people.hermes.panel.BrainStudioRoutes;
 import org.llm4people.hermes.presence.PresenceSettingsPanel;
+import org.llm4people.hermes.push.DeliveryRouter;
 import org.llm4people.hermes.templates.TemplatesPanel;
 import org.llm4people.hermes.update.UpdatePanel;
 
@@ -411,7 +412,7 @@ public final class SettingsHubPanel {
                                 activity.getString(R.string.activity_notifications_hint),
                                 notifKw),
                         new SettingsHubModel.ItemSpec(
-                                "push_policy",
+                                DeliveryRouter.ROUTE_PUSH_POLICY,
                                 R.drawable.ic_notifications,
                                 activity.getString(R.string.settings_item_push_policy_title),
                                 activity.getString(R.string.activity_push_policy_hint),

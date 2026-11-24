@@ -93,21 +93,12 @@ public final class HermesConfig {
                 nearbyTimeoutMs, nearbyFusedGraceMs, artifactDefaultMaxBytes, artifactHardMaxBytes,
                 diagnosticsRingCapacity, threadPageSize, maxReconnects,
                 DEFAULT_UPDATE_REPO, DEFAULT_UPDATE_API_BASE,
-                DEFAULT_UPDATE_MAX_APK_BYTES, DEFAULT_UPDATE_CHECK_INTERVAL_MS);
-    }
-
-    public HermesConfig(int httpConnectTimeoutMs, int httpReadTimeoutMs, int httpJsonMaxBytes, int httpEventMaxBytes,
-                        int nearbyTimeoutMs, int nearbyFusedGraceMs, long artifactDefaultMaxBytes,
-                        long artifactHardMaxBytes, int diagnosticsRingCapacity, int threadPageSize, int maxReconnects,
-                        String updateRepo, String updateApiBase, long updateMaxApkBytes, long updateCheckIntervalMs) {
-        this(httpConnectTimeoutMs, httpReadTimeoutMs, httpJsonMaxBytes, httpEventMaxBytes,
-                nearbyTimeoutMs, nearbyFusedGraceMs, artifactDefaultMaxBytes, artifactHardMaxBytes,
-                diagnosticsRingCapacity, threadPageSize, maxReconnects,
-                updateRepo, updateApiBase, updateMaxApkBytes, updateCheckIntervalMs,
+                DEFAULT_UPDATE_MAX_APK_BYTES, DEFAULT_UPDATE_CHECK_INTERVAL_MS,
                 DEFAULT_GITHUB_WEB_BASE_URL, DEFAULT_OSM_BASE_URL,
                 DEFAULT_DOCTOR_CHECK_TIMEOUT_MS, DEFAULT_SLOW_LATENCY_THRESHOLD_MS,
                 DEFAULT_EXPECTED_FORK_CAPABILITIES, DEFAULT_PROBE_TIMEOUT_MS,
-                DEFAULT_VOICE_SERVICE_TIMEOUT_MS, DEFAULT_TTS_INIT_TIMEOUT_MS);
+                DEFAULT_VOICE_SERVICE_TIMEOUT_MS, DEFAULT_TTS_INIT_TIMEOUT_MS,
+                DEFAULT_VOICE_MODEL_RELEASE_TIMEOUT_MS, DEFAULT_HTTP_MAX_REDIRECTS);
     }
 
     public HermesConfig(int httpConnectTimeoutMs, int httpReadTimeoutMs, int httpJsonMaxBytes, int httpEventMaxBytes,

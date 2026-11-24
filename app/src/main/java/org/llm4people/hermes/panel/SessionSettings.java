@@ -82,7 +82,7 @@ final class SessionSettings {
             panel.action(box, R.string.panel_reminders, panel::showReminders);
             return;
         }
-        try { saved = SessionPanel.runOptions(panel.activity, panel.account, id); }
+        try { saved = SessionPanel.runOptions(panel.account, id); }
         catch (IllegalStateException error) {
             panel.failure(box, error, null);
             panel.action(box, R.string.panel_reset_settings, () -> panel.present(

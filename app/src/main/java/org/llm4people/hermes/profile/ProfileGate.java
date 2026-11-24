@@ -318,8 +318,14 @@ public final class ProfileGate {
         onForget = Objects.requireNonNull(callback);
     }
 
-    public void start(Consumer<Account> callback) {
-        start(null, callback);
+    /** Returns true iff an active, uncanceled OS biometric/device-credential prompt is currently in flight. */
+    public boolean hasActiveBiometricPrompt() {
+        return isBiometricSessionActive(activeBiometric);
+    }
+
+    /** Pure-Java helper for deterministic unit testing of active biometric session checks. */
+    public static boolean isBiometricSessionActive(BiometricVault.Session session) {
+        return session != null && !session.isCanceled();
     }
 
     public void start(String requestedId, Consumer<Account> callback) {

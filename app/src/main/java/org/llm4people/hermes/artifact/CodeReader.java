@@ -112,7 +112,7 @@ public final class CodeReader {
         LinearLayout.LayoutParams copyLp = new LinearLayout.LayoutParams(-2, -2);
         copyLp.setMarginEnd(gap);
         actions.addView(copy, copyLp);
-        Button searchToggle = Ui.button(c, c.getString(R.string.code_search), v -> toggleSearch(c));
+        Button searchToggle = Ui.button(c, c.getString(R.string.code_search), v -> toggleSearch());
         actions.addView(searchToggle);
         actionsScroll.addView(actions);
         box.addView(actionsScroll);
@@ -199,7 +199,7 @@ public final class CodeReader {
         return bar;
     }
 
-    private void toggleSearch(Context c) {
+    private void toggleSearch() {
         searchVisible = !searchVisible;
         searchBar.setVisibility(searchVisible ? View.VISIBLE : View.GONE);
         if (searchVisible) {

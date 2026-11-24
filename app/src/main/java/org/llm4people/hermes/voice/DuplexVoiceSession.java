@@ -40,7 +40,6 @@ public final class DuplexVoiceSession {
 
     public State state() { return state; }
     public boolean active() { return state != State.OFF; }
-    public int generation() { return generation; }
 
     /** Explicit opt-in start of hands-free duplex mode. */
     public void start() {

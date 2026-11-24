@@ -47,10 +47,6 @@ public final class InfiniteTranscriptWindow<T> {
     private int totalCount = -1;
     private int legacyOffset;
 
-    public InfiniteTranscriptWindow(RowIdentity<T> identity) {
-        this(identity, MAX_WINDOW_ROWS);
-    }
-
     public InfiniteTranscriptWindow(RowIdentity<T> identity, int maxWindowRows) {
         if (maxWindowRows < 10) throw new IllegalArgumentException("maxWindowRows must be >= 10");
         this.identity = Objects.requireNonNull(identity, "identity");

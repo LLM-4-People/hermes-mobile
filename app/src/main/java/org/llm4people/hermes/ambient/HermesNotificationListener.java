@@ -87,7 +87,7 @@ public final class HermesNotificationListener extends NotificationListenerServic
     }
 
     /** Bind the currently unlocked profile's encrypted allowlist directly from its Account. */
-    public static void bindProfile(Context context, Account account) {
+    public static void bindProfile(Account account) {
         if (account == null) {
             clearSession();
             return;

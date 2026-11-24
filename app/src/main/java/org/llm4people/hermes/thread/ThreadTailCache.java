@@ -98,7 +98,6 @@ public final class ThreadTailCache {
         return epoch;
     }
 
-    public synchronized long epoch() { return epoch; }
     public synchronized int size() { return lru.size(); }
 
     /** Stores an entry only if {@code expectedEpoch} matches the active profile epoch (drops stale async writes). */

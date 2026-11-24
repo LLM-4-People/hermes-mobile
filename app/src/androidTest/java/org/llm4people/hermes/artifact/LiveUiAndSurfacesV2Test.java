@@ -7,6 +7,7 @@ import android.widget.LinearLayout;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.llm4people.hermes.profile.Account;
@@ -547,5 +548,30 @@ public final class LiveUiAndSurfacesV2Test extends InstrumentationTestCase {
                                 .put("radius_m", 4_294_967_296L)
                                 .put("limit", 4_294_967_296L))));
         assertPatchRejected(overflowCompass);
+    }
+
+    public void testHighlightsReturnLocalizedOpDescriptions() throws Exception {
+        Context context = getInstrumentation().getTargetContext();
+        LiveUiPatch.WidgetSpec widget = new LiveUiPatch.WidgetSpec(
+                "w_daily", "Daily Focus", "2 items", "checklist",
+                Collections.singletonList(new LiveUiPatch.WidgetItem("Check build", "09:00", null)),
+                null, true, false);
+        List<LiveUiPatch.Op> ops = Arrays.asList(
+                new LiveUiPatch.Op.UpsertSurface("page/focus", "{\"version\":2}", "Focus"),
+                new LiveUiPatch.Op.RemoveSurface("page/old"),
+                new LiveUiPatch.Op.UpsertTab(new LiveUiPatch.CustomTab("tab_focus", "Focus", "page/focus")),
+                new LiveUiPatch.Op.ResetTheme(),
+                new LiveUiPatch.Op.UpsertWidget(widget));
+        LiveUiPatch patch = new LiveUiPatch(
+                "rev-highlights-01", "", "atelier", "Localized preview", ops, true);
+
+        List<String> highlights = patch.highlights(context);
+        assertEquals(ops.size(), highlights.size());
+        for (int i = 0; i < ops.size(); i++) {
+            assertEquals("Highlight[" + i + "] must match localized Op.describe(context)",
+                    ops.get(i).describe(context), highlights.get(i));
+        }
+        assertFalse("ResetTheme highlight must be localized, never hardcoded 'default'",
+                "default".equals(highlights.get(3)));
     }
 }

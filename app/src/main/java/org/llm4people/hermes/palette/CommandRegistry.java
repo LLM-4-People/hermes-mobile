@@ -6,6 +6,7 @@ import org.llm4people.hermes.R;
 import org.llm4people.hermes.ambient.AmbientAccessPanel;
 import org.llm4people.hermes.doctor.ConnectionDoctorPanel;
 import org.llm4people.hermes.panel.BrainStudioRoutes;
+import org.llm4people.hermes.push.DeliveryRouter;
 import org.llm4people.hermes.settings.AppearanceSettingsPanel;
 import org.llm4people.hermes.settings.SettingsHubPanel;
 import org.llm4people.hermes.templates.TemplatesPanel;
@@ -197,7 +198,7 @@ public final class CommandRegistry {
                 R.string.palette_act_search_hint, R.string.palette_kw_search, run);
         addAction(list, context, "reminders", R.string.palette_act_reminders_title,
                 R.string.palette_act_reminders_hint, R.string.palette_kw_reminders, run);
-        addAction(list, context, "deliveries", R.string.palette_act_deliveries_title,
+        addAction(list, context, DeliveryRouter.ROUTE_DELIVERIES, R.string.palette_act_deliveries_title,
                 R.string.palette_act_deliveries_hint, R.string.palette_kw_deliveries, run);
         addAction(list, context, AmbientAccessPanel.ROUTE_ID, R.string.palette_act_ambient_title,
                 R.string.palette_act_ambient_hint, R.string.palette_kw_ambient, run);
