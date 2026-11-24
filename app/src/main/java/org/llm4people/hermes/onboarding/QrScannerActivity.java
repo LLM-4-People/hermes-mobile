@@ -820,7 +820,7 @@ public final class QrScannerActivity extends Activity {
                                 }
                             }
                             if (resetTorchUi) {
-                                postTorchButtonState(false);
+                                postTorchButtonState();
                             }
                         }
 
@@ -922,14 +922,24 @@ public final class QrScannerActivity extends Activity {
         return applySucceeded ? desired : previous;
     }
 
+    static boolean currentTorchEnabled(boolean flashAvailable, boolean torchOn) {
+        return flashAvailable && torchOn;
+    }
+
+    private boolean readTorchEnabledLocked() {
+        synchronized (cameraLock) {
+            return currentTorchEnabled(flashAvailable, torchOn);
+        }
+    }
+
     private void updateTorchButtonText(boolean enabled) {
         if (!isFinishing() && !isDestroyed() && torchButton != null) {
             torchButton.setText(enabled ? R.string.qr_scanner_torch_off : R.string.qr_scanner_torch_on);
         }
     }
 
-    private void postTorchButtonState(boolean enabled) {
-        mainHandler.post(() -> updateTorchButtonText(enabled));
+    private void postTorchButtonState() {
+        mainHandler.post(() -> updateTorchButtonText(readTorchEnabledLocked()));
     }
 
     private void toggleTorch() {
@@ -981,7 +991,7 @@ public final class QrScannerActivity extends Activity {
             previewRequestBuilder = null;
         }
         if (resetTorchUi) {
-            postTorchButtonState(false);
+            postTorchButtonState();
         }
     }
 

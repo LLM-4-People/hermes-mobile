@@ -144,6 +144,10 @@ public final class AppLanguage {
         return formatAcceptLanguage(fallback);
     }
 
+    static String rawActiveAcceptLanguageForTest() {
+        return activeAcceptLanguage;
+    }
+
     public static void setActiveAcceptLanguageForTest(String header) {
         activeAcceptLanguage = header == null ? "" : header.trim();
     }
@@ -183,8 +187,25 @@ public final class AppLanguage {
             }
         }
         refreshRuntime(target);
-        HermesWidgetProvider.refresh(context);
+        HermesWidgetProvider.refresh(context, target);
         Diagnostics.event("locale", "mode_" + target.wire);
+    }
+
+    /**
+     * Build a configuration-localized Context for {@code mode} unconditionally (including API 33+
+     * and {@link Mode#AUTO}), avoiding stale Activity configurations or asynchronous
+     * {@link LocaleManager#setApplicationLocales} propagation when rendering widgets or shortcuts.
+     */
+    public static Context localizedContext(Context base, Mode mode) {
+        if (base == null) return null;
+        Mode target = mode == null ? readMode(base) : mode;
+        Context app = base.getApplicationContext();
+        Context source = app != null ? app : base;
+        Locale resolved = resolveLocale(target, systemLanguageTags());
+        Configuration config = new Configuration(source.getResources().getConfiguration());
+        config.setLocale(resolved);
+        Context created = source.createConfigurationContext(config);
+        return created != null ? created : source;
     }
 
     /** Wrap an Activity base context on API 28-32 so explicit French/English overrides load matching resources. */
@@ -201,19 +222,37 @@ public final class AppLanguage {
         return base.createConfigurationContext(config);
     }
 
-    /** Refresh cached Accept-Language from the active app/device configuration. */
-    public static void refreshRuntime(Context context) {
-        refreshRuntime(readMode(context));
+    /**
+     * Refresh cached Accept-Language from the active app/device configuration.
+     *
+     * @return {@code true} when the effective language tag ({@code "fr"} or {@code "en"}) changed
+     * compared to the previously cached runtime tag.
+     */
+    public static boolean refreshRuntime(Context context) {
+        return refreshRuntime(readMode(context));
     }
 
-    private static void refreshRuntime(Mode mode) {
-        refreshRuntime(mode, systemLanguageTags());
+    private static boolean refreshRuntime(Mode mode) {
+        return refreshRuntime(mode, systemLanguageTags());
     }
 
-    /** Host-JVM testable helper updating cached Accept-Language for a mode and system locale list. */
-    static void refreshRuntime(Mode mode, List<String> systemTags) {
+    /** Host-JVM testable helper updating cached Accept-Language and reporting effective tag changes. */
+    static boolean refreshRuntime(Mode mode, List<String> systemTags) {
+        String previousTag = effectiveTagFromHeader(activeAcceptLanguage);
         Locale resolved = resolveLocale(mode, systemTags);
-        activeAcceptLanguage = formatAcceptLanguage(resolved);
+        String nextHeader = formatAcceptLanguage(resolved);
+        String nextTag = effectiveTagFromHeader(nextHeader);
+        activeAcceptLanguage = nextHeader;
+        return !previousTag.isEmpty() && !previousTag.equals(nextTag);
+    }
+
+    private static String effectiveTagFromHeader(String header) {
+        if (header == null || header.isEmpty()) return "";
+        int comma = header.indexOf(',');
+        String first = comma >= 0 ? header.substring(0, comma) : header;
+        int semi = first.indexOf(';');
+        if (semi >= 0) first = first.substring(0, semi);
+        return baseLanguage(first);
     }
 
     public static String resolvedTag(Context context) {

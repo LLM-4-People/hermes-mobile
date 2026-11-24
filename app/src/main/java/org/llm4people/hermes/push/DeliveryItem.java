@@ -6,6 +6,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.EpochTimestamps;
+import org.llm4people.hermes.PlainTextSanitizer;
 import org.llm4people.hermes.R;
 
 import java.util.Locale;
@@ -260,11 +261,15 @@ public final class DeliveryItem {
         if (payload == null) return "";
         for (String key : new String[]{"summary", "subtitle", "message", "body", "text", "description", "filename"}) {
             if (!payload.isNull(key)) {
-                String val = payload.optString(key, "").trim();
-                if (!val.isEmpty()) return val.length() > 300 ? val.substring(0, 297) + "…" : val;
+                String val = clampSummary(payload.optString(key, ""));
+                if (!val.isEmpty()) return val;
             }
         }
         return "";
+    }
+
+    static String clampSummary(String raw) {
+        return PlainTextSanitizer.collapseWithEllipsis(raw, 300);
     }
 
     private static long readEpochSec(JSONObject raw, String field) {

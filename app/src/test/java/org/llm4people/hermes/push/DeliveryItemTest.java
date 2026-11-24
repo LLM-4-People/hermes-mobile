@@ -133,4 +133,18 @@ public final class DeliveryItemTest {
         assertEquals(0L, DeliveryItem.parseEpochSecValue(Double.NaN));
         assertEquals(0L, DeliveryItem.parseEpochSecValue(Double.POSITIVE_INFINITY));
     }
+
+    @Test
+    public void clampSummarySanitizesBidiCgjAndNeverSplitsSurrogatePairs() {
+        assertEquals("", DeliveryItem.clampSummary(null));
+        assertEquals("", DeliveryItem.clampSummary("  \u202E\u034F\n\t "));
+        assertEquals("Bonjour monde", DeliveryItem.clampSummary("Bon\u202E\u034F\uDB40\uDC20jour\u00A0monde"));
+
+        String emojiBoundary = "a".repeat(298) + "\uD83D\uDE00tail";
+        String clamped = DeliveryItem.clampSummary(emojiBoundary);
+        assertTrue(clamped.length() <= 300);
+        assertTrue(clamped.endsWith("…"));
+        assertFalse("Must never split surrogate pair at summary boundary",
+                Character.isHighSurrogate(clamped.charAt(clamped.length() - 2)));
+    }
 }

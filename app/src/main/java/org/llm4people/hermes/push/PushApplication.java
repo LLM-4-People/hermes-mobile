@@ -1,11 +1,14 @@
 package org.llm4people.hermes.push;
 
 import android.app.Application;
+import android.content.Context;
 import android.content.res.Configuration;
 
 import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.HermesConfig;
+import org.llm4people.hermes.os.HermesShortcuts;
+import org.llm4people.hermes.os.HermesWidgetProvider;
 import org.llm4people.hermes.perf.MemoryPressure;
 import org.llm4people.hermes.thread.ThreadStrings;
 
@@ -37,7 +40,21 @@ public final class PushApplication extends Application {
 
     @Override public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
-        AppLanguage.refreshRuntime(this);
+        if (AppLanguage.refreshRuntime(this)) {
+            refreshOsSurfacesAsync(this, AppLanguage.readMode(this));
+        }
+    }
+
+    private static void refreshOsSurfacesAsync(Context context, AppLanguage.Mode mode) {
+        if (context == null) return;
+        PushConnection.WORK.execute(() -> {
+            try {
+                HermesWidgetProvider.refresh(context, mode);
+                HermesShortcuts.publish(context, mode);
+            } catch (RuntimeException ignored) {
+                Diagnostics.debug("locale", "os_surface_refresh_skipped", ignored);
+            }
+        });
     }
 
     @Override public void onTrimMemory(int level) {

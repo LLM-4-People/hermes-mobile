@@ -38,8 +38,14 @@ public final class HermesShortcuts {
     }
 
     public static void publish(Context context) {
+        publish(context, null);
+    }
+
+    /** Publishes opaque dynamic shortcuts using a context explicitly localized for {@code mode}. */
+    public static void publish(Context context, AppLanguage.Mode mode) {
         if (context == null) return;
-        Context localized = AppLanguage.wrapContext(context);
+        Context localized = AppLanguage.localizedContext(context, mode);
+        if (localized == null) return;
         ShortcutManager manager = context.getSystemService(ShortcutManager.class);
         if (manager == null) return;
         int limit = Math.max(0, Math.min(DESCRIPTORS.size(), manager.getMaxShortcutCountPerActivity()));
