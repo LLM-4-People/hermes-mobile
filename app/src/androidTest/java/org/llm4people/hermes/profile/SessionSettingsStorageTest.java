@@ -86,7 +86,7 @@ public final class SessionSettingsStorageTest extends InstrumentationTestCase {
                     assertTrue(edit.isChecked());
                     assertTrue(matching(activity.getString(R.string.panel_storage_error)).isEmpty());
                 });
-                assertFalse(SessionPanel.runOptions(context, account, "thread").has("excluded_tools"));
+                assertFalse(SessionPanel.runOptions(account, "thread").has("excluded_tools"));
             } finally {
                 try { runTestOnUiThread(() -> { panel.close(); }); }
                 finally { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
@@ -139,7 +139,7 @@ public final class SessionSettingsStorageTest extends InstrumentationTestCase {
                 runTestOnUiThread(() -> {
                     assertEquals("Alpha", String.valueOf(alpha.getContentDescription()));
                     tapChoice(alpha);
-                    assertEquals("Alpha", SessionPanel.runOptions(context, owner, "thread").optString("model"));
+                    assertEquals("Alpha", SessionPanel.runOptions(owner, "thread").optString("model"));
                 });
             } finally {
                 try { runTestOnUiThread(() -> { panel.close(); }); }
@@ -195,10 +195,10 @@ public final class SessionSettingsStorageTest extends InstrumentationTestCase {
                     tapChoice(filtered);
                     assertEquals(ListView.INVALID_POSITION, list.getCheckedItemPosition());
                     assertRadio(filtered, false);
-                    assertEquals("Alpha", SessionPanel.runOptions(context, owner, "thread").optString("model"));
+                    assertEquals("Alpha", SessionPanel.runOptions(owner, "thread").optString("model"));
                     if (landscape == null) tapChoice((CheckedTextView) list.getChildAt(0));
                     else PickerWindow.check(list, searchField(list), landscape, SessionSettingsStorageTest::tapChoice);
-                    assertEquals("Beta", SessionPanel.runOptions(context, owner, "thread").optString("model"));
+                    assertEquals("Beta", SessionPanel.runOptions(owner, "thread").optString("model"));
                 });
                 assertTrue(server.observed().contains("/api/model/options?include_unconfigured=false"));
             } finally {

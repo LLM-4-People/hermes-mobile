@@ -2,7 +2,6 @@ package org.llm4people.hermes.panel;
 
 import android.app.Activity;
 import android.app.Dialog;
-import android.content.Context;
 import android.graphics.Typeface;
 import android.os.Build;
 import android.view.KeyEvent;
@@ -115,12 +114,12 @@ public final class SessionPanel implements AutoCloseable {
         else if (dialog != null) dialog.dismiss();
     }
 
-    public static JSONObject runOptions(Context context, Account account, String sessionId) {
+    public static JSONObject runOptions(Account account, String sessionId) {
         if (sessionId == null || sessionId.isEmpty()) return new JSONObject();
         return PanelData.restoreSelection(account.read("panel/options/" + sessionId));
     }
 
-    public static void recordTiming(Context context, Account account, String sessionId, long firstTextMillis,
+    public static void recordTiming(Account account, String sessionId, long firstTextMillis,
                                    long elapsedMillis, long outputTokens) {
         if (sessionId == null || sessionId.isEmpty() || elapsedMillis <= 0) return;
         JSONObject timing = PanelData.put(new JSONObject(), "elapsed_ms", elapsedMillis);

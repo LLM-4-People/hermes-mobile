@@ -597,7 +597,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         photoPicker.unlocked(unlocked);
         cameraCapture.unlocked(unlocked);
         AppLanguage.refreshRuntime(this);
-        HermesNotificationListener.bindProfile(this, unlocked);
+        HermesNotificationListener.bindProfile(unlocked);
         presenceEpoch = presenceTracker.bindProfile(unlocked.id, presenceEpoch + 1);
         locationTracker.syncWithPolicy(this, PresencePolicy.load(unlocked));
         AppCustomization savedCustom = AppCustomizationStore.forAccount(unlocked).current();
@@ -826,13 +826,34 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         };
     }
 
+    /** Pure-Java fallback policy: open native COMPOSER whenever the decorated discussion hides its inline composer. */
+    static boolean shouldOpenComposerFallback(boolean composerVisible) {
+        return !composerVisible;
+    }
+
+    private void openDiscussionComposer(Account owner, boolean createNew, boolean startDictation) {
+        ThreadWorkspace origin = threads;
+        if (owner == null || account != owner || origin == null) return;
+        displayDiscussion();
+        Runnable openInput = () -> {
+            if (account != owner || threads != origin || isFinishing() || isDestroyed()) return;
+            if (shouldOpenComposerFallback(origin.composerVisible())) {
+                navigate(WorkspaceNavigation.COMPOSER);
+            }
+            if (startDictation) origin.startDictation();
+            else origin.focusComposer();
+        };
+        if (createNew || origin.sessionId() == null) {
+            origin.newThread(openInput);
+        } else {
+            openInput.run();
+        }
+    }
+
     private AppsLauncherPanel.Callbacks appsCallbacks(Account owner) {
         return new AppsLauncherPanel.Callbacks() {
             @Override public void startVoiceChat() {
-                if (account != owner || threads == null) return;
-                displayDiscussion();
-                if (threads.sessionId() != null) threads.startDictation();
-                else threads.newThread(threads::startDictation);
+                openDiscussionComposer(owner, false, true);
             }
 
             @Override public void openVoiceOptions() {
@@ -947,10 +968,12 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             pendingPinnedWidget = null;
             setIntent(new Intent(this, MainActivity.class));
             String draft = new HermesWidgetStore(this).draftForAction(wid, 0, account.id);
-            displayDiscussion();
-            if (draft != null && !draft.isEmpty()) stageDraft(draft);
-            else if (threads.sessionId() != null) threads.focusComposer();
-            else threads.newThread(threads::focusComposer);
+            if (draft != null && !draft.isEmpty()) {
+                displayDiscussion();
+                stageDraft(draft);
+            } else {
+                openDiscussionComposer(account, false, false);
+            }
             return;
         }
         OsEntryIntent.Request request = pendingOsEntry;
@@ -959,32 +982,19 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         setIntent(new Intent(this, MainActivity.class));
         HermesShortcuts.reportUsed(this, request.target());
         switch (request.target()) {
-            case ASK -> {
-                displayDiscussion();
-                if (threads.sessionId() != null) threads.focusComposer();
-                else threads.newThread(threads::focusComposer);
-            }
-            case NEW_DISCUSSION -> {
-                displayDiscussion();
-                threads.newThread(threads::focusComposer);
-            }
-            case DICTATE -> {
-                displayDiscussion();
-                if (threads.sessionId() != null) threads.startDictation();
-                else threads.newThread(threads::startDictation);
-            }
+            case ASK -> openDiscussionComposer(account, false, false);
+            case NEW_DISCUSSION -> openDiscussionComposer(account, true, false);
+            case DICTATE -> openDiscussionComposer(account, false, true);
             case ATELIER -> switchTab(WorkspaceNavigation.APPS);
             case ACTIVITY -> switchTab(WorkspaceNavigation.NOTES_TASKS);
             case WIDGET_ACTION -> {
                 String draft = new HermesWidgetStore(this)
                         .draftForAction(request.widgetId(), request.itemIndex(), account.id);
-                displayDiscussion();
                 if (draft != null && !draft.isEmpty()) {
+                    displayDiscussion();
                     stageDraft(draft);
-                } else if (threads.sessionId() != null) {
-                    threads.focusComposer();
                 } else {
-                    threads.newThread(threads::focusComposer);
+                    openDiscussionComposer(account, false, false);
                 }
             }
         }
@@ -1123,7 +1133,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         try {
             LiveUiPatch patch = LiveUiPatch.parse(payload, ThemePalette.isNight(this));
             StringBuilder details = new StringBuilder(patch.summary);
-            for (String line : patch.frenchHighlights()) {
+            for (String line : patch.highlights(this)) {
                 details.append("\n• ").append(line);
             }
             if (notice != null) notice.dismiss();
@@ -1490,7 +1500,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                 "reminders", getString(R.string.activity_reminders_title),
                 getString(R.string.activity_reminders_hint), "", UniversalSearchModel.Category.TOOLS));
         extra.add(new UniversalSearchEntries.ToolRef(
-                "deliveries", getString(R.string.activity_deliveries_title),
+                DeliveryRouter.ROUTE_DELIVERIES, getString(R.string.activity_deliveries_title),
                 getString(R.string.activity_deliveries_hint), "", UniversalSearchModel.Category.TOOLS));
         extra.add(new UniversalSearchEntries.ToolRef(
                 BrainStudioRoutes.ROUTE_NOTES, getString(R.string.brain_notes_title),
@@ -2099,7 +2109,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     }
 
     @Override public JSONObject options(String sessionId) {
-        JSONObject options = SessionPanel.runOptions(this, account, sessionId);
+        JSONObject options = SessionPanel.runOptions(account, sessionId);
         try {
             options.put("instructions", ArtifactDesk.proposalInstructions(account, sessionId));
         } catch (JSONException invalid) {
@@ -2109,7 +2119,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     }
 
     @Override public void timing(String sessionId, long firstTextMs, long elapsedMs, long outputTokens) {
-        if (account != null) SessionPanel.recordTiming(this, account, sessionId, firstTextMs, elapsedMs, outputTokens);
+        if (account != null) SessionPanel.recordTiming(account, sessionId, firstTextMs, elapsedMs, outputTokens);
     }
 
     private void back() {
@@ -2491,6 +2501,12 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         }
     }
 
+    /** Pure-Java SSoT guard: defer onStop() auto-lock only during an internal transition or active OS biometric prompt, never when device is locked. */
+    static boolean shouldDeferLockOnStop(
+            boolean internalTransition, boolean biometricPromptActive, boolean deviceLocked) {
+        return (internalTransition || biometricPromptActive) && !deviceLocked;
+    }
+
     @Override protected void onStop() {
         super.onStop();
         if (gate == null) return;
@@ -2500,7 +2516,9 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             return;
         }
         boolean deviceLocked = isDeviceLockedNow();
-        if (internalActivityTransition && !deviceLocked) {
+        boolean biometricPromptActive = gate.hasActiveBiometricPrompt();
+        if (shouldDeferLockOnStop(internalActivityTransition, biometricPromptActive, deviceLocked)) {
+            if (!internalActivityTransition) markInternalTransition();
             backgroundedAtElapsedMs = SystemClock.elapsedRealtime();
             long timeoutMs = internalTransitionTimeoutMs(
                     account != null ? LockGracePolicy.window(this, account.id) : null);

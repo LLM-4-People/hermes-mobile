@@ -1,11 +1,14 @@
 package org.llm4people.hermes;
 
 import android.app.Activity;
+import android.content.Context;
 import android.content.Intent;
 
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.llm4people.hermes.artifact.LiveUiPatch;
+import org.llm4people.hermes.os.BiometricVault;
 import org.llm4people.hermes.os.LockGracePolicy;
 import org.llm4people.hermes.panel.SessionPanel;
 import org.llm4people.hermes.profile.Account;
@@ -13,12 +16,15 @@ import org.llm4people.hermes.profile.ProfileGate;
 import org.llm4people.hermes.push.DeliveryRouter;
 import org.llm4people.hermes.push.MobilePush;
 
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Locale;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BooleanSupplier;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -188,6 +194,68 @@ public final class MainActivityR4RegressionTest {
             if (line.contains("palette_kw_ambient")) {
                 assertFalse("palette_kw_ambient must not include stale contacts", line.contains("contacts"));
             }
+        }
+    }
+
+    @Test
+    public void onStopDeferralCoversAllEightCombinationsAndBiometricSessionStates() throws Exception {
+        // R14.6.1: All 8 boolean combinations of (internalTransition, biometricPromptActive, deviceLocked).
+        assertFalse(MainActivity.shouldDeferLockOnStop(false, false, false));
+        assertFalse(MainActivity.shouldDeferLockOnStop(false, false, true));
+        assertTrue(MainActivity.shouldDeferLockOnStop(false, true, false));
+        assertFalse(MainActivity.shouldDeferLockOnStop(false, true, true));
+        assertTrue(MainActivity.shouldDeferLockOnStop(true, false, false));
+        assertFalse(MainActivity.shouldDeferLockOnStop(true, false, true));
+        assertTrue(MainActivity.shouldDeferLockOnStop(true, true, false));
+        assertFalse(MainActivity.shouldDeferLockOnStop(true, true, true));
+
+        // ProfileGate exposes public hasActiveBiometricPrompt() and evaluates session states fail-closed.
+        Method hasActive = ProfileGate.class.getMethod("hasActiveBiometricPrompt");
+        assertEquals(boolean.class, hasActive.getReturnType());
+
+        assertFalse(ProfileGate.isBiometricSessionActive(null));
+
+        Constructor<BiometricVault.Session> ctor = BiometricVault.Session.class.getDeclaredConstructor(
+                Runnable.class, BooleanSupplier.class, Runnable.class);
+        ctor.setAccessible(true);
+
+        AtomicBoolean osCanceled = new AtomicBoolean(false);
+        BiometricVault.Session session = ctor.newInstance(
+                (Runnable) () -> osCanceled.set(true),
+                (BooleanSupplier) osCanceled::get,
+                (Runnable) () -> {});
+        assertTrue(ProfileGate.isBiometricSessionActive(session));
+
+        osCanceled.set(true);
+        assertFalse(ProfileGate.isBiometricSessionActive(session));
+
+        AtomicBoolean promptCanceled = new AtomicBoolean(false);
+        BiometricVault.Session cancelable = ctor.newInstance(
+                (Runnable) () -> promptCanceled.set(true),
+                (BooleanSupplier) promptCanceled::get,
+                (Runnable) () -> {});
+        assertTrue(ProfileGate.isBiometricSessionActive(cancelable));
+        cancelable.cancel();
+        assertFalse(ProfileGate.isBiometricSessionActive(cancelable));
+    }
+
+    @Test
+    public void composerFallbackAndLiveUiHighlightsContractsHold() throws Exception {
+        // R14.6.2: Hidden inline composer falls back to native COMPOSER; visible composer stays inline.
+        assertTrue(MainActivity.shouldOpenComposerFallback(false));
+        assertFalse(MainActivity.shouldOpenComposerFallback(true));
+        Method openComposer = MainActivity.class.getDeclaredMethod(
+                "openDiscussionComposer", Account.class, boolean.class, boolean.class);
+        assertEquals(void.class, openComposer.getReturnType());
+
+        // R14.4.1: LiveUiPatch exposes localized highlights(Context) and drops legacy frenchHighlights/targetLabel.
+        Method highlights = LiveUiPatch.class.getMethod("highlights", Context.class);
+        assertEquals(java.util.List.class, highlights.getReturnType());
+        for (Method m : LiveUiPatch.class.getDeclaredMethods()) {
+            assertFalse("Legacy frenchHighlights must stay removed", "frenchHighlights".equals(m.getName()));
+        }
+        for (Method m : LiveUiPatch.Op.class.getDeclaredMethods()) {
+            assertFalse("Legacy Op.targetLabel must stay removed", "targetLabel".equals(m.getName()));
         }
     }
 }

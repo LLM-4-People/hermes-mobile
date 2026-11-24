@@ -14,10 +14,6 @@ public final class SettingsWrapLayout extends ViewGroup {
     private final int hGapPx;
     private final int vGapPx;
 
-    public SettingsWrapLayout(Context context) {
-        this(context, 8, 8);
-    }
-
     public SettingsWrapLayout(Context context, int hGapDp, int vGapDp) {
         super(context);
         this.hGapPx = Ui.dp(context, hGapDp);

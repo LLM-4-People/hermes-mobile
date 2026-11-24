@@ -293,11 +293,9 @@ public final class LiveUiPatch {
     public sealed interface Op {
         String kind();
         String describe(android.content.Context context);
-        String targetLabel();
 
         record UpsertSurface(String surface, String layoutJson, String title) implements Op {
             @Override public String kind() { return "upsert_surface"; }
-            @Override public String targetLabel() { return title; }
             @Override public String describe(android.content.Context c) {
                 return c.getString(org.llm4people.hermes.R.string.ws_liveui_op_upsert_surface, title);
             }
@@ -305,7 +303,6 @@ public final class LiveUiPatch {
 
         record RemoveSurface(String surface) implements Op {
             @Override public String kind() { return "remove_surface"; }
-            @Override public String targetLabel() { return surface; }
             @Override public String describe(android.content.Context c) {
                 String name = WorkspaceLayout.screenName(c, surface);
                 return c.getString(org.llm4people.hermes.R.string.ws_liveui_op_remove_surface,
@@ -315,7 +312,6 @@ public final class LiveUiPatch {
 
         record UpsertTab(CustomTab tab) implements Op {
             @Override public String kind() { return "upsert_tab"; }
-            @Override public String targetLabel() { return tab.label; }
             @Override public String describe(android.content.Context c) {
                 return c.getString(org.llm4people.hermes.R.string.ws_liveui_op_upsert_tab, tab.label);
             }
@@ -323,7 +319,6 @@ public final class LiveUiPatch {
 
         record RemoveTab(String id) implements Op {
             @Override public String kind() { return "remove_tab"; }
-            @Override public String targetLabel() { return id; }
             @Override public String describe(android.content.Context c) {
                 return c.getString(org.llm4people.hermes.R.string.ws_liveui_op_remove_tab, id);
             }
@@ -331,7 +326,6 @@ public final class LiveUiPatch {
 
         record UpsertQuickAction(QuickAction action) implements Op {
             @Override public String kind() { return "upsert_quick_action"; }
-            @Override public String targetLabel() { return action.label; }
             @Override public String describe(android.content.Context c) {
                 return c.getString(org.llm4people.hermes.R.string.ws_liveui_op_upsert_qa, action.label);
             }
@@ -339,7 +333,6 @@ public final class LiveUiPatch {
 
         record RemoveQuickAction(String id) implements Op {
             @Override public String kind() { return "remove_quick_action"; }
-            @Override public String targetLabel() { return id; }
             @Override public String describe(android.content.Context c) {
                 return c.getString(org.llm4people.hermes.R.string.ws_liveui_op_remove_qa, id);
             }
@@ -347,7 +340,6 @@ public final class LiveUiPatch {
 
         record SetThemeOverride(ThemePalette.OverrideSpec spec) implements Op {
             @Override public String kind() { return "set_theme_override"; }
-            @Override public String targetLabel() { return spec.theme; }
             @Override public String describe(android.content.Context c) {
                 return c.getString(org.llm4people.hermes.R.string.ws_liveui_op_theme, spec.describe(c));
             }
@@ -355,7 +347,6 @@ public final class LiveUiPatch {
 
         record ResetTheme() implements Op {
             @Override public String kind() { return "clear_theme_override"; }
-            @Override public String targetLabel() { return "default"; }
             @Override public String describe(android.content.Context c) {
                 return c.getString(org.llm4people.hermes.R.string.ws_liveui_op_reset_theme);
             }
@@ -363,7 +354,6 @@ public final class LiveUiPatch {
 
         record UpsertWidget(WidgetSpec widget) implements Op {
             @Override public String kind() { return "upsert_widget"; }
-            @Override public String targetLabel() { return widget.title; }
             @Override public String describe(android.content.Context c) {
                 return c.getString(org.llm4people.hermes.R.string.ws_liveui_op_upsert_widget, widget.title);
             }
@@ -371,7 +361,6 @@ public final class LiveUiPatch {
 
         record RemoveWidget(String widgetId) implements Op {
             @Override public String kind() { return "remove_widget"; }
-            @Override public String targetLabel() { return widgetId; }
             @Override public String describe(android.content.Context c) {
                 return c.getString(org.llm4people.hermes.R.string.ws_liveui_op_remove_widget, widgetId);
             }
@@ -389,12 +378,7 @@ public final class LiveUiPatch {
 
     public LiveUiPatch(String revisionId, String parentRevisionId, String scope, String summary,
                        List<Op> ops, boolean requiresApply) throws IOException {
-        this(revisionId, parentRevisionId, scope, summary, ops, Collections.emptyList(), requiresApply);
-    }
-
-    public LiveUiPatch(String revisionId, String parentRevisionId, String scope, String summary,
-                       List<Op> ops, List<SuggestedAction> suggestedActions, boolean requiresApply) throws IOException {
-        this(revisionId, parentRevisionId, scope, summary, ops, suggestedActions,
+        this(revisionId, parentRevisionId, scope, summary, ops, Collections.emptyList(),
                 Collections.emptyList(), requiresApply, MAX_OPS);
     }
 
@@ -463,14 +447,6 @@ public final class LiveUiPatch {
     public List<String> highlights(android.content.Context context) {
         List<String> lines = new ArrayList<>(ops.size() + interactiveCards.size());
         for (Op op : ops) lines.add(op.describe(context));
-        for (InteractiveCardView.Spec card : interactiveCards) lines.add(card.title);
-        return Collections.unmodifiableList(lines);
-    }
-
-    /** Legacy zero-context highlight labels for external callers; prefer {@link #highlights(android.content.Context)}. */
-    public List<String> frenchHighlights() {
-        List<String> lines = new ArrayList<>(ops.size() + interactiveCards.size());
-        for (Op op : ops) lines.add(op.targetLabel());
         for (InteractiveCardView.Spec card : interactiveCards) lines.add(card.title);
         return Collections.unmodifiableList(lines);
     }

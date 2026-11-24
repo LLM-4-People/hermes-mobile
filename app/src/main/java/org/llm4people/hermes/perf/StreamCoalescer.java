@@ -7,7 +7,7 @@ import java.util.function.Consumer;
  * Deterministic, frame-budgeted streaming text coalescer.
  * Flushes the first non-empty update immediately to preserve TTFT, coalesces rapid intermediate
  * token bursts within {@code frameBudgetMs} without dropping any character, and guarantees exact
- * final delivery on {@link #flush()}. Pure Java (host-JVM testable, zero sleeps or polling).
+ * final delivery on {@link #flush(long)}. Pure Java (host-JVM testable, zero sleeps or polling).
  */
 public final class StreamCoalescer {
     public static final long DEFAULT_FRAME_BUDGET_MS = 64L;
@@ -87,11 +87,6 @@ public final class StreamCoalescer {
         if (text.equals(lastFlushed)) return false;
         emit(text, nowMs);
         return true;
-    }
-
-    /** Flush any pending update using the last recorded timestamp (for terminal completion hooks). */
-    public boolean flush() {
-        return flush(lastFlushMs == Long.MIN_VALUE ? 0L : lastFlushMs + frameBudgetMs);
     }
 
     /** Clear buffered state between runs. */

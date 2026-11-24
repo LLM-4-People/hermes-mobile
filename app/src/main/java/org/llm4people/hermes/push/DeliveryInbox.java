@@ -64,12 +64,6 @@ public final class DeliveryInbox {
         return count;
     }
 
-    public DeliveryItem find(Account account, String deliveryId) {
-        Objects.requireNonNull(account, "account");
-        if (!DeliveryItem.isValidId(deliveryId)) return null;
-        return readSnapshot(account).items.get(deliveryId);
-    }
-
     public List<DeliveryItem> sync(Account account, HermesApi api) throws IOException {
         return sync(account, api, DELIVERIES_PATH);
     }
@@ -176,12 +170,6 @@ public final class DeliveryInbox {
         LinkedHashMap<String, DeliveryItem> merged = new LinkedHashMap<>(state.items);
         merged.put(item.id, item);
         writeSnapshot(account, new Snapshot(state.cursor, trim(merged)));
-    }
-
-    public void clear(Account account) {
-        Objects.requireNonNull(account, "account");
-        account.remove(ACCOUNT_RECORD_KEY);
-        Diagnostics.debug("push", "inbox_cleared");
     }
 
     private Snapshot readSnapshot(Account account) {

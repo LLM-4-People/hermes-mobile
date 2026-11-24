@@ -36,10 +36,6 @@ final class DiscussionPhoto {
         pixels = Base64.getEncoder().encodeToString(bytes);
     }
 
-    static DiscussionPhoto read(ContentResolver resolver, Uri uri) throws IOException {
-        return read(resolver, uri, SOURCE_LIMIT);
-    }
-
     static long effectiveSourceLimit(long maxSourceBytes) {
         return maxSourceBytes > 0 ? maxSourceBytes : SOURCE_LIMIT;
     }

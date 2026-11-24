@@ -67,10 +67,6 @@ public final class SearchResultModel {
             query = safe(query);
         }
 
-        public Page(List<Hit> hits, int total, String query) {
-            this(hits, total, query, total > (hits == null ? 0 : hits.size()), false);
-        }
-
         public boolean hasMore(int loadedCount) {
             if (hits.isEmpty()) return false;
             if (hasExplicitMore) return hasMoreFlag || total > loadedCount;
