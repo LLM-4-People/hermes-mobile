@@ -91,6 +91,7 @@ public final class UpdateApkProvider extends ContentProvider {
             if (!dir.equals(candidate.getParentFile()) || !candidate.isFile()) return null;
             return candidate;
         } catch (IOException unreadable) {
+            Diagnostics.warning("update", "resolve_apk_failed", unreadable);
             return null;
         }
     }

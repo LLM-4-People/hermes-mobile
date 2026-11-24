@@ -36,7 +36,6 @@ import java.util.regex.Pattern;
  * download immediately before returning.
  */
 public final class ApkUpdateInstaller {
-    private static final int MAX_REDIRECTS = 5;
     private static final int BUFFER_BYTES = 16 * 1024;
     private static final Pattern SHA256_HEX = Pattern.compile("[0-9a-f]{64}");
 
@@ -117,6 +116,22 @@ public final class ApkUpdateInstaller {
             long maxApkBytes,
             ProgressListener progress,
             AtomicBoolean cancelled) throws IOException {
+        return downloadAndVerifyChecksum(
+                source, downloadUrl, expectedSha256, targetDir, finalFileName,
+                expectedSizeBytes, maxApkBytes, HermesConfig.DEFAULT_HTTP_MAX_REDIRECTS, progress, cancelled);
+    }
+
+    public static File downloadAndVerifyChecksum(
+            StreamSource source,
+            String downloadUrl,
+            String expectedSha256,
+            File targetDir,
+            String finalFileName,
+            long expectedSizeBytes,
+            long maxApkBytes,
+            int maxRedirects,
+            ProgressListener progress,
+            AtomicBoolean cancelled) throws IOException {
         Objects.requireNonNull(source, "source");
         Objects.requireNonNull(targetDir, "targetDir");
         if (!UpdateApkProvider.isValidFileName(finalFileName)) {
@@ -126,6 +141,7 @@ public final class ApkUpdateInstaller {
             throw new VerificationException(VerificationException.Reason.CHECKSUM_MISMATCH, "Missing valid SHA-256");
         }
         if (maxApkBytes <= 0) throw new IllegalArgumentException("maxApkBytes must be positive");
+        if (maxRedirects < 0) throw new IllegalArgumentException("maxRedirects must be non-negative");
         if (!targetDir.isDirectory() && !targetDir.mkdirs()) {
             throw new IOException("Could not create private updates directory");
         }
@@ -137,7 +153,7 @@ public final class ApkUpdateInstaller {
         boolean succeeded = false;
         try {
             String actualHex = streamToFile(source, downloadUrl, tempFile, expectedSizeBytes,
-                    maxApkBytes, progress, cancelled);
+                    maxApkBytes, maxRedirects, progress, cancelled);
             if (!constantTimeHexEquals(expectedSha256, actualHex)) {
                 logWarning("checksum_mismatch");
                 throw new VerificationException(VerificationException.Reason.CHECKSUM_MISMATCH,
@@ -186,6 +202,7 @@ public final class ApkUpdateInstaller {
                 fileName,
                 release.apkSizeBytes(),
                 config.updateMaxApkBytes,
+                config.httpMaxRedirects,
                 progress,
                 cancelled);
         try {
@@ -261,10 +278,11 @@ public final class ApkUpdateInstaller {
             File target,
             long expectedSizeBytes,
             long maxApkBytes,
+            int maxRedirects,
             ProgressListener progress,
             AtomicBoolean cancelled) throws IOException {
         String current = initialUrl;
-        for (int hop = 0; hop <= MAX_REDIRECTS; hop++) {
+        for (int hop = 0; hop <= maxRedirects; hop++) {
             if (cancelled != null && cancelled.get()) {
                 throw new VerificationException(VerificationException.Reason.CANCELLED, "Cancelled");
             }

@@ -54,6 +54,15 @@ public final class NearbyResultTest extends InstrumentationTestCase {
         catch (UnsupportedOperationException expected) {}
     }
 
+    public void testCustomOpenStreetMapBaseUrlFlowsIntoPlaceSourceUrl() throws Exception {
+        JSONArray rows = new JSONArray().put(venue("way", 99, "Boulangerie", 80));
+        NearbyResult custom = NearbyResult.parse(response(rows), null, "https://maps.example.org/");
+        assertEquals("https://maps.example.org/way/99", custom.places.get(0).sourceUrl);
+
+        NearbyResult fallback = NearbyResult.parse(response(rows), null, "   ");
+        assertEquals("https://www.openstreetmap.org/way/99", fallback.places.get(0).sourceUrl);
+    }
+
     public void testCuisineFilterKeepsAnUnknownSourceTagContainingAMiddleDot() throws Exception {
         Context context = targetContext();
         String italian = context.getString(R.string.places_cuisine_italian);

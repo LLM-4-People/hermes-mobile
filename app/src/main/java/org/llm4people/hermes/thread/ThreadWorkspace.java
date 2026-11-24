@@ -370,17 +370,36 @@ public final class ThreadWorkspace implements AutoCloseable {
 
     void handleDeviceRequests(String runId, List<DeviceBridgeFlow.BridgeRequest> requests) {
         if (closed || screen == null || requests == null || requests.isEmpty()) return;
+        int epoch = profileEpoch;
         DeviceBridgeFlow.Executor executor = DeviceBridgeFlow.deepAwareExecutor(
                 activity, account, new ClipboardPastePill(activity), host == null ? null : host.deepAndroidActions());
         for (DeviceBridgeFlow.BridgeRequest req : requests) {
             deviceBridge.promptUser(activity, instrumentHost, screen.root, req, executor, (status, data) ->
-                    workers.execute(() -> {
-                        try {
-                            DeviceBridgeFlow.submitResult(api, runId, req.requestId(), status, data);
-                        } catch (IOException failed) {
-                            Diagnostics.warning("device_bridge", "result_submit_failed", failed);
-                        }
-                    }));
+                    dispatchDeviceResult(workers,
+                            () -> !closed && epoch == profileEpoch && !api.isRevoked(),
+                            () -> {
+                                try {
+                                    DeviceBridgeFlow.submitResult(api, runId, req.requestId(), status, data);
+                                } catch (IOException failed) {
+                                    Diagnostics.warning("device_bridge", "result_submit_failed", failed);
+                                }
+                            }));
+        }
+    }
+
+    static boolean dispatchDeviceResult(ExecutorService workers, BooleanSupplier active, Runnable submit) {
+        if (workers == null || active == null || submit == null || workers.isShutdown() || !active.getAsBoolean()) {
+            return false;
+        }
+        try {
+            workers.execute(() -> {
+                if (!active.getAsBoolean()) return;
+                submit.run();
+            });
+            return true;
+        } catch (java.util.concurrent.RejectedExecutionException ignored) {
+            Diagnostics.debug("device_bridge", "result_submit_rejected");
+            return false;
         }
     }
 

@@ -217,6 +217,59 @@ public final class BrainStudioPanelsTest extends InstrumentationTestCase {
         }
     }
 
+    public void testNotesPanelDeepLinkOneShotUnknownBlankAndLoadErrorPreservation() throws Throwable {
+        if (Build.VERSION.SDK_INT < 29) return;
+        Context app = getInstrumentation().getTargetContext();
+        Activity activity = getInstrumentation().startActivitySync(
+                app.getPackageManager().getLaunchIntentForPackage(app.getPackageName()));
+        String caps = "{\"features\":{\"smart_notes\":true}}";
+        String notesJson = """
+                {"notes":[
+                  {"id":"n-1","title":"Plan produit","content":"Contenu détaillé de la note cible","tags":["produit"],"pinned":false,"permission":"owner"},
+                  {"id":"n-2","title":"Courses","content":"Pain et lait","tags":[],"pinned":false,"permission":"owner"}]}
+                """;
+        // 1) Matching initialNoteId opens reader once; 2) unknown/blank IDs render list cleanly;
+        // 3) server 500 error keeps error + Retry visible even when typing in the filter field.
+        try (MultiStatusServer gateway = new MultiStatusServer(
+                new String[]{"200 OK", "200 OK", "200 OK", "200 OK", "200 OK", "200 OK", "200 OK", "500 Internal Server Error"},
+                new String[]{caps, notesJson, caps, notesJson, caps, notesJson, caps, "{\"error\":\"boom\"}"});
+             WorkspaceAccountFixture profile = new WorkspaceAccountFixture(app, gateway.endpoint())) {
+            SessionPanel panel = new SessionPanel(activity, new HermesApi(gateway.endpoint(), "test"), profile.account);
+            try {
+                // Positive: initialNoteId opens target note reader directly.
+                runTestOnUiThread(() -> panel.showNotes(() -> true, draft -> {}, null, "n-1"));
+                assertTextVisible("Contenu détaillé de la note cible");
+
+                // Negative: unknown initialNoteId shows notes list without opening reader or crashing.
+                runTestOnUiThread(() -> panel.showNotes(() -> true, draft -> {}, null, "missing-id"));
+                assertTextVisible("Plan produit");
+                assertTextVisible("Courses");
+
+                // Negative: blank initialNoteId renders list cleanly.
+                runTestOnUiThread(() -> panel.showNotes(() -> true, draft -> {}, null, "   "));
+                assertTextVisible("Plan produit");
+
+                // Negative: HTTP 500 failure + Retry stays visible when user types in filter field.
+                runTestOnUiThread(() -> panel.showNotes(() -> true, draft -> {}, null, "n-1"));
+                assertTextVisible(activity.getString(R.string.panel_retry));
+                runTestOnUiThread(() -> {
+                    for (View root : WindowInspector.getGlobalWindowViews()) {
+                        View filter = root.findViewById(R.id.brain_notes_filter);
+                        if (filter instanceof android.widget.EditText et) {
+                            et.setText("plan");
+                            break;
+                        }
+                    }
+                });
+                assertTextVisible(activity.getString(R.string.panel_retry));
+            } finally {
+                runTestOnUiThread(panel::close);
+            }
+        } finally {
+            runTestOnUiThread(activity::finish);
+        }
+    }
+
     private void assertTextVisible(String expected) throws Throwable {
         long deadline = SystemClock.elapsedRealtime() + 8000;
         while (SystemClock.elapsedRealtime() < deadline) {

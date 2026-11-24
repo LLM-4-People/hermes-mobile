@@ -212,18 +212,25 @@ public final class InfiniteScrollController implements AbsListView.OnScrollListe
         applyPillUiNow();
     }
 
+    static int jumpPillContentDescRes(int unreadCount) {
+        if (unreadCount == 1) return R.string.infinite_jump_latest_one_cd;
+        if (unreadCount > 1) return R.string.infinite_jump_latest_unread_cd;
+        return R.string.infinite_jump_latest_cd;
+    }
+
     private void applyPillUiNow() {
         if (jumpPill == null) return;
         Context ctx = jumpPill.getContext();
+        int cdRes = jumpPillContentDescRes(unreadCount);
         if (unreadCount == 1) {
             jumpPill.setText(R.string.infinite_jump_latest_one);
-            jumpPill.setContentDescription(ctx.getString(R.string.infinite_jump_latest_unread_cd, 1));
+            jumpPill.setContentDescription(ctx.getString(cdRes));
         } else if (unreadCount > 1) {
             jumpPill.setText(ctx.getString(R.string.infinite_jump_latest_unread, unreadCount));
-            jumpPill.setContentDescription(ctx.getString(R.string.infinite_jump_latest_unread_cd, unreadCount));
+            jumpPill.setContentDescription(ctx.getString(cdRes, unreadCount));
         } else {
             jumpPill.setText(R.string.infinite_jump_latest);
-            jumpPill.setContentDescription(ctx.getString(R.string.infinite_jump_latest_cd));
+            jumpPill.setContentDescription(ctx.getString(cdRes));
         }
         int targetVisibility = desiredPillVisible ? View.VISIBLE : View.GONE;
         if (jumpPill.getVisibility() != targetVisibility) {

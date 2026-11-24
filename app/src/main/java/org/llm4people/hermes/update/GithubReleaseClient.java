@@ -27,7 +27,6 @@ public final class GithubReleaseClient {
     public static final String PREFERRED_CHECKSUMS_NAME = "SHA256SUMS";
     public static final int MAX_CHECKSUM_BYTES = 65_536;
     private static final int MAX_RELEASE_JSON_BYTES = 512 * 1024;
-    private static final int MAX_REDIRECTS = 5;
     private static final Pattern REPO_PATTERN = Pattern.compile("[A-Za-z0-9._-]{1,64}/[A-Za-z0-9._-]{1,100}");
     private static final Pattern SHA256_HEX = Pattern.compile("[0-9a-f]{64}");
     private static final Set<String> ALLOWED_HOSTS = Set.of(
@@ -129,10 +128,10 @@ public final class GithubReleaseClient {
         return parsed;
     }
 
-    /** Follow up to MAX_REDIRECTS strictly verifying every redirect target against {@link #isAllowedDownloadUrl}. */
+    /** Follow up to {@link HermesConfig#httpMaxRedirects} strictly verifying every redirect target against {@link #isAllowedDownloadUrl}. */
     byte[] fetchAllowedBytes(String initialUrl, String accept, int maxBytes) throws IOException {
         String current = initialUrl;
-        for (int hop = 0; hop <= MAX_REDIRECTS; hop++) {
+        for (int hop = 0; hop <= config.httpMaxRedirects; hop++) {
             if (!isAllowedDownloadUrl(current)) {
                 logWarning("disallowed_host");
                 throw new IOException("Disallowed update host");

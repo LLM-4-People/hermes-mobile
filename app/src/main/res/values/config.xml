@@ -24,4 +24,6 @@
     <integer name="hermes_probe_timeout_ms">8000</integer>
     <integer name="hermes_voice_service_timeout_ms">15000</integer>
     <integer name="hermes_tts_init_timeout_ms">12000</integer>
+    <integer name="hermes_voice_model_release_timeout_ms">120000</integer>
+    <integer name="hermes_http_max_redirects">5</integer>
 </resources>

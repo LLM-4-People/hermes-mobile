@@ -12,6 +12,8 @@ import android.speech.RecognitionSupportCallback;
 import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
 
+import org.llm4people.hermes.HermesConfig;
+
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -20,14 +22,17 @@ final class AndroidVoiceModel implements VoiceModel {
     private final Handler main = new Handler(Looper.getMainLooper());
     private final SpeechRecognizer service;
     private final Intent request;
+    private final int releaseTimeoutMs;
     private final Runnable release = this::destroy;
     private Consumer<State> observer;
     private boolean downloading;
     private boolean destroyed;
 
     AndroidVoiceModel(Context context, Intent request) {
-        service = SpeechRecognizer.createOnDeviceSpeechRecognizer(context.getApplicationContext());
+        Context app = context.getApplicationContext();
+        service = SpeechRecognizer.createOnDeviceSpeechRecognizer(app);
         this.request = request;
+        this.releaseTimeoutMs = HermesConfig.load(app).voiceModelReleaseTimeoutMs;
     }
 
     @Override public void check(Consumer<State> listener) {
@@ -88,7 +93,7 @@ final class AndroidVoiceModel implements VoiceModel {
         observer = null;
         // Android can show its own consent activity. Leave an accepted request with the service
         // while releasing every reference to the profile and editor immediately.
-        if (downloading && !destroyed) main.postDelayed(release, 120000);
+        if (downloading && !destroyed) main.postDelayed(release, releaseTimeoutMs);
         else destroy();
     }
 

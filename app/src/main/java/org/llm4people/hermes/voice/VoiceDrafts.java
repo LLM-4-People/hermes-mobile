@@ -48,6 +48,7 @@ public final class VoiceDrafts {
     private ModelRecovery recovery;
     private DuplexBridge activeDuplex;
     private AlertDialog optionsDialog;
+    private Controls deniedControls;
     private boolean paused;
 
     public VoiceDrafts(Activity activity) { this(activity, new AndroidVoiceInput(activity)); }
@@ -199,6 +200,7 @@ public final class VoiceDrafts {
         }
 
         private void reset() {
+            if (deniedControls == this) deniedControls = null;
             icon(false, R.string.voice_dictate);
             showMeter(false);
             report(0, 0, null);
@@ -314,6 +316,11 @@ public final class VoiceDrafts {
 
     public void resume() {
         paused = false;
+        if (deniedControls != null && input.permitted()) {
+            Controls stale = deniedControls;
+            deniedControls = null;
+            stale.reset();
+        }
         if (activity.hasWindowFocus()) startApprovedRecording();
     }
 
@@ -339,6 +346,7 @@ public final class VoiceDrafts {
     }
 
     private void reportPermissionDenied(Controls target, VoiceInput.Source source) {
+        deniedControls = target;
         PermissionCenter.State state = PermissionCenter.state(activity, PermissionCenter.Key.MICROPHONE);
         if (state == PermissionCenter.State.PERMANENTLY_DENIED) {
             target.report(R.string.voice_permission_denied, R.string.perm_action_open_settings,
@@ -352,6 +360,11 @@ public final class VoiceDrafts {
     public void cancel() {
         if (activeDuplex != null) activeDuplex.stop();
         if (optionsDialog != null) { optionsDialog.dismiss(); optionsDialog = null; }
+        if (deniedControls != null) {
+            Controls stale = deniedControls;
+            deniedControls = null;
+            stale.reset();
+        }
         cancelAttemptAndRecovery();
     }
 

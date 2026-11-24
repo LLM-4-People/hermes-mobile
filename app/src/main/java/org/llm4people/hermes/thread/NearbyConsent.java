@@ -199,6 +199,10 @@ final class NearbyConsent {
         items.addView(Ui.text(page.activity, disclosure, 15));
         CheckBox remember = new CheckBox(page.activity);
         remember.setText(R.string.nearby_always_profile);
+        remember.setTextColor(page.activity.getColor(R.color.ink));
+        int touchMin = Ui.dp(page.activity, 48);
+        remember.setMinHeight(touchMin);
+        remember.setMinimumHeight(touchMin);
         remember.setChecked(remembered);
         if (editable) {
             items.addView(remember);

@@ -52,7 +52,7 @@ public final class NearbyResult {
         public final int distanceMeters;
 
         private Place(String id, String name, List<String> cuisines, List<String> tags, String address,
-                      String openingHours, double lat, double lon, int distance) {
+                      String openingHours, double lat, double lon, int distance, String osmBaseUrl) {
             this.id = id;
             this.name = name;
             this.cuisines = cuisines;
@@ -63,7 +63,11 @@ public final class NearbyResult {
             this.latitude = lat;
             this.longitude = lon;
             this.distanceMeters = distance;
-            this.sourceUrl = HermesConfig.DEFAULT_OSM_BASE_URL + "/" + id;
+            String base = osmBaseUrl == null || osmBaseUrl.trim().isEmpty()
+                    ? HermesConfig.DEFAULT_OSM_BASE_URL
+                    : osmBaseUrl.trim();
+            if (base.endsWith("/")) base = base.substring(0, base.length() - 1);
+            this.sourceUrl = base + "/" + id;
         }
 
         /** Coordinates of the public venue, as plain decimal degrees suitable for Android's geo query. */
@@ -73,15 +77,20 @@ public final class NearbyResult {
     }
 
     public static NearbyResult parse(JSONObject response) throws JSONException {
-        return parse(response, (IntFunction<String>) null);
+        return parse(response, (IntFunction<String>) null, HermesConfig.DEFAULT_OSM_BASE_URL);
     }
 
     public static NearbyResult parse(Context context, JSONObject response) throws JSONException {
         Context localized = context == null ? null : AppLanguage.wrapContext(context);
-        return parse(response, localized == null ? null : localized::getString);
+        String osmBaseUrl = HermesConfig.load(context).openStreetMapBaseUrl;
+        return parse(response, localized == null ? null : localized::getString, osmBaseUrl);
     }
 
     public static NearbyResult parse(JSONObject response, IntFunction<String> strings) throws JSONException {
+        return parse(response, strings, HermesConfig.DEFAULT_OSM_BASE_URL);
+    }
+
+    public static NearbyResult parse(JSONObject response, IntFunction<String> strings, String osmBaseUrl) throws JSONException {
         if (response == null || !"OpenStreetMap".equals(response.opt("source"))
                 || !CREDIT.equals(response.opt("attribution"))
                 || !(response.opt("source_date") instanceof String date) || !UTC.matcher(date).matches()
@@ -128,7 +137,7 @@ public final class NearbyResult {
 
         List<Place> places = new ArrayList<>();
         for (int i = 0; i < rows.length(); i++) {
-            Place place = readPlace(rows.optJSONObject(i), radius, strings);
+            Place place = readPlace(rows.optJSONObject(i), radius, strings, osmBaseUrl);
             if (place != null) places.add(place);
         }
         if (rows.length() > 0 && places.isEmpty()) {
@@ -141,7 +150,7 @@ public final class NearbyResult {
         return new NearbyResult(date, category, radius, limit, places);
     }
 
-    private static Place readPlace(JSONObject row, int radiusMeters, IntFunction<String> strings) {
+    private static Place readPlace(JSONObject row, int radiusMeters, IntFunction<String> strings, String osmBaseUrl) {
         if (row == null || !(row.opt("osm_type") instanceof String type)
                 || !("node".equals(type) || "way".equals(type) || "relation".equals(type))) return null;
         long id = integer(row.opt("osm_id"));
@@ -154,7 +163,7 @@ public final class NearbyResult {
                 || Math.abs(longitude) > 180) return null;
         return new Place(type + "/" + id, name, cuisines(label(row.opt("cuisine"), 256), strings),
                 readTags(row.opt("tags"), strings), label(row.opt("address"), 320),
-                label(row.opt("opening_hours"), 160), latitude, longitude, (int) distance);
+                label(row.opt("opening_hours"), 160), latitude, longitude, (int) distance, osmBaseUrl);
     }
 
     private static List<String> readTags(Object raw, IntFunction<String> strings) {

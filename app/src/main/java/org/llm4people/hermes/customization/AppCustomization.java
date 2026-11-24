@@ -217,10 +217,7 @@ public final class AppCustomization {
 
     /** Picks white or deep ink foreground for maximum legibility (&gt;= 4.5:1) over the given ARGB accent. */
     public static int onAccentArgb(int accentArgb) {
-        int rgb = accentArgb & 0xFFFFFF;
-        double whiteRatio = contrastRatio(WHITE_RGB, rgb);
-        double inkRatio = contrastRatio(LIGHT_INK_RGB, rgb);
-        return (whiteRatio >= inkRatio ? WHITE_RGB : LIGHT_INK_RGB) | 0xFF000000;
+        return ThemePalette.bestOnAccent(0xFF000000 | (accentArgb & 0xFFFFFF));
     }
 
     /**
@@ -294,19 +291,12 @@ public final class AppCustomization {
 
     /** WCAG 2.1 relative luminance for 24-bit sRGB color. */
     public static double relativeLuminance(int rgb) {
-        double r = linearizeChannel(((rgb >> 16) & 0xFF) / 255.0);
-        double g = linearizeChannel(((rgb >> 8) & 0xFF) / 255.0);
-        double b = linearizeChannel((rgb & 0xFF) / 255.0);
-        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        return ThemePalette.relativeLuminance(0xFF000000 | (rgb & 0xFFFFFF));
     }
 
     /** WCAG 2.1 contrast ratio in {@code [1.0, 21.0]}. */
     public static double contrastRatio(int rgb1, int rgb2) {
-        double l1 = relativeLuminance(rgb1);
-        double l2 = relativeLuminance(rgb2);
-        double lighter = Math.max(l1, l2);
-        double darker = Math.min(l1, l2);
-        return (lighter + 0.05) / (darker + 0.05);
+        return ThemePalette.contrastRatio(0xFF000000 | (rgb1 & 0xFFFFFF), 0xFF000000 | (rgb2 & 0xFFFFFF));
     }
 
     public static boolean meetsWcagAa(int fgRgb, int bgRgb) {
@@ -400,10 +390,6 @@ public final class AppCustomization {
             Diagnostics.warning("customization", "decode_invalid");
             return null;
         }
-    }
-
-    private static double linearizeChannel(double c) {
-        return c <= 0.04045 ? (c / 12.92) : Math.pow((c + 0.055) / 1.055, 2.4);
     }
 
     private static float clamp(float value, float min, float max) {
