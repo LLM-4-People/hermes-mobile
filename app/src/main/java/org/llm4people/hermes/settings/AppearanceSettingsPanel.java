@@ -256,8 +256,8 @@ public final class AppearanceSettingsPanel {
                     0,
                     () -> {
                         if (mode.equals(activeThemeMode)) return;
-                        activeThemeMode = mode;
                         listener.onThemeModeChanged(mode);
+                        activeThemeMode = AppThemeMode.readMode(activity);
                         refreshAll();
                     }));
         }

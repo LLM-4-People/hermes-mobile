@@ -2,7 +2,6 @@ package org.llm4people.hermes.panel;
 
 import android.app.AlertDialog;
 import android.content.Context;
-import android.content.res.ColorStateList;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.view.Gravity;
@@ -595,6 +594,8 @@ final class ReminderPanel {
         lp.bottomMargin = Ui.dp(panel.activity, bottomDp);
         parent.addView(divider, lp);
     }
+
+    void create() { edit(null); }
 
     private void edit(JSONObject job) { new ReminderEditor(panel, this, job).show(); }
 

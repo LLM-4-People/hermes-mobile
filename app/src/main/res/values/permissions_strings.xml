@@ -3,8 +3,18 @@
     <string name="perm_route_hint">Notifications, micro, caméra, position et accès Android</string>
     <string name="perm_panel_title">Autorisations</string>
     <string name="perm_panel_subtitle">Choisissez ce qu’Hermes peut utiliser sur ce téléphone. Chaque accès reste optionnel.</string>
-    <string name="perm_summary_counts">%1$d autorisées · %2$d désactivées</string>
-    <string name="perm_summary_with_blocked">%1$d autorisées · %2$d bloquées · %3$d désactivées</string>
+    <plurals name="perm_count_allowed">
+        <item quantity="one">%1$d autorisée</item>
+        <item quantity="other">%1$d autorisées</item>
+    </plurals>
+    <plurals name="perm_count_blocked">
+        <item quantity="one">%1$d bloquée</item>
+        <item quantity="other">%1$d bloquées</item>
+    </plurals>
+    <plurals name="perm_count_off">
+        <item quantity="one">%1$d désactivée</item>
+        <item quantity="other">%1$d désactivées</item>
+    </plurals>
     <string name="perm_status_allowed">Autorisée</string>
     <string name="perm_status_off">Désactivée</string>
     <string name="perm_status_blocked">Bloquée</string>

@@ -37,7 +37,6 @@ public final class AdaptiveNavBar extends LinearLayout {
     private final Map<String, ItemViews> items = new LinkedHashMap<>();
     private final Consumer<String> onSelect;
     private AdaptiveLayout.NavChrome chrome = AdaptiveLayout.NavChrome.BOTTOM_BAR;
-    private String selectedRoute = WorkspaceNavigation.DISCUSSION;
 
     public AdaptiveNavBar(Context context, Consumer<String> onSelect) {
         super(context);
@@ -61,7 +60,6 @@ public final class AdaptiveNavBar extends LinearLayout {
 
     public void setSelectedRoute(String route) {
         String top = WorkspaceNavigation.topDestination(route);
-        selectedRoute = top;
         int activeInk = getContext().getColor(R.color.accent);
         int idleInk = getContext().getColor(R.color.muted);
         for (Map.Entry<String, ItemViews> entry : items.entrySet()) {

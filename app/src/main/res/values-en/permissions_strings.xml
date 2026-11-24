@@ -3,8 +3,18 @@
     <string name="perm_route_hint">Notifications, microphone, camera, location, and Android access</string>
     <string name="perm_panel_title">Permissions</string>
     <string name="perm_panel_subtitle">Choose what Hermes can use on this phone. Every access stays optional.</string>
-    <string name="perm_summary_counts">%1$d allowed · %2$d off</string>
-    <string name="perm_summary_with_blocked">%1$d allowed · %2$d blocked · %3$d off</string>
+    <plurals name="perm_count_allowed">
+        <item quantity="one">%1$d allowed</item>
+        <item quantity="other">%1$d allowed</item>
+    </plurals>
+    <plurals name="perm_count_blocked">
+        <item quantity="one">%1$d blocked</item>
+        <item quantity="other">%1$d blocked</item>
+    </plurals>
+    <plurals name="perm_count_off">
+        <item quantity="one">%1$d off</item>
+        <item quantity="other">%1$d off</item>
+    </plurals>
     <string name="perm_status_allowed">Allowed</string>
     <string name="perm_status_off">Off</string>
     <string name="perm_status_blocked">Blocked</string>

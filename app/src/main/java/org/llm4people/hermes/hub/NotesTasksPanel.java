@@ -319,8 +319,10 @@ public final class NotesTasksPanel implements AutoCloseable {
                     R.color.surface_container, R.color.muted));
         }
         if (overview.attentionCount() > 0) {
+            int attention = overview.attentionCount();
             pills.addView(Ui.pill(activity,
-                    activity.getString(R.string.hub_reminders_attention_pill, overview.attentionCount()),
+                    activity.getResources().getQuantityString(
+                            R.plurals.hub_reminders_attention_pill, attention, attention),
                     R.color.danger_surface, R.color.danger));
         }
         LinearLayout.LayoutParams pillsLp = new LinearLayout.LayoutParams(-1, -2);

@@ -30,7 +30,7 @@
     <string name="palette_act_deliveries_title">Boîte de réception</string>
     <string name="palette_act_deliveries_hint">Voir les messages et livraisons reçus</string>
     <string name="palette_act_ambient_title">Accès ambiant</string>
-    <string name="palette_act_ambient_hint">Notifications, calendrier, contacts et média</string>
+    <string name="palette_act_ambient_hint">Notifications, calendrier et média</string>
     <string name="palette_act_doctor_title">État de la connexion</string>
     <string name="palette_act_doctor_hint">Vérifier le serveur, les alertes et les accès</string>
     <string name="palette_act_updates_title">Mises à jour de l’application</string>
