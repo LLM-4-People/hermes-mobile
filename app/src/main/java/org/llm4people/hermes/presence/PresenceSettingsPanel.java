@@ -137,10 +137,6 @@ public final class PresenceSettingsPanel {
                 open));
     }
 
-    public PresencePolicy currentPolicy() {
-        return policy;
-    }
-
     public View buildView() {
         LinearLayout body = Ui.column(context);
         ScrollView scroll = Ui.centeredScroll(context, body, AdaptiveLayout.READING_COLUMN_MAX_DP, 20, 16, 24);

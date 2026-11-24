@@ -3,6 +3,7 @@ package org.llm4people.hermes.thread;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
+import android.content.res.ColorStateList;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.Typeface;
 import android.text.Editable;
@@ -295,9 +296,10 @@ public final class ThreadViews {
         stop.setBackground(Ui.roundedRipple(activity, 24,
                 Ui.shape(activity, 24, R.color.danger_surface, R.color.danger, 1)));
         stop.setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.thread_stop, 0, 0, 0);
-        stop.setCompoundDrawableTintList(activity.getColorStateList(R.color.danger));
+        ColorStateList dangerInk = Ui.dangerInk(activity);
+        stop.setCompoundDrawableTintList(dangerInk);
         stop.setCompoundDrawablePadding(Ui.dp(activity, 6));
-        stop.setTextColor(activity.getColor(R.color.danger));
+        stop.setTextColor(dangerInk);
         composer.addView(send);
         composer.addView(stop);
         composerSlot = Ui.column(activity);

@@ -29,7 +29,7 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 /**
- * Native bilingual Everyday Workflows &amp; Reusable Templates screen mounted under Atelier ({@link #ROUTE_ID}).
+ * Native bilingual Everyday Workflows &amp; Reusable Templates screen mounted under Apps ({@link #ROUTE_ID}).
  * Follows .impeccable/design.json tokens and strictly obeys The Editable Draft Rule (never auto-sends).
  */
 public final class TemplatesPanel {

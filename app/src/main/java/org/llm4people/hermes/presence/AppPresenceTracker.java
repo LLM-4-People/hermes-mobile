@@ -84,18 +84,6 @@ public final class AppPresenceTracker {
         }
     }
 
-    public long currentEpoch() {
-        synchronized (lock) {
-            return profileEpoch;
-        }
-    }
-
-    public String boundProfileId() {
-        synchronized (lock) {
-            return boundProfileId;
-        }
-    }
-
     public boolean updateScreen(long epoch, String screenId, String sessionId) {
         synchronized (lock) {
             if (!matchesEpochLocked(epoch)) return false;

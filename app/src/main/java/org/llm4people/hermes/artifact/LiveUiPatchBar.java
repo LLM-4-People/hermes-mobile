@@ -61,7 +61,7 @@ public final class LiveUiPatchBar extends LinearLayout {
         setBackground(bg);
         Ui.pad(this, 14, 10);
 
-        headline = Ui.text(activity, activity.getString(org.llm4people.hermes.R.string.ws_liveui_proposal_headline), 15);
+        headline = Ui.text(activity, activity.getString(R.string.ws_liveui_proposal_headline), 15);
         headline.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         headline.setTextColor(palette.ink);
         headline.setAccessibilityLiveRegion(ACCESSIBILITY_LIVE_REGION_POLITE);
@@ -77,13 +77,13 @@ public final class LiveUiPatchBar extends LinearLayout {
         LinearLayout actions = Ui.row(activity);
         actions.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
         int gap = Ui.dp(activity, 8);
-        viewButton = actionButton(activity.getString(org.llm4people.hermes.R.string.ws_view), "live-ui-view", v -> openPreview());
-        applyButton = actionButton(activity.getString(org.llm4people.hermes.R.string.ws_apply), "live-ui-apply", v -> applyCurrent());
-        pinButton = actionButton(activity.getString(org.llm4people.hermes.R.string.ws_surface_pin_home), "live-ui-pin-home", v -> {
+        viewButton = actionButton(activity.getString(R.string.ws_view), "live-ui-view", v -> openPreview());
+        applyButton = actionButton(activity.getString(R.string.ws_apply), "live-ui-apply", v -> applyCurrent());
+        pinButton = actionButton(activity.getString(R.string.ws_surface_pin_home), "live-ui-pin-home", v -> {
             if (pendingWidget != null) listener.onPinWidget(pendingWidget);
         });
         pinButton.setVisibility(GONE);
-        cancelButton = actionButton(activity.getString(org.llm4people.hermes.R.string.ws_cancel), "live-ui-cancel", v -> cancelOrRollback());
+        cancelButton = actionButton(activity.getString(R.string.ws_cancel), "live-ui-cancel", v -> cancelOrRollback());
         applyButton.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         LinearLayout.LayoutParams btnGap = new LinearLayout.LayoutParams(-2, -2);
         btnGap.setMarginEnd(gap);
@@ -101,13 +101,13 @@ public final class LiveUiPatchBar extends LinearLayout {
         this.pendingWidget = firstWidget(patch);
         this.appliedRevisionId = null;
         this.appliedState = false;
-        headline.setText(org.llm4people.hermes.R.string.ws_liveui_proposal_headline);
+        headline.setText(R.string.ws_liveui_proposal_headline);
         summary.setText(patch.displaySummary(activity));
         viewButton.setVisibility(VISIBLE);
         applyButton.setVisibility(VISIBLE);
         pinButton.setVisibility(GONE);
-        cancelButton.setText(org.llm4people.hermes.R.string.ws_cancel);
-        cancelButton.setContentDescription(activity.getString(org.llm4people.hermes.R.string.ws_liveui_dismiss_a11y));
+        cancelButton.setText(R.string.ws_cancel);
+        cancelButton.setContentDescription(activity.getString(R.string.ws_liveui_dismiss_a11y));
         setVisibility(VISIBLE);
     }
 
@@ -116,14 +116,14 @@ public final class LiveUiPatchBar extends LinearLayout {
         this.pendingWidget = firstWidget(patch);
         this.appliedRevisionId = patch.revisionId;
         this.appliedState = true;
-        headline.setText(org.llm4people.hermes.R.string.ws_liveui_applied_headline);
-        summary.setText(activity.getString(org.llm4people.hermes.R.string.ws_liveui_applied_summary,
+        headline.setText(R.string.ws_liveui_applied_headline);
+        summary.setText(activity.getString(R.string.ws_liveui_applied_summary,
                 patch.displaySummary(activity)));
         viewButton.setVisibility(GONE);
         applyButton.setVisibility(GONE);
         pinButton.setVisibility(pendingWidget != null ? VISIBLE : GONE);
-        cancelButton.setText(org.llm4people.hermes.R.string.ws_cancel);
-        cancelButton.setContentDescription(activity.getString(org.llm4people.hermes.R.string.ws_liveui_undo_a11y));
+        cancelButton.setText(R.string.ws_cancel);
+        cancelButton.setContentDescription(activity.getString(R.string.ws_liveui_undo_a11y));
         setVisibility(VISIBLE);
     }
 
@@ -197,10 +197,10 @@ public final class LiveUiPatchBar extends LinearLayout {
         ScrollView scroll = new ScrollView(c);
         scroll.addView(body);
         DeskDialogs.open(activity, new AlertDialog.Builder(activity)
-                .setTitle(org.llm4people.hermes.R.string.ws_liveui_preview_title)
+                .setTitle(R.string.ws_liveui_preview_title)
                 .setView(scroll)
-                .setNegativeButton(org.llm4people.hermes.R.string.ws_close, null)
-                .setPositiveButton(org.llm4people.hermes.R.string.ws_apply, (d, w) -> applyCurrent()));
+                .setNegativeButton(R.string.ws_close, null)
+                .setPositiveButton(R.string.ws_apply, (d, w) -> applyCurrent()));
     }
 
     private void addColorSwatch(LinearLayout parent, ThemePalette.OverrideSpec spec) {
@@ -222,7 +222,7 @@ public final class LiveUiPatchBar extends LinearLayout {
         row.addView(swatch, new LinearLayout.LayoutParams(Ui.dp(c, 28), Ui.dp(c, 28)));
         double contrast = ThemePalette.contrastRatio(preview.accent, preview.paper);
         java.util.Locale locale = AppLanguage.resolvedLocale(c);
-        TextView info = Ui.text(c, c.getString(org.llm4people.hermes.R.string.ws_liveui_contrast_verified,
+        TextView info = Ui.text(c, c.getString(R.string.ws_liveui_contrast_verified,
                 String.format(locale, "%.1f", contrast)), 14);
         info.setTextColor(preview.muted);
         info.setPaddingRelative(Ui.dp(c, 10), 0, 0, 0);
@@ -288,8 +288,8 @@ public final class LiveUiPatchBar extends LinearLayout {
             bg.setStroke(Math.max(1, Ui.dp(context, 1)), colors.line);
             chip.setBackground(Ui.roundedRipple(context, Ui.BUTTON_CORNER_DP, bg));
             chip.setContentDescription(context.getString(action.draft != null
-                    ? org.llm4people.hermes.R.string.ws_liveui_chip_draft_a11y
-                    : org.llm4people.hermes.R.string.ws_liveui_chip_open_a11y, action.label));
+                    ? R.string.ws_liveui_chip_draft_a11y
+                    : R.string.ws_liveui_chip_open_a11y, action.label));
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
             lp.setMarginEnd(Ui.dp(context, 8));
             row.addView(chip, lp);
@@ -326,7 +326,7 @@ public final class LiveUiPatchBar extends LinearLayout {
                 : palette;
         Ui.pad(container, 18, 6);
         TextView heading = Ui.text(context,
-                context.getString(org.llm4people.hermes.R.string.ws_liveui_suggested_heading), colors.scaledSp(13));
+                context.getString(R.string.ws_liveui_suggested_heading), colors.scaledSp(13));
         heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         heading.setTextColor(colors.muted);
         heading.setPadding(0, 0, 0, Ui.dp(context, 4));
@@ -356,8 +356,8 @@ public final class LiveUiPatchBar extends LinearLayout {
             bg.setStroke(Math.max(1, Ui.dp(context, 1)), colors.line);
             chip.setBackground(Ui.roundedRipple(context, Ui.BUTTON_CORNER_DP, bg));
             chip.setContentDescription(context.getString(item.draft != null
-                    ? org.llm4people.hermes.R.string.ws_liveui_chip_draft_a11y
-                    : org.llm4people.hermes.R.string.ws_liveui_chip_open_a11y, item.label));
+                    ? R.string.ws_liveui_chip_draft_a11y
+                    : R.string.ws_liveui_chip_open_a11y, item.label));
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
             lp.setMarginEnd(Ui.dp(context, 8));
             row.addView(chip, lp);
@@ -373,9 +373,9 @@ public final class LiveUiPatchBar extends LinearLayout {
         List<LiveUiPatch.StateManager.AppliedRevision> revs = manager.history();
         if (revs.isEmpty()) {
             return DeskDialogs.open(activity, new AlertDialog.Builder(activity)
-                    .setTitle(org.llm4people.hermes.R.string.ws_art_change_history)
-                    .setMessage(org.llm4people.hermes.R.string.ws_liveui_history_empty)
-                    .setPositiveButton(org.llm4people.hermes.R.string.ws_close, null));
+                    .setTitle(R.string.ws_art_change_history)
+                    .setMessage(R.string.ws_liveui_history_empty)
+                    .setPositiveButton(R.string.ws_close, null));
         }
         String[] labels = new String[revs.size()];
         String[] ids = new String[revs.size()];
@@ -385,8 +385,8 @@ public final class LiveUiPatchBar extends LinearLayout {
             ids[i] = rev.revisionId;
         }
         return DeskDialogs.open(activity, new AlertDialog.Builder(activity)
-                .setTitle(org.llm4people.hermes.R.string.ws_liveui_history_revert_title)
+                .setTitle(R.string.ws_liveui_history_revert_title)
                 .setItems(labels, (d, which) -> onRevert.accept(ids[which]))
-                .setNegativeButton(org.llm4people.hermes.R.string.ws_close, null));
+                .setNegativeButton(R.string.ws_close, null));
     }
 }

@@ -97,7 +97,8 @@ public final class InstrumentComparisonTest extends InstrumentationTestCase {
 
         // The proposed title can become unique while the original title was ambiguous.
         List<InstrumentChanges.Change> rename = InstrumentChanges.between(c, old, page(first + "," + second.replace("Contrôle", "Vérification")));
-        assertEquals("Contrôle · Après livraison → Vérification", rename.get(0).section());
+        assertEquals(s(R.string.ws_diff_section_renamed, "Contrôle · Après livraison", "Vérification"),
+                rename.get(0).section());
     }
 
     public void testEqualFieldLabelsUseKindThenStableIdToExplainTheirNewOrder() throws Exception {

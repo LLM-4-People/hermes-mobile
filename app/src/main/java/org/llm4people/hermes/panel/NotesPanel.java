@@ -23,7 +23,7 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 /**
- * Native Smart Notes panel ("Notes intelligentes") inside Cerveau.
+ * Native Smart Notes panel ("Notes intelligentes") under Notes &amp; Tasks.
  * Supports viewing, creating, editing, searching, pinning, and sharing notes via ShareWithUserSheet
  * (universal_sharing or note_sharing), plus learned Habit Suggestions (strictly count >= 3).
  */

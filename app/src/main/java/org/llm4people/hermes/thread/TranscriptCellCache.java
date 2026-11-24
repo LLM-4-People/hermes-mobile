@@ -119,7 +119,6 @@ public final class TranscriptCellCache {
     }
 
     public synchronized int size() { return lru.size(); }
-    public synchronized int capacity() { return capacity; }
     public synchronized long hits() { return hits; }
     public synchronized long misses() { return misses; }
     public synchronized long evictions() { return evictions; }

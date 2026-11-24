@@ -30,7 +30,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * Plain-language live Connection Doctor panel mounted under Activité ({@link #ROUTE_ID}).
+ * Plain-language live Connection Doctor panel mounted under Settings ({@link #ROUTE_ID}).
  * Runs 6 parallel non-blocking health probes, renders high-contrast day/night status cards
  * with 1-tap fix actions, and exposes a strictly redacted "Copy safe report" behind
  * "Technical details".

@@ -2,6 +2,7 @@ package org.llm4people.hermes.artifact;
 
 import android.content.Context;
 import org.llm4people.hermes.R;
+import org.llm4people.hermes.places.NearbyCategory;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -80,7 +81,9 @@ final class InstrumentChanges {
             } else {
                 WorkspaceLayout.Block prior = old.blocks.get(previous[i]);
                 String priorGroup = oldLabels.get(previous[i]);
-                if (!priorGroup.equals(prior.displayTitle(c)) && !priorGroup.equals(group)) group = priorGroup + " → " + group;
+                if (!priorGroup.equals(prior.displayTitle(c)) && !priorGroup.equals(group)) {
+                    group = c.getString(R.string.ws_diff_section_renamed, priorGroup, group);
+                }
                 blockChanges(c, changes, group, prior, block);
             }
         }
@@ -133,8 +136,8 @@ final class InstrumentChanges {
                         new ArrayList<>(nextNames.keySet()), nextNames);
             }
             case "nearby_places" -> {
-                changed(changes, group, c.getString(R.string.ws_diff_category), old.category == null ? "" : old.category,
-                        next.category == null ? "" : next.category);
+                changed(changes, group, c.getString(R.string.ws_diff_category),
+                        nearbyCategory(c, old.category), nearbyCategory(c, next.category));
                 changed(changes, group, c.getString(R.string.ws_diff_radius),
                         c.getString(R.string.ws_diff_radius_meters, old.radiusMeters),
                         c.getString(R.string.ws_diff_radius_meters, next.radiusMeters));
@@ -149,8 +152,8 @@ final class InstrumentChanges {
             case "sparkline" -> {
                 changed(changes, group, c.getString(R.string.ws_diff_description), old.note, next.note);
                 changed(changes, group, c.getString(R.string.ws_diff_chart_style),
-                        old.sparkline == null ? "" : old.sparkline.style,
-                        next.sparkline == null ? "" : next.sparkline.style);
+                        old.sparkline == null ? "" : c.getString(old.sparkline.kindLabelRes()),
+                        next.sparkline == null ? "" : c.getString(next.sparkline.kindLabelRes()));
                 changed(changes, group, c.getString(R.string.ws_diff_caption),
                         old.sparkline == null ? "" : old.sparkline.caption,
                         next.sparkline == null ? "" : next.sparkline.caption);
@@ -230,7 +233,10 @@ final class InstrumentChanges {
             case "metric_grid" -> {
                 if (block.metrics != null) {
                     for (MetricGridBlock.Item m : block.metrics) {
-                        items.add(m.label + " : " + m.formattedValue(c, ""));
+                        String val = m.source != null
+                                ? WorkspaceBlocks.sourceLabel(c, m.source)
+                                : m.formattedValue(c, "");
+                        items.add(m.label + " : " + val);
                     }
                 }
             }
@@ -282,11 +288,26 @@ final class InstrumentChanges {
             default -> R.string.ws_diff_theme_system;
         });
     }
+    private static String nearbyCategory(Context c, String id) {
+        if (id == null || id.isEmpty()) return "";
+        NearbyCategory cat = NearbyCategory.fromId(id);
+        return cat != null ? cat.label(c) : id;
+    }
+    private static String controlKind(Context c, String kind) {
+        if (kind == null) return "";
+        return switch (kind) {
+            case "toggle" -> c.getString(R.string.ws_diff_ctrl_toggle);
+            case "checkbox" -> c.getString(R.string.ws_diff_ctrl_checkbox);
+            case "slider" -> c.getString(R.string.ws_diff_ctrl_slider);
+            case "chips" -> c.getString(R.string.ws_diff_ctrl_chips);
+            default -> kind;
+        };
+    }
     private static String describeMetrics(Context c, List<MetricGridBlock.Item> items) {
         if (items == null) return "";
         List<String> rows = new ArrayList<>();
         for (MetricGridBlock.Item m : items) {
-            String src = m.source != null ? "source=" + m.source : m.formattedValue(c, "");
+            String src = m.source != null ? WorkspaceBlocks.sourceLabel(c, m.source) : m.formattedValue(c, "");
             rows.add(m.label + " · " + src + (m.delta.isEmpty() ? "" : " (" + m.delta + ")")
                     + (m.provenance.isEmpty() ? "" : " · " + m.provenance));
         }
@@ -321,7 +342,7 @@ final class InstrumentChanges {
                 default -> c.getString(ctrl.defaultChecked
                         ? R.string.ws_diff_checked_default : R.string.ws_diff_unchecked_default);
             };
-            items.add(ctrl.label + " (" + ctrl.kind + ") · " + extra);
+            items.add(ctrl.label + " (" + controlKind(c, ctrl.kind) + ") · " + extra);
         }
         return lines(items);
     }

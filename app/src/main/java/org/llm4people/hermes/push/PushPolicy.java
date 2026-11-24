@@ -83,10 +83,6 @@ public final class PushPolicy {
         return category != null && enabledCategories.contains(category);
     }
 
-    public Set<DeliveryItem.Category> enabledCategories() {
-        return Collections.unmodifiableSet(EnumSet.copyOf(enabledCategories));
-    }
-
     public PushPolicy withCategory(DeliveryItem.Category category, boolean enabled) {
         Objects.requireNonNull(category, "category");
         EnumSet<DeliveryItem.Category> next = EnumSet.copyOf(enabledCategories);

@@ -35,7 +35,7 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Native Activité delivery inbox renderer and typed action router.
+ * Native delivery inbox (Notes &amp; Tasks) and push policy (Settings) renderer and typed action router.
  * Zero raw JSON dumps: every pushed item renders in plain everyday French with reviewed native actions.
  */
 public final class DeliveryRouter {

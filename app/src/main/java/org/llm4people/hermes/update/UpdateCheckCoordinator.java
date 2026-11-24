@@ -16,7 +16,7 @@ import java.util.function.Consumer;
 
 /**
  * Lightweight 24-hour throttled silent GitHub update check coordinator returning an optional
- * non-intrusive badge state for Activité. Stores only check timestamps and public release tags —
+ * non-intrusive badge state for Settings. Stores only check timestamps and public release tags —
  * never any profile data or user secrets.
  */
 public final class UpdateCheckCoordinator {

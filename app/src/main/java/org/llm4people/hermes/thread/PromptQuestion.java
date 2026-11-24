@@ -57,6 +57,7 @@ final class PromptQuestion {
                 option.setText(caption);
                 option.setTag(value);
                 option.setTextSize(16);
+                option.setTextColor(Ui.enabledDisabledInk(card.getContext(), R.color.ink));
                 option.setMinHeight(Ui.dp(card.getContext(), 48));
                 option.setOnCheckedChangeListener((v, checked) -> updateSubmit());
                 checks.add(option);

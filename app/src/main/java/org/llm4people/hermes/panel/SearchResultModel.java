@@ -16,7 +16,6 @@ import java.util.Locale;
 /** Pure domain model for cross-thread FTS5 search results, safe snippet highlight ranges, and role labels. */
 public final class SearchResultModel {
     public static final int DEFAULT_LIMIT = 25;
-    public static final int MAX_LIMIT = 50;
     public static final int MAX_QUERY_LENGTH = 200;
 
     public record Span(int start, int end) {

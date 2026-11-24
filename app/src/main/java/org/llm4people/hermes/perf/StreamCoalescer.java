@@ -25,10 +25,6 @@ public final class StreamCoalescer {
     private int flushed;
     private int coalesced;
 
-    public StreamCoalescer(Consumer<String> sink) {
-        this(DEFAULT_FRAME_BUDGET_MS, sink);
-    }
-
     public StreamCoalescer(long frameBudgetMs, Consumer<String> sink) {
         if (frameBudgetMs < MIN_FRAME_BUDGET_MS || frameBudgetMs > MAX_FRAME_BUDGET_MS) {
             throw new IllegalArgumentException("Frame budget must be within 16..250 ms");
@@ -37,7 +33,6 @@ public final class StreamCoalescer {
         this.sink = Objects.requireNonNull(sink, "sink");
     }
 
-    public long frameBudgetMs() { return frameBudgetMs; }
     public int offeredCount() { return offered; }
     public int flushedCount() { return flushed; }
     public int coalescedCount() { return coalesced; }

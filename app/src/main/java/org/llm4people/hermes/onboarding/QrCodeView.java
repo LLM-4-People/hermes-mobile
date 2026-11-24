@@ -52,10 +52,6 @@ public final class QrCodeView extends View {
         }
     }
 
-    public QrCodeMatrix matrix() {
-        return matrix;
-    }
-
     @Override protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         int preferred = Ui.dp(getContext(), 220);
         int w = resolveSize(preferred, widthMeasureSpec);
