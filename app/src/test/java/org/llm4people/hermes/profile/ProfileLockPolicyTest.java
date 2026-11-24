@@ -143,6 +143,12 @@ public final class ProfileLockPolicyTest {
                 ProfileLockPolicy.Mode.PASSPHRASE, ProfileLockPolicy.Mode.PIN));
         assertFalse(ProfileLockPolicy.shouldRevokeBiometricOnModeChange(
                 ProfileLockPolicy.Mode.PIN, ProfileLockPolicy.Mode.BIOMETRIC));
+
+        // Biometric rollback must NOT wipe the sole biometric vault when re-enrolling BIOMETRIC -> BIOMETRIC
+        assertFalse(ProfileGate.shouldRevokeBiometricOnBiometricRollback(ProfileLockPolicy.Mode.BIOMETRIC));
+        assertTrue(ProfileGate.shouldRevokeBiometricOnBiometricRollback(ProfileLockPolicy.Mode.PIN));
+        assertTrue(ProfileGate.shouldRevokeBiometricOnBiometricRollback(ProfileLockPolicy.Mode.PASSPHRASE));
+        assertTrue(ProfileGate.shouldRevokeBiometricOnBiometricRollback(null));
     }
 
     @Test

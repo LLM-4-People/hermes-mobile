@@ -96,14 +96,15 @@ final class PushConnection {
                 fcmTokenTimeoutMs(context), TimeUnit.MILLISECONDS);
     }
 
-    static void enroll(Context context, Account account, PushConfig config, long before, BooleanSupplier current) throws Exception {
-        HermesApi api = new HermesApi(account.endpoint, account.bearer, apiLimits(context));
+    static void enroll(Context context, Account account, HermesApi api, PushConfig config,
+                       long before, BooleanSupplier current) throws Exception {
+        if (api == null || api.isRevoked()) throw new IOException("Push enrollment client closed");
         if (!current.getAsBoolean()) return;
         String token = token(context, config);
         PushStore store = PushStore.get(context);
         PushStore.Device device;
         synchronized (PushConnection.class) {
-            if (before != forgetVersion || !current.getAsBoolean()) return;
+            if (before != forgetVersion || !current.getAsBoolean() || api.isRevoked()) return;
             device = store.prepare(account.id, account.endpoint, config);
         }
         api.put(device.path(), fcmRegistration(token).put("management_key", device.managementKey()));
@@ -114,11 +115,16 @@ final class PushConnection {
         Diagnostics.event("push", "enrolled");
     }
 
-    static void remove(Context context, PushStore.Device device, String bearer) throws Exception {
+    static void remove(Context context, PushStore.Device device, HermesApi api) throws Exception {
+        if (api == null || api.isRevoked()) throw new IOException("Push removal client closed");
         if (device.unified()) DistributorEnrollment.unregister(context, device);
-        new HermesApi(device.endpoint, bearer, apiLimits(context)).delete(device.path());
+        api.delete(device.path());
         PushStore.get(context).finishRemoval(device);
         releaseIfEmpty(context);
+    }
+
+    static void remove(Context context, PushStore.Device device, String bearer) throws Exception {
+        remove(context, device, new HermesApi(device.endpoint, bearer, apiLimits(context)));
     }
 
     static JSONObject fcmRegistration(String token) throws JSONException {

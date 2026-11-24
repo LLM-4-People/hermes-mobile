@@ -150,4 +150,32 @@ public class BiometricVaultTest {
                         });
         assertFalse(BiometricVault.hasValidEnrollment(corruptPrefs, "prof-1"));
     }
+
+    @Test public void sessionWithOnCancelRunsHookOnceAfterCleanupAndHandlesExceptionsAndLateRegistration() {
+        java.util.List<String> order = new java.util.ArrayList<>();
+        boolean[] promptCanceled = {false};
+        BiometricVault.Session session = new BiometricVault.Session(() -> {
+            promptCanceled[0] = true;
+            order.add("prompt");
+            throw new IllegalStateException("prompt error");
+        }, () -> promptCanceled[0], () -> order.add("cleanup"));
+
+        assertSame(session, session.withOnCancel(null));
+        session.withOnCancel(() -> order.add("hook1")).withOnCancel(() -> order.add("hook2"));
+
+        try {
+            session.cancel();
+            fail("Expected prompt exception");
+        } catch (IllegalStateException expected) {}
+
+        assertEquals(java.util.List.of("prompt", "cleanup", "hook1", "hook2"), order);
+        // Repeated cancel must not re-run hooks
+        session.cancel();
+        assertEquals(4, order.size());
+
+        // Late registration on an already-canceled session fires immediately once
+        int[] lateRuns = {0};
+        session.withOnCancel(() -> lateRuns[0]++);
+        assertEquals(1, lateRuns[0]);
+    }
 }

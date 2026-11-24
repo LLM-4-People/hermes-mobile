@@ -148,4 +148,22 @@ public final class FirstRunWizardTest {
         assertFalse(badInputs.applyThemeCallback());
         assertFalse(badInputs.recreateForLocale());
     }
+
+    @Test public void isCompletedLogsDiagnosticWarningWhenAccountReadFails() {
+        org.llm4people.hermes.Diagnostics.clear();
+        org.llm4people.hermes.Diagnostics.setSink((level, tag, msg) -> {});
+        try {
+            // Closed account throws IllegalStateException from account.read(...)
+            Account closedAccount = new Account("p1", "Personal", "https://hermes.example.com", "secret",
+                    null, new byte[Account.KEY_BYTES]);
+            closedAccount.close();
+            assertTrue(FirstRunWizard.isCompleted(closedAccount));
+            assertTrue(org.llm4people.hermes.Diagnostics.exportRedacted()
+                    .contains("onboarding.is_completed_read_failed"));
+            assertTrue(FirstRunWizard.isCompleted(null));
+        } finally {
+            org.llm4people.hermes.Diagnostics.clear();
+            org.llm4people.hermes.Diagnostics.setSink(null);
+        }
+    }
 }

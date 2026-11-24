@@ -591,7 +591,7 @@ final class PushSettings {
         if (PushConfig.offers(discovery, "fcm") && (existing == null || !existing.unified())) {
             labels.add(activity.getString(R.string.push_settings_enable_fcm));
             choices.add(() -> run(activity.getString(R.string.push_settings_registering), () -> PushConnection.enroll(
-                    activity.getApplicationContext(), account, PushConfig.parse(discovery), epoch, this::current)));
+                    activity.getApplicationContext(), account, api, PushConfig.parse(discovery), epoch, this::current)));
         }
         AlertDialog.Builder picker = new AlertDialog.Builder(activity).setTitle(R.string.push_settings_service_title)
                 .setNegativeButton(R.string.push_settings_back, (d,w) -> show());
@@ -635,7 +635,7 @@ final class PushSettings {
             picker.setItems(labels, (d,w) -> {
                 DistributorChoice chosen = choices.get(w);
                 run(activity.getString(R.string.push_settings_registering_distributor), () ->
-                        DistributorEnrollment.enroll(activity.getApplicationContext(), account,
+                        DistributorEnrollment.enroll(activity.getApplicationContext(), account, api,
                                 chosen.packageName(), chosen.signer(),
                                 DistributorEnrollment.vapid(discovery), epoch, this::current));
             });
@@ -646,7 +646,7 @@ final class PushSettings {
     private void remove(PushStore.Device device) {
         MobilePush.forget(activity, account.id);
         run(activity.getString(R.string.push_settings_disabling), () ->
-                PushConnection.remove(activity.getApplicationContext(), device, account.bearer));
+                PushConnection.remove(activity.getApplicationContext(), device, api));
     }
 
     private interface Call { void execute() throws Exception; }

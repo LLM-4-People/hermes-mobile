@@ -922,6 +922,14 @@ public final class ProfileGate {
         }
     }
 
+    /**
+     * Pure-Java rollback guard: revokes the newly enrolled biometric vault only when migrating
+     * from PIN/passphrase to biometric, never wiping an existing biometric-primary profile's sole vault.
+     */
+    static boolean shouldRevokeBiometricOnBiometricRollback(ProfileLockPolicy.Mode previousMode) {
+        return previousMode != ProfileLockPolicy.Mode.BIOMETRIC;
+    }
+
     /** Update an already-unlocked profile's lock mode (Biometric / PIN / Passphrase) atomically. */
     public BiometricVault.Session updateLockMode(
             Account unlocked,
@@ -958,7 +966,9 @@ public final class ProfileGate {
                             if (modeCommitted) {
                                 ProfileLockPolicy.setMode(activity, unlocked.id, previousMode);
                             }
-                            BiometricVault.revoke(activity, unlocked.id);
+                            if (shouldRevokeBiometricOnBiometricRollback(previousMode)) {
+                                BiometricVault.revoke(activity, unlocked.id);
+                            }
                         } finally {
                             Arrays.fill(generated, '\0');
                         }
@@ -980,8 +990,14 @@ public final class ProfileGate {
                     if (epoch == generation && active == unlocked) onDone.accept(false);
                 }
             });
-            if (session == null && epoch == generation) busy = false;
-            return session;
+            if (session == null) {
+                if (epoch == generation) busy = false;
+                return null;
+            }
+            return session.withOnCancel(() -> {
+                if (activeBiometric == session) activeBiometric = null;
+                if (epoch == generation) busy = false;
+            });
         }
         if (nextSecret == null || nextSecret.length == 0) {
             onDone.accept(false);
@@ -1046,6 +1062,11 @@ public final class ProfileGate {
                             if (epoch == generation && active == unlocked) callback.onError();
                         }
                     });
+            if (signal != null) {
+                signal.withOnCancel(() -> {
+                    if (activeBiometric == signal) activeBiometric = null;
+                });
+            }
             activeBiometric = signal;
             return signal;
         } catch (java.io.IOException | RuntimeException error) {
@@ -1602,6 +1623,7 @@ public final class ProfileGate {
     }
 
     private void confirmForget(ProfileScreen screen, String id, String label) {
+        dismissConfirmation();
         confirmation = Ui.secureDialog(new AlertDialog.Builder(activity)
                 .setTitle(activity.getString(R.string.profile_setup_remove_title, label))
                 .setMessage(activity.getString(R.string.profile_setup_remove_body))
@@ -1616,7 +1638,7 @@ public final class ProfileGate {
         busy = true;
         int epoch = generation;
         bioButton.setEnabled(false);
-        activeBiometric = BiometricVault.authenticate(activity, id, label, new BiometricVault.Callback() {
+        BiometricVault.Session session = BiometricVault.authenticate(activity, id, label, new BiometricVault.Callback() {
             @Override public void onSuccess(byte[] payload) {
                 activeBiometric = null;
                 Account unlocked = null;
@@ -1673,6 +1695,16 @@ public final class ProfileGate {
                 screen.status(activity.getString(R.string.security_biometric_failed), true);
             }
         });
+        if (session != null) {
+            session.withOnCancel(() -> {
+                if (activeBiometric == session) activeBiometric = null;
+                if (epoch == generation) {
+                    busy = false;
+                    bioButton.setEnabled(true);
+                }
+            });
+        }
+        activeBiometric = session;
     }
 
     private void rotate(String id, String label) {

@@ -49,6 +49,7 @@ import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.os.PermissionCenter;
+import org.llm4people.hermes.settings.AppThemeMode;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -237,7 +238,7 @@ public final class QrScannerActivity extends Activity {
 
     @Override
     protected void attachBaseContext(Context newBase) {
-        super.attachBaseContext(AppLanguage.wrapContext(newBase));
+        super.attachBaseContext(AppThemeMode.wrapContext(AppLanguage.wrapContext(newBase)));
     }
 
     @Override

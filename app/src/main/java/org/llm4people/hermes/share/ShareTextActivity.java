@@ -14,6 +14,7 @@ import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.VisibleText;
 import org.llm4people.hermes.profile.IncomingShare;
+import org.llm4people.hermes.settings.AppThemeMode;
 
 /** The exported boundary accepts text only. No caller Intent, URI grant, span or return data is forwarded. */
 public final class ShareTextActivity extends Activity {
@@ -24,7 +25,7 @@ public final class ShareTextActivity extends Activity {
     private String waiting;
 
     @Override protected void attachBaseContext(Context newBase) {
-        super.attachBaseContext(AppLanguage.wrapContext(newBase));
+        super.attachBaseContext(AppThemeMode.wrapContext(AppLanguage.wrapContext(newBase)));
     }
 
     @Override protected void onCreate(Bundle state) {
