@@ -269,4 +269,89 @@ public final class FirstRunWizardTest {
         assertTrue(Diagnostics.exportRedacted().contains("onboarding.is_completed_read_failed"));
         assertTrue(FirstRunWizard.isCompleted(null));
     }
+
+    @Test public void step2SessionGuardsPostCloseAndPostDismissClicksAndNotifiesFinishedOnce() {
+        boolean[] canAct = {true};
+        int[] skipped = {0};
+        int[] applied = {0};
+        int[] staged = {0};
+        int[] dismissed = {0};
+        int[] cleared = {0};
+        int[] finished = {0};
+
+        // 1. Post-close clicks on Skip, Finish, and starter chips are complete no-ops.
+        FirstRunWizard.Step2Session afterClose = new FirstRunWizard.Step2Session(
+                () -> canAct[0], () -> dismissed[0]++, () -> cleared[0]++, () -> finished[0]++);
+        afterClose.close();
+        assertTrue(afterClose.isClosed());
+        assertEquals(1, dismissed[0]);
+        afterClose.onSkip(() -> skipped[0]++);
+        afterClose.onFinish(() -> applied[0]++);
+        afterClose.onStarter(() -> applied[0]++, () -> staged[0]++);
+        assertEquals(0, skipped[0]);
+        assertEquals(0, applied[0]);
+        assertEquals(0, staged[0]);
+        assertEquals(0, finished[0]);
+
+        // 2. canAct=false blocks all actions without closing or firing callbacks.
+        canAct[0] = false;
+        FirstRunWizard.Step2Session blocked = new FirstRunWizard.Step2Session(
+                () -> canAct[0], () -> dismissed[0]++, () -> cleared[0]++, () -> finished[0]++);
+        blocked.onSkip(() -> skipped[0]++);
+        blocked.onFinish(() -> applied[0]++);
+        blocked.onStarter(() -> applied[0]++, () -> staged[0]++);
+        assertFalse(blocked.isClosed());
+        assertEquals(0, skipped[0]);
+        assertEquals(0, applied[0]);
+        assertEquals(0, staged[0]);
+        assertEquals(0, finished[0]);
+
+        // 3. Back/outside-tap dismiss marks closed, clears holder, notifies onFinished once, and blocks later clicks.
+        canAct[0] = true;
+        FirstRunWizard.Step2Session backDismissed = new FirstRunWizard.Step2Session(
+                () -> canAct[0], () -> dismissed[0]++, () -> cleared[0]++, () -> finished[0]++);
+        backDismissed.onDismiss();
+        assertTrue(backDismissed.isClosed());
+        assertEquals(1, cleared[0]);
+        assertEquals(1, finished[0]);
+        backDismissed.onSkip(() -> skipped[0]++);
+        backDismissed.onFinish(() -> applied[0]++);
+        backDismissed.onStarter(() -> applied[0]++, () -> staged[0]++);
+        backDismissed.onDismiss();
+        assertEquals(0, skipped[0]);
+        assertEquals(0, applied[0]);
+        assertEquals(0, staged[0]);
+        assertEquals(1, finished[0]);
+
+        // 4. Starter chip applies prefs, dismisses dialog, stages draft, and notifies onFinished once even after onDismiss().
+        int[] chipFinished = {0};
+        FirstRunWizard.Step2Session starterFlow = new FirstRunWizard.Step2Session(
+                () -> true, () -> dismissed[0]++, () -> cleared[0]++, () -> chipFinished[0]++);
+        starterFlow.onStarter(() -> applied[0]++, () -> staged[0]++);
+        starterFlow.onDismiss();
+        starterFlow.onFinish(() -> applied[0]++);
+        assertEquals(1, applied[0]);
+        assertEquals(1, staged[0]);
+        assertEquals(1, chipFinished[0]);
+
+        // 5. Skip and Finish each run once and do not double-fire onFinished when onDismiss() follows.
+        int[] skipFinished = {0};
+        FirstRunWizard.Step2Session skipFlow = new FirstRunWizard.Step2Session(
+                () -> true, () -> {}, () -> {}, () -> skipFinished[0]++);
+        skipFlow.onSkip(() -> skipped[0]++);
+        skipFlow.onDismiss();
+        skipFlow.onSkip(() -> skipped[0]++);
+        assertEquals(1, skipped[0]);
+        assertEquals(1, skipFinished[0]);
+
+        int[] finishCount = {0};
+        int[] finishApplied = {0};
+        FirstRunWizard.Step2Session finishFlow = new FirstRunWizard.Step2Session(
+                () -> true, () -> {}, () -> {}, () -> finishCount[0]++);
+        finishFlow.onFinish(() -> finishApplied[0]++);
+        finishFlow.onDismiss();
+        finishFlow.onFinish(() -> finishApplied[0]++);
+        assertEquals(1, finishApplied[0]);
+        assertEquals(1, finishCount[0]);
+    }
 }

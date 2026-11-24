@@ -32,6 +32,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -922,12 +923,54 @@ public final class ProfileGate {
         }
     }
 
+    @FunctionalInterface
+    interface ThrowingSupplier<T> {
+        T get() throws Exception;
+    }
+
+    @FunctionalInterface
+    interface ThrowingConsumer<T> {
+        void accept(T value) throws Exception;
+    }
+
     /**
      * Pure-Java rollback guard: revokes the newly enrolled biometric vault only when migrating
      * from PIN/passphrase to biometric, never wiping an existing biometric-primary profile's sole vault.
      */
     static boolean shouldRevokeBiometricOnBiometricRollback(ProfileLockPolicy.Mode previousMode) {
         return previousMode != ProfileLockPolicy.Mode.BIOMETRIC;
+    }
+
+    /**
+     * Executes a two-phase lock-mode transition: prepares the slow PBKDF2-resealed envelope before
+     * modifying persisted lock mode, then commits lock mode and envelope back-to-back with rollback on failure.
+     */
+    static boolean commitLockModeTransition(
+            ThrowingSupplier<String> prepareEnvelope,
+            BooleanSupplier commitMode,
+            ThrowingConsumer<String> commitEnvelope,
+            Runnable rollbackMode,
+            Runnable onSuccess,
+            Runnable onRollback,
+            String failureDiagnosticAction) {
+        boolean modeCommitted = false;
+        try {
+            String resealed = prepareEnvelope.get();
+            if (!commitMode.getAsBoolean()) {
+                throw new java.io.IOException("Lock mode commit failed");
+            }
+            modeCommitted = true;
+            commitEnvelope.accept(resealed);
+            if (onSuccess != null) onSuccess.run();
+            return true;
+        } catch (Exception err) {
+            Diagnostics.warning("security", failureDiagnosticAction);
+            if (modeCommitted && rollbackMode != null) {
+                rollbackMode.run();
+            }
+            if (onRollback != null) onRollback.run();
+            return false;
+        }
     }
 
     /** Update an already-unlocked profile's lock mode (Biometric / PIN / Passphrase) atomically. */
@@ -952,23 +995,17 @@ public final class ProfileGate {
                 @Override public void onEnrolled() {
                     char[] generated = ProfileLockPolicy.generateVaultSecret();
                     IO.execute(() -> {
-                        boolean ok = false;
-                        boolean modeCommitted = false;
+                        boolean ok;
                         try {
-                            if (!ProfileLockPolicy.setMode(activity, unlocked.id, ProfileLockPolicy.Mode.BIOMETRIC)) {
-                                throw new java.io.IOException("Lock mode commit failed");
-                            }
-                            modeCommitted = true;
-                            store.changeLockSecret(unlocked, generated);
-                            ok = true;
-                        } catch (Exception err) {
-                            Diagnostics.warning("security", "lock_mode_biometric_reseal_failed");
-                            if (modeCommitted) {
-                                ProfileLockPolicy.setMode(activity, unlocked.id, previousMode);
-                            }
-                            if (shouldRevokeBiometricOnBiometricRollback(previousMode)) {
-                                BiometricVault.revoke(activity, unlocked.id);
-                            }
+                            ok = commitLockModeTransition(
+                                    () -> store.prepareLockSecret(unlocked, generated),
+                                    () -> ProfileLockPolicy.setMode(activity, unlocked.id, ProfileLockPolicy.Mode.BIOMETRIC),
+                                    resealed -> store.commitLockSecret(unlocked, resealed),
+                                    () -> ProfileLockPolicy.setMode(activity, unlocked.id, previousMode),
+                                    null,
+                                    shouldRevokeBiometricOnBiometricRollback(previousMode)
+                                            ? () -> BiometricVault.revoke(activity, unlocked.id) : null,
+                                    "lock_mode_biometric_reseal_failed");
                         } finally {
                             Arrays.fill(generated, '\0');
                         }
@@ -1005,23 +1042,17 @@ public final class ProfileGate {
         }
         busy = true;
         IO.execute(() -> {
-            boolean ok = false;
-            boolean modeCommitted = false;
+            boolean ok;
             try {
-                if (!ProfileLockPolicy.setMode(activity, unlocked.id, nextMode)) {
-                    throw new java.io.IOException("Lock mode commit failed");
-                }
-                modeCommitted = true;
-                store.changeLockSecret(unlocked, nextSecret);
-                if (ProfileLockPolicy.shouldRevokeBiometricOnModeChange(previousMode, nextMode)) {
-                    BiometricVault.revoke(activity, unlocked.id);
-                }
-                ok = true;
-            } catch (Exception err) {
-                Diagnostics.warning("security", "lock_mode_reseal_failed");
-                if (modeCommitted) {
-                    ProfileLockPolicy.setMode(activity, unlocked.id, previousMode);
-                }
+                ok = commitLockModeTransition(
+                        () -> store.prepareLockSecret(unlocked, nextSecret),
+                        () -> ProfileLockPolicy.setMode(activity, unlocked.id, nextMode),
+                        resealed -> store.commitLockSecret(unlocked, resealed),
+                        () -> ProfileLockPolicy.setMode(activity, unlocked.id, previousMode),
+                        ProfileLockPolicy.shouldRevokeBiometricOnModeChange(previousMode, nextMode)
+                                ? () -> BiometricVault.revoke(activity, unlocked.id) : null,
+                        null,
+                        "lock_mode_reseal_failed");
             } finally {
                 Arrays.fill(nextSecret, '\0');
             }

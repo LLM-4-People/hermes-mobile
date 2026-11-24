@@ -672,7 +672,8 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         }
         if (freshClaim != null && !FirstRunWizard.isCompleted(unlocked)) {
             closeFirstRunStep2();
-            activeFirstRunStep2 = FirstRunWizard.showStep2(
+            final AutoCloseable[] step2Ref = new AutoCloseable[1];
+            step2Ref[0] = FirstRunWizard.showStep2(
                     this, unlocked, api, notifications,
                     () -> account == unlocked && !isFinishing() && !isDestroyed(),
                     new FirstRunWizard.Step2Callbacks() {
@@ -683,9 +684,10 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                             if (account == unlocked) stageDraft(draftText);
                         }
                         @Override public void onFinished() {
-                            activeFirstRunStep2 = null;
+                            if (activeFirstRunStep2 == step2Ref[0]) activeFirstRunStep2 = null;
                         }
                     });
+            activeFirstRunStep2 = step2Ref[0];
         }
         try {
             threads.resumeLast();

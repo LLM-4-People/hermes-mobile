@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
@@ -232,10 +233,12 @@ public final class SessionPanel implements AutoCloseable {
     }
 
     <T> void request(LinearLayout box, Callable<T> call, Consumer<T> success, Consumer<Exception> rejected) {
+        ExecutorService pool = worker;
+        if (pool == null || pool.isShutdown()) return;
         int page = generation;
         TextView progress = note(box, t(R.string.panel_loading));
         progress.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
-        worker.execute(() -> {
+        if (!submitWorker(pool, () -> {
             try {
                 T value = call.call();
                 activity.runOnUiThread(() -> {
@@ -251,7 +254,21 @@ public final class SessionPanel implements AutoCloseable {
                     rejected.accept(error);
                 });
             }
-        });
+        })) {
+            box.removeView(progress);
+        }
+    }
+
+    /** Pure-JVM testable executor submission guard preventing post-teardown NPE/RejectedExecutionException. */
+    static boolean submitWorker(ExecutorService pool, Runnable task) {
+        if (pool == null || pool.isShutdown() || task == null) return false;
+        try {
+            pool.execute(task);
+            return true;
+        } catch (RejectedExecutionException rejected) {
+            org.llm4people.hermes.Diagnostics.warning("panel", "worker_submit_rejected", rejected);
+            return false;
+        }
     }
 
     TextView failure(LinearLayout box, Exception error, Runnable retry) {

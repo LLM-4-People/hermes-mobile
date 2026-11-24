@@ -222,9 +222,9 @@ public final class ProfileHubSheet implements AutoCloseable {
 
     /** Immediately triggers the 1-tap "Add another device" 5-min QR pairing flow. */
     public void triggerPairDevice() {
-        if (closed || !canAct.getAsBoolean()) return;
+        if (closed || !canAct.getAsBoolean() || io.isShutdown()) return;
         boolean standalone = sheetDialog == null;
-        io.execute(() -> {
+        if (!submitIo(() -> {
             OnboardingModels.PairingTicket ticket = null;
             try {
                 JSONObject req = new JSONObject();
@@ -250,7 +250,9 @@ public final class ProfileHubSheet implements AutoCloseable {
                 shareSheet = PairingShareSheet.show(activity, created, api, io, canAct,
                         standalone ? null : this::refreshRemoteState, standalone ? this::close : null);
             });
-        });
+        }) && standalone) {
+            close();
+        }
     }
 
     /** Immediately opens the admin 1-step "Invite someone" flow. */
@@ -355,7 +357,7 @@ public final class ProfileHubSheet implements AutoCloseable {
 
     private void refreshRemoteState() {
         if (closed || api.isRevoked()) return;
-        io.execute(() -> {
+        submitIo(() -> {
             OnboardingModels.OnboardingStatus status = null;
             List<OnboardingModels.RemoteProfile> profiles = null;
             try {
@@ -457,7 +459,7 @@ public final class ProfileHubSheet implements AutoCloseable {
 
     private void inviteExistingProfile(String slug) {
         if (closed || api.isRevoked()) return;
-        io.execute(() -> {
+        submitIo(() -> {
             OnboardingModels.PairingTicket ticket = null;
             try {
                 JSONObject req = new JSONObject();
@@ -540,7 +542,7 @@ public final class ProfileHubSheet implements AutoCloseable {
                 .setPositiveButton(R.string.profile_save_action, (d, w) -> {
                     String nextName = nameField.getText().toString().trim();
                     String nextModel = modelField.getText().toString().trim();
-                    io.execute(() -> {
+                    submitIo(() -> {
                         boolean ok = false;
                         try {
                             JSONObject patch = new JSONObject();
@@ -648,10 +650,11 @@ public final class ProfileHubSheet implements AutoCloseable {
                 }
                 inlineError.setText("");
                 inlineError.setVisibility(View.GONE);
+                if (closed || io.isShutdown()) return;
                 boolean grantAdmin = allowAdminToggle && adminToggle.isChecked();
                 submitted[0] = true;
                 dialog.dismiss();
-                io.execute(() -> {
+                if (!submitIo(() -> {
                     OnboardingModels.PairingTicket ticket = null;
                     try {
                         JSONObject req = new JSONObject();
@@ -686,9 +689,15 @@ public final class ProfileHubSheet implements AutoCloseable {
                         shareSheet = PairingShareSheet.show(activity, created, api, io, canAct,
                                 standalone ? null : this::refreshRemoteState, standalone ? this::close : null);
                     });
-                });
+                }) && standalone) {
+                    close();
+                }
             });
         }
+    }
+
+    private boolean submitIo(Runnable task) {
+        return AdminConsoleSheet.submitTask(closed, io, task, "profile_hub");
     }
 
     private EditText styledLabeledField(

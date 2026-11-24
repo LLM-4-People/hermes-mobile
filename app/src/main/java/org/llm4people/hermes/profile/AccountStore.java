@@ -24,8 +24,13 @@ final class AccountStore {
     private final Context context;
 
     AccountStore(Context context) {
-        this.context = context.getApplicationContext();
-        prefs = context.getSharedPreferences("hermes.profiles", Context.MODE_PRIVATE);
+        this(context.getApplicationContext(),
+                context.getSharedPreferences("hermes.profiles", Context.MODE_PRIVATE));
+    }
+
+    AccountStore(Context context, SharedPreferences prefs) {
+        this.context = context;
+        this.prefs = Objects.requireNonNull(prefs, "prefs");
     }
 
     boolean contains(String id) {
@@ -81,7 +86,7 @@ final class AccountStore {
         byte[] payload = packPayload(endpoint, bearer, keys);
         try {
             byte[] envelope = ProfileEnvelope.seal(device, id, label, pass, payload);
-            return Base64.encodeToString(envelope, Base64.NO_WRAP);
+            return java.util.Base64.getEncoder().encodeToString(envelope);
         } finally {
             Arrays.fill(payload, (byte) 0);
         }
@@ -141,23 +146,46 @@ final class AccountStore {
         return updated;
     }
 
-    /** Re-seals an already unlocked account under a new PIN, passphrase, or generated biometric secret. */
-    void changeLockSecret(Account unlocked, char[] newSecret) throws IOException, GeneralSecurityException {
+    /** Re-seals an unlocked account's envelope in memory without modifying stored preferences yet. */
+    String prepareLockSecret(Account unlocked, char[] newSecret) throws IOException, GeneralSecurityException {
+        return prepareLockSecret(unlocked, newSecret, null);
+    }
+
+    String prepareLockSecret(Account unlocked, char[] newSecret, SecretKey deviceOverride)
+            throws IOException, GeneralSecurityException {
         Objects.requireNonNull(unlocked, "unlocked");
         Objects.requireNonNull(newSecret, "newSecret");
+        synchronized (prefs) {
+            if (!hasMembershipLocked(unlocked)) {
+                throw new IOException("Profile unavailable");
+            }
+        }
         byte[] keys = unlocked.copyKeys();
         try {
-            SecretKey device = deviceKey(true);
-            String resealed = encode(unlocked.id, unlocked.label, unlocked.endpoint, unlocked.bearer, keys, newSecret, device);
-            synchronized (prefs) {
-                if (!unlocked.label.equals(prefs.getString(LABEL + unlocked.id, null)) || !prefs.contains(unlocked.id)) {
-                    throw new IOException("Profile unavailable");
-                }
-                commit(Collections.singletonMap(unlocked.id, resealed));
-            }
+            SecretKey device = deviceOverride != null ? deviceOverride : deviceKey(true);
+            return encode(unlocked.id, unlocked.label, unlocked.endpoint, unlocked.bearer, keys, newSecret, device);
         } finally {
             Arrays.fill(keys, (byte) 0);
         }
+    }
+
+    /** Commits a pre-sealed lock envelope atomically under the profile index lock. */
+    void commitLockSecret(Account unlocked, String resealed) throws IOException {
+        Objects.requireNonNull(unlocked, "unlocked");
+        if (resealed == null || resealed.isEmpty()) {
+            throw new IllegalArgumentException("Missing resealed envelope");
+        }
+        synchronized (prefs) {
+            if (!hasMembershipLocked(unlocked)) {
+                throw new IOException("Profile unavailable");
+            }
+            commit(Collections.singletonMap(unlocked.id, resealed));
+        }
+    }
+
+    private boolean hasMembershipLocked(Account unlocked) {
+        return unlocked.label.equals(prefs.getString(LABEL + unlocked.id, null))
+                && prefs.contains(unlocked.id);
     }
 
     private Account restore(String id, char[] pass, String replacement) throws IOException, GeneralSecurityException {

@@ -36,6 +36,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.function.BooleanSupplier;
 
 /**
@@ -249,12 +250,12 @@ public final class AdminConsoleSheet implements AutoCloseable {
     }
 
     private void refreshAll() {
-        if (closed || api.isRevoked()) return;
+        if (closed || api.isRevoked() || io.isShutdown()) return;
         if (profiles.isEmpty()) {
             usersLoadState = UsersLoadState.LOADING;
             if (activeTab == Tab.USERS) renderActiveTab();
         }
-        io.execute(() -> {
+        submitIo(() -> {
             List<OnboardingModels.RemoteProfile> loadedProfiles = null;
             OnboardingModels.AdminSettings loadedSettings = null;
             List<OnboardingModels.PairingTicket> loadedTickets = null;
@@ -546,8 +547,9 @@ public final class AdminConsoleSheet implements AutoCloseable {
             }
             settingsError.setText("");
             settingsError.setVisibility(View.GONE);
+            if (closed || io.isShutdown()) return;
             saveBtn.setEnabled(false);
-            io.execute(() -> {
+            if (!submitIo(() -> {
                 OnboardingModels.AdminSettings updated = null;
                 try {
                     updated = OnboardingModels.parseAdminSettings(api.updateAdminSettings(validated.toPatchJson()));
@@ -567,7 +569,9 @@ public final class AdminConsoleSheet implements AutoCloseable {
                         Toast.makeText(activity, R.string.admin_settings_save_failed, Toast.LENGTH_LONG).show();
                     }
                 });
-            });
+            })) {
+                saveBtn.setEnabled(true);
+            }
         });
         contentSlot.addView(saveBtn, topMargin(12));
 
@@ -622,7 +626,7 @@ public final class AdminConsoleSheet implements AutoCloseable {
 
     private void revokeTicket(String ticketId) {
         if (closed || ticketId == null || ticketId.isEmpty()) return;
-        io.execute(() -> {
+        submitIo(() -> {
             boolean ok = false;
             try {
                 api.revokePairing(ticketId);
@@ -644,7 +648,7 @@ public final class AdminConsoleSheet implements AutoCloseable {
     }
 
     private void pairProfileDevice(String slug) {
-        io.execute(() -> {
+        submitIo(() -> {
             OnboardingModels.PairingTicket ticket = null;
             try {
                 JSONObject req = new JSONObject();
@@ -673,7 +677,7 @@ public final class AdminConsoleSheet implements AutoCloseable {
             return;
         }
         boolean nextAdmin = !profile.isAdmin();
-        io.execute(() -> {
+        submitIo(() -> {
             boolean ok = false;
             try {
                 JSONObject patch = new JSONObject();
@@ -722,7 +726,7 @@ public final class AdminConsoleSheet implements AutoCloseable {
                 .setPositiveButton(R.string.profile_save_action, (d, w) -> {
                     String nextName = nameField.getText().toString().trim();
                     String nextModel = modelField.getText().toString().trim();
-                    io.execute(() -> {
+                    submitIo(() -> {
                         boolean ok = false;
                         try {
                             JSONObject patch = new JSONObject();
@@ -821,9 +825,10 @@ public final class AdminConsoleSheet implements AutoCloseable {
                 }
                 inlineError.setText("");
                 inlineError.setVisibility(View.GONE);
+                if (closed || io.isShutdown()) return;
                 boolean grantAdmin = adminToggle.isChecked();
                 dialog.dismiss();
-                io.execute(() -> {
+                submitIo(() -> {
                     OnboardingModels.PairingTicket ticket = null;
                     try {
                         JSONObject req = new JSONObject();
@@ -863,7 +868,7 @@ public final class AdminConsoleSheet implements AutoCloseable {
                 .setTitle(activity.getString(R.string.profile_hub_rotate_title, profile.displayName()))
                 .setMessage(R.string.profile_hub_rotate_body)
                 .setNegativeButton(R.string.profile_setup_cancel, null)
-                .setPositiveButton(R.string.profile_hub_rotate_confirm, (d, w) -> io.execute(() -> {
+                .setPositiveButton(R.string.profile_hub_rotate_confirm, (d, w) -> submitIo(() -> {
                     OnboardingModels.RotateKeyResult rotated = null;
                     try {
                         JSONObject body = new JSONObject();
@@ -949,8 +954,9 @@ public final class AdminConsoleSheet implements AutoCloseable {
                 }
                 inlineError.setText("");
                 inlineError.setVisibility(View.GONE);
+                if (closed || io.isShutdown()) return;
                 dialog.dismiss();
-                io.execute(() -> {
+                submitIo(() -> {
                     boolean ok = false;
                     try {
                         api.deleteProfile(profile.slug(), profile.slug());
@@ -969,6 +975,22 @@ public final class AdminConsoleSheet implements AutoCloseable {
                     });
                 });
             });
+        }
+    }
+
+    private boolean submitIo(Runnable task) {
+        return submitTask(closed, io, task, "admin");
+    }
+
+    /** Pure-JVM testable executor submission guard preventing post-close RejectedExecutionException. */
+    static boolean submitTask(boolean isClosed, ExecutorService executor, Runnable task, String diagCategory) {
+        if (isClosed || executor == null || executor.isShutdown() || task == null) return false;
+        try {
+            executor.execute(task);
+            return true;
+        } catch (RejectedExecutionException rejected) {
+            Diagnostics.warning(diagCategory, "io_submit_rejected", rejected);
+            return false;
         }
     }
 
