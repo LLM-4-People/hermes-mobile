@@ -667,7 +667,11 @@ public final class QrScannerActivity extends Activity {
             Integer sensorOri = chars.get(CameraCharacteristics.SENSOR_ORIENTATION);
             sensorOrientationDeg = sensorOri != null ? sensorOri : 90;
             Boolean hasFlash = chars.get(CameraCharacteristics.FLASH_INFO_AVAILABLE);
-            flashAvailable = Boolean.TRUE.equals(hasFlash);
+            final boolean showFlash = Boolean.TRUE.equals(hasFlash);
+            synchronized (cameraLock) {
+                flashAvailable = showFlash;
+                if (!showFlash) torchOn = false;
+            }
 
             StreamConfigurationMap map = chars.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
             boolean swapAxes = shouldSwapAxes(sensorOrientationDeg, currentDisplayRotationDeg());
@@ -688,7 +692,7 @@ public final class QrScannerActivity extends Activity {
             previewSize = chosenPreview;
             Runnable configureSurface = () -> {
                 if (!isFinishing() && !isDestroyed()) {
-                    torchButton.setVisibility(flashAvailable ? View.VISIBLE : View.GONE);
+                    torchButton.setVisibility(showFlash ? View.VISIBLE : View.GONE);
                     previewView.getHolder().setFixedSize(chosenPreview.getWidth(), chosenPreview.getHeight());
                     applyPreviewLayout();
                 }
@@ -786,11 +790,9 @@ public final class QrScannerActivity extends Activity {
             builder.addTarget(reader.getSurface());
             builder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
             builder.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON);
-            if (flashAvailable && torchOn) {
-                builder.set(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_TORCH);
-            }
             synchronized (cameraLock) {
                 if (sessionEpoch != cameraEpoch || cameraDevice != device) return;
+                builder.set(CaptureRequest.FLASH_MODE, flashModeFor(flashAvailable, torchOn));
                 previewRequestBuilder = builder;
             }
             device.createCaptureSession(
@@ -798,17 +800,27 @@ public final class QrScannerActivity extends Activity {
                     new CameraCaptureSession.StateCallback() {
                         @Override
                         public void onConfigured(CameraCaptureSession session) {
+                            boolean resetTorchUi = false;
                             synchronized (cameraLock) {
                                 if (sessionEpoch != cameraEpoch || cameraDevice != device || cameraHandler == null) {
                                     session.close();
                                     return;
                                 }
                                 captureSession = session;
+                                builder.set(CaptureRequest.FLASH_MODE, flashModeFor(flashAvailable, torchOn));
                                 try {
                                     session.setRepeatingRequest(builder.build(), null, cameraHandler);
                                 } catch (CameraAccessException | IllegalStateException err) {
+                                    if (torchOn) {
+                                        torchOn = false;
+                                        builder.set(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_OFF);
+                                        resetTorchUi = true;
+                                    }
                                     Diagnostics.warning("qr_scanner", "preview_request_failed");
                                 }
+                            }
+                            if (resetTorchUi) {
+                                postTorchButtonState(false);
                             }
                         }
 
@@ -896,22 +908,55 @@ public final class QrScannerActivity extends Activity {
         }
     }
 
+    static boolean nextTorchState(boolean flashAvailable, boolean currentlyOn) {
+        return flashAvailable && !currentlyOn;
+    }
+
+    static int flashModeFor(boolean flashAvailable, boolean torchEnabled) {
+        return (flashAvailable && torchEnabled)
+                ? CaptureRequest.FLASH_MODE_TORCH
+                : CaptureRequest.FLASH_MODE_OFF;
+    }
+
+    static boolean resolveTorchAfterApply(boolean previous, boolean desired, boolean applySucceeded) {
+        return applySucceeded ? desired : previous;
+    }
+
+    private void updateTorchButtonText(boolean enabled) {
+        if (!isFinishing() && !isDestroyed() && torchButton != null) {
+            torchButton.setText(enabled ? R.string.qr_scanner_torch_off : R.string.qr_scanner_torch_on);
+        }
+    }
+
+    private void postTorchButtonState(boolean enabled) {
+        mainHandler.post(() -> updateTorchButtonText(enabled));
+    }
+
     private void toggleTorch() {
-        if (!flashAvailable) return;
-        torchOn = !torchOn;
-        torchButton.setText(torchOn ? R.string.qr_scanner_torch_off : R.string.qr_scanner_torch_on);
+        final boolean applied;
         synchronized (cameraLock) {
+            if (!flashAvailable) return;
+            boolean previous = torchOn;
+            boolean desired = nextTorchState(flashAvailable, previous);
+            boolean succeeded = true;
             if (captureSession != null && previewRequestBuilder != null && cameraHandler != null) {
                 try {
                     previewRequestBuilder.set(
                             CaptureRequest.FLASH_MODE,
-                            torchOn ? CaptureRequest.FLASH_MODE_TORCH : CaptureRequest.FLASH_MODE_OFF);
+                            flashModeFor(flashAvailable, desired));
                     captureSession.setRepeatingRequest(previewRequestBuilder.build(), null, cameraHandler);
                 } catch (CameraAccessException | IllegalStateException ignored) {
+                    succeeded = false;
+                    previewRequestBuilder.set(
+                            CaptureRequest.FLASH_MODE,
+                            flashModeFor(flashAvailable, previous));
                     Diagnostics.warning("qr_scanner", "torch_toggle_failed");
                 }
             }
+            torchOn = resolveTorchAfterApply(previous, desired, succeeded);
+            applied = torchOn;
         }
+        updateTorchButtonText(applied);
     }
 
     private void closeCamera() {
@@ -936,11 +981,7 @@ public final class QrScannerActivity extends Activity {
             previewRequestBuilder = null;
         }
         if (resetTorchUi) {
-            mainHandler.post(() -> {
-                if (!isFinishing() && !isDestroyed() && torchButton != null) {
-                    torchButton.setText(R.string.qr_scanner_torch_on);
-                }
-            });
+            postTorchButtonState(false);
         }
     }
 

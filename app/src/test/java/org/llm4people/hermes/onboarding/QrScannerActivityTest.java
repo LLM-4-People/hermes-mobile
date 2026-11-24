@@ -1,13 +1,16 @@
 package org.llm4people.hermes.onboarding;
 
+import android.hardware.camera2.CaptureRequest;
+
 import org.junit.Test;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-/** Pure-JVM regression tests for QrScannerActivity result delivery lifecycle fencing. */
+/** Pure-JVM regression tests for QrScannerActivity lifecycle fencing and torch state helpers. */
 public final class QrScannerActivityTest {
     @Test
     public void canDeliverSuccessEnforcesOnceOnlyAndBlocksFinishingDestroyedOrCanceledState() {
@@ -34,5 +37,24 @@ public final class QrScannerActivityTest {
 
         assertFalse("Null delivered flag must fail closed",
                 QrScannerActivity.canDeliverSuccess(false, false, null));
+    }
+
+    @Test
+    public void torchStateHelpersRespectFlashAvailabilityAndRevertOnApplyFailure() {
+        assertFalse(QrScannerActivity.nextTorchState(false, false));
+        assertFalse(QrScannerActivity.nextTorchState(false, true));
+        assertTrue(QrScannerActivity.nextTorchState(true, false));
+        assertFalse(QrScannerActivity.nextTorchState(true, true));
+
+        assertEquals(CaptureRequest.FLASH_MODE_OFF, QrScannerActivity.flashModeFor(false, true));
+        assertEquals(CaptureRequest.FLASH_MODE_OFF, QrScannerActivity.flashModeFor(true, false));
+        assertEquals(CaptureRequest.FLASH_MODE_TORCH, QrScannerActivity.flashModeFor(true, true));
+
+        assertTrue(QrScannerActivity.resolveTorchAfterApply(false, true, true));
+        assertFalse(QrScannerActivity.resolveTorchAfterApply(true, false, true));
+        assertFalse("Failed toggle-on must revert to off",
+                QrScannerActivity.resolveTorchAfterApply(false, true, false));
+        assertTrue("Failed toggle-off must revert to on",
+                QrScannerActivity.resolveTorchAfterApply(true, false, false));
     }
 }

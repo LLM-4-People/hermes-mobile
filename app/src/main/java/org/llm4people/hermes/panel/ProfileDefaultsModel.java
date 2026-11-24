@@ -1,5 +1,6 @@
 package org.llm4people.hermes.panel;
 
+import org.llm4people.hermes.PlainTextSanitizer;
 import org.llm4people.hermes.R;
 
 import java.util.ArrayList;
@@ -226,10 +227,7 @@ public final class ProfileDefaultsModel {
     }
 
     public static String soulPreview(String content) {
-        if (content == null) return "";
-        String normalized = content.trim().replaceAll("\\s+", " ");
-        if (normalized.length() <= SOUL_PREVIEW_MAX_CHARS) return normalized;
-        return normalized.substring(0, SOUL_PREVIEW_MAX_CHARS - 1).trim() + "…";
+        return PlainTextSanitizer.collapseWithEllipsis(content, SOUL_PREVIEW_MAX_CHARS);
     }
 
     public static boolean isSoulDirty(String initialContent, String currentContent) {

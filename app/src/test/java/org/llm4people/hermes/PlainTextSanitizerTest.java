@@ -61,4 +61,14 @@ public final class PlainTextSanitizerTest {
         assertEquals("cœur", PlainTextSanitizer.foldAccents("CŒUR"));
         assertEquals("resume cafe", PlainTextSanitizer.foldAccents("Re\u0301sume\u0301 CAFE\u0301"));
     }
+
+    @Test
+    public void handlesMaxIntBoundsWithoutOverflowAndStripsCgj() {
+        assertEquals("Hello world", PlainTextSanitizer.collapseWithEllipsis("  Hello\nworld  ", Integer.MAX_VALUE));
+        assertEquals("Hello world", PlainTextSanitizer.collapseWithEllipsis("  Hello\nworld  ", Integer.MAX_VALUE - 1));
+        assertEquals("Hello world", PlainTextSanitizer.collapseBounded("  Hello world  ", Integer.MAX_VALUE));
+        // U+034F (Combining Grapheme Joiner) is stripped from display previews while keeping emoji VS-16 intact.
+        assertEquals("sk-123", PlainTextSanitizer.collapseBounded("sk-\u034F123", 16));
+        assertEquals("Bonjour café ☕\uFE0F", PlainTextSanitizer.collapseWithEllipsis("Bon\u034Fjour café ☕\uFE0F", 32));
+    }
 }

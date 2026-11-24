@@ -13,6 +13,7 @@ import android.widget.TextView;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.llm4people.hermes.Diagnostics;
+import org.llm4people.hermes.PlainTextSanitizer;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.net.HermesApi;
@@ -286,8 +287,8 @@ final class NotesPanel {
         headerArea.addView(top);
 
         if (!note.body().isEmpty()) {
-            String preview = note.body().length() > 240 ? note.body().substring(0, 240) + "…" : note.body();
-            descriptionParts.add(preview);
+            String preview = PlainTextSanitizer.collapseWithEllipsis(note.body(), 240);
+            if (!preview.isEmpty()) descriptionParts.add(preview);
             TextView content = Ui.text(panel.activity, note.body(), 14);
             content.setTextColor(panel.activity.getColor(R.color.muted));
             content.setMaxLines(4);

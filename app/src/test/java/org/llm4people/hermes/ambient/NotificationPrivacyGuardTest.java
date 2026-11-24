@@ -2,6 +2,7 @@ package org.llm4people.hermes.ambient;
 
 import org.junit.Test;
 
+import java.text.Normalizer;
 import java.util.Set;
 
 import static org.junit.Assert.assertEquals;
@@ -66,7 +67,15 @@ public final class NotificationPrivacyGuardTest {
                 {"API", "Rotated key sk-AbCdEf1234567890"},
                 {"GitHub", "PAT ghp_AbCdEf1234567890"},
                 {"Token", "eyJhbGciOiJIUzI1NiJ9.payload.sig"},
-                {"Cert", "-----BEGIN PRIVATE KEY-----"}
+                {"Cert", "-----BEGIN PRIVATE KEY-----"},
+                // R15.2.2: NFD-decomposed French OTP phrases and invisible-mark obfuscation
+                {"Banque", Normalizer.normalize("Votre code de vérification est 839201", Normalizer.Form.NFD)},
+                {"Sécurité", Normalizer.normalize("Code à usage unique : 551029", Normalizer.Form.NFD)},
+                {"Banque", Normalizer.normalize("Votre code\nde\nsécurité : 918273", Normalizer.Form.NFD)},
+                {"Auth", "o\u034Ftp 839201"},
+                {"Auth", "code\uFE00otp 839201"},
+                {"Card", "c\uFE0Fvv 904"},
+                {"API", "sk-\u034FAbCdEf1234567890"}
         };
         for (String[] pair : sensitiveSamples) {
             assertTrue("Expected OTP/secret detection for: " + pair[1],
@@ -114,6 +123,8 @@ public final class NotificationPrivacyGuardTest {
     public void allowsOrdinaryAllowlistedMessageAndSanitizesControlCharsAndLength() {
         assertFalse(NotificationPrivacyGuard.containsOtpOrSecret("Marie", "On se retrouve à 18 h devant le café ?"));
         assertFalse(NotificationPrivacyGuard.containsOtpOrSecret("Paul", "Réunion à 14h30 salle 402 pour le bilan"));
+        assertFalse(NotificationPrivacyGuard.containsOtpOrSecret("Notes",
+                Normalizer.normalize("Résumé du café et footprint sur le sentier", Normalizer.Form.NFD)));
         assertEquals(NotificationPrivacyGuard.Decision.ALLOW,
                 NotificationPrivacyGuard.evaluate(
                         candidate(SIGNAL, "Marie", "On se retrouve à 18 h devant le café ?"), ALLOWLIST));

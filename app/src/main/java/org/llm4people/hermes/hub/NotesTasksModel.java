@@ -2,6 +2,7 @@ package org.llm4people.hermes.hub;
 
 import org.json.JSONObject;
 import org.llm4people.hermes.JsonValues;
+import org.llm4people.hermes.PlainTextSanitizer;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.push.DeliveryItem;
 
@@ -229,10 +230,7 @@ public final class NotesTasksModel {
 
     /** Collapse line breaks and excess whitespace into a crisp, bounded 1-line summary. */
     public static String compactPreview(String raw) {
-        if (raw == null) return "";
-        String collapsed = raw.replace('\r', ' ').replace('\n', ' ').trim().replaceAll("\\s+", " ");
-        if (collapsed.length() <= MAX_PREVIEW_CHARS) return collapsed;
-        return collapsed.substring(0, MAX_PREVIEW_CHARS - 1).trim() + "…";
+        return PlainTextSanitizer.collapseWithEllipsis(raw, MAX_PREVIEW_CHARS);
     }
 
     private static List<?> extractList(Map<String, Object> response, String primaryKey, String fallbackKey) {
