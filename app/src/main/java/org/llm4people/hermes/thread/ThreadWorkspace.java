@@ -453,6 +453,13 @@ public final class ThreadWorkspace implements AutoCloseable {
 
     public void inbox() { inbox("", null); }
 
+    /** Opens the Chats inbox directly on the inline Shared filter tab. */
+    public void openSharedInbox() {
+        if (closed) return;
+        inbox();
+        selectInboxFilter(ThreadInboxFilter.Filter.SHARED);
+    }
+
     private void inbox(String warning, Runnable recovery) {
         if (closed) return;
         switchScreen(index);

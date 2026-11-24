@@ -84,7 +84,7 @@
           <h2>1. Installer et mettre à jour</h2>
           <ul>
             <li><strong>Versions officielles signées sur GitHub :</strong> Téléchargez <code>hermes-mobile-v0.2.1.apk</code>, <code>SHA256SUMS</code> et <code>release.json</code> depuis la <a href="https://github.com/LLM-4-People/hermes-mobile/releases/latest" rel="noopener">dernière version publiée</a>.</li>
-            <li><strong>Mises à jour intégrées et vérifiées :</strong> Ouvrez <strong>Activité &gt; Mises à jour</strong>. L’application vérifie l’hôte HTTPS GitHub officiel, contrôle l’empreinte SHA-256 en temps constant et valide que le certificat de signature correspond exactement avant de lancer l’installateur Android.</li>
+            <li><strong>Mises à jour intégrées et vérifiées :</strong> Ouvrez <strong>Réglages &gt; Mises à jour</strong>. L’application vérifie l’hôte HTTPS GitHub officiel, contrôle l’empreinte SHA-256 en temps constant et valide que le certificat de signature correspond exactement avant de lancer l’installateur Android.</li>
           </ul>
           <div class="code-block"><code>sha256sum -c SHA256SUMS
 adb install -r hermes-mobile-v0.2.1.apk</code></div>
@@ -97,21 +97,21 @@ adb install -r hermes-mobile-v0.2.1.apk</code></div>
             <li>Déployez le serveur compagnon puis lancez <code>python3 scripts/mobile_setup.py --invite alex --lang fr --qr</code> sur l’hôte pour créer un profil isolé et un lien d’appairage à usage unique valable 5 minutes.</li>
             <li>Sur Android, ouvrez <strong>Connecter votre Hermes</strong> et touchez <strong>Coller le lien d’appairage</strong> ou ouvrez le lien <code>hermes://pair</code>. Confirmez l’hôte cible avant réclamation, ou saisissez manuellement l’adresse, l’identifiant de profil et la clé d’accès.</li>
             <li>Le premier profil agit comme administrateur avec une <strong>Console admin</strong> intégrée pour inviter des membres, renouveler les clés, ajuster les plafonds et révoquer les jetons actifs.</li>
-            <li>Protégez le coffre local selon votre préférence (<strong>biométrie / verrouillage système</strong>, <strong>code PIN de 6 à 12 chiffres</strong> ou <strong>phrase secrète de 12+ caractères</strong>, avec délai de verrouillage intelligent de 5 min configurable dans <strong>Activité &gt; Sécurité</strong>) et gérez vos autorisations Android dans <strong>Activité &gt; Autorisations</strong>.</li>
+            <li>Protégez le coffre local selon votre préférence (<strong>biométrie / verrouillage système</strong>, <strong>code PIN de 6 à 12 chiffres</strong> ou <strong>phrase secrète de 12+ caractères</strong>, avec délai de verrouillage intelligent de 5 min configurable dans <strong>Réglages &gt; Sécurité</strong>) et gérez vos autorisations Android dans <strong>Réglages &gt; Autorisations</strong>.</li>
           </ol>
         </section>
 
         <section id="palette-modeles" class="doc-section">
-          <h2>3. Palette de commandes et modèles du quotidien</h2>
+          <h2>3. Recherche universelle, palette rapide et modèles du quotidien</h2>
           <ul>
-            <li><strong>Palette rapide (<code>Ctrl+K</code>) :</strong> Ouvrez la recherche globale depuis la barre supérieure ou un clavier matériel pour rejoindre immédiatement une section, une discussion récente ou un modèle dans une fenêtre protégée.</li>
-            <li><strong>Modèles du quotidien et modèles chiffrés :</strong> Sous <strong>Atelier &gt; Modèles du quotidien</strong>, utilisez les 6 modèles intégrés ou créez vos propres modèles chiffrés par profil. Chaque modèle respecte la règle du brouillon modifiable : rien n’est envoyé sans votre validation.</li>
+            <li><strong>Recherche universelle sur chaque écran :</strong> Touchez la loupe dans la barre supérieure pour rechercher vos discussions (avec extraits FTS5 du serveur), notes, éléments partagés, réglages et outils dans une fenêtre <code>FLAG_SECURE</code>, ou utilisez <code>Ctrl+K</code> sur clavier matériel pour la palette rapide.</li>
+            <li><strong>Modèles du quotidien et modèles chiffrés :</strong> Sous <strong>Apps &gt; Modèles du quotidien</strong> (ou directement dans les modèles rapides d’une nouvelle discussion), utilisez les 6 modèles intégrés ou créez vos propres modèles chiffrés par profil. Chaque modèle respecte la règle du brouillon modifiable : rien n’est envoyé sans votre validation.</li>
           </ul>
         </section>
 
         <section id="diagnostic" class="doc-section">
           <h2>4. Diagnostic de connexion en direct</h2>
-          <p>Ouvrez <strong>Activité &gt; Diagnostic de connexion</strong> pour lancer 6 contrôles parallèles sans bloquer l’interface :</p>
+          <p>Ouvrez <strong>Réglages &gt; Diagnostic de connexion</strong> pour lancer 6 contrôles parallèles sans bloquer l’interface :</p>
           <ul>
             <li><strong>Joignabilité et latence serveur :</strong> Mesure le temps de réponse réel et distingue clairement une panne réseau d’une clé refusée.</li>
             <li><strong>Capacités du serveur compagnon (<code>51/51</code>) :</strong> Reconnaît le serveur compagnon complet et avertit clairement si un serveur Hermes standard est détecté.</li>
@@ -130,21 +130,21 @@ adb install -r hermes-mobile-v0.2.1.apk</code></div>
         </section>
 
         <section id="cerveau-partage" class="doc-section">
-          <h2>6. Espace Cerveau et partage sur le même serveur</h2>
-          <p>Ouvrez l’onglet <strong>Cerveau</strong> pour consulter et modifier la mémoire, gérer vos notes intelligentes, valider des habitudes proposées après au moins 3 répétitions, lancer une recherche plein texte FTS5 dans tout l’historique, gérer vos savoir-faire et explorer les fichiers du projet.</p>
+          <h2>6. Notes, partage intégré et outils avancés</h2>
+          <p>Passez directement entre <strong>Discussions</strong> (avec filtres <strong>Toutes · Épinglées · Partagées</strong>), <strong>Notes et tâches</strong> (Notes avec filtres <strong>Mes notes · Partagées</strong>, Rappels et Boîte de réception) et <strong>Apps</strong> (Voix mains libres, Écrans personnalisés et Modèles). La mémoire, les savoir-faire, les fichiers du projet et le <strong>Studio d’apparence</strong> sont regroupés dans le centre <strong>Réglages</strong> de la barre supérieure.</p>
           <p>Partagez sélectivement 7 types d’éléments (notes, savoir-faire, écrans personnalisés, widgets, outils, fichiers et discussions) avec d’autres profils du même serveur sans exposer votre espace privé.</p>
         </section>
 
         <section id="interface-directe" class="doc-section">
-          <h2>7. Personnalisation en direct et widgets d’accueil</h2>
-          <p>Demandez à Hermes d’adapter un écran, d’ajuster les couleurs jour et nuit avec contraste WCAG-AA <code>4.5:1</code> garanti ou de créer un outil interactif avec aperçu, application atomique et historique d’annulation. Épinglez des widgets sur votre écran d’accueil Android tout en conservant le verrouillage strict par profil.</p>
+          <h2>7. Studio d’apparence, personnalisation en direct et widgets d’accueil</h2>
+          <p>Ajustez le thème, la palette, la densité et les raccourcis dans <strong>Réglages &gt; Apparence</strong>, ou demandez à Hermes d’adapter un écran, d’ajuster les couleurs jour et nuit avec contraste WCAG-AA <code>4.5:1</code> garanti ou de créer un outil interactif avec aperçu, application atomique et historique d’annulation. Épinglez des widgets sur votre écran d’accueil Android tout en conservant le verrouillage strict par profil.</p>
         </section>
 
         <section id="securite" class="doc-section">
           <h2>8. Sécurité, isolation Landlock et notifications privées</h2>
           <ul>
             <li><strong>Coffre local renforcé et verrouillage multi-mode :</strong> Stockage chiffré Android Keystore AES-256-GCM par profil, choix entre biométrie, code PIN de 6 à 12 chiffres ou phrase secrète de 12+ caractères, délai intelligent de 5 min par défaut (personnalisable), temporisation persistante, fenêtres <code>FLAG_SECURE</code>, effacement atomique et isolation des rappels réseau.</li>
-            <li><strong>Centre d’autorisations (Activité &gt; Autorisations) :</strong> Consultez chaque autorisation Android optionnelle (notifications, microphone, caméra, position approximative, accès aux notifications, installation de paquets) avec boutons directs <strong>Autoriser</strong> ou <strong>Ouvrir les réglages</strong>.</li>
+            <li><strong>Centre d’autorisations (Réglages &gt; Autorisations) :</strong> Consultez chaque autorisation Android optionnelle (notifications, microphone, caméra, position approximative, accès aux notifications, installation de paquets) avec boutons directs <strong>Autoriser</strong> ou <strong>Ouvrir les réglages</strong>.</li>
             <li><strong>Isolation par le noyau serveur :</strong> Sur le serveur compagnon, Linux Landlock LSM empêche physiquement les sous-processus de lire les dossiers des autres profils (<code>EACCES</code>), et les profils membres excluent <code>terminal</code> et <code>code_execution</code> par défaut.</li>
             <li><strong>Accès ambiant désactivé par défaut :</strong> Les signaux de contexte optionnels démarrent éteints par profil, avec un filtre bloquant les codes de vérification, gestionnaires de mots de passe, banques et notifications d’écran verrouillé avant toute lecture.</li>
             <li><strong>Notifications sans fuite :</strong> Firebase ou UnifiedPush auto-hébergé (ntfy + chiffrement RFC 8291) ne transmettent que des identifiants opaques ; vos messages restent sur votre serveur jusqu’au déverrouillage.</li>

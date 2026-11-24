@@ -59,6 +59,15 @@ final class NotesPanel {
     }
 
     void show() {
+        showTab(NotesModel.FilterTab.MINE);
+    }
+
+    void showShared() {
+        showTab(NotesModel.FilterTab.SHARED);
+    }
+
+    private void showTab(NotesModel.FilterTab initialTab) {
+        activeTab = initialTab == null ? NotesModel.FilterTab.MINE : initialTab;
         LinearLayout page = panel.page("brain_notes", R.string.brain_notes_title, parent);
         panel.note(page, panel.t(R.string.brain_notes_subtitle));
 
