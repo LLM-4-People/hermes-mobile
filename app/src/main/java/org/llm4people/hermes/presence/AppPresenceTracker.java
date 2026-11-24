@@ -5,7 +5,7 @@ import org.json.JSONObject;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.JsonValues;
 import org.llm4people.hermes.PlainTextSanitizer;
-import org.llm4people.hermes.os.HermesWidgetSpec;
+import org.llm4people.hermes.SecretPatterns;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -251,20 +251,20 @@ public final class AppPresenceTracker {
             StringBuilder json = new StringBuilder(256);
             json.append("{\"schema_version\":").append(SCHEMA_VERSION);
             if (includeScreen) {
-                json.append(",\"current_screen\":").append(quoteJson(currentScreen));
-                json.append(",\"active_session_id\":").append(quoteJson(activeSessionId));
+                json.append(",\"current_screen\":").append(JsonValues.quote(currentScreen));
+                json.append(",\"active_session_id\":").append(JsonValues.quote(activeSessionId));
                 json.append(",\"active_run_count\":").append(activeRunCount);
                 json.append(",\"draft_chars\":").append(draftChars);
                 if (policy.shareDraftPreview && !draftPreview.isEmpty()) {
-                    json.append(",\"draft_preview\":").append(quoteJson(draftPreview));
+                    json.append(",\"draft_preview\":").append(JsonValues.quote(draftPreview));
                 }
             }
             if (includeRead) {
                 json.append(",\"read_without_reply\":{");
                 json.append("\"in_app_unread_reply\":").append(rwr.inAppUnreadReply());
                 if (rwr.inAppUnreadReply()) {
-                    json.append(",\"session_id\":").append(quoteJson(rwr.sessionId()));
-                    json.append(",\"message_id\":").append(quoteJson(rwr.messageId()));
+                    json.append(",\"session_id\":").append(JsonValues.quote(rwr.sessionId()));
+                    json.append(",\"message_id\":").append(JsonValues.quote(rwr.messageId()));
                     json.append(",\"in_app_seconds_since_read\":").append(rwr.readAgeSec());
                 }
                 json.append(",\"notifications\":[");
@@ -272,7 +272,7 @@ public final class AppPresenceTracker {
                 for (int i = 0; i < items.size(); i++) {
                     if (i > 0) json.append(',');
                     DismissedNotificationView item = items.get(i);
-                    json.append("{\"source\":").append(quoteJson(item.appLabel()))
+                    json.append("{\"source\":").append(JsonValues.quote(item.appLabel()))
                             .append(",\"age_s\":").append(item.ageSec()).append('}');
                 }
                 json.append("]}");
@@ -286,12 +286,12 @@ public final class AppPresenceTracker {
                         : Math.max(ContinuousLocationTracker.COARSE_MIN_ACCURACY_M, validLoc.accuracyM());
                 json.append(",\"continuous_location\":{");
                 json.append("\"opted_in\":true");
-                json.append(",\"mode\":").append(quoteJson(emitPrecise ? "precise" : "coarse"));
+                json.append(",\"mode\":").append(JsonValues.quote(emitPrecise ? "precise" : "coarse"));
                 json.append(",\"lat\":").append(String.format(Locale.ROOT, coordFmt, latVal));
                 json.append(",\"lon\":").append(String.format(Locale.ROOT, coordFmt, lonVal));
                 json.append(",\"accuracy_m\":").append(Math.round(accVal));
-                json.append(",\"place_label\":").append(quoteJson(validLoc.placeLabel()));
-                json.append(",\"moving_state\":").append(quoteJson(validLoc.movingState().wire));
+                json.append(",\"place_label\":").append(JsonValues.quote(validLoc.placeLabel()));
+                json.append(",\"moving_state\":").append(JsonValues.quote(validLoc.movingState().wire));
                 json.append(",\"age_s\":").append(validLoc.ageSeconds(nowMs));
                 json.append('}');
             }
@@ -354,11 +354,7 @@ public final class AppPresenceTracker {
 
     static String sanitizeBoundedText(String raw, int maxChars) {
         if (raw == null || raw.isEmpty()) return "";
-        if (HermesWidgetSpec.containsSecretLikePattern(raw)) return "";
+        if (SecretPatterns.containsCredential(raw)) return "";
         return PlainTextSanitizer.collapseBounded(raw, maxChars);
-    }
-
-    static String quoteJson(String raw) {
-        return JsonValues.quote(raw);
     }
 }

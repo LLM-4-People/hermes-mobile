@@ -291,7 +291,21 @@ public final class DeviceBridgeCapabilitiesTest {
         assertTrue(DeviceBridgeFlow.previewLinesForParams("app_customize",
                 Map.of("operation", "apply", "font_scale_step", 99)).isEmpty());
         assertTrue(DeviceBridgeFlow.previewLinesForParams("app_customize",
-                Map.of("operation", "apply", "font_scale_step", -9)).isEmpty());
+                Map.of("operation", "apply", "font_scale_step", -4)).isEmpty());
+        assertTrue(DeviceBridgeFlow.previewLinesForParams("app_customize",
+                Map.of("operation", "apply", "font_scale_step", 7)).isEmpty());
+        assertTrue(DeviceBridgeFlow.previewLinesForParams("app_customize",
+                Map.of("operation", "apply", "font_scale_step", 1.5)).isEmpty());
+        assertTrue(DeviceBridgeFlow.previewLinesForParams("app_customize",
+                Map.of("operation", "apply", "font_scale_step", Double.NaN)).isEmpty());
+        assertTrue(DeviceBridgeFlow.previewLinesForParams("app_customize",
+                Map.of("operation", "apply", "font_scale_step", "2")).isEmpty());
+        assertEquals(List.of(DeviceBridgeFlow.PreviewLine.text(R.string.share_bridge_preview_text_size, "85%")),
+                DeviceBridgeFlow.previewLinesForParams("app_customize",
+                        Map.of("operation", "apply", "font_scale_step", -3)));
+        assertEquals(List.of(DeviceBridgeFlow.PreviewLine.text(R.string.share_bridge_preview_text_size, "130%")),
+                DeviceBridgeFlow.previewLinesForParams("app_customize",
+                        Map.of("operation", "apply", "font_scale_step", 6)));
         assertTrue(DeviceBridgeFlow.previewLinesForParams("android_open_app",
                 Map.of("deep_link", 12345, "package_name", Boolean.TRUE)).isEmpty());
 

@@ -215,31 +215,11 @@ public final class AdminConsoleSheet implements AutoCloseable {
     }
 
     private void styleTabButton(Button btn, boolean selected) {
-        if (btn == null) return;
-        btn.setBackground(Ui.roundedRipple(activity, Ui.BUTTON_CORNER_DP, Ui.shape(
-                activity,
-                Ui.BUTTON_CORNER_DP,
-                selected ? R.color.accent_surface : R.color.surface,
-                selected ? R.color.accent : R.color.line,
-                selected ? 2 : 1)));
-        btn.setTextColor(activity.getColor(selected ? R.color.accent : R.color.ink));
-        btn.setSelected(selected);
-        Ui.setCheckableState(btn, selected);
+        Ui.styleChoiceChip(btn, selected);
     }
 
     private Button tabButton(String label, Runnable onClick) {
-        Button btn = new Button(activity, null, android.R.attr.borderlessButtonStyle);
-        btn.setText(label);
-        btn.setAllCaps(false);
-        btn.setTextSize(14);
-        btn.setTypeface(Ui.mediumTypeface());
-        btn.setStateListAnimator(null);
-        Ui.pad(btn, 14, 10);
-        int touchMin = Ui.dp(activity, 48);
-        btn.setMinHeight(touchMin);
-        btn.setMinimumHeight(touchMin);
-        btn.setOnClickListener(v -> onClick.run());
-        return btn;
+        return Ui.choiceChip(activity, label, v -> onClick.run());
     }
 
     private void refreshAll() {

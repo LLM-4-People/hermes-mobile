@@ -243,20 +243,21 @@ public final class HermesNotificationListener extends NotificationListenerServic
         content.addView(target);
 
         EditText editor = new EditText(activity);
+        Ui.styleDialogInput(activity, editor);
         editor.setHint(R.string.ambient_reply_hint);
         editor.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
                 | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
         editor.setImeOptions(android.view.inputmethod.EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING
                 | android.view.inputmethod.EditorInfo.IME_FLAG_NO_EXTRACT_UI);
         editor.setImportantForAutofill(android.view.View.IMPORTANT_FOR_AUTOFILL_NO);
-        editor.setMinHeight(Ui.dp(activity, 56));
-        editor.setTextColor(activity.getColor(R.color.ink));
-        editor.setHintTextColor(activity.getColor(R.color.muted));
+        editor.setMinimumHeight(Ui.dp(activity, 56));
         editor.setSaveEnabled(false);
         editor.setFilters(new InputFilter[]{new InputFilter.LengthFilter(MAX_REPLY_CHARS)});
         String cleanDraft = sanitizeReplyDraft(initialDraft);
         if (!cleanDraft.isEmpty()) editor.setText(cleanDraft);
-        content.addView(editor);
+        LinearLayout.LayoutParams editorLp = new LinearLayout.LayoutParams(-1, -2);
+        editorLp.topMargin = Ui.dp(activity, 8);
+        content.addView(editor, editorLp);
 
         android.widget.ScrollView scroll = new android.widget.ScrollView(activity);
         scroll.addView(content, new android.widget.ScrollView.LayoutParams(-1, -2));

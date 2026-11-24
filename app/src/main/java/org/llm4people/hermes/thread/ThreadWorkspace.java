@@ -966,9 +966,7 @@ public final class ThreadWorkspace implements AutoCloseable {
         String id = session;
         String target = remoteSession;
         EditText input = new EditText(activity);
-        int touchMin = org.llm4people.hermes.Ui.dp(activity, 48);
-        input.setMinHeight(touchMin);
-        input.setMinimumHeight(touchMin);
+        org.llm4people.hermes.Ui.styleDialogInput(activity, input);
         input.setSingleLine();
         input.setSaveEnabled(false);
         input.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO);

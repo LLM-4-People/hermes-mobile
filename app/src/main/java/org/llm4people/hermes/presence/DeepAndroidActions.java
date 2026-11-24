@@ -34,6 +34,7 @@ import org.llm4people.hermes.os.HermesWidgetStore;
 import org.llm4people.hermes.os.PermissionsPanel;
 import org.llm4people.hermes.push.DeliveryItem;
 import org.llm4people.hermes.push.PushPolicy;
+import org.llm4people.hermes.settings.AppearanceSettingsModel;
 import org.llm4people.hermes.settings.AppearanceSettingsPanel;
 import org.llm4people.hermes.settings.SettingsHubPanel;
 import org.llm4people.hermes.templates.TemplatesPanel;
@@ -373,14 +374,14 @@ public final class DeepAndroidActions {
             AppCustomization restored = customizationStore.undo();
             hostBridge.onCustomizationChanged(restored);
             return new Result(Status.EXECUTED, "undone",
-                    "{\"accent\":" + AppPresenceTracker.quoteJson(restored.palette.wire) + "}");
+                    "{\"accent\":" + JsonValues.quote(restored.palette.wire) + "}");
         }
         if ("reset".equals(operation)) {
             if (!hostBridge.applyThemeMode("system")) return reject("theme_mode_apply_failed");
             AppCustomization reset = customizationStore.resetToDefault();
             hostBridge.onCustomizationChanged(reset);
             return new Result(Status.EXECUTED, "reset",
-                    "{\"accent\":" + AppPresenceTracker.quoteJson(reset.palette.wire) + "}");
+                    "{\"accent\":" + JsonValues.quote(reset.palette.wire) + "}");
         }
         if (!"apply".equals(operation)) return reject("invalid_customize_operation");
 
@@ -418,13 +419,9 @@ public final class DeepAndroidActions {
             }
             float fontDelta = current.fontScaleDelta;
             if (params.containsKey("font_scale_step") && params.get("font_scale_step") != null) {
-                Object rawStep = params.get("font_scale_step");
-                if (!(rawStep instanceof Number n)) return reject("invalid_font_scale");
-                double d = n.doubleValue();
-                if (!Double.isFinite(d) || d != Math.rint(d)) return reject("invalid_font_scale");
-                int step = (int) d;
-                if (step < -3 || step > 6) return reject("invalid_font_scale");
-                fontDelta = step * 0.05f;
+                Integer step = AppearanceSettingsModel.parseFontScaleStep(params.get("font_scale_step"));
+                if (step == null) return reject("invalid_font_scale");
+                fontDelta = AppearanceSettingsModel.fontScaleDeltaForStep(step);
                 changed = true;
             }
             AppCustomization.StartupTab startupTab = current.startupTab;
@@ -470,10 +467,10 @@ public final class DeepAndroidActions {
             }
             Diagnostics.event("deep_action", "app_customize");
             StringBuilder payload = new StringBuilder();
-            payload.append("{\"accent\":").append(AppPresenceTracker.quoteJson(updated.palette.wire))
-                    .append(",\"density\":").append(AppPresenceTracker.quoteJson(updated.density.wire));
+            payload.append("{\"accent\":").append(JsonValues.quote(updated.palette.wire))
+                    .append(",\"density\":").append(JsonValues.quote(updated.density.wire));
             if (themeMode != null) {
-                payload.append(",\"theme\":").append(AppPresenceTracker.quoteJson(themeMode));
+                payload.append(",\"theme\":").append(JsonValues.quote(themeMode));
             }
             payload.append('}');
             return new Result(Status.EXECUTED, "applied", payload.toString());
