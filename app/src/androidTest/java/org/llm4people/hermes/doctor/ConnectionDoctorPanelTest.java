@@ -148,13 +148,12 @@ public final class ConnectionDoctorPanelTest extends InstrumentationTestCase {
                 assertClick(rootRef[0], activity.getString(R.string.doctor_fix_ambient));
                 assertClick(rootRef[0], activity.getString(R.string.doctor_fix_language));
 
-                // Rapid double-tap on re-run + immediate dismissDialogs & close mid-flight must never crash.
+                // Rapid double-tap on re-run + immediate close mid-flight must never crash.
                 Button rerun = findButton(rootRef[0], activity.getString(R.string.doctor_rerun_action));
                 assertNotNull(rerun);
                 for (int i = 0; i < 6; i++) {
                     rerun.performClick();
                 }
-                panel.dismissDialogs();
                 panel.close();
             });
 

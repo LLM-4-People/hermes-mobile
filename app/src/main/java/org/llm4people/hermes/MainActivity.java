@@ -382,7 +382,6 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                 activePresencePanel.refresh();
                 return;
             }
-            if (activePresencePanel != null) activePresencePanel.close();
             Account owner = account;
             activePresencePanel = new PresenceSettingsPanel(
                     this,
@@ -1198,9 +1197,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         if (notice != null) notice.dismiss();
         notice = null;
         if (activeAmbientPanel != null) activeAmbientPanel.dismissDialogs();
-        if (activePresencePanel != null) activePresencePanel.dismissDialogs();
         if (activeUpdatePanel != null) activeUpdatePanel.dismissDialogs();
-        if (activeDoctorPanel != null) activeDoctorPanel.dismissDialogs();
         if (activeTemplatesPanel != null) activeTemplatesPanel.dismissDialogs();
         if (activeAppearancePanel != null) activeAppearancePanel.dismissDialogs();
         if (activePalette != null) activePalette.dismiss();
@@ -1754,10 +1751,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             activeAmbientPanel.close();
             activeAmbientPanel = null;
         }
-        if (activePresencePanel != null) {
-            activePresencePanel.close();
-            activePresencePanel = null;
-        }
+        activePresencePanel = null;
         if (activeUpdatePanel != null) {
             activeUpdatePanel.close();
             activeUpdatePanel = null;
@@ -2288,7 +2282,6 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         HermesNotificationListener.clearSession();
         if (activeAmbientPanel != null) activeAmbientPanel.close();
         activeAmbientPanel = null;
-        if (activePresencePanel != null) activePresencePanel.close();
         activePresencePanel = null;
         if (activeUpdatePanel != null) activeUpdatePanel.close();
         activeUpdatePanel = null;

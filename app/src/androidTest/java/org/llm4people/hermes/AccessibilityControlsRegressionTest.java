@@ -29,6 +29,7 @@ import org.llm4people.hermes.customization.AppCustomization;
 import org.llm4people.hermes.customization.AppCustomizationStore;
 import org.llm4people.hermes.hub.AppsLauncherModel;
 import org.llm4people.hermes.hub.AppsLauncherPanel;
+import org.llm4people.hermes.hub.NotesTasksPanel;
 import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.os.BiometricVault;
 import org.llm4people.hermes.palette.CommandItem;
@@ -47,9 +48,11 @@ import org.llm4people.hermes.places.NearbyGuide;
 import org.llm4people.hermes.places.NearbyResult;
 import org.llm4people.hermes.places.PlaceSelection;
 import org.llm4people.hermes.profile.Account;
+import org.llm4people.hermes.profile.AdminConsoleSheet;
 import org.llm4people.hermes.profile.ProfileGate;
 import org.llm4people.hermes.profile.ProfileLockPolicy;
 import org.llm4people.hermes.profile.WorkspaceAccountFixture;
+import org.llm4people.hermes.push.DeliveryItem;
 import org.llm4people.hermes.search.UniversalSearchModel;
 import org.llm4people.hermes.search.UniversalSearchSheet;
 import org.llm4people.hermes.settings.AppearanceSettingsPanel;
@@ -69,6 +72,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /**
  * Instrumentation regression tests for accessibility polish:
@@ -88,6 +92,9 @@ import java.util.function.Consumer;
  * - R16.8.4, R16.5.3 & R16.5.1: Runtime AccessibilityNodeInfo assertions for Ui.setSelectableButtonRole
  *   and Ui.setCheckableState, polite live regions on inline validation errors (AppearanceSettingsPanel,
  *   NotesPanel, MemoryPanel), and ThreadInstrumentPanel.primary roundedRipple + stateful disabled ink.
+ * - R17.5.1-R17.5.4: Polite live regions on NotesTasksPanel error card, AdminConsoleSheet summary &
+ *   deduplicated users error card, UniversalSearchSheet offline banner & guarded empty-state transitions,
+ *   and SessionSettings empty-search notice.
  */
 @SuppressWarnings("deprecation")
 public final class AccessibilityControlsRegressionTest extends InstrumentationTestCase {
@@ -1083,6 +1090,200 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
         }
     }
 
+    public void testRound17LiveRegionsAcrossPanels() throws Throwable {
+        Context context = getInstrumentation().getTargetContext();
+        AtomicReference<NotesTasksPanel> notesTasksRef = new AtomicReference<>();
+        AtomicReference<AdminConsoleSheet> adminRef = new AtomicReference<>();
+        AtomicReference<UniversalSearchSheet> searchRef = new AtomicReference<>();
+        AtomicReference<SessionPanel> sessionPanelRef = new AtomicReference<>();
+        try (WorkspaceAccountFixture fixture = new WorkspaceAccountFixture(context)) {
+            MainActivity activity = launchActivity(context.getPackageName(), MainActivity.class, null);
+            try {
+                runTestOnUiThread(() -> {
+                    try {
+                        HermesApi api = new HermesApi("http://127.0.0.1:1", "tok");
+                        int dangerColor = activity.getColor(R.color.danger);
+
+                        // R17.5.1: NotesTasksPanel.showErrorCard announces error message politely.
+                        NotesTasksPanel notesTasks = new NotesTasksPanel(
+                                activity, fixture.account, api, () -> true, new NotesTasksPanel.Callbacks() {
+                                    @Override public void createNote() {}
+                                    @Override public void openAllNotes() {}
+                                    @Override public void openNote(String noteId) {}
+                                    @Override public void createReminder() {}
+                                    @Override public void openAllReminders() {}
+                                    @Override public void openReminder(String jobId) {}
+                                    @Override public void openFullInbox() {}
+                                    @Override public void openDelivery(DeliveryItem item) {}
+                                    @Override public void openSharedWithMe() {}
+                                });
+                        notesTasksRef.set(notesTasks);
+                        LinearLayout errSlot = Ui.column(activity);
+                        Method showErrorCard = NotesTasksPanel.class.getDeclaredMethod(
+                                "showErrorCard", LinearLayout.class, String.class, Runnable.class);
+                        showErrorCard.setAccessible(true);
+                        showErrorCard.invoke(notesTasks, errSlot, "Network error", (Runnable) () -> {});
+                        TextView notesTasksErr = findDangerErrorTextView(errSlot, dangerColor);
+                        assertNotNull("Expected danger error TextView in NotesTasksPanel error card", notesTasksErr);
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE,
+                                notesTasksErr.getAccessibilityLiveRegion());
+
+                        // R17.5.2: AdminConsoleSheet summaryLine is polite; errText is polite only when settings != null.
+                        AdminConsoleSheet admin = new AdminConsoleSheet(activity, fixture.account, true, () -> true);
+                        adminRef.set(admin);
+                        assertTrue("Expected AdminConsoleSheet.show() to open for admin", admin.show());
+                        Field summaryField = AdminConsoleSheet.class.getDeclaredField("summaryLine");
+                        summaryField.setAccessible(true);
+                        TextView summaryLine = (TextView) summaryField.get(admin);
+                        assertNotNull(summaryLine);
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE,
+                                summaryLine.getAccessibilityLiveRegion());
+
+                        Field contentSlotField = AdminConsoleSheet.class.getDeclaredField("contentSlot");
+                        contentSlotField.setAccessible(true);
+                        LinearLayout adminContent = (LinearLayout) contentSlotField.get(admin);
+                        Method renderUsersTab = AdminConsoleSheet.class.getDeclaredMethod("renderUsersTab");
+                        renderUsersTab.setAccessible(true);
+
+                        // When settings == null, summaryLine already announces users_load_failed -> errText stays NONE.
+                        setField(admin, "usersLoadState", AdminConsoleSheet.UsersLoadState.ERROR);
+                        setField(admin, "profiles", Collections.emptyList());
+                        setField(admin, "settings", null);
+                        adminContent.removeAllViews();
+                        renderUsersTab.invoke(admin);
+                        TextView dedupErr = findDangerErrorTextView(adminContent, dangerColor);
+                        assertNotNull("Expected users error TextView when settings == null", dedupErr);
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_NONE, dedupErr.getAccessibilityLiveRegion());
+
+                        // When settings != null, summaryLine shows counts -> errText announces politely.
+                        setField(admin, "settings",
+                                AdminConsoleSheet.validateSettingsInput("en", "gpt-4o", "4", "2", "600", true));
+                        adminContent.removeAllViews();
+                        renderUsersTab.invoke(admin);
+                        TextView liveErr = findDangerErrorTextView(adminContent, dangerColor);
+                        assertNotNull("Expected users error TextView when settings != null", liveErr);
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE, liveErr.getAccessibilityLiveRegion());
+
+                        // R17.5.3: UniversalSearchSheet offline banner is polite; empty-state announces on transitions only.
+                        UniversalSearchModel.LocalEntry localSample =
+                                UniversalSearchModel.LocalEntry.tool("settings", "Settings", "Preferences", "");
+                        UniversalSearchSheet sheet = UniversalSearchSheet.show(
+                                activity, null, Collections.singletonList(localSample),
+                                new UniversalSearchSheet.Callbacks() {
+                                    @Override public void openThread(String id, String title) {}
+                                    @Override public void openNote(String noteId) {}
+                                    @Override public void openSharedItem(UniversalSearchModel.Result item) {}
+                                    @Override public void runAction(String actionId) {}
+                                    @Override public void onDismissed() {}
+                                });
+                        searchRef.set(sheet);
+                        Field sessionField = UniversalSearchSheet.class.getDeclaredField("session");
+                        sessionField.setAccessible(true);
+                        UniversalSearchModel.SearchSession searchSession =
+                                (UniversalSearchModel.SearchSession) sessionField.get(sheet);
+                        Field statusSlotField = UniversalSearchSheet.class.getDeclaredField("statusSlot");
+                        statusSlotField.setAccessible(true);
+                        LinearLayout statusSlot = (LinearLayout) statusSlotField.get(sheet);
+                        Field resultsField = UniversalSearchSheet.class.getDeclaredField("resultsContainer");
+                        resultsField.setAccessible(true);
+                        LinearLayout resultsContainer = (LinearLayout) resultsField.get(sheet);
+                        Method renderResults = UniversalSearchSheet.class.getDeclaredMethod("renderResults");
+                        renderResults.setAccessible(true);
+
+                        // First empty state transition -> polite live region.
+                        int ep1 = searchSession.setQuery("zzz-nomatch");
+                        searchSession.acceptRemote(ep1, Collections.emptyList(), null, null, false);
+                        renderResults.invoke(sheet);
+                        TextView emptyTitle1 = findTextViewWithText(
+                                resultsContainer, activity.getString(R.string.universal_search_empty_title));
+                        assertNotNull("Expected empty-state title on first empty render", emptyTitle1);
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE,
+                                emptyTitle1.getAccessibilityLiveRegion());
+
+                        // Subsequent keystroke staying in same empty state -> guarded (NONE).
+                        int ep2 = searchSession.setQuery("zzz-nomatch-2");
+                        searchSession.acceptRemote(ep2, Collections.emptyList(), null, null, false);
+                        renderResults.invoke(sheet);
+                        TextView emptyTitle2 = findTextViewWithText(
+                                resultsContainer, activity.getString(R.string.universal_search_empty_title));
+                        assertNotNull(emptyTitle2);
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_NONE,
+                                emptyTitle2.getAccessibilityLiveRegion());
+
+                        // Degraded failure -> offline banner msg is polite AND error empty-state transition is polite.
+                        searchSession.acceptRemote(ep2, Collections.emptyList(), null, null, true);
+                        renderResults.invoke(sheet);
+                        TextView offlineBanner = findTextViewWithText(
+                                statusSlot, activity.getString(R.string.universal_search_offline_local_only));
+                        assertNotNull("Expected offline banner in UniversalSearchSheet statusSlot", offlineBanner);
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE,
+                                offlineBanner.getAccessibilityLiveRegion());
+                        TextView degradedTitle = findTextViewWithText(
+                                resultsContainer, activity.getString(R.string.universal_search_error));
+                        assertNotNull(degradedTitle);
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE,
+                                degradedTitle.getAccessibilityLiveRegion());
+
+                        // Non-empty results reset empty announcement state so a later empty query announces again.
+                        searchSession.setQuery("");
+                        renderResults.invoke(sheet);
+                        int ep3 = searchSession.setQuery("zzz-again");
+                        searchSession.acceptRemote(ep3, Collections.emptyList(), null, null, false);
+                        renderResults.invoke(sheet);
+                        TextView emptyTitle3 = findTextViewWithText(
+                                resultsContainer, activity.getString(R.string.universal_search_empty_title));
+                        assertNotNull(emptyTitle3);
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE,
+                                emptyTitle3.getAccessibilityLiveRegion());
+
+                        // R17.5.4: SessionSettings picker empty-search notice has polite live region.
+                        SessionPanel sessionPanel = new SessionPanel(activity, api, fixture.account);
+                        sessionPanelRef.set(sessionPanel);
+                        Class<?> settingsClass = Class.forName("org.llm4people.hermes.panel.SessionSettings");
+                        Constructor<?> settingsCtor = settingsClass.getDeclaredConstructor(
+                                SessionPanel.class, String.class, String.class,
+                                BooleanSupplier.class, Consumer.class, Supplier.class);
+                        settingsCtor.setAccessible(true);
+                        Object settingsObj = settingsCtor.newInstance(
+                                sessionPanel, "s-1", "s-1", (BooleanSupplier) () -> true,
+                                (Consumer<String>) s -> {},
+                                (Supplier<android.content.res.Configuration>) () -> activity.getResources().getConfiguration());
+                        Method pickerMethod = settingsClass.getDeclaredMethod(
+                                "picker", LinearLayout.class, ArrayList.class, Object.class, Consumer.class);
+                        pickerMethod.setAccessible(true);
+                        LinearLayout pickerBox = Ui.column(activity);
+                        pickerMethod.invoke(settingsObj, pickerBox,
+                                new ArrayList<>(Arrays.asList("Alpha", "Beta")), "Alpha", (Consumer<Object>) o -> {});
+                        TextView emptySearch = findTextViewWithText(
+                                pickerBox, activity.getString(R.string.panel_empty_search));
+                        assertNotNull("Expected empty-search TextView in SessionSettings picker", emptySearch);
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE,
+                                emptySearch.getAccessibilityLiveRegion());
+                    } catch (Exception err) {
+                        throw new AssertionError(err);
+                    }
+                });
+            } finally {
+                try {
+                    runTestOnUiThread(() -> {
+                        NotesTasksPanel nt = notesTasksRef.getAndSet(null);
+                        if (nt != null) nt.close();
+                        AdminConsoleSheet ac = adminRef.getAndSet(null);
+                        if (ac != null) ac.close();
+                        UniversalSearchSheet us = searchRef.getAndSet(null);
+                        if (us != null) us.close();
+                        SessionPanel sp = sessionPanelRef.getAndSet(null);
+                        if (sp != null) sp.close();
+                    });
+                } finally {
+                    ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+                }
+            }
+        } finally {
+            Diagnostics.clear();
+        }
+    }
+
     @SuppressWarnings("unchecked")
     private static AlertDialog findLatestDeskDialog(Activity activity) throws Exception {
         Class<?> deskDialogs = Class.forName("org.llm4people.hermes.artifact.DeskDialogs");
@@ -1141,6 +1342,17 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
         collect(root, TextView.class, views);
         for (TextView tv : views) {
             if (tv.getClass() == TextView.class && tv.getCurrentTextColor() == dangerColor) {
+                return tv;
+            }
+        }
+        return null;
+    }
+
+    private static TextView findTextViewWithText(View root, String expected) {
+        List<TextView> views = new ArrayList<>();
+        collect(root, TextView.class, views);
+        for (TextView tv : views) {
+            if (tv.getClass() == TextView.class && expected.equals(String.valueOf(tv.getText()))) {
                 return tv;
             }
         }

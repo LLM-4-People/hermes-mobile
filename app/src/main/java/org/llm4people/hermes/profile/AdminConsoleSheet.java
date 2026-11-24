@@ -173,6 +173,7 @@ public final class AdminConsoleSheet implements AutoCloseable {
         summaryLine = Ui.text(activity, activity.getString(R.string.profile_hub_loading), 13);
         summaryLine.setTypeface(Ui.mediumTypeface());
         summaryLine.setTextColor(activity.getColor(R.color.accent));
+        summaryLine.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         body.addView(summaryLine, topMargin(8));
 
         LinearLayout tabs = Ui.row(activity);
@@ -333,6 +334,9 @@ public final class AdminConsoleSheet implements AutoCloseable {
             LinearLayout errorCard = Ui.card(activity);
             TextView errText = Ui.text(activity, activity.getString(R.string.admin_console_users_load_failed), 14);
             errText.setTextColor(activity.getColor(R.color.danger));
+            if (settings != null) {
+                errText.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+            }
             errorCard.addView(errText);
             Button retryBtn = Ui.outlinedButton(activity, activity.getString(R.string.instrument_retry),
                     v -> refreshAll());

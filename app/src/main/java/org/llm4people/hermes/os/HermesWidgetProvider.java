@@ -153,11 +153,7 @@ public final class HermesWidgetProvider extends AppWidgetProvider {
         }
     }
 
-    static RemoteViews buildDefaultViews(Context context, boolean active) {
-        return buildDefaultViews(context, active, false);
-    }
-
-    static RemoteViews buildDefaultViews(Context context, boolean active, boolean preLocalized) {
+    private static RemoteViews buildDefaultViews(Context context, boolean active, boolean preLocalized) {
         Context localized = preLocalized ? context : AppLanguage.localizedContext(context, null);
         RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.hermes_widget);
         views.setTextViewText(R.id.widget_title, localized.getString(R.string.widget_title));
