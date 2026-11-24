@@ -8,7 +8,6 @@ import android.text.InputFilter;
 import android.text.InputType;
 import android.text.TextWatcher;
 import android.view.View;
-import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.inputmethod.EditorInfo;
 import android.widget.Button;
 import android.widget.CheckBox;
@@ -178,21 +177,61 @@ final class SkillStudio {
 
     private View skillRow(SkillInventory skill) {
         LinearLayout card = BrainUi.card(panel.activity);
-        card.setMinimumHeight(Ui.dp(panel.activity, 48));
-        card.setBackground(Ui.roundedRipple(panel.activity, Ui.CARD_CORNER_DP,
-                Ui.shape(panel.activity, Ui.CARD_CORNER_DP, R.color.surface, R.color.line, 1)));
-        LinearLayout top = Ui.row(panel.activity);
+        LinearLayout row = Ui.row(panel.activity);
+
+        LinearLayout detailArea = Ui.column(panel.activity);
+        detailArea.setMinimumHeight(Ui.dp(panel.activity, 48));
+        detailArea.setBackground(Ui.roundedRipple(panel.activity, Ui.CARD_CORNER_DP, null));
+        detailArea.setFocusable(true);
+        detailArea.setClickable(true);
+        Ui.setButtonRole(detailArea);
+        detailArea.setOnClickListener(v -> openDetail(skill));
+
+        List<String> descriptionParts = new ArrayList<>();
+        descriptionParts.add(skill.name);
+
+        LinearLayout detailTop = Ui.row(panel.activity);
+        detailTop.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
         LinearLayout labels = Ui.column(panel.activity);
         TextView name = Ui.text(panel.activity, skill.name, 17);
         name.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         labels.addView(name);
         if (!skill.description.isEmpty()) {
+            descriptionParts.add(skill.description);
             TextView desc = Ui.text(panel.activity, skill.description, 14);
             desc.setTextColor(panel.activity.getColor(R.color.muted));
             desc.setLineSpacing(0f, 1.2f);
             labels.addView(desc);
         }
-        top.addView(labels, new LinearLayout.LayoutParams(0, -2, 1));
+        detailTop.addView(labels, new LinearLayout.LayoutParams(0, -2, 1));
+
+        ImageView arrow = new ImageView(panel.activity);
+        arrow.setImageResource(R.drawable.ic_navigate_forward);
+        arrow.setImageTintList(ColorStateList.valueOf(panel.activity.getColor(R.color.muted)));
+        arrow.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        LinearLayout.LayoutParams arrowLp = new LinearLayout.LayoutParams(
+                Ui.dp(panel.activity, 18), Ui.dp(panel.activity, 18));
+        arrowLp.setMarginStart(Ui.dp(panel.activity, 8));
+        detailTop.addView(arrow, arrowLp);
+        detailArea.addView(detailTop);
+
+        LinearLayout badges = Ui.row(panel.activity);
+        if (!skill.category.isEmpty()) {
+            descriptionParts.add(skill.category);
+            badges.addView(BrainUi.badge(panel.activity, skill.category, true));
+        }
+        if (studioSupported) {
+            String sourceLabel = SkillStudioModel.sourceLabel(panel.activity, skill.source, skill.writable);
+            descriptionParts.add(sourceLabel);
+            badges.addView(BrainUi.badge(panel.activity, sourceLabel, false));
+        }
+        if (badges.getChildCount() > 0) {
+            View badgeBar = BrainUi.chipBar(panel.activity, badges);
+            badgeBar.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
+            detailArea.addView(badgeBar);
+        }
+        detailArea.setContentDescription(String.join(". ", descriptionParts));
+        row.addView(detailArea, new LinearLayout.LayoutParams(0, -2, 1));
 
         if (studioSupported) {
             int minTouch = Ui.dp(panel.activity, 48);
@@ -206,37 +245,12 @@ final class SkillStudio {
             toggle.setContentDescription(skill.name + " · "
                     + panel.t(currentEnabled ? R.string.brain_skills_enabled : R.string.brain_skills_disabled));
             toggle.setOnClickListener(v -> toggleSkillEnabled(skill, toggle, toggle.isChecked()));
-            top.addView(toggle);
+            LinearLayout.LayoutParams toggleLp = new LinearLayout.LayoutParams(-2, -2);
+            toggleLp.setMarginStart(Ui.dp(panel.activity, 8));
+            row.addView(toggle, toggleLp);
         }
 
-        ImageView arrow = new ImageView(panel.activity);
-        arrow.setImageResource(R.drawable.ic_navigate_forward);
-        arrow.setImageTintList(ColorStateList.valueOf(panel.activity.getColor(R.color.muted)));
-        arrow.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-        LinearLayout.LayoutParams arrowLp = new LinearLayout.LayoutParams(
-                Ui.dp(panel.activity, 18), Ui.dp(panel.activity, 18));
-        arrowLp.setMarginStart(Ui.dp(panel.activity, 8));
-        top.addView(arrow, arrowLp);
-        card.addView(top);
-
-        LinearLayout badges = Ui.row(panel.activity);
-        if (!skill.category.isEmpty()) badges.addView(BrainUi.badge(panel.activity, skill.category, true));
-        if (studioSupported) {
-            badges.addView(BrainUi.badge(panel.activity,
-                    SkillStudioModel.sourceLabel(panel.activity, skill.source, skill.writable), false));
-        }
-        if (badges.getChildCount() > 0) {
-            card.addView(BrainUi.chipBar(panel.activity, badges));
-        }
-
-        card.setFocusable(true);
-        card.setAccessibilityDelegate(new View.AccessibilityDelegate() {
-            @Override public void onInitializeAccessibilityNodeInfo(View host, AccessibilityNodeInfo info) {
-                super.onInitializeAccessibilityNodeInfo(host, info);
-                info.setClassName(Button.class.getName());
-            }
-        });
-        card.setOnClickListener(v -> openDetail(skill));
+        card.addView(row);
         return card;
     }
 

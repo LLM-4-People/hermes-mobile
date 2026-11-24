@@ -33,9 +33,10 @@ public final class BrainPanelsPolishContractTest {
     @Test
     public void skillStudioUsesRippleRowsProperFormFieldsWarningCardAndAccessibleHeadings() throws Exception {
         String src = readPanel("SkillStudio.java");
-        assertTrue("skillRow uses Material 3 roundedRipple + forward chevron",
+        assertTrue("skillRow uses Material 3 roundedRipple + forward chevron + Ui.setButtonRole SSoT",
                 src.contains("Ui.roundedRipple(panel.activity, Ui.CARD_CORNER_DP")
-                        && src.contains("R.drawable.ic_navigate_forward"));
+                        && src.contains("R.drawable.ic_navigate_forward")
+                        && src.contains("Ui.setButtonRole(detailArea)"));
         assertTrue("Primary CTAs promoted to Ui.filledButton/Ui.tonalButton",
                 src.contains("Ui.filledButton(panel.activity, panel.t(R.string.brain_skills_new)")
                         && src.contains("Ui.filledButton(panel.activity, panel.t(R.string.brain_skills_use_in_thread)")
@@ -63,10 +64,10 @@ public final class BrainPanelsPolishContractTest {
     @Test
     public void workspaceFilesPanelUsesRippleCardsMiddleEllipsisAndTonalBranchSummary() throws Exception {
         String src = readPanel("WorkspaceFilesPanel.java");
-        assertTrue("Clickable cards use roundedRipple + chevron + Button accessibility role",
+        assertTrue("Clickable cards use roundedRipple + chevron + Ui.setButtonRole SSoT",
                 src.contains("Ui.roundedRipple(panel.activity, Ui.CARD_CORNER_DP")
                         && src.contains("R.drawable.ic_navigate_forward")
-                        && src.contains("info.setClassName(Button.class.getName())"));
+                        && src.contains("Ui.setButtonRole(card)"));
         assertTrue("View full diff promoted to Ui.tonalButton",
                 src.contains("Ui.tonalButton(panel.activity, panel.t(R.string.brain_files_view_all_diff)"));
         assertTrue("Path header constrained with maxLines(2), MIDDLE ellipsis, and full contentDescription",

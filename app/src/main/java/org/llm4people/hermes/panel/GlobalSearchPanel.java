@@ -1,5 +1,6 @@
 package org.llm4people.hermes.panel;
 
+import android.content.res.ColorStateList;
 import android.graphics.Typeface;
 import android.text.Spannable;
 import android.text.SpannableString;
@@ -9,6 +10,7 @@ import android.view.View;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import org.llm4people.hermes.Diagnostics;
@@ -190,36 +192,63 @@ final class GlobalSearchPanel {
 
     private View hitCard(SearchResultModel.Hit hit, ZoneId zone) {
         LinearLayout card = BrainUi.card(panel.activity);
-        TextView title = Ui.text(panel.activity, hit.displayTitle(panel.activity), 17);
+        String targetSession = hit.targetSessionId();
+        boolean clickable = !targetSession.isEmpty() && openThread != null;
+
+        LinearLayout row = Ui.row(panel.activity);
+        LinearLayout copy = Ui.column(panel.activity);
+        List<String> descriptionParts = new ArrayList<>();
+
+        String displayTitle = hit.displayTitle(panel.activity);
+        descriptionParts.add(displayTitle);
+        TextView title = Ui.text(panel.activity, displayTitle, 17);
         title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        card.addView(title);
+        copy.addView(title);
 
         String speaker = SearchResultModel.roleLabel(panel.activity, hit.role());
         String date = SearchResultModel.formatTimestamp(hit.timestamp(), zone, ReminderPanel.activeLocale(panel.activity));
         String meta = speaker.isEmpty() ? date : date.isEmpty() ? speaker : speaker + " · " + date;
         if (!meta.isEmpty()) {
+            descriptionParts.add(meta);
             TextView metaView = Ui.text(panel.activity, meta, 13);
             metaView.setTextColor(panel.activity.getColor(R.color.muted));
             Ui.pad(metaView, 0, 2);
-            card.addView(metaView);
+            copy.addView(metaView);
         }
 
-        if (!hit.snippet().plainText().isEmpty()) {
+        String snippetText = hit.snippet().plainText();
+        if (!snippetText.isEmpty()) {
+            descriptionParts.add(snippetText);
             TextView snippet = Ui.text(panel.activity, "", 15);
             snippet.setText(renderSnippet(hit.snippet()));
             Ui.pad(snippet, 0, 4);
-            card.addView(snippet);
+            copy.addView(snippet);
         }
+        row.addView(copy, new LinearLayout.LayoutParams(0, -2, 1));
 
-        String targetSession = hit.targetSessionId();
-        if (!targetSession.isEmpty() && openThread != null) {
+        if (clickable) {
+            ImageView arrow = new ImageView(panel.activity);
+            arrow.setImageResource(R.drawable.ic_navigate_forward);
+            arrow.setImageTintList(ColorStateList.valueOf(panel.activity.getColor(R.color.muted)));
+            arrow.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+            LinearLayout.LayoutParams arrowLp = new LinearLayout.LayoutParams(
+                    Ui.dp(panel.activity, 18), Ui.dp(panel.activity, 18));
+            arrowLp.setMarginStart(Ui.dp(panel.activity, 8));
+            row.addView(arrow, arrowLp);
+
+            row.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
+            descriptionParts.add(panel.t(R.string.brain_search_open_thread));
+
+            card.setMinimumHeight(Ui.dp(panel.activity, 48));
             card.setBackground(Ui.roundedRipple(panel.activity, Ui.CARD_CORNER_DP,
                     Ui.shape(panel.activity, Ui.CARD_CORNER_DP, R.color.surface, R.color.line, 1)));
             card.setFocusable(true);
             card.setClickable(true);
+            Ui.setButtonRole(card);
+            card.setContentDescription(String.join(". ", descriptionParts));
             card.setOnClickListener(v -> jumpToThread(targetSession));
-            panel.action(card, R.string.brain_search_open_thread, () -> jumpToThread(targetSession));
         }
+        card.addView(row);
         return card;
     }
 
