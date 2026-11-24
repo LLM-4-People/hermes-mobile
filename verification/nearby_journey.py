@@ -11,11 +11,6 @@ from verification.unifiedpush.ui import APP
 
 
 PROMPT = "Quels restaurants se trouvent près de moi ?"
-CONSENT = "Ajouter une zone à ce message ?"
-USE_LOCATION = "Utiliser ma position approximative"
-STAGED = "Position approximative jointe"
-FAILED = "Position indisponible · choisir un quartier ou continuer sans position"
-HEADING = "Restaurants dans la zone"
 GMS_PACKAGE = "com.google.android.gms"
 
 
@@ -126,7 +121,13 @@ def stage_public_location(ui, fix, *, system_prompt=True, remember=False):
     s = ui.strings
     open_consent(ui)
     if remember:
-        ui.tap(s["nearby_always_profile"], scroll=True)
+        remember_label = s["nearby_always_profile"]
+        ui.tap_until(
+            remember_label,
+            lambda root: (node := ui.node(remember_label, root)) is not None and node.get("checked") == "true",
+            scroll=True,
+            description="remember location preference checked",
+        )
     fix.publish()
     choose_consent(ui, s["nearby_use_approx"])
     if system_prompt:

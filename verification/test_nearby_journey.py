@@ -126,6 +126,46 @@ class NearbyJourneyConsentTest(unittest.TestCase):
             nearby_journey.ensure_unlocked(ui, "Guide-1", "passphrase-value")
         mock_unlock.assert_called_once_with(ui, "Guide-1", "passphrase-value")
 
+    def test_stage_public_location_retries_swallowed_remember_checkbox_until_checked(self):
+        for lang in ("en", "fr"):
+            with self.subTest(lang=lang):
+                device = Mock()
+                device.ime_shown.return_value = False
+                ui = Screen(device, Mock(), lang=lang)
+                s = ui.strings
+                consent_title = s["nearby_add_area_title"]
+                remember_label = s["nearby_always_profile"]
+                use_approx = s["nearby_use_approx"]
+                attached = s["nearby_approx_attached"]
+
+                def consent_tree(checked_value):
+                    root = Element("hierarchy")
+                    SubElement(root, "node", {"package": APP, "text": consent_title, "bounds": "[20,80][300,130]"})
+                    SubElement(root, "node", {"package": APP, "text": s["nearby_consent_explain"], "bounds": "[20,140][300,220]"})
+                    SubElement(root, "node", {
+                        "package": APP, "class": "android.widget.CheckBox", "text": remember_label,
+                        "checked": checked_value, "bounds": "[20,240][300,290]",
+                    })
+                    SubElement(root, "node", {"package": APP, "text": use_approx, "bounds": "[20,310][300,360]"})
+                    return root
+
+                unchecked = consent_tree("false")
+                checked = consent_tree("true")
+                dismissed_with_attached = node_tree((APP, attached))
+                # open_consent -> unchecked; remember tap 1 swallowed -> unchecked; remember tap 2 -> checked;
+                # choose_consent -> checked -> dismissed_with_attached; ui.wait(attached) -> dismissed_with_attached.
+                hierarchies = iter([unchecked, unchecked, unchecked, checked, checked, dismissed_with_attached, dismissed_with_attached])
+                ui.hierarchy = Mock(side_effect=lambda: next(hierarchies))
+                tapped = []
+                ui.tap_node = Mock(side_effect=lambda node: tapped.append(node.get("text")))
+                fix = Mock()
+
+                with patch("verification.unifiedpush.stack.time.sleep"), redirect_stderr(io.StringIO()):
+                    nearby_journey.stage_public_location(ui, fix, system_prompt=False, remember=True)
+
+                fix.publish.assert_called_once()
+                self.assertEqual(tapped, [remember_label, remember_label, use_approx])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -50,6 +50,7 @@ public final class FocusedText extends UiAutomatorTestCase {
         xml.attribute(null, "package", string(node.getPackageName()));
         xml.attribute(null, "window-id", String.valueOf(node.getWindowId()));
         xml.attribute(null, "scrollable", String.valueOf(node.isScrollable()));
+        xml.attribute(null, "checked", String.valueOf(node.isChecked()));
         xml.attribute(null, "bounds", bounds.toShortString());
         for (int i = 0; i < node.getChildCount(); i++) {
             AccessibilityNodeInfo child = node.getChild(i);

@@ -97,7 +97,7 @@ adb install -r {{ release_apk }}</code></div>
             <li>Déployez le serveur compagnon puis lancez <code>python3 scripts/mobile_setup.py --invite alex --lang fr --qr</code> sur l’hôte pour créer un profil isolé et un lien d’appairage à usage unique valable 5 minutes.</li>
             <li>Sur Android, ouvrez <strong>Connecter votre Hermes</strong> et touchez <strong>Coller le lien d’appairage</strong> ou ouvrez le lien <code>hermes://pair</code>. Confirmez l’hôte cible avant réclamation, ou saisissez manuellement l’adresse, l’identifiant de profil et la clé d’accès.</li>
             <li>Le premier profil agit comme administrateur avec une <strong>Console admin</strong> intégrée pour inviter des membres, renouveler les clés, ajuster les plafonds et révoquer les jetons actifs.</li>
-            <li>Protégez le coffre local avec une phrase secrète et activez au besoin la biométrie forte dans <strong>Activité &gt; Sécurité</strong>.</li>
+            <li>Protégez le coffre local selon votre préférence (<strong>biométrie / verrouillage système</strong>, <strong>code PIN de 6 à 12 chiffres</strong> ou <strong>phrase secrète de 12+ caractères</strong>, avec délai de verrouillage intelligent de 5 min configurable dans <strong>Activité &gt; Sécurité</strong>) et gérez vos autorisations Android dans <strong>Activité &gt; Autorisations</strong>.</li>
           </ol>
         </section>
 
@@ -143,7 +143,8 @@ adb install -r {{ release_apk }}</code></div>
         <section id="securite" class="doc-section">
           <h2>8. Sécurité, isolation Landlock et notifications privées</h2>
           <ul>
-            <li><strong>Coffre local renforcé :</strong> Stockage chiffré Android Keystore AES-256-GCM par profil, temporisation persistante sur les erreurs de phrase secrète, fenêtres <code>FLAG_SECURE</code>, effacement atomique et isolation des rappels réseau.</li>
+            <li><strong>Coffre local renforcé et verrouillage multi-mode :</strong> Stockage chiffré Android Keystore AES-256-GCM par profil, choix entre biométrie, code PIN de 6 à 12 chiffres ou phrase secrète de 12+ caractères, délai intelligent de 5 min par défaut (personnalisable), temporisation persistante, fenêtres <code>FLAG_SECURE</code>, effacement atomique et isolation des rappels réseau.</li>
+            <li><strong>Centre d’autorisations (Activité &gt; Autorisations) :</strong> Consultez chaque autorisation Android optionnelle (notifications, microphone, caméra, position approximative, accès aux notifications, installation de paquets) avec boutons directs <strong>Autoriser</strong> ou <strong>Ouvrir les réglages</strong>.</li>
             <li><strong>Isolation par le noyau serveur :</strong> Sur le serveur compagnon, Linux Landlock LSM empêche physiquement les sous-processus de lire les dossiers des autres profils (<code>EACCES</code>), et les profils membres excluent <code>terminal</code> et <code>code_execution</code> par défaut.</li>
             <li><strong>Accès ambiant désactivé par défaut :</strong> Les signaux de contexte optionnels démarrent éteints par profil, avec un filtre bloquant les codes de vérification, gestionnaires de mots de passe, banques et notifications d’écran verrouillé avant toute lecture.</li>
             <li><strong>Notifications sans fuite :</strong> Firebase ou UnifiedPush auto-hébergé (ntfy + chiffrement RFC 8291) ne transmettent que des identifiants opaques ; vos messages restent sur votre serveur jusqu’au déverrouillage.</li>

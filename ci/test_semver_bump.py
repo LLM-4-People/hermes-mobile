@@ -111,8 +111,65 @@ class SemverBumpTest(unittest.TestCase):
         self.assertEqual(semver_bump.bump_semver("v1.2.3-rc.1", "patch"), "1.2.4")
         with self.assertRaises(ValueError):
             semver_bump.bump_semver("not-semver", "patch")
+        for bad_ver in ("1.2.3-..", "1.2.3--", "01.2.3", "1.2.3-"):
+            with self.subTest(bad_ver=bad_ver), self.assertRaises(ValueError):
+                semver_bump.parse_semver(bad_ver)
         with self.assertRaises(ValueError):
             semver_bump.bump_semver("1.0.0", "invalid")
+
+    def test_fix_after_unreleased_feat_or_pending_release_pr_never_downgrades(self):
+        # Unreleased feat: commit since v0.2.1 + newly merged fix: PR -> stays minor 0.3.0, never 0.2.2!
+        plan = semver_bump.plan_release(
+            "0.2.1",
+            3,
+            "patch",
+            existing_tags=["v0.2.1"],
+            published_max_code=3,
+            unreleased_titles=[
+                "fix(ui): polish spacing",
+                "feat(security): add multi-mode profile lock",
+            ],
+        )
+        self.assertEqual(plan["mode"], "open_bump_pr")
+        self.assertEqual(plan["tag"], "v0.3.0")
+        self.assertEqual(plan["version_name"], "0.3.0")
+        self.assertEqual(plan["branch"], "release/v0.3.0")
+
+        # Open pending release/v0.3.0 PR (e.g. from explicit release:minor label) + subsequent fix: PR -> stays v0.3.0!
+        pending_plan = semver_bump.plan_release(
+            "0.2.1",
+            3,
+            "patch",
+            existing_tags=["v0.2.1"],
+            published_max_code=3,
+            pending_release_tags=["v0.3.0"],
+        )
+        self.assertEqual(pending_plan["tag"], "v0.3.0")
+        self.assertEqual(pending_plan["branch"], "release/v0.3.0")
+
+        # Unreleased breaking change + subsequent fix: PR -> stays major 1.0.0!
+        major_plan = semver_bump.plan_release(
+            "0.2.1",
+            3,
+            "patch",
+            existing_tags=["v0.2.1"],
+            published_max_code=3,
+            unreleased_titles=["feat!: drop legacy push v1", "fix: typo"],
+            pending_release_tags=["v0.3.0"],
+        )
+        self.assertEqual(major_plan["tag"], "v1.0.0")
+        self.assertEqual(major_plan["branch"], "release/v1.0.0")
+
+        # Already-released pending tag is ignored rather than colliding.
+        stale_pending = semver_bump.plan_release(
+            "0.3.0",
+            4,
+            "patch",
+            existing_tags=["v0.3.0"],
+            published_max_code=4,
+            pending_release_tags=["v0.3.0"],
+        )
+        self.assertEqual(stale_pending["tag"], "v0.3.1")
 
     def test_plan_release_tags_immediately_for_first_untagged_version_and_opens_bump_pr_afterward(self):
         # First release (no tags yet, gradle.properties = 0.1.0 / code 1): tag & release immediately

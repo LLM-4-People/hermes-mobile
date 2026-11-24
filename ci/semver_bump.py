@@ -11,8 +11,14 @@ from pathlib import Path
 import re
 import sys
 
+try:
+    from release_metadata import SEMVER_PATTERN
+except ImportError:
+    from ci.release_metadata import SEMVER_PATTERN
 
-SEMVER_RE = re.compile(r"^v?([0-9]+)\.([0-9]+)\.([0-9]+)(?:-[0-9A-Za-z.-]+)?$")
+
+SEMVER_RE = re.compile(rf"^v?({SEMVER_PATTERN.pattern})$")
+BUMP_RANK = {"patch": 1, "minor": 2, "major": 3}
 BREAKING_TITLE_RE = re.compile(r"(?:^[a-z][a-z0-9_-]*(?:\([^)]*\))?!:|\bBREAKING[\s_-]+CHANGE\b)", re.IGNORECASE)
 FEAT_TITLE_RE = re.compile(r"^feat(?:\([^)]*\))?:", re.IGNORECASE)
 RELEASE_BUMP_TITLE_RE = re.compile(r"^chore\(release\):", re.IGNORECASE)
@@ -42,11 +48,13 @@ SHIPPABLE_GRADLE_PREFIXES = (
 
 
 def parse_semver(raw):
-    """Parse a SemVer string (with optional leading 'v') into (major, minor, patch)."""
+    """Parse a strict SemVer string (with optional leading 'v') into (major, minor, patch)."""
     match = SEMVER_RE.fullmatch(str(raw).strip())
     if not match:
         raise ValueError(f"Invalid semantic version: {raw!r}")
-    return int(match.group(1)), int(match.group(2)), int(match.group(3))
+    core = match.group(1).split("-", 1)[0]
+    major, minor, patch = core.split(".")
+    return int(major), int(minor), int(patch)
 
 
 def format_semver(parts):
@@ -196,7 +204,31 @@ def write_gradle_version(path, version_name, version_code):
     target.write_text(updated, encoding="utf-8")
 
 
-def plan_release(current_name, current_code, action, existing_tags=(), published_max_code=0):
+def highest_bump(primary_bump, unreleased_titles=()):
+    """Return the highest SemVer bump across primary_bump and all unreleased commit subjects."""
+    best = primary_bump
+    best_rank = BUMP_RANK[primary_bump]
+    for raw_title in unreleased_titles or ():
+        title = str(raw_title or "").strip()
+        if not title or RELEASE_BUMP_TITLE_RE.match(title):
+            continue
+        candidate = infer_bump_from_pr(pr_title=title)
+        rank = BUMP_RANK[candidate]
+        if rank > best_rank:
+            best = candidate
+            best_rank = rank
+    return best
+
+
+def plan_release(
+    current_name,
+    current_code,
+    action,
+    existing_tags=(),
+    published_max_code=0,
+    unreleased_titles=(),
+    pending_release_tags=(),
+):
     """Compute whether to tag+release immediately or open a ruleset-compliant version-bump PR."""
     if action is None:
         return {"mode": "none"}
@@ -246,7 +278,21 @@ def plan_release(current_name, current_code, action, existing_tags=(), published
         }
 
     base_tuple = max(current_tuple, highest_tag) if highest_tag is not None else current_tuple
-    next_name = bump_semver(format_semver(base_tuple), action)
+    effective_bump = highest_bump(action, unreleased_titles)
+    next_name = bump_semver(format_semver(base_tuple), effective_bump)
+    next_tuple = parse_semver(next_name)
+
+    # Never downgrade below an already-open release/v* PR targeting a higher unreleased version.
+    for raw_pending in pending_release_tags or ():
+        try:
+            pending_tuple = parse_semver(raw_pending)
+        except ValueError:
+            continue
+        pending_tag = f"v{format_semver(pending_tuple)}"
+        if pending_tuple > next_tuple and pending_tag not in tag_set:
+            next_tuple = pending_tuple
+            next_name = format_semver(pending_tuple)
+
     next_code = max(current_code, published_max_code) + 1
     next_tag = f"v{next_name}"
     if next_tag in tag_set:
@@ -268,6 +314,8 @@ def main(argv=None):
     parser.add_argument("--pr-title", default="", help="Optional merged PR title for automatic SemVer classification")
     parser.add_argument("--force-bump", default=None, help="Optional manual override: patch|minor|major|publish")
     parser.add_argument("--tags-json", default="[]", help="JSON array of existing git tag names")
+    parser.add_argument("--unreleased-titles-json", default="[]", help="JSON array of unreleased commit titles since last tag")
+    parser.add_argument("--pending-tags-json", default="[]", help="JSON array of open release/v* PR target tags")
     parser.add_argument("--published-max-code", type=int, default=0)
     parser.add_argument("--apply-bump", action="store_true", help="Write bumped version to gradle.properties when mode=open_bump_pr")
     parser.add_argument("--github-output", type=Path, default=None)
@@ -276,6 +324,8 @@ def main(argv=None):
     labels = json.loads(args.labels_json)
     changed_files = json.loads(args.changed_files_json) if args.changed_files_json is not None else None
     tags = json.loads(args.tags_json)
+    unreleased_titles = json.loads(args.unreleased_titles_json)
+    pending_tags = json.loads(args.pending_tags_json)
     action, reason = classify_release(
         labels,
         changed_files=changed_files,
@@ -289,6 +339,8 @@ def main(argv=None):
         action,
         existing_tags=tags,
         published_max_code=args.published_max_code,
+        unreleased_titles=unreleased_titles,
+        pending_release_tags=pending_tags,
     )
     plan["reason"] = reason
     if action is not None:

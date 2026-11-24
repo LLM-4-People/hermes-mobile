@@ -9,6 +9,10 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT / "ci") not in sys.path:
+    sys.path.insert(0, str(ROOT / "ci"))
+from release_metadata import release_apk_name
+
 SOURCE = Path("docs/sources")
 TOKEN = re.compile(r"{{\s*([a-z][a-z0-9_]*)\s*}}")
 ANDROID_RELEASE_BY_API = {
@@ -54,7 +58,7 @@ def live_facts(root):
             derived["build_tools"] = props["hermesBuildTools"]
         if "hermesVersionName" in props:
             derived["version_name"] = props["hermesVersionName"]
-            derived["release_apk"] = f"hermes-mobile-v{props['hermesVersionName']}.apk"
+            derived["release_apk"] = release_apk_name(props["hermesVersionName"])
 
     fixture = root / "verification/gateway_fixture.py"
     if fixture.is_file():
@@ -165,12 +169,25 @@ def render(root, check):
     return problems
 
 
+def managed_outputs(root):
+    sources = root / SOURCE
+    templates = sorted(
+        list(sources.rglob("*.md.in")) + list(sources.rglob("*.html.in"))
+    )
+    return [template.relative_to(sources).with_suffix("").as_posix() for template in templates]
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--check", action="store_true", help="report drift without writing")
     mode.add_argument("--write", action="store_true", help="render outputs in place (default)")
+    mode.add_argument("--list-outputs", action="store_true", help="print every managed output path")
     args = parser.parse_args()
+    if args.list_outputs:
+        for rel in managed_outputs(ROOT):
+            print(rel)
+        return 0
     problems = render(ROOT, args.check)
     for problem in problems:
         print(problem, file=sys.stderr)

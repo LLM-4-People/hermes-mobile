@@ -313,7 +313,7 @@
       "refersTo": "profile-submit",
       "description": "A filled action submits the profile form.",
       "html": "<button class=\"ds-profile\" lang=\"fr\">Déverrouiller</button>",
-      "css": ".ds-profile {font:500 14px Roboto, sans-serif;min-height:48px;border:0;cursor:pointer;} .ds-profile:hover {filter:brightness(.96);} .ds-profile:active {filter:brightness(.9);} .ds-profile:focus-visible {outline:2px solid #225C50;outline-offset:2px;} .ds-profile {width:100%;background:#225C50;color:white;padding:8px 16px;border-radius:2px;}"
+      "css": ".ds-profile {font:500 14px Roboto, sans-serif;min-height:48px;border:0;cursor:pointer;} .ds-profile:hover {filter:brightness(.96);} .ds-profile:active {filter:brightness(.9);} .ds-profile:focus-visible {outline:2px solid #1B5E50;outline-offset:2px;} .ds-profile {width:100%;background:#1B5E50;color:#FFFFFF;padding:12px 16px;border-radius:12px;}"
     },
     {
       "name": "Text action",
@@ -321,7 +321,7 @@
       "refersTo": "text-action",
       "description": "The common borderless action, shown here in the statistics panel.",
       "html": "<button class=\"ds-text\" lang=\"fr\">Actualiser</button>",
-      "css": ".ds-text {font:500 14px Roboto, sans-serif;min-height:48px;border:0;cursor:pointer;} .ds-text:hover {filter:brightness(.96);} .ds-text:active {filter:brightness(.9);} .ds-text:focus-visible {outline:2px solid #225C50;outline-offset:2px;} .ds-text {background:transparent;color:#225C50;padding:0 12px;} .ds-text:hover,.ds-text:active {background:#F7F5EF;}"
+      "css": ".ds-text {font:500 14px Roboto, sans-serif;min-height:48px;border:0;cursor:pointer;} .ds-text:hover {filter:brightness(.96);} .ds-text:active {filter:brightness(.9);} .ds-text:focus-visible {outline:2px solid #1B5E50;outline-offset:2px;} .ds-text {background:transparent;color:#1B5E50;padding:0 12px;border-radius:12px;} .ds-text:hover,.ds-text:active {background:#F6F4EE;}"
     },
     {
       "name": "Suggested answer",
@@ -329,7 +329,7 @@
       "refersTo": "prompt-option",
       "description": "A full-width single-choice answer with a visible recommendation when supplied.",
       "html": "<button class=\"ds-option\" lang=\"fr\">Liste (choix recommandé)</button>",
-      "css": ".ds-option {font:500 14px Roboto, sans-serif;min-height:48px;border:0;cursor:pointer;} .ds-option:hover {filter:brightness(.96);} .ds-option:active {filter:brightness(.9);} .ds-option:focus-visible {outline:2px solid #225C50;outline-offset:2px;} .ds-option {width:100%;text-align:start;padding:8px 12px;border-radius:12px;background:#DCEDE3;color:#225C50;} .ds-option:disabled {color:#53625B;cursor:default;}"
+      "css": ".ds-option {font:500 14px Roboto, sans-serif;min-height:48px;border:0;cursor:pointer;} .ds-option:hover {filter:brightness(.96);} .ds-option:active {filter:brightness(.9);} .ds-option:focus-visible {outline:2px solid #1B5E50;outline-offset:2px;} .ds-option {width:100%;text-align:start;padding:10px 14px;border-radius:14px;background:#D8EDE3;color:#1B5E50;} .ds-option:disabled {color:#4E5D56;cursor:default;}"
     },
     {
       "name": "Profile field",
@@ -337,7 +337,7 @@
       "refersTo": "profile-field",
       "description": "A labelled profile input whose stroke changes on focus.",
       "html": "<label class=\"ds-profile-label\" lang=\"fr\">Nom du profil<input class=\"ds-field\" type=\"text\"></label>",
-      "css": ".ds-profile-label {display:grid;gap:4px;font:500 14px Roboto,sans-serif;color:#172521;} .ds-field {box-sizing:border-box;width:100%;min-height:48px;padding:9px 12px;border:1px solid #53625B;border-radius:8px;background:#FFFEFA;color:#172521;font:400 17px Roboto,sans-serif;} .ds-field:focus-visible {outline:2px solid #225C50;outline-offset:-2px;}"
+      "css": ".ds-profile-label {display:grid;gap:4px;font:500 14px Roboto,sans-serif;color:#14231E;} .ds-field {box-sizing:border-box;width:100%;min-height:48px;padding:12px 14px;border:1px solid #8E9B94;border-radius:12px;background:#FFFEFB;color:#14231E;font:400 17px Roboto,sans-serif;} .ds-field:focus-visible {outline:2px solid #1B5E50;outline-offset:-2px;}"
     },
     {
       "name": "Workspace destination",
@@ -345,7 +345,7 @@
       "refersTo": "workspace-link",
       "description": "The title and chevron belong to one destination in the atelier.",
       "html": "<button class=\"ds-link\" lang=\"fr\">Mes écrans<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path fill=\"currentColor\" d=\"M9,5l7,7l-7,7l-1.4,-1.4l5.6,-5.6l-5.6,-5.6z\"/></svg></button>",
-      "css": ".ds-link {font:500 14px Roboto, sans-serif;min-height:48px;border:0;cursor:pointer;} .ds-link:hover {filter:brightness(.96);} .ds-link:active {filter:brightness(.9);} .ds-link:focus-visible {outline:2px solid #225C50;outline-offset:2px;} .ds-link {width:100%;min-height:53px;display:flex;align-items:center;justify-content:space-between;padding:0;background:#F7F5EF;color:#172521;border-bottom:1px solid #CED4CB;font-size:16px;font-weight:400;} .ds-link svg {width:18px;height:18px;}"
+      "css": ".ds-link {font:500 14px Roboto, sans-serif;min-height:48px;border:0;cursor:pointer;} .ds-link:hover {filter:brightness(.96);} .ds-link:active {filter:brightness(.9);} .ds-link:focus-visible {outline:2px solid #1B5E50;outline-offset:2px;} .ds-link {width:100%;min-height:53px;display:flex;align-items:center;justify-content:space-between;padding:0;background:#F6F4EE;color:#14231E;border-bottom:1px solid #D2D7CE;font-size:16px;font-weight:400;} .ds-link svg {width:18px;height:18px;}"
     },
     {
       "name": "Dictation control",
@@ -353,7 +353,7 @@
       "refersTo": "dictate",
       "description": "A labelled microphone button next to the editable draft.",
       "html": "<button class=\"ds-mic\" lang=\"fr\" aria-label=\"Dicter\" title=\"Dicter\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path fill=\"currentColor\" d=\"M12,14a3,3 0,0 0,3 -3V5a3,3 0,0 0,-6 0v6a3,3 0,0 0,3 3zM17,11a5,5 0,0 1,-10 0H5a7,7 0,0 0,6 6.93V21h2v-3.07A7,7 0,0 0,19 11z\"/></svg></button>",
-      "css": ".ds-mic {font:500 14px Roboto, sans-serif;min-height:48px;border:0;cursor:pointer;} .ds-mic:hover {filter:brightness(.96);} .ds-mic:active {filter:brightness(.9);} .ds-mic:focus-visible {outline:2px solid #225C50;outline-offset:2px;} .ds-mic {display:inline-grid;place-content:center;width:48px;height:48px;background:transparent;color:#225C50;border-radius:50%;} .ds-mic svg {width:24px;height:24px;} .ds-mic:hover,.ds-mic:active {background:#DCEDE3;}"
+      "css": ".ds-mic {font:500 14px Roboto, sans-serif;min-height:48px;border:0;cursor:pointer;} .ds-mic:hover {filter:brightness(.96);} .ds-mic:active {filter:brightness(.9);} .ds-mic:focus-visible {outline:2px solid #1B5E50;outline-offset:2px;} .ds-mic {display:inline-grid;place-content:center;width:48px;height:48px;background:transparent;color:#1B5E50;border-radius:50%;} .ds-mic svg {width:24px;height:24px;} .ds-mic:hover,.ds-mic:active {background:#D8EDE3;}"
     },
     {
       "name": "Question card",
@@ -361,7 +361,7 @@
       "refersTo": "prompt-card",
       "description": "An inline question with a playback control, choices and a free-answer alternative.",
       "html": "<section class=\"ds-card\" lang=\"fr\"><h3>Quel format préférez-vous ?</h3><button aria-label=\"Écouter la question et ses choix\">Écouter</button><button class=\"ds-answer\">Liste (choix recommandé)</button><button class=\"ds-answer\">Paragraphe</button><button>Écrire une réponse</button><button>Passer la question</button></section>",
-      "css": ".ds-card {padding:12px 14px;border:1px solid #CED4CB;border-radius:12px;background:#FFFEFA;color:#172521;display:grid;gap:8px;} .ds-card h3 {margin:0;font:700 18px Roboto,sans-serif;}.ds-card button {font:500 14px Roboto, sans-serif;min-height:48px;border:0;cursor:pointer;} .ds-card button:hover {filter:brightness(.96);} .ds-card button:active {filter:brightness(.9);} .ds-card button:focus-visible {outline:2px solid #225C50;outline-offset:2px;} .ds-card button {padding:8px 12px;background:transparent;color:#225C50;} .ds-card button:hover,.ds-card button:active {background:#F7F5EF;} .ds-card .ds-answer {background:#DCEDE3;border-radius:12px;text-align:start;} .ds-card .ds-answer:hover,.ds-card .ds-answer:active {background:#DCEDE3;}"
+      "css": ".ds-card {padding:14px 16px;border:1px solid #D2D7CE;border-radius:16px;background:#FFFEFB;color:#14231E;display:grid;gap:8px;} .ds-card h3 {margin:0;font:700 18px Roboto,sans-serif;}.ds-card button {font:500 14px Roboto, sans-serif;min-height:48px;border:0;cursor:pointer;} .ds-card button:hover {filter:brightness(.96);} .ds-card button:active {filter:brightness(.9);} .ds-card button:focus-visible {outline:2px solid #1B5E50;outline-offset:2px;} .ds-card button {padding:10px 14px;background:transparent;color:#1B5E50;} .ds-card button:hover,.ds-card button:active {background:#F6F4EE;} .ds-card .ds-answer {background:#D8EDE3;border-radius:14px;text-align:start;} .ds-card .ds-answer:hover,.ds-card .ds-answer:active {background:#D8EDE3;}"
     },
     {
       "name": "Usage measurement",
@@ -369,7 +369,7 @@
       "refersTo": "usage-value",
       "description": "A French measurement label stays with its value and unit.",
       "html": "<dl class=\"ds-usage\" lang=\"fr\"><dt>Part des jetons d’entrée lus en cache</dt><dd>8 %</dd></dl>",
-      "css": ".ds-usage {margin:0;border-bottom:1px solid #CED4CB;background:#F7F5EF;color:#172521;} .ds-usage dt {padding:5px 0;color:#53625B;font:400 16px Roboto,sans-serif;} .ds-usage dd {margin:0;font:400 20px monospace;}"
+      "css": ".ds-usage {margin:0;border-bottom:1px solid #D2D7CE;background:#F6F4EE;color:#14231E;} .ds-usage dt {padding:5px 0;color:#4E5D56;font:400 16px Roboto,sans-serif;} .ds-usage dd {margin:0;font:400 20px monospace;}"
     },
     {
       "name": "Conversation turn",
@@ -377,7 +377,7 @@
       "refersTo": "transcript-turn",
       "description": "An assistant turn reads directly on paper under its speaker name.",
       "html": "<article class=\"ds-turn\" lang=\"fr\"><strong>Hermes</strong><p>Quel format préférez-vous ?</p></article>",
-      "css": ".ds-turn {padding:9px 18px;background:#F7F5EF;color:#172521;font:400 17px Roboto,sans-serif;} .ds-turn strong {display:block;color:#225C50;font:700 13px Roboto,sans-serif;} .ds-turn p {margin:0;}"
+      "css": ".ds-turn {padding:9px 18px;background:#F6F4EE;color:#14231E;font:400 17px Roboto,sans-serif;} .ds-turn strong {display:block;color:#1B5E50;font:700 13px Roboto,sans-serif;} .ds-turn p {margin:0;}"
     }
   ],
   "narrative": {
