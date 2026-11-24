@@ -66,7 +66,10 @@ public final class WorkspacePresentationTest extends InstrumentationTestCase {
                 ArtifactDesk.dismiss(activity);
                 assertFalse(foregroundReview.isShowing());
             });
-        } finally { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
+        } finally {
+            try { runTestOnUiThread(() -> ArtifactDesk.dismiss(activity)); }
+            finally { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }
+        }
     }
 
     public void testNavigationAndLayoutChangeCloseEverySecureReaderDialogBeforeRouting() throws Throwable {
