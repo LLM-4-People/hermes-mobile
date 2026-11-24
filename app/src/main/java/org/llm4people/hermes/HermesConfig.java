@@ -24,12 +24,12 @@ public final class HermesConfig {
     public static final String DEFAULT_OSM_BASE_URL = "https://www.openstreetmap.org";
     public static final long DEFAULT_UPDATE_MAX_APK_BYTES = 52_428_800L;
     public static final long DEFAULT_UPDATE_CHECK_INTERVAL_MS = 86_400_000L;
-    public static final int DEFAULT_DOCTOR_CHECK_TIMEOUT_MS = 10_000;
+    public static final int DEFAULT_DOCTOR_CHECK_TIMEOUT_MS = 8_000;
     public static final int DEFAULT_SLOW_LATENCY_THRESHOLD_MS = 1_500;
-    public static final int DEFAULT_EXPECTED_FORK_CAPABILITIES = 10;
+    public static final int DEFAULT_EXPECTED_FORK_CAPABILITIES = 51;
     public static final int DEFAULT_PROBE_TIMEOUT_MS = 8_000;
     public static final int DEFAULT_VOICE_SERVICE_TIMEOUT_MS = 15_000;
-    public static final int DEFAULT_TTS_INIT_TIMEOUT_MS = 4_000;
+    public static final int DEFAULT_TTS_INIT_TIMEOUT_MS = 12_000;
 
     private static final HermesConfig DEFAULTS = new HermesConfig(
             DEFAULT_HTTP_CONNECT_TIMEOUT_MS,

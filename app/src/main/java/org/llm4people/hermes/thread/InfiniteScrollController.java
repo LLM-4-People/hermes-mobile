@@ -1,7 +1,6 @@
 package org.llm4people.hermes.thread;
 
 import android.content.Context;
-import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.view.Gravity;
 import android.view.View;
@@ -95,7 +94,7 @@ public final class InfiniteScrollController implements AbsListView.OnScrollListe
             if (onJumpToLatest != null) onJumpToLatest.run();
         });
         pill.setTextColor(context.getColor(R.color.on_accent));
-        pill.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        pill.setTypeface(Ui.mediumTypeface());
         pill.setTextSize(14);
         pill.setGravity(Gravity.CENTER);
         pill.setMinimumHeight(Ui.dp(context, 48));

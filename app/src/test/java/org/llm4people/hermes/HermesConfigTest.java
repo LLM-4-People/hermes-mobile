@@ -24,12 +24,35 @@ public final class HermesConfigTest {
         assertEquals(86_400_000L, cfg.updateCheckIntervalMs);
         assertEquals("https://github.com", cfg.githubWebBaseUrl);
         assertEquals("https://www.openstreetmap.org", cfg.openStreetMapBaseUrl);
+        assertEquals(8_000, cfg.doctorCheckTimeoutMs);
+        assertEquals(1_500, cfg.slowLatencyThresholdMs);
+        assertEquals(51, cfg.expectedForkCapabilities);
+        assertEquals(8_000, cfg.probeTimeoutMs);
+        assertEquals(15_000, cfg.voiceServiceTimeoutMs);
+        assertEquals(12_000, cfg.ttsInitTimeoutMs);
         assertEquals(HermesConfig.DEFAULT_DOCTOR_CHECK_TIMEOUT_MS, cfg.doctorCheckTimeoutMs);
         assertEquals(HermesConfig.DEFAULT_SLOW_LATENCY_THRESHOLD_MS, cfg.slowLatencyThresholdMs);
         assertEquals(HermesConfig.DEFAULT_EXPECTED_FORK_CAPABILITIES, cfg.expectedForkCapabilities);
         assertEquals(HermesConfig.DEFAULT_PROBE_TIMEOUT_MS, cfg.probeTimeoutMs);
         assertEquals(HermesConfig.DEFAULT_VOICE_SERVICE_TIMEOUT_MS, cfg.voiceServiceTimeoutMs);
         assertEquals(HermesConfig.DEFAULT_TTS_INIT_TIMEOUT_MS, cfg.ttsInitTimeoutMs);
+    }
+
+    @Test
+    public void constructorPreservesCustomOperationalValues() {
+        HermesConfig custom = new HermesConfig(
+                1000, 2000, 1024, 2048, 3000, 500, 4096, 8192, 10, 20, 2,
+                "custom/repo", "https://api.example.com/", 1024, 60_000L,
+                "https://git.example.com/", "https://maps.example.com/",
+                4_500, 750, 25, 3_500, 9_000, 6_500);
+        assertEquals("https://git.example.com", custom.githubWebBaseUrl);
+        assertEquals("https://maps.example.com", custom.openStreetMapBaseUrl);
+        assertEquals(4_500, custom.doctorCheckTimeoutMs);
+        assertEquals(750, custom.slowLatencyThresholdMs);
+        assertEquals(25, custom.expectedForkCapabilities);
+        assertEquals(3_500, custom.probeTimeoutMs);
+        assertEquals(9_000, custom.voiceServiceTimeoutMs);
+        assertEquals(6_500, custom.ttsInitTimeoutMs);
     }
 
     @Test
@@ -52,14 +75,24 @@ public final class HermesConfigTest {
         } catch (IllegalArgumentException expected) {
             // ok
         }
-        try {
-            new HermesConfig(1000, 1000, 1000, 1000, 1000, 500, 1024, 2048, 10, 10, 1,
-                    "owner/repo", "https://api.github.com", 1024, 1000,
-                    "https://github.com", "https://www.openstreetmap.org",
-                    0, 500, 1, 1000, 1000, 1000);
-            fail("Expected rejection for zero doctorCheckTimeoutMs");
-        } catch (IllegalArgumentException expected) {
-            // ok
+        int[][] badOperationalCases = {
+                {0, 500, 1, 1000, 1000, 1000},
+                {1000, 0, 1, 1000, 1000, 1000},
+                {1000, 500, 0, 1000, 1000, 1000},
+                {1000, 500, 1, 0, 1000, 1000},
+                {1000, 500, 1, 1000, -1, 1000},
+                {1000, 500, 1, 1000, 1000, -5},
+        };
+        for (int[] c : badOperationalCases) {
+            try {
+                new HermesConfig(1000, 1000, 1000, 1000, 1000, 500, 1024, 2048, 10, 10, 1,
+                        "owner/repo", "https://api.github.com", 1024, 1000,
+                        "https://github.com", "https://www.openstreetmap.org",
+                        c[0], c[1], c[2], c[3], c[4], c[5]);
+                fail("Expected rejection for non-positive operational bound");
+            } catch (IllegalArgumentException expected) {
+                // ok
+            }
         }
     }
 

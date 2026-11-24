@@ -87,8 +87,8 @@ public final class BrainPanelsPolishContractTest {
                         && src.contains("Ui.insetDivider(panel.activity, 0)")
                         && !src.contains("primaryCard.addView(technical")
                         && !src.contains("primaryCard.addView(details"));
-        assertTrue("Metrics use sans-serif-medium with tabular figures instead of Typeface.MONOSPACE",
-                src.contains("sans-serif-medium")
+        assertTrue("Metrics use centralized Ui.mediumTypeface() with tabular figures instead of Typeface.MONOSPACE",
+                src.contains("Ui.mediumTypeface()")
                         && src.contains("setFontFeatureSettings(\"tnum\")")
                         && !src.contains("Typeface.MONOSPACE"));
         assertTrue("Refresh button styled as Ui.outlinedButton",

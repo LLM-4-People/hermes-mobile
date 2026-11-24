@@ -3,7 +3,6 @@ package org.llm4people.hermes.customization;
 import android.content.Context;
 import android.content.res.ColorStateList;
 import android.content.res.Configuration;
-import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.StateListDrawable;
 import android.view.Gravity;
@@ -48,16 +47,6 @@ public final class InteractiveCardView extends LinearLayout {
     public static final int MAX_DRAFT_CHARS = 240;
 
     private static final Pattern ITEM_ID = Pattern.compile("[A-Za-z0-9._-]{1,48}");
-    private static volatile Typeface mediumTypeface;
-
-    private static Typeface mediumTypeface() {
-        Typeface cached = mediumTypeface;
-        if (cached == null) {
-            cached = Typeface.create("sans-serif-medium", Typeface.NORMAL);
-            mediumTypeface = cached;
-        }
-        return cached;
-    }
 
     public enum Kind {
         CHECKLIST("checklist"),
@@ -562,7 +551,7 @@ public final class InteractiveCardView extends LinearLayout {
 
     private void renderCard(Context context) {
         TextView titleView = Ui.text(context, spec.title, 16);
-        titleView.setTypeface(mediumTypeface());
+        titleView.setTypeface(Ui.mediumTypeface());
         titleView.setAccessibilityHeading(true);
         addView(titleView);
 
@@ -613,10 +602,8 @@ public final class InteractiveCardView extends LinearLayout {
             chip.setText(pick.label());
             chip.setAllCaps(false);
             chip.setTextSize(14);
-            chip.setTypeface(mediumTypeface());
-            chip.setTextColor(new ColorStateList(
-                    new int[][]{new int[]{-android.R.attr.state_enabled}, new int[]{}},
-                    new int[]{context.getColor(R.color.disabled_ink), context.getColor(R.color.accent)}));
+            chip.setTypeface(Ui.mediumTypeface());
+            chip.setTextColor(Ui.enabledDisabledInk(context, R.color.accent));
             chip.setMinHeight(touchMin);
             chip.setMinimumHeight(touchMin);
             chip.setMinWidth(touchMin);
@@ -716,7 +703,7 @@ public final class InteractiveCardView extends LinearLayout {
         Button apply = new Button(context, null, android.R.attr.borderlessButtonStyle);
         apply.setText(context.getString(R.string.card_apply_appearance));
         apply.setAllCaps(false);
-        apply.setTypeface(mediumTypeface());
+        apply.setTypeface(Ui.mediumTypeface());
         apply.setTextColor(new ColorStateList(
                 new int[][]{new int[]{-android.R.attr.state_enabled}, new int[]{}},
                 new int[]{context.getColor(R.color.disabled_ink), onAccentArgb}));
@@ -770,7 +757,7 @@ public final class InteractiveCardView extends LinearLayout {
         TextView modePill = Ui.text(context,
                 context.getString("invite".equals(invite.mode())
                         ? R.string.card_pairing_mode_invite : R.string.card_pairing_mode_device), 12);
-        modePill.setTypeface(mediumTypeface());
+        modePill.setTypeface(Ui.mediumTypeface());
         modePill.setTextColor(context.getColor(R.color.accent));
         modePill.setPaddingRelative(Ui.dp(context, 10), Ui.dp(context, 4),
                 Ui.dp(context, 10), Ui.dp(context, 4));

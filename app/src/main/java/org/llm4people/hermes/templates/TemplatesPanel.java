@@ -3,8 +3,6 @@ package org.llm4people.hermes.templates;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
-import android.content.res.ColorStateList;
-import android.graphics.Typeface;
 import android.text.InputFilter;
 import android.text.InputType;
 import android.view.Gravity;
@@ -37,16 +35,6 @@ import java.util.function.Consumer;
 public final class TemplatesPanel {
     public static final String ROUTE_ID = "workflow_templates";
     public static final int MAX_STARTER_CHIPS = 4;
-    private static volatile Typeface mediumTypeface;
-
-    private static Typeface mediumTypeface() {
-        Typeface cached = mediumTypeface;
-        if (cached == null) {
-            cached = Typeface.create("sans-serif-medium", Typeface.NORMAL);
-            mediumTypeface = cached;
-        }
-        return cached;
-    }
 
     private final Activity activity;
     private final TemplateStore store;
@@ -120,23 +108,8 @@ public final class TemplatesPanel {
 
     public View buildView() {
         LinearLayout body = Ui.column(activity);
-        ScrollView scroll = new ScrollView(activity) {
-            @Override protected void onMeasure(int widthSpec, int heightSpec) {
-                float density = getResources().getDisplayMetrics().density;
-                int gutter = Ui.dp(activity, AdaptiveLayout.centeredGutterDp(
-                        MeasureSpec.getSize(widthSpec) / density, AdaptiveLayout.READING_COLUMN_MAX_DP, 20));
-                int top = Ui.dp(activity, 16);
-                int bottom = Ui.dp(activity, 24);
-                if (body.getPaddingStart() != gutter || body.getPaddingTop() != top) {
-                    body.setPaddingRelative(gutter, top, gutter, bottom);
-                }
-                super.onMeasure(widthSpec, heightSpec);
-            }
-        };
-        scroll.setFillViewport(true);
-        scroll.setClipToPadding(false);
+        ScrollView scroll = Ui.centeredScroll(activity, body, AdaptiveLayout.READING_COLUMN_MAX_DP, 20, 16, 24);
         scroll.setBackgroundColor(activity.getColor(R.color.paper));
-        scroll.addView(body, new ScrollView.LayoutParams(-1, -2));
 
         TextView subtitle = Ui.text(activity, activity.getString(R.string.templates_panel_subtitle), 15);
         subtitle.setTextColor(activity.getColor(R.color.muted));
@@ -198,7 +171,7 @@ public final class TemplatesPanel {
         LinearLayout card = Ui.card(activity);
 
         TextView heading = Ui.text(activity, tpl.title, 17);
-        heading.setTypeface(mediumTypeface());
+        heading.setTypeface(Ui.mediumTypeface());
         card.addView(heading);
 
         if (!tpl.subtitle.isEmpty()) {
@@ -231,7 +204,7 @@ public final class TemplatesPanel {
 
             Button deleteBtn = Ui.button(activity, activity.getString(R.string.templates_delete_button),
                     v -> confirmDelete(tpl));
-            deleteBtn.setTextColor(dangerInk(activity));
+            deleteBtn.setTextColor(Ui.dangerInk(activity));
             LinearLayout.LayoutParams deleteLp = new LinearLayout.LayoutParams(-2, -2);
             deleteLp.setMarginStart(gap);
             actions.addView(deleteBtn, deleteLp);
@@ -360,7 +333,7 @@ public final class TemplatesPanel {
 
     private TextView sectionHeading(String text) {
         TextView view = Ui.text(activity, text, 15);
-        view.setTypeface(mediumTypeface());
+        view.setTypeface(Ui.mediumTypeface());
         view.setTextColor(activity.getColor(R.color.muted));
         view.setAccessibilityHeading(true);
         view.setPaddingRelative(0, Ui.dp(activity, 4), 0, Ui.dp(activity, 8));
@@ -369,7 +342,7 @@ public final class TemplatesPanel {
 
     private TextView fieldLabel(String text) {
         TextView view = Ui.text(activity, text, 14);
-        view.setTypeface(mediumTypeface());
+        view.setTypeface(Ui.mediumTypeface());
         view.setPaddingRelative(0, Ui.dp(activity, 10), 0, Ui.dp(activity, 4));
         return view;
     }
@@ -402,12 +375,6 @@ public final class TemplatesPanel {
             field.setSingleLine(true);
         }
         return field;
-    }
-
-    private static ColorStateList dangerInk(Context context) {
-        return new ColorStateList(
-                new int[][]{new int[]{-android.R.attr.state_enabled}, new int[]{}},
-                new int[]{context.getColor(R.color.disabled_ink), context.getColor(R.color.danger)});
     }
 
     private LinearLayout.LayoutParams cardLayoutParams() {

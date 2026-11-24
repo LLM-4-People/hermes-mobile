@@ -25,7 +25,6 @@ import java.util.function.Consumer;
 public final class AdaptiveNavBar extends LinearLayout {
     public record Destination(String route, int viewId, int iconRes, int labelRes) {}
 
-    private static final Typeface MEDIUM = Typeface.create("sans-serif-medium", Typeface.NORMAL);
     private static final Destination[] DESTINATIONS = {
             new Destination(WorkspaceNavigation.DISCUSSION, R.id.nav_tab_discussions,
                     R.drawable.ic_threads, R.string.nav_discussions),
@@ -72,7 +71,7 @@ public final class AdaptiveNavBar extends LinearLayout {
             item.pill.setBackgroundResource(active ? R.drawable.nav_indicator : 0);
             item.icon.setImageTintList(ColorStateList.valueOf(active ? activeInk : idleInk));
             item.label.setTextColor(active ? activeInk : idleInk);
-            item.label.setTypeface(active ? MEDIUM : Typeface.DEFAULT, active ? Typeface.BOLD : Typeface.NORMAL);
+            item.label.setTypeface(active ? Ui.mediumTypeface() : Typeface.DEFAULT, active ? Typeface.BOLD : Typeface.NORMAL);
         }
     }
 

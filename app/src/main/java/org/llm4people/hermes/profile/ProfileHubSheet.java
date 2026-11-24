@@ -2,7 +2,6 @@ package org.llm4people.hermes.profile;
 
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.graphics.Typeface;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.Editable;
@@ -48,17 +47,6 @@ import java.util.regex.Pattern;
  * {@link AdminConsoleSheet}.
  */
 public final class ProfileHubSheet implements AutoCloseable {
-    private static volatile Typeface mediumTypeface;
-
-    private static Typeface mediumTypeface() {
-        Typeface cached = mediumTypeface;
-        if (cached == null) {
-            cached = Typeface.create("sans-serif-medium", Typeface.NORMAL);
-            mediumTypeface = cached;
-        }
-        return cached;
-    }
-
     private static final Pattern VALID_SLUG = Pattern.compile("[a-z0-9][a-z0-9-]{1,31}");
 
     public interface Callbacks {
@@ -179,7 +167,7 @@ public final class ProfileHubSheet implements AutoCloseable {
 
         // Local profiles on this device
         TextView localHeading = Ui.text(activity, activity.getString(R.string.profile_hub_local_section), 14);
-        localHeading.setTypeface(mediumTypeface());
+        localHeading.setTypeface(Ui.mediumTypeface());
         localHeading.setAccessibilityHeading(true);
         body.addView(localHeading, topMargin(18));
 
@@ -210,7 +198,7 @@ public final class ProfileHubSheet implements AutoCloseable {
 
         // Server profiles & remote status section
         TextView serverHeading = Ui.text(activity, activity.getString(R.string.profile_hub_server_section), 14);
-        serverHeading.setTypeface(mediumTypeface());
+        serverHeading.setTypeface(Ui.mediumTypeface());
         serverHeading.setAccessibilityHeading(true);
         body.addView(serverHeading, topMargin(18));
 
@@ -282,7 +270,7 @@ public final class ProfileHubSheet implements AutoCloseable {
 
         LinearLayout info = Ui.column(activity);
         TextView name = Ui.text(activity, account.label, 17);
-        name.setTypeface(mediumTypeface());
+        name.setTypeface(Ui.mediumTypeface());
         info.addView(name);
 
         HorizontalScrollView badgesScroll = new HorizontalScrollView(activity);
@@ -350,7 +338,7 @@ public final class ProfileHubSheet implements AutoCloseable {
         row.addView(avatarBadge(activity, avatarInitials(label), false));
 
         TextView name = Ui.text(activity, label, 15);
-        name.setTypeface(mediumTypeface());
+        name.setTypeface(Ui.mediumTypeface());
         LinearLayout.LayoutParams nameLp = new LinearLayout.LayoutParams(
                 0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
         nameLp.setMarginStart(Ui.dp(activity, 12));
@@ -419,7 +407,7 @@ public final class ProfileHubSheet implements AutoCloseable {
 
         LinearLayout textCol = Ui.column(activity);
         TextView title = Ui.text(activity, profile.displayName() + " (@" + profile.slug() + ")", 15);
-        title.setTypeface(mediumTypeface());
+        title.setTypeface(Ui.mediumTypeface());
         textCol.addView(title);
 
         HorizontalScrollView pillsScroll = new HorizontalScrollView(activity);
@@ -509,7 +497,7 @@ public final class ProfileHubSheet implements AutoCloseable {
                 10);
 
         TextView langLabel = Ui.text(activity, activity.getString(R.string.profile_hub_language_label), 14);
-        langLabel.setTypeface(mediumTypeface());
+        langLabel.setTypeface(Ui.mediumTypeface());
         form.addView(langLabel, topMargin(12));
 
         String[] lang = {profile.preferredLanguage()};
@@ -710,7 +698,7 @@ public final class ProfileHubSheet implements AutoCloseable {
             int hintRes,
             int topGapDp) {
         TextView lbl = Ui.text(activity, activity.getString(labelRes), 14);
-        lbl.setTypeface(mediumTypeface());
+        lbl.setTypeface(Ui.mediumTypeface());
         if (topGapDp > 0) parent.addView(lbl, topMargin(topGapDp));
         else parent.addView(lbl);
 
@@ -739,7 +727,7 @@ public final class ProfileHubSheet implements AutoCloseable {
         btn.setText(label);
         btn.setAllCaps(false);
         btn.setTextSize(14);
-        btn.setTypeface(mediumTypeface());
+        btn.setTypeface(Ui.mediumTypeface());
         btn.setStateListAnimator(null);
         Ui.pad(btn, 14, 10);
         int touchMin = Ui.dp(activity, 48);

@@ -1,7 +1,6 @@
 package org.llm4people.hermes.share;
 
 import android.content.Context;
-import android.content.res.ColorStateList;
 import android.graphics.drawable.GradientDrawable;
 import android.view.Gravity;
 import android.view.View;
@@ -141,9 +140,7 @@ public final class SmartIntake {
                 if (onPick != null) onPick.accept(suggestion);
             });
             chip.setContentDescription(context.getString(R.string.share_intake_prepare_desc, chipLabel));
-            chip.setTextColor(new ColorStateList(
-                    new int[][]{new int[]{-android.R.attr.state_enabled}, new int[]{}},
-                    new int[]{context.getColor(R.color.disabled_ink), context.getColor(R.color.accent)}));
+            chip.setTextColor(Ui.enabledDisabledInk(context, R.color.accent));
             GradientDrawable bg = new GradientDrawable();
             bg.setCornerRadius(Ui.dp(context, Ui.BUTTON_CORNER_DP));
             bg.setColor(context.getColor(R.color.accent_surface));

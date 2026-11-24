@@ -385,7 +385,7 @@ final class SkillStudio {
 
     private EditText formField(LinearLayout parent, int labelAndHintRes, boolean capitalize) {
         TextView label = Ui.text(panel.activity, panel.t(labelAndHintRes), 14);
-        label.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        label.setTypeface(Ui.mediumTypeface());
         LinearLayout.LayoutParams labelLp = new LinearLayout.LayoutParams(-1, -2);
         labelLp.topMargin = Ui.dp(panel.activity, 12);
         parent.addView(label, labelLp);
@@ -422,7 +422,7 @@ final class SkillStudio {
         descField.setFilters(new InputFilter[]{new InputFilter.LengthFilter(SkillStudioModel.MAX_DESCRIPTION_CHARS)});
 
         TextView bodyLabel = Ui.text(panel.activity, panel.t(R.string.brain_skills_instructions_hint), 14);
-        bodyLabel.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        bodyLabel.setTypeface(Ui.mediumTypeface());
         LinearLayout.LayoutParams bodyLabelLp = new LinearLayout.LayoutParams(-1, -2);
         bodyLabelLp.topMargin = Ui.dp(panel.activity, 12);
         page.addView(bodyLabel, bodyLabelLp);
@@ -486,7 +486,7 @@ final class SkillStudio {
                 new SkillInventoryPlaceholder(detail).toInventory()));
         panel.note(page, detail.name());
         TextView editorLabel = Ui.text(panel.activity, panel.t(R.string.brain_skills_instructions_hint), 14);
-        editorLabel.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        editorLabel.setTypeface(Ui.mediumTypeface());
         LinearLayout.LayoutParams labelLp = new LinearLayout.LayoutParams(-1, -2);
         labelLp.topMargin = Ui.dp(panel.activity, 8);
         page.addView(editorLabel, labelLp);

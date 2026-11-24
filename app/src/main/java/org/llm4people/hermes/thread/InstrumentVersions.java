@@ -3,7 +3,6 @@ package org.llm4people.hermes.thread;
 import android.content.Context;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
-import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.RippleDrawable;
 import android.graphics.drawable.StateListDrawable;
@@ -50,7 +49,7 @@ final class InstrumentVersions extends RadioGroup {
             tab.setMinimumWidth(0);
             tab.setMinHeight(Ui.dp(c, 48));
             tab.setTextSize(15);
-            tab.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+            tab.setTypeface(Ui.mediumTypeface());
             tab.setText(side.text);
             tab.setContentDescription(c.getString(side.description));
             Ui.pad(tab, 2, 2);

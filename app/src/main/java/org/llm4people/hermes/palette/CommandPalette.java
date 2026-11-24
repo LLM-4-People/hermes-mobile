@@ -2,7 +2,6 @@ package org.llm4people.hermes.palette;
 
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.text.Editable;
 import android.text.InputFilter;
@@ -30,8 +29,6 @@ import java.util.function.BooleanSupplier;
  * Styled with .impeccable/design.json paper/surface/deep-teal tokens, FLAG_SECURE, and >= 48dp rows.
  */
 public final class CommandPalette {
-    private static final Typeface MEDIUM = Typeface.create("sans-serif-medium", Typeface.NORMAL);
-
     private final Activity activity;
     private final CommandRegistry registry;
     private final BooleanSupplier isOpen;
@@ -168,14 +165,14 @@ public final class CommandPalette {
         LinearLayout header = Ui.row(activity);
         header.setGravity(Gravity.CENTER_VERTICAL);
         TextView title = Ui.text(activity, item.title, 16);
-        title.setTypeface(MEDIUM);
+        title.setTypeface(Ui.mediumTypeface());
         title.setMaxLines(1);
         title.setEllipsize(TextUtils.TruncateAt.END);
         header.addView(title, new LinearLayout.LayoutParams(0, -2, 1f));
 
         TextView badge = Ui.text(activity, categoryLabel(item.category), 12);
         badge.setTextColor(activity.getColor(R.color.accent));
-        badge.setTypeface(MEDIUM);
+        badge.setTypeface(Ui.mediumTypeface());
         GradientDrawable badgeBg = new GradientDrawable();
         badgeBg.setColor(activity.getColor(R.color.accent_surface));
         badgeBg.setCornerRadius(Ui.dp(activity, 8));

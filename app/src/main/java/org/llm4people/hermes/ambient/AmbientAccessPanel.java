@@ -7,7 +7,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
-import android.graphics.Typeface;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.Editable;
@@ -57,17 +56,6 @@ public final class AmbientAccessPanel {
     public static final String ROUTE_ID = "ambient_intelligence";
     public static final int REQUEST_READ_CALENDAR = 4201;
     public static final int REQUEST_READ_CONTACTS = 4202;
-
-    private static volatile Typeface mediumTypeface;
-
-    private static Typeface mediumTypeface() {
-        Typeface cached = mediumTypeface;
-        if (cached == null) {
-            cached = Typeface.create("sans-serif-medium", Typeface.NORMAL);
-            mediumTypeface = cached;
-        }
-        return cached;
-    }
 
     public interface DraftSink {
         void stageDraft(String text);
@@ -186,23 +174,8 @@ public final class AmbientAccessPanel {
     /** Build the full scrollable native panel view for mounting in any activity/host container. */
     public View buildView() {
         LinearLayout body = Ui.column(activity);
-        ScrollView scroll = new ScrollView(activity) {
-            @Override protected void onMeasure(int widthSpec, int heightSpec) {
-                float density = getResources().getDisplayMetrics().density;
-                int gutter = Ui.dp(activity, AdaptiveLayout.centeredGutterDp(
-                        MeasureSpec.getSize(widthSpec) / density, AdaptiveLayout.READING_COLUMN_MAX_DP, 20));
-                int top = Ui.dp(activity, 16);
-                int bottom = Ui.dp(activity, 24);
-                if (body.getPaddingStart() != gutter || body.getPaddingTop() != top) {
-                    body.setPaddingRelative(gutter, top, gutter, bottom);
-                }
-                super.onMeasure(widthSpec, heightSpec);
-            }
-        };
-        scroll.setFillViewport(true);
-        scroll.setClipToPadding(false);
+        ScrollView scroll = Ui.centeredScroll(activity, body, AdaptiveLayout.READING_COLUMN_MAX_DP, 20, 16, 24);
         scroll.setBackgroundColor(activity.getColor(R.color.paper));
-        scroll.addView(body, new ScrollView.LayoutParams(-1, -2));
 
         TextView intro = mutedNote(activity.getString(R.string.ambient_panel_intro));
         body.addView(intro);
@@ -634,7 +607,7 @@ public final class AmbientAccessPanel {
         }
         LinearLayout card = Ui.card(activity);
         TextView track = Ui.text(activity, current.displayTrack(), 15);
-        track.setTypeface(mediumTypeface());
+        track.setTypeface(Ui.mediumTypeface());
         card.addView(track);
 
         int gap = Ui.dp(activity, 8);
@@ -676,7 +649,7 @@ public final class AmbientAccessPanel {
             LinearLayout card = Ui.card(activity);
 
             TextView header = Ui.text(activity, item.displaySource() + " · " + item.displaySender(), 14);
-            header.setTypeface(mediumTypeface());
+            header.setTypeface(Ui.mediumTypeface());
             card.addView(header);
 
             TextView content = Ui.text(activity, item.displayBody(), 14);
@@ -794,7 +767,7 @@ public final class AmbientAccessPanel {
     private void addSectionHeader(LinearLayout parent, int titleRes, int detailRes) {
         addTop(parent, Ui.divider(activity), 18);
         TextView heading = Ui.text(activity, activity.getString(titleRes), 18);
-        heading.setTypeface(mediumTypeface());
+        heading.setTypeface(Ui.mediumTypeface());
         heading.setAccessibilityHeading(true);
         addTop(parent, heading, 14);
         if (detailRes != 0) addTop(parent, mutedNote(activity.getString(detailRes)), 4);

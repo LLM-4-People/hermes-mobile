@@ -3,9 +3,7 @@ package org.llm4people.hermes.settings;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
-import android.content.res.ColorStateList;
 import android.graphics.Color;
-import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.text.Editable;
 import android.text.InputFilter;
@@ -44,7 +42,6 @@ import java.util.Objects;
  */
 public final class AppearanceSettingsPanel {
     public static final String ROUTE_ID = "appearance_settings";
-    private static final Typeface MEDIUM = Typeface.create("sans-serif-medium", Typeface.NORMAL);
 
     public interface Listener {
         void onCustomizationChanged(AppCustomization customization);
@@ -103,21 +100,7 @@ public final class AppearanceSettingsPanel {
 
     public View buildView() {
         LinearLayout list = Ui.column(activity);
-        ScrollView scroll = new ScrollView(activity) {
-            @Override protected void onMeasure(int widthSpec, int heightSpec) {
-                float density = getResources().getDisplayMetrics().density;
-                int gutter = Ui.dp(activity, AdaptiveLayout.centeredGutterDp(
-                        MeasureSpec.getSize(widthSpec) / density, AdaptiveLayout.READING_COLUMN_MAX_DP, 20));
-                int top = Ui.dp(activity, 14);
-                int bottom = Ui.dp(activity, 28);
-                if (list.getPaddingStart() != gutter || list.getPaddingTop() != top) {
-                    list.setPaddingRelative(gutter, top, gutter, bottom);
-                }
-                super.onMeasure(widthSpec, heightSpec);
-            }
-        };
-        scroll.setFillViewport(true);
-        scroll.setClipToPadding(false);
+        ScrollView scroll = Ui.centeredScroll(activity, list, AdaptiveLayout.READING_COLUMN_MAX_DP, 20, 14, 28);
         scroll.setTag("settings:appearance");
 
         previewSlot = Ui.column(activity);
@@ -134,7 +117,6 @@ public final class AppearanceSettingsPanel {
         shortcutsSlot = addSectionCard(list, R.string.appearance_shortcuts_title);
         historySlot = addSectionCard(list, R.string.appearance_history_title);
 
-        scroll.addView(list, new ScrollView.LayoutParams(-1, -2));
         refreshAll();
         Diagnostics.debug("appearance_panel", "opened");
         return scroll;
@@ -165,7 +147,7 @@ public final class AppearanceSettingsPanel {
 
     private LinearLayout addSectionCard(LinearLayout parent, int titleRes) {
         TextView heading = Ui.text(activity, activity.getString(titleRes), 17);
-        heading.setTypeface(MEDIUM);
+        heading.setTypeface(Ui.mediumTypeface());
         heading.setLetterSpacing(-0.01f);
         heading.setPaddingRelative(Ui.dp(activity, 4), Ui.dp(activity, 20), 0, Ui.dp(activity, 8));
         heading.setAccessibilityHeading(true);
@@ -206,14 +188,14 @@ public final class AppearanceSettingsPanel {
 
         LinearLayout topRow = Ui.row(activity);
         TextView title = Ui.text(activity, activity.getString(R.string.appearance_preview_title), 13 * scale);
-        title.setTypeface(MEDIUM);
+        title.setTypeface(Ui.mediumTypeface());
         title.setTextColor(accentColor);
         topRow.addView(title, new LinearLayout.LayoutParams(0, -2, 1f));
 
         TextView scalePill = new TextView(activity);
         scalePill.setText(AppearanceSettingsModel.formatFontScalePercent(custom.fontScaleDelta));
         scalePill.setTextSize(12);
-        scalePill.setTypeface(MEDIUM);
+        scalePill.setTypeface(Ui.mediumTypeface());
         scalePill.setTextColor(onAccentColor);
         scalePill.setPaddingRelative(Ui.dp(activity, 10), Ui.dp(activity, 4), Ui.dp(activity, 10), Ui.dp(activity, 4));
         GradientDrawable pillBg = new GradientDrawable();
@@ -227,7 +209,7 @@ public final class AppearanceSettingsPanel {
                 ? activity.getString(R.string.appearance_preview_default_greeting)
                 : custom.companionGreeting;
         TextView greetingView = Ui.text(activity, greeting, 16 * scale);
-        greetingView.setTypeface(MEDIUM);
+        greetingView.setTypeface(Ui.mediumTypeface());
         greetingView.setTextColor(inkColor);
         greetingView.setPaddingRelative(0, Ui.dp(activity, 8), 0, Ui.dp(activity, 4));
         preview.addView(greetingView);
@@ -243,7 +225,7 @@ public final class AppearanceSettingsPanel {
         TextView sampleCta = new TextView(activity);
         sampleCta.setText(R.string.appearance_preview_sample_cta);
         sampleCta.setTextSize(13 * scale);
-        sampleCta.setTypeface(MEDIUM);
+        sampleCta.setTypeface(Ui.mediumTypeface());
         sampleCta.setTextColor(onAccentColor);
         sampleCta.setGravity(Gravity.CENTER);
         sampleCta.setPaddingRelative(Ui.dp(activity, 14), Ui.dp(activity, 8), Ui.dp(activity, 14), Ui.dp(activity, 8));
@@ -579,7 +561,7 @@ public final class AppearanceSettingsPanel {
 
                 LinearLayout copy = Ui.column(activity);
                 TextView lbl = Ui.text(activity, item.label(), 15);
-                lbl.setTypeface(MEDIUM);
+                lbl.setTypeface(Ui.mediumTypeface());
                 copy.addView(lbl);
                 TextView draft = Ui.text(activity, item.draftText(), 13);
                 draft.setTextColor(activity.getColor(R.color.muted));
@@ -592,9 +574,7 @@ public final class AppearanceSettingsPanel {
                             AppearanceSettingsModel.removeShortcut(store.current().composerShortcuts, item.id());
                     applyCustomization(store.current().withComposerShortcuts(next));
                 });
-                remove.setTextColor(new ColorStateList(
-                        new int[][]{new int[]{-android.R.attr.state_enabled}, new int[]{}},
-                        new int[]{activity.getColor(R.color.disabled_ink), activity.getColor(R.color.danger)}));
+                remove.setTextColor(Ui.dangerInk(activity));
                 remove.setContentDescription(activity.getString(R.string.appearance_shortcut_remove, item.label()));
                 row.addView(remove);
                 shortcutsSlot.addView(row);
@@ -785,7 +765,7 @@ public final class AppearanceSettingsPanel {
         }
 
         TextView text = Ui.text(activity, label, 14);
-        text.setTypeface(MEDIUM);
+        text.setTypeface(Ui.mediumTypeface());
         text.setTextColor(activity.getColor(selected ? R.color.on_accent : R.color.ink));
         text.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         chip.addView(text);

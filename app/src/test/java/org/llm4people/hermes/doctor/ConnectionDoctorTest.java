@@ -1,6 +1,7 @@
 package org.llm4people.hermes.doctor;
 
 import org.junit.Test;
+import org.llm4people.hermes.HermesConfig;
 import org.llm4people.hermes.RouteRegistry;
 
 import java.io.IOException;
@@ -331,5 +332,95 @@ public final class ConnectionDoctorTest {
         assertEquals("connection_doctor", activite.get(0).id());
         assertTrue(registry.dispatch(ConnectionDoctorPanel.ROUTE_ID));
         assertEquals(1, opened.get());
+    }
+
+    @Test
+    public void customHermesConfigControlsSlowThresholdExpectedCapabilitiesAndTimeout() {
+        HermesConfig customCfg = new HermesConfig(
+                1000, 2000, 1024, 2048, 3000, 500, 4096, 8192, 10, 20, 2,
+                "LLM-4-People/hermes-mobile", "https://api.github.com", 1024, 60_000L,
+                "https://github.com", "https://www.openstreetmap.org",
+                120, 200, 12, 1000, 1000, 1000);
+
+        Map<String, Boolean> twelveFlags = new LinkedHashMap<>();
+        for (int i = 0; i < 11; i++) twelveFlags.put("f_" + i, Boolean.TRUE);
+        twelveFlags.put("smart_notes", Boolean.TRUE);
+        ConnectionDoctor.CapabilitiesProbe evaluated = ConnectionDoctor.evaluateCapabilityFlags(
+                twelveFlags, customCfg.expectedForkCapabilities);
+        assertEquals(12, evaluated.enabledCount());
+        assertEquals(12, evaluated.expectedCount());
+        assertTrue(evaluated.companionForkDetected());
+
+        ConnectionDoctor.Probes probes = new ConnectionDoctor.Probes() {
+            @Override public String rawEndpoint() { return "https://home.example.com"; }
+            @Override public String appVersion() { return "2.2.0"; }
+            @Override public String languageTag() { return "en-US"; }
+            @Override public ConnectionDoctor.ServerProbe probeServer() {
+                return new ConnectionDoctor.ServerProbe(true, false, false, 250L);
+            }
+            @Override public ConnectionDoctor.CapabilitiesProbe probeCapabilities() {
+                return evaluated;
+            }
+            @Override public ConnectionDoctor.PushProbe probePush() {
+                return new ConnectionDoctor.PushProbe(true, true);
+            }
+            @Override public ConnectionDoctor.UpdateProbe probeUpdates() {
+                return new ConnectionDoctor.UpdateProbe("2.2.0", false, "", true);
+            }
+            @Override public ConnectionDoctor.AmbientProbe probeAmbient() {
+                return new ConnectionDoctor.AmbientProbe(true, true);
+            }
+            @Override public ConnectionDoctor.LanguageProbe probeLanguage() {
+                return new ConnectionDoctor.LanguageProbe("en-US", "en-US", true);
+            }
+        };
+
+        try (ConnectionDoctor doctor = new ConnectionDoctor(probes, customCfg)) {
+            DoctorCheck.Report report = doctor.runAll();
+            DoctorCheck.Item server = report.find(DoctorCheck.CheckId.SERVER);
+            assertNotNull(server);
+            assertEquals(DoctorCheck.Status.WARN, server.status());
+            assertEquals(DoctorCheck.DetailCode.SERVER_SLOW, server.detailCode());
+            assertEquals(12, server.expectedCapabilities());
+
+            DoctorCheck.Item caps = report.find(DoctorCheck.CheckId.CAPABILITIES);
+            assertNotNull(caps);
+            assertEquals(DoctorCheck.Status.OK, caps.status());
+            assertEquals(DoctorCheck.DetailCode.CAPABILITIES_FULL, caps.detailCode());
+            assertEquals(12, caps.capabilityCount());
+            assertEquals(12, caps.expectedCapabilities());
+        }
+
+        // Verify custom doctorCheckTimeoutMs aborts a stalling probe rapidly instead of waiting 8 seconds.
+        CountDownLatch blocker = new CountDownLatch(1);
+        ConnectionDoctor.Probes stallingProbes = new ConnectionDoctor.Probes() {
+            @Override public String rawEndpoint() { return "https://home.example.com"; }
+            @Override public String appVersion() { return "2.2.0"; }
+            @Override public String languageTag() { return "en-US"; }
+            @Override public ConnectionDoctor.ServerProbe probeServer() {
+                try { blocker.await(5, TimeUnit.SECONDS); } catch (InterruptedException ignored) {
+                    Thread.currentThread().interrupt();
+                }
+                return new ConnectionDoctor.ServerProbe(true, false, false, 10L);
+            }
+            @Override public ConnectionDoctor.CapabilitiesProbe probeCapabilities() { return evaluated; }
+            @Override public ConnectionDoctor.PushProbe probePush() { return new ConnectionDoctor.PushProbe(true, true); }
+            @Override public ConnectionDoctor.UpdateProbe probeUpdates() { return new ConnectionDoctor.UpdateProbe("2.2.0", false, "", true); }
+            @Override public ConnectionDoctor.AmbientProbe probeAmbient() { return new ConnectionDoctor.AmbientProbe(true, true); }
+            @Override public ConnectionDoctor.LanguageProbe probeLanguage() { return new ConnectionDoctor.LanguageProbe("en-US", "en-US", true); }
+        };
+        long startedNs = System.nanoTime();
+        try (ConnectionDoctor doctor = new ConnectionDoctor(stallingProbes, customCfg)) {
+            DoctorCheck.Report report = doctor.runAll();
+            long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedNs);
+            assertTrue("Expected timeout near 120ms, took " + elapsedMs + "ms", elapsedMs < 2_500L);
+            DoctorCheck.Item server = report.find(DoctorCheck.CheckId.SERVER);
+            assertNotNull(server);
+            assertEquals(DoctorCheck.Status.ERROR, server.status());
+            assertEquals(DoctorCheck.DetailCode.SERVER_UNREACHABLE, server.detailCode());
+            assertEquals(12, server.expectedCapabilities());
+        } finally {
+            blocker.countDown();
+        }
     }
 }

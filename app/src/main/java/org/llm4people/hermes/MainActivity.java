@@ -480,9 +480,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             if (threads.remoteSessionId() != null) files.show(threads.remoteSessionId());
         });
         actions.register("workspace", () -> navigate(WorkspaceNavigation.HOME));
-        actions.register("brain", () -> {
-            if (featureRoutes != null) panels.showBrainHub(featureRoutes);
-        });
+        actions.register("brain", this::openSettingsHub);
         actions.register("reminders", () -> panels.showReminders());
         actions.register("notifications", () -> push.settings(account, deliveryActions(account)));
         actions.register("deliveries", () -> push.openInbox(account, deliveryActions(account)));
@@ -614,6 +612,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         panels.setLayoutHost(activeHost);
         threads = new ThreadWorkspace(this, api, account, this, voice);
         threads.setInstrumentHost(activeHost);
+        threads.applyAppCustomization(savedCustom);
         LiveRunActionReceiver.setStopHandler(liveStopHandler);
         threadActions.unlock(account, api);
         featureRoutes = BrainStudioRoutes.register(new RouteRegistry(), this, brainHandlers());
@@ -1453,7 +1452,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             @Override public void openNote(String noteId) {
                 if (account != owner || panels == null) return;
                 panels.showNotes(() -> account == owner && threads != null && threads.sessionId() != null,
-                        MainActivity.this::stageDraft, null);
+                        MainActivity.this::stageDraft, null, noteId);
             }
             @Override public void openSharedItem(UniversalSearchModel.Result item) {
                 if (account != owner) return;
@@ -1845,6 +1844,9 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             ThemePalette.OverrideSpec existing = ThemePalette.load(owner, systemNight);
             ThemePalette.OverrideSpec spec = custom.toThemeOverride(existing, systemNight);
             ThemePalette.save(owner, spec);
+            if (threads != null && account == owner) {
+                threads.applyAppCustomization(custom);
+            }
             if (refreshLayout && account == owner) {
                 onLayoutChanged();
             }
@@ -2254,6 +2256,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             activeDoctorPanel.refresh();
         }
         refreshActiveHubIfVisible();
+        if (threads != null) threads.reconcileNearbyPermission();
         if (push != null) push.onResume();
         voice.resume();
     }

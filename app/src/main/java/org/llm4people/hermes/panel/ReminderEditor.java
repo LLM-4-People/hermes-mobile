@@ -2,7 +2,6 @@ package org.llm4people.hermes.panel;
 
 import android.app.DatePickerDialog;
 import android.app.TimePickerDialog;
-import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.text.Editable;
 import android.text.InputType;
@@ -88,7 +87,7 @@ final class ReminderEditor {
     private EditText field(LinearLayout page, int name, boolean single, String value) {
         TextView label = panel.note(page, panel.t(name));
         label.setTextColor(panel.activity.getColor(R.color.ink));
-        label.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        label.setTypeface(Ui.mediumTypeface());
         EditText field = new EditText(panel.activity);
         field.setId(View.generateViewId());
         label.setLabelFor(field.getId());
@@ -145,7 +144,7 @@ final class ReminderEditor {
         TextView preview = Ui.text(panel.activity,
                 panel.t(R.string.panel_schedule_preview, schedule.humanSummary(panel.activity)), 14);
         preview.setTextColor(panel.activity.getColor(R.color.ink));
-        preview.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        preview.setTypeface(Ui.mediumTypeface());
         previewCard.addView(preview);
 
         String zoneName = job != null && schedule.isRecurring() && !PanelData.text(job, "timezone").isEmpty()
@@ -196,7 +195,7 @@ final class ReminderEditor {
         chip.setText(label);
         chip.setAllCaps(false);
         chip.setTextSize(14);
-        chip.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        chip.setTypeface(Ui.mediumTypeface());
         chip.setStateListAnimator(null);
         chip.setGravity((alignStart ? Gravity.START : Gravity.CENTER_HORIZONTAL) | Gravity.CENTER_VERTICAL);
         int touchMin = Ui.dp(panel.activity, 48);

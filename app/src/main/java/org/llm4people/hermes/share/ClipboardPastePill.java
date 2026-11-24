@@ -4,7 +4,6 @@ import android.content.ClipData;
 import android.content.ClipDescription;
 import android.content.ClipboardManager;
 import android.content.Context;
-import android.content.res.ColorStateList;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
 import android.text.Editable;
@@ -110,9 +109,7 @@ public final class ClipboardPastePill {
     public Button createView(Context context, EditText editor) {
         Button pill = Ui.button(context, context.getString(R.string.share_paste_clipboard), null);
         pill.setContentDescription(context.getString(R.string.share_paste_clipboard_desc));
-        pill.setTextColor(new ColorStateList(
-                new int[][]{new int[]{-android.R.attr.state_enabled}, new int[]{}},
-                new int[]{context.getColor(R.color.disabled_ink), context.getColor(R.color.accent)}));
+        pill.setTextColor(Ui.enabledDisabledInk(context, R.color.accent));
         GradientDrawable bg = new GradientDrawable();
         bg.setCornerRadius(Ui.dp(context, Ui.BUTTON_CORNER_DP));
         bg.setColor(context.getColor(R.color.accent_surface));

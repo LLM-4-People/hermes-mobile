@@ -1,10 +1,6 @@
 <resources xmlns:tools="http://schemas.android.com/tools" tools:locale="fr">
-    <!-- Cerveau Studio hub & capability notices -->
-    <string name="brain_hub_title">Cerveau de Hermes</string>
-    <string name="brain_hub_subtitle">Retrouvez la mémoire, les recherches, les savoir-faire et les fichiers de votre espace Hermes.</string>
+    <!-- Capability notice -->
     <string name="brain_upgrade_required">Cette fonction nécessite une mise à jour de votre serveur Hermes.</string>
-    <string name="brain_available">Disponible</string>
-    <string name="brain_needs_update">Mise à jour du serveur requise</string>
 
     <!-- Memory Panel (MEMORY.md & USER.md) -->
     <string name="brain_memory_title">Mémoire de Hermes</string>

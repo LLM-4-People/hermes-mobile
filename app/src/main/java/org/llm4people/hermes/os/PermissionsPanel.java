@@ -3,7 +3,6 @@ package org.llm4people.hermes.os;
 import android.app.Activity;
 import android.content.Context;
 import android.content.pm.PackageManager;
-import android.graphics.Typeface;
 import android.view.View;
 import android.widget.Button;
 import android.widget.LinearLayout;
@@ -24,7 +23,6 @@ import java.util.Objects;
  */
 public final class PermissionsPanel {
     public static final String ROUTE_ID = "permissions_center";
-    private static final Typeface MEDIUM = Typeface.create("sans-serif-medium", Typeface.NORMAL);
 
     private final Activity activity;
     private TextView summaryText;
@@ -78,7 +76,7 @@ public final class PermissionsPanel {
         card.addView(badge, new LinearLayout.LayoutParams(-2, -2));
 
         TextView title = Ui.text(activity, activity.getString(R.string.perm_banner_notifications_title), 16);
-        title.setTypeface(MEDIUM);
+        title.setTypeface(Ui.mediumTypeface());
         title.setPaddingRelative(0, Ui.dp(activity, 8), 0, 0);
         card.addView(title);
 
@@ -126,7 +124,7 @@ public final class PermissionsPanel {
         scroll.addView(body, new ScrollView.LayoutParams(-1, -2));
 
         TextView title = Ui.text(activity, activity.getString(R.string.perm_panel_title), 24);
-        title.setTypeface(MEDIUM);
+        title.setTypeface(Ui.mediumTypeface());
         title.setAccessibilityHeading(true);
         body.addView(title);
 
@@ -137,7 +135,7 @@ public final class PermissionsPanel {
 
         LinearLayout summaryCard = Ui.card(activity);
         summaryText = Ui.text(activity, "", 16);
-        summaryText.setTypeface(MEDIUM);
+        summaryText.setTypeface(Ui.mediumTypeface());
         summaryText.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         summaryCard.addView(summaryText);
 
@@ -221,7 +219,7 @@ public final class PermissionsPanel {
         card.addView(badge, new LinearLayout.LayoutParams(-2, -2));
 
         TextView title = Ui.text(activity, activity.getString(titleRes(key)), 16);
-        title.setTypeface(MEDIUM);
+        title.setTypeface(Ui.mediumTypeface());
         title.setPaddingRelative(0, Ui.dp(activity, 8), 0, 0);
         card.addView(title);
 

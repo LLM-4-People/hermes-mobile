@@ -2,8 +2,6 @@ package org.llm4people.hermes.presence;
 
 import android.app.AlertDialog;
 import android.content.Context;
-import android.content.res.ColorStateList;
-import android.graphics.Typeface;
 import android.graphics.drawable.StateListDrawable;
 import android.view.View;
 import android.widget.Button;
@@ -37,16 +35,6 @@ import java.util.function.Consumer;
  */
 public final class PresenceSettingsPanel {
     public static final String ROUTE_ID = "presence_control";
-    private static volatile Typeface mediumTypeface;
-
-    private static Typeface mediumTypeface() {
-        Typeface cached = mediumTypeface;
-        if (cached == null) {
-            cached = Typeface.create("sans-serif-medium", Typeface.NORMAL);
-            mediumTypeface = cached;
-        }
-        return cached;
-    }
 
     public interface Listener {
         default void onPolicyChanged(PresencePolicy policy) {}
@@ -155,14 +143,15 @@ public final class PresenceSettingsPanel {
 
     public View buildView() {
         LinearLayout body = Ui.column(context);
-        ScrollView scroll = centeredScroll(body);
+        ScrollView scroll = Ui.centeredScroll(context, body, AdaptiveLayout.READING_COLUMN_MAX_DP, 20, 16, 24);
+        scroll.setBackgroundColor(context.getColor(R.color.paper));
 
         TextView intro = mutedText(context.getString(R.string.presence_panel_intro));
         body.addView(intro);
 
         statusBannerCard = Ui.tonalCard(context);
         statusBanner = Ui.text(context, "", 14);
-        statusBanner.setTypeface(mediumTypeface());
+        statusBanner.setTypeface(Ui.mediumTypeface());
         statusBanner.setTag("presence:status_banner");
         statusBannerCard.addView(statusBanner, new LinearLayout.LayoutParams(-1, -2));
         addTop(body, statusBannerCard, 12);
@@ -179,7 +168,7 @@ public final class PresenceSettingsPanel {
 
         Button allOffButton = Ui.outlinedButton(context, context.getString(R.string.presence_turn_all_off), v -> turnEverythingOff());
         allOffButton.setTag("presence:turn_all_off");
-        allOffButton.setTextColor(dangerInk(context));
+        allOffButton.setTextColor(Ui.dangerInk(context));
         StateListDrawable dangerStates = new StateListDrawable();
         dangerStates.addState(new int[]{-android.R.attr.state_enabled},
                 Ui.shape(context, Ui.BUTTON_CORNER_DP, R.color.disabled_surface, R.color.line, 1));
@@ -418,11 +407,11 @@ public final class PresenceSettingsPanel {
         if (selected) {
             chip.setBackground(Ui.roundedRipple(context, Ui.BUTTON_CORNER_DP,
                     Ui.shape(context, Ui.BUTTON_CORNER_DP, R.color.accent_surface, R.color.accent, 1)));
-            chip.setTextColor(enabledDisabledInk(context, R.color.accent));
+            chip.setTextColor(Ui.enabledDisabledInk(context, R.color.accent));
         } else {
             chip.setBackground(Ui.roundedRipple(context, Ui.BUTTON_CORNER_DP,
                     Ui.shape(context, Ui.BUTTON_CORNER_DP, R.color.surface, R.color.line, 1)));
-            chip.setTextColor(enabledDisabledInk(context, R.color.ink));
+            chip.setTextColor(Ui.enabledDisabledInk(context, R.color.ink));
         }
     }
 
@@ -668,31 +657,10 @@ public final class PresenceSettingsPanel {
         }
     }
 
-    private ScrollView centeredScroll(LinearLayout body) {
-        ScrollView scroll = new ScrollView(context) {
-            @Override protected void onMeasure(int widthSpec, int heightSpec) {
-                float density = getResources().getDisplayMetrics().density;
-                int gutter = Ui.dp(context, AdaptiveLayout.centeredGutterDp(
-                        MeasureSpec.getSize(widthSpec) / density, AdaptiveLayout.READING_COLUMN_MAX_DP, 20));
-                int top = Ui.dp(context, 16);
-                int bottom = Ui.dp(context, 24);
-                if (body.getPaddingStart() != gutter || body.getPaddingTop() != top) {
-                    body.setPaddingRelative(gutter, top, gutter, bottom);
-                }
-                super.onMeasure(widthSpec, heightSpec);
-            }
-        };
-        scroll.setFillViewport(true);
-        scroll.setClipToPadding(false);
-        scroll.setBackgroundColor(context.getColor(R.color.paper));
-        scroll.addView(body, new ScrollView.LayoutParams(-1, -2));
-        return scroll;
-    }
-
     private void addSectionHeader(LinearLayout parent, String label) {
         addTop(parent, Ui.divider(context), 18);
         TextView header = Ui.text(context, label, 18);
-        header.setTypeface(mediumTypeface());
+        header.setTypeface(Ui.mediumTypeface());
         header.setAccessibilityHeading(true);
         addTop(parent, header, 14);
     }
@@ -716,7 +684,7 @@ public final class PresenceSettingsPanel {
         Switch sw = new Switch(context);
         sw.setText(title);
         sw.setTextSize(15);
-        sw.setTextColor(enabledDisabledInk(context, R.color.ink));
+        sw.setTextColor(Ui.enabledDisabledInk(context, R.color.ink));
         int minTouch = Ui.dp(context, 48);
         sw.setMinHeight(minTouch);
         sw.setMinimumHeight(minTouch);
@@ -732,16 +700,6 @@ public final class PresenceSettingsPanel {
         if (summarySink != null) summarySink.accept(summaryView);
         card.addView(block, new LinearLayout.LayoutParams(-1, -2));
         return sw;
-    }
-
-    private static ColorStateList enabledDisabledInk(Context context, int enabledColorRes) {
-        return new ColorStateList(
-                new int[][]{new int[]{-android.R.attr.state_enabled}, new int[]{}},
-                new int[]{context.getColor(R.color.disabled_ink), context.getColor(enabledColorRes)});
-    }
-
-    private static ColorStateList dangerInk(Context context) {
-        return enabledDisabledInk(context, R.color.danger);
     }
 
     private TextView mutedText(String text) {

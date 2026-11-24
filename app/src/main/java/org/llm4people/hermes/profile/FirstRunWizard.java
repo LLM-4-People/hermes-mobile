@@ -4,7 +4,6 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
-import android.graphics.Typeface;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
@@ -50,16 +49,6 @@ import java.util.regex.Pattern;
  */
 public final class FirstRunWizard {
     public static final String COMPLETED_KEY = "onboarding_v1_done";
-    private static volatile Typeface mediumTypeface;
-
-    private static Typeface mediumTypeface() {
-        Typeface cached = mediumTypeface;
-        if (cached == null) {
-            cached = Typeface.create("sans-serif-medium", Typeface.NORMAL);
-            mediumTypeface = cached;
-        }
-        return cached;
-    }
     private static final Pattern ENDPOINT_SLUG = Pattern.compile("^.*/p/([^/]+)/?$");
 
     public enum ApplyAction {
@@ -332,7 +321,7 @@ public final class FirstRunWizard {
         LinearLayout card = Ui.card(activity);
 
         TextView heading = Ui.text(activity, activity.getString(R.string.onboarding_paste_card_title), 16);
-        heading.setTypeface(mediumTypeface());
+        heading.setTypeface(Ui.mediumTypeface());
         heading.setAccessibilityHeading(true);
         card.addView(heading);
 
@@ -375,7 +364,7 @@ public final class FirstRunWizard {
             addDivider(activity, card, 12);
             TextView bannerText = Ui.text(activity,
                     activity.getString(R.string.onboarding_paste_clipboard_detected), 13);
-            bannerText.setTypeface(mediumTypeface());
+            bannerText.setTypeface(Ui.mediumTypeface());
             bannerText.setTextColor(activity.getColor(R.color.accent));
             card.addView(bannerText, topMargin(activity, 10));
 
@@ -456,9 +445,8 @@ public final class FirstRunWizard {
             Step1Targets targets) {
         showStatus(activity, statusNote, activity.getString(R.string.onboarding_paste_checking), R.color.muted);
         HermesConfig cfg = HermesConfig.load(activity);
-        int inspectTimeoutMs = Math.min(ProfileGate.PROBE_TIMEOUT_MS, 4_000);
         HermesApi.Limits limits = new HermesApi.Limits(
-                inspectTimeoutMs, inspectTimeoutMs, cfg.httpJsonMaxBytes, cfg.httpEventMaxBytes);
+                cfg.probeTimeoutMs, cfg.probeTimeoutMs, cfg.httpJsonMaxBytes, cfg.httpEventMaxBytes);
         io.execute(() -> {
             StagedPairing resolved = null;
             boolean expiredOrUsed = false;
@@ -711,7 +699,7 @@ public final class FirstRunWizard {
 
     private static TextView sectionLabel(Activity activity, int resId) {
         TextView label = Ui.text(activity, activity.getString(resId), 14);
-        label.setTypeface(mediumTypeface());
+        label.setTypeface(Ui.mediumTypeface());
         label.setAccessibilityHeading(true);
         return label;
     }

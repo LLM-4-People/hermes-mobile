@@ -2,7 +2,6 @@ package org.llm4people.hermes.hub;
 
 import android.app.Activity;
 import android.content.res.ColorStateList;
-import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.text.TextUtils;
 import android.view.Gravity;
@@ -30,7 +29,6 @@ import java.util.Objects;
  */
 public final class AppsLauncherPanel {
     public static final String ROUTE_ID = "apps";
-    private static final Typeface MEDIUM = Typeface.create("sans-serif-medium", Typeface.NORMAL);
 
     public interface StateProvider {
         String voiceLocaleLabel();
@@ -65,21 +63,7 @@ public final class AppsLauncherPanel {
 
     public View buildView() {
         LinearLayout list = Ui.column(activity);
-        ScrollView scroll = new ScrollView(activity) {
-            @Override protected void onMeasure(int widthSpec, int heightSpec) {
-                float density = getResources().getDisplayMetrics().density;
-                int gutter = Ui.dp(activity, AdaptiveLayout.centeredGutterDp(
-                        MeasureSpec.getSize(widthSpec) / density, AdaptiveLayout.READING_COLUMN_MAX_DP, 20));
-                int top = Ui.dp(activity, 14);
-                int bottom = Ui.dp(activity, 28);
-                if (list.getPaddingStart() != gutter || list.getPaddingTop() != top) {
-                    list.setPaddingRelative(gutter, top, gutter, bottom);
-                }
-                super.onMeasure(widthSpec, heightSpec);
-            }
-        };
-        scroll.setFillViewport(true);
-        scroll.setClipToPadding(false);
+        ScrollView scroll = Ui.centeredScroll(activity, list, AdaptiveLayout.READING_COLUMN_MAX_DP, 20, 14, 28);
         scroll.setTag("hub:apps");
 
         voiceSlot = Ui.column(activity);
@@ -91,7 +75,6 @@ public final class AppsLauncherPanel {
         workflowsSlot = Ui.column(activity);
         list.addView(workflowsSlot, new LinearLayout.LayoutParams(-1, -2));
 
-        scroll.addView(list, new ScrollView.LayoutParams(-1, -2));
         refresh();
         Diagnostics.debug("apps_launcher", "opened");
         return scroll;
@@ -114,7 +97,7 @@ public final class AppsLauncherPanel {
 
         LinearLayout copy = Ui.column(activity);
         TextView title = Ui.text(activity, activity.getString(R.string.hub_apps_voice_title), 18);
-        title.setTypeface(MEDIUM);
+        title.setTypeface(Ui.mediumTypeface());
         copy.addView(title);
 
         TextView body = Ui.text(activity, activity.getString(R.string.hub_apps_voice_body), 14);
@@ -160,7 +143,7 @@ public final class AppsLauncherPanel {
             empty.addView(iconCircle(R.drawable.ic_widgets, 40, 20, false));
             LinearLayout copy = Ui.column(activity);
             TextView title = Ui.text(activity, activity.getString(R.string.hub_apps_screens_empty_title), 16);
-            title.setTypeface(MEDIUM);
+            title.setTypeface(Ui.mediumTypeface());
             copy.addView(title);
             TextView body = Ui.text(activity, activity.getString(R.string.hub_apps_screens_empty_body), 14);
             body.setTextColor(activity.getColor(R.color.muted));
@@ -224,7 +207,7 @@ public final class AppsLauncherPanel {
 
         LinearLayout copy = Ui.column(activity);
         TextView titleView = Ui.text(activity, label, 16);
-        titleView.setTypeface(MEDIUM);
+        titleView.setTypeface(Ui.mediumTypeface());
         titleView.setMaxLines(1);
         titleView.setEllipsize(TextUtils.TruncateAt.END);
         titleView.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
@@ -274,7 +257,7 @@ public final class AppsLauncherPanel {
         row.addView(iconCircle(R.drawable.ic_widgets, 36, 20, false));
 
         TextView title = Ui.text(activity, entry.title(), 16);
-        title.setTypeface(MEDIUM);
+        title.setTypeface(Ui.mediumTypeface());
         title.setMaxLines(1);
         title.setEllipsize(TextUtils.TruncateAt.END);
         title.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
@@ -292,7 +275,7 @@ public final class AppsLauncherPanel {
 
     private void addSectionHeading(LinearLayout parent, String title) {
         TextView heading = Ui.text(activity, title, 18);
-        heading.setTypeface(MEDIUM);
+        heading.setTypeface(Ui.mediumTypeface());
         heading.setLetterSpacing(-0.01f);
         heading.setPaddingRelative(Ui.dp(activity, 4), Ui.dp(activity, 20), 0, Ui.dp(activity, 8));
         heading.setAccessibilityHeading(true);

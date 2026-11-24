@@ -111,8 +111,8 @@ public class ProfileSetupUxTest {
 
         try (LoopbackStatusServer server = new LoopbackStatusServer()) {
             String base = "http://127.0.0.1:" + server.port();
-            HermesApi.Limits limits = new HermesApi.Limits(ProfileGate.PROBE_TIMEOUT_MS,
-                    ProfileGate.PROBE_TIMEOUT_MS, 256 * 1024, 256 * 1024);
+            HermesApi.Limits limits = new HermesApi.Limits(org.llm4people.hermes.HermesConfig.DEFAULT_PROBE_TIMEOUT_MS,
+                    org.llm4people.hermes.HermesConfig.DEFAULT_PROBE_TIMEOUT_MS, 256 * 1024, 256 * 1024);
 
             HermesApi badKey401 = new HermesApi(base + "/p/auth401", "wrong-secret", limits);
             try {
@@ -165,8 +165,8 @@ public class ProfileSetupUxTest {
 
     @Test public void cancellingInFlightProbeRestoresUiRevokesClientAndBlocksStaleCompletion() {
         ProfileGate.ProbeController controller = new ProfileGate.ProbeController();
-        HermesApi.Limits limits = new HermesApi.Limits(ProfileGate.PROBE_TIMEOUT_MS,
-                ProfileGate.PROBE_TIMEOUT_MS, 256 * 1024, 256 * 1024);
+        HermesApi.Limits limits = new HermesApi.Limits(org.llm4people.hermes.HermesConfig.DEFAULT_PROBE_TIMEOUT_MS,
+                org.llm4people.hermes.HermesConfig.DEFAULT_PROBE_TIMEOUT_MS, 256 * 1024, 256 * 1024);
 
         // 1. Cancel before attach (e.g., Save tapped during rotate()'s store.open phase): resets UI & invalidates epoch.
         AtomicBoolean buttonEnabled = new AtomicBoolean(false);

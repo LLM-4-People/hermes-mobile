@@ -10,6 +10,7 @@ import android.speech.tts.Voice;
 
 import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.Diagnostics;
+import org.llm4people.hermes.HermesConfig;
 
 import java.util.Comparator;
 import java.util.Locale;
@@ -42,7 +43,7 @@ final class AndroidReplySpeech implements SpeechPlayback.Driver {
 
     @Override public void prepare(Consumer<Boolean> callback) {
         ready = callback;
-        main.postDelayed(initTimeout, 12_000);
+        main.postDelayed(initTimeout, HermesConfig.load(context).ttsInitTimeoutMs);
         engine = new TextToSpeech(context, status -> main.post(() -> {
             if (closed || ready == null) return;
             try { initialized(status == TextToSpeech.SUCCESS && configure()); }

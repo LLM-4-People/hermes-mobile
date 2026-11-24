@@ -1,5 +1,4 @@
 <resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
-    <string name="brain_available">Available</string>
     <string name="brain_files_binary">This binary file cannot be displayed as text.</string>
     <string name="brain_files_branch">Branch · %1$s</string>
     <string name="brain_files_discuss">Discuss this file</string>
@@ -16,8 +15,6 @@
     <string name="brain_files_unavailable">Project file browsing requires an update to your Hermes server.</string>
     <string name="brain_files_view_all_diff">View all changes</string>
     <string name="brain_habits_header">Based on your habits</string>
-    <string name="brain_hub_subtitle">Access memory, search, skills, and project files for your Hermes space.</string>
-    <string name="brain_hub_title">Hermes brain</string>
     <string name="brain_memory_title">Hermes memory</string>
     <string name="brain_memory_add_hermes">Add a memory</string>
     <string name="brain_memory_add_title">New memory item</string>
@@ -43,7 +40,6 @@
     <string name="brain_memory_tab_user">About you</string>
     <string name="brain_memory_undo_delete">Undo delete</string>
     <string name="brain_memory_unpin">Unpin</string>
-    <string name="brain_needs_update">Server update required</string>
     <string name="brain_notes_body_hint">Note content…</string>
     <string name="brain_notes_empty">No notes saved yet.</string>
     <string name="brain_notes_filter">Search your notes</string>
