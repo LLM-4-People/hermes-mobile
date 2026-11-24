@@ -237,9 +237,13 @@ public final class CodeReader {
     private void updateSearchCounter(Context c) {
         boolean hasQuery = !searchQuery.isEmpty();
         boolean hasMatches = !matches.isEmpty();
-        if (!hasQuery) searchCounter.setText("");
-        else if (!hasMatches) searchCounter.setText(c.getString(R.string.code_search_none));
-        else searchCounter.setText(c.getString(R.string.code_search_count, activeMatch + 1, matches.size()));
+        String nextLabel;
+        if (!hasQuery) nextLabel = "";
+        else if (!hasMatches) nextLabel = c.getString(R.string.code_search_none);
+        else nextLabel = c.getString(R.string.code_search_count, activeMatch + 1, matches.size());
+        if (!nextLabel.contentEquals(searchCounter.getText())) {
+            searchCounter.setText(nextLabel);
+        }
         prevMatchButton.setEnabled(hasMatches);
         nextMatchButton.setEnabled(hasMatches);
     }

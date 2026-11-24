@@ -136,7 +136,10 @@ public final class CommandPalette {
         visibleResults = registry.search(query);
         resultsColumn.removeAllViews();
         if (countAnnouncement != null) {
-            countAnnouncement.setText(activity.getString(R.string.palette_results_count, visibleResults.size()));
+            String nextCount = activity.getString(R.string.palette_results_count, visibleResults.size());
+            if (!nextCount.contentEquals(countAnnouncement.getText())) {
+                countAnnouncement.setText(nextCount);
+            }
         }
         if (visibleResults.isEmpty()) {
             TextView empty = Ui.text(activity, activity.getString(R.string.palette_empty), 15);

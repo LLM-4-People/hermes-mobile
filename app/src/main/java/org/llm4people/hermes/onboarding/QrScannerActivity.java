@@ -350,9 +350,7 @@ public final class QrScannerActivity extends Activity {
         fallbackTitle.setGravity(Gravity.CENTER);
         fallbackCard.addView(fallbackTitle);
 
-        fallbackDetail = Ui.text(this, getString(R.string.qr_scanner_permission_detail), 14);
-        fallbackDetail.setTextColor(getColor(R.color.muted));
-        fallbackDetail.setGravity(Gravity.CENTER);
+        fallbackDetail = createFallbackDetail(this);
         LinearLayout.LayoutParams detailLp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         detailLp.topMargin = Ui.dp(this, 8);
@@ -600,12 +598,12 @@ public final class QrScannerActivity extends Activity {
             } else if (verdict == ScanVerdict.NOT_HERMES) {
                 setStatus(getString(R.string.qr_scanner_not_hermes));
                 if (fallbackCard.getVisibility() == View.VISIBLE) {
-                    fallbackDetail.setText(R.string.qr_scanner_not_hermes);
+                    setFallbackDetail(R.string.qr_scanner_not_hermes);
                 }
             } else {
                 setStatus(getString(R.string.qr_scanner_image_no_qr));
                 if (fallbackCard.getVisibility() == View.VISIBLE) {
-                    fallbackDetail.setText(R.string.qr_scanner_image_no_qr);
+                    setFallbackDetail(R.string.qr_scanner_image_no_qr);
                 }
             }
         });
@@ -1147,14 +1145,38 @@ public final class QrScannerActivity extends Activity {
 
     private void setStatus(String message) {
         if (statusText != null && !isFinishing() && !isDestroyed()) {
-            statusText.setText(message);
+            String next = message == null ? "" : message;
+            if (!next.contentEquals(statusText.getText())) {
+                statusText.setText(next);
+            }
         }
+    }
+
+    static TextView createFallbackDetail(Context context) {
+        TextView detail = Ui.text(context, context.getString(R.string.qr_scanner_permission_detail), 14);
+        detail.setTextColor(context.getColor(R.color.muted));
+        detail.setGravity(Gravity.CENTER);
+        detail.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        return detail;
+    }
+
+    static void applyFallbackDetail(TextView detail, View card, String next) {
+        if (detail == null) return;
+        String safe = next == null ? "" : next;
+        boolean alreadyVisible = card != null && card.getVisibility() == View.VISIBLE;
+        if (!alreadyVisible || !safe.contentEquals(detail.getText())) {
+            detail.setText(safe);
+        }
+    }
+
+    private void setFallbackDetail(int detailRes) {
+        applyFallbackDetail(fallbackDetail, fallbackCard, getString(detailRes));
     }
 
     private void showFallback(int titleRes, int detailRes, boolean permissionRecovery) {
         if (isFinishing() || isDestroyed()) return;
         fallbackTitle.setText(titleRes);
-        fallbackDetail.setText(detailRes);
+        setFallbackDetail(detailRes);
         if (fallbackPermBtn != null) {
             if (permissionRecovery) {
                 PermissionCenter.State camState = PermissionCenter.state(this, PermissionCenter.Key.CAMERA);

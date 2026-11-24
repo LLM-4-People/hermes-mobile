@@ -202,21 +202,35 @@ public final class InfiniteScrollController implements AbsListView.OnScrollListe
 
     private void applyPillUiNow() {
         if (jumpPill == null) return;
+        if (!desiredPillVisible) {
+            if (jumpPill.getVisibility() != View.GONE) {
+                jumpPill.setVisibility(View.GONE);
+            }
+            return;
+        }
         Context ctx = jumpPill.getContext();
         int cdRes = jumpPillContentDescRes(unreadCount);
+        String nextText;
+        String nextCd;
         if (unreadCount == 1) {
-            jumpPill.setText(R.string.infinite_jump_latest_one);
-            jumpPill.setContentDescription(ctx.getString(cdRes));
+            nextText = ctx.getString(R.string.infinite_jump_latest_one);
+            nextCd = ctx.getString(cdRes);
         } else if (unreadCount > 1) {
-            jumpPill.setText(ctx.getString(R.string.infinite_jump_latest_unread, unreadCount));
-            jumpPill.setContentDescription(ctx.getString(cdRes, unreadCount));
+            nextText = ctx.getString(R.string.infinite_jump_latest_unread, unreadCount);
+            nextCd = ctx.getString(cdRes, unreadCount);
         } else {
-            jumpPill.setText(R.string.infinite_jump_latest);
-            jumpPill.setContentDescription(ctx.getString(cdRes));
+            nextText = ctx.getString(R.string.infinite_jump_latest);
+            nextCd = ctx.getString(cdRes);
         }
-        int targetVisibility = desiredPillVisible ? View.VISIBLE : View.GONE;
-        if (jumpPill.getVisibility() != targetVisibility) {
-            jumpPill.setVisibility(targetVisibility);
+        if (!nextText.contentEquals(jumpPill.getText())) {
+            jumpPill.setText(nextText);
+        }
+        CharSequence currentCd = jumpPill.getContentDescription();
+        if (currentCd == null || !nextCd.contentEquals(currentCd)) {
+            jumpPill.setContentDescription(nextCd);
+        }
+        if (jumpPill.getVisibility() != View.VISIBLE) {
+            jumpPill.setVisibility(View.VISIBLE);
         }
     }
 

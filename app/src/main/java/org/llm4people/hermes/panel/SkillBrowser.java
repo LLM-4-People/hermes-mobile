@@ -167,8 +167,17 @@ final class SkillBrowser {
         adapter.clear();
         adapter.addAll(matches);
         adapter.notifyDataSetChanged();
-        empty.setText(inventory.isEmpty() ? R.string.skills_empty : R.string.skills_no_matches);
-        empty.setVisibility(matches.isEmpty() ? View.VISIBLE : View.GONE);
+        if (matches.isEmpty()) {
+            String msg = panel.t(inventory.isEmpty() ? R.string.skills_empty : R.string.skills_no_matches);
+            if (empty.getVisibility() != View.VISIBLE || !msg.contentEquals(empty.getText())) {
+                empty.setText(msg);
+            }
+            if (empty.getVisibility() != View.VISIBLE) {
+                empty.setVisibility(View.VISIBLE);
+            }
+        } else if (empty.getVisibility() != View.GONE) {
+            empty.setVisibility(View.GONE);
+        }
     }
 
     private void detail(SkillInventory skill) {

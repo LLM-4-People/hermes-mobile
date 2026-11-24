@@ -389,13 +389,15 @@ public final class UpdatePanel {
                         (pct, downloaded, total) -> postUi(() -> {
                             if (pct < 0) {
                                 progressBar.setIndeterminate(true);
-                                showFeedback(activity.getString(R.string.update_downloading_indeterminate), false);
+                                showFeedback(activity.getString(R.string.update_downloading_indeterminate), false, false);
                             } else {
                                 progressBar.setIndeterminate(false);
                                 progressBar.setProgress(pct);
-                                showFeedback(pct >= 100
-                                        ? activity.getString(R.string.update_verifying)
-                                        : activity.getString(R.string.update_downloading, pct), false);
+                                if (pct >= 100) {
+                                    showFeedback(activity.getString(R.string.update_verifying), false, true);
+                                } else {
+                                    showFeedback(activity.getString(R.string.update_downloading, pct), false, false);
+                                }
                             }
                         }),
                         cancelled);
@@ -512,9 +514,28 @@ public final class UpdatePanel {
     }
 
     private void showFeedback(String message, boolean error) {
-        feedback.setText(message);
-        feedback.setTextColor(activity.getColor(error ? R.color.danger : R.color.muted));
-        feedback.setVisibility(View.VISIBLE);
+        showFeedback(message, error, true);
+    }
+
+    private void showFeedback(String message, boolean error, boolean announce) {
+        String next = message == null ? "" : message;
+        int desiredLiveRegion = announce
+                ? View.ACCESSIBILITY_LIVE_REGION_POLITE
+                : View.ACCESSIBILITY_LIVE_REGION_NONE;
+        if (feedback.getAccessibilityLiveRegion() != desiredLiveRegion) {
+            feedback.setAccessibilityLiveRegion(desiredLiveRegion);
+        }
+        int desiredColor = activity.getColor(error ? R.color.danger : R.color.muted);
+        if (feedback.getCurrentTextColor() != desiredColor) {
+            feedback.setTextColor(desiredColor);
+        }
+        boolean wasVisible = feedback.getVisibility() == View.VISIBLE;
+        if (!next.contentEquals(feedback.getText())) {
+            feedback.setText(next);
+        }
+        if (!wasVisible) {
+            feedback.setVisibility(View.VISIBLE);
+        }
     }
 
     private void postUi(Runnable task) {
