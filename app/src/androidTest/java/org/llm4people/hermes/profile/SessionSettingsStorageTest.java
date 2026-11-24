@@ -133,7 +133,7 @@ public final class SessionSettingsStorageTest extends InstrumentationTestCase {
                 });
                 CheckedTextView vendor = awaitChoice("vendor", 1);
                 runTestOnUiThread(() -> tapChoice(vendor));
-                CheckedTextView alpha = awaitChoice("Alpha\n" + context.getString(R.string.ws_badge_reasoning), 2);
+                CheckedTextView alpha = awaitChoice("Alpha\n" + activity.getString(R.string.ws_badge_reasoning), 2);
                 runTestOnUiThread(() -> {
                     assertEquals("Alpha", String.valueOf(alpha.getContentDescription()));
                     tapChoice(alpha);

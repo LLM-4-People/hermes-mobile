@@ -155,6 +155,7 @@ final class WorkspaceForms {
         LinearLayout wrap = Ui.column(a);
         Ui.pad(wrap, 20, 6);
         EditText edit = editor(a, true, 12000);
+        edit.setHint(R.string.ws_form_enter_message);
         edit.setText(draft);
         edit.setSelection(edit.length());
         wrap.addView(edit);

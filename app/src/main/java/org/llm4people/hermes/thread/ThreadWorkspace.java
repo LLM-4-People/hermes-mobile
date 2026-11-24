@@ -973,6 +973,7 @@ public final class ThreadWorkspace implements AutoCloseable {
         input.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO);
         input.setImeOptions(android.view.inputmethod.EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING
                 | android.view.inputmethod.EditorInfo.IME_FLAG_NO_EXTRACT_UI);
+        input.setHint(R.string.thread_rename_title);
         input.setText(title);
         input.selectAll();
         android.widget.LinearLayout box = org.llm4people.hermes.Ui.column(activity);

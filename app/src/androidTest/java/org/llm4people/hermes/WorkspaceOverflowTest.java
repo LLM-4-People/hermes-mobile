@@ -34,10 +34,10 @@ public final class WorkspaceOverflowTest extends InstrumentationTestCase {
                 assertSame(original, currentMenu(shell));
                 shell.selected("B", "Même titre");
                 assertNull(currentMenu(shell));
-                assertFalse(selectModels(context, original));
+                assertFalse(selectModels(activity, original));
                 assertTrue(actions.isEmpty());
                 Menu replacement = open(shell);
-                assertTrue(selectModels(context, replacement));
+                assertTrue(selectModels(activity, replacement));
                 assertEquals(java.util.Collections.singletonList("models"), actions);
                 shell.dismissMenu();
             });

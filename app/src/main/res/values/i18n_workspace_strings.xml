@@ -112,7 +112,6 @@
     <string name="ws_form_send_to_draft">Vers le brouillon</string>
     <string name="ws_form_enter_message">Saisissez un message.</string>
     <string name="ws_table_filter_hint">Filtrer le tableau…</string>
-    <string name="ws_table_filter_a11y">Filtrer les lignes du tableau</string>
     <string name="ws_table_sort_asc">, tri croissant</string>
     <string name="ws_table_sort_desc">, tri décroissant</string>
     <string name="ws_table_column_a11y">Colonne %1$s%2$s. Appuyer pour trier.</string>

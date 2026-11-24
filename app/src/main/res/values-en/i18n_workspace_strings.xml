@@ -112,7 +112,6 @@
     <string name="ws_form_send_to_draft">To draft</string>
     <string name="ws_form_enter_message">Enter a message.</string>
     <string name="ws_table_filter_hint">Filter table…</string>
-    <string name="ws_table_filter_a11y">Filter table rows</string>
     <string name="ws_table_sort_asc">, sorted ascending</string>
     <string name="ws_table_sort_desc">, sorted descending</string>
     <string name="ws_table_column_a11y">Column %1$s%2$s. Tap to sort.</string>

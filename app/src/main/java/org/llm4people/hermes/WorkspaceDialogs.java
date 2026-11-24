@@ -279,7 +279,7 @@ final class WorkspaceDialogs {
             RadioButton rb = new RadioButton(activity);
             rb.setId(View.generateViewId());
             rb.setText(m.labelRes);
-            rb.setTextColor(activity.getColor(R.color.ink));
+            rb.setTextColor(Ui.enabledDisabledInk(activity, R.color.ink));
             rb.setMinHeight(Ui.dp(activity, 48));
             rb.setTag(m);
             if (m == ProfileLockPolicy.Mode.BIOMETRIC && !bioAvailable) rb.setEnabled(false);
