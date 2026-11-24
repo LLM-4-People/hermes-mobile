@@ -341,6 +341,7 @@ public final class BiometricVault {
         try {
             stored = Base64.decode(encoded, Base64.NO_WRAP);
         } catch (IllegalArgumentException corrupt) {
+            Diagnostics.warning("biometric", "envelope_decode_corrupt");
             revoke(activity, profileId);
             callback.onInvalidated();
             return null;

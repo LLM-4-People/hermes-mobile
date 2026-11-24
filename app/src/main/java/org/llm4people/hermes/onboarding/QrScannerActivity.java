@@ -6,6 +6,7 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.content.res.ColorStateList;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
@@ -13,6 +14,7 @@ import android.graphics.Insets;
 import android.graphics.Paint;
 import android.graphics.RectF;
 import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.RippleDrawable;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCaptureSession;
 import android.hardware.camera2.CameraCharacteristics;
@@ -453,10 +455,15 @@ public final class QrScannerActivity extends Activity {
         int vPad = Ui.dp(this, 8);
         btn.setPadding(hPad, vPad, hPad, vPad);
         GradientDrawable bg = new GradientDrawable();
-        bg.setCornerRadius(Ui.dp(this, 24));
+        float radiusPx = Ui.dp(this, 24);
+        bg.setCornerRadius(radiusPx);
         bg.setColor(0x88182022);
         bg.setStroke(Math.max(1, Ui.dp(this, 1)), 0x55FFFFFF);
-        btn.setBackground(bg);
+        GradientDrawable mask = new GradientDrawable();
+        mask.setCornerRadius(radiusPx);
+        mask.setColor(0xFFFFFFFF);
+        btn.setStateListAnimator(null);
+        btn.setBackground(new RippleDrawable(ColorStateList.valueOf(0x33FFFFFF), bg, mask));
         btn.setOnClickListener(listener);
         return btn;
     }
@@ -954,6 +961,7 @@ public final class QrScannerActivity extends Activity {
             }
             return fallbackId;
         } catch (CameraAccessException | RuntimeException err) {
+            Diagnostics.warning("qr_scanner", "select_camera_failed", err);
             return null;
         }
     }
