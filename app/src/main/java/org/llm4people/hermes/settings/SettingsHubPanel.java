@@ -342,6 +342,11 @@ public final class SettingsHubPanel {
     }
 
     private List<SettingsHubModel.SectionSpec> buildSections() {
+        return buildSections(activity, state);
+    }
+
+    /** Single Source of Truth for all grouped Settings Hub rows (reused by Universal Search). */
+    public static List<SettingsHubModel.SectionSpec> buildSections(Activity activity, StateProvider state) {
         List<SettingsHubModel.SectionSpec> sections = new ArrayList<>(5);
 
         String assistantKw = activity.getString(R.string.settings_kw_assistant);

@@ -6,9 +6,6 @@
 
     <string name="top_search">Search</string>
     <string name="top_profile_lock">Profile and lock</string>
-    <string name="search_dialog_title">Search Hermes</string>
-    <string name="search_dialog_hint">Search a discussion or space…</string>
-    <string name="search_no_results">No results for this search.</string>
 
     <string name="atelier_subtitle">Organize your screens, tools, and profile settings.</string>
     <string name="brain_subtitle">Explore what Hermes knows and choose its capabilities.</string>
@@ -116,7 +113,6 @@
     <string name="brain_search_card_hint">Find any passage across all your conversations.</string>
     <string name="brain_files_card_hint">Browse files and changes in the current discussion.</string>
     <string name="brain_profile_defaults_card_hint">Default model and capabilities for this profile.</string>
-    <string name="search_all_history">Search all history</string>
     <string name="live_ui_delivery_title">Proposed screen update</string>
     <string name="live_ui_delivery_apply">Apply</string>
     <string name="live_ui_delivery_failed_title">Update unavailable</string>

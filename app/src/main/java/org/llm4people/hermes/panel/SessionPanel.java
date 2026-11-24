@@ -68,6 +68,9 @@ public final class SessionPanel implements AutoCloseable {
     public void showNotes(BooleanSupplier activeThread, Consumer<String> stageDraft, Runnable parent) {
         new NotesPanel(this, activeThread, stageDraft, parent).show();
     }
+    public void showSharedNotes(BooleanSupplier activeThread, Consumer<String> stageDraft, Runnable parent) {
+        new NotesPanel(this, activeThread, stageDraft, parent).showShared();
+    }
     public void showCreateNote(String title, String body, BooleanSupplier activeThread,
                                Consumer<String> stageDraft, Runnable parent) {
         new NotesPanel(this, activeThread, stageDraft, parent).showWithDraft(title, body);

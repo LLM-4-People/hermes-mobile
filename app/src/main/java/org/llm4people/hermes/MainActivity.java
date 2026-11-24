@@ -75,6 +75,9 @@ import org.llm4people.hermes.profile.ProfileLockPolicy;
 import org.llm4people.hermes.push.DeliveryItem;
 import org.llm4people.hermes.push.DeliveryRouter;
 import org.llm4people.hermes.push.MobilePush;
+import org.llm4people.hermes.search.UniversalSearchEntries;
+import org.llm4people.hermes.search.UniversalSearchModel;
+import org.llm4people.hermes.search.UniversalSearchSheet;
 import org.llm4people.hermes.settings.AppearanceSettingsPanel;
 import org.llm4people.hermes.settings.SettingsHubModel;
 import org.llm4people.hermes.settings.SettingsHubPanel;
@@ -111,6 +114,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     private ThreadPhotoPicker photoPicker;
     private ThreadCameraCapture cameraCapture;
     private Account account;
+    private HermesApi activeApi;
     private SessionPanel panels;
     private RouteRegistry featureRoutes;
     private ThreadWorkspace threads;
@@ -135,6 +139,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
     private SettingsHubPanel activeSettingsPanel;
     private AppearanceSettingsPanel activeAppearancePanel;
     private CommandPalette activePalette;
+    private UniversalSearchSheet activeSearchSheet;
     private ProfileHubSheet activeProfileHub;
     private AdminConsoleSheet activeAdminConsole;
     private AutoCloseable activeFirstRunStep2;
@@ -516,10 +521,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         actions.register("pin_widget", () -> {
             if (account != null) WorkspaceDialogs.pinQuickWidget(this, account.id);
         });
-        actions.register("search", () -> {
-            if (notice != null) notice.dismiss();
-            notice = WorkspaceDialogs.showSearch(this, threads, this::onAction, () -> notice = null);
-        });
+        actions.register("search", this::openUniversalSearch);
         actions.register("security", () -> {
             if (account == null) return;
             if (notice != null) notice.dismiss();
@@ -607,6 +609,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         }
         HermesApi api = new HermesApi(account.endpoint, account.bearer,
                 HermesApi.Limits.from(HermesConfig.load(this)));
+        activeApi = api;
         navigation = new WorkspaceNavigation();
         activeHost = new WorkspaceHost(this, () -> account == unlocked);
         shell = new WorkspaceShell(this, this::onAction, voice.reader()::active);
@@ -1152,6 +1155,8 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         if (activeAppearancePanel != null) activeAppearancePanel.dismissDialogs();
         if (activePalette != null) activePalette.dismiss();
         activePalette = null;
+        if (activeSearchSheet != null) activeSearchSheet.close();
+        activeSearchSheet = null;
         if (activeProfileHub != null) activeProfileHub.close();
         activeProfileHub = null;
         if (activeAdminConsole != null) activeAdminConsole.close();
@@ -1387,6 +1392,86 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         palette.show(() -> {
             if (activePalette == palette) activePalette = null;
         });
+    }
+
+    private void openUniversalSearch() {
+        Account owner = account;
+        if (owner == null || threads == null) return;
+        if (activeSearchSheet != null) activeSearchSheet.close();
+        List<UniversalSearchEntries.ChatRef> recentChats = new ArrayList<>();
+        for (ThreadWorkspace.ThreadSummary item : threads.recentThreads()) {
+            recentChats.add(new UniversalSearchEntries.ChatRef(item.id(), item.title(), ""));
+        }
+        List<SettingsHubModel.SectionSpec> settingsSections =
+                SettingsHubPanel.buildSections(this, settingsStateProvider(owner));
+        List<UniversalSearchEntries.ToolRef> extra = new ArrayList<>();
+        extra.add(new UniversalSearchEntries.ToolRef(
+                SettingsHubPanel.ROUTE_ID, getString(R.string.nav_settings),
+                getString(R.string.settings_subtitle), "", UniversalSearchModel.Category.SETTINGS));
+        extra.add(new UniversalSearchEntries.ToolRef(
+                "command_palette", getString(R.string.palette_title),
+                "", "", UniversalSearchModel.Category.TOOLS));
+        extra.add(new UniversalSearchEntries.ToolRef(
+                "pages", getString(R.string.nav_apps) + " · " + getString(R.string.ws_my_screens),
+                "", "", UniversalSearchModel.Category.TOOLS));
+        extra.add(new UniversalSearchEntries.ToolRef(
+                "reminders", getString(R.string.activity_reminders_title),
+                getString(R.string.activity_reminders_hint), "", UniversalSearchModel.Category.TOOLS));
+        extra.add(new UniversalSearchEntries.ToolRef(
+                "deliveries", getString(R.string.activity_deliveries_title),
+                getString(R.string.activity_deliveries_hint), "", UniversalSearchModel.Category.TOOLS));
+        extra.add(new UniversalSearchEntries.ToolRef(
+                BrainStudioRoutes.ROUTE_NOTES, getString(R.string.brain_notes_title),
+                getString(R.string.brain_notes_subtitle), "", UniversalSearchModel.Category.TOOLS));
+        extra.add(new UniversalSearchEntries.ToolRef(
+                "profile_hub", getString(R.string.settings_switch_profile),
+                "", "", UniversalSearchModel.Category.SETTINGS));
+        if (activeProfileIsAdmin) {
+            extra.add(new UniversalSearchEntries.ToolRef(
+                    "admin_console", getString(R.string.admin_console_title),
+                    "", "", UniversalSearchModel.Category.SETTINGS));
+        }
+        List<UniversalSearchModel.LocalEntry> entries =
+                UniversalSearchEntries.build(recentChats, settingsSections, extra);
+        UniversalSearchSheet[] holder = new UniversalSearchSheet[1];
+        holder[0] = UniversalSearchSheet.show(this, activeApi, entries, new UniversalSearchSheet.Callbacks() {
+            @Override public void openThread(String id, String title) {
+                if (account != owner || threads == null) return;
+                displayDiscussion();
+                threads.openSummary(id, title);
+            }
+            @Override public void openNote(String noteId) {
+                if (account != owner || panels == null) return;
+                panels.showNotes(() -> account == owner && threads != null && threads.sessionId() != null,
+                        MainActivity.this::stageDraft, null);
+            }
+            @Override public void openSharedItem(UniversalSearchModel.Result item) {
+                if (account != owner) return;
+                switch (UniversalSearchEntries.routeSharedItem(item)) {
+                    case OPEN_SHARED_THREADS -> {
+                        if (threads != null) {
+                            displayDiscussion();
+                            threads.openSharedInbox();
+                        }
+                    }
+                    case OPEN_SHARED_NOTES -> {
+                        if (panels != null) {
+                            panels.showSharedNotes(() -> account == owner && threads != null && threads.sessionId() != null,
+                                    MainActivity.this::stageDraft, null);
+                        }
+                    }
+                    case OPEN_SHARED_HUB -> onAction(BrainStudioRoutes.ROUTE_SHARED_WITH_ME);
+                }
+            }
+            @Override public void runAction(String actionId) {
+                if (account != owner || actionId == null || actionId.isEmpty()) return;
+                onAction(actionId);
+            }
+            @Override public void onDismissed() {
+                if (activeSearchSheet == holder[0]) activeSearchSheet = null;
+            }
+        });
+        activeSearchSheet = holder[0];
     }
 
     private void openProfileHub(boolean startPairDevice, boolean startInvite) {
@@ -2060,6 +2145,8 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         activeAppearancePanel = null;
         if (activePalette != null) activePalette.dismiss();
         activePalette = null;
+        if (activeSearchSheet != null) activeSearchSheet.close();
+        activeSearchSheet = null;
         if (activeProfileHub != null) activeProfileHub.close();
         activeProfileHub = null;
         if (activeAdminConsole != null) activeAdminConsole.close();
@@ -2083,6 +2170,8 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                 Diagnostics.error("threads", "lock_checkpoint_failed");
             }
         }
+        if (activeApi != null) activeApi.revoke();
+        activeApi = null;
         notice = null;
         panels = null;
         featureRoutes = null;

@@ -7,7 +7,6 @@ import android.graphics.Typeface;
 import android.text.Editable;
 import android.text.InputFilter;
 import android.text.InputType;
-import android.text.TextWatcher;
 import android.view.View;
 import android.view.inputmethod.EditorInfo;
 import android.widget.Button;
@@ -27,18 +26,13 @@ import org.llm4people.hermes.os.LockGracePolicy;
 import org.llm4people.hermes.profile.Account;
 import org.llm4people.hermes.profile.ProfileGate;
 import org.llm4people.hermes.profile.ProfileLockPolicy;
-import org.llm4people.hermes.settings.AppearanceSettingsPanel;
-import org.llm4people.hermes.settings.SettingsHubPanel;
 import org.llm4people.hermes.settings.SettingsWrapLayout;
-import org.llm4people.hermes.thread.ThreadWorkspace;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
-import java.util.function.Consumer;
 
-/** Native, FLAG_SECURE dialogs for 1-tap Search, Security/Biometrics/Grace Policy, and Widget Pinning. */
+/** Native, FLAG_SECURE dialogs for Security/Biometrics/Grace Policy and Widget Pinning. */
 final class WorkspaceDialogs {
     private WorkspaceDialogs() {}
 
@@ -47,126 +41,6 @@ final class WorkspaceDialogs {
         String grace = activity.getString(window.labelRes);
         ProfileLockPolicy.Mode lockMode = ProfileLockPolicy.mode(activity, profileId);
         return activity.getString(lockMode.labelRes) + " · " + grace;
-    }
-
-    static AlertDialog showSearch(Activity activity, ThreadWorkspace threads,
-                                  Consumer<String> onAction, Runnable onDismissed) {
-        LinearLayout box = Ui.column(activity);
-        Ui.pad(box, 18, 12);
-        EditText query = new EditText(activity);
-        query.setSingleLine(true);
-        query.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
-        query.setImeOptions(EditorInfo.IME_ACTION_SEARCH | EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING
-                | EditorInfo.IME_FLAG_NO_EXTRACT_UI);
-        query.setSaveEnabled(false);
-        query.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO);
-        query.setHint(R.string.search_dialog_hint);
-        query.setTextColor(activity.getColor(R.color.ink));
-        query.setHintTextColor(activity.getColor(R.color.muted));
-        query.setBackgroundResource(R.drawable.profile_input);
-        query.setBackgroundTintList(null);
-        query.setMinHeight(Ui.dp(activity, 48));
-        Ui.pad(query, 10, 8);
-        box.addView(query, new LinearLayout.LayoutParams(-1, -2));
-
-        LinearLayout results = Ui.column(activity);
-        ScrollView scroll = new ScrollView(activity);
-        scroll.addView(results, new ScrollView.LayoutParams(-1, -2));
-        LinearLayout.LayoutParams scrollParams = new LinearLayout.LayoutParams(-1, Ui.dp(activity, 260));
-        scrollParams.topMargin = Ui.dp(activity, 10);
-        box.addView(scroll, scrollParams);
-
-        AlertDialog[] dialogHolder = new AlertDialog[1];
-        List<ThreadWorkspace.ThreadSummary> cachedThreads = threads == null
-                ? List.of() : threads.recentThreads();
-        record Entry(String label, Runnable run) {}
-        List<Entry> entries = new ArrayList<>();
-        for (ThreadWorkspace.ThreadSummary item : cachedThreads) {
-            entries.add(new Entry(item.title(), () -> {
-                if (dialogHolder[0] != null) dialogHolder[0].dismiss();
-                onAction.accept("nav_discussions");
-                if (threads != null) threads.openSummary(item.id(), item.title());
-            }));
-        }
-        entries.add(new Entry(activity.getString(R.string.search_all_history), () -> {
-            if (dialogHolder[0] != null) dialogHolder[0].dismiss();
-            onAction.accept(org.llm4people.hermes.panel.BrainStudioRoutes.ROUTE_SEARCH);
-        }));
-        entries.add(new Entry(activity.getString(R.string.palette_title), () -> {
-            if (dialogHolder[0] != null) dialogHolder[0].dismiss();
-            onAction.accept("command_palette");
-        }));
-        entries.add(new Entry(activity.getString(R.string.templates_route_label), () -> {
-            if (dialogHolder[0] != null) dialogHolder[0].dismiss();
-            onAction.accept(org.llm4people.hermes.templates.TemplatesPanel.ROUTE_ID);
-        }));
-        entries.add(new Entry(activity.getString(R.string.doctor_route_label), () -> {
-            if (dialogHolder[0] != null) dialogHolder[0].dismiss();
-            onAction.accept(org.llm4people.hermes.doctor.ConnectionDoctorPanel.ROUTE_ID);
-        }));
-        entries.add(new Entry(activity.getString(R.string.activity_deliveries_title), () -> {
-            if (dialogHolder[0] != null) dialogHolder[0].dismiss();
-            onAction.accept("deliveries");
-        }));
-        entries.add(new Entry(activity.getString(R.string.nav_apps) + " · "
-                + activity.getString(R.string.ws_my_screens), () -> {
-            if (dialogHolder[0] != null) dialogHolder[0].dismiss();
-            onAction.accept("pages");
-        }));
-        entries.add(new Entry(activity.getString(R.string.brain_skills_title), () -> {
-            if (dialogHolder[0] != null) dialogHolder[0].dismiss();
-            onAction.accept("skills");
-        }));
-        entries.add(new Entry(activity.getString(R.string.activity_reminders_title), () -> {
-            if (dialogHolder[0] != null) dialogHolder[0].dismiss();
-            onAction.accept("reminders");
-        }));
-        entries.add(new Entry(activity.getString(R.string.nav_settings), () -> {
-            if (dialogHolder[0] != null) dialogHolder[0].dismiss();
-            onAction.accept(SettingsHubPanel.ROUTE_ID);
-        }));
-        entries.add(new Entry(activity.getString(R.string.appearance_route_label), () -> {
-            if (dialogHolder[0] != null) dialogHolder[0].dismiss();
-            onAction.accept(AppearanceSettingsPanel.ROUTE_ID);
-        }));
-        entries.add(new Entry(activity.getString(R.string.activity_security_title), () -> {
-            if (dialogHolder[0] != null) dialogHolder[0].dismiss();
-            onAction.accept("security");
-        }));
-
-        Runnable render = () -> {
-            results.removeAllViews();
-            String needle = query.getText().toString().trim().toLowerCase(Locale.ROOT);
-            int shown = 0;
-            for (Entry entry : entries) {
-                if (!needle.isEmpty() && !entry.label().toLowerCase(Locale.ROOT).contains(needle)) continue;
-                Button row = Ui.button(activity, entry.label(), v -> entry.run().run());
-                row.setGravity(android.view.Gravity.START | android.view.Gravity.CENTER_VERTICAL);
-                results.addView(row, new LinearLayout.LayoutParams(-1, -2));
-                results.addView(Ui.divider(activity));
-                shown++;
-            }
-            if (shown == 0) {
-                TextView empty = Ui.text(activity, activity.getString(R.string.search_no_results), 15);
-                empty.setTextColor(activity.getColor(R.color.muted));
-                Ui.pad(empty, 4, 12);
-                results.addView(empty);
-            }
-        };
-        render.run();
-        query.addTextChangedListener(new TextWatcher() {
-            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-            @Override public void onTextChanged(CharSequence s, int start, int before, int count) { render.run(); }
-            @Override public void afterTextChanged(Editable s) {}
-        });
-
-        AlertDialog dialog = Ui.secureDialog(new AlertDialog.Builder(activity)
-                .setTitle(R.string.search_dialog_title)
-                .setView(box)
-                .setNegativeButton(R.string.ws_close, null));
-        dialogHolder[0] = dialog;
-        dialog.setOnDismissListener(d -> { if (onDismissed != null) onDismissed.run(); });
-        return dialog;
     }
 
     static AlertDialog showSecurity(Activity activity, Account account, ProfileGate gate,
