@@ -19,6 +19,8 @@ import java.util.regex.Pattern;
  */
 public final class AppearanceSettingsModel {
     public static final float FONT_SCALE_STEP = 0.05f;
+    public static final int MIN_FONT_SCALE_STEP = -3;
+    public static final int MAX_FONT_SCALE_STEP = 6;
     public static final String THEME_SYSTEM = "system";
     public static final String THEME_LIGHT = "light";
     public static final String THEME_DARK = "dark";
@@ -70,6 +72,28 @@ public final class AppearanceSettingsModel {
         fmt.setMinimumFractionDigits(1);
         fmt.setMaximumFractionDigits(1);
         return fmt.format(safeRatio);
+    }
+
+    /**
+     * Parse and validate a wire {@code font_scale_step} integer strictly within
+     * {@code [MIN_FONT_SCALE_STEP, MAX_FONT_SCALE_STEP]}. Returns {@code null} for non-numeric,
+     * non-finite, fractional, or out-of-range inputs.
+     */
+    public static Integer parseFontScaleStep(Object raw) {
+        if (!(raw instanceof Number n)) return null;
+        double value = n.doubleValue();
+        if (!Double.isFinite(value) || value != Math.rint(value)) return null;
+        if (value < MIN_FONT_SCALE_STEP || value > MAX_FONT_SCALE_STEP) return null;
+        return (int) value;
+    }
+
+    /** Convert a validated {@code font_scale_step} into its font-scale delta ({@code step * FONT_SCALE_STEP}). */
+    public static float fontScaleDeltaForStep(int step) {
+        if (step < MIN_FONT_SCALE_STEP || step > MAX_FONT_SCALE_STEP) {
+            throw new IllegalArgumentException("font_scale_step out of range [" + MIN_FONT_SCALE_STEP
+                    + ", " + MAX_FONT_SCALE_STEP + "]");
+        }
+        return step * FONT_SCALE_STEP;
     }
 
     /** Step font scale delta by +/- 5% clamped strictly to {@code [-0.15, +0.30]}. */

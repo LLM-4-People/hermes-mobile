@@ -17,9 +17,11 @@ import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.JsonValues;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
+import org.llm4people.hermes.artifact.ThemePalette;
 import org.llm4people.hermes.onboarding.PairingLinkParser;
 import org.llm4people.hermes.onboarding.PairingShareSheet;
 import org.llm4people.hermes.onboarding.QrCodeView;
+import org.llm4people.hermes.settings.AppearanceSettingsModel;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -359,23 +361,16 @@ public final class InteractiveCardView extends LinearLayout {
         }
 
         private static float parseFontScaleStep(Object raw) {
-            if (!(raw instanceof Number n)) {
+            Integer step = AppearanceSettingsModel.parseFontScaleStep(raw);
+            if (step == null) {
                 throw new IllegalArgumentException("Invalid font_scale_step");
             }
-            double value = n.doubleValue();
-            if (!Double.isFinite(value) || value != Math.rint(value)) {
-                throw new IllegalArgumentException("font_scale_step must be an integer");
-            }
-            int step = (int) value;
-            if (step < -3 || step > 6) {
-                throw new IllegalArgumentException("font_scale_step out of range [-3, 6]");
-            }
-            return step * 0.05f;
+            return AppearanceSettingsModel.fontScaleDeltaForStep(step);
         }
 
         private static String parseThemeMode(String raw) {
             String normalized = raw == null ? "" : raw.trim().toLowerCase(Locale.ROOT);
-            if (!"system".equals(normalized) && !"light".equals(normalized) && !"dark".equals(normalized)) {
+            if (!ThemePalette.THEMES.contains(normalized)) {
                 throw new IllegalArgumentException("Invalid theme mode");
             }
             return normalized;

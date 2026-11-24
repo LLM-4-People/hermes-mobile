@@ -15,6 +15,7 @@ import android.view.View;
 import android.view.WindowManager;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -201,6 +202,40 @@ public final class Ui {
         button.setBackground(roundedRipple(context, BUTTON_CORNER_DP, states));
         pad(button, 16, 10);
         return button;
+    }
+
+    /** Material 3 checkable choice chip / segment button (&gt;= 48dp touch target, borderless M3 style). */
+    public static Button choiceChip(Context context, String label, View.OnClickListener action) {
+        Button button = baseButton(context, label, action);
+        button.setTextSize(14);
+        pad(button, 14, 10);
+        return button;
+    }
+
+    /** Apply Material 3 selected/unselected chip surface, border, ink, and checkable a11y state. */
+    public static void styleChoiceChip(Button button, boolean selected) {
+        if (button == null) return;
+        Context context = button.getContext();
+        button.setBackground(roundedRipple(context, BUTTON_CORNER_DP, shape(
+                context,
+                BUTTON_CORNER_DP,
+                selected ? R.color.accent_surface : R.color.surface,
+                selected ? R.color.accent : R.color.line,
+                selected ? 2 : 1)));
+        button.setTextColor(context.getColor(selected ? R.color.accent : R.color.ink));
+        button.setSelected(selected);
+        setCheckableState(button, selected);
+    }
+
+    /** Apply Material 3 outlined dialog EditText styling (profile_input, ink/muted, 48dp minimum height). */
+    public static void styleDialogInput(Context context, EditText input) {
+        if (context == null || input == null) return;
+        input.setBackgroundResource(R.drawable.profile_input);
+        input.setBackgroundTintList(null);
+        input.setTextColor(context.getColor(R.color.ink));
+        input.setHintTextColor(context.getColor(R.color.muted));
+        pad(input, 12, 10);
+        input.setMinimumHeight(dp(context, 48));
     }
 
     /** Clean Material 3 surface card (16dp corners, 1dp hairline border, single elevation layer). */

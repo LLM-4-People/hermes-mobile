@@ -11,7 +11,7 @@ import android.os.Looper;
 
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.PlainTextSanitizer;
-import org.llm4people.hermes.os.HermesWidgetSpec;
+import org.llm4people.hermes.SecretPatterns;
 
 import java.util.List;
 
@@ -129,7 +129,7 @@ public final class ContinuousLocationTracker {
 
     public static String sanitizeAreaLabel(String raw) {
         if (raw == null || raw.isEmpty()) return "";
-        if (HermesWidgetSpec.containsSecretLikePattern(raw)) return "";
+        if (SecretPatterns.containsCredential(raw)) return "";
         return PlainTextSanitizer.collapseBounded(raw, MAX_PLACE_LABEL_CHARS);
     }
 

@@ -77,7 +77,6 @@ public final class SecretPatternsTest {
 
         for (String secret : OBFUSCATED_AND_DRIFTED_SECRETS) {
             assertTrue("SecretPatterns missed: " + secret, SecretPatterns.containsCredential(secret));
-            assertTrue("HermesWidgetSpec missed: " + secret, HermesWidgetSpec.containsSecretLikePattern(secret));
             assertEquals("HermesWidgetSpec.sanitizeHomeText leaked: " + secret,
                     "", HermesWidgetSpec.sanitizeHomeText(secret, 48));
             assertEquals("HermesWidgetSpec.sanitizeDraft leaked: " + secret,

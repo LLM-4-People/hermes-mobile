@@ -282,9 +282,7 @@ final class NearbyConsent {
     private void manual() {
         long ticket = generation;
         EditText input = new EditText(page.activity);
-        int touchMin = Ui.dp(page.activity, 48);
-        input.setMinHeight(touchMin);
-        input.setMinimumHeight(touchMin);
+        Ui.styleDialogInput(page.activity, input);
         input.setSingleLine();
         input.setSaveEnabled(false);
         input.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS);

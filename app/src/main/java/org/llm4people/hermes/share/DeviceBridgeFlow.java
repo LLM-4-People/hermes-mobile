@@ -334,19 +334,20 @@ public final class DeviceBridgeFlow {
                     header.setTextColor(hostActivity.getColor(R.color.muted));
                     content.addView(header);
                     EditText editor = new EditText(hostActivity);
+                    Ui.styleDialogInput(hostActivity, editor);
                     editor.setHint(R.string.ambient_reply_hint);
                     editor.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
                             | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
                     editor.setImeOptions(android.view.inputmethod.EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING
                             | android.view.inputmethod.EditorInfo.IME_FLAG_NO_EXTRACT_UI);
                     editor.setImportantForAutofill(android.view.View.IMPORTANT_FOR_AUTOFILL_NO);
-                    editor.setMinHeight(Ui.dp(hostActivity, 56));
-                    editor.setTextColor(hostActivity.getColor(R.color.ink));
-                    editor.setHintTextColor(hostActivity.getColor(R.color.muted));
+                    editor.setMinimumHeight(Ui.dp(hostActivity, 56));
                     editor.setSaveEnabled(false);
                     editor.setFilters(new InputFilter[]{new InputFilter.LengthFilter(HermesNotificationListener.MAX_REPLY_CHARS)});
                     if (!draft.isEmpty()) editor.setText(draft);
-                    content.addView(editor);
+                    LinearLayout.LayoutParams editorLp = new LinearLayout.LayoutParams(-1, -2);
+                    editorLp.topMargin = Ui.dp(hostActivity, 8);
+                    content.addView(editor, editorLp);
                     android.widget.ScrollView scroll = new android.widget.ScrollView(hostActivity);
                     scroll.addView(content, new android.widget.ScrollView.LayoutParams(-1, -2));
                     AlertDialog dialog = Ui.secureDialog(new AlertDialog.Builder(hostActivity)
@@ -984,10 +985,11 @@ public final class DeviceBridgeFlow {
                 lines.add(PreviewLine.text(R.string.share_bridge_preview_density, densityRaw));
             }
         }
-        Integer fontStep = JsonValues.parseIntOrNull(params.get("font_scale_step"));
-        if (fontStep != null && fontStep >= -3 && fontStep <= 6) {
+        Integer fontStep = AppearanceSettingsModel.parseFontScaleStep(params.get("font_scale_step"));
+        if (fontStep != null) {
             lines.add(PreviewLine.text(R.string.share_bridge_preview_text_size,
-                    AppearanceSettingsModel.formatFontScalePercent(fontStep * AppearanceSettingsModel.FONT_SCALE_STEP)));
+                    AppearanceSettingsModel.formatFontScalePercent(
+                            AppearanceSettingsModel.fontScaleDeltaForStep(fontStep))));
         }
         String startupTabRaw = paramText(params, "startup_tab", 24);
         if (!startupTabRaw.isEmpty()) {

@@ -113,10 +113,6 @@ public final class HermesWidgetSpec {
         return hex != null && HEX_COLOR.matcher(hex).matches();
     }
 
-    public static boolean containsSecretLikePattern(String text) {
-        return SecretPatterns.containsCredential(text);
-    }
-
     /** Strips control/format/surrogate code points, redacts secret-like patterns, and bounds length for home-screen safety. */
     public static String sanitizeHomeText(String raw, int maxChars) {
         if (raw == null || maxChars <= 0) return "";

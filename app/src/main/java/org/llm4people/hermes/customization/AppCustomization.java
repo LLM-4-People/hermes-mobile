@@ -2,8 +2,8 @@ package org.llm4people.hermes.customization;
 
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.PlainTextSanitizer;
+import org.llm4people.hermes.SecretPatterns;
 import org.llm4people.hermes.artifact.ThemePalette;
-import org.llm4people.hermes.os.HermesWidgetSpec;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -336,7 +336,7 @@ public final class AppCustomization {
 
     public static String sanitizePlainText(String raw, int maxChars) {
         if (raw == null || raw.isEmpty()) return "";
-        if (HermesWidgetSpec.containsSecretLikePattern(raw)) {
+        if (SecretPatterns.containsCredential(raw)) {
             throw new IllegalArgumentException("Secret-like content is not permitted in customization text");
         }
         return PlainTextSanitizer.collapseBounded(raw, maxChars);

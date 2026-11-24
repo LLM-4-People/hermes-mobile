@@ -286,9 +286,7 @@ final class ThreadPlaces {
 
     private void neighborhood(BooleanSupplier active, NearbyCategory category) {
         EditText field = new EditText(thread.activity);
-        int touchMin = Ui.dp(thread.activity, 48);
-        field.setMinHeight(touchMin);
-        field.setMinimumHeight(touchMin);
+        Ui.styleDialogInput(thread.activity, field);
         field.setSingleLine(true);
         field.setSaveEnabled(false);
         field.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS);

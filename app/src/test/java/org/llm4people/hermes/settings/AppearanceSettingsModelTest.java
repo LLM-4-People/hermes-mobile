@@ -2,15 +2,19 @@ package org.llm4people.hermes.settings;
 
 import org.junit.Test;
 import org.llm4people.hermes.R;
+import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.customization.AppCustomization;
+import org.llm4people.hermes.customization.InteractiveCardView;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -145,5 +149,73 @@ public final class AppearanceSettingsModelTest {
                 AppearanceSettingsModel.startupTabLabelRes(AppCustomization.StartupTab.NOTES_TASKS));
         assertEquals(R.string.nav_apps,
                 AppearanceSettingsModel.startupTabLabelRes(AppCustomization.StartupTab.APPS));
+    }
+
+    @Test
+    public void parseFontScaleStepAndDeltaEnforceBoundsAndRejectInvalidInputs() {
+        // Valid boundary and interior values (Integer, Long, exact-integer Double).
+        assertEquals(Integer.valueOf(-3), AppearanceSettingsModel.parseFontScaleStep(-3));
+        assertEquals(Integer.valueOf(0), AppearanceSettingsModel.parseFontScaleStep(0));
+        assertEquals(Integer.valueOf(6), AppearanceSettingsModel.parseFontScaleStep(6));
+        assertEquals(Integer.valueOf(2), AppearanceSettingsModel.parseFontScaleStep(2L));
+        assertEquals(Integer.valueOf(-2), AppearanceSettingsModel.parseFontScaleStep(-2.0));
+
+        assertEquals(-0.15f, AppearanceSettingsModel.fontScaleDeltaForStep(-3), 0.0001f);
+        assertEquals(0.0f, AppearanceSettingsModel.fontScaleDeltaForStep(0), 0.0001f);
+        assertEquals(0.30f, AppearanceSettingsModel.fontScaleDeltaForStep(6), 0.0001f);
+
+        // Invalid: out-of-range, fractional, non-finite, string, boolean, null.
+        for (Object bad : new Object[]{-4, 7, 1.5, -0.5, Double.NaN, Double.POSITIVE_INFINITY,
+                Double.NEGATIVE_INFINITY, "2", Boolean.TRUE, null}) {
+            assertNull("Expected null for invalid font_scale_step: " + bad,
+                    AppearanceSettingsModel.parseFontScaleStep(bad));
+        }
+
+        for (int outOfRange : new int[]{-4, 7, Integer.MIN_VALUE, Integer.MAX_VALUE}) {
+            try {
+                AppearanceSettingsModel.fontScaleDeltaForStep(outOfRange);
+                fail("Expected IllegalArgumentException for step " + outOfRange);
+            } catch (IllegalArgumentException expected) {}
+        }
+
+        // InteractiveCardView customization delta delegates to the same SSoT and ThemePalette.THEMES.
+        InteractiveCardView.Spec validCard = InteractiveCardView.Spec.fromMap(Map.of(
+                "id", "c1",
+                "title", "Theme",
+                "kind", "customization_preview",
+                "customization", Map.of("theme", "dark", "font_scale_step", 6)));
+        assertEquals(0.30f, validCard.customizationDelta.fontScaleDelta(), 0.0001f);
+        assertEquals("dark", validCard.customizationDelta.themeMode());
+
+        for (Object badStep : new Object[]{-4, 7, 1.5, Double.NaN, "2"}) {
+            try {
+                InteractiveCardView.Spec.fromMap(Map.of(
+                        "id", "c2",
+                        "title", "Theme",
+                        "kind", "customization_preview",
+                        "customization", Map.of("font_scale_step", badStep)));
+                fail("Expected InteractiveCardView to reject font_scale_step=" + badStep);
+            } catch (IllegalArgumentException expected) {
+                assertTrue("Expected font_scale_step error, got: " + expected.getMessage(),
+                        expected.getMessage().contains("font_scale_step"));
+            }
+        }
+
+        try {
+            InteractiveCardView.Spec.fromMap(Map.of(
+                    "id", "c3",
+                    "title", "Theme",
+                    "kind", "customization_preview",
+                    "customization", Map.of("theme", "sepia")));
+            fail("Expected InteractiveCardView to reject invalid theme mode");
+        } catch (IllegalArgumentException expected) {
+            assertTrue("Expected theme error, got: " + expected.getMessage(),
+                    expected.getMessage().contains("theme"));
+        }
+
+        // Host-JVM null-safety for new Ui choiceChip/dialogInput helpers.
+        Ui.styleChoiceChip(null, true);
+        Ui.styleChoiceChip(null, false);
+        Ui.styleDialogInput(null, null);
     }
 }
