@@ -17,6 +17,7 @@ import org.json.JSONObject;
 import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.JsonValues;
+import org.llm4people.hermes.PlainTextSanitizer;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.WorkspaceNavigation;
 import org.llm4people.hermes.ambient.AmbientAccessPanel;
@@ -318,9 +319,7 @@ public final class DeepAndroidActions {
         if (rawUrl == null) return false;
         String trimmed = rawUrl.trim();
         if (trimmed.isEmpty() || trimmed.length() > 512) return false;
-        for (int i = 0; i < trimmed.length(); i++) {
-            if (Character.isISOControl(trimmed.charAt(i))) return false;
-        }
+        if (PlainTextSanitizer.hasUnsafeSingleLineCodePoint(trimmed)) return false;
         int colon = trimmed.indexOf(':');
         if (colon <= 0) return false;
         String scheme = trimmed.substring(0, colon).toLowerCase(Locale.ROOT);
@@ -328,7 +327,7 @@ public final class DeepAndroidActions {
         if ("https".equals(scheme)) {
             return SafeLinks.validate(trimmed) != null;
         }
-        return trimmed.length() > colon + 1;
+        return PlainTextSanitizer.hasVisibleText(trimmed.substring(colon + 1));
     }
 
     public static boolean isValidPackageName(String rawPkg) {

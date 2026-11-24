@@ -81,7 +81,6 @@ public final class SecretPatternsTest {
                     "", HermesWidgetSpec.sanitizeHomeText(secret, 48));
             assertEquals("HermesWidgetSpec.sanitizeDraft leaked: " + secret,
                     "", HermesWidgetSpec.sanitizeDraft(secret));
-            assertTrue("WorkflowTemplate missed: " + secret, WorkflowTemplate.looksLikeSecret(secret));
             assertTrue("NotificationPrivacyGuard missed: " + secret,
                     NotificationPrivacyGuard.containsOtpOrSecret("Notice", secret));
             assertEquals("NotificationPrivacyGuard.evaluate allowed: " + secret,

@@ -5,6 +5,7 @@ import android.content.Context;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.llm4people.hermes.PlainTextSanitizer;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.SecretPatterns;
 
@@ -113,38 +114,43 @@ public final class HermesWidgetSpec {
         return hex != null && HEX_COLOR.matcher(hex).matches();
     }
 
-    /** Strips control/format/surrogate code points, redacts secret-like patterns, and bounds length for home-screen safety. */
+    /** Strips control/format/surrogate/invisible code points, redacts secret-like patterns, and bounds length for home-screen safety. */
     public static String sanitizeHomeText(String raw, int maxChars) {
         if (raw == null || maxChars <= 0) return "";
         if (SecretPatterns.containsCredential(raw)) return "";
-        StringBuilder out = new StringBuilder();
-        for (int i = 0; i < raw.length(); ) {
-            int cp = raw.codePointAt(i);
-            i += Character.charCount(cp);
-            int type = Character.getType(cp);
-            if (Character.isISOControl(cp) || type == Character.FORMAT || type == Character.SURROGATE) continue;
-            out.appendCodePoint(cp);
-        }
-        String trimmed = out.toString().trim();
-        if (trimmed.isEmpty() || SecretPatterns.containsCredential(trimmed)) return "";
-        return truncateCodePoints(trimmed, maxChars);
+        String cleaned = PlainTextSanitizer.collapseBounded(raw, maxChars);
+        if (!PlainTextSanitizer.hasVisibleText(cleaned) || SecretPatterns.containsCredential(cleaned)) return "";
+        return cleaned;
     }
 
     public static String sanitizeDraft(String raw) {
         if (raw == null) return "";
         if (SecretPatterns.containsCredential(raw)) return "";
         StringBuilder out = new StringBuilder();
+        boolean prevVisibleBase = false;
         for (int i = 0; i < raw.length(); ) {
             int cp = raw.codePointAt(i);
             i += Character.charCount(cp);
             int type = Character.getType(cp);
             if ((Character.isISOControl(cp) && cp != '\n')
-                    || type == Character.FORMAT || type == Character.SURROGATE) continue;
+                    || type == Character.FORMAT || type == Character.SURROGATE
+                    || type == Character.LINE_SEPARATOR || type == Character.PARAGRAPH_SEPARATOR
+                    || PlainTextSanitizer.isStrippableInvisible(cp)) {
+                continue;
+            }
+            if (PlainTextSanitizer.isVariationSelector(cp)) {
+                if (!prevVisibleBase) continue;
+                out.appendCodePoint(cp);
+                prevVisibleBase = false;
+                continue;
+            }
             out.appendCodePoint(cp);
+            prevVisibleBase = !Character.isWhitespace(cp) && !Character.isSpaceChar(cp);
         }
         String trimmed = out.toString().trim();
-        if (trimmed.isEmpty() || SecretPatterns.containsCredential(trimmed)) return "";
-        return truncateCodePoints(trimmed, MAX_DRAFT_CHARS);
+        if (!PlainTextSanitizer.hasVisibleText(trimmed) || SecretPatterns.containsCredential(trimmed)) return "";
+        String bounded = truncateCodePoints(trimmed, MAX_DRAFT_CHARS);
+        return PlainTextSanitizer.hasVisibleText(bounded) ? bounded : "";
     }
 
     private static String truncateCodePoints(String text, int maxChars) {

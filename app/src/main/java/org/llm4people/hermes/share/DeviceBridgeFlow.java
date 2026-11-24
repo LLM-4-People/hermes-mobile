@@ -3,12 +3,7 @@ package org.llm4people.hermes.share;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
-import android.text.InputFilter;
-import android.text.InputType;
 import android.view.View;
-import android.widget.EditText;
-import android.widget.LinearLayout;
-import android.widget.TextView;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -98,12 +93,8 @@ public final class DeviceBridgeFlow {
 
     /** Executor providing its own dedicated FLAG_SECURE confirmation dialog for specific actions. */
     public interface InteractiveExecutor extends Executor {
-        boolean handleReviewed(Activity activity, BridgeRequest request, Callback callback);
-
-        default boolean handleReviewed(Activity activity, BridgeRequest request, Callback callback,
-                                       Consumer<AlertDialog> onDialogShown) {
-            return handleReviewed(activity, request, callback);
-        }
+        boolean handleReviewed(Activity activity, BridgeRequest request, Callback callback,
+                               Consumer<AlertDialog> onDialogShown);
     }
 
     public interface Callback {
@@ -288,15 +279,6 @@ public final class DeviceBridgeFlow {
         }
     }
 
-    private static String mediaActionLabel(Activity activity, MediaContextBridge.ControlAction action) {
-        return switch (action) {
-            case PLAY -> activity.getString(R.string.ambient_media_play);
-            case PAUSE -> activity.getString(R.string.ambient_media_pause);
-            case NEXT -> activity.getString(R.string.ambient_media_next);
-            case PREVIOUS -> activity.getString(R.string.ambient_media_previous);
-        };
-    }
-
     /**
      * Unified executor for clipboard_read + fail-closed ambient capabilities
      * (notifications_digest, notification_reply, media_control, calendar_read).
@@ -305,10 +287,6 @@ public final class DeviceBridgeFlow {
             Activity activity, Account account, ClipboardPastePill pill) {
         Executor clipboard = clipboardExecutor(pill);
         return new InteractiveExecutor() {
-            @Override public boolean handleReviewed(Activity hostActivity, BridgeRequest request, Callback callback) {
-                return handleReviewed(hostActivity, request, callback, null);
-            }
-
             @Override public boolean handleReviewed(Activity hostActivity, BridgeRequest request, Callback callback,
                                                     Consumer<AlertDialog> onDialogShown) {
                 if (hostActivity == null || request == null || callback == null || account == null) return false;
@@ -326,46 +304,18 @@ public final class DeviceBridgeFlow {
                     }
                     String rawDraft = request.params().optString("text",
                             request.params().optString("reply_text", ""));
-                    String draft = HermesNotificationListener.sanitizeReplyDraft(rawDraft);
-                    LinearLayout content = Ui.column(hostActivity);
-                    Ui.pad(content, 20, 12);
-                    TextView header = Ui.text(hostActivity,
-                            hostActivity.getString(R.string.ambient_reply_target, target.displaySource(), target.displaySender()), 14);
-                    header.setTextColor(hostActivity.getColor(R.color.muted));
-                    content.addView(header);
-                    EditText editor = new EditText(hostActivity);
-                    Ui.styleDialogInput(hostActivity, editor);
-                    editor.setHint(R.string.ambient_reply_hint);
-                    editor.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
-                            | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
-                    editor.setImeOptions(android.view.inputmethod.EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING
-                            | android.view.inputmethod.EditorInfo.IME_FLAG_NO_EXTRACT_UI);
-                    editor.setImportantForAutofill(android.view.View.IMPORTANT_FOR_AUTOFILL_NO);
-                    editor.setMinimumHeight(Ui.dp(hostActivity, 56));
-                    editor.setSaveEnabled(false);
-                    editor.setFilters(new InputFilter[]{new InputFilter.LengthFilter(HermesNotificationListener.MAX_REPLY_CHARS)});
-                    if (!draft.isEmpty()) editor.setText(draft);
-                    LinearLayout.LayoutParams editorLp = new LinearLayout.LayoutParams(-1, -2);
-                    editorLp.topMargin = Ui.dp(hostActivity, 8);
-                    content.addView(editor, editorLp);
-                    android.widget.ScrollView scroll = new android.widget.ScrollView(hostActivity);
-                    scroll.addView(content, new android.widget.ScrollView.LayoutParams(-1, -2));
-                    AlertDialog dialog = Ui.secureDialog(new AlertDialog.Builder(hostActivity)
-                            .setTitle(R.string.ambient_reply_title)
-                            .setView(scroll)
-                            .setNegativeButton(R.string.ambient_reply_cancel, (d, w) -> callback.finish(Status.DENIED, null))
-                            .setOnCancelListener(d -> callback.finish(Status.DENIED, null))
-                            .setPositiveButton(R.string.ambient_reply_send, (d, w) -> {
+                    AlertDialog dialog = HermesNotificationListener.showQuickReplyConfirmation(
+                            hostActivity,
+                            target,
+                            rawDraft,
+                            () -> {
                                 NotificationAllowlist.Settings current = liveSettings(account);
-                                if (current == null || !current.notificationsEnabled()
-                                        || !HermesNotificationListener.isListenerEnabled(hostActivity)
-                                        || !packageStillAllowed(account, target.packageName)) {
-                                    callback.finish(Status.UNAVAILABLE, null);
-                                    return;
-                                }
-                                boolean sent = HermesNotificationListener.sendReviewedReply(
-                                        hostActivity, target.key, editor.getText().toString(), true);
-                                if (sent) {
+                                return current != null && current.notificationsEnabled()
+                                        && HermesNotificationListener.isListenerEnabled(hostActivity)
+                                        && packageStillAllowed(account, target.packageName);
+                            },
+                            outcome -> {
+                                if (outcome == HermesNotificationListener.ReplyOutcome.SENT) {
                                     try {
                                         callback.finish(Status.COMPLETED, new JSONObject()
                                                 .put("sent", true)
@@ -374,10 +324,12 @@ public final class DeviceBridgeFlow {
                                     } catch (JSONException invalid) {
                                         callback.finish(Status.COMPLETED, null);
                                     }
+                                } else if (outcome == HermesNotificationListener.ReplyOutcome.CANCELLED) {
+                                    callback.finish(Status.DENIED, null);
                                 } else {
                                     callback.finish(Status.UNAVAILABLE, null);
                                 }
-                            }));
+                            });
                     if (onDialogShown != null) onDialogShown.accept(dialog);
                     return true;
                 }
@@ -405,22 +357,17 @@ public final class DeviceBridgeFlow {
                         callback.finish(Status.UNAVAILABLE, null);
                         return true;
                     }
-                    String actionLabel = mediaActionLabel(hostActivity, action);
-                    AlertDialog dialog = Ui.secureDialog(new AlertDialog.Builder(hostActivity)
-                            .setTitle(R.string.ambient_media_confirm_title)
-                            .setMessage(hostActivity.getString(R.string.ambient_media_confirm_body, actionLabel, track.displayTrack()))
-                            .setNegativeButton(R.string.ambient_reply_cancel, (d, w) -> callback.finish(Status.DENIED, null))
-                            .setOnCancelListener(d -> callback.finish(Status.DENIED, null))
-                            .setPositiveButton(R.string.ambient_media_confirm_ok, (d, w) -> {
+                    AlertDialog dialog = MediaContextBridge.showControlConfirmationOutcome(
+                            hostActivity,
+                            () -> {
                                 NotificationAllowlist.Settings current = liveSettings(account);
-                                if (current == null || !current.mediaEnabled()
-                                        || !HermesNotificationListener.isListenerEnabled(hostActivity)) {
-                                    callback.finish(Status.UNAVAILABLE, null);
-                                    return;
-                                }
-                                boolean ok = MediaContextBridge.dispatchConfirmedAction(
-                                        hostActivity, true, track.packageName(), action, true);
-                                if (ok) {
+                                return current != null && current.mediaEnabled()
+                                        && HermesNotificationListener.isListenerEnabled(hostActivity);
+                            },
+                            track,
+                            action,
+                            outcome -> {
+                                if (outcome == MediaContextBridge.ControlOutcome.APPLIED) {
                                     try {
                                         callback.finish(Status.COMPLETED, new JSONObject()
                                                 .put("applied", true)
@@ -429,10 +376,12 @@ public final class DeviceBridgeFlow {
                                     } catch (JSONException invalid) {
                                         callback.finish(Status.COMPLETED, null);
                                     }
+                                } else if (outcome == MediaContextBridge.ControlOutcome.CANCELLED) {
+                                    callback.finish(Status.DENIED, null);
                                 } else {
                                     callback.finish(Status.UNAVAILABLE, null);
                                 }
-                            }));
+                            });
                     if (onDialogShown != null) onDialogShown.accept(dialog);
                     return true;
                 }
@@ -538,10 +487,6 @@ public final class DeviceBridgeFlow {
         InteractiveExecutor base = ambientAwareExecutor(activity, account, pill);
         if (deepActions == null) return base;
         return new InteractiveExecutor() {
-            @Override public boolean handleReviewed(Activity hostActivity, BridgeRequest request, Callback callback) {
-                return handleReviewed(hostActivity, request, callback, null);
-            }
-
             @Override public boolean handleReviewed(Activity hostActivity, BridgeRequest request, Callback callback,
                                                     Consumer<AlertDialog> onDialogShown) {
                 if (request == null || callback == null || account == null) return false;

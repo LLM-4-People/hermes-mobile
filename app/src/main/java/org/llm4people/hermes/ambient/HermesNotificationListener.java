@@ -214,18 +214,6 @@ public final class HermesNotificationListener extends NotificationListenerServic
     }
 
     /**
-     * Present an explicit, FLAG_SECURE confirmation dialog showing app name, sender, and an editable
-     * reply text before calling {@link #sendReviewedReply}. Never sends without the user tapping Send.
-     */
-    public static AlertDialog showQuickReplyConfirmation(
-            Activity activity,
-            AmbientNotification item,
-            String initialDraft,
-            Consumer<ReplyOutcome> onResult) {
-        return showQuickReplyConfirmation(activity, item, initialDraft, () -> true, onResult);
-    }
-
-    /**
      * Present an explicit, FLAG_SECURE confirmation dialog that re-verifies {@code stillAllowed}
      * at confirmation time before sending the quick reply.
      */

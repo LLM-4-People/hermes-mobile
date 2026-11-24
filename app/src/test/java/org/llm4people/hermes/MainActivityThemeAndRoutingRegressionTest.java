@@ -115,7 +115,13 @@ public final class MainActivityThemeAndRoutingRegressionTest {
     @Test
     public void themeNormalizationAndValidationDelegateToSingleSourcesOfTruth() {
         for (String sample : new String[]{null, "", "   ", "system", "LIGHT", " dark ", "sepia", "auto"}) {
-            assertEquals(AppThemeMode.normalize(sample), AppearanceSettingsModel.normalizeThemeMode(sample));
+            String normalized = AppThemeMode.normalize(sample);
+            int expectedLabel = switch (normalized) {
+                case "light" -> R.string.appearance_theme_light;
+                case "dark" -> R.string.appearance_theme_dark;
+                default -> R.string.appearance_theme_system;
+            };
+            assertEquals(expectedLabel, AppearanceSettingsModel.themeModeLabelRes(sample));
         }
 
         // DeepAndroidActions must accept every ThemePalette.THEMES mode and reject unknown modes.

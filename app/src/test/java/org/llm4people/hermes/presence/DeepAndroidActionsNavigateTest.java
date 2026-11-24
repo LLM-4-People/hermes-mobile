@@ -147,6 +147,13 @@ public final class DeepAndroidActionsNavigateTest {
                 "javascript:alert(1)",
                 "intent://scan/#Intent;end",
                 "https://example.com/a\nb",
+                "https://example.com/\u034F",
+                "https://example.com/\u202E",
+                "geo:45.5\u2028,-73.5",
+                "tel:+1\u2029555",
+                "tel:\uFE0F",
+                "tel:\u00A0",
+                "mailto:\u3164",
                 "",
                 "   ")) {
             assertFalse("Expected rejection for deep link: " + bad,

@@ -25,15 +25,11 @@ final class DiscussionPhoto {
         pixels = Base64.getEncoder().encodeToString(bytes);
     }
 
-    static long effectiveSourceLimit(long maxSourceBytes) {
-        return CapturedMedia.effectiveByteLimit(maxSourceBytes);
-    }
-
     static DiscussionPhoto read(ContentResolver resolver, Uri uri, long maxSourceBytes) throws IOException {
         if (uri == null || !ContentResolver.SCHEME_CONTENT.equals(uri.getScheme())) {
             throw new IOException("Only content:// URIs are accepted");
         }
-        long limit = effectiveSourceLimit(maxSourceBytes);
+        long limit = CapturedMedia.effectiveByteLimit(maxSourceBytes);
         byte[] source = CapturedMedia.readBounded(resolver, uri, limit);
         return fromBytes(source, name(resolver, uri), limit);
     }

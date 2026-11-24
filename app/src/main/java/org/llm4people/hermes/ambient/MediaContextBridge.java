@@ -178,16 +178,6 @@ public final class MediaContextBridge {
         }
     }
 
-    /** Show an explicit FLAG_SECURE confirmation dialog before sending a playback control. */
-    public static AlertDialog showControlConfirmation(
-            Activity activity,
-            boolean optInEnabled,
-            NowPlaying track,
-            ControlAction action,
-            Consumer<Boolean> onResult) {
-        return showControlConfirmation(activity, () -> optInEnabled, track, action, onResult);
-    }
-
     /** Show an explicit FLAG_SECURE confirmation dialog re-verifying live opt-in on confirm. */
     public static AlertDialog showControlConfirmation(
             Activity activity,

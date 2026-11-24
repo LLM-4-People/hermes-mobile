@@ -30,11 +30,11 @@ public final class QrCodeMatrixTest {
     public void formatAndVersionBchWordsMatchIso18004ReferenceConstants() {
         for (int mask = 0; mask < 8; mask++) {
             assertEquals("Format word mismatch for mask " + mask,
-                    ISO_EC_M_FORMAT_BITS[mask], QrCodeMatrix.computeFormatBits(mask));
+                    ISO_EC_M_FORMAT_BITS[mask], QrIsoSpec.computeFormatBits(QrIsoSpec.EC_M, mask));
         }
         for (int v = 7; v <= 10; v++) {
             assertEquals("Version word mismatch for v" + v,
-                    ISO_VERSION_BITS[v], QrCodeMatrix.computeVersionBits(v));
+                    ISO_VERSION_BITS[v], QrIsoSpec.computeVersionBits(v));
         }
     }
 
@@ -125,7 +125,7 @@ public final class QrCodeMatrixTest {
                     int syndrome = evalPolyGf256(blocks[b], alpha);
                     assertEquals("Non-zero RS syndrome for v" + version + " block " + b + " root " + rootIdx,
                             0, syndrome);
-                    alpha = QrCodeMatrix.gfMul(alpha, 0x02);
+                    alpha = QrIsoSpec.gfMul(alpha, 0x02);
                 }
             }
         }
@@ -172,7 +172,7 @@ public final class QrCodeMatrixTest {
         // Fixed dark module
         assertTrue(m.get(8, s - 8));
         // Format bits verified in both copies
-        int expectedFmt = QrCodeMatrix.computeFormatBits(m.maskPattern());
+        int expectedFmt = QrIsoSpec.computeFormatBits(QrIsoSpec.EC_M, m.maskPattern());
         int readCopy1 = 0;
         for (int i = 0; i <= 5; i++) if (m.get(8, i)) readCopy1 |= (1 << i);
         if (m.get(8, 7)) readCopy1 |= (1 << 6);
@@ -188,7 +188,7 @@ public final class QrCodeMatrixTest {
 
         // Version bits verified in both blocks for v7..10
         if (m.version() >= 7) {
-            int expectedVer = QrCodeMatrix.computeVersionBits(m.version());
+            int expectedVer = QrIsoSpec.computeVersionBits(m.version());
             int vBlock1 = 0, vBlock2 = 0;
             for (int i = 0; i < 18; i++) {
                 int a = s - 11 + (i % 3);
@@ -204,7 +204,7 @@ public final class QrCodeMatrixTest {
     private static int evalPolyGf256(byte[] poly, int x) {
         int acc = 0;
         for (byte coeff : poly) {
-            acc = QrCodeMatrix.gfMul(acc, x) ^ (coeff & 0xFF);
+            acc = QrIsoSpec.gfMul(acc, x) ^ (coeff & 0xFF);
         }
         return acc;
     }

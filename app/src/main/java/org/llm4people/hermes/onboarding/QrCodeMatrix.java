@@ -136,7 +136,7 @@ public final class QrCodeMatrix {
 
         byte[][] dataBlocks = new byte[totalBlocks][];
         byte[][] ecBlocks = new byte[totalBlocks][];
-        byte[] generator = reedSolomonGenerator(ecLen);
+        byte[] generator = QrIsoSpec.reedSolomonGenerator(ecLen);
 
         int offset = 0;
         for (int b = 0; b < totalBlocks; b++) {
@@ -144,7 +144,7 @@ public final class QrCodeMatrix {
             byte[] block = Arrays.copyOfRange(dataCodewords, offset, offset + len);
             offset += len;
             dataBlocks[b] = block;
-            ecBlocks[b] = reedSolomonRemainder(block, generator);
+            ecBlocks[b] = QrIsoSpec.reedSolomonRemainder(block, generator);
         }
 
         byte[] out = new byte[dataCodewords.length + totalBlocks * ecLen];
@@ -160,30 +160,6 @@ public final class QrCodeMatrix {
             }
         }
         return out;
-    }
-
-    /** Compute Reed-Solomon generator polynomial of degree {@code degree} over GF(256). */
-    static byte[] reedSolomonGenerator(int degree) {
-        return QrIsoSpec.reedSolomonGenerator(degree);
-    }
-
-    /** Compute Reed-Solomon error-correction remainder bytes for {@code data} using {@code generator}. */
-    static byte[] reedSolomonRemainder(byte[] data, byte[] generator) {
-        return QrIsoSpec.reedSolomonRemainder(data, generator);
-    }
-
-    static int gfMul(int x, int y) {
-        return QrIsoSpec.gfMul(x, y);
-    }
-
-    /** Compute 15-bit BCH(15,5) masked format word for EC Level M and mask {@code 0..7}. */
-    static int computeFormatBits(int mask) {
-        return QrIsoSpec.computeFormatBits(QrIsoSpec.EC_M, mask);
-    }
-
-    /** Compute 18-bit BCH(18,6) version word for Versions 7..10. */
-    static int computeVersionBits(int version) {
-        return QrIsoSpec.computeVersionBits(version);
     }
 
     private static void drawFunctionPatterns(boolean[] grid, boolean[] fn, int version, int size) {
@@ -241,7 +217,7 @@ public final class QrCodeMatrix {
     }
 
     private static void drawFormatBits(boolean[] grid, boolean[] fn, int size, int mask) {
-        int bits = computeFormatBits(mask);
+        int bits = QrIsoSpec.computeFormatBits(QrIsoSpec.EC_M, mask);
         // First copy around top-left finder
         for (int i = 0; i <= 5; i++) setFn(grid, fn, size, 8, i, bit(bits, i));
         setFn(grid, fn, size, 8, 7, bit(bits, 6));
@@ -256,7 +232,7 @@ public final class QrCodeMatrix {
     }
 
     private static void drawVersionBits(boolean[] grid, boolean[] fn, int version, int size) {
-        int bits = computeVersionBits(version);
+        int bits = QrIsoSpec.computeVersionBits(version);
         for (int i = 0; i < 18; i++) {
             boolean dark = bit(bits, i);
             int a = size - 11 + (i % 3);

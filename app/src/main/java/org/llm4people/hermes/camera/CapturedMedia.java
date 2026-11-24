@@ -96,6 +96,7 @@ public final class CapturedMedia {
                 int type = Character.getType(cp);
                 if (cp == '/' || cp == '\\' || Character.isISOControl(cp)
                         || type == Character.FORMAT || type == Character.SURROGATE
+                        || type == Character.LINE_SEPARATOR || type == Character.PARAGRAPH_SEPARATOR
                         || PlainTextSanitizer.isStrippableInvisible(cp)) {
                     continue;
                 }

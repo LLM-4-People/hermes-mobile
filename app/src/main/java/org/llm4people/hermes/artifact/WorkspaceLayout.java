@@ -299,6 +299,7 @@ final class WorkspaceLayout {
         require(!s.isEmpty() && s.length() <= max);
         require(!Character.isSpaceChar(s.codePointAt(0)) && !Character.isSpaceChar(s.codePointBefore(s.length())));
         require(!PlainTextSanitizer.hasUnsafeSingleLineCodePoint(s));
+        require(PlainTextSanitizer.hasVisibleText(s));
         return s;
     }
 
