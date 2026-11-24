@@ -10,7 +10,7 @@ Ask Hermes in any conversation to tailor a screen, adjust colors, or build a reu
 
 - **Bounded atomic operations:** Each `LiveUiPatch` applies up to **16 operations** (`MAX_OPS = 16`) atomically to the unlocked profile’s workspace state. If any operation fails validation, the entire patch is rejected without mutating saved state.
 - **Surfaces v2 & interactive controls:** Surfaces support rich native sections, live values, contextual quick-action chips, and interactive controls (`InteractiveControlsBlock`—toggles, sliders with TalkBack support, multi-select chips, and form inputs) whose state persists locally per profile and stages reviewed drafts before sending.
-- **Preview, apply & multi-revision rollback:** Every patch shows a clear summary bar before or after application. Undoing a revision (`rollbackAllTo`) rolls back dependent newer revisions cleanly and synchronizes sequential reverts back to the gateway (`POST /api/mobile/ui/revisions/{id}/revert`). You can also inspect history or reset any surface from **Workspace → Restore workspace**.
+- **Preview, apply & multi-revision rollback:** Every patch shows a clear summary bar before or after application. Undoing a revision (`rollbackAllTo`) rolls back dependent newer revisions cleanly and synchronizes sequential reverts back to the gateway (`POST /api/mobile/ui/revisions/{id}/revert`). You can also inspect history or reset any surface from **Apps** (or the native screen-layout menu).
 
 ## WCAG-AA theme overrides (`ThemePalette`)
 

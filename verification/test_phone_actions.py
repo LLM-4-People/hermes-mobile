@@ -7,7 +7,7 @@ from xml.etree.ElementTree import Element, SubElement
 
 from verification import phone_actions
 from verification.device.app_strings import AppStrings
-from verification.unifiedpush.ui import APP, Screen
+from verification.unifiedpush.ui import APP, Screen, TAP_RETRY_COOLDOWN_SECONDS
 
 
 MAIN_ACTIVITY = "topResumedActivity: ActivityRecord{1 u0 " + APP + "/.MainActivity t1}"
@@ -182,7 +182,7 @@ class PhoneActionsTransitionTest(unittest.TestCase):
                 chooser = node_tree(s["profile_choose_title"], "Actions123", window_id="3")
                 unlock = node_tree(s["profile_passphrase_label"], s["profile_unlock_action"], window_id="3")
                 thread = node_tree(s["instrument_try"], window_id="3")
-                sheet = node_tree(s["instrument_trial"], "Vérifier le lieu", window_id="3")
+                sheet = node_tree(s["instrument_trial"], s["ws_dev_map_review"], window_id="3")
                 hierarchies = iter([
                     foreign,   # wait for APP window
                     chooser,   # APP window arrived
@@ -204,7 +204,7 @@ class PhoneActionsTransitionTest(unittest.TestCase):
                 ui.hierarchy = Mock(side_effect=lambda: next(hierarchies))
                 ui.field = Mock()
                 with patch("verification.unifiedpush.stack.time.sleep"):
-                    phone_actions.back_to_page(ui, "Actions123", "secretphrase", "Vérifier le lieu")
+                    phone_actions.back_to_page(ui, "Actions123", "secretphrase", s["ws_dev_map_review"])
                 ui.field.assert_called_once_with(s["profile_passphrase_label"], "secretphrase")
 
     def test_inbound_drafts_retries_swallowed_profile_chooser_and_confirm_taps(self):
@@ -252,6 +252,32 @@ class PhoneActionsTransitionTest(unittest.TestCase):
                         {"kind": "selection", "source_uid": "shell", "unsent_draft": combined},
                     ],
                 )
+
+    def test_send_composer_message_dismisses_ime_and_retries_swallowed_send_tap(self):
+        prompt = "Test request for composer send"
+        for lang in ("en", "fr"):
+            with self.subTest(lang=lang):
+                s = AppStrings.for_lang(lang)
+                before_send = Element("node", {"package": APP, "window-id": "20"})
+                SubElement(before_send, "node", {"package": APP, "class": "android.widget.EditText", "text": prompt, "bounds": "[10,400][220,460]"})
+                SubElement(before_send, "node", {"package": APP, "class": "android.widget.Button", "text": s["thread_send"], "bounds": "[230,400][310,460]"})
+                after_send = Element("node", {"package": APP, "window-id": "20"})
+                SubElement(after_send, "node", {"package": APP, "class": "android.widget.EditText", "text": "", "bounds": "[10,400][220,460]"})
+                SubElement(after_send, "node", {"package": APP, "class": "android.widget.Button", "text": s["thread_stop"], "bounds": "[230,400][310,460]"})
+
+                device = Mock()
+                device.ime_shown.side_effect = [True, False]
+                ui = Screen(device, Mock(), lang=lang)
+                ui.hierarchy = Mock(side_effect=[before_send, before_send, after_send])
+                tapped = []
+                ui.tap_node = Mock(side_effect=lambda node: tapped.append(node.get("text")))
+                step = TAP_RETRY_COOLDOWN_SECONDS + 0.5
+                with patch("verification.unifiedpush.stack.time.sleep"), patch(
+                    "verification.unifiedpush.ui.monotonic", side_effect=[10.0, 10.0 + step]
+                ):
+                    phone_actions.send_composer_message(ui, prompt)
+                device.shell.assert_called_once_with("input", "keyevent", "BACK")
+                self.assertEqual(tapped, [s["thread_send"], s["thread_send"]])
 
 
 if __name__ == "__main__":

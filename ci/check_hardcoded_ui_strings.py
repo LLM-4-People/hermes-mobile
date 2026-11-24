@@ -72,6 +72,11 @@ UI_SINK_ARGS: dict[str, tuple[int, ...]] = {
     "setItems": (0,),
     "setSingleChoiceItems": (0,),
     "setMultiChoiceItems": (0,),
+    "setTextViewText": (1,),
+    "setShortLabel": (0,),
+    "setLongLabel": (0,),
+    "setLabel": (0,),
+    "NotificationChannel": (1,),
     "createChooser": (1,),
     "makeText": (1,),
 }
@@ -94,8 +99,8 @@ QUALIFIED_UI_SINK_ARGS: dict[tuple[str, str], tuple[int, ...]] = {
     ("this", "toast"): (0,),
 }
 
-# Control-flow keywords that can precede a direct method call (e.g. `else setText("...")`).
-CONTROL_FLOW_KEYWORDS = {"else", "return", "yield", "do", "case", "throw"}
+# Keywords that can directly precede a UI sink call or constructor (e.g. `else setText(...)`, `new NotificationChannel(...)`).
+CONTROL_FLOW_KEYWORDS = {"else", "return", "yield", "do", "case", "throw", "new"}
 
 # Printf / Android format specifiers stripped before checking if a UI literal has human letters.
 FORMAT_TOKEN_RE = re.compile(r"%(?:\d+\$)?[-+# 0,(]*\d*(?:\.\d+)?[a-zA-Z%]")
@@ -482,6 +487,10 @@ class _XmlResources:
     issues: list[str]
 
 
+def _has_unquoted_edge_whitespace(raw_text: str) -> bool:
+    return raw_text != raw_text.strip() and not (raw_text.startswith('"') and raw_text.endswith('"'))
+
+
 def _collect_xml_resources(res_dir: Path, root: Path) -> _XmlResources:
     """Collect translatable and non-translatable keys, strings, plurals, and array lengths."""
     translatable: dict[str, set[str]] = {"string": set(), "plurals": set(), "string-array": set()}
@@ -522,7 +531,7 @@ def _collect_xml_resources(res_dir: Path, root: Path) -> _XmlResources:
                     if tag == "string":
                         raw_text = "".join(el.itertext())
                         strings[name] = raw_text
-                        if raw_text != raw_text.strip() and not (raw_text.startswith('"') and raw_text.endswith('"')):
+                        if _has_unquoted_edge_whitespace(raw_text):
                             issues.append(
                                 f"{rel}: <string name={name!r}> has unquoted leading/trailing whitespace that AAPT2 strips"
                             )
@@ -533,10 +542,22 @@ def _collect_xml_resources(res_dir: Path, root: Path) -> _XmlResources:
                             if not qty:
                                 issues.append(f"{rel}: <plurals name={name!r}> has <item> missing quantity attribute")
                                 continue
-                            qty_map[qty] = "".join(item.itertext())
+                            raw_item = "".join(item.itertext())
+                            qty_map[qty] = raw_item
+                            if _has_unquoted_edge_whitespace(raw_item):
+                                issues.append(
+                                    f"{rel}: <plurals name={name!r} quantity={qty!r}> has unquoted leading/trailing whitespace that AAPT2 strips"
+                                )
                         plurals[name] = qty_map
                     elif tag == "string-array":
-                        array_lengths[name] = len(el.findall("item"))
+                        items = el.findall("item")
+                        array_lengths[name] = len(items)
+                        for idx, item in enumerate(items):
+                            raw_item = "".join(item.itertext())
+                            if _has_unquoted_edge_whitespace(raw_item):
+                                issues.append(
+                                    f"{rel}: <string-array name={name!r}> item[{idx}] has unquoted leading/trailing whitespace that AAPT2 strips"
+                                )
 
     return _XmlResources(translatable, non_translatable, strings, plurals, array_lengths, issues)
 

@@ -306,6 +306,28 @@ def plan_release(
     }
 
 
+def find_superseded_release_prs(open_prs, target_tag):
+    """Return sorted PR numbers of open release/v* PRs whose SemVer is strictly lower than target_tag."""
+    target_tuple = parse_semver(target_tag)
+    superseded = []
+    for pr in open_prs or ():
+        if not isinstance(pr, dict):
+            continue
+        head = str(pr.get("headRefName") or "").strip()
+        if not head.startswith("release/"):
+            continue
+        candidate_tag = head[len("release/"):]
+        try:
+            candidate_tuple = parse_semver(candidate_tag)
+        except ValueError:
+            continue
+        if candidate_tuple < target_tuple:
+            number = pr.get("number")
+            if isinstance(number, int) and not isinstance(number, bool):
+                superseded.append(number)
+    return sorted(set(superseded))
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--gradle-properties", type=Path, default=Path("gradle.properties"))
@@ -316,10 +338,19 @@ def main(argv=None):
     parser.add_argument("--tags-json", default="[]", help="JSON array of existing git tag names")
     parser.add_argument("--unreleased-titles-json", default="[]", help="JSON array of unreleased commit titles since last tag")
     parser.add_argument("--pending-tags-json", default="[]", help="JSON array of open release/v* PR target tags")
+    parser.add_argument("--superseded-prs-json", default=None, help="JSON array of open PRs ({number, headRefName}) to filter against --target-tag")
+    parser.add_argument("--target-tag", default=None, help="Target SemVer tag used with --superseded-prs-json")
     parser.add_argument("--published-max-code", type=int, default=0)
     parser.add_argument("--apply-bump", action="store_true", help="Write bumped version to gradle.properties when mode=open_bump_pr")
     parser.add_argument("--github-output", type=Path, default=None)
     args = parser.parse_args(argv)
+
+    if args.superseded_prs_json is not None:
+        if not args.target_tag:
+            raise ValueError("--target-tag is required with --superseded-prs-json")
+        for pr_number in find_superseded_release_prs(json.loads(args.superseded_prs_json), args.target_tag):
+            print(pr_number)
+        return 0
 
     labels = json.loads(args.labels_json)
     changed_files = json.loads(args.changed_files_json) if args.changed_files_json is not None else None

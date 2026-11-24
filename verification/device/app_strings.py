@@ -5,9 +5,13 @@ according to the connected device's actual resolved locale—never forcing a tes
 """
 
 from functools import lru_cache
+import logging
 from pathlib import Path
 import re
+import subprocess
 from xml.etree import ElementTree
+
+log = logging.getLogger(__name__)
 
 APP = "org.llm4people.hermes"
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -80,7 +84,8 @@ def detect_device_lang(device, *, package: str = APP, default: str = "en") -> st
     def probe(*args: str) -> str:
         try:
             out = device.shell(*args)
-        except Exception:
+        except (OSError, RuntimeError, subprocess.SubprocessError) as exc:
+            log.debug("adb locale probe %s failed: %s", args, exc)
             return ""
         return out if isinstance(out, str) else ""
 

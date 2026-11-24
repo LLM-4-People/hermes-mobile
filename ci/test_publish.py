@@ -10,6 +10,8 @@ import sys
 import tempfile
 import unittest
 
+import release_metadata
+
 PUBLISH = Path(__file__).with_name("publish_release.py").resolve()
 SHA = "a" * 40
 VERSION = "1.2.3"
@@ -69,6 +71,8 @@ class PublishTest(unittest.TestCase):
             ({"versionName": "1.2.3-..", "tag": "v1.2.3-..", "apk": "hermes-mobile-v1.2.3-...apk"}, "semantic release version"),
             ({"versionName": "1.2.3--", "tag": "v1.2.3--", "apk": "hermes-mobile-v1.2.3--.apk"}, "semantic release version"),
             ({"versionName": "01.2.3", "tag": "v01.2.3", "apk": "hermes-mobile-v01.2.3.apk"}, "semantic release version"),
+            ({"versionName": "1.2.3-01", "tag": "v1.2.3-01", "apk": "hermes-mobile-v1.2.3-01.apk"}, "semantic release version"),
+            ({"versionName": "1.2.3-rc.01", "tag": "v1.2.3-rc.01", "apk": "hermes-mobile-v1.2.3-rc.01.apk"}, "semantic release version"),
             ({"sourceCommit": "b" * 40}, "identifies a different commit"),
             ({"versionCode": "3"}, "Invalid Android versionCode"),
             ({"versionCode": True}, "Invalid Android versionCode"),
@@ -134,3 +138,11 @@ class PublishTest(unittest.TestCase):
                 self.assertEqual(len(json.loads(self.state.read_text())["releases"]), 1)
             else:
                 self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_release_apk_name_enforces_semver_2_prerelease_rules(self):
+        for valid in ("1.2.3", "1.2.3-0", "1.2.3-rc.1", "1.2.3-rc.0", "1.2.3-0a", "1.2.3-01a", "1.2.3-beta-1"):
+            with self.subTest(valid=valid):
+                self.assertEqual(release_metadata.release_apk_name(valid), f"hermes-mobile-v{valid}.apk")
+        for invalid in ("1.2.3-01", "1.2.3-00", "1.2.3-rc.01", "1.2.3-..", "1.2.3--", "1.2.3-", "01.2.3"):
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                release_metadata.release_apk_name(invalid)

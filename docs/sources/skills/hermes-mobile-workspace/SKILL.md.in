@@ -59,11 +59,11 @@ This page asks for a file, review goal, and optional context. A person can inspe
 }
 ```
 
-The next proposal replaces the Atelier body and links directly to the new tool. Send both proposals so the person can preview and apply each destination.
+The next proposal replaces the workspace home body and links directly to the new tool. Send both proposals so the person can preview and apply each destination.
 
 ```hermes-workspace
 {
-  "version":1, "mode":"replace", "surface":"home", "title":"Atelier de revue",
+  "version":1, "mode":"replace", "surface":"home", "title":"Espace de revue",
   "blocks":[
     {"type":"link","title":"Ouvrir la revue de code","page":"page/revue-code"},
     {"title":"Conversations","actions":["threads","new_thread","pages"]}
@@ -107,7 +107,7 @@ Schema `version: 2` (backwards-compatible with `version: 1`) adds rich, interact
 When the gateway advertises `features.live_ui_modding` / `mobile_ui_patch`, Hermes can propose live, reversible UI improvements via `ui.patch` events (up to 16 ops, `reversible: true`, always previewed in a non-blocking review bar with preview, apply, and cancel actions plus 1-tap rollback):
 
 - `upsert_surface` / `remove_surface`: create or update any built-in screen or custom `page/<slug>`.
-- `upsert_tab` / `remove_tab`: add/remove custom Atelier tabs pointing to `page/<slug>`.
+- `upsert_tab` / `remove_tab`: add/remove custom workspace tabs pointing to `page/<slug>`.
 - `upsert_quick_action` / `remove_quick_action`: add/remove 1-tap quick-action chips above the composer (`label` + either `draft` to prefill an editable message or `page` to open a surface — never auto-sends).
 - `set_theme_override` / `reset_theme`: live WCAG-AA contrast-checked `theme`, `accent_hex`, `density`, `font_scale_step` (`-1..2`), and `surface_style`.
 - `upsert_widget` / `remove_widget`: create or update an Android home screen widget on the fly (`widget_id`, `title`, `subtitle`, `template`: `metric|checklist|quick_actions|status|briefing`, 1–6 `items[]` with `label`/`value`/`action_draft`, optional WCAG-AA `accent_hex`, and mandatory `home_screen_safe: true`). Only include explicitly safe, non-sensitive text; the person taps the pin-to-home-screen or shortcut button to pin it natively.

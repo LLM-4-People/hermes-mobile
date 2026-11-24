@@ -23,15 +23,6 @@ runs:
         java-version: '21'
         cache: ${{ inputs.gradle == 'cached' && 'gradle' || '' }}
         cache-jdk: false
-    - name: Restore Gradle local build cache
-      if: inputs.gradle == 'cached'
-      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-      with:
-        path: ~/.gradle/caches/build-cache-1
-        key: gradle-build-cache-v1-${{ runner.os }}-${{ hashFiles('gradle.properties', 'gradle/libs.versions.toml', 'app/build.gradle') }}-${{ github.sha }}
-        restore-keys: |
-          gradle-build-cache-v1-${{ runner.os }}-${{ hashFiles('gradle.properties', 'gradle/libs.versions.toml', 'app/build.gradle') }}-
-          gradle-build-cache-v1-${{ runner.os }}-
     - name: Prepare the pinned Gradle distribution
       if: inputs.gradle != 'none'
       shell: bash
