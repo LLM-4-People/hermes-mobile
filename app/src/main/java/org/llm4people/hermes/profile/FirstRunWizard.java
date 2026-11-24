@@ -500,7 +500,7 @@ public final class FirstRunWizard {
         input.setHintTextColor(activity.getColor(R.color.muted));
         input.setBackgroundResource(R.drawable.profile_input);
         input.setBackgroundTintList(null);
-        input.setMinHeight(Ui.dp(activity, 48));
+        input.setMinimumHeight(Ui.dp(activity, 48));
         input.setMinLines(2);
         input.setMaxLines(4);
         input.setSaveEnabled(false);
