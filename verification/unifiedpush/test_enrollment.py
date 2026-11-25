@@ -149,3 +149,40 @@ class EnrollmentTest(unittest.TestCase):
                     ui.tap_node.call_args_list,
                     [call(up1), call(enable_btn1), call(enable_btn2), call(up2), call(ntfy)],
                 )
+
+    def test_error_dialog_dismissal_does_not_starve_or_delay_enable_recovery(self):
+        for lang in ("en", "fr"):
+            with self.subTest(lang=lang):
+                ui = Screen(None, None, lang=lang)
+                s = ui.strings
+                err1, back1 = dialog(s["push_settings_connection_failed"], s["push_settings_back"])
+                err2, back2 = dialog(s["push_settings_connection_failed"], s["push_settings_back"])
+                settings1, enable1 = dialog(s["push_settings_title"], s["push_settings_enable"])
+                settings2, enable2 = dialog(s["push_settings_title"], s["push_settings_enable"])
+                transport, up = dialog(s["push_settings_service_title"], s["push_settings_enable_up"])
+                dist, ntfy = dialog(s["push_settings_choose_distributor"], "ntfy\n" + NTFY)
+                dismissed = Element("node")
+                ui.hierarchy = Mock(
+                    side_effect=[err1, err2, settings1, settings2, transport, dist, dismissed]
+                )
+                ui.tap_node = Mock()
+                # After back2 succeeds at t=13.0, settings1 appears only 0.1s later (within cooldown)
+                # and must tap enable1 immediately without waiting or losing its 2-tap retry budget.
+                step = TAP_RETRY_COOLDOWN_SECONDS + 0.5
+                clock = [
+                    10.0,
+                    10.0 + step,
+                    10.0 + step + 0.1,
+                    10.0 + 2 * step + 0.1,
+                    10.0 + 2 * step + 0.2,
+                    10.0 + 2 * step + 0.3,
+                    10.0 + 2 * step + 0.4,
+                ]
+                with patch("verification.unifiedpush.stack.time.sleep"), patch(
+                    "verification.unifiedpush.ui.monotonic", side_effect=clock
+                ):
+                    choose_ntfy(ui)
+                self.assertEqual(
+                    ui.tap_node.call_args_list,
+                    [call(back1), call(back2), call(enable1), call(enable2), call(up), call(ntfy)],
+                )

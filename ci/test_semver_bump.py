@@ -18,12 +18,13 @@ hermesVersionName=0.2.1
 
 
 class SemverBumpTest(unittest.TestCase):
-    def test_select_release_action_accepts_single_label_and_rejects_conflicts(self):
-        self.assertIsNone(semver_bump.select_release_action(["android", "ci"]))
-        self.assertEqual(semver_bump.select_release_action(["android", "release:patch"]), "patch")
-        self.assertEqual(semver_bump.select_release_action(["release:minor"]), "minor")
-        self.assertEqual(semver_bump.select_release_action(["release:major"]), "major")
-        self.assertEqual(semver_bump.select_release_action(["release:publish", "ci"]), "publish")
+    def test_classify_release_accepts_single_label_and_rejects_conflicts(self):
+        self.assertFalse(hasattr(semver_bump, "select_release_action"))
+        self.assertIsNone(semver_bump.classify_release(["android", "ci"])[0])
+        self.assertEqual(semver_bump.classify_release(["android", "release:patch"])[0], "patch")
+        self.assertEqual(semver_bump.classify_release(["release:minor"])[0], "minor")
+        self.assertEqual(semver_bump.classify_release(["release:major"])[0], "major")
+        self.assertEqual(semver_bump.classify_release(["release:publish", "ci"])[0], "publish")
 
         for bad in (
             ["release:patch", "release:minor"],
@@ -32,7 +33,7 @@ class SemverBumpTest(unittest.TestCase):
             ["release:nightly"],
         ):
             with self.subTest(labels=bad), self.assertRaises(ValueError):
-                semver_bump.select_release_action(bad)
+                semver_bump.classify_release(bad)
 
     def test_skip_release_overrides_auto_code_changes_and_explicit_labels(self):
         action, reason = semver_bump.classify_release(

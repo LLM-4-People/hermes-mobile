@@ -344,10 +344,12 @@ def choose_ntfy(ui):
     searching_label = s["push_settings_searching_services"]
     attempts = 0
     distributor_taps = 0
+    error_back_taps = 0
     reenable_taps = 0
     last_permission_tap = None
     last_transport_tap = None
     last_distributor_tap = None
+    last_error_back_tap = None
     last_reenable_tap = None
     flags = {}
 
@@ -355,8 +357,8 @@ def choose_ntfy(ui):
         return last_tap is None or now - last_tap >= TAP_RETRY_COOLDOWN_SECONDS
 
     def choose():
-        nonlocal attempts, distributor_taps, reenable_taps
-        nonlocal last_permission_tap, last_transport_tap, last_distributor_tap, last_reenable_tap
+        nonlocal attempts, distributor_taps, error_back_taps, reenable_taps
+        nonlocal last_permission_tap, last_transport_tap, last_distributor_tap, last_error_back_tap, last_reenable_tap
         root = ui.hierarchy()
         now = monotonic()
         transport = ui.node(transport_title, root) is not None
@@ -402,11 +404,11 @@ def choose_ntfy(ui):
         elif not transport and not searching:
             if cooldown_elapsed(last_permission_tap, now) and ui.allow_if_prompted(root):
                 last_permission_tap = now
-            elif error_dialog and back_btn is not None and reenable_taps < 2 and cooldown_elapsed(last_reenable_tap, now):
+            elif error_dialog and back_btn is not None and error_back_taps < 2 and cooldown_elapsed(last_error_back_tap, now):
                 ui.tap_node(back_btn)
-                reenable_taps += 1
-                last_reenable_tap = now
-            elif enable_btn is not None and (attempts > 0 or reenable_taps > 0) and reenable_taps < 2 and cooldown_elapsed(last_reenable_tap, now):
+                error_back_taps += 1
+                last_error_back_tap = now
+            elif enable_btn is not None and (attempts > 0 or reenable_taps > 0 or error_back_taps > 0) and reenable_taps < 2 and cooldown_elapsed(last_reenable_tap, now):
                 # Recover if a transitioning dialog backdrop dismissed the transport picker back to PushSettings.
                 ui.tap_node(enable_btn)
                 reenable_taps += 1

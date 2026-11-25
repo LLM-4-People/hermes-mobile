@@ -135,7 +135,10 @@ def in_flight_cases(output):
             key, _, value = line.removeprefix("INSTRUMENTATION_STATUS: ").partition("=")
             fields[key] = value
         elif line.startswith("INSTRUMENTATION_STATUS_CODE: "):
-            code = int(line.removeprefix("INSTRUMENTATION_STATUS_CODE: "))
+            try:
+                code = int(line.removeprefix("INSTRUMENTATION_STATUS_CODE: ").strip())
+            except ValueError:
+                continue
             if "class" in fields and "test" in fields:
                 case = (fields["class"], fields["test"])
                 if code == 1:

@@ -25,13 +25,20 @@ class HardcodedUiStringsGuardTest(unittest.TestCase):
     def test_repo_passes_with_zero_allowlists_and_accurate_ui_sinks(self):
         self.assertFalse(hasattr(guard, "MIGRATION_ALLOWLIST"))
         self.assertFalse(hasattr(guard, "PREEXISTING_WHITESPACE_STRINGS"))
+        self.assertIn("toast", guard.UI_SINK_ARGS)
+        self.assertIn("setAccessibilityPaneTitle", guard.UI_SINK_ARGS)
         self.assertIn(("Ui", "pill"), guard.QUALIFIED_UI_SINK_ARGS)
         self.assertIn(("Ui", "choiceChip"), guard.QUALIFIED_UI_SINK_ARGS)
+        self.assertIn(("screen", "setNote"), guard.QUALIFIED_UI_SINK_ARGS)
         self.assertIn(("panel", "note"), guard.QUALIFIED_UI_SINK_ARGS)
         self.assertIn(("BrainUi", "chip"), guard.QUALIFIED_UI_SINK_ARGS)
         self.assertIn(("BrainUi", "badge"), guard.QUALIFIED_UI_SINK_ARGS)
         self.assertIn(("BrainUi", "liveNote"), guard.QUALIFIED_UI_SINK_ARGS)
+        self.assertIn(("ProfileScreen", "choiceRow"), guard.QUALIFIED_UI_SINK_ARGS)
+        self.assertIn(("getMenu()", "add"), guard.QUALIFIED_UI_SINK_ARGS)
         self.assertIn(("ClipData", "newPlainText"), guard.QUALIFIED_UI_SINK_ARGS)
+        self.assertNotIn(("ProfileScreen", "choiceChip"), guard.QUALIFIED_UI_SINK_ARGS)
+        self.assertNotIn(("this", "toast"), guard.QUALIFIED_UI_SINK_ARGS)
         for dead_method in ("chip", "heading", "sectionTitle", "caption", "badge", "banner", "emptyState"):
             self.assertNotIn(("Ui", dead_method), guard.QUALIFIED_UI_SINK_ARGS)
         self.assertEqual(guard.check_repo(ROOT), [])
@@ -109,7 +116,13 @@ class HardcodedUiStringsGuardTest(unittest.TestCase):
                         screen.field("Field title text", "Field hint text", "Field helper text");
                         screen.profileRow("Profile row title", "Profile row subtitle");
                         ProfileScreen.styledField(ctx, 1, "Styled hint text", "Styled error text");
-                        ProfileScreen.choiceChip(ctx, "Biometric lock choice");
+                        ProfileScreen.choiceRow(ctx, "Biometric lock choice", chips);
+                        screen.setNote(noteView, "Updated note text");
+                        toast("Toast helper alert");
+                        this.toast("Qualified toast alert");
+                        view.setAccessibilityPaneTitle("Pane heading title");
+                        popup.getMenu().add("Hardcoded menu item");
+                        popup.getMenu().add(0, 1, 0, "Hardcoded four arg item");
                         android.content.ClipData.newPlainText("Copied report", "payload");
                     }
                 }
@@ -158,6 +171,12 @@ class HardcodedUiStringsGuardTest(unittest.TestCase):
                 "Styled hint text",
                 "Styled error text",
                 "Biometric lock choice",
+                "Updated note text",
+                "Toast helper alert",
+                "Qualified toast alert",
+                "Pane heading title",
+                "Hardcoded menu item",
+                "Hardcoded four arg item",
                 "Copied report",
             ]
             for snippet in expected_snippets:
@@ -186,6 +205,13 @@ class HardcodedUiStringsGuardTest(unittest.TestCase):
                         BrainUi.chip(ctx, ctx.getString(R.string.ok), true, null);
                         BrainUi.badge(ctx, ctx.getString(R.string.ok), false);
                         BrainUi.liveNote(panel, box, panel.t(R.string.ok));
+                        screen.setNote(noteView, ctx.getString(R.string.ok));
+                        ProfileScreen.choiceRow(ctx, ctx.getString(R.string.ok), chips);
+                        toast(ctx.getString(R.string.ok));
+                        view.setAccessibilityPaneTitle(ctx.getString(R.string.ok));
+                        popup.getMenu().add(ctx.getString(R.string.ok));
+                        popup.getMenu().add(0, 1, 0, ctx.getString(R.string.ok));
+                        items.add("Internal collection entry");
                         Diagnostics.event("panel", "opened_ok");
                         String punct = ".,!?;:)»";
                         throw new IllegalStateException("Internal state mismatch");

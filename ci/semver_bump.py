@@ -149,21 +149,6 @@ def infer_bump_from_pr(pr_title="", labels=()):
     return "patch"
 
 
-def select_release_action(labels, changed_files=None, pr_title=""):
-    """Determine release action from PR labels, changed files, and PR title (fail-closed).
-
-    Precedence:
-    1. Reject malformed or conflicting release:* labels fail-closed.
-    2. 'skip-release' label -> None (skip release).
-    3. Explicit 'release:publish|major|minor|patch' label -> honored directly.
-    4. Automatic code-change classification when changed_files contains shippable Android app files.
-
-    Returns one of 'patch', 'minor', 'major', 'publish', or None.
-    """
-    action, _reason = classify_release(labels, changed_files=changed_files, pr_title=pr_title)
-    return action
-
-
 def classify_release(labels, changed_files=None, pr_title="", force_bump=None):
     """Return (action, reason) tuple for release planning and step summaries."""
     if force_bump is not None and str(force_bump).strip():

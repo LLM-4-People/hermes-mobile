@@ -103,7 +103,7 @@
           <div class="capture-body">
             <span class="badge">Android 16 · EN · Light and dark</span>
             <h3>Everyday workflows</h3>
-            <p>Six curated starters and custom per-profile templates that stage editable drafts without auto-sending.</p>
+            <p>{{ curated_workflows_count }} curated starters and custom per-profile templates that stage editable drafts without auto-sending.</p>
           </div>
         </article>
 

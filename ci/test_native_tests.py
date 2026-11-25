@@ -144,6 +144,36 @@ java.lang.NoClassDefFoundError: private content
                 (1, [("app.FrameworkTest", "testHung")]),
             )
 
+    def test_timeout_tolerates_truncated_status_code_line_and_still_collects_diagnostics(self):
+        truncated = (
+            status("testPass", 1, 2) + status("testPass", 0, 2)
+            + status("testHung", 1, 2) + "INSTRUMENTATION_STATUS_CODE: \n"
+            + "INSTRUMENTATION_STATUS_CODE: -\n"
+        )
+        self.assertEqual(in_flight_cases(truncated), (1, [("app.FrameworkTest", "testHung")]))
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            expected = {("app.FrameworkTest", "testPass"), ("app.FrameworkTest", "testHung")}
+            def adb(command, *, stdout=None, stderr=None, capture_output=False, text=False, errors=None, timeout=None):
+                if capture_output:
+                    if command[3:6] == ["shell", "dumpsys", "window"]:
+                        return subprocess.CompletedProcess(command, 0, "  mCurrentFocus=Window{9 u0 org.llm4people.hermes/.MainActivity}\n", "")
+                    return subprocess.CompletedProcess(command, 0, "", "")
+                if "log" in command:
+                    stdout.write(
+                        status("testPass", 1, 2) + status("testPass", 0, 2)
+                        + status("testHung", 1, 2) + status("testHung", 0, 2)
+                        + "OK (2 tests)\nINSTRUMENTATION_CODE: -1\n"
+                    )
+                    return subprocess.CompletedProcess(command, 0)
+                stdout.write(truncated)
+                stdout.flush()
+                raise subprocess.TimeoutExpired(command, timeout)
+            with (patch("native_tests.subprocess.run", adb), contextlib.redirect_stderr(io.StringIO()),
+                  self.assertRaisesRegex(ValueError, r"timed out.*completed 1/2.*app\.FrameworkTest#testHung")):
+                run("serial", directory, expected)
+            self.assertTrue((directory / "timeout-diag.txt").is_file())
+
     def test_shard_cases_partitions_completely_disjointly_and_balances_load(self):
         cases = {
             ("app.BigTest", f"test{i}") for i in range(6)
