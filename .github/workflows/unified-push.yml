@@ -50,7 +50,10 @@ jobs:
       - name: Allow the runner user to use KVM
         run: sudo setfacl -m "u:$(id -u):rw" /dev/kvm
       - name: Pre-install Android emulator SDK packages with retries
-        run: bash ci/emulator-sdk.sh emulator platform-tools
+        run: >
+          bash ci/emulator-sdk.sh emulator platform-tools
+          "platforms;android-${{ steps.image.outputs.sdk }}"
+          "system-images;android-${{ steps.image.outputs.sdk }};${{ steps.image.outputs.target }};${{ steps.image.outputs.arch }}"
       - name: Verify delivery after process death
         env:
           ANDROID_BUILD_TOOLS: ${{ steps.android.outputs.tools }}

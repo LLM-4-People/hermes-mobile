@@ -378,6 +378,11 @@ class DeviceGateTest(unittest.TestCase):
 
         unified_push = (GATE.parents[1] / ".github/workflows/unified-push.yml").read_text()
         self.assertIn("bash ci/emulator-sdk.sh emulator platform-tools", unified_push)
+        self.assertIn('"platforms;android-${{ steps.image.outputs.sdk }}"', unified_push)
+        self.assertIn(
+            '"system-images;android-${{ steps.image.outputs.sdk }};${{ steps.image.outputs.target }};${{ steps.image.outputs.arch }}"',
+            unified_push,
+        )
         self.assertIn("disable-spellchecker: true", unified_push)
 
         labeler = (GATE.parents[1] / ".github/workflows/pr-labeler.yml").read_text()

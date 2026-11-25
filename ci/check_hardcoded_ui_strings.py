@@ -65,6 +65,7 @@ UI_SINK_ARGS: dict[str, tuple[int, ...]] = {
     "setSummaryText": (0,),
     "bigText": (0,),
     "announceForAccessibility": (0,),
+    "setAccessibilityPaneTitle": (0,),
     "setStateDescription": (0,),
     "setPositiveButton": (0,),
     "setNegativeButton": (0,),
@@ -83,6 +84,7 @@ UI_SINK_ARGS: dict[str, tuple[int, ...]] = {
     "NotificationChannel": (1,),
     "createChooser": (1,),
     "makeText": (1,),
+    "toast": (0,),
 }
 
 # Qualified static/helper sinks: (receiver_name, method_name) -> arg indices carrying visible UI text.
@@ -99,6 +101,7 @@ QUALIFIED_UI_SINK_ARGS: dict[tuple[str, str], tuple[int, ...]] = {
     ("Action", "Builder"): (1,),
     ("screen", "section"): (0, 1),
     ("screen", "note"): (0,),
+    ("screen", "setNote"): (1,),
     ("screen", "liveNote"): (0,),
     ("screen", "status"): (0,),
     ("screen", "action"): (0,),
@@ -109,8 +112,8 @@ QUALIFIED_UI_SINK_ARGS: dict[tuple[str, str], tuple[int, ...]] = {
     ("BrainUi", "badge"): (1,),
     ("BrainUi", "liveNote"): (2,),
     ("ProfileScreen", "styledField"): (2, 3),
-    ("ProfileScreen", "choiceChip"): (1,),
-    ("this", "toast"): (0,),
+    ("ProfileScreen", "choiceRow"): (1,),
+    ("getMenu()", "add"): (0, 3),
 }
 
 # Keywords that can directly precede a UI sink call or constructor (e.g. `else setText(...)`, `new NotificationChannel(...)`).
@@ -449,6 +452,15 @@ def check_java_file(path: Path, root: Path) -> list[str]:
         receiver = None
         if i >= 2 and tokens[i - 1].kind == "PUNCT" and tokens[i - 1].value == "." and tokens[i - 2].kind == "IDENT":
             receiver = tokens[i - 2].value
+        elif (
+            method == "add"
+            and i >= 4
+            and tokens[i - 1].kind == "PUNCT" and tokens[i - 1].value == "."
+            and tokens[i - 2].kind == "PUNCT" and tokens[i - 2].value == ")"
+            and tokens[i - 3].kind == "PUNCT" and tokens[i - 3].value == "("
+            and tokens[i - 4].kind == "IDENT" and tokens[i - 4].value == "getMenu"
+        ):
+            receiver = "getMenu()"
 
         arg_indices: tuple[int, ...] | None = None
         if receiver is not None and (receiver, method) in QUALIFIED_UI_SINK_ARGS:

@@ -4,9 +4,17 @@ Ask Hermes in your own words. “Add my drawing workshop to my calendar”, “D
 
 | Request | What happens after you review and tap |
 | --- | --- |
-| Calendar event | Android opens a calendar editor with the title, dates and optional place. You choose whether to save. |
-| Text to share | Android opens the share sheet with the proposed text. You choose a destination and finish there. |
-| Place on a map | Android asks a compatible maps app to search for the proposed place. The request contains the search text. |
+| Calendar event (`calendar_event`) | Android opens a calendar editor with the title, dates and optional place. You choose whether to save. |
+| Text to share (`share_text`) | Android opens the share sheet with the proposed text. You choose a destination and finish there. |
+| Place on a map (`map_search`) | Android asks a compatible maps app to search for the proposed place. The request contains the search text. |
+| Turn-by-turn navigation (`map_navigation`) | Android opens a compatible navigation app with the destination and travel mode (`driving`, `walking`, `cycling`, or `transit`). |
+| Alarm (`set_alarm`) | Android opens the clock app to review the alarm time, optional label and repeating weekdays. |
+| Timer (`set_timer`) | Android opens the clock app to review the countdown duration and optional label. |
+| Phone dialer draft (`dial_draft`) | Android opens the dialer with the proposed phone number pre-filled without placing the call. |
+| SMS draft (`sms_draft`) | Android opens the messaging app with the recipient and editable message draft without sending. |
+| Email draft (`email_draft`) | Android opens your email app with the recipient, optional subject and editable body without sending. |
+| New contact (`insert_contact`) | Android opens the contacts editor with the proposed name, phone, email or company. You choose whether to save. |
+| Sensitive clipboard copy (`copy_sensitive`) | Android copies the reviewed text with `EXTRA_IS_SENSITIVE` so the system hides it from clipboard previews. |
 
 The proposal appears in the conversation where you asked for it. Opening, pinning or comparing a page leaves its actions pending. The receiving app and its availability depend on the device. A phone that does not recognize the block can still display the assistant’s explanation and the proposal source. Model output alone does not confirm a save or delivery. [Android common intents](https://developer.android.com/guide/components/intents-common) and [Android Sharesheet](https://developer.android.com/training/sharing/send)
 
