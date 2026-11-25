@@ -128,13 +128,9 @@ final class ProfileScreen {
         edit.setTextSize(16);
         edit.setInputType(type);
         edit.setTypeface(Typeface.DEFAULT);
-        edit.setTextColor(activity.getColor(R.color.ink));
-        edit.setHintTextColor(activity.getColor(R.color.muted));
-        edit.setBackgroundResource(R.drawable.profile_input);
-        edit.setBackgroundTintList(null);
+        Ui.styleDialogInput(activity, edit);
         Ui.pad(edit, 14, 12);
         edit.setHint(hint);
-        edit.setMinHeight(Ui.dp(activity, 48));
         edit.setSaveEnabled(false);
         edit.setFilters(new InputFilter[]{new InputFilter.LengthFilter(maxLength)});
         edit.setImeOptions(EditorInfo.IME_ACTION_NEXT | EditorInfo.IME_FLAG_NO_EXTRACT_UI

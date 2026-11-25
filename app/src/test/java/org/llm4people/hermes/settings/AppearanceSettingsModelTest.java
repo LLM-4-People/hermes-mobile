@@ -82,9 +82,6 @@ public final class AppearanceSettingsModelTest {
         assertEquals("100%", AppearanceSettingsModel.formatFontScalePercent(0.0f));
         assertEquals("85%", AppearanceSettingsModel.formatFontScalePercent(-0.15f));
         assertEquals("130%", AppearanceSettingsModel.formatFontScalePercent(0.30f));
-        assertEquals("100%", AppearanceSettingsModel.formatFontDeltaBadge(0.0f));
-        assertEquals("+15%", AppearanceSettingsModel.formatFontDeltaBadge(0.15f));
-        assertEquals("-10%", AppearanceSettingsModel.formatFontDeltaBadge(-0.10f));
     }
 
     @Test

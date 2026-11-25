@@ -481,13 +481,8 @@ public final class AmbientAccessPanel {
         search.setImeOptions(EditorInfo.IME_ACTION_SEARCH
                 | EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING | EditorInfo.IME_FLAG_NO_EXTRACT_UI);
         search.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
-        search.setBackgroundResource(R.drawable.profile_input);
-        search.setBackgroundTintList(null);
+        Ui.styleDialogInput(activity, search);
         Ui.pad(search, 12, 8);
-        search.setMinHeight(Ui.dp(activity, 48));
-        search.setMinimumHeight(Ui.dp(activity, 48));
-        search.setTextColor(activity.getColor(R.color.ink));
-        search.setHintTextColor(activity.getColor(R.color.muted));
         search.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) {}

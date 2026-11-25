@@ -196,18 +196,11 @@ final class WorkspaceDialogs {
         List<Button> chipButtons = new ArrayList<>(options.size());
         Runnable syncGraceChips = () -> {
             for (int i = 0; i < options.size(); i++) {
-                boolean active = options.get(i) == selectedWindow[0];
-                Button chip = chipButtons.get(i);
-                chip.setSelected(active);
-                chip.setTextColor(activity.getColor(active ? R.color.on_accent : R.color.ink));
-                chip.setBackground(Ui.roundedRipple(activity, Ui.BUTTON_CORNER_DP,
-                        active
-                                ? Ui.shape(activity, Ui.BUTTON_CORNER_DP, R.color.accent, 0, 0)
-                                : Ui.shape(activity, Ui.BUTTON_CORNER_DP, R.color.surface, R.color.line, 1)));
+                Ui.styleChoiceChip(chipButtons.get(i), options.get(i) == selectedWindow[0]);
             }
         };
         for (LockGracePolicy.Window option : options) {
-            Button chip = Ui.outlinedButton(activity, activity.getString(option.labelRes), v -> {
+            Button chip = Ui.choiceChip(activity, activity.getString(option.labelRes), v -> {
                 if (selectedWindow[0] == option) return;
                 if (!LockGracePolicy.setWindow(activity, account.id, option)) return;
                 selectedWindow[0] = option;
@@ -215,7 +208,6 @@ final class WorkspaceDialogs {
                 if (onPolicyChanged != null) onPolicyChanged.run();
             });
             chip.setTag(option);
-            Ui.pad(chip, 14, 8);
             chipButtons.add(chip);
             graceChips.addView(chip);
         }

@@ -217,5 +217,12 @@ public final class ProfileHubAndAdminConsoleTest {
         assertFalse(ProfileGate.shouldAnnounceCredentialState(ProfileLockPolicy.CredentialState.TOO_SHORT));
         assertFalse(ProfileGate.shouldAnnounceCredentialState(ProfileLockPolicy.CredentialState.AWAITING_CONFIRM));
         assertFalse(ProfileGate.shouldAnnounceCredentialState(null));
+
+        // R21.5.2: AdminConsoleSheet dedupes repeated users-load error announcements across tab switches.
+        assertTrue(AdminConsoleSheet.shouldAnnounceUsersError(true, "Load failed", null));
+        assertFalse(AdminConsoleSheet.shouldAnnounceUsersError(true, "Load failed", "Load failed"));
+        assertFalse(AdminConsoleSheet.shouldAnnounceUsersError(false, "Load failed", null));
+        assertFalse(AdminConsoleSheet.shouldAnnounceUsersError(true, "", null));
+        assertFalse(AdminConsoleSheet.shouldAnnounceUsersError(true, null, null));
     }
 }

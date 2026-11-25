@@ -128,11 +128,7 @@ public final class SettingsHubPanel {
         query.setSaveEnabled(false);
         query.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO);
         query.setHint(R.string.settings_search_hint);
-        query.setTextColor(activity.getColor(R.color.ink));
-        query.setHintTextColor(activity.getColor(R.color.muted));
-        query.setBackgroundResource(R.drawable.profile_input);
-        query.setBackgroundTintList(null);
-        query.setMinHeight(Ui.dp(activity, 48));
+        Ui.styleDialogInput(activity, query);
         Ui.pad(query, 14, 10);
         query.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}

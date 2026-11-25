@@ -116,14 +116,6 @@ public final class AppearanceSettingsModel {
         return pct + "%";
     }
 
-    /** Format compact delta label for preview badges (e.g. "100%", "+10%", "-5%"). */
-    public static String formatFontDeltaBadge(float delta) {
-        float safe = Float.isFinite(delta) ? delta : 0f;
-        int diff = Math.round(safe * 100f);
-        if (diff == 0) return "100%";
-        return (diff > 0 ? "+" : "") + diff + "%";
-    }
-
     /**
      * Validate and create a new {@link AppCustomization.ComposerShortcut} with a deterministic unique
      * slug ID, enforcing {@link AppCustomization#MAX_COMPOSER_SHORTCUTS} and secret-pattern hygiene.

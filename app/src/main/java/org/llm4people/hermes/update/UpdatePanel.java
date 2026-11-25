@@ -335,9 +335,12 @@ public final class UpdatePanel {
             }
             statusPill.setVisibility(View.VISIBLE);
         }
-        statusTitle.setText(newer
+        String nextTitle = newer
                 ? activity.getString(R.string.update_available_title, release.tagName())
-                : activity.getString(R.string.update_up_to_date_title, installedDisplayVersion()));
+                : activity.getString(R.string.update_up_to_date_title, installedDisplayVersion());
+        if (!nextTitle.contentEquals(statusTitle.getText())) {
+            statusTitle.setText(nextTitle);
+        }
 
         StringBuilder meta = new StringBuilder();
         if (!release.publishedAt().isEmpty()) {

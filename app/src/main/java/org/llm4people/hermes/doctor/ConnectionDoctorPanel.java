@@ -188,9 +188,8 @@ public final class ConnectionDoctorPanel {
         if (progressBar != null) {
             progressBar.setVisibility(View.VISIBLE);
         }
-        if (summaryTitle != null && latestReport == null) {
-            summaryTitle.setText(R.string.doctor_status_running);
-            summaryTitle.setTextColor(activity.getColor(R.color.ink));
+        if (latestReport == null) {
+            setSummaryTitle(R.string.doctor_status_running, R.color.ink);
         }
         runner.execute(() -> {
             DoctorCheck.Report report = null;
@@ -221,14 +220,20 @@ public final class ConnectionDoctorPanel {
     }
 
     private void renderRunFailure() {
-        if (summaryTitle != null) {
-            summaryTitle.setText(R.string.doctor_status_problem);
-            summaryTitle.setTextColor(activity.getColor(R.color.danger));
-        }
+        setSummaryTitle(R.string.doctor_status_problem, R.color.danger);
         if (summaryCounts != null && latestReport == null) {
             summaryCounts.setVisibility(View.GONE);
         }
         showFeedback(activity.getString(R.string.doctor_check_server_unreachable), true);
+    }
+
+    private void setSummaryTitle(int resId, int colorRes) {
+        if (summaryTitle == null) return;
+        summaryTitle.setTextColor(activity.getColor(colorRes));
+        String next = activity.getString(resId);
+        if (!next.contentEquals(summaryTitle.getText())) {
+            summaryTitle.setText(next);
+        }
     }
 
     /** Return the latest redacted diagnostic report, or null if not finished yet. */
@@ -310,8 +315,7 @@ public final class ConnectionDoctorPanel {
             case WARN -> R.string.doctor_status_attention;
             case ERROR -> R.string.doctor_status_problem;
         };
-        summaryTitle.setText(summaryRes);
-        summaryTitle.setTextColor(activity.getColor(statusInkColorRes(overall)));
+        setSummaryTitle(summaryRes, statusInkColorRes(overall));
 
         summaryCounts.setText(activity.getString(R.string.doctor_summary_counts,
                 report.count(DoctorCheck.Status.OK),

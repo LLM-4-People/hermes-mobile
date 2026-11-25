@@ -175,8 +175,10 @@ public final class AdminConsoleSheet implements AutoCloseable {
         body.addView(summaryLine, topMargin(8));
 
         LinearLayout tabs = Ui.row(activity);
-        usersTabBtn = tabButton(activity.getString(R.string.admin_console_tab_users), () -> selectTab(Tab.USERS));
-        settingsTabBtn = tabButton(activity.getString(R.string.admin_console_tab_settings), () -> selectTab(Tab.SETTINGS));
+        usersTabBtn = Ui.choiceChip(activity, activity.getString(R.string.admin_console_tab_users),
+                v -> selectTab(Tab.USERS));
+        settingsTabBtn = Ui.choiceChip(activity, activity.getString(R.string.admin_console_tab_settings),
+                v -> selectTab(Tab.SETTINGS));
         LinearLayout.LayoutParams t1 = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
         LinearLayout.LayoutParams t2 = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
         t2.setMarginStart(Ui.dp(activity, 8));
@@ -207,21 +209,21 @@ public final class AdminConsoleSheet implements AutoCloseable {
         renderActiveTab();
     }
 
+    private String lastAnnouncedError;
+
     private void styleTabs() {
-        styleTabButton(usersTabBtn, activeTab == Tab.USERS);
-        styleTabButton(settingsTabBtn, activeTab == Tab.SETTINGS);
+        Ui.styleChoiceChip(usersTabBtn, activeTab == Tab.USERS);
+        Ui.styleChoiceChip(settingsTabBtn, activeTab == Tab.SETTINGS);
     }
 
-    private void styleTabButton(Button btn, boolean selected) {
-        Ui.styleChoiceChip(btn, selected);
-    }
-
-    private Button tabButton(String label, Runnable onClick) {
-        return Ui.choiceChip(activity, label, v -> onClick.run());
+    /** Pure-JVM guard preventing repeated TalkBack announcements of the same users-load error across tab switches. */
+    static boolean shouldAnnounceUsersError(boolean hasSettings, String errorKey, String lastAnnounced) {
+        return hasSettings && errorKey != null && !errorKey.isEmpty() && !errorKey.equals(lastAnnounced);
     }
 
     private void refreshAll() {
         if (closed || api.isRevoked() || io.isShutdown()) return;
+        lastAnnouncedError = null;
         if (profiles.isEmpty()) {
             usersLoadState = UsersLoadState.LOADING;
             if (activeTab == Tab.USERS) renderActiveTab();
@@ -279,15 +281,21 @@ public final class AdminConsoleSheet implements AutoCloseable {
     private void updateSummary() {
         if (summaryLine == null) return;
         if (usersLoadState == UsersLoadState.ERROR && settings == null) {
-            summaryLine.setText(R.string.admin_console_users_load_failed);
             summaryLine.setTextColor(activity.getColor(R.color.danger));
+            String next = activity.getString(R.string.admin_console_users_load_failed);
+            if (!next.contentEquals(summaryLine.getText())) {
+                summaryLine.setText(next);
+            }
             return;
         }
         summaryLine.setTextColor(activity.getColor(R.color.accent));
         int profileCount = settings != null && settings.profileCount() > 0 ? settings.profileCount() : profiles.size();
         int activeRuns = settings != null ? settings.activeRunsCount() : 0;
         int ticketCount = settings != null ? Math.max(settings.activePairingTickets(), activeTickets.size()) : activeTickets.size();
-        summaryLine.setText(activity.getString(R.string.admin_console_summary, profileCount, activeRuns, ticketCount));
+        String next = activity.getString(R.string.admin_console_summary, profileCount, activeRuns, ticketCount);
+        if (!next.contentEquals(summaryLine.getText())) {
+            summaryLine.setText(next);
+        }
     }
 
     private void renderActiveTab() {
@@ -303,6 +311,7 @@ public final class AdminConsoleSheet implements AutoCloseable {
         contentSlot.addView(inviteBtn);
 
         if (usersLoadState == UsersLoadState.LOADING && profiles.isEmpty()) {
+            lastAnnouncedError = null;
             TextView loading = Ui.text(activity, activity.getString(R.string.profile_hub_loading), 13);
             loading.setTextColor(activity.getColor(R.color.muted));
             contentSlot.addView(loading, topMargin(12));
@@ -310,10 +319,12 @@ public final class AdminConsoleSheet implements AutoCloseable {
         }
         if (usersLoadState == UsersLoadState.ERROR && profiles.isEmpty()) {
             LinearLayout errorCard = Ui.card(activity);
-            TextView errText = Ui.text(activity, activity.getString(R.string.admin_console_users_load_failed), 14);
+            String errMsg = activity.getString(R.string.admin_console_users_load_failed);
+            TextView errText = Ui.text(activity, errMsg, 14);
             errText.setTextColor(activity.getColor(R.color.danger));
-            if (settings != null) {
+            if (shouldAnnounceUsersError(settings != null, errMsg, lastAnnouncedError)) {
                 errText.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+                lastAnnouncedError = errMsg;
             }
             errorCard.addView(errText);
             Button retryBtn = Ui.outlinedButton(activity, activity.getString(R.string.instrument_retry),
@@ -322,6 +333,7 @@ public final class AdminConsoleSheet implements AutoCloseable {
             contentSlot.addView(errorCard, topMargin(12));
             return;
         }
+        lastAnnouncedError = null;
         if (profiles.isEmpty()) {
             TextView empty = Ui.text(activity, activity.getString(R.string.admin_console_users_empty), 13);
             empty.setTextColor(activity.getColor(R.color.muted));
