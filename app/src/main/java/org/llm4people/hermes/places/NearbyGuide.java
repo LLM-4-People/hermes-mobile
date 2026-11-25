@@ -66,6 +66,7 @@ public final class NearbyGuide extends LinearLayout {
     private final Actions actions;
     private State state;
     private boolean wide, renderedWide;
+    private String lastAnnouncedNoticeKey;
     private PlaceCompass chart;
     private Button more, cuisineButton, tagButton, compareButton, radiusButton;
     private TextView range, primaryFact, comparisonFact, difference;
@@ -127,7 +128,11 @@ public final class NearbyGuide extends LinearLayout {
                 default -> category.unavailableMessage(getContext());
             };
             TextView note = text(message, 16, R.color.muted);
-            note.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+            String noticeKey = next.phase.name() + ":" + message;
+            if (!noticeKey.equals(lastAnnouncedNoticeKey)) {
+                note.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+                lastAnnouncedNoticeKey = noticeKey;
+            }
             addView(note);
             if (next.phase != Phase.LOADING) alternatives();
         }
@@ -175,24 +180,10 @@ public final class NearbyGuide extends LinearLayout {
     }
 
     private Button chipButton(String label, boolean selected, String tag, OnClickListener click) {
-        Button b = Ui.button(getContext(), label, click);
+        Button b = Ui.choiceChip(getContext(), label, click);
         b.setTag(tag);
-        b.setTextSize(14);
-        b.setMinHeight(dp(48));
-        b.setMinimumHeight(dp(48));
+        Ui.styleChoiceChip(b, selected);
         Ui.pad(b, 12, 6);
-        GradientDrawable bg = new GradientDrawable();
-        bg.setCornerRadius(dp(Ui.BUTTON_CORNER_DP));
-        if (selected) {
-            bg.setColor(getContext().getColor(R.color.accent));
-            b.setTextColor(getContext().getColor(R.color.on_accent));
-        } else {
-            bg.setColor(getContext().getColor(R.color.surface));
-            bg.setStroke(Math.max(1, dp(1)), getContext().getColor(R.color.line));
-            b.setTextColor(getContext().getColor(R.color.ink));
-        }
-        b.setBackground(Ui.roundedRipple(getContext(), Ui.BUTTON_CORNER_DP, bg));
-        b.setSelected(selected);
         return b;
     }
 
@@ -203,14 +194,20 @@ public final class NearbyGuide extends LinearLayout {
         String scope = getContext().getString(R.string.places_guide_radius_from_center,
                 distance(getContext(), result.radiusMeters));
         if (count == 0) {
-            TextView empty = text(category.emptyMessage(getContext()), 17, R.color.ink);
-            empty.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+            String emptyMessage = category.emptyMessage(getContext());
+            TextView empty = text(emptyMessage, 17, R.color.ink);
+            String noticeKey = "EMPTY:" + emptyMessage;
+            if (!noticeKey.equals(lastAnnouncedNoticeKey)) {
+                empty.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+                lastAnnouncedNoticeKey = noticeKey;
+            }
             addView(empty);
             addView(text(scope, 14, R.color.muted));
             provenance(this, s);
             alternatives();
             return;
         }
+        lastAnnouncedNoticeKey = null;
         range = text("", 15, R.color.muted);
         addView(range);
         LinearLayout layout = new LinearLayout(getContext());

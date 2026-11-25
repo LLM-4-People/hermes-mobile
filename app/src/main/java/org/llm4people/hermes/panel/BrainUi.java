@@ -1,7 +1,6 @@
 package org.llm4people.hermes.panel;
 
 import android.content.Context;
-import android.graphics.drawable.GradientDrawable;
 import android.text.InputType;
 import android.view.Gravity;
 import android.view.View;
@@ -29,11 +28,7 @@ final class BrainUi {
         field.setSaveEnabled(false);
         field.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS);
         field.setHint(hintRes);
-        field.setTextColor(context.getColor(R.color.ink));
-        field.setHintTextColor(context.getColor(R.color.muted));
-        field.setBackgroundResource(R.drawable.profile_input);
-        field.setBackgroundTintList(null);
-        field.setMinHeight(Ui.dp(context, 48));
+        Ui.styleDialogInput(context, field);
         Ui.pad(field, 14, 10);
         return field;
     }
@@ -50,10 +45,7 @@ final class BrainUi {
         field.setSaveEnabled(false);
         field.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS);
         field.setHint(hintRes);
-        field.setTextColor(context.getColor(R.color.ink));
-        field.setHintTextColor(context.getColor(R.color.muted));
-        field.setBackgroundResource(R.drawable.profile_input);
-        field.setBackgroundTintList(null);
+        Ui.styleDialogInput(context, field);
         Ui.pad(field, 14, 12);
         return field;
     }
@@ -79,29 +71,16 @@ final class BrainUi {
 
     /** Material 3 choice chip (14dp rounded ripple, >= 48dp touch target, wrap-safe at 1.3x font scale). */
     static Button chip(Context context, String label, boolean selected, Runnable onClick) {
-        Button chip = new Button(context, null, android.R.attr.borderlessButtonStyle);
-        chip.setText(label);
-        chip.setAllCaps(false);
-        chip.setTextSize(14);
+        Button chip = Ui.choiceChip(context, label, v -> onClick.run());
         chip.setMaxLines(2);
-        chip.setTypeface(Ui.mediumTypeface());
-        chip.setStateListAnimator(null);
         int minTouch = Ui.dp(context, 48);
-        chip.setMinHeight(minTouch);
-        chip.setMinimumHeight(minTouch);
         chip.setMinWidth(minTouch);
         chip.setMinimumWidth(minTouch);
-        chip.setSelected(selected);
-        GradientDrawable bg = selected
-                ? Ui.shape(context, Ui.BUTTON_CORNER_DP, R.color.accent, 0, 0)
-                : Ui.shape(context, Ui.BUTTON_CORNER_DP, R.color.surface, R.color.line, 1);
-        chip.setTextColor(context.getColor(selected ? R.color.on_accent : R.color.ink));
-        chip.setBackground(Ui.roundedRipple(context, Ui.BUTTON_CORNER_DP, bg));
+        Ui.styleChoiceChip(chip, selected);
         Ui.pad(chip, 14, 8);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
         lp.setMarginEnd(Ui.dp(context, 8));
         chip.setLayoutParams(lp);
-        chip.setOnClickListener(v -> onClick.run());
         return chip;
     }
 

@@ -52,6 +52,7 @@ import org.llm4people.hermes.panel.SessionPanel;
 import org.llm4people.hermes.panel.SkillStudioModel;
 import org.llm4people.hermes.panel.UniversalShareModel;
 import org.llm4people.hermes.panel.WorkspacePathGuard;
+import org.llm4people.hermes.places.NearbyCategory;
 import org.llm4people.hermes.places.NearbyGuide;
 import org.llm4people.hermes.places.NearbyResult;
 import org.llm4people.hermes.places.PlaceSelection;
@@ -2319,6 +2320,222 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
             @Override public void afterTextChanged(Editable s) {}
         });
         return count;
+    }
+
+    public void testR21MigratedChoiceChipsAndLiveRegionGuards() throws Throwable {
+        Context context = getInstrumentation().getTargetContext();
+        AtomicReference<UniversalSearchSheet> searchRef = new AtomicReference<>();
+        AtomicReference<SessionPanel> sessionPanelRef = new AtomicReference<>();
+        AtomicReference<VoiceDrafts> voiceRef = new AtomicReference<>();
+        try (WorkspaceAccountFixture fixture = new WorkspaceAccountFixture(context)) {
+            MainActivity activity = launchActivity(context.getPackageName(), MainActivity.class, null);
+            try {
+                runTestOnUiThread(() -> {
+                    try {
+                        // R21.5.3: BrainUi.chip exposes checkable state via Ui.styleChoiceChip.
+                        Class<?> brainUiClass = Class.forName("org.llm4people.hermes.panel.BrainUi");
+                        Method brainChip = brainUiClass.getDeclaredMethod(
+                                "chip", Context.class, String.class, boolean.class, Runnable.class);
+                        brainChip.setAccessible(true);
+                        Button brainSel = (Button) brainChip.invoke(null, activity, "All", true, (Runnable) () -> {});
+                        Button brainUnsel = (Button) brainChip.invoke(null, activity, "Code", false, (Runnable) () -> {});
+                        assertCheckableNode(brainSel, true);
+                        assertCheckableNode(brainUnsel, false);
+
+                        // R21.5.3: UniversalSearchSheet.buildFilterChip exposes checkable state.
+                        UniversalSearchSheet sheet = UniversalSearchSheet.show(
+                                activity, null, Collections.emptyList(), new UniversalSearchSheet.Callbacks() {
+                                    @Override public void openThread(String id, String title) {}
+                                    @Override public void openNote(String noteId) {}
+                                    @Override public void openSharedItem(UniversalSearchModel.Result item) {}
+                                    @Override public void runAction(String actionId) {}
+                                    @Override public void onDismissed() {}
+                                });
+                        searchRef.set(sheet);
+                        Method buildFilterChip = UniversalSearchSheet.class.getDeclaredMethod(
+                                "buildFilterChip", String.class, boolean.class, Runnable.class);
+                        buildFilterChip.setAccessible(true);
+                        Button searchSel = (Button) buildFilterChip.invoke(sheet, "Chats", true, (Runnable) () -> {});
+                        Button searchUnsel = (Button) buildFilterChip.invoke(sheet, "Notes", false, (Runnable) () -> {});
+                        assertCheckableNode(searchSel, true);
+                        assertCheckableNode(searchUnsel, false);
+
+                        // R21.5.3: NotesPanel.renderTabs exposes checkable state on filter pills.
+                        HermesApi api = new HermesApi("http://127.0.0.1:1", "tok");
+                        SessionPanel sessionPanel = new SessionPanel(activity, api, fixture.account);
+                        sessionPanelRef.set(sessionPanel);
+                        Class<?> notesPanelClass = Class.forName("org.llm4people.hermes.panel.NotesPanel");
+                        Constructor<?> notesCtor = notesPanelClass.getDeclaredConstructor(
+                                SessionPanel.class, BooleanSupplier.class, Consumer.class, Runnable.class);
+                        notesCtor.setAccessible(true);
+                        Object notesPanel = notesCtor.newInstance(
+                                sessionPanel, (BooleanSupplier) () -> true, (Consumer<String>) s -> {}, null);
+                        LinearLayout notesTabsRow = Ui.row(activity);
+                        setField(notesPanel, "tabsRow", notesTabsRow);
+                        Method renderTabs = notesPanelClass.getDeclaredMethod("renderTabs");
+                        renderTabs.setAccessible(true);
+                        renderTabs.invoke(notesPanel);
+                        assertTrue("Expected NotesPanel filter tabs", notesTabsRow.getChildCount() >= 2);
+                        assertCheckableNode(notesTabsRow.getChildAt(0), true);
+                        assertCheckableNode(notesTabsRow.getChildAt(1), false);
+
+                        // R21.5.3 & R21.5.2: ThreadViews inbox filter chips & guarded notice status.
+                        VoiceDrafts voice = new VoiceDrafts(activity);
+                        voiceRef.set(voice);
+                        Class<?> threadViewsClass = Class.forName("org.llm4people.hermes.thread.ThreadViews");
+                        Constructor<?> tvCtor = threadViewsClass.getDeclaredConstructor(
+                                Activity.class, VoiceDrafts.class);
+                        tvCtor.setAccessible(true);
+                        Object threadViews = tvCtor.newInstance(activity, voice);
+                        LinearLayout inboxFilterRow = Ui.row(activity);
+                        setField(threadViews, "inboxFilterRow", inboxFilterRow);
+                        Method renderInboxFilters = threadViewsClass.getDeclaredMethod("renderInboxFilters");
+                        renderInboxFilters.setAccessible(true);
+                        renderInboxFilters.invoke(threadViews);
+                        assertTrue("Expected ThreadViews inbox filter chips", inboxFilterRow.getChildCount() >= 2);
+                        assertCheckableNode(inboxFilterRow.getChildAt(0), true);
+                        assertCheckableNode(inboxFilterRow.getChildAt(1), false);
+
+                        Field noticeField = threadViewsClass.getDeclaredField("notice");
+                        noticeField.setAccessible(true);
+                        View noticeBox = (View) noticeField.get(threadViews);
+                        Field statusField = threadViewsClass.getDeclaredField("status");
+                        statusField.setAccessible(true);
+                        TextView statusText = (TextView) statusField.get(threadViews);
+                        Method noticeMethod = threadViewsClass.getDeclaredMethod(
+                                "notice", String.class, String.class, Runnable.class);
+                        noticeMethod.setAccessible(true);
+                        noticeMethod.invoke(threadViews, "", "", null);
+                        AtomicInteger statusMutations = countTextMutations(statusText);
+
+                        noticeMethod.invoke(threadViews, "Offline", "", null);
+                        assertEquals(View.VISIBLE, noticeBox.getVisibility());
+                        assertEquals(1, statusMutations.get());
+
+                        // Repeating identical visible notice must not re-fire status.setText.
+                        noticeMethod.invoke(threadViews, "Offline", "", null);
+                        assertEquals(1, statusMutations.get());
+
+                        // Clearing notice hides banner without mutating status text.
+                        noticeMethod.invoke(threadViews, "", "", null);
+                        assertEquals(View.GONE, noticeBox.getVisibility());
+                        assertEquals(1, statusMutations.get());
+
+                        // New notice updates and re-shows cleanly.
+                        noticeMethod.invoke(threadViews, "Reconnected", "", null);
+                        assertEquals(View.VISIBLE, noticeBox.getVisibility());
+                        assertEquals(2, statusMutations.get());
+
+                        // R21.5.3 & R21.5.2: NearbyGuide category chip checkable state & deduplicated live notices.
+                        NearbyGuide guide = new NearbyGuide(activity, new NearbyGuide.Actions() {
+                            @Override public void locate() {}
+                            @Override public void manual() {}
+                            @Override public void select(int index, boolean toggleDetails) {}
+                            @Override public void list(boolean all) {}
+                            @Override public void cuisine() {}
+                            @Override public void compare() {}
+                            @Override public void map(View clicked, NearbyResult.Place place) {}
+                            @Override public void source(View clicked, NearbyResult.Place place) {}
+                        });
+                        Method chipButton = NearbyGuide.class.getDeclaredMethod(
+                                "chipButton", String.class, boolean.class, String.class, View.OnClickListener.class);
+                        chipButton.setAccessible(true);
+                        Button nearbySel = (Button) chipButton.invoke(guide, "Cafe", true, "cat-cafe", null);
+                        Button nearbyUnsel = (Button) chipButton.invoke(guide, "Park", false, "cat-park", null);
+                        assertCheckableNode(nearbySel, true);
+                        assertCheckableNode(nearbyUnsel, false);
+
+                        NearbyGuide.State offerState = new NearbyGuide.State(
+                                NearbyGuide.Phase.OFFER, null, 0, 0, 0, null,
+                                NearbyCategory.CAFE, NearbyCategory.DEFAULT_RADIUS_M);
+                        guide.bind(offerState);
+                        String offerMsg = activity.getString(R.string.places_guide_choose_area);
+                        TextView offerNote1 = findTextViewWithText(guide, offerMsg);
+                        assertNotNull(offerNote1);
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE,
+                                offerNote1.getAccessibilityLiveRegion());
+
+                        // Re-binding identical OFFER state must not re-announce POLITE.
+                        guide.bind(offerState);
+                        TextView offerNote2 = findTextViewWithText(guide, offerMsg);
+                        assertNotNull(offerNote2);
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_NONE,
+                                offerNote2.getAccessibilityLiveRegion());
+
+                        // Transitioning to 0-place READY announces empty once, then suppresses duplicates.
+                        JSONObject emptyJson = new JSONObject()
+                                .put("source", "OpenStreetMap")
+                                .put("attribution", "© OpenStreetMap contributors")
+                                .put("source_date", "2026-01-01T00:00:00Z")
+                                .put("category", "cafe")
+                                .put("radius_m", 1500)
+                                .put("limit", 12)
+                                .put("places", new JSONArray());
+                        NearbyResult emptyResult = NearbyResult.parse(activity, emptyJson);
+                        NearbyGuide.State emptyState = new NearbyGuide.State(
+                                NearbyGuide.Phase.READY, emptyResult, 45.5, -73.5, 10, new PlaceSelection(emptyResult),
+                                NearbyCategory.CAFE, 1500);
+                        guide.bind(emptyState);
+                        String emptyMsg = NearbyCategory.CAFE.emptyMessage(activity);
+                        TextView emptyView1 = findTextViewWithText(guide, emptyMsg);
+                        assertNotNull(emptyView1);
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE,
+                                emptyView1.getAccessibilityLiveRegion());
+
+                        guide.bind(emptyState);
+                        TextView emptyView2 = findTextViewWithText(guide, emptyMsg);
+                        assertNotNull(emptyView2);
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_NONE,
+                                emptyView2.getAccessibilityLiveRegion());
+
+                        // Leaving empty for non-empty READY resets guard so returning to OFFER announces again.
+                        JSONObject populatedJson = new JSONObject()
+                                .put("source", "OpenStreetMap")
+                                .put("attribution", "© OpenStreetMap contributors")
+                                .put("source_date", "2026-01-01T00:00:00Z")
+                                .put("category", "cafe")
+                                .put("radius_m", 1500)
+                                .put("limit", 12)
+                                .put("places", new JSONArray().put(new JSONObject()
+                                        .put("osm_type", "node")
+                                        .put("osm_id", 1)
+                                        .put("name", "Cafe Test")
+                                        .put("latitude", 45.5)
+                                        .put("longitude", -73.5)
+                                        .put("distance_m", 120)));
+                        NearbyResult populatedResult = NearbyResult.parse(activity, populatedJson);
+                        guide.bind(new NearbyGuide.State(
+                                NearbyGuide.Phase.READY, populatedResult, 45.5, -73.5, 10,
+                                new PlaceSelection(populatedResult), NearbyCategory.CAFE, 1500));
+                        guide.bind(offerState);
+                        TextView offerNote3 = findTextViewWithText(guide, offerMsg);
+                        assertNotNull(offerNote3);
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE,
+                                offerNote3.getAccessibilityLiveRegion());
+                    } catch (Exception err) {
+                        throw new AssertionError(err);
+                    }
+                });
+            } finally {
+                try {
+                    runTestOnUiThread(() -> {
+                        UniversalSearchSheet sheet = searchRef.getAndSet(null);
+                        if (sheet != null) sheet.close();
+                        SessionPanel sp = sessionPanelRef.getAndSet(null);
+                        if (sp != null) sp.close();
+                        VoiceDrafts voice = voiceRef.getAndSet(null);
+                        if (voice != null) {
+                            voice.reader().stop();
+                            voice.cancel();
+                        }
+                    });
+                } finally {
+                    ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+                }
+            }
+        } finally {
+            Diagnostics.clear();
+        }
     }
 
     @SuppressWarnings("unchecked")

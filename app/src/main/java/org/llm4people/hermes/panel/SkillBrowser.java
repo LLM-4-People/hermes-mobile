@@ -62,11 +62,7 @@ final class SkillBrowser {
         search.setSaveEnabled(false);
         search.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS);
         search.setHint(R.string.skills_search);
-        search.setTextColor(panel.activity.getColor(R.color.ink));
-        search.setHintTextColor(panel.activity.getColor(R.color.muted));
-        search.setBackgroundResource(R.drawable.profile_input);
-        search.setBackgroundTintList(null);
-        search.setMinHeight(Ui.dp(panel.activity, 48));
+        Ui.styleDialogInput(panel.activity, search);
         Ui.pad(search, 10, 6);
         toolbar.addView(search, new LinearLayout.LayoutParams(0, -2, 1));
         refresh = new ImageButton(panel.activity);

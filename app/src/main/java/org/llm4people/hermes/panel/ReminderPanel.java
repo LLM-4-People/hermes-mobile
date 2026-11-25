@@ -3,7 +3,6 @@ package org.llm4people.hermes.panel;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.graphics.Typeface;
-import android.graphics.drawable.GradientDrawable;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
@@ -156,28 +155,13 @@ public final class ReminderPanel {
             Locale locale,
             TextView feedbackView) {
         boolean selected = activeFilter == filter;
-        Button chip = new Button(panel.activity, null, android.R.attr.borderlessButtonStyle);
-        chip.setText(label);
-        chip.setAllCaps(false);
-        chip.setTextSize(13);
-        chip.setTypeface(Ui.mediumTypeface());
-        chip.setStateListAnimator(null);
-        int touchMin = Ui.dp(panel.activity, 48);
-        chip.setMinHeight(touchMin);
-        chip.setMinimumHeight(touchMin);
-        Ui.pad(chip, 14, 6);
-        GradientDrawable bg = Ui.shape(panel.activity, Ui.BUTTON_CORNER_DP,
-                selected ? R.color.accent_surface : R.color.surface,
-                selected ? R.color.accent : R.color.line,
-                selected ? 2 : 1);
-        chip.setBackground(Ui.roundedRipple(panel.activity, Ui.BUTTON_CORNER_DP, bg));
-        chip.setTextColor(panel.activity.getColor(selected ? R.color.accent : R.color.ink));
-        chip.setSelected(selected);
-        Ui.setCheckableState(chip, selected);
-        chip.setOnClickListener(v -> {
+        Button chip = Ui.choiceChip(panel.activity, label, v -> {
             activeFilter = filter;
             renderJobsOverview(container, jobs, zone, locale, feedbackView);
         });
+        chip.setTextSize(13);
+        Ui.styleChoiceChip(chip, selected);
+        Ui.pad(chip, 14, 6);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         if (row.getChildCount() > 0) lp.setMarginStart(Ui.dp(panel.activity, 8));

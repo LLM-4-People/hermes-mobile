@@ -104,30 +104,17 @@ final class NotesPanel {
             NotesModel.FilterTab tab = tabs[i];
             boolean selected = activeTab == tab;
             String label = panel.t(tab.labelRes);
-            Button pill = new Button(panel.activity, null, android.R.attr.borderlessButtonStyle);
-            pill.setTag("notes:filter:" + tab.name().toLowerCase(java.util.Locale.ROOT));
-            pill.setText(label);
-            pill.setAllCaps(false);
-            pill.setTextSize(14);
-            pill.setTypeface(Ui.mediumTypeface());
-            pill.setStateListAnimator(null);
-            pill.setMinHeight(Ui.dp(panel.activity, 48));
-            pill.setMinimumHeight(Ui.dp(panel.activity, 48));
-            pill.setPaddingRelative(Ui.dp(panel.activity, 18), Ui.dp(panel.activity, 10),
-                    Ui.dp(panel.activity, 18), Ui.dp(panel.activity, 10));
-            pill.setSelected(selected);
-            pill.setContentDescription(label);
-            pill.setTextColor(panel.activity.getColor(selected ? R.color.on_accent : R.color.ink));
-            pill.setBackground(Ui.roundedRipple(panel.activity, Ui.BUTTON_CORNER_DP,
-                    selected
-                            ? Ui.shape(panel.activity, Ui.BUTTON_CORNER_DP, R.color.accent, 0, 0)
-                            : Ui.shape(panel.activity, Ui.BUTTON_CORNER_DP, R.color.surface_container, R.color.line, 1)));
-            pill.setOnClickListener(v -> {
+            Button pill = Ui.choiceChip(panel.activity, label, v -> {
                 if (activeTab == tab) return;
                 activeTab = tab;
                 renderTabs();
                 load();
             });
+            pill.setTag("notes:filter:" + tab.name().toLowerCase(java.util.Locale.ROOT));
+            Ui.styleChoiceChip(pill, selected);
+            pill.setPaddingRelative(Ui.dp(panel.activity, 18), Ui.dp(panel.activity, 10),
+                    Ui.dp(panel.activity, 18), Ui.dp(panel.activity, 10));
+            pill.setContentDescription(label);
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
             if (i < tabs.length - 1) lp.setMarginEnd(gap);
             tabsRow.addView(pill, lp);
